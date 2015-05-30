@@ -31,13 +31,14 @@ from transaction import Transaction
 
 
 class Command:
-    def __init__(self, name, requires_network, requires_wallet, requires_password, params, options, description):
+    def __init__(self, name, requires_network, requires_wallet, requires_password, params, options, help, description):
         self.name = name
         self.requires_network = bool(requires_network)
         self.requires_wallet = bool(requires_wallet)
         self.requires_password = bool(requires_password)
         self.params = params
         self.options = options
+        self.help = help
         self.description = description
 
 known_commands = {}
@@ -54,58 +55,60 @@ def register_command(*args):
 #                                          requires_password
 #                                               arguments
 #                                                    options
-register_command('listcontacts',       0, 0, 0, {}, [], 'Show your list of contacts')
-register_command('create',             0, 1, 0, {}, [], 'Create a new wallet')
-register_command('createmultisig',     0, 1, 0, {'num':'number','pubkeys':'pubkeys'}, [], 'Create multisig address')
-register_command('createrawtx',        0, 1, 0, {'inputs':'', 'outputs':''}, [], 'Create an unsigned transaction. The syntax is similar to bitcoind.')
-register_command('deseed',             0, 1, 0, {}, [], 'Remove seed from wallet, creating a seedless, watching-only wallet.')
-register_command('decoderawtx',        0, 0, 0, {'tx':'serialized transaction'}, [], 'Decode raw transaction')
-register_command('getprivatekeys',     0, 1, 1, {'address':'Bitcoin address'}, [], 'Get the private keys of a given address')
-register_command('dumpprivkeys',       0, 1, 1, {}, [], 'Dump private keys from your wallet')
-register_command('freeze',             0, 1, 1, {'address':'Bitcoin address'}, [], 'Freeze the funds at one of your wallet\'s addresses')
-register_command('getbalance',         1, 1, 0, {}, [], 'Return the balance of your wallet, or of one account in your wallet')
-register_command('getservers',         1, 0, 0, {}, [], 'Return the list of available servers')
-register_command('getaddressbalance',  1, 0, 0, {'address':'Bitcoin address'}, [], 'Return the balance of an address')
-register_command('getaddresshistory',  1, 0, 0, {'address':'Bitcoin address'}, [], 'Return the transaction history of a wallet address')
-register_command('getconfig',          0, 0, 0, {'key':'Variable name'}, [], 'Return a configuration variable')
-register_command('getpubkeys',         0, 1, 0, {'address':'Bitcoin address'}, [], 'Return the public keys for a wallet address')
-register_command('getrawtx',           1, 0, 0, {'txid':'Transaction ID'}, [], 'Retrieve a transaction')
-register_command('getseed',            0, 1, 1, {}, [], 'Print the generation seed of your wallet.')
-register_command('getmpk',             0, 1, 0, {}, [], 'Return your wallet\'s master public key')
-register_command('help',               0, 0, 0, {}, [], 'Print help on a command.')
-register_command('history',            1, 1, 0, {}, [], 'Returns the transaction history of your wallet')
-register_command('importprivkey',      0, 1, 1, {'privkey':'Private key'}, [], 'Import a private key')
-register_command('ismine',             0, 1, 0, {'address':'Bitcoin address'}, [], 'Return true if and only if address is in wallet')
-register_command('listaddresses',      0, 1, 0, {}, ['show_all', 'show_labels'], 'Returns your list of addresses.')
-register_command('listunspent',        1, 1, 0, {}, [], 'Returns the list of unspent inputs in your wallet.')
-register_command('getaddressunspent',  1, 0, 0, {'address':'Bitcoin address'}, [], 'Returns the list of unspent inputs for an address.')
+register_command('listcontacts',       0, 0, 0, {}, [], 'Show your list of contacts', '')
+register_command('create',             0, 1, 0, {}, [], 'Create a new wallet', '')
+register_command('createmultisig',     0, 1, 0, {'num':'number','pubkeys':'pubkeys'}, [], 'Create multisig address', '')
+register_command('createrawtx',        0, 1, 0, {'inputs':'', 'outputs':''}, [], 'Create an unsigned transaction.', 'The syntax is similar to bitcoind.')
+register_command('deseed',             0, 1, 0, {}, [], 'Remove seed from wallet.', 'This creates a seedless, watching-only wallet.')
+register_command('decoderawtx',        0, 0, 0, {'tx':'serialized transaction'}, [], 'Decode raw transaction.', '')
+register_command('getprivatekeys',     0, 1, 1, {'address':'Bitcoin address'}, [], 'Get the private keys of a wallet address.', '')
+register_command('dumpprivkeys',       0, 1, 1, {}, [], 'Dump private keys from your wallet', '')
+register_command('freeze',             0, 1, 1, {'address':'Bitcoin address'}, [], 'Freeze address.', 'Freeze the funds at one of your wallet\'s addresses')
+register_command('getbalance',         1, 1, 0, {}, [], 'Return the balance of your wallet', '')
+register_command('getservers',         1, 0, 0, {}, [], 'Return the list of available servers', '')
+register_command('getaddressbalance',  1, 0, 0, {'address':'Bitcoin address'}, [], 'Return the balance of an address', '')
+register_command('getaddresshistory',  1, 0, 0, {'address':'Bitcoin address'}, [], 'Return the transaction history of a wallet address', '')
+register_command('getconfig',          0, 0, 0, {'key':'Variable name'}, [], 'Return a configuration variable', '')
+register_command('getpubkeys',         0, 1, 0, {'address':'Bitcoin address'}, [], 'Return the public keys for a wallet address', '')
+register_command('getrawtx',           1, 0, 0, {'txid':'Transaction ID'}, [], 'Retrieve a transaction', '')
+register_command('getseed',            0, 1, 1, {}, [], 'Get seed phrase', 'Print the generation seed of your wallet.')
+register_command('getmpk',             0, 1, 0, {}, [], 'Get Master Public Key', 'Return your wallet\'s master public key')
+register_command('help',               0, 0, 0, {}, [], 'Print help on a command.', '')
+register_command('history',            1, 1, 0, {}, [], 'Wallet history', 'Returns the transaction history of your wallet')
+register_command('importprivkey',      0, 1, 1, {'privkey':'Private key'}, [], 'Import a private key', '')
+register_command('ismine',             0, 1, 0, {'address':'Bitcoin address'}, [], 'Check if address is in wallet', 'Return true if and only if address is in wallet')
+register_command('listaddresses',      0, 1, 0, {}, ['show_all', 'show_labels'], 'List wallet addresses', 'Returns your list of addresses.')
+register_command('listunspent',        1, 1, 0, {}, [], 'List unspent outputs', 'Returns the list of unspent transaction outputs in your wallet.')
+register_command('getaddressunspent',  1, 0, 0, {'address':'Bitcoin address'}, [], 'Returns the list of unspent inputs for an address.', '')
 register_command('mktx',               0, 1, 1, {'recipient':'Bitcoin address', 'amount':'Amount in BTC'},
-                 ['tx_fee', 'from_addr', 'change_addr'], 'Create a signed transaction')
+                 ['tx_fee', 'from_addr', 'change_addr'], 'Create signed transaction', '')
 register_command('payto',              1, 1, 1, {'recipient':'Bitcoin address', 'amount':'Amount in BTC'},
-                 ['tx_fee', 'from_addr', 'change_addr'], 'Create and broadcast a transaction.')
-register_command('mktx_csv',           0, 1, 1, {'csv_file':'CSV file of recipient, amount'}, ['tx_fee', 'from_addr', 'change_addr'], 'Create a signed transaction')
-register_command('payto_csv',          1, 1, 1, {'csv_file':''}, ['tx_fee', 'from_addr', 'change_addr'], 'Create and broadcast a transaction.')
-register_command('password',           0, 1, 1, {}, [], 'Change your password')
-register_command('restore',            1, 1, 0, {}, ['gap_limit', 'mpk', 'concealed'], 'Restore a wallet')
-register_command('searchcontacts',     0, 1, 0, {'query':''}, [], 'Search through contacts, return matching entries')
-register_command('setconfig',          0, 0, 0, {'key':'', 'value':''}, [], 'Set a configuration variable')
-register_command('setlabel',           0, 1, 0, {'txid':'Transaction ID', 'label':''}, [], 'Assign a label to an item')
-register_command('sendrawtx',          1, 0, 0, {'tx':'Serialized transaction'}, [], 'Broadcast a transaction to the network.')
-register_command('signtxwithkey',      0, 0, 0, {'tx':'raw_tx', 'key':''}, [], 'Sign a serialized transaction with a key')
-register_command('signtxwithwallet',   0, 1, 1, {'tx':'raw_tx'}, [], 'Sign a serialized transaction with a wallet')
-register_command('signmessage',        0, 1, 1, {'address':'Bitcoin address', 'message':'Message to sign. May be quoted'}, [], 'Sign a message with a key')
-register_command('unfreeze',           0, 1, 0, {'address':'Bitcoin address'}, [], 'Unfreeze the funds at one of your wallet\'s address')
-register_command('validateaddress',    0, 0, 0, {'address':'Bitcoin address'}, [], 'Check that the address is valid')
-register_command('verifymessage',      0, 0, 0, {'address':'Bitcoin address', 'signature':'Signature', 'message':'Message'}, [], 'Verify a signature')
-register_command('version',            0, 0, 0, {}, [], 'Return the version of your client')
-register_command('encrypt',            0, 0, 0, {'pubkey':'public key', 'message':'Message to encrypt. May use quotes.'}, [], 'Encrypt a message with a public key')
-register_command('decrypt',            0, 1, 1, {'pubkey':'public key', 'message':'Encrypted message'}, [], 'Decrypt a message encrypted with a public key')
-register_command('getmerkle',          1, 0, 0, {'txid':'Transaction ID', 'height':'Block height'}, [], 'Get Merkle branch of a transaction included in a block')
-register_command('getproof',           1, 0, 0, {'address':''}, [], 'Get Merkle branch of an address in the UTXO set')
-register_command('getutxoaddress',     1, 0, 0, {'txid':'Transction ID', 'pos':'Position'}, [], 'Get the address of an unspent transaction output')
-register_command('sweep',              1, 0, 0, {'privkey':'Private key', 'address':'Destination address'}, ['tx_fee'], 'Sweep a private key.')
-register_command('make_seed',          0, 0, 0, {}, ['nbits', 'entropy', 'language'], 'Create a seed.')
-register_command('check_seed',         0, 0, 0, {'seed':'Seed phrase'}, ['entropy', 'language'], 'Check that a seed was generated with external entropy.')
+                 ['tx_fee', 'from_addr', 'change_addr'], 'Create and broadcast a transaction.', '')
+register_command('mktx_csv',           0, 1, 1, {'csv_file':'CSV file of recipient, amount'}, ['tx_fee', 'from_addr', 'change_addr'], 'Create a signed transaction', '')
+register_command('payto_csv',          1, 1, 1, {'csv_file':''}, ['tx_fee', 'from_addr', 'change_addr'], 'Create and broadcast a transaction.', '')
+register_command('password',           0, 1, 1, {}, [], 'Change your password', '')
+register_command('restore',            1, 1, 0, {}, ['gap_limit', 'mpk', 'concealed'], 'Restore a wallet from seed', '')
+register_command('searchcontacts',     0, 1, 0, {'query':''}, [], 'Search through contacts, return matching entries', '')
+register_command('setconfig',          0, 0, 0, {'key':'', 'value':''}, [], 'Set a configuration variable', '')
+register_command('setlabel',           0, 1, 0, {'txid':'Transaction ID', 'label':''}, [], 'Assign a label to an item', '')
+register_command('sendrawtx',          1, 0, 0, {'tx':'Serialized transaction'}, [], 'Broadcast a transaction to the network.', '')
+register_command('signtxwithkey',      0, 0, 0, {'tx':'raw_tx', 'key':''}, [], 'Sign a serialized transaction with a key', '')
+register_command('signtxwithwallet',   0, 1, 1, {'tx':'raw_tx'}, [], 'Sign a serialized transaction with a wallet', '')
+register_command('signmessage',        0, 1, 1, {'address':'Bitcoin address', 'message':'Message to sign.'}, [],
+                 'Sign a message with a key.', 'Use quotes if your message contains whitespaces')
+register_command('unfreeze',           0, 1, 0, {'address':'Bitcoin address'}, [], 'Unfreeze the funds at one of your wallet\'s address', '')
+register_command('validateaddress',    0, 0, 0, {'address':'Bitcoin address'}, [], 'Check that the address is valid', '')
+register_command('verifymessage',      0, 0, 0, {'address':'Bitcoin address', 'signature':'Signature', 'message':'Message'}, [], 'Verify a signature', '')
+register_command('version',            0, 0, 0, {}, [], 'Return the version of your client', '')
+register_command('encrypt',            0, 0, 0, {'pubkey':'public key', 'message':'Message to encrypt.'}, [],
+                 'Encrypt a message with a public key.', 'Use quotes if the message contains whitespaces.')
+register_command('decrypt',            0, 1, 1, {'pubkey':'public key', 'message':'Encrypted message'}, [], 'Decrypt a message encrypted with a public key', '')
+register_command('getmerkle',          1, 0, 0, {'txid':'Transaction ID', 'height':'Block height'}, [], 'Get Merkle branch of a transaction included in a block', '')
+register_command('getproof',           1, 0, 0, {'address':''}, [], 'Get Merkle branch of an address in the UTXO set', '')
+register_command('getutxoaddress',     1, 0, 0, {'txid':'Transction ID', 'pos':'Position'}, [], 'Get the address of an unspent transaction output', '')
+register_command('sweep',              1, 0, 0, {'privkey':'Private key', 'address':'Destination address'}, ['tx_fee'], 'Sweep a private key.', '')
+register_command('make_seed',          0, 0, 0, {}, ['nbits', 'entropy', 'language'], 'Create a seed.', '')
+register_command('check_seed',         0, 0, 0, {'seed':'Seed phrase'}, ['entropy', 'language'], 'Check that a seed was generated with external entropy.', '')
 
 
 
@@ -182,7 +185,7 @@ def get_parser(run_gui, run_daemon, run_cmdline):
     # commands
     for cmdname in sorted(known_commands.keys()):
         cmd = known_commands[cmdname]
-        p = subparsers.add_parser(cmdname, parents=[parent_parser], description=cmd.description, help=cmd.description)
+        p = subparsers.add_parser(cmdname, parents=[parent_parser], help=cmd.help, description=cmd.help + ' ' + cmd.description)
         p.set_defaults(func=run_cmdline)
         if cmd.requires_password:
             p.add_argument("-W", "--password", dest="password", default=None, help="password")
