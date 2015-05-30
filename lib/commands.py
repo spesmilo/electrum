@@ -99,12 +99,12 @@ register_command('verifymessage',      0, 0, 0, {'address':'Bitcoin address', 's
 register_command('version',            0, 0, 0, {}, [], 'Return the version of your client')
 register_command('encrypt',            0, 0, 0, {'pubkey':'public key', 'message':'Message to encrypt. May use quotes.'}, [], 'Encrypt a message with a public key')
 register_command('decrypt',            0, 1, 1, {'pubkey':'public key', 'message':'Encrypted message'}, [], 'Decrypt a message encrypted with a public key')
-register_command('getmerkle',          1, 0, 0, {'txid':'Transaction ID', 'height':'block height'}, [], 'Get Merkle branch of a transaction included in a block')
+register_command('getmerkle',          1, 0, 0, {'txid':'Transaction ID', 'height':'Block height'}, [], 'Get Merkle branch of a transaction included in a block')
 register_command('getproof',           1, 0, 0, {'address':''}, [], 'Get Merkle branch of an address in the UTXO set')
 register_command('getutxoaddress',     1, 0, 0, {'txid':'Transction ID', 'pos':'Position'}, [], 'Get the address of an unspent transaction output')
 register_command('sweep',              1, 0, 0, {'privkey':'Private key', 'address':'Destination address'}, ['tx_fee'], 'Sweep a private key.')
 register_command('make_seed',          0, 0, 0, {}, ['nbits', 'entropy', 'language'], 'Create a seed.')
-register_command('check_seed',         0, 0, 0, {'seed':'seed phrase'}, ['entropy'], 'Check that a seed was generated with external entropy.')
+register_command('check_seed',         0, 0, 0, {'seed':'Seed phrase'}, ['entropy', 'language'], 'Check that a seed was generated with external entropy.')
 
 
 
@@ -113,9 +113,9 @@ command_options = {
     'concealed':   ("-C", "--concealed",  False, "Don't echo seed to console when restoring"),
     'show_all':    ("-a", "--all",        False, "Show all addresses"),
     'show_labels': ("-l", "--labels",     False, "Show the labels of listed addresses"),
-    'tx_fee':      ("-f", "--fee",        None,  "set tx fee"),
-    'from_addr':   ("-F", "--fromaddr",   None,  "set source address for payto/mktx. if it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet."),
-    'change_addr': ("-c", "--changeaddr", None,  "set the change address for payto/mktx. default is a spare address, or the source address if it's not in the wallet"),
+    'tx_fee':      ("-f", "--fee",        None,  "Transaction fee"),
+    'from_addr':   ("-F", "--fromaddr",   None,  "Source address. If it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet."),
+    'change_addr': ("-c", "--changeaddr", None,  "Change address. Default is a spare address, or the source address if it's not in the wallet"),
     'nbits':       (None, "--nbits",     "128",  "Number of bits of entropy"),
     'entropy':     (None, "--entropy",   "1",    "Custom entropy"),
     'language':    ("-L", "--lang",       None,  "Default language for wordlist"),
