@@ -142,7 +142,7 @@ class Abstract_Wallet(object):
     def __init__(self, storage):
         self.storage = storage
         self.electrum_version = ELECTRUM_VERSION
-        self.gap_limit_for_change = 3 # constant
+        self.gap_limit_for_change = 6 # constant
         # saved fields
         self.seed_version          = storage.get('seed_version', NEW_SEED_VERSION)
         self.use_change            = storage.get('use_change',True)
@@ -170,7 +170,7 @@ class Abstract_Wallet(object):
         self.unverified_tx = {}
         # Verified transactions.  Each value is a (height, timestamp, block_pos) tuple.  Access with self.lock.
         self.verified_tx   = storage.get('verified_tx3',{})
-        
+
         # there is a difference between wallet.up_to_date and interface.is_up_to_date()
         # interface.is_up_to_date() returns true when all requests have been answered and processed
         # wallet.up_to_date is true when the wallet is synchronized (stronger requirement)
@@ -398,7 +398,7 @@ class Abstract_Wallet(object):
                 if tx_hash not in self.verified_tx and tx_height <= self.get_local_height():
                     txs.append((tx_hash, tx_height))
         return txs
-    
+
     def undo_verifications(self, height):
         '''Used by the verifier when a reorg has happened'''
         txs = []
@@ -690,7 +690,7 @@ class Abstract_Wallet(object):
                 _type, x, v = txo
                 if _type == 'address':
                     addr = x
-                elif _type == 'pubkey': 
+                elif _type == 'pubkey':
                     addr = public_key_to_bc_address(x.decode('hex'))
                 else:
                     addr = None
@@ -887,10 +887,17 @@ class Abstract_Wallet(object):
             # send change to one of the accounts involved in the tx
             address = inputs[0].get('address')
             account, _ = self.get_address_index(address)
-            if not self.use_change or not self.accounts[account].has_change():
-                change_addr = address
+            if self.use_change and self.accounts[account].has_change():
+                # New change addresses are created only after a few confirmations.
+                # Choose an unused change address if any, otherwise take one at random
+                change_addrs = self.accounts[account].get_addresses(1)[-self.gap_limit_for_change:]
+                for change_addr in change_addrs:
+                    if self.get_num_tx(change_addr) == 0:
+                        break
+                else:
+                    change_addr = random.choice(change_addrs)
             else:
-                change_addr = self.accounts[account].get_addresses(1)[-self.gap_limit_for_change]
+                change_addr = address
 
         # if change is above dust threshold, add a change output.
         change_amount = total - ( amount + fee )
@@ -1006,8 +1013,11 @@ class Abstract_Wallet(object):
         self.use_encryption = (new_password != None)
         self.storage.put('use_encryption', self.use_encryption,True)
 
+    def is_frozen(self, addr):
+        return addr in self.frozen_addresses
+
     def freeze(self,addr):
-        if self.is_mine(addr) and addr not in self.frozen_addresses:
+        if self.is_mine(addr) and self.is_frozen(addr):
             self.frozen_addresses.append(addr)
             self.storage.put('frozen_addresses', self.frozen_addresses, True)
             return True
@@ -1015,7 +1025,7 @@ class Abstract_Wallet(object):
             return False
 
     def unfreeze(self,addr):
-        if self.is_mine(addr) and addr in self.frozen_addresses:
+        if self.is_mine(addr) and self.is_frozen(addr):
             self.frozen_addresses.remove(addr)
             self.storage.put('frozen_addresses', self.frozen_addresses, True)
             return True
@@ -1140,6 +1150,10 @@ class Abstract_Wallet(object):
         h = self.history.get(address,[])
         c, u, x = self.get_addr_balance(address)
         return len(h), len(h) > 0 and c == -u
+
+    def is_empty(self, address):
+        c, u, x = self.get_addr_balance(address)
+        return c+u+x == 0
 
     def address_is_old(self, address, age_limit=2):
         age = -1

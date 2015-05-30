@@ -180,7 +180,9 @@ def run_cmdline(config):
     cmd = known_commands[cmdname]
 
     # arguments passed to function
-    args = map(lambda x: config.get(x), cmd.params)
+    args = map(lambda x: config.get(x), map(lambda x: x[0], cmd.params))
+    # options
+    args += map(lambda x: config.get(x), cmd.options)
 
     # instanciate wallet for command-line
     storage = WalletStorage(config.get_wallet_path())
@@ -297,36 +299,6 @@ def run_cmdline(config):
         # See if they specificed a key on the cmd line, if not prompt
         args.append(prompt_password('Enter PrivateKey (will not echo):', False))
 
-    elif cmd.name == 'createmultisig':
-        args = [int(args[0]), json.loads(args[1])]
-
-    elif cmd.name == 'createrawtransaction':
-        args = [json.loads(args[0]), json.loads(args[2])]
-
-    elif cmd.name == 'listaddresses':
-        args = [config.get('show_all'), config.get('show_labels')]
-
-    elif cmd.name == 'make_seed':
-        args = [int(config.get('nbits')), long(config.get('entropy')), config.get('language')]
-
-    elif cmd.name in ['payto', 'mktx']:
-        domain = [config.get('from_addr')] if config.get('from_addr') else None
-        args = [args[0], Decimal(args[1]), Decimal(config.get('tx_fee')) if config.get('tx_fee') else None, config.get('change_addr'), domain]
-
-    elif cmd.name in ['paytomany', 'mksendmanytx']:
-        domain = [config.get('from_addr')] if config.get('from_addr') else None
-        args = [args[0], Decimal(config.get('tx_fee')) if config.get('tx_fee') else None, config.get('change_addr'), domain]
-
-    elif cmd.name == 'help':
-        if len(args) < 1:
-            print_help(parser)
-            sys.exit(1)
-
-    if cmd.name == 'check_seed':
-        args.append(long(config.get('entropy')))
-        args.append(config.get('language'))
-
-
     # run the command
     if cmd.name == 'deseed':
         if not wallet.seed:
@@ -366,7 +338,7 @@ def run_cmdline(config):
         wallet.update_password(password, new_password)
 
     else:
-        cmd_runner = Commands(wallet, network)
+        cmd_runner = Commands(config, wallet, network)
         func = getattr(cmd_runner, cmd.name)
         cmd_runner.password = password
         try:
@@ -402,9 +374,6 @@ if __name__ == '__main__':
     parser = get_parser(run_gui, run_daemon, run_cmdline)
     args = parser.parse_args()
 
-    if args.portable and args.wallet_path is None:
-        args.electrum_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum-ltc_data')
-
     # config is an object passed to the various constructors (wallet, interface, gui)
     if is_android:
         config_options = {
@@ -420,6 +389,9 @@ if __name__ == '__main__':
                 config_options.pop(k)
         if config_options.get('server'):
             config_options['auto_connect'] = False
+
+    if config_options.get('portable') and config_options.get('wallet_path') is None:
+        config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum-ltc_data')
 
     set_verbosity(config_options.get('verbose'))
     config = SimpleConfig(config_options)
