@@ -173,7 +173,7 @@ def get_parser(run_gui, run_daemon, run_cmdline):
     add_offline_option(parser_gui)
     add_wallet_options(parser_gui)
     # daemon
-    parser_daemon = subparsers.add_parser('daemon', help="Run Daemon")
+    parser_daemon = subparsers.add_parser('daemon', parents=[parent_parser, conn_parser], help="Run Daemon")
     parser_daemon.add_argument("subcommand", choices=['start', 'status', 'stop'])
     parser_daemon.set_defaults(func=run_daemon)
     # create a parser for each command

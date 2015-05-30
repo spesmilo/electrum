@@ -402,9 +402,6 @@ if __name__ == '__main__':
     parser = get_parser(run_gui, run_daemon, run_cmdline)
     args = parser.parse_args()
 
-    if args.portable and args.wallet_path is None:
-        args.electrum_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
-
     # config is an object passed to the various constructors (wallet, interface, gui)
     if is_android:
         config_options = {
@@ -420,6 +417,9 @@ if __name__ == '__main__':
                 config_options.pop(k)
         if config_options.get('server'):
             config_options['auto_connect'] = False
+
+    if config_options.get('portable') and config_options.get('wallet_path') is None:
+        config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
 
     set_verbosity(config_options.get('verbose'))
     config = SimpleConfig(config_options)
