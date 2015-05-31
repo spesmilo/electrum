@@ -64,7 +64,7 @@ register_command('deseed',             0, 1, 0, [], [], 'Remove seed from wallet
 register_command('decoderawtx',        0, 0, 0, [('tx', 'Serialized transaction')], [], 'Decode raw transaction.', '')
 register_command('getprivatekeys',     0, 1, 1, [('address', 'Bitcoin address')], [], 'Get the private keys of a wallet address.', '')
 register_command('dumpprivkeys',       0, 1, 1, [], [], 'Dump private keys from your wallet', '')
-register_command('freeze',             0, 1, 1, [('address', 'Bitcoin address')], [], 'Freeze address.', 'Freeze the funds at one of your wallet\'s addresses')
+register_command('freeze',             0, 1, 0, [('address', 'Bitcoin address')], [], 'Freeze address.', 'Freeze the funds at one of your wallet\'s addresses')
 register_command('getbalance',         1, 1, 0, [], [], 'Return the balance of your wallet', '')
 register_command('getservers',         1, 0, 0, [], [], 'Return the list of available servers', '')
 register_command('getaddressbalance',  1, 0, 0, [('address', 'Bitcoin address')], [], 'Return the balance of an address', '')
@@ -321,10 +321,10 @@ class Commands:
         address = hash_160_to_bc_address(hash_160(redeem_script.decode('hex')), 5)
         return {'address':address, 'redeemScript':redeem_script}
 
-    def freeze(self,addr):
+    def freeze(self, addr):
         return self.wallet.set_frozen_state([addr], True)
 
-    def unfreeze(self,addr):
+    def unfreeze(self, addr):
         return self.wallet.set_frozen_state([addr], False)
 
     def getprivatekeys(self, addr):
