@@ -250,7 +250,7 @@ class Commands:
         return result
 
     def help(self):
-        return sorted(known_commands.keys())
+        return 'Commands: ' + ', '.join(sorted(known_commands.keys()))
 
     def make_seed(self, nbits, custom_entropy, language):
         from mnemonic import Mnemonic
@@ -275,7 +275,7 @@ class Commands:
     def getutxoaddress(self, txid, num):
         r = self.network.synchronous_get([ ('blockchain.utxo.get_address',[txid, num]) ])
         if r:
-            return {'address':r[0] }
+            return {'address':r[0]}
 
     def createrawtransaction(self, inputs, outputs):
         coins = self.wallet.get_spendable_coins(exclude_frozen = False)
@@ -537,7 +537,7 @@ class Commands:
             tx = self.wallet.transactions.get(tx_hash)
             if tx:
                 return tx
-        raw = self.network.synchronous_get([('blockchain.transaction.get',[tx_hash])])[0]
+        raw = self.network.synchronous_get([('blockchain.transaction.get', [tx_hash])])[0]
         if raw:
             return Transaction(raw)
         else:
