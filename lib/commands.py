@@ -452,7 +452,7 @@ class Commands:
                 if fee is None:
                     for i in inputs:
                         self.wallet.add_input_info(i)
-                    output = ('address', to_address, amount)
+                    output = ('address', address, amount)
                     dummy_tx = Transaction.from_io(inputs, [output])
                     fee = self.wallet.estimated_fee(dummy_tx)
                 amount -= fee
