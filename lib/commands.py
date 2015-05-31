@@ -322,10 +322,10 @@ class Commands:
         return {'address':address, 'redeemScript':redeem_script}
 
     def freeze(self,addr):
-        return self.wallet.freeze(addr)
+        return self.wallet.set_frozen_state([addr], True)
 
     def unfreeze(self,addr):
-        return self.wallet.unfreeze(addr)
+        return self.wallet.set_frozen_state([addr], False)
 
     def getprivatekeys(self, addr):
         return self.wallet.get_private_key(addr, self.password)
