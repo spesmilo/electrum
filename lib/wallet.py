@@ -840,15 +840,11 @@ class Abstract_Wallet(object):
             fee = MIN_RELAY_TX_FEE
         return fee
 
-    def make_unsigned_transaction(self, outputs, fixed_fee=None, change_addr=None, domain=None, coins=None ):
+    def make_unsigned_transaction(self, coins, outputs, fixed_fee=None, change_addr=None):
         # check outputs
         for type, data, value in outputs:
             if type == 'address':
                 assert is_address(data), "Address " + data + " is invalid!"
-
-        # get coins
-        if not coins:
-            coins = self.get_spendable_coins(domain)
 
         amount = sum(map(lambda x:x[2], outputs))
         total = fee = 0
@@ -923,8 +919,9 @@ class Abstract_Wallet(object):
         run_hook('make_unsigned_transaction', tx)
         return tx
 
-    def mktx(self, outputs, password, fee=None, change_addr=None, domain= None, coins = None ):
-        tx = self.make_unsigned_transaction(outputs, fee, change_addr, domain, coins)
+    def mktx(self, outputs, password, fee=None, change_addr=None, domain=None):
+        coins = self.get_spendable_coins(domain)
+        tx = self.make_unsigned_transaction(coins, outputs, fee, change_addr)
         self.sign_transaction(tx, password)
         return tx
 

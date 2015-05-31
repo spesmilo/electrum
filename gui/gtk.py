@@ -26,6 +26,7 @@ from gi.repository import Gtk, Gdk, GObject, cairo
 from decimal import Decimal
 from electrum.util import print_error, InvalidPassword
 from electrum.bitcoin import is_valid
+from electrum.wallet import NotEnoughFunds
 from electrum import WalletStorage, Wallet
 
 Gdk.threads_init()
@@ -687,8 +688,9 @@ class ElectrumWindow:
             if not is_fee: fee = None
             if amount is None:
                 return
+            coins = self.wallet.get_spendable_coins()
             try:
-                tx = self.wallet.make_unsigned_transaction([('op_return', 'dummy_tx', amount)], fee)
+                tx = self.wallet.make_unsigned_transaction(coins, [('op_return', 'dummy_tx', amount)], fee)
                 self.funds_error = False
             except NotEnoughFunds:
                 self.funds_error = True

@@ -424,7 +424,7 @@ class Commands:
     def verifymessage(self, address, signature, message):
         return bitcoin.verify_message(address, signature, message)
 
-    def _mktx(self, outputs, fee = None, change_addr = None, domain = None):
+    def _mktx(self, outputs, fee=None, change_addr=None, domain=None):
         for to_address, amount in outputs:
             if not is_valid(to_address):
                 raise Exception("Invalid Bitcoin address", to_address)
@@ -445,6 +445,9 @@ class Commands:
             if change_addr and v == change_addr:
                 change_addr = k
 
+        if fee is not None:
+            fee = int(100000000*fee)
+
         final_outputs = []
         for to_address, amount in outputs:
             for k, v in self.wallet.labels.items():
@@ -453,11 +456,22 @@ class Commands:
                     print_msg("alias", to_address)
                     break
 
-            amount = int(100000000*amount)
+            if amount == '!':
+                assert len(outputs) == 1
+                inputs = self.wallet.get_spendable_coins(domain)
+                amount = sum(map(lambda x:x['value'], inputs))
+                if fee is None:
+                    for i in inputs:
+                        self.wallet.add_input_info(i)
+                    output = ('address', to_address, amount)
+                    dummy_tx = Transaction.from_io(inputs, [output])
+                    fee = self.wallet.estimated_fee(dummy_tx)
+                amount -= fee
+            else:
+                amount = int(100000000*amount)
             final_outputs.append(('address', to_address, amount))
 
-        if fee is not None: fee = int(100000000*fee)
-        return self.wallet.mktx(final_outputs, self.password, fee , change_addr, domain)
+        return self.wallet.mktx(final_outputs, self.password, fee, change_addr, domain)
 
     def _read_csv(self, csvpath):
         import csv
@@ -473,17 +487,6 @@ class Commands:
 
     def mktx(self, to_address, amount, fee=None, from_addr=None, change_addr=None):
         domain = [from_addr] if from_addr else None
-        if amount == '!':
-            inputs = self.wallet.get_spendable_coins(domain)
-            amount = sum(map(lambda x:x['value'], inputs))
-            for i in inputs:
-                self.wallet.add_input_info(i)
-            output = ('address', to_address, amount)
-            dummy_tx = Transaction.from_io(inputs, [output])
-            fee = self.wallet.estimated_fee(dummy_tx)
-            amount -= fee
-            amount /= Decimal(100000000)
-            fee /= Decimal(100000000)
         tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
         return tx
 

@@ -1006,7 +1006,7 @@ class ElectrumWindow(QMainWindow):
                 addr = self.payto_e.payto_address if self.payto_e.payto_address else self.dummy_address
                 outputs = [('address', addr, amount)]
             try:
-                tx = self.wallet.make_unsigned_transaction(outputs, fee, coins = self.get_coins())
+                tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, fee)
                 self.not_enough_funds = False
             except NotEnoughFunds:
                 self.not_enough_funds = True
@@ -1111,7 +1111,7 @@ class ElectrumWindow(QMainWindow):
             return
         outputs, fee, label, coins = r
         try:
-            tx = self.wallet.make_unsigned_transaction(outputs, fee, None, coins = coins)
+            tx = self.wallet.make_unsigned_transaction(coins, outputs, fee)
             if not tx:
                 raise BaseException(_("Insufficient funds"))
         except Exception as e:
