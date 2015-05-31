@@ -149,7 +149,7 @@ class Abstract_Wallet(object):
         self.use_encryption        = storage.get('use_encryption', False)
         self.seed                  = storage.get('seed', '')               # encrypted
         self.labels                = storage.get('labels', {})
-        self.frozen_addresses      = storage.get('frozen_addresses',[])
+        self.frozen_addresses      = set(storage.get('frozen_addresses',[]))
         self.stored_height         = storage.get('stored_height', 0)       # last known height (for offline mode)
 
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
@@ -1016,21 +1016,16 @@ class Abstract_Wallet(object):
     def is_frozen(self, addr):
         return addr in self.frozen_addresses
 
-    def freeze(self,addr):
-        if self.is_mine(addr) and self.is_frozen(addr):
-            self.frozen_addresses.append(addr)
-            self.storage.put('frozen_addresses', self.frozen_addresses, True)
+    def set_frozen_state(self, addrs, freeze):
+        '''Set frozen state of the addresses to FREEZE, True or False'''
+        if all(self.is_mine(addr) for addr in addrs):
+            if freeze:
+                self.frozen_addresses |= set(addrs)
+            else:
+                self.frozen_addresses -= set(addrs)
+            self.storage.put('frozen_addresses', list(self.frozen_addresses), True)
             return True
-        else:
-            return False
-
-    def unfreeze(self,addr):
-        if self.is_mine(addr) and self.is_frozen(addr):
-            self.frozen_addresses.remove(addr)
-            self.storage.put('frozen_addresses', self.frozen_addresses, True)
-            return True
-        else:
-            return False
+        return False
 
     def set_verifier(self, verifier):
         self.verifier = verifier

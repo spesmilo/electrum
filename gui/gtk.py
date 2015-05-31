@@ -1079,10 +1079,7 @@ class ElectrumWindow:
                 path, col = treeview.get_cursor()
                 if path:
                     address = liststore.get_value( liststore.get_iter(path), 0)
-                    if address in wallet.frozen_addresses:
-                        wallet.unfreeze(address)
-                    else:
-                        wallet.freeze(address)
+                    wallet.set_frozen_state([address], not wallet.is_frozen(address))
                     self.update_receiving_tab()
             button.connect("clicked", freeze_address, treeview, liststore, self.wallet)
             button.show()
@@ -1151,7 +1148,7 @@ class ElectrumWindow:
             if address in self.wallet.imported_keys.keys():
                 Type = "I"
             c, u, x = self.wallet.get_addr_balance(address)
-            if address in self.wallet.frozen_addresses: Type = Type + "F"
+            if self.wallet.is_frozen(address): Type = Type + "F"
             label = self.wallet.labels.get(address)
             h = self.wallet.history.get(address,[])
             n = len(h)

@@ -1291,13 +1291,8 @@ class ElectrumWindow(QMainWindow):
         run_hook('do_clear')
 
 
-    def set_addrs_frozen(self,addrs,freeze):
-        for addr in addrs:
-            if not addr: continue
-            if addr in self.wallet.frozen_addresses and not freeze:
-                self.wallet.unfreeze(addr)
-            elif addr not in self.wallet.frozen_addresses and freeze:
-                self.wallet.freeze(addr)
+    def set_frozen_state(self, addrs, freeze):
+        self.wallet.set_frozen_state(addrs, freeze)
         self.update_address_tab()
         self.update_fee(False)
 
@@ -1416,9 +1411,9 @@ class ElectrumWindow(QMainWindow):
                 menu.addAction(_("View on block explorer"), lambda: webbrowser.open(addr_URL))
 
         if any(addr not in self.wallet.frozen_addresses for addr in addrs):
-            menu.addAction(_("Freeze"), lambda: self.set_addrs_frozen(addrs, True))
+            menu.addAction(_("Freeze"), lambda: self.set_frozen_state(addrs, True))
         if any(addr in self.wallet.frozen_addresses for addr in addrs):
-            menu.addAction(_("Unfreeze"), lambda: self.set_addrs_frozen(addrs, False))
+            menu.addAction(_("Unfreeze"), lambda: self.set_frozen_state(addrs, False))
 
         def can_send(addr):
             return addr not in self.wallet.frozen_addresses and self.wallet.get_addr_balance(addr) != (0, 0)
