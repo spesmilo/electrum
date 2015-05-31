@@ -83,8 +83,8 @@ register_command('listaddresses',      0, 1, 0, [], ['show_all', 'show_labels', 
                  'List wallet addresses', 'Returns your list of addresses.')
 register_command('listunspent',        1, 1, 0, [], [], 'List unspent outputs', 'Returns the list of unspent transaction outputs in your wallet.')
 register_command('getaddressunspent',  1, 0, 0, ['address'], [], 'Returns the list of unspent inputs for an address', '')
-register_command('mktx',               0, 1, 1, ['address', 'amount'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck', 'unsigned'], 'Create signed transaction', '')
-register_command('payto',              1, 1, 1, ['address', 'amount'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck'], 'Create and broadcast a transaction.', '')
+register_command('mktx',               0, 1, 1, ['destination', 'amount'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck', 'unsigned'], 'Create signed transaction', '')
+register_command('payto',              1, 1, 1, ['destination', 'amount'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck'], 'Create and broadcast a transaction.', '')
 register_command('mktx_csv',           0, 1, 1, ['csv_file'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck', 'unsigned'], 'Create multi-output transaction', '')
 register_command('payto_csv',          1, 1, 1, ['csv_file'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck'], 'Create and broadcast multi-output transaction.', '')
 register_command('password',           0, 1, 1, [], [], 'Change your password', '')
@@ -107,13 +107,14 @@ register_command('decrypt',            0, 1, 1, ['pubkey', 'encrypted'], [], 'De
 register_command('getmerkle',          1, 0, 0, ['txid', 'height'], [], 'Get Merkle branch of a transaction included in a block', '')
 register_command('getproof',           1, 0, 0, ['address'], [], 'Get Merkle branch of an address in the UTXO set', '')
 register_command('getutxoaddress',     1, 0, 0, ['txid', 'pos'], [], 'Get the address of an unspent transaction output', '')
-register_command('sweep',              1, 0, 0, ['privkey', 'address'], ['tx_fee'],
+register_command('sweep',              1, 0, 0, ['privkey', 'destination'], ['tx_fee'],
                  'Sweep private key', 'Returns a transaction that spends UTXOs from privkey to a destination address. The transaction is not broadcasted.')
 register_command('make_seed',          0, 0, 0, [], ['nbits', 'entropy', 'language'], 'Create a seed', '')
 register_command('check_seed',         0, 0, 0, ['seed'], ['entropy', 'language'], 'Check that a seed was generated with given entropy', '')
 
 param_descriptions = {
-    'privkey': 'Private key. Set to \'?\' to get a prompt.',
+    'privkey': 'Private key. Type \'?\' to get a prompt.',
+    'destination': 'Bitcoin address, contact or alias',
     'address': 'Bitcoin address',
     'seed': 'Seed phrase',
     'txid': 'Transaction ID',
@@ -124,7 +125,7 @@ param_descriptions = {
     'pubkey': 'Public key',
     'message': 'Clear text message. Use quotes if it contains spaces.',
     'encrypted': 'Encrypted message',
-    'amount': 'Amount to send (in BTC). Set to \'!\' to send the maximum available.',
+    'amount': 'Amount to be sent (in BTC). Type \'!\' to send the maximum available.',
     'csv_file': 'CSV file of recipient, amount',
 }
 
@@ -421,11 +422,13 @@ class Commands:
             out = "Error: Keypair import failed: " + str(e)
         return out
 
-    def sweep(self, privkey, to_address, fee=None):
+    def sweep(self, privkey, recipient, fee=None, nocheck=False):
+        resolver = lambda x: self.contacts.resolve(x, nocheck)['address']
+        dest = resolver(recipient)
         if fee is None:
             fee = 0.0001
         fee = int(Decimal(fee)*100000000)
-        return Transaction.sweep([privkey], self.network, to_address, fee)
+        return Transaction.sweep([privkey], self.network, dest, fee)
 
     def signmessage(self, address, message):
         return self.wallet.sign_message(address, message, self.password)
