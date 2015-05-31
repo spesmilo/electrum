@@ -61,7 +61,7 @@ register_command('create',             0, 1, 0, [], [], 'Create a new wallet', '
 register_command('createmultisig',     0, 1, 0, ['num', 'pubkeys'], [], 'Create multisig address', '')
 register_command('createrawtx',        0, 1, 0, ['inputs', 'outputs'], [], 'Create an unsigned transaction', 'The syntax is similar to bitcoind.')
 register_command('deseed',             0, 1, 0, [], [], 'Remove seed from wallet.', 'This creates a seedless, watching-only wallet.')
-register_command('decoderawtx',        0, 0, 0, ['tx'], [], 'Decode serialized transaction', '')
+register_command('decodetx',           0, 0, 0, ['tx'], [], 'Decode serialized transaction', '')
 register_command('getprivatekeys',     0, 1, 1, ['address'], [], 'Get the private keys of an address', 'Address must be in wallet.')
 register_command('dumpprivkeys',       0, 1, 1, [], [], 'Dump private keys from your wallet', '')
 register_command('freeze',             0, 1, 0, ['address'], [], 'Freeze address', 'Freeze the funds at one of your wallet\'s addresses')
@@ -91,7 +91,7 @@ register_command('restore',            1, 1, 0, [], ['gap_limit', 'mpk', 'concea
 register_command('searchcontacts',     0, 1, 0, ['query'], [], 'Search through contacts, return matching entries', '')
 register_command('setconfig',          0, 0, 0, ['key', 'value'], [], 'Set a configuration variable', '')
 register_command('setlabel',           0, 1, 0, ['item', 'label'], [], 'Assign a label to an item', 'Item may be a bitcoin address or a transaction ID')
-register_command('sendrawtx',          1, 0, 0, ['tx'], [], 'Broadcast a transaction to the network', '')
+register_command('sendtx',             1, 0, 0, ['tx'], [], 'Broadcast a transaction to the network', '')
 register_command('signtransaction',    0, 0, 0, ['tx'], ['privkey'],
                  'Sign a transaction', 'The wallet keys will be used unless a private key is provided.')
 register_command('signmessage',        0, 1, 1, ['address', 'message'], [],
@@ -321,11 +321,11 @@ class Commands:
             self.wallet.sign_transaction(tx, self.password)
         return tx
 
-    def decoderawtransaction(self, raw):
+    def decodetx(self, raw):
         tx = Transaction(raw)
         return tx.deserialize()
 
-    def sendrawtransaction(self, raw):
+    def sendtx(self, raw):
         tx = Transaction(raw)
         return self.network.synchronous_get([('blockchain.transaction.broadcast', [str(tx)])])[0]
 
