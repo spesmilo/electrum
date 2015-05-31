@@ -77,15 +77,13 @@ register_command('getmpk',             0, 1, 0, [], [], 'Get Master Public Key',
 register_command('help',               0, 0, 0, [], [], 'Print help on a command', '')
 register_command('history',            1, 1, 0, [], [], 'Wallet history', 'Returns the transaction history of your wallet')
 register_command('importprivkey',      0, 1, 1, ['privkey'], [], 'Import a private key', '')
-register_command('ismine',             0, 1, 0, ['address'], [], 'Check if address is in wallet', 'Return true if and only if address is in wallet')
+register_command('ismine',             0, 1, 0, ['address'], [], 'Check if address is in wallet', 'Return true if and only address is in wallet')
 register_command('listaddresses',      0, 1, 0, [], ['show_all', 'show_labels', 'frozen', 'unused', 'funded', 'show_balance'],
                  'List wallet addresses', 'Returns your list of addresses.')
 register_command('listunspent',        1, 1, 0, [], [], 'List unspent outputs', 'Returns the list of unspent transaction outputs in your wallet.')
 register_command('getaddressunspent',  1, 0, 0, ['address'], [], 'Returns the list of unspent inputs for an address', '')
-register_command('mktx',               0, 1, 1, ['address', 'amount'],
-                 ['tx_fee', 'from_addr', 'change_addr'], 'Create signed transaction', '')
-register_command('payto',              1, 1, 1, ['address', 'amount'],
-                 ['tx_fee', 'from_addr', 'change_addr'], 'Create and broadcast a transaction.', '')
+register_command('mktx',               0, 1, 1, ['address', 'amount'], ['tx_fee', 'from_addr', 'change_addr'], 'Create signed transaction', '')
+register_command('payto',              1, 1, 1, ['address', 'amount'], ['tx_fee', 'from_addr', 'change_addr'], 'Create and broadcast a transaction.', '')
 register_command('mktx_csv',           0, 1, 1, ['csv_file'], ['tx_fee', 'from_addr', 'change_addr'], 'Create a signed transaction', '')
 register_command('payto_csv',          1, 1, 1, ['csv_file'], ['tx_fee', 'from_addr', 'change_addr'], 'Create and broadcast a transaction.', '')
 register_command('password',           0, 1, 1, [], [], 'Change your password', '')
@@ -114,7 +112,7 @@ register_command('make_seed',          0, 0, 0, [], ['nbits', 'entropy', 'langua
 register_command('check_seed',         0, 0, 0, ['seed'], ['entropy', 'language'], 'Check that a seed was generated with given entropy', '')
 
 param_descriptions = {
-    'privkey': 'Private key. Set to \'?\' will get a prompt.',
+    'privkey': 'Private key. Set to \'?\' to get a prompt.',
     'address': 'Bitcoin address',
     'seed': 'Seed phrase',
     'txid': 'Transaction ID',
@@ -125,7 +123,7 @@ param_descriptions = {
     'pubkey': 'Public key',
     'message': 'Clear text message. Use quotes if it contains spaces.',
     'encrypted': 'Encrypted message',
-    'amount': 'Amount in BTC',
+    'amount': 'Amount to send (in BTC). Set to \'!\' to send the maximum available.',
     'csv_file': 'CSV file of recipient, amount',
 }
 
@@ -138,16 +136,16 @@ command_options = {
     'funded':      (None, "--funded",      False, "Show only funded addresses"),
     'show_balance':("-b", "--balance",     False, "Show the balances of listed addresses"),
     'show_labels': ("-l", "--labels",      False, "Show the labels of listed addresses"),
-    'tx_fee':      ("-f", "--fee",         None,  "Transaction fee"),
-    'from_addr':   ("-F", "--fromaddr",    None,  "Source address. If it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet."),
-    'change_addr': ("-c", "--changeaddr",  None,  "Change address. Default is a spare address, or the source address if it's not in the wallet"),
+    'tx_fee':      ("-f", "--fee",         None,  "Transaction fee (in BTC)"),
+    'from_addr':   ("-F", "--from",        None,  "Source address. If it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet."),
+    'change_addr': ("-c", "--change",      None,  "Change address. Default is a spare address, or the source address if it's not in the wallet"),
     'nbits':       (None, "--nbits",       128,   "Number of bits of entropy"),
     'entropy':     (None, "--entropy",     1,     "Custom entropy"),
     'language':    ("-L", "--lang",        None,  "Default language for wordlist"),
     'gap_limit':   ("-G", "--gap",         None,  "Gap limit"),
     'mpk':         (None, "--mpk",         None,  "Restore from master public key"),
     'deserialize': ("-d", "--deserialize", False, "Deserialize transaction"),
-    'privkey':     (None, "--privkey",     None,  "private key. Use --privkey='?' to get a prompt."),
+    'privkey':     (None, "--privkey",     None,  "Private key. Set to '?' to get a prompt."),
 }
 
 
@@ -473,24 +471,35 @@ class Commands:
                 outputs.append((address, amount))
         return outputs
 
-    def mktx(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
+    def mktx(self, to_address, amount, fee=None, from_addr=None, change_addr=None):
         domain = [from_addr] if from_addr else None
+        if amount == '!':
+            inputs = self.wallet.get_spendable_coins(domain)
+            amount = sum(map(lambda x:x['value'], inputs))
+            for i in inputs:
+                self.wallet.add_input_info(i)
+            output = ('address', to_address, amount)
+            dummy_tx = Transaction.from_io(inputs, [output])
+            fee = self.wallet.estimated_fee(dummy_tx)
+            amount -= fee
+            amount /= Decimal(100000000)
+            fee /= Decimal(100000000)
         tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
         return tx
 
-    def mktx_csv(self, path, fee = None, change_addr = None, from_addr = None):
+    def mktx_csv(self, path, fee=None, from_addr=None, change_addr=None):
         domain = [from_addr] if from_addr else None
         outputs = self._read_csv(path)
         tx = self._mktx(outputs, fee, change_addr, domain)
         return tx
 
-    def payto(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
+    def payto(self, to_address, amount, fee=None, from_addr=None, change_addr=None):
         domain = [from_addr] if from_addr else None
         tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
         r, h = self.wallet.sendtx( tx )
         return h
 
-    def payto_csv(self, path, fee = None, change_addr = None, from_addr = None):
+    def payto_csv(self, path, fee = None, from_addr=None, change_addr=None):
         domain = [from_addr] if from_addr else None
         outputs = self._read_csv(path)
         tx = self._mktx(outputs, fee, change_addr, domain)
