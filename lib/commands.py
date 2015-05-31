@@ -278,7 +278,7 @@ class Commands:
         if r:
             return {'address':r[0]}
 
-    def createrawtransaction(self, inputs, outputs):
+    def createrawtx(self, inputs, outputs):
         coins = self.wallet.get_spendable_coins(exclude_frozen = False)
         tx_inputs = []
         for i in inputs:
