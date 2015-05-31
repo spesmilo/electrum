@@ -65,6 +65,7 @@ register_command('decodetx',           0, 0, 0, ['tx'], [], 'Decode serialized t
 register_command('getprivatekeys',     0, 1, 1, ['address'], [], 'Get the private keys of an address', 'Address must be in wallet.')
 register_command('dumpprivkeys',       0, 1, 1, [], [], 'Dump private keys from your wallet', '')
 register_command('freeze',             0, 1, 0, ['address'], [], 'Freeze address', 'Freeze the funds at one of your wallet\'s addresses')
+register_command('getalias',           0, 0, 0, ['key'], [], 'Retrieve alias', 'Lookup in your list of contacts, and for an OpenAlias DNS record')
 register_command('getbalance',         1, 1, 0, [], [], 'Return the balance of your wallet', '')
 register_command('getservers',         1, 0, 0, [], [], 'Return the list of available servers', '')
 register_command('getaddressbalance',  1, 0, 0, ['address'], [], 'Return the balance of an address', '')
@@ -507,6 +508,9 @@ class Commands:
 
     def listcontacts(self):
         return self.contacts
+
+    def getalias(self, key):
+        return self.contacts.resolve(key)
 
     def searchcontacts(self, query):
         results = {}
