@@ -364,7 +364,7 @@ if __name__ == '__main__':
     sys.argv = filter(lambda x: not x.startswith('-psn'), sys.argv)
 
     # old 'help' syntax
-    if sys.argv[1] == 'help':
+    if len(sys.argv)>1 and sys.argv[1] == 'help':
         sys.argv.remove('help')
         sys.argv.append('-h')
 
