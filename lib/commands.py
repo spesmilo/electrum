@@ -265,7 +265,7 @@ class Commands:
         return self.network.synchronous_get([ ('blockchain.address.get_history',[addr]) ])[0]
 
     def listunspent(self):
-        l = copy.deepcopy(self.wallet.get_spendable_coins())
+        l = copy.deepcopy(self.wallet.get_spendable_coins(exclude_frozen = False))
         for i in l: i["value"] = str(Decimal(i["value"])/100000000)
         return l
 
@@ -278,7 +278,7 @@ class Commands:
             return {'address':r[0] }
 
     def createrawtransaction(self, inputs, outputs):
-        coins = self.wallet.get_spendable_coins(None)
+        coins = self.wallet.get_spendable_coins(exclude_frozen = False)
         tx_inputs = []
         for i in inputs:
             prevout_hash = i['txid']
