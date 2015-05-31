@@ -181,7 +181,22 @@ class Plugin(BasePlugin):
 
     @hook
     def resolve_address(self, url):
-        return self.resolve(url)[0]
+        data = self.resolve(url)
+        if not data:
+            return
+        address, name = data
+        try:
+            validated = self.validate_dnssec(url)
+        except:
+            validated = False
+            traceback.print_exc(file=sys.stderr)
+        return {
+            'address': address,
+            'name': name,
+            'type': 'openalias',
+            'validated': validated
+        }
+
 
     def resolve(self, url):
         '''Resolve OpenAlias address using url.'''
@@ -244,7 +259,7 @@ class Plugin(BasePlugin):
             response = dns.query.udp(query, ns, 3)
             if response.rcode() != dns.rcode.NOERROR:
                 self.print_error("query error")
-                return 0
+                return False
 
             if len(response.authority) > 0:
                 rrset = response.authority[0]
@@ -262,14 +277,14 @@ class Plugin(BasePlugin):
             response = dns.query.udp(query, ns, 3)
             if response.rcode() != 0:
                 self.print_error("query error")
-                return 0
+                return False
                 # HANDLE QUERY FAILED (SERVER ERROR OR NO DNSKEY RECORD)
 
             # answer should contain two RRSET: DNSKEY and RRSIG(DNSKEY)
             answer = response.answer
             if len(answer) != 2:
                 self.print_error("answer error", answer)
-                return 0
+                return False
 
             # the DNSKEY should be self signed, validate it
             name = dns.name.from_text(sub)
@@ -277,6 +292,6 @@ class Plugin(BasePlugin):
                 dns.dnssec.validate(answer[0], answer[1], {name: answer[0]})
             except dns.dnssec.ValidationFailure:
                 self.print_error("validation error")
-                return 0
+                return False
 
-        return 1
+        return True

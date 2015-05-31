@@ -65,7 +65,7 @@ register_command('decodetx',           0, 0, 0, ['tx'], [], 'Decode serialized t
 register_command('getprivatekeys',     0, 1, 1, ['address'], [], 'Get the private keys of an address', 'Address must be in wallet.')
 register_command('dumpprivkeys',       0, 1, 1, [], [], 'Dump private keys from your wallet', '')
 register_command('freeze',             0, 1, 0, ['address'], [], 'Freeze address', 'Freeze the funds at one of your wallet\'s addresses')
-register_command('getalias',           0, 0, 0, ['key'], [], 'Retrieve alias', 'Lookup in your list of contacts, and for an OpenAlias DNS record')
+register_command('getalias',           0, 0, 0, ['key'], ['nocheck'], 'Retrieve alias', 'Lookup in your list of contacts, and for an OpenAlias DNS record')
 register_command('getbalance',         1, 1, 0, [], [], 'Return the balance of your wallet', '')
 register_command('getservers',         1, 0, 0, [], [], 'Return the list of available servers', '')
 register_command('getaddressbalance',  1, 0, 0, ['address'], [], 'Return the balance of an address', '')
@@ -83,10 +83,10 @@ register_command('listaddresses',      0, 1, 0, [], ['show_all', 'show_labels', 
                  'List wallet addresses', 'Returns your list of addresses.')
 register_command('listunspent',        1, 1, 0, [], [], 'List unspent outputs', 'Returns the list of unspent transaction outputs in your wallet.')
 register_command('getaddressunspent',  1, 0, 0, ['address'], [], 'Returns the list of unspent inputs for an address', '')
-register_command('mktx',               0, 1, 1, ['address', 'amount'], ['tx_fee', 'from_addr', 'change_addr'], 'Create signed transaction', '')
-register_command('payto',              1, 1, 1, ['address', 'amount'], ['tx_fee', 'from_addr', 'change_addr'], 'Create and broadcast a transaction.', '')
-register_command('mktx_csv',           0, 1, 1, ['csv_file'], ['tx_fee', 'from_addr', 'change_addr'], 'Create a signed transaction', '')
-register_command('payto_csv',          1, 1, 1, ['csv_file'], ['tx_fee', 'from_addr', 'change_addr'], 'Create and broadcast a transaction.', '')
+register_command('mktx',               0, 1, 1, ['address', 'amount'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck'], 'Create signed transaction', '')
+register_command('payto',              1, 1, 1, ['address', 'amount'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck'], 'Create and broadcast a transaction.', '')
+register_command('mktx_csv',           0, 1, 1, ['csv_file'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck'], 'Create a signed transaction', '')
+register_command('payto_csv',          1, 1, 1, ['csv_file'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck'], 'Create and broadcast a transaction.', '')
 register_command('password',           0, 1, 1, [], [], 'Change your password', '')
 register_command('restore',            1, 1, 0, [], ['gap_limit', 'mpk', 'concealed'], 'Restore a wallet from seed', '')
 register_command('searchcontacts',     0, 1, 0, ['query'], [], 'Search through contacts, return matching entries', '')
@@ -137,6 +137,7 @@ command_options = {
     'funded':      (None, "--funded",      False, "Show only funded addresses"),
     'show_balance':("-b", "--balance",     False, "Show the balances of listed addresses"),
     'show_labels': ("-l", "--labels",      False, "Show the labels of listed addresses"),
+    'nocheck':     (None, "--nocheck",     False, "Do not verify aliases"),
     'tx_fee':      ("-f", "--fee",         None,  "Transaction fee (in BTC)"),
     'from_addr':   ("-F", "--from",        None,  "Source address. If it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet."),
     'change_addr': ("-c", "--change",      None,  "Change address. Default is a spare address, or the source address if it's not in the wallet"),
@@ -427,13 +428,14 @@ class Commands:
     def verifymessage(self, address, signature, message):
         return bitcoin.verify_message(address, signature, message)
 
-    def _mktx(self, outputs, fee=None, change_addr=None, domain=None):
-        change_addr = None if change_addr is None else self.contacts.resolve(change_addr)
-        domain = None if domain is None else map(self.contacts.resolve, domain)
+    def _mktx(self, outputs, fee=None, change_addr=None, domain=None, nocheck=False):
+        resolver = lambda x: None if x is None else self.contacts.resolve(x, nocheck)['address']
+        change_addr = resolver(change_addr)
+        domain = None if domain is None else map(resolver, domain)
         fee = None if fee is None else int(100000000*Decimal(fee))
         final_outputs = []
         for address, amount in outputs:
-            address = self.contacts.resolve(address)
+            address = resolver(address)
             #assert self.wallet.is_mine(address)
             if amount == '!':
                 assert len(outputs) == 1
@@ -464,28 +466,28 @@ class Commands:
                 outputs.append((address, amount))
         return outputs
 
-    def mktx(self, to_address, amount, fee=None, from_addr=None, change_addr=None):
+    def mktx(self, to_address, amount, fee=None, from_addr=None, change_addr=None, nocheck=False):
         domain = [from_addr] if from_addr else None
-        tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
+        tx = self._mktx([(to_address, amount)], fee, change_addr, domain, nocheck)
         return tx
 
-    def mktx_csv(self, path, fee=None, from_addr=None, change_addr=None):
+    def mktx_csv(self, path, fee=None, from_addr=None, change_addr=None, nocheck=False):
         domain = [from_addr] if from_addr else None
         outputs = self._read_csv(path)
-        tx = self._mktx(outputs, fee, change_addr, domain)
+        tx = self._mktx(outputs, fee, change_addr, domain, nocheck)
         return tx
 
-    def payto(self, to_address, amount, fee=None, from_addr=None, change_addr=None):
+    def payto(self, to_address, amount, fee=None, from_addr=None, change_addr=None, nocheck=False):
         domain = [from_addr] if from_addr else None
-        tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
-        r, h = self.wallet.sendtx( tx )
+        tx = self._mktx([(to_address, amount)], fee, change_addr, domain, nocheck)
+        r, h = self.wallet.sendtx(tx)
         return h
 
-    def payto_csv(self, path, fee = None, from_addr=None, change_addr=None):
+    def payto_csv(self, path, fee = None, from_addr=None, change_addr=None, nocheck=False):
         domain = [from_addr] if from_addr else None
         outputs = self._read_csv(path)
-        tx = self._mktx(outputs, fee, change_addr, domain)
-        r, h = self.wallet.sendtx( tx )
+        tx = self._mktx(outputs, fee, change_addr, domain, nocheck)
+        r, h = self.wallet.sendtx(tx)
         return h
 
     def history(self):
@@ -509,8 +511,8 @@ class Commands:
     def listcontacts(self):
         return self.contacts
 
-    def getalias(self, key):
-        return self.contacts.resolve(key)
+    def getalias(self, key, nocheck=False):
+        return self.contacts.resolve(key, nocheck)
 
     def searchcontacts(self, query):
         results = {}
