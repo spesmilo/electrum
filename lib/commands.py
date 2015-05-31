@@ -421,7 +421,9 @@ class Commands:
             out = "Error: Keypair import failed: " + str(e)
         return out
 
-    def sweep(self, privkey, to_address, fee = 0.0001):
+    def sweep(self, privkey, to_address, fee=None):
+        if fee is None:
+            fee = 0.0001
         fee = int(Decimal(fee)*100000000)
         return Transaction.sweep([privkey], self.network, to_address, fee)
 
