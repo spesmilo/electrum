@@ -58,8 +58,8 @@ def register_command(*args):
 #                                                    options
 register_command('listcontacts',       0, 0, 0, [], [], 'Show your list of contacts', '')
 register_command('create',             0, 1, 0, [], [], 'Create a new wallet', '')
-register_command('createmultisig',     0, 1, 0, ['num', 'pubkeys'], [], 'Create multisig address', '')
-register_command('createrawtx',        0, 1, 0, ['inputs', 'outputs'], [], 'Create an unsigned transaction', 'The syntax is similar to bitcoind.')
+register_command('createmultisig',     0, 1, 0, ['num', 'pubkeys'], ['unsigned'], 'Create multisig address', '')
+register_command('createrawtx',        0, 1, 1, ['inputs', 'outputs'], ['unsigned'], 'Create a transaction from json inputs', 'The syntax is similar to bitcoind.')
 register_command('deseed',             0, 1, 0, [], [], 'Remove seed from wallet.', 'This creates a seedless, watching-only wallet.')
 register_command('decodetx',           0, 0, 0, ['tx'], [], 'Decode serialized transaction', '')
 register_command('getprivatekeys',     0, 1, 1, ['address'], [], 'Get the private keys of an address', 'Address must be in wallet.')
@@ -83,9 +83,9 @@ register_command('listaddresses',      0, 1, 0, [], ['show_all', 'show_labels', 
                  'List wallet addresses', 'Returns your list of addresses.')
 register_command('listunspent',        1, 1, 0, [], [], 'List unspent outputs', 'Returns the list of unspent transaction outputs in your wallet.')
 register_command('getaddressunspent',  1, 0, 0, ['address'], [], 'Returns the list of unspent inputs for an address', '')
-register_command('mktx',               0, 1, 1, ['address', 'amount'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck'], 'Create signed transaction', '')
+register_command('mktx',               0, 1, 1, ['address', 'amount'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck', 'unsigned'], 'Create signed transaction', '')
 register_command('payto',              1, 1, 1, ['address', 'amount'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck'], 'Create and broadcast a transaction.', '')
-register_command('mktx_csv',           0, 1, 1, ['csv_file'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck'], 'Create multi-output transaction', '')
+register_command('mktx_csv',           0, 1, 1, ['csv_file'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck', 'unsigned'], 'Create multi-output transaction', '')
 register_command('payto_csv',          1, 1, 1, ['csv_file'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck'], 'Create and broadcast multi-output transaction.', '')
 register_command('password',           0, 1, 1, [], [], 'Change your password', '')
 register_command('restore',            1, 1, 0, [], ['gap_limit', 'mpk', 'concealed'], 'Restore a wallet from seed', '')
@@ -148,6 +148,7 @@ command_options = {
     'mpk':         (None, "--mpk",         None,  "Restore from master public key"),
     'deserialize': ("-d", "--deserialize", False, "Deserialize transaction"),
     'privkey':     (None, "--privkey",     None,  "Private key. Set to '?' to get a prompt."),
+    'unsigned':    ("-u", "--unsigned",    False, "Do not sign transaction"),
 }
 
 
@@ -296,7 +297,7 @@ class Commands:
         if r:
             return {'address':r[0]}
 
-    def createrawtx(self, inputs, outputs):
+    def createrawtx(self, inputs, outputs, unsigned=False):
         coins = self.wallet.get_spendable_coins(exclude_frozen = False)
         tx_inputs = []
         for i in inputs:
@@ -311,6 +312,8 @@ class Commands:
                 raise BaseException('Transaction output not in wallet', prevout_hash+":%d"%prevout_n)
         outputs = map(lambda x: ('address', x[0], int(1e8*x[1])), outputs.items())
         tx = Transaction.from_io(tx_inputs, outputs)
+        if not unsigned:
+            self.wallet.sign_transaction(tx, self.password)
         return tx
 
     def signtransaction(self, raw_tx, privkey=None):
@@ -428,7 +431,7 @@ class Commands:
     def verifymessage(self, address, signature, message):
         return bitcoin.verify_message(address, signature, message)
 
-    def _mktx(self, outputs, fee=None, change_addr=None, domain=None, nocheck=False):
+    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned):
         resolver = lambda x: None if x is None else self.contacts.resolve(x, nocheck)['address']
         change_addr = resolver(change_addr)
         domain = None if domain is None else map(resolver, domain)
@@ -452,7 +455,11 @@ class Commands:
                 amount = int(100000000*Decimal(amount))
             final_outputs.append(('address', address, amount))
 
-        return self.wallet.mktx(final_outputs, self.password, fee, change_addr, domain)
+        coins = self.wallet.get_spendable_coins(domain)
+        tx = self.wallet.make_unsigned_transaction(coins, final_outputs, fee, change_addr)
+        if not unsigned:
+            self.wallet.sign_transaction(tx, self.password)
+        return tx
 
     def _read_csv(self, csvpath):
         import csv
@@ -466,15 +473,15 @@ class Commands:
                 outputs.append((address, amount))
         return outputs
 
-    def mktx(self, to_address, amount, fee=None, from_addr=None, change_addr=None, nocheck=False):
+    def mktx(self, to_address, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False):
         domain = [from_addr] if from_addr else None
-        tx = self._mktx([(to_address, amount)], fee, change_addr, domain, nocheck)
+        tx = self._mktx([(to_address, amount)], fee, change_addr, domain, nocheck, unsigned)
         return tx
 
-    def mktx_csv(self, path, fee=None, from_addr=None, change_addr=None, nocheck=False):
+    def mktx_csv(self, path, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False):
         domain = [from_addr] if from_addr else None
         outputs = self._read_csv(path)
-        tx = self._mktx(outputs, fee, change_addr, domain, nocheck)
+        tx = self._mktx(outputs, fee, change_addr, domain, nocheck, unsigned)
         return tx
 
     def payto(self, to_address, amount, fee=None, from_addr=None, change_addr=None, nocheck=False):

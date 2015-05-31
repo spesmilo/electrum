@@ -183,6 +183,13 @@ def run_cmdline(config):
         cmd.requires_wallet = False
         cmd.requires_password = False
 
+    if cmdname in ['mktx', 'mktx_csv'] and config.get('unsigned'):
+        cmd.requires_password = False
+
+    if cmdname in ['createrawtx'] and config.get('unsigned'):
+        cmd.requires_password = False
+        cmd.requires_wallet = False
+
     # arguments passed to function
     args = map(lambda x: config.get(x), cmd.params)
     # options
