@@ -461,3 +461,19 @@ class StoreDict(dict):
         if key in self.keys():
             dict.pop(self, key)
             self.save()
+
+
+import bitcoin
+
+class Contacts(StoreDict):
+    def __init__(self, config):
+        StoreDict.__init__(self, config, 'contacts')
+
+    def resolve(self, k):
+        if bitcoin.is_address(k):
+            return k
+        if k in self.keys():
+            _type, addr = self[k]
+            return addr
+        raise Exception("invalid Bitcoin address", k)
+

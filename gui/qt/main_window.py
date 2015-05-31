@@ -118,7 +118,7 @@ class ElectrumWindow(QMainWindow):
         self.app = gui_object.app
 
         self.invoices = InvoiceStore(self.config)
-        self.contacts = StoreDict(self.config, 'contacts')
+        self.contacts = util.Contacts(self.config)
 
         self.create_status_bar()
         self.need_update = threading.Event()

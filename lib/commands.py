@@ -23,9 +23,9 @@ import copy
 import argparse
 import json
 
+import util
 from util import print_msg, format_satoshis, print_stderr
-from util import StoreDict
-from bitcoin import is_valid, hash_160_to_bc_address, hash_160
+from bitcoin import is_address, hash_160_to_bc_address, hash_160
 from decimal import Decimal
 import bitcoin
 from transaction import Transaction
@@ -153,10 +153,11 @@ arg_types = {
     'num':int,
     'nbits':int,
     'entropy':long,
-    'pubkeys':json.loads,
+    'pubkeys': json.loads,
     'inputs': json.loads,
-    'outputs':json.loads,
-    'tx_fee':lambda x: (Decimal(x) if x is not None else None)
+    'outputs': json.loads,
+    'tx_fee': lambda x: Decimal(x) if x is not None else None,
+    'amount': lambda x: Decimal(x) if x!='!' else '!',
 }
 
 
@@ -252,6 +253,7 @@ class Commands:
         self.network = network
         self._callback = callback
         self.password = None
+        self.contacts = util.Contacts(self.config)
 
     def _run(self, method, args, password_getter):
         cmd = known_commands[method]
@@ -351,7 +353,7 @@ class Commands:
         return [self.wallet.get_private_key(address, self.password) for address in addresses]
 
     def validateaddress(self, addr):
-        isvalid = is_valid(addr)
+        isvalid = is_address(addr)
         out = { 'isvalid':isvalid }
         if isvalid:
             out['address'] = addr
@@ -425,37 +427,13 @@ class Commands:
         return bitcoin.verify_message(address, signature, message)
 
     def _mktx(self, outputs, fee=None, change_addr=None, domain=None):
-        for to_address, amount in outputs:
-            if not is_valid(to_address):
-                raise Exception("Invalid Bitcoin address", to_address)
-
-        if change_addr:
-            if not is_valid(change_addr):
-                raise Exception("Invalid Bitcoin address", change_addr)
-
-        if domain is not None:
-            for addr in domain:
-                if not is_valid(addr):
-                    raise Exception("invalid Bitcoin address", addr)
-
-                if not self.wallet.is_mine(addr):
-                    raise Exception("address not in wallet", addr)
-
-        for k, v in self.wallet.labels.items():
-            if change_addr and v == change_addr:
-                change_addr = k
-
-        if fee is not None:
-            fee = int(100000000*fee)
-
+        change_addr = None if change_addr is None else self.contacts.resolve(change_addr)
+        domain = None if domain is None else map(self.contacts.resolve, domain)
+        fee = None if fee is None else int(100000000*Decimal(fee))
         final_outputs = []
-        for to_address, amount in outputs:
-            for k, v in self.wallet.labels.items():
-                if v == to_address:
-                    to_address = k
-                    print_msg("alias", to_address)
-                    break
-
+        for address, amount in outputs:
+            address = self.contacts.resolve(address)
+            #assert self.wallet.is_mine(address)
             if amount == '!':
                 assert len(outputs) == 1
                 inputs = self.wallet.get_spendable_coins(domain)
@@ -468,8 +446,8 @@ class Commands:
                     fee = self.wallet.estimated_fee(dummy_tx)
                 amount -= fee
             else:
-                amount = int(100000000*amount)
-            final_outputs.append(('address', to_address, amount))
+                amount = int(100000000*Decimal(amount))
+            final_outputs.append(('address', address, amount))
 
         return self.wallet.mktx(final_outputs, self.password, fee, change_addr, domain)
 
@@ -528,13 +506,11 @@ class Commands:
         self.wallet.set_label(key, label)
 
     def listcontacts(self):
-        contacts = StoreDict(self.config, 'contacts')
-        return contacts
+        return self.contacts
 
     def searchcontacts(self, query):
-        contacts = StoreDict(self.config, 'contacts')
         results = {}
-        for key, value in contacts.items():
+        for key, value in self.contacts.items():
             if query.lower() in key.lower():
                 results[key] = value
         return results
