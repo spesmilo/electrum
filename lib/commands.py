@@ -71,7 +71,7 @@ register_command('getaddressbalance',  1, 0, 0, [('address', 'Bitcoin address')]
 register_command('getaddresshistory',  1, 0, 0, [('address', 'Bitcoin address')], [], 'Return the transaction history of a wallet address', '')
 register_command('getconfig',          0, 0, 0, [('key', 'Variable name')], [], 'Return a configuration variable', '')
 register_command('getpubkeys',         0, 1, 0, [('address', 'Bitcoin address')], [], 'Return the public keys for a wallet address', '')
-register_command('getrawtx',           1, 0, 0, [('txid', 'Transaction ID')], [], 'Retrieve a transaction', '')
+register_command('gettransaction',     1, 0, 0, [('txid', 'Transaction ID')], ['deserialize'], 'Retrieve a transaction', '')
 register_command('getseed',            0, 1, 1, [], [], 'Get seed phrase', 'Print the generation seed of your wallet.')
 register_command('getmpk',             0, 1, 0, [], [], 'Get Master Public Key', 'Return your wallet\'s master public key')
 register_command('help',               0, 0, 0, [], [], 'Print help on a command.', '')
@@ -116,22 +116,23 @@ register_command('check_seed',         0, 0, 0, [('seed', 'Seed phrase')], ['ent
 
 
 command_options = {
-    'password':    ("-W", "--password",   None,  "Password"),
-    'concealed':   ("-C", "--concealed",  False, "Don't echo seed to console when restoring"),
-    'show_all':    ("-a", "--all",        False, "Include change addresses"),
-    'frozen':      (None, "--frozen",     False, "Show only frozen addresses"),
-    'unused':      (None, "--unused",     False, "Show only unused addresses"),
-    'funded':      (None, "--funded",     False, "Show only funded addresses"),
-    'show_balance':("-b", "--balance",    False, "Show the balances of listed addresses"),
-    'show_labels': ("-l", "--labels",     False, "Show the labels of listed addresses"),
-    'tx_fee':      ("-f", "--fee",        None,  "Transaction fee"),
-    'from_addr':   ("-F", "--fromaddr",   None,  "Source address. If it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet."),
-    'change_addr': ("-c", "--changeaddr", None,  "Change address. Default is a spare address, or the source address if it's not in the wallet"),
-    'nbits':       (None, "--nbits",      128,  "Number of bits of entropy"),
-    'entropy':     (None, "--entropy",    1,    "Custom entropy"),
-    'language':    ("-L", "--lang",       None,  "Default language for wordlist"),
-    'gap_limit':   ("-G", "--gap",        None,  "Gap limit"),
-    'mpk':         (None, "--mpk",        None,  "Restore from master public key"),
+    'password':    ("-W", "--password",    None,  "Password"),
+    'concealed':   ("-C", "--concealed",   False, "Don't echo seed to console when restoring"),
+    'show_all':    ("-a", "--all",         False, "Include change addresses"),
+    'frozen':      (None, "--frozen",      False, "Show only frozen addresses"),
+    'unused':      (None, "--unused",      False, "Show only unused addresses"),
+    'funded':      (None, "--funded",      False, "Show only funded addresses"),
+    'show_balance':("-b", "--balance",     False, "Show the balances of listed addresses"),
+    'show_labels': ("-l", "--labels",      False, "Show the labels of listed addresses"),
+    'tx_fee':      ("-f", "--fee",         None,  "Transaction fee"),
+    'from_addr':   ("-F", "--fromaddr",    None,  "Source address. If it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet."),
+    'change_addr': ("-c", "--changeaddr",  None,  "Change address. Default is a spare address, or the source address if it's not in the wallet"),
+    'nbits':       (None, "--nbits",       128,   "Number of bits of entropy"),
+    'entropy':     (None, "--entropy",     1,     "Custom entropy"),
+    'language':    ("-L", "--lang",        None,  "Default language for wordlist"),
+    'gap_limit':   ("-G", "--gap",         None,  "Gap limit"),
+    'mpk':         (None, "--mpk",         None,  "Restore from master public key"),
+    'deserialize': ("-d", "--deserialize", False, "Deserialize transaction"),
 }
 
 
@@ -308,8 +309,7 @@ class Commands:
 
     def decoderawtransaction(self, raw):
         tx = Transaction(raw)
-        tx.deserialize()
-        return {'inputs':tx.inputs, 'outputs':tx.outputs}
+        return tx.deserialize()
 
     def sendrawtransaction(self, raw):
         tx = Transaction(raw)
@@ -532,16 +532,15 @@ class Commands:
             out.append(item)
         return out
 
-    def getrawtransaction(self, tx_hash):
-        if self.wallet:
-            tx = self.wallet.transactions.get(tx_hash)
-            if tx:
-                return tx
-        raw = self.network.synchronous_get([('blockchain.transaction.get', [tx_hash])])[0]
-        if raw:
-            return Transaction(raw)
-        else:
-            return "unknown transaction"
+    def gettransaction(self, tx_hash, deserialize=False):
+        tx = self.wallet.transactions.get(tx_hash) if self.wallet else None
+        if tx is None and self.network:
+            raw = self.network.synchronous_get([('blockchain.transaction.get', [tx_hash])])[0]
+            if raw:
+                tx = Transaction(raw)
+            else:
+                raise BaseException("Unknown transaction")
+        return tx.deserialize() if deserialize else tx
 
     def encrypt(self, pubkey, message):
         return bitcoin.encrypt_message(message, pubkey)
