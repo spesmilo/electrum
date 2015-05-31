@@ -477,8 +477,8 @@ class Contacts(StoreDict):
             _type, addr = self[k]
             if _type == 'address':
                 return addr
-            out = run_hook('resolve_address', k)
-            if out:
-                return out
+        out = run_hook('resolve_address', k)
+        if out:
+            return out
         raise Exception("invalid Bitcoin address", k)
 
