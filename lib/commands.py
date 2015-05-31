@@ -64,8 +64,8 @@ class Commands:
         """Restore a wallet from seed. """
 
     def deseed(self):
-        """Remove seed from wallet
-        This creates a seedless, watching-only wallet."""
+        """Remove seed from wallet. This creates a seedless, watching-only
+        wallet."""
 
     def password(self):
         """Change wallet password. """
@@ -433,13 +433,15 @@ class Command:
         self.description = func.__doc__
         self.help = self.description.split('.')[0]
         varnames = func.func_code.co_varnames[1:func.func_code.co_argcount]
-        defaults = func.func_defaults
-        if defaults:
-            n = len(defaults)
-            self.params, self.options = list(varnames[:-n]), list(varnames[-n:])
+        self.defaults = func.func_defaults
+        if self.defaults:
+            n = len(self.defaults)
+            self.params = list(varnames[:-n])
+            self.options = list(varnames[-n:])
         else:
-            self.params, self.options = list(varnames), []
-
+            self.params = list(varnames)
+            self.options = []
+            self.defaults = []
 
 
 known_commands = {}
@@ -523,28 +525,28 @@ param_descriptions = {
 }
 
 command_options = {
-    'password':    ("-W", "--password",    None,  "Password"),
-    'concealed':   ("-C", "--concealed",   False, "Don't echo seed to console when restoring"),
-    'show_all':    ("-a", "--all",         False, "Include change addresses"),
-    'frozen':      (None, "--frozen",      False, "Show only frozen addresses"),
-    'unused':      (None, "--unused",      False, "Show only unused addresses"),
-    'funded':      (None, "--funded",      False, "Show only funded addresses"),
-    'show_balance':("-b", "--balance",     False, "Show the balances of listed addresses"),
-    'show_labels': ("-l", "--labels",      False, "Show the labels of listed addresses"),
-    'nocheck':     (None, "--nocheck",     False, "Do not verify aliases"),
-    'tx_fee':      ("-f", "--fee",         None,  "Transaction fee (in BTC)"),
-    'from_addr':   ("-F", "--from",        None,  "Source address. If it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet."),
-    'change_addr': ("-c", "--change",      None,  "Change address. Default is a spare address, or the source address if it's not in the wallet"),
-    'nbits':       (None, "--nbits",       128,   "Number of bits of entropy"),
-    'entropy':     (None, "--entropy",     1,     "Custom entropy"),
-    'language':    ("-L", "--lang",        None,  "Default language for wordlist"),
-    'gap_limit':   ("-G", "--gap",         None,  "Gap limit"),
-    'mpk':         (None, "--mpk",         None,  "Restore from master public key"),
-    'deserialized':("-d", "--deserialized",False, "Return deserialized transaction"),
-    'privkey':     (None, "--privkey",     None,  "Private key. Set to '?' to get a prompt."),
-    'unsigned':    ("-u", "--unsigned",    False, "Do not sign transaction"),
-    'domain':      ("-D", "--domain",      None,  "List of addresses"),
-    'account':     (None, "--account",     None,  "Account"),
+    'password':    ("-W", "--password",    "Password"),
+    'concealed':   ("-C", "--concealed",   "Don't echo seed to console when restoring"),
+    'show_all':    ("-a", "--all",         "Include change addresses"),
+    'frozen':      (None, "--frozen",      "Show only frozen addresses"),
+    'unused':      (None, "--unused",      "Show only unused addresses"),
+    'funded':      (None, "--funded",      "Show only funded addresses"),
+    'show_balance':("-b", "--balance",     "Show the balances of listed addresses"),
+    'show_labels': ("-l", "--labels",      "Show the labels of listed addresses"),
+    'nocheck':     (None, "--nocheck",     "Do not verify aliases"),
+    'tx_fee':      ("-f", "--fee",         "Transaction fee (in BTC)"),
+    'from_addr':   ("-F", "--from",        "Source address. If it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet."),
+    'change_addr': ("-c", "--change",      "Change address. Default is a spare address, or the source address if it's not in the wallet"),
+    'nbits':       (None, "--nbits",       "Number of bits of entropy"),
+    'entropy':     (None, "--entropy",     "Custom entropy"),
+    'language':    ("-L", "--lang",        "Default language for wordlist"),
+    'gap_limit':   ("-G", "--gap",         "Gap limit"),
+    'mpk':         (None, "--mpk",         "Restore from master public key"),
+    'deserialized':("-d", "--deserialized","Return deserialized transaction"),
+    'privkey':     (None, "--privkey",     "Private key. Set to '?' to get a prompt."),
+    'unsigned':    ("-u", "--unsigned",    "Do not sign transaction"),
+    'domain':      ("-D", "--domain",      "List of addresses"),
+    'account':     (None, "--account",     "Account"),
 }
 
 
@@ -627,8 +629,8 @@ def get_parser(run_gui, run_daemon, run_cmdline):
             p.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run command offline")
         if cmd.requires_wallet:
             p.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
-        for optname in cmd.options:
-            a, b, default, help = command_options[optname]
+        for optname, default in zip(cmd.options, cmd.defaults):
+            a, b, help = command_options[optname]
             action = "store_true" if type(default) is bool else 'store'
             args = (a, b) if a else (b,)
             if action == 'store':
