@@ -76,7 +76,7 @@ register_command('getseed',            0, 1, 1, [], [], 'Get seed phrase', 'Prin
 register_command('getmpk',             0, 1, 0, [], [], 'Get Master Public Key', 'Return your wallet\'s master public key')
 register_command('help',               0, 0, 0, [], [], 'Print help on a command.', '')
 register_command('history',            1, 1, 0, [], [], 'Wallet history', 'Returns the transaction history of your wallet')
-register_command('importprivkey',      0, 1, 1, [('privkey', 'Private key')], [], 'Import a private key', '')
+register_command('importprivkey',      0, 1, 1, [('privkey', 'Private key. Set value to \'?\' if you want to get a prompt')], [], 'Import a private key', '')
 register_command('ismine',             0, 1, 0, [('address', 'Bitcoin address')], [], 'Check if address is in wallet', 'Return true if and only if address is in wallet')
 register_command('listaddresses',      0, 1, 0, [], ['show_all', 'show_labels', 'frozen', 'unused', 'funded', 'show_balance'],
                  'List wallet addresses', 'Returns your list of addresses.')
@@ -94,8 +94,8 @@ register_command('searchcontacts',     0, 1, 0, [('query', '')], [], 'Search thr
 register_command('setconfig',          0, 0, 0, [('key', ''), ('value', '')], [], 'Set a configuration variable', '')
 register_command('setlabel',           0, 1, 0, [('txid', 'Transaction ID'), ('label', '')], [], 'Assign a label to an item', '')
 register_command('sendrawtx',          1, 0, 0, [('tx', 'Serialized transaction')], [], 'Broadcast a transaction to the network.', '')
-register_command('signtxwithkey',      0, 0, 0, [('tx', 'raw_tx'), ('key', '')], [], 'Sign a serialized transaction with a key', '')
-register_command('signtxwithwallet',   0, 1, 1, [('tx', 'raw_tx')], [], 'Sign a serialized transaction with a wallet', '')
+register_command('signtransaction',    0, 0, 0, [('tx', 'raw_tx')], ['privkey'],
+                 'Sign a transaction', 'The wallet keys will be used unless a private key is provided.')
 register_command('signmessage',        0, 1, 1, [('address', 'Bitcoin address'), ('message', 'Message to sign.')], [],
                  'Sign a message with a key.', 'Use quotes if your message contains whitespaces')
 register_command('unfreeze',           0, 1, 0, [('address', 'Bitcoin address')], [], 'Unfreeze the funds at one of your wallet\'s address', '')
@@ -112,7 +112,6 @@ register_command('sweep',              1, 0, 0, [('privkey', 'Private key'), ('a
                  'Sweep private key.', 'Returns a transaction that sends all UTXOs to the destination address. The transactoin is not broadcasted.')
 register_command('make_seed',          0, 0, 0, [], ['nbits', 'entropy', 'language'], 'Create a seed.', '')
 register_command('check_seed',         0, 0, 0, [('seed', 'Seed phrase')], ['entropy', 'language'], 'Check that a seed was generated with external entropy.', '')
-
 
 
 command_options = {
@@ -133,6 +132,7 @@ command_options = {
     'gap_limit':   ("-G", "--gap",         None,  "Gap limit"),
     'mpk':         (None, "--mpk",         None,  "Restore from master public key"),
     'deserialize': ("-d", "--deserialize", False, "Deserialize transaction"),
+    'privkey':     (None, "--privkey",     None,  "private key. Use --privkey='?' to get a prompt."),
 }
 
 
@@ -295,16 +295,14 @@ class Commands:
         tx = Transaction.from_io(tx_inputs, outputs)
         return tx
 
-    def signtxwithkey(self, raw_tx, sec):
-        tx = Transaction(raw_tx)
-        pubkey = bitcoin.public_key_from_private_key(sec)
-        tx.sign({ pubkey:sec })
-        return tx
-
-    def signtxwithwallet(self, raw_tx):
+    def signtransaction(self, raw_tx, privkey=None):
         tx = Transaction(raw_tx)
         tx.deserialize()
-        self.wallet.sign_transaction(tx, self.password)
+        if privkey:
+            pubkey = bitcoin.public_key_from_private_key(sec)
+            tx.sign({pubkey:sec})
+        else:
+            self.wallet.sign_transaction(tx, self.password)
         return tx
 
     def decoderawtransaction(self, raw):
