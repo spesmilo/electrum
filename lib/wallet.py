@@ -149,7 +149,7 @@ class Abstract_Wallet(object):
         self.use_encryption        = storage.get('use_encryption', False)
         self.seed                  = storage.get('seed', '')               # encrypted
         self.labels                = storage.get('labels', {})
-        self.frozen_addresses      = storage.get('frozen_addresses',[])
+        self.frozen_addresses      = set(storage.get('frozen_addresses',[]))
         self.stored_height         = storage.get('stored_height', 0)       # last known height (for offline mode)
 
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
@@ -562,10 +562,12 @@ class Abstract_Wallet(object):
         return c, u, x
 
 
-    def get_spendable_coins(self, domain=None):
+    def get_spendable_coins(self, domain = None, exclude_frozen = True):
         coins = []
         if domain is None:
             domain = self.addresses(True)
+        if exclude_frozen:
+            domain = set(domain) - self.frozen_addresses
         for addr in domain:
             c = self.get_addr_utxo(addr)
             for txo, v in c.items():
@@ -838,20 +840,11 @@ class Abstract_Wallet(object):
             fee = MIN_RELAY_TX_FEE
         return fee
 
-    def make_unsigned_transaction(self, outputs, fixed_fee=None, change_addr=None, domain=None, coins=None ):
+    def make_unsigned_transaction(self, coins, outputs, fixed_fee=None, change_addr=None):
         # check outputs
         for type, data, value in outputs:
             if type == 'address':
                 assert is_address(data), "Address " + data + " is invalid!"
-
-        # get coins
-        if not coins:
-            if domain is None:
-                domain = self.addresses(True)
-            for i in self.frozen_addresses:
-                if i in domain:
-                    domain.remove(i)
-            coins = self.get_spendable_coins(domain)
 
         amount = sum(map(lambda x:x[2], outputs))
         total = fee = 0
@@ -926,8 +919,9 @@ class Abstract_Wallet(object):
         run_hook('make_unsigned_transaction', tx)
         return tx
 
-    def mktx(self, outputs, password, fee=None, change_addr=None, domain= None, coins = None ):
-        tx = self.make_unsigned_transaction(outputs, fee, change_addr, domain, coins)
+    def mktx(self, outputs, password, fee=None, change_addr=None, domain=None):
+        coins = self.get_spendable_coins(domain)
+        tx = self.make_unsigned_transaction(coins, outputs, fee, change_addr)
         self.sign_transaction(tx, password)
         return tx
 
@@ -1016,21 +1010,16 @@ class Abstract_Wallet(object):
     def is_frozen(self, addr):
         return addr in self.frozen_addresses
 
-    def freeze(self,addr):
-        if self.is_mine(addr) and self.is_frozen(addr):
-            self.frozen_addresses.append(addr)
-            self.storage.put('frozen_addresses', self.frozen_addresses, True)
+    def set_frozen_state(self, addrs, freeze):
+        '''Set frozen state of the addresses to FREEZE, True or False'''
+        if all(self.is_mine(addr) for addr in addrs):
+            if freeze:
+                self.frozen_addresses |= set(addrs)
+            else:
+                self.frozen_addresses -= set(addrs)
+            self.storage.put('frozen_addresses', list(self.frozen_addresses), True)
             return True
-        else:
-            return False
-
-    def unfreeze(self,addr):
-        if self.is_mine(addr) and self.is_frozen(addr):
-            self.frozen_addresses.remove(addr)
-            self.storage.put('frozen_addresses', self.frozen_addresses, True)
-            return True
-        else:
-            return False
+        return False
 
     def set_verifier(self, verifier):
         self.verifier = verifier

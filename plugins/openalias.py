@@ -63,6 +63,7 @@ class Plugin(BasePlugin):
         BasePlugin.__init__(self, gui, name)
         self._is_available = OA_READY
         self.print_error('OA_READY is ' + str(OA_READY))
+        self.previous_payto = ''
 
     @hook
     def init_qt(self, gui):
@@ -87,9 +88,9 @@ class Plugin(BasePlugin):
         url = str(self.win.payto_e.toPlainText())
         url = url.replace('@', '.')  # support email-style addresses, per the OA standard
 
-        if url == self.win.previous_payto_e:
+        if url == self.previous_payto:
             return
-        self.win.previous_payto_e = url
+        self.previous_payto = url
 
         if not (('.' in url) and (not '<' in url) and (not ' ' in url)):
             return
@@ -97,13 +98,13 @@ class Plugin(BasePlugin):
         data = self.resolve(url)
 
         if not data:
-            self.win.previous_payto_e = url
+            self.previous_payto = url
             return True
 
         address, name = data
         new_url = url + ' <' + address + '>'
         self.win.payto_e.setText(new_url)
-        self.win.previous_payto_e = new_url
+        self.previous_payto = new_url
 
         if self.config.get('openalias_autoadd') == 'checked':
             self.win.contacts[url] = ('openalias', name)
@@ -178,6 +179,25 @@ class Plugin(BasePlugin):
         return bool(d.exec_())
 
 
+    @hook
+    def resolve_address(self, url):
+        data = self.resolve(url)
+        if not data:
+            return
+        address, name = data
+        try:
+            validated = self.validate_dnssec(url)
+        except:
+            validated = False
+            traceback.print_exc(file=sys.stderr)
+        return {
+            'address': address,
+            'name': name,
+            'type': 'openalias',
+            'validated': validated
+        }
+
+
     def resolve(self, url):
         '''Resolve OpenAlias address using url.'''
         self.print_error('[OA] Attempting to resolve OpenAlias data for ' + url)
@@ -239,7 +259,7 @@ class Plugin(BasePlugin):
             response = dns.query.udp(query, ns, 3)
             if response.rcode() != dns.rcode.NOERROR:
                 self.print_error("query error")
-                return 0
+                return False
 
             if len(response.authority) > 0:
                 rrset = response.authority[0]
@@ -257,14 +277,14 @@ class Plugin(BasePlugin):
             response = dns.query.udp(query, ns, 3)
             if response.rcode() != 0:
                 self.print_error("query error")
-                return 0
+                return False
                 # HANDLE QUERY FAILED (SERVER ERROR OR NO DNSKEY RECORD)
 
             # answer should contain two RRSET: DNSKEY and RRSIG(DNSKEY)
             answer = response.answer
             if len(answer) != 2:
                 self.print_error("answer error", answer)
-                return 0
+                return False
 
             # the DNSKEY should be self signed, validate it
             name = dns.name.from_text(sub)
@@ -272,6 +292,6 @@ class Plugin(BasePlugin):
                 dns.dnssec.validate(answer[0], answer[1], {name: answer[0]})
             except dns.dnssec.ValidationFailure:
                 self.print_error("validation error")
-                return 0
+                return False
 
-        return 1
+        return True

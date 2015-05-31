@@ -151,7 +151,6 @@ class Network(util.DaemonThread):
 
         self.irc_servers = {} # returned by interface (list from irc)
         self.recent_servers = self.read_recent_servers()
-        self.pending_servers = set()
 
         self.banner = ''
         self.heights = {}
@@ -171,7 +170,9 @@ class Network(util.DaemonThread):
         # retry times
         self.server_retry_time = time.time()
         self.nodes_retry_time = time.time()
-        # kick off the network
+        # kick off the network.  interface is the main server we are currently
+        # communicating with.  interfaces is the set of servers we are connecting
+        # to or have an ongoing connection with
         self.interface = None
         self.interfaces = {}
         self.start_network(deserialize_server(self.default_server)[2],
@@ -277,11 +278,11 @@ class Network(util.DaemonThread):
             if server == self.default_server:
                 self.set_status('connecting')
             i = interface.Interface(server, self.queue, self.config)
-            self.pending_servers.add(server)
+            self.interfaces[i.server] = i
             i.start()
 
     def start_random_interface(self):
-        exclude_set = self.disconnected_servers.union(self.pending_servers).union(set(self.interfaces))
+        exclude_set = self.disconnected_servers.union(set(self.interfaces))
         server = pick_random_server(self.get_servers(), self.protocol, exclude_set)
         if server:
             self.start_interface(server)
@@ -317,7 +318,6 @@ class Network(util.DaemonThread):
         self.start_interfaces()
 
     def stop_network(self):
-        # FIXME: this forgets to handle pending servers...
         self.print_error("stopping network")
         for i in self.interfaces.values():
             i.stop()
@@ -350,18 +350,21 @@ class Network(util.DaemonThread):
                 self.switch_to_random_interface()
 
     def switch_to_interface(self, server):
-        '''Switch to server as our interface.  If not already connected, start a
-        connection - we will switch on receipt of the connection notification'''
+        '''Switch to server as our interface.  If no connection exists nor
+        being opened, start a thread to connect.  The actual switch will
+        happen on receipt of the connection notification.  Do nothing
+        if server already is our interface.'''
         self.default_server = server
         if server in self.interfaces:
-            self.print_error("switching to", server)
-            # stop any current interface in order to terminate subscriptions
-            self.stop_interface()
-            self.interface = self.interfaces[server]
-            self.send_subscriptions()
-            self.set_status('connected')
-            self.notify('updated')
-        elif server not in self.pending_servers:
+            if self.interface != self.interfaces[server]:
+                self.print_error("switching to", server)
+                # stop any current interface in order to terminate subscriptions
+                self.stop_interface()
+                self.interface = self.interfaces[server]
+                self.send_subscriptions()
+                self.set_status('connected')
+                self.notify('updated')
+        else:
             self.print_error("starting %s; will switch once connected" % server)
             self.start_interface(server)
 
@@ -385,11 +388,7 @@ class Network(util.DaemonThread):
 
     def process_if_notification(self, i):
         '''Handle interface addition and removal through notifications'''
-        if i.server in self.pending_servers:
-            self.pending_servers.remove(i.server)
-
         if i.is_connected():
-            self.interfaces[i.server] = i
             self.add_recent_server(i)
             i.send_request({'method':'blockchain.headers.subscribe','params':[]})
             if i.server == self.default_server:
@@ -470,7 +469,7 @@ class Network(util.DaemonThread):
     def check_interfaces(self):
         now = time.time()
         # nodes
-        if len(self.interfaces) + len(self.pending_servers) < self.num_server:
+        if len(self.interfaces) < self.num_server:
             self.start_random_interface()
             if now - self.nodes_retry_time > NODES_RETRY_INTERVAL:
                 self.print_error('network: retrying connections')

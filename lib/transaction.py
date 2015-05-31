@@ -494,6 +494,7 @@ class Transaction:
         self.inputs = d['inputs']
         self.outputs = [(x['type'], x['address'], x['value']) for x in d['outputs']]
         self.locktime = d['lockTime']
+        return d
 
     @classmethod
     def from_io(klass, inputs, outputs, locktime=0):
@@ -501,7 +502,6 @@ class Transaction:
         self.inputs = inputs
         self.outputs = outputs
         self.locktime = locktime
-        #self.raw = self.serialize()
         return self
 
     @classmethod

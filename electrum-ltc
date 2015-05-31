@@ -21,7 +21,6 @@ from decimal import Decimal
 import json
 import os
 import re
-import ast
 import sys
 import time
 import traceback
@@ -179,8 +178,19 @@ def run_cmdline(config):
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
 
+    if cmdname == 'signtransaction' and config.get('privkey'):
+        cmd.requires_wallet = False
+        cmd.requires_password = False
+
+    if cmdname in ['mktx', 'mktx_csv'] and config.get('unsigned'):
+        cmd.requires_password = False
+
+    if cmdname in ['createrawtx'] and config.get('unsigned'):
+        cmd.requires_password = False
+        cmd.requires_wallet = False
+
     # arguments passed to function
-    args = map(lambda x: config.get(x), map(lambda x: x[0], cmd.params))
+    args = map(lambda x: config.get(x), cmd.params)
     # options
     args += map(lambda x: config.get(x), cmd.options)
 
@@ -245,10 +255,8 @@ def run_cmdline(config):
         print_msg("Type 'electrum-ltc create' to create a new wallet, or provide a path to a wallet with the -w option")
         sys.exit(0)
 
-    if cmd.requires_wallet:
-        wallet = Wallet(storage)
-    else:
-        wallet = None
+    # create wallet instance
+    wallet = Wallet(storage) if cmd.requires_wallet else None
 
     # important warning
     if cmd.name in ['dumpprivkey', 'dumpprivkeys']:
@@ -293,12 +301,6 @@ def run_cmdline(config):
     else:
         network = None
 
-    # add missing arguments, do type conversions
-    if (cmd.name == 'importprivkey' and len(args)==1)\
-       or (cmd.name == 'signtxwithkey' and len(args)==2):
-        # See if they specificed a key on the cmd line, if not prompt
-        args.append(prompt_password('Enter PrivateKey (will not echo):', False))
-
     # run the command
     if cmd.name == 'deseed':
         if not wallet.seed:
@@ -318,20 +320,6 @@ def run_cmdline(config):
                 print_msg("Done.")
             else:
                 print_msg("Action canceled.")
-
-    elif cmd.name == 'getconfig':
-        key = args[0]
-        out = config.get(key)
-        print_msg(out)
-
-    elif cmd.name == 'setconfig':
-        key, value = args[0:2]
-        try:
-            value = ast.literal_eval(value)
-        except:
-            pass
-        config.set_key(key, value, True)
-        print_msg(True)
 
     elif cmd.name == 'password':
         new_password = prompt_password('New password:')
@@ -367,7 +355,7 @@ if __name__ == '__main__':
     sys.argv = filter(lambda x: not x.startswith('-psn'), sys.argv)
 
     # old 'help' syntax
-    if sys.argv[1] == 'help':
+    if len(sys.argv)>1 and sys.argv[1] == 'help':
         sys.argv.remove('help')
         sys.argv.append('-h')
 
@@ -392,6 +380,10 @@ if __name__ == '__main__':
 
     if config_options.get('portable') and config_options.get('wallet_path') is None:
         config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum-ltc_data')
+
+    # If private key is passed on the command line, '?' triggers prompt.
+    if config_options.get('privkey') and config_options['privkey'] == '?':
+        config_options['privkey'] = prompt_password('Enter PrivateKey (will not echo):', False)
 
     set_verbosity(config_options.get('verbose'))
     config = SimpleConfig(config_options)

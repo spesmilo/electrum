@@ -26,6 +26,7 @@ from gi.repository import Gtk, Gdk, GObject, cairo
 from decimal import Decimal
 from electrum_ltc.util import print_error, InvalidPassword
 from electrum_ltc.bitcoin import is_valid
+from electrum_ltc.wallet import NotEnoughFunds
 from electrum_ltc import WalletStorage, Wallet
 
 Gdk.threads_init()
@@ -687,8 +688,9 @@ class ElectrumWindow:
             if not is_fee: fee = None
             if amount is None:
                 return
+            coins = self.wallet.get_spendable_coins()
             try:
-                tx = self.wallet.make_unsigned_transaction([('op_return', 'dummy_tx', amount)], fee)
+                tx = self.wallet.make_unsigned_transaction(coins, [('op_return', 'dummy_tx', amount)], fee)
                 self.funds_error = False
             except NotEnoughFunds:
                 self.funds_error = True
@@ -1079,10 +1081,7 @@ class ElectrumWindow:
                 path, col = treeview.get_cursor()
                 if path:
                     address = liststore.get_value( liststore.get_iter(path), 0)
-                    if address in wallet.frozen_addresses:
-                        wallet.unfreeze(address)
-                    else:
-                        wallet.freeze(address)
+                    wallet.set_frozen_state([address], not wallet.is_frozen(address))
                     self.update_receiving_tab()
             button.connect("clicked", freeze_address, treeview, liststore, self.wallet)
             button.show()
@@ -1151,7 +1150,7 @@ class ElectrumWindow:
             if address in self.wallet.imported_keys.keys():
                 Type = "I"
             c, u, x = self.wallet.get_addr_balance(address)
-            if address in self.wallet.frozen_addresses: Type = Type + "F"
+            if self.wallet.is_frozen(address): Type = Type + "F"
             label = self.wallet.labels.get(address)
             h = self.wallet.history.get(address,[])
             n = len(h)

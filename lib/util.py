@@ -459,3 +459,26 @@ class StoreDict(dict):
         if key in self.keys():
             dict.pop(self, key)
             self.save()
+
+
+import bitcoin
+from plugins import run_hook
+
+class Contacts(StoreDict):
+
+    def __init__(self, config):
+        StoreDict.__init__(self, config, 'contacts')
+
+    def resolve(self, k, nocheck=False):
+        if bitcoin.is_address(k):
+            return {'address':k, 'type':'address'}
+        if k in self.keys():
+            _type, addr = self[k]
+            if _type == 'address':
+                return {'address':addr, 'type':'contact'}
+        out = run_hook('resolve_address', k)
+        if out:
+            if not nocheck and out.get('validated') is False:
+                raise Exception("cannot validate alias")
+            return out
+        raise Exception("invalid Litecoin address", k)

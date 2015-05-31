@@ -118,7 +118,7 @@ class ElectrumWindow(QMainWindow):
         self.app = gui_object.app
 
         self.invoices = InvoiceStore(self.config)
-        self.contacts = StoreDict(self.config, 'contacts')
+        self.contacts = util.Contacts(self.config)
 
         self.create_status_bar()
         self.need_update = threading.Event()
@@ -477,7 +477,6 @@ class ElectrumWindow(QMainWindow):
 
     def connect_slots(self, sender):
         self.connect(sender, QtCore.SIGNAL('timersignal'), self.timer_actions)
-        self.previous_payto_e=''
 
     def timer_actions(self):
         if self.need_update.is_set():
@@ -1006,7 +1005,7 @@ class ElectrumWindow(QMainWindow):
                 addr = self.payto_e.payto_address if self.payto_e.payto_address else self.dummy_address
                 outputs = [('address', addr, amount)]
             try:
-                tx = self.wallet.make_unsigned_transaction(outputs, fee, coins = self.get_coins())
+                tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, fee)
                 self.not_enough_funds = False
             except NotEnoughFunds:
                 self.not_enough_funds = True
@@ -1111,7 +1110,7 @@ class ElectrumWindow(QMainWindow):
             return
         outputs, fee, label, coins = r
         try:
-            tx = self.wallet.make_unsigned_transaction(outputs, fee, None, coins = coins)
+            tx = self.wallet.make_unsigned_transaction(coins, outputs, fee)
             if not tx:
                 raise BaseException(_("Insufficient funds"))
         except Exception as e:
@@ -1291,13 +1290,8 @@ class ElectrumWindow(QMainWindow):
         run_hook('do_clear')
 
 
-    def set_addrs_frozen(self,addrs,freeze):
-        for addr in addrs:
-            if not addr: continue
-            if addr in self.wallet.frozen_addresses and not freeze:
-                self.wallet.unfreeze(addr)
-            elif addr not in self.wallet.frozen_addresses and freeze:
-                self.wallet.freeze(addr)
+    def set_frozen_state(self, addrs, freeze):
+        self.wallet.set_frozen_state(addrs, freeze)
         self.update_address_tab()
         self.update_fee(False)
 
@@ -1415,13 +1409,13 @@ class ElectrumWindow(QMainWindow):
             if addr_URL:
                 menu.addAction(_("View on block explorer"), lambda: webbrowser.open(addr_URL))
 
-        if any(addr not in self.wallet.frozen_addresses for addr in addrs):
-            menu.addAction(_("Freeze"), lambda: self.set_addrs_frozen(addrs, True))
-        if any(addr in self.wallet.frozen_addresses for addr in addrs):
-            menu.addAction(_("Unfreeze"), lambda: self.set_addrs_frozen(addrs, False))
+        if any(not self.wallet.is_frozen(addr) for addr in addrs):
+            menu.addAction(_("Freeze"), lambda: self.set_frozen_state(addrs, True))
+        if any(self.wallet.is_frozen(addr) for addr in addrs):
+            menu.addAction(_("Unfreeze"), lambda: self.set_frozen_state(addrs, False))
 
         def can_send(addr):
-            return addr not in self.wallet.frozen_addresses and self.wallet.get_addr_balance(addr) != (0, 0)
+            return not self.wallet.is_frozen(addr) and sum(self.wallet.get_addr_balance(addr)[:2])
         if any(can_send(addr) for addr in addrs):
             menu.addAction(_("Send From"), lambda: self.send_from_addresses(addrs))
 
@@ -1438,13 +1432,11 @@ class ElectrumWindow(QMainWindow):
             return self.pay_from
         else:
             domain = self.wallet.get_account_addresses(self.current_account)
-            for i in self.wallet.frozen_addresses:
-                if i in domain: domain.remove(i)
             return self.wallet.get_spendable_coins(domain)
 
 
     def send_from_addresses(self, addrs):
-        self.set_pay_from( addrs )
+        self.set_pay_from(addrs)
         self.tabs.setCurrentIndex(1)
         self.update_fee(False)
 
@@ -1586,7 +1578,7 @@ class ElectrumWindow(QMainWindow):
                     item.setFont(0, QFont(MONOSPACE_FONT))
                     item.setData(0, Qt.UserRole, address)
                     item.setData(0, Qt.UserRole+1, True) # label can be edited
-                    if address in self.wallet.frozen_addresses:
+                    if self.wallet.is_frozen(address):
                         item.setBackgroundColor(0, QColor('lightblue'))
                     if self.wallet.is_beyond_limit(address, account, is_change):
                         item.setBackgroundColor(0, QColor('red'))
