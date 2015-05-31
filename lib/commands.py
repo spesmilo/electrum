@@ -254,8 +254,9 @@ class Commands:
         return out
 
     def sweep(self, privkey, destination, tx_fee=None, nocheck=False):
-        """Sweep private key
-        Returns a transaction that spends UTXOs from privkey to a destination address. The transaction is not broadcasted."""
+        """Sweep private key. Returns a transaction that spends UTXOs from
+        privkey to a destination address. The transaction is not
+        broadcasted."""
         resolver = lambda x: self.contacts.resolve(x, nocheck)['address']
         dest = resolver(destination)
         if tx_fee is None:
@@ -264,7 +265,8 @@ class Commands:
         return Transaction.sweep([privkey], self.network, dest, fee)
 
     def signmessage(self, address, message):
-        """Sign a message with a key. Use quotes if your message contains whitespaces"""
+        """Sign a message with a key. Use quotes if your message contains
+        whitespaces"""
         return self.wallet.sign_message(address, message, self.password)
 
     def verifymessage(self, address, signature, message):
@@ -359,7 +361,8 @@ class Commands:
         return out
 
     def setlabel(self, key, label):
-        """Assign a label to an item. Item may be a bitcoin address or a transaction ID"""
+        """Assign a label to an item. Item may be a bitcoin address or a
+        transaction ID"""
         self.wallet.set_label(key, label)
 
     def listcontacts(self):
@@ -616,7 +619,7 @@ def get_parser(run_gui, run_daemon, run_cmdline):
     # commands
     for cmdname in sorted(known_commands.keys()):
         cmd = known_commands[cmdname]
-        p = subparsers.add_parser(cmdname, parents=[parent_parser], help=cmd.help, description=cmd.help + '. ' + cmd.description)
+        p = subparsers.add_parser(cmdname, parents=[parent_parser], help=cmd.help, description=cmd.description)
         p.set_defaults(func=run_cmdline)
         if cmd.requires_password:
             p.add_argument("-W", "--password", dest="password", default=None, help="password")
