@@ -21,7 +21,6 @@ from decimal import Decimal
 import json
 import os
 import re
-import ast
 import sys
 import time
 import traceback
@@ -321,20 +320,6 @@ def run_cmdline(config):
                 print_msg("Done.")
             else:
                 print_msg("Action canceled.")
-
-    elif cmd.name == 'getconfig':
-        key = args[0]
-        out = config.get(key)
-        print_msg(out)
-
-    elif cmd.name == 'setconfig':
-        key, value = args[0:2]
-        try:
-            value = ast.literal_eval(value)
-        except:
-            pass
-        config.set_key(key, value, True)
-        print_msg(True)
 
     elif cmd.name == 'password':
         new_password = prompt_password('New password:')
