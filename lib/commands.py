@@ -72,7 +72,7 @@ register_command('getaddressbalance',  1, 0, 0, ['address'], [], 'Return the bal
 register_command('getaddresshistory',  1, 0, 0, ['address'], [], 'Return the transaction history of a wallet address', '')
 register_command('getconfig',          0, 0, 0, ['key'], [], 'Return a configuration variable', '')
 register_command('getpubkeys',         0, 1, 0, ['address'], [], 'Return the public keys for a wallet address', '')
-register_command('gettransaction',     1, 0, 0, ['txid'], ['deserialize'], 'Retrieve a transaction', '')
+register_command('gettransaction',     1, 0, 0, ['txid'], ['deserialized'], 'Retrieve a transaction', '')
 register_command('getseed',            0, 1, 1, [], [], 'Get seed phrase', 'Print the generation seed of your wallet.')
 register_command('getmpk',             0, 1, 0, [], [], 'Get Master Public Key', 'Return your wallet\'s master public key')
 register_command('help',               0, 0, 0, [], [], 'Print help on a command', '')
@@ -83,9 +83,11 @@ register_command('listaddresses',      0, 1, 0, [], ['show_all', 'show_labels', 
                  'List wallet addresses', 'Returns your list of addresses.')
 register_command('listunspent',        1, 1, 0, [], [], 'List unspent outputs', 'Returns the list of unspent transaction outputs in your wallet.')
 register_command('getaddressunspent',  1, 0, 0, ['address'], [], 'Returns the list of unspent inputs for an address', '')
-register_command('mktx',               0, 1, 1, ['destination', 'amount'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck', 'unsigned'], 'Create signed transaction', '')
+register_command('mktx',               0, 1, 1, ['destination', 'amount'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck', 'unsigned', 'deserialized'],
+                 'Create a transaction', '')
 register_command('payto',              1, 1, 1, ['destination', 'amount'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck'], 'Create and broadcast a transaction.', '')
-register_command('mktx_csv',           0, 1, 1, ['csv_file'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck', 'unsigned'], 'Create multi-output transaction', '')
+register_command('mktx_csv',           0, 1, 1, ['csv_file'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck', 'unsigned', 'deserialized'],
+                 'Create a multi-output transaction', '')
 register_command('payto_csv',          1, 1, 1, ['csv_file'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck'], 'Create and broadcast multi-output transaction.', '')
 register_command('password',           0, 1, 1, [], [], 'Change your password', '')
 register_command('restore',            1, 1, 0, [], ['gap_limit', 'mpk', 'concealed'], 'Restore a wallet from seed', '')
@@ -147,7 +149,7 @@ command_options = {
     'language':    ("-L", "--lang",        None,  "Default language for wordlist"),
     'gap_limit':   ("-G", "--gap",         None,  "Gap limit"),
     'mpk':         (None, "--mpk",         None,  "Restore from master public key"),
-    'deserialize': ("-d", "--deserialize", False, "Deserialize transaction"),
+    'deserialized':("-d", "--deserialized",False, "Return deserialized transaction"),
     'privkey':     (None, "--privkey",     None,  "Private key. Set to '?' to get a prompt."),
     'unsigned':    ("-u", "--unsigned",    False, "Do not sign transaction"),
 }
@@ -436,7 +438,7 @@ class Commands:
     def verifymessage(self, address, signature, message):
         return bitcoin.verify_message(address, signature, message)
 
-    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned):
+    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned, deserialized):
         resolver = lambda x: None if x is None else self.contacts.resolve(x, nocheck)['address']
         change_addr = resolver(change_addr)
         domain = None if domain is None else map(resolver, domain)
@@ -462,9 +464,10 @@ class Commands:
 
         coins = self.wallet.get_spendable_coins(domain)
         tx = self.wallet.make_unsigned_transaction(coins, final_outputs, fee, change_addr)
+        str(tx) #this serializes
         if not unsigned:
             self.wallet.sign_transaction(tx, self.password)
-        return tx
+        return tx.deserialize() if deserialized else tx
 
     def _read_csv(self, csvpath):
         import csv
@@ -478,15 +481,15 @@ class Commands:
                 outputs.append((address, amount))
         return outputs
 
-    def mktx(self, to_address, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False):
+    def mktx(self, to_address, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False):
         domain = [from_addr] if from_addr else None
-        tx = self._mktx([(to_address, amount)], fee, change_addr, domain, nocheck, unsigned)
+        tx = self._mktx([(to_address, amount)], fee, change_addr, domain, nocheck, unsigned, deserialized)
         return tx
 
-    def mktx_csv(self, path, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False):
+    def mktx_csv(self, path, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False):
         domain = [from_addr] if from_addr else None
         outputs = self._read_csv(path)
-        tx = self._mktx(outputs, fee, change_addr, domain, nocheck, unsigned)
+        tx = self._mktx(outputs, fee, change_addr, domain, nocheck, unsigned, deserialized)
         return tx
 
     def payto(self, to_address, amount, fee=None, from_addr=None, change_addr=None, nocheck=False):
@@ -552,7 +555,7 @@ class Commands:
             out.append(item)
         return out
 
-    def gettransaction(self, tx_hash, deserialize=False):
+    def gettransaction(self, tx_hash, deserialized=False):
         tx = self.wallet.transactions.get(tx_hash) if self.wallet else None
         if tx is None and self.network:
             raw = self.network.synchronous_get([('blockchain.transaction.get', [tx_hash])])[0]
@@ -560,7 +563,7 @@ class Commands:
                 tx = Transaction(raw)
             else:
                 raise BaseException("Unknown transaction")
-        return tx.deserialize() if deserialize else tx
+        return tx.deserialize() if deserialized else tx
 
     def encrypt(self, pubkey, message):
         return bitcoin.encrypt_message(message, pubkey)
