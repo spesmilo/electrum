@@ -562,10 +562,12 @@ class Abstract_Wallet(object):
         return c, u, x
 
 
-    def get_spendable_coins(self, domain=None):
+    def get_spendable_coins(self, domain = None, exclude_frozen = True):
         coins = []
         if domain is None:
             domain = self.addresses(True)
+        if exclude_frozen:
+            domain = set(domain) - self.frozen_addresses
         for addr in domain:
             c = self.get_addr_utxo(addr)
             for txo, v in c.items():
@@ -846,11 +848,6 @@ class Abstract_Wallet(object):
 
         # get coins
         if not coins:
-            if domain is None:
-                domain = self.addresses(True)
-            for i in self.frozen_addresses:
-                if i in domain:
-                    domain.remove(i)
             coins = self.get_spendable_coins(domain)
 
         amount = sum(map(lambda x:x[2], outputs))
