@@ -63,6 +63,7 @@ class Plugin(BasePlugin):
         BasePlugin.__init__(self, gui, name)
         self._is_available = OA_READY
         self.print_error('OA_READY is ' + str(OA_READY))
+        self.previous_payto = ''
 
     @hook
     def init_qt(self, gui):
@@ -87,9 +88,9 @@ class Plugin(BasePlugin):
         url = str(self.win.payto_e.toPlainText())
         url = url.replace('@', '.')  # support email-style addresses, per the OA standard
 
-        if url == self.win.previous_payto_e:
+        if url == self.previous_payto:
             return
-        self.win.previous_payto_e = url
+        self.previous_payto = url
 
         if not (('.' in url) and (not '<' in url) and (not ' ' in url)):
             return
@@ -97,13 +98,13 @@ class Plugin(BasePlugin):
         data = self.resolve(url)
 
         if not data:
-            self.win.previous_payto_e = url
+            self.previous_payto = url
             return True
 
         address, name = data
         new_url = url + ' <' + address + '>'
         self.win.payto_e.setText(new_url)
-        self.win.previous_payto_e = new_url
+        self.previous_payto = new_url
 
         if self.config.get('openalias_autoadd') == 'checked':
             self.win.contacts[url] = ('openalias', name)

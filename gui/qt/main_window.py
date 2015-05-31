@@ -477,7 +477,6 @@ class ElectrumWindow(QMainWindow):
 
     def connect_slots(self, sender):
         self.connect(sender, QtCore.SIGNAL('timersignal'), self.timer_actions)
-        self.previous_payto_e=''
 
     def timer_actions(self):
         if self.need_update.is_set():
