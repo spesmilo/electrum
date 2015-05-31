@@ -85,15 +85,15 @@ register_command('listunspent',        1, 1, 0, [], [], 'List unspent outputs', 
 register_command('getaddressunspent',  1, 0, 0, ['address'], [], 'Returns the list of unspent inputs for an address', '')
 register_command('mktx',               0, 1, 1, ['address', 'amount'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck'], 'Create signed transaction', '')
 register_command('payto',              1, 1, 1, ['address', 'amount'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck'], 'Create and broadcast a transaction.', '')
-register_command('mktx_csv',           0, 1, 1, ['csv_file'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck'], 'Create a signed transaction', '')
-register_command('payto_csv',          1, 1, 1, ['csv_file'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck'], 'Create and broadcast a transaction.', '')
+register_command('mktx_csv',           0, 1, 1, ['csv_file'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck'], 'Create multi-output transaction', '')
+register_command('payto_csv',          1, 1, 1, ['csv_file'], ['tx_fee', 'from_addr', 'change_addr', 'nocheck'], 'Create and broadcast multi-output transaction.', '')
 register_command('password',           0, 1, 1, [], [], 'Change your password', '')
 register_command('restore',            1, 1, 0, [], ['gap_limit', 'mpk', 'concealed'], 'Restore a wallet from seed', '')
 register_command('searchcontacts',     0, 1, 0, ['query'], [], 'Search through contacts, return matching entries', '')
 register_command('setconfig',          0, 0, 0, ['key', 'value'], [], 'Set a configuration variable', '')
 register_command('setlabel',           0, 1, 0, ['item', 'label'], [], 'Assign a label to an item', 'Item may be a bitcoin address or a transaction ID')
 register_command('sendtx',             1, 0, 0, ['tx'], [], 'Broadcast a transaction to the network', '')
-register_command('signtransaction',    0, 0, 0, ['tx'], ['privkey'],
+register_command('signtransaction',    0, 1, 1, ['tx'], ['privkey'],
                  'Sign a transaction', 'The wallet keys will be used unless a private key is provided.')
 register_command('signmessage',        0, 1, 1, ['address', 'message'], [],
                  'Sign a message with a key', 'Use quotes if your message contains whitespaces')

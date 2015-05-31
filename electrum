@@ -179,6 +179,10 @@ def run_cmdline(config):
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
 
+    if cmdname == 'signtransaction' and config.get('privkey'):
+        cmd.requires_wallet = False
+        cmd.requires_password = False
+
     # arguments passed to function
     args = map(lambda x: config.get(x), cmd.params)
     # options
