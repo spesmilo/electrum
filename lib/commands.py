@@ -54,18 +54,28 @@ class Commands:
         return result
 
     def help(self):
+        """Print help"""
         return 'Commands: ' + ', '.join(sorted(known_commands.keys()))
 
-    # dummy functions for register
-    def create(self): pass
-    def restore(self): pass
-    def deseed(self): pass
-    def password(self): pass
+    def create(self):
+        """Create a new wallet"""
+
+    def restore(self):
+        """Restore a wallet from seed. """
+
+    def deseed(self):
+        """Remove seed from wallet
+        This creates a seedless, watching-only wallet."""
+
+    def password(self):
+        """Change wallet password. """
 
     def getconfig(self, key):
+        """Return a configuration variable. """
         return self.config.get(key)
 
     def setconfig(self, key, value):
+        """Set a configuration variable. """
         try:
             value = ast.literal_eval(value)
         except:
@@ -74,31 +84,38 @@ class Commands:
         return True
 
     def make_seed(self, nbits=128, entropy=1, language=None):
+        """Create a seed"""
         from mnemonic import Mnemonic
         s = Mnemonic(language).make_seed(nbits, custom_entropy=custom_entropy)
         return s.encode('utf8')
 
     def check_seed(self, seed, entropy=1, language=None):
+        """Check that a seed was generated with given entropy"""
         from mnemonic import Mnemonic
         return Mnemonic(language).check_seed(seed, entropy)
 
     def getaddresshistory(self, address):
+        """Return the transaction history of a wallet address."""
         return self.network.synchronous_get([('blockchain.address.get_history', [address])])[0]
 
     def listunspent(self):
+        """List unspent outputs. Returns the list of unspent transaction outputs in your wallet."""
         l = copy.deepcopy(self.wallet.get_spendable_coins(exclude_frozen = False))
         for i in l: i["value"] = str(Decimal(i["value"])/100000000)
         return l
 
     def getaddressunspent(self, address):
+        """Returns the list of unspent inputs for an address. """
         return self.network.synchronous_get([('blockchain.address.listunspent', [address])])[0]
 
     def getutxoaddress(self, txid, pos):
+        """Get the address of an unspent transaction output"""
         r = self.network.synchronous_get([('blockchain.utxo.get_address', [txid, pos])])
         if r:
             return {'address':r[0]}
 
     def createrawtx(self, inputs, outputs, unsigned=False):
+        """Create a transaction from json inputs. The syntax is similar to bitcoind."""
         coins = self.wallet.get_spendable_coins(exclude_frozen = False)
         tx_inputs = []
         for i in inputs:
@@ -118,53 +135,65 @@ class Commands:
         return tx
 
     def signtransaction(self, tx, privkey=None):
-        tx = Transaction(tx)
-        tx.deserialize()
+        """Sign a transaction. The wallet keys will be used unless a private key is provided."""
+        t = Transaction(tx)
+        t.deserialize()
         if privkey:
             pubkey = bitcoin.public_key_from_private_key(sec)
-            tx.sign({pubkey:sec})
+            t.sign({pubkey:sec})
         else:
-            self.wallet.sign_transaction(tx, self.password)
-        return tx
+            self.wallet.sign_transaction(t, self.password)
+        return t
 
     def decodetx(self, tx):
-        t = Transaction(rawtx)
+        """Decode serialized transaction"""
+        t = Transaction(tx)
         return t.deserialize()
 
     def sendtx(self, tx):
-        t = Transaction(raw)
+        """Broadcast a transaction to the network. """
+        t = Transaction(tx)
         return self.network.synchronous_get([('blockchain.transaction.broadcast', [str(t)])])[0]
 
     def createmultisig(self, num, pubkeys):
+        """Create multisig address"""
         assert isinstance(pubkeys, list), (type(num), type(pubkeys))
         redeem_script = Transaction.multisig_script(pubkeys, num)
         address = hash_160_to_bc_address(hash_160(redeem_script.decode('hex')), 5)
         return {'address':address, 'redeemScript':redeem_script}
 
     def freeze(self, address):
+        """Freeze address. Freeze the funds at one of your wallet\'s addresses"""
         return self.wallet.set_frozen_state([address], True)
 
     def unfreeze(self, address):
+        """Unfreeze address. Unfreeze the funds at one of your wallet\'s address"""
         return self.wallet.set_frozen_state([address], False)
 
     def getprivatekeys(self, address):
+        """Get the private keys of an address. Address must be in wallet."""
         return self.wallet.get_private_key(address, self.password)
 
     def ismine(self, address):
+        """Check if address is in wallet. Return true if and only address is in wallet"""
         return self.wallet.is_mine(address)
 
     def dumpprivkeys(self, domain=None):
+        """Dump private keys from your wallet"""
         if domain is None:
             domain = self.wallet.addresses(True)
         return [self.wallet.get_private_key(address, self.password) for address in domain]
 
     def validateaddress(self, address):
+        """Check that the address is valid. """
         return is_address(address)
 
     def getpubkeys(self, address):
+        """Return the public keys for a wallet address. """
         return self.wallet.get_public_keys(address)
 
     def getbalance(self, account=None):
+        """Return the balance of your wallet"""
         if account is None:
             c, u, x = self.wallet.get_balance()
         else:
@@ -177,12 +206,14 @@ class Commands:
         return out
 
     def getaddressbalance(self, address):
+        """Return the balance of an address"""
         out = self.network.synchronous_get([('blockchain.address.get_balance', [address])])[0]
         out["confirmed"] =  str(Decimal(out["confirmed"])/100000000)
         out["unconfirmed"] =  str(Decimal(out["unconfirmed"])/100000000)
         return out
 
     def getproof(self, address):
+        """Get Merkle branch of an address in the UTXO set"""
         p = self.network.synchronous_get([('blockchain.address.get_proof', [address])])[0]
         out = []
         for i,s in p:
@@ -190,25 +221,31 @@ class Commands:
         return out
 
     def getmerkle(self, txid, height):
+        """Get Merkle branch of a transaction included in a block"""
         return self.network.synchronous_get([('blockchain.transaction.get_merkle', [txid, int(height)])])[0]
 
     def getservers(self):
+        """Return the list of available servers"""
         while not self.network.is_up_to_date():
             time.sleep(0.1)
         return self.network.get_servers()
 
     def version(self):
+        """Return the version of electrum."""
         import electrum  # Needs to stay here to prevent ciruclar imports
         return electrum.ELECTRUM_VERSION
 
     def getmpk(self):
+        """Get Master Public Key. Return your wallet\'s master public key"""
         return self.wallet.get_master_public_keys()
 
     def getseed(self):
+        """Get seed phrase. Print the generation seed of your wallet."""
         s = self.wallet.get_mnemonic(self.password)
         return s.encode('utf8')
 
     def importprivkey(self, privkey):
+        """Import a private key. """
         try:
             addr = self.wallet.import_key(privkey, self.password)
             out = "Keypair imported: ", addr
@@ -217,6 +254,8 @@ class Commands:
         return out
 
     def sweep(self, privkey, destination, tx_fee=None, nocheck=False):
+        """Sweep private key
+        Returns a transaction that spends UTXOs from privkey to a destination address. The transaction is not broadcasted."""
         resolver = lambda x: self.contacts.resolve(x, nocheck)['address']
         dest = resolver(destination)
         if tx_fee is None:
@@ -225,9 +264,11 @@ class Commands:
         return Transaction.sweep([privkey], self.network, dest, fee)
 
     def signmessage(self, address, message):
+        """Sign a message with a key. Use quotes if your message contains whitespaces"""
         return self.wallet.sign_message(address, message, self.password)
 
     def verifymessage(self, address, signature, message):
+        """Verify a signature."""
         return bitcoin.verify_message(address, signature, message)
 
     def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned, deserialized):
@@ -274,23 +315,27 @@ class Commands:
         return outputs
 
     def mktx(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False):
+        """Create a transaction. """
         domain = [from_addr] if from_addr else None
         tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, deserialized)
         return tx
 
     def mktx_csv(self, csv_file, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False):
+        """Create a multi-output transaction. """
         domain = [from_addr] if from_addr else None
         outputs = self._read_csv(csv_file)
         tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, deserialized)
         return tx
 
     def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False):
+        """Create and broadcast a transaction.. """
         domain = [from_addr] if from_addr else None
         tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck)
         r, h = self.wallet.sendtx(tx)
         return h
 
     def payto_csv(self, csv_file, tx_fee=None, from_addr=None, change_addr=None, nocheck=False):
+        """Create and broadcast multi-output transaction.. """
         domain = [from_addr] if from_addr else None
         outputs = self._read_csv(csv_file)
         tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck)
@@ -298,6 +343,7 @@ class Commands:
         return h
 
     def history(self):
+        """Wallet history. Returns the transaction history of your wallet."""
         balance = 0
         out = []
         for item in self.wallet.get_history():
@@ -313,15 +359,19 @@ class Commands:
         return out
 
     def setlabel(self, key, label):
+        """Assign a label to an item. Item may be a bitcoin address or a transaction ID"""
         self.wallet.set_label(key, label)
 
     def listcontacts(self):
+        """Show your list of contacts"""
         return self.contacts
 
     def getalias(self, key, nocheck=False):
+        """Retrieve alias. Lookup in your list of contacts, and for an OpenAlias DNS record."""
         return self.contacts.resolve(key, nocheck)
 
     def searchcontacts(self, query):
+        """Search through contacts, return matching entries. """
         results = {}
         for key, value in self.contacts.items():
             if query.lower() in key.lower():
@@ -329,6 +379,7 @@ class Commands:
         return results
 
     def listaddresses(self, show_all=False, show_labels=False, frozen=False, unused=False, funded=False, show_balance=False):
+        """List wallet addresses. Returns your list of addresses."""
         out = []
         for addr in self.wallet.addresses(True):
             if frozen and not self.wallet.is_frozen(addr):
@@ -348,6 +399,7 @@ class Commands:
         return out
 
     def gettransaction(self, txid, deserialized=False):
+        """Retrieve a transaction. """
         tx = self.wallet.transactions.get(txid) if self.wallet else None
         if tx is None and self.network:
             raw = self.network.synchronous_get([('blockchain.transaction.get', [txid])])[0]
@@ -358,23 +410,25 @@ class Commands:
         return tx.deserialize() if deserialized else tx
 
     def encrypt(self, pubkey, message):
+        """Encrypt a message with a public key. Use quotes if the message contains whitespaces."""
         return bitcoin.encrypt_message(message, pubkey)
 
     def decrypt(self, pubkey, encrypted):
+        """Decrypt a message encrypted with a public key."""
         return self.wallet.decrypt_message(pubkey, encrypted, self.password)
 
 
 
 class Command:
-    def __init__(self, name, requires_network, requires_wallet, requires_password, help, description):
+    def __init__(self, name, requires_network, requires_wallet, requires_password):
         self.name = name
         self.requires_network = bool(requires_network)
         self.requires_wallet = bool(requires_wallet)
         self.requires_password = bool(requires_password)
-        self.help = help
-        self.description = description
         # compute params and options
         func = getattr(Commands, name)
+        self.description = func.__doc__
+        self.help = self.description.split('.')[0]
         varnames = func.func_code.co_varnames[1:func.func_code.co_argcount]
         defaults = func.func_defaults
         if defaults:
@@ -397,59 +451,56 @@ def register_command(*args):
 #                                      requires_network
 #                                        requires_wallet
 #                                          requires_password
-#                                               arguments
-#                                                    options
-register_command('listcontacts',       0, 0, 0, 'Show your list of contacts', '')
-register_command('create',             0, 1, 0, 'Create a new wallet', '')
-register_command('createmultisig',     0, 1, 0, 'Create multisig address', '')
-register_command('createrawtx',        0, 1, 1, 'Create a transaction from json inputs', 'The syntax is similar to bitcoind.')
-register_command('deseed',             0, 1, 0, 'Remove seed from wallet.', 'This creates a seedless, watching-only wallet.')
-register_command('decodetx',           0, 0, 0, 'Decode serialized transaction', '')
-register_command('getprivatekeys',     0, 1, 1, 'Get the private keys of an address', 'Address must be in wallet.')
-register_command('dumpprivkeys',       0, 1, 1, 'Dump private keys from your wallet', '')
-register_command('freeze',             0, 1, 0, 'Freeze address', 'Freeze the funds at one of your wallet\'s addresses')
-register_command('getalias',           0, 0, 0, 'Retrieve alias', 'Lookup in your list of contacts, and for an OpenAlias DNS record')
-register_command('getbalance',         1, 1, 0, 'Return the balance of your wallet', '')
-register_command('getservers',         1, 0, 0, 'Return the list of available servers', '')
-register_command('getaddressbalance',  1, 0, 0, 'Return the balance of an address', '')
-register_command('getaddresshistory',  1, 0, 0, 'Return the transaction history of a wallet address', '')
-register_command('getconfig',          0, 0, 0, 'Return a configuration variable', '')
-register_command('getpubkeys',         0, 1, 0, 'Return the public keys for a wallet address', '')
-register_command('gettransaction',     1, 0, 0, 'Retrieve a transaction', '')
-register_command('getseed',            0, 1, 1, 'Get seed phrase', 'Print the generation seed of your wallet.')
-register_command('getmpk',             0, 1, 0, 'Get Master Public Key', 'Return your wallet\'s master public key')
-register_command('help',               0, 0, 0, 'Print help on a command', '')
-register_command('history',            1, 1, 0, 'Wallet history', 'Returns the transaction history of your wallet')
-register_command('importprivkey',      0, 1, 1, 'Import a private key', '')
-register_command('ismine',             0, 1, 0, 'Check if address is in wallet', 'Return true if and only address is in wallet')
-register_command('listaddresses',      0, 1, 0, 'List wallet addresses', 'Returns your list of addresses.')
-register_command('listunspent',        1, 1, 0, 'List unspent outputs', 'Returns the list of unspent transaction outputs in your wallet.')
-register_command('getaddressunspent',  1, 0, 0, 'Returns the list of unspent inputs for an address', '')
-register_command('mktx',               0, 1, 1, 'Create a transaction', '')
-register_command('payto',              1, 1, 1, 'Create and broadcast a transaction.', '')
-register_command('mktx_csv',           0, 1, 1, 'Create a multi-output transaction', '')
-register_command('payto_csv',          1, 1, 1, 'Create and broadcast multi-output transaction.', '')
-register_command('password',           0, 1, 1, 'Change your password', '')
-register_command('restore',            1, 1, 0, 'Restore a wallet from seed', '')
-register_command('searchcontacts',     0, 1, 0, 'Search through contacts, return matching entries', '')
-register_command('setconfig',          0, 0, 0, 'Set a configuration variable', '')
-register_command('setlabel',           0, 1, 0, 'Assign a label to an item', 'Item may be a bitcoin address or a transaction ID')
-register_command('sendtx',             1, 0, 0, 'Broadcast a transaction to the network', '')
-register_command('signtransaction',    0, 1, 1, 'Sign a transaction', 'The wallet keys will be used unless a private key is provided.')
-register_command('signmessage',        0, 1, 1, 'Sign a message with a key', 'Use quotes if your message contains whitespaces')
-register_command('unfreeze',           0, 1, 0, 'Unfreeze address', 'Unfreeze the funds at one of your wallet\'s address')
-register_command('validateaddress',    0, 0, 0, 'Check that the address is valid', '')
-register_command('verifymessage',      0, 0, 0, 'Verify a signature', '')
-register_command('version',            0, 0, 0, 'Return the version of your client', '')
-register_command('encrypt',            0, 0, 0, 'Encrypt a message with a public key', 'Use quotes if the message contains whitespaces.')
-register_command('decrypt',            0, 1, 1, 'Decrypt a message encrypted with a public key', '')
-register_command('getmerkle',          1, 0, 0, 'Get Merkle branch of a transaction included in a block', '')
-register_command('getproof',           1, 0, 0, 'Get Merkle branch of an address in the UTXO set', '')
-register_command('getutxoaddress',     1, 0, 0, 'Get the address of an unspent transaction output', '')
-register_command('sweep',              1, 0, 0, 'Sweep private key',
-                 'Returns a transaction that spends UTXOs from privkey to a destination address. The transaction is not broadcasted.')
-register_command('make_seed',          0, 0, 0, 'Create a seed', '')
-register_command('check_seed',         0, 0, 0, 'Check that a seed was generated with given entropy', '')
+register_command('listcontacts',       0, 0, 0)
+register_command('create',             0, 1, 0)
+register_command('createmultisig',     0, 1, 0)
+register_command('createrawtx',        0, 1, 1)
+register_command('deseed',             0, 1, 0)
+register_command('decodetx',           0, 0, 0)
+register_command('getprivatekeys',     0, 1, 1)
+register_command('dumpprivkeys',       0, 1, 1)
+register_command('freeze',             0, 1, 0)
+register_command('getalias',           0, 0, 0)
+register_command('getbalance',         1, 1, 0)
+register_command('getservers',         1, 0, 0)
+register_command('getaddressbalance',  1, 0, 0)
+register_command('getaddresshistory',  1, 0, 0)
+register_command('getconfig',          0, 0, 0)
+register_command('getpubkeys',         0, 1, 0)
+register_command('gettransaction',     1, 0, 0)
+register_command('getseed',            0, 1, 1)
+register_command('getmpk',             0, 1, 0)
+register_command('help',               0, 0, 0)
+register_command('history',            1, 1, 0)
+register_command('importprivkey',      0, 1, 1)
+register_command('ismine',             0, 1, 0)
+register_command('listaddresses',      0, 1, 0)
+register_command('listunspent',        1, 1, 0)
+register_command('getaddressunspent',  1, 0, 0)
+register_command('mktx',               0, 1, 1)
+register_command('payto',              1, 1, 1)
+register_command('mktx_csv',           0, 1, 1)
+register_command('payto_csv',          1, 1, 1)
+register_command('password',           0, 1, 1)
+register_command('restore',            1, 1, 0)
+register_command('searchcontacts',     0, 1, 0)
+register_command('setconfig',          0, 0, 0)
+register_command('setlabel',           0, 1, 0)
+register_command('sendtx',             1, 0, 0)
+register_command('signtransaction',    0, 1, 1)
+register_command('signmessage',        0, 1, 1)
+register_command('unfreeze',           0, 1, 0)
+register_command('validateaddress',    0, 0, 0)
+register_command('verifymessage',      0, 0, 0)
+register_command('version',            0, 0, 0)
+register_command('encrypt',            0, 0, 0)
+register_command('decrypt',            0, 1, 1)
+register_command('getmerkle',          1, 0, 0)
+register_command('getproof',           1, 0, 0)
+register_command('getutxoaddress',     1, 0, 0)
+register_command('sweep',              1, 0, 0)
+register_command('make_seed',          0, 0, 0)
+register_command('check_seed',         0, 0, 0)
 
 param_descriptions = {
     'privkey': 'Private key. Type \'?\' to get a prompt.',
