@@ -464,6 +464,7 @@ class StoreDict(dict):
 
 
 import bitcoin
+from plugins import run_hook
 
 class Contacts(StoreDict):
     def __init__(self, config):
@@ -474,6 +475,10 @@ class Contacts(StoreDict):
             return k
         if k in self.keys():
             _type, addr = self[k]
-            return addr
+            if _type == 'address':
+                return addr
+            out = run_hook('resolve_address', k)
+            if out:
+                return out
         raise Exception("invalid Bitcoin address", k)
 

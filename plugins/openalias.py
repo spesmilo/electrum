@@ -179,6 +179,10 @@ class Plugin(BasePlugin):
         return bool(d.exec_())
 
 
+    @hook
+    def resolve_address(self, url):
+        return self.resolve(url)[0]
+
     def resolve(self, url):
         '''Resolve OpenAlias address using url.'''
         self.print_error('[OA] Attempting to resolve OpenAlias data for ' + url)

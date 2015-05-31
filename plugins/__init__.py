@@ -73,7 +73,7 @@ descriptions = [
         'fullname': 'OpenAlias',
         'description': _('Allow for payments to OpenAlias addresses.'),
         'requires': [('dns', 'dnspython')],
-        'available_for': ['qt']
+        'available_for': ['qt', 'cmdline']
     },
     {
         'name': 'plot',
