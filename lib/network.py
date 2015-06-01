@@ -259,7 +259,8 @@ class Network(util.DaemonThread):
         return self.config.get('auto_connect', False)
 
     def get_interfaces(self):
-        return self.interfaces.keys()
+        '''The interfaces that are in connected state'''
+        return [s for s, i in self.interfaces.items() if i.is_connected()]
 
     def get_servers(self):
         if self.irc_servers:
@@ -339,9 +340,9 @@ class Network(util.DaemonThread):
             self.switch_lagging_interface()
 
     def switch_to_random_interface(self):
-        if self.interfaces:
-            server = random.choice(self.interfaces.keys())
-            self.switch_to_interface(server)
+        servers = self.get_interfaces()    # Those in connected state
+        if servers:
+            self.switch_to_interface(random.choice(servers))
 
     def switch_lagging_interface(self, suggestion = None):
         '''If auto_connect and lagging, switch interface'''
