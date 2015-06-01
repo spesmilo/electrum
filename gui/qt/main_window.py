@@ -30,7 +30,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
-from electrum.bitcoin import MIN_RELAY_TX_FEE, is_valid
+from electrum.bitcoin import MIN_RELAY_TX_FEE, COIN, is_valid
 from electrum.plugins import run_hook
 
 import icons_rc
@@ -1092,7 +1092,7 @@ class ElectrumWindow(QMainWindow):
             return
 
         amount = sum(map(lambda x:x[2], outputs))
-        confirm_amount = self.config.get('confirm_amount', 100000000)
+        confirm_amount = self.config.get('confirm_amount', COIN)
         if amount >= confirm_amount:
             o = '\n'.join(map(lambda x:x[1], outputs))
             if not self.question(_("send %(amount)s to %(address)s?")%{ 'amount' : self.format_amount(amount) + ' '+ self.base_unit(), 'address' : o}):

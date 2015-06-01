@@ -29,7 +29,7 @@ from decimal import Decimal
 import util
 from util import print_msg, format_satoshis, print_stderr
 import bitcoin
-from bitcoin import is_address, hash_160_to_bc_address, hash_160
+from bitcoin import is_address, hash_160_to_bc_address, hash_160, COIN
 from transaction import Transaction
 
 
@@ -148,7 +148,7 @@ class Commands:
     def listunspent(self):
         """List unspent outputs. Returns the list of unspent transaction outputs in your wallet."""
         l = copy.deepcopy(self.wallet.get_spendable_coins(exclude_frozen = False))
-        for i in l: i["value"] = str(Decimal(i["value"])/100000000)
+        for i in l: i["value"] = str(Decimal(i["value"])/COIN)
         return l
 
     @command('n')
@@ -178,7 +178,7 @@ class Commands:
                     break
             else:
                 raise BaseException('Transaction output not in wallet', prevout_hash+":%d"%prevout_n)
-        outputs = map(lambda x: ('address', x[0], int(1e8*x[1])), outputs.items())
+        outputs = map(lambda x: ('address', x[0], int(COIN*x[1])), outputs.items())
         tx = Transaction.from_io(tx_inputs, outputs)
         if not unsigned:
             self.wallet.sign_transaction(tx, self.password)
@@ -260,19 +260,19 @@ class Commands:
             c, u, x = self.wallet.get_balance()
         else:
             c, u, x = self.wallet.get_account_balance(account)
-        out = {"confirmed": str(Decimal(c)/100000000)}
+        out = {"confirmed": str(Decimal(c)/COIN)}
         if u:
-            out["unconfirmed"] = str(Decimal(u)/100000000)
+            out["unconfirmed"] = str(Decimal(u)/COIN)
         if x:
-            out["unmatured"] = str(Decimal(x)/100000000)
+            out["unmatured"] = str(Decimal(x)/COIN)
         return out
 
     @command('n')
     def getaddressbalance(self, address):
         """Return the balance of an address"""
         out = self.network.synchronous_get([('blockchain.address.get_balance', [address])])[0]
-        out["confirmed"] =  str(Decimal(out["confirmed"])/100000000)
-        out["unconfirmed"] =  str(Decimal(out["unconfirmed"])/100000000)
+        out["confirmed"] =  str(Decimal(out["confirmed"])/COIN)
+        out["unconfirmed"] =  str(Decimal(out["unconfirmed"])/COIN)
         return out
 
     @command('n')
@@ -332,7 +332,7 @@ class Commands:
         dest = resolver(destination)
         if tx_fee is None:
             tx_fee = 0.0001
-        fee = int(Decimal(tx_fee)*100000000)
+        fee = int(Decimal(tx_fee)*COIN)
         return Transaction.sweep([privkey], self.network, dest, fee)
 
     @command('wp')
@@ -350,7 +350,7 @@ class Commands:
         resolver = lambda x: None if x is None else self.contacts.resolve(x, nocheck)['address']
         change_addr = resolver(change_addr)
         domain = None if domain is None else map(resolver, domain)
-        fee = None if fee is None else int(100000000*Decimal(fee))
+        fee = None if fee is None else int(COIN*Decimal(fee))
         final_outputs = []
         for address, amount in outputs:
             address = resolver(address)
@@ -367,7 +367,7 @@ class Commands:
                     fee = self.wallet.estimated_fee(dummy_tx)
                 amount -= fee
             else:
-                amount = int(100000000*Decimal(amount))
+                amount = int(COIN*Decimal(amount))
             final_outputs.append(('address', address, amount))
 
         coins = self.wallet.get_spendable_coins(domain)
