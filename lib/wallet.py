@@ -164,6 +164,9 @@ class Abstract_Wallet(object):
         self.load_accounts()
         self.load_transactions()
 
+        # load requests
+        self.receive_requests = self.storage.get('receive_requests2', {})
+
         # spv
         self.verifier = None
         # Transactions pending verification.  Each value is the transaction height.  Access with self.lock.
@@ -1220,6 +1223,43 @@ class Abstract_Wallet(object):
 
     def can_change_password(self):
         return not self.is_watching_only()
+
+    def get_unused_address(self, account):
+        # fixme: use slots from expired requests
+        domain = self.get_account_addresses(account, include_change=False)
+        for addr in domain:
+            if not self.history.get(addr) and addr not in self.receive_requests.keys():
+                return addr
+
+    def remove_payment_request(self, addr):
+        if addr not in self.receive_requests:
+            return False
+        self.receive_requests.pop(addr)
+        self.storage.put('receive_requests2', self.receive_requests)
+        return True
+
+    def save_payment_request(self, addr, amount, message, expiration):
+        self.set_label(addr, message)
+        if addr in self.receive_requests:
+            self.receive_requests[addr]['amount'] = amount
+        else:
+            now = int(time.time())
+            self.receive_requests[addr] = {'time':now, 'amount':amount, 'expiration':expiration}
+        self.storage.put('receive_requests2', self.receive_requests, True)
+
+    def make_bip70_request(self, config, addr):
+        from paymentrequest import make_payment_request
+        req = self.receive_requests[addr]
+        time = req['time']
+        amount = req['amount']
+        expiration = req['expiration']
+        message = self.labels.get(addr, '')
+        script = Transaction.pay_script('address', addr).decode('hex')
+        outputs = [(script, amount)]
+        key_path = config.get('ssl_key_path')
+        cert_path = config.get('ssl_cert_path')
+        return make_payment_request(outputs, message, time, time + expiration, key_path, cert_path)
+
 
 class Imported_Wallet(Abstract_Wallet):
     wallet_type = 'imported'

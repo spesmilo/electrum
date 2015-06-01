@@ -153,13 +153,15 @@ def run_daemon(config):
         network = NetworkProxy(s, config)
         network.start()
         if cmd == 'status':
+            p = network.get_parameters()
             print_json({
                 'path': network.config.path,
-                'server': network.get_parameters()[0],
+                'server': p[0],
                 'blockchain_height': network.get_local_height(),
                 'server_height': network.get_server_height(),
                 'nodes': network.get_interfaces(),
-                'connected': network.is_connected()
+                'connected': network.is_connected(),
+                'auto-connect': p[4],
             })
         elif cmd == 'stop':
             network.stop_daemon()
