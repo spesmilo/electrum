@@ -666,7 +666,7 @@ class ElectrumWindow(QMainWindow):
         if not self.receive_list.isItemSelected(item):
             return
         addr = str(item.text(2))
-        req = self.receive_requests[addr]
+        req = self.wallet.receive_requests[addr]
         expires = _('Never') if req.get('expiration') is None else format_time(req['time'] + req['expiration'])
         amount = req['amount']
         message = self.wallet.labels.get(addr, '')
@@ -680,8 +680,7 @@ class ElectrumWindow(QMainWindow):
 
     def delete_payment_request(self, item):
         addr = str(item.text(2))
-        self.receive_requests.pop(addr)
-        self.wallet.storage.put('receive_requests2', self.receive_requests)
+        self.wallet.remove_payment_request(addr)
         self.update_receive_tab()
         self.clear_receive_tab()
 
@@ -695,7 +694,7 @@ class ElectrumWindow(QMainWindow):
     def receive_list_menu(self, position):
         item = self.receive_list.itemAt(position)
         addr = str(item.text(2))
-        req = self.receive_requests[addr]
+        req = self.wallet.receive_requests[addr]
         time, amount = req['time'], req['amount']
         message = self.wallet.labels.get(addr, '')
         URI = util.create_URI(addr, amount, message)
@@ -713,35 +712,15 @@ class ElectrumWindow(QMainWindow):
         if not message and not amount:
             QMessageBox.warning(self, _('Error'), _('No message or amount'), _('OK'))
             return
-        self.receive_requests = self.wallet.storage.get('receive_requests2', {})
-        if addr in self.receive_requests:
-            self.receive_requests[addr]['amount'] = amount
-        else:
-            now = int(time.time())
-            i = self.expires_combo.currentIndex()
-            expiration = map(lambda x: x[1], expiration_values)[i]
-            self.receive_requests[addr] = {'time':now, 'amount':amount, 'expiration':expiration}
-
-        self.wallet.storage.put('receive_requests2', self.receive_requests)
-        self.wallet.set_label(addr, message)
+        i = self.expires_combo.currentIndex()
+        expiration = map(lambda x: x[1], expiration_values)[i]
+        self.wallet.save_payment_request(addr, amount, message, expiration)
         self.update_receive_tab()
         self.update_address_tab()
         self.save_request_button.setEnabled(False)
 
-    def make_payment_request(self, addr):
-        req = self.receive_requests[addr]
-        time = req['time']
-        amount = req['amount']
-        expiration = req['expiration']
-        message = self.wallet.labels.get(addr, '')
-        script = Transaction.pay_script('address', addr).decode('hex')
-        outputs = [(script, amount)]
-        key_path = self.config.get('ssl_key_path')
-        cert_path = self.config.get('ssl_cert_path')
-        return make_payment_request(outputs, message, time, time + expiration, key_path, cert_path)
-
     def export_payment_request(self, addr):
-        pr = self.make_payment_request(addr)
+        pr = self.wallet.make_bip70_request(self.config, addr)
         name = 'request.bip70'
         fileName = self.getSaveFileName(_("Select where to save your payment request"), name, "*.bip70")
         if fileName:
@@ -750,14 +729,8 @@ class ElectrumWindow(QMainWindow):
             self.show_message(_("Request saved successfully"))
             self.saved = True
 
-    def get_receive_address(self):
-        domain = self.wallet.get_account_addresses(self.current_account, include_change=False)
-        for addr in domain:
-            if not self.wallet.history.get(addr) and addr not in self.receive_requests.keys():
-                return addr
-
     def new_payment_request(self):
-        addr = self.get_receive_address()
+        addr = self.wallet.get_unused_address(self.current_account)
         if addr is None:
             if isinstance(self.wallet, Imported_Wallet):
                 self.show_message(_('No more addresses in your wallet.'))
@@ -777,14 +750,8 @@ class ElectrumWindow(QMainWindow):
         self.receive_amount_e.setAmount(None)
 
     def clear_receive_tab(self):
-        self.receive_requests = self.wallet.storage.get('receive_requests2',{})
-        domain = self.wallet.get_account_addresses(self.current_account, include_change=False)
-        for addr in domain:
-            if not self.wallet.history.get(addr) and addr not in self.receive_requests.keys():
-                break
-        else:
-            addr = ''
-        self.receive_address_e.setText(addr)
+        addr = self.wallet.get_unused_address(self.current_account)
+        self.receive_address_e.setText(addr if addr else '')
         self.receive_message_e.setText('')
         self.receive_amount_e.setAmount(None)
         self.expires_label.hide()
@@ -814,10 +781,9 @@ class ElectrumWindow(QMainWindow):
         self.new_request_button.setEnabled(True)
 
     def update_receive_tab(self):
-        self.receive_requests = self.wallet.storage.get('receive_requests2',{})
 
         # hide receive tab if no receive requests available
-        b = len(self.receive_requests) > 0
+        b = len(self.wallet.receive_requests) > 0
         self.receive_list.setVisible(b)
         self.receive_requests_label.setVisible(b)
         if not b:
@@ -830,14 +796,14 @@ class ElectrumWindow(QMainWindow):
         # update the receive address if necessary
         current_address = self.receive_address_e.text()
         domain = self.wallet.get_account_addresses(self.current_account, include_change=False)
-        addr = self.get_receive_address()
+        addr = self.wallet.get_unused_address(self.current_account)
         if not current_address in domain and addr:
             self.set_receive_address(addr)
         self.new_request_button.setEnabled(addr != current_address)
 
         # clear the list and fill it again
         self.receive_list.clear()
-        for address, req in self.receive_requests.viewitems():
+        for address, req in self.wallet.receive_requests.viewitems():
             timestamp, amount = req['time'], req['amount']
             expiration = req.get('expiration', None)
             message = self.wallet.labels.get(address, '')

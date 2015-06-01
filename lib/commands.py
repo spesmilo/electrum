@@ -506,7 +506,34 @@ class Commands:
         """Decrypt a message encrypted with a public key."""
         return self.wallet.decrypt_message(pubkey, encrypted, self.password)
 
+    @command('w')
+    def listrequests(self):
+        """List the payment requests you made"""
+        out = []
+        for addr, v in self.wallet.receive_requests.items():
+            out.append({
+                'address': addr,
+                'amount': format_satoshis(v.get('amount')),
+                'time': v.get('time'),
+                'reason': self.wallet.get_label(addr)[0],
+                'expiration': v.get('expiration'),
+            })
+        return out
 
+    @command('w')
+    def addrequest(self, amount, reason='', expiration=60*60):
+        """Create a payment request"""
+        addr = self.wallet.get_unused_address(None)
+        if addr is None:
+            return False
+        amount = int(Decimal(amount)*COIN)
+        self.wallet.save_payment_request(addr, amount, reason, expiration)
+        return addr
+
+    @command('w')
+    def removerequest(self, address):
+        """Remove a payment request"""
+        return self.wallet.remove_payment_request(address)
 
 param_descriptions = {
     'privkey': 'Private key. Type \'?\' to get a prompt.',
@@ -548,6 +575,8 @@ command_options = {
     'unsigned':    ("-u", "--unsigned",    "Do not sign transaction"),
     'domain':      ("-D", "--domain",      "List of addresses"),
     'account':     (None, "--account",     "Account"),
+    'reason':      (None, "--reason",      "Description of the request"),
+    'expiration':  (None, "--expiration",  "Time in seconds"),
 }
 
 
