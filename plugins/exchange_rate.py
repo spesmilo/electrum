@@ -11,6 +11,7 @@ import re
 from ssl import SSLError
 from decimal import Decimal
 
+from electrum.bitcoin import COIN
 from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
 from electrum_gui.qt.util import *
@@ -220,7 +221,7 @@ class Plugin(BasePlugin):
     @hook
     def get_fiat_balance_text(self, btc_balance, r):
         # return balance as: 1.23 USD
-        r[0] = self.create_fiat_balance_text(Decimal(btc_balance) / 100000000)
+        r[0] = self.create_fiat_balance_text(Decimal(btc_balance) / COIN)
 
     def get_fiat_price_text(self, r):
         # return BTC price as: 123.45 USD
@@ -240,7 +241,7 @@ class Plugin(BasePlugin):
             price_text = "1 BTC~%s"%quote
             fiat_currency = quote[-3:]
             btc_price = self.btc_rate
-            fiat_balance = Decimal(btc_price) * (Decimal(btc_balance)/100000000)
+            fiat_balance = Decimal(btc_price) * Decimal(btc_balance) / COIN
             balance_text = "(%.2f %s)" % (fiat_balance,fiat_currency)
             text = "  " + balance_text + "     " + price_text + " "
         r2[0] = text
@@ -338,20 +339,20 @@ class Plugin(BasePlugin):
                 tx_info = {'timestamp':int(time.time()), 'value': v}
                 pass
             tx_time = int(tx_info['timestamp'])
-            tx_value = Decimal(str(tx_info['value'])) / 100000000
+            tx_value = Decimal(str(tx_info['value'])) / COIN
             if self.cur_exchange == "CoinDesk":
                 tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
                 try:
                     tx_fiat_val = "%.2f %s" % (tx_value * Decimal(self.resp_hist['bpi'][tx_time_str]), "USD")
                 except KeyError:
-                    tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(str(tx_info['value']))/100000000 , "USD")
+                    tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(str(tx_info['value']))/COIN , "USD")
             elif self.cur_exchange == "Winkdex":
                 tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d') + "T16:00:00-04:00"
                 try:
                     tx_rate = self.resp_hist[[x['timestamp'] for x in self.resp_hist].index(tx_time_str)]['price']
                     tx_fiat_val = "%.2f %s" % (tx_value * Decimal(tx_rate)/Decimal("100.0"), "USD")
                 except ValueError:
-                    tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(tx_info['value'])/100000000 , "USD")
+                    tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(tx_info['value'])/COIN , "USD")
                 except KeyError:
                     tx_fiat_val = _("No data")
             elif self.cur_exchange == "BitcoinVenezuela":
@@ -520,7 +521,7 @@ class Plugin(BasePlugin):
             exchange_rate = self.exchanger.exchange(Decimal("1.0"), self.fiat_unit())
             if exchange_rate is not None:
                 btc_amount = fiat_amount/exchange_rate
-                btc_e.setAmount(int(btc_amount*Decimal(100000000)))
+                btc_e.setAmount(int(btc_amount*Decimal(COIN)))
                 if fee_e: self.win.update_fee(False)
         fiat_e.textEdited.connect(fiat_changed)
         def btc_changed():
@@ -530,7 +531,7 @@ class Plugin(BasePlugin):
             if btc_amount is None:
                 fiat_e.setText("")
                 return
-            fiat_amount = self.exchanger.exchange(Decimal(btc_amount)/Decimal(100000000), self.fiat_unit())
+            fiat_amount = self.exchanger.exchange(Decimal(btc_amount)/Decimal(COIN), self.fiat_unit())
             if fiat_amount is not None:
                 pos = fiat_e.cursorPosition()
                 fiat_e.setText("%.2f"%fiat_amount)

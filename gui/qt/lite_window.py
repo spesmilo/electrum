@@ -36,7 +36,7 @@ import shutil
 
 from util import *
 
-bitcoin = lambda v: v * 100000000
+bitcoin = lambda v: v * COIN
 
 def IconButton(filename, parent=None):
     pixmap = QPixmap(filename)

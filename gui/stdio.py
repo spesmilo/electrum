@@ -3,7 +3,7 @@ _ = lambda x:x
 #from i18n import _
 from electrum.wallet import WalletStorage, Wallet
 from electrum.util import format_satoshis, set_verbosity, StoreDict
-from electrum.bitcoin import is_valid
+from electrum.bitcoin import is_valid, COIN
 from electrum.network import filter_protocol
 import sys, getpass, datetime
 
@@ -125,11 +125,11 @@ class ElectrumGui:
                 msg = _( "Synchronizing..." )
             else: 
                 c, u, x =  self.wallet.get_balance()
-                msg = _("Balance")+": %f  "%(Decimal(c) / 100000000)
+                msg = _("Balance")+": %f  "%(Decimal(c) / COIN)
                 if u:
-                    msg += "  [%f unconfirmed]"%(Decimal(u) / 100000000)
+                    msg += "  [%f unconfirmed]"%(Decimal(u) / COIN)
                 if x:
-                    msg += "  [%f unmatured]"%(Decimal(x) / 100000000)
+                    msg += "  [%f unmatured]"%(Decimal(x) / COIN)
         else:
                 msg = _( "Not connected" )
             
@@ -178,12 +178,12 @@ class ElectrumGui:
             print(_('Invalid Bitcoin address'))
             return
         try:
-            amount = int( Decimal( self.str_amount) * 100000000 )
+            amount = int(Decimal(self.str_amount) * COIN)
         except Exception:
             print(_('Invalid Amount'))
             return
         try:
-            fee = int( Decimal( self.str_fee) * 100000000 )
+            fee = int(Decimal(self.str_fee) * COIN)
         except Exception:
             print(_('Invalid Fee'))
             return
