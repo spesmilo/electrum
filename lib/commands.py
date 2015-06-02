@@ -522,13 +522,10 @@ class Commands:
 
     @command('w')
     def addrequest(self, amount, reason='', expiration=60*60):
-        """Create a payment request"""
-        addr = self.wallet.get_unused_address(None)
-        if addr is None:
-            return False
+        """Create a payment request. """
         amount = int(Decimal(amount)*COIN)
-        self.wallet.save_payment_request(addr, amount, reason, expiration)
-        return addr
+        key = self.wallet.add_payment_request(self.config, amount, reason, expiration)
+        return self.wallet.get_payment_request(key) if key else False
 
     @command('w')
     def removerequest(self, address):
@@ -577,6 +574,7 @@ command_options = {
     'account':     (None, "--account",     "Account"),
     'reason':      (None, "--reason",      "Description of the request"),
     'expiration':  (None, "--expiration",  "Time in seconds"),
+    'request_dir': (None, "--request_dir", "Directory where request are written"),
 }
 
 

@@ -714,13 +714,14 @@ class ElectrumWindow(QMainWindow):
             return
         i = self.expires_combo.currentIndex()
         expiration = map(lambda x: x[1], expiration_values)[i]
-        self.wallet.save_payment_request(addr, amount, message, expiration)
+        self.wallet.save_payment_request(self.config, addr, amount, message, expiration)
         self.update_receive_tab()
         self.update_address_tab()
         self.save_request_button.setEnabled(False)
 
     def export_payment_request(self, addr):
-        pr = self.wallet.make_bip70_request(self.config, addr)
+        r = self.wallet.get_payment_request(addr)
+        pr = self.wallet.make_bip70_request(self.config, r)
         name = 'request.bip70'
         fileName = self.getSaveFileName(_("Select where to save your payment request"), name, "*.bip70")
         if fileName:

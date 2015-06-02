@@ -1231,25 +1231,10 @@ class Abstract_Wallet(object):
             if not self.history.get(addr) and addr not in self.receive_requests.keys():
                 return addr
 
-    def remove_payment_request(self, addr):
-        if addr not in self.receive_requests:
-            return False
-        self.receive_requests.pop(addr)
-        self.storage.put('receive_requests2', self.receive_requests)
-        return True
 
-    def save_payment_request(self, addr, amount, message, expiration):
-        self.set_label(addr, message)
-        if addr in self.receive_requests:
-            self.receive_requests[addr]['amount'] = amount
-        else:
-            now = int(time.time())
-            self.receive_requests[addr] = {'time':now, 'amount':amount, 'expiration':expiration}
-        self.storage.put('receive_requests2', self.receive_requests, True)
-
-    def make_bip70_request(self, config, addr):
+    def make_bip70_request(self, config, req):
         from paymentrequest import make_payment_request
-        req = self.receive_requests[addr]
+        addr = req['address']
         time = req['time']
         amount = req['amount']
         expiration = req['expiration']
@@ -1259,6 +1244,38 @@ class Abstract_Wallet(object):
         key_path = config.get('ssl_key_path')
         cert_path = config.get('ssl_cert_path')
         return make_payment_request(outputs, message, time, time + expiration, key_path, cert_path)
+
+    def get_payment_request(self, key):
+        return self.receive_requests.get(key)
+
+    def save_payment_request(self, config, addr, amount, message, expiration):
+        #if addr in self.receive_requests:
+        #    self.receive_requests[addr]['amount'] = amount
+        self.set_label(addr, message)
+        now = int(time.time())
+        r = {'time':now, 'amount':amount, 'expiration':expiration, 'address':addr}
+        if config.get('requests_dir'):
+            pr = self.make_bip70_request(config, r)
+            path = os.path.join(config.get('www_dir'), addr + '.bip70')
+            with open(path, 'w') as f:
+                f.write(pr)
+            r['url'] = 'bitcoin:?r=file://' + path
+        self.receive_requests[addr] = r
+        self.storage.put('receive_requests2', self.receive_requests)
+
+    def add_payment_request(self, config, amount, message, expiration):
+        addr = self.get_unused_address(None)
+        if addr is None:
+            return False
+        self.save_payment_request(config, addr, amount, message, expiration)
+        return addr
+
+    def remove_payment_request(self, addr):
+        if addr not in self.receive_requests:
+            return False
+        self.receive_requests.pop(addr)
+        self.storage.put('receive_requests2', self.receive_requests)
+        return True
 
 
 class Imported_Wallet(Abstract_Wallet):
