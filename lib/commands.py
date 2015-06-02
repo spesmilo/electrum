@@ -122,8 +122,8 @@ class Commands:
         try:
             value = ast.literal_eval(value)
         except:
-            pass
-        self.config.set_key(key, value, True)
+            return False
+        self.config.set_key(key, value)
         return True
 
     @command('')
@@ -506,29 +506,54 @@ class Commands:
         """Decrypt a message encrypted with a public key."""
         return self.wallet.decrypt_message(pubkey, encrypted, self.password)
 
-    @command('w')
-    def listrequests(self):
-        """List the payment requests you made"""
-        out = []
-        for addr, v in self.wallet.receive_requests.items():
-            out.append({
-                'address': addr,
-                'amount': format_satoshis(v.get('amount')),
-                'time': v.get('time'),
-                'reason': self.wallet.get_label(addr)[0],
-                'expiration': v.get('expiration'),
-            })
+    def _format_request(self, v, show_status):
+        from paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
+        pr_str = {
+            PR_UNKNOWN: 'Unknown',
+            PR_UNPAID: 'Pending',
+            PR_PAID: 'Paid',
+            PR_EXPIRED: 'Expired',
+        }
+        addr = v.get('address')
+        amount = v.get('amount')
+        timestamp = v.get('time')
+        expiration = v.get('expiration')
+        out = {
+            'address': addr,
+            'amount': format_satoshis(amount),
+            'time': timestamp,
+            'reason': self.wallet.get_label(addr)[0],
+            'expiration': expiration,
+        }
+        if v.get('path'):
+            url = 'file://' + v.get('path')
+            r = self.config.get('url_rewrite')
+            if r:
+                a, b = r
+                url = url.replace(a, b)
+            URI = 'litecoin:?r=' + url
+            out['url'] = URI
+        if show_status:
+            status = self.wallet.get_request_status(addr, amount, timestamp, expiration)
+            out['status'] = pr_str[status]
         return out
 
     @command('w')
+    def listrequests(self, status=False):
+        """List the payment requests you made, and their status"""
+        return map(lambda x: self._format_request(x, status), self.wallet.receive_requests.values())
+
+    @command('w')
     def addrequest(self, amount, reason='', expiration=60*60):
-        """Create a payment request"""
-        addr = self.wallet.get_unused_address(None)
-        if addr is None:
-            return False
+        """Create a payment request. If 'requests_dir' is set in your
+        configuration, a bip70 file will be written to that
+        directory. If you also set 'ssl_key_path' and 'ssl_cert_path',
+        the request will be signed with your certificate. Note that
+        the ssl_key_path file must contain the chain of certificates
+        up to a root CA."""
         amount = int(Decimal(amount)*COIN)
-        self.wallet.save_payment_request(addr, amount, reason, expiration)
-        return addr
+        key = self.wallet.add_payment_request(self.config, amount, reason, expiration)
+        return self._format_request(self.wallet.get_payment_request(key)) if key else False
 
     @command('w')
     def removerequest(self, address):
@@ -577,6 +602,7 @@ command_options = {
     'account':     (None, "--account",     "Account"),
     'reason':      (None, "--reason",      "Description of the request"),
     'expiration':  (None, "--expiration",  "Time in seconds"),
+    'status':      (None, "--status",      "Show status"),
 }
 
 

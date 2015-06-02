@@ -50,7 +50,7 @@ ca_list, ca_keyID = x509.load_certificates(ca_path)
 # status of payment requests
 PR_UNPAID  = 0
 PR_EXPIRED = 1
-PR_SENT    = 2     # sent but not propagated
+PR_UNKNOWN = 2     # sent but not propagated
 PR_PAID    = 3     # send and propagated
 PR_ERROR   = 4     # could not parse
 
