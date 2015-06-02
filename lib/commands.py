@@ -516,8 +516,12 @@ class Commands:
             'expiration': v.get('expiration'),
         }
         if v.get('path'):
-            p = self.config.get('url_prefix', 'file://')
-            URI = 'bitcoin:?r=' + p + v.get('path')
+            url = 'file://' + v.get('path')
+            r = self.config.get('url_rewrite')
+            if r:
+                a, b = r
+                url = url.replace(a, b)
+            URI = 'bitcoin:?r=' + url
             out['url'] = URI
         return out
 
