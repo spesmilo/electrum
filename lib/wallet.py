@@ -1254,9 +1254,10 @@ class Abstract_Wallet(object):
         self.set_label(addr, message)
         now = int(time.time())
         r = {'time':now, 'amount':amount, 'expiration':expiration, 'address':addr}
-        if config.get('requests_dir'):
+        rdir = config.get('requests_dir')
+        if rdir:
             pr = self.make_bip70_request(config, r)
-            path = os.path.join(config.get('www_dir'), addr + '.bip70')
+            path = os.path.join(rdir, addr + '.bip70')
             with open(path, 'w') as f:
                 f.write(pr)
             r['url'] = 'bitcoin:?r=file://' + path
