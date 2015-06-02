@@ -99,7 +99,7 @@ def run_gui(config):
     if url:
         if os.path.exists(url):
             # assume this is a payment request
-            url = "bitcoin:?r=file://"+ os.path.join(os.getcwd(), cmd)
+            url = "bitcoin:?r=file://"+ os.path.join(os.getcwd(), url)
 
         if not re.match('^bitcoin:', url):
             print_stderr('unknown command:', url)
