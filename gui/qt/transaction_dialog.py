@@ -48,6 +48,7 @@ class TxDialog(QDialog):
         self.parent = parent
         self.wallet = parent.wallet
         self.saved = True
+        self.broadcasted = False
 
         QDialog.__init__(self)
         self.setMinimumWidth(600)
@@ -77,17 +78,13 @@ class TxDialog(QDialog):
 
         vbox.addStretch(1)
 
-        self.sign_button = b = QPushButton(_("Sign"))
-        b.clicked.connect(self.sign)
-
-        self.broadcast_button = b = QPushButton(_("Broadcast"))
-        b.clicked.connect(self.do_broadcast)
-        b.hide()
+        self.sign_broadcast_button = b = QPushButton()
+        b.clicked.connect(self.sign_or_broadcast)
 
         self.save_button = b = QPushButton(_("Save"))
         b.clicked.connect(self.save)
 
-        self.cancel_button = b = QPushButton(_("Close"))
+        self.cancel_button = b = QPushButton()
         b.clicked.connect(self.close)
         b.setDefault(True)
 
@@ -97,21 +94,18 @@ class TxDialog(QDialog):
 
         self.copy_button = CopyButton(lambda: str(self.tx), self.parent.app)
 
-        self.buttons = [self.copy_button, self.qr_button, self.sign_button, self.broadcast_button, self.save_button, self.cancel_button]
+        self.buttons = [self.copy_button, self.qr_button, self.sign_broadcast_button, self.save_button, self.cancel_button]
         run_hook('transaction_dialog', self)
 
         vbox.addLayout(Buttons(*self.buttons))
         self.update()
 
-    def do_broadcast(self):
-        self.parent.broadcast_transaction(self.tx)
-        self.saved = True
-
     def close(self):
-        if not self.saved:
+        if not self.saved and not self.broadcasted:
             if QMessageBox.question(self, _('Message'), _('This transaction is not saved. Close anyway?'), QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.No:
                 return
-        self.done(0)
+        # Returns 0 if cancelled, 1 if closed
+        self.done(not self.show_sign_broadcast)
 
     def show_qr(self):
         text = self.tx.raw.decode('hex')
@@ -121,11 +115,13 @@ class TxDialog(QDialog):
         except Exception as e:
             self.show_message(str(e))
 
-
-    def sign(self):
-        self.parent.sign_raw_transaction(self.tx)
+    def sign_or_broadcast(self):
+        if self.tx.is_complete():
+            self.parent.broadcast_transaction(self.tx)
+            self.broadcasted = True
+        else:
+            self.parent.sign_raw_transaction(self.tx)
         self.update()
-
 
     def save(self):
         name = 'signed_%s.txn' % (self.tx.hash()[0:8]) if self.tx.is_complete() else 'unsigned.txn'
@@ -138,16 +134,13 @@ class TxDialog(QDialog):
 
 
     def update(self):
+        have_network = (self.parent.network and self.parent.network.is_running()
+                        and self.parent.network.is_connected())
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
         tx_hash = self.tx.hash()
-        if self.wallet.can_sign(self.tx):
-            self.sign_button.show()
-        else:
-            self.sign_button.hide()
 
         if self.tx.is_complete():
             status = _("Signed")
-
             if tx_hash in self.wallet.transactions.keys():
                 conf, timestamp = self.wallet.get_confirmations(tx_hash)
                 if timestamp:
@@ -155,17 +148,30 @@ class TxDialog(QDialog):
                 else:
                     time_str = 'pending'
                 status = _("%d confirmations")%conf
-                self.broadcast_button.hide()
+                self.show_sign_broadcast = False
             else:
                 time_str = None
                 conf = 0
-                self.broadcast_button.show()
+                self.sign_broadcast_button.setText(_("Broadcast"))
+                self.show_sign_broadcast = have_network and not self.broadcasted
         else:
             s, r = self.tx.signature_count()
             status = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
             time_str = None
-            self.broadcast_button.hide()
             tx_hash = 'unknown'
+            if self.wallet.can_sign(self.tx):
+                self.sign_broadcast_button.setText(_("Sign"))
+                self.show_sign_broadcast = True
+            else:
+                self.show_sign_broadcast = False
+
+        # Cancel if an action, otherwise close
+        if self.show_sign_broadcast:
+            self.sign_broadcast_button.show()
+            self.cancel_button.setText(_("Cancel"))
+        else:
+            self.sign_broadcast_button.hide()
+            self.cancel_button.setText(_("Close"))
 
         self.tx_hash_e.setText(tx_hash)
         self.status_label.setText(_('Status:') + ' ' + status)
@@ -177,10 +183,7 @@ class TxDialog(QDialog):
             self.date_label.hide()
 
         # if we are not synchronized, we cannot tell
-        if self.parent.network is None or not self.parent.network.is_running() or not self.parent.network.is_connected():
-            self.broadcast_button.hide()  # cannot broadcast when offline
-            return
-        if not self.wallet.up_to_date:
+        if not have_network or not self.wallet.up_to_date:
             return
 
         if is_relevant:
