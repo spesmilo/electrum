@@ -506,20 +506,25 @@ class Commands:
         """Decrypt a message encrypted with a public key."""
         return self.wallet.decrypt_message(pubkey, encrypted, self.password)
 
+    def _format_request(self, v):
+        addr = v.get('address')
+        out = {
+            'address': addr,
+            'amount': format_satoshis(v.get('amount')),
+            'time': v.get('time'),
+            'reason': self.wallet.get_label(addr)[0],
+            'expiration': v.get('expiration'),
+        }
+        if v.get('path'):
+            p = self.config.get('url_prefix', 'file://')
+            URI = 'bitcoin:?r=' + p + v.get('path')
+            out['url'] = URI
+        return out
+
     @command('w')
     def listrequests(self):
         """List the payment requests you made"""
-        out = []
-        for k, v in self.wallet.receive_requests.items():
-            out.append({
-                'address': v.get('address'),
-                'amount': format_satoshis(v.get('amount')),
-                'time': v.get('time'),
-                'reason': self.wallet.get_label(addr)[0],
-                'expiration': v.get('expiration'),
-                'url': 'bitcoin:?r=file://' + v.get('path'),
-            })
-        return out
+        return map(self._format_request, self.wallet.receive_requests.values())
 
     @command('w')
     def addrequest(self, amount, reason='', expiration=60*60):
@@ -531,7 +536,7 @@ class Commands:
         up to a root CA."""
         amount = int(Decimal(amount)*COIN)
         key = self.wallet.add_payment_request(self.config, amount, reason, expiration)
-        return self.wallet.get_payment_request(key) if key else False
+        return self._format_request(self.wallet.get_payment_request(key)) if key else False
 
     @command('w')
     def removerequest(self, address):
