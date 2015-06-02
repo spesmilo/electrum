@@ -1260,7 +1260,7 @@ class Abstract_Wallet(object):
             path = os.path.join(rdir, addr + '.bip70')
             with open(path, 'w') as f:
                 f.write(pr)
-            r['url'] = 'bitcoin:?r=file://' + path
+            r['path'] = path
         self.receive_requests[addr] = r
         self.storage.put('receive_requests2', self.receive_requests)
 

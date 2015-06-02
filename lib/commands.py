@@ -510,13 +510,14 @@ class Commands:
     def listrequests(self):
         """List the payment requests you made"""
         out = []
-        for addr, v in self.wallet.receive_requests.items():
+        for k, v in self.wallet.receive_requests.items():
             out.append({
-                'address': addr,
+                'address': v.get('address'),
                 'amount': format_satoshis(v.get('amount')),
                 'time': v.get('time'),
                 'reason': self.wallet.get_label(addr)[0],
                 'expiration': v.get('expiration'),
+                'url': 'bitcoin:?r=file://' + v.get('path'),
             })
         return out
 
