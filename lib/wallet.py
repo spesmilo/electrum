@@ -1302,7 +1302,7 @@ class Imported_Wallet(Abstract_Wallet):
     def is_watching_only(self):
         acc = self.accounts[IMPORTED_ACCOUNT]
         n = acc.keypairs.values()
-        return n == [[None, None]] * len(n)
+        return n > 0 and n == [[None, None]] * len(n)
 
     def has_seed(self):
         return False
