@@ -191,6 +191,9 @@ def run_cmdline(config):
         cmd.requires_password = False
         cmd.requires_wallet = False
 
+    if cmdname == 'listrequests' and config.get('status'):
+        cmd.requires_network = True
+
     # arguments passed to function
     args = map(lambda x: config.get(x), cmd.params)
     # options

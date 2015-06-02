@@ -1248,6 +1248,17 @@ class Abstract_Wallet(object):
     def get_payment_request(self, key):
         return self.receive_requests.get(key)
 
+    def get_request_status(self, address, amount, timestamp, expiration):
+        from paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
+        if amount:
+            paid = amount <= self.get_addr_received(address)
+            status = PR_PAID if paid else PR_UNPAID
+            if status == PR_UNPAID and expiration is not None and time.time() > timestamp + expiration:
+                status = PR_EXPIRED
+        else:
+            status = PR_UNKNOWN
+        return status
+
     def save_payment_request(self, config, addr, amount, message, expiration):
         #if addr in self.receive_requests:
         #    self.receive_requests[addr]['amount'] = amount

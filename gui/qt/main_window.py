@@ -79,7 +79,7 @@ class StatusBarButton(QPushButton):
             apply(self.func,())
 
 
-from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_EXPIRED
+from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 from electrum.paymentrequest import PaymentRequest, InvoiceStore, get_payment_request, make_payment_request
 
 pr_icons = {
@@ -814,15 +814,9 @@ class ElectrumWindow(QMainWindow):
             date = format_time(timestamp)
             account = self.wallet.get_account_name(self.wallet.get_account_from_address(address))
             amount_str = self.format_amount(amount) if amount else ""
-            if amount:
-                paid = amount <= self.wallet.get_addr_received(address)
-                status = PR_PAID if paid else PR_UNPAID
-                if status == PR_UNPAID and expiration is not None and time.time() > timestamp + expiration:
-                    status = PR_EXPIRED
-            else:
-                status = ''
+            status = self.wallet.get_request_status(address, amount, timestamp, expiration)
             item = QTreeWidgetItem([date, account, address, message, amount_str, pr_tooltips.get(status,'')])
-            if status is not '':
+            if status is not PR_UNKNOWN:
                 item.setIcon(5, QIcon(pr_icons.get(status)))
             self.receive_list.addTopLevelItem(item)
 

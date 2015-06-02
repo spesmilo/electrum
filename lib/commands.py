@@ -506,14 +506,24 @@ class Commands:
         """Decrypt a message encrypted with a public key."""
         return self.wallet.decrypt_message(pubkey, encrypted, self.password)
 
-    def _format_request(self, v):
+    def _format_request(self, v, show_status):
+        from paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
+        pr_str = {
+            PR_UNKNOWN: 'Unknown',
+            PR_UNPAID: 'Pending',
+            PR_PAID: 'Paid',
+            PR_EXPIRED: 'Expired',
+        }
         addr = v.get('address')
+        amount = v.get('amount')
+        timestamp = v.get('time')
+        expiration = v.get('expiration')
         out = {
             'address': addr,
-            'amount': format_satoshis(v.get('amount')),
-            'time': v.get('time'),
+            'amount': format_satoshis(amount),
+            'time': timestamp,
             'reason': self.wallet.get_label(addr)[0],
-            'expiration': v.get('expiration'),
+            'expiration': expiration,
         }
         if v.get('path'):
             url = 'file://' + v.get('path')
@@ -523,12 +533,15 @@ class Commands:
                 url = url.replace(a, b)
             URI = 'bitcoin:?r=' + url
             out['url'] = URI
+        if show_status:
+            status = self.wallet.get_request_status(addr, amount, timestamp, expiration)
+            out['status'] = pr_str[status]
         return out
 
     @command('w')
-    def listrequests(self):
-        """List the payment requests you made"""
-        return map(self._format_request, self.wallet.receive_requests.values())
+    def listrequests(self, status=False):
+        """List the payment requests you made, and their status"""
+        return map(lambda x: self._format_request(x, status), self.wallet.receive_requests.values())
 
     @command('w')
     def addrequest(self, amount, reason='', expiration=60*60):
@@ -589,7 +602,7 @@ command_options = {
     'account':     (None, "--account",     "Account"),
     'reason':      (None, "--reason",      "Description of the request"),
     'expiration':  (None, "--expiration",  "Time in seconds"),
-    'request_dir': (None, "--request_dir", "Directory where request are written"),
+    'status':      (None, "--status",      "Show status"),
 }
 
 
