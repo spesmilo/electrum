@@ -154,6 +154,8 @@ class TcpInterface(threading.Thread):
             try:
                 s = socket.socket(res[0], socket.SOCK_STREAM)
                 s.connect(res[4])
+                s.settimeout(2)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
                 return s
             except BaseException as e:
                 continue
@@ -181,6 +183,8 @@ class TcpInterface(threading.Thread):
                 # get server certificate.
                 # Do not use ssl.get_server_certificate because it does not work with proxy
                 s = self.get_simple_socket()
+                if s is None:
+                    return
                 try:
                     s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv23, cert_reqs=ssl.CERT_NONE, ca_certs=None)
                 except ssl.SSLError, e:
@@ -201,9 +205,6 @@ class TcpInterface(threading.Thread):
         s = self.get_simple_socket()
         if s is None:
             return
-
-        s.settimeout(2)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
         if self.use_ssl:
             try:
