@@ -288,7 +288,7 @@ def run_cmdline(config):
     if cmd.requires_network and not config.get('offline'):
         s = get_daemon(config, False)
         if not s:
-            print_msg("Network daemon is not running. Try 'electrum daemon start'")
+            print_msg("Network daemon is not running. Try 'electrum daemon start'\nIf you want to run this command offline, use the -o flag.")
             sys.exit(1)
         network = NetworkProxy(s, config)
         network.start()

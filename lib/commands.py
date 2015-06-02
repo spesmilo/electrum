@@ -122,8 +122,8 @@ class Commands:
         try:
             value = ast.literal_eval(value)
         except:
-            pass
-        self.config.set_key(key, value, True)
+            return False
+        self.config.set_key(key, value)
         return True
 
     @command('')
