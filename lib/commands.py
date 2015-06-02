@@ -522,7 +522,12 @@ class Commands:
 
     @command('w')
     def addrequest(self, amount, reason='', expiration=60*60):
-        """Create a payment request. """
+        """Create a payment request. If 'requests_dir' is set in your
+        configuration, a bip70 file will be written to that
+        directory. If you also set 'ssl_key_path' and 'ssl_cert_path',
+        the request will be signed with your certificate. Note that
+        the ssl_key_path file must contain the chain of certificates
+        up to a root CA."""
         amount = int(Decimal(amount)*COIN)
         key = self.wallet.add_payment_request(self.config, amount, reason, expiration)
         return self.wallet.get_payment_request(key) if key else False
