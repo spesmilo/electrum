@@ -161,7 +161,7 @@ def run_daemon(config):
                 'server_height': network.get_server_height(),
                 'nodes': network.get_interfaces(),
                 'connected': network.is_connected(),
-                'auto-connect': p[4],
+                'auto_connect': p[4],
             })
         elif cmd == 'stop':
             network.stop_daemon()
