@@ -568,9 +568,10 @@ class ElectrumWindow(QMainWindow):
         d.exec_()
 
     def show_transaction(self, tx):
+        '''Show transaction dialog.  Return 1 if Close was pressed, 0 if Cancel'''
         import transaction_dialog
         d = transaction_dialog.TxDialog(tx, self)
-        d.exec_()
+        return d.exec_()
 
     def update_history_tab(self):
         domain = self.wallet.get_account_addresses(self.current_account)
