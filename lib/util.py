@@ -225,6 +225,7 @@ def block_explorer_URL(config, kind, item):
 
 def parse_URI(uri):
     import bitcoin
+    from bitcoin import COIN
 
     if ':' not in uri:
         assert bitcoin.is_address(uri)
