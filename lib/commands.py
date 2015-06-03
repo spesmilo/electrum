@@ -557,7 +557,7 @@ class Commands:
     def addrequest(self, requested_amount, reason='', expiration=60*60):
         """Create a payment request.
         """
-        amount = int(Decimal(amount)*COIN)
+        amount = int(Decimal(requested_amount)*COIN)
         key = self.wallet.add_payment_request(self.config, amount, reason, expiration)
         return self._format_request(self.wallet.get_payment_request(key)) if key else False
 
