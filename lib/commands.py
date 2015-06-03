@@ -118,11 +118,12 @@ class Commands:
 
     @command('')
     def setconfig(self, key, value):
-        """Set a configuration variable. 'value' uses Python syntax"""
+        """Set a configuration variable. 'value' may be a string or a Python expression."""
+        value = ast.literal_eval(value)
         try:
             value = ast.literal_eval(value)
         except:
-            return False
+            pass
         self.config.set_key(key, value)
         return True
 

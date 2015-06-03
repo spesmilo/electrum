@@ -103,6 +103,7 @@ class PaymentRequest:
         self.payment_url = self.details.payment_url
 
     def verify(self):
+        """ verify chain of certificates. The last certificate is the CA"""
         if not ca_list:
             self.error = "Trusted certificate authorities list not found"
             return False
