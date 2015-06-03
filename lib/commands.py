@@ -118,7 +118,7 @@ class Commands:
 
     @command('')
     def setconfig(self, key, value):
-        """Set a configuration variable. """
+        """Set a configuration variable. 'value' uses Python syntax"""
         try:
             value = ast.literal_eval(value)
         except:
@@ -141,24 +141,32 @@ class Commands:
 
     @command('n')
     def getaddresshistory(self, address):
-        """Return the transaction history of a wallet address."""
+        """Return the transaction history of any address. Note: This is a
+        walletless server query, results are not checked by SPV.
+        """
         return self.network.synchronous_get([('blockchain.address.get_history', [address])])[0]
 
-    @command('n')
+    @command('nw')
     def listunspent(self):
-        """List unspent outputs. Returns the list of unspent transaction outputs in your wallet."""
+        """List unspent outputs. Returns the list of unspent transaction
+        outputs in your wallet."""
         l = copy.deepcopy(self.wallet.get_spendable_coins(exclude_frozen = False))
         for i in l: i["value"] = str(Decimal(i["value"])/COIN)
         return l
 
     @command('n')
     def getaddressunspent(self, address):
-        """Returns the list of unspent inputs for an address. """
+        """Returns the list of unspent inputs of a Bitcoin address. Note: This
+        is a walletless server query, results are not checked by SPV.
+        """
         return self.network.synchronous_get([('blockchain.address.listunspent', [address])])[0]
 
     @command('n')
     def getutxoaddress(self, txid, pos):
-        """Get the address of an unspent transaction output"""
+        """Get the address that corresponds to an unspent transaction
+        output. Note: This is a walletless server query, results are
+        not checked by SPV.
+        """
         r = self.network.synchronous_get([('blockchain.utxo.get_address', [txid, pos])])
         if r:
             return {'address':r[0]}
@@ -269,7 +277,9 @@ class Commands:
 
     @command('n')
     def getaddressbalance(self, address):
-        """Return the balance of an address"""
+        """Return the balance of any address. Note: This is a walletless
+        server query, results are not checked by SPV.
+        """
         out = self.network.synchronous_get([('blockchain.address.get_balance', [address])])[0]
         out["confirmed"] =  str(Decimal(out["confirmed"])/COIN)
         out["unconfirmed"] =  str(Decimal(out["unconfirmed"])/COIN)
@@ -506,7 +516,7 @@ class Commands:
         """Decrypt a message encrypted with a public key."""
         return self.wallet.decrypt_message(pubkey, encrypted, self.password)
 
-    def _format_request(self, v, show_status):
+    def _format_request(self, v, show_status=False):
         from paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
         pr_str = {
             PR_UNKNOWN: 'Unknown',
