@@ -1200,7 +1200,7 @@ class ElectrumWindow(QMainWindow):
         if not URI:
             return
         try:
-            address, amount, label, message, request_url = util.parse_URI(URI)
+            address, amount, label, message, request_url = util.parse_URI(unicode(URI))
         except Exception as e:
             QMessageBox.warning(self, _('Error'), _('Invalid bitcoin URI:') + '\n' + str(e), _('OK'))
             return
