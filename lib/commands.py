@@ -542,7 +542,7 @@ class Commands:
                 a, b = r
                 url = url.replace(a, b)
             URI = 'bitcoin:?r=' + url
-            out['url'] = URI
+            out['URI'] = URI
         if show_status:
             status = self.wallet.get_request_status(addr, amount, timestamp, expiration)
             out['status'] = pr_str[status]
@@ -554,19 +554,15 @@ class Commands:
         return map(lambda x: self._format_request(x, status), self.wallet.receive_requests.values())
 
     @command('w')
-    def addrequest(self, amount, reason='', expiration=60*60):
-        """Create a payment request. If 'requests_dir' is set in your
-        configuration, a bip70 file will be written to that
-        directory. If you also set 'ssl_key_path' and 'ssl_cert_path',
-        the request will be signed with your certificate. Note that
-        the ssl_key_path file must contain the chain of certificates
-        up to a root CA."""
+    def addrequest(self, requested_amount, reason='', expiration=60*60):
+        """Create a payment request.
+        """
         amount = int(Decimal(amount)*COIN)
         key = self.wallet.add_payment_request(self.config, amount, reason, expiration)
         return self._format_request(self.wallet.get_payment_request(key)) if key else False
 
     @command('w')
-    def removerequest(self, address):
+    def rmrequest(self, address):
         """Remove a payment request"""
         return self.wallet.remove_payment_request(address)
 
@@ -584,6 +580,7 @@ param_descriptions = {
     'message': 'Clear text message. Use quotes if it contains spaces.',
     'encrypted': 'Encrypted message',
     'amount': 'Amount to be sent (in BTC). Type \'!\' to send the maximum available.',
+    'requested_amount': 'Requested amount (in BTC).',
     'csv_file': 'CSV file of recipient, amount',
 }
 
@@ -627,6 +624,17 @@ arg_types = {
     'amount': lambda x: Decimal(x) if x!='!' else '!',
 }
 
+config_variables = {
+
+    'addrequest': {
+        'requests_dir': 'directory where a bip70 file will be written.',
+        'ssl_privkey': 'Path to your SSL private key, needed to sign the request.',
+        'ssl_chain': 'Chain of SSL certificates, needed for signed requests. Put your certificate at the top and the root CA at the end',
+    },
+    'listrequests':{
+        'url_rewrite': 'Parameters passed to str.replace(), in order to create the r= part of bitcoin: URIs. Example: \"(\'file:///var/www/\',\'https://electrum.org/\')\"',
+    }
+}
 
 def set_default_subparser(self, name, args=None):
     """see http://stackoverflow.com/questions/5176691/argparse-how-to-specify-a-default-subcommand"""
@@ -709,6 +717,13 @@ def get_parser(run_gui, run_daemon, run_cmdline):
             h = param_descriptions.get(param, '')
             _type = arg_types.get(param, str)
             p.add_argument(param, help=h, type=_type)
+
+        cvh = config_variables.get(cmdname)
+        if cvh:
+            group = p.add_argument_group('configuration variables', '(set with setconfig/getconfig)')
+            for k, v in cvh.items():
+                group.add_argument(k, nargs='?', help=v)
+
     # 'gui' is the default command
     parser.set_default_subparser('gui')
     return parser
