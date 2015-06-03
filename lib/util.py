@@ -131,7 +131,7 @@ def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespa
     if whitespaces:
         result += " " * (decimal_point - len(fract_part))
         result = " " * (15 - len(result)) + result
-    return result
+    return result.decode('utf8')
 
 def format_time(timestamp):
     import datetime
