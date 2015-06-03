@@ -64,6 +64,7 @@ def get_payment_request(url):
         connection.request("GET", u.geturl(), headers=REQUEST_HEADERS)
         response = connection.getresponse()
         data = response.read()
+        print_error('fetched payment request', url, len(data))
     elif u.scheme == 'file':
         with open(u.path, 'r') as f:
             data = f.read()
@@ -105,6 +106,9 @@ class PaymentRequest:
         if not ca_list:
             self.error = "Trusted certificate authorities list not found"
             return False
+        if not self.raw:
+            self.error = "Empty request"
+            return
         paymntreq = pb2.PaymentRequest()
         paymntreq.ParseFromString(self.raw)
         if not paymntreq.signature:
