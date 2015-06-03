@@ -1241,8 +1241,8 @@ class Abstract_Wallet(object):
         message = self.labels.get(addr, '')
         script = Transaction.pay_script('address', addr).decode('hex')
         outputs = [(script, amount)]
-        key_path = config.get('ssl_key_path')
-        cert_path = config.get('ssl_cert_path')
+        key_path = config.get('ssl_privkey')
+        cert_path = config.get('ssl_chain')
         return make_payment_request(outputs, message, time, time + expiration, key_path, cert_path)
 
     def get_payment_request(self, key):

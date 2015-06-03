@@ -177,8 +177,8 @@ class TxDialog(QDialog):
             self.date_label.hide()
 
         # if we are not synchronized, we cannot tell
-        if self.parent.network is None or not self.parent.network.is_running() or not self.parent.network.is_connected():
-            self.broadcast_button.hide()  # cannot broadcast when offline
+        if self.parent.network is None:
+            self.broadcast_button.disable()  # cannot broadcast when offline
             return
         if not self.wallet.up_to_date:
             return

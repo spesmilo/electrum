@@ -131,7 +131,7 @@ def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespa
     if whitespaces:
         result += " " * (decimal_point - len(fract_part))
         result = " " * (15 - len(result)) + result
-    return result
+    return result.decode('utf8')
 
 def format_time(timestamp):
     import datetime
@@ -223,6 +223,7 @@ def block_explorer_URL(config, kind, item):
 
 def parse_URI(uri):
     import bitcoin
+    from bitcoin import COIN
 
     if ':' not in uri:
         assert bitcoin.is_address(uri)

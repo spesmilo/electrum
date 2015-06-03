@@ -118,11 +118,11 @@ class Commands:
 
     @command('')
     def setconfig(self, key, value):
-        """Set a configuration variable. """
+        """Set a configuration variable. 'value' may be a string or a Python expression."""
         try:
             value = ast.literal_eval(value)
         except:
-            return False
+            pass
         self.config.set_key(key, value)
         return True
 
@@ -141,24 +141,32 @@ class Commands:
 
     @command('n')
     def getaddresshistory(self, address):
-        """Return the transaction history of a wallet address."""
+        """Return the transaction history of any address. Note: This is a
+        walletless server query, results are not checked by SPV.
+        """
         return self.network.synchronous_get([('blockchain.address.get_history', [address])])[0]
 
-    @command('n')
+    @command('nw')
     def listunspent(self):
-        """List unspent outputs. Returns the list of unspent transaction outputs in your wallet."""
+        """List unspent outputs. Returns the list of unspent transaction
+        outputs in your wallet."""
         l = copy.deepcopy(self.wallet.get_spendable_coins(exclude_frozen = False))
         for i in l: i["value"] = str(Decimal(i["value"])/COIN)
         return l
 
     @command('n')
     def getaddressunspent(self, address):
-        """Returns the list of unspent inputs for an address. """
+        """Returns the list of unspent inputs of a Bitcoin address. Note: This
+        is a walletless server query, results are not checked by SPV.
+        """
         return self.network.synchronous_get([('blockchain.address.listunspent', [address])])[0]
 
     @command('n')
     def getutxoaddress(self, txid, pos):
-        """Get the address of an unspent transaction output"""
+        """Get the address that corresponds to an unspent transaction
+        output. Note: This is a walletless server query, results are
+        not checked by SPV.
+        """
         r = self.network.synchronous_get([('blockchain.utxo.get_address', [txid, pos])])
         if r:
             return {'address':r[0]}
@@ -269,7 +277,9 @@ class Commands:
 
     @command('n')
     def getaddressbalance(self, address):
-        """Return the balance of an address"""
+        """Return the balance of any address. Note: This is a walletless
+        server query, results are not checked by SPV.
+        """
         out = self.network.synchronous_get([('blockchain.address.get_balance', [address])])[0]
         out["confirmed"] =  str(Decimal(out["confirmed"])/COIN)
         out["unconfirmed"] =  str(Decimal(out["unconfirmed"])/COIN)
@@ -506,7 +516,7 @@ class Commands:
         """Decrypt a message encrypted with a public key."""
         return self.wallet.decrypt_message(pubkey, encrypted, self.password)
 
-    def _format_request(self, v, show_status):
+    def _format_request(self, v, show_status=False):
         from paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
         pr_str = {
             PR_UNKNOWN: 'Unknown',
@@ -532,7 +542,7 @@ class Commands:
                 a, b = r
                 url = url.replace(a, b)
             URI = 'litecoin:?r=' + url
-            out['url'] = URI
+            out['URI'] = URI
         if show_status:
             status = self.wallet.get_request_status(addr, amount, timestamp, expiration)
             out['status'] = pr_str[status]
@@ -544,19 +554,15 @@ class Commands:
         return map(lambda x: self._format_request(x, status), self.wallet.receive_requests.values())
 
     @command('w')
-    def addrequest(self, amount, reason='', expiration=60*60):
-        """Create a payment request. If 'requests_dir' is set in your
-        configuration, a bip70 file will be written to that
-        directory. If you also set 'ssl_key_path' and 'ssl_cert_path',
-        the request will be signed with your certificate. Note that
-        the ssl_key_path file must contain the chain of certificates
-        up to a root CA."""
-        amount = int(Decimal(amount)*COIN)
+    def addrequest(self, requested_amount, reason='', expiration=60*60):
+        """Create a payment request.
+        """
+        amount = int(Decimal(requested_amount)*COIN)
         key = self.wallet.add_payment_request(self.config, amount, reason, expiration)
         return self._format_request(self.wallet.get_payment_request(key)) if key else False
 
     @command('w')
-    def removerequest(self, address):
+    def rmrequest(self, address):
         """Remove a payment request"""
         return self.wallet.remove_payment_request(address)
 
@@ -574,6 +580,7 @@ param_descriptions = {
     'message': 'Clear text message. Use quotes if it contains spaces.',
     'encrypted': 'Encrypted message',
     'amount': 'Amount to be sent (in LTC). Type \'!\' to send the maximum available.',
+    'requested_amount': 'Requested amount (in LTC).',
     'csv_file': 'CSV file of recipient, amount',
 }
 
@@ -617,6 +624,17 @@ arg_types = {
     'amount': lambda x: Decimal(x) if x!='!' else '!',
 }
 
+config_variables = {
+
+    'addrequest': {
+        'requests_dir': 'directory where a bip70 file will be written.',
+        'ssl_privkey': 'Path to your SSL private key, needed to sign the request.',
+        'ssl_chain': 'Chain of SSL certificates, needed for signed requests. Put your certificate at the top and the root CA at the end',
+    },
+    'listrequests':{
+        'url_rewrite': 'Parameters passed to str.replace(), in order to create the r= part of bitcoin: URIs. Example: \"(\'file:///var/www/\',\'https://electrum-ltc.org/\')\"',
+    }
+}
 
 def set_default_subparser(self, name, args=None):
     """see http://stackoverflow.com/questions/5176691/argparse-how-to-specify-a-default-subcommand"""
@@ -699,6 +717,13 @@ def get_parser(run_gui, run_daemon, run_cmdline):
             h = param_descriptions.get(param, '')
             _type = arg_types.get(param, str)
             p.add_argument(param, help=h, type=_type)
+
+        cvh = config_variables.get(cmdname)
+        if cvh:
+            group = p.add_argument_group('configuration variables', '(set with setconfig/getconfig)')
+            for k, v in cvh.items():
+                group.add_argument(k, nargs='?', help=v)
+
     # 'gui' is the default command
     parser.set_default_subparser('gui')
     return parser
