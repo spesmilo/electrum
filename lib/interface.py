@@ -61,7 +61,6 @@ class TcpInterface(threading.Thread):
         # closing the socket
         self.disconnect = False
         self._status = CS_OPENING
-        self.needs_shutdown = True
         self.debug = False # dump network messages. can be changed at runtime using the console
         self.message_id = 0
         self.response_queue = response_queue
@@ -304,7 +303,6 @@ class TcpInterface(threading.Thread):
                 return
             # If remote side closed the socket, SocketPipe closes our socket and returns None
             if response is None:
-                self.needs_shutdown = False  # Don't re-close the socket
                 self.disconnect = True
                 self.print_error("connection closed remotely")
             else:
@@ -323,9 +321,8 @@ class TcpInterface(threading.Thread):
                 self.maybe_ping()
                 self.send_requests()
                 self.get_and_process_response()
-            if self.needs_shutdown:
-                s.shutdown(socket.SHUT_RDWR)
-                s.close()
+            s.shutdown(socket.SHUT_RDWR)
+            s.close()
 
         # Also for the s is None case 
         self._status = CS_FAILED

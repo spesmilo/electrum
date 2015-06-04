@@ -358,8 +358,7 @@ class SocketPipe:
                 traceback.print_exc(file=sys.stderr)
                 data = ''
 
-            if not data:
-                self.socket.close()
+            if not data:  # Connection closed remotely
                 return None
             self.message += data
             self.recv_time = time.time()
