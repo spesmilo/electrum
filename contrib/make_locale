@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python2
 from StringIO import StringIO
 import urllib2, os, zipfile, pycurl
 
