@@ -432,7 +432,7 @@ class Network(util.DaemonThread):
             self.response_queue.put(response)
 
     def handle_requests(self):
-        while True:
+        while self.interface:
             try:
                 request = self.requests_queue.get_nowait()
             except Queue.Empty:
