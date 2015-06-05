@@ -40,6 +40,7 @@ class NetworkProxy(util.DaemonThread):
         self.subscriptions = {}
         self.debug = False
         self.lock = threading.Lock()
+        self.pending_transactions_for_notifications = []
         self.callbacks = {}
 
         if socket:
