@@ -16,20 +16,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import socket
-import time
-import sys
-import os
 import threading
-import traceback
-import json
 import Queue
 
 import util
 from network import Network
-from util import print_error, print_stderr, parse_json
+from util import print_error
 from simple_config import SimpleConfig
-from daemon import NetworkServer
 from network import serialize_proxy, serialize_server
 
 
@@ -47,7 +40,6 @@ class NetworkProxy(util.DaemonThread):
         self.subscriptions = {}
         self.debug = False
         self.lock = threading.Lock()
-        self.pending_transactions_for_notifications = []
         self.callbacks = {}
 
         if socket:
