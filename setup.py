@@ -46,6 +46,7 @@ setup(
     packages=['electrum','electrum_gui','electrum_gui.qt','electrum_plugins'],
     package_data={
         'electrum': [
+            'payrequest.html',
             'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electrum.mo',
         ],
