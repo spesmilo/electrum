@@ -41,6 +41,7 @@ from electrum import mnemonic
 from electrum import util, bitcoin, commands, Wallet
 from electrum import SimpleConfig, Wallet, WalletStorage
 from electrum import Imported_Wallet
+from electrum import paymentrequest
 
 from amountedit import AmountEdit, BTCAmountEdit, MyLineEdit
 from network_dialog import NetworkDialog
@@ -721,8 +722,8 @@ class ElectrumWindow(QMainWindow):
 
     def export_payment_request(self, addr):
         r = self.wallet.get_payment_request(addr)
-        pr = self.wallet.make_bip70_request(self.config, r)
-        name = 'request.bip70'
+        pr = paymentrequest.make_request(self.config, r)
+        name = r['key'] + '.bip70'
         fileName = self.getSaveFileName(_("Select where to save your payment request"), name, "*.bip70")
         if fileName:
             with open(fileName, "wb+") as f:
@@ -804,17 +805,18 @@ class ElectrumWindow(QMainWindow):
 
         # clear the list and fill it again
         self.receive_list.clear()
-        for address, req in self.wallet.receive_requests.viewitems():
-            timestamp, amount = req['time'], req['amount']
-            expiration = req.get('expiration', None)
-            message = self.wallet.labels.get(address, '')
-            # only show requests for the current account
+        for req in self.wallet.get_sorted_requests():
+            address = req['address']
             if address not in domain:
                 continue
+            timestamp = req['time']
+            amount = req.get('amount')
+            expiration = req.get('expiration', None)
+            message = req.get('reason', '')
             date = format_time(timestamp)
+            status = req.get('status')
             account = self.wallet.get_account_name(self.wallet.get_account_from_address(address))
             amount_str = self.format_amount(amount) if amount else ""
-            status = self.wallet.get_request_status(address, amount, timestamp, expiration)
             item = QTreeWidgetItem([date, account, address, message, amount_str, pr_tooltips.get(status,'')])
             if status is not PR_UNKNOWN:
                 item.setIcon(5, QIcon(pr_icons.get(status)))

@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import sys
 import datetime
 import time
@@ -31,7 +32,7 @@ from util import print_msg, format_satoshis, print_stderr
 import bitcoin
 from bitcoin import is_address, hash_160_to_bc_address, hash_160, COIN
 from transaction import Transaction
-
+import paymentrequest
 
 known_commands = {}
 
@@ -516,7 +517,7 @@ class Commands:
         """Decrypt a message encrypted with a public key."""
         return self.wallet.decrypt_message(pubkey, encrypted, self.password)
 
-    def _format_request(self, v, show_status=False):
+    def _format_request(self, v):
         from paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
         pr_str = {
             PR_UNKNOWN: 'Unknown',
@@ -524,42 +525,66 @@ class Commands:
             PR_PAID: 'Paid',
             PR_EXPIRED: 'Expired',
         }
+        key = v['key']
         addr = v.get('address')
         amount = v.get('amount')
         timestamp = v.get('time')
         expiration = v.get('expiration')
         out = {
+            'key': key,
             'address': addr,
             'amount': format_satoshis(amount),
-            'time': timestamp,
-            'reason': self.wallet.get_label(addr)[0],
+            'timestamp': timestamp,
+            'reason': v.get('reason'),
             'expiration': expiration,
+            'URI':'bitcoin:' + addr + '?amount=' + format_satoshis(amount),
+            'status': pr_str[v.get('status', PR_UNKNOWN)]
         }
-        if v.get('path'):
-            url = 'file://' + v.get('path')
-            r = self.config.get('url_rewrite')
-            if r:
-                a, b = r
-                url = url.replace(a, b)
-            URI = 'bitcoin:?r=' + url
-            out['URI'] = URI
-        if show_status:
-            status = self.wallet.get_request_status(addr, amount, timestamp, expiration)
-            out['status'] = pr_str[status]
+        # check if bip70 file exists
+        rdir = self.config.get('requests_dir')
+        if rdir:
+            path = os.path.join(rdir, key + '.bip70')
+            if os.path.exists(path):
+                out['path'] = path
+                url = 'file://' + path
+                r = self.config.get('url_rewrite')
+                if r:
+                    a, b = r
+                    url = url.replace(a, b)
+                out['request_url'] = url
+                out['URI'] += '&r=' + url
+
         return out
 
-    @command('w')
-    def listrequests(self, status=False):
-        """List the payment requests you made, and their status"""
-        return map(lambda x: self._format_request(x, status), self.wallet.receive_requests.values())
+    @command('wn')
+    def getrequest(self, key):
+        """Return a payment request"""
+        r = self.wallet.get_payment_request(key)
+        if not r:
+            raise BaseException("Request not found")
+        return self._format_request(r)
 
     @command('w')
-    def addrequest(self, requested_amount, reason='', expiration=60*60):
-        """Create a payment request.
-        """
+    def ackrequest(self, serialized):
+        """<Not implemented>"""
+        pass
+
+    @command('w')
+    def listrequests(self):
+        """List the payment requests you made, and their status"""
+        return map(self._format_request, self.wallet.get_sorted_requests())
+
+    @command('w')
+    def addrequest(self, requested_amount, reason='', expiration=None):
+        """Create a payment request."""
         amount = int(Decimal(requested_amount)*COIN)
-        key = self.wallet.add_payment_request(self.config, amount, reason, expiration)
-        return self._format_request(self.wallet.get_payment_request(key)) if key else False
+        key = self.wallet.add_payment_request(amount, reason, expiration)
+        if key is None:
+            return
+        # create file
+        req = self.wallet.get_payment_request(key)
+        paymentrequest.publish_request(self.config, key, req)
+        return self._format_request(req)
 
     @command('w')
     def rmrequest(self, address):
@@ -658,6 +683,8 @@ def set_default_subparser(self, name, args=None):
                 args.insert(0, name)
 
 argparse.ArgumentParser.set_default_subparser = set_default_subparser
+
+
 
 def add_network_options(parser):
     parser.add_argument("-1", "--oneserver", action="store_true", dest="oneserver", default=False, help="connect to one server only")
