@@ -1,0 +1,82 @@
+<!DOCTYPE HTML>
+<html>
+    <head>
+        <title>Payment request</title>
+        <script type="text/javascript" charset="utf-8" src="http://code.jquery.com/jquery-1.9.1.min.js"></script>
+        <script type="text/javascript" src="https://raw.github.com/datagraph/jquery-jsonrpc/master/jquery.jsonrpc.js"></script>
+	<script type="text/javascript" src="https://raw.githubusercontent.com/davidshimjs/qrcodejs/master/qrcode.js"></script>
+
+
+	<link rel="stylesheet" type="text/css" href="/css/result-light.css">
+	<script type="text/javascript" src="http://code.jquery.com/ui/1.10.3/jquery-ui.js"></script>
+	<link rel="stylesheet" type="text/css" href="http://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css">
+
+
+        <script type="text/javascript">
+            $(document).ready(function() {
+                $.jsonRPC.setup({
+                    endPoint : "http://localhost:7777",
+                    namespace : ""
+                });
+	        if (window.location.hash) {
+                    $.jsonRPC.request('getrequest', {
+                        params : [window.location.hash.substr(1)],
+                        success : function(data) {
+	                     new QRCode(document.getElementById("qrcode"), data.result.URI);
+                             $("<p />").text(data.result.reason).appendTo($("p#reason"));
+                             $("<p />").text(data.result.amount + "BTC").appendTo($("p#amount"));
+	                     $("a").attr("href", data.result.URI);
+                             $("<p />").text("Powered by Electrum").appendTo($("p#powered"));
+
+$(function () {
+    var current;
+    var max = 100;
+    var initial = data.result.timestamp;
+    var duration = data.result.expiration;
+    var current = 100 * (Math.floor(Date.now()/1000) - initial)/duration;
+    $("#progressbar").progressbar({
+        value: current,
+        max: max
+    });
+    function update() {
+        current = 100 * (Math.floor(Date.now()/1000) - initial)/duration;
+        $("#progressbar").progressbar({
+            value: current
+        });
+        if (duration && current >= max) {
+	    $("#container").html("expired:", duration);
+	}
+	if(!duration) clearInterval(interval);
+    };
+    var interval = setInterval(update, 1000);
+});
+
+                        },
+                        error : function(data) {
+                            $("<p />").text("error").appendTo($("p#error"));
+                            $("<p />").text(data.error.message).appendTo($("p#error"));
+                        }
+                    });
+
+	        }
+
+            });
+	</script>
+    </head>
+    <body>
+	<div id="container" style="width:20em; text-align:center; margin:auto; font-family:arial, serif;">
+            <p id="error"></p>
+            <p id="reason"></p>
+            <p id="amount"></p>
+	    <div style="background-color:#7777aa; border-radius: 5px; padding:10px;">
+		<a style="color:#ffffff; text-decoration:none;" id="paylink">Pay with Bitcoin</a>
+	    </div>
+	    <br/>
+	    <div id="qrcode" align="center"></div>
+            <p id="powered" style="font-size:80%;"></p>
+	    <div id="progressbar"></div>
+	</div>
+
+    </body>
+</html>
+
