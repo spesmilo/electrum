@@ -542,17 +542,16 @@ class Commands:
         }
         # check if bip70 file exists
         rdir = self.config.get('requests_dir')
-        if rdir:
-            path = os.path.join(rdir, key + '.bip70')
-            if os.path.exists(path):
-                out['path'] = path
-                url = 'file://' + path
-                r = self.config.get('url_rewrite')
-                if r:
-                    a, b = r
-                    url = url.replace(a, b)
-                out['request_url'] = url
-                out['URI'] += '&r=' + url
+        path = os.path.join(rdir, key + '.bip70')
+        if rdir and os.path.exists(path):
+            out['path'] = path
+            baseurl = 'file://' + rdir
+            rewrite = self.config.get('url_rewrite')
+            if rewrite:
+                baseurl = baseurl.replace(*rewrite)
+            out['request_url'] = os.path.join(baseurl, key + '.bip70')
+            out['URI'] += '&r=' + out['request_url']
+            out['index_url'] = os.path.join(baseurl, 'index.html') + '?id=' + key
 
         return out
 
@@ -575,16 +574,22 @@ class Commands:
         return map(self._format_request, self.wallet.get_sorted_requests())
 
     @command('w')
-    def addrequest(self, requested_amount, reason='', expiration=None):
+    def addrequest(self, requested_amount, reason='', expiration=60*60):
         """Create a payment request."""
         amount = int(Decimal(requested_amount)*COIN)
         key = self.wallet.add_payment_request(amount, reason, expiration)
         if key is None:
             return
-        # create file
         req = self.wallet.get_payment_request(key)
-        paymentrequest.publish_request(self.config, key, req)
-        return self._format_request(req)
+        rdir = self.config.get('requests_dir')
+        if rdir:
+            path = paymentrequest.publish_request(self.config, key, req)
+            req['path'] = path
+        req = self._format_request(req)
+        if rdir:
+            with open(os.path.join(rdir, key + '.json'), 'w') as f:
+                f.write(json.dumps(req))
+        return req
 
     @command('w')
     def rmrequest(self, address):
