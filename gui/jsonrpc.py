@@ -18,7 +18,8 @@
 
 
 """
-jsonrpc interface for webservers
+jsonrpc interface for webservers.
+may be called from your php script.
 """
 
 import socket, os
@@ -47,26 +48,20 @@ class ElectrumGui:
     def __init__(self, config, network):
         self.network = network
         self.config = config
+        storage = WalletStorage(self.config.get_wallet_path())
+        if not storage.file_exists:
+            raise BaseException("Wallet not found")
+        self.wallet = Wallet(storage)
+        self.cmd_runner = Commands(self.config, self.wallet, self.network)
         host = config.get('rpchost', 'localhost')
         port = config.get('rpcport', 7777)
         self.server = SimpleJSONRPCServer((host, port), requestHandler=RequestHandler)
         self.server.socket.settimeout(1)
-        self.server.register_function(self.do_getrequest, 'getrequest')
-
-    def do_getrequest(self, key):
-        # fixme: we load and sync the wallet on each request
-        # the wallet should be synchronized in the daemon instead
-        storage = WalletStorage(self.config.get_wallet_path())
-        if not storage.file_exists:
-            raise BaseException("Wallet not found")
-        wallet = Wallet(storage)
-        wallet.start_threads(self.network)
-        cmd_runner = Commands(self.config, wallet, self.network)
-        result = cmd_runner.getrequest(key)
-        wallet.stop_threads()
-        return result
+        for cmdname in known_commands:
+            self.server.register_function(getattr(self.cmd_runner, cmdname), cmdname)
 
     def main(self, url):
+        self.wallet.start_threads(self.network)
         while True:
             try:
                 self.server.handle_request()
@@ -74,47 +69,4 @@ class ElectrumGui:
                 continue
             except:
                 break
-
-
-
-"""
-* replace merchant script:
-    * client process that connects to the daemon, receives notifications and pushes callbacks
-    * it requires a new gui type
-
-     electrum -g jsonrpc &
-or:  electrum daemon loadwallet
-
-
-use the daemon:
-  pros: single process instead of 2
-  jsonrpc is not really a gui
-
-  the wallet sould be synced in the daemon (so that we can add requests from the gui, list them, etc)
-
-  short-term solution:
-    * serve jsonrpc requests with the daemon
-    * load wallet on each command
-    * open some rpc commands to public
-
- * other solution:
-    * use a database
-    * 'addrequest' writes request to database
-
-the daemon does not need to load and sync the wallet
-
- * daemon loadwallet
- * 
-
-
- Private methods: 
-    wallet commands
-
- Public methods:
-  - getrequest(key)
-  - paymentack(): 
-     is sent as the body of the POST
-  
-
-
-"""
+        self.wallet.stop_threads()
