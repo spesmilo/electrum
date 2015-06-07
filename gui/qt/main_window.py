@@ -570,7 +570,7 @@ class ElectrumWindow(QMainWindow):
     def show_transaction(self, tx):
         import transaction_dialog
         d = transaction_dialog.TxDialog(tx, self)
-        d.exec_()
+        d.show()
 
     def update_history_tab(self):
         domain = self.wallet.get_account_addresses(self.current_account)

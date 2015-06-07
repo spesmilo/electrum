@@ -40,7 +40,7 @@ from electrum.plugins import run_hook
 from util import *
 
 
-class TxDialog(QDialog):
+class TxDialog(QWidget):
 
     def __init__(self, tx, parent):
         self.tx = tx
@@ -49,10 +49,9 @@ class TxDialog(QDialog):
         self.wallet = parent.wallet
         self.saved = True
 
-        QDialog.__init__(self)
+        QWidget.__init__(self)
         self.setMinimumWidth(600)
         self.setWindowTitle(_("Transaction"))
-        self.setModal(1)
 
         vbox = QVBoxLayout()
         self.setLayout(vbox)
@@ -109,9 +108,11 @@ class TxDialog(QDialog):
 
     def close(self):
         if not self.saved:
-            if QMessageBox.question(self, _('Message'), _('This transaction is not saved. Close anyway?'), QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.No:
+            if QMessageBox.question(
+                    self, _('Message'), _('This transaction is not saved. Close anyway?'),
+                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.No:
                 return
-        self.done(0)
+        QWidget.close(self)
 
     def show_qr(self):
         text = self.tx.raw.decode('hex')
