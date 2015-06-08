@@ -1105,15 +1105,16 @@ class Abstract_Wallet(object):
             self.verifier.start()
             self.set_verifier(self.verifier)
             self.synchronizer = WalletSynchronizer(self, network)
-            self.synchronizer.start()
+            network.jobs.append(self.synchronizer.main_loop)
         else:
             self.verifier = None
-            self.synchronizer =None
+            self.synchronizer = None
 
     def stop_threads(self):
         if self.network:
             self.verifier.stop()
-            self.synchronizer.stop()
+            self.network.jobs = []
+            self.synchronizer = None
             self.storage.put('stored_height', self.get_local_height(), True)
 
     def restore(self, cb):
