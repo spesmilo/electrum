@@ -1,3 +1,25 @@
+# Release 2.3
+* Improved logic for the network layer.
+* More efficient coin selection. Spend oldest coins first, and
+  minimize the number of transaction inputs.
+* Plugins are independent from the GUI. For example, the openalias
+  plugin can be used with the command line, as follows:
+  ./electrum payto <alias> <amount>
+* The command line has been refactored:
+  - arguments are parsed with argparse.
+  - the help was improved and includes options
+* The command line accepts the '!' shortcut to send the maximum amount. 
+  Example: mktx <destination> ! --from <from_address>
+* The command line also accepts a '?' shortcut for private keys
+  arguments, that triggers a prompt.
+* Payment requests can be managed with the command line, using the
+  following commands: addrequest, rmrequest, listrequests.
+* Payment requests can be signed with a SSL certificate, and published
+  in a public web directory. 'electrum addrequest -h' shows the
+  relevant configuration variables.
+* Commands can be called with a new jsonrpc interface; the jsonrpc
+  interface may be used on a webserver in combination with php.
+
 # Release 2.2
  * Show amounts (thousands separators and decimal point)
    according to locale in GUI
