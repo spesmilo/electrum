@@ -535,7 +535,7 @@ class Commands:
             'address': addr,
             'amount': format_satoshis(amount),
             'timestamp': timestamp,
-            'reason': v.get('reason'),
+            'memo': v.get('memo', ''),
             'expiration': expiration,
             'URI':'bitcoin:' + addr + '?amount=' + format_satoshis(amount),
             'status': pr_str[v.get('status', PR_UNKNOWN)]
@@ -574,10 +574,10 @@ class Commands:
         return map(self._format_request, self.wallet.get_sorted_requests())
 
     @command('w')
-    def addrequest(self, requested_amount, reason='', expiration=60*60):
+    def addrequest(self, requested_amount, memo='', expiration=60*60):
         """Create a payment request."""
         amount = int(Decimal(requested_amount)*COIN)
-        key = self.wallet.add_payment_request(amount, reason, expiration)
+        key = self.wallet.add_payment_request(amount, memo, expiration)
         if key is None:
             return
         req = self.wallet.get_payment_request(key)
@@ -637,7 +637,7 @@ command_options = {
     'unsigned':    ("-u", "--unsigned",    "Do not sign transaction"),
     'domain':      ("-D", "--domain",      "List of addresses"),
     'account':     (None, "--account",     "Account"),
-    'reason':      (None, "--reason",      "Description of the request"),
+    'memo':        ("-m", "--memo",        "Description of the request"),
     'expiration':  (None, "--expiration",  "Time in seconds"),
     'status':      (None, "--status",      "Show status"),
 }

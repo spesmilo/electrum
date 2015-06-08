@@ -812,7 +812,7 @@ class ElectrumWindow(QMainWindow):
             timestamp = req['time']
             amount = req.get('amount')
             expiration = req.get('expiration', None)
-            message = req.get('reason', '')
+            message = req.get('memo', '')
             date = format_time(timestamp)
             status = req.get('status')
             account = self.wallet.get_account_name(self.wallet.get_account_from_address(address))
