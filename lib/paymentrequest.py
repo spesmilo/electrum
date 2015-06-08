@@ -299,7 +299,7 @@ def make_request(config, req):
     time = req['time']
     amount = req['amount']
     expiration = req['expiration']
-    message = req['reason']
+    message = req['memo']
     script = Transaction.pay_script('address', addr).decode('hex')
     outputs = [(script, amount)]
     key_path = config.get('ssl_privkey')
@@ -307,7 +307,7 @@ def make_request(config, req):
     return make_payment_request(outputs, message, time, time + expiration if expiration else None, key_path, cert_path)
 
 
-def publish_request(config, key, req):
+def publish_request(config, addr, req):
     import shutil, os
     rdir = config.get('requests_dir')
     if not rdir:
@@ -316,13 +316,17 @@ def publish_request(config, key, req):
         os.mkdir(rdir)
     index = os.path.join(rdir, 'index.html')
     if not os.path.exists(index):
-        src = os.path.join(os.path.dirname(__file__), 'payrequest.html')
+        src = os.path.join(os.path.dirname(__file__), 'www', 'index.html')
         shutil.copy(src, index)
+    key = req.get('id', addr)
     pr = make_request(config, req)
     path = os.path.join(rdir, key + '.bip70')
     with open(path, 'w') as f:
         f.write(pr)
-    return path
+    with open(os.path.join(rdir, key + '.json'), 'w') as f:
+        f.write(json.dumps(req))
+    req['path'] = path
+    return req
 
 
 

@@ -1231,14 +1231,27 @@ class Abstract_Wallet(object):
             if not self.history.get(addr) and addr not in self.receive_requests.keys():
                 return addr
 
-    def get_payment_request(self, key):
-        r = self.receive_requests.get(key)
+    def get_payment_request(self, addr, config):
+        import util
+        r = self.receive_requests.get(addr)
         if not r:
             return
-        r['reason'] = self.labels.get(key, '')
-        r['status'] = self.get_request_status(key)
-        r['key'] = key
-        return r
+        out = copy.copy(r)
+        out['URI'] = 'bitcoin:' + addr + '?amount=' + util.format_satoshis(out.get('amount'))
+        out['status'] = self.get_request_status(addr)
+        # check if bip70 file exists
+        rdir = config.get('requests_dir')
+        key = out.get('id', addr)
+        path = os.path.join(rdir, key + '.bip70')
+        if rdir and os.path.exists(path):
+            baseurl = 'file://' + rdir
+            rewrite = config.get('url_rewrite')
+            if rewrite:
+                baseurl = baseurl.replace(*rewrite)
+            out['request_url'] = os.path.join(baseurl, key + '.bip70')
+            out['URI'] += '&r=' + out['request_url']
+            out['index_url'] = os.path.join(baseurl, 'index.html') + '?id=' + key
+        return out
 
     def get_request_status(self, key):
         from paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
@@ -1256,29 +1269,34 @@ class Abstract_Wallet(object):
             status = PR_UNKNOWN
         return status
 
-    def save_payment_request(self, addr, amount, message, expiration):
-        self.set_label(addr, message)
-        now = int(time.time())
-        r = {'time':now, 'amount':amount, 'expiration':expiration, 'address':addr}
+    def add_payment_request(self, addr, amount, message, expiration, config):
+        import paymentrequest
+        timestamp = int(time.time())
+        _id = Hash(addr + "%d"%timestamp).encode('hex')[0:10]
+        r = {'time':timestamp, 'amount':amount, 'expiration':expiration, 'address':addr, 'memo':message, 'id':_id}
         self.receive_requests[addr] = r
+        self.set_label(addr, message) # should be a default label
+        if config.get('requests_dir'):
+            paymentrequest.publish_request(config, addr, r)
         self.storage.put('receive_requests2', self.receive_requests)
+        return self.get_payment_request(addr, config)
 
-    def add_payment_request(self, amount, message, expiration):
-        addr = self.get_unused_address(None)
-        if addr is None:
-            return
-        self.save_payment_request(addr, amount, message, expiration)
-        return addr
-
-    def remove_payment_request(self, addr):
+    def remove_payment_request(self, addr, config):
         if addr not in self.receive_requests:
             return False
-        self.receive_requests.pop(addr)
+        r = self.receive_requests.pop(addr)
+        rdir = config.get('requests_dir')
+        if rdir:
+            key = r.get('id', addr)
+            for s in ['.json', '.bip70']:
+                n = os.path.join(rdir, key + s)
+                if os.path.exists(n):
+                    os.unlink(n)
         self.storage.put('receive_requests2', self.receive_requests)
         return True
 
-    def get_sorted_requests(self):
-        return sorted(map(self.get_payment_request, self.receive_requests.keys()), key=itemgetter('time'))
+    def get_sorted_requests(self, config):
+        return sorted(map(lambda x: self.get_payment_request(x, config), self.receive_requests.keys()), key=itemgetter('time'))
 
 
 
