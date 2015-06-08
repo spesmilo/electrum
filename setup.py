@@ -47,6 +47,7 @@ setup(
     packages=['electrum_ltc','electrum_ltc_gui','electrum_ltc_gui.qt','electrum_ltc_plugins'],
     package_data={
         'electrum_ltc': [
+            'payrequest.html',
             'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electrum.mo',
         ],

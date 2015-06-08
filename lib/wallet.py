@@ -1231,25 +1231,22 @@ class Abstract_Wallet(object):
             if not self.history.get(addr) and addr not in self.receive_requests.keys():
                 return addr
 
-
-    def make_bip70_request(self, config, req):
-        from paymentrequest import make_payment_request
-        addr = req['address']
-        time = req['time']
-        amount = req['amount']
-        expiration = req['expiration']
-        message = self.labels.get(addr, '')
-        script = Transaction.pay_script('address', addr).decode('hex')
-        outputs = [(script, amount)]
-        key_path = config.get('ssl_privkey')
-        cert_path = config.get('ssl_chain')
-        return make_payment_request(outputs, message, time, time + expiration, key_path, cert_path)
-
     def get_payment_request(self, key):
-        return self.receive_requests.get(key)
+        r = self.receive_requests.get(key)
+        if not r:
+            return
+        r['reason'] = self.labels.get(key, '')
+        r['status'] = self.get_request_status(key)
+        r['key'] = key
+        return r
 
-    def get_request_status(self, address, amount, timestamp, expiration):
+    def get_request_status(self, key):
         from paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
+        r = self.receive_requests[key]
+        address = r['address']
+        amount = r.get('amount')
+        timestamp = r.get('time')
+        expiration = r.get('expiration')
         if amount:
             paid = amount <= self.get_addr_received(address)
             status = PR_PAID if paid else PR_UNPAID
@@ -1259,27 +1256,18 @@ class Abstract_Wallet(object):
             status = PR_UNKNOWN
         return status
 
-    def save_payment_request(self, config, addr, amount, message, expiration):
-        #if addr in self.receive_requests:
-        #    self.receive_requests[addr]['amount'] = amount
+    def save_payment_request(self, addr, amount, message, expiration):
         self.set_label(addr, message)
         now = int(time.time())
         r = {'time':now, 'amount':amount, 'expiration':expiration, 'address':addr}
-        rdir = config.get('requests_dir')
-        if rdir:
-            pr = self.make_bip70_request(config, r)
-            path = os.path.join(rdir, addr + '.bip70')
-            with open(path, 'w') as f:
-                f.write(pr)
-            r['path'] = path
         self.receive_requests[addr] = r
         self.storage.put('receive_requests2', self.receive_requests)
 
-    def add_payment_request(self, config, amount, message, expiration):
+    def add_payment_request(self, amount, message, expiration):
         addr = self.get_unused_address(None)
         if addr is None:
-            return False
-        self.save_payment_request(config, addr, amount, message, expiration)
+            return
+        self.save_payment_request(addr, amount, message, expiration)
         return addr
 
     def remove_payment_request(self, addr):
@@ -1288,6 +1276,10 @@ class Abstract_Wallet(object):
         self.receive_requests.pop(addr)
         self.storage.put('receive_requests2', self.receive_requests)
         return True
+
+    def get_sorted_requests(self):
+        return sorted(map(self.get_payment_request, self.receive_requests.keys()), key=itemgetter('time'))
+
 
 
 class Imported_Wallet(Abstract_Wallet):

@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import sys
 import datetime
 import time
@@ -31,7 +32,7 @@ from util import print_msg, format_satoshis, print_stderr
 import bitcoin
 from bitcoin import is_address, hash_160_to_bc_address, hash_160, COIN
 from transaction import Transaction
-
+import paymentrequest
 
 known_commands = {}
 
@@ -516,7 +517,7 @@ class Commands:
         """Decrypt a message encrypted with a public key."""
         return self.wallet.decrypt_message(pubkey, encrypted, self.password)
 
-    def _format_request(self, v, show_status=False):
+    def _format_request(self, v):
         from paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
         pr_str = {
             PR_UNKNOWN: 'Unknown',
@@ -524,42 +525,71 @@ class Commands:
             PR_PAID: 'Paid',
             PR_EXPIRED: 'Expired',
         }
+        key = v['key']
         addr = v.get('address')
         amount = v.get('amount')
         timestamp = v.get('time')
         expiration = v.get('expiration')
         out = {
+            'key': key,
             'address': addr,
             'amount': format_satoshis(amount),
-            'time': timestamp,
-            'reason': self.wallet.get_label(addr)[0],
+            'timestamp': timestamp,
+            'reason': v.get('reason'),
             'expiration': expiration,
+            'URI':'litecoin:' + addr + '?amount=' + format_satoshis(amount),
+            'status': pr_str[v.get('status', PR_UNKNOWN)]
         }
-        if v.get('path'):
-            url = 'file://' + v.get('path')
-            r = self.config.get('url_rewrite')
-            if r:
-                a, b = r
-                url = url.replace(a, b)
-            URI = 'litecoin:?r=' + url
-            out['URI'] = URI
-        if show_status:
-            status = self.wallet.get_request_status(addr, amount, timestamp, expiration)
-            out['status'] = pr_str[status]
+        # check if bip70 file exists
+        rdir = self.config.get('requests_dir')
+        path = os.path.join(rdir, key + '.bip70')
+        if rdir and os.path.exists(path):
+            out['path'] = path
+            baseurl = 'file://' + rdir
+            rewrite = self.config.get('url_rewrite')
+            if rewrite:
+                baseurl = baseurl.replace(*rewrite)
+            out['request_url'] = os.path.join(baseurl, key + '.bip70')
+            out['URI'] += '&r=' + out['request_url']
+            out['index_url'] = os.path.join(baseurl, 'index.html') + '?id=' + key
+
         return out
 
+    @command('wn')
+    def getrequest(self, key):
+        """Return a payment request"""
+        r = self.wallet.get_payment_request(key)
+        if not r:
+            raise BaseException("Request not found")
+        return self._format_request(r)
+
     @command('w')
-    def listrequests(self, status=False):
+    def ackrequest(self, serialized):
+        """<Not implemented>"""
+        pass
+
+    @command('w')
+    def listrequests(self):
         """List the payment requests you made, and their status"""
-        return map(lambda x: self._format_request(x, status), self.wallet.receive_requests.values())
+        return map(self._format_request, self.wallet.get_sorted_requests())
 
     @command('w')
     def addrequest(self, requested_amount, reason='', expiration=60*60):
-        """Create a payment request.
-        """
+        """Create a payment request."""
         amount = int(Decimal(requested_amount)*COIN)
-        key = self.wallet.add_payment_request(self.config, amount, reason, expiration)
-        return self._format_request(self.wallet.get_payment_request(key)) if key else False
+        key = self.wallet.add_payment_request(amount, reason, expiration)
+        if key is None:
+            return
+        req = self.wallet.get_payment_request(key)
+        rdir = self.config.get('requests_dir')
+        if rdir:
+            path = paymentrequest.publish_request(self.config, key, req)
+            req['path'] = path
+        req = self._format_request(req)
+        if rdir:
+            with open(os.path.join(rdir, key + '.json'), 'w') as f:
+                f.write(json.dumps(req))
+        return req
 
     @command('w')
     def rmrequest(self, address):
@@ -659,6 +689,8 @@ def set_default_subparser(self, name, args=None):
 
 argparse.ArgumentParser.set_default_subparser = set_default_subparser
 
+
+
 def add_network_options(parser):
     parser.add_argument("-1", "--oneserver", action="store_true", dest="oneserver", default=False, help="connect to one server only")
     parser.add_argument("-s", "--server", dest="server", default=None, help="set server host:port:protocol, where protocol is either t (tcp) or s (ssl)")
@@ -681,7 +713,7 @@ def get_parser(run_gui, run_daemon, run_cmdline):
     parser_gui = subparsers.add_parser('gui', parents=[parent_parser], description="Run Electrum's Graphical User Interface.", help="Run GUI (default)")
     parser_gui.add_argument("url", nargs='?', default=None, help="litecoin URI (or bip70 file)")
     parser_gui.set_defaults(func=run_gui)
-    parser_gui.add_argument("-g", "--gui", dest="gui", help="select graphical user interface", choices=['qt', 'lite', 'gtk', 'text', 'stdio'])
+    parser_gui.add_argument("-g", "--gui", dest="gui", help="select graphical user interface", choices=['qt', 'lite', 'gtk', 'text', 'stdio', 'jsonrpc'])
     parser_gui.add_argument("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")
     parser_gui.add_argument("-L", "--lang", dest="language", default=None, help="default language used in GUI")
     parser_gui.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run the GUI offline")
