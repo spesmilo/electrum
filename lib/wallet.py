@@ -165,7 +165,7 @@ class Abstract_Wallet(object):
         self.load_transactions()
 
         # load requests
-        self.receive_requests = self.storage.get('receive_requests2', {})
+        self.receive_requests = self.storage.get('payment_requests', {})
 
         # spv
         self.verifier = None
@@ -1258,7 +1258,7 @@ class Abstract_Wallet(object):
         r = self.receive_requests[key]
         address = r['address']
         amount = r.get('amount')
-        timestamp = r.get('time')
+        timestamp = r.get('timestamp', 0)
         expiration = r.get('expiration')
         if amount:
             paid = amount <= self.get_addr_received(address)
@@ -1273,9 +1273,9 @@ class Abstract_Wallet(object):
         import paymentrequest, shutil, os
         timestamp = int(time.time())
         _id = Hash(addr + "%d"%timestamp).encode('hex')[0:10]
-        r = {'time':timestamp, 'amount':amount, 'expiration':expiration, 'address':addr, 'memo':message, 'id':_id}
+        r = {'timestamp':timestamp, 'amount':amount, 'expiration':expiration, 'address':addr, 'memo':message, 'id':_id}
         self.receive_requests[addr] = r
-        self.storage.put('receive_requests2', self.receive_requests)
+        self.storage.put('payment_requests', self.receive_requests)
         self.set_label(addr, message) # should be a default label
         rdir = config.get('requests_dir')
         req = self.get_payment_request(addr, config)
@@ -1308,11 +1308,11 @@ class Abstract_Wallet(object):
                 n = os.path.join(rdir, key + s)
                 if os.path.exists(n):
                     os.unlink(n)
-        self.storage.put('receive_requests2', self.receive_requests)
+        self.storage.put('payment_requests', self.receive_requests)
         return True
 
     def get_sorted_requests(self, config):
-        return sorted(map(lambda x: self.get_payment_request(x, config), self.receive_requests.keys()), key=itemgetter('time'))
+        return sorted(map(lambda x: self.get_payment_request(x, config), self.receive_requests.keys()), key=itemgetter('timestamp'))
 
 
 

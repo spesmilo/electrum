@@ -668,7 +668,7 @@ class ElectrumWindow(QMainWindow):
             return
         addr = str(item.text(2))
         req = self.wallet.receive_requests[addr]
-        expires = _('Never') if req.get('expiration') is None else format_time(req['time'] + req['expiration'])
+        expires = _('Never') if req.get('expiration') is None else format_time(req['timestamp'] + req['expiration'])
         amount = req['amount']
         message = self.wallet.labels.get(addr, '')
         self.receive_address_e.setText(addr)
@@ -696,7 +696,7 @@ class ElectrumWindow(QMainWindow):
         item = self.receive_list.itemAt(position)
         addr = str(item.text(2))
         req = self.wallet.receive_requests[addr]
-        time, amount = req['time'], req['amount']
+        time, amount = req['timestamp'], req['amount']
         message = self.wallet.labels.get(addr, '')
         URI = util.create_URI(addr, amount, message)
         menu = QMenu()
@@ -809,7 +809,7 @@ class ElectrumWindow(QMainWindow):
             address = req['address']
             if address not in domain:
                 continue
-            timestamp = req['time']
+            timestamp = req['timestamp']
             amount = req.get('amount')
             expiration = req.get('expiration', None)
             message = req.get('memo', '')

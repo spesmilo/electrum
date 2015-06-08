@@ -296,7 +296,7 @@ def make_payment_request(outputs, memo, time, expires, key_path, cert_path):
 def make_request(config, req):
     from transaction import Transaction
     addr = req['address']
-    time = req['time']
+    time = req['timestamp']
     amount = req['amount']
     expiration = req['expiration']
     message = req['memo']
