@@ -307,27 +307,6 @@ def make_request(config, req):
     return make_payment_request(outputs, message, time, time + expiration if expiration else None, key_path, cert_path)
 
 
-def publish_request(config, addr, req):
-    import shutil, os
-    rdir = config.get('requests_dir')
-    if not rdir:
-        return
-    if not os.path.exists(rdir):
-        os.mkdir(rdir)
-    index = os.path.join(rdir, 'index.html')
-    if not os.path.exists(index):
-        src = os.path.join(os.path.dirname(__file__), 'www', 'index.html')
-        shutil.copy(src, index)
-    key = req.get('id', addr)
-    pr = make_request(config, req)
-    path = os.path.join(rdir, key + '.bip70')
-    with open(path, 'w') as f:
-        f.write(pr)
-    with open(os.path.join(rdir, key + '.json'), 'w') as f:
-        f.write(json.dumps(req))
-    req['path'] = path
-    return req
-
 
 
 class InvoiceStore(object):

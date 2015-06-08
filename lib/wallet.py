@@ -1270,16 +1270,32 @@ class Abstract_Wallet(object):
         return status
 
     def add_payment_request(self, addr, amount, message, expiration, config):
-        import paymentrequest
+        import paymentrequest, shutil, os
         timestamp = int(time.time())
         _id = Hash(addr + "%d"%timestamp).encode('hex')[0:10]
         r = {'time':timestamp, 'amount':amount, 'expiration':expiration, 'address':addr, 'memo':message, 'id':_id}
         self.receive_requests[addr] = r
-        self.set_label(addr, message) # should be a default label
-        if config.get('requests_dir'):
-            paymentrequest.publish_request(config, addr, r)
         self.storage.put('receive_requests2', self.receive_requests)
-        return self.get_payment_request(addr, config)
+        self.set_label(addr, message) # should be a default label
+        rdir = config.get('requests_dir')
+        req = self.get_payment_request(addr, config)
+        if rdir:
+            if not os.path.exists(rdir):
+                os.mkdir(rdir)
+            index = os.path.join(rdir, 'index.html')
+            if not os.path.exists(index):
+                src = os.path.join(os.path.dirname(__file__), 'www', 'index.html')
+                shutil.copy(src, index)
+            key = req.get('id', addr)
+            pr = paymentrequest.make_request(config, req)
+            path = os.path.join(rdir, key + '.bip70')
+            with open(path, 'w') as f:
+                f.write(pr)
+            # reload
+            req = self.get_payment_request(addr, config)
+            with open(os.path.join(rdir, key + '.json'), 'w') as f:
+                f.write(json.dumps(req))
+        return req
 
     def remove_payment_request(self, addr, config):
         if addr not in self.receive_requests:
