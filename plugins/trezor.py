@@ -46,6 +46,7 @@ class Plugin(BasePlugin):
         self._is_available = self._init()
         self._requires_settings = True
         self.wallet = None
+        self.handler = None
 
     def constructor(self, s):
         return TrezorWallet(s)
@@ -82,9 +83,6 @@ class Plugin(BasePlugin):
             return False
         return True
 
-    @hook
-    def add_plugin(self, wallet):
-        wallet.plugin = self
 
     @hook
     def close_wallet(self):
@@ -95,16 +93,18 @@ class Plugin(BasePlugin):
         self.wallet = None
 
     @hook
-    def init_qt_app(self, app):
-        self.handler = TrezorQtHandler(app)
-
-    @hook
     def init_cmdline(self):
         self.handler = TrezorCmdLineHandler()
 
     @hook
-    def load_wallet(self, wallet):
+    def load_wallet(self, wallet, window):
         self.wallet = wallet
+        self.window = window
+        self.wallet.plugin = self
+
+        if self.handler is None:
+            self.handler = TrezorQtHandler(self.window.app)
+
         if self.trezor_is_connected():
             if not self.wallet.check_proper_device():
                 QMessageBox.information(self.window, _('Error'), _("This wallet does not match your Trezor device"), _('OK'))
@@ -186,7 +186,6 @@ class TrezorWallet(BIP32_HD_Wallet):
         self.mpk = None
         self.device_checked = False
         self.force_watching_only = False
-        always_hook('add_plugin', self)
 
     def get_action(self):
         if not self.accounts:

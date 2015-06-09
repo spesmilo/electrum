@@ -491,7 +491,7 @@ class Commands:
             if show_balance:
                 item += ", "+ format_satoshis(sum(self.wallet.get_addr_balance(addr)))
             if show_labels:
-                item += ', ' + self.wallet.labels.get(addr,'')
+                item += ', ' + repr(self.wallet.labels.get(addr, ''))
             out.append(item)
         return out
 
@@ -517,7 +517,7 @@ class Commands:
         """Decrypt a message encrypted with a public key."""
         return self.wallet.decrypt_message(pubkey, encrypted, self.password)
 
-    def _format_request(self, v):
+    def _format_request(self, out):
         from paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
         pr_str = {
             PR_UNKNOWN: 'Unknown',
@@ -525,40 +525,14 @@ class Commands:
             PR_PAID: 'Paid',
             PR_EXPIRED: 'Expired',
         }
-        key = v['key']
-        addr = v.get('address')
-        amount = v.get('amount')
-        timestamp = v.get('time')
-        expiration = v.get('expiration')
-        out = {
-            'key': key,
-            'address': addr,
-            'amount': format_satoshis(amount),
-            'timestamp': timestamp,
-            'reason': v.get('reason'),
-            'expiration': expiration,
-            'URI':'litecoin:' + addr + '?amount=' + format_satoshis(amount),
-            'status': pr_str[v.get('status', PR_UNKNOWN)]
-        }
-        # check if bip70 file exists
-        rdir = self.config.get('requests_dir')
-        path = os.path.join(rdir, key + '.bip70')
-        if rdir and os.path.exists(path):
-            out['path'] = path
-            baseurl = 'file://' + rdir
-            rewrite = self.config.get('url_rewrite')
-            if rewrite:
-                baseurl = baseurl.replace(*rewrite)
-            out['request_url'] = os.path.join(baseurl, key + '.bip70')
-            out['URI'] += '&r=' + out['request_url']
-            out['index_url'] = os.path.join(baseurl, 'index.html') + '?id=' + key
-
+        out['amount'] = format_satoshis(out.get('amount')) + ' LTC'
+        out['status'] = pr_str[out.get('status', PR_UNKNOWN)]
         return out
 
     @command('wn')
     def getrequest(self, key):
         """Return a payment request"""
-        r = self.wallet.get_payment_request(key)
+        r = self.wallet.get_payment_request(key, self.config)
         if not r:
             raise BaseException("Request not found")
         return self._format_request(r)
@@ -571,30 +545,22 @@ class Commands:
     @command('w')
     def listrequests(self):
         """List the payment requests you made, and their status"""
-        return map(self._format_request, self.wallet.get_sorted_requests())
+        return map(self._format_request, self.wallet.get_sorted_requests(self.config))
 
     @command('w')
-    def addrequest(self, requested_amount, reason='', expiration=60*60):
+    def addrequest(self, requested_amount, memo='', expiration=60*60):
         """Create a payment request."""
+        addr = self.wallet.get_unused_address(None)
+        if addr is None:
+            return False
         amount = int(Decimal(requested_amount)*COIN)
-        key = self.wallet.add_payment_request(amount, reason, expiration)
-        if key is None:
-            return
-        req = self.wallet.get_payment_request(key)
-        rdir = self.config.get('requests_dir')
-        if rdir:
-            path = paymentrequest.publish_request(self.config, key, req)
-            req['path'] = path
-        req = self._format_request(req)
-        if rdir:
-            with open(os.path.join(rdir, key + '.json'), 'w') as f:
-                f.write(json.dumps(req))
-        return req
+        req = self.wallet.add_payment_request(addr, amount, memo, expiration, self.config)
+        return self._format_request(req)
 
     @command('w')
-    def rmrequest(self, address):
+    def rmrequest(self, key):
         """Remove a payment request"""
-        return self.wallet.remove_payment_request(address)
+        return self.wallet.remove_payment_request(key, self.config)
 
 param_descriptions = {
     'privkey': 'Private key. Type \'?\' to get a prompt.',
@@ -637,7 +603,7 @@ command_options = {
     'unsigned':    ("-u", "--unsigned",    "Do not sign transaction"),
     'domain':      ("-D", "--domain",      "List of addresses"),
     'account':     (None, "--account",     "Account"),
-    'reason':      (None, "--reason",      "Description of the request"),
+    'memo':        ("-m", "--memo",        "Description of the request"),
     'expiration':  (None, "--expiration",  "Time in seconds"),
     'status':      (None, "--status",      "Show status"),
 }
@@ -660,6 +626,7 @@ config_variables = {
         'requests_dir': 'directory where a bip70 file will be written.',
         'ssl_privkey': 'Path to your SSL private key, needed to sign the request.',
         'ssl_chain': 'Chain of SSL certificates, needed for signed requests. Put your certificate at the top and the root CA at the end',
+        'url_rewrite': 'Parameters passed to str.replace(), in order to create the r= part of bitcoin: URIs. Example: \"(\'file:///var/www/\',\'https://electrum-ltc.org/\')\"',
     },
     'listrequests':{
         'url_rewrite': 'Parameters passed to str.replace(), in order to create the r= part of bitcoin: URIs. Example: \"(\'file:///var/www/\',\'https://electrum-ltc.org/\')\"',

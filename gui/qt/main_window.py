@@ -236,8 +236,7 @@ class ElectrumWindow(QMainWindow):
         self.clear_receive_tab()
         self.update_receive_tab()
         self.show()
-        run_hook('init_qt', self.gui_object)
-        run_hook('load_wallet', wallet)
+        run_hook('load_wallet', wallet, self)
 
     def import_old_contacts(self):
         # backward compatibility: import contacts
@@ -668,7 +667,7 @@ class ElectrumWindow(QMainWindow):
             return
         addr = str(item.text(2))
         req = self.wallet.receive_requests[addr]
-        expires = _('Never') if req.get('expiration') is None else format_time(req['time'] + req['expiration'])
+        expires = _('Never') if req.get('expiration') is None else format_time(req['timestamp'] + req['expiration'])
         amount = req['amount']
         message = self.wallet.labels.get(addr, '')
         self.receive_address_e.setText(addr)
@@ -681,7 +680,7 @@ class ElectrumWindow(QMainWindow):
 
     def delete_payment_request(self, item):
         addr = str(item.text(2))
-        self.wallet.remove_payment_request(addr)
+        self.wallet.remove_payment_request(addr, self.config)
         self.update_receive_tab()
         self.clear_receive_tab()
 
@@ -696,7 +695,7 @@ class ElectrumWindow(QMainWindow):
         item = self.receive_list.itemAt(position)
         addr = str(item.text(2))
         req = self.wallet.receive_requests[addr]
-        time, amount = req['time'], req['amount']
+        time, amount = req['timestamp'], req['amount']
         message = self.wallet.labels.get(addr, '')
         URI = util.create_URI(addr, amount, message)
         menu = QMenu()
@@ -715,13 +714,13 @@ class ElectrumWindow(QMainWindow):
             return
         i = self.expires_combo.currentIndex()
         expiration = map(lambda x: x[1], expiration_values)[i]
-        self.wallet.save_payment_request(self.config, addr, amount, message, expiration)
+        self.wallet.add_payment_request(addr, amount, message, expiration, self.config)
         self.update_receive_tab()
         self.update_address_tab()
         self.save_request_button.setEnabled(False)
 
     def export_payment_request(self, addr):
-        r = self.wallet.get_payment_request(addr)
+        r = self.wallet.get_payment_request(addr, self.config)
         pr = paymentrequest.make_request(self.config, r)
         name = r['key'] + '.bip70'
         fileName = self.getSaveFileName(_("Select where to save your payment request"), name, "*.bip70")
@@ -805,14 +804,14 @@ class ElectrumWindow(QMainWindow):
 
         # clear the list and fill it again
         self.receive_list.clear()
-        for req in self.wallet.get_sorted_requests():
+        for req in self.wallet.get_sorted_requests(self.config):
             address = req['address']
             if address not in domain:
                 continue
-            timestamp = req['time']
+            timestamp = req['timestamp']
             amount = req.get('amount')
             expiration = req.get('expiration', None)
-            message = req.get('reason', '')
+            message = req.get('memo', '')
             date = format_time(timestamp)
             status = req.get('status')
             account = self.wallet.get_account_name(self.wallet.get_account_from_address(address))
@@ -2622,7 +2621,7 @@ class ElectrumWindow(QMainWindow):
                 plugins[name] = p = module.Plugin(self.config, name)
                 p.enable()
                 p.wallet = self.wallet
-                p.load_wallet(self.wallet)
+                p.load_wallet(self.wallet, self)
                 p.init_qt(self.gui_object)
             r = p.is_enabled()
             cb.setChecked(r)

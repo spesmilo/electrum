@@ -95,7 +95,7 @@ class Plugin(BasePlugin):
         return self.wallet.wallet_type in ['2of2', '2of3']
 
     @hook
-    def load_wallet(self, wallet):
+    def load_wallet(self, wallet, window):
         self.wallet = wallet
         if not self.is_available():
             return

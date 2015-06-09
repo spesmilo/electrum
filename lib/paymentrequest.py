@@ -296,33 +296,16 @@ def make_payment_request(outputs, memo, time, expires, key_path, cert_path):
 def make_request(config, req):
     from transaction import Transaction
     addr = req['address']
-    time = req['time']
+    time = req['timestamp']
     amount = req['amount']
     expiration = req['expiration']
-    message = req['reason']
+    message = req['memo']
     script = Transaction.pay_script('address', addr).decode('hex')
     outputs = [(script, amount)]
     key_path = config.get('ssl_privkey')
     cert_path = config.get('ssl_chain')
     return make_payment_request(outputs, message, time, time + expiration if expiration else None, key_path, cert_path)
 
-
-def publish_request(config, key, req):
-    import shutil, os
-    rdir = config.get('requests_dir')
-    if not rdir:
-        return
-    if not os.path.exists(rdir):
-        os.mkdir(rdir)
-    index = os.path.join(rdir, 'index.html')
-    if not os.path.exists(index):
-        src = os.path.join(os.path.dirname(__file__), 'payrequest.html')
-        shutil.copy(src, index)
-    pr = make_request(config, req)
-    path = os.path.join(rdir, key + '.bip70')
-    with open(path, 'w') as f:
-        f.write(pr)
-    return path
 
 
 

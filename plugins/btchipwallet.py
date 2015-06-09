@@ -78,7 +78,7 @@ class Plugin(BasePlugin):
         return True
 
     @hook
-    def load_wallet(self, wallet):
+    def load_wallet(self, wallet, window):
         if self.btchip_is_connected():
             if not self.wallet.check_proper_device():
                 QMessageBox.information(self.window, _('Error'), _("This wallet does not match your BTChip device"), _('OK'))
