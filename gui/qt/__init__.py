@@ -73,9 +73,6 @@ class ElectrumGui:
         if app is None:
             self.app = QApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
-        # let plugins know that we are using the qt gui
-        always_hook('init_qt_app', self.app)
-
 
     def build_tray_menu(self):
         m = QMenu()
@@ -104,8 +101,6 @@ class ElectrumGui:
 
     def close(self):
         self.current_window.close()
-
-
 
     def go_full(self):
         self.config.set_key('lite_mode', False, True)

@@ -169,7 +169,7 @@ class BasePlugin:
     def init_qt(self, gui): pass
 
     @hook
-    def load_wallet(self, wallet): pass
+    def load_wallet(self, wallet, window): pass
 
     @hook
     def close_wallet(self): pass

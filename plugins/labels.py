@@ -51,7 +51,7 @@ class Plugin(BasePlugin):
         self.window.connect(self.window, SIGNAL('labels:pulled'), self.on_pulled)
 
     @hook
-    def load_wallet(self, wallet):
+    def load_wallet(self, wallet, window):
         self.wallet = wallet
 
         self.wallet_nonce = self.wallet.storage.get("wallet_nonce")

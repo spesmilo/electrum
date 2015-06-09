@@ -236,8 +236,7 @@ class ElectrumWindow(QMainWindow):
         self.clear_receive_tab()
         self.update_receive_tab()
         self.show()
-        run_hook('init_qt', self.gui_object)
-        run_hook('load_wallet', wallet)
+        run_hook('load_wallet', wallet, self)
 
     def import_old_contacts(self):
         # backward compatibility: import contacts
@@ -2622,7 +2621,7 @@ class ElectrumWindow(QMainWindow):
                 plugins[name] = p = module.Plugin(self.config, name)
                 p.enable()
                 p.wallet = self.wallet
-                p.load_wallet(self.wallet)
+                p.load_wallet(self.wallet, self)
                 p.init_qt(self.gui_object)
             r = p.is_enabled()
             cb.setChecked(r)

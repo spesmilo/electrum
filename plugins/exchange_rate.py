@@ -259,7 +259,7 @@ class Plugin(BasePlugin):
         return quote_text
 
     @hook
-    def load_wallet(self, wallet):
+    def load_wallet(self, wallet, window):
         tx_list = {}
         for item in self.wallet.get_history(self.wallet.storage.get("current_account", None)):
             tx_hash, conf, value, timestamp, balance = item
