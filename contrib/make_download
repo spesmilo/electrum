@@ -55,10 +55,9 @@ from versions import android_template, android_page
 with open(android_template) as f:
     string = f.read()
 
-e4a_name = "e4a-%s.zip"%version
-e4a_zipname = e4a_name.replace(".","")
-string = string.replace("##VERSION##",version)
-string = string.replace("##ZIPNAME##",e4a_zipname)
+e4a_zipname = "e4a-%s.zip"%version
+string = string.replace("##VERSION##", version)
+string = string.replace("##ZIPNAME##", e4a_zipname)
 
 with open(android_page,'w') as f:
     f.write(string)

@@ -34,7 +34,5 @@ if __name__ == '__main__':
 
     # change filename because some 3G carriers do not allow users to download a zip file...
     e4a_name = "e4a-%s.zip"%version
-    e4a_name2 = e4a_name.replace(".","")
-    os.system("mv %s %s"%(e4a_name, e4a_name2))
-    print "dist/%s"%e4a_name2
+    print "dist/%s"%e4a_name
 

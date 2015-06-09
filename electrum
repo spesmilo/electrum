@@ -370,7 +370,6 @@ if __name__ == '__main__':
     # config is an object passed to the various constructors (wallet, interface, gui)
     if is_android:
         config_options = {
-            'portable': True,
             'verbose': True,
             'gui': 'android',
             'auto_connect': True,
@@ -398,7 +397,8 @@ if __name__ == '__main__':
     gui_name = config.get('gui', 'qt') if args.cmd == 'gui' else 'cmdline'
 
     # initialize plugins.
-    init_plugins(config, is_bundle or is_local or is_android, gui_name)
+    if not is_android:
+        init_plugins(config, is_bundle or is_local or is_android, gui_name)
 
     # call function attached to parser
     args.func(config)
