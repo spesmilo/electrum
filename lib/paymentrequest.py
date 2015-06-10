@@ -21,12 +21,14 @@ import hashlib
 import httplib
 import os.path
 import re
+import ssl
 import sys
 import threading
 import time
 import traceback
 import urllib2
 import urlparse
+
 import requests
 
 try:
@@ -60,7 +62,11 @@ import json
 def get_payment_request(url):
     u = urlparse.urlparse(url)
     if u.scheme in ['http', 'https']:
-        connection = httplib.HTTPConnection(u.netloc) if u.scheme == 'http' else httplib.HTTPSConnection(u.netloc)
+        if u.scheme == 'http':
+            connection = httplib.HTTPConnection(u.netloc)
+        else:
+            ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+            connection = httplib.HTTPSConnection(u.netloc, context = ctx)
         connection.request("GET", u.geturl(), headers=REQUEST_HEADERS)
         response = connection.getresponse()
         data = response.read()
@@ -354,7 +360,7 @@ class InvoiceStore(object):
         for k, pr in self.invoices.items():
             l[k] = {
                 'hex': str(pr).encode('hex'),
-                'requestor': pr.get_requestor(), 
+                'requestor': pr.get_requestor(),
                 'txid': pr.tx
             }
         path = os.path.join(self.config.path, 'invoices')
@@ -393,4 +399,3 @@ class InvoiceStore(object):
     def sorted_list(self):
         # sort
         return self.invoices.values()
-
