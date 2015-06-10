@@ -50,7 +50,6 @@ from qrtextedit import ScanQRTextEdit, ShowQRTextEdit
 
 from decimal import Decimal
 
-import httplib
 import socket
 import webbrowser
 import csv
