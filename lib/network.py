@@ -358,18 +358,22 @@ class Network(util.DaemonThread):
         happen on receipt of the connection notification.  Do nothing
         if server already is our interface.'''
         self.default_server = server
-        if server in self.interfaces:
-            if self.interface != self.interfaces[server]:
-                self.print_error("switching to", server)
-                # stop any current interface in order to terminate subscriptions
-                self.stop_interface()
-                self.interface = self.interfaces[server]
-                self.send_subscriptions()
-                self.set_status('connected')
-                self.notify('updated')
-        else:
+        if server not in self.interfaces:
             self.print_error("starting %s; will switch once connected" % server)
             self.start_interface(server)
+            return
+        i = self.interfaces[server]
+        if not i.is_connected():
+            # do nothing; we will switch once connected
+            return
+        if self.interface != i:
+            self.print_error("switching to", server)
+            # stop any current interface in order to terminate subscriptions
+            self.stop_interface()
+            self.interface = i
+            self.send_subscriptions()
+            self.set_status('connected')
+            self.notify('updated')
 
     def stop_interface(self):
         if self.interface:
