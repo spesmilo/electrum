@@ -98,6 +98,7 @@ class Plugin(BasePlugin):
 
     @hook
     def load_wallet(self, wallet, window):
+        self.print_error("load_wallet")
         self.wallet = wallet
         self.window = window
         self.wallet.plugin = self
@@ -106,7 +107,7 @@ class Plugin(BasePlugin):
             self.handler = TrezorQtHandler(self.window.app)
 
         if self.trezor_is_connected():
-            if not self.wallet.check_proper_device():
+            if self.wallet.addresses() and not self.wallet.check_proper_device():
                 QMessageBox.information(self.window, _('Error'), _("This wallet does not match your Trezor device"), _('OK'))
                 self.wallet.force_watching_only = True
         else:
