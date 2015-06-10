@@ -671,6 +671,8 @@ def get_parser(run_gui, run_daemon, run_cmdline):
     parent_parser = argparse.ArgumentParser('parent', add_help=False)
     parent_parser.add_argument("-v", "--verbose", action="store_true", dest="verbose", default=False, help="Show debugging information")
     parent_parser.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum_data' directory")
+    parent_parser.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
+    parent_parser.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
     # create main parser
     parser = argparse.ArgumentParser(
         parents=[parent_parser],
@@ -683,8 +685,6 @@ def get_parser(run_gui, run_daemon, run_cmdline):
     parser_gui.add_argument("-g", "--gui", dest="gui", help="select graphical user interface", choices=['qt', 'lite', 'gtk', 'text', 'stdio', 'jsonrpc'])
     parser_gui.add_argument("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")
     parser_gui.add_argument("-L", "--lang", dest="language", default=None, help="default language used in GUI")
-    parser_gui.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run the GUI offline")
-    parser_gui.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
     add_network_options(parser_gui)
     # daemon
     parser_daemon = subparsers.add_parser('daemon', parents=[parent_parser], help="Run Daemon")
@@ -698,10 +698,6 @@ def get_parser(run_gui, run_daemon, run_cmdline):
         p.set_defaults(func=run_cmdline)
         if cmd.requires_password:
             p.add_argument("-W", "--password", dest="password", default=None, help="password")
-        if cmd.requires_network:
-            p.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run command offline")
-        if cmd.requires_wallet:
-            p.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
         for optname, default in zip(cmd.options, cmd.defaults):
             a, b, help = command_options[optname]
             action = "store_true" if type(default) is bool else 'store'
