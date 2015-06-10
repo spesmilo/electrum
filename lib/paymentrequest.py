@@ -59,7 +59,7 @@ import json
 def get_payment_request(url):
     u = urlparse.urlparse(url)
     if u.scheme in ['http', 'https']:
-        response = requests.request('GET', url)
+        response = requests.request('GET', url, headers=REQUEST_HEADERS)
         data = response.content
         print_error('fetched payment request', url, len(data))
     elif u.scheme == 'file':
