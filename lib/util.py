@@ -323,8 +323,11 @@ import traceback
 import time
 
 def HTTPSConnection(host, timeout = None):
-    ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    return httplib.HTTPSConnection(host, timeout = timeout, context = ctx)
+    if sys.version_info >= (2,7,9):
+        ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        return httplib.HTTPSConnection(host, timeout = timeout, context = ctx)
+    else:
+        return httplib.HTTPSConnection(host, timeout = timeout)        
 
 class SocketPipe:
 
