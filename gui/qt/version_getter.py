@@ -16,14 +16,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import threading, httplib, re, socket
+import threading, re, socket
 import webbrowser
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
 from electrum.i18n import _
-from electrum import ELECTRUM_VERSION, print_error
+from electrum import ELECTRUM_VERSION, HTTPSConnection, print_error
 
 class VersionGetter(threading.Thread):
 
@@ -34,7 +34,7 @@ class VersionGetter(threading.Thread):
 
     def run(self):
         try:
-            con = httplib.HTTPSConnection('electrum.org', timeout=5)
+            con = HTTPSConnection('electrum.org', timeout=5)
             con.request("GET", "/version")
             res = con.getresponse()
         except socket.error as msg:

@@ -316,10 +316,15 @@ class timeout(Exception):
 
 import socket
 import errno
+import httplib
 import json
 import ssl
 import traceback
 import time
+
+def HTTPSConnection(host, timeout = None):
+    ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    return httplib.HTTPSConnection(host, timeout = timeout, context = ctx)
 
 class SocketPipe:
 
