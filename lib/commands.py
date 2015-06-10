@@ -157,15 +157,14 @@ class Commands:
 
     @command('n')
     def getaddressunspent(self, address):
-        """Returns the list of unspent inputs of a Bitcoin address. Note: This
+        """Returns the UTXO list of any address. Note: This
         is a walletless server query, results are not checked by SPV.
         """
         return self.network.synchronous_get([('blockchain.address.listunspent', [address])])[0]
 
     @command('n')
     def getutxoaddress(self, txid, pos):
-        """Get the address that corresponds to an unspent transaction
-        output. Note: This is a walletless server query, results are
+        """Get the address of a UTXO. Note: This is a walletless server query, results are
         not checked by SPV.
         """
         r = self.network.synchronous_get([('blockchain.utxo.get_address', [txid, pos])])
@@ -535,7 +534,7 @@ class Commands:
 
     @command('w')
     def listrequests(self):
-        """List the payment requests you made, and their status"""
+        """List the payment requests you made."""
         return map(self._format_request, self.wallet.get_sorted_requests(self.config))
 
     @command('w')
