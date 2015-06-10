@@ -86,7 +86,6 @@ class Plugin(BasePlugin):
             return
 
         url = str(self.win.payto_e.toPlainText())
-        url = url.replace('@', '.')  # support email-style addresses, per the OA standard
 
         if url == self.previous_payto:
             return
@@ -202,6 +201,7 @@ class Plugin(BasePlugin):
         '''Resolve OpenAlias address using url.'''
         self.print_error('[OA] Attempting to resolve OpenAlias data for ' + url)
 
+        url = url.replace('@', '.')  # support email-style addresses, per the OA standard
         prefix = 'btc'
         retries = 3
         err = None
