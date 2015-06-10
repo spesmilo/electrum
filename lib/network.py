@@ -436,14 +436,20 @@ class Network(util.DaemonThread):
             self.response_queue.put(response)
 
     def handle_requests(self):
-        while self.is_running():
-            try:
-                request = self.requests_queue.get_nowait()
-            except Queue.Empty:
-                break
-            self.process_request(request)
+        '''Some requests require connectivity, others we handle locally in
+        process_request() and must do so in order to e.g. prevent the
+        daemon seeming unresponsive.
+        '''
+        unhandled = []
+        while not self.requests_queue.empty():
+            request = self.requests_queue.get()
+            if not self.process_request(request):
+                unhandled.append(request)
+        for request in unhandled:
+            self.requests_queue.put(request)
 
     def process_request(self, request):
+        '''Returns true if the request was processed.'''
         method = request['method']
         params = request['params']
         _id = request['id']
@@ -460,18 +466,23 @@ class Network(util.DaemonThread):
                 traceback.print_exc(file=sys.stdout)
                 self.print_error("network error", str(e))
             self.response_queue.put(out)
-            return
+            return True
 
         if method == 'blockchain.address.subscribe':
             addr = params[0]
             self.subscribed_addresses.add(addr)
             if addr in self.addr_responses:
                 self.response_queue.put({'id':_id, 'result':self.addr_responses[addr]})
-                return
+                return True
 
-        # store unanswered request
+        # This request needs connectivity.  If we don't have an
+        # interface, we cannot process it.
+        if not self.interface:
+            return False
+
         self.unanswered_requests[_id] = request
         self.interface.send_request(request)
+        return True
 
     def check_interfaces(self):
         now = time.time()
