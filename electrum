@@ -73,7 +73,7 @@ from electrum import util
 from electrum import SimpleConfig, Network, Wallet, WalletStorage, NetworkProxy
 from electrum.util import print_msg, print_error, print_stderr, print_json, set_verbosity, InvalidPassword
 from electrum.daemon import get_daemon
-from electrum.plugins import init_plugins
+from electrum.plugins import init_plugins, run_hook, always_hook
 from electrum.commands import get_parser, known_commands, Commands, config_variables
 
 
@@ -262,6 +262,9 @@ def run_cmdline(config):
 
     # create wallet instance
     wallet = Wallet(storage) if cmd.requires_wallet else None
+
+    # notify plugins
+    always_hook('cmdline_load_wallet', wallet)
 
     # important warning
     if cmd.name in ['dumpprivkey', 'dumpprivkeys']:
