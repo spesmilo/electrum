@@ -165,7 +165,7 @@ class Network(util.DaemonThread):
 
         # subscriptions and requests
         self.subscribed_addresses = set()
-        # cached address status
+        # cached address status for current interface
         self.addr_responses = {}
         # unanswered requests
         self.unanswered_requests = {}
@@ -370,6 +370,7 @@ class Network(util.DaemonThread):
             self.print_error("switching to", server)
             # stop any current interface in order to terminate subscriptions
             self.stop_interface()
+            self.addr_responses = {}  # Clear the cache
             self.interface = i
             self.send_subscriptions()
             self.set_status('connected')
@@ -406,6 +407,7 @@ class Network(util.DaemonThread):
             if i == self.interface:
                 self.set_status('disconnected')
             self.disconnected_servers.add(i.server)
+            self.addr_responses = {}  # Clear the cache
         # Our set of interfaces changed
         self.notify('interfaces')
 
