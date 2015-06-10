@@ -82,7 +82,7 @@ class Plugin(BasePlugin):
             sig = self.wallet.sign_message(addr, message, password)
 
             # 2. send the request
-            response = requests.request("GET", ("/verify/?signature=%s&txhash=%s" % (urllib.quote(sig), tx.hash())),
+            response = requests.request("GET", ("https://greenaddress.it/verify/?signature=%s&txhash=%s" % (urllib.quote(sig), tx.hash())),
                                         headers = {'User-Agent': 'Electrum'})
             response = response.json()
 
