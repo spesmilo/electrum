@@ -24,7 +24,6 @@ import sys
 import threading
 import time
 import traceback
-import urllib2
 import urlparse
 import requests
 
