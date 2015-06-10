@@ -206,13 +206,13 @@ class Commands:
         return t
 
     @command('')
-    def decodetx(self, tx):
-        """Decode serialized transaction"""
+    def deserialize(self, tx):
+        """Deserialize a serialized transaction"""
         t = Transaction(tx)
         return t.deserialize()
 
     @command('n')
-    def sendtx(self, tx):
+    def broadcast(self, tx):
         """Broadcast a transaction to the network. """
         t = Transaction(tx)
         return self.network.synchronous_get([('blockchain.transaction.broadcast', [str(t)])])[0]
@@ -357,7 +357,7 @@ class Commands:
         """Verify a signature."""
         return bitcoin.verify_message(address, signature, message)
 
-    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned, deserialized):
+    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned):
         resolver = lambda x: None if x is None else self.contacts.resolve(x, nocheck)['address']
         change_addr = resolver(change_addr)
         domain = None if domain is None else map(resolver, domain)
@@ -386,7 +386,7 @@ class Commands:
         str(tx) #this serializes
         if not unsigned:
             self.wallet.sign_transaction(tx, self.password)
-        return tx.deserialize() if deserialized else tx
+        return tx
 
     def _read_csv(self, csvpath):
         import csv
@@ -401,36 +401,27 @@ class Commands:
         return outputs
 
     @command('wp')
-    def mktx(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False):
+    def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False, broadcast=False):
         """Create a transaction. """
         domain = [from_addr] if from_addr else None
-        tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, deserialized)
-        return tx
+        tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned)
+        if broadcast:
+            r, h = self.wallet.sendtx(tx)
+            return h
+        else:
+            return tx.deserialize() if deserialized else tx
 
     @command('wp')
-    def mktx_csv(self, csv_file, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False):
+    def paytomany(self, csv_file, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False, broadcast=False):
         """Create a multi-output transaction. """
         domain = [from_addr] if from_addr else None
         outputs = self._read_csv(csv_file)
-        tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, deserialized)
-        return tx
-
-    @command('wpn')
-    def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False):
-        """Create and broadcast a transaction.. """
-        domain = [from_addr] if from_addr else None
-        tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck)
-        r, h = self.wallet.sendtx(tx)
-        return h
-
-    @command('wpn')
-    def payto_csv(self, csv_file, tx_fee=None, from_addr=None, change_addr=None, nocheck=False):
-        """Create and broadcast multi-output transaction.. """
-        domain = [from_addr] if from_addr else None
-        outputs = self._read_csv(csv_file)
-        tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck)
-        r, h = self.wallet.sendtx(tx)
-        return h
+        tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned)
+        if broadcast:
+            r, h = self.wallet.sendtx(tx)
+            return h
+        else:
+            return tx.deserialize() if deserialized else tx
 
     @command('wn')
     def history(self):
@@ -581,6 +572,7 @@ param_descriptions = {
 }
 
 command_options = {
+    'broadcast':   (None, "--broadcast",   "Broadcast the transaction to the Bitcoin network"),
     'password':    ("-W", "--password",    "Password"),
     'concealed':   ("-C", "--concealed",   "Don't echo seed to console when restoring"),
     'show_all':    ("-a", "--all",         "Include change addresses"),

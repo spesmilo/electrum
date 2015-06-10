@@ -184,8 +184,11 @@ def run_cmdline(config):
         cmd.requires_wallet = False
         cmd.requires_password = False
 
-    if cmdname in ['mktx', 'mktx_csv'] and config.get('unsigned'):
+    if cmdname in ['payto', 'paytomany'] and config.get('unsigned'):
         cmd.requires_password = False
+
+    if cmdname in ['payto', 'paytomany'] and config.get('broadcast'):
+        cmd.requires_network = True
 
     if cmdname in ['createrawtx'] and config.get('unsigned'):
         cmd.requires_password = False
