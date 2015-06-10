@@ -37,7 +37,7 @@ class VersionGetter(threading.Thread):
     def run(self):
         try:
             res = requests.request("GET", "https://electrum.org/version")
-        except socket.error as msg:
+        except:
             print_error("Could not retrieve version information")
             return
 
