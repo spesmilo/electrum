@@ -17,7 +17,6 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import urllib
-import httplib
 import json
 import sys
 
@@ -82,7 +81,7 @@ class Plugin(BasePlugin):
             sig = self.wallet.sign_message(addr, message, password)
 
             # 2. send the request
-            connection = httplib.HTTPSConnection('greenaddress.it')
+            connection = util.HTTPSConnection('greenaddress.it')
             connection.request("GET", ("/verify/?signature=%s&txhash=%s" % (urllib.quote(sig), tx.hash())),
                 None, {'User-Agent': 'Electrum'})
             response = connection.getresponse()

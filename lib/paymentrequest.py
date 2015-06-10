@@ -27,6 +27,7 @@ import time
 import traceback
 import urllib2
 import urlparse
+
 import requests
 
 try:
@@ -35,10 +36,9 @@ except ImportError:
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto'")
 
 import bitcoin
-import util
 import transaction
 import x509
-from util import print_error
+from util import print_error, HTTPSConnection
 
 REQUEST_HEADERS = {'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'}
 ACK_HEADERS = {'Content-Type':'application/bitcoin-payment','Accept':'application/bitcoin-paymentack','User-Agent':'Electrum'}
@@ -60,7 +60,10 @@ import json
 def get_payment_request(url):
     u = urlparse.urlparse(url)
     if u.scheme in ['http', 'https']:
-        connection = httplib.HTTPConnection(u.netloc) if u.scheme == 'http' else httplib.HTTPSConnection(u.netloc)
+        if u.scheme == 'http':
+            connection = httplib.HTTPConnection(u.netloc)
+        else:
+            connection = HTTPSConnection(u.netloc)
         connection.request("GET", u.geturl(), headers=REQUEST_HEADERS)
         response = connection.getresponse()
         data = response.read()
@@ -171,7 +174,7 @@ class PaymentRequest:
                 verify = pubkey.verify(sig, x509.PREFIX_RSA_SHA512 + hashBytes)
             else:
                 self.error = "Algorithm not supported"
-                util.print_error(self.error, algo.getComponentByName('algorithm'))
+                print_error(self.error, algo.getComponentByName('algorithm'))
                 return False
             if not verify:
                 self.error = "Certificate not Signed by Provided CA Certificate Chain"
@@ -337,7 +340,7 @@ class InvoiceStore(object):
         for k, pr in self.invoices.items():
             l[k] = {
                 'hex': str(pr).encode('hex'),
-                'requestor': pr.get_requestor(), 
+                'requestor': pr.get_requestor(),
                 'txid': pr.tx
             }
         path = os.path.join(self.config.path, 'invoices')
@@ -376,4 +379,3 @@ class InvoiceStore(object):
     def sorted_list(self):
         # sort
         return self.invoices.values()
-
