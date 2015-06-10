@@ -1,6 +1,7 @@
 #!/usr/bin/env python2
 from StringIO import StringIO
-import urllib2, os, zipfile, pycurl
+import os, zipfile, pycurl
+import requests
 
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 os.chdir('..')
@@ -31,12 +32,12 @@ if os.path.exists('../contrib/crowdin_api_key.txt'):
     c.perform()
     # Build translations
     print 'Build translations'
-    response = urllib2.urlopen('http://api.crowdin.net/api/project/' + crowdin_identifier + '/export?key=' + crowdin_api_key).read()
+    response = requests.request('GET', 'http://api.crowdin.net/api/project/' + crowdin_identifier + '/export?key=' + crowdin_api_key).content
     print response
 
 # Download & unzip
 print 'Download translations'
-zfobj = zipfile.ZipFile(StringIO(urllib2.urlopen('http://crowdin.net/download/project/' + crowdin_identifier + '.zip').read()))
+zfobj = zipfile.ZipFile(StringIO(requests.request('GET', 'http://crowdin.net/download/project/' + crowdin_identifier + '.zip').content))
 
 print 'Unzip translations'
 for name in zfobj.namelist():
