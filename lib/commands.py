@@ -333,13 +333,21 @@ class Commands:
             out = "Error: Keypair import failed: " + str(e)
         return out
 
+    def _resolver(self, x):
+        if x is None:
+            return None
+        out = self.contacts.resolve(x)
+        if out.get('type') == 'openalias' and self.nocheck is False and out.get('validated') is False:
+            raise BaseException('cannot verify alias', x)
+        return out['address']
+
     @command('n')
     def sweep(self, privkey, destination, tx_fee=None, nocheck=False):
         """Sweep private key. Returns a transaction that spends UTXOs from
         privkey to a destination address. The transaction is not
         broadcasted."""
-        resolver = lambda x: self.contacts.resolve(x, nocheck)['address']
-        dest = resolver(destination)
+        self.nocheck = nocheck
+        dest = self._resolver(destination)
         if tx_fee is None:
             tx_fee = 0.0001
         fee = int(Decimal(tx_fee)*COIN)
@@ -357,13 +365,13 @@ class Commands:
         return bitcoin.verify_message(address, signature, message)
 
     def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned):
-        resolver = lambda x: None if x is None else self.contacts.resolve(x, nocheck)['address']
-        change_addr = resolver(change_addr)
-        domain = None if domain is None else map(resolver, domain)
+        self.nocheck = nocheck
+        change_addr = self._resolver(change_addr)
+        domain = None if domain is None else map(self._resolver, domain)
         fee = None if fee is None else int(COIN*Decimal(fee))
         final_outputs = []
         for address, amount in outputs:
-            address = resolver(address)
+            address = self._resolver(address)
             #assert self.wallet.is_mine(address)
             if amount == '!':
                 assert len(outputs) == 1
@@ -451,9 +459,9 @@ class Commands:
         return self.contacts
 
     @command('')
-    def getalias(self, key, nocheck=False):
+    def getalias(self, key):
         """Retrieve alias. Lookup in your list of contacts, and for an OpenAlias DNS record."""
-        return self.contacts.resolve(key, nocheck)
+        return self.contacts.resolve(key)
 
     @command('')
     def searchcontacts(self, query):

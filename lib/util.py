@@ -471,7 +471,7 @@ class Contacts(StoreDict):
     def __init__(self, config):
         StoreDict.__init__(self, config, 'contacts')
 
-    def resolve(self, k, nocheck=False):
+    def resolve(self, k):
         if bitcoin.is_address(k):
             return {'address':k, 'type':'address'}
         if k in self.keys():
@@ -480,7 +480,5 @@ class Contacts(StoreDict):
                 return {'address':addr, 'type':'contact'}
         out = run_hook('resolve_address', k)
         if out:
-            if not nocheck and out.get('validated') is False:
-                raise Exception("cannot validate alias")
             return out
-        raise Exception("invalid Bitcoin address", k)
+        raise Exception("Invalid Bitcoin address or alias", k)
