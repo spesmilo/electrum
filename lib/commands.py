@@ -131,7 +131,7 @@ class Commands:
     def make_seed(self, nbits=128, entropy=1, language=None):
         """Create a seed"""
         from mnemonic import Mnemonic
-        s = Mnemonic(language).make_seed(nbits, custom_entropy=custom_entropy)
+        s = Mnemonic(language).make_seed(nbits, custom_entropy=entropy)
         return s.encode('utf8')
 
     @command('')

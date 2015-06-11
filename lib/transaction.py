@@ -705,13 +705,12 @@ class Transaction:
 
     def sign(self, keypairs):
         for i, txin in enumerate(self.inputs):
-            signatures = filter(None, txin['signatures'])
             num = txin['num_sig']
-            if len(signatures) == num:
-                # continue if this txin is complete
-                continue
-
             for x_pubkey in txin['x_pubkeys']:
+                signatures = filter(None, txin['signatures'])
+                if len(signatures) == num:
+                    # txin is complete
+                    break
                 if x_pubkey in keypairs.keys():
                     print_error("adding signature for", x_pubkey)
                     # add pubkey to txin
@@ -733,7 +732,6 @@ class Transaction:
                     assert public_key.verify_digest( sig, for_sig, sigdecode = ecdsa.util.sigdecode_der)
                     txin['signatures'][ii] = sig.encode('hex')
                     self.inputs[i] = txin
-
         print_error("is_complete", self.is_complete())
         self.raw = self.serialize()
 
