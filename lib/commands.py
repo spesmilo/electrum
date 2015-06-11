@@ -548,11 +548,14 @@ class Commands:
         return map(self._format_request, self.wallet.get_sorted_requests(self.config))
 
     @command('w')
-    def addrequest(self, requested_amount, memo='', expiration=60*60):
+    def addrequest(self, requested_amount, memo='', expiration=60*60, force=False):
         """Create a payment request."""
         addr = self.wallet.get_unused_address(None)
         if addr is None:
-            return False
+            if force:
+                addr = self.wallet.create_new_address(None, False)
+            else:
+                return False
         amount = int(Decimal(requested_amount)*COIN)
         req = self.wallet.add_payment_request(addr, amount, memo, expiration, self.config)
         return self._format_request(req)
@@ -608,6 +611,7 @@ command_options = {
     'memo':        ("-m", "--memo",        "Description of the request"),
     'expiration':  (None, "--expiration",  "Time in seconds"),
     'status':      (None, "--status",      "Show status"),
+    'force':       (None, "--force",       "Create new address beyong gap limit, if no more address is available."),
 }
 
 
