@@ -1279,7 +1279,7 @@ class Abstract_Wallet(object):
         self.set_label(addr, message) # should be a default label
         rdir = config.get('requests_dir')
         req = self.get_payment_request(addr, config)
-        if rdir:
+        if rdir and amount is not None:
             if not os.path.exists(rdir):
                 os.mkdir(rdir)
             index = os.path.join(rdir, 'index.html')

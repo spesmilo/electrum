@@ -347,7 +347,7 @@ class InstallWizard(QDialog):
             password = None
 
         # load wallet in plugins
-        run_hook('load_wallet', wallet, self)
+        always_hook('installwizard_load_wallet', wallet, self)
 
         while action is not None:
             util.print_error("installwizard:", wallet, action)
@@ -451,9 +451,12 @@ class InstallWizard(QDialog):
                 wallet = Wallet.from_multisig(key_list, password, self.storage)
 
             else:
-                self.storage.put('wallet_type', t)
+                self.storage.put('wallet_type', t, False)
+                # call the constructor to load the plugin (side effect)
+                Wallet(self.storage)
                 wallet = always_hook('installwizard_restore', self, self.storage)
                 if not wallet:
+                    util.print_error("no wallet")
                     return
 
             # create first keys offline
