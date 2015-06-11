@@ -179,7 +179,7 @@ class TxDialog(QWidget):
 
         # if we are not synchronized, we cannot tell
         if self.parent.network is None:
-            self.broadcast_button.disable()  # cannot broadcast when offline
+            self.broadcast_button.hide()  # cannot broadcast when offline
             return
         if not self.wallet.up_to_date:
             return
