@@ -347,7 +347,7 @@ class InstallWizard(QDialog):
             password = None
 
         # load wallet in plugins
-        run_hook('load_wallet', wallet, self)
+        always_hook('installwizard_load_wallet', wallet, self)
 
         while action is not None:
             util.print_error("installwizard:", wallet, action)

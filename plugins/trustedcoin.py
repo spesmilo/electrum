@@ -334,6 +334,11 @@ class Plugin(BasePlugin):
         t.start()
 
     @hook
+    def installwizard_load_wallet(self, wallet, window):
+        self.wallet = wallet
+        self.window = window
+
+    @hook
     def close_wallet(self):
         self.window.statusBar().removeWidget(self.trustedcoin_button)
 
