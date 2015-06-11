@@ -473,13 +473,15 @@ class Commands:
         return results
 
     @command('w')
-    def listaddresses(self, show_all=False, show_labels=False, frozen=False, unused=False, funded=False, show_balance=False):
+    def listaddresses(self, receiving=False, change=False, show_labels=False, frozen=False, unused=False, funded=False, show_balance=False):
         """List wallet addresses. Returns your list of addresses."""
         out = []
         for addr in self.wallet.addresses(True):
             if frozen and not self.wallet.is_frozen(addr):
                 continue
-            if not show_all and self.wallet.is_change(addr):
+            if receiving and self.wallet.is_change(addr):
+                continue
+            if change and not self.wallet.is_change(addr):
                 continue
             if unused and self.wallet.is_used(addr):
                 continue
@@ -582,7 +584,8 @@ command_options = {
     'broadcast':   (None, "--broadcast",   "Broadcast the transaction to the Bitcoin network"),
     'password':    ("-W", "--password",    "Password"),
     'concealed':   ("-C", "--concealed",   "Don't echo seed to console when restoring"),
-    'show_all':    ("-a", "--all",         "Include change addresses"),
+    'receiving':   (None, "--receiving",   "Show only receiving addresses"),
+    'change':      (None, "--change",      "Show only change addresses"),
     'frozen':      (None, "--frozen",      "Show only frozen addresses"),
     'unused':      (None, "--unused",      "Show only unused addresses"),
     'funded':      (None, "--funded",      "Show only funded addresses"),
