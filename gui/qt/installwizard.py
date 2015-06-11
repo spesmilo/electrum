@@ -15,7 +15,7 @@ from amountedit import AmountEdit
 
 import sys
 import threading
-from electrum_ltc.plugins import always_hook
+from electrum_ltc.plugins import always_hook, run_hook
 from electrum_ltc.mnemonic import prepare_seed
 
 MSG_ENTER_ANYTHING    = _("Please enter a wallet seed, a master public key, a list of Litecoin addresses, or a list of private keys")
@@ -28,8 +28,9 @@ MSG_VERIFY_SEED       = _("Your seed is important!") + "\n" + _("To make sure th
 
 class InstallWizard(QDialog):
 
-    def __init__(self, config, network, storage):
+    def __init__(self, config, network, storage, app):
         QDialog.__init__(self)
+        self.app = app
         self.config = config
         self.network = network
         self.storage = storage
@@ -344,6 +345,9 @@ class InstallWizard(QDialog):
             action = wallet.get_action()
             # fixme: password is only needed for multiple accounts
             password = None
+
+        # load wallet in plugins
+        run_hook('load_wallet', wallet, self)
 
         while action is not None:
             util.print_error("installwizard:", wallet, action)

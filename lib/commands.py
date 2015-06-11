@@ -131,7 +131,7 @@ class Commands:
     def make_seed(self, nbits=128, entropy=1, language=None):
         """Create a seed"""
         from mnemonic import Mnemonic
-        s = Mnemonic(language).make_seed(nbits, custom_entropy=custom_entropy)
+        s = Mnemonic(language).make_seed(nbits, custom_entropy=entropy)
         return s.encode('utf8')
 
     @command('')
@@ -157,15 +157,14 @@ class Commands:
 
     @command('n')
     def getaddressunspent(self, address):
-        """Returns the list of unspent inputs of a Bitcoin address. Note: This
+        """Returns the UTXO list of any address. Note: This
         is a walletless server query, results are not checked by SPV.
         """
         return self.network.synchronous_get([('blockchain.address.listunspent', [address])])[0]
 
     @command('n')
     def getutxoaddress(self, txid, pos):
-        """Get the address that corresponds to an unspent transaction
-        output. Note: This is a walletless server query, results are
+        """Get the address of a UTXO. Note: This is a walletless server query, results are
         not checked by SPV.
         """
         r = self.network.synchronous_get([('blockchain.utxo.get_address', [txid, pos])])
@@ -206,13 +205,13 @@ class Commands:
         return t
 
     @command('')
-    def decodetx(self, tx):
-        """Decode serialized transaction"""
+    def deserialize(self, tx):
+        """Deserialize a serialized transaction"""
         t = Transaction(tx)
         return t.deserialize()
 
     @command('n')
-    def sendtx(self, tx):
+    def broadcast(self, tx):
         """Broadcast a transaction to the network. """
         t = Transaction(tx)
         return self.network.synchronous_get([('blockchain.transaction.broadcast', [str(t)])])[0]
@@ -357,7 +356,7 @@ class Commands:
         """Verify a signature."""
         return bitcoin.verify_message(address, signature, message)
 
-    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned, deserialized):
+    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned):
         resolver = lambda x: None if x is None else self.contacts.resolve(x, nocheck)['address']
         change_addr = resolver(change_addr)
         domain = None if domain is None else map(resolver, domain)
@@ -386,7 +385,7 @@ class Commands:
         str(tx) #this serializes
         if not unsigned:
             self.wallet.sign_transaction(tx, self.password)
-        return tx.deserialize() if deserialized else tx
+        return tx
 
     def _read_csv(self, csvpath):
         import csv
@@ -401,36 +400,27 @@ class Commands:
         return outputs
 
     @command('wp')
-    def mktx(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False):
+    def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False, broadcast=False):
         """Create a transaction. """
         domain = [from_addr] if from_addr else None
-        tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, deserialized)
-        return tx
+        tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned)
+        if broadcast:
+            r, h = self.wallet.sendtx(tx)
+            return h
+        else:
+            return tx.deserialize() if deserialized else tx
 
     @command('wp')
-    def mktx_csv(self, csv_file, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False):
+    def paytomany(self, csv_file, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False, broadcast=False):
         """Create a multi-output transaction. """
         domain = [from_addr] if from_addr else None
         outputs = self._read_csv(csv_file)
-        tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, deserialized)
-        return tx
-
-    @command('wpn')
-    def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False):
-        """Create and broadcast a transaction.. """
-        domain = [from_addr] if from_addr else None
-        tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck)
-        r, h = self.wallet.sendtx(tx)
-        return h
-
-    @command('wpn')
-    def payto_csv(self, csv_file, tx_fee=None, from_addr=None, change_addr=None, nocheck=False):
-        """Create and broadcast multi-output transaction.. """
-        domain = [from_addr] if from_addr else None
-        outputs = self._read_csv(csv_file)
-        tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck)
-        r, h = self.wallet.sendtx(tx)
-        return h
+        tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned)
+        if broadcast:
+            r, h = self.wallet.sendtx(tx)
+            return h
+        else:
+            return tx.deserialize() if deserialized else tx
 
     @command('wn')
     def history(self):
@@ -544,7 +534,7 @@ class Commands:
 
     @command('w')
     def listrequests(self):
-        """List the payment requests you made, and their status"""
+        """List the payment requests you made."""
         return map(self._format_request, self.wallet.get_sorted_requests(self.config))
 
     @command('w')
@@ -581,6 +571,7 @@ param_descriptions = {
 }
 
 command_options = {
+    'broadcast':   (None, "--broadcast",   "Broadcast the transaction to the Litecoin network"),
     'password':    ("-W", "--password",    "Password"),
     'concealed':   ("-C", "--concealed",   "Don't echo seed to console when restoring"),
     'show_all':    ("-a", "--all",         "Include change addresses"),
@@ -626,10 +617,10 @@ config_variables = {
         'requests_dir': 'directory where a bip70 file will be written.',
         'ssl_privkey': 'Path to your SSL private key, needed to sign the request.',
         'ssl_chain': 'Chain of SSL certificates, needed for signed requests. Put your certificate at the top and the root CA at the end',
-        'url_rewrite': 'Parameters passed to str.replace(), in order to create the r= part of bitcoin: URIs. Example: \"(\'file:///var/www/\',\'https://electrum-ltc.org/\')\"',
+        'url_rewrite': 'Parameters passed to str.replace(), in order to create the r= part of litecoin: URIs. Example: \"(\'file:///var/www/\',\'https://electrum-ltc.org/\')\"',
     },
     'listrequests':{
-        'url_rewrite': 'Parameters passed to str.replace(), in order to create the r= part of bitcoin: URIs. Example: \"(\'file:///var/www/\',\'https://electrum-ltc.org/\')\"',
+        'url_rewrite': 'Parameters passed to str.replace(), in order to create the r= part of litecoin: URIs. Example: \"(\'file:///var/www/\',\'https://electrum-ltc.org/\')\"',
     }
 }
 
@@ -671,6 +662,8 @@ def get_parser(run_gui, run_daemon, run_cmdline):
     parent_parser = argparse.ArgumentParser('parent', add_help=False)
     parent_parser.add_argument("-v", "--verbose", action="store_true", dest="verbose", default=False, help="Show debugging information")
     parent_parser.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum-ltc_data' directory")
+    parent_parser.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
+    parent_parser.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
     # create main parser
     parser = argparse.ArgumentParser(
         parents=[parent_parser],
@@ -683,8 +676,6 @@ def get_parser(run_gui, run_daemon, run_cmdline):
     parser_gui.add_argument("-g", "--gui", dest="gui", help="select graphical user interface", choices=['qt', 'lite', 'gtk', 'text', 'stdio', 'jsonrpc'])
     parser_gui.add_argument("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")
     parser_gui.add_argument("-L", "--lang", dest="language", default=None, help="default language used in GUI")
-    parser_gui.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run the GUI offline")
-    parser_gui.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
     add_network_options(parser_gui)
     # daemon
     parser_daemon = subparsers.add_parser('daemon', parents=[parent_parser], help="Run Daemon")
@@ -698,10 +689,6 @@ def get_parser(run_gui, run_daemon, run_cmdline):
         p.set_defaults(func=run_cmdline)
         if cmd.requires_password:
             p.add_argument("-W", "--password", dest="password", default=None, help="password")
-        if cmd.requires_network:
-            p.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run command offline")
-        if cmd.requires_wallet:
-            p.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
         for optname, default in zip(cmd.options, cmd.defaults):
             a, b, help = command_options[optname]
             action = "store_true" if type(default) is bool else 'store'

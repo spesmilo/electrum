@@ -63,9 +63,11 @@ def init_plugins(config, is_local, gui_name):
     def constructor(name, storage):
         if plugins.get(name) is None:
             try:
+                print_error(_("Loading plugin by constructor:"), name)
                 p = loader(name)
                 plugins[name] = p.Plugin(config, name)
             except:
+                print_msg(_("Error: cannot initialize plugin"), name)
                 return
         return plugins[name].constructor(storage)
 

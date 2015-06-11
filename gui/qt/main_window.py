@@ -50,7 +50,6 @@ from qrtextedit import ScanQRTextEdit, ShowQRTextEdit
 
 from decimal import Decimal
 
-import httplib
 import socket
 import webbrowser
 import csv
@@ -2636,7 +2635,7 @@ class ElectrumWindow(QMainWindow):
             try:
                 cb = QCheckBox(descr['fullname'])
                 cb.setEnabled(is_available(name, self.wallet))
-                cb.setChecked(p is not None)
+                cb.setChecked(p is not None and p.is_enabled())
                 grid.addWidget(cb, i, 0)
                 if p and p.requires_settings():
                     w = p.settings_widget(self)

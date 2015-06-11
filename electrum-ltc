@@ -73,7 +73,7 @@ from electrum_ltc import util
 from electrum_ltc import SimpleConfig, Network, Wallet, WalletStorage, NetworkProxy
 from electrum_ltc.util import print_msg, print_error, print_stderr, print_json, set_verbosity, InvalidPassword
 from electrum_ltc.daemon import get_daemon
-from electrum_ltc.plugins import init_plugins
+from electrum_ltc.plugins import init_plugins, run_hook, always_hook
 from electrum_ltc.commands import get_parser, known_commands, Commands, config_variables
 
 
@@ -184,8 +184,11 @@ def run_cmdline(config):
         cmd.requires_wallet = False
         cmd.requires_password = False
 
-    if cmdname in ['mktx', 'mktx_csv'] and config.get('unsigned'):
+    if cmdname in ['payto', 'paytomany'] and config.get('unsigned'):
         cmd.requires_password = False
+
+    if cmdname in ['payto', 'paytomany'] and config.get('broadcast'):
+        cmd.requires_network = True
 
     if cmdname in ['createrawtx'] and config.get('unsigned'):
         cmd.requires_password = False
@@ -262,6 +265,9 @@ def run_cmdline(config):
 
     # create wallet instance
     wallet = Wallet(storage) if cmd.requires_wallet else None
+
+    # notify plugins
+    always_hook('cmdline_load_wallet', wallet)
 
     # important warning
     if cmd.name in ['dumpprivkey', 'dumpprivkeys']:
@@ -370,7 +376,6 @@ if __name__ == '__main__':
     # config is an object passed to the various constructors (wallet, interface, gui)
     if is_android:
         config_options = {
-            'portable': True,
             'verbose': True,
             'gui': 'android',
             'auto_connect': True,
@@ -398,7 +403,8 @@ if __name__ == '__main__':
     gui_name = config.get('gui', 'qt') if args.cmd == 'gui' else 'cmdline'
 
     # initialize plugins.
-    init_plugins(config, is_bundle or is_local or is_android, gui_name)
+    if not is_android:
+        init_plugins(config, is_bundle or is_local or is_android, gui_name)
 
     # call function attached to parser
     args.func(config)

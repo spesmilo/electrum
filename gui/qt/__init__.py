@@ -153,7 +153,7 @@ class ElectrumGui:
                     QMessageBox.information(None, _('Warning'), _('The file was removed'), _('OK'))
                     return
                 return
-        wizard = installwizard.InstallWizard(self.config, self.network, storage)
+        wizard = installwizard.InstallWizard(self.config, self.network, storage, self.app)
         wizard.show()
         if action == 'new':
             action, wallet_type = wizard.restore_or_create()

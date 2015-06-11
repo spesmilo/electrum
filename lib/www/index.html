@@ -50,7 +50,7 @@ if (id) {
 			value: current
 		    });
 		    if (current >= max) {
-			$("#container").html("expired:", duration);
+			$("#container").html("This payment request has expired");
 		    }
 		};
 		var interval = setInterval(update, 1000);

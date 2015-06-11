@@ -18,14 +18,12 @@
 
 
 import hashlib
-import httplib
 import os.path
 import re
 import sys
 import threading
 import time
 import traceback
-import urllib2
 import urlparse
 import requests
 
@@ -60,10 +58,8 @@ import json
 def get_payment_request(url):
     u = urlparse.urlparse(url)
     if u.scheme in ['http', 'https']:
-        connection = httplib.HTTPConnection(u.netloc) if u.scheme == 'http' else httplib.HTTPSConnection(u.netloc)
-        connection.request("GET", u.geturl(), headers=REQUEST_HEADERS)
-        response = connection.getresponse()
-        data = response.read()
+        response = requests.request('GET', url, headers=REQUEST_HEADERS)
+        data = response.content
         print_error('fetched payment request', url, len(data))
     elif u.scheme == 'file':
         with open(u.path, 'r') as f:

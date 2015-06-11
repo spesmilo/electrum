@@ -93,11 +93,15 @@ class Plugin(BasePlugin):
         self.wallet = None
 
     @hook
-    def init_cmdline(self):
-        self.handler = TrezorCmdLineHandler()
+    def cmdline_load_wallet(self, wallet):
+        self.wallet = wallet
+        self.wallet.plugin = self
+        if self.handler is None:
+            self.handler = TrezorCmdLineHandler()
 
     @hook
     def load_wallet(self, wallet, window):
+        self.print_error("load_wallet")
         self.wallet = wallet
         self.window = window
         self.wallet.plugin = self
@@ -106,7 +110,7 @@ class Plugin(BasePlugin):
             self.handler = TrezorQtHandler(self.window.app)
 
         if self.trezor_is_connected():
-            if not self.wallet.check_proper_device():
+            if self.wallet.addresses() and not self.wallet.check_proper_device():
                 QMessageBox.information(self.window, _('Error'), _("This wallet does not match your Trezor device"), _('OK'))
                 self.wallet.force_watching_only = True
         else:
@@ -492,12 +496,22 @@ class TrezorGuiMixin(object):
 class TrezorCmdLineHandler:
 
     def get_passphrase(self, msg):
+        import getpass
         print_msg(msg)
-        return raw_input()
+        return getpass.getpass('')
 
     def get_pin(self, msg):
+        t = { 'a':'7', 'b':'8', 'c':'9', 'd':'4', 'e':'5', 'f':'6', 'g':'1', 'h':'2', 'i':'3'}
         print_msg(msg)
-        return raw_input()
+        print_msg("a b c\nd e f\ng h i\n-----")
+        o = raw_input()
+        return ''.join(map(lambda x: t[x], o))
+
+    def stop(self):
+        pass
+
+    def show_message(self, msg):
+        print_msg(msg)
 
 
 class TrezorQtHandler:
