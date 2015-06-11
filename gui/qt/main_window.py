@@ -700,7 +700,7 @@ class ElectrumWindow(QMainWindow):
         menu = QMenu()
         menu.addAction(_("Copy Address"), lambda: self.app.clipboard().setText(addr))
         menu.addAction(_("Copy URI"), lambda: self.app.clipboard().setText(str(URI)))
-        menu.addAction(_("Save as BIP70 file"), lambda: self.export_payment_request(addr))
+        menu.addAction(_("Save as BIP70 file"), lambda: self.export_payment_request(addr)).setEnabled(amount is not None)
         menu.addAction(_("Delete"), lambda: self.delete_payment_request(item))
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
@@ -721,7 +721,7 @@ class ElectrumWindow(QMainWindow):
     def export_payment_request(self, addr):
         r = self.wallet.get_payment_request(addr, self.config)
         pr = paymentrequest.make_request(self.config, r)
-        name = r['key'] + '.bip70'
+        name = r['id'] + '.bip70'
         fileName = self.getSaveFileName(_("Select where to save your payment request"), name, "*.bip70")
         if fileName:
             with open(fileName, "wb+") as f:
