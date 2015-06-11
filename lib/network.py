@@ -92,7 +92,7 @@ def serialize_proxy(p):
     return ':'.join([p.get('mode'),p.get('host'), p.get('port')])
 
 def deserialize_proxy(s):
-    if s is None:
+    if type(s) != str:
         return None
     if s.lower() == 'none':
         return None
