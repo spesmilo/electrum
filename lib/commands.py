@@ -559,7 +559,7 @@ param_descriptions = {
     'seed': 'Seed phrase',
     'txid': 'Transaction ID',
     'pos': 'Position',
-    'heigh': 'Block height',
+    'height': 'Block height',
     'tx': 'Serialized transaction (hexadecimal)',
     'key': 'Variable name',
     'pubkey': 'Public key',
