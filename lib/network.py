@@ -371,6 +371,7 @@ class Network(util.DaemonThread):
             # stop any current interface in order to terminate subscriptions
             self.stop_interface()
             self.interface = i
+            self.addr_responses = {}
             self.send_subscriptions()
             self.set_status('connected')
             self.notify('updated')
@@ -404,6 +405,8 @@ class Network(util.DaemonThread):
             self.interfaces.pop(i.server, None)
             self.heights.pop(i.server, None)
             if i == self.interface:
+                self.interface = None
+                self.addr_responses = {}
                 self.set_status('disconnected')
             self.disconnected_servers.add(i.server)
         # Our set of interfaces changed
@@ -477,7 +480,7 @@ class Network(util.DaemonThread):
 
         # This request needs connectivity.  If we don't have an
         # interface, we cannot process it.
-        if not self.interface:
+        if not self.is_connected():
             return False
 
         self.unanswered_requests[_id] = request
