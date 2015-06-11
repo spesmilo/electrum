@@ -323,6 +323,8 @@ class Plugin(BasePlugin):
 
     @hook
     def load_wallet(self, wallet, window):
+        self.wallet = wallet
+        self.window = window
         self.trustedcoin_button = StatusBarButton( QIcon(":icons/trustedcoin.png"), _("Network"), self.settings_dialog)
         self.window.statusBar().addPermanentWidget(self.trustedcoin_button)
         self.xpub = self.wallet.master_public_keys.get('x1/')
