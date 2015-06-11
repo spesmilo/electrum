@@ -527,10 +527,10 @@ class Commands:
             raise BaseException("Request not found")
         return self._format_request(r)
 
-    @command('w')
-    def ackrequest(self, serialized):
-        """<Not implemented>"""
-        pass
+    #@command('w')
+    #def ackrequest(self, serialized):
+    #    """<Not implemented>"""
+    #    pass
 
     @command('w')
     def listrequests(self):
