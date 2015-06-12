@@ -1241,16 +1241,17 @@ class Abstract_Wallet(object):
         out['status'] = self.get_request_status(addr)
         # check if bip70 file exists
         rdir = config.get('requests_dir')
-        key = out.get('id', addr)
-        path = os.path.join(rdir, key + '.bip70')
-        if rdir and os.path.exists(path):
-            baseurl = 'file://' + rdir
-            rewrite = config.get('url_rewrite')
-            if rewrite:
-                baseurl = baseurl.replace(*rewrite)
-            out['request_url'] = os.path.join(baseurl, key + '.bip70')
-            out['URI'] += '&r=' + out['request_url']
-            out['index_url'] = os.path.join(baseurl, 'index.html') + '?id=' + key
+        if rdir:
+            key = out.get('id', addr)
+            path = os.path.join(rdir, key + '.bip70')
+            if os.path.exists(path):
+                baseurl = 'file://' + rdir
+                rewrite = config.get('url_rewrite')
+                if rewrite:
+                    baseurl = baseurl.replace(*rewrite)
+                out['request_url'] = os.path.join(baseurl, key + '.bip70')
+                out['URI'] += '&r=' + out['request_url']
+                out['index_url'] = os.path.join(baseurl, 'index.html') + '?id=' + key
         return out
 
     def get_request_status(self, key):
