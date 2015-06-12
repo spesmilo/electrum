@@ -542,7 +542,7 @@ class Commands:
     #    """<Not implemented>"""
     #    pass
 
-    @command('w')
+    @command('wn')
     def listrequests(self, pending=False, expired=False, paid=False):
         """List the payment requests you made."""
         out = self.wallet.get_sorted_requests(self.config)
@@ -688,10 +688,11 @@ from util import profiler
 def get_parser(run_gui, run_daemon, run_cmdline):
     # parent parser, because set_default_subparser removes global options
     parent_parser = argparse.ArgumentParser('parent', add_help=False)
-    parent_parser.add_argument("-v", "--verbose", action="store_true", dest="verbose", default=False, help="Show debugging information")
-    parent_parser.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum_data' directory")
-    parent_parser.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
-    parent_parser.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
+    group = parent_parser.add_argument_group('global options')
+    group.add_argument("-v", "--verbose", action="store_true", dest="verbose", default=False, help="Show debugging information")
+    group.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum_data' directory")
+    group.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
+    group.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
     # create main parser
     parser = argparse.ArgumentParser(
         parents=[parent_parser],
