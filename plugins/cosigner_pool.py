@@ -149,6 +149,7 @@ class Plugin(BasePlugin):
             try:
                 server.put(_hash, message)
             except Exception as e:
+                traceback.print_exc(file=sys.stdout)
                 self.win.show_message(str(e))
                 return
         self.win.show_message("Your transaction was sent to the cosigning pool.\nOpen your cosigner wallet to retrieve it.")
@@ -181,4 +182,4 @@ class Plugin(BasePlugin):
         tx = transaction.Transaction(message)
         d = transaction_dialog.TxDialog(tx, self.win)
         d.saved = False
-        d.exec_()
+        d.show()

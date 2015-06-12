@@ -33,6 +33,7 @@ import bitcoin
 from bitcoin import is_address, hash_160_to_bc_address, hash_160, COIN
 from transaction import Transaction
 import paymentrequest
+from paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 
 known_commands = {}
 
@@ -253,7 +254,7 @@ class Commands:
 
     @command('')
     def validateaddress(self, address):
-        """Check that the address is valid. """
+        """Check that an address is valid. """
         return is_address(address)
 
     @command('w')
@@ -263,7 +264,8 @@ class Commands:
 
     @command('nw')
     def getbalance(self, account=None):
-        """Return the balance of your wallet"""
+        """Return the balance of your wallet. If run with the --offline flag,
+        returns the last known balance."""
         if account is None:
             c, u, x = self.wallet.get_balance()
         else:
@@ -296,7 +298,8 @@ class Commands:
 
     @command('n')
     def getmerkle(self, txid, height):
-        """Get Merkle branch of a transaction included in a block"""
+        """Get Merkle branch of a transaction included in a block. Electrum
+        uses this to verify transactions (Simple Payment Verification)."""
         return self.network.synchronous_get([('blockchain.transaction.get_merkle', [txid, int(height)])])[0]
 
     @command('n')
@@ -314,7 +317,7 @@ class Commands:
 
     @command('w')
     def getmpk(self):
-        """Get Master Public Key. Return your wallet\'s master public key"""
+        """Get master public key. Return your wallet\'s master public key(s)"""
         return self.wallet.get_master_public_keys()
 
     @command('wp')
@@ -518,7 +521,6 @@ class Commands:
         return self.wallet.decrypt_message(pubkey, encrypted, self.password)
 
     def _format_request(self, out):
-        from paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
         pr_str = {
             PR_UNKNOWN: 'Unknown',
             PR_UNPAID: 'Pending',
@@ -542,17 +544,31 @@ class Commands:
     #    """<Not implemented>"""
     #    pass
 
-    @command('w')
-    def listrequests(self):
+    @command('wn')
+    def listrequests(self, pending=False, expired=False, paid=False):
         """List the payment requests you made."""
-        return map(self._format_request, self.wallet.get_sorted_requests(self.config))
+        out = self.wallet.get_sorted_requests(self.config)
+        if pending:
+            f = PR_UNPAID
+        elif expired:
+            f = PR_EXPIRED
+        elif paid:
+            f = PR_PAID
+        else:
+            f = None
+        if f:
+            out = filter(lambda x: x.get('status')==f, out)
+        return map(self._format_request, out)
 
     @command('w')
-    def addrequest(self, requested_amount, memo='', expiration=60*60):
+    def addrequest(self, requested_amount, memo='', expiration=60*60, force=False):
         """Create a payment request."""
         addr = self.wallet.get_unused_address(None)
         if addr is None:
-            return False
+            if force:
+                addr = self.wallet.create_new_address(None, False)
+            else:
+                return False
         amount = int(Decimal(requested_amount)*COIN)
         req = self.wallet.add_payment_request(addr, amount, memo, expiration, self.config)
         return self._format_request(req)
@@ -607,7 +623,10 @@ command_options = {
     'account':     (None, "--account",     "Account"),
     'memo':        ("-m", "--memo",        "Description of the request"),
     'expiration':  (None, "--expiration",  "Time in seconds"),
-    'status':      (None, "--status",      "Show status"),
+    'force':       (None, "--force",       "Create new address beyong gap limit, if no more address is available."),
+    'pending':     (None, "--pending",     "Show only pending requests."),
+    'expired':     (None, "--expired",     "Show only expired requests."),
+    'paid':        (None, "--paid",        "Show only paid requests."),
 }
 
 
@@ -671,10 +690,11 @@ from util import profiler
 def get_parser(run_gui, run_daemon, run_cmdline):
     # parent parser, because set_default_subparser removes global options
     parent_parser = argparse.ArgumentParser('parent', add_help=False)
-    parent_parser.add_argument("-v", "--verbose", action="store_true", dest="verbose", default=False, help="Show debugging information")
-    parent_parser.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum-ltc_data' directory")
-    parent_parser.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
-    parent_parser.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
+    group = parent_parser.add_argument_group('global options')
+    group.add_argument("-v", "--verbose", action="store_true", dest="verbose", default=False, help="Show debugging information")
+    group.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum-ltc_data' directory")
+    group.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
+    group.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
     # create main parser
     parser = argparse.ArgumentParser(
         parents=[parent_parser],

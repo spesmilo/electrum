@@ -1261,10 +1261,13 @@ class Abstract_Wallet(object):
         timestamp = r.get('timestamp', 0)
         expiration = r.get('expiration')
         if amount:
-            paid = amount <= self.get_addr_received(address)
-            status = PR_PAID if paid else PR_UNPAID
-            if status == PR_UNPAID and expiration is not None and time.time() > timestamp + expiration:
-                status = PR_EXPIRED
+            if self.up_to_date:
+                paid = amount <= self.get_addr_received(address)
+                status = PR_PAID if paid else PR_UNPAID
+                if status == PR_UNPAID and expiration is not None and time.time() > timestamp + expiration:
+                    status = PR_EXPIRED
+            else:
+                status = PR_UNKNOWN
         else:
             status = PR_UNKNOWN
         return status
