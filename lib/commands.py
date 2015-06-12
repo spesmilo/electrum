@@ -33,6 +33,7 @@ import bitcoin
 from bitcoin import is_address, hash_160_to_bc_address, hash_160, COIN
 from transaction import Transaction
 import paymentrequest
+from paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 
 known_commands = {}
 
@@ -518,7 +519,6 @@ class Commands:
         return self.wallet.decrypt_message(pubkey, encrypted, self.password)
 
     def _format_request(self, out):
-        from paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
         pr_str = {
             PR_UNKNOWN: 'Unknown',
             PR_UNPAID: 'Pending',
@@ -543,9 +543,20 @@ class Commands:
     #    pass
 
     @command('w')
-    def listrequests(self):
+    def listrequests(self, pending=False, expired=False, paid=False):
         """List the payment requests you made."""
-        return map(self._format_request, self.wallet.get_sorted_requests(self.config))
+        out = self.wallet.get_sorted_requests(self.config)
+        if pending:
+            f = PR_UNPAID
+        elif expired:
+            f = PR_EXPIRED
+        elif paid:
+            f = PR_PAID
+        else:
+            f = None
+        if f:
+            out = filter(lambda x: x.get('status')==f, out)
+        return map(self._format_request, out)
 
     @command('w')
     def addrequest(self, requested_amount, memo='', expiration=60*60, force=False):
@@ -610,8 +621,10 @@ command_options = {
     'account':     (None, "--account",     "Account"),
     'memo':        ("-m", "--memo",        "Description of the request"),
     'expiration':  (None, "--expiration",  "Time in seconds"),
-    'status':      (None, "--status",      "Show status"),
     'force':       (None, "--force",       "Create new address beyong gap limit, if no more address is available."),
+    'pending':     (None, "--pending",     "Show only pending requests."),
+    'expired':     (None, "--expired",     "Show only expired requests."),
+    'paid':        (None, "--paid",        "Show only paid requests."),
 }
 
 
