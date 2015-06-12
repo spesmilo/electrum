@@ -1,3 +1,6 @@
+# Release 2.3.1
+ * patch a bug with payment requests
+
 # Release 2.3
  * Improved logic for the network layer.
  * More efficient coin selection. Spend oldest coins first, and

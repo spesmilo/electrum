@@ -556,7 +556,7 @@ class Commands:
             f = PR_PAID
         else:
             f = None
-        if f:
+        if f is not None:
             out = filter(lambda x: x.get('status')==f, out)
         return map(self._format_request, out)
 
