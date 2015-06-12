@@ -254,7 +254,7 @@ class Commands:
 
     @command('')
     def validateaddress(self, address):
-        """Check that the address is valid. """
+        """Check that an address is valid. """
         return is_address(address)
 
     @command('w')
@@ -264,7 +264,8 @@ class Commands:
 
     @command('nw')
     def getbalance(self, account=None):
-        """Return the balance of your wallet"""
+        """Return the balance of your wallet. If run with the --offline flag,
+        returns the last known balance."""
         if account is None:
             c, u, x = self.wallet.get_balance()
         else:
@@ -297,7 +298,8 @@ class Commands:
 
     @command('n')
     def getmerkle(self, txid, height):
-        """Get Merkle branch of a transaction included in a block"""
+        """Get Merkle branch of a transaction included in a block. Electrum
+        uses this to verify transactions (Simple Payment Verification)."""
         return self.network.synchronous_get([('blockchain.transaction.get_merkle', [txid, int(height)])])[0]
 
     @command('n')
@@ -315,7 +317,7 @@ class Commands:
 
     @command('w')
     def getmpk(self):
-        """Get Master Public Key. Return your wallet\'s master public key"""
+        """Get master public key. Return your wallet\'s master public key(s)"""
         return self.wallet.get_master_public_keys()
 
     @command('wp')
