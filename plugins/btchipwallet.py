@@ -20,7 +20,6 @@ from electrum.util import format_satoshis
 import hashlib
 
 try:
-    from usb.core import USBError
     from btchip.btchipComm import getDongle, DongleWait
     from btchip.btchip import btchip
     from btchip.btchipUtils import compress_public_key,format_transaction, get_regular_input_script
@@ -502,16 +501,5 @@ if BTCHIP:
             self.dongle = dongle
 
         def waitFirstResponse(self, timeout):
-            customTimeout = 0
-            while customTimeout < timeout:
-                try:
-                    response = self.dongle.waitFirstResponse(200)
-                    return response
-                except USBError, e:
-                    if e.backend_error_code == -7:
-                        QApplication.processEvents()
-                        customTimeout = customTimeout + 100
-                        pass
-                    else:
-                        raise e
-            raise e
+	    return self.dongle.waitFirstResponse(timeout)
+
