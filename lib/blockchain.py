@@ -40,6 +40,7 @@ class Blockchain(util.DaemonThread):
 
     def run(self):
         self.init_headers_file()
+        self.set_local_height()
         self.print_error("%d blocks" % self.local_height)
 
         while self.is_running():
@@ -166,7 +167,6 @@ class Blockchain(util.DaemonThread):
         filename = self.path()
         if os.path.exists(filename):
             return
-
         try:
             import urllib, socket
             socket.setdefaulttimeout(30)
