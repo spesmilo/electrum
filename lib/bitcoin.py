@@ -20,7 +20,6 @@
 import hashlib
 import base64
 import re
-import sys
 import hmac
 
 import version
@@ -174,31 +173,6 @@ def is_old_seed(seed):
 
 # pywallet openssl private key implementation
 
-def i2d_ECPrivateKey(pkey, compressed=False):
-    if compressed:
-        key = '3081d30201010420' + \
-              '%064x' % pkey.secret + \
-              'a081a53081a2020101302c06072a8648ce3d0101022100' + \
-              '%064x' % _p + \
-              '3006040100040107042102' + \
-              '%064x' % _Gx + \
-              '022100' + \
-              '%064x' % _r + \
-              '020101a124032200'
-    else:
-        key = '308201130201010420' + \
-              '%064x' % pkey.secret + \
-              'a081a53081a2020101302c06072a8648ce3d0101022100' + \
-              '%064x' % _p + \
-              '3006040100040107044104' + \
-              '%064x' % _Gx + \
-              '%064x' % _Gy + \
-              '022100' + \
-              '%064x' % _r + \
-              '020101a144034200'
-
-    return key.decode('hex') + i2o_ECPublicKey(pkey.pubkey, compressed)
-
 def i2o_ECPublicKey(pubkey, compressed=False):
     # public keys are 65 bytes long (520 bits)
     # 0x04 + 32-byte X-coordinate + 32-byte Y-coordinate
@@ -347,10 +321,6 @@ def regenerate_key(sec):
 
 def GetPubKey(pubkey, compressed=False):
     return i2o_ECPublicKey(pubkey, compressed)
-
-
-def GetPrivKey(pkey, compressed=False):
-    return i2d_ECPrivateKey(pkey, compressed)
 
 
 def GetSecret(pkey):

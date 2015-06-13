@@ -45,7 +45,10 @@ class DaemonThread(threading.Thread):
             self.running = False
 
     def print_error(self, *msg):
-        print_error("[%s]"%self.__class__.__name__, *msg)
+        print_error("[%s]" % self.__class__.__name__, *msg)
+
+    def print_msg(self, *msg):
+        print_msg("[%s]" % self.__class__.__name__, *msg)
 
 
 

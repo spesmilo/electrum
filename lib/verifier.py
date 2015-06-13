@@ -92,7 +92,7 @@ class SPV(util.DaemonThread):
 
 
     def undo_verifications(self, height):
-        tx_hashes = selt.wallet.undo_verifications(height)
+        tx_hashes = self.wallet.undo_verifications(height)
         for tx_hash in tx_hashes:
             self.print_error("redoing", tx_hash)
             self.merkle_roots.pop(tx_hash, None)
