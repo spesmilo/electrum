@@ -24,6 +24,7 @@ import bitcoin
 from bitcoin import *
 from util import print_error
 import time
+import sys
 import struct
 
 #
