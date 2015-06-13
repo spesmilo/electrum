@@ -3,4 +3,4 @@ language: python
 python:
     - "2.7"
 install: "pip install slowaes==0.1a1 ecdsa>=0.9 pbkdf2 requests pyasn1 pyasn1-modules tlslite>=0.4.5 qrcode SocksiPy-branch protobuf"
-script: nosetests -e gui -e plugins
+script: py.test -v
