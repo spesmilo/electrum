@@ -24,7 +24,6 @@ def setAlternateCoinVersions(self, regular, p2sh):
     self.dongle.exchange(bytearray(apdu))
 
 try:
-    from usb.core import USBError
     from btchip.btchipComm import getDongle, DongleWait
     from btchip.btchip import btchip
     from btchip.btchipUtils import compress_public_key,format_transaction, get_regular_input_script
@@ -34,7 +33,7 @@ try:
     from btchip.btchipException import BTChipException
     btchip.setAlternateCoinVersions = setAlternateCoinVersions
     BTCHIP = True
-    BTCHIP_DEBUG = False
+    BTCHIP_DEBUG = False 
 except ImportError:
     BTCHIP = False
 
@@ -364,6 +363,7 @@ class BTChipWallet(BIP32_HD_Wallet):
         outputAmount = None
         use2FA = False
         pin = ""
+        rawTx = tx.serialize()
         # Fetch inputs of the transaction to sign
         for txinput in tx.inputs:
             if ('is_coinbase' in txinput and txinput['is_coinbase']):
@@ -411,17 +411,39 @@ class BTChipWallet(BIP32_HD_Wallet):
                 self.get_client().startUntrustedTransaction(firstTransaction, inputIndex, 
                 trustedInputs, redeemScripts[inputIndex])
                 outputData = self.get_client().finalizeInput(output, format_satoshis(outputAmount), 
-                format_satoshis(self.get_tx_fee(tx)), changePath)
+                format_satoshis(self.get_tx_fee(tx)), changePath, bytearray(rawTx.decode('hex')))
                 if firstTransaction:
                     transactionOutput = outputData['outputData']
                 if outputData['confirmationNeeded']:                
                     use2FA = True
                     # TODO : handle different confirmation types. For the time being only supports keyboard 2FA
                     waitDialog.emit(SIGNAL('dongle_done'))
-                    confirmed, p, pin = self.password_dialog()
-                    if not confirmed:
-                        raise Exception('Aborted by user')
-                    pin = pin.encode()
+                    if 'keycardData' in outputData:
+                        pin2 = ""
+                        for keycardIndex in range(len(outputData['keycardData'])):
+                            msg = "Do not enter your device PIN here !\r\n\r\n" + \
+                                "Your BTChip wants to talk to you and tell you a unique second factor code.\r\n" + \
+                                "For this to work, please match the character between stars of the output address using your security card\r\n\r\n" + \
+                                "Output address : " 
+                            for index in range(len(output)):
+                                if index == outputData['keycardData'][keycardIndex]:
+                                    msg = msg + "*" + output[index] + "*"
+                                else:
+                                    msg = msg + output[index]
+                            msg = msg + "\r\n"                        
+                            confirmed, p, pin = self.password_dialog(msg)
+                            if not confirmed:
+                                raise Exception('Aborted by user') 
+                            try:
+                                pin2 = pin2 + chr(int(pin[0], 16))
+                            except:
+                                raise Exception('Invalid PIN character')
+                        pin = pin2
+                    else:
+                        confirmed, p, pin = self.password_dialog()
+                        if not confirmed:
+                            raise Exception('Aborted by user')                                            
+                        pin = pin.encode()
                     self.client.bad = True
                     self.device_checked = False
                     self.get_client(True)
@@ -516,16 +538,5 @@ if BTCHIP:
             self.dongle = dongle
 
         def waitFirstResponse(self, timeout):
-            customTimeout = 0
-            while customTimeout < timeout:
-                try:
-                    response = self.dongle.waitFirstResponse(200)
-                    return response
-                except USBError, e:
-                    if e.backend_error_code == -7:
-                        QApplication.processEvents()
-                        customTimeout = customTimeout + 100
-                        pass
-                    else:
-                        raise e
-            raise e
+	    return self.dongle.waitFirstResponse(timeout)
+

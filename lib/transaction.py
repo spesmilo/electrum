@@ -627,6 +627,10 @@ class Transaction:
 
         return script
 
+    def BIP_LI01_sort(self):
+        # See https://github.com/kristovatlas/rfc/blob/master/bips/bip-li01.mediawiki
+        self.inputs.sort(key = lambda i: (i['prevout_hash'], i['prevout_n']))
+        self.outputs.sort(key = lambda o: (o[2], self.pay_script(o[0], o[1])))
 
     def serialize(self, for_sig=None):
         inputs = self.inputs
