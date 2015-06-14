@@ -898,26 +898,25 @@ class Abstract_Wallet(object):
         # if change is above dust threshold, add a change output.
         change_amount = total - ( amount + fee )
         if fixed_fee is not None and change_amount > 0:
-            # Insert the change output at a random position in the outputs
-            posn = random.randint(0, len(tx.outputs))
-            tx.outputs[posn:posn] = [( 'address', change_addr,  change_amount)]
+            tx.outputs.append(('address', change_addr, change_amount))
         elif change_amount > DUST_THRESHOLD:
-            # Insert the change output at a random position in the outputs
-            posn = random.randint(0, len(tx.outputs))
-            tx.outputs[posn:posn] = [( 'address', change_addr,  change_amount)]
+            tx.outputs.append(('address', change_addr, change_amount))
             # recompute fee including change output
             fee = self.estimated_fee(tx)
             # remove change output
-            tx.outputs.pop(posn)
+            tx.outputs.pop()
             # if change is still above dust threshold, re-add change output.
             change_amount = total - ( amount + fee )
             if change_amount > DUST_THRESHOLD:
-                tx.outputs[posn:posn] = [( 'address', change_addr,  change_amount)]
+                tx.outputs.append(('address', change_addr, change_amount))
                 print_error('change', change_amount)
             else:
                 print_error('not keeping dust', change_amount)
         else:
             print_error('not keeping dust', change_amount)
+
+        # Sort the inputs and outputs deterministically
+        tx.BIP_LI01_sort()
 
         run_hook('make_unsigned_transaction', tx)
         return tx
