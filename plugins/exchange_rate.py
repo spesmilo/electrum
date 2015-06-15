@@ -111,7 +111,7 @@ class Exchanger(threading.Thread):
         return {"USD": Decimal(jsonresp["last_price"])}
 
     def update_be(self):
-        quote_currencies = {"CNH": 0.0, "EUR": 0.0, "GBP": 0.0, "RUR": 0.0, "USD": 0.0}
+        quote_currencies = {"EUR": 0.0, "RUR": 0.0, "USD": 0.0}
         jsonresp = self.get_json('btc-e.com', "/api/3/ticker/" + ('-'.join(['ltc_'+c.lower() for c in quote_currencies])))
         for cur in quote_currencies:
             quote_currencies[cur] = Decimal(str(jsonresp['ltc_'+cur.lower()]["last"]))
