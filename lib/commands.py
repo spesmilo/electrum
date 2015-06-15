@@ -331,9 +331,9 @@ class Commands:
         """Import a private key. """
         try:
             addr = self.wallet.import_key(privkey, self.password)
-            out = "Keypair imported: ", addr
+            out = "Keypair imported: " + addr
         except Exception as e:
-            out = "Error: Keypair import failed: " + str(e)
+            out = "Error: " + str(e)
         return out
 
     def _resolver(self, x):
