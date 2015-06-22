@@ -291,7 +291,7 @@ class Abstract_Wallet(object):
         return account is not None
 
     def import_key(self, sec, password):
-        assert self.can_import()
+        assert self.can_import(), 'This wallet cannot import private keys'
         try:
             pubkey = public_key_from_private_key(sec)
             address = public_key_to_bc_address(pubkey.decode('hex'))
