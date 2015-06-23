@@ -16,7 +16,7 @@ from electrum.plugins import BasePlugin, hook
 from electrum.transaction import deserialize
 from electrum.wallet import BIP32_HD_Wallet, BIP32_Wallet
 
-from electrum.util import format_satoshis
+from electrum.util import format_satoshis_plain
 import hashlib
 
 try:
@@ -396,8 +396,8 @@ class BTChipWallet(BIP32_HD_Wallet):
             while inputIndex < len(inputs):
                 self.get_client().startUntrustedTransaction(firstTransaction, inputIndex, 
                 trustedInputs, redeemScripts[inputIndex])
-                outputData = self.get_client().finalizeInput(output, format_satoshis(outputAmount), 
-                format_satoshis(self.get_tx_fee(tx)), changePath, bytearray(rawTx.decode('hex')))
+                outputData = self.get_client().finalizeInput(output, format_satoshis_plain(outputAmount), 
+                format_satoshis_plain(self.get_tx_fee(tx)), changePath, bytearray(rawTx.decode('hex')))
                 if firstTransaction:
                     transactionOutput = outputData['outputData']
                 if outputData['confirmationNeeded']:                
