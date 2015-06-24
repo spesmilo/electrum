@@ -1434,6 +1434,9 @@ class ElectrumWindow(QMainWindow):
             menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(key))
             menu.addAction(_("Pay to"), lambda: self.payto(self.get_contact_payto(key)))
             menu.addAction(_("Delete"), lambda: self.delete_contact(key))
+            addr_URL = block_explorer_URL(self.config, 'addr', unicode(item.text(1)))
+            if addr_URL:
+                menu.addAction(_("View on block explorer"), lambda: webbrowser.open(addr_URL))
 
         run_hook('create_contact_menu', menu, item)
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))

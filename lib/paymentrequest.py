@@ -224,7 +224,7 @@ class PaymentRequest:
         if not self.details.payment_url:
             return False, "no url"
 
-        paymnt = paymentrequest_pb2.Payment()
+        paymnt = pb2.Payment()
         paymnt.merchant_data = pay_det.merchant_data
         paymnt.transactions.append(raw_tx)
 
