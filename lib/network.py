@@ -548,7 +548,9 @@ class Network(util.DaemonThread):
                 # If not finished, get the next header
                 if next_height in [True, False]:
                     self.bc_requests.popleft()
-                    if not next_height:
+                    if next_height:
+                        self.notify('updated')
+                    else:
                         interface.print_error("header didn't connect, dismissing interface")
                         interface.stop()
                 else:
