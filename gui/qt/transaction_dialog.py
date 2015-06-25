@@ -16,25 +16,17 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import sys, time, datetime, re, threading
-from electrum.i18n import _, set_language
-from electrum.util import print_error, print_msg
-import os.path, json, ast, traceback
-import shutil
-import StringIO
+import datetime
+import json
 
-
-try:
-    import PyQt4
-except Exception:
-    sys.exit("Error: Could not import PyQt4 on Linux systems, you may try 'sudo apt-get install python-qt4'")
-
+import PyQt4
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
 from electrum import transaction
 from electrum.bitcoin import base_encode
+from electrum.i18n import _
 from electrum.plugins import run_hook
 
 from util import *
@@ -42,12 +34,16 @@ from util import *
 
 class TxDialog(QWidget):
 
-    def __init__(self, tx, parent):
+    def __init__(self, tx, parent, desc=None):
+        '''Transactions in the wallet will show their description.
+        Pass desc to give a description for txs not yet in the wallet.
+        '''
         self.tx = tx
         tx_dict = tx.as_dict()
         self.parent = parent
         self.wallet = parent.wallet
         self.saved = True
+        self.desc = desc
 
         QWidget.__init__(self)
         self.setMinimumWidth(600)
@@ -65,6 +61,8 @@ class TxDialog(QWidget):
         self.status_label = QLabel()
         vbox.addWidget(self.status_label)
 
+        self.tx_desc = QLabel()
+        vbox.addWidget(self.tx_desc)
         self.date_label = QLabel()
         vbox.addWidget(self.date_label)
         self.amount_label = QLabel()
@@ -125,9 +123,7 @@ class TxDialog(QWidget):
 
     def sign(self):
         def sign_done(success):
-            self.sign_button.setDisabled(False)
             self.update()
-        self.sign_button.setDisabled(True)
         self.parent.send_tx(self.tx, sign_done)
 
     def save(self):
@@ -143,6 +139,7 @@ class TxDialog(QWidget):
     def update(self):
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
         tx_hash = self.tx.hash()
+        desc = self.desc
         if self.wallet.can_sign(self.tx):
             self.sign_button.show()
         else:
@@ -152,6 +149,7 @@ class TxDialog(QWidget):
             status = _("Signed")
 
             if tx_hash in self.wallet.transactions.keys():
+                desc, is_default = self.wallet.get_label(tx_hash)
                 conf, timestamp = self.wallet.get_confirmations(tx_hash)
                 if timestamp:
                     time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
@@ -171,6 +169,11 @@ class TxDialog(QWidget):
             tx_hash = 'unknown'
 
         self.tx_hash_e.setText(tx_hash)
+        if desc is None:
+            self.tx_desc.hide()
+        else:
+            self.tx_desc.setText(_("Description") + ': ' + desc)
+            self.tx_desc.show()
         self.status_label.setText(_('Status:') + ' ' + status)
 
         if time_str is not None:
