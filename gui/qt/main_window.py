@@ -16,13 +16,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import sys, time, re, threading
-from electrum.i18n import _, set_language
-from electrum.util import block_explorer, block_explorer_info, block_explorer_URL
-from electrum.util import print_error, print_msg
-import os.path, json, ast, traceback
+import sys, time, threading
+import os.path, json, traceback
 import shutil
-import StringIO
 
 
 import PyQt4
@@ -35,6 +31,9 @@ from electrum.plugins import run_hook
 
 import icons_rc
 
+from electrum.i18n import _
+from electrum.util import block_explorer, block_explorer_info, block_explorer_URL
+from electrum.util import print_error, print_msg
 from electrum.util import format_satoshis, format_satoshis_plain, format_time, NotEnoughFunds, StoreDict
 from electrum import Transaction
 from electrum import mnemonic
@@ -299,7 +298,6 @@ class ElectrumWindow(QMainWindow):
 
 
     def backup_wallet(self):
-        import shutil
         path = self.wallet.storage.path
         wallet_folder = os.path.dirname(path)
         filename = unicode( QFileDialog.getSaveFileName(self, _('Enter a filename for the copy of your wallet'), wallet_folder) )
@@ -570,9 +568,10 @@ class ElectrumWindow(QMainWindow):
         d = address_dialog.AddressDialog(addr, self)
         d.exec_()
 
-    def show_transaction(self, tx):
+    def show_transaction(self, tx, tx_desc = None):
+        '''tx_desc is set only for txs created in the Send tab'''
         import transaction_dialog
-        d = transaction_dialog.TxDialog(tx, self)
+        d = transaction_dialog.TxDialog(tx, self, tx_desc)
         d.show()
 
     def update_history_tab(self):
@@ -835,6 +834,21 @@ class ElectrumWindow(QMainWindow):
         if self.qr_window and self.qr_window.isVisible():
             self.qr_window.set_content(addr, amount, message, uri)
 
+    def show_before_broadcast(self):
+        return self.config.get('show_before_broadcast', False)
+
+    def set_show_before_broadcast(self, show):
+        self.config.set_key('show_before_broadcast', bool(show))
+        self.set_send_button_text()
+
+    def set_send_button_text(self):
+        if self.show_before_broadcast():
+            text = _("Show...")
+        elif self.wallet.is_watching_only():
+            text = _("Create unsigned transaction")
+        else:
+            text = _("Send")
+        self.send_button.setText(text)
 
     def create_send_tab(self):
         self.send_grid = grid = QGridLayout()
@@ -888,7 +902,8 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.fee_e_label, 5, 0)
         grid.addWidget(self.fee_e, 5, 1, 1, 2)
 
-        self.send_button = EnterButton(_("Send"), self.do_send)
+        self.send_button = EnterButton('', self.do_send)
+        self.set_send_button_text()
         self.clear_button = EnterButton(_("Clear"), self.do_clear)
         buttons = QHBoxLayout()
         buttons.addStretch(1)
@@ -1096,15 +1111,17 @@ class ElectrumWindow(QMainWindow):
                 if not self.question(_("The fee for this transaction seems unusually high.\nAre you really sure you want to pay %(fee)s in fees?")%{ 'fee' : self.format_amount(fee) + ' '+ self.base_unit()}):
                     return
 
-        def sign_done(success):
-            if success:
-                if not tx.is_complete() or self.config.get('show_before_broadcast'):
-                    self.show_transaction(tx)
-                    self.do_clear()
-                else:
-                    self.broadcast_transaction(tx, tx_desc)
-
-        self.send_tx(tx, sign_done)
+        if self.show_before_broadcast():
+            self.show_transaction(tx, tx_desc)
+        else:
+            def sign_done(success):
+                if success:
+                    if not tx.is_complete():
+                        self.show_transaction(tx)
+                        self.do_clear()
+                    else:
+                        self.broadcast_transaction(tx, tx_desc)
+            self.send_tx(tx, sign_done)
 
 
     @protected
@@ -1131,7 +1148,6 @@ class ElectrumWindow(QMainWindow):
         # keep a reference to WaitingDialog or the gui might crash
         self.waiting_dialog = WaitingDialog(self, 'Signing transaction...', sign_thread, on_sign_successful, on_dialog_close)
         self.waiting_dialog.start()
-
 
 
     def broadcast_transaction(self, tx, tx_desc):
@@ -1670,7 +1686,7 @@ class ElectrumWindow(QMainWindow):
     def update_buttons_on_seed(self):
         self.seed_button.setVisible(self.wallet.has_seed())
         self.password_button.setVisible(self.wallet.can_change_password())
-        self.send_button.setText(_("Create unsigned transaction") if self.wallet.is_watching_only() else _("Send"))
+        self.set_send_button_text()
 
 
     def change_password_dialog(self):
@@ -2539,8 +2555,8 @@ class ElectrumWindow(QMainWindow):
         widgets.append((usechange_cb, None, usechange_help))
 
         showtx_cb = QCheckBox(_('Show transaction before broadcast'))
-        showtx_cb.setChecked(self.config.get('show_before_broadcast', False))
-        showtx_cb.stateChanged.connect(lambda x: self.config.set_key('show_before_broadcast', showtx_cb.isChecked()))
+        showtx_cb.setChecked(self.show_before_broadcast())
+        showtx_cb.stateChanged.connect(lambda x: self.set_show_before_broadcast(showtx_cb.isChecked()))
         showtx_help = HelpButton(_('Display the details of your transactions before broadcasting it.'))
         widgets.append((showtx_cb, None, showtx_help))
 
