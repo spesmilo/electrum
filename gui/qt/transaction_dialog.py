@@ -103,7 +103,7 @@ class TxDialog(QWidget):
         self.update()
 
     def do_broadcast(self):
-        self.parent.broadcast_transaction(self.tx)
+        self.parent.broadcast_transaction(self.tx, None)
         self.saved = True
 
     def close(self):
@@ -124,9 +124,11 @@ class TxDialog(QWidget):
 
 
     def sign(self):
-        self.parent.sign_raw_transaction(self.tx)
-        self.update()
-
+        def sign_done(success):
+            self.sign_button.setDisabled(False)
+            self.update()
+        self.sign_button.setDisabled(True)
+        self.parent.send_tx(self.tx, sign_done)
 
     def save(self):
         name = 'signed_%s.txn' % (self.tx.hash()[0:8]) if self.tx.is_complete() else 'unsigned.txn'

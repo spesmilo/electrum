@@ -1073,7 +1073,7 @@ class ElectrumWindow(QMainWindow):
         r = self.read_send_tab()
         if not r:
             return
-        outputs, fee, label, coins = r
+        outputs, fee, tx_desc, coins = r
         try:
             tx = self.wallet.make_unsigned_transaction(coins, outputs, fee)
             if not tx:
@@ -1096,39 +1096,45 @@ class ElectrumWindow(QMainWindow):
                 if not self.question(_("The fee for this transaction seems unusually high.\nAre you really sure you want to pay %(fee)s in fees?")%{ 'fee' : self.format_amount(fee) + ' '+ self.base_unit()}):
                     return
 
-        self.send_tx(tx, label)
+        def sign_done(success):
+            if success:
+                if not tx.is_complete() or self.config.get('show_before_broadcast'):
+                    self.show_transaction(tx)
+                    self.do_clear()
+                else:
+                    self.broadcast_transaction(tx, tx_desc)
+
+        self.send_tx(tx, sign_done)
 
 
     @protected
-    def send_tx(self, tx, label, password):
+    def send_tx(self, tx, callback, password):
+        '''Sign the transaction in a separate thread.  When done, calls
+        the callback with a success code of True or False.
+        '''
         self.send_button.setDisabled(True)
 
         # call hook to see if plugin needs gui interaction
         run_hook('send_tx', tx)
 
         # sign the tx
+        success = [False]  # Array to work around python scoping
         def sign_thread():
-            if self.wallet.is_watching_only():
-                return tx
-            self.wallet.sign_transaction(tx, password)
-            return tx
-
-        def sign_done(tx):
-            if label and tx.is_complete():
-                self.wallet.set_label(tx.hash(), label)
-            if not tx.is_complete() or self.config.get('show_before_broadcast'):
-                self.show_transaction(tx)
-                self.do_clear()
-                return
-            self.broadcast_transaction(tx)
+            if not self.wallet.is_watching_only():
+                self.wallet.sign_transaction(tx, password)
+        def on_sign_successful(ret):
+            success[0] = True
+        def on_dialog_close():
+            self.send_button.setDisabled(False)
+            callback(success[0])
 
         # keep a reference to WaitingDialog or the gui might crash
-        self.waiting_dialog = WaitingDialog(self, 'Signing..', sign_thread, sign_done, lambda: self.send_button.setDisabled(False))
+        self.waiting_dialog = WaitingDialog(self, 'Signing transaction...', sign_thread, on_sign_successful, on_dialog_close)
         self.waiting_dialog.start()
 
 
 
-    def broadcast_transaction(self, tx):
+    def broadcast_transaction(self, tx, tx_desc):
 
         def broadcast_thread():
             # non-GUI thread
@@ -1153,6 +1159,8 @@ class ElectrumWindow(QMainWindow):
         def broadcast_done(status, msg):
             # GUI thread
             if status:
+                if tx_desc is not None and tx.is_complete():
+                    self.wallet.set_label(tx.hash(), tx_desc)
                 QMessageBox.information(self, '', _('Payment sent.') + '\n' + msg, _('OK'))
                 self.update_invoices_list()
                 self.do_clear()
@@ -1160,7 +1168,7 @@ class ElectrumWindow(QMainWindow):
                 QMessageBox.warning(self, _('Error'), msg, _('OK'))
             self.send_button.setDisabled(False)
 
-        self.waiting_dialog = WaitingDialog(self, 'Broadcasting..', broadcast_thread, broadcast_done)
+        self.waiting_dialog = WaitingDialog(self, 'Broadcasting transaction...', broadcast_thread, broadcast_done)
         self.waiting_dialog.start()
 
 
@@ -2113,14 +2121,6 @@ class ElectrumWindow(QMainWindow):
 
         return self.tx_from_text(file_content)
 
-
-    @protected
-    def sign_raw_transaction(self, tx, password):
-        try:
-            self.wallet.sign_transaction(tx, password)
-        except Exception as e:
-            traceback.print_exc(file=sys.stdout)
-            QMessageBox.warning(self, _("Error"), str(e))
 
     def do_process_from_text(self):
         text = text_dialog(self, _('Input raw transaction'), _("Transaction:"), _("Load transaction"))
