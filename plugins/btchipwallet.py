@@ -430,9 +430,9 @@ class BTChipWallet(BIP32_HD_Wallet):
                         if not confirmed:
                             raise Exception('Aborted by user')                                            
                         pin = pin.encode()
-                    self.client.bad = True
-                    self.device_checked = False
-                    self.get_client(True)
+                        self.client.bad = True
+                        self.device_checked = False
+                        self.get_client(True)
                     waitDialog.start("Signing ...")
                 else:
                     # Sign input with the provided PIN
