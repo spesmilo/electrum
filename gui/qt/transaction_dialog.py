@@ -140,10 +140,8 @@ class TxDialog(QWidget):
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
         tx_hash = self.tx.hash()
         desc = self.desc
-        if self.wallet.can_sign(self.tx):
-            self.sign_button.show()
-        else:
-            self.sign_button.hide()
+        have_action = False
+        time_str = None
 
         if self.tx.is_complete():
             status = _("Signed")
@@ -154,19 +152,34 @@ class TxDialog(QWidget):
                 if timestamp:
                     time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
                 else:
-                    time_str = 'pending'
+                    time_str = _('Pending')
                 status = _("%d confirmations")%conf
                 self.broadcast_button.hide()
             else:
-                time_str = None
                 conf = 0
                 self.broadcast_button.show()
+                # cannot broadcast when offline
+                if self.parent.network is None:
+                    self.broadcast_button.setEnabled(False)
+                else:
+                    have_action = True
         else:
             s, r = self.tx.signature_count()
             status = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
-            time_str = None
             self.broadcast_button.hide()
-            tx_hash = 'unknown'
+            tx_hash = _('Unknown');
+
+        if self.wallet.can_sign(self.tx):
+            self.sign_button.show()
+            have_action = True
+        else:
+            self.sign_button.hide()
+
+        # Cancel if an action, otherwise close
+        if have_action:
+            self.cancel_button.setText(_("Cancel"))
+        else:
+            self.cancel_button.setText(_("Close"))
 
         self.tx_hash_e.setText(tx_hash)
         if desc is None:
@@ -181,10 +194,6 @@ class TxDialog(QWidget):
             self.date_label.show()
         else:
             self.date_label.hide()
-
-        # cannot broadcast when offline
-        if self.parent.network is None:
-            self.broadcast_button.setEnabled(False)
 
         # if we are not synchronized, we cannot tell
         if not self.wallet.up_to_date:
@@ -238,8 +247,8 @@ class TxDialog(QWidget):
             else:
                 prevout_hash = x.get('prevout_hash')
                 prevout_n = x.get('prevout_n')
-                cursor.insertText(prevout_hash[0:8] + '...' + prevout_hash[-8:] + ":%d"%prevout_n, ext)
-                cursor.insertText('\t')
+                cursor.insertText(prevout_hash[0:8] + '...', ext)
+                cursor.insertText(prevout_hash[-8:] + ":%3d  " % prevout_n, ext)
                 addr = x.get('address')
                 if addr == "(pubkey)":
                     _addr = self.wallet.find_pay_to_pubkey_address(prevout_hash, prevout_n)
