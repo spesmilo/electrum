@@ -101,7 +101,7 @@ class TxDialog(QWidget):
         self.update()
 
     def do_broadcast(self):
-        self.parent.broadcast_transaction(self.tx, None)
+        self.parent.broadcast_transaction(self.tx, self.desc)
         self.saved = True
 
     def close(self):
