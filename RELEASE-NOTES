@@ -1,3 +1,9 @@
+# Release 2.3.3
+ * fix proxy settings (issue #1309)
+ * improvements to the transaction dialog:
+    - request password after showing transaction
+    - show change addresses in yellow color
+
 # Release 2.3.2
  * minor bugfixes
  * updated ledger plugin
