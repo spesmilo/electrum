@@ -10,13 +10,13 @@ from base64 import b64encode, b64decode
 import electrum_ltc as electrum
 from electrum_ltc_gui.qt.password_dialog import make_password_dialog, run_password_dialog
 from electrum_ltc.account import BIP32_Account
-from electrum_ltc.bitcoin import EncodeBase58Check, DecodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160, hash_160_to_bc_address
+from electrum_ltc.bitcoin import EncodeBase58Check, DecodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.transaction import deserialize
 from electrum_ltc.wallet import BIP32_HD_Wallet, BIP32_Wallet
 
-from electrum_ltc.util import format_satoshis
+from electrum_ltc.util import format_satoshis_plain
 import hashlib
 
 def setAlternateCoinVersions(self, regular, p2sh):
@@ -410,8 +410,8 @@ class BTChipWallet(BIP32_HD_Wallet):
             while inputIndex < len(inputs):
                 self.get_client().startUntrustedTransaction(firstTransaction, inputIndex, 
                 trustedInputs, redeemScripts[inputIndex])
-                outputData = self.get_client().finalizeInput(output, format_satoshis(outputAmount), 
-                format_satoshis(self.get_tx_fee(tx)), changePath, bytearray(rawTx.decode('hex')))
+                outputData = self.get_client().finalizeInput(output, format_satoshis_plain(outputAmount), 
+                format_satoshis_plain(self.get_tx_fee(tx)), changePath, bytearray(rawTx.decode('hex')))
                 if firstTransaction:
                     transactionOutput = outputData['outputData']
                 if outputData['confirmationNeeded']:                
@@ -444,9 +444,9 @@ class BTChipWallet(BIP32_HD_Wallet):
                         if not confirmed:
                             raise Exception('Aborted by user')                                            
                         pin = pin.encode()
-                    self.client.bad = True
-                    self.device_checked = False
-                    self.get_client(True)
+                        self.client.bad = True
+                        self.device_checked = False
+                        self.get_client(True)
                     waitDialog.start("Signing ...")
                 else:
                     # Sign input with the provided PIN
