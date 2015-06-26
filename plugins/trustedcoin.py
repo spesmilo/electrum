@@ -34,7 +34,7 @@ from electrum import bitcoin
 from electrum.bitcoin import *
 from electrum.mnemonic import Mnemonic
 from electrum import version
-from electrum.wallet import Wallet_2of3
+from electrum.wallet import Multisig_Wallet, BIP32_Wallet
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, run_hook, hook
 
@@ -170,9 +170,13 @@ class TrustedCoinCosignerClient(object):
 server = TrustedCoinCosignerClient(user_agent="Electrum/" + version.ELECTRUM_VERSION)
 
 
-class Wallet_2fa(Wallet_2of3):
+class Wallet_2fa(Multisig_Wallet):
 
-    wallet_type = '2fa'
+    def __init__(self, storage):
+        BIP32_Wallet.__init__(self, storage)
+        self.wallet_type = '2fa'
+        self.m = 2
+        self.n = 3
 
     def get_action(self):
         xpub1 = self.master_public_keys.get("x1/")
@@ -191,13 +195,13 @@ class Wallet_2fa(Wallet_2of3):
         return Mnemonic('english').make_seed(num_bits=256, prefix=SEED_PREFIX)
 
     def estimated_fee(self, tx):
-        fee = Wallet_2of3.estimated_fee(self, tx)
+        fee = Multisig_Wallet.estimated_fee(self, tx)
         x = run_hook('extra_fee', tx)
         if x: fee += x
         return fee
 
     def get_tx_fee(self, tx):
-        fee = Wallet_2of3.get_tx_fee(self, tx)
+        fee = Multisig_Wallet.get_tx_fee(self, tx)
         x = run_hook('extra_fee', tx)
         if x: fee += x
         return fee
