@@ -215,9 +215,17 @@ class TxDialog(QWidget):
         vbox.addWidget(QLabel(_("Inputs")))
 
         ext = QTextCharFormat()
-        own = QTextCharFormat()
-        own.setBackground(QBrush(QColor("lightgreen")))
-        own.setToolTip(_("Own address"))
+        rec = QTextCharFormat()
+        rec.setBackground(QBrush(QColor("lightgreen")))
+        rec.setToolTip(_("Wallet receive address"))
+        chg = QTextCharFormat()
+        chg.setBackground(QBrush(QColor("yellow")))
+        chg.setToolTip(_("Wallet change address"))
+
+        def text_format(addr):
+            if self.wallet.is_mine(addr):
+                return chg if self.wallet.is_change(addr) else rec
+            return ext
 
         i_text = QTextEdit()
         i_text.setFont(QFont(MONOSPACE_FONT))
@@ -239,7 +247,7 @@ class TxDialog(QWidget):
                         addr = _addr
                 if addr is None:
                     addr = _('unknown')
-                cursor.insertText(addr, own if self.wallet.is_mine(addr) else ext)
+                cursor.insertText(addr, text_format(addr))
             cursor.insertBlock()
 
         vbox.addWidget(i_text)
@@ -250,10 +258,10 @@ class TxDialog(QWidget):
         o_text.setMaximumHeight(100)
         cursor = o_text.textCursor()
         for addr, v in self.tx.get_outputs():
-            cursor.insertText(addr, own if self.wallet.is_mine(addr) else ext)
+            cursor.insertText(addr, text_format(addr))
             if v is not None:
                 cursor.insertText('\t', ext)
-                cursor.insertText(self.parent.format_amount(v), ext)
+                cursor.insertText(self.parent.format_amount(v, whitespaces = True), ext)
             cursor.insertBlock()
         vbox.addWidget(o_text)
 
