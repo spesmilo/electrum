@@ -522,7 +522,7 @@ class InstallWizard(QDialog):
                 if not key_list:
                     return
                 password = self.password_dialog() if any(map(lambda x: Wallet.is_seed(x) or Wallet.is_xprv(x), key_list)) else None
-                wallet = Wallet.from_multisig(key_list, password, self.storage)
+                wallet = Wallet.from_multisig(key_list, password, self.storage, t)
 
             else:
                 self.storage.put('wallet_type', t, False)
