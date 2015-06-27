@@ -251,7 +251,7 @@ class TxDialog(QWidget):
                 prevout_hash = x.get('prevout_hash')
                 prevout_n = x.get('prevout_n')
                 cursor.insertText(prevout_hash[0:8] + '...', ext)
-                cursor.insertText(prevout_hash[-8:] + ":%3d  " % prevout_n, ext)
+                cursor.insertText(prevout_hash[-8:] + ":%-4d " % prevout_n, ext)
                 addr = x.get('address')
                 if addr == "(pubkey)":
                     _addr = self.wallet.find_pay_to_pubkey_address(prevout_hash, prevout_n)
