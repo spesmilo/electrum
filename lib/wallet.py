@@ -1999,7 +1999,8 @@ class Wallet(object):
         return w
 
     @classmethod
-    def from_multisig(klass, key_list, password, storage):
+    def from_multisig(klass, key_list, password, storage, wallet_type):
+        storage.put('wallet_type', wallet_type, True)
         self = Multisig_Wallet(storage)
         key_list = sorted(key_list, key = lambda x: klass.is_xpub(x))
         for i, text in enumerate(key_list):
