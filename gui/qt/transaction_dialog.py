@@ -31,10 +31,13 @@ from electrum_ltc.plugins import run_hook
 
 from util import *
 
+def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
+    d = TxDialog(tx, parent, desc, prompt_if_unsaved)
+    d.show()
 
 class TxDialog(QWidget):
 
-    def __init__(self, tx, parent, desc=None):
+    def __init__(self, tx, parent, desc, prompt_if_unsaved):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''
@@ -42,7 +45,7 @@ class TxDialog(QWidget):
         tx_dict = tx.as_dict()
         self.parent = parent
         self.wallet = parent.wallet
-        self.saved = True
+        self.saved = not prompt_if_unsaved
         self.desc = desc
 
         QWidget.__init__(self)
@@ -248,7 +251,7 @@ class TxDialog(QWidget):
                 prevout_hash = x.get('prevout_hash')
                 prevout_n = x.get('prevout_n')
                 cursor.insertText(prevout_hash[0:8] + '...', ext)
-                cursor.insertText(prevout_hash[-8:] + ":%3d  " % prevout_n, ext)
+                cursor.insertText(prevout_hash[-8:] + ":%-4d " % prevout_n, ext)
                 addr = x.get('address')
                 if addr == "(pubkey)":
                     _addr = self.wallet.find_pay_to_pubkey_address(prevout_hash, prevout_n)
