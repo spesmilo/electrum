@@ -180,12 +180,24 @@ class InstallWizard(QDialog):
 
     def multi_mpk_dialog(self, xpub_hot, n):
         vbox = QVBoxLayout()
+        scroll = QScrollArea()
+        scroll.setEnabled(True)
+        scroll.setWidgetResizable(True)
+        vbox.addWidget(scroll)
+
+        w = QWidget()
+        scroll.setWidget(w)
+        w.setMinimumHeight(n*20)
+
+        innerVbox = QVBoxLayout()
+        w.setLayout(innerVbox)
+
         vbox0 = seed_dialog.show_seed_box(MSG_SHOW_MPK, xpub_hot, 'hot')
-        vbox.addLayout(vbox0)
+        innerVbox.addLayout(vbox0)
         entries = []
         for i in range(n):
             vbox2, seed_e2 = seed_dialog.enter_seed_box(MSG_ENTER_COLD_MPK, self, 'cold')
-            vbox.addLayout(vbox2)
+            innerVbox.addLayout(vbox2)
             entries.append(seed_e2)
         vbox.addStretch(1)
         button = OkButton(self, _('Next'))
@@ -202,12 +214,25 @@ class InstallWizard(QDialog):
 
     def multi_seed_dialog(self, n):
         vbox = QVBoxLayout()
+        scroll = QScrollArea()
+        scroll.setEnabled(True)
+        scroll.setWidgetResizable(True)
+        vbox.addWidget(scroll)
+
+        w = QWidget()
+        scroll.setWidget(w)
+        w.setMinimumHeight(n*20)
+
+        innerVbox = QVBoxLayout()
+        w.setLayout(innerVbox)
+
+        vbox0 = seed_dialog.show_seed_box(MSG_SHOW_MPK, xpub_hot, 'hot')
         vbox1, seed_e1 = seed_dialog.enter_seed_box(MSG_ENTER_SEED_OR_MPK, self, 'hot')
-        vbox.addLayout(vbox1)
+        innerVbox.addLayout(vbox1)
         entries = [seed_e1]
         for i in range(n):
             vbox2, seed_e2 = seed_dialog.enter_seed_box(MSG_ENTER_SEED_OR_MPK, self, 'cold')
-            vbox.addLayout(vbox2)
+            innerVbox.addLayout(vbox2)
             entries.append(seed_e2)
         vbox.addStretch(1)
         button = OkButton(self, _('Next'))
