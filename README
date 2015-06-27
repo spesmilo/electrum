@@ -37,7 +37,6 @@ http://electrum.org/bitcoin_URIs.html
 2. HOW OFFICIAL PACKAGES ARE CREATED
 ------------------------------------
 
-python mki18n.py
 pyrcc4 icons.qrc -o gui/qt/icons_rc.py
 python setup.py sdist --format=zip,gztar
 
