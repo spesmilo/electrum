@@ -97,10 +97,15 @@ class TxDialog(QWidget):
 
         self.copy_button = CopyButton(lambda: str(self.tx), self.parent.app)
 
-        self.buttons = [self.copy_button, self.qr_button, self.sign_button, self.broadcast_button, self.save_button, self.cancel_button]
+        # Action buttons
+        self.buttons = [self.sign_button, self.broadcast_button, self.cancel_button]
         run_hook('transaction_dialog', self)
 
-        vbox.addLayout(Buttons(*self.buttons))
+        hbox = QHBoxLayout()
+        hbox.addLayout(Buttons(self.copy_button, self.qr_button, self.save_button))
+        hbox.addStretch(1)
+        hbox.addLayout(Buttons(*self.buttons))
+        vbox.addLayout(hbox)
         self.update()
 
     def do_broadcast(self):
