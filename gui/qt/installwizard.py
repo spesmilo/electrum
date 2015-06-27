@@ -187,7 +187,6 @@ class InstallWizard(QDialog):
 
         w = QWidget()
         scroll.setWidget(w)
-        w.setMinimumHeight(n*20)
 
         innerVbox = QVBoxLayout()
         w.setLayout(innerVbox)
@@ -221,7 +220,6 @@ class InstallWizard(QDialog):
 
         w = QWidget()
         scroll.setWidget(w)
-        w.setMinimumHeight(n*20)
 
         innerVbox = QVBoxLayout()
         w.setLayout(innerVbox)
