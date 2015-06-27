@@ -2005,18 +2005,18 @@ class Wallet(object):
         for i, text in enumerate(key_list):
             assert klass.is_seed(text) or klass.is_xprv(text) or klass.is_xpub(text)
             name = "x%d/"%(i+1)
-            if klass.is_seed(text):
-                if name == 'x1/':
-                    self.add_seed(text, password)
-                    self.create_master_keys(password)
-                else:
-                    self.add_cosigner_seed(text, name, password)
-            elif klass.is_xprv(text):
+            if klass.is_xprv(text):
                 xpub = bitcoin.xpub_from_xprv(text)
                 self.add_master_public_key(name, xpub)
                 self.add_master_private_key(name, text, password)
             elif klass.is_xpub(text):
                 self.add_master_public_key(name, text)
+            elif klass.is_seed(text):
+                if name == 'x1/':
+                    self.add_seed(text, password)
+                    self.create_master_keys(password)
+                else:
+                    self.add_cosigner_seed(text, name, password)
         self.use_encryption = (password != None)
         self.storage.put('use_encryption', self.use_encryption, True)
         self.create_main_account(password)
