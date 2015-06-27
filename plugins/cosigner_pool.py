@@ -29,7 +29,7 @@ from electrum import transaction
 from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
 
-from electrum_gui.qt import transaction_dialog
+from electrum_gui.qt.transaction_dialog import show_transaction
 
 import sys
 import traceback
@@ -180,6 +180,4 @@ class Plugin(BasePlugin):
 
         self.listener.clear()
         tx = transaction.Transaction(message)
-        d = transaction_dialog.TxDialog(tx, self.win)
-        d.saved = False
-        d.show()
+        show_transaction(tx, self.win, prompt_if_unsaved=True)

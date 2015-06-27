@@ -46,6 +46,7 @@ from amountedit import AmountEdit, BTCAmountEdit, MyLineEdit
 from network_dialog import NetworkDialog
 from qrcodewidget import QRCodeWidget, QRDialog
 from qrtextedit import ScanQRTextEdit, ShowQRTextEdit
+from transaction_dialog import show_transaction
 
 from decimal import Decimal
 
@@ -570,9 +571,7 @@ class ElectrumWindow(QMainWindow):
 
     def show_transaction(self, tx, tx_desc = None):
         '''tx_desc is set only for txs created in the Send tab'''
-        import transaction_dialog
-        d = transaction_dialog.TxDialog(tx, self, tx_desc)
-        d.show()
+        show_transaction(tx, self, tx_desc)
 
     def update_history_tab(self):
         domain = self.wallet.get_account_addresses(self.current_account)

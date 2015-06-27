@@ -31,10 +31,13 @@ from electrum.plugins import run_hook
 
 from util import *
 
+def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
+    d = TxDialog(tx, parent, desc, prompt_if_unsaved)
+    d.show()
 
 class TxDialog(QWidget):
 
-    def __init__(self, tx, parent, desc=None):
+    def __init__(self, tx, parent, desc, prompt_if_unsaved):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''
@@ -42,7 +45,7 @@ class TxDialog(QWidget):
         tx_dict = tx.as_dict()
         self.parent = parent
         self.wallet = parent.wallet
-        self.saved = True
+        self.saved = not prompt_if_unsaved
         self.desc = desc
 
         QWidget.__init__(self)
