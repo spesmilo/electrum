@@ -97,13 +97,10 @@ class Plugin(BasePlugin):
             give_error('please install github.com/trezor/python-trezor')
 
         if not self.client or self.client.bad:
-            try:
-                d = HidTransport.enumerate()[0]
-                self.transport = HidTransport(d)
-            except:
-                import traceback
-                traceback.print_exc(file=sys.stdout)
+            d = HidTransport.enumerate()
+            if not d:
                 give_error('Could not connect to your Trezor. Please verify the cable is connected and that no other app is using it.')
+            self.transport = HidTransport(d[0])
             self.client = QtGuiTrezorClient(self.transport)
             self.client.handler = self.handler
             self.client.set_tx_api(self)
