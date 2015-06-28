@@ -80,17 +80,12 @@ class Plugin(BasePlugin):
 
     def compare_version(self, major, minor=0, patch=0):
         features = self.get_client().features
-        return cmp([features.major_version, features.minor_version, features.patch_version], [major, minor, patch])
+        v = [features.major_version, features.minor_version, features.patch_version]
+        self.print_error('firmware version', v)
+        return cmp(v, [major, minor, patch])
 
     def atleast_version(self, major, minor=0, patch=0):
         return self.compare_version(major, minor, patch) >= 0
-
-    def trezor_is_connected(self):
-        try:
-            self.get_client().ping('t')
-        except:
-            return False
-        return True
 
     def get_client(self):
         if not TREZOR:
@@ -106,6 +101,7 @@ class Plugin(BasePlugin):
             self.client.set_tx_api(self)
             self.client.bad = False
             if not self.atleast_version(1, 2, 1):
+                self.client = None
                 give_error('Outdated Trezor firmware. Please update the firmware from https://www.mytrezor.com')
         return self.client
 
@@ -135,12 +131,15 @@ class Plugin(BasePlugin):
         if self.handler is None:
             self.handler = TrezorQtHandler(self.window.app)
 
-        if self.trezor_is_connected():
-            if self.wallet.addresses() and not self.wallet.check_proper_device():
-                QMessageBox.information(self.window, _('Error'), _("This wallet does not match your Trezor device"), _('OK'))
-                self.wallet.force_watching_only = True
-        else:
-            QMessageBox.information(self.window, _('Error'), _("Trezor device not detected.\nContinuing in watching-only mode."), _('OK'))
+        try:
+            self.get_client().ping('t')
+        except BaseException as e:
+            QMessageBox.information(self.window, _('Error'), _("Trezor device not detected.\nContinuing in watching-only mode." + '\n\nReason:\n' + str(e)), _('OK'))
+            self.wallet.force_watching_only = True
+            return
+
+        if self.wallet.addresses() and not self.wallet.check_proper_device():
+            QMessageBox.information(self.window, _('Error'), _("This wallet does not match your Trezor device"), _('OK'))
             self.wallet.force_watching_only = True
 
     @hook
