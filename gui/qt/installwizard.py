@@ -20,11 +20,10 @@ from amountedit import AmountEdit
 from electrum.plugins import always_hook, run_hook
 from electrum.mnemonic import prepare_seed
 
-MSG_ENTER_ANYTHING    = _("Please enter a wallet seed, a master public key, a list of Bitcoin addresses, or a list of private keys")
-MSG_SHOW_MPK          = _("This is your master public key")
+MSG_ENTER_ANYTHING    = _("Please enter a seed phrase, a master key, a list of Bitcoin addresses, or a list of private keys")
+MSG_SHOW_MPK          = _("Here is your master public key")
 MSG_ENTER_MPK         = _("Please enter your master public key")
-MSG_ENTER_COLD_MPK    = _("Please enter the master public key of your cosigner wallet")
-MSG_ENTER_SEED_OR_MPK = _("Please enter a wallet seed, BIP32 private key, or master public key")
+MSG_ENTER_SEED_OR_MPK = _("Please enter a seed phrase or a master key (xpub or xprv)")
 MSG_VERIFY_SEED       = _("Your seed is important!") + "\n" + _("To make sure that you have properly saved your seed, please retype it here.")
 
 
@@ -195,7 +194,8 @@ class InstallWizard(QDialog):
         innerVbox.addLayout(vbox0)
         entries = []
         for i in range(n):
-            vbox2, seed_e2 = seed_dialog.enter_seed_box(MSG_ENTER_COLD_MPK, self, 'cold')
+            msg = _("Please enter the master public key of cosigner") + ' %d'%(i+1)
+            vbox2, seed_e2 = seed_dialog.enter_seed_box(msg, self, 'cold')
             innerVbox.addLayout(vbox2)
             entries.append(seed_e2)
         vbox.addStretch(1)
@@ -224,7 +224,6 @@ class InstallWizard(QDialog):
         innerVbox = QVBoxLayout()
         w.setLayout(innerVbox)
 
-        vbox0 = seed_dialog.show_seed_box(MSG_SHOW_MPK, xpub_hot, 'hot')
         vbox1, seed_e1 = seed_dialog.enter_seed_box(MSG_ENTER_SEED_OR_MPK, self, 'hot')
         innerVbox.addLayout(vbox1)
         entries = [seed_e1]
@@ -540,7 +539,6 @@ class InstallWizard(QDialog):
 
             elif re.match('(\d+)of(\d+)', t):
                 n = int(re.match('(\d+)of(\d+)', t).group(2))
-                print t, n
                 key_list = self.multi_seed_dialog(n - 1)
                 if not key_list:
                     return
