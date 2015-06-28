@@ -47,6 +47,8 @@ class Plugin(BasePlugin):
         self._requires_settings = True
         self.wallet = None
         self.handler = None
+        self.client = None
+        self.transport = None
 
     def constructor(self, s):
         return TrezorWallet(s)
@@ -76,20 +78,47 @@ class Plugin(BasePlugin):
             return False
         return True
 
+    def compare_version(self, major, minor=0, patch=0):
+        features = self.get_client().features
+        return cmp([features.major_version, features.minor_version, features.patch_version], [major, minor, patch])
+
+    def atleast_version(self, major, minor=0, patch=0):
+        return self.compare_version(major, minor, patch) >= 0
+
     def trezor_is_connected(self):
+        self.get_client().ping('t')
         try:
-            self.wallet.get_client().ping('t')
+            self.get_client().ping('t')
         except:
             return False
         return True
 
+    def get_client(self):
+        if not TREZOR:
+            give_error('please install github.com/trezor/python-trezor')
+
+        if not self.client or self.client.bad:
+            try:
+                d = HidTransport.enumerate()[0]
+                self.transport = HidTransport(d)
+            except:
+                give_error('Could not connect to your Trezor. Please verify the cable is connected and that no other app is using it.')
+            self.client = QtGuiTrezorClient(self.transport)
+            self.client.handler = self.handler
+            self.client.set_tx_api(self)
+            #self.client.clear_session()# TODO Doesn't work with firmware 1.1, returns proto.Failure
+            self.client.bad = False
+            if not self.atleast_version(1, 2, 1):
+                give_error('Outdated Trezor firmware. Please update the firmware from https://www.mytrezor.com')
+        return self.client
 
     @hook
     def close_wallet(self):
         print_error("trezor: clear session")
-        if self.wallet and self.wallet.client:
-            self.wallet.client.clear_session()
-            self.wallet.client.transport.close()
+        if self.client:
+            self.client.clear_session()
+            self.client.transport.close()
+            self.client = None
         self.wallet = None
 
     @hook
@@ -143,21 +172,36 @@ class Plugin(BasePlugin):
 
     @hook
     def receive_menu(self, menu, addrs):
-        if not self.wallet.is_watching_only() and self.wallet.atleast_version(1, 3) and len(addrs) == 1:
-            menu.addAction(_("Show on TREZOR"), lambda: self.wallet.show_address(addrs[0]))
+        if not self.wallet.is_watching_only() and self.atleast_version(1, 3) and len(addrs) == 1:
+            menu.addAction(_("Show on TREZOR"), lambda: self.show_address(addrs[0]))
+
+    def show_address(self, address):
+        if not self.wallet.check_proper_device():
+            give_error('Wrong device or password')
+        try:
+            address_path = self.wallet.address_id(address)
+            address_n = self.get_client().expand_path(address_path)
+        except Exception, e:
+            give_error(e)
+        try:
+            self.get_client().get_address('Bitcoin', address_n, True)
+        except Exception, e:
+            give_error(e)
+        finally:
+            self.handler.stop()
 
     def settings_widget(self, window):
         return EnterButton(_('Settings'), self.settings_dialog)
 
     def settings_dialog(self):
-        get_label = lambda: self.wallet.get_client().features.label
+        get_label = lambda: self.get_client().features.label
         update_label = lambda: current_label_label.setText("Label: %s" % get_label())
 
         d = QDialog()
         layout = QGridLayout(d)
         layout.addWidget(QLabel("Trezor Options"),0,0)
         layout.addWidget(QLabel("ID:"),1,0)
-        layout.addWidget(QLabel(" %s" % self.wallet.get_client().get_device_id()),1,1)
+        layout.addWidget(QLabel(" %s" % self.get_client().get_device_id()),1,1)
 
         def modify_label():
             response = QInputDialog().getText(None, "Set New Trezor Label", "New Trezor Label:  (upon submission confirm on Trezor)")
@@ -165,7 +209,7 @@ class Plugin(BasePlugin):
                 return
             new_label = str(response[0])
             self.handler.show_message("Please confirm label change on Trezor")
-            status = self.wallet.get_client().apply_settings(label=new_label)
+            status = self.get_client().apply_settings(label=new_label)
             self.handler.stop()
             update_label()
 
@@ -181,174 +225,18 @@ class Plugin(BasePlugin):
         else:
             return False
 
-
-
-class TrezorWallet(BIP32_HD_Wallet):
-    wallet_type = 'trezor'
-    root_derivation = "m/44'/0'"
-
-    def __init__(self, storage):
-        BIP32_HD_Wallet.__init__(self, storage)
-        self.transport = None
-        self.client = None
-        self.mpk = None
-        self.device_checked = False
-        self.force_watching_only = False
-
-    def get_action(self):
-        if not self.accounts:
-            return 'create_accounts'
-
-    def can_import(self):
-        return False
-
-    def can_sign_xpubkey(self, x_pubkey):
-        xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
-        return xpub in self.master_public_keys.values()
-
-    def can_export(self):
-        return False
-
-    def can_create_accounts(self):
-        return True
-
-    def can_change_password(self):
-        return False
-
-    def is_watching_only(self):
-        return self.force_watching_only
-
-    def get_client(self):
-        if not TREZOR:
-            give_error('please install github.com/trezor/python-trezor')
-
-        if not self.client or self.client.bad:
-            try:
-                d = HidTransport.enumerate()[0]
-                self.transport = HidTransport(d)
-            except:
-                give_error('Could not connect to your Trezor. Please verify the cable is connected and that no other app is using it.')
-            self.client = QtGuiTrezorClient(self.transport)
-            self.client.handler = self.plugin.handler
-            self.client.set_tx_api(self)
-            #self.client.clear_session()# TODO Doesn't work with firmware 1.1, returns proto.Failure
-            self.client.bad = False
-            self.device_checked = False
-            self.proper_device = False
-            if not self.atleast_version(1, 2, 1):
-                give_error('Outdated Trezor firmware. Please update the firmware from https://www.mytrezor.com')
-        return self.client
-
-    def compare_version(self, major, minor=0, patch=0):
-        features = self.get_client().features
-        return cmp([features.major_version, features.minor_version, features.patch_version], [major, minor, patch])
-
-    def atleast_version(self, major, minor=0, patch=0):
-        return self.compare_version(major, minor, patch) >= 0
-
-    def address_id(self, address):
-        account_id, (change, address_index) = self.get_address_index(address)
-        return "44'/0'/%s'/%d/%d" % (account_id, change, address_index)
-
-    def create_main_account(self, password):
-        self.create_account('Main account', None) #name, empty password
-
-    def mnemonic_to_seed(self, mnemonic, passphrase):
-        # trezor uses bip39
-        import pbkdf2, hashlib, hmac
-        PBKDF2_ROUNDS = 2048
-        mnemonic = unicodedata.normalize('NFKD', ' '.join(mnemonic.split()))
-        passphrase = unicodedata.normalize('NFKD', passphrase)
-        return pbkdf2.PBKDF2(mnemonic, 'mnemonic' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
-
-    def derive_xkeys(self, root, derivation, password):
-        x = self.master_private_keys.get(root)
-        if x:
-            root_xprv = pw_decode(x, password)
-            xprv, xpub = bip32_private_derivation(root_xprv, root, derivation)
-            return xpub, xprv
-        else:
-            derivation = derivation.replace(self.root_name,"44'/0'/")
-            xpub = self.get_public_key(derivation)
-            return xpub, None
-
-    def get_public_key(self, bip32_path):
-        address_n = self.get_client().expand_path(bip32_path)
-        node = self.get_client().get_public_node(address_n).node
-        xpub = "0488B21E".decode('hex') + chr(node.depth) + self.i4b(node.fingerprint) + self.i4b(node.child_num) + node.chain_code + node.public_key
-        return EncodeBase58Check(xpub)
-
-    def get_master_public_key(self):
-        if not self.mpk:
-            self.mpk = self.get_public_key("44'/0'")
-        return self.mpk
-
-    def i4b(self, x):
-        return pack('>I', x)
-
-    def add_keypairs(self, tx, keypairs, password):
-        #do nothing - no priv keys available
-        pass
-
-    def decrypt_message(self, pubkey, message, password):
-        raise BaseException( _('Decrypt method is not implemented in Trezor') )
-        #address = public_key_to_bc_address(pubkey.decode('hex'))
-        #address_path = self.address_id(address)
-        #address_n = self.get_client().expand_path(address_path)
-        #try:
-        #    decrypted_msg = self.get_client().decrypt_message(address_n, b64decode(message))
-        #except Exception, e:
-        #    give_error(e)
-        #finally:
-        #    twd.stop()
-        #return str(decrypted_msg)
-
-    def show_address(self, address):
-        if not self.check_proper_device():
-            give_error('Wrong device or password')
-        try:
-            address_path = self.address_id(address)
-            address_n = self.get_client().expand_path(address_path)
-        except Exception, e:
-            give_error(e)
-        try:
-            self.get_client().get_address('Bitcoin', address_n, True)
-        except Exception, e:
-            give_error(e)
-        finally:
-            self.plugin.handler.stop()
-
-    def sign_message(self, address, message, password):
-        if not self.check_proper_device():
-            give_error('Wrong device or password')
-        try:
-            address_path = self.address_id(address)
-            address_n = self.get_client().expand_path(address_path)
-        except Exception, e:
-            give_error(e)
-        try:
-            msg_sig = self.get_client().sign_message('Bitcoin', address_n, message)
-        except Exception, e:
-            give_error(e)
-        finally:
-            self.plugin.handler.stop()
-        b64_msg_sig = b64encode(msg_sig.signature)
-        return str(b64_msg_sig)
-
-    def sign_transaction(self, tx, password):
+    def sign_transaction(self, tx):
         if tx.is_complete():
             return
-        if not self.check_proper_device():
-            give_error('Wrong device or password')
         client = self.get_client()
         inputs = self.tx_inputs(tx)
         outputs = self.tx_outputs(tx)
         try:
-            signed_tx = self.get_client().sign_tx('Bitcoin', inputs, outputs)[1]
+            signed_tx = client.sign_tx('Bitcoin', inputs, outputs)[1]
         except Exception, e:
             give_error(e)
         finally:
-            self.plugin.handler.stop()
+            self.handler.stop()
         #values = [i['value'] for i in tx.inputs]
         raw = signed_tx.encode('hex')
         tx.update(raw)
@@ -365,7 +253,7 @@ class TrezorWallet(BIP32_HD_Wallet):
             else:
                 address = txinput['address']
                 try:
-                    address_path = self.address_id(address)
+                    address_path = self.wallet.address_id(address)
                     address_n = self.get_client().expand_path(address_path)
                     txinputtype.address_n.extend(address_n)
                 except: pass
@@ -394,8 +282,8 @@ class TrezorWallet(BIP32_HD_Wallet):
         for type, address, amount in tx.outputs:
             assert type == 'address'
             txoutputtype = types.TxOutputType()
-            if self.is_change(address):
-                address_path = self.address_id(address)
+            if self.wallet.is_change(address):
+                address_path = self.wallet.address_id(address)
                 address_n = self.get_client().expand_path(address_path)
                 txoutputtype.address_n.extend(address_n)
             else:
@@ -417,21 +305,137 @@ class TrezorWallet(BIP32_HD_Wallet):
         d = deserialize(tx.raw)
         t.version = d['version']
         t.lock_time = d['lockTime']
-
         inputs = self.tx_inputs(tx)
         t.inputs.extend(inputs)
-
         for vout in d['outputs']:
             o = t.bin_outputs.add()
             o.amount = vout['value']
             o.script_pubkey = vout['scriptPubKey'].decode('hex')
-
         return t
 
     def get_tx(self, tx_hash):
-        tx = self.transactions[tx_hash]
+        tx = self.wallet.transactions[tx_hash]
         tx.deserialize()
         return self.electrum_tx_to_txtype(tx)
+
+
+
+
+class TrezorWallet(BIP32_HD_Wallet):
+    wallet_type = 'trezor'
+    root_derivation = "m/44'/0'"
+
+    def __init__(self, storage):
+        BIP32_HD_Wallet.__init__(self, storage)
+        self.mpk = None
+        self.device_checked = False
+        self.proper_device = False
+        self.force_watching_only = False
+
+    def get_action(self):
+        if not self.accounts:
+            return 'create_accounts'
+
+    def can_import(self):
+        return False
+
+    def can_sign_xpubkey(self, x_pubkey):
+        xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
+        return xpub in self.master_public_keys.values()
+
+    def can_export(self):
+        return False
+
+    def can_create_accounts(self):
+        return True
+
+    def can_change_password(self):
+        return False
+
+    def is_watching_only(self):
+        return self.force_watching_only
+
+    def get_client(self):
+        return self.plugin.get_client()
+
+    def address_id(self, address):
+        account_id, (change, address_index) = self.get_address_index(address)
+        return "44'/0'/%s'/%d/%d" % (account_id, change, address_index)
+
+    def create_main_account(self, password):
+        self.create_account('Main account', None) #name, empty password
+
+    def mnemonic_to_seed(self, mnemonic, passphrase):
+        # trezor uses bip39
+        import pbkdf2, hashlib, hmac
+        PBKDF2_ROUNDS = 2048
+        mnemonic = unicodedata.normalize('NFKD', ' '.join(mnemonic.split()))
+        passphrase = unicodedata.normalize('NFKD', passphrase)
+        return pbkdf2.PBKDF2(mnemonic, 'mnemonic' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
+
+    def derive_xkeys(self, root, derivation, password):
+        x = self.master_private_keys.get(root)
+        if x:
+            root_xprv = pw_decode(x, password)
+            xprv, xpub = bip32_private_derivation(root_xprv, root, derivation)
+            return xpub, xprv
+        else:
+            derivation = derivation.replace(self.root_name,"44'/0'/")
+            xpub = self.get_public_key(derivation)
+            return xpub, None
+
+    def get_public_key(self, bip32_path):
+        address_n = self.plugin.get_client().expand_path(bip32_path)
+        node = self.plugin.get_client().get_public_node(address_n).node
+        xpub = "0488B21E".decode('hex') + chr(node.depth) + self.i4b(node.fingerprint) + self.i4b(node.child_num) + node.chain_code + node.public_key
+        return EncodeBase58Check(xpub)
+
+    def get_master_public_key(self):
+        if not self.mpk:
+            self.mpk = self.get_public_key("44'/0'")
+        return self.mpk
+
+    def i4b(self, x):
+        return pack('>I', x)
+
+    def add_keypairs(self, tx, keypairs, password):
+        #do nothing - no priv keys available
+        pass
+
+    def decrypt_message(self, pubkey, message, password):
+        raise BaseException( _('Decrypt method is not implemented in Trezor') )
+        #address = public_key_to_bc_address(pubkey.decode('hex'))
+        #address_path = self.address_id(address)
+        #address_n = self.get_client().expand_path(address_path)
+        #try:
+        #    decrypted_msg = self.get_client().decrypt_message(address_n, b64decode(message))
+        #except Exception, e:
+        #    give_error(e)
+        #finally:
+        #    twd.stop()
+        #return str(decrypted_msg)
+
+    def sign_message(self, address, message, password):
+        if not self.check_proper_device():
+            give_error('Wrong device or password')
+        try:
+            address_path = self.address_id(address)
+            address_n = self.plugin.get_client().expand_path(address_path)
+        except Exception, e:
+            give_error(e)
+        try:
+            msg_sig = self.plugin.get_client().sign_message('Bitcoin', address_n, message)
+        except Exception, e:
+            give_error(e)
+        finally:
+            self.plugin.handler.stop()
+        b64_msg_sig = b64encode(msg_sig.signature)
+        return str(b64_msg_sig)
+
+    def sign_transaction(self, tx, password):
+        if not self.check_proper_device():
+            give_error('Wrong device or password')
+        self.plugin.sign_transaction(tx)
 
     def check_proper_device(self):
         self.get_client().ping('t')
