@@ -183,12 +183,6 @@ class TxDialog(QWidget):
         else:
             self.sign_button.hide()
 
-        # Cancel if an action, otherwise close
-        if have_action:
-            self.cancel_button.setText(_("Cancel"))
-        else:
-            self.cancel_button.setText(_("Close"))
-
         self.tx_hash_e.setText(tx_hash)
         if desc is None:
             self.tx_desc.hide()
@@ -221,6 +215,7 @@ class TxDialog(QWidget):
             self.amount_label.setText(_("Transaction unrelated to your wallet"))
 
         run_hook('transaction_dialog_update', self)
+        self.raise_()
 
 
 
