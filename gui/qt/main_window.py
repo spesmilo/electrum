@@ -111,6 +111,8 @@ class ElectrumWindow(QMainWindow):
 
         self.config = config
         self.network = network
+        self.wallet = None
+
         self.gui_object = gui_object
         self.tray = gui_object.tray
         self.go_lite = gui_object.go_lite
@@ -180,7 +182,6 @@ class ElectrumWindow(QMainWindow):
             # set initial message
             self.console.showMessage(self.network.banner)
 
-        self.wallet = None
         self.payment_request = None
         self.qr_window = None
         self.not_enough_funds = False
@@ -276,6 +277,7 @@ class ElectrumWindow(QMainWindow):
         try:
             wallet = Wallet(storage)
         except BaseException as e:
+            traceback.print_exc(file=sys.stdout)
             QMessageBox.warning(None, _('Warning'), str(e), _('OK'))
             return
         action = wallet.get_action()
@@ -842,9 +844,9 @@ class ElectrumWindow(QMainWindow):
 
     def set_send_button_text(self):
         if self.show_before_broadcast():
-            text = _("Show...")
-        elif self.wallet.is_watching_only():
-            text = _("Create unsigned transaction")
+            text = _("View...")
+        elif self.wallet and self.wallet.is_watching_only():
+            text = _("View...")
         else:
             text = _("Send")
         self.send_button.setText(text)
@@ -901,8 +903,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.fee_e_label, 5, 0)
         grid.addWidget(self.fee_e, 5, 1, 1, 2)
 
-        self.send_button = EnterButton('', self.do_send)
-        self.set_send_button_text()
+        self.send_button = EnterButton(_("Send"), self.do_send)
         self.clear_button = EnterButton(_("Clear"), self.do_clear)
         buttons = QHBoxLayout()
         buttons.addStretch(1)
@@ -1659,8 +1660,8 @@ class ElectrumWindow(QMainWindow):
         self.search_box.hide()
         sb.addPermanentWidget(self.search_box)
 
-        if (int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
-            sb.addPermanentWidget( StatusBarButton( QIcon(":icons/switchgui.png"), _("Switch to Lite Mode"), self.go_lite ) )
+        #if (int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
+        #    sb.addPermanentWidget( StatusBarButton( QIcon(":icons/switchgui.png"), _("Switch to Lite Mode"), self.go_lite ) )
 
         self.lock_icon = QIcon()
         self.password_button = StatusBarButton( self.lock_icon, _("Password"), self.change_password_dialog )
@@ -1671,29 +1672,23 @@ class ElectrumWindow(QMainWindow):
         sb.addPermanentWidget( self.seed_button )
         self.status_button = StatusBarButton( QIcon(":icons/status_disconnected.png"), _("Network"), self.run_network_dialog )
         sb.addPermanentWidget( self.status_button )
-
         run_hook('create_status_bar', sb)
-
         self.setStatusBar(sb)
-
 
     def update_lock_icon(self):
         icon = QIcon(":icons/lock.png") if self.wallet.use_encryption else QIcon(":icons/unlock.png")
         self.password_button.setIcon( icon )
-
 
     def update_buttons_on_seed(self):
         self.seed_button.setVisible(self.wallet.has_seed())
         self.password_button.setVisible(self.wallet.can_change_password())
         self.set_send_button_text()
 
-
     def change_password_dialog(self):
         from password_dialog import PasswordDialog
         d = PasswordDialog(self.wallet, self)
         d.run()
         self.update_lock_icon()
-
 
     def toggle_search(self):
         self.search_box.setHidden(not self.search_box.isHidden())

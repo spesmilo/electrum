@@ -44,10 +44,9 @@ if __name__ == '__main__':
     if not os.path.exists(n):
         os.system("echo \# do not remove>%s"%n)
 
-    # os.system("python mki18n.py")
     os.system("pyrcc4 icons.qrc -o gui/qt/icons_rc.py")
     os.system("python setup.py sdist --format=zip,gztar")
-    
+
     _tgz="Electrum-LTC-%s.tar.gz"%version
     _zip="Electrum-LTC-%s.zip"%version
 

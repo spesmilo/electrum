@@ -1,10 +1,14 @@
+import re
+import sys
+import threading
+
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
 import electrum_ltc as electrum
 from electrum_ltc.i18n import _
-from electrum_ltc import Wallet, Wallet_2of2, Wallet_2of3
+from electrum_ltc import Wallet
 from electrum_ltc import bitcoin
 from electrum_ltc import util
 
@@ -13,17 +17,50 @@ from network_dialog import NetworkDialog
 from util import *
 from amountedit import AmountEdit
 
-import sys
-import threading
 from electrum_ltc.plugins import always_hook, run_hook
 from electrum_ltc.mnemonic import prepare_seed
 
-MSG_ENTER_ANYTHING    = _("Please enter a wallet seed, a master public key, a list of Litecoin addresses, or a list of private keys")
-MSG_SHOW_MPK          = _("This is your master public key")
+MSG_ENTER_ANYTHING    = _("Please enter a seed phrase, a master key, a list of Litecoin addresses, or a list of private keys")
+MSG_SHOW_MPK          = _("Here is your master public key")
 MSG_ENTER_MPK         = _("Please enter your master public key")
-MSG_ENTER_COLD_MPK    = _("Please enter the master public key of your cosigner wallet")
-MSG_ENTER_SEED_OR_MPK = _("Please enter a wallet seed, BIP32 private key, or master public key")
+MSG_ENTER_SEED_OR_MPK = _("Please enter a seed phrase or a master key (xpub or xprv)")
 MSG_VERIFY_SEED       = _("Your seed is important!") + "\n" + _("To make sure that you have properly saved your seed, please retype it here.")
+
+
+class CosignWidget(QWidget):
+    size = 120
+
+    def __init__(self, m, n):
+        QWidget.__init__(self)
+        self.R = QRect(0, 0, self.size, self.size)
+        self.setGeometry(self.R)
+        self.m = m
+        self.n = n
+
+    def set_n(self, n):
+        self.n = n
+        self.update()
+
+    def set_m(self, m):
+        self.m = m
+        self.update()
+
+    def paintEvent(self, event):
+        import math
+        bgcolor = self.palette().color(QPalette.Background)
+        pen = QPen(bgcolor, 7, QtCore.Qt.SolidLine)
+        qp = QPainter()
+        qp.begin(self)
+        qp.setPen(pen)
+        qp.setRenderHint(QPainter.Antialiasing)
+        qp.setBrush(Qt.gray)
+        for i in range(self.n):
+            alpha = int(16* 360 * i/self.n)
+            alpha2 = int(16* 360 * 1/self.n)
+            qp.setBrush(Qt.green if i<self.m else Qt.gray)
+            qp.drawPie(self.R, alpha, alpha2)
+        qp.end()
+
 
 
 class InstallWizard(QDialog):
@@ -36,7 +73,7 @@ class InstallWizard(QDialog):
         self.storage = storage
         self.setMinimumSize(575, 400)
         self.setMaximumSize(575, 400)
-        self.setWindowTitle('Electrum' + '  -  ' + os.path.basename(self.storage.path))
+        self.setWindowTitle('Electrum' + '  -  ' + _('Install Wizard'))
         self.connect(self, QtCore.SIGNAL('accept'), self.accept)
         self.stack = QStackedLayout()
         self.setLayout(self.stack)
@@ -142,12 +179,24 @@ class InstallWizard(QDialog):
 
     def multi_mpk_dialog(self, xpub_hot, n):
         vbox = QVBoxLayout()
+        scroll = QScrollArea()
+        scroll.setEnabled(True)
+        scroll.setWidgetResizable(True)
+        vbox.addWidget(scroll)
+
+        w = QWidget()
+        scroll.setWidget(w)
+
+        innerVbox = QVBoxLayout()
+        w.setLayout(innerVbox)
+
         vbox0 = seed_dialog.show_seed_box(MSG_SHOW_MPK, xpub_hot, 'hot')
-        vbox.addLayout(vbox0)
+        innerVbox.addLayout(vbox0)
         entries = []
         for i in range(n):
-            vbox2, seed_e2 = seed_dialog.enter_seed_box(MSG_ENTER_COLD_MPK, self, 'cold')
-            vbox.addLayout(vbox2)
+            msg = _("Please enter the master public key of cosigner") + ' %d'%(i+1)
+            vbox2, seed_e2 = seed_dialog.enter_seed_box(msg, self, 'cold')
+            innerVbox.addLayout(vbox2)
             entries.append(seed_e2)
         vbox.addStretch(1)
         button = OkButton(self, _('Next'))
@@ -164,12 +213,23 @@ class InstallWizard(QDialog):
 
     def multi_seed_dialog(self, n):
         vbox = QVBoxLayout()
+        scroll = QScrollArea()
+        scroll.setEnabled(True)
+        scroll.setWidgetResizable(True)
+        vbox.addWidget(scroll)
+
+        w = QWidget()
+        scroll.setWidget(w)
+
+        innerVbox = QVBoxLayout()
+        w.setLayout(innerVbox)
+
         vbox1, seed_e1 = seed_dialog.enter_seed_box(MSG_ENTER_SEED_OR_MPK, self, 'hot')
-        vbox.addLayout(vbox1)
+        innerVbox.addLayout(vbox1)
         entries = [seed_e1]
         for i in range(n):
             vbox2, seed_e2 = seed_dialog.enter_seed_box(MSG_ENTER_SEED_OR_MPK, self, 'cold')
-            vbox.addLayout(vbox2)
+            innerVbox.addLayout(vbox2)
             entries.append(seed_e2)
         vbox.addStretch(1)
         button = OkButton(self, _('Next'))
@@ -283,6 +343,48 @@ class InstallWizard(QDialog):
         return wallet_type
 
 
+    def multisig_choice(self):
+
+        vbox = QVBoxLayout()
+        self.set_layout(vbox)
+        vbox.addWidget(QLabel(_("Multi Signature Wallet")))
+
+        cw = CosignWidget(2, 2)
+        vbox.addWidget(cw, 1)
+        vbox.addWidget(QLabel(_("Please choose the number of signatures needed to unlock funds in your wallet") + ':'))
+
+        m_edit = QSpinBox()
+        n_edit = QSpinBox()
+        m_edit.setValue(2)
+        n_edit.setValue(2)
+        n_edit.setMinimum(2)
+        n_edit.setMaximum(15)
+        m_edit.setMinimum(1)
+        m_edit.setMaximum(2)
+        n_edit.valueChanged.connect(m_edit.setMaximum)
+
+        n_edit.valueChanged.connect(cw.set_n)
+        m_edit.valueChanged.connect(cw.set_m)
+
+        hbox = QHBoxLayout()
+        hbox.addWidget(QLabel(_('Require')))
+        hbox.addWidget(m_edit)
+        hbox.addWidget(QLabel(_('of')))
+        hbox.addWidget(n_edit)
+        hbox.addWidget(QLabel(_('signatures')))
+        hbox.addStretch(1)
+
+        vbox.addLayout(hbox)
+        vbox.addStretch(1)
+        vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _('Next'))))
+        if not self.exec_():
+            return
+        m = int(m_edit.value())
+        n = int(n_edit.value())
+        wallet_type = '%dof%d'%(m,n)
+        return wallet_type
+
+
     def question(self, msg, yes_label=_('OK'), no_label=_('Cancel'), icon=None):
         vbox = QVBoxLayout()
         self.set_layout(vbox)
@@ -319,7 +421,7 @@ class InstallWizard(QDialog):
 
         if action in ['create', 'restore']:
             if wallet_type == 'multisig':
-                wallet_type = self.choice(_("Multi Signature Wallet"), 'Select wallet type', [('2of2', _("2 of 2")),('2of3',_("2 of 3"))])
+                wallet_type = self.multisig_choice()
                 if not wallet_type:
                     return
             elif wallet_type == 'hardware':
@@ -363,22 +465,14 @@ class InstallWizard(QDialog):
                 wallet.add_seed(seed, password)
                 wallet.create_master_keys(password)
 
-            elif action == 'add_cosigner':
+            elif action == 'add_cosigners':
+                n = int(re.match('(\d+)of(\d+)', wallet.wallet_type).group(2))
                 xpub1 = wallet.master_public_keys.get("x1/")
-                r = self.multi_mpk_dialog(xpub1, 1)
+                r = self.multi_mpk_dialog(xpub1, n - 1)
                 if not r:
                     return
-                xpub2 = r[0]
-                wallet.add_master_public_key("x2/", xpub2)
-
-            elif action == 'add_two_cosigners':
-                xpub1 = wallet.master_public_keys.get("x1/")
-                r = self.multi_mpk_dialog(xpub1, 2)
-                if not r:
-                    return
-                xpub2, xpub3 = r
-                wallet.add_master_public_key("x2/", xpub2)
-                wallet.add_master_public_key("x3/", xpub3)
+                for i, xpub in enumerate(r):
+                    wallet.add_master_public_key("x%d/"%(i+2), xpub)
 
             elif action == 'create_accounts':
                 wallet.create_main_account(password)
@@ -443,12 +537,13 @@ class InstallWizard(QDialog):
                 else:
                     raise BaseException('unknown wallet type')
 
-            elif t in ['2of2', '2of3']:
-                key_list = self.multi_seed_dialog(1 if t == '2of2' else 2)
+            elif re.match('(\d+)of(\d+)', t):
+                n = int(re.match('(\d+)of(\d+)', t).group(2))
+                key_list = self.multi_seed_dialog(n - 1)
                 if not key_list:
                     return
                 password = self.password_dialog() if any(map(lambda x: Wallet.is_seed(x) or Wallet.is_xprv(x), key_list)) else None
-                wallet = Wallet.from_multisig(key_list, password, self.storage)
+                wallet = Wallet.from_multisig(key_list, password, self.storage, t)
 
             else:
                 self.storage.put('wallet_type', t, False)

@@ -240,7 +240,6 @@ class Abstract_Wallet(object):
 
     def load_accounts(self):
         self.accounts = {}
-
         d = self.storage.get('accounts', {})
         for k, v in d.items():
             if self.wallet_type == 'old' and k in [0, '0']:
@@ -248,10 +247,6 @@ class Abstract_Wallet(object):
                 self.accounts['0'] = OldAccount(v)
             elif v.get('imported'):
                 self.accounts[k] = ImportedAccount(v)
-            elif v.get('xpub3'):
-                self.accounts[k] = BIP32_Account_2of3(v)
-            elif v.get('xpub2'):
-                self.accounts[k] = BIP32_Account_2of2(v)
             elif v.get('xpub'):
                 self.accounts[k] = BIP32_Account(v)
             elif v.get('pending'):
@@ -942,7 +937,7 @@ class Abstract_Wallet(object):
 
         if redeemScript:
             txin['redeemScript'] = redeemScript
-            txin['num_sig'] = 2
+            txin['num_sig'] = account.m
         else:
             txin['redeemPubkey'] = account.get_pubkey(*sequence)
             txin['num_sig'] = 1
@@ -1732,54 +1727,44 @@ class NewWallet(BIP32_Wallet, Mnemonic):
         self.add_account('0', account)
 
 
-class Wallet_2of2(BIP32_Wallet, Mnemonic):
-    # Wallet with multisig addresses.
+class Multisig_Wallet(BIP32_Wallet, Mnemonic):
+    # generic m of n
     root_name = "x1/"
     root_derivation = "m/"
-    wallet_type = '2of2'
+
+    def __init__(self, storage):
+        BIP32_Wallet.__init__(self, storage)
+        self.wallet_type = storage.get('wallet_type')
+        m = re.match('(\d+)of(\d+)', self.wallet_type)
+        self.m = int(m.group(1))
+        self.n = int(m.group(2))
+
+    def load_accounts(self):
+        self.accounts = {}
+        d = self.storage.get('accounts', {})
+        v = d.get('0')
+        if v:
+            if v.get('xpub3'):
+                v['xpubs'] = [v['xpub'], v['xpub2'], v['xpub3']]
+            elif v.get('xpub2'):
+                v['xpubs'] = [v['xpub'], v['xpub2']]
+            self.accounts = {'0': Multisig_Account(v)}
 
     def create_main_account(self, password):
-        xpub1 = self.master_public_keys.get("x1/")
-        xpub2 = self.master_public_keys.get("x2/")
-        account = BIP32_Account_2of2({'xpub':xpub1, 'xpub2':xpub2})
+        account = Multisig_Account({'xpubs': self.master_public_keys.values(), 'm': self.m})
         self.add_account('0', account)
 
     def get_master_public_keys(self):
         return self.master_public_keys
 
     def get_action(self):
-        xpub1 = self.master_public_keys.get("x1/")
-        xpub2 = self.master_public_keys.get("x2/")
-        if xpub1 is None:
-            return 'create_seed'
-        if xpub2 is None:
-            return 'add_cosigner'
+        for i in range(self.n):
+            if self.master_public_keys.get("x%d/"%(i+1)) is None:
+                return 'create_seed' if i == 0 else 'add_cosigners'
         if not self.accounts:
             return 'create_accounts'
 
 
-
-class Wallet_2of3(Wallet_2of2):
-    # multisig 2 of 3
-    wallet_type = '2of3'
-
-    def create_main_account(self, password):
-        xpub1 = self.master_public_keys.get("x1/")
-        xpub2 = self.master_public_keys.get("x2/")
-        xpub3 = self.master_public_keys.get("x3/")
-        account = BIP32_Account_2of3({'xpub':xpub1, 'xpub2':xpub2, 'xpub3':xpub3})
-        self.add_account('0', account)
-
-    def get_action(self):
-        xpub1 = self.master_public_keys.get("x1/")
-        xpub2 = self.master_public_keys.get("x2/")
-        xpub3 = self.master_public_keys.get("x3/")
-        if xpub1 is None:
-            return 'create_seed'
-        if xpub2 is None or xpub3 is None:
-            return 'add_two_cosigners'
-        if not self.accounts:
-            return 'create_accounts'
 
 
 class OldWallet(Deterministic_Wallet):
@@ -1859,8 +1844,8 @@ wallet_types = [
     ('standard', 'xpub',     ("BIP32 Import"),             BIP32_Simple_Wallet),
     ('standard', 'standard', ("Standard wallet"),          NewWallet),
     ('standard', 'imported', ("Imported wallet"),          Imported_Wallet),
-    ('multisig', '2of2',     ("Multisig wallet (2 of 2)"), Wallet_2of2),
-    ('multisig', '2of3',     ("Multisig wallet (2 of 3)"), Wallet_2of3)
+    ('multisig', '2of2',     ("Multisig wallet (2 of 2)"), Multisig_Wallet),
+    ('multisig', '2of3',     ("Multisig wallet (2 of 3)"), Multisig_Wallet)
 ]
 
 # former WalletFactory
@@ -1898,7 +1883,10 @@ class Wallet(object):
                     WalletClass = c
                     break
             else:
-                raise BaseException('unknown wallet type', wallet_type)
+                if re.match('(\d+)of(\d+)', wallet_type):
+                    WalletClass = Multisig_Wallet
+                else:
+                    raise BaseException('unknown wallet type', wallet_type)
         else:
             if seed_version == OLD_SEED_VERSION:
                 WalletClass = OldWallet
@@ -2011,27 +1999,25 @@ class Wallet(object):
         return w
 
     @classmethod
-    def from_multisig(klass, key_list, password, storage):
-        if len(key_list) == 2:
-            self = Wallet_2of2(storage)
-        elif len(key_list) == 3:
-            self = Wallet_2of3(storage)
+    def from_multisig(klass, key_list, password, storage, wallet_type):
+        storage.put('wallet_type', wallet_type, True)
+        self = Multisig_Wallet(storage)
         key_list = sorted(key_list, key = lambda x: klass.is_xpub(x))
         for i, text in enumerate(key_list):
             assert klass.is_seed(text) or klass.is_xprv(text) or klass.is_xpub(text)
             name = "x%d/"%(i+1)
-            if klass.is_seed(text):
-                if name == 'x1/':
-                    self.add_seed(text, password)
-                    self.create_master_keys(password)
-                else:
-                    self.add_cosigner_seed(text, name, password)
-            elif klass.is_xprv(text):
+            if klass.is_xprv(text):
                 xpub = bitcoin.xpub_from_xprv(text)
                 self.add_master_public_key(name, xpub)
                 self.add_master_private_key(name, text, password)
             elif klass.is_xpub(text):
                 self.add_master_public_key(name, text)
+            elif klass.is_seed(text):
+                if name == 'x1/':
+                    self.add_seed(text, password)
+                    self.create_master_keys(password)
+                else:
+                    self.add_cosigner_seed(text, name, password)
         self.use_encryption = (password != None)
         self.storage.put('use_encryption', self.use_encryption, True)
         self.create_main_account(password)

@@ -97,10 +97,15 @@ class TxDialog(QWidget):
 
         self.copy_button = CopyButton(lambda: str(self.tx), self.parent.app)
 
-        self.buttons = [self.copy_button, self.qr_button, self.sign_button, self.broadcast_button, self.save_button, self.cancel_button]
+        # Action buttons
+        self.buttons = [self.sign_button, self.broadcast_button, self.cancel_button]
         run_hook('transaction_dialog', self)
 
-        vbox.addLayout(Buttons(*self.buttons))
+        hbox = QHBoxLayout()
+        hbox.addLayout(Buttons(self.copy_button, self.qr_button, self.save_button))
+        hbox.addStretch(1)
+        hbox.addLayout(Buttons(*self.buttons))
+        vbox.addLayout(hbox)
         self.update()
 
     def do_broadcast(self):
@@ -178,12 +183,6 @@ class TxDialog(QWidget):
         else:
             self.sign_button.hide()
 
-        # Cancel if an action, otherwise close
-        if have_action:
-            self.cancel_button.setText(_("Cancel"))
-        else:
-            self.cancel_button.setText(_("Close"))
-
         self.tx_hash_e.setText(tx_hash)
         if desc is None:
             self.tx_desc.hide()
@@ -216,6 +215,7 @@ class TxDialog(QWidget):
             self.amount_label.setText(_("Transaction unrelated to your wallet"))
 
         run_hook('transaction_dialog_update', self)
+        self.raise_()
 
 
 

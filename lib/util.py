@@ -7,6 +7,9 @@ import urlparse
 import urllib
 import threading
 
+def normalize_version(v):
+    return [int(x) for x in re.sub(r'(\.0+)*$','', v).split(".")]
+
 class NotEnoughFunds(Exception): pass
 
 class InvalidPassword(Exception):
