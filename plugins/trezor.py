@@ -86,7 +86,6 @@ class Plugin(BasePlugin):
         return self.compare_version(major, minor, patch) >= 0
 
     def trezor_is_connected(self):
-        self.get_client().ping('t')
         try:
             self.get_client().ping('t')
         except:
