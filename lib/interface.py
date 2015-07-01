@@ -72,6 +72,7 @@ class TcpInterface(threading.Thread):
         # parse server
         self.server = server
         self.host, self.port, self.protocol = self.server.split(':')
+        self.host = str(self.host)
         self.port = int(self.port)
         self.use_ssl = (self.protocol == 's')
 

@@ -301,12 +301,11 @@ class Network(util.DaemonThread):
     def set_proxy(self, proxy):
         self.proxy = proxy
         if proxy:
-            self.print_error("setting proxy", proxy)
             proxy_mode = proxy_modes.index(proxy["mode"]) + 1
             socks.setdefaultproxy(proxy_mode, proxy["host"], int(proxy["port"]))
             socket.socket = socks.socksocket
             # prevent dns leaks, see http://stackoverflow.com/questions/13184205/dns-over-proxy
-            socket.getaddrinfo = lambda *args: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (str(args[0]), args[1]))]
+            socket.getaddrinfo = lambda *args: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
         else:
             socket.socket = socket._socketobject
             socket.getaddrinfo = socket._socket.getaddrinfo
