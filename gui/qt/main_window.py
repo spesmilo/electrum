@@ -19,6 +19,10 @@
 import sys, time, threading
 import os.path, json, traceback
 import shutil
+import socket
+import webbrowser
+import csv
+from decimal import Decimal
 
 
 import PyQt4
@@ -26,11 +30,10 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
-from electrum_ltc.bitcoin import MIN_RELAY_TX_FEE, COIN, is_valid
-from electrum_ltc.plugins import run_hook
-
 import icons_rc
 
+from electrum_ltc.bitcoin import MIN_RELAY_TX_FEE, COIN, is_valid
+from electrum_ltc.plugins import run_hook
 from electrum_ltc.i18n import _
 from electrum_ltc.util import block_explorer, block_explorer_info, block_explorer_URL
 from electrum_ltc.util import print_error, print_msg
@@ -41,18 +44,13 @@ from electrum_ltc import util, bitcoin, commands, Wallet
 from electrum_ltc import SimpleConfig, Wallet, WalletStorage
 from electrum_ltc import Imported_Wallet
 from electrum_ltc import paymentrequest
+from electrum_ltc.contacts import Contacts
 
 from amountedit import AmountEdit, BTCAmountEdit, MyLineEdit
 from network_dialog import NetworkDialog
 from qrcodewidget import QRCodeWidget, QRDialog
 from qrtextedit import ScanQRTextEdit, ShowQRTextEdit
 from transaction_dialog import show_transaction
-
-from decimal import Decimal
-
-import socket
-import webbrowser
-import csv
 
 
 
@@ -120,7 +118,7 @@ class ElectrumWindow(QMainWindow):
         self.app = gui_object.app
 
         self.invoices = InvoiceStore(self.config)
-        self.contacts = util.Contacts(self.config)
+        self.contacts = Contacts(self.config)
 
         self.create_status_bar()
         self.need_update = threading.Event()
@@ -482,16 +480,15 @@ class ElectrumWindow(QMainWindow):
         if self.need_update.is_set():
             self.update_wallet()
             self.need_update.clear()
-
+        # resolve aliases
+        self.payto_e.resolve()
         run_hook('timer_actions')
 
     def format_amount(self, x, is_diff=False, whitespaces=False):
         return format_satoshis(x, is_diff, self.num_zeros, self.decimal_point, whitespaces)
 
-
     def get_decimal_point(self):
         return self.decimal_point
-
 
     def base_unit(self):
         assert self.decimal_point in [2, 5, 8]
@@ -1051,6 +1048,13 @@ class ElectrumWindow(QMainWindow):
                 return
             outputs = self.payto_e.get_outputs()
 
+            if self.payto_e.is_alias and self.payto_e.validated is False:
+                alias = self.payto_e.toPlainText()
+                msg = _('WARNING: the alias "%s" could not be validated via an additional security check, DNSSEC, and thus may not be correct.'%alias) + '\n'
+                msg += _('Do you wish to continue?')
+                if not self.question(msg):
+                    return
+
         if not outputs:
             QMessageBox.warning(self, _('Error'), _('No outputs'), _('OK'))
             return
@@ -1208,6 +1212,7 @@ class ElectrumWindow(QMainWindow):
             self.payment_request = None
             return
 
+        self.payto_e.is_pr = True
         if not pr.has_expired():
             self.payto_e.setGreen()
         else:

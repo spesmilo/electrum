@@ -34,6 +34,7 @@ class PayToEdit(ScanQRTextEdit):
 
     def __init__(self, win):
         ScanQRTextEdit.__init__(self)
+        self.win = win
         self.amount_edit = win.amount_e
         self.document().contentsChanged.connect(self.update_size)
         self.heightMin = 0
@@ -43,9 +44,12 @@ class PayToEdit(ScanQRTextEdit):
         self.outputs = []
         self.errors = []
         self.is_pr = False
+        self.is_alias = False
         self.scan_f = win.pay_from_URI
         self.update_size()
         self.payto_address = None
+
+        self.previous_payto = ''
 
     def lock_amount(self):
         self.amount_edit.setFrozen(True)
@@ -60,11 +64,9 @@ class PayToEdit(ScanQRTextEdit):
             button.setHidden(b)
 
     def setGreen(self):
-        self.is_pr = True
         self.setStyleSheet("QWidget { background-color:#80ff80;}")
 
     def setExpired(self):
-        self.is_pr = True
         self.setStyleSheet("QWidget { background-color:#ffcccc;}")
 
     def parse_address_and_amount(self, line):
@@ -252,3 +254,45 @@ class PayToEdit(ScanQRTextEdit):
         if data.startswith("litecoin:"):
             self.scan_f(data)
             # TODO: update fee
+
+    def resolve(self):
+        self.is_alias = False
+        if self.hasFocus():
+            return
+        if self.is_multiline():  # only supports single line entries atm
+            return
+        if self.is_pr:
+            return
+        key = str(self.toPlainText())
+        if key == self.previous_payto:
+            return
+        self.previous_payto = key
+        if not (('.' in key) and (not '<' in key) and (not ' ' in key)):
+            return
+        try:
+            data = self.win.contacts.resolve(key)
+        except:
+            return
+        if not data:
+            return
+        self.is_alias = True
+
+        address = data.get('address')
+        name = data.get('name')
+        new_url = key + ' <' + address + '>'
+        self.setText(new_url)
+        self.previous_payto = new_url
+
+        #if self.win.config.get('openalias_autoadd') == 'checked':
+        self.win.contacts[key] = ('openalias', name)
+        self.win.update_contacts_tab()
+
+        self.setFrozen(True)
+        if data.get('type') == 'openalias':
+            self.validated = data.get('validated')
+            if self.validated:
+                self.setGreen()
+            else:
+                self.setExpired()
+        else:
+            self.validated = None
