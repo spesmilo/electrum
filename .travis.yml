@@ -3,8 +3,6 @@ language: python
 python:
     - "2.7"
 install:
-    - "pip install ."
-    - "pip install coverage"
+    - pip install tox
 script:
-    - "coverage run --source=lib -m py.test -v"
-    - "coverage report"
+    - tox
