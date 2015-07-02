@@ -358,7 +358,7 @@ def is_address(addr):
         addrtype, h = bc_address_to_hash_160(addr)
     except Exception:
         return False
-    if addrtype != 0:
+    if addrtype not in [0, 5]:
         return False
     return addr == hash_160_to_bc_address(h, addrtype)
 
