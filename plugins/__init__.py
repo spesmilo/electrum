@@ -69,13 +69,6 @@ descriptions = [
         'available_for': ['qt']
     },
     {
-        'name': 'openalias',
-        'fullname': 'OpenAlias',
-        'description': _('Allow for payments to OpenAlias addresses.'),
-        'requires': [('dns', 'dnspython')],
-        'available_for': ['qt', 'cmdline']
-    },
-    {
         'name': 'plot',
         'fullname': 'Plot History',
         'description': _("Ability to plot transaction history in graphical mode."),
