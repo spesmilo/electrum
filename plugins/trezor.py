@@ -221,25 +221,26 @@ class Plugin(BasePlugin):
         else:
             return False
 
-    def sign_transaction(self, tx):
-        if tx.is_complete():
-            return
+    def sign_transaction(self, tx, prev_tx, xpub_path):
+        self.prev_tx = prev_tx
+        self.xpub_path = xpub_path
         client = self.get_client()
-        inputs = self.tx_inputs(tx)
+        inputs = self.tx_inputs(tx, True)
         outputs = self.tx_outputs(tx)
-        try:
-            signed_tx = client.sign_tx('Litecoin', inputs, outputs)[1]
-        except Exception, e:
-            give_error(e)
-        finally:
-            self.handler.stop()
+        #try:
+        signed_tx = client.sign_tx('Litecoin', inputs, outputs)[1]
+        #except Exception, e:
+        #    give_error(e)
+        #finally:
+        self.handler.stop()
+
         #values = [i['value'] for i in tx.inputs]
         raw = signed_tx.encode('hex')
         tx.update(raw)
         #for i, txinput in enumerate(tx.inputs):
         #    txinput['value'] = values[i]
 
-    def tx_inputs(self, tx):
+    def tx_inputs(self, tx, for_sig=False):
         inputs = []
         for txinput in tx.inputs:
             txinputtype = types.TxInputType()
@@ -247,12 +248,12 @@ class Plugin(BasePlugin):
                 prev_hash = "\0"*32
                 prev_index = 0xffffffff # signed int -1
             else:
-                address = txinput['address']
-                try:
-                    address_path = self.wallet.address_id(address)
-                    address_n = self.get_client().expand_path(address_path)
-                    txinputtype.address_n.extend(address_n)
-                except: pass
+
+                if for_sig:
+                    x_pubkey = txinput['x_pubkeys'][0]
+                    xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
+                    xpub_n = self.get_client().expand_path(self.xpub_path[xpub])
+                    txinputtype.address_n.extend(xpub_n + s)
 
                 prev_hash = unhexlify(txinput['prevout_hash'])
                 prev_index = txinput['prevout_n']
@@ -310,7 +311,7 @@ class Plugin(BasePlugin):
         return t
 
     def get_tx(self, tx_hash):
-        tx = self.wallet.transactions[tx_hash]
+        tx = self.prev_tx[tx_hash]
         tx.deserialize()
         return self.electrum_tx_to_txtype(tx)
 
@@ -429,9 +430,26 @@ class TrezorWallet(BIP32_HD_Wallet):
         return str(b64_msg_sig)
 
     def sign_transaction(self, tx, password):
+        if tx.is_complete():
+            return
         if not self.check_proper_device():
             give_error('Wrong device or password')
-        self.plugin.sign_transaction(tx)
+        # previous transactions used as inputs
+        prev_tx = {}
+        # path of the xpubs that are involved
+        xpub_path = {}
+        for txin in tx.inputs:
+            tx_hash = txin['prevout_hash']
+            prev_tx[tx_hash] = self.transactions[tx_hash]
+            address = txin['address']
+            address_path = self.address_id(address)
+            account_id, (change, address_index) = self.get_address_index(address)
+
+            for x_pubkey in txin['x_pubkeys']:
+                xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
+                xpub_path[xpub] = "44'/2'/%s'"%account_id
+
+        self.plugin.sign_transaction(tx, prev_tx, xpub_path)
 
     def check_proper_device(self):
         self.get_client().ping('t')

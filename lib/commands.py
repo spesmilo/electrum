@@ -199,8 +199,8 @@ class Commands:
         t = Transaction(tx)
         t.deserialize()
         if privkey:
-            pubkey = bitcoin.public_key_from_private_key(sec)
-            t.sign({pubkey:sec})
+            pubkey = bitcoin.public_key_from_private_key(privkey)
+            t.sign({pubkey:privkey})
         else:
             self.wallet.sign_transaction(t, self.password)
         return t

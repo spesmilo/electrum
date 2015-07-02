@@ -228,7 +228,6 @@ class TcpInterface(threading.Thread):
                     try:
                         x = x509.X509()
                         x.parse(cert)
-                        x.slow_parse()
                     except:
                         traceback.print_exc(file=sys.stderr)
                         self.print_error("wrong certificate")
@@ -342,7 +341,6 @@ def check_cert(host, cert):
     try:
         x = x509.X509()
         x.parse(cert)
-        x.slow_parse()
     except:
         traceback.print_exc(file=sys.stdout)
         return

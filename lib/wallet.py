@@ -196,7 +196,7 @@ class Abstract_Wallet(object):
         for tx_hash, raw in tx_list.items():
             tx = Transaction(raw)
             self.transactions[tx_hash] = tx
-            if self.txi.get(tx_hash) is None and self.txo.get(tx_hash) is None:
+            if self.txi.get(tx_hash) is None and self.txo.get(tx_hash) is None and (tx_hash not in self.pruned_txo.values()):
                 print_error("removing unreferenced tx", tx_hash)
                 self.transactions.pop(tx_hash)
 
@@ -748,6 +748,14 @@ class Abstract_Wallet(object):
                 if (tx_hash, height) not in hist:
                     self.remove_transaction(tx_hash, height)
 
+            # fix: maybe remove only at the end, tx that have only unspent outputs
+            # bug: if tx is used by many addresses, not clear what we should do..
+            # we should remove tx iff it is completely unreferenced
+
+            # note about balance bug: on fist sync, it downloaded a lot of new tx, and I had a wrong balance. 
+            # after one reconnection it was fixed. (probably after changing server, going from pruned to long)
+            # this could be related to the 'download missing tx' behaviour, that kicks in on startup
+
             self.history[addr] = hist
             self.storage.put('addr_history', self.history, True)
 
@@ -1099,15 +1107,16 @@ class Abstract_Wallet(object):
             self.verifier.start()
             self.set_verifier(self.verifier)
             self.synchronizer = WalletSynchronizer(self, network)
-            self.synchronizer.start()
+            network.jobs.append(self.synchronizer.main_loop)
         else:
             self.verifier = None
-            self.synchronizer =None
+            self.synchronizer = None
 
     def stop_threads(self):
         if self.network:
             self.verifier.stop()
-            self.synchronizer.stop()
+            self.network.jobs = []
+            self.synchronizer = None
             self.storage.put('stored_height', self.get_local_height(), True)
 
     def restore(self, cb):
