@@ -61,10 +61,13 @@ class NetworkProxy(util.DaemonThread):
         self.blockchain_height = 0
         self.server_height = 0
         self.interfaces = []
+        self.jobs = []
 
 
     def run(self):
         while self.is_running():
+            for job in self.jobs:
+                job()
             try:
                 response = self.pipe.get()
             except util.timeout:
