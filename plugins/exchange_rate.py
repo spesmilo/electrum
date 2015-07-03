@@ -56,7 +56,7 @@ class Exchanger(threading.Thread):
     def get_json(self, site, get_string):
         resp = requests.request('GET', 'https://' + site + get_string, headers={"User-Agent":"Electrum"})
         return resp.json()
-        
+
     def exchange(self, btc_amount, quote_currency):
         with self.lock:
             if self.quote_currencies is None:
@@ -522,7 +522,7 @@ class Plugin(BasePlugin):
             if exchange_rate is not None:
                 btc_amount = fiat_amount/exchange_rate
                 btc_e.setAmount(int(btc_amount*Decimal(COIN)))
-                if fee_e: self.win.update_fee(False)
+                if fee_e: self.win.update_fee()
         fiat_e.textEdited.connect(fiat_changed)
         def btc_changed():
             if self.exchanger is None:

@@ -914,31 +914,37 @@ class ElectrumWindow(QMainWindow):
             addr = self.payto_e.payto_address if self.payto_e.payto_address else self.dummy_address
             output = ('address', addr, sendable)
             dummy_tx = Transaction.from_io(inputs, [output])
-            fee = self.wallet.estimated_fee(dummy_tx)
-            self.amount_e.setAmount(max(0,sendable-fee))
+            if not self.fee_e.isModified():
+                self.fee_e.setAmount(self.wallet.estimated_fee(dummy_tx))
+            self.amount_e.setAmount(max(0, sendable - self.fee_e.get_amount()))
             self.amount_e.textEdited.emit("")
-            self.fee_e.setAmount(fee)
 
         self.amount_e.shortcut.connect(on_shortcut)
 
-        self.payto_e.textChanged.connect(lambda: self.update_fee(False))
-        self.amount_e.textEdited.connect(lambda: self.update_fee(False))
-        self.fee_e.textEdited.connect(lambda: self.update_fee(True))
+        self.payto_e.textChanged.connect(lambda: self.update_fee())
+        self.amount_e.textEdited.connect(lambda: self.update_fee())
+        self.fee_e.textEdited.connect(lambda: self.update_fee())
+        # This is so that when the user blanks the fee and moves on,
+        # we go back to auto-calculate mode and put a fee back.
+        self.fee_e.editingFinished.connect(lambda: self.update_fee())
 
         def entry_changed():
-            if not self.not_enough_funds:
-                palette = QPalette()
-                palette.setColor(self.amount_e.foregroundRole(), QColor('black'))
-                text = ""
-            else:
-                palette = QPalette()
-                palette.setColor(self.amount_e.foregroundRole(), QColor('red'))
+            text = ""
+            if self.not_enough_funds:
+                amt_color, fee_color = 'red', 'red'
                 text = _( "Not enough funds" )
                 c, u, x = self.wallet.get_frozen_balance()
                 if c+u+x:
                     text += ' (' + self.format_amount(c+u+x).strip() + ' ' + self.base_unit() + ' ' +_("are frozen") + ')'
+            elif self.fee_e.isModified():
+                amt_color, fee_color = 'black', 'blue'
+            else:
+                amt_color, fee_color = 'black', 'black'
             self.statusBar().showMessage(text)
+            palette = QPalette()
+            palette.setColor(self.amount_e.foregroundRole(), QColor(amt_color))
             self.amount_e.setPalette(palette)
+            palette.setColor(self.amount_e.foregroundRole(), QColor(fee_color))
             self.fee_e.setPalette(palette)
 
         self.amount_e.textChanged.connect(entry_changed)
@@ -970,14 +976,20 @@ class ElectrumWindow(QMainWindow):
         run_hook('create_send_tab', grid)
         return w
 
-    def update_fee(self, is_fee):
+    def update_fee(self):
+        '''Recalculate the fee.  If the fee was manually input, retain it, but
+        still build the TX to see if there are enough funds.
+        '''
+        freeze_fee = (self.fee_e.isModified()
+                      and (self.fee_e.text() or self.fee_e.hasFocus()))
         outputs = self.payto_e.get_outputs()
         amount = self.amount_e.get_amount()
-        fee = self.fee_e.get_amount() if is_fee else None
         if amount is None:
-            self.fee_e.setAmount(None)
+            if not freeze_fee:
+                self.fee_e.setAmount(None)
             self.not_enough_funds = False
         else:
+            fee = self.fee_e.get_amount()
             if not outputs:
                 addr = self.payto_e.payto_address if self.payto_e.payto_address else self.dummy_address
                 outputs = [('address', addr, amount)]
@@ -986,7 +998,7 @@ class ElectrumWindow(QMainWindow):
                 self.not_enough_funds = False
             except NotEnoughFunds:
                 self.not_enough_funds = True
-            if not is_fee:
+            if not freeze_fee:
                 fee = None if self.not_enough_funds else self.wallet.get_tx_fee(tx)
                 self.fee_e.setAmount(fee)
 
@@ -1287,7 +1299,7 @@ class ElectrumWindow(QMainWindow):
     def set_frozen_state(self, addrs, freeze):
         self.wallet.set_frozen_state(addrs, freeze)
         self.update_address_tab()
-        self.update_fee(False)
+        self.update_fee()
 
     def create_list_tab(self, l):
         w = QWidget()
@@ -1432,7 +1444,7 @@ class ElectrumWindow(QMainWindow):
     def send_from_addresses(self, addrs):
         self.set_pay_from(addrs)
         self.tabs.setCurrentIndex(1)
-        self.update_fee(False)
+        self.update_fee()
 
     def paytomany(self):
         self.tabs.setCurrentIndex(1)
@@ -2477,7 +2489,7 @@ class ElectrumWindow(QMainWindow):
         def on_fee(is_done):
             self.wallet.set_fee(fee_e.get_amount() or 0, is_done)
             if not is_done:
-                self.update_fee(False)
+                self.update_fee()
         fee_e.editingFinished.connect(lambda: on_fee(True))
         fee_e.textEdited.connect(lambda: on_fee(False))
 
