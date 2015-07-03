@@ -180,6 +180,7 @@ class Network(util.DaemonThread):
         # to or have an ongoing connection with
         self.interface = None
         self.interfaces = {}
+        self.auto_connect = self.config.get('auto_connect', False)
         self.start_network(deserialize_server(self.default_server)[2],
                            deserialize_proxy(self.config.get('proxy')))
 
@@ -256,10 +257,7 @@ class Network(util.DaemonThread):
 
     def get_parameters(self):
         host, port, protocol = deserialize_server(self.default_server)
-        return host, port, protocol, self.proxy, self.auto_connect()
-
-    def auto_connect(self):
-        return self.config.get('auto_connect', False)
+        return host, port, protocol, self.proxy, self.auto_connect
 
     def get_interfaces(self):
         '''The interfaces that are in connected state'''
@@ -326,6 +324,7 @@ class Network(util.DaemonThread):
         self.interfaces = {}
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
+        self.auto_connect = auto_connect
         server = serialize_server(host, port, protocol)
         if self.proxy != proxy or self.protocol != protocol:
             # Restart the network defaulting to the given server
@@ -344,7 +343,7 @@ class Network(util.DaemonThread):
 
     def switch_lagging_interface(self, suggestion = None):
         '''If auto_connect and lagging, switch interface'''
-        if self.server_is_lagging() and self.auto_connect():
+        if self.server_is_lagging() and self.auto_connect:
             if suggestion and self.protocol == deserialize_server(suggestion)[2]:
                 self.switch_to_interface(suggestion)
             else:
@@ -499,7 +498,7 @@ class Network(util.DaemonThread):
                 self.nodes_retry_time = now
         # main interface
         if not self.is_connected():
-            if self.auto_connect():
+            if self.auto_connect:
                 self.switch_to_random_interface()
             else:
                 if self.default_server in self.disconnected_servers:
