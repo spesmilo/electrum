@@ -205,8 +205,8 @@ class NetworkProxy(util.DaemonThread):
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
         proxy_str = serialize_proxy(proxy)
         server_str = serialize_server(host, port, protocol)
-        self.config.set_key('auto_connect', auto_connect, True)
-        self.config.set_key("proxy", proxy_str, True)
+        self.config.set_key('auto_connect', auto_connect, False)
+        self.config.set_key("proxy", proxy_str, False)
         self.config.set_key("server", server_str, True)
         # abort if changes were not allowed by config
         if self.config.get('server') != server_str or self.config.get('proxy') != proxy_str:
