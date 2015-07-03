@@ -24,6 +24,7 @@ import threading
 import traceback
 import json
 import Queue
+from collections import defaultdict
 
 import util
 from network import Network
@@ -73,7 +74,7 @@ class ClientThread(util.DaemonThread):
         self.client_pipe = util.SocketPipe(s)
         self.response_queue = Queue.Queue()
         self.server.add_client(self)
-        self.subscriptions = set()
+        self.subscriptions = defaultdict(list)
 
     def reading_thread(self):
         while self.is_running():
@@ -90,7 +91,7 @@ class ClientThread(util.DaemonThread):
                 self.server.stop()
                 continue
             if method[-10:] == '.subscribe':
-                self.subscriptions.add(repr((method, params)))
+                self.subscriptions[method].append(params)
             self.server.send_request(self, request)
 
     def run(self):
@@ -167,7 +168,7 @@ class NetworkServer(util.DaemonThread):
                 m = response.get('method')
                 v = response.get('params')
                 for client in self.clients:
-                    if repr((m, v)) in client.subscriptions or m == 'network.status':
+                    if m == 'network.status' or v in client.subscriptions.get(m, []):
                         client.response_queue.put(response)
         self.network.stop()
         print_error("server exiting")
