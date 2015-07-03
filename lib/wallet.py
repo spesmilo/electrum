@@ -163,6 +163,7 @@ class Abstract_Wallet(object):
 
         self.load_accounts()
         self.load_transactions()
+        self.build_reverse_history()
 
         # load requests
         self.receive_requests = self.storage.get('payment_requests', {})
@@ -217,8 +218,20 @@ class Abstract_Wallet(object):
             self.txi = {}
             self.txo = {}
             self.pruned_txo = {}
-            self.history = {}
         self.save_transactions()
+        with self.lock:
+            self.history = {}
+            self.tx_addr_hist = {}
+        self.storage.put('addr_history', self.history, True)
+
+    @profiler
+    def build_reverse_history(self):
+        self.tx_addr_hist = {}
+        for addr, hist in self.history.items():
+            for tx_hash, h in hist:
+                s = self.tx_addr_hist.get(tx_hash, set())
+                s.add(addr)
+                self.tx_addr_hist[tx_hash] = s
 
     # wizard action
     def get_action(self):
@@ -746,23 +759,21 @@ class Abstract_Wallet(object):
             old_hist = self.history.get(addr, [])
             for tx_hash, height in old_hist:
                 if (tx_hash, height) not in hist:
-                    self.remove_transaction(tx_hash, height)
-
-            # fix: maybe remove only at the end, tx that have only unspent outputs
-            # bug: if tx is used by many addresses, not clear what we should do..
-            # we should remove tx iff it is completely unreferenced
-
-            # note about balance bug: on fist sync, it downloaded a lot of new tx, and I had a wrong balance. 
-            # after one reconnection it was fixed. (probably after changing server, going from pruned to long)
-            # this could be related to the 'download missing tx' behaviour, that kicks in on startup
+                    # remove tx if it's not referenced in histories
+                    self.tx_addr_hist[tx_hash].remove(addr)
+                    if not self.tx_addr_hist[tx_hash]:
+                        self.remove_transaction(tx_hash, height)
 
             self.history[addr] = hist
             self.storage.put('addr_history', self.history, True)
 
         for tx_hash, tx_height in hist:
             # add it in case it was previously unconfirmed
-            self.add_unverified_tx (tx_hash, tx_height)
-
+            self.add_unverified_tx(tx_hash, tx_height)
+            # add reference in tx_addr_hist
+            s = self.tx_addr_hist.get(tx_hash, set())
+            s.add(addr)
+            self.tx_addr_hist[tx_hash] = s
             # if addr is new, we have to recompute txi and txo
             tx = self.transactions.get(tx_hash)
             if tx is not None and self.txi.get(tx_hash, {}).get(addr) is None and self.txo.get(tx_hash, {}).get(addr) is None:
