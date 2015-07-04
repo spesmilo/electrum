@@ -31,8 +31,11 @@ from electrum.plugins import run_hook
 
 from util import *
 
+dialogs = []  # Otherwise python randomly garbage collects the dialogs...
+
 def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
     d = TxDialog(tx, parent, desc, prompt_if_unsaved)
+    dialogs.append(d)
     d.show()
 
 class TxDialog(QWidget):
@@ -45,7 +48,9 @@ class TxDialog(QWidget):
         tx_dict = tx.as_dict()
         self.parent = parent
         self.wallet = parent.wallet
-        self.saved = not prompt_if_unsaved
+        self.prompt_if_unsaved = prompt_if_unsaved
+        self.saved = False
+        self.broadcast = False
         self.desc = desc
 
         QWidget.__init__(self)
@@ -82,7 +87,6 @@ class TxDialog(QWidget):
 
         self.broadcast_button = b = QPushButton(_("Broadcast"))
         b.clicked.connect(self.do_broadcast)
-        b.hide()
 
         self.save_button = b = QPushButton(_("Save"))
         b.clicked.connect(self.save)
@@ -113,15 +117,19 @@ class TxDialog(QWidget):
 
     def do_broadcast(self):
         self.parent.broadcast_transaction(self.tx, self.desc)
-        self.saved = True
+        self.broadcast = True
+        self.update()
 
-    def close(self):
-        if not self.saved:
-            if QMessageBox.question(
-                    self, _('Message'), _('This transaction is not saved. Close anyway?'),
-                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.No:
-                return
-        QWidget.close(self)
+    def closeEvent(self, event):
+        if (self.prompt_if_unsaved and not self.saved and not self.broadcast
+            and QMessageBox.question(
+                self, _('Warning'),
+                _('This transaction is not saved. Close anyway?'),
+                QMessageBox.Yes | QMessageBox.No) == QMessageBox.No):
+            event.ignore()
+        else:
+            event.accept()
+            dialogs.remove(self)
 
     def show_qr(self):
         text = self.tx.raw.decode('hex')
@@ -134,6 +142,8 @@ class TxDialog(QWidget):
 
     def sign(self):
         def sign_done(success):
+            self.prompt_if_unsaved = True
+            self.saved = False
             self.update()
         self.parent.send_tx(self.tx, sign_done)
 
@@ -152,6 +162,7 @@ class TxDialog(QWidget):
         tx_hash = self.tx.hash()
         desc = self.desc
         time_str = None
+        self.broadcast_button.hide()
 
         if self.tx.is_complete():
             status = _("Signed")
@@ -164,8 +175,7 @@ class TxDialog(QWidget):
                 else:
                     time_str = _('Pending')
                 status = _("%d confirmations")%conf
-                self.broadcast_button.hide()
-            else:
+            elif not self.broadcast:
                 self.broadcast_button.show()
                 # cannot broadcast when offline
                 if self.parent.network is None:
@@ -173,7 +183,6 @@ class TxDialog(QWidget):
         else:
             s, r = self.tx.signature_count()
             status = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
-            self.broadcast_button.hide()
             tx_hash = _('Unknown');
 
         if self.wallet.can_sign(self.tx):
