@@ -45,6 +45,9 @@ class AmountEdit(MyLineEdit):
                 s = s.replace('.','')
                 s = s[:p] + '.' + s[p:p+self.decimal_point()]
         self.setText(s)
+        # setText sets Modified to False.  Instead we want to remember
+        # if updates were because of user modification.
+        self.setModified(self.hasFocus())
         self.setCursorPosition(pos)
 
     def paintEvent(self, event):

@@ -1,5 +1,3 @@
-from PyQt4.Qt import QMessageBox, QDialog, QVBoxLayout, QLabel, QThread, SIGNAL, QGridLayout, QInputDialog, QPushButton
-import PyQt4.QtCore as QtCore
 from binascii import unhexlify
 from struct import pack
 from sys import stderr
@@ -7,13 +5,17 @@ from time import sleep
 from base64 import b64encode, b64decode
 import unicodedata
 import threading
+import re
+
+from PyQt4.Qt import QMessageBox, QDialog, QVBoxLayout, QLabel, QThread, SIGNAL, QGridLayout, QInputDialog, QPushButton
+import PyQt4.QtCore as QtCore
 
 import electrum_ltc as electrum
 from electrum_ltc.account import BIP32_Account
 from electrum_ltc.bitcoin import EncodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin, hook, always_hook, run_hook
-from electrum_ltc.transaction import deserialize
+from electrum_ltc.transaction import Transaction, deserialize, is_extended_pubkey, x_to_xpub
 from electrum_ltc.wallet import BIP32_HD_Wallet
 from electrum_ltc.util import print_error, print_msg
 from electrum_ltc.wallet import pw_decode, bip32_private_derivation, bip32_root
@@ -29,6 +31,8 @@ try:
     TREZOR = True
 except ImportError:
     TREZOR = False
+
+import trezorlib.ckd_public as ckd_public
 
 def log(msg):
     stderr.write("%s\n" % msg)
@@ -234,43 +238,68 @@ class Plugin(BasePlugin):
         #finally:
         self.handler.stop()
 
-        #values = [i['value'] for i in tx.inputs]
         raw = signed_tx.encode('hex')
-        tx.update(raw)
-        #for i, txinput in enumerate(tx.inputs):
-        #    txinput['value'] = values[i]
+        tx.update_signatures(raw)
+
 
     def tx_inputs(self, tx, for_sig=False):
         inputs = []
-        for txinput in tx.inputs:
+        for txin in tx.inputs:
+            print txin
+
             txinputtype = types.TxInputType()
-            if ('is_coinbase' in txinput and txinput['is_coinbase']):
+            if txin.get('is_coinbase'):
                 prev_hash = "\0"*32
                 prev_index = 0xffffffff # signed int -1
             else:
-
                 if for_sig:
-                    x_pubkey = txinput['x_pubkeys'][0]
-                    xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
-                    xpub_n = self.get_client().expand_path(self.xpub_path[xpub])
-                    txinputtype.address_n.extend(xpub_n + s)
+                    x_pubkeys = txin['x_pubkeys']
+                    if len(x_pubkeys) == 1:
+                        x_pubkey = x_pubkeys[0]
+                        xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
+                        xpub_n = self.get_client().expand_path(self.xpub_path[xpub])
+                        txinputtype.address_n.extend(xpub_n + s)
+                    else:
+                        def f(x_pubkey):
+                            xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
+                            node = ckd_public.deserialize(xpub)
+                            return types.HDNodePathType(node=node, address_n=s)
+                        pubkeys = map(f, x_pubkeys)
+                        multisig = types.MultisigRedeemScriptType(
+                            pubkeys=pubkeys,
+                            signatures=map(lambda x: x if x else '', txin.get('signatures')),
+                            m=txin.get('num_sig'),
+                        )
+                        txinputtype = types.TxInputType(
+                            script_type=types.SPENDMULTISIG,
+                            multisig= multisig
+                        )
+                        # find which key is mine
+                        for x_pubkey in x_pubkeys:
+                            xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
+                            if xpub in self.xpub_path:
+                                xpub_n = self.get_client().expand_path(self.xpub_path[xpub])
+                                txinputtype.address_n.extend(xpub_n + s)
+                                break
+                            else:
+                                raise
 
-                prev_hash = unhexlify(txinput['prevout_hash'])
-                prev_index = txinput['prevout_n']
+                prev_hash = unhexlify(txin['prevout_hash'])
+                prev_index = txin['prevout_n']
 
             txinputtype.prev_hash = prev_hash
             txinputtype.prev_index = prev_index
 
-            if 'scriptSig' in txinput:
-                script_sig = txinput['scriptSig'].decode('hex')
+            if 'scriptSig' in txin:
+                script_sig = txin['scriptSig'].decode('hex')
                 txinputtype.script_sig = script_sig
 
-            if 'sequence' in txinput:
-                sequence = txinput['sequence']
+            if 'sequence' in txin:
+                sequence = txin['sequence']
                 txinputtype.sequence = sequence
 
             inputs.append(txinputtype)
-            #TODO P2SH
+
         return inputs
 
     def tx_outputs(self, tx):
@@ -440,14 +469,22 @@ class TrezorWallet(BIP32_HD_Wallet):
         xpub_path = {}
         for txin in tx.inputs:
             tx_hash = txin['prevout_hash']
-            prev_tx[tx_hash] = self.transactions[tx_hash]
-            address = txin['address']
-            address_path = self.address_id(address)
-            account_id, (change, address_index) = self.get_address_index(address)
+
+            ptx = self.transactions.get(tx_hash)
+            if ptx is None:
+                ptx = self.network.synchronous_get([('blockchain.transaction.get', [tx_hash])])[0]
+                ptx = Transaction(ptx)
+            prev_tx[tx_hash] = ptx
 
             for x_pubkey in txin['x_pubkeys']:
-                xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
-                xpub_path[xpub] = "44'/2'/%s'"%account_id
+                if not is_extended_pubkey(x_pubkey):
+                    continue
+                xpub = x_to_xpub(x_pubkey)
+                for k, v in self.master_public_keys.items():
+                    if v == xpub:
+                        account_id = re.match("x/(\d+)'", k).group(1)
+                        account_derivation = "44'/2'/%s'"%account_id
+                xpub_path[xpub] = account_derivation
 
         self.plugin.sign_transaction(tx, prev_tx, xpub_path)
 

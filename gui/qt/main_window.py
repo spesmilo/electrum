@@ -914,31 +914,37 @@ class ElectrumWindow(QMainWindow):
             addr = self.payto_e.payto_address if self.payto_e.payto_address else self.dummy_address
             output = ('address', addr, sendable)
             dummy_tx = Transaction.from_io(inputs, [output])
-            fee = self.wallet.estimated_fee(dummy_tx)
-            self.amount_e.setAmount(max(0,sendable-fee))
+            if not self.fee_e.isModified():
+                self.fee_e.setAmount(self.wallet.estimated_fee(dummy_tx))
+            self.amount_e.setAmount(max(0, sendable - self.fee_e.get_amount()))
             self.amount_e.textEdited.emit("")
-            self.fee_e.setAmount(fee)
 
         self.amount_e.shortcut.connect(on_shortcut)
 
-        self.payto_e.textChanged.connect(lambda: self.update_fee(False))
-        self.amount_e.textEdited.connect(lambda: self.update_fee(False))
-        self.fee_e.textEdited.connect(lambda: self.update_fee(True))
+        self.payto_e.textChanged.connect(lambda: self.update_fee())
+        self.amount_e.textEdited.connect(lambda: self.update_fee())
+        self.fee_e.textEdited.connect(lambda: self.update_fee())
+        # This is so that when the user blanks the fee and moves on,
+        # we go back to auto-calculate mode and put a fee back.
+        self.fee_e.editingFinished.connect(lambda: self.update_fee())
 
         def entry_changed():
-            if not self.not_enough_funds:
-                palette = QPalette()
-                palette.setColor(self.amount_e.foregroundRole(), QColor('black'))
-                text = ""
-            else:
-                palette = QPalette()
-                palette.setColor(self.amount_e.foregroundRole(), QColor('red'))
+            text = ""
+            if self.not_enough_funds:
+                amt_color, fee_color = 'red', 'red'
                 text = _( "Not enough funds" )
                 c, u, x = self.wallet.get_frozen_balance()
                 if c+u+x:
                     text += ' (' + self.format_amount(c+u+x).strip() + ' ' + self.base_unit() + ' ' +_("are frozen") + ')'
+            elif self.fee_e.isModified():
+                amt_color, fee_color = 'black', 'blue'
+            else:
+                amt_color, fee_color = 'black', 'black'
             self.statusBar().showMessage(text)
+            palette = QPalette()
+            palette.setColor(self.amount_e.foregroundRole(), QColor(amt_color))
             self.amount_e.setPalette(palette)
+            palette.setColor(self.amount_e.foregroundRole(), QColor(fee_color))
             self.fee_e.setPalette(palette)
 
         self.amount_e.textChanged.connect(entry_changed)
@@ -970,14 +976,20 @@ class ElectrumWindow(QMainWindow):
         run_hook('create_send_tab', grid)
         return w
 
-    def update_fee(self, is_fee):
+    def update_fee(self):
+        '''Recalculate the fee.  If the fee was manually input, retain it, but
+        still build the TX to see if there are enough funds.
+        '''
+        freeze_fee = (self.fee_e.isModified()
+                      and (self.fee_e.text() or self.fee_e.hasFocus()))
         outputs = self.payto_e.get_outputs()
         amount = self.amount_e.get_amount()
-        fee = self.fee_e.get_amount() if is_fee else None
         if amount is None:
-            self.fee_e.setAmount(None)
+            if not freeze_fee:
+                self.fee_e.setAmount(None)
             self.not_enough_funds = False
         else:
+            fee = self.fee_e.get_amount()
             if not outputs:
                 addr = self.payto_e.payto_address if self.payto_e.payto_address else self.dummy_address
                 outputs = [('address', addr, amount)]
@@ -986,7 +998,7 @@ class ElectrumWindow(QMainWindow):
                 self.not_enough_funds = False
             except NotEnoughFunds:
                 self.not_enough_funds = True
-            if not is_fee:
+            if not freeze_fee:
                 fee = None if self.not_enough_funds else self.wallet.get_tx_fee(tx)
                 self.fee_e.setAmount(fee)
 
@@ -1031,7 +1043,31 @@ class ElectrumWindow(QMainWindow):
         self.completions.setStringList(l)
 
     def protected(func):
-        return lambda s, *args: s.do_protect(func, args)
+        '''Password request wrapper.  The password is passed to the function
+        as the 'password' named argument.  Return value is a 2-element
+        tuple: (Cancelled, Result) where Cancelled is True if the user
+        cancels the password request, otherwise False.  Result is the
+        return value of the wrapped function, or None if cancelled.
+        '''
+        def request_password(self, *args, **kwargs):
+            parent = kwargs.get('parent', self)
+            if self.wallet.use_encryption:
+                while True:
+                    password = self.password_dialog(parent=parent)
+                    if not password:
+                        return True, None
+                    try:
+                        self.wallet.check_password(password)
+                        break
+                    except Exception as e:
+                        QMessageBox.warning(parent, _('Error'), str(e), _('OK'))
+                        continue
+            else:
+                password = None
+
+            kwargs['password'] = password
+            return False, func(self, *args, **kwargs)
+        return request_password
 
     def read_send_tab(self):
         if self.payment_request and self.payment_request.has_expired():
@@ -1125,18 +1161,20 @@ class ElectrumWindow(QMainWindow):
                         self.do_clear()
                     else:
                         self.broadcast_transaction(tx, tx_desc)
-            self.send_tx(tx, sign_done)
+            self.sign_tx(tx, sign_done)
 
 
     @protected
-    def send_tx(self, tx, callback, password):
+    def sign_tx(self, tx, callback, password, parent=None):
         '''Sign the transaction in a separate thread.  When done, calls
         the callback with a success code of True or False.
         '''
+        if parent == None:
+            parent = self
         self.send_button.setDisabled(True)
 
         # call hook to see if plugin needs gui interaction
-        run_hook('send_tx', tx)
+        run_hook('sign_tx', tx)
 
         # sign the tx
         success = [False]  # Array to work around python scoping
@@ -1150,11 +1188,11 @@ class ElectrumWindow(QMainWindow):
             callback(success[0])
 
         # keep a reference to WaitingDialog or the gui might crash
-        self.waiting_dialog = WaitingDialog(self, 'Signing transaction...', sign_thread, on_sign_successful, on_dialog_close)
+        self.waiting_dialog = WaitingDialog(parent, 'Signing transaction...', sign_thread, on_sign_successful, on_dialog_close)
         self.waiting_dialog.start()
 
 
-    def broadcast_transaction(self, tx, tx_desc):
+    def broadcast_transaction(self, tx, tx_desc, parent=None):
 
         def broadcast_thread():
             # non-GUI thread
@@ -1181,14 +1219,16 @@ class ElectrumWindow(QMainWindow):
             if status:
                 if tx_desc is not None and tx.is_complete():
                     self.wallet.set_label(tx.hash(), tx_desc)
-                QMessageBox.information(self, '', _('Payment sent.') + '\n' + msg, _('OK'))
+                QMessageBox.information(parent, '', _('Payment sent.') + '\n' + msg, _('OK'))
                 self.update_invoices_list()
                 self.do_clear()
             else:
-                QMessageBox.warning(self, _('Error'), msg, _('OK'))
+                QMessageBox.warning(parent, _('Error'), msg, _('OK'))
             self.send_button.setDisabled(False)
 
-        self.waiting_dialog = WaitingDialog(self, 'Broadcasting transaction...', broadcast_thread, broadcast_done)
+        if parent == None:
+            parent = self
+        self.waiting_dialog = WaitingDialog(parent, 'Broadcasting transaction...', broadcast_thread, broadcast_done)
         self.waiting_dialog.start()
 
 
@@ -1287,7 +1327,7 @@ class ElectrumWindow(QMainWindow):
     def set_frozen_state(self, addrs, freeze):
         self.wallet.set_frozen_state(addrs, freeze)
         self.update_address_tab()
-        self.update_fee(False)
+        self.update_fee()
 
     def create_list_tab(self, l):
         w = QWidget()
@@ -1432,7 +1472,7 @@ class ElectrumWindow(QMainWindow):
     def send_from_addresses(self, addrs):
         self.set_pay_from(addrs)
         self.tabs.setCurrentIndex(1)
-        self.update_fee(False)
+        self.update_fee()
 
     def paytomany(self):
         self.tabs.setCurrentIndex(1)
@@ -1846,29 +1886,6 @@ class ElectrumWindow(QMainWindow):
         d = QRDialog(data, self, title)
         d.exec_()
 
-
-    def do_protect(self, func, args):
-        if self.wallet.use_encryption:
-            while True:
-                password = self.password_dialog()
-                if not password:
-                    return
-                try:
-                    self.wallet.check_password(password)
-                    break
-                except Exception as e:
-                    QMessageBox.warning(self, _('Error'), str(e), _('OK'))
-                    continue
-        else:
-            password = None
-
-        if args != (False,):
-            args = (self,) + args + (password,)
-        else:
-            args = (self, password)
-        apply(func, args)
-
-
     def show_public_keys(self, address):
         if not address: return
         try:
@@ -2048,8 +2065,10 @@ class ElectrumWindow(QMainWindow):
     def show_warning(self, msg):
         QMessageBox.warning(self, _('Warning'), msg, _('OK'))
 
-    def password_dialog(self, msg=None):
-        d = QDialog(self)
+    def password_dialog(self, msg=None, parent=None):
+        if parent == None:
+            parent = self
+        d = QDialog(parent)
         d.setModal(1)
         d.setWindowTitle(_("Enter Password"))
         pw = QLineEdit()
@@ -2477,7 +2496,7 @@ class ElectrumWindow(QMainWindow):
         def on_fee(is_done):
             self.wallet.set_fee(fee_e.get_amount() or 0, is_done)
             if not is_done:
-                self.update_fee(False)
+                self.update_fee()
         fee_e.editingFinished.connect(lambda: on_fee(True))
         fee_e.textEdited.connect(lambda: on_fee(False))
 

@@ -33,7 +33,7 @@ try:
     from btchip.btchipException import BTChipException
     btchip.setAlternateCoinVersions = setAlternateCoinVersions
     BTCHIP = True
-    BTCHIP_DEBUG = False 
+    BTCHIP_DEBUG = False
 except ImportError:
     BTCHIP = False
 
@@ -50,7 +50,7 @@ class Plugin(BasePlugin):
     def _init(self):
         return BTCHIP
 
-    def is_available(self):        
+    def is_available(self):
         if not self._is_available:
             return False
         if not self.wallet:
@@ -87,7 +87,7 @@ class Plugin(BasePlugin):
         else:
             QMessageBox.information(self.window, _('Error'), _("BTChip device not detected.\nContinuing in watching-only mode."), _('OK'))
             self.wallet.force_watching_only = True
-    
+
     @hook
     def installwizard_restore(self, wizard, storage):
         if storage.get('wallet_type') != 'btchip':
@@ -101,7 +101,7 @@ class Plugin(BasePlugin):
         return wallet
 
     @hook
-    def send_tx(self, tx):
+    def sign_tx(self, tx):
         tx.error = None
         try:
             self.wallet.sign_transaction(tx, None)
@@ -129,7 +129,7 @@ class BTChipWallet(BIP32_HD_Wallet):
         if clear_client and self.client is not None:
             self.client.bad = True
             self.device_checked = False
-        raise Exception(message)                
+        raise Exception(message)
 
     def get_action(self):
         if not self.accounts:
@@ -163,7 +163,7 @@ class BTChipWallet(BIP32_HD_Wallet):
                 firmware = ver['version'].split(".")
                 self.canAlternateCoinVersions = (ver['specialVersion'] >= 0x20 and
                                                  map(int, firmware) >= [1, 0, 1])
-                if not checkFirmware(firmware):                    
+                if not checkFirmware(firmware):
                     d.close()
                     try:
                         updateFirmware()
@@ -172,13 +172,13 @@ class BTChipWallet(BIP32_HD_Wallet):
                         raise e
                     d = getDongle(BTCHIP_DEBUG)
                     d.setWaitImpl(DongleWaitQT(d))
-                    self.client = btchip(d)                    
+                    self.client = btchip(d)
                 try:
                     self.client.getOperationMode()
                 except BTChipException, e:
                     if (e.sw == 0x6985):
                         d.close()
-                        dialog = StartBTChipPersoDialog()                        
+                        dialog = StartBTChipPersoDialog()
                         dialog.exec_()
                         # Then fetch the reference again  as it was invalidated
                         d = getDongle(BTCHIP_DEBUG)
@@ -186,18 +186,18 @@ class BTChipWallet(BIP32_HD_Wallet):
                         self.client = btchip(d)
                     else:
                         raise e
-                if not noPin:                    
+                if not noPin:
                     # Immediately prompts for the PIN
-                    remaining_attempts = self.client.getVerifyPinRemainingAttempts()                    
+                    remaining_attempts = self.client.getVerifyPinRemainingAttempts()
                     if remaining_attempts <> 1:
                         msg = "Enter your BTChip PIN - remaining attempts : " + str(remaining_attempts)
                     else:
                         msg = "Enter your BTChip PIN - WARNING : LAST ATTEMPT. If the PIN is not correct, the dongle will be wiped."
-                    confirmed, p, pin = self.password_dialog(msg)                
+                    confirmed, p, pin = self.password_dialog(msg)
                     if not confirmed:
                         aborted = True
                         raise Exception('Aborted by user - please unplug the dongle and plug it again before retrying')
-                    pin = pin.encode()                   
+                    pin = pin.encode()
                     self.client.verifyPin(pin)
                     if self.canAlternateCoinVersions:
                         self.client.setAlternateCoinVersions(48, 5)
@@ -207,18 +207,18 @@ class BTChipWallet(BIP32_HD_Wallet):
                     self.client.dongle.close()
                 except:
                     pass
-                self.client = None                
+                self.client = None
                 if (e.sw == 0x6faa):
-                    raise Exception("Dongle is temporarily locked - please unplug it and replug it again")                    
+                    raise Exception("Dongle is temporarily locked - please unplug it and replug it again")
                 if ((e.sw & 0xFFF0) == 0x63c0):
                     raise Exception("Invalid PIN - please unplug the dongle and plug it again before retrying")
                 raise e
             except Exception, e:
-                try:                 
+                try:
                     self.client.dongle.close()
                 except:
-                    pass                
-                self.client = None                                
+                    pass
+                self.client = None
                 if not aborted:
                     raise Exception("Could not connect to your BTChip dongle. Please verify access permissions, PIN, or unplug the dongle and plug it again")
                 else:
@@ -244,20 +244,20 @@ class BTChipWallet(BIP32_HD_Wallet):
         return []
 
     def get_public_key(self, bip32_path):
-        # S-L-O-W - we don't handle the fingerprint directly, so compute it manually from the previous node        
+        # S-L-O-W - we don't handle the fingerprint directly, so compute it manually from the previous node
         # This only happens once so it's bearable
-        self.get_client() # prompt for the PIN before displaying the dialog if necessary        
+        self.get_client() # prompt for the PIN before displaying the dialog if necessary
         waitDialog.start("Computing master public key")
-        try:            
+        try:
             splitPath = bip32_path.split('/')
-            fingerprint = 0        
+            fingerprint = 0
             if len(splitPath) > 1:
                 prevPath = "/".join(splitPath[0:len(splitPath) - 1])
                 nodeData = self.get_client().getWalletPublicKey(prevPath)
                 publicKey = compress_public_key(nodeData['publicKey'])
                 h = hashlib.new('ripemd160')
                 h.update(hashlib.sha256(publicKey).digest())
-                fingerprint = unpack(">I", h.digest()[0:4])[0]            
+                fingerprint = unpack(">I", h.digest()[0:4])[0]
             nodeData = self.get_client().getWalletPublicKey(bip32_path)
             publicKey = compress_public_key(nodeData['publicKey'])
             depth = len(splitPath)
@@ -265,7 +265,7 @@ class BTChipWallet(BIP32_HD_Wallet):
             if len(lastChild) == 1:
                 childnum = int(lastChild[0])
             else:
-                childnum = 0x80000000 | int(lastChild[0])        
+                childnum = 0x80000000 | int(lastChild[0])
             xpub = "0488B21E".decode('hex') + chr(depth) + self.i4b(fingerprint) + self.i4b(childnum) + str(nodeData['chainCode']) + str(publicKey)
         except Exception, e:
             self.give_error(e, True)
@@ -280,7 +280,7 @@ class BTChipWallet(BIP32_HD_Wallet):
                 self.mpk = self.get_public_key("44'/2'")
             return self.mpk
         except Exception, e:
-            self.give_error(e, True)        
+            self.give_error(e, True)
 
     def i4b(self, x):
         return pack('>I', x)
@@ -297,13 +297,13 @@ class BTChipWallet(BIP32_HD_Wallet):
         self.signing = True
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
         if not self.check_proper_device():
-            self.give_error('Wrong device or password')        
+            self.give_error('Wrong device or password')
         address_path = self.address_id(address)
         waitDialog.start("Signing Message ...")
         try:
             info = self.get_client().signMessagePrepare(address_path, message)
             pin = ""
-            if info['confirmationNeeded']:                
+            if info['confirmationNeeded']:
                 # TODO : handle different confirmation types. For the time being only supports keyboard 2FA
                 use2FA = True
                 confirmed, p, pin = self.password_dialog()
@@ -317,8 +317,8 @@ class BTChipWallet(BIP32_HD_Wallet):
         except BTChipException, e:
             if e.sw == 0x6a80:
                 self.give_error("Unfortunately, this message cannot be signed by BTChip. Only alphanumerical messages shorter than 140 characters are supported. Please remove any extra characters (tab, carriage return) and retry.")
-            else:                
-                self.give_error(e, True)            
+            else:
+                self.give_error(e, True)
         except Exception, e:
             self.give_error(e, True)
         finally:
@@ -342,22 +342,22 @@ class BTChipWallet(BIP32_HD_Wallet):
 
         # And convert it
 
-        return b64encode(chr(27 + 4 + (signature[0] & 0x01)) + r + s) 
+        return b64encode(chr(27 + 4 + (signature[0] & 0x01)) + r + s)
 
     def sign_transaction(self, tx, password):
         if tx.is_complete():
             return
         if tx.error:
             raise BaseException(tx.error)
-        self.signing = True        
+        self.signing = True
         inputs = []
         inputsPaths = []
         pubKeys = []
         trustedInputs = []
-        redeemScripts = []        
+        redeemScripts = []
         signatures = []
         preparedTrustedInputs = []
-        changePath = "" 
+        changePath = ""
         changeAmount = None
         output = None
         outputAmount = None
@@ -368,8 +368,8 @@ class BTChipWallet(BIP32_HD_Wallet):
         for txinput in tx.inputs:
             if ('is_coinbase' in txinput and txinput['is_coinbase']):
                 self.give_error("Coinbase not supported")     # should never happen
-            inputs.append([ self.transactions[txinput['prevout_hash']].raw, 
-                             txinput['prevout_n'] ])        
+            inputs.append([ self.transactions[txinput['prevout_hash']].raw,
+                             txinput['prevout_n'] ])
             address = txinput['address']
             inputsPaths.append(self.address_id(address))
             pubKeys.append(self.get_public_keys(address))
@@ -377,7 +377,7 @@ class BTChipWallet(BIP32_HD_Wallet):
         # Recognize outputs - only one output and one change is authorized
         if len(tx.outputs) > 2: # should never happen
             self.give_error("Transaction with more than 2 outputs not supported")
-        for type, address, amount in tx.outputs:        
+        for type, address, amount in tx.outputs:
             assert type == 'address'
             if self.is_change(address):
                 changePath = self.address_id(address)
@@ -400,7 +400,7 @@ class BTChipWallet(BIP32_HD_Wallet):
         try:
             # Get trusted inputs from the original transactions
             for utxo in inputs:
-                txtmp = bitcoinTransaction(bytearray(utxo[0].decode('hex')))            
+                txtmp = bitcoinTransaction(bytearray(utxo[0].decode('hex')))
                 trustedInputs.append(self.get_client().getTrustedInput(txtmp, utxo[1]))
                 # TODO : Support P2SH later
                 redeemScripts.append(txtmp.outputs[utxo[1]].script)
@@ -408,13 +408,13 @@ class BTChipWallet(BIP32_HD_Wallet):
             firstTransaction = True
             inputIndex = 0
             while inputIndex < len(inputs):
-                self.get_client().startUntrustedTransaction(firstTransaction, inputIndex, 
+                self.get_client().startUntrustedTransaction(firstTransaction, inputIndex,
                 trustedInputs, redeemScripts[inputIndex])
-                outputData = self.get_client().finalizeInput(output, format_satoshis_plain(outputAmount), 
+                outputData = self.get_client().finalizeInput(output, format_satoshis_plain(outputAmount),
                 format_satoshis_plain(self.get_tx_fee(tx)), changePath, bytearray(rawTx.decode('hex')))
                 if firstTransaction:
                     transactionOutput = outputData['outputData']
-                if outputData['confirmationNeeded']:                
+                if outputData['confirmationNeeded']:
                     use2FA = True
                     # TODO : handle different confirmation types. For the time being only supports keyboard 2FA
                     waitDialog.emit(SIGNAL('dongle_done'))
@@ -424,16 +424,16 @@ class BTChipWallet(BIP32_HD_Wallet):
                             msg = "Do not enter your device PIN here !\r\n\r\n" + \
                                 "Your BTChip wants to talk to you and tell you a unique second factor code.\r\n" + \
                                 "For this to work, please match the character between stars of the output address using your security card\r\n\r\n" + \
-                                "Output address : " 
+                                "Output address : "
                             for index in range(len(output)):
                                 if index == outputData['keycardData'][keycardIndex]:
                                     msg = msg + "*" + output[index] + "*"
                                 else:
                                     msg = msg + output[index]
-                            msg = msg + "\r\n"                        
+                            msg = msg + "\r\n"
                             confirmed, p, pin = self.password_dialog(msg)
                             if not confirmed:
-                                raise Exception('Aborted by user') 
+                                raise Exception('Aborted by user')
                             try:
                                 pin2 = pin2 + chr(int(pin[0], 16))
                             except:
@@ -442,7 +442,7 @@ class BTChipWallet(BIP32_HD_Wallet):
                     else:
                         confirmed, p, pin = self.password_dialog()
                         if not confirmed:
-                            raise Exception('Aborted by user')                                            
+                            raise Exception('Aborted by user')
                         pin = pin.encode()
                         self.client.bad = True
                         self.device_checked = False
@@ -466,7 +466,7 @@ class BTChipWallet(BIP32_HD_Wallet):
         inputIndex = 0
         while inputIndex < len(inputs):
             # TODO : Support P2SH later
-            inputScript = get_regular_input_script(signatures[inputIndex], pubKeys[inputIndex][0].decode('hex'))        
+            inputScript = get_regular_input_script(signatures[inputIndex], pubKeys[inputIndex][0].decode('hex'))
             preparedTrustedInputs.append([ trustedInputs[inputIndex]['value'], inputScript ])
             inputIndex = inputIndex + 1
         updatedTransaction = format_transaction(transactionOutput, preparedTrustedInputs)
@@ -539,4 +539,3 @@ if BTCHIP:
 
         def waitFirstResponse(self, timeout):
 	    return self.dongle.waitFirstResponse(timeout)
-

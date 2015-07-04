@@ -1054,62 +1054,6 @@ class Abstract_Wallet(object):
                 print_error("removing transaction", tx_hash)
                 self.transactions.pop(tx_hash)
 
-    def check_new_history(self, addr, hist):
-        # check that all tx in hist are relevant
-        for tx_hash, height in hist:
-            tx = self.transactions.get(tx_hash)
-            if not tx:
-                continue
-            if not tx.has_address(addr):
-                return False
-
-        # check that we are not "orphaning" a transaction
-        old_hist = self.history.get(addr,[])
-        for tx_hash, height in old_hist:
-            if tx_hash in map(lambda x:x[0], hist):
-                continue
-            found = False
-            for _addr, _hist in self.history.items():
-                if _addr == addr:
-                    continue
-                _tx_hist = map(lambda x:x[0], _hist)
-                if tx_hash in _tx_hist:
-                    found = True
-                    break
-
-            if not found:
-                tx = self.transactions.get(tx_hash)
-                # tx might not be there
-                if not tx: continue
-
-                # already verified?
-                with self.lock:
-                    if tx_hash in self.verified_tx:
-                        continue
-                # unconfirmed tx
-                print_error("new history is orphaning transaction:", tx_hash)
-                # check that all outputs are not mine, request histories
-                ext_requests = []
-                for _addr in tx.get_output_addresses():
-                    # assert not self.is_mine(_addr)
-                    ext_requests.append( ('blockchain.address.get_history', [_addr]) )
-
-                ext_h = self.network.synchronous_get(ext_requests)
-                print_error("sync:", ext_requests, ext_h)
-                height = None
-                for h in ext_h:
-                    for item in h:
-                        if item.get('tx_hash') == tx_hash:
-                            height = item.get('height')
-                if height:
-                    print_error("found height for", tx_hash, height)
-                    self.add_unverified_tx(tx_hash, height)
-                else:
-                    print_error("removing orphaned tx from history", tx_hash)
-                    self.transactions.pop(tx_hash)
-
-        return True
-
     def start_threads(self, network):
         from verifier import SPV
         self.network = network
