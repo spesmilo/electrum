@@ -175,7 +175,7 @@ class TxDialog(QWidget):
                 else:
                     time_str = _('Pending')
                 status = _("%d confirmations")%conf
-            elif not self.broadcast:
+            else:
                 self.broadcast_button.show()
                 # cannot broadcast when offline
                 if self.parent.network is None:
