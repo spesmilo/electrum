@@ -487,6 +487,36 @@ class Transaction:
         self.raw = raw
         self.deserialize()
 
+    def update_signatures(self, raw):
+        """Add new signatures to a transaction"""
+        d = deserialize(raw)
+        for i, txin in enumerate(self.inputs):
+            sigs1 = txin.get('signatures')
+            sigs2 = d['inputs'][i].get('signatures')
+            for sig in sigs2:
+                if sig in sigs1:
+                    continue
+                for_sig = Hash(self.tx_for_sig(i).decode('hex'))
+                # der to string
+                order = ecdsa.ecdsa.generator_secp256k1.order()
+                r, s = ecdsa.util.sigdecode_der(sig.decode('hex'), order)
+                sig_string = ecdsa.util.sigencode_string(r, s, order)
+                pubkeys = txin.get('pubkeys')
+                compressed = True
+                for recid in range(4):
+                    public_key = MyVerifyingKey.from_signature(sig_string, recid, for_sig, curve = SECP256k1)
+                    pubkey = point_to_ser(public_key.pubkey.point, compressed).encode('hex')
+                    if pubkey in pubkeys:
+                        public_key.verify_digest(sig_string, for_sig, sigdecode = ecdsa.util.sigdecode_string)
+                        j = pubkeys.index(pubkey)
+                        print_error("adding sig", i, j, pubkey, sig)
+                        self.inputs[i]['signatures'][j] = sig
+                        self.inputs[i]['x_pubkeys'][j] = pubkey
+                        break
+        # redo raw
+        self.raw = self.serialize()
+
+
     def deserialize(self):
         d = deserialize(self.raw)
         self.inputs = d['inputs']
