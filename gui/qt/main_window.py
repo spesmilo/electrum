@@ -1137,18 +1137,18 @@ class ElectrumWindow(QMainWindow):
                         self.do_clear()
                     else:
                         self.broadcast_transaction(tx, tx_desc)
-            self.send_tx(tx, sign_done)
+            self.sign_tx(tx, sign_done)
 
 
     @protected
-    def send_tx(self, tx, callback, password):
+    def sign_tx(self, tx, callback, password):
         '''Sign the transaction in a separate thread.  When done, calls
         the callback with a success code of True or False.
         '''
         self.send_button.setDisabled(True)
 
         # call hook to see if plugin needs gui interaction
-        run_hook('send_tx', tx)
+        run_hook('sign_tx', tx)
 
         # sign the tx
         success = [False]  # Array to work around python scoping

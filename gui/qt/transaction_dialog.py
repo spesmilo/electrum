@@ -145,7 +145,7 @@ class TxDialog(QWidget):
             self.prompt_if_unsaved = True
             self.saved = False
             self.update()
-        self.parent.send_tx(self.tx, sign_done)
+        self.parent.sign_tx(self.tx, sign_done)
 
     def save(self):
         name = 'signed_%s.txn' % (self.tx.hash()[0:8]) if self.tx.is_complete() else 'unsigned.txn'

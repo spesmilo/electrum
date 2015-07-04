@@ -62,7 +62,7 @@ class TrustedCoinCosignerClient(object):
         self.base_url = base_url
         self.debug = debug
         self.user_agent = user_agent
-        
+
     def send_request(self, method, relative_url, data=None):
         kwargs = {'headers': {}}
         if self.user_agent:
@@ -85,12 +85,12 @@ class TrustedCoinCosignerClient(object):
                 r = response.json()
                 if 'message' in r:
                     message = r['message']
-            raise TrustedCoinException(message, response.status_code)        
+            raise TrustedCoinException(message, response.status_code)
         if response.headers.get('content-type') == 'application/json':
             return response.json()
         else:
             return response.text
-        
+
     def get_terms_of_service(self, billing_plan='electrum-per-tx-otp'):
         """
         Returns the TOS for the given billing plan as a plain/text unicode string.
@@ -98,13 +98,13 @@ class TrustedCoinCosignerClient(object):
         """
         payload = {'billing_plan': billing_plan}
         return self.send_request('get', 'tos', payload)
-        
+
     def create(self, xpubkey1, xpubkey2, email, billing_plan='electrum-per-tx-otp'):
         """
         Creates a new cosigner resource.
         :param xpubkey1: a bip32 extended public key (customarily the hot key)
         :param xpubkey2: a bip32 extended public key (customarily the cold key)
-        :param email: a contact email 
+        :param email: a contact email
         :param billing_plan: the billing plan for the cosigner
         """
         payload = {
@@ -114,7 +114,7 @@ class TrustedCoinCosignerClient(object):
             'billing_plan': billing_plan,
         }
         return self.send_request('post', 'cosigner', payload)
-        
+
     def auth(self, id, otp):
         """
         Attempt to authenticate for a particular cosigner.
@@ -123,7 +123,7 @@ class TrustedCoinCosignerClient(object):
         """
         payload = {'otp': otp}
         return self.send_request('post', 'cosigner/%s/auth' % quote(id), payload)
-        
+
     def get(self, id):
         """
         Attempt to authenticate for a particular cosigner.
@@ -131,7 +131,7 @@ class TrustedCoinCosignerClient(object):
         :param otp: the one time password
         """
         return self.send_request('get', 'cosigner/%s' % quote(id))
-        
+
     def sign(self, id, transaction, otp):
         """
         Attempt to authenticate for a particular cosigner.
@@ -157,7 +157,7 @@ class TrustedCoinCosignerClient(object):
             'otp': otp,
             'recipient': recipient,
             'timestamp': int(time.time()),
-            
+
         }
         relative_url = 'cosigner/%s/transfer' % quote(id)
         full_url = urljoin(self.base_url, relative_url)
@@ -282,7 +282,7 @@ class Plugin(BasePlugin):
         wallet.add_cosigner_seed(' '.join(words[0:n]), 'x1/', password)
         wallet.add_cosigner_xpub(' '.join(words[n:]), 'x2/')
 
-        msg = [ 
+        msg = [
             _('Your wallet file is:') + " %s"%os.path.abspath(wallet.storage.path),
             _('You need to be online in order to complete the creation of your wallet.'),
             _('If you generated your seed on an offline computer, click on "%s" to close this window, move your wallet file to an online computer and reopen it with Electrum.') % _('Close'),
@@ -350,14 +350,14 @@ class Plugin(BasePlugin):
     def get_wizard_action(self, window, wallet, action):
         if hasattr(self, action):
             return getattr(self, action)
-            
+
     @hook
     def installwizard_restore(self, window, storage):
-        if storage.get('wallet_type') != '2fa': 
+        if storage.get('wallet_type') != '2fa':
             return
 
         seed = window.enter_seed_dialog("Enter your seed", None, func=self.seed_func)
-        if not seed: 
+        if not seed:
             return
         wallet = Wallet_2fa(storage)
         self.wallet = wallet
@@ -380,7 +380,7 @@ class Plugin(BasePlugin):
         self.wallet = wallet
         self.window = window
 
-        if wallet.storage.get('wallet_type') != '2fa': 
+        if wallet.storage.get('wallet_type') != '2fa':
             raise
             return
 
@@ -444,8 +444,8 @@ class Plugin(BasePlugin):
         return False
 
     @hook
-    def send_tx(self, tx):
-        self.print_error("twofactor:send_tx")
+    def sign_tx(self, tx):
+        self.print_error("twofactor:sign_tx")
         if self.wallet.storage.get('wallet_type') != '2fa':
             return
 
@@ -514,7 +514,7 @@ class Plugin(BasePlugin):
 
         self.print_error( "received answer", r)
         if not r:
-            return 
+            return
 
         raw_tx = r.get('transaction')
         tx.update(raw_tx)
@@ -534,7 +534,7 @@ class Plugin(BasePlugin):
         grid.addWidget(pw, 1, 1)
         vbox.addLayout(grid)
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
-        if not d.exec_(): 
+        if not d.exec_():
             return
         return pw.get_amount()
 
@@ -562,7 +562,7 @@ class Plugin(BasePlugin):
               + _("For more information, visit") + " <a href=\"https://api.trustedcoin.com/#/electrum-help\">https://api.trustedcoin.com/#/electrum-help</a>"
         label = QLabel(msg)
         label.setOpenExternalLinks(1)
-        
+
         hbox.addStretch(10)
         hbox.addWidget(logo)
         hbox.addStretch(10)
@@ -656,7 +656,7 @@ class Plugin(BasePlugin):
             tos = server.get_terms_of_service()
             self.TOS = tos
             window.emit(SIGNAL('twofactor:TOS'))
-            
+
         def on_result():
             tos_e.setText(self.TOS)
 
@@ -669,7 +669,7 @@ class Plugin(BasePlugin):
         email_e.textChanged.connect(lambda: accept_button.setEnabled(re.match(regexp,email_e.text()) is not None))
         email_e.setFocus(True)
 
-        if not window.exec_(): 
+        if not window.exec_():
             return
 
         email = str(email_e.text())
