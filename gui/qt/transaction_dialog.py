@@ -116,7 +116,7 @@ class TxDialog(QDialog):
         self.update()
 
     def do_broadcast(self):
-        self.parent.broadcast_transaction(self.tx, self.desc)
+        self.parent.broadcast_transaction(self.tx, self.desc, parent=self)
         self.broadcast = True
         self.update()
 
@@ -142,10 +142,15 @@ class TxDialog(QDialog):
 
     def sign(self):
         def sign_done(success):
+            self.sign_button.setDisabled(False)
             self.prompt_if_unsaved = True
             self.saved = False
             self.update()
-        self.parent.sign_tx(self.tx, sign_done)
+        self.sign_button.setDisabled(True)
+        cancelled, ret = self.parent.sign_tx(self.tx, sign_done, parent=self)
+        if cancelled:
+            self.sign_button.setDisabled(False)
+
 
     def save(self):
         name = 'signed_%s.txn' % (self.tx.hash()[0:8]) if self.tx.is_complete() else 'unsigned.txn'
