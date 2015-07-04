@@ -468,6 +468,7 @@ class MyVerifyingKey(ecdsa.VerifyingKey):
 
 
 class EC_KEY(object):
+
     def __init__( self, k ):
         secret = string_to_number(k)
         self.pubkey = ecdsa.ecdsa.Public_key( generator_secp256k1, generator_secp256k1 * secret )
@@ -483,21 +484,20 @@ class EC_KEY(object):
         signature = private_key.sign_digest_deterministic( Hash( msg_magic(message) ), hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_string )
         assert public_key.verify_digest( signature, Hash( msg_magic(message) ), sigdecode = ecdsa.util.sigdecode_string)
         for i in range(4):
-            sig = base64.b64encode( chr(27 + i + (4 if compressed else 0)) + signature )
+            sig = base64.b64encode(chr(27 + i + (4 if compressed else 0)) + signature)
             try:
-                self.verify_message( address, sig, message)
+                self.verify_message(address, sig, message)
                 return sig
             except Exception:
                 continue
         else:
             raise Exception("error: cannot sign message")
 
-
     @classmethod
     def verify_message(self, address, signature, message):
         sig = base64.b64decode(signature)
-        if len(sig) != 65: raise Exception("Wrong encoding")
-
+        if len(sig) != 65:
+            raise Exception("Wrong encoding")
         nV = ord(sig[0])
         if nV < 27 or nV >= 35:
             raise Exception("Bad encoding")
@@ -506,16 +506,15 @@ class EC_KEY(object):
             nV -= 4
         else:
             compressed = False
-
         recid = nV - 27
-        h = Hash( msg_magic(message) )
-        public_key = MyVerifyingKey.from_signature( sig[1:], recid, h, curve = SECP256k1 )
 
+        h = Hash(msg_magic(message))
+        public_key = MyVerifyingKey.from_signature(sig[1:], recid, h, curve = SECP256k1)
         # check public key
-        public_key.verify_digest( sig[1:], h, sigdecode = ecdsa.util.sigdecode_string)
-
+        public_key.verify_digest(sig[1:], h, sigdecode = ecdsa.util.sigdecode_string)
+        pubkey = point_to_ser(public_key.pubkey.point, compressed)
         # check that we get the original signing address
-        addr = public_key_to_bc_address( point_to_ser(public_key.pubkey.point, compressed) )
+        addr = public_key_to_bc_address(pubkey)
         if address != addr:
             raise Exception("Bad signature")
 
