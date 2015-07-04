@@ -45,7 +45,7 @@ class TxDialog(QWidget):
         Pass desc to give a description for txs not yet in the wallet.
         '''
         self.tx = tx
-        tx_dict = tx.as_dict()
+        self.tx.deserialize()
         self.parent = parent
         self.wallet = parent.wallet
         self.prompt_if_unsaved = prompt_if_unsaved
@@ -157,7 +157,7 @@ class TxDialog(QWidget):
         fileName = self.parent.getSaveFileName(_("Select where to save your signed transaction"), name, "*.txn")
         if fileName:
             with open(fileName, "w+") as f:
-                f.write(json.dumps(self.tx.as_dict(),indent=4) + '\n')
+                f.write(json.dumps(self.tx.as_dict(), indent=4) + '\n')
             self.show_message(_("Transaction saved successfully"))
             self.saved = True
 
