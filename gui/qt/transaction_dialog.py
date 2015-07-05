@@ -38,7 +38,7 @@ def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
     dialogs.append(d)
     d.show()
 
-class TxDialog(QWidget):
+class TxDialog(QDialog):
 
     def __init__(self, tx, parent, desc, prompt_if_unsaved):
         '''Transactions in the wallet will show their description.
@@ -53,7 +53,7 @@ class TxDialog(QWidget):
         self.broadcast = False
         self.desc = desc
 
-        QWidget.__init__(self)
+        QDialog.__init__(self)
         self.setMinimumWidth(600)
         self.setWindowTitle(_("Transaction"))
 
@@ -227,8 +227,6 @@ class TxDialog(QWidget):
             self.amount_label.setText(_("Transaction unrelated to your wallet"))
 
         run_hook('transaction_dialog_update', self)
-        self.raise_()
-
 
 
     def add_io(self, vbox):
