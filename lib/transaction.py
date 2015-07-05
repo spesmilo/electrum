@@ -486,6 +486,7 @@ class Transaction:
 
     def update(self, raw):
         self.raw = raw
+        self.inputs = None
         self.deserialize()
 
     def update_signatures(self, raw):
