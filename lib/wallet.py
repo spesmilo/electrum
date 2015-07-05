@@ -183,6 +183,8 @@ class Abstract_Wallet(object):
         self.transaction_lock = threading.Lock()
         self.tx_event = threading.Event()
 
+        self.check_history()
+
         # save wallet type the first time
         if self.storage.get('wallet_type') is None:
             self.storage.put('wallet_type', self.wallet_type, True)
@@ -232,6 +234,25 @@ class Abstract_Wallet(object):
                 s = self.tx_addr_hist.get(tx_hash, set())
                 s.add(addr)
                 self.tx_addr_hist[tx_hash] = s
+
+    @profiler
+    def check_history(self):
+        save = False
+        for addr, hist in self.history.items():
+            if not self.is_mine(addr):
+                self.history.pop(addr)
+                save = True
+                continue
+
+            for tx_hash, tx_height in hist:
+                if tx_hash in self.pruned_txo.values() or self.txi.get(tx_hash) or self.txo.get(tx_hash):
+                    continue
+                tx = self.transactions.get(tx_hash)
+                if tx is not None:
+                    tx.deserialize()
+                    self.add_transaction(tx_hash, tx, tx_height)
+        if save:
+            self.storage.put('addr_history', self.history, True)
 
     # wizard action
     def get_action(self):
@@ -313,6 +334,10 @@ class Abstract_Wallet(object):
             self.accounts[IMPORTED_ACCOUNT] = ImportedAccount({'imported':{}})
         self.accounts[IMPORTED_ACCOUNT].add(address, pubkey, sec, password)
         self.save_accounts()
+
+        # force resynchronization, because we need to re-run add_transaction
+        if addr in self.history:
+            self.history.pop(addr)
 
         if self.synchronizer:
             self.synchronizer.add(address)
