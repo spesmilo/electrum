@@ -1095,7 +1095,7 @@ class Abstract_Wallet(object):
     def stop_threads(self):
         if self.network:
             self.verifier.stop()
-            self.network.jobs = []
+            self.network.jobs.remove(self.synchronizer.main_loop)
             self.synchronizer = None
             self.storage.put('stored_height', self.get_local_height(), True)
 
