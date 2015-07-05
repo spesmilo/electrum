@@ -130,6 +130,10 @@ class BTChipWallet(BIP32_HD_Wallet):
         if not self.accounts:
             return 'create_accounts'
 
+    def can_sign_xpubkey(self, x_pubkey):
+        xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
+        return xpub in self.master_public_keys.values()
+
     def can_create_accounts(self):
         return False
 
