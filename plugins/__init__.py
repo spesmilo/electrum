@@ -34,7 +34,7 @@ descriptions = [
         'requires': [('btchip', 'github.com/btchip/btchip-python')],
         'requires_wallet_type': ['btchip'],
         'registers_wallet_type': ('hardware', 'btchip', _("BTChip wallet")),
-        'available_for': ['qt'],
+        'available_for': ['qt', 'cmdline'],
     },
     {
         'name': 'cosigner_pool',
