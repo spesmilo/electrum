@@ -1141,12 +1141,10 @@ class ElectrumWindow(QMainWindow):
 
 
     @protected
-    def sign_tx(self, tx, callback, password, parent=None):
+    def sign_tx(self, tx, callback, password):
         '''Sign the transaction in a separate thread.  When done, calls
         the callback with a success code of True or False.
         '''
-        if parent == None:
-            parent = self
         self.send_button.setDisabled(True)
 
         # call hook to see if plugin needs gui interaction
@@ -1164,11 +1162,11 @@ class ElectrumWindow(QMainWindow):
             callback(success[0])
 
         # keep a reference to WaitingDialog or the gui might crash
-        self.waiting_dialog = WaitingDialog(parent, 'Signing transaction...', sign_thread, on_sign_successful, on_dialog_close)
+        self.waiting_dialog = WaitingDialog(self, 'Signing transaction...', sign_thread, on_sign_successful, on_dialog_close)
         self.waiting_dialog.start()
 
 
-    def broadcast_transaction(self, tx, tx_desc, parent=None):
+    def broadcast_transaction(self, tx, tx_desc):
 
         def broadcast_thread():
             # non-GUI thread
@@ -1195,16 +1193,14 @@ class ElectrumWindow(QMainWindow):
             if status:
                 if tx_desc is not None and tx.is_complete():
                     self.wallet.set_label(tx.hash(), tx_desc)
-                QMessageBox.information(parent, '', _('Payment sent.') + '\n' + msg, _('OK'))
+                QMessageBox.information(self, '', _('Payment sent.') + '\n' + msg, _('OK'))
                 self.update_invoices_list()
                 self.do_clear()
             else:
-                QMessageBox.warning(parent, _('Error'), msg, _('OK'))
+                QMessageBox.warning(self, _('Error'), msg, _('OK'))
             self.send_button.setDisabled(False)
 
-        if parent == None:
-            parent = self
-        self.waiting_dialog = WaitingDialog(parent, 'Broadcasting transaction...', broadcast_thread, broadcast_done)
+        self.waiting_dialog = WaitingDialog(self, 'Broadcasting transaction...', broadcast_thread, broadcast_done)
         self.waiting_dialog.start()
 
 
