@@ -1463,8 +1463,10 @@ class Deterministic_Wallet(Abstract_Wallet):
     def get_master_public_keys(self):
         out = {}
         for k, account in self.accounts.items():
+            if type(account) == ImportedAccount:
+                continue
             name = self.get_account_name(k)
-            mpk_text = '\n\n'.join( account.get_master_pubkeys() )
+            mpk_text = '\n\n'.join(account.get_master_pubkeys())
             out[name] = mpk_text
         return out
 
