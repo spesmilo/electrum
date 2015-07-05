@@ -519,6 +519,8 @@ class Transaction:
 
 
     def deserialize(self):
+        if self.raw is None:
+            self.raw = self.serialize()
         if self.inputs is not None:
             return
         d = deserialize(self.raw)
