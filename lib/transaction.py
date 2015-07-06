@@ -482,9 +482,11 @@ class Transaction:
 
     def __init__(self, raw):
         self.raw = raw
+        self.inputs = None
 
     def update(self, raw):
         self.raw = raw
+        self.inputs = None
         self.deserialize()
 
     def update_signatures(self, raw):
@@ -518,6 +520,10 @@ class Transaction:
 
 
     def deserialize(self):
+        if self.raw is None:
+            self.raw = self.serialize()
+        if self.inputs is not None:
+            return
         d = deserialize(self.raw)
         self.inputs = d['inputs']
         self.outputs = [(x['type'], x['address'], x['value']) for x in d['outputs']]

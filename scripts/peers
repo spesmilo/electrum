@@ -35,8 +35,8 @@ results = util.send_request(peers, {'method':'blockchain.headers.subscribe','par
 
 errors = analyze(results).keys()
 
-for n,v in sorted(results.items(), key=lambda x:x[1]['block_height']):
-    print "%40s"%n, v['block_height'], v['utxo_root'], "error" if n in errors else "ok"
+for n,v in sorted(results.items(), key=lambda x:x[1].get('block_height')):
+    print "%40s"%n, v.get('block_height'), v.get('utxo_root'), "error" if n in errors else "ok"
 
 
 

@@ -728,6 +728,14 @@ def bip32_root(seed, testnet=False):
     return EncodeBase58Check(xprv), EncodeBase58Check(xpub)
 
 
+def xpub_from_pubkey(cK, testnet=False):
+    header_pub, header_priv = _get_headers(testnet)
+    assert cK[0] in ['\x02','\x03']
+    master_c = chr(0)*32
+    xpub = (header_pub + "00" + "00000000" + "00000000").decode("hex") + master_c + cK
+    return EncodeBase58Check(xpub)
+
+
 def bip32_private_derivation(xprv, branch, sequence, testnet=False):
     assert sequence.startswith(branch)
     if branch == sequence:

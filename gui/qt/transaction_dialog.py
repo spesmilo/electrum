@@ -38,14 +38,14 @@ def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
     dialogs.append(d)
     d.show()
 
-class TxDialog(QWidget):
+class TxDialog(QDialog):
 
     def __init__(self, tx, parent, desc, prompt_if_unsaved):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''
         self.tx = tx
-        tx_dict = tx.as_dict()
+        self.tx.deserialize()
         self.parent = parent
         self.wallet = parent.wallet
         self.prompt_if_unsaved = prompt_if_unsaved
@@ -53,7 +53,7 @@ class TxDialog(QWidget):
         self.broadcast = False
         self.desc = desc
 
-        QWidget.__init__(self)
+        QDialog.__init__(self)
         self.setMinimumWidth(600)
         self.setWindowTitle(_("Transaction"))
 
@@ -116,7 +116,7 @@ class TxDialog(QWidget):
         self.update()
 
     def do_broadcast(self):
-        self.parent.broadcast_transaction(self.tx, self.desc, parent=self)
+        self.parent.broadcast_transaction(self.tx, self.desc)
         self.broadcast = True
         self.update()
 
@@ -142,22 +142,17 @@ class TxDialog(QWidget):
 
     def sign(self):
         def sign_done(success):
-            self.sign_button.setDisabled(False)
             self.prompt_if_unsaved = True
             self.saved = False
             self.update()
-        self.sign_button.setDisabled(True)
-        cancelled, ret = self.parent.sign_tx(self.tx, sign_done, parent=self)
-        if cancelled:
-            self.sign_button.setDisabled(False)
-
+        self.parent.sign_tx(self.tx, sign_done)
 
     def save(self):
         name = 'signed_%s.txn' % (self.tx.hash()[0:8]) if self.tx.is_complete() else 'unsigned.txn'
         fileName = self.parent.getSaveFileName(_("Select where to save your signed transaction"), name, "*.txn")
         if fileName:
             with open(fileName, "w+") as f:
-                f.write(json.dumps(self.tx.as_dict(),indent=4) + '\n')
+                f.write(json.dumps(self.tx.as_dict(), indent=4) + '\n')
             self.show_message(_("Transaction saved successfully"))
             self.saved = True
 
@@ -227,8 +222,6 @@ class TxDialog(QWidget):
             self.amount_label.setText(_("Transaction unrelated to your wallet"))
 
         run_hook('transaction_dialog_update', self)
-        self.raise_()
-
 
 
     def add_io(self, vbox):

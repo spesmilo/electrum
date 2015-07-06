@@ -1043,31 +1043,7 @@ class ElectrumWindow(QMainWindow):
         self.completions.setStringList(l)
 
     def protected(func):
-        '''Password request wrapper.  The password is passed to the function
-        as the 'password' named argument.  Return value is a 2-element
-        tuple: (Cancelled, Result) where Cancelled is True if the user
-        cancels the password request, otherwise False.  Result is the
-        return value of the wrapped function, or None if cancelled.
-        '''
-        def request_password(self, *args, **kwargs):
-            parent = kwargs.get('parent', self)
-            if self.wallet.use_encryption:
-                while True:
-                    password = self.password_dialog(parent=parent)
-                    if not password:
-                        return True, None
-                    try:
-                        self.wallet.check_password(password)
-                        break
-                    except Exception as e:
-                        QMessageBox.warning(parent, _('Error'), str(e), _('OK'))
-                        continue
-            else:
-                password = None
-
-            kwargs['password'] = password
-            return False, func(self, *args, **kwargs)
-        return request_password
+        return lambda s, *args: s.do_protect(func, args)
 
     def read_send_tab(self):
         if self.payment_request and self.payment_request.has_expired():
@@ -1165,12 +1141,10 @@ class ElectrumWindow(QMainWindow):
 
 
     @protected
-    def sign_tx(self, tx, callback, password, parent=None):
+    def sign_tx(self, tx, callback, password):
         '''Sign the transaction in a separate thread.  When done, calls
         the callback with a success code of True or False.
         '''
-        if parent == None:
-            parent = self
         self.send_button.setDisabled(True)
 
         # call hook to see if plugin needs gui interaction
@@ -1188,11 +1162,11 @@ class ElectrumWindow(QMainWindow):
             callback(success[0])
 
         # keep a reference to WaitingDialog or the gui might crash
-        self.waiting_dialog = WaitingDialog(parent, 'Signing transaction...', sign_thread, on_sign_successful, on_dialog_close)
+        self.waiting_dialog = WaitingDialog(self, 'Signing transaction...', sign_thread, on_sign_successful, on_dialog_close)
         self.waiting_dialog.start()
 
 
-    def broadcast_transaction(self, tx, tx_desc, parent=None):
+    def broadcast_transaction(self, tx, tx_desc):
 
         def broadcast_thread():
             # non-GUI thread
@@ -1219,16 +1193,14 @@ class ElectrumWindow(QMainWindow):
             if status:
                 if tx_desc is not None and tx.is_complete():
                     self.wallet.set_label(tx.hash(), tx_desc)
-                QMessageBox.information(parent, '', _('Payment sent.') + '\n' + msg, _('OK'))
+                QMessageBox.information(self, '', _('Payment sent.') + '\n' + msg, _('OK'))
                 self.update_invoices_list()
                 self.do_clear()
             else:
-                QMessageBox.warning(parent, _('Error'), msg, _('OK'))
+                QMessageBox.warning(self, _('Error'), msg, _('OK'))
             self.send_button.setDisabled(False)
 
-        if parent == None:
-            parent = self
-        self.waiting_dialog = WaitingDialog(parent, 'Broadcasting transaction...', broadcast_thread, broadcast_done)
+        self.waiting_dialog = WaitingDialog(self, 'Broadcasting transaction...', broadcast_thread, broadcast_done)
         self.waiting_dialog.start()
 
 
@@ -1886,6 +1858,29 @@ class ElectrumWindow(QMainWindow):
         d = QRDialog(data, self, title)
         d.exec_()
 
+
+    def do_protect(self, func, args):
+        if self.wallet.use_encryption:
+            while True:
+                password = self.password_dialog()
+                if not password:
+                    return
+                try:
+                    self.wallet.check_password(password)
+                    break
+                except Exception as e:
+                    QMessageBox.warning(self, _('Error'), str(e), _('OK'))
+                    continue
+        else:
+            password = None
+
+        if args != (False,):
+            args = (self,) + args + (password,)
+        else:
+            args = (self, password)
+        apply(func, args)
+
+
     def show_public_keys(self, address):
         if not address: return
         try:
@@ -2065,10 +2060,8 @@ class ElectrumWindow(QMainWindow):
     def show_warning(self, msg):
         QMessageBox.warning(self, _('Warning'), msg, _('OK'))
 
-    def password_dialog(self, msg=None, parent=None):
-        if parent == None:
-            parent = self
-        d = QDialog(parent)
+    def password_dialog(self, msg=None):
+        d = QDialog(self)
         d.setModal(1)
         d.setWindowTitle(_("Enter Password"))
         pw = QLineEdit()

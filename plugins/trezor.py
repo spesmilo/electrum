@@ -11,8 +11,10 @@ from PyQt4.Qt import QMessageBox, QDialog, QVBoxLayout, QLabel, QThread, SIGNAL,
 import PyQt4.QtCore as QtCore
 
 import electrum_ltc as electrum
+from electrum_ltc import bitcoin
+
 from electrum_ltc.account import BIP32_Account
-from electrum_ltc.bitcoin import EncodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
+from electrum_ltc.bitcoin import EncodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160, xpub_from_pubkey
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin, hook, always_hook, run_hook
 from electrum_ltc.transaction import Transaction, deserialize, is_extended_pubkey, x_to_xpub
@@ -245,8 +247,6 @@ class Plugin(BasePlugin):
     def tx_inputs(self, tx, for_sig=False):
         inputs = []
         for txin in tx.inputs:
-            print txin
-
             txinputtype = types.TxInputType()
             if txin.get('is_coinbase'):
                 prev_hash = "\0"*32
@@ -261,13 +261,17 @@ class Plugin(BasePlugin):
                         txinputtype.address_n.extend(xpub_n + s)
                     else:
                         def f(x_pubkey):
-                            xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
+                            if is_extended_pubkey(x_pubkey):
+                                xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
+                            else:
+                                xpub = xpub_from_pubkey(x_pubkey.decode('hex'))
+                                s = []
                             node = ckd_public.deserialize(xpub)
                             return types.HDNodePathType(node=node, address_n=s)
                         pubkeys = map(f, x_pubkeys)
                         multisig = types.MultisigRedeemScriptType(
                             pubkeys=pubkeys,
-                            signatures=map(lambda x: x if x else '', txin.get('signatures')),
+                            signatures=map(lambda x: x.decode('hex') if x else '', txin.get('signatures')),
                             m=txin.get('num_sig'),
                         )
                         txinputtype = types.TxInputType(
