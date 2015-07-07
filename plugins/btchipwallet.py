@@ -525,8 +525,8 @@ class BTChipQTHandler:
     def __init__(self, win):
         self.win = win
         self.win.connect(win, SIGNAL('btchip_done'), self.dialog_stop)
-        self.win.connect(win, SIGNAL('message_dialog'), self.message_dialog)
-        self.win.connect(win, SIGNAL('auth_dialog'), self.auth_dialog)
+        self.win.connect(win, SIGNAL('btchip_message_dialog'), self.message_dialog)
+        self.win.connect(win, SIGNAL('btchip_auth_dialog'), self.auth_dialog)
         self.done = threading.Event()
 
     def stop(self):
@@ -534,12 +534,12 @@ class BTChipQTHandler:
 
     def show_message(self, msg):
         self.message = msg
-        self.win.emit(SIGNAL('message_dialog'))
+        self.win.emit(SIGNAL('btchip_message_dialog'))
 
     def prompt_auth(self, msg):
         self.done.clear()
         self.message = msg
-        self.win.emit(SIGNAL('auth_dialog'))
+        self.win.emit(SIGNAL('btchip_auth_dialog'))
         self.done.wait()
         return self.response
 

@@ -388,7 +388,7 @@ if __name__ == '__main__':
         if config_options.get('server'):
             config_options['auto_connect'] = False
 
-    if config_options.get('portable') and config_options.get('wallet_path') is None:
+    if config_options.get('portable'):
         config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum-ltc_data')
 
     # If private key is passed on the command line, '?' triggers prompt.

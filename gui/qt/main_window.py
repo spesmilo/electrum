@@ -711,17 +711,31 @@ class ElectrumWindow(QMainWindow):
         message = unicode(self.receive_message_e.text())
         if not message and not amount:
             QMessageBox.warning(self, _('Error'), _('No message or amount'), _('OK'))
-            return
+            return False
         i = self.expires_combo.currentIndex()
         expiration = map(lambda x: x[1], expiration_values)[i]
         self.wallet.add_payment_request(addr, amount, message, expiration, self.config)
         self.update_receive_tab()
         self.update_address_tab()
         self.save_request_button.setEnabled(False)
+        return True
+
+    def make_payment_request(self, addr):
+        alias = str(self.config.get('alias'))
+        alias_privkey = None
+        if alias:
+            alias_info = self.contacts.resolve_openalias(alias)
+            if alias_info:
+                alias_addr, alias_name = alias_info
+                if alias_addr and self.wallet.is_mine(alias_addr):
+                    password = self.password_dialog()
+                    alias_privkey = self.wallet.get_private_key(alias_addr, password)[0]
+        r = self.wallet.get_payment_request(addr, self.config)
+        pr = paymentrequest.make_request(self.config, r, alias, alias_privkey)
+        return pr
 
     def export_payment_request(self, addr):
-        r = self.wallet.get_payment_request(addr, self.config)
-        pr = paymentrequest.make_request(self.config, r)
+        pr = self.make_payment_request(addr)
         name = r['id'] + '.bip70'
         fileName = self.getSaveFileName(_("Select where to save your payment request"), name, "*.bip70")
         if fileName:
@@ -1272,7 +1286,7 @@ class ElectrumWindow(QMainWindow):
 
         def get_payment_request_thread():
             self.payment_request = get_payment_request(request_url)
-            if self.payment_request.verify():
+            if self.payment_request.verify(self.contacts):
                 self.emit(SIGNAL('payment_request_ok'))
             else:
                 self.emit(SIGNAL('payment_request_error'))
@@ -1485,7 +1499,7 @@ class ElectrumWindow(QMainWindow):
 
     def show_invoice(self, key):
         pr = self.invoices.get(key)
-        pr.verify()
+        pr.verify(self.contacts)
         self.show_pr_details(pr)
 
     def show_pr_details(self, pr):
@@ -1521,7 +1535,7 @@ class ElectrumWindow(QMainWindow):
         pr = self.invoices.get(key)
         self.payment_request = pr
         self.prepare_for_payment_request()
-        if pr.verify():
+        if pr.verify(self.contacts):
             self.payment_request_ok()
         else:
             self.payment_request_error()
@@ -2492,8 +2506,16 @@ class ElectrumWindow(QMainWindow):
                 self.update_fee()
         fee_e.editingFinished.connect(lambda: on_fee(True))
         fee_e.textEdited.connect(lambda: on_fee(False))
-
         widgets.append((fee_label, fee_e, fee_help))
+
+        alias_label = QLabel(_('Alias') + ':')
+        alias_help = HelpButton(_('OpenAlias TXT record, used to receive coins and to sign payment requests'))
+        alias_e = QLineEdit(self.config.get('alias',''))
+        def on_alias():
+            alias = str(alias_e.text())
+            self.config.set_key('alias', alias, True)
+        alias_e.editingFinished.connect(on_alias)
+        widgets.append((alias_label, alias_e, alias_help))
 
         units = ['LTC', 'mLTC', 'bits']
         unit_label = QLabel(_('Base unit') + ':')

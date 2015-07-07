@@ -479,11 +479,15 @@ class EC_KEY(object):
     def get_public_key(self, compressed=True):
         return point_to_ser(self.pubkey.point, compressed).encode('hex')
 
-    def sign_message(self, message, compressed, address):
-        private_key = ecdsa.SigningKey.from_secret_exponent( self.secret, curve = SECP256k1 )
+    def sign(self, msg_hash):
+        private_key = ecdsa.SigningKey.from_secret_exponent(self.secret, curve = SECP256k1)
         public_key = private_key.get_verifying_key()
-        signature = private_key.sign_digest_deterministic( Hash( msg_magic(message) ), hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_string )
-        assert public_key.verify_digest( signature, Hash( msg_magic(message) ), sigdecode = ecdsa.util.sigdecode_string)
+        signature = private_key.sign_digest_deterministic(msg_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_string)
+        assert public_key.verify_digest(signature, msg_hash, sigdecode = ecdsa.util.sigdecode_string)
+        return signature
+
+    def sign_message(self, message, compressed, address):
+        signature = self.sign(Hash(msg_magic(message)))
         for i in range(4):
             sig = base64.b64encode(chr(27 + i + (4 if compressed else 0)) + signature)
             try:

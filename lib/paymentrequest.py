@@ -98,19 +98,29 @@ class PaymentRequest:
         self.memo = self.details.memo
         self.payment_url = self.details.payment_url
 
-    def verify(self):
+    def verify(self, contacts):
+        if not self.raw:
+            self.error = "Empty request"
+            return
+        pr = pb2.PaymentRequest()
+        pr.ParseFromString(self.raw)
+        if not pr.signature:
+            self.error = "No signature"
+            return
+
+        if pr.pki_type in ["x509+sha256", "x509+sha1"]:
+            return self.verify_x509(pr)
+        elif pr.pki_type in ["dnssec+btc", "dnssec+ecdsa"]:
+            return self.verify_dnssec(pr, contacts)
+        else:
+            self.error = "ERROR: Unsupported PKI Type for Message Signature"
+            return False
+
+    def verify_x509(self, paymntreq):
         """ verify chain of certificates. The last certificate is the CA"""
         if not ca_list:
             self.error = "Trusted certificate authorities list not found"
             return False
-        if not self.raw:
-            self.error = "Empty request"
-            return
-        paymntreq = pb2.PaymentRequest()
-        paymntreq.ParseFromString(self.raw)
-        if not paymntreq.signature:
-            self.error = "No signature"
-            return
         cert = pb2.X509Certificates()
         cert.ParseFromString(paymntreq.pki_data)
         cert_num = len(cert.certificate)
@@ -184,15 +194,34 @@ class PaymentRequest:
             verify = pubkey0.verify(sigBytes, x509.PREFIX_RSA_SHA256 + hashBytes)
         elif paymntreq.pki_type == "x509+sha1":
             verify = pubkey0.hashAndVerify(sigBytes, msgBytes)
-        else:
-            self.error = "ERROR: Unsupported PKI Type for Message Signature"
-            return False
         if not verify:
             self.error = "ERROR: Invalid Signature for Payment Request Data"
             return False
         ### SIG Verified
         self.error = 'Signed by Trusted CA: ' + ca.get_common_name()
         return True
+
+    def verify_dnssec(self, pr, contacts):
+        sig = pr.signature
+        alias = pr.pki_data
+        info = contacts.resolve(alias)
+        if info.get('validated') is not True:
+            self.error = "Alias verification failed (DNSSEC)"
+            return False
+        if pr.pki_type == "dnssec+btc":
+            self.requestor = alias
+            address = info.get('address')
+            pr.signature = ''
+            message = pr.SerializeToString()
+            if bitcoin.verify_message(address, sig, message):
+                self.error = 'Verified with DNSSEC'
+                return True
+            else:
+                self.error = "verify failed"
+                return False
+        else:
+            self.error = "unknown algo"
+            return False
 
     def has_expired(self):
         return self.details.expires and self.details.expires < int(time.time())
@@ -258,7 +287,7 @@ class PaymentRequest:
 
 
 
-def make_payment_request(outputs, memo, time, expires, key_path, cert_path):
+def make_payment_request(outputs, memo, time, expires, key_path, cert_path, alias, alias_privkey):
     pd = pb2.PaymentDetails()
     for script, amount in outputs:
         pd.outputs.add(amount=amount, script=script)
@@ -268,9 +297,16 @@ def make_payment_request(outputs, memo, time, expires, key_path, cert_path):
     pr = pb2.PaymentRequest()
     pr.serialized_payment_details = pd.SerializeToString()
     pr.signature = ''
-    pr = pb2.PaymentRequest()
-    pr.serialized_payment_details = pd.SerializeToString()
-    pr.signature = ''
+
+    if alias and alias_privkey:
+        pr.pki_type = 'dnssec+btc'
+        pr.pki_data = str(alias)
+        message = pr.SerializeToString()
+        ec_key = bitcoin.regenerate_key(alias_privkey)
+        address = bitcoin.address_from_private_key(alias_privkey)
+        compressed = bitcoin.is_compressed(alias_privkey)
+        pr.signature = ec_key.sign_message(message, compressed, address)
+
     if key_path and cert_path:
         import tlslite
         with open(key_path, 'r') as f:
@@ -289,7 +325,7 @@ def make_payment_request(outputs, memo, time, expires, key_path, cert_path):
     return pr.SerializeToString()
 
 
-def make_request(config, req):
+def make_request(config, req, alias=None, alias_privkey=None):
     from transaction import Transaction
     addr = req['address']
     time = req['timestamp']
@@ -300,7 +336,7 @@ def make_request(config, req):
     outputs = [(script, amount)]
     key_path = config.get('ssl_privkey')
     cert_path = config.get('ssl_chain')
-    return make_payment_request(outputs, message, time, time + expiration if expiration else None, key_path, cert_path)
+    return make_payment_request(outputs, message, time, time + expiration if expiration else None, key_path, cert_path, alias, alias_privkey)
 
 
 
