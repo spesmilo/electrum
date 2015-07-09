@@ -64,11 +64,14 @@ def check_query(ns, sub, _type, keys):
     response = dns.query.tcp(q, ns, timeout=5)
     assert response.rcode() == 0, 'No answer'
     answer = response.answer
-    assert len(answer) == 2, 'No DNSSEC record found'
+    assert len(answer) != 0, ('No DNS record found', sub, _type)
+    assert len(answer) != 1, ('No DNSSEC record found', sub, _type)
     if answer[0].rdtype == dns.rdatatype.RRSIG:
         rrsig, rrset = answer
-    else:
+    elif answer[1].rdtype == dns.rdatatype.RRSIG:
         rrset, rrsig = answer
+    else:
+        raise BaseException('No signature set in record')
     if keys is None:
         keys = {dns.name.from_text(sub):rrset}
     dns.dnssec.validate(rrset, rrsig, keys)
@@ -84,6 +87,14 @@ def get_and_validate(ns, url, _type):
     for i in range(len(parts), 0, -1):
         sub = '.'.join(parts[i-1:])
         name = dns.name.from_text(sub)
+        # If server is authoritative, don't fetch DNSKEY
+        query = dns.message.make_query(sub, dns.rdatatype.NS)
+        response = dns.query.udp(query, ns, 3)
+        assert response.rcode() == dns.rcode.NOERROR, "query error"
+        rrset = response.authority[0] if len(response.authority) > 0 else response.answer[0]
+        rr = rrset[0]
+        if rr.rdtype == dns.rdatatype.SOA:
+            continue
         # get DNSKEY (self-signed)
         rrset = check_query(ns, sub, dns.rdatatype.DNSKEY, None)
         # get DS (signed by parent)
@@ -91,14 +102,14 @@ def get_and_validate(ns, url, _type):
         # verify that a signed DS validates DNSKEY
         for ds in ds_rrset:
             for dnskey in rrset:
-                good_ds = dns.dnssec.make_ds(name, dnskey, 'SHA256')
+                htype = 'SHA256' if ds.digest_type == 2 else 'SHA1'
+                good_ds = dns.dnssec.make_ds(name, dnskey, htype)
                 if ds == good_ds:
                     break
             else:
                 continue
             break
         else:
-            print ds_rrset
             raise BaseException("DS does not match DNSKEY")
         # set key for next iteration
         keys = {name: rrset}
