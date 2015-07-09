@@ -297,6 +297,7 @@ def make_payment_request(outputs, memo, time, expires, key_path, cert_path, alia
     pr = pb2.PaymentRequest()
     pr.serialized_payment_details = pd.SerializeToString()
     pr.signature = ''
+    requestor = None
 
     if alias and alias_privkey:
         pr.pki_type = 'dnssec+btc'
@@ -306,6 +307,7 @@ def make_payment_request(outputs, memo, time, expires, key_path, cert_path, alia
         address = bitcoin.address_from_private_key(alias_privkey)
         compressed = bitcoin.is_compressed(alias_privkey)
         pr.signature = ec_key.sign_message(message, compressed, address)
+        requestor = alias
 
     if key_path and cert_path:
         import tlslite
@@ -322,7 +324,9 @@ def make_payment_request(outputs, memo, time, expires, key_path, cert_path, alia
         hashBytes = bytearray(hashlib.sha256(msgBytes).digest())
         sig = rsakey.sign(x509.PREFIX_RSA_SHA256 + hashBytes)
         pr.signature = bytes(sig)
-    return pr.SerializeToString()
+        requestor = 'x'
+
+    return pr, requestor
 
 
 def make_request(config, req, alias=None, alias_privkey=None):

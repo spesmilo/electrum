@@ -146,19 +146,17 @@ class Plugin(BasePlugin):
     def send(self):
         addr = str(self.win.receive_address_e.text())
         message = unicode(self.win.receive_message_e.text())
-        payment_request = self.win.make_payment_request(addr)
-
-        if not self.win.save_payment_request():
+        payment_request = self.win.save_payment_request()
+        if not payment_request:
             return
-
         recipient, ok = QtGui.QInputDialog.getText(self.win, 'Send request', 'Send request to:')
         if not ok:
             return
-
         recipient = str(recipient)
+        payload = payment_request.SerializeToString()
         self.print_error('sending mail to', recipient)
         try:
-            self.processor.send(recipient, message, payment_request)
+            self.processor.send(recipient, message, payload)
         except BaseException as e:
             self.win.show_message(str(e))
             return

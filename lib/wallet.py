@@ -1256,16 +1256,22 @@ class Abstract_Wallet(object):
             status = PR_UNKNOWN
         return status
 
-    def add_payment_request(self, addr, amount, message, expiration, config):
-        import paymentrequest, shutil, os
+    def make_payment_request(self, addr, amount, message, expiration):
         timestamp = int(time.time())
         _id = Hash(addr + "%d"%timestamp).encode('hex')[0:10]
         r = {'timestamp':timestamp, 'amount':amount, 'expiration':expiration, 'address':addr, 'memo':message, 'id':_id}
-        self.receive_requests[addr] = r
+        return r
+
+    def add_payment_request(self, req, config):
+        import paymentrequest, shutil, os
+        addr = req['address']
+        amount = req.get('amount')
+        message = req.get('memo')
+        self.receive_requests[addr] = req
         self.storage.put('payment_requests', self.receive_requests)
         self.set_label(addr, message) # should be a default label
+
         rdir = config.get('requests_dir')
-        req = self.get_payment_request(addr, config)
         if rdir and amount is not None:
             if not os.path.exists(rdir):
                 os.mkdir(rdir)

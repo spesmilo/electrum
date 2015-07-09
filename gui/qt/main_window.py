@@ -629,17 +629,17 @@ class ElectrumWindow(QMainWindow):
         buttons.addWidget(self.new_request_button)
 
         self.receive_requests_label = QLabel(_('My Requests'))
-        self.receive_list = MyTreeWidget(self, self.receive_list_menu, [_('Date'), _('Account'), _('Address'), _('Description'), _('Amount'), _('Status')], 3)
+        self.receive_list = MyTreeWidget(self, self.receive_list_menu, [_('Date'), _('Account'), _('Address'), _('Requestor'), _('Description'), _('Amount'), _('Status')], 4)
         self.receive_list.currentItemChanged.connect(self.receive_item_changed)
         self.receive_list.itemClicked.connect(self.receive_item_changed)
         self.receive_list.setSortingEnabled(True)
         self.receive_list.setColumnWidth(0, 180)
-        self.receive_list.hideColumn(1)     # the update will show it if necessary
-        self.receive_list.hideColumn(2)     # don't show address
-        self.receive_list.setColumnWidth(2, 340)
+        self.receive_list.hideColumn(1)
+        self.receive_list.hideColumn(2)
+        #self.receive_list.setColumnWidth(2, 340)
         h = self.receive_list.header()
         h.setStretchLastSection(False)
-        h.setResizeMode(3, QHeaderView.Stretch)
+        h.setResizeMode(4, QHeaderView.Stretch)
 
         # layout
         vbox_g = QVBoxLayout()
@@ -714,28 +714,34 @@ class ElectrumWindow(QMainWindow):
             return False
         i = self.expires_combo.currentIndex()
         expiration = map(lambda x: x[1], expiration_values)[i]
-        self.wallet.add_payment_request(addr, amount, message, expiration, self.config)
+        req = self.wallet.make_payment_request(addr, amount, message, expiration)
+        pr, requestor = self.make_bip70_request(req)
+        if requestor:
+            req['requestor'] = requestor
+            req['signature'] = pr.signature.encode('hex')
+        self.wallet.add_payment_request(req, self.config)
         self.update_receive_tab()
         self.update_address_tab()
         self.save_request_button.setEnabled(False)
-        return True
+        return pr
 
-    def make_payment_request(self, addr):
+    def make_bip70_request(self, req):
         alias = str(self.config.get('alias'))
         alias_privkey = None
         if alias:
             alias_info = self.contacts.resolve_openalias(alias)
             if alias_info:
-                alias_addr, alias_name = alias_info
+                alias_addr, alias_name, validated = alias_info
                 if alias_addr and self.wallet.is_mine(alias_addr):
-                    password = self.password_dialog()
-                    alias_privkey = self.wallet.get_private_key(alias_addr, password)[0]
-        r = self.wallet.get_payment_request(addr, self.config)
-        pr = paymentrequest.make_request(self.config, r, alias, alias_privkey)
-        return pr
+                    password = self.password_dialog(_('Please enter your password in order to sign your payment request.'))
+                    if password:
+                        alias_privkey = self.wallet.get_private_key(alias_addr, password)[0]
+        return paymentrequest.make_request(self.config, req, alias, alias_privkey)
 
     def export_payment_request(self, addr):
-        pr = self.make_payment_request(addr)
+        r = self.wallet.receive_requests.get(addr)
+        pr, requestor = paymentrequest.make_request(self.config, r)
+        pr = pr.SerializeToString()
         name = r['id'] + '.bip70'
         fileName = self.getSaveFileName(_("Select where to save your payment request"), name, "*.bip70")
         if fileName:
@@ -828,9 +834,13 @@ class ElectrumWindow(QMainWindow):
             message = req.get('memo', '')
             date = format_time(timestamp)
             status = req.get('status')
-            account = self.wallet.get_account_name(self.wallet.get_account_from_address(address))
+            signature = req.get('signature')
+            requestor = req.get('requestor', '')
             amount_str = self.format_amount(amount) if amount else ""
-            item = QTreeWidgetItem([date, account, address, message, amount_str, pr_tooltips.get(status,'')])
+            account = ''
+            item = QTreeWidgetItem([date, account, address, requestor, message, amount_str, pr_tooltips.get(status,'')])
+            if signature is not None:
+                item.setIcon(3, QIcon(":icons/confirmed.png"))
             if status is not PR_UNKNOWN:
                 item.setIcon(5, QIcon(pr_icons.get(status)))
             self.receive_list.addTopLevelItem(item)
