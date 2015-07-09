@@ -1,5 +1,5 @@
 # Release 2.4
- * Openalias support was merged into the main code.
+ * The Openalias plugin was merged into the main code.
  * The DNSSEC validation procedure (used for OpenAliases) was
    rewritten. The previous validation method, which was included in
    the OpenAlias plugin, is vulnerable and should not be trusted
@@ -9,7 +9,7 @@
  * New 'email' plugin, that enables sending and receiving payment
    requests by email.
  * Arbitrary m-of-n multisig wallets are supported (n<=15).
- * Multisig wallets can be signed with Trezor.
+ * Multisig transactions can be signed with Trezor.
  * User-set transaction fees are retained with the '!' shortcut.
 
 # Release 2.3.3
