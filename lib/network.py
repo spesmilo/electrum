@@ -18,20 +18,18 @@ from collections import deque
 DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 
 DEFAULT_SERVERS = {
-    'electrum.be':DEFAULT_PORTS,
+    'electrum.be':{'t':'50001', 's':'50002'},
     'electrum.drollette.com':{'t':'50001', 's':'50002'},
     'erbium1.sytes.net':{'t':'50001', 's':'50002'},
     'ecdsa.net':{'t':'50001', 's':'110'},
-    'eco-electrum.ddns.net':{'t': '50001', 's': '50002', 'h': '80', 'g': '443'},
     'electrum0.electricnewyear.net':{'t':'50001', 's':'50002'},
-    'kirsche.emzy.de':{'t':'50001', 's':'50002', 'h':'8081'},
-    'electrum2.hachre.de':DEFAULT_PORTS,
-    'electrum.hsmiths.com':DEFAULT_PORTS,
-    'EAST.electrum.jdubya.info':DEFAULT_PORTS,
-    'WEST.electrum.jdubya.info':DEFAULT_PORTS,
-    'electrum.no-ip.org':{'t':'50001', 's':'50002', 'h':'80', 'g':'443'},
+    'kirsche.emzy.de':DEFAULT_PORTS,
+    'jwu42.hopto.org':{'t':'50001', 's':'50002'},
+    'VPS.hsmiths.com':{'t':'50001', 's':'50002'},
+    'ELECTRUM.jdubya.info':{'t':'50001', 's':'50002'},
+    'electrum.no-ip.org':{'t':'50001', 's':'50002', 'g':'443'},
     'electrum.thwg.org':DEFAULT_PORTS,
-    'us.electrum.be':DEFAULT_PORTS,
+    'us.electrum.be':{'t':'50001', 's':'50002'},
 }
 
 NODES_RETRY_INTERVAL = 60
