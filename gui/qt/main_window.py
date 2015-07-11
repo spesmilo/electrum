@@ -184,13 +184,15 @@ class ElectrumWindow(QMainWindow):
         self.qr_window = None
         self.not_enough_funds = False
         self.pluginsdialog = None
-        self.fetch_alias_info()
+        self.fetch_alias()
 
-    def fetch_alias_info(self):
+    def fetch_alias(self):
         self.alias_info = None
         alias = str(self.config.get('alias'))
         if alias:
-            f = lambda: setattr(self, 'alias_info', self.contacts.resolve_openalias(alias))
+            def f():
+                self.alias_info = self.contacts.resolve_openalias(alias)
+                self.emit(SIGNAL('alias_received'))
             t = threading.Thread(target=f)
             t.setDaemon(True)
             t.start()
@@ -2533,12 +2535,25 @@ class ElectrumWindow(QMainWindow):
                      + '\n'.join(['https://cryptoname.co/', 'http://xmr.link']) + '\n\n'\
                      + 'For more information, see http://openalias.org'
         alias_label = HelpLabel(_('Alias') + ':', alias_help)
-        alias_e = QLineEdit(self.config.get('alias',''))
-        def on_alias():
+        alias = self.config.get('alias','')
+        alias_e = QLineEdit(alias)
+        def set_alias_color():
+            if self.alias_info:
+                alias_addr, alias_name, validated = self.alias_info
+                alias_e.setStyleSheet(GREEN_BG if validated else RED_BG)
+            else:
+                alias_e.setStyleSheet(RED_BG)
+
+        def on_alias_edit():
+            alias_e.setStyleSheet("")
             alias = str(alias_e.text())
             self.config.set_key('alias', alias, True)
-            self.fetch_alias_info()
-        alias_e.editingFinished.connect(on_alias)
+            self.fetch_alias()
+
+        set_alias_color()
+        self.connect(self, SIGNAL('alias_received'), set_alias_color)
+        alias_e.editingFinished.connect(on_alias_edit)
+
         tx_widgets.append((alias_label, alias_e))
 
         units = ['BTC', 'mBTC', 'bits']
