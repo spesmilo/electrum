@@ -636,7 +636,6 @@ class ElectrumWindow(QMainWindow):
         self.receive_list.setColumnWidth(0, 180)
         self.receive_list.hideColumn(1)
         self.receive_list.hideColumn(2)
-        #self.receive_list.setColumnWidth(2, 340)
         h = self.receive_list.header()
         h.setStretchLastSection(False)
         h.setResizeMode(4, QHeaderView.Stretch)
@@ -2461,12 +2460,12 @@ class ElectrumWindow(QMainWindow):
         d.setWindowTitle(_('Electrum Settings'))
         d.setModal(1)
         vbox = QVBoxLayout()
-        grid = QGridLayout()
-        grid.setColumnStretch(0,1)
-        widgets = []
+        tabs = QTabWidget()
+        gui_widgets = []
+        tx_widgets = []
 
-        lang_label = QLabel(_('Language') + ':')
-        lang_help = HelpButton(_('Select which language is used in the GUI (after restart).'))
+        lang_help = _('Select which language is used in the GUI (after restart).')
+        lang_label = HelpLabel(_('Language') + ':', lang_help)
         lang_combo = QComboBox()
         from electrum.i18n import languages
         lang_combo.addItems(languages.values())
@@ -2483,10 +2482,10 @@ class ElectrumWindow(QMainWindow):
                 self.config.set_key("language", lang_request, True)
                 self.need_restart = True
         lang_combo.currentIndexChanged.connect(on_lang)
-        widgets.append((lang_label, lang_combo, lang_help))
+        gui_widgets.append((lang_label, lang_combo))
 
-        nz_label = QLabel(_('Zeros after decimal point') + ':')
-        nz_help = HelpButton(_('Number of zeros displayed after the decimal point. For example, if this is set to 2, "1." will be displayed as "1.00"'))
+        nz_help = _('Number of zeros displayed after the decimal point. For example, if this is set to 2, "1." will be displayed as "1.00"')
+        nz_label = HelpLabel(_('Zeros after decimal point') + ':', nz_help)
         nz = QSpinBox()
         nz.setMinimum(0)
         nz.setMaximum(self.decimal_point)
@@ -2501,11 +2500,11 @@ class ElectrumWindow(QMainWindow):
                 self.update_history_tab()
                 self.update_address_tab()
         nz.valueChanged.connect(on_nz)
-        widgets.append((nz_label, nz, nz_help))
+        gui_widgets.append((nz_label, nz))
 
-        fee_label = QLabel(_('Transaction fee per kb') + ':')
-        fee_help = HelpButton(_('Fee per kilobyte of transaction.') + '\n' \
-                              + _('Recommended value') + ': ' + self.format_amount(bitcoin.RECOMMENDED_FEE) + ' ' + self.base_unit())
+        fee_help = _('Fee per kilobyte of transaction.') + '\n' \
+                   + _('Recommended value') + ': ' + self.format_amount(bitcoin.RECOMMENDED_FEE) + ' ' + self.base_unit()
+        fee_label = HelpLabel(_('Transaction fee per kb') + ':', fee_help)
         fee_e = BTCAmountEdit(self.get_decimal_point)
         fee_e.setAmount(self.wallet.fee_per_kb)
         if not self.config.is_modifiable('fee_per_kb'):
@@ -2516,26 +2515,25 @@ class ElectrumWindow(QMainWindow):
                 self.update_fee()
         fee_e.editingFinished.connect(lambda: on_fee(True))
         fee_e.textEdited.connect(lambda: on_fee(False))
-        widgets.append((fee_label, fee_e, fee_help))
+        tx_widgets.append((fee_label, fee_e))
 
-        alias_label = QLabel(_('Alias') + ':')
-        alias_help = HelpButton(_('OpenAlias TXT record, used to receive coins and to sign payment requests'))
+        alias_help = _('OpenAlias TXT record, used to receive coins and to sign payment requests')
+        alias_label = HelpLabel(_('Alias') + ':', alias_help)
         alias_e = QLineEdit(self.config.get('alias',''))
         def on_alias():
             alias = str(alias_e.text())
             self.config.set_key('alias', alias, True)
         alias_e.editingFinished.connect(on_alias)
-        widgets.append((alias_label, alias_e, alias_help))
+        tx_widgets.append((alias_label, alias_e))
 
         units = ['BTC', 'mBTC', 'bits']
-        unit_label = QLabel(_('Base unit') + ':')
-        unit_combo = QComboBox()
-        unit_combo.addItems(units)
-        unit_combo.setCurrentIndex(units.index(self.base_unit()))
         msg = _('Base unit of your wallet.')\
               + '\n1BTC=1000mBTC.\n' \
               + _(' These settings affects the fields in the Send tab')+' '
-        unit_help = HelpButton(msg)
+        unit_label = HelpLabel(_('Base unit') + ':', msg)
+        unit_combo = QComboBox()
+        unit_combo.addItems(units)
+        unit_combo.setCurrentIndex(units.index(self.base_unit()))
         def on_unit(x):
             unit_result = units[unit_combo.currentIndex()]
             if self.base_unit() == unit_result:
@@ -2555,19 +2553,19 @@ class ElectrumWindow(QMainWindow):
             fee_e.setAmount(self.wallet.fee_per_kb)
             self.update_status()
         unit_combo.currentIndexChanged.connect(on_unit)
-        widgets.append((unit_label, unit_combo, unit_help))
+        gui_widgets.append((unit_label, unit_combo))
 
         block_explorers = sorted(block_explorer_info.keys())
-        block_ex_label = QLabel(_('Online Block Explorer') + ':')
+        msg = _('Choose which online block explorer to use for functions that open a web browser')
+        block_ex_label = HelpLabel(_('Online Block Explorer') + ':', msg)
         block_ex_combo = QComboBox()
         block_ex_combo.addItems(block_explorers)
         block_ex_combo.setCurrentIndex(block_explorers.index(block_explorer(self.config)))
-        block_ex_help = HelpButton(_('Choose which online block explorer to use for functions that open a web browser'))
         def on_be(x):
             be_result = block_explorers[block_ex_combo.currentIndex()]
             self.config.set_key('block_explorer', be_result, True)
         block_ex_combo.currentIndexChanged.connect(on_be)
-        widgets.append((block_ex_label, block_ex_combo, block_ex_help))
+        gui_widgets.append((block_ex_label, block_ex_combo))
 
         from electrum import qrscanner
         system_cameras = qrscanner._find_system_cameras()
@@ -2578,16 +2576,16 @@ class ElectrumWindow(QMainWindow):
         #combo.addItem("Manually specify a device", config.get("video_device"))
         index = qr_combo.findData(self.config.get("video_device"))
         qr_combo.setCurrentIndex(index)
-        qr_label = QLabel(_('Video Device') + ':')
+        msg = _("Install the zbar package to enable this.\nOn linux, type: 'apt-get install python-zbar'")
+        qr_label = HelpLabel(_('Video Device') + ':', msg)
         qr_combo.setEnabled(qrscanner.zbar is not None)
-        qr_help = HelpButton(_("Install the zbar package to enable this.\nOn linux, type: 'apt-get install python-zbar'"))
         on_video_device = lambda x: self.config.set_key("video_device", str(qr_combo.itemData(x).toString()), True)
         qr_combo.currentIndexChanged.connect(on_video_device)
-        widgets.append((qr_label, qr_combo, qr_help))
+        gui_widgets.append((qr_label, qr_combo))
 
+        usechange_help = HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions.'))
         usechange_cb = QCheckBox(_('Use change addresses'))
         usechange_cb.setChecked(self.wallet.use_change)
-        usechange_help = HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions.'))
         if not self.config.is_modifiable('use_change'): usechange_cb.setEnabled(False)
         def on_usechange(x):
             usechange_result = x == Qt.Checked
@@ -2595,13 +2593,13 @@ class ElectrumWindow(QMainWindow):
                 self.wallet.use_change = usechange_result
                 self.wallet.storage.put('use_change', self.wallet.use_change)
         usechange_cb.stateChanged.connect(on_usechange)
-        widgets.append((usechange_cb, None, usechange_help))
+        tx_widgets.append((usechange_cb, None))
 
         showtx_cb = QCheckBox(_('Show transaction before broadcast'))
         showtx_cb.setChecked(self.show_before_broadcast())
         showtx_cb.stateChanged.connect(lambda x: self.set_show_before_broadcast(showtx_cb.isChecked()))
         showtx_help = HelpButton(_('Display the details of your transactions before broadcasting it.'))
-        widgets.append((showtx_cb, None, showtx_help))
+        tx_widgets.append((showtx_cb, None))
 
         can_edit_fees_cb = QCheckBox(_('Set transaction fees manually'))
         can_edit_fees_cb.setChecked(self.config.get('can_edit_fees', False))
@@ -2610,18 +2608,22 @@ class ElectrumWindow(QMainWindow):
             self.update_fee_edit()
         can_edit_fees_cb.stateChanged.connect(on_editfees)
         can_edit_fees_help = HelpButton(_('This option lets you edit fees in the send tab.'))
-        widgets.append((can_edit_fees_cb, None, can_edit_fees_help))
+        tx_widgets.append((can_edit_fees_cb, None))
 
-        for a,b,c in widgets:
-            i = grid.rowCount()
-            if b:
-                grid.addWidget(a, i, 0)
-                grid.addWidget(b, i, 1)
-            else:
-                grid.addWidget(a, i, 0, 1, 2)
-            grid.addWidget(c, i, 2)
+        for widgets, name in [(gui_widgets, _('Appearance')), (tx_widgets, _('Transactions'))]:
+            tab = QWidget()
+            grid = QGridLayout(tab)
+            grid.setColumnStretch(0,1)
+            for a,b in widgets:
+                i = grid.rowCount()
+                if b:
+                    grid.addWidget(a, i, 0)
+                    grid.addWidget(b, i, 1)
+                else:
+                    grid.addWidget(a, i, 0, 1, 2)
+            tabs.addTab(tab, name)
 
-        vbox.addLayout(grid)
+        vbox.addWidget(tabs)
         vbox.addStretch(1)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
