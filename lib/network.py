@@ -29,6 +29,7 @@ DEFAULT_SERVERS = {
     'electrum.snicter.com': DEFAULT_PORTS,
     'eltc.osl2.i2p.io': DEFAULT_PORTS,
     'glacialsoftware.net': DEFAULT_PORTS,
+    'ltc2.electrum-servers.us': DEFAULT_PORTS,
     'rho.hicapacity.org': DEFAULT_PORTS,
 }
 
