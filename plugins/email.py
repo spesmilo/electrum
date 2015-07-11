@@ -178,10 +178,10 @@ class Plugin(BasePlugin):
         d.setMinimumSize(500, 200)
 
         vbox = QVBoxLayout(d)
+        vbox.addWidget(QLabel(_('Server hosting your email acount')))
         grid = QGridLayout()
         vbox.addLayout(grid)
-
-        grid.addWidget(QLabel('Server'), 0, 0)
+        grid.addWidget(QLabel('Server (IMAP)'), 0, 0)
         server_e = QLineEdit()
         server_e.setText(self.imap_server)
         grid.addWidget(server_e, 0, 1)
