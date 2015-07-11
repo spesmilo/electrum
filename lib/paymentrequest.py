@@ -287,60 +287,82 @@ class PaymentRequest:
 
 
 
-def make_payment_request(outputs, memo, time, expires, key_path, cert_path, alias, alias_privkey):
-    pd = pb2.PaymentDetails()
-    for script, amount in outputs:
-        pd.outputs.add(amount=amount, script=script)
-    pd.time = time
-    pd.expires = expires if expires else 0
-    pd.memo = memo
-    pr = pb2.PaymentRequest()
-    pr.serialized_payment_details = pd.SerializeToString()
-    pr.signature = ''
-    requestor = None
-
-    if alias and alias_privkey:
-        pr.pki_type = 'dnssec+btc'
-        pr.pki_data = str(alias)
-        message = pr.SerializeToString()
-        ec_key = bitcoin.regenerate_key(alias_privkey)
-        address = bitcoin.address_from_private_key(alias_privkey)
-        compressed = bitcoin.is_compressed(alias_privkey)
-        pr.signature = ec_key.sign_message(message, compressed, address)
-        requestor = alias
-
-    if key_path and cert_path:
-        import tlslite
-        with open(key_path, 'r') as f:
-            rsakey = tlslite.utils.python_rsakey.Python_RSAKey.parsePEM(f.read())
-        with open(cert_path, 'r') as f:
-            chain = tlslite.X509CertChain()
-            chain.parsePemList(f.read())
-        certificates = pb2.X509Certificates()
-        certificates.certificate.extend(map(lambda x: str(x.bytes), chain.x509List))
-        pr.pki_type = 'x509+sha256'
-        pr.pki_data = certificates.SerializeToString()
-        msgBytes = bytearray(pr.SerializeToString())
-        hashBytes = bytearray(hashlib.sha256(msgBytes).digest())
-        sig = rsakey.sign(x509.PREFIX_RSA_SHA256 + hashBytes)
-        pr.signature = bytes(sig)
-        requestor = 'x'
-
-    return pr, requestor
-
-
-def make_request(config, req, alias=None, alias_privkey=None):
+def make_unsigned_request(req):
     from transaction import Transaction
     addr = req['address']
     time = req['timestamp']
     amount = req['amount']
-    expiration = req['expiration']
-    message = req['memo']
+    expires = req['expiration']
+    memo = req['memo']
     script = Transaction.pay_script('address', addr).decode('hex')
     outputs = [(script, amount)]
+    pd = pb2.PaymentDetails()
+    for script, amount in outputs:
+        pd.outputs.add(amount=amount, script=script)
+    pd.time = time
+    pd.expires = time + expires if expires else 0
+    pd.memo = memo
+    pr = pb2.PaymentRequest()
+    pr.serialized_payment_details = pd.SerializeToString()
+    pr.signature = ''
+    return pr
+
+
+def sign_request_with_alias(pr, alias, alias_privkey):
+    pr.pki_type = 'dnssec+btc'
+    pr.pki_data = str(alias)
+    message = pr.SerializeToString()
+    ec_key = bitcoin.regenerate_key(alias_privkey)
+    address = bitcoin.address_from_private_key(alias_privkey)
+    compressed = bitcoin.is_compressed(alias_privkey)
+    pr.signature = ec_key.sign_message(message, compressed, address)
+    return pr
+
+
+def sign_request_with_x509(pr, alias, alias_privkey):
+    import tlslite
+    with open(key_path, 'r') as f:
+        rsakey = tlslite.utils.python_rsakey.Python_RSAKey.parsePEM(f.read())
+    with open(cert_path, 'r') as f:
+        chain = tlslite.X509CertChain()
+        chain.parsePemList(f.read())
+    certificates = pb2.X509Certificates()
+    certificates.certificate.extend(map(lambda x: str(x.bytes), chain.x509List))
+    pr.pki_type = 'x509+sha256'
+    pr.pki_data = certificates.SerializeToString()
+    msgBytes = bytearray(pr.SerializeToString())
+    hashBytes = bytearray(hashlib.sha256(msgBytes).digest())
+    sig = rsakey.sign(x509.PREFIX_RSA_SHA256 + hashBytes)
+    pr.signature = bytes(sig)
+    return pr
+
+
+def serialize_request(req):
+    pr = make_unsigned_request(req)
+    signature = req.get('signature')
+    if signature:
+        requestor = req.get('requestor')
+        pr.signature = signature.decode('hex')
+        pr.pki_type = 'dnssec+btc'
+        pr.pki_data = str(requestor)
+    return pr
+
+
+def make_request(config, req, alias=None, alias_privkey=None):
+    pr = make_unsigned_request(req)
     key_path = config.get('ssl_privkey')
     cert_path = config.get('ssl_chain')
-    return make_payment_request(outputs, message, time, time + expiration if expiration else None, key_path, cert_path, alias, alias_privkey)
+
+    if key_path and cert_path:
+        sign_request_with_x509(pr, key_path, cert_path)
+        requestor = pr.requestor
+
+    elif alias and alias_privkey:
+        requestor = alias
+        sign_request_with_alias(pr, alias, alias_privkey)
+
+    return pr, requestor
+
 
 
 

@@ -78,7 +78,7 @@ class StatusBarButton(QPushButton):
 
 
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
-from electrum.paymentrequest import PaymentRequest, InvoiceStore, get_payment_request, make_payment_request
+from electrum.paymentrequest import PaymentRequest, InvoiceStore, get_payment_request
 
 pr_icons = {
     PR_UNPAID:":icons/unpaid.png",
@@ -752,7 +752,7 @@ class ElectrumWindow(QMainWindow):
 
     def export_payment_request(self, addr):
         r = self.wallet.receive_requests.get(addr)
-        pr, requestor = paymentrequest.make_request(self.config, r)
+        pr = paymentrequest.serialize_request(r)
         pr = pr.SerializeToString()
         name = r['id'] + '.bip70'
         fileName = self.getSaveFileName(_("Select where to save your payment request"), name, "*.bip70")
