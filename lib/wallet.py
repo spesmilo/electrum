@@ -1280,10 +1280,10 @@ class Abstract_Wallet(object):
                 src = os.path.join(os.path.dirname(__file__), 'www', 'index.html')
                 shutil.copy(src, index)
             key = req.get('id', addr)
-            pr = paymentrequest.make_request(config, req)
+            pr, requestor = paymentrequest.make_request(config, req)
             path = os.path.join(rdir, key + '.bip70')
             with open(path, 'w') as f:
-                f.write(pr)
+                f.write(pr.SerializeToString())
             # reload
             req = self.get_payment_request(addr, config)
             with open(os.path.join(rdir, key + '.json'), 'w') as f:

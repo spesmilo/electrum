@@ -319,7 +319,7 @@ def sign_request_with_alias(pr, alias, alias_privkey):
     return pr
 
 
-def sign_request_with_x509(pr, alias, alias_privkey):
+def sign_request_with_x509(pr, key_path, cert_path):
     import tlslite
     with open(key_path, 'r') as f:
         rsakey = tlslite.utils.python_rsakey.Python_RSAKey.parsePEM(f.read())
@@ -355,7 +355,7 @@ def make_request(config, req, alias=None, alias_privkey=None):
 
     if key_path and cert_path:
         sign_request_with_x509(pr, key_path, cert_path)
-        requestor = pr.requestor
+        requestor = 'x'
 
     elif alias and alias_privkey:
         requestor = alias
