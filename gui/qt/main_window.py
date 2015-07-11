@@ -184,6 +184,14 @@ class ElectrumWindow(QMainWindow):
         self.qr_window = None
         self.not_enough_funds = False
         self.pluginsdialog = None
+        self.alias_info = None
+        threading.Thread(target=self.fetch_alias_info).start()
+
+
+    def fetch_alias_info(self):
+        alias = str(self.config.get('alias'))
+        if alias:
+            self.alias_info = self.contacts.resolve_openalias(alias)
 
     def update_account_selector(self):
         # account selector
@@ -727,16 +735,14 @@ class ElectrumWindow(QMainWindow):
         return pr
 
     def make_bip70_request(self, req):
-        alias = str(self.config.get('alias'))
         alias_privkey = None
-        if alias:
-            alias_info = self.contacts.resolve_openalias(alias)
-            if alias_info:
-                alias_addr, alias_name, validated = alias_info
-                if alias_addr and self.wallet.is_mine(alias_addr):
-                    password = self.password_dialog(_('Please enter your password in order to sign your payment request.'))
-                    if password:
-                        alias_privkey = self.wallet.get_private_key(alias_addr, password)[0]
+        alias = self.config.get('alias')
+        if alias and self.alias_info:
+            alias_addr, alias_name, validated = self.alias_info
+            if alias_addr and self.wallet.is_mine(alias_addr):
+                password = self.password_dialog(_('Please enter your password in order to sign your payment request.'))
+                if password:
+                    alias_privkey = self.wallet.get_private_key(alias_addr, password)[0]
         return paymentrequest.make_request(self.config, req, alias, alias_privkey)
 
     def export_payment_request(self, addr):
@@ -2525,6 +2531,7 @@ class ElectrumWindow(QMainWindow):
         def on_alias():
             alias = str(alias_e.text())
             self.config.set_key('alias', alias, True)
+            threading.Thread(target=self.fetch_alias_info).start()
         alias_e.editingFinished.connect(on_alias)
         tx_widgets.append((alias_label, alias_e))
 
