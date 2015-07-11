@@ -849,9 +849,9 @@ class ElectrumWindow(QMainWindow):
             account = ''
             item = QTreeWidgetItem([date, account, address, requestor, message, amount_str, pr_tooltips.get(status,'')])
             if signature is not None:
-                item.setIcon(3, QIcon(":icons/confirmed.png"))
+                item.setIcon(3, QIcon(":icons/seal.png"))
             if status is not PR_UNKNOWN:
-                item.setIcon(5, QIcon(pr_icons.get(status)))
+                item.setIcon(6, QIcon(pr_icons.get(status)))
             self.receive_list.addTopLevelItem(item)
 
 
@@ -2527,7 +2527,10 @@ class ElectrumWindow(QMainWindow):
         fee_e.textEdited.connect(lambda: on_fee(False))
         tx_widgets.append((fee_label, fee_e))
 
-        alias_help = _('OpenAlias TXT record, used to receive coins and to sign payment requests')
+        alias_help = _('OpenAlias record, used to receive coins and to sign payment requests.')\
+                     + _('The following alias providers are available:') + '\n'\
+                     + '\n'.join(['https://cryptoname.co/', 'http://xmr.link']) + '\n\n'\
+                     + 'For more information, see http://openalias.org'
         alias_label = HelpLabel(_('Alias') + ':', alias_help)
         alias_e = QLineEdit(self.config.get('alias',''))
         def on_alias():
