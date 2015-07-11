@@ -184,14 +184,16 @@ class ElectrumWindow(QMainWindow):
         self.qr_window = None
         self.not_enough_funds = False
         self.pluginsdialog = None
-        self.alias_info = None
-        threading.Thread(target=self.fetch_alias_info).start()
-
+        self.fetch_alias_info()
 
     def fetch_alias_info(self):
+        self.alias_info = None
         alias = str(self.config.get('alias'))
         if alias:
-            self.alias_info = self.contacts.resolve_openalias(alias)
+            f = lambda: setattr(self, 'alias_info', self.contacts.resolve_openalias(alias))
+            t = threading.Thread(target=f)
+            t.setDaemon(True)
+            t.start()
 
     def update_account_selector(self):
         # account selector
@@ -593,7 +595,7 @@ class ElectrumWindow(QMainWindow):
         self.receive_address_e = ButtonsLineEdit()
         self.receive_address_e.addCopyButton(self.app)
         self.receive_address_e.setReadOnly(True)
-        msg = _('Bitcoin address where the payment should be received')
+        msg = _('Bitcoin address where the payment should be received. Note that each payment request uses a different Bitcoin address.')
         self.receive_address_label = HelpLabel(_('Receiving address'), msg)
         self.receive_address_e.textChanged.connect(self.update_receive_qr)
         self.receive_address_e.setFocusPolicy(Qt.NoFocus)
@@ -2531,7 +2533,7 @@ class ElectrumWindow(QMainWindow):
         def on_alias():
             alias = str(alias_e.text())
             self.config.set_key('alias', alias, True)
-            threading.Thread(target=self.fetch_alias_info).start()
+            self.fetch_alias_info()
         alias_e.editingFinished.connect(on_alias)
         tx_widgets.append((alias_label, alias_e))
 
