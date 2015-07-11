@@ -140,20 +140,25 @@ class Plugin(BasePlugin):
         self.win = gui.main_window
         self.win.connect(self.win, SIGNAL('email:new_invoice'), self.new_invoice)
 
-        self.send_button = EnterButton(_('Send'), self.send)
-        self.win.receive_buttons.insertWidget(1, self.send_button)
+        #self.send_button = EnterButton(_('Send'), self.send)
+        #self.win.receive_buttons.insertWidget(1, self.send_button)
 
-    def send(self):
-        addr = str(self.win.receive_address_e.text())
-        message = unicode(self.win.receive_message_e.text())
-        payment_request = self.win.save_payment_request()
-        if not payment_request:
+    @hook
+    def receive_list_menu(self, menu, addr):
+        menu.addAction(_("Send via e-mail"), lambda: self.send(addr))
+
+    def send(self, addr):
+        from electrum import paymentrequest
+        r = self.wallet.receive_requests.get(addr)
+        message = r.get('memo', '')
+        pr, requestor = paymentrequest.make_request(self.config, r)
+        if not pr:
             return
         recipient, ok = QtGui.QInputDialog.getText(self.win, 'Send request', 'Send request to:')
         if not ok:
             return
         recipient = str(recipient)
-        payload = payment_request.SerializeToString()
+        payload = pr.SerializeToString()
         self.print_error('sending mail to', recipient)
         try:
             self.processor.send(recipient, message, payload)
