@@ -24,6 +24,8 @@ import re
 from decimal import Decimal
 from electrum_ltc import bitcoin
 
+import util
+
 RE_ADDRESS = '[1-9A-HJ-NP-Za-km-z]{26,}'
 RE_ALIAS = '(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>'
 
@@ -64,10 +66,10 @@ class PayToEdit(ScanQRTextEdit):
             button.setHidden(b)
 
     def setGreen(self):
-        self.setStyleSheet("QWidget { background-color:#80ff80;}")
+        self.setStyleSheet(util.GREEN_BG)
 
     def setExpired(self):
-        self.setStyleSheet("QWidget { background-color:#ffcccc;}")
+        self.setStyleSheet(util.RED_BG)
 
     def parse_address_and_amount(self, line):
         x, y = line.split(',')

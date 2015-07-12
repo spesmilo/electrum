@@ -16,6 +16,10 @@ else:
     MONOSPACE_FONT = 'monospace'
 
 
+GREEN_BG = "QWidget {background-color:#80ff80;}"
+RED_BG = "QWidget {background-color:#ffcccc;}"
+
+
 class WaitingDialog(QThread):
     def __init__(self, parent, message, run_task, on_success=None, on_complete=None):
         QThread.__init__(self)

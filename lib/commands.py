@@ -571,7 +571,8 @@ class Commands:
             else:
                 return False
         amount = int(Decimal(requested_amount)*COIN)
-        req = self.wallet.add_payment_request(addr, amount, memo, expiration, self.config)
+        req = self.wallet.make_payment_request(addr, amount, memo, expiration)
+        self.wallet.add_payment_request(req, self.config)
         return self._format_request(req)
 
     @command('w')
