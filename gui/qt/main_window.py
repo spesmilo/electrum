@@ -2532,7 +2532,7 @@ class ElectrumWindow(QMainWindow):
                      + _('The following alias providers are available:') + '\n'\
                      + '\n'.join(['https://cryptoname.co/', 'http://xmr.link']) + '\n\n'\
                      + 'For more information, see http://openalias.org'
-        alias_label = HelpLabel(_('Alias') + ':', alias_help)
+        alias_label = HelpLabel(_('OpenAlias') + ':', alias_help)
         alias = self.config.get('alias','')
         alias_e = QLineEdit(alias)
         def set_alias_color():
@@ -2638,7 +2638,7 @@ class ElectrumWindow(QMainWindow):
         can_edit_fees_help = HelpButton(_('This option lets you edit fees in the send tab.'))
         tx_widgets.append((can_edit_fees_cb, None))
 
-        for widgets, name in [(gui_widgets, _('Appearance')), (tx_widgets, _('Transactions'))]:
+        for widgets, name in [(tx_widgets, _('Transactions')), (gui_widgets, _('Appearance'))]:
             tab = QWidget()
             grid = QGridLayout(tab)
             grid.setColumnStretch(0,1)
