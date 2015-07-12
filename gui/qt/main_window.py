@@ -643,16 +643,13 @@ class ElectrumWindow(QMainWindow):
         buttons.addWidget(self.new_request_button)
 
         self.receive_requests_label = QLabel(_('My Requests'))
-        self.receive_list = MyTreeWidget(self, self.receive_list_menu, [_('Date'), _('Account'), _('Address'), _('Requestor'), _('Description'), _('Amount'), _('Status')], 4)
+        self.receive_list = MyTreeWidget(self, self.receive_list_menu, [_('Date'), _('Account'), _('Address'), '', _('Description'), _('Amount'), _('Status')], 4)
         self.receive_list.currentItemChanged.connect(self.receive_item_changed)
         self.receive_list.itemClicked.connect(self.receive_item_changed)
         self.receive_list.setSortingEnabled(True)
         self.receive_list.setColumnWidth(0, 180)
         self.receive_list.hideColumn(1)
         self.receive_list.hideColumn(2)
-        h = self.receive_list.header()
-        h.setStretchLastSection(False)
-        h.setResizeMode(4, QHeaderView.Stretch)
 
         # layout
         vbox_g = QVBoxLayout()
@@ -850,9 +847,10 @@ class ElectrumWindow(QMainWindow):
             requestor = req.get('requestor', '')
             amount_str = self.format_amount(amount) if amount else ""
             account = ''
-            item = QTreeWidgetItem([date, account, address, requestor, message, amount_str, pr_tooltips.get(status,'')])
+            item = QTreeWidgetItem([date, account, address, '', message, amount_str, pr_tooltips.get(status,'')])
             if signature is not None:
                 item.setIcon(3, QIcon(":icons/seal.png"))
+                item.setToolTip(3, 'signed by '+ requestor)
             if status is not PR_UNKNOWN:
                 item.setIcon(6, QIcon(pr_icons.get(status)))
             self.receive_list.addTopLevelItem(item)
@@ -877,9 +875,9 @@ class ElectrumWindow(QMainWindow):
 
     def set_send_button_text(self):
         if self.show_before_broadcast():
-            text = _("View...")
+            text = _("Send...")
         elif self.wallet and self.wallet.is_watching_only():
-            text = _("View...")
+            text = _("Send...")
         else:
             text = _("Send")
         self.send_button.setText(text)
@@ -987,7 +985,7 @@ class ElectrumWindow(QMainWindow):
         self.fee_e.textChanged.connect(entry_changed)
 
         self.invoices_label = QLabel(_('Invoices'))
-        self.invoices_list = MyTreeWidget(self, self.create_invoice_menu,
+        self.invoices_list = MyTreeWidget(self, self.invoices_list_menu,
                                           [_('Date'), _('Requestor'), _('Description'), _('Amount'), _('Status')], 2)
         self.invoices_list.header().setResizeMode(1, QHeaderView.Interactive)
         self.invoices_list.setColumnWidth(1, 200)
@@ -1563,7 +1561,7 @@ class ElectrumWindow(QMainWindow):
             self.payment_request_error()
 
 
-    def create_invoice_menu(self, position):
+    def invoices_list_menu(self, position):
         item = self.invoices_list.itemAt(position)
         if not item:
             return
@@ -2469,8 +2467,9 @@ class ElectrumWindow(QMainWindow):
 
     def settings_dialog(self):
         self.need_restart = False
+        self.settings_dialog_visible = True
         d = QDialog(self)
-        d.setWindowTitle(_('Electrum Settings'))
+        d.setWindowTitle(_('Preferences'))
         d.setModal(1)
         vbox = QVBoxLayout()
         tabs = QTabWidget()
@@ -2530,30 +2529,29 @@ class ElectrumWindow(QMainWindow):
         fee_e.textEdited.connect(lambda: on_fee(False))
         tx_widgets.append((fee_label, fee_e))
 
-        alias_help = _('OpenAlias record, used to receive coins and to sign payment requests.')\
+        alias_help = _('OpenAlias record, used to receive coins and to sign payment requests.') + ' '\
                      + _('The following alias providers are available:') + '\n'\
                      + '\n'.join(['https://cryptoname.co/', 'http://xmr.link']) + '\n\n'\
                      + 'For more information, see http://openalias.org'
-        alias_label = HelpLabel(_('Alias') + ':', alias_help)
+        alias_label = HelpLabel(_('OpenAlias') + ':', alias_help)
         alias = self.config.get('alias','')
         alias_e = QLineEdit(alias)
         def set_alias_color():
+            if not self.settings_dialog_visible:
+                return
             if self.alias_info:
                 alias_addr, alias_name, validated = self.alias_info
                 alias_e.setStyleSheet(GREEN_BG if validated else RED_BG)
             else:
                 alias_e.setStyleSheet(RED_BG)
-
         def on_alias_edit():
             alias_e.setStyleSheet("")
             alias = str(alias_e.text())
             self.config.set_key('alias', alias, True)
             self.fetch_alias()
-
         set_alias_color()
         self.connect(self, SIGNAL('alias_received'), set_alias_color)
         alias_e.editingFinished.connect(on_alias_edit)
-
         tx_widgets.append((alias_label, alias_e))
 
         units = ['LTC', 'mLTC', 'bits']
@@ -2640,7 +2638,7 @@ class ElectrumWindow(QMainWindow):
         can_edit_fees_help = HelpButton(_('This option lets you edit fees in the send tab.'))
         tx_widgets.append((can_edit_fees_cb, None))
 
-        for widgets, name in [(gui_widgets, _('Appearance')), (tx_widgets, _('Transactions'))]:
+        for widgets, name in [(tx_widgets, _('Transactions')), (gui_widgets, _('Appearance'))]:
             tab = QWidget()
             grid = QGridLayout(tab)
             grid.setColumnStretch(0,1)
@@ -2660,6 +2658,7 @@ class ElectrumWindow(QMainWindow):
 
         # run the dialog
         d.exec_()
+        self.settings_dialog_visible = False
 
         run_hook('close_settings_dialog')
         if self.need_restart:

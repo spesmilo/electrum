@@ -140,9 +140,6 @@ class Plugin(BasePlugin):
         self.win = gui.main_window
         self.win.connect(self.win, SIGNAL('email:new_invoice'), self.new_invoice)
 
-        #self.send_button = EnterButton(_('Send'), self.send)
-        #self.win.receive_buttons.insertWidget(1, self.send_button)
-
     @hook
     def receive_list_menu(self, menu, addr):
         menu.addAction(_("Send via e-mail"), lambda: self.send(addr))
