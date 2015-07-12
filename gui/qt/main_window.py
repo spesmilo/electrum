@@ -643,16 +643,13 @@ class ElectrumWindow(QMainWindow):
         buttons.addWidget(self.new_request_button)
 
         self.receive_requests_label = QLabel(_('My Requests'))
-        self.receive_list = MyTreeWidget(self, self.receive_list_menu, [_('Date'), _('Account'), _('Address'), _('Requestor'), _('Description'), _('Amount'), _('Status')], 4)
+        self.receive_list = MyTreeWidget(self, self.receive_list_menu, [_('Date'), _('Account'), _('Address'), '', _('Description'), _('Amount'), _('Status')], 4)
         self.receive_list.currentItemChanged.connect(self.receive_item_changed)
         self.receive_list.itemClicked.connect(self.receive_item_changed)
         self.receive_list.setSortingEnabled(True)
         self.receive_list.setColumnWidth(0, 180)
         self.receive_list.hideColumn(1)
         self.receive_list.hideColumn(2)
-        h = self.receive_list.header()
-        h.setStretchLastSection(False)
-        h.setResizeMode(4, QHeaderView.Stretch)
 
         # layout
         vbox_g = QVBoxLayout()
@@ -850,9 +847,10 @@ class ElectrumWindow(QMainWindow):
             requestor = req.get('requestor', '')
             amount_str = self.format_amount(amount) if amount else ""
             account = ''
-            item = QTreeWidgetItem([date, account, address, requestor, message, amount_str, pr_tooltips.get(status,'')])
+            item = QTreeWidgetItem([date, account, address, '', message, amount_str, pr_tooltips.get(status,'')])
             if signature is not None:
                 item.setIcon(3, QIcon(":icons/seal.png"))
+                item.setToolTip(3, 'signed by '+ requestor)
             if status is not PR_UNKNOWN:
                 item.setIcon(6, QIcon(pr_icons.get(status)))
             self.receive_list.addTopLevelItem(item)
