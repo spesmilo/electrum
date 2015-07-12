@@ -875,9 +875,9 @@ class ElectrumWindow(QMainWindow):
 
     def set_send_button_text(self):
         if self.show_before_broadcast():
-            text = _("View...")
+            text = _("Send...")
         elif self.wallet and self.wallet.is_watching_only():
-            text = _("View...")
+            text = _("Send...")
         else:
             text = _("Send")
         self.send_button.setText(text)
@@ -2467,8 +2467,9 @@ class ElectrumWindow(QMainWindow):
 
     def settings_dialog(self):
         self.need_restart = False
+        self.settings_dialog_visible = True
         d = QDialog(self)
-        d.setWindowTitle(_('Electrum Settings'))
+        d.setWindowTitle(_('Preferences'))
         d.setModal(1)
         vbox = QVBoxLayout()
         tabs = QTabWidget()
@@ -2528,7 +2529,7 @@ class ElectrumWindow(QMainWindow):
         fee_e.textEdited.connect(lambda: on_fee(False))
         tx_widgets.append((fee_label, fee_e))
 
-        alias_help = _('OpenAlias record, used to receive coins and to sign payment requests.')\
+        alias_help = _('OpenAlias record, used to receive coins and to sign payment requests.') + ' '\
                      + _('The following alias providers are available:') + '\n'\
                      + '\n'.join(['https://cryptoname.co/', 'http://xmr.link']) + '\n\n'\
                      + 'For more information, see http://openalias.org'
@@ -2536,22 +2537,21 @@ class ElectrumWindow(QMainWindow):
         alias = self.config.get('alias','')
         alias_e = QLineEdit(alias)
         def set_alias_color():
+            if not self.settings_dialog_visible:
+                return
             if self.alias_info:
                 alias_addr, alias_name, validated = self.alias_info
                 alias_e.setStyleSheet(GREEN_BG if validated else RED_BG)
             else:
                 alias_e.setStyleSheet(RED_BG)
-
         def on_alias_edit():
             alias_e.setStyleSheet("")
             alias = str(alias_e.text())
             self.config.set_key('alias', alias, True)
             self.fetch_alias()
-
         set_alias_color()
         self.connect(self, SIGNAL('alias_received'), set_alias_color)
         alias_e.editingFinished.connect(on_alias_edit)
-
         tx_widgets.append((alias_label, alias_e))
 
         units = ['BTC', 'mBTC', 'bits']
@@ -2658,6 +2658,7 @@ class ElectrumWindow(QMainWindow):
 
         # run the dialog
         d.exec_()
+        self.settings_dialog_visible = False
 
         run_hook('close_settings_dialog')
         if self.need_restart:
