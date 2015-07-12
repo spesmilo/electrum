@@ -985,7 +985,7 @@ class ElectrumWindow(QMainWindow):
         self.fee_e.textChanged.connect(entry_changed)
 
         self.invoices_label = QLabel(_('Invoices'))
-        self.invoices_list = MyTreeWidget(self, self.create_invoice_menu,
+        self.invoices_list = MyTreeWidget(self, self.invoices_list_menu,
                                           [_('Date'), _('Requestor'), _('Description'), _('Amount'), _('Status')], 2)
         self.invoices_list.header().setResizeMode(1, QHeaderView.Interactive)
         self.invoices_list.setColumnWidth(1, 200)
@@ -1561,7 +1561,7 @@ class ElectrumWindow(QMainWindow):
             self.payment_request_error()
 
 
-    def create_invoice_menu(self, position):
+    def invoices_list_menu(self, position):
         item = self.invoices_list.itemAt(position)
         if not item:
             return
