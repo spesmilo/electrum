@@ -681,7 +681,7 @@ class ElectrumWindow(QMainWindow):
             return
         addr = str(item.text(2))
         req = self.wallet.receive_requests[addr]
-        expires = _('Never') if req.get('expiration') is None else format_time(req['timestamp'] + req['expiration'])
+        expires = _('Never') if req.get('expiration') is None else util.age(req['timestamp'] + req['expiration'])
         amount = req['amount']
         message = self.wallet.labels.get(addr, '')
         self.receive_address_e.setText(addr)
@@ -990,7 +990,7 @@ class ElectrumWindow(QMainWindow):
 
         self.invoices_label = QLabel(_('Invoices'))
         self.invoices_list = MyTreeWidget(self, self.invoices_list_menu,
-                                          [_('Date'), _('Requestor'), _('Description'), _('Amount'), _('Status')], 2)
+                                          [_('Expires'), _('Requestor'), _('Description'), _('Amount'), _('Status')], 2)
         self.invoices_list.header().setResizeMode(1, QHeaderView.Interactive)
         self.invoices_list.setColumnWidth(1, 200)
 
@@ -1398,7 +1398,7 @@ class ElectrumWindow(QMainWindow):
             key = pr.get_id()
             status = self.invoices.get_status(key)
             requestor = pr.get_requestor()
-            date_str = format_time(pr.get_expiration_date())
+            date_str = util.age(pr.get_expiration_date())
             item = QTreeWidgetItem( [ date_str, requestor, pr.memo, self.format_amount(pr.get_amount(), whitespaces=True), pr_tooltips.get(status,'')] )
             item.setIcon(4, QIcon(pr_icons.get(status)))
             item.setData(0, Qt.UserRole, key)
