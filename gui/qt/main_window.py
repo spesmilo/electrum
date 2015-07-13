@@ -1398,7 +1398,7 @@ class ElectrumWindow(QMainWindow):
             key = pr.get_id()
             status = self.invoices.get_status(key)
             requestor = pr.get_requestor()
-            date_str = util.age(pr.get_expiration_date())
+            date_str = util.format_time(pr.get_expiration_date())
             item = QTreeWidgetItem( [ date_str, requestor, pr.memo, self.format_amount(pr.get_amount(), whitespaces=True), pr_tooltips.get(status,'')] )
             item.setIcon(4, QIcon(pr_icons.get(status)))
             item.setData(0, Qt.UserRole, key)
