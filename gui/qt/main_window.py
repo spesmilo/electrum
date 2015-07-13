@@ -2550,6 +2550,9 @@ class ElectrumWindow(QMainWindow):
         def set_alias_color():
             if not self.settings_dialog_visible:
                 return
+            if not self.config.get('alias'):
+                alias_e.setStyleSheet("")
+                return
             if self.alias_info:
                 alias_addr, alias_name, validated = self.alias_info
                 alias_e.setStyleSheet(GREEN_BG if validated else RED_BG)
@@ -2559,7 +2562,8 @@ class ElectrumWindow(QMainWindow):
             alias_e.setStyleSheet("")
             alias = str(alias_e.text())
             self.config.set_key('alias', alias, True)
-            self.fetch_alias()
+            if alias:
+                self.fetch_alias()
         set_alias_color()
         self.connect(self, SIGNAL('alias_received'), set_alias_color)
         alias_e.editingFinished.connect(on_alias_edit)
