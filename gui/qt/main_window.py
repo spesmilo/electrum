@@ -68,13 +68,17 @@ class StatusBarButton(QPushButton):
         self.setToolTip(tooltip)
         self.setFlat(True)
         self.setMaximumWidth(25)
-        self.clicked.connect(func)
+        self.clicked.connect(self.onPress)
         self.func = func
         self.setIconSize(QSize(25,25))
 
+    def onPress(self, checked=False):
+        '''Drops the unwanted PyQt4 "checked" argument'''
+        self.func()
+
     def keyPressEvent(self, e):
         if e.key() == QtCore.Qt.Key_Return:
-            apply(self.func,())
+            self.func()
 
 
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
