@@ -2478,7 +2478,6 @@ class ElectrumWindow(QMainWindow):
 
     def settings_dialog(self):
         self.need_restart = False
-        self.settings_dialog_visible = True
         d = QDialog(self)
         d.setWindowTitle(_('Preferences'))
         d.setModal(1)
@@ -2548,8 +2547,6 @@ class ElectrumWindow(QMainWindow):
         alias = self.config.get('alias','')
         alias_e = QLineEdit(alias)
         def set_alias_color():
-            if not self.settings_dialog_visible:
-                return
             if not self.config.get('alias'):
                 alias_e.setStyleSheet("")
                 return
@@ -2673,7 +2670,7 @@ class ElectrumWindow(QMainWindow):
 
         # run the dialog
         d.exec_()
-        self.settings_dialog_visible = False
+        self.disconnect(self, SIGNAL('alias_received'), set_alias_color)
 
         run_hook('close_settings_dialog')
         if self.need_restart:
