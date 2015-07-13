@@ -292,6 +292,8 @@ def make_unsigned_request(req):
     addr = req['address']
     time = req['timestamp']
     amount = req['amount']
+    if amount is None:
+        amount = 0
     expires = req['expiration']
     memo = req['memo']
     script = Transaction.pay_script('address', addr).decode('hex')

@@ -157,7 +157,12 @@ def age(from_date, since_date = None, target_tz=None, include_seconds=False):
     if since_date is None:
         since_date = datetime.now(target_tz)
 
-    distance_in_time = since_date - from_date
+    td = time_difference(from_date - since_date, include_seconds)
+    return td + " ago" if from_date < since_date else "in " + td
+
+
+def time_difference(distance_in_time, include_seconds):
+    #distance_in_time = since_date - from_date
     distance_in_seconds = int(round(abs(distance_in_time.days * 86400 + distance_in_time.seconds)))
     distance_in_minutes = int(round(distance_in_seconds/60))
 
@@ -165,36 +170,36 @@ def age(from_date, since_date = None, target_tz=None, include_seconds=False):
         if include_seconds:
             for remainder in [5, 10, 20]:
                 if distance_in_seconds < remainder:
-                    return "less than %s seconds ago" % remainder
+                    return "less than %s seconds" % remainder
             if distance_in_seconds < 40:
-                return "half a minute ago"
+                return "half a minute"
             elif distance_in_seconds < 60:
-                return "less than a minute ago"
+                return "less than a minute"
             else:
-                return "1 minute ago"
+                return "1 minute"
         else:
             if distance_in_minutes == 0:
-                return "less than a minute ago"
+                return "less than a minute"
             else:
-                return "1 minute ago"
+                return "1 minute"
     elif distance_in_minutes < 45:
-        return "%s minutes ago" % distance_in_minutes
+        return "%s minutes" % distance_in_minutes
     elif distance_in_minutes < 90:
-        return "about 1 hour ago"
+        return "about 1 hour"
     elif distance_in_minutes < 1440:
-        return "about %d hours ago" % (round(distance_in_minutes / 60.0))
+        return "about %d hours" % (round(distance_in_minutes / 60.0))
     elif distance_in_minutes < 2880:
-        return "1 day ago"
+        return "1 day"
     elif distance_in_minutes < 43220:
-        return "%d days ago" % (round(distance_in_minutes / 1440))
+        return "%d days" % (round(distance_in_minutes / 1440))
     elif distance_in_minutes < 86400:
-        return "about 1 month ago"
+        return "about 1 month"
     elif distance_in_minutes < 525600:
-        return "%d months ago" % (round(distance_in_minutes / 43200))
+        return "%d months" % (round(distance_in_minutes / 43200))
     elif distance_in_minutes < 1051200:
-        return "about 1 year ago"
+        return "about 1 yeas"
     else:
-        return "over %d years ago" % (round(distance_in_minutes / 525600))
+        return "over %d years" % (round(distance_in_minutes / 525600))
 
 block_explorer_info = {
     'explorer.litecoin.net': ('http://explorer.litecoin.net',

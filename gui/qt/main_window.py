@@ -68,13 +68,17 @@ class StatusBarButton(QPushButton):
         self.setToolTip(tooltip)
         self.setFlat(True)
         self.setMaximumWidth(25)
-        self.clicked.connect(func)
+        self.clicked.connect(self.onPress)
         self.func = func
         self.setIconSize(QSize(25,25))
 
+    def onPress(self, checked=False):
+        '''Drops the unwanted PyQt4 "checked" argument'''
+        self.func()
+
     def keyPressEvent(self, e):
         if e.key() == QtCore.Qt.Key_Return:
-            apply(self.func,())
+            self.func()
 
 
 from electrum_ltc.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
@@ -677,7 +681,7 @@ class ElectrumWindow(QMainWindow):
             return
         addr = str(item.text(2))
         req = self.wallet.receive_requests[addr]
-        expires = _('Never') if req.get('expiration') is None else format_time(req['timestamp'] + req['expiration'])
+        expires = _('Never') if req.get('expiration') is None else util.age(req['timestamp'] + req['expiration'])
         amount = req['amount']
         message = self.wallet.labels.get(addr, '')
         self.receive_address_e.setText(addr)
@@ -986,7 +990,7 @@ class ElectrumWindow(QMainWindow):
 
         self.invoices_label = QLabel(_('Invoices'))
         self.invoices_list = MyTreeWidget(self, self.invoices_list_menu,
-                                          [_('Date'), _('Requestor'), _('Description'), _('Amount'), _('Status')], 2)
+                                          [_('Expires'), _('Requestor'), _('Description'), _('Amount'), _('Status')], 2)
         self.invoices_list.header().setResizeMode(1, QHeaderView.Interactive)
         self.invoices_list.setColumnWidth(1, 200)
 
@@ -1077,7 +1081,31 @@ class ElectrumWindow(QMainWindow):
         self.completions.setStringList(l)
 
     def protected(func):
-        return lambda s, *args: s.do_protect(func, args)
+        '''Password request wrapper.  The password is passed to the function
+        as the 'password' named argument.  Return value is a 2-element
+        tuple: (Cancelled, Result) where Cancelled is True if the user
+        cancels the password request, otherwise False.  Result is the
+        return value of the wrapped function, or None if cancelled.
+        '''
+        def request_password(self, *args, **kwargs):
+            parent = kwargs.get('parent', self)
+            if self.wallet.use_encryption:
+                while True:
+                    password = self.password_dialog(parent=parent)
+                    if not password:
+                        return True, None
+                    try:
+                        self.wallet.check_password(password)
+                        break
+                    except Exception as e:
+                        QMessageBox.warning(parent, _('Error'), str(e), _('OK'))
+                        continue
+            else:
+                password = None
+
+            kwargs['password'] = password
+            return False, func(self, *args, **kwargs)
+        return request_password
 
     def read_send_tab(self):
         if self.payment_request and self.payment_request.has_expired():
@@ -1175,10 +1203,12 @@ class ElectrumWindow(QMainWindow):
 
 
     @protected
-    def sign_tx(self, tx, callback, password):
+    def sign_tx(self, tx, callback, password, parent=None):
         '''Sign the transaction in a separate thread.  When done, calls
         the callback with a success code of True or False.
         '''
+        if parent == None:
+            parent = self
         self.send_button.setDisabled(True)
 
         # call hook to see if plugin needs gui interaction
@@ -1196,11 +1226,11 @@ class ElectrumWindow(QMainWindow):
             callback(success[0])
 
         # keep a reference to WaitingDialog or the gui might crash
-        self.waiting_dialog = WaitingDialog(self, 'Signing transaction...', sign_thread, on_sign_successful, on_dialog_close)
+        self.waiting_dialog = WaitingDialog(parent, 'Signing transaction...', sign_thread, on_sign_successful, on_dialog_close)
         self.waiting_dialog.start()
 
 
-    def broadcast_transaction(self, tx, tx_desc):
+    def broadcast_transaction(self, tx, tx_desc, parent=None):
 
         def broadcast_thread():
             # non-GUI thread
@@ -1227,14 +1257,16 @@ class ElectrumWindow(QMainWindow):
             if status:
                 if tx_desc is not None and tx.is_complete():
                     self.wallet.set_label(tx.hash(), tx_desc)
-                QMessageBox.information(self, '', _('Payment sent.') + '\n' + msg, _('OK'))
+                QMessageBox.information(parent, '', _('Payment sent.') + '\n' + msg, _('OK'))
                 self.update_invoices_list()
                 self.do_clear()
             else:
-                QMessageBox.warning(self, _('Error'), msg, _('OK'))
+                QMessageBox.warning(parent, _('Error'), msg, _('OK'))
             self.send_button.setDisabled(False)
 
-        self.waiting_dialog = WaitingDialog(self, 'Broadcasting transaction...', broadcast_thread, broadcast_done)
+        if parent == None:
+            parent = self
+        self.waiting_dialog = WaitingDialog(parent, 'Broadcasting transaction...', broadcast_thread, broadcast_done)
         self.waiting_dialog.start()
 
 
@@ -1366,7 +1398,7 @@ class ElectrumWindow(QMainWindow):
             key = pr.get_id()
             status = self.invoices.get_status(key)
             requestor = pr.get_requestor()
-            date_str = format_time(pr.get_expiration_date())
+            date_str = util.format_time(pr.get_expiration_date())
             item = QTreeWidgetItem( [ date_str, requestor, pr.memo, self.format_amount(pr.get_amount(), whitespaces=True), pr_tooltips.get(status,'')] )
             item.setIcon(4, QIcon(pr_icons.get(status)))
             item.setData(0, Qt.UserRole, key)
@@ -1892,29 +1924,6 @@ class ElectrumWindow(QMainWindow):
         d = QRDialog(data, self, title)
         d.exec_()
 
-
-    def do_protect(self, func, args):
-        if self.wallet.use_encryption:
-            while True:
-                password = self.password_dialog()
-                if not password:
-                    return
-                try:
-                    self.wallet.check_password(password)
-                    break
-                except Exception as e:
-                    QMessageBox.warning(self, _('Error'), str(e), _('OK'))
-                    continue
-        else:
-            password = None
-
-        if args != (False,):
-            args = (self,) + args + (password,)
-        else:
-            args = (self, password)
-        apply(func, args)
-
-
     def show_public_keys(self, address):
         if not address: return
         try:
@@ -2094,8 +2103,10 @@ class ElectrumWindow(QMainWindow):
     def show_warning(self, msg):
         QMessageBox.warning(self, _('Warning'), msg, _('OK'))
 
-    def password_dialog(self, msg=None):
-        d = QDialog(self)
+    def password_dialog(self, msg=None, parent=None):
+        if parent == None:
+            parent = self
+        d = QDialog(parent)
         d.setModal(1)
         d.setWindowTitle(_("Enter Password"))
         pw = QLineEdit()
@@ -2467,7 +2478,6 @@ class ElectrumWindow(QMainWindow):
 
     def settings_dialog(self):
         self.need_restart = False
-        self.settings_dialog_visible = True
         d = QDialog(self)
         d.setWindowTitle(_('Preferences'))
         d.setModal(1)
@@ -2537,7 +2547,8 @@ class ElectrumWindow(QMainWindow):
         alias = self.config.get('alias','')
         alias_e = QLineEdit(alias)
         def set_alias_color():
-            if not self.settings_dialog_visible:
+            if not self.config.get('alias'):
+                alias_e.setStyleSheet("")
                 return
             if self.alias_info:
                 alias_addr, alias_name, validated = self.alias_info
@@ -2548,7 +2559,8 @@ class ElectrumWindow(QMainWindow):
             alias_e.setStyleSheet("")
             alias = str(alias_e.text())
             self.config.set_key('alias', alias, True)
-            self.fetch_alias()
+            if alias:
+                self.fetch_alias()
         set_alias_color()
         self.connect(self, SIGNAL('alias_received'), set_alias_color)
         alias_e.editingFinished.connect(on_alias_edit)
@@ -2658,7 +2670,7 @@ class ElectrumWindow(QMainWindow):
 
         # run the dialog
         d.exec_()
-        self.settings_dialog_visible = False
+        self.disconnect(self, SIGNAL('alias_received'), set_alias_color)
 
         run_hook('close_settings_dialog')
         if self.need_restart:
