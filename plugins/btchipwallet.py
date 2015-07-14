@@ -5,7 +5,6 @@ from binascii import hexlify
 from struct import pack,unpack
 from sys import stderr
 from time import sleep
-from base64 import b64encode, b64decode
 
 import electrum
 from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
@@ -345,8 +344,7 @@ class BTChipWallet(BIP32_HD_Wallet):
         s = str(s)
 
         # And convert it
-
-        return b64encode(chr(27 + 4 + (signature[0] & 0x01)) + r + s)
+        return chr(27 + 4 + (signature[0] & 0x01)) + r + s
 
     def sign_transaction(self, tx, password):
         if tx.is_complete():

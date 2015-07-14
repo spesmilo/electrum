@@ -23,7 +23,7 @@ import socket
 import webbrowser
 import csv
 from decimal import Decimal
-
+import base64
 
 import PyQt4
 from PyQt4.QtGui import *
@@ -1983,6 +1983,7 @@ class ElectrumWindow(QMainWindow):
         message = message.encode('utf-8')
         try:
             sig = self.wallet.sign_message(str(address.text()), message, password)
+            sig = base64.b64encode(sig)
             signature.setText(sig)
         except Exception as e:
             self.show_message(str(e))
@@ -1990,7 +1991,8 @@ class ElectrumWindow(QMainWindow):
     def do_verify(self, address, message, signature):
         message = unicode(message.toPlainText())
         message = message.encode('utf-8')
-        if bitcoin.verify_message(address.text(), str(signature.toPlainText()), message):
+        sig = base64.b64decode(str(signature.toPlainText()))
+        if bitcoin.verify_message(address.text(), sig, message):
             self.show_message(_("Signature verified"))
         else:
             self.show_message(_("Error: wrong signature"))

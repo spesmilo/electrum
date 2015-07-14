@@ -80,6 +80,7 @@ class Plugin(BasePlugin):
             addr = self.get_my_addr(tx)
             message = "Please verify if %s is GreenAddress instant confirmed" % tx.hash()
             sig = self.wallet.sign_message(addr, message, password)
+            sig = base64.b64encode(sig)
 
             # 2. send the request
             response = requests.request("GET", ("https://greenaddress.it/verify/?signature=%s&txhash=%s" % (urllib.quote(sig), tx.hash())),

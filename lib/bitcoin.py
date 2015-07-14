@@ -488,7 +488,7 @@ class EC_KEY(object):
     def sign_message(self, message, compressed, address):
         signature = self.sign(Hash(msg_magic(message)))
         for i in range(4):
-            sig = base64.b64encode(chr(27 + i + (4 if compressed else 0)) + signature)
+            sig = chr(27 + i + (4 if compressed else 0)) + signature
             try:
                 self.verify_message(address, sig, message)
                 return sig
@@ -498,8 +498,7 @@ class EC_KEY(object):
             raise Exception("error: cannot sign message")
 
     @classmethod
-    def verify_message(self, address, signature, message):
-        sig = base64.b64decode(signature)
+    def verify_message(self, address, sig, message):
         if len(sig) != 65:
             raise Exception("Wrong encoding")
         nV = ord(sig[0])
