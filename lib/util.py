@@ -197,7 +197,7 @@ def time_difference(distance_in_time, include_seconds):
     elif distance_in_minutes < 525600:
         return "%d months" % (round(distance_in_minutes / 43200))
     elif distance_in_minutes < 1051200:
-        return "about 1 yeas"
+        return "about 1 year"
     else:
         return "over %d years" % (round(distance_in_minutes / 525600))
 
@@ -472,5 +472,3 @@ class StoreDict(dict):
         if key in self.keys():
             dict.pop(self, key)
             self.save()
-
-
