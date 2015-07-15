@@ -202,13 +202,17 @@ def time_difference(distance_in_time, include_seconds):
         return "over %d years" % (round(distance_in_minutes / 525600))
 
 block_explorer_info = {
+    'Biteasy.com': ('https://www.biteasy.com/blockchain',
+                        {'tx': 'transactions', 'addr': 'addresses'}),
     'Blockchain.info': ('https://blockchain.info',
                         {'tx': 'tx', 'addr': 'address'}),
     'Blockr.io': ('https://btc.blockr.io',
                         {'tx': 'tx/info', 'addr': 'address/info'}),
-    'Insight.is': ('https://insight.bitpay.com',
-                        {'tx': 'tx', 'addr': 'address'}),
     'Blocktrail.com': ('https://www.blocktrail.com/BTC',
+                        {'tx': 'tx', 'addr': 'address'}),
+    'Chain.so': ('https://www.chain.so',
+                        {'tx': 'tx/BTC', 'addr': 'address/BTC'}),
+    'Insight.is': ('https://insight.bitpay.com',
                         {'tx': 'tx', 'addr': 'address'}),
     'TradeBlock.com': ('https://tradeblock.com/blockchain',
                         {'tx': 'tx', 'addr': 'address'}),
