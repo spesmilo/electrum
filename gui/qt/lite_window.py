@@ -311,9 +311,10 @@ class MiniWindow(QDialog):
             dest_address, amount, label, message, request_url = util.parse_URI(URI)
         except:
             return
+        amount_text = str(D(amount) / (10**self.actuator.g.decimal_point))
         self.address_input.setText(dest_address)
         self.address_field_changed(dest_address)
-        self.amount_input.setText(str(amount))
+        self.amount_input.setText(amount_text)
 
     def activate(self):
         pass
