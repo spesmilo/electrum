@@ -24,6 +24,7 @@ import copy
 import argparse
 import json
 import ast
+import base64
 from functools import wraps
 from decimal import Decimal
 
@@ -361,12 +362,14 @@ class Commands:
     def signmessage(self, address, message):
         """Sign a message with a key. Use quotes if your message contains
         whitespaces"""
-        return self.wallet.sign_message(address, message, self.password)
+        sig = self.wallet.sign_message(address, message, self.password)
+        return base64.b64encode(sig)
 
     @command('')
     def verifymessage(self, address, signature, message):
         """Verify a signature."""
-        return bitcoin.verify_message(address, signature, message)
+        sig = base64.b64decode(signature)
+        return bitcoin.verify_message(address, sig, message)
 
     def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned):
         self.nocheck = nocheck

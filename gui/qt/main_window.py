@@ -23,7 +23,7 @@ import socket
 import webbrowser
 import csv
 from decimal import Decimal
-
+import base64
 
 import PyQt4
 from PyQt4.QtGui import *
@@ -730,7 +730,22 @@ class ElectrumWindow(QMainWindow):
         i = self.expires_combo.currentIndex()
         expiration = map(lambda x: x[1], expiration_values)[i]
         req = self.wallet.make_payment_request(addr, amount, message, expiration)
-        pr, requestor = self.make_bip70_request(req)
+        alias = self.config.get('alias')
+        alias_privkey = None
+        if alias and self.alias_info:
+            alias_addr, alias_name, validated = self.alias_info
+            if alias_addr:
+                if self.wallet.is_mine(alias_addr):
+                    msg = _('This payment request will be signed.') + '\n' + _('Please enter your password')
+                    password = self.password_dialog(msg)
+                    if password:
+                        alias_privkey = self.wallet.get_private_key(alias_addr, password)[0]
+                    else:
+                        return
+                else:
+                    if not self.question(_('This request will not be signed; the Litecoin address returned by your alias does not belong to your wallet')):
+                        return
+        pr, requestor = paymentrequest.make_request(self.config, req, alias, alias_privkey)
         if requestor:
             req['requestor'] = requestor
             req['signature'] = pr.signature.encode('hex')
@@ -740,16 +755,6 @@ class ElectrumWindow(QMainWindow):
         self.save_request_button.setEnabled(False)
         return pr
 
-    def make_bip70_request(self, req):
-        alias_privkey = None
-        alias = self.config.get('alias')
-        if alias and self.alias_info:
-            alias_addr, alias_name, validated = self.alias_info
-            if alias_addr and self.wallet.is_mine(alias_addr):
-                password = self.password_dialog(_('Please enter your password in order to sign your payment request.'))
-                if password:
-                    alias_privkey = self.wallet.get_private_key(alias_addr, password)[0]
-        return paymentrequest.make_request(self.config, req, alias, alias_privkey)
 
     def export_payment_request(self, addr):
         r = self.wallet.receive_requests.get(addr)
@@ -1978,6 +1983,7 @@ class ElectrumWindow(QMainWindow):
         message = message.encode('utf-8')
         try:
             sig = self.wallet.sign_message(str(address.text()), message, password)
+            sig = base64.b64encode(sig)
             signature.setText(sig)
         except Exception as e:
             self.show_message(str(e))
@@ -1985,7 +1991,8 @@ class ElectrumWindow(QMainWindow):
     def do_verify(self, address, message, signature):
         message = unicode(message.toPlainText())
         message = message.encode('utf-8')
-        if bitcoin.verify_message(address.text(), str(signature.toPlainText()), message):
+        sig = base64.b64decode(str(signature.toPlainText()))
+        if bitcoin.verify_message(address.text(), sig, message):
             self.show_message(_("Signature verified"))
         else:
             self.show_message(_("Error: wrong signature"))
