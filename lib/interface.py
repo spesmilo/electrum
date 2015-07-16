@@ -129,7 +129,7 @@ class TcpInterface(threading.Thread):
             return False
         if peercert.has_key("subjectAltName"):
             for typ, val in peercert["subjectAltName"]:
-                if typ == "DNS" and val == name:
+                if typ == "DNS"  and (val == name or (val[0] == '*' and name.find(val[1:]) + len(val[1:]) == len(name))):
                     return True
         else:
             # Only check the subject DN if there is no subject alternative
