@@ -121,8 +121,7 @@ class TcpInterface(threading.Thread):
 
     def check_host_name(self, peercert, name):
         """Simple certificate/host name checker.  Returns True if the
-        certificate matches, False otherwise.  Does not support
-        wildcards."""
+        certificate matches, False otherwise."""
         # Check that the peer has supplied a certificate.
         # None/{} is not acceptable.
         if not peercert:
