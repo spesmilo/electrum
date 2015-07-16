@@ -739,7 +739,11 @@ class ElectrumWindow(QMainWindow):
                     msg = _('This payment request will be signed.') + '\n' + _('Please enter your password')
                     password = self.password_dialog(msg)
                     if password:
-                        alias_privkey = self.wallet.get_private_key(alias_addr, password)[0]
+                        try:
+                            alias_privkey = self.wallet.get_private_key(alias_addr, password)[0]
+                        except Exception as e:
+                            QMessageBox.warning(parent, _('Error'), str(e), _('OK'))
+                            return
                     else:
                         return
                 else:
