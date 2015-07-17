@@ -160,7 +160,8 @@ class Plugin(BasePlugin):
             return
         wallet = TrezorWallet(storage)
         self.wallet = wallet
-        passphrase = self.handler.get_passphrase(_("Please enter your Trezor passphrase.") + '\n' + _("Press OK if you do not use one."))
+        handler = TrezorQtHandler(wizard)
+        passphrase = handler.get_passphrase(_("Please enter your Trezor passphrase.") + '\n' + _("Press OK if you do not use one."))
         if passphrase is None:
             return
         password = wizard.password_dialog()
