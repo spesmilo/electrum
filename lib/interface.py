@@ -121,15 +121,14 @@ class TcpInterface(threading.Thread):
 
     def check_host_name(self, peercert, name):
         """Simple certificate/host name checker.  Returns True if the
-        certificate matches, False otherwise.  Does not support
-        wildcards."""
+        certificate matches, False otherwise."""
         # Check that the peer has supplied a certificate.
         # None/{} is not acceptable.
         if not peercert:
             return False
         if peercert.has_key("subjectAltName"):
             for typ, val in peercert["subjectAltName"]:
-                if typ == "DNS" and val == name:
+                if typ == "DNS"  and (val == name or (val.find('*.') == 0 and name.find(val[1:]) + len(val[1:]) == len(name))):
                     return True
         else:
             # Only check the subject DN if there is no subject alternative
@@ -140,7 +139,7 @@ class TcpInterface(threading.Thread):
                 if attr == "commonName":
                     cn = val
             if cn is not None:
-                return cn == name
+                return (cn == name or (cn.find('*.') == 0 and name.find(cn[1:]) + len(cn[1:]) == len(name)))
         return False
 
 
