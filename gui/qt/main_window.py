@@ -2496,6 +2496,7 @@ class ElectrumWindow(QMainWindow):
         tabs = QTabWidget()
         gui_widgets = []
         tx_widgets = []
+        id_widgets = []
 
         lang_help = _('Select which language is used in the GUI (after restart).')
         lang_label = HelpLabel(_('Language') + ':', lang_help)
@@ -2550,11 +2551,11 @@ class ElectrumWindow(QMainWindow):
         fee_e.textEdited.connect(lambda: on_fee(False))
         tx_widgets.append((fee_label, fee_e))
 
-        alias_help = _('OpenAlias record, used to receive coins and to sign payment requests.') + ' '\
-                     + _('The following alias providers are available:') + '\n'\
-                     + '\n'.join(['https://cryptoname.co/', 'http://xmr.link']) + '\n\n'\
-                     + 'For more information, see http://openalias.org'
-        alias_label = HelpLabel(_('OpenAlias') + ':', alias_help)
+        msg = _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n'\
+              + _('The following alias providers are available:') + '\n'\
+              + '\n'.join(['https://cryptoname.co/', 'http://xmr.link']) + '\n\n'\
+              + 'For more information, see http://openalias.org'
+        alias_label = HelpLabel(_('OpenAlias') + ':', msg)
         alias = self.config.get('alias','')
         alias_e = QLineEdit(alias)
         def set_alias_color():
@@ -2575,7 +2576,22 @@ class ElectrumWindow(QMainWindow):
         set_alias_color()
         self.connect(self, SIGNAL('alias_received'), set_alias_color)
         alias_e.editingFinished.connect(on_alias_edit)
-        tx_widgets.append((alias_label, alias_e))
+        id_widgets.append((alias_label, alias_e))
+
+        msg = _('Chain of SSL certificates, used to create BIP70 payment requests. ')\
+              +_('Put your certificate at the top of the list, and the root CA at the end')
+        SSL_cert_label = HelpLabel(_('SSL certificate') + ':', msg)
+        SSL_cert = self.config.get('ssl_cert','')
+        SSL_cert_e = QLineEdit(SSL_cert)
+        SSL_cert_e.editingFinished.connect(lambda: self.config.set_key('ssl_cert', str(SSL_cert_e.text())))
+        id_widgets.append((SSL_cert_label, SSL_cert_e))
+
+        msg = _('Path to your SSL private key, used to sign BIP70 payment requests.')
+        SSL_key_label = HelpLabel(_('SSL private key') + ':', msg)
+        SSL_key = self.config.get('ssl_key','')
+        SSL_key_e = QLineEdit(SSL_key)
+        SSL_key_e.editingFinished.connect(lambda: self.config.set_key('ssl_key', str(SSL_key_e.text())))
+        id_widgets.append((SSL_key_label, SSL_key_e))
 
         units = ['BTC', 'mBTC', 'bits']
         msg = _('Base unit of your wallet.')\
@@ -2661,7 +2677,12 @@ class ElectrumWindow(QMainWindow):
         can_edit_fees_help = HelpButton(_('This option lets you edit fees in the send tab.'))
         tx_widgets.append((can_edit_fees_cb, None))
 
-        for widgets, name in [(tx_widgets, _('Transactions')), (gui_widgets, _('Appearance'))]:
+        tabs_info = [
+            (tx_widgets, _('Transactions')),
+            (gui_widgets, _('Appearance')),
+            (id_widgets, _('Identity')),
+        ]
+        for widgets, name in tabs_info:
             tab = QWidget()
             grid = QGridLayout(tab)
             grid.setColumnStretch(0,1)
