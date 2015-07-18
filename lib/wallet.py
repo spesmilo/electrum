@@ -336,8 +336,8 @@ class Abstract_Wallet(object):
         self.save_accounts()
 
         # force resynchronization, because we need to re-run add_transaction
-        if addr in self.history:
-            self.history.pop(addr)
+        if address in self.history:
+            self.history.pop(address)
 
         if self.synchronizer:
             self.synchronizer.add(address)
