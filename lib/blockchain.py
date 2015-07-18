@@ -33,7 +33,7 @@ class Blockchain():
     def __init__(self, config, network):
         self.config = config
         self.network = network
-        self.headers_url = 'http://headers.electrum-ltc.org/blockchain_headers'
+        self.headers_url = 'https://electrum-ltc.org/blockchain_headers'
         self.local_height = 0
         self.set_local_height()
 

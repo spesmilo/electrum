@@ -730,9 +730,12 @@ class ElectrumWindow:
             entry.modify_base(Gtk.StateType.NORMAL, Gdk.color_parse("#ffffff"))
 
     def set_url(self, url):
-        payto, amount, label, message, payment_request = parse_URI(url)
+        out = parse_URI(url)
+        address = out.get('address')
+        message = out.get('message')
+        amount = out.get('amount')
         self.notebook.set_current_page(1)
-        self.payto_entry.set_text(payto)
+        self.payto_entry.set_text(address)
         self.message_entry.set_text(message)
         self.amount_entry.set_text(amount)
         self.payto_sig.set_visible(False)

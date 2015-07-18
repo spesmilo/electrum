@@ -131,6 +131,8 @@ def run_gui(config):
     if network:
         network.stop()
 
+    # sleep to let socket threads timeout
+    time.sleep(0.3)
     sys.exit(0)
 
 

@@ -475,7 +475,8 @@ def make_new_contact():
         data = str(r['extras']['SCAN_RESULT']).strip()
         if data:
             if re.match('^litecoin:', data):
-                address, _, _, _, _ = util.parse_URI(data)
+                out = util.parse_URI(data)
+                address = out.get('address')
             elif is_address(data):
                 address = data
             else:
