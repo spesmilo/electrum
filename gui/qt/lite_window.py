@@ -308,12 +308,14 @@ class MiniWindow(QDialog):
 
     def pay_from_URI(self, URI):
         try:
-            dest_address, amount, label, message, request_url = util.parse_URI(URI)
+            out = util.parse_URI(URI)
         except:
             return
+        address = out.get('address')
+        amount = out.get('amount')
         amount_text = str(D(amount) / (10**self.actuator.g.decimal_point))
-        self.address_input.setText(dest_address)
-        self.address_field_changed(dest_address)
+        self.address_input.setText(address)
+        self.address_field_changed(address)
         self.amount_input.setText(amount_text)
 
     def activate(self):

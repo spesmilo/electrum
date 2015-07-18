@@ -715,21 +715,15 @@ class ElectrumWindow(QMainWindow):
         menu = QMenu()
         menu.addAction(_("Copy Address"), lambda: self.app.clipboard().setText(addr))
         menu.addAction(_("Copy URI"), lambda: self.app.clipboard().setText(str(URI)))
-        menu.addAction(_("Export as BIP70 file"), lambda: self.export_payment_request(addr)).setEnabled(amount is not None)
+        if req.get('signature'):
+            menu.addAction(_("View signed URI"), lambda: self.view_signed_request(addr))
+        menu.addAction(_("Export as BIP70 file"), lambda: self.export_payment_request(addr)) #.setEnabled(amount is not None)
         menu.addAction(_("Delete"), lambda: self.delete_payment_request(item))
         run_hook('receive_list_menu', menu, addr)
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
-    def save_payment_request(self):
-        addr = str(self.receive_address_e.text())
-        amount = self.receive_amount_e.get_amount()
-        message = unicode(self.receive_message_e.text())
-        if not message and not amount:
-            QMessageBox.warning(self, _('Error'), _('No message or amount'), _('OK'))
-            return False
-        i = self.expires_combo.currentIndex()
-        expiration = map(lambda x: x[1], expiration_values)[i]
-        req = self.wallet.make_payment_request(addr, amount, message, expiration)
+    def sign_payment_request(self, addr):
+        req = self.wallet.receive_requests.get(addr)
         alias = self.config.get('alias')
         alias_privkey = None
         if alias and self.alias_info:
@@ -754,16 +748,45 @@ class ElectrumWindow(QMainWindow):
             req['requestor'] = requestor
             req['signature'] = pr.signature.encode('hex')
         self.wallet.add_payment_request(req, self.config)
+
+    def save_payment_request(self):
+        addr = str(self.receive_address_e.text())
+        amount = self.receive_amount_e.get_amount()
+        message = unicode(self.receive_message_e.text())
+        if not message and not amount:
+            QMessageBox.warning(self, _('Error'), _('No message or amount'), _('OK'))
+            return False
+        i = self.expires_combo.currentIndex()
+        expiration = map(lambda x: x[1], expiration_values)[i]
+        req = self.wallet.make_payment_request(addr, amount, message, expiration)
+        self.wallet.add_payment_request(req, self.config)
+        self.sign_payment_request(addr)
         self.update_receive_tab()
         self.update_address_tab()
         self.save_request_button.setEnabled(False)
-        return pr
+
+    def view_signed_request(self, addr):
+        import urllib
+        r = self.wallet.receive_requests.get(addr)
+        pr = paymentrequest.serialize_request(r).SerializeToString()
+        pr_text = 'bitcoin:?s=' + bitcoin.base_encode(pr, base=58)
+        dialog = QDialog(self)
+        dialog.setWindowTitle(_("Signed Request"))
+        vbox = QVBoxLayout()
+        pr_e = ShowQRTextEdit(text=pr_text)
+        pr_e.setMaximumHeight(170)
+        msg = _('This URI contains the payment request signed with your alias.') + '\n' + _('Note: This feature is experimental')
+        vbox.addWidget(QLabel(msg))
+        vbox.addWidget(pr_e)
+        pr_e.addCopyButton(self.app)
+        vbox.addLayout(Buttons(CloseButton(dialog)))
+        dialog.setLayout(vbox)
+        dialog.exec_()
 
 
     def export_payment_request(self, addr):
         r = self.wallet.receive_requests.get(addr)
-        pr = paymentrequest.serialize_request(r)
-        pr = pr.SerializeToString()
+        pr = paymentrequest.serialize_request(r).SerializeToString()
         name = r['id'] + '.bip70'
         fileName = self.getSaveFileName(_("Select where to save your payment request"), name, "*.bip70")
         if fileName:
@@ -1320,42 +1343,51 @@ class ElectrumWindow(QMainWindow):
         if not URI:
             return
         try:
-            address, amount, label, message, request_url = util.parse_URI(unicode(URI))
+            out = util.parse_URI(unicode(URI))
         except Exception as e:
             QMessageBox.warning(self, _('Error'), _('Invalid bitcoin URI:') + '\n' + str(e), _('OK'))
             return
-
         self.tabs.setCurrentIndex(1)
 
-        if not request_url:
-            if label:
-                if self.wallet.labels.get(address) != label:
-                    if self.question(_('Save label "%(label)s" for address %(address)s ?'%{'label':label,'address':address})):
-                        if address not in self.wallet.addressbook and not self.wallet.is_mine(address):
-                            self.wallet.addressbook.append(address)
-                            self.wallet.set_label(address, label)
-            else:
-                label = self.wallet.labels.get(address)
-            if address:
-                self.payto_e.setText(label + '  <'+ address +'>' if label else address)
-            if message:
-                self.message_e.setText(message)
-            if amount:
-                self.amount_e.setAmount(amount)
-                self.amount_e.textEdited.emit("")
+        r = out.get('r')
+        s = out.get('s')
+        if r or s:
+            def get_payment_request_thread():
+                if s:
+                    from electrum import paymentrequest
+                    data = bitcoin.base_decode(s, None, base=58)
+                    self.payment_request = paymentrequest.PaymentRequest(data)
+                else:
+                    self.payment_request = get_payment_request(r)
+                if self.payment_request.verify(self.contacts):
+                    self.emit(SIGNAL('payment_request_ok'))
+                else:
+                    self.emit(SIGNAL('payment_request_error'))
+            t = threading.Thread(target=get_payment_request_thread)
+            t.setDaemon(True)
+            t.start()
+            self.prepare_for_payment_request()
             return
 
-        def get_payment_request_thread():
-            self.payment_request = get_payment_request(request_url)
-            if self.payment_request.verify(self.contacts):
-                self.emit(SIGNAL('payment_request_ok'))
-            else:
-                self.emit(SIGNAL('payment_request_error'))
-
-        t = threading.Thread(target=get_payment_request_thread)
-        t.setDaemon(True)
-        t.start()
-        self.prepare_for_payment_request()
+        address = out.get('address')
+        amount = out.get('amount')
+        label = out.get('label')
+        message = out.get('message')
+        if label:
+            if self.wallet.labels.get(address) != label:
+                if self.question(_('Save label "%(label)s" for address %(address)s ?'%{'label':label,'address':address})):
+                    if address not in self.wallet.addressbook and not self.wallet.is_mine(address):
+                        self.wallet.addressbook.append(address)
+                        self.wallet.set_label(address, label)
+        else:
+            label = self.wallet.labels.get(address)
+        if address:
+            self.payto_e.setText(label + '  <'+ address +'>' if label else address)
+        if message:
+            self.message_e.setText(message)
+        if amount:
+            self.amount_e.setAmount(amount)
+            self.amount_e.textEdited.emit("")
 
 
 

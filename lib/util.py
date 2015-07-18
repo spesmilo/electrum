@@ -261,29 +261,25 @@ def parse_URI(uri):
     for k, v in pq.items():
         if len(v)!=1:
             raise Exception('Duplicate Key', k)
+        if k not in ['amount', 'label', 'message', 'r', 's']:
+            raise BaseException('Unknown key', k)
 
-    amount = label = message = request_url = ''
-    if 'amount' in pq:
-        am = pq['amount'][0]
+    out = {k: v[0] for k, v in pq.items()}
+    if address:
+        assert bitcoin.is_address(address)
+        out['address'] = address
+    if 'amount' in out:
+        am = out['amount']
         m = re.match('([0-9\.]+)X([0-9])', am)
         if m:
             k = int(m.group(2)) - 8
             amount = Decimal(m.group(1)) * pow(  Decimal(10) , k)
         else:
             amount = Decimal(am) * COIN
-    if 'message' in pq:
-        message = pq['message'][0].decode('utf8')
-    if 'label' in pq:
-        label = pq['label'][0]
-    if 'r' in pq:
-        request_url = pq['r'][0]
-
-    if request_url != '':
-        return address, amount, label, message, request_url
-
-    assert bitcoin.is_address(address)
-
-    return address, amount, label, message, request_url
+        out['amount'] = amount
+    if 'message' in out:
+        out['message'] = out['message'].decode('utf8')
+    return out
 
 
 def create_URI(addr, amount, message):
