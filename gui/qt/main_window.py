@@ -739,13 +739,12 @@ class ElectrumWindow(QMainWindow):
                         try:
                             alias_privkey = self.wallet.get_private_key(alias_addr, password)[0]
                         except Exception as e:
-                            QMessageBox.warning(parent, _('Error'), str(e), _('OK'))
+                            QMessageBox.warning(self, _('Error'), str(e), _('OK'))
                             return
                     else:
                         return
                 else:
-                    if not self.question(_('This request will not be signed; the Bitcoin address returned by your alias does not belong to your wallet')):
-                        return
+                    return
         pr, requestor = paymentrequest.make_request(self.config, req, alias, alias_privkey)
         if requestor:
             req['name'] = requestor
