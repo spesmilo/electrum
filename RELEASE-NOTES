@@ -9,7 +9,7 @@
  * Payment requests signed with OpenAlias keys can be shared as
    bitcoin: URIs, if they are simple (a single address-type
    output). The BIP21 URI scheme is extended with 'name', 'sig',
-   'timestamp', 'expiration'.
+   'time', 'exp'.
  * Arbitrary m-of-n multisig wallets are supported (n<=15).
  * Multisig transactions can be signed with Trezor.
  * User-set transaction fees are retained with the '!' shortcut.
