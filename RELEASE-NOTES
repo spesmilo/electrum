@@ -11,8 +11,11 @@
    output). The BIP21 URI scheme is extended with 'name', 'sig',
    'time', 'exp'.
  * Arbitrary m-of-n multisig wallets are supported (n<=15).
- * Multisig transactions can be signed with Trezor.
- * User-set transaction fees are retained with the '!' shortcut.
+ * Multisig transactions can be signed with Trezor. When you create
+   the multisig wallet, just enter the xpub of your existing Trezor
+   wallet.
+ * Transaction fees set manually in the GUI are retained when the user
+   uses the '!' shortcut.
  * New 'email' plugin, that enables sending and receiving payment
    requests by email.
 
