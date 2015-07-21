@@ -261,8 +261,6 @@ def parse_URI(uri):
     for k, v in pq.items():
         if len(v)!=1:
             raise Exception('Duplicate Key', k)
-        if k not in ['amount', 'label', 'message', 'r', 'id', 'sig', 'timestamp', 'expiration']:
-            raise BaseException('Unknown key', k)
 
     out = {k: v[0] for k, v in pq.items()}
     if address:

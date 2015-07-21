@@ -779,7 +779,6 @@ class ElectrumWindow(QMainWindow):
         vbox.addWidget(pr_e)
         vbox.addLayout(Buttons(CopyCloseButton(pr_e.text, self.app, dialog)))
         dialog.setLayout(vbox)
-        #print len(data), data
         dialog.exec_()
 
     def export_payment_request(self, addr):
