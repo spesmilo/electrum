@@ -681,7 +681,7 @@ class ElectrumWindow(QMainWindow):
             return
         addr = str(item.text(2))
         req = self.wallet.receive_requests[addr]
-        expires = _('Never') if req.get('expiration') is None else util.age(req['timestamp'] + req['expiration'])
+        expires = _('Never') if req.get('exp') is None else util.age(req['time'] + req['exp'])
         amount = req['amount']
         message = self.wallet.labels.get(addr, '')
         self.receive_address_e.setText(addr)
@@ -703,14 +703,14 @@ class ElectrumWindow(QMainWindow):
         message = self.wallet.labels.get(addr, '')
         amount = req['amount']
         URI = util.create_URI(addr, amount, message)
-        if req.get('id') and req.get('sig'):
+        if req.get('time'):
+            URI += "&time=%d"%req.get('time')
+        if req.get('exp'):
+            URI += "&exp=%d"%req.get('exp')
+        if req.get('name') and req.get('sig'):
             sig = req.get('sig').decode('hex')
             sig = bitcoin.base_encode(sig, base=58)
-            URI += "&id=" + req['id'] + "&sig="+sig 
-            if req.get('timestamp'):
-                URI += "&timestamp=%d"%req.get('timestamp')
-            if req.get('expiration'):
-                URI += "&expiration=%d"%req.get('expiration')
+            URI += "&name=" + req['name'] + "&sig="+sig
         return str(URI)
 
     def receive_list_menu(self, position):
@@ -748,7 +748,7 @@ class ElectrumWindow(QMainWindow):
                         return
         pr, requestor = paymentrequest.make_request(self.config, req, alias, alias_privkey)
         if requestor:
-            req['id'] = requestor
+            req['name'] = requestor
             req['sig'] = pr.signature.encode('hex')
         self.wallet.add_payment_request(req, self.config)
 
@@ -870,14 +870,14 @@ class ElectrumWindow(QMainWindow):
             address = req['address']
             if address not in domain:
                 continue
-            timestamp = req['timestamp']
+            timestamp = req.get('time', 0)
             amount = req.get('amount')
-            expiration = req.get('expiration', None)
+            expiration = req.get('exp', None)
             message = req.get('memo', '')
             date = format_time(timestamp)
             status = req.get('status')
             signature = req.get('sig')
-            requestor = req.get('id', '')
+            requestor = req.get('name', '')
             amount_str = self.format_amount(amount) if amount else ""
             account = ''
             item = QTreeWidgetItem([date, account, address, '', message, amount_str, pr_tooltips.get(status,'')])
@@ -1348,10 +1348,10 @@ class ElectrumWindow(QMainWindow):
 
         r = out.get('r')
         sig = out.get('sig')
-        _id = out.get('id')
-        if r or (_id and sig):
+        name = out.get('name')
+        if r or (name and sig):
             def get_payment_request_thread():
-                if _id and sig:
+                if name and sig:
                     from electrum import paymentrequest
                     pr = paymentrequest.serialize_request(out).SerializeToString()
                     self.payment_request = paymentrequest.PaymentRequest(pr)

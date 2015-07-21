@@ -290,11 +290,11 @@ class PaymentRequest:
 def make_unsigned_request(req):
     from transaction import Transaction
     addr = req['address']
-    time = req['timestamp']
+    time = req['time']
     amount = req['amount']
     if amount is None:
         amount = 0
-    expires = req['expiration']
+    expires = req['exp']
     memo = req['memo']
     script = Transaction.pay_script('address', addr).decode('hex')
     outputs = [(script, amount)]
@@ -340,7 +340,7 @@ def sign_request_with_x509(pr, key_path, cert_path):
 def serialize_request(req):
     pr = make_unsigned_request(req)
     signature = req.get('sig')
-    requestor = req.get('id')
+    requestor = req.get('name')
     if requestor and signature:
         pr.signature = signature.decode('hex')
         pr.pki_type = 'dnssec+btc'

@@ -1242,8 +1242,8 @@ class Abstract_Wallet(object):
         r = self.receive_requests[key]
         address = r['address']
         amount = r.get('amount')
-        timestamp = r.get('timestamp', 0)
-        expiration = r.get('expiration')
+        timestamp = r.get('time', 0)
+        expiration = r.get('exp')
         if amount:
             if self.up_to_date:
                 paid = amount <= self.get_addr_received(address)
@@ -1259,7 +1259,7 @@ class Abstract_Wallet(object):
     def make_payment_request(self, addr, amount, message, expiration):
         timestamp = int(time.time())
         _id = Hash(addr + "%d"%timestamp).encode('hex')[0:10]
-        r = {'timestamp':timestamp, 'amount':amount, 'expiration':expiration, 'address':addr, 'memo':message, 'id':_id}
+        r = {'time':timestamp, 'amount':amount, 'exp':expiration, 'address':addr, 'memo':message, 'id':_id}
         return r
 
     def add_payment_request(self, req, config):
@@ -1305,7 +1305,7 @@ class Abstract_Wallet(object):
         return True
 
     def get_sorted_requests(self, config):
-        return sorted(map(lambda x: self.get_payment_request(x, config), self.receive_requests.keys()), key=itemgetter('timestamp'))
+        return sorted(map(lambda x: self.get_payment_request(x, config), self.receive_requests.keys()), key=lambda x: x.get('time', 0))
 
 
 
