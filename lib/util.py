@@ -261,7 +261,7 @@ def parse_URI(uri):
     for k, v in pq.items():
         if len(v)!=1:
             raise Exception('Duplicate Key', k)
-        if k not in ['amount', 'label', 'message', 'r', 's']:
+        if k not in ['amount', 'label', 'message', 'r', 'id', 'sig', 'timestamp', 'expiration']:
             raise BaseException('Unknown key', k)
 
     out = {k: v[0] for k, v in pq.items()}
@@ -276,9 +276,16 @@ def parse_URI(uri):
             amount = Decimal(m.group(1)) * pow(  Decimal(10) , k)
         else:
             amount = Decimal(am) * COIN
-        out['amount'] = amount
+        out['amount'] = int(amount)
     if 'message' in out:
         out['message'] = out['message'].decode('utf8')
+        out['memo'] = out['message']
+    if 'timestamp' in out:
+        out['timestamp'] = int(out['timestamp'])
+        out['expiration'] = int(out['expiration'])
+    if 'sig' in out:
+        out['sig'] = bitcoin.base_decode(out['sig'], None, base=58).encode('hex')
+
     return out
 
 

@@ -318,7 +318,6 @@ def sign_request_with_alias(pr, alias, alias_privkey):
     address = bitcoin.address_from_private_key(alias_privkey)
     compressed = bitcoin.is_compressed(alias_privkey)
     pr.signature = ec_key.sign_message(message, compressed, address)
-    return pr
 
 
 def sign_request_with_x509(pr, key_path, cert_path):
@@ -336,14 +335,13 @@ def sign_request_with_x509(pr, key_path, cert_path):
     hashBytes = bytearray(hashlib.sha256(msgBytes).digest())
     sig = rsakey.sign(x509.PREFIX_RSA_SHA256 + hashBytes)
     pr.signature = bytes(sig)
-    return pr
 
 
 def serialize_request(req):
     pr = make_unsigned_request(req)
-    signature = req.get('signature')
-    if signature:
-        requestor = req.get('requestor')
+    signature = req.get('sig')
+    requestor = req.get('id')
+    if requestor and signature:
         pr.signature = signature.decode('hex')
         pr.pki_type = 'dnssec+btc'
         pr.pki_data = str(requestor)

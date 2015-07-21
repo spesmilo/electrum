@@ -698,26 +698,29 @@ class ElectrumWindow(QMainWindow):
         self.update_receive_tab()
         self.clear_receive_tab()
 
-    def get_receive_URI(self):
-        addr = str(self.receive_address_e.text())
-        amount = self.receive_amount_e.get_amount()
-        message = unicode(self.receive_message_e.text())
+    def get_request_URI(self, addr):
+        req = self.wallet.receive_requests[addr]
+        message = self.wallet.labels.get(addr, '')
+        amount = req['amount']
         URI = util.create_URI(addr, amount, message)
-        return URI
+        if req.get('id') and req.get('sig'):
+            sig = req.get('sig').decode('hex')
+            sig = bitcoin.base_encode(sig, base=58)
+            URI += "&id=" + req['id'] + "&sig="+sig 
+            if req.get('timestamp'):
+                URI += "&timestamp=%d"%req.get('timestamp')
+            if req.get('expiration'):
+                URI += "&expiration=%d"%req.get('expiration')
+        return str(URI)
 
     def receive_list_menu(self, position):
         item = self.receive_list.itemAt(position)
         addr = str(item.text(2))
         req = self.wallet.receive_requests[addr]
-        time, amount = req['timestamp'], req['amount']
-        message = self.wallet.labels.get(addr, '')
-        URI = util.create_URI(addr, amount, message)
         menu = QMenu()
-        menu.addAction(_("Copy Address"), lambda: self.app.clipboard().setText(addr))
-        menu.addAction(_("Copy URI"), lambda: self.app.clipboard().setText(str(URI)))
-        if req.get('signature'):
-            menu.addAction(_("Copy Signed URI"), lambda: self.view_signed_request(addr))
-        menu.addAction(_("Save as BIP70 file"), lambda: self.export_payment_request(addr)) #.setEnabled(amount is not None)
+        menu.addAction(_("Copy Address"), lambda: self.view_and_paste(_('Address'), '', addr))
+        menu.addAction(_("Copy URI"), lambda: self.view_and_paste('URI', '', self.get_request_URI(addr)))
+        menu.addAction(_("Save as BIP70 file"), lambda: self.export_payment_request(addr))
         menu.addAction(_("Delete"), lambda: self.delete_payment_request(item))
         run_hook('receive_list_menu', menu, addr)
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
@@ -745,8 +748,8 @@ class ElectrumWindow(QMainWindow):
                         return
         pr, requestor = paymentrequest.make_request(self.config, req, alias, alias_privkey)
         if requestor:
-            req['requestor'] = requestor
-            req['signature'] = pr.signature.encode('hex')
+            req['id'] = requestor
+            req['sig'] = pr.signature.encode('hex')
         self.wallet.add_payment_request(req, self.config)
 
     def save_payment_request(self):
@@ -765,28 +768,19 @@ class ElectrumWindow(QMainWindow):
         self.update_address_tab()
         self.save_request_button.setEnabled(False)
 
-    def view_signed_request(self, addr):
-        import urllib
-        r = self.wallet.receive_requests.get(addr)
-        pr = paymentrequest.serialize_request(r).SerializeToString()
-        pr_text = 'bitcoin:?s=' + bitcoin.base_encode(pr, base=58)
+    def view_and_paste(self, title, msg, data):
         dialog = QDialog(self)
-        dialog.setWindowTitle(_("Signed Request"))
+        dialog.setWindowTitle(title)
         vbox = QVBoxLayout()
-        pr_e = ShowQRTextEdit(text=pr_text)
-        pr_e.addCopyButton(self.app)
-        msg = ' '.join([_('The following URI contains your payment request signed with your OpenAlias key.'),
-                        _('The signature is a proof that the payment was requested by you.')])
-        l = QLabel(msg)
-        l.setWordWrap(True)
-        vbox.addWidget(l)
+        label = QLabel(msg)
+        label.setWordWrap(True)
+        vbox.addWidget(label)
+        pr_e = ShowQRTextEdit(text=data)
         vbox.addWidget(pr_e)
-        msg = _('Note: This format is experimental and may not be supported by other Bitcoin clients.')
-        vbox.addWidget(QLabel(msg))
         vbox.addLayout(Buttons(CopyCloseButton(pr_e.text, self.app, dialog)))
         dialog.setLayout(vbox)
+        #print len(data), data
         dialog.exec_()
-
 
     def export_payment_request(self, addr):
         r = self.wallet.receive_requests.get(addr)
@@ -883,8 +877,8 @@ class ElectrumWindow(QMainWindow):
             message = req.get('memo', '')
             date = format_time(timestamp)
             status = req.get('status')
-            signature = req.get('signature')
-            requestor = req.get('requestor', '')
+            signature = req.get('sig')
+            requestor = req.get('id', '')
             amount_str = self.format_amount(amount) if amount else ""
             account = ''
             item = QTreeWidgetItem([date, account, address, '', message, amount_str, pr_tooltips.get(status,'')])
@@ -1343,7 +1337,7 @@ class ElectrumWindow(QMainWindow):
         self.show_message(self.payment_request.error)
         self.payment_request = None
 
-    def pay_from_URI(self,URI):
+    def pay_to_URI(self, URI):
         if not URI:
             return
         try:
@@ -1354,13 +1348,14 @@ class ElectrumWindow(QMainWindow):
         self.tabs.setCurrentIndex(1)
 
         r = out.get('r')
-        s = out.get('s')
-        if r or s:
+        sig = out.get('sig')
+        _id = out.get('id')
+        if r or (_id and sig):
             def get_payment_request_thread():
-                if s:
+                if _id and sig:
                     from electrum import paymentrequest
-                    data = bitcoin.base_decode(s, None, base=58)
-                    self.payment_request = paymentrequest.PaymentRequest(data)
+                    pr = paymentrequest.serialize_request(out).SerializeToString()
+                    self.payment_request = paymentrequest.PaymentRequest(pr)
                 else:
                     self.payment_request = get_payment_request(r)
                 if self.payment_request.verify(self.contacts):
@@ -1394,18 +1389,15 @@ class ElectrumWindow(QMainWindow):
             self.amount_e.textEdited.emit("")
 
 
-
     def do_clear(self):
         self.not_enough_funds = False
         self.payto_e.is_pr = False
         for e in [self.payto_e, self.message_e, self.amount_e, self.fee_e]:
             e.setText('')
             e.setFrozen(False)
-
         self.set_pay_from([])
         self.update_status()
         run_hook('do_clear')
-
 
     def set_frozen_state(self, addrs, freeze):
         self.wallet.set_frozen_state(addrs, freeze)
@@ -2215,7 +2207,7 @@ class ElectrumWindow(QMainWindow):
             return
         # if the user scanned a bitcoin URI
         if data.startswith("bitcoin:"):
-            self.pay_from_URI(data)
+            self.pay_to_URI(data)
             return
         # else if the user scanned an offline signed tx
         # transactions are binary, but qrcode seems to return utf8...
