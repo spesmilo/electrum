@@ -290,11 +290,11 @@ class PaymentRequest:
 def make_unsigned_request(req):
     from transaction import Transaction
     addr = req['address']
-    time = req['time']
+    time = req.get('time', 0)
+    expires = req.get('exp', 0)
     amount = req['amount']
     if amount is None:
         amount = 0
-    expires = req['exp']
     memo = req['memo']
     script = Transaction.pay_script('address', addr).decode('hex')
     outputs = [(script, amount)]
