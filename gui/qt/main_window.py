@@ -621,7 +621,11 @@ class ElectrumWindow(QMainWindow):
         self.expires_combo = QComboBox()
         self.expires_combo.addItems(map(lambda x:x[0], expiration_values))
         self.expires_combo.setCurrentIndex(1)
-        msg = _('Expiration date of your request. This information is not included in the Litecoin address nor in the QR code; the recipient will see it only if you send them a complete request.')
+        msg = ' '.join([
+            _('Expiration date of your request.'),
+            _('This information is seen by the recipient if you send them a signed payment request.'),
+            _('Expired requests have to be deleted manually from your list, in order to free the corresponding Litecoin addresses'),
+        ])
         grid.addWidget(HelpLabel(_('Expires in'), msg), 3, 0)
         grid.addWidget(self.expires_combo, 3, 1)
         self.expires_label = QLineEdit('')
@@ -681,7 +685,7 @@ class ElectrumWindow(QMainWindow):
             return
         addr = str(item.text(2))
         req = self.wallet.receive_requests[addr]
-        expires = _('Never') if req.get('expiration') is None else util.age(req['timestamp'] + req['expiration'])
+        expires = _('Never') if req.get('exp') is None else util.age(req['time'] + req['exp'])
         amount = req['amount']
         message = self.wallet.labels.get(addr, '')
         self.receive_address_e.setText(addr)
@@ -698,32 +702,34 @@ class ElectrumWindow(QMainWindow):
         self.update_receive_tab()
         self.clear_receive_tab()
 
-    def get_receive_URI(self):
-        addr = str(self.receive_address_e.text())
-        amount = self.receive_amount_e.get_amount()
-        message = unicode(self.receive_message_e.text())
+    def get_request_URI(self, addr):
+        req = self.wallet.receive_requests[addr]
+        message = self.wallet.labels.get(addr, '')
+        amount = req['amount']
         URI = util.create_URI(addr, amount, message)
-        return URI
+        if req.get('time'):
+            URI += "&time=%d"%req.get('time')
+        if req.get('exp'):
+            URI += "&exp=%d"%req.get('exp')
+        if req.get('name') and req.get('sig'):
+            sig = req.get('sig').decode('hex')
+            sig = bitcoin.base_encode(sig, base=58)
+            URI += "&name=" + req['name'] + "&sig="+sig
+        return str(URI)
 
     def receive_list_menu(self, position):
         item = self.receive_list.itemAt(position)
         addr = str(item.text(2))
         req = self.wallet.receive_requests[addr]
-        time, amount = req['timestamp'], req['amount']
-        message = self.wallet.labels.get(addr, '')
-        URI = util.create_URI(addr, amount, message)
         menu = QMenu()
-        menu.addAction(_("Copy Address"), lambda: self.app.clipboard().setText(addr))
-        menu.addAction(_("Copy URI"), lambda: self.app.clipboard().setText(str(URI)))
-        if req.get('signature'):
-            menu.addAction(_("Copy Signed URI"), lambda: self.view_signed_request(addr))
-        menu.addAction(_("Save as BIP70 file"), lambda: self.export_payment_request(addr)) #.setEnabled(amount is not None)
+        menu.addAction(_("Copy Address"), lambda: self.view_and_paste(_('Address'), '', addr))
+        menu.addAction(_("Copy URI"), lambda: self.view_and_paste('URI', '', self.get_request_URI(addr)))
+        menu.addAction(_("Save as BIP70 file"), lambda: self.export_payment_request(addr))
         menu.addAction(_("Delete"), lambda: self.delete_payment_request(item))
         run_hook('receive_list_menu', menu, addr)
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
     def sign_payment_request(self, addr):
-        req = self.wallet.receive_requests.get(addr)
         alias = self.config.get('alias')
         alias_privkey = None
         if alias and self.alias_info:
@@ -734,20 +740,15 @@ class ElectrumWindow(QMainWindow):
                     password = self.password_dialog(msg)
                     if password:
                         try:
-                            alias_privkey = self.wallet.get_private_key(alias_addr, password)[0]
+                            self.wallet.sign_payment_request(addr, alias, alias_addr, password)
                         except Exception as e:
-                            QMessageBox.warning(parent, _('Error'), str(e), _('OK'))
+                            QMessageBox.warning(self, _('Error'), str(e), _('OK'))
                             return
                     else:
                         return
                 else:
-                    if not self.question(_('This request will not be signed; the Litecoin address returned by your alias does not belong to your wallet')):
-                        return
-        pr, requestor = paymentrequest.make_request(self.config, req, alias, alias_privkey)
-        if requestor:
-            req['requestor'] = requestor
-            req['signature'] = pr.signature.encode('hex')
-        self.wallet.add_payment_request(req, self.config)
+                    return
+
 
     def save_payment_request(self):
         addr = str(self.receive_address_e.text())
@@ -765,28 +766,18 @@ class ElectrumWindow(QMainWindow):
         self.update_address_tab()
         self.save_request_button.setEnabled(False)
 
-    def view_signed_request(self, addr):
-        import urllib
-        r = self.wallet.receive_requests.get(addr)
-        pr = paymentrequest.serialize_request(r).SerializeToString()
-        pr_text = 'litecoin:?s=' + bitcoin.base_encode(pr, base=58)
+    def view_and_paste(self, title, msg, data):
         dialog = QDialog(self)
-        dialog.setWindowTitle(_("Signed Request"))
+        dialog.setWindowTitle(title)
         vbox = QVBoxLayout()
-        pr_e = ShowQRTextEdit(text=pr_text)
-        pr_e.addCopyButton(self.app)
-        msg = ' '.join([_('The following URI contains your payment request signed with your OpenAlias key.'),
-                        _('The signature is a proof that the payment was requested by you.')])
-        l = QLabel(msg)
-        l.setWordWrap(True)
-        vbox.addWidget(l)
+        label = QLabel(msg)
+        label.setWordWrap(True)
+        vbox.addWidget(label)
+        pr_e = ShowQRTextEdit(text=data)
         vbox.addWidget(pr_e)
-        msg = _('Note: This format is experimental and may not be supported by other Bitcoin clients.')
-        vbox.addWidget(QLabel(msg))
         vbox.addLayout(Buttons(CopyCloseButton(pr_e.text, self.app, dialog)))
         dialog.setLayout(vbox)
         dialog.exec_()
-
 
     def export_payment_request(self, addr):
         r = self.wallet.receive_requests.get(addr)
@@ -877,14 +868,14 @@ class ElectrumWindow(QMainWindow):
             address = req['address']
             if address not in domain:
                 continue
-            timestamp = req['timestamp']
+            timestamp = req.get('time', 0)
             amount = req.get('amount')
-            expiration = req.get('expiration', None)
+            expiration = req.get('exp', None)
             message = req.get('memo', '')
             date = format_time(timestamp)
             status = req.get('status')
-            signature = req.get('signature')
-            requestor = req.get('requestor', '')
+            signature = req.get('sig')
+            requestor = req.get('name', '')
             amount_str = self.format_amount(amount) if amount else ""
             account = ''
             item = QTreeWidgetItem([date, account, address, '', message, amount_str, pr_tooltips.get(status,'')])
@@ -1343,7 +1334,7 @@ class ElectrumWindow(QMainWindow):
         self.show_message(self.payment_request.error)
         self.payment_request = None
 
-    def pay_from_URI(self,URI):
+    def pay_to_URI(self, URI):
         if not URI:
             return
         try:
@@ -1354,13 +1345,14 @@ class ElectrumWindow(QMainWindow):
         self.tabs.setCurrentIndex(1)
 
         r = out.get('r')
-        s = out.get('s')
-        if r or s:
+        sig = out.get('sig')
+        name = out.get('name')
+        if r or (name and sig):
             def get_payment_request_thread():
-                if s:
+                if name and sig:
                     from electrum_ltc import paymentrequest
-                    data = bitcoin.base_decode(s, None, base=58)
-                    self.payment_request = paymentrequest.PaymentRequest(data)
+                    pr = paymentrequest.serialize_request(out).SerializeToString()
+                    self.payment_request = paymentrequest.PaymentRequest(pr)
                 else:
                     self.payment_request = get_payment_request(r)
                 if self.payment_request.verify(self.contacts):
@@ -1394,18 +1386,15 @@ class ElectrumWindow(QMainWindow):
             self.amount_e.textEdited.emit("")
 
 
-
     def do_clear(self):
         self.not_enough_funds = False
         self.payto_e.is_pr = False
         for e in [self.payto_e, self.message_e, self.amount_e, self.fee_e]:
             e.setText('')
             e.setFrozen(False)
-
         self.set_pay_from([])
         self.update_status()
         run_hook('do_clear')
-
 
     def set_frozen_state(self, addrs, freeze):
         self.wallet.set_frozen_state(addrs, freeze)
@@ -1443,7 +1432,8 @@ class ElectrumWindow(QMainWindow):
             key = pr.get_id()
             status = self.invoices.get_status(key)
             requestor = pr.get_requestor()
-            date_str = util.format_time(pr.get_expiration_date())
+            exp = pr.get_expiration_date()
+            date_str = util.format_time(exp) if exp else _('Never')
             item = QTreeWidgetItem( [ date_str, requestor, pr.memo, self.format_amount(pr.get_amount(), whitespaces=True), pr_tooltips.get(status,'')] )
             item.setIcon(4, QIcon(pr_icons.get(status)))
             item.setData(0, Qt.UserRole, key)
@@ -2215,7 +2205,7 @@ class ElectrumWindow(QMainWindow):
             return
         # if the user scanned a bitcoin URI
         if data.startswith("litecoin:"):
-            self.pay_from_URI(data)
+            self.pay_to_URI(data)
             return
         # else if the user scanned an offline signed tx
         # transactions are binary, but qrcode seems to return utf8...

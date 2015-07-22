@@ -148,7 +148,10 @@ class Plugin(BasePlugin):
         from electrum_ltc import paymentrequest
         r = self.wallet.receive_requests.get(addr)
         message = r.get('memo', '')
-        pr, requestor = paymentrequest.make_request(self.config, r)
+        if r.get('signature'):
+            pr = paymentrequest.serialize_request(r)
+        else:
+            pr, requestor = paymentrequest.make_request(self.config, r)
         if not pr:
             return
         recipient, ok = QtGui.QInputDialog.getText(self.win, 'Send request', 'Send request to:')

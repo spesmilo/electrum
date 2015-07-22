@@ -47,7 +47,7 @@ class PayToEdit(ScanQRTextEdit):
         self.errors = []
         self.is_pr = False
         self.is_alias = False
-        self.scan_f = win.pay_from_URI
+        self.scan_f = win.pay_to_URI
         self.update_size()
         self.payto_address = None
 

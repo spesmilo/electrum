@@ -578,6 +578,13 @@ class Commands:
         self.wallet.add_payment_request(req, self.config)
         return self._format_request(req)
 
+    @command('wp')
+    def signrequest(self, key):
+        "Sign payment request with an OpenAlias"
+        alias = self.config.get('alias')
+        alias_addr = self.contacts.resolve(alias)['address']
+        self.wallet.sign_payment_request(key, alias, alias_addr, self.password)
+
     @command('w')
     def rmrequest(self, key):
         """Remove a payment request"""

@@ -1,16 +1,23 @@
 # Release 2.4
- * The Openalias plugin was merged into the main code.
- * The DNSSEC validation procedure (used for OpenAliases) was
-   rewritten. The previous validation method, which was included in
-   the OpenAlias plugin, is vulnerable and should not be trusted
-   (Electrum 2.0 to 2.3).
- * Payment requests can be signed with DNSSEC aliases. This
-   effectively extends BIP70 to user aliases.
+ * The Openalias/DNSSEC plugin was merged into the main electrum
+   code. The DNSSEC verification procedure was rewritten. The previous
+   validation method, which was part of the OpenAlias plugin, is
+   vulnerable and should not be trusted (Electrum 2.0 to 2.3).
+ * BIP70 payment requests can be signed using Bitcoin keys stored in
+   DNS (OpenAlias). The identity of the requestor is verified using
+   DNSSEC.
+ * Payment requests signed with OpenAlias keys can be shared as
+   bitcoin: URIs, if they are simple (a single address-type
+   output). The BIP21 URI scheme is extended with 'name', 'sig',
+   'time', 'exp'.
+ * Arbitrary m-of-n multisig wallets are supported (n<=15).
+ * Multisig transactions can be signed with Trezor. When you create
+   the multisig wallet, just enter the xpub of your existing Trezor
+   wallet.
+ * Transaction fees set manually in the GUI are retained when the user
+   uses the '!' shortcut.
  * New 'email' plugin, that enables sending and receiving payment
    requests by email.
- * Arbitrary m-of-n multisig wallets are supported (n<=15).
- * Multisig transactions can be signed with Trezor.
- * User-set transaction fees are retained with the '!' shortcut.
 
 # Release 2.3.3
  * fix proxy settings (issue #1309)
