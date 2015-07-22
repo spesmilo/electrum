@@ -292,6 +292,10 @@ def make_unsigned_request(req):
     addr = req['address']
     time = req.get('time', 0)
     expires = req.get('exp', 0)
+    if type(time) != int:
+        time = 0
+    if type(exp) != int:
+        exp = 0
     amount = req['amount']
     if amount is None:
         amount = 0
