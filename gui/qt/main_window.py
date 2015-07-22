@@ -730,7 +730,6 @@ class ElectrumWindow(QMainWindow):
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
     def sign_payment_request(self, addr):
-        req = self.wallet.receive_requests.get(addr)
         alias = self.config.get('alias')
         alias_privkey = None
         if alias and self.alias_info:
@@ -741,7 +740,7 @@ class ElectrumWindow(QMainWindow):
                     password = self.password_dialog(msg)
                     if password:
                         try:
-                            alias_privkey = self.wallet.get_private_key(alias_addr, password)[0]
+                            self.wallet.sign_payment_request(addr, alias, alias_addr, password)
                         except Exception as e:
                             QMessageBox.warning(self, _('Error'), str(e), _('OK'))
                             return
@@ -749,11 +748,7 @@ class ElectrumWindow(QMainWindow):
                         return
                 else:
                     return
-        pr, requestor = paymentrequest.make_request(self.config, req, alias, alias_privkey)
-        if requestor:
-            req['name'] = requestor
-            req['sig'] = pr.signature.encode('hex')
-        self.wallet.add_payment_request(req, self.config)
+
 
     def save_payment_request(self):
         addr = str(self.receive_address_e.text())

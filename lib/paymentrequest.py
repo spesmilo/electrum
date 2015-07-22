@@ -348,21 +348,13 @@ def serialize_request(req):
     return pr
 
 
-def make_request(config, req, alias=None, alias_privkey=None):
+def make_request(config, req):
     pr = make_unsigned_request(req)
     key_path = config.get('ssl_privkey')
     cert_path = config.get('ssl_chain')
-    requestor = None
-
     if key_path and cert_path:
         sign_request_with_x509(pr, key_path, cert_path)
-        requestor = 'x'
-
-    elif alias and alias_privkey:
-        requestor = alias
-        sign_request_with_alias(pr, alias, alias_privkey)
-
-    return pr, requestor
+    return pr
 
 
 
