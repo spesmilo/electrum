@@ -574,6 +574,7 @@ class Commands:
             else:
                 return False
         amount = int(Decimal(requested_amount)*COIN)
+        expiration = int(expiration)
         req = self.wallet.make_payment_request(addr, amount, memo, expiration)
         self.wallet.add_payment_request(req, self.config)
         return self._format_request(req)
@@ -589,6 +590,13 @@ class Commands:
     def rmrequest(self, address):
         """Remove a payment request"""
         return self.wallet.remove_payment_request(address, self.config)
+
+    @command('w')
+    def clearrequests(self):
+        """Remove all payment requests"""
+        for k in self.wallet.receive_requests.keys():
+            self.wallet.remove_payment_request(k, self.config)
+
 
 param_descriptions = {
     'privkey': 'Private key. Type \'?\' to get a prompt.',
