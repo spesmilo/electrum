@@ -198,7 +198,7 @@ class Authenticator:
                     exit()
                 if not Wallet.is_seed(seed):
                     exit()
-                wallet = Wallet.from_seed(seed, storage)
+                wallet = Wallet.from_seed(seed, password, storage)
             else:
                 exit()
 
