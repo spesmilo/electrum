@@ -1245,7 +1245,11 @@ class Abstract_Wallet(object):
         address = r['address']
         amount = r.get('amount')
         timestamp = r.get('time', 0)
+        if timestamp and type(timestamp) != int:
+            timestamp = 0
         expiration = r.get('exp')
+        if expiration and type(expiration) != int:
+            expiration = 0
         if amount:
             if self.up_to_date:
                 paid = amount <= self.get_addr_received(address)
