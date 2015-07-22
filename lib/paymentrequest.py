@@ -291,7 +291,11 @@ def make_unsigned_request(req):
     from transaction import Transaction
     addr = req['address']
     time = req.get('time', 0)
-    expires = req.get('exp', 0)
+    exp = req.get('exp', 0)
+    if time and type(time) != int:
+        time = 0
+    if exp and type(exp) != int:
+        exp = 0
     amount = req['amount']
     if amount is None:
         amount = 0
@@ -302,7 +306,7 @@ def make_unsigned_request(req):
     for script, amount in outputs:
         pd.outputs.add(amount=amount, script=script)
     pd.time = time
-    pd.expires = time + expires if expires else 0
+    pd.expires = time + exp if exp else 0
     pd.memo = memo
     pr = pb2.PaymentRequest()
     pr.serialized_payment_details = pd.SerializeToString()

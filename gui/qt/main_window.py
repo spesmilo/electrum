@@ -685,7 +685,7 @@ class ElectrumWindow(QMainWindow):
             return
         addr = str(item.text(2))
         req = self.wallet.receive_requests[addr]
-        expires = _('Never') if req.get('exp') is None else util.age(req['time'] + req['exp'])
+        expires = util.age(req['time'] + req['exp']) if req.get('exp') else _('Never')
         amount = req['amount']
         message = self.wallet.labels.get(addr, '')
         self.receive_address_e.setText(addr)

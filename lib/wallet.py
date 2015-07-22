@@ -1228,13 +1228,13 @@ class Abstract_Wallet(object):
         rdir = config.get('requests_dir')
         if rdir:
             key = out.get('id', addr)
-            path = os.path.join(rdir, key + '.bip70')
+            path = os.path.join(rdir, key)
             if os.path.exists(path):
                 baseurl = 'file://' + rdir
                 rewrite = config.get('url_rewrite')
                 if rewrite:
                     baseurl = baseurl.replace(*rewrite)
-                out['request_url'] = os.path.join(baseurl, key + '.bip70')
+                out['request_url'] = os.path.join(baseurl, key)
                 out['URI'] += '&r=' + out['request_url']
                 out['index_url'] = os.path.join(baseurl, 'index.html') + '?id=' + key
         return out
@@ -1245,7 +1245,11 @@ class Abstract_Wallet(object):
         address = r['address']
         amount = r.get('amount')
         timestamp = r.get('time', 0)
+        if timestamp and type(timestamp) != int:
+            timestamp = 0
         expiration = r.get('exp')
+        if expiration and type(expiration) != int:
+            expiration = 0
         if amount:
             if self.up_to_date:
                 paid = amount <= self.get_addr_received(address)
@@ -1293,7 +1297,7 @@ class Abstract_Wallet(object):
                 shutil.copy(src, index)
             key = req.get('id', addr)
             pr = paymentrequest.make_request(config, req)
-            path = os.path.join(rdir, key + '.bip70')
+            path = os.path.join(rdir, key)
             with open(path, 'w') as f:
                 f.write(pr.SerializeToString())
             # reload
@@ -1309,7 +1313,7 @@ class Abstract_Wallet(object):
         rdir = config.get('requests_dir')
         if rdir:
             key = r.get('id', addr)
-            for s in ['.json', '.bip70']:
+            for s in ['.json', '']:
                 n = os.path.join(rdir, key + s)
                 if os.path.exists(n):
                     os.unlink(n)
