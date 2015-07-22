@@ -37,8 +37,8 @@ if (id) {
 	    $(function () {
 		var current;
 		var max = 100;
-		var initial = data.timestamp;
-		var duration = data.expiration;
+		var initial = data.time;
+		var duration = data.exp;
   		var current = 100 * (Math.floor(Date.now()/1000) - initial)/duration;
 		$("#progressbar").progressbar({
 		    value: current,
