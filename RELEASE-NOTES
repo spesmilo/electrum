@@ -18,6 +18,7 @@
    when the user uses the '!' shortcut.
  * New 'email' plugin, that enables sending and receiving payment
    requests by email.
+ * The daemon supports Websocket notifications of payments.
 
 # Release 2.3.3
  * fix proxy settings (issue #1309)
