@@ -204,6 +204,8 @@ def time_difference(distance_in_time, include_seconds):
 block_explorer_info = {
     'Biteasy.com': ('https://www.biteasy.com/blockchain',
                         {'tx': 'transactions', 'addr': 'addresses'}),
+    'Bitflyer.jp': ('https://chainflyer.bitflyer.jp',
+                        {'tx': 'Transaction', 'addr': 'Address'}),
     'Blockchain.info': ('https://blockchain.info',
                         {'tx': 'tx', 'addr': 'address'}),
     'Blockr.io': ('https://btc.blockr.io',
