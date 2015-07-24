@@ -37,10 +37,10 @@ class ElectrumWebSocket(WebSocket):
         request_queue.put((self, request_id))
 
     def handleConnected(self):
-        print "connected", self.address
+        util.print_error("connected", self.address)
 
     def handleClose(self):
-        print "closed", self.address
+        util.print_error("closed", self.address)
 
 
 
@@ -104,7 +104,7 @@ class WsClientThread(daemon.ClientThread):
             result = r.get('result')
 
             if method == 'blockchain.address.subscribe':
-                print 'response', r
+                util.print_error('response', r)
                 if result is not None:
                     request = {'method':'blockchain.address.get_balance', 'params':params, 'id':self.counter}
                     self.server.send_request(self, request)
@@ -112,7 +112,7 @@ class WsClientThread(daemon.ClientThread):
                     self.counter += 1
 
             if r.get('method') == 'blockchain.address.get_balance':
-                print 'response', r
+                util.print_error('response', r)
                 if not ws.closed:
                     if sum(result.values()) >=amount:
                         ws.sendMessage(unicode('paid'))
