@@ -216,6 +216,9 @@ if __name__ == '__main__':
     util.set_verbosity(True)
     server = NetworkServer(config)
     server.start()
+    if config.get('websocket_server'):
+        import websockets
+        websockets.WebSocketServer(config, server).start()
     try:
         daemon_loop(server)
     except KeyboardInterrupt:

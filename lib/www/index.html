@@ -1,12 +1,11 @@
 <!DOCTYPE HTML>
 <html>
     <head>
-        <title>Payment request</title>
-        <script type="text/javascript" charset="utf-8" src="https://code.jquery.com/jquery-1.9.1.min.js"></script>
-	<script type="text/javascript" src="https://raw.githubusercontent.com/davidshimjs/qrcodejs/master/qrcode.js"></script>
-	<script type="text/javascript" src="https://code.jquery.com/ui/1.10.3/jquery-ui.js"></script>
-	<link rel="stylesheet" type="text/css" href="https://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css">
-
+      <title>Payment request</title>
+	<script type="text/javascript" charset="utf-8" src="jquery-1.9.1.min.js"></script>
+	<script type="text/javascript" src="qrcode.js"></script>
+	<script type="text/javascript" src="jquery-ui.js"></script>
+	<link rel="stylesheet" type="text/css" href="jquery-ui.css">
         <script type="text/javascript">
 function getUrlParameter(sParam)
 {
@@ -26,7 +25,7 @@ var id = getUrlParameter('id');
 
 if (id) {
     var jqxhr = $.getJSON(id + ".json", function() {
-	console.log( "success" );
+	console.log("getJSON:success");
     })
         .done( function(data) {
 	    new QRCode(document.getElementById("qrcode"), data.URI);
@@ -50,17 +49,39 @@ if (id) {
 			value: current
 		    });
 		    if (current >= max) {
-			$("#container").html("This payment request has expired");
+			$("#container").html("This invoice has expired");
 		    }
 		};
 		var interval = setInterval(update, 1000);
             });
 	    })
 	.fail(function() {
-	    console.log( "error fail" );
+	    console.log("error fail");
             $("<p />").text("error").appendTo($("p#error"));
         });
 };
+
+var ws = new WebSocket("wss://electrum-ltc.org:9999/");
+ws.onopen = function() {
+            ws.send('id:' + id);
+};
+ws.onmessage = function (evt) {
+	    var received_msg = evt.data;
+	    if(received_msg == 'paid'){
+	        $("#container").html("This invoice has been paid.");
+	    }
+	    else alert("Message is received:"+ received_msg);
+};
+
+
+// See http://stackoverflow.com/questions/29186154/chrome-clicking-mailto-links-closes-websocket-connection
+$(document).on('click', 'a[href^="litecoin:"]', function (e) {
+    e.preventDefault();
+    var btcWindow = window.open($(e.currentTarget).attr('href'));
+    btcWindow.close();
+    return false;
+});
+
 </script>
     </head>
     <body>
@@ -69,7 +90,7 @@ if (id) {
             <p id="reason"></p>
             <p id="amount"></p>
 	    <div style="background-color:#7777aa; border-radius: 5px; padding:10px;">
-		<a style="color:#ffffff; text-decoration:none;" id="paylink">Pay with Litecoin</a>
+		<a style="color:#ffffff; text-decoration:none;" id="paylink" target="_blank">Pay with Litecoin</a>
 	    </div>
 	    <br/>
 	    <div id="qrcode" align="center"></div>
