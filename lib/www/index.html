@@ -61,7 +61,7 @@ if (id) {
         });
 };
 
-var ws = new WebSocket("wss://electrum.org:9999/");
+var ws = new WebSocket("wss://" + window.location.hostname + ":9999/");
 ws.onopen = function() {
             ws.send('id:' + id);
 };
