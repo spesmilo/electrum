@@ -29,6 +29,7 @@ setup(
     name="Electrum-LTC",
     version=version.ELECTRUM_VERSION,
     install_requires=[
+        'pycrypto',
         'slowaes>=0.1a1',
         'ecdsa>=0.9',
         'pbkdf2',
