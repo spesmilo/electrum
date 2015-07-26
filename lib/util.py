@@ -238,7 +238,7 @@ def parse_URI(uri):
 
     if ':' not in uri:
         assert bitcoin.is_address(uri)
-        return uri, None, None, None, None
+        return {'address': uri}
 
     u = urlparse.urlparse(uri)
     assert u.scheme == 'litecoin'

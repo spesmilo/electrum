@@ -1388,6 +1388,7 @@ class ElectrumWindow(QMainWindow):
 
     def do_clear(self):
         self.not_enough_funds = False
+        self.payment_request = None
         self.payto_e.is_pr = False
         for e in [self.payto_e, self.message_e, self.amount_e, self.fee_e]:
             e.setText('')
