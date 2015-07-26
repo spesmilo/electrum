@@ -1,11 +1,12 @@
 # Release 2.4
- * The Openalias/DNSSEC plugin was merged into the main electrum code.
-   The validation of aliases uses DNSSEC and requires pyCrypto.
- * The DNSSEC validation code was rewritten. The previous validation
-   method, which was part of the OpenAlias plugin, is vulnerable and
-   should not be trusted (Electrum 2.0 to 2.3).
- * BIP70 payment requests can be signed using Bitcoin keys stored in
-   DNS (OpenAlias). The identity of the requestor is verified using
+ * Payment to DNS names storing a Bitcoin addresses (OpenAlias) is
+   supported directly, without activating a plugin. The verification
+   uses DNSSEC.
+ * The DNSSEC verification code was rewritten. The previous code,
+   which was part of the OpenAlias plugin, is vulnerable and should
+   not be trusted (Electrum 2.0 to 2.3).
+ * Payment requests can be signed using Bitcoin addresses stored
+   in DNS (OpenAlias). The identity of the requestor is verified using
    DNSSEC.
  * Payment requests signed with OpenAlias keys can be shared as
    bitcoin: URIs, if they are simple (a single address-type
