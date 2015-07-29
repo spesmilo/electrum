@@ -60,7 +60,7 @@ Pure-Python version of dns.dnssec._validate_rsig
 Uses tlslite instead of PyCrypto
 """
 def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
-    from dns.dnssec import ValidationFailure
+    from dns.dnssec import ValidationFailure, ECKeyWrapper, ECDSAP256SHA256, ECDSAP384SHA384
     from dns.dnssec import _find_candidate_keys, _make_hash, _is_rsa, _to_rdata, _make_algorithm_id
 
     if isinstance(origin, (str, unicode)):
@@ -99,7 +99,6 @@ def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
                 keyptr = keyptr[2:]
             rsa_e = keyptr[0:bytes]
             rsa_n = keyptr[bytes:]
-            keylen = len(rsa_n) * 8
             n = bytesToNumber(bytearray(rsa_n))
             e = bytesToNumber(bytearray(rsa_e))
             pubkey = _createPublicRSAKey(n, e)
