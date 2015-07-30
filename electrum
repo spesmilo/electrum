@@ -304,7 +304,7 @@ def run_cmdline(config):
             sys.exit(1)
         network = NetworkProxy(s, config)
         network.start()
-        while network.is_connecting():
+        while network.status == 'unknown':
             time.sleep(0.1)
         if not network.is_connected():
             print_msg("daemon is not connected")

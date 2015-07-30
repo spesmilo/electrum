@@ -55,7 +55,7 @@ class NetworkProxy(util.DaemonThread):
                 self.pipe.get_queue.put({'method':'network.status', 'params':[key, value]})
 
         # status variables
-        self.status = 'connecting'
+        self.status = 'unknown'
         self.servers = {}
         self.banner = ''
         self.blockchain_height = 0
