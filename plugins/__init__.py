@@ -48,7 +48,7 @@ descriptions = [
         'available_for': ['qt'],
     },
     {
-        'name': 'email',
+        'name': 'email_requests',
         'fullname': 'Email',
         'description': _("Send and receive payment request with an email account"),
         'available_for': ['qt'],
