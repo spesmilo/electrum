@@ -229,9 +229,9 @@ class TcpInterface(threading.Thread):
         return s
 
     def send_request(self, request, response_queue = None):
-        '''Queue a request.  Blocking only if called from other threads.'''
+        '''Queue a request.'''
         self.request_time = time.time()
-        self.request_queue.put((copy.deepcopy(request), response_queue), threading.current_thread() != self)
+        self.request_queue.put((copy.deepcopy(request), response_queue))
 
     def send_requests(self):
         '''Sends all queued requests'''
