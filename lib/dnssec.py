@@ -243,16 +243,16 @@ def get_and_validate(ns, url, _type):
 
 
 def query(url, rtype):
-    resolver = dns.resolver.get_default_resolver()
     # 8.8.8.8 is Google's public DNS server
-    resolver.nameservers = ['8.8.8.8']
-    ns = resolver.nameservers[0]
+    nameservers = ['8.8.8.8']
+    ns = nameservers[0]
     try:
         out = get_and_validate(ns, url, rtype)
         validated = True
     except BaseException as e:
         #traceback.print_exc(file=sys.stderr)
         print_error("DNSSEC error:", str(e))
+        resolver = dns.resolver.get_default_resolver()
         out = resolver.query(url, rtype)
         validated = False
     return out, validated
