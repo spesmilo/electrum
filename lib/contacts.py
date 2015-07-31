@@ -40,10 +40,7 @@ class Contacts(StoreDict):
     def resolve_openalias(self, url):
         # support email-style addresses, per the OA standard
         url = url.replace('@', '.')
-        try:
-            records, validated = dnssec.query(url, dns.rdatatype.TXT)
-        except:
-            return
+        records, validated = dnssec.query(url, dns.rdatatype.TXT)
         prefix = 'btc'
         for record in records:
             string = record.strings[0]
