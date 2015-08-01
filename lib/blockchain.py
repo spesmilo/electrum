@@ -47,17 +47,21 @@ class Blockchain():
         prev_header = self.read_header(first_header.get('block_height') -1)
 
         for header in chain:
-
             height = header.get('block_height')
-
             prev_hash = self.hash_header(prev_header)
+            if prev_hash != header.get('prev_block_hash'):
+                self.print_error("prev hash mismatch: %s vs %s"
+                                 % (prev_hash, header.get('prev_block_hash')))
+                return False
             bits, target = self.get_target(height/2016, chain)
+            if bits != header.get('bits'):
+                self.print_error("bits mismatch: %s vs %s"
+                                 % (bits, header.get('bits')))
+                return False
             _hash = self.hash_header(header)
-            try:
-                assert prev_hash == header.get('prev_block_hash')
-                assert bits == header.get('bits')
-                assert int('0x'+_hash,16) < target
-            except Exception:
+            if int('0x'+_hash, 16) > target:
+                self.print_error("insufficient proof of work: %s vs target %s"
+                                 % (int('0x'+_hash, 16), target))
                 return False
 
             prev_header = header
