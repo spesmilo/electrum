@@ -1,3 +1,7 @@
+# Release 2.4.1
+ * Use ssl.PROTOCOL_TLSv1
+ * Fix DNSSEC issues with ECDSA signatures
+
 # Release 2.4
  * Payment to DNS names storing a Bitcoin addresses (OpenAlias) is
    supported directly, without activating a plugin. The verification

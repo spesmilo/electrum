@@ -106,7 +106,7 @@ class Commands:
     def restore(self):
         """Restore a wallet from seed. """
 
-    @command('')
+    @command('w')
     def deseed(self):
         """Remove seed from wallet. This creates a seedless, watching-only
         wallet."""

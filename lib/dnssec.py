@@ -60,8 +60,12 @@ Pure-Python version of dns.dnssec._validate_rsig
 Uses tlslite instead of PyCrypto
 """
 def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
-    from dns.dnssec import ValidationFailure, ECKeyWrapper, ECDSAP256SHA256, ECDSAP384SHA384
-    from dns.dnssec import _find_candidate_keys, _make_hash, _is_rsa, _to_rdata, _make_algorithm_id
+    from dns.dnssec import ValidationFailure, ECDSAP256SHA256, ECDSAP384SHA384
+    from dns.dnssec import _find_candidate_keys, _make_hash, _is_ecdsa, _is_rsa, _to_rdata, _make_algorithm_id
+
+    import ecdsa
+    from tlslite.utils.keyfactory import _createPublicRSAKey
+    from tlslite.utils.cryptomath import bytesToNumber
 
     if isinstance(origin, (str, unicode)):
         origin = dns.name.from_text(origin, dns.name.root)
@@ -89,8 +93,6 @@ def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
         hash = _make_hash(rrsig.algorithm)
 
         if _is_rsa(rrsig.algorithm):
-            from tlslite.utils.keyfactory import _createPublicRSAKey
-            from tlslite.utils.cryptomath import bytesToNumber
             keyptr = candidate_key.key
             (bytes,) = struct.unpack('!B', keyptr[0:1])
             keyptr = keyptr[1:]
@@ -121,9 +123,7 @@ def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
             y = ecdsa.util.string_to_number(keyptr[key_len:key_len * 2])
             assert ecdsa.ecdsa.point_is_valid(curve.generator, x, y)
             point = ecdsa.ellipticcurve.Point(curve.curve, x, y, curve.order)
-            verifying_key = ecdsa.keys.VerifyingKey.from_public_point(point,
-                                                                      curve)
-            pubkey = ECKeyWrapper(verifying_key, key_len)
+            verifying_key = ecdsa.keys.VerifyingKey.from_public_point(point, curve)
             r = rrsig.signature[:key_len]
             s = rrsig.signature[key_len:]
             sig = ecdsa.ecdsa.Signature(ecdsa.util.string_to_number(r),
@@ -158,7 +158,8 @@ def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
                 return
 
         elif _is_ecdsa(rrsig.algorithm):
-            if pubkey.verify(digest, sig):
+            diglong = ecdsa.util.string_to_number(digest)
+            if verifying_key.pubkey.verifies(diglong, sig):
                 return
 
         else:
@@ -242,16 +243,16 @@ def get_and_validate(ns, url, _type):
 
 
 def query(url, rtype):
-    resolver = dns.resolver.get_default_resolver()
     # 8.8.8.8 is Google's public DNS server
-    resolver.nameservers = ['8.8.8.8']
-    ns = resolver.nameservers[0]
+    nameservers = ['8.8.8.8']
+    ns = nameservers[0]
     try:
         out = get_and_validate(ns, url, rtype)
         validated = True
     except BaseException as e:
         #traceback.print_exc(file=sys.stderr)
         print_error("DNSSEC error:", str(e))
+        resolver = dns.resolver.get_default_resolver()
         out = resolver.query(url, rtype)
         validated = False
     return out, validated
