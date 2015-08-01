@@ -151,10 +151,10 @@ class Plugin(BasePlugin):
         if r.get('signature'):
             pr = paymentrequest.serialize_request(r)
         else:
-            pr, requestor = paymentrequest.make_request(self.config, r)
+            pr = paymentrequest.make_request(self.config, r)
         if not pr:
             return
-        recipient, ok = QtGui.QInputDialog.getText(self.win, 'Send request', 'Send request to:')
+        recipient, ok = QtGui.QInputDialog.getText(self.win, 'Send request', 'Email invoice to:')
         if not ok:
             return
         recipient = str(recipient)
