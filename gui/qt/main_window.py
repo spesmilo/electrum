@@ -1330,9 +1330,9 @@ class ElectrumWindow(QMainWindow):
         self.amount_e.textEdited.emit("")
 
     def payment_request_error(self):
-        self.do_clear()
         self.show_message(self.payment_request.error)
         self.payment_request = None
+        self.do_clear()
 
     def pay_to_URI(self, URI):
         if not URI:
