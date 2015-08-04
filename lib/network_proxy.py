@@ -62,6 +62,8 @@ class NetworkProxy(util.DaemonThread):
         self.server_height = 0
         self.interfaces = []
         self.jobs = []
+        # value returned by estimatefee
+        self.fee = None
 
 
     def run(self):
@@ -90,6 +92,8 @@ class NetworkProxy(util.DaemonThread):
                 self.status = value
             elif key == 'banner':
                 self.banner = value
+            elif key == 'fee':
+                self.fee = value
             elif key == 'updated':
                 self.blockchain_height, self.server_height = value
             elif key == 'servers':

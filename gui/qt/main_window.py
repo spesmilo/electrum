@@ -46,7 +46,7 @@ from electrum import Imported_Wallet
 from electrum import paymentrequest
 from electrum.contacts import Contacts
 
-from amountedit import AmountEdit, BTCAmountEdit, MyLineEdit
+from amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit
 from network_dialog import NetworkDialog
 from qrcodewidget import QRCodeWidget, QRDialog
 from qrtextedit import ScanQRTextEdit, ShowQRTextEdit
@@ -980,7 +980,8 @@ class ElectrumWindow(QMainWindow):
             output = ('address', addr, sendable)
             dummy_tx = Transaction.from_io(inputs, [output])
             if not self.fee_e.isModified():
-                self.fee_e.setAmount(self.wallet.estimated_fee(dummy_tx))
+                fee_per_kb = self.wallet.fee_per_kb(self.config)
+                self.fee_e.setAmount(self.wallet.estimated_fee(dummy_tx, fee_per_kb))
             self.amount_e.setAmount(max(0, sendable - self.fee_e.get_amount()))
             self.amount_e.textEdited.emit("")
 
@@ -1059,7 +1060,7 @@ class ElectrumWindow(QMainWindow):
                 addr = self.payto_e.payto_address if self.payto_e.payto_address else self.dummy_address
                 outputs = [('address', addr, amount)]
             try:
-                tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, fee)
+                tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, self.config, fee)
                 self.not_enough_funds = False
             except NotEnoughFunds:
                 self.not_enough_funds = True
@@ -1195,7 +1196,7 @@ class ElectrumWindow(QMainWindow):
             return
         outputs, fee, tx_desc, coins = r
         try:
-            tx = self.wallet.make_unsigned_transaction(coins, outputs, fee)
+            tx = self.wallet.make_unsigned_transaction(coins, outputs, self.config, fee)
             if not tx:
                 raise BaseException(_("Insufficient funds"))
         except Exception as e:
@@ -2477,7 +2478,7 @@ class ElectrumWindow(QMainWindow):
         if not d.exec_():
             return
 
-        fee = self.wallet.fee_per_kb
+        fee = self.wallet.fee_per_kb(self.config)
         tx = Transaction.sweep(get_pk(), self.network, get_address(), fee)
         self.show_transaction(tx)
 
@@ -2563,20 +2564,43 @@ class ElectrumWindow(QMainWindow):
         nz.valueChanged.connect(on_nz)
         gui_widgets.append((nz_label, nz))
 
-        fee_help = _('Fee per kilobyte of transaction.') + '\n' \
-                   + _('Recommended value') + ': ' + self.format_amount(bitcoin.RECOMMENDED_FEE) + ' ' + self.base_unit()
-        fee_label = HelpLabel(_('Transaction fee per kb') + ':', fee_help)
-        fee_e = BTCAmountEdit(self.get_decimal_point)
-        fee_e.setAmount(self.wallet.fee_per_kb)
-        if not self.config.is_modifiable('fee_per_kb'):
-            for w in [fee_e, fee_label]: w.setEnabled(False)
+        msg = _('Fee per kilobyte of transaction.') + '\n' \
+              + _('If you enable dynamic fees, your client will use a value recommended by the server, and this parameter will be used as upper bound.')
+        fee_label = HelpLabel(_('Transaction fee per kb') + ':', msg)
+        fee_e = BTCkBEdit(self.get_decimal_point)
+        fee_e.setAmount(self.config.get('fee_per_kb', bitcoin.RECOMMENDED_FEE))
         def on_fee(is_done):
-            self.wallet.set_fee(fee_e.get_amount() or 0, is_done)
+            v = fee_e.get_amount() or 0
+            self.wallet.set_fee(v)
+            self.config.set_key('fee_per_kb', v, is_done)
             if not is_done:
                 self.update_fee()
         fee_e.editingFinished.connect(lambda: on_fee(True))
         fee_e.textEdited.connect(lambda: on_fee(False))
         tx_widgets.append((fee_label, fee_e))
+
+        dynfee_cb = QCheckBox(_('Dynamic fees'))
+        dynfee_cb.setChecked(self.config.get('dynamic_fees', False))
+        dynfee_sl = QSlider(Qt.Horizontal, self)
+        dynfee_sl.setValue(self.config.get('fee_factor', 50))
+        dynfee_sl.setToolTip("Fee Multiplier. Min = 50%, Max = 150%")
+        tx_widgets.append((dynfee_cb, dynfee_sl))
+
+        def update_feeperkb():
+            fee_e.setAmount(self.wallet.fee_per_kb(self.config))
+            b = self.config.get('dynamic_fees')
+            dynfee_sl.setHidden(not b)
+            fee_e.setEnabled(not b)
+        def fee_factor_changed(b):
+            self.config.set_key('fee_factor', b, False)
+            update_feeperkb()
+        def on_dynfee(x):
+            dynfee = x == Qt.Checked
+            self.config.set_key('dynamic_fees', dynfee)
+            update_feeperkb()
+        dynfee_cb.stateChanged.connect(on_dynfee)
+        dynfee_sl.valueChanged[int].connect(fee_factor_changed)
+        update_feeperkb()
 
         msg = _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n'\
               + _('The following alias providers are available:') + '\n'\
@@ -2644,7 +2668,7 @@ class ElectrumWindow(QMainWindow):
             self.update_history_tab()
             self.update_receive_tab()
             self.update_address_tab()
-            fee_e.setAmount(self.wallet.fee_per_kb)
+            fee_e.setAmount(self.wallet.fee_per_kb(self.config))
             self.update_status()
         unit_combo.currentIndexChanged.connect(on_unit)
         gui_widgets.append((unit_label, unit_combo))

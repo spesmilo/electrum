@@ -444,7 +444,7 @@ def pay_to(recipient, amount, label):
     droid.dialogShow()
 
     try:
-        tx = wallet.mktx([('address', recipient, amount)], password)
+        tx = wallet.mktx([('address', recipient, amount)], password, config)
     except Exception as e:
         modal_dialog('error', e.message)
         droid.dialogDismiss()
@@ -895,12 +895,14 @@ menu_commands = ["send", "receive", "settings", "contacts", "main"]
 wallet = None
 network = None
 contacts = None
+config = None
 
 class ElectrumGui:
 
-    def __init__(self, config, _network):
+    def __init__(self, _config, _network):
         global wallet, network, contacts
         network = _network
+        config = _config
         network.register_callback('updated', update_callback)
         network.register_callback('connected', update_callback)
         network.register_callback('disconnected', update_callback)
