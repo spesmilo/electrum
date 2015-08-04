@@ -25,6 +25,7 @@ import threading
 import time
 import traceback
 import urlparse
+import json
 import requests
 
 try:
@@ -34,9 +35,11 @@ except ImportError:
 
 import bitcoin
 import util
+from util import print_error
 import transaction
 import x509
-from util import print_error
+import rsakey
+
 
 REQUEST_HEADERS = {'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'}
 ACK_HEADERS = {'Content-Type':'application/bitcoin-payment','Accept':'application/bitcoin-paymentack','User-Agent':'Electrum'}
@@ -52,7 +55,6 @@ PR_UNKNOWN = 2     # sent but not propagated
 PR_PAID    = 3     # send and propagated
 PR_ERROR   = 4     # could not parse
 
-import json
 
 
 def get_payment_request(url):
@@ -163,7 +165,9 @@ class PaymentRequest:
             prev_x = x509_chain[i-1]
             algo, sig, data = prev_x.get_signature()
             sig = bytearray(sig)
-            pubkey = x.publicKey
+
+            pubkey = rsakey.RSAKey(x.modulus, x.exponent)
+
             if algo == x509.ALGO_RSA_SHA1:
                 verify = pubkey.hashAndVerify(sig, data)
             elif algo == x509.ALGO_RSA_SHA256:
@@ -183,7 +187,8 @@ class PaymentRequest:
                 self.error = "Certificate not Signed by Provided CA Certificate Chain"
                 return False
         # verify the BIP70 signature
-        pubkey0 = x509_chain[0].publicKey
+        x = x509_chain[0]
+        pubkey0 = rsakey.RSAKey(x.modulus, x.exponent)
         sig = paymntreq.signature
         paymntreq.signature = ''
         s = paymntreq.SerializeToString()
@@ -324,20 +329,22 @@ def sign_request_with_alias(pr, alias, alias_privkey):
     pr.signature = ec_key.sign_message(message, compressed, address)
 
 
+
 def sign_request_with_x509(pr, key_path, cert_path):
-    import tlslite
+    import pem
     with open(key_path, 'r') as f:
-        rsakey = tlslite.utils.python_rsakey.Python_RSAKey.parsePEM(f.read())
+        params = pem.parse_private_key(f.read())
+        privkey = rsakey.RSAKey(*params)
     with open(cert_path, 'r') as f:
-        chain = tlslite.X509CertChain()
-        chain.parsePemList(f.read())
+        s = f.read()
+        bList = pem.dePemList(s, "CERTIFICATE")
     certificates = pb2.X509Certificates()
-    certificates.certificate.extend(map(lambda x: str(x.bytes), chain.x509List))
+    certificates.certificate.extend(map(str, bList))
     pr.pki_type = 'x509+sha256'
     pr.pki_data = certificates.SerializeToString()
     msgBytes = bytearray(pr.SerializeToString())
     hashBytes = bytearray(hashlib.sha256(msgBytes).digest())
-    sig = rsakey.sign(x509.PREFIX_RSA_SHA256 + hashBytes)
+    sig = privkey.sign(x509.PREFIX_RSA_SHA256 + hashBytes)
     pr.signature = bytes(sig)
 
 
@@ -359,8 +366,6 @@ def make_request(config, req):
     if key_path and cert_path:
         sign_request_with_x509(pr, key_path, cert_path)
     return pr
-
-
 
 
 

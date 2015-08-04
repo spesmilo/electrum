@@ -20,17 +20,12 @@
 from datetime import datetime
 import sys
 
-import tlslite
 import util
 from util import profiler, print_error
 
-from asn1tinydecoder import asn1_node_root, asn1_get_all, asn1_get_value, \
-                        asn1_get_value_of_type, asn1_node_next, asn1_node_first_child, \
-                        asn1_read_length, asn1_node_is_child_of, \
-                        bytestr_to_int, bitstr_to_bytestr
-
-# workaround https://github.com/trevp/tlslite/issues/15
-tlslite.utils.cryptomath.pycryptoLoaded = False
+from asn1tinydecoder import *
+import ecdsa
+import hashlib
 
 
 # algo OIDs
@@ -50,61 +45,13 @@ class CertificateError(Exception):
     pass
 
 
-def decode_OID(s):
-    s = map(ord, s)
-    r = []
-    r.append(s[0] / 40)
-    r.append(s[0] % 40)
-    k = 0 
-    for i in s[1:]:
-        if i < 128:
-            r.append(i + 128*k)
-            k = 0
-        else:
-            k = (i - 128) + 128*k
-    return '.'.join(map(str, r))
-
-def encode_OID(oid):
-    x = map(int, oid.split('.'))
-    s = chr(x[0]*40 + x[1])
-    for i in x[2:]:
-        ss = chr(i % 128)
-        while i > 128:
-            i = i / 128
-            ss = chr(128 + i % 128) + ss
-        s += ss
-    return s
-
-def asn1_get_children(der, i):
-    nodes = []
-    ii = asn1_node_first_child(der,i)
-    nodes.append(ii)
-    while ii[2]<i[2]:
-        ii = asn1_node_next(der,ii)
-        nodes.append(ii)
-    return nodes
-
-def asn1_get_sequence(s):
-    return map(lambda j: asn1_get_value(s, j), asn1_get_children(s, asn1_node_root(s)))
-
-def asn1_get_dict(der, i):
-    p = {}
-    for ii in asn1_get_children(der, i):
-        for iii in asn1_get_children(der, ii):
-            iiii = asn1_node_first_child(der, iii)
-            oid = decode_OID(asn1_get_value_of_type(der, iiii, 'OBJECT IDENTIFIER'))
-            iiii = asn1_node_next(der, iiii)
-            value = asn1_get_value(der, iiii)
-            p[oid] = value
-    return p
 
 
-class X509(tlslite.X509):
+class X509(object):
 
     def parseBinary(self, b):
 
-        # call tlslite method first
-        tlslite.X509.parseBinary(self, b)
+        self.bytes = bytearray(b)
 
         der = str(b)
         root = asn1_node_root(der)
@@ -139,7 +86,24 @@ class X509(tlslite.X509):
         # subject
         subject = asn1_node_next(der, validity)
         self.subject = asn1_get_dict(der, subject)
+
         subject_pki = asn1_node_next(der, subject)
+
+        public_key_algo = asn1_node_first_child(der, subject_pki)
+        ii = asn1_node_first_child(der, public_key_algo)
+        self.public_key_algo = decode_OID(asn1_get_value_of_type(der, ii, 'OBJECT IDENTIFIER'))
+
+        # pubkey modulus and exponent
+        subject_public_key = asn1_node_next(der, public_key_algo)
+        spk = asn1_get_value_of_type(der, subject_public_key, 'BIT STRING')
+        spk = bitstr_to_bytestr(spk)
+        r = asn1_node_root(spk)
+        modulus = asn1_node_first_child(spk, r)
+        exponent = asn1_node_next(spk, modulus)
+        rsa_n = asn1_get_value_of_type(spk, modulus, 'INTEGER')
+        rsa_e = asn1_get_value_of_type(spk, exponent, 'INTEGER')
+        self.modulus = ecdsa.util.string_to_number(rsa_n)
+        self.exponent = ecdsa.util.string_to_number(rsa_e)
 
         # extensions
         self.CA = False
@@ -198,10 +162,8 @@ class X509(tlslite.X509):
         if not_after <= now:
             raise CertificateError('Certificate has expired.')
 
-
-
-class X509CertChain(tlslite.X509CertChain):
-    pass
+    def getFingerprint(self):
+        return hashlib.sha1(self.bytes).digest()
 
 
 
@@ -209,11 +171,12 @@ class X509CertChain(tlslite.X509CertChain):
 
 @profiler
 def load_certificates(ca_path):
+    import pem
     ca_list = {}
     ca_keyID = {}
     with open(ca_path, 'r') as f:
         s = f.read()
-    bList = tlslite.utils.pem.dePemList(s, "CERTIFICATE")
+    bList = pem.dePemList(s, "CERTIFICATE")
     for b in bList:
         x = X509()
         try:
@@ -238,7 +201,6 @@ def int_to_bytestr(i):
     return s
 
 def create_csr(commonName, challenge, k):
-    import ecdsa, hashlib
     from bitcoin import point_to_ser
     private_key = ecdsa.SigningKey.from_string(k, curve = ecdsa.SECP256k1)
     public_key = private_key.get_verifying_key()

@@ -57,15 +57,15 @@ from dns.exception import DNSException
 
 """
 Pure-Python version of dns.dnssec._validate_rsig
-Uses tlslite instead of PyCrypto
 """
+
+import ecdsa
+import rsakey
+
+
 def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
     from dns.dnssec import ValidationFailure, ECDSAP256SHA256, ECDSAP384SHA384
     from dns.dnssec import _find_candidate_keys, _make_hash, _is_ecdsa, _is_rsa, _to_rdata, _make_algorithm_id
-
-    import ecdsa
-    from tlslite.utils.keyfactory import _createPublicRSAKey
-    from tlslite.utils.cryptomath import bytesToNumber
 
     if isinstance(origin, (str, unicode)):
         origin = dns.name.from_text(origin, dns.name.root)
@@ -101,9 +101,9 @@ def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
                 keyptr = keyptr[2:]
             rsa_e = keyptr[0:bytes]
             rsa_n = keyptr[bytes:]
-            n = bytesToNumber(bytearray(rsa_n))
-            e = bytesToNumber(bytearray(rsa_e))
-            pubkey = _createPublicRSAKey(n, e)
+            n = ecdsa.util.string_to_number(rsa_n)
+            e = ecdsa.util.string_to_number(rsa_e)
+            pubkey = rsakey.RSAKey(n, e)
             sig = rrsig.signature
 
         elif _is_ecdsa(rrsig.algorithm):

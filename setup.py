@@ -35,7 +35,6 @@ setup(
         'requests',
         'qrcode',
         'protobuf',
-        'tlslite',
         'dnspython',
     ],
     package_dir={

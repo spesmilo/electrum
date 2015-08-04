@@ -121,3 +121,50 @@ def asn1_read_length(der,ix):
 ####################### END ASN1 DECODER ############################
 
 
+def decode_OID(s):
+    s = map(ord, s)
+    r = []
+    r.append(s[0] / 40)
+    r.append(s[0] % 40)
+    k = 0
+    for i in s[1:]:
+        if i < 128:
+            r.append(i + 128*k)
+            k = 0
+        else:
+            k = (i - 128) + 128*k
+    return '.'.join(map(str, r))
+
+def encode_OID(oid):
+    x = map(int, oid.split('.'))
+    s = chr(x[0]*40 + x[1])
+    for i in x[2:]:
+        ss = chr(i % 128)
+        while i > 128:
+            i = i / 128
+            ss = chr(128 + i % 128) + ss
+        s += ss
+    return s
+
+def asn1_get_children(der, i):
+    nodes = []
+    ii = asn1_node_first_child(der,i)
+    nodes.append(ii)
+    while ii[2]<i[2]:
+        ii = asn1_node_next(der,ii)
+        nodes.append(ii)
+    return nodes
+
+def asn1_get_sequence(s):
+    return map(lambda j: asn1_get_value(s, j), asn1_get_children(s, asn1_node_root(s)))
+
+def asn1_get_dict(der, i):
+    p = {}
+    for ii in asn1_get_children(der, i):
+        for iii in asn1_get_children(der, ii):
+            iiii = asn1_node_first_child(der, iii)
+            oid = decode_OID(asn1_get_value_of_type(der, iiii, 'OBJECT IDENTIFIER'))
+            iiii = asn1_node_next(der, iiii)
+            value = asn1_get_value(der, iiii)
+            p[oid] = value
+    return p
