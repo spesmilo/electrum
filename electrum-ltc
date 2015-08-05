@@ -43,7 +43,6 @@ try:
     import requests
     import six
     import qrcode
-    import tlslite
     import pbkdf2
     import google.protobuf
 except ImportError as e:

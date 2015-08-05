@@ -1,6 +1,7 @@
 # Release 2.4.1
  * Use ssl.PROTOCOL_TLSv1
  * Fix DNSSEC issues with ECDSA signatures
+ * Replace TLSLite dependency with minimal RSA implementation
 
 # Release 2.4
  * Payment to DNS names storing a Bitcoin addresses (OpenAlias) is

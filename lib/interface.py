@@ -202,7 +202,7 @@ class TcpInterface(threading.Thread):
                         cert = f.read()
                     try:
                         x = x509.X509()
-                        x.parse(cert)
+                        x.parseBinary(cert)
                     except:
                         traceback.print_exc(file=sys.stderr)
                         self.print_error("wrong certificate")
@@ -344,7 +344,7 @@ def check_host_name(peercert, name):
 def check_cert(host, cert):
     try:
         x = x509.X509()
-        x.parse(cert)
+        x.parseBinary(cert)
     except:
         traceback.print_exc(file=sys.stdout)
         return

@@ -36,7 +36,6 @@ setup(
         'qrcode',
         'ltc_scrypt',
         'protobuf',
-        'tlslite',
         'dnspython',
     ],
     package_dir={

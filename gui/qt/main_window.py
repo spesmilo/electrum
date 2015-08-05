@@ -1330,9 +1330,9 @@ class ElectrumWindow(QMainWindow):
         self.amount_e.textEdited.emit("")
 
     def payment_request_error(self):
-        self.do_clear()
         self.show_message(self.payment_request.error)
         self.payment_request = None
+        self.do_clear()
 
     def pay_to_URI(self, URI):
         if not URI:
@@ -2608,16 +2608,16 @@ class ElectrumWindow(QMainWindow):
         msg = _('Chain of SSL certificates, used to create BIP70 payment requests. ')\
               +_('Put your certificate at the top of the list, and the root CA at the end')
         SSL_cert_label = HelpLabel(_('SSL certificate') + ':', msg)
-        SSL_cert = self.config.get('ssl_cert','')
+        SSL_cert = self.config.get('ssl_chain','')
         SSL_cert_e = QLineEdit(SSL_cert)
-        SSL_cert_e.editingFinished.connect(lambda: self.config.set_key('ssl_cert', str(SSL_cert_e.text())))
+        SSL_cert_e.editingFinished.connect(lambda: self.config.set_key('ssl_chain', str(SSL_cert_e.text())))
         id_widgets.append((SSL_cert_label, SSL_cert_e))
 
         msg = _('Path to your SSL private key, used to sign BIP70 payment requests.')
         SSL_key_label = HelpLabel(_('SSL private key') + ':', msg)
-        SSL_key = self.config.get('ssl_key','')
+        SSL_key = self.config.get('ssl_privkey','')
         SSL_key_e = QLineEdit(SSL_key)
-        SSL_key_e.editingFinished.connect(lambda: self.config.set_key('ssl_key', str(SSL_key_e.text())))
+        SSL_key_e.editingFinished.connect(lambda: self.config.set_key('ssl_privkey', str(SSL_key_e.text())))
         id_widgets.append((SSL_key_label, SSL_key_e))
 
         units = ['LTC', 'mLTC', 'bits']
