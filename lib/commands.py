@@ -396,7 +396,7 @@ class Commands:
             final_outputs.append(('address', address, amount))
 
         coins = self.wallet.get_spendable_coins(domain)
-        tx = self.wallet.make_unsigned_transaction(coins, final_outputs, fee, change_addr)
+        tx = self.wallet.make_unsigned_transaction(coins, final_outputs, self.config, fee, change_addr)
         str(tx) #this serializes
         if not unsigned:
             self.wallet.sign_transaction(tx, self.password)

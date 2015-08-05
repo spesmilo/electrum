@@ -143,6 +143,7 @@ class Abstract_Wallet(object):
     """
     def __init__(self, storage):
         self.storage = storage
+        self.network = None
         self.electrum_version = ELECTRUM_VERSION
         self.gap_limit_for_change = 6 # constant
         # saved fields
@@ -153,9 +154,7 @@ class Abstract_Wallet(object):
         self.labels                = storage.get('labels', {})
         self.frozen_addresses      = set(storage.get('frozen_addresses',[]))
         self.stored_height         = storage.get('stored_height', 0)       # last known height (for offline mode)
-
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
-        self.fee_per_kb            = int(storage.get('fee_per_kb', RECOMMENDED_FEE))
 
         # This attribute is set when wallet.start_threads is called.
         self.synchronizer = None
@@ -674,10 +673,6 @@ class Abstract_Wallet(object):
             xx += x
         return cc, uu, xx
 
-    def set_fee(self, fee, save = True):
-        self.fee_per_kb = fee
-        self.storage.put('fee_per_kb', self.fee_per_kb, save)
-
     def get_address_history(self, address):
         with self.lock:
             return self.history.get(address, [])
@@ -873,22 +868,29 @@ class Abstract_Wallet(object):
             return ', '.join(labels)
         return ''
 
+    def fee_per_kb(self, config):
+        b = config.get('dynamic_fees')
+        f = config.get('fee_factor', 50)
+        F = config.get('fee_per_kb', bitcoin.RECOMMENDED_FEE)
+        return min(F, self.network.fee*(50 + f)/100) if b and self.network and self.network.fee else F
+
     def get_tx_fee(self, tx):
         # this method can be overloaded
         return tx.get_fee()
 
-    def estimated_fee(self, tx):
+    def estimated_fee(self, tx, fee_per_kb):
         estimated_size = len(tx.serialize(-1))/2
-        fee = int(self.fee_per_kb*estimated_size/1000.)
+        fee = int(fee_per_kb * estimated_size / 1000.)
         fee = max(fee, tx.required_fee(self))
         return fee
 
-    def make_unsigned_transaction(self, coins, outputs, fixed_fee=None, change_addr=None):
+    def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None, change_addr=None):
         # check outputs
         for type, data, value in outputs:
             if type == 'address':
                 assert is_address(data), "Address " + data + " is invalid!"
 
+        fee_per_kb = self.fee_per_kb(config)
         amount = sum(map(lambda x:x[2], outputs))
         total = fee = 0
         inputs = []
@@ -902,7 +904,7 @@ class Abstract_Wallet(object):
             # no need to estimate fee until we have reached desired amount
             if total < amount:
                 continue
-            fee = fixed_fee if fixed_fee is not None else self.estimated_fee(tx)
+            fee = fixed_fee if fixed_fee is not None else self.estimated_fee(tx, fee_per_kb)
             if total >= amount + fee:
                 break
         else:
@@ -913,7 +915,7 @@ class Abstract_Wallet(object):
             if total - v >= amount + fee:
                 tx.inputs.remove(item)
                 total -= v
-                fee = fixed_fee if fixed_fee is not None else self.estimated_fee(tx)
+                fee = fixed_fee if fixed_fee is not None else self.estimated_fee(tx, fee_per_kb)
             else:
                 break
         print_error("using %d inputs"%len(tx.inputs))
@@ -942,7 +944,7 @@ class Abstract_Wallet(object):
         elif change_amount > DUST_THRESHOLD:
             tx.outputs.append(('address', change_addr, change_amount))
             # recompute fee including change output
-            fee = self.estimated_fee(tx)
+            fee = self.estimated_fee(tx, fee_per_kb)
             # remove change output
             tx.outputs.pop()
             # if change is still above dust threshold, re-add change output.
@@ -961,9 +963,9 @@ class Abstract_Wallet(object):
         run_hook('make_unsigned_transaction', tx)
         return tx
 
-    def mktx(self, outputs, password, fee=None, change_addr=None, domain=None):
+    def mktx(self, outputs, password, config, fee=None, change_addr=None, domain=None):
         coins = self.get_spendable_coins(domain)
-        tx = self.make_unsigned_transaction(coins, outputs, fee, change_addr)
+        tx = self.make_unsigned_transaction(coins, outputs, config, fee, change_addr)
         self.sign_transaction(tx, password)
         return tx
 

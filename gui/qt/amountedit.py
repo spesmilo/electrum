@@ -99,3 +99,7 @@ class BTCAmountEdit(AmountEdit):
             self.setText("")
         else:
             self.setText(format_satoshis_plain(amount, self.decimal_point()))
+
+class BTCkBEdit(BTCAmountEdit):
+    def _base_unit(self):
+        return BTCAmountEdit._base_unit(self) + '/kB'

@@ -238,12 +238,15 @@ class Network(util.DaemonThread):
             self.interface.send_request({'method':'blockchain.address.subscribe','params':[addr]})
         self.interface.send_request({'method':'server.banner','params':[]})
         self.interface.send_request({'method':'server.peers.subscribe','params':[]})
+        self.interface.send_request({'method':'blockchain.estimatefee','params':[2]})
 
     def get_status_value(self, key):
         if key == 'status':
             value = self.connection_status
         elif key == 'banner':
             value = self.banner
+        elif key == 'fee':
+            value = self.fee
         elif key == 'updated':
             value = (self.get_local_height(), self.get_server_height())
         elif key == 'servers':
@@ -428,6 +431,11 @@ class Network(util.DaemonThread):
         elif method == 'server.banner':
             self.banner = result
             self.notify('banner')
+        elif method == 'blockchain.estimatefee':
+            from bitcoin import COIN
+            self.fee = int(result * COIN)
+            self.print_error("recommended fee", self.fee)
+            self.notify('fee')
         elif method == 'blockchain.address.subscribe':
             addr = response.get('params')[0]
             self.addr_responses[addr] = result

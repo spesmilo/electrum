@@ -200,7 +200,7 @@ def run_settings_dialog(self):
     except Exception:
         show_message("error")
         return
-    self.wallet.set_fee(fee)
+    self.config.set_key('fee_per_kb', fee)
 
     try:
         nz = int( nz )
@@ -690,7 +690,7 @@ class ElectrumWindow:
                 return
             coins = self.wallet.get_spendable_coins()
             try:
-                tx = self.wallet.make_unsigned_transaction(coins, [('op_return', 'dummy_tx', amount)], fee)
+                tx = self.wallet.make_unsigned_transaction(coins, [('op_return', 'dummy_tx', amount)], self.config, fee)
                 self.funds_error = False
             except NotEnoughFunds:
                 self.funds_error = True
@@ -812,7 +812,7 @@ class ElectrumWindow:
             password = None
 
         try:
-            tx = self.wallet.mktx( [(to_address, amount)], password, fee )
+            tx = self.wallet.mktx( [(to_address, amount)], password, self.config, fee)
         except Exception as e:
             self.show_message(str(e))
             return

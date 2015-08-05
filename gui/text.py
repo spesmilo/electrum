@@ -314,7 +314,7 @@ class ElectrumGui:
             password = None
 
         try:
-            tx = self.wallet.mktx( [(self.str_recipient, amount)], password, fee)
+            tx = self.wallet.mktx( [(self.str_recipient, amount)], password, self.config, fee)
         except Exception as e:
             self.show_message(str(e))
             return
