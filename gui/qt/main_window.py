@@ -1054,7 +1054,7 @@ class ElectrumWindow(QMainWindow):
                 self.fee_e.setAmount(None)
             self.not_enough_funds = False
         else:
-            fee = self.fee_e.get_amount()
+            fee = self.fee_e.get_amount() if freeze_fee else None
             if not outputs:
                 addr = self.payto_e.payto_address if self.payto_e.payto_address else self.dummy_address
                 outputs = [('address', addr, amount)]
