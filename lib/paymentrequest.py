@@ -337,14 +337,21 @@ def check_ssl_config(config):
     cert_path = config.get('ssl_chain')
     with open(key_path, 'r') as f:
         params = pem.parse_private_key(f.read())
-        privkey = rsakey.RSAKey(*params)
     with open(cert_path, 'r') as f:
         s = f.read()
-        bList = pem.dePemList(s, "CERTIFICATE")
+    bList = pem.dePemList(s, "CERTIFICATE")
     # verify chain
     x, ca = verify_cert_chain(bList)
-    # verify pubkey
-    return x.get_common_name()
+    # verify that privkey and pubkey match
+    privkey = rsakey.RSAKey(*params)
+    pubkey = rsakey.RSAKey(x.modulus, x.exponent)
+    assert x.modulus == params[0]
+    assert x.exponent == params[1]
+    # return requestor
+    requestor = x.get_common_name()
+    if requestor.startswith('*.'):
+        requestor = requestor[2:]
+    return requestor
 
 def sign_request_with_x509(pr, key_path, cert_path):
     import pem
