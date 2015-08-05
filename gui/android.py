@@ -825,7 +825,7 @@ def settings_loop():
                         fee = int(COIN * Decimal(fee))
                     except Exception:
                         modal_dialog('error','invalid fee value')
-                    wallet.set_fee(fee)
+                    config.set_key('fee_per_kb', fee)
                     set_listview()
 
             elif pos == "4":

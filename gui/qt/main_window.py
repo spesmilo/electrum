@@ -2574,7 +2574,6 @@ class ElectrumWindow(QMainWindow):
         fee_e.setAmount(self.config.get('fee_per_kb', bitcoin.RECOMMENDED_FEE))
         def on_fee(is_done):
             v = fee_e.get_amount() or 0
-            self.wallet.set_fee(v)
             self.config.set_key('fee_per_kb', v, is_done)
             if not is_done:
                 self.update_fee()

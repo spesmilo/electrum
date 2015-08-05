@@ -200,7 +200,7 @@ def run_settings_dialog(self):
     except Exception:
         show_message("error")
         return
-    self.wallet.set_fee(fee)
+    self.config.set_key('fee_per_kb', fee)
 
     try:
         nz = int( nz )
