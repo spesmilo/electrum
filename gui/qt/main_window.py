@@ -2529,6 +2529,7 @@ class ElectrumWindow(QMainWindow):
         tx_widgets = []
         id_widgets = []
 
+        # language
         lang_help = _('Select which language is used in the GUI (after restart).')
         lang_label = HelpLabel(_('Language') + ':', lang_help)
         lang_combo = QComboBox()
@@ -2631,20 +2632,28 @@ class ElectrumWindow(QMainWindow):
         alias_e.editingFinished.connect(on_alias_edit)
         id_widgets.append((alias_label, alias_e))
 
-        msg = _('Chain of SSL certificates, used to create BIP70 payment requests. ')\
-              +_('Put your certificate at the top of the list, and the root CA at the end')
-        SSL_cert_label = HelpLabel(_('SSL certificate') + ':', msg)
-        SSL_cert = self.config.get('ssl_chain','')
-        SSL_cert_e = QLineEdit(SSL_cert)
-        SSL_cert_e.editingFinished.connect(lambda: self.config.set_key('ssl_chain', str(SSL_cert_e.text())))
-        id_widgets.append((SSL_cert_label, SSL_cert_e))
-
-        msg = _('Path to your SSL private key, used to sign BIP70 payment requests.')
-        SSL_key_label = HelpLabel(_('SSL private key') + ':', msg)
-        SSL_key = self.config.get('ssl_privkey','')
-        SSL_key_e = QLineEdit(SSL_key)
-        SSL_key_e.editingFinished.connect(lambda: self.config.set_key('ssl_privkey', str(SSL_key_e.text())))
-        id_widgets.append((SSL_key_label, SSL_key_e))
+        # SSL certificate
+        msg = ' '.join([
+            _('SSL certificate used to sign payment requests.'),
+            _('Use setconfig to set ssl_chain and ssl_privkey.'),
+        ])
+        if self.config.get('ssl_privkey') or self.onfig.get('ssl_chain'):
+            try:
+                SSL_identity = paymentrequest.check_ssl_config(self.config)
+                SSL_error = None
+            except BaseException as e:
+                SSL_identity = "error"
+                SSL_error = str(e)
+        else:
+            SSL_identity = ""
+            SSL_error = None
+        SSL_id_label = HelpLabel(_('SSL certificate') + ':', msg)
+        SSL_id_e = QLineEdit(SSL_identity)
+        SSL_id_e.setStyleSheet(RED_BG if SSL_error else GREEN_BG if SSL_identity else '')
+        if SSL_error:
+            SSL_id_e.setToolTip(SSL_error)
+        SSL_id_e.setReadOnly(True)
+        id_widgets.append((SSL_id_label, SSL_id_e))
 
         units = ['BTC', 'mBTC', 'bits']
         msg = _('Base unit of your wallet.')\
