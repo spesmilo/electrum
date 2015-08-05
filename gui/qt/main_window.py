@@ -2480,6 +2480,9 @@ class ElectrumWindow(QMainWindow):
 
         fee = self.wallet.fee_per_kb(self.config)
         tx = Transaction.sweep(get_pk(), self.network, get_address(), fee)
+        if not tx:
+            self.show_message(_('No inputs found. (Note that inputs need to be confirmed)'))
+            return
         self.show_transaction(tx)
 
 
