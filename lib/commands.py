@@ -94,9 +94,9 @@ class Commands:
         return result
 
     @command('')
-    def help(self):
-        """Print help"""
-        return 'Commands: ' + ', '.join(sorted(known_commands.keys()))
+    def commands(self):
+        """List of commands"""
+        return ' '.join(sorted(known_commands.keys()))
 
     @command('')
     def create(self):
