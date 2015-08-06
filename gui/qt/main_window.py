@@ -997,21 +997,22 @@ class ElectrumWindow(QMainWindow):
         def entry_changed():
             text = ""
             if self.not_enough_funds:
-                amt_color, fee_color = 'red', 'red'
+                amt_color, fee_color = RED_FG, RED_FG
                 text = _( "Not enough funds" )
                 c, u, x = self.wallet.get_frozen_balance()
                 if c+u+x:
                     text += ' (' + self.format_amount(c+u+x).strip() + ' ' + self.base_unit() + ' ' +_("are frozen") + ')'
+
             elif self.fee_e.isModified():
-                amt_color, fee_color = 'black', 'blue'
+                amt_color, fee_color = BLACK_FG, BLACK_FG
+            elif self.amount_e.isModified():
+                amt_color, fee_color = BLACK_FG, BLUE_FG
             else:
-                amt_color, fee_color = 'black', 'black'
+                amt_color, fee_color = BLUE_FG, BLUE_FG
+
             self.statusBar().showMessage(text)
-            palette = QPalette()
-            palette.setColor(self.amount_e.foregroundRole(), QColor(amt_color))
-            self.amount_e.setPalette(palette)
-            palette.setColor(self.amount_e.foregroundRole(), QColor(fee_color))
-            self.fee_e.setPalette(palette)
+            self.amount_e.setStyleSheet(amt_color)
+            self.fee_e.setStyleSheet(fee_color)
 
         self.amount_e.textChanged.connect(entry_changed)
         self.fee_e.textChanged.connect(entry_changed)

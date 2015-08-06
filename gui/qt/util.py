@@ -15,9 +15,11 @@ elif platform.system() == 'Darwin':
 else:
     MONOSPACE_FONT = 'monospace'
 
-
 GREEN_BG = "QWidget {background-color:#80ff80;}"
 RED_BG = "QWidget {background-color:#ffcccc;}"
+RED_FG = "QWidget {color:red;}"
+BLUE_FG = "QWidget {color:blue;}"
+BLACK_FG = "QWidget {color:black;}"
 
 
 class WaitingDialog(QThread):
