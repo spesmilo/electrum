@@ -2835,6 +2835,8 @@ class ElectrumWindow(QMainWindow):
         for i, descr in enumerate(descriptions):
             name = descr['name']
             p = plugins.get(name)
+            if descr.get('registers_wallet_type'):
+                continue
             try:
                 cb = QCheckBox(descr['fullname'])
                 cb.setEnabled(is_available(name, self.wallet))

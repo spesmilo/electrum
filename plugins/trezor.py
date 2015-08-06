@@ -22,6 +22,7 @@ from electrum.util import print_error, print_msg
 from electrum.wallet import pw_decode, bip32_private_derivation, bip32_root
 
 from electrum_gui.qt.util import *
+from electrum_gui.qt.main_window import StatusBarButton
 
 try:
     from trezorlib.client import types
@@ -49,7 +50,6 @@ class Plugin(BasePlugin):
     def __init__(self, config, name):
         BasePlugin.__init__(self, config, name)
         self._is_available = self._init()
-        self._requires_settings = True
         self.wallet = None
         self.handler = None
         self.client = None
@@ -69,9 +69,6 @@ class Plugin(BasePlugin):
         if self.wallet.storage.get('wallet_type') != 'trezor':
             return False
         return True
-
-    def requires_settings(self):
-        return self._requires_settings
 
     def set_enabled(self, enabled):
         self.wallet.storage.put('use_' + self.name, enabled)
@@ -132,20 +129,23 @@ class Plugin(BasePlugin):
         self.wallet = wallet
         self.window = window
         self.wallet.plugin = self
-
+        self.trezor_button = StatusBarButton( QIcon(":icons/trustedcoin.png"), _("Network"), self.settings_dialog)
+        self.window.statusBar().addPermanentWidget(self.trezor_button)
         if self.handler is None:
             self.handler = TrezorQtHandler(self.window.app)
-
         try:
             self.get_client().ping('t')
         except BaseException as e:
             QMessageBox.information(self.window, _('Error'), _("Trezor device not detected.\nContinuing in watching-only mode." + '\n\nReason:\n' + str(e)), _('OK'))
             self.wallet.force_watching_only = True
             return
-
         if self.wallet.addresses() and not self.wallet.check_proper_device():
             QMessageBox.information(self.window, _('Error'), _("This wallet does not match your Trezor device"), _('OK'))
             self.wallet.force_watching_only = True
+
+    @hook
+    def close_wallet(self):
+        self.window.statusBar().removeWidget(self.trezor_button)
 
     @hook
     def installwizard_load_wallet(self, wallet, window):
@@ -192,8 +192,6 @@ class Plugin(BasePlugin):
         finally:
             self.handler.stop()
 
-    def settings_widget(self, window):
-        return EnterButton(_('Settings'), self.settings_dialog)
 
     def settings_dialog(self):
         get_label = lambda: self.get_client().features.label

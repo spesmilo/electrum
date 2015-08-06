@@ -228,9 +228,6 @@ class Plugin(BasePlugin):
             return True
         return False
 
-    def requires_settings(self):
-        return True
-
     def set_enabled(self, enabled):
         self.wallet.storage.put('use_' + self.name, enabled)
 
@@ -537,9 +534,6 @@ class Plugin(BasePlugin):
         if not d.exec_():
             return
         return pw.get_amount()
-
-    def settings_widget(self, window):
-        return EnterButton(_('Settings'), self.settings_dialog)
 
     def settings_dialog(self):
         self.waiting_dialog = WaitingDialog(self.window, 'please wait...', self.request_billing_info, self.show_settings_dialog)
