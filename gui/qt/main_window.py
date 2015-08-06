@@ -192,8 +192,9 @@ class ElectrumWindow(QMainWindow):
 
     def fetch_alias(self):
         self.alias_info = None
-        alias = str(self.config.get('alias'))
+        alias = self.config.get('alias')
         if alias:
+            alias = str(alias)
             def f():
                 self.alias_info = self.contacts.resolve_openalias(alias)
                 self.emit(SIGNAL('alias_received'))
@@ -380,14 +381,15 @@ class ElectrumWindow(QMainWindow):
             def loader(k):
                 return lambda: self.load_wallet_file(k)
             self.recently_visited_menu.addAction(b, loader(k)).setShortcut(QKeySequence("Ctrl+%d"%i))
+        self.recently_visited_menu.setEnabled(len(recent))
 
     def init_menubar(self):
         menubar = QMenuBar()
 
         file_menu = menubar.addMenu(_("&File"))
+        self.recently_visited_menu = file_menu.addMenu(_("&Recently open"))
         file_menu.addAction(_("&Open"), self.open_wallet).setShortcut(QKeySequence.Open)
         file_menu.addAction(_("&New/Restore"), self.new_wallet).setShortcut(QKeySequence.New)
-        self.recently_visited_menu = file_menu.addMenu(_("&Recently open"))
         file_menu.addSeparator()
         file_menu.addAction(_("&Quit"), self.close)
         self.update_recently_visited()
