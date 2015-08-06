@@ -5,7 +5,7 @@ from electrum.i18n import _
 
 import datetime
 from electrum.util import format_satoshis
-
+from electrum.bitcoin import COIN
 
 try:
     import matplotlib.pyplot as plt
@@ -55,14 +55,12 @@ class Plugin(BasePlugin):
         counter_trans = 0
         balance = 0
         for item in history:
-            tx_hash, confirmations, value, timestamp = item
-            balance += value
+            tx_hash, confirmations, value, timestamp, balance = item
             if confirmations:
                 if timestamp is not None:
                     try:
                         datenums.append(md.date2num(datetime.datetime.fromtimestamp(timestamp)))
-                        balance_string = format_satoshis(balance, False)
-                        balance_Val.append(float((format_satoshis(balance,False)))*1000.0)
+                        balance_Val.append(1000.*balance/COIN)
                     except [RuntimeError, TypeError, NameError] as reason:
                         unknown_trans += 1
                         pass
@@ -71,9 +69,7 @@ class Plugin(BasePlugin):
             else:
                 pending_trans += 1
 
-            value_string = format_satoshis(value, True)
-            value_val.append(float(value_string)*1000.0)
-
+            value_val.append(1000.*value/COIN)
             if tx_hash:
                 label, is_default_label = wallet.get_label(tx_hash)
                 label = label.encode('utf-8')
