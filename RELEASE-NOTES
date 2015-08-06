@@ -2,7 +2,8 @@
  * Use ssl.PROTOCOL_TLSv1
  * Fix DNSSEC issues with ECDSA signatures
  * Replace TLSLite dependency with minimal RSA implementation
- * Dynamic fees, using estimatefee value returned by server
+ * Dynamic Fees: using estimatefee value returned by server
+ * Various GUI improvements
 
 # Release 2.4
  * Payment to DNS names storing a Bitcoin addresses (OpenAlias) is
