@@ -194,14 +194,18 @@ class Plugin(BasePlugin):
 
 
     def settings_dialog(self):
+        try:
+            device_id = self.get_client().get_device_id()
+        except BaseException as e:
+            self.window.show_message(str(e))
+            return
         get_label = lambda: self.get_client().features.label
         update_label = lambda: current_label_label.setText("Label: %s" % get_label())
-
         d = QDialog()
         layout = QGridLayout(d)
         layout.addWidget(QLabel("Trezor Options"),0,0)
         layout.addWidget(QLabel("ID:"),1,0)
-        layout.addWidget(QLabel(" %s" % self.get_client().get_device_id()),1,1)
+        layout.addWidget(QLabel(" %s" % device_id),1,1)
 
         def modify_label():
             response = QInputDialog().getText(None, "Set New Trezor Label", "New Trezor Label:  (upon submission confirm on Trezor)")
@@ -219,11 +223,8 @@ class Plugin(BasePlugin):
         change_label_button.clicked.connect(modify_label)
         layout.addWidget(current_label_label,3,0)
         layout.addWidget(change_label_button,3,1)
+        d.exec_()
 
-        if d.exec_():
-            return True
-        else:
-            return False
 
     def sign_transaction(self, tx, prev_tx, xpub_path):
         self.prev_tx = prev_tx
