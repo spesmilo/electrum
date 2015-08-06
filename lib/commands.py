@@ -389,7 +389,8 @@ class Commands:
                         self.wallet.add_input_info(i)
                     output = ('address', address, amount)
                     dummy_tx = Transaction.from_io(inputs, [output])
-                    fee = self.wallet.estimated_fee(dummy_tx)
+                    fee_per_kb = self.wallet.fee_per_kb(self.config)
+                    fee = self.wallet.estimated_fee(dummy_tx, fee_per_kb)
                 amount -= fee
             else:
                 amount = int(COIN*Decimal(amount))
