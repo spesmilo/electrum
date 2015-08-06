@@ -276,9 +276,12 @@ class ElectrumWindow(QMainWindow):
 
     def open_wallet(self):
         wallet_folder = self.wallet.storage.path
-        filename = unicode( QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder) )
+        filename = unicode(QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder))
         if not filename:
             return
+        self.load_wallet_file(filename)
+
+    def load_wallet_file(self, filename):
         try:
             storage = WalletStorage(filename)
         except Exception as e:
@@ -312,7 +315,8 @@ class ElectrumWindow(QMainWindow):
         # save path
         if self.config.get('wallet_path') is None:
             self.config.set_key('gui_last_wallet', filename)
-
+        # add to recently visited
+        self.update_recently_visited(filename)
 
     def backup_wallet(self):
         path = self.wallet.storage.path
@@ -364,6 +368,18 @@ class ElectrumWindow(QMainWindow):
             self.load_wallet(self.wallet)
         self.show()
 
+    def update_recently_visited(self, filename=None):
+        recent = self.config.get('recently_open', [])
+        if filename and filename not in recent:
+            recent.insert(filename, 0)
+            recent = recent[:10]
+            self.config.set_key('recently_open', recent)
+        self.recently_visited_menu.clear()
+        for i, k in enumerate(recent):
+            b = os.path.basename(k)
+            def loader(k):
+                return lambda: self.load_wallet_file(k)
+            self.recently_visited_menu.addAction(b, loader(k)).setShortcut(QKeySequence("Ctrl+%d"%i))
 
     def init_menubar(self):
         menubar = QMenuBar()
@@ -371,8 +387,10 @@ class ElectrumWindow(QMainWindow):
         file_menu = menubar.addMenu(_("&File"))
         file_menu.addAction(_("&Open"), self.open_wallet).setShortcut(QKeySequence.Open)
         file_menu.addAction(_("&New/Restore"), self.new_wallet).setShortcut(QKeySequence.New)
-        file_menu.addAction(_("&Save Copy"), self.backup_wallet).setShortcut(QKeySequence.SaveAs)
+        self.recently_visited_menu = file_menu.addMenu(_("&Recently open"))
+        file_menu.addSeparator()
         file_menu.addAction(_("&Quit"), self.close)
+        self.update_recently_visited()
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
         wallet_menu.addAction(_("&New contact"), self.new_contact_dialog)
