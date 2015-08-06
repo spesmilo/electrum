@@ -1128,7 +1128,7 @@ class Abstract_Wallet(object):
     def is_used(self, address):
         h = self.history.get(address,[])
         c, u, x = self.get_addr_balance(address)
-        return len(h), len(h) > 0 and c + u + x == 0
+        return len(h) > 0 and c + u + x == 0
 
     def is_empty(self, address):
         c, u, x = self.get_addr_balance(address)
@@ -1346,8 +1346,7 @@ class Imported_Wallet(Abstract_Wallet):
         self.accounts[IMPORTED_ACCOUNT].get_private_key((0,0), self, password)
 
     def is_used(self, address):
-        h = self.history.get(address,[])
-        return len(h), False
+        return False
 
     def get_master_public_keys(self):
         return {}
