@@ -129,7 +129,7 @@ class Plugin(BasePlugin):
         self.wallet = wallet
         self.window = window
         self.wallet.plugin = self
-        self.trezor_button = StatusBarButton( QIcon(":icons/trustedcoin.png"), _("Network"), self.settings_dialog)
+        self.trezor_button = StatusBarButton( QIcon(":icons/trezor.png"), _("Network"), self.settings_dialog)
         self.window.statusBar().addPermanentWidget(self.trezor_button)
         if self.handler is None:
             self.handler = TrezorQtHandler(self.window.app)
