@@ -170,7 +170,7 @@ class NetworkProxy(util.DaemonThread):
             _id = r.get('id')
             ids.remove(_id)
             if r.get('error'):
-                return BaseException(r.get('error'))
+                raise BaseException(r.get('error'))
             result = r.get('result')
             res[_id] = r.get('result')
         out = []

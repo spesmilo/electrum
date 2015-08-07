@@ -2272,13 +2272,13 @@ class ElectrumWindow(QMainWindow):
         from electrum import transaction
         txid, ok = QInputDialog.getText(self, _('Lookup transaction'), _('Transaction ID') + ':')
         if ok and txid:
-            r = self.network.synchronous_get([ ('blockchain.transaction.get',[str(txid)]) ])[0]
-            if r:
-                tx = transaction.Transaction(r)
-                if tx:
-                    self.show_transaction(tx)
-                else:
-                    self.show_message("unknown transaction")
+            try:
+                r = self.network.synchronous_get([('blockchain.transaction.get',[str(txid)])])[0]
+            except BaseException as e:
+                self.show_message(str(e))
+                return
+            tx = transaction.Transaction(r)
+            self.show_transaction(tx)
 
 
     @protected
