@@ -2659,7 +2659,7 @@ class ElectrumWindow(QMainWindow):
             _('SSL certificate used to sign payment requests.'),
             _('Use setconfig to set ssl_chain and ssl_privkey.'),
         ])
-        if self.config.get('ssl_privkey') or self.onfig.get('ssl_chain'):
+        if self.config.get('ssl_privkey') or self.config.get('ssl_chain'):
             try:
                 SSL_identity = paymentrequest.check_ssl_config(self.config)
                 SSL_error = None
