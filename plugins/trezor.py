@@ -22,6 +22,7 @@ from electrum_ltc.util import print_error, print_msg
 from electrum_ltc.wallet import pw_decode, bip32_private_derivation, bip32_root
 
 from electrum_ltc_gui.qt.util import *
+from electrum_ltc_gui.qt.main_window import StatusBarButton
 
 try:
     from trezorlib.client import types
@@ -49,7 +50,6 @@ class Plugin(BasePlugin):
     def __init__(self, config, name):
         BasePlugin.__init__(self, config, name)
         self._is_available = self._init()
-        self._requires_settings = True
         self.wallet = None
         self.handler = None
         self.client = None
@@ -69,9 +69,6 @@ class Plugin(BasePlugin):
         if self.wallet.storage.get('wallet_type') != 'trezor':
             return False
         return True
-
-    def requires_settings(self):
-        return self._requires_settings
 
     def set_enabled(self, enabled):
         self.wallet.storage.put('use_' + self.name, enabled)
@@ -132,20 +129,23 @@ class Plugin(BasePlugin):
         self.wallet = wallet
         self.window = window
         self.wallet.plugin = self
-
+        self.trezor_button = StatusBarButton(QIcon(":icons/trezor.png"), _("Trezor"), self.settings_dialog)
+        self.window.statusBar().addPermanentWidget(self.trezor_button)
         if self.handler is None:
             self.handler = TrezorQtHandler(self.window.app)
-
         try:
             self.get_client().ping('t')
         except BaseException as e:
             QMessageBox.information(self.window, _('Error'), _("Trezor device not detected.\nContinuing in watching-only mode." + '\n\nReason:\n' + str(e)), _('OK'))
             self.wallet.force_watching_only = True
             return
-
         if self.wallet.addresses() and not self.wallet.check_proper_device():
             QMessageBox.information(self.window, _('Error'), _("This wallet does not match your Trezor device"), _('OK'))
             self.wallet.force_watching_only = True
+
+    @hook
+    def close_wallet(self):
+        self.window.statusBar().removeWidget(self.trezor_button)
 
     @hook
     def installwizard_load_wallet(self, wallet, window):
@@ -192,18 +192,20 @@ class Plugin(BasePlugin):
         finally:
             self.handler.stop()
 
-    def settings_widget(self, window):
-        return EnterButton(_('Settings'), self.settings_dialog)
 
     def settings_dialog(self):
+        try:
+            device_id = self.get_client().get_device_id()
+        except BaseException as e:
+            self.window.show_message(str(e))
+            return
         get_label = lambda: self.get_client().features.label
         update_label = lambda: current_label_label.setText("Label: %s" % get_label())
-
         d = QDialog()
         layout = QGridLayout(d)
         layout.addWidget(QLabel("Trezor Options"),0,0)
         layout.addWidget(QLabel("ID:"),1,0)
-        layout.addWidget(QLabel(" %s" % self.get_client().get_device_id()),1,1)
+        layout.addWidget(QLabel(" %s" % device_id),1,1)
 
         def modify_label():
             response = QInputDialog().getText(None, "Set New Trezor Label", "New Trezor Label:  (upon submission confirm on Trezor)")
@@ -221,11 +223,8 @@ class Plugin(BasePlugin):
         change_label_button.clicked.connect(modify_label)
         layout.addWidget(current_label_label,3,0)
         layout.addWidget(change_label_button,3,1)
+        d.exec_()
 
-        if d.exec_():
-            return True
-        else:
-            return False
 
     def sign_transaction(self, tx, prev_tx, xpub_path):
         self.prev_tx = prev_tx

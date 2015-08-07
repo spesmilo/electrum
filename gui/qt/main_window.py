@@ -192,8 +192,9 @@ class ElectrumWindow(QMainWindow):
 
     def fetch_alias(self):
         self.alias_info = None
-        alias = str(self.config.get('alias'))
+        alias = self.config.get('alias')
         if alias:
+            alias = str(alias)
             def f():
                 self.alias_info = self.contacts.resolve_openalias(alias)
                 self.emit(SIGNAL('alias_received'))
@@ -276,9 +277,12 @@ class ElectrumWindow(QMainWindow):
 
     def open_wallet(self):
         wallet_folder = self.wallet.storage.path
-        filename = unicode( QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder) )
+        filename = unicode(QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder))
         if not filename:
             return
+        self.load_wallet_file(filename)
+
+    def load_wallet_file(self, filename):
         try:
             storage = WalletStorage(filename)
         except Exception as e:
@@ -312,7 +316,8 @@ class ElectrumWindow(QMainWindow):
         # save path
         if self.config.get('wallet_path') is None:
             self.config.set_key('gui_last_wallet', filename)
-
+        # add to recently visited
+        self.update_recently_visited(filename)
 
     def backup_wallet(self):
         path = self.wallet.storage.path
@@ -364,15 +369,30 @@ class ElectrumWindow(QMainWindow):
             self.load_wallet(self.wallet)
         self.show()
 
+    def update_recently_visited(self, filename=None):
+        recent = self.config.get('recently_open', [])
+        if filename and filename not in recent:
+            recent.insert(0, filename)
+            recent = recent[:10]
+            self.config.set_key('recently_open', recent)
+        self.recently_visited_menu.clear()
+        for i, k in enumerate(recent):
+            b = os.path.basename(k)
+            def loader(k):
+                return lambda: self.load_wallet_file(k)
+            self.recently_visited_menu.addAction(b, loader(k)).setShortcut(QKeySequence("Ctrl+%d"%i))
+        self.recently_visited_menu.setEnabled(len(recent))
 
     def init_menubar(self):
         menubar = QMenuBar()
 
         file_menu = menubar.addMenu(_("&File"))
+        self.recently_visited_menu = file_menu.addMenu(_("&Recently open"))
         file_menu.addAction(_("&Open"), self.open_wallet).setShortcut(QKeySequence.Open)
         file_menu.addAction(_("&New/Restore"), self.new_wallet).setShortcut(QKeySequence.New)
-        file_menu.addAction(_("&Save Copy"), self.backup_wallet).setShortcut(QKeySequence.SaveAs)
+        file_menu.addSeparator()
         file_menu.addAction(_("&Quit"), self.close)
+        self.update_recently_visited()
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
         wallet_menu.addAction(_("&New contact"), self.new_contact_dialog)
@@ -997,21 +1017,22 @@ class ElectrumWindow(QMainWindow):
         def entry_changed():
             text = ""
             if self.not_enough_funds:
-                amt_color, fee_color = 'red', 'red'
+                amt_color, fee_color = RED_FG, RED_FG
                 text = _( "Not enough funds" )
                 c, u, x = self.wallet.get_frozen_balance()
                 if c+u+x:
                     text += ' (' + self.format_amount(c+u+x).strip() + ' ' + self.base_unit() + ' ' +_("are frozen") + ')'
+
             elif self.fee_e.isModified():
-                amt_color, fee_color = 'black', 'blue'
+                amt_color, fee_color = BLACK_FG, BLACK_FG
+            elif self.amount_e.isModified():
+                amt_color, fee_color = BLACK_FG, BLUE_FG
             else:
-                amt_color, fee_color = 'black', 'black'
+                amt_color, fee_color = BLUE_FG, BLUE_FG
+
             self.statusBar().showMessage(text)
-            palette = QPalette()
-            palette.setColor(self.amount_e.foregroundRole(), QColor(amt_color))
-            self.amount_e.setPalette(palette)
-            palette.setColor(self.amount_e.foregroundRole(), QColor(fee_color))
-            self.fee_e.setPalette(palette)
+            self.amount_e.setStyleSheet(amt_color)
+            self.fee_e.setStyleSheet(fee_color)
 
         self.amount_e.textChanged.connect(entry_changed)
         self.fee_e.textChanged.connect(entry_changed)
@@ -1682,7 +1703,8 @@ class ElectrumWindow(QMainWindow):
                 used_flag = False
                 addr_list = account.get_addresses(is_change)
                 for address in addr_list:
-                    num, is_used = self.wallet.is_used(address)
+                    num = len(self.wallet.history.get(address,[]))
+                    is_used = self.wallet.is_used(address)
                     label = self.wallet.labels.get(address,'')
                     c, u, x = self.wallet.get_addr_balance(address)
                     balance = self.format_amount(c + u + x)
@@ -2835,6 +2857,8 @@ class ElectrumWindow(QMainWindow):
         for i, descr in enumerate(descriptions):
             name = descr['name']
             p = plugins.get(name)
+            if descr.get('registers_wallet_type'):
+                continue
             try:
                 cb = QCheckBox(descr['fullname'])
                 cb.setEnabled(is_available(name, self.wallet))

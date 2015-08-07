@@ -94,9 +94,9 @@ class Commands:
         return result
 
     @command('')
-    def help(self):
-        """Print help"""
-        return 'Commands: ' + ', '.join(sorted(known_commands.keys()))
+    def commands(self):
+        """List of commands"""
+        return ' '.join(sorted(known_commands.keys()))
 
     @command('')
     def create(self):
@@ -389,7 +389,8 @@ class Commands:
                         self.wallet.add_input_info(i)
                     output = ('address', address, amount)
                     dummy_tx = Transaction.from_io(inputs, [output])
-                    fee = self.wallet.estimated_fee(dummy_tx)
+                    fee_per_kb = self.wallet.fee_per_kb(self.config)
+                    fee = self.wallet.estimated_fee(dummy_tx, fee_per_kb)
                 amount -= fee
             else:
                 amount = int(COIN*Decimal(amount))
