@@ -35,6 +35,10 @@ class Plugin(BasePlugin):
                 'Linux': 'libportaudio.so'
             }[platform.system()]
 
+    @hook
+    def init_qt(self, gui):
+        pass
+
     def is_available(self):
         return amodem is not None
 
