@@ -50,7 +50,7 @@ class NetworkProxy(util.DaemonThread):
             self.pipe = util.QueuePipe()
             self.network = Network(self.pipe, config)
             self.network.start()
-            for key in ['status','banner','updated','servers','interfaces']:
+            for key in ['fee','status','banner','updated','servers','interfaces']:
                 value = self.network.get_status_value(key)
                 self.pipe.get_queue.put({'method':'network.status', 'params':[key, value]})
 

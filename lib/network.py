@@ -156,6 +156,7 @@ class Network(util.DaemonThread):
         self.recent_servers = self.read_recent_servers()
 
         self.banner = ''
+        self.fee = None
         self.heights = {}
         self.merkle_roots = {}
         self.utxo_roots = {}

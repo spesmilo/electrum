@@ -127,7 +127,7 @@ class NetworkServer(util.DaemonThread):
         self.requests = {}
 
     def add_client(self, client):
-        for key in ['status', 'banner', 'updated', 'servers', 'interfaces']:
+        for key in ['fee', 'status', 'banner', 'updated', 'servers', 'interfaces']:
             value = self.network.get_status_value(key)
             client.response_queue.put({'method':'network.status', 'params':[key, value]})
         with self.lock:
