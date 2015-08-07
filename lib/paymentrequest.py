@@ -283,8 +283,7 @@ def verify_cert_chain(chain):
     cert_num = len(chain)
     x509_chain = []
     for i in range(cert_num):
-        x = x509.X509()
-        x.parseBinary(bytearray(chain[i]))
+        x = x509.X509(bytearray(chain[i]))
         x509_chain.append(x)
         if i == 0:
             x.check_date()

@@ -49,7 +49,7 @@ class CertificateError(Exception):
 
 class X509(object):
 
-    def parseBinary(self, b):
+    def __init__(self, b):
 
         self.bytes = bytearray(b)
 
@@ -178,9 +178,8 @@ def load_certificates(ca_path):
         s = f.read()
     bList = pem.dePemList(s, "CERTIFICATE")
     for b in bList:
-        x = X509()
         try:
-            x.parseBinary(b)
+            x = X509(b)
             x.check_date()
         except BaseException as e:
             util.print_error("cert error:", e)
