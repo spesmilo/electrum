@@ -290,6 +290,10 @@ class ElectrumWindow(QMainWindow):
             return
         if not storage.file_exists:
             self.show_message(_("File not found") + ' ' + filename)
+            recent = self.config.get('recently_open', [])
+            if filename in recent:
+                recent.remove(filename)
+                self.config.set_key('recently_open', recent)
             return
         # read wizard action
         try:
@@ -371,12 +375,14 @@ class ElectrumWindow(QMainWindow):
 
     def update_recently_visited(self, filename=None):
         recent = self.config.get('recently_open', [])
-        if filename and filename not in recent:
+        if filename:
+            if filename in recent:
+                recent.remove(filename)
             recent.insert(0, filename)
-            recent = recent[:10]
+            recent = recent[:5]
             self.config.set_key('recently_open', recent)
         self.recently_visited_menu.clear()
-        for i, k in enumerate(recent):
+        for i, k in enumerate(sorted(recent)):
             b = os.path.basename(k)
             def loader(k):
                 return lambda: self.load_wallet_file(k)
@@ -2239,7 +2245,7 @@ class ElectrumWindow(QMainWindow):
         tx = self.tx_from_text(data)
         if not tx:
             return
-        self.show_transaction(tx)
+        self.show_transaction(tx, prompt_if_unsaved=True)
 
 
     def read_tx_from_file(self):
@@ -2261,7 +2267,7 @@ class ElectrumWindow(QMainWindow):
             return
         tx = self.tx_from_text(text)
         if tx:
-            self.show_transaction(tx)
+            self.show_transaction(tx, prompt_if_unsaved=True)
 
     def do_process_from_file(self):
         tx = self.read_tx_from_file()
@@ -2272,13 +2278,13 @@ class ElectrumWindow(QMainWindow):
         from electrum_ltc import transaction
         txid, ok = QInputDialog.getText(self, _('Lookup transaction'), _('Transaction ID') + ':')
         if ok and txid:
-            r = self.network.synchronous_get([ ('blockchain.transaction.get',[str(txid)]) ])[0]
-            if r:
-                tx = transaction.Transaction(r)
-                if tx:
-                    self.show_transaction(tx)
-                else:
-                    self.show_message("unknown transaction")
+            try:
+                r = self.network.synchronous_get([('blockchain.transaction.get',[str(txid)])])[0]
+            except BaseException as e:
+                self.show_message(str(e))
+                return
+            tx = transaction.Transaction(r)
+            self.show_transaction(tx)
 
 
     @protected
@@ -2591,7 +2597,7 @@ class ElectrumWindow(QMainWindow):
         gui_widgets.append((nz_label, nz))
 
         msg = _('Fee per kilobyte of transaction.') + '\n' \
-              + _('If you enable dynamic fees, your client will use a value recommended by the server, and this parameter will be used as upper bound.')
+              + _('If you enable dynamic fees, and this parameter will be used as upper bound.')
         fee_label = HelpLabel(_('Transaction fee per kb') + ':', msg)
         fee_e = BTCkBEdit(self.get_decimal_point)
         fee_e.setAmount(self.config.get('fee_per_kb', bitcoin.RECOMMENDED_FEE))
@@ -2606,6 +2612,7 @@ class ElectrumWindow(QMainWindow):
 
         dynfee_cb = QCheckBox(_('Dynamic fees'))
         dynfee_cb.setChecked(self.config.get('dynamic_fees', False))
+        dynfee_cb.setToolTip(_("Use a fee per kB value recommended by the server."))
         dynfee_sl = QSlider(Qt.Horizontal, self)
         dynfee_sl.setValue(self.config.get('fee_factor', 50))
         dynfee_sl.setToolTip("Fee Multiplier. Min = 50%, Max = 150%")
@@ -2734,7 +2741,6 @@ class ElectrumWindow(QMainWindow):
         qr_combo.currentIndexChanged.connect(on_video_device)
         gui_widgets.append((qr_label, qr_combo))
 
-        usechange_help = HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions.'))
         usechange_cb = QCheckBox(_('Use change addresses'))
         usechange_cb.setChecked(self.wallet.use_change)
         if not self.config.is_modifiable('use_change'): usechange_cb.setEnabled(False)
@@ -2744,12 +2750,13 @@ class ElectrumWindow(QMainWindow):
                 self.wallet.use_change = usechange_result
                 self.wallet.storage.put('use_change', self.wallet.use_change)
         usechange_cb.stateChanged.connect(on_usechange)
+        usechange_cb.setToolTip(_('Using change addresses makes it more difficult for other people to track your transactions.'))
         tx_widgets.append((usechange_cb, None))
 
-        showtx_cb = QCheckBox(_('Show transaction before broadcast'))
+        showtx_cb = QCheckBox(_('View transaction before signing'))
         showtx_cb.setChecked(self.show_before_broadcast())
         showtx_cb.stateChanged.connect(lambda x: self.set_show_before_broadcast(showtx_cb.isChecked()))
-        showtx_help = HelpButton(_('Display the details of your transactions before broadcasting it.'))
+        showtx_cb.setToolTip(_('Display the details of your transactions before signing it.'))
         tx_widgets.append((showtx_cb, None))
 
         can_edit_fees_cb = QCheckBox(_('Set transaction fees manually'))
@@ -2758,7 +2765,7 @@ class ElectrumWindow(QMainWindow):
             self.config.set_key('can_edit_fees', x == Qt.Checked)
             self.update_fee_edit()
         can_edit_fees_cb.stateChanged.connect(on_editfees)
-        can_edit_fees_help = HelpButton(_('This option lets you edit fees in the send tab.'))
+        can_edit_fees_cb.setToolTip(_('This option lets you edit fees in the send tab.'))
         tx_widgets.append((can_edit_fees_cb, None))
 
         tabs_info = [

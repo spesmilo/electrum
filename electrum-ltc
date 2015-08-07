@@ -345,7 +345,7 @@ def run_cmdline(config):
         try:
             result = func(*args)
         except Exception:
-            traceback.print_exc(file=sys.stdout)
+            traceback.print_exc(file=sys.stderr)
             sys.exit(1)
 
         if type(result) == str:

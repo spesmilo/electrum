@@ -168,8 +168,6 @@ class BasePlugin:
         self.set_enabled(False)
         return True
 
-    def init_qt(self, gui): pass
-
     @hook
     def load_wallet(self, wallet, window): pass
 

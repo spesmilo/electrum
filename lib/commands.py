@@ -584,6 +584,8 @@ class Commands:
     def signrequest(self, address):
         "Sign payment request with an OpenAlias"
         alias = self.config.get('alias')
+        if not alias:
+            raise BaseException('No alias in your configuration')
         alias_addr = self.contacts.resolve(alias)['address']
         self.wallet.sign_payment_request(address, alias, alias_addr, self.password)
 

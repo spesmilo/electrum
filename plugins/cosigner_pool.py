@@ -123,6 +123,9 @@ class Plugin(BasePlugin):
         if d.tx.is_complete():
             self.send_button.hide()
             return
+        if self.wallet.can_sign(d.tx):
+            self.send_button.hide()
+            return
         for xpub, K, _hash in self.cosigner_list:
             if self.cosigner_can_sign(d.tx, xpub):
                 self.send_button.show()

@@ -992,14 +992,20 @@ class Abstract_Wallet(object):
     def sign_transaction(self, tx, password):
         if self.is_watching_only():
             return
-        # check that the password is correct. This will raise if it's not.
+        # Raise if password is not correct.
         self.check_password(password)
+        # Add derivation for utxo in wallets
+        for i, addr in self.utxo_can_sign(tx):
+            txin = tx.inputs[i]
+            txin['address'] = addr
+            self.add_input_info(txin)
+        # Add private keys
         keypairs = {}
-        x_pubkeys = tx.inputs_to_sign()
-        for x in x_pubkeys:
+        for x in self.xkeys_can_sign(tx):
             sec = self.get_private_key_from_xpubkey(x, password)
             if sec:
-                keypairs[ x ] = sec
+                keypairs[x] = sec
+        # Sign
         if keypairs:
             tx.sign(keypairs)
         run_hook('sign_transaction', tx, password)
@@ -1150,11 +1156,28 @@ class Abstract_Wallet(object):
             return False
         if tx.is_complete():
             return False
-        for x in tx.inputs_to_sign():
-            if self.can_sign_xpubkey(x):
-                return True
+        if self.xkeys_can_sign(tx):
+            return True
+        if self.utxo_can_sign(tx):
+            return True
         return False
 
+    def utxo_can_sign(self, tx):
+        out = set()
+        coins = self.get_spendable_coins()
+        for i in tx.inputs_without_script():
+            txin = tx.inputs[i]
+            for item in coins:
+                if txin.get('prevout_hash') == item.get('prevout_hash') and txin.get('prevout_n') == item.get('prevout_n'):
+                    out.add((i, item.get('address')))
+        return out
+
+    def xkeys_can_sign(self, tx):
+        out = set()
+        for x in tx.inputs_to_sign():
+            if self.can_sign_xpubkey(x):
+                out.add(x)
+        return out
 
     def get_private_key_from_xpubkey(self, x_pubkey, password):
         if x_pubkey[0:2] in ['02','03','04']:

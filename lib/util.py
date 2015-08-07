@@ -123,7 +123,7 @@ def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespa
         return 'unknown'
     x = int(x)  # Some callers pass Decimal
     scale_factor = pow (10, decimal_point)
-    integer_part = "{:n}".format(int(abs(x) / float(scale_factor)))
+    integer_part = "{:n}".format(int(abs(x) / scale_factor))
     if x < 0:
         integer_part = '-' + integer_part
     elif is_diff:

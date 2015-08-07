@@ -53,13 +53,13 @@ class Plugin(BasePlugin):
     @hook
     def load_wallet(self, wallet, window):
         self.wallet = wallet
-
         self.wallet_nonce = self.wallet.storage.get("wallet_nonce")
         self.print_error("Wallet nonce is", self.wallet_nonce)
         if self.wallet_nonce is None:
             self.set_nonce(1)
-
         mpk = ''.join(sorted(self.wallet.get_master_public_keys().values()))
+        if not mpk:
+            return
         self.encode_password = hashlib.sha1(mpk).digest().encode('hex')[:32]
         self.iv = hashlib.sha256(self.encode_password).digest()[:16]
         self.wallet_id = hashlib.sha256(mpk).digest().encode('hex')
@@ -80,10 +80,6 @@ class Plugin(BasePlugin):
         t = threading.Thread(target=do_pull_thread)
         t.setDaemon(True)
         t.start()
-
-
-    def is_available(self):
-        return True
 
     def requires_settings(self):
         return True

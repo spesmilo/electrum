@@ -27,6 +27,7 @@ ca_path = requests.certs.where()
 
 import util
 import x509
+import pem
 from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 from simple_config import SimpleConfig
 
@@ -201,8 +202,8 @@ class TcpInterface(threading.Thread):
                     with open(cert_path) as f:
                         cert = f.read()
                     try:
-                        x = x509.X509()
-                        x.parseBinary(cert)
+                        b = pem.dePem(cert, 'CERTIFICATE')
+                        x = x509.X509(b)
                     except:
                         traceback.print_exc(file=sys.stderr)
                         self.print_error("wrong certificate")
@@ -343,8 +344,8 @@ def check_host_name(peercert, name):
 
 def check_cert(host, cert):
     try:
-        x = x509.X509()
-        x.parseBinary(cert)
+        b = pem.dePem(cert, 'CERTIFICATE')
+        x = x509.X509(b)
     except:
         traceback.print_exc(file=sys.stdout)
         return

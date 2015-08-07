@@ -143,7 +143,7 @@ class TxDialog(QDialog):
     def sign(self):
         def sign_done(success):
             self.sign_button.setDisabled(False)
-            self.prompt_if_unsaved = True
+            self.prompt_if_unsaved = False
             self.saved = False
             self.update()
         self.sign_button.setDisabled(True)
