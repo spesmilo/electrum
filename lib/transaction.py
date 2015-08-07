@@ -706,6 +706,13 @@ class Transaction:
         s, r = self.signature_count()
         return r == s
 
+    def inputs_without_script(self):
+        out = set()
+        for i, txin in enumerate(self.inputs):
+            if txin.get('scriptSig') == '':
+                out.add(i)
+        return out
+
     def inputs_to_sign(self):
         out = set()
         for txin in self.inputs:
