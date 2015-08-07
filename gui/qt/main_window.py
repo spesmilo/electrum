@@ -2239,7 +2239,7 @@ class ElectrumWindow(QMainWindow):
         tx = self.tx_from_text(data)
         if not tx:
             return
-        self.show_transaction(tx)
+        self.show_transaction(tx, prompt_if_unsaved=True)
 
 
     def read_tx_from_file(self):
@@ -2261,7 +2261,7 @@ class ElectrumWindow(QMainWindow):
             return
         tx = self.tx_from_text(text)
         if tx:
-            self.show_transaction(tx)
+            self.show_transaction(tx, prompt_if_unsaved=True)
 
     def do_process_from_file(self):
         tx = self.read_tx_from_file()
