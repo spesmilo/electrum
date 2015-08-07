@@ -375,7 +375,9 @@ class ElectrumWindow(QMainWindow):
 
     def update_recently_visited(self, filename=None):
         recent = self.config.get('recently_open', [])
-        if filename and filename not in recent:
+        if filename:
+            if filename in recent:
+                recent.remove(filename)
             recent.insert(0, filename)
             recent = recent[:5]
             self.config.set_key('recently_open', recent)
