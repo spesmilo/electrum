@@ -290,6 +290,10 @@ class ElectrumWindow(QMainWindow):
             return
         if not storage.file_exists:
             self.show_message(_("File not found") + ' ' + filename)
+            recent = self.config.get('recently_open', [])
+            if filename in recent:
+                recent.remove(filename)
+                self.config.set_key('recently_open', recent)
             return
         # read wizard action
         try:
@@ -373,10 +377,10 @@ class ElectrumWindow(QMainWindow):
         recent = self.config.get('recently_open', [])
         if filename and filename not in recent:
             recent.insert(0, filename)
-            recent = recent[:10]
+            recent = recent[:5]
             self.config.set_key('recently_open', recent)
         self.recently_visited_menu.clear()
-        for i, k in enumerate(recent):
+        for i, k in enumerate(sorted(recent)):
             b = os.path.basename(k)
             def loader(k):
                 return lambda: self.load_wallet_file(k)
