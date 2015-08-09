@@ -2915,16 +2915,3 @@ class ElectrumWindow(QMainWindow):
         text.setText(mpk_text)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
-
-    @protected
-    def create_csr(self, alias, challenge, password):
-        from electrum import x509
-        import tlslite
-        xprv = self.wallet.get_master_private_key(self.wallet.root_name, password)
-        _, _, _, c, k = bitcoin.deserialize_xkey(xprv)
-        csr = x509.create_csr(alias, challenge, k)
-        csr = tlslite.utils.pem.pem(bytearray(csr), "CERTIFICATE REQUEST")
-        with open('test.csr', 'w') as f:
-            f.write(csr)
-        #os.system('openssl asn1parse -i -in test.csr')
-        return 'test.csr'
