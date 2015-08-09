@@ -187,7 +187,6 @@ class OldAccount(Account):
 
     @classmethod
     def mpk_from_seed(klass, seed):
-        curve = SECP256k1
         secexp = klass.stretch_key(seed)
         master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
         master_public_key = master_private_key.get_verifying_key().to_string().encode('hex')
@@ -211,7 +210,6 @@ class OldAccount(Account):
 
     @classmethod
     def get_pubkey_from_mpk(self, mpk, for_change, n):
-        curve = SECP256k1
         z = self.get_sequence(mpk, for_change, n)
         master_public_key = ecdsa.VerifyingKey.from_string( mpk, curve = SECP256k1 )
         pubkey_point = master_public_key.pubkey.point + z*curve.generator
@@ -239,7 +237,6 @@ class OldAccount(Account):
 
 
     def check_seed(self, seed):
-        curve = SECP256k1
         secexp = self.stretch_key(seed)
         master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
         master_public_key = master_private_key.get_verifying_key().to_string()
