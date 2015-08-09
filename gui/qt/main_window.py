@@ -386,7 +386,7 @@ class ElectrumWindow(QMainWindow):
             b = os.path.basename(k)
             def loader(k):
                 return lambda: self.load_wallet_file(k)
-            self.recently_visited_menu.addAction(b, loader(k)).setShortcut(QKeySequence("Ctrl+%d"%i))
+            self.recently_visited_menu.addAction(b, loader(k)).setShortcut(QKeySequence("Ctrl+%d"%(i+1)))
         self.recently_visited_menu.setEnabled(len(recent))
 
     def init_menubar(self):
