@@ -22,7 +22,7 @@ from electrum.util import print_error, print_msg
 from electrum.wallet import pw_decode, bip32_private_derivation, bip32_root
 
 from electrum_gui.qt.util import *
-from electrum_gui.qt.main_window import StatusBarButton
+from electrum_gui.qt.main_window import StatusBarButton, ElectrumWindow
 
 try:
     from trezorlib.client import types
@@ -130,7 +130,8 @@ class Plugin(BasePlugin):
         self.window = window
         self.wallet.plugin = self
         self.trezor_button = StatusBarButton(QIcon(":icons/trezor.png"), _("Trezor"), self.settings_dialog)
-        self.window.statusBar().addPermanentWidget(self.trezor_button)
+        if type(window) is ElectrumWindow:
+            self.window.statusBar().addPermanentWidget(self.trezor_button)
         if self.handler is None:
             self.handler = TrezorQtHandler(self.window.app)
         try:
@@ -145,7 +146,8 @@ class Plugin(BasePlugin):
 
     @hook
     def close_wallet(self):
-        self.window.statusBar().removeWidget(self.trezor_button)
+        if type(self.window) is ElectrumWindow:
+            self.window.statusBar().removeWidget(self.trezor_button)
 
     @hook
     def installwizard_load_wallet(self, wallet, window):
