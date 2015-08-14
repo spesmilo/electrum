@@ -251,7 +251,7 @@ class Abstract_Wallet(object):
                 tx = self.transactions.get(tx_hash)
                 if tx is not None:
                     tx.deserialize()
-                    self.add_transaction(tx_hash, tx, tx_height)
+                    self.add_transaction(tx_hash, tx)
         if save:
             self.storage.put('addr_history', self.history, True)
 
@@ -693,7 +693,7 @@ class Abstract_Wallet(object):
                     print_error("found pay-to-pubkey address:", addr)
                     return addr
 
-    def add_transaction(self, tx_hash, tx, tx_height):
+    def add_transaction(self, tx_hash, tx):
         is_coinbase = tx.inputs[0].get('is_coinbase') == True
         with self.transaction_lock:
             # add inputs
@@ -744,7 +744,7 @@ class Abstract_Wallet(object):
             # save
             self.transactions[tx_hash] = tx
 
-    def remove_transaction(self, tx_hash, tx_height):
+    def remove_transaction(self, tx_hash):
         with self.transaction_lock:
             print_error("removing tx from history", tx_hash)
             #tx = self.transactions.pop(tx_hash)
@@ -770,7 +770,7 @@ class Abstract_Wallet(object):
 
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
-        self.add_transaction(tx_hash, tx, tx_height)
+        self.add_transaction(tx_hash, tx)
         #self.network.pending_transactions_for_notifications.append(tx)
         self.add_unverified_tx(tx_hash, tx_height)
 
@@ -784,7 +784,7 @@ class Abstract_Wallet(object):
                     # remove tx if it's not referenced in histories
                     self.tx_addr_hist[tx_hash].remove(addr)
                     if not self.tx_addr_hist[tx_hash]:
-                        self.remove_transaction(tx_hash, height)
+                        self.remove_transaction(tx_hash)
 
             self.history[addr] = hist
             self.storage.put('addr_history', self.history, True)
@@ -800,7 +800,7 @@ class Abstract_Wallet(object):
             tx = self.transactions.get(tx_hash)
             if tx is not None and self.txi.get(tx_hash, {}).get(addr) is None and self.txo.get(tx_hash, {}).get(addr) is None:
                 tx.deserialize()
-                self.add_transaction(tx_hash, tx, tx_height)
+                self.add_transaction(tx_hash, tx)
 
 
     def get_history(self, domain=None):
