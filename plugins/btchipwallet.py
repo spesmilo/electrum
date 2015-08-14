@@ -100,6 +100,10 @@ class Plugin(BasePlugin):
             self.wallet.force_watching_only = True
 
     @hook
+    def installwizard_load_wallet(self, wallet, window):
+        self.load_wallet(wallet, window)
+
+    @hook
     def installwizard_restore(self, wizard, storage):
         if storage.get('wallet_type') != 'btchip':
             return

@@ -386,7 +386,7 @@ class ElectrumWindow(QMainWindow):
             b = os.path.basename(k)
             def loader(k):
                 return lambda: self.load_wallet_file(k)
-            self.recently_visited_menu.addAction(b, loader(k)).setShortcut(QKeySequence("Ctrl+%d"%i))
+            self.recently_visited_menu.addAction(b, loader(k)).setShortcut(QKeySequence("Ctrl+%d"%(i+1)))
         self.recently_visited_menu.setEnabled(len(recent))
 
     def init_menubar(self):
@@ -2597,15 +2597,16 @@ class ElectrumWindow(QMainWindow):
         gui_widgets.append((nz_label, nz))
 
         msg = _('Fee per kilobyte of transaction.') + '\n' \
-              + _('If you enable dynamic fees, and this parameter will be used as upper bound.')
+              + _('If you enable dynamic fees, this parameter will be used as upper bound.')
         fee_label = HelpLabel(_('Transaction fee per kb') + ':', msg)
         fee_e = BTCkBEdit(self.get_decimal_point)
         fee_e.setAmount(self.config.get('fee_per_kb', bitcoin.RECOMMENDED_FEE))
         def on_fee(is_done):
+            if self.config.get('dynamic_fees'):
+                return
             v = fee_e.get_amount() or 0
             self.config.set_key('fee_per_kb', v, is_done)
-            if not is_done:
-                self.update_fee()
+            self.update_fee()
         fee_e.editingFinished.connect(lambda: on_fee(True))
         fee_e.textEdited.connect(lambda: on_fee(False))
         tx_widgets.append((fee_label, fee_e))
