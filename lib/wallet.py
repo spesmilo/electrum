@@ -878,6 +878,7 @@ class Abstract_Wallet(object):
         # this method can be overloaded
         return tx.get_fee()
 
+    @profiler
     def estimated_fee(self, tx, fee_per_kb):
         estimated_size = len(tx.serialize(-1))/2
         fee = int(fee_per_kb * estimated_size / 1000.)
@@ -897,7 +898,7 @@ class Abstract_Wallet(object):
         inputs = []
         tx = Transaction.from_io(inputs, outputs)
         fee = fixed_fee if fixed_fee is not None else 0
-        # add old inputs first
+        # add inputs, sorted by age
         for item in coins:
             v = item.get('value')
             total += v
@@ -911,14 +912,26 @@ class Abstract_Wallet(object):
                 break
         else:
             raise NotEnoughFunds()
-        # remove unneeded inputs
+        # remove unneeded inputs.
+        removed = False
         for item in sorted(tx.inputs, key=itemgetter('value')):
             v = item.get('value')
             if total - v >= amount + fee:
                 tx.inputs.remove(item)
                 total -= v
-                fee = fixed_fee if fixed_fee is not None else self.estimated_fee(tx, fee_per_kb)
+                removed = True
+                continue
             else:
+                break
+        if removed:
+            fee = fixed_fee if fixed_fee is not None else self.estimated_fee(tx, fee_per_kb)
+            for item in sorted(tx.inputs, key=itemgetter('value')):
+                v = item.get('value')
+                if total - v >= amount + fee:
+                    tx.inputs.remove(item)
+                    total -= v
+                    fee = fixed_fee if fixed_fee is not None else self.estimated_fee(tx, fee_per_kb)
+                    continue
                 break
         print_error("using %d inputs"%len(tx.inputs))
 
