@@ -1015,6 +1015,8 @@ class ElectrumWindow(QMainWindow):
                 fee_per_kb = self.wallet.fee_per_kb(self.config)
                 self.fee_e.setAmount(self.wallet.estimated_fee(dummy_tx, fee_per_kb))
             self.amount_e.setAmount(max(0, sendable - self.fee_e.get_amount()))
+            # emit signal for fiat_amount update
+            self.amount_e.textEdited.emit("")
 
         self.amount_e.shortcut.connect(on_shortcut)
 
