@@ -212,7 +212,7 @@ class OldAccount(Account):
     def get_pubkey_from_mpk(self, mpk, for_change, n):
         z = self.get_sequence(mpk, for_change, n)
         master_public_key = ecdsa.VerifyingKey.from_string( mpk, curve = SECP256k1 )
-        pubkey_point = master_public_key.pubkey.point + z*curve.generator
+        pubkey_point = master_public_key.pubkey.point + z * SECP256k1.generator
         public_key2 = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = SECP256k1 )
         return '04' + public_key2.to_string().encode('hex')
 
