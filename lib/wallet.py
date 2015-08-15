@@ -893,9 +893,10 @@ class Abstract_Wallet(object):
 
         fee_per_kb = self.fee_per_kb(config)
         amount = sum(map(lambda x:x[2], outputs))
-        total = fee = 0
+        total = 0
         inputs = []
         tx = Transaction.from_io(inputs, outputs)
+        fee = fixed_fee if fixed_fee is not None else 0
         # add old inputs first
         for item in coins:
             v = item.get('value')
@@ -903,7 +904,7 @@ class Abstract_Wallet(object):
             self.add_input_info(item)
             tx.add_input(item)
             # no need to estimate fee until we have reached desired amount
-            if total < amount:
+            if total < amount + fee:
                 continue
             fee = fixed_fee if fixed_fee is not None else self.estimated_fee(tx, fee_per_kb)
             if total >= amount + fee:
