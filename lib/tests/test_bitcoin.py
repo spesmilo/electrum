@@ -6,7 +6,7 @@ from lib.bitcoin import (
     generator_secp256k1, point_to_ser, public_key_to_bc_address, EC_KEY,
     bip32_root, bip32_public_derivation, bip32_private_derivation, pw_encode,
     pw_decode, Hash, public_key_from_private_key, address_from_private_key,
-    is_valid, is_private_key, xpub_from_xprv)
+    is_valid, is_private_key, xpub_from_xprv, is_new_seed, is_old_seed)
 
 try:
     import ecdsa
@@ -161,3 +161,21 @@ class Test_keyImport(unittest.TestCase):
         self.assertFalse(is_private_key(self.public_key_hex))
 
 
+class Test_seeds(unittest.TestCase):
+    """ Test old and new seeds. """
+    
+    def test_new_seed(self):
+        seed = "cram swing cover prefer miss modify ritual silly deliver chunk behind inform able"
+        self.assertTrue(is_new_seed(seed))
+
+        seed = "cram swing cover prefer miss modify ritual silly deliver chunk behind inform"
+        self.assertFalse(is_new_seed(seed))
+
+    def test_old_seed(self):
+        self.assertTrue(is_old_seed(" ".join(["like"] * 12)))
+        self.assertFalse(is_old_seed(" ".join(["like"] * 18)))
+        self.assertTrue(is_old_seed(" ".join(["like"] * 24)))
+        self.assertFalse(is_old_seed("not a seed"))
+
+        self.assertTrue(is_old_seed("0123456789ABCDEF" * 2))
+        self.assertTrue(is_old_seed("0123456789ABCDEF" * 4))
