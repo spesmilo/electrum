@@ -189,6 +189,7 @@ class ElectrumWindow(QMainWindow):
         self.not_enough_funds = False
         self.pluginsdialog = None
         self.fetch_alias()
+        self.require_fee_update = False
 
     def fetch_alias(self):
         self.alias_info = None
@@ -524,6 +525,10 @@ class ElectrumWindow(QMainWindow):
             self.need_update.clear()
         # resolve aliases
         self.payto_e.resolve()
+        # update fee
+        if self.require_fee_update:
+            self.do_update_fee()
+            self.require_fee_update = False
         run_hook('timer_actions')
 
     def format_amount(self, x, is_diff=False, whitespaces=False):
@@ -1001,24 +1006,24 @@ class ElectrumWindow(QMainWindow):
         def on_shortcut():
             sendable = self.get_sendable_balance()
             inputs = self.get_coins()
-            for i in inputs: self.wallet.add_input_info(i)
+            for i in inputs:
+                self.wallet.add_input_info(i)
             addr = self.payto_e.payto_address if self.payto_e.payto_address else self.dummy_address
             output = ('address', addr, sendable)
             dummy_tx = Transaction.from_io(inputs, [output])
-            if not self.fee_e.isModified():
+            if self.fee_e.get_amount() is None:
                 fee_per_kb = self.wallet.fee_per_kb(self.config)
                 self.fee_e.setAmount(self.wallet.estimated_fee(dummy_tx, fee_per_kb))
             self.amount_e.setAmount(max(0, sendable - self.fee_e.get_amount()))
-            self.amount_e.textEdited.emit("")
 
         self.amount_e.shortcut.connect(on_shortcut)
 
-        self.payto_e.textChanged.connect(lambda: self.update_fee())
-        self.amount_e.textEdited.connect(lambda: self.update_fee())
-        self.fee_e.textEdited.connect(lambda: self.update_fee())
+        self.payto_e.textChanged.connect(self.update_fee)
+        self.amount_e.textEdited.connect(self.update_fee)
+        self.fee_e.textEdited.connect(self.update_fee)
         # This is so that when the user blanks the fee and moves on,
         # we go back to auto-calculate mode and put a fee back.
-        self.fee_e.editingFinished.connect(lambda: self.update_fee())
+        self.fee_e.editingFinished.connect(self.update_fee)
 
         def entry_changed():
             text = ""
@@ -1070,6 +1075,9 @@ class ElectrumWindow(QMainWindow):
         return w
 
     def update_fee(self):
+        self.require_fee_update = True
+
+    def do_update_fee(self):
         '''Recalculate the fee.  If the fee was manually input, retain it, but
         still build the TX to see if there are enough funds.
         '''
