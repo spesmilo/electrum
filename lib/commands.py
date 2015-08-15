@@ -323,6 +323,11 @@ class Commands:
         return self.wallet.get_master_public_keys()
 
     @command('wp')
+    def getmasterprivate(self):
+        """Get master private key. Return your wallet\'s master private key"""
+        return str(self.wallet.get_master_private_key(self.wallet.root_name, self.password))
+
+    @command('wp')
     def getseed(self):
         """Get seed phrase. Print the generation seed of your wallet."""
         s = self.wallet.get_mnemonic(self.password)

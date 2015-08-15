@@ -251,7 +251,7 @@ class Abstract_Wallet(object):
                 tx = self.transactions.get(tx_hash)
                 if tx is not None:
                     tx.deserialize()
-                    self.add_transaction(tx_hash, tx, tx_height)
+                    self.add_transaction(tx_hash, tx)
         if save:
             self.storage.put('addr_history', self.history, True)
 
@@ -693,7 +693,7 @@ class Abstract_Wallet(object):
                     print_error("found pay-to-pubkey address:", addr)
                     return addr
 
-    def add_transaction(self, tx_hash, tx, tx_height):
+    def add_transaction(self, tx_hash, tx):
         is_coinbase = tx.inputs[0].get('is_coinbase') == True
         with self.transaction_lock:
             # add inputs
@@ -744,7 +744,7 @@ class Abstract_Wallet(object):
             # save
             self.transactions[tx_hash] = tx
 
-    def remove_transaction(self, tx_hash, tx_height):
+    def remove_transaction(self, tx_hash):
         with self.transaction_lock:
             print_error("removing tx from history", tx_hash)
             #tx = self.transactions.pop(tx_hash)
@@ -770,7 +770,7 @@ class Abstract_Wallet(object):
 
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
-        self.add_transaction(tx_hash, tx, tx_height)
+        self.add_transaction(tx_hash, tx)
         #self.network.pending_transactions_for_notifications.append(tx)
         self.add_unverified_tx(tx_hash, tx_height)
 
@@ -784,7 +784,7 @@ class Abstract_Wallet(object):
                     # remove tx if it's not referenced in histories
                     self.tx_addr_hist[tx_hash].remove(addr)
                     if not self.tx_addr_hist[tx_hash]:
-                        self.remove_transaction(tx_hash, height)
+                        self.remove_transaction(tx_hash)
 
             self.history[addr] = hist
             self.storage.put('addr_history', self.history, True)
@@ -800,7 +800,7 @@ class Abstract_Wallet(object):
             tx = self.transactions.get(tx_hash)
             if tx is not None and self.txi.get(tx_hash, {}).get(addr) is None and self.txo.get(tx_hash, {}).get(addr) is None:
                 tx.deserialize()
-                self.add_transaction(tx_hash, tx, tx_height)
+                self.add_transaction(tx_hash, tx)
 
 
     def get_history(self, domain=None):
@@ -892,9 +892,10 @@ class Abstract_Wallet(object):
 
         fee_per_kb = self.fee_per_kb(config)
         amount = sum(map(lambda x:x[2], outputs))
-        total = fee = 0
+        total = 0
         inputs = []
         tx = Transaction.from_io(inputs, outputs)
+        fee = fixed_fee if fixed_fee is not None else 0
         # add old inputs first
         for item in coins:
             v = item.get('value')
@@ -902,7 +903,7 @@ class Abstract_Wallet(object):
             self.add_input_info(item)
             tx.add_input(item)
             # no need to estimate fee until we have reached desired amount
-            if total < amount:
+            if total < amount + fee:
                 continue
             fee = fixed_fee if fixed_fee is not None else self.estimated_fee(tx, fee_per_kb)
             if total >= amount + fee:
