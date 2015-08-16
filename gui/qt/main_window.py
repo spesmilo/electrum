@@ -1239,9 +1239,10 @@ class ElectrumWindow(QMainWindow):
         outputs, fee, tx_desc, coins = r
         try:
             tx = self.wallet.make_unsigned_transaction(coins, outputs, self.config, fee)
-            if not tx:
-                raise BaseException(_("Insufficient funds"))
-        except Exception as e:
+        except NotEnoughFunds:
+            self.show_message(_("Insufficient funds"))
+            return
+        except BaseException as e:
             traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
             return
