@@ -239,7 +239,7 @@ class Commands:
 
     @command('wp')
     def getprivatekeys(self, address):
-        """Get the private keys of a wallet address, or list of wallet addresses."""
+        """Get private keys of addresses. You may pass a single wallet address, or a list of wallet addresses."""
         is_list = type(address) is list
         domain = address if is_list else [address]
         out = [self.wallet.get_private_key(address, self.password) for address in domain]
@@ -250,11 +250,10 @@ class Commands:
         """Check if address is in wallet. Return true if and only address is in wallet"""
         return self.wallet.is_mine(address)
 
-    @command('wp')
+    @command('')
     def dumpprivkeys(self):
-        """Dump private keys from your wallet"""
-        domain = self.wallet.addresses(True)
-        return [self.wallet.get_private_key(address, self.password) for address in domain]
+        """Deprecated."""
+        return "This command is deprecated. Use a pipe instead: 'electrum listaddresses | electrum getprivatekeys - '"
 
     @command('')
     def validateaddress(self, address):

@@ -283,7 +283,7 @@ def run_cmdline(config):
     always_hook('cmdline_load_wallet', wallet)
 
     # important warning
-    if cmd.name in ['getprivatekeys', 'dumpprivkeys']:
+    if cmd.name in ['getprivatekeys']:
         print_stderr("WARNING: ALL your private keys are secret.")
         print_stderr("Exposing a single private key can compromise your entire wallet!")
         print_stderr("In particular, DO NOT use 'redeem private key' services proposed by third parties.")
