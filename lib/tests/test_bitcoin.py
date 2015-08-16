@@ -6,7 +6,8 @@ from lib.bitcoin import (
     generator_secp256k1, point_to_ser, public_key_to_bc_address, EC_KEY,
     bip32_root, bip32_public_derivation, bip32_private_derivation, pw_encode,
     pw_decode, Hash, public_key_from_private_key, address_from_private_key,
-    is_valid, is_private_key, xpub_from_xprv)
+    is_valid, is_private_key, xpub_from_xprv, is_new_seed, is_old_seed,
+    var_int, op_push)
 
 try:
     import ecdsa
@@ -135,6 +136,35 @@ class Test_bitcoin(unittest.TestCase):
         result = xpub_from_xprv(xprv, testnet=True)
         self.assertEqual(result, xpub)
 
+    def test_var_int(self):
+        for i in range(0xfd):
+            self.assertEqual(var_int(i), "{:02x}".format(i) )
+
+        self.assertEqual(var_int(0xfd), "fdfd00")
+        self.assertEqual(var_int(0xfe), "fdfe00")
+        self.assertEqual(var_int(0xff), "fdff00")
+        self.assertEqual(var_int(0x1234), "fd3412")
+        self.assertEqual(var_int(0xffff), "fdffff")
+        self.assertEqual(var_int(0x10000), "fe00000100")
+        self.assertEqual(var_int(0x12345678), "fe78563412")
+        self.assertEqual(var_int(0xffffffff), "feffffffff")
+        self.assertEqual(var_int(0x100000000), "ff0000000001000000")
+        self.assertEqual(var_int(0x0123456789abcdef), "ffefcdab8967452301")
+
+    def test_op_push(self):
+        self.assertEqual(op_push(0x00), '00')
+        self.assertEqual(op_push(0x12), '12')
+        self.assertEqual(op_push(0x4b), '4b')
+        self.assertEqual(op_push(0x4c), '4c4c')
+        self.assertEqual(op_push(0xfe), '4cfe')
+        self.assertEqual(op_push(0xff), '4dff00')
+        self.assertEqual(op_push(0x100), '4d0001')
+        self.assertEqual(op_push(0x1234), '4d3412')
+        self.assertEqual(op_push(0xfffe), '4dfeff')
+        self.assertEqual(op_push(0xffff), '4effff0000')
+        self.assertEqual(op_push(0x10000), '4e00000100')
+        self.assertEqual(op_push(0x12345678), '4e78563412')
+
 
 class Test_keyImport(unittest.TestCase):
     """ The keys used in this class are TEST keys from
@@ -161,3 +191,21 @@ class Test_keyImport(unittest.TestCase):
         self.assertFalse(is_private_key(self.public_key_hex))
 
 
+class Test_seeds(unittest.TestCase):
+    """ Test old and new seeds. """
+    
+    def test_new_seed(self):
+        seed = "cram swing cover prefer miss modify ritual silly deliver chunk behind inform able"
+        self.assertTrue(is_new_seed(seed))
+
+        seed = "cram swing cover prefer miss modify ritual silly deliver chunk behind inform"
+        self.assertFalse(is_new_seed(seed))
+
+    def test_old_seed(self):
+        self.assertTrue(is_old_seed(" ".join(["like"] * 12)))
+        self.assertFalse(is_old_seed(" ".join(["like"] * 18)))
+        self.assertTrue(is_old_seed(" ".join(["like"] * 24)))
+        self.assertFalse(is_old_seed("not a seed"))
+
+        self.assertTrue(is_old_seed("0123456789ABCDEF" * 2))
+        self.assertTrue(is_old_seed("0123456789ABCDEF" * 4))

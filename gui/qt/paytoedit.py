@@ -160,7 +160,7 @@ class PayToEdit(ScanQRTextEdit):
 
 
     def lines(self):
-        return str(self.toPlainText()).split('\n')
+        return unicode(self.toPlainText()).split('\n')
 
 
     def is_multiline(self):
