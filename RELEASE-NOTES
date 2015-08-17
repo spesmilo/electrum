@@ -1,3 +1,8 @@
+# Release 2.4.2
+ * Command line can read arguments from stdin (pipe)
+ * Speedup fee computation for large transactions
+ * Various bugfixes
+
 # Release 2.4.1
  * Use ssl.PROTOCOL_TLSv1
  * Fix DNSSEC issues with ECDSA signatures
