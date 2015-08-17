@@ -201,20 +201,6 @@ def run_cmdline(config):
     # options
     args += map(lambda x: config.get(x), cmd.options)
 
-    # pipe data
-    for i, arg in enumerate(args):
-        if arg == '-':
-            if not sys.stdin.isatty():
-                pipe_data = sys.stdin.read()
-                try:
-                    pipe_data = json.loads(pipe_data)
-                except:
-                    pass
-                args[i] = pipe_data
-                break
-            else:
-                raise BaseException('Cannot get argument from stdin')
-
     # instanciate wallet for command-line
     storage = WalletStorage(config.get_wallet_path())
 
@@ -383,6 +369,23 @@ if __name__ == '__main__':
         sys.argv.remove('help')
         sys.argv.append('-h')
 
+    # read arguments from stdin pipe and prompt
+    for i, arg in enumerate(sys.argv):
+        if arg == '-':
+            if not sys.stdin.isatty():
+                pipe_data = sys.stdin.read()
+                try:
+                    pipe_data = json.loads(pipe_data)
+                except:
+                    pass
+                sys.argv[i] = pipe_data
+                break
+            else:
+                raise BaseException('Cannot get argument from stdin')
+        elif arg == '?':
+            sys.argv[i] = prompt_password('Enter argument (will not echo):', False)
+
+    # parse cmd line
     parser = get_parser(run_gui, run_daemon, run_cmdline)
     args = parser.parse_args()
 
@@ -403,10 +406,6 @@ if __name__ == '__main__':
 
     if config_options.get('portable'):
         config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
-
-    # If private key is passed on the command line, '?' triggers prompt.
-    if config_options.get('privkey') and config_options['privkey'] == '?':
-        config_options['privkey'] = prompt_password('Enter PrivateKey (will not echo):', False)
 
     set_verbosity(config_options.get('verbose'))
     config = SimpleConfig(config_options)
