@@ -239,20 +239,21 @@ class Commands:
 
     @command('wp')
     def getprivatekeys(self, address):
-        """Get the private keys of an address. Address must be in wallet."""
-        return self.wallet.get_private_key(address, self.password)
+        """Get private keys of addresses. You may pass a single wallet address, or a list of wallet addresses."""
+        is_list = type(address) is list
+        domain = address if is_list else [address]
+        out = [self.wallet.get_private_key(address, self.password) for address in domain]
+        return out if is_list else out[0]
 
     @command('w')
     def ismine(self, address):
         """Check if address is in wallet. Return true if and only address is in wallet"""
         return self.wallet.is_mine(address)
 
-    @command('wp')
-    def dumpprivkeys(self, domain=None):
-        """Dump private keys from your wallet"""
-        if domain is None:
-            domain = self.wallet.addresses(True)
-        return [self.wallet.get_private_key(address, self.password) for address in domain]
+    @command('')
+    def dumpprivkeys(self):
+        """Deprecated."""
+        return "This command is deprecated. Use a pipe instead: 'electrum-ltc listaddresses | electrum-ltc getprivatekeys - '"
 
     @command('')
     def validateaddress(self, address):
@@ -353,15 +354,16 @@ class Commands:
 
     @command('n')
     def sweep(self, privkey, destination, tx_fee=None, nocheck=False):
-        """Sweep private key. Returns a transaction that spends UTXOs from
+        """Sweep private keys. Returns a transaction that spends UTXOs from
         privkey to a destination address. The transaction is not
         broadcasted."""
+        privkeys = privkey if type(privkey) is list else [privkey]
         self.nocheck = nocheck
         dest = self._resolver(destination)
         if tx_fee is None:
             tx_fee = 0.001
         fee = int(Decimal(tx_fee)*COIN)
-        return Transaction.sweep([privkey], self.network, dest, fee)
+        return Transaction.sweep(privkeys, self.network, dest, fee)
 
     @command('wp')
     def signmessage(self, address, message):

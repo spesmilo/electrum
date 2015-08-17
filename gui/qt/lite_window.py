@@ -792,9 +792,9 @@ class MiniDriver(QObject):
         self.network = main_window.network
         self.window = mini_window
 
-        if self.network:
-            self.network.register_callback('updated',self.update_callback)
-            self.network.register_callback('status', self.update_callback)
+        #if self.network:
+        #    self.network.register_callback('updated',self.update_callback)
+        #    self.network.register_callback('status', self.update_callback)
 
         self.state = None
 

@@ -28,9 +28,26 @@ from electrum_ltc.plugins import run_hook
 class HistoryWidget(MyTreeWidget):
 
     def __init__(self, parent=None):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [ '', _('Date'), _('Description') , _('Amount'), _('Balance')], 2)
+        MyTreeWidget.__init__(self, parent, self.create_menu, ['', '', _('Date'), _('Description') , _('Amount'), _('Balance')], 3)
+        self.setColumnHidden(1, True)
         self.config = self.parent.config
         self.setSortingEnabled(False)
+
+    def get_icon(self, conf, timestamp):
+        time_str = _("unknown")
+        if conf > 0:
+            time_str = format_time(timestamp)
+        if conf == -1:
+            time_str = 'unverified'
+            icon = QIcon(":icons/unconfirmed.png")
+        elif conf == 0:
+            time_str = 'pending'
+            icon = QIcon(":icons/unconfirmed.png")
+        elif conf < 6:
+            icon = QIcon(":icons/clock%d.png"%conf)
+        else:
+            icon = QIcon(":icons/confirmed.png")
+        return icon, time_str
 
     def update(self, h):
         self.wallet = self.parent.wallet
@@ -39,41 +56,35 @@ class HistoryWidget(MyTreeWidget):
         self.clear()
         for item in h:
             tx_hash, conf, value, timestamp, balance = item
-            time_str = _("unknown")
             if conf is None and timestamp is None:
                 continue  # skip history in offline mode
-            if conf > 0:
-                time_str = format_time(timestamp)
-            if conf == -1:
-                time_str = 'unverified'
-                icon = QIcon(":icons/unconfirmed.png")
-            elif conf == 0:
-                time_str = 'pending'
-                icon = QIcon(":icons/unconfirmed.png")
-            elif conf < 6:
-                icon = QIcon(":icons/clock%d.png"%conf)
-            else:
-                icon = QIcon(":icons/confirmed.png")
+            icon, time_str = self.get_icon(conf, timestamp)
             v_str = self.parent.format_amount(value, True, whitespaces=True)
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             label, is_default_label = self.wallet.get_label(tx_hash)
-            item = QTreeWidgetItem( [ '', time_str, label, v_str, balance_str] )
-            item.setFont(2, QFont(MONOSPACE_FONT))
+            item = QTreeWidgetItem(['', tx_hash, time_str, label, v_str, balance_str])
+            item.setIcon(0, icon)
             item.setFont(3, QFont(MONOSPACE_FONT))
             item.setFont(4, QFont(MONOSPACE_FONT))
+            item.setFont(5, QFont(MONOSPACE_FONT))
             if value < 0:
-                item.setForeground(3, QBrush(QColor("#BC1E1E")))
+                item.setForeground(4, QBrush(QColor("#BC1E1E")))
             if tx_hash:
                 item.setData(0, Qt.UserRole, tx_hash)
             if is_default_label:
-                item.setForeground(2, QBrush(QColor('grey')))
-            item.setIcon(0, icon)
+                item.setForeground(3, QBrush(QColor('grey')))
             self.insertTopLevelItem(0, item)
             if current_tx == tx_hash:
                 self.setCurrentItem(item)
-
         run_hook('history_tab_update')
 
+    def update_item(self, tx_hash, conf, timestamp):
+        icon, time_str = self.get_icon(conf, timestamp)
+        items = self.findItems(tx_hash, Qt.UserRole|Qt.MatchContains|Qt.MatchRecursive, column=1)
+        if items:
+            item = items[0]
+            item.setIcon(0, icon)
+            item.setText(2, time_str)
 
     def create_menu(self, position):
         self.selectedIndexes()

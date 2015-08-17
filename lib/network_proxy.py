@@ -40,7 +40,6 @@ class NetworkProxy(util.DaemonThread):
         self.subscriptions = {}
         self.debug = False
         self.lock = threading.Lock()
-        self.pending_transactions_for_notifications = []
         self.callbacks = {}
 
         if socket:
@@ -100,7 +99,10 @@ class NetworkProxy(util.DaemonThread):
                 self.servers = value
             elif key == 'interfaces':
                 self.interfaces = value
-            self.trigger_callback(key)
+            if key in ['status', 'updated']:
+                self.trigger_callback(key)
+            else:
+                self.trigger_callback(key, (value,))
             return
 
         msg_id = response.get('id')
@@ -227,8 +229,8 @@ class NetworkProxy(util.DaemonThread):
                 self.callbacks[event] = []
             self.callbacks[event].append(callback)
 
-    def trigger_callback(self, event):
+    def trigger_callback(self, event, params=()):
         with self.lock:
             callbacks = self.callbacks.get(event,[])[:]
         if callbacks:
-            [callback() for callback in callbacks]
+            [callback(*params) for callback in callbacks]
