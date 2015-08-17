@@ -1706,9 +1706,9 @@ class ElectrumWindow(QMainWindow):
                 name = self.wallet.get_account_name(k)
                 c, u, x = self.wallet.get_account_balance(k)
                 account_item = QTreeWidgetItem([ name, '', self.format_amount(c + u + x), ''])
-                l.addTopLevelItem(account_item)
                 account_item.setExpanded(self.accounts_expanded.get(k, True))
                 account_item.setData(0, Qt.UserRole, k)
+                l.addTopLevelItem(account_item)
             else:
                 account_item = l
             sequences = [0,1] if account.has_change() else [0]
