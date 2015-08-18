@@ -607,10 +607,13 @@ def payto_loop():
                     if data:
                         print "data", data
                         if re.match('^litecoin:', data):
-                            payto, amount, label, message, _ = util.parse_URI(data)
+                            rr = util.parse_URI(data)
+                            amount = rr.get('amount')
+                            address = rr.get('address')
+                            message = rr.get('message', '')
                             if amount:
-                                amount = str(amount / COIN)
-                            droid.fullSetProperty("recipient", "text", payto)
+                                amount = str(Decimal(amount)/COIN)
+                            droid.fullSetProperty("recipient", "text", address)
                             droid.fullSetProperty("amount", "text", amount)
                             droid.fullSetProperty("message", "text", message)
                         elif is_address(data):
@@ -771,7 +774,7 @@ def settings_loop():
 
     def set_listview():
         host, port, p, proxy_config, auto_connect = network.get_parameters()
-        fee = str(Decimal(wallet.fee_per_kb) / COIN)
+        fee = str(Decimal(wallet.fee_per_kb(config)) / COIN)
         is_encrypted = 'yes' if wallet.use_encryption else 'no'
         protocol = protocol_name(p)
         droid.fullShow(settings_layout)
@@ -818,8 +821,10 @@ def settings_loop():
                     network_changed = True
 
             elif pos == "3": #fee
-                fee = modal_input('Transaction fee', 'The fee will be this amount multiplied by the number of inputs in your transaction. ',
-                                  str(Decimal(wallet.fee_per_kb) / COIN), "numberDecimal")
+                fee = modal_input(
+                    'Transaction fee',
+                    'The fee will be this amount multiplied by the number of inputs in your transaction. ',
+                    str(Decimal(wallet.fee_per_kb(config)) / COIN), "numberDecimal")
                 if fee:
                     try:
                         fee = int(COIN * Decimal(fee))
@@ -900,7 +905,7 @@ config = None
 class ElectrumGui:
 
     def __init__(self, _config, _network):
-        global wallet, network, contacts
+        global wallet, network, contacts, config
         network = _network
         config = _config
         network.register_callback('updated', update_callback)

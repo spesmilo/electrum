@@ -466,7 +466,6 @@ class ElectrumWindow(QMainWindow):
 
 
     def new_transaction(self, tx):
-        print "new tx", tx
         self.tx_notifications.append(tx)
 
     def notify_transactions(self):
