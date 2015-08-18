@@ -37,7 +37,8 @@ elif is_bundle and sys.platform=='darwin':
 
 # pure-python dependencies need to be imported here for pyinstaller
 try:
-    import dns
+    if not is_android:
+        import dns
     import aes
     import ecdsa
     import requests

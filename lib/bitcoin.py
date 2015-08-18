@@ -201,6 +201,7 @@ def hash_160(public_key):
         md.update(sha256(public_key))
         return md.digest()
     except Exception:
+        # not available in Android SL4a
         import ripemd
         md = ripemd.new(sha256(public_key))
         return md.digest()
