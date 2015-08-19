@@ -391,7 +391,7 @@ class BTChipWallet(BIP32_HD_Wallet):
             else:
                 if output <> None: # should never happen
                     self.give_error("Multiple outputs with no change not supported")
-                output = address
+                output = str(address)
                 outputAmount = amount
 
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
