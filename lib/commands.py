@@ -155,7 +155,9 @@ class Commands:
         """List unspent outputs. Returns the list of unspent transaction
         outputs in your wallet."""
         l = copy.deepcopy(self.wallet.get_spendable_coins(exclude_frozen = False))
-        for i in l: i["value"] = str(Decimal(i["value"])/COIN)
+        for i in l:
+            v = i["value"]
+            i["value"] = float(v)/COIN if v is not None else None
         return l
 
     @command('n')
@@ -462,7 +464,7 @@ class Commands:
                 'timestamp':timestamp,
                 'date':"%16s"%time_str,
                 'label':label,
-                'value':float(format_satoshis(value)) if value is not None else None,
+                'value':float(value)/COIN if value is not None else None,
                 'confirmations':conf}
             )
         return out
