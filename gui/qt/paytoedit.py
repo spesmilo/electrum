@@ -90,7 +90,7 @@ class PayToEdit(ScanQRTextEdit):
     def parse_address(self, line):
         r = line.strip()
         m = re.match('^'+RE_ALIAS+'$', r)
-        address = str(m.group(2)) if m else r
+        address = str(m.group(2) if m else r)
         assert bitcoin.is_address(address)
         return address
 
