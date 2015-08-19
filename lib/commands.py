@@ -155,7 +155,9 @@ class Commands:
         """List unspent outputs. Returns the list of unspent transaction
         outputs in your wallet."""
         l = copy.deepcopy(self.wallet.get_spendable_coins(exclude_frozen = False))
-        for i in l: i["value"] = str(Decimal(i["value"])/COIN)
+        for i in l:
+            v = i["value"]
+            i["value"] = float(v)/COIN if v is not None else None
         return l
 
     @command('n')
@@ -453,13 +455,18 @@ class Commands:
         for item in self.wallet.get_history():
             tx_hash, conf, value, timestamp, balance = item
             try:
-                time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
+                time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
             except Exception:
                 time_str = "----"
-
             label, is_default_label = self.wallet.get_label(tx_hash)
-
-            out.append({'txid':tx_hash, 'date':"%16s"%time_str, 'label':label, 'value':format_satoshis(value), 'confirmations':conf})
+            out.append({
+                'txid':tx_hash,
+                'timestamp':timestamp,
+                'date':"%16s"%time_str,
+                'label':label,
+                'value':float(value)/COIN if value is not None else None,
+                'confirmations':conf}
+            )
         return out
 
     @command('w')
