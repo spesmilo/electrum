@@ -640,7 +640,7 @@ class TrezorQtHandler:
                 QMessageBox.critical(None, _('Error'), _("Password request canceled"), _('OK'))
                 self.passphrase = None
             else:
-                self.passphrase = unicodedata.normalize('NFKD', unicode(passphrase)) if passphrase emse ''
+                self.passphrase = unicodedata.normalize('NFKD', unicode(passphrase)) if passphrase else ''
         self.done.set()
 
     def message_dialog(self):
