@@ -401,6 +401,7 @@ class ElectrumWindow(QMainWindow):
         self.recently_visited_menu = file_menu.addMenu(_("&Recently open"))
         file_menu.addAction(_("&Open"), self.open_wallet).setShortcut(QKeySequence.Open)
         file_menu.addAction(_("&New/Restore"), self.new_wallet).setShortcut(QKeySequence.New)
+        file_menu.addAction(_("&Save Copy"), self.backup_wallet).setShortcut(QKeySequence.SaveAs)
         file_menu.addSeparator()
         file_menu.addAction(_("&Quit"), self.close)
         self.update_recently_visited()
