@@ -628,7 +628,7 @@ class TrezorQtHandler:
     def passphrase_dialog(self):
         if type(self.win) is ElectrumWindow:
             passphrase = self.win.password_dialog(_("Please enter your Trezor passphrase"))
-            self.passphrase = unicodedata.normalize('NFKD', unicode(passphrase))
+            self.passphrase = unicodedata.normalize('NFKD', unicode(passphrase)) if passphrase else ''
         else:
             assert type(self.win) is InstallWizard
             from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
@@ -640,9 +640,7 @@ class TrezorQtHandler:
                 QMessageBox.critical(None, _('Error'), _("Password request canceled"), _('OK'))
                 self.passphrase = None
             else:
-                if passphrase is None:
-                    passphrase = '' # Even blank string is valid Trezor passphrase
-                self.passphrase = unicodedata.normalize('NFKD', unicode(passphrase))
+                self.passphrase = unicodedata.normalize('NFKD', unicode(passphrase)) if passphrase emse ''
         self.done.set()
 
     def message_dialog(self):
