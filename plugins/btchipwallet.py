@@ -88,11 +88,15 @@ class Plugin(BasePlugin):
             self.handler = BTChipQTHandler(self.window.app)
         if self.btchip_is_connected():
             if not self.wallet.check_proper_device():
-                QMessageBox.information(self.window, _('Error'), _("This wallet does not match your BTChip device"), _('OK'))
+                QMessageBox.information(self.window, _('Error'), _("This wallet does not match your Ledger device"), _('OK'))
                 self.wallet.force_watching_only = True
         else:
-            QMessageBox.information(self.window, _('Error'), _("BTChip device not detected.\nContinuing in watching-only mode."), _('OK'))
+            QMessageBox.information(self.window, _('Error'), _("Ledger device not detected.\nContinuing in watching-only mode."), _('OK'))
             self.wallet.force_watching_only = True
+
+    @hook
+    def installwizard_load_wallet(self, wallet, window):
+        self.load_wallet(wallet, window)
 
     @hook
     def installwizard_restore(self, wizard, storage):
@@ -196,9 +200,9 @@ class BTChipWallet(BIP32_HD_Wallet):
                     # Immediately prompts for the PIN
                     remaining_attempts = self.client.getVerifyPinRemainingAttempts()
                     if remaining_attempts <> 1:
-                        msg = "Enter your BTChip PIN - remaining attempts : " + str(remaining_attempts)
+                        msg = "Enter your Ledger PIN - remaining attempts : " + str(remaining_attempts)
                     else:
-                        msg = "Enter your BTChip PIN - WARNING : LAST ATTEMPT. If the PIN is not correct, the dongle will be wiped."
+                        msg = "Enter your Ledger PIN - WARNING : LAST ATTEMPT. If the PIN is not correct, the dongle will be wiped."
                     confirmed, p, pin = self.password_dialog(msg)
                     if not confirmed:
                         aborted = True
@@ -224,7 +228,7 @@ class BTChipWallet(BIP32_HD_Wallet):
                     pass
                 self.client = None
                 if not aborted:
-                    raise Exception("Could not connect to your BTChip dongle. Please verify access permissions, PIN, or unplug the dongle and plug it again")
+                    raise Exception("Could not connect to your Ledger wallet. Please verify access permissions, PIN, or unplug the dongle and plug it again")
                 else:
                     raise e
             self.client.bad = False
@@ -320,7 +324,7 @@ class BTChipWallet(BIP32_HD_Wallet):
             signature = self.get_client().signMessageSign(pin)
         except BTChipException, e:
             if e.sw == 0x6a80:
-                self.give_error("Unfortunately, this message cannot be signed by BTChip. Only alphanumerical messages shorter than 140 characters are supported. Please remove any extra characters (tab, carriage return) and retry.")
+                self.give_error("Unfortunately, this message cannot be signed by the Ledger wallet. Only alphanumerical messages shorter than 140 characters are supported. Please remove any extra characters (tab, carriage return) and retry.")
             else:
                 self.give_error(e, True)
         except Exception, e:
@@ -419,7 +423,7 @@ class BTChipWallet(BIP32_HD_Wallet):
                         pin2 = ""
                         for keycardIndex in range(len(outputData['keycardData'])):
                             msg = "Do not enter your device PIN here !\r\n\r\n" + \
-                                "Your BTChip wants to talk to you and tell you a unique second factor code.\r\n" + \
+                                "Your Ledger Wallet wants to talk to you and tell you a unique second factor code.\r\n" + \
                                 "For this to work, please match the character between stars of the output address using your security card\r\n\r\n" + \
                                 "Output address : "
                             for index in range(len(output)):
@@ -494,8 +498,8 @@ class BTChipWallet(BIP32_HD_Wallet):
     def password_dialog(self, msg=None):
         if not msg:
             msg = _("Do not enter your device PIN here !\r\n\r\n" \
-                    "Your BTChip wants to talk to you and tell you a unique second factor code.\r\n" \
-                    "For this to work, please open a text editor (on a different computer / device if you believe this computer is compromised) and put your cursor into it, unplug your BTChip and plug it back in.\r\n" \
+                    "Your Ledger Wallet wants to talk to you and tell you a unique second factor code.\r\n" \
+                    "For this to work, please open a text editor (on a different computer / device if you believe this computer is compromised) and put your cursor into it, unplug your Ledger Wallet and plug it back in.\r\n" \
                     "It should show itself to your computer as a keyboard and output the second factor along with a summary of the transaction it is signing into the text-editor.\r\n\r\n" \
                     "Check that summary and then enter the second factor code here.\r\n" \
                     "Before clicking OK, re-plug the device once more (unplug it and plug it again if you read the second factor code on the same computer)")
@@ -528,7 +532,7 @@ class BTChipQTHandler:
         return self.response
 
     def auth_dialog(self):
-        response = QInputDialog.getText(None, "BTChip Authentication", self.message, QLineEdit.Password)        
+        response = QInputDialog.getText(None, "Ledger Wallet Authentication", self.message, QLineEdit.Password)        
         if not response[1]:
             self.response = None
         else:
@@ -538,7 +542,7 @@ class BTChipQTHandler:
     def message_dialog(self):
         self.d = QDialog()
         self.d.setModal(1)
-        self.d.setWindowTitle('BTChip')
+        self.d.setWindowTitle('Ledger')
         self.d.setWindowFlags(self.d.windowFlags() | QtCore.Qt.WindowStaysOnTopHint)
         l = QLabel(self.message)
         vbox = QVBoxLayout(self.d)

@@ -155,7 +155,9 @@ class Commands:
         """List unspent outputs. Returns the list of unspent transaction
         outputs in your wallet."""
         l = copy.deepcopy(self.wallet.get_spendable_coins(exclude_frozen = False))
-        for i in l: i["value"] = str(Decimal(i["value"])/COIN)
+        for i in l:
+            v = i["value"]
+            i["value"] = float(v)/COIN if v is not None else None
         return l
 
     @command('n')
@@ -239,20 +241,21 @@ class Commands:
 
     @command('wp')
     def getprivatekeys(self, address):
-        """Get the private keys of an address. Address must be in wallet."""
-        return self.wallet.get_private_key(address, self.password)
+        """Get private keys of addresses. You may pass a single wallet address, or a list of wallet addresses."""
+        is_list = type(address) is list
+        domain = address if is_list else [address]
+        out = [self.wallet.get_private_key(address, self.password) for address in domain]
+        return out if is_list else out[0]
 
     @command('w')
     def ismine(self, address):
         """Check if address is in wallet. Return true if and only address is in wallet"""
         return self.wallet.is_mine(address)
 
-    @command('wp')
-    def dumpprivkeys(self, domain=None):
-        """Dump private keys from your wallet"""
-        if domain is None:
-            domain = self.wallet.addresses(True)
-        return [self.wallet.get_private_key(address, self.password) for address in domain]
+    @command('')
+    def dumpprivkeys(self):
+        """Deprecated."""
+        return "This command is deprecated. Use a pipe instead: 'electrum listaddresses | electrum getprivatekeys - '"
 
     @command('')
     def validateaddress(self, address):
@@ -323,6 +326,11 @@ class Commands:
         return self.wallet.get_master_public_keys()
 
     @command('wp')
+    def getmasterprivate(self):
+        """Get master private key. Return your wallet\'s master private key"""
+        return str(self.wallet.get_master_private_key(self.wallet.root_name, self.password))
+
+    @command('wp')
     def getseed(self):
         """Get seed phrase. Print the generation seed of your wallet."""
         s = self.wallet.get_mnemonic(self.password)
@@ -348,15 +356,16 @@ class Commands:
 
     @command('n')
     def sweep(self, privkey, destination, tx_fee=None, nocheck=False):
-        """Sweep private key. Returns a transaction that spends UTXOs from
+        """Sweep private keys. Returns a transaction that spends UTXOs from
         privkey to a destination address. The transaction is not
         broadcasted."""
+        privkeys = privkey if type(privkey) is list else [privkey]
         self.nocheck = nocheck
         dest = self._resolver(destination)
         if tx_fee is None:
             tx_fee = 0.0001
         fee = int(Decimal(tx_fee)*COIN)
-        return Transaction.sweep([privkey], self.network, dest, fee)
+        return Transaction.sweep(privkeys, self.network, dest, fee)
 
     @command('wp')
     def signmessage(self, address, message):
@@ -446,13 +455,18 @@ class Commands:
         for item in self.wallet.get_history():
             tx_hash, conf, value, timestamp, balance = item
             try:
-                time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
+                time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
             except Exception:
                 time_str = "----"
-
             label, is_default_label = self.wallet.get_label(tx_hash)
-
-            out.append({'txid':tx_hash, 'date':"%16s"%time_str, 'label':label, 'value':format_satoshis(value), 'confirmations':conf})
+            out.append({
+                'txid':tx_hash,
+                'timestamp':timestamp,
+                'date':"%16s"%time_str,
+                'label':label,
+                'value':float(value)/COIN if value is not None else None,
+                'confirmations':conf}
+            )
         return out
 
     @command('w')

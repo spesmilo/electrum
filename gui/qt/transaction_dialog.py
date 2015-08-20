@@ -234,7 +234,7 @@ class TxDialog(QDialog):
         if self.tx.locktime > 0:
             vbox.addWidget(QLabel("LockTime: %d\n" % self.tx.locktime))
 
-        vbox.addWidget(QLabel(_("Inputs")))
+        vbox.addWidget(QLabel(_("Inputs") + ' (%d)'%len(self.tx.inputs)))
 
         ext = QTextCharFormat()
         rec = QTextCharFormat()
@@ -273,7 +273,7 @@ class TxDialog(QDialog):
             cursor.insertBlock()
 
         vbox.addWidget(i_text)
-        vbox.addWidget(QLabel(_("Outputs")))
+        vbox.addWidget(QLabel(_("Outputs") + ' (%d)'%len(self.tx.outputs)))
         o_text = QTextEdit()
         o_text.setFont(QFont(MONOSPACE_FONT))
         o_text.setReadOnly(True)

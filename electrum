@@ -80,14 +80,11 @@ from electrum.commands import get_parser, known_commands, Commands, config_varia
 # get password routine
 def prompt_password(prompt, confirm=True):
     import getpass
-    if sys.stdin.isatty():
-        password = getpass.getpass(prompt)
-        if password and confirm:
-            password2 = getpass.getpass("Confirm: ")
-            if password != password2:
-                sys.exit("Error: Passwords do not match.")
-    else:
-        password = raw_input(prompt)
+    password = getpass.getpass(prompt)
+    if password and confirm:
+        password2 = getpass.getpass("Confirm: ")
+        if password != password2:
+            sys.exit("Error: Passwords do not match.")
     if not password:
         password = None
     return password
@@ -272,14 +269,16 @@ def run_cmdline(config):
     always_hook('cmdline_load_wallet', wallet)
 
     # important warning
-    if cmd.name in ['dumpprivkey', 'dumpprivkeys']:
+    if cmd.name in ['getprivatekeys']:
         print_stderr("WARNING: ALL your private keys are secret.")
         print_stderr("Exposing a single private key can compromise your entire wallet!")
         print_stderr("In particular, DO NOT use 'redeem private key' services proposed by third parties.")
 
     # commands needing password
-    if cmd.requires_password:
-        if wallet.use_encryption:
+    if cmd.requires_password and wallet.use_encryption:
+        if config.get('password'):
+            password = config.get('password')
+        else:
             password = prompt_password('Password:', False)
             if not password:
                 print_msg("Error: Password required")
@@ -290,8 +289,6 @@ def run_cmdline(config):
             except InvalidPassword:
                 print_msg("Error: This password does not decode this wallet.")
                 sys.exit(1)
-        else:
-            password = None
     else:
         password = None
 
@@ -372,6 +369,23 @@ if __name__ == '__main__':
         sys.argv.remove('help')
         sys.argv.append('-h')
 
+    # read arguments from stdin pipe and prompt
+    for i, arg in enumerate(sys.argv):
+        if arg == '-':
+            if not sys.stdin.isatty():
+                pipe_data = sys.stdin.read()
+                try:
+                    pipe_data = json.loads(pipe_data)
+                except:
+                    pass
+                sys.argv[i] = pipe_data
+                break
+            else:
+                raise BaseException('Cannot get argument from stdin')
+        elif arg == '?':
+            sys.argv[i] = prompt_password('Enter argument (will not echo):', False)
+
+    # parse cmd line
     parser = get_parser(run_gui, run_daemon, run_cmdline)
     args = parser.parse_args()
 
@@ -392,10 +406,6 @@ if __name__ == '__main__':
 
     if config_options.get('portable'):
         config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
-
-    # If private key is passed on the command line, '?' triggers prompt.
-    if config_options.get('privkey') and config_options['privkey'] == '?':
-        config_options['privkey'] = prompt_password('Enter PrivateKey (will not echo):', False)
 
     set_verbosity(config_options.get('verbose'))
     config = SimpleConfig(config_options)

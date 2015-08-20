@@ -290,6 +290,8 @@ class Authenticator:
                 mpk = wallet.get_master_public_key()
                 self.show_qr(mpk)
                 self.show_title('master public key')
+                droid.setClipboard(mpk)
+                droid.makeToast("Master public key copied to clipboard")
 
             elif event["name"] == "scan":
                 r = droid.scanBarcode()

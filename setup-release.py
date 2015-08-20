@@ -1,5 +1,5 @@
 """
-py2app/py2exe build script for Electrum Litecoin
+py2app/py2exe build script for Electrum
 
 Usage (Mac OS X):
      python setup.py py2app
@@ -37,7 +37,7 @@ if sys.platform == 'darwin':
         app=[mainscript],
         options=dict(py2app=dict(argv_emulation=False,
                                  includes=['PyQt4.QtCore', 'PyQt4.QtGui', 'PyQt4.QtWebKit', 'PyQt4.QtNetwork', 'sip'],
-                                 packages=['lib', 'gui', 'plugins'],
+                                 packages=['lib', 'gui', 'plugins', 'packages'],
                                  iconfile='electrum.icns',
                                  plist=plist,
                                  resources=["icons"])),

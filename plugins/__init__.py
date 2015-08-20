@@ -29,11 +29,11 @@ descriptions = [
     },
     {
         'name': 'btchipwallet',
-        'fullname': _('BTChip Wallet'),
-        'description': _('Provides support for BTChip hardware wallet'),
-        'requires': [('btchip', 'github.com/btchip/btchip-python')],
+        'fullname': _('Ledger Wallet'),
+        'description': _('Provides support for Ledger hardware wallet'),
+        'requires': [('btchip', 'github.com/ledgerhq/btchip-python')],
         'requires_wallet_type': ['btchip'],
-        'registers_wallet_type': ('hardware', 'btchip', _("BTChip wallet")),
+        'registers_wallet_type': ('hardware', 'btchip', _("Ledger wallet")),
         'available_for': ['qt', 'cmdline'],
     },
     {

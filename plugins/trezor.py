@@ -22,7 +22,8 @@ from electrum.util import print_error, print_msg
 from electrum.wallet import pw_decode, bip32_private_derivation, bip32_root
 
 from electrum_gui.qt.util import *
-from electrum_gui.qt.main_window import StatusBarButton
+from electrum_gui.qt.main_window import StatusBarButton, ElectrumWindow
+from electrum_gui.qt.installwizard import InstallWizard
 
 try:
     from trezorlib.client import types
@@ -130,9 +131,10 @@ class Plugin(BasePlugin):
         self.window = window
         self.wallet.plugin = self
         self.trezor_button = StatusBarButton(QIcon(":icons/trezor.png"), _("Trezor"), self.settings_dialog)
-        self.window.statusBar().addPermanentWidget(self.trezor_button)
+        if type(window) is ElectrumWindow:
+            self.window.statusBar().addPermanentWidget(self.trezor_button)
         if self.handler is None:
-            self.handler = TrezorQtHandler(self.window.app)
+            self.handler = TrezorQtHandler(self.window)
         try:
             self.get_client().ping('t')
         except BaseException as e:
@@ -145,7 +147,8 @@ class Plugin(BasePlugin):
 
     @hook
     def close_wallet(self):
-        self.window.statusBar().removeWidget(self.trezor_button)
+        if type(self.window) is ElectrumWindow:
+            self.window.statusBar().removeWidget(self.trezor_button)
 
     @hook
     def installwizard_load_wallet(self, wallet, window):
@@ -623,18 +626,21 @@ class TrezorQtHandler:
         self.done.set()
 
     def passphrase_dialog(self):
-        from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
-        d = QDialog()
-        d.setModal(1)
-        d.setLayout(make_password_dialog(d, None, self.message, False))
-        confirmed, p, passphrase = run_password_dialog(d, None, None)
-        if not confirmed:
-            QMessageBox.critical(None, _('Error'), _("Password request canceled"), _('OK'))
-            self.passphrase = None
+        if type(self.win) is ElectrumWindow:
+            passphrase = self.win.password_dialog(_("Please enter your Trezor passphrase"))
+            self.passphrase = unicodedata.normalize('NFKD', unicode(passphrase)) if passphrase else ''
         else:
-            if passphrase is None:
-                passphrase = '' # Even blank string is valid Trezor passphrase
-            self.passphrase = unicodedata.normalize('NFKD', unicode(passphrase))
+            assert type(self.win) is InstallWizard
+            from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
+            d = QDialog()
+            d.setModal(1)
+            d.setLayout(make_password_dialog(d, None, self.message, False))
+            confirmed, p, passphrase = run_password_dialog(d, None, None)
+            if not confirmed:
+                QMessageBox.critical(None, _('Error'), _("Password request canceled"), _('OK'))
+                self.passphrase = None
+            else:
+                self.passphrase = unicodedata.normalize('NFKD', unicode(passphrase)) if passphrase else ''
         self.done.set()
 
     def message_dialog(self):

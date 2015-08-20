@@ -335,6 +335,8 @@ class MyTreeWidget(QTreeWidget):
             self.is_edit = False
 
     def label_changed(self, item, column):
+        if column != self.edit_column:
+            return
         if self.is_edit:
             return
         self.is_edit = True

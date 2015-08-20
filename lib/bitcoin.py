@@ -201,6 +201,7 @@ def hash_160(public_key):
         md.update(sha256(public_key))
         return md.digest()
     except Exception:
+        # not available in Android SL4a
         import ripemd
         md = ripemd.new(sha256(public_key))
         return md.digest()
@@ -604,8 +605,6 @@ def CKD_priv(k, c, n):
     return _CKD_priv(k, c, rev_hex(int_to_hex(n,4)).decode('hex'), is_prime)
 
 def _CKD_priv(k, c, s, is_prime):
-    import hmac
-    from ecdsa.util import string_to_number, number_to_string
     order = generator_secp256k1.order()
     keypair = EC_KEY(k)
     cK = GetPubKey(keypair.pubkey,True)
@@ -627,8 +626,6 @@ def CKD_pub(cK, c, n):
 
 # helper function, callable with arbitrary string
 def _CKD_pub(cK, c, s):
-    import hmac
-    from ecdsa.util import string_to_number, number_to_string
     order = generator_secp256k1.order()
     I = hmac.new(c, cK + s, hashlib.sha512).digest()
     curve = SECP256k1
@@ -706,7 +703,6 @@ def xpub_from_xprv(xprv, testnet=False):
 
 
 def bip32_root(seed, testnet=False):
-    import hmac
     header_pub, header_priv = _get_headers(testnet)
     I = hmac.new("Bitcoin seed", seed, hashlib.sha512).digest()
     master_k = I[0:32]

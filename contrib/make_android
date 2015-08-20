@@ -21,8 +21,6 @@ if __name__ == '__main__':
     shutil.copyfile('scripts/authenticator.py', target + '/authenticator.py')
     shutil.copytree("packages",'dist/e4a-%s/packages'%version, ignore=shutil.ignore_patterns('*.pyc'))
     shutil.copytree("lib",'dist/e4a-%s/lib'%version, ignore=shutil.ignore_patterns('*.pyc'))
-    # dns is not used by android app
-    os.system('rm -rf %s/packages/dns'%target)
     os.mkdir(target + '/gui')
     shutil.copyfile('gui/android.py', target + '/gui/android.py')
     open(target + '/gui/__init__.py','w').close()

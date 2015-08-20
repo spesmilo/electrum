@@ -75,39 +75,34 @@ class PayToEdit(ScanQRTextEdit):
         x, y = line.split(',')
         n = re.match('^SCRIPT\s+([0-9a-fA-F]+)$', x.strip())
         if n:
-            _type = 'script'
-            address = n.group(1).decode('hex')
+            script = str(n.group(1)).decode('hex')
             amount = self.parse_amount(y)
+            return 'script', script, amount
         else:
-            _type = 'address'
             address = self.parse_address(x)
             amount = self.parse_amount(y)
-        return _type, address, amount
-
+            return 'address', address, amount
 
     def parse_amount(self, x):
         p = pow(10, self.amount_edit.decimal_point())
-        return int( p * Decimal(x.strip()))
-
+        return int(p * Decimal(x.strip()))
 
     def parse_address(self, line):
         r = line.strip()
         m = re.match('^'+RE_ALIAS+'$', r)
-        address = m.group(2) if m else r
+        address = str(m.group(2) if m else r)
         assert bitcoin.is_address(address)
         return address
-
 
     def check_text(self):
         self.errors = []
         if self.is_pr:
             return
         # filter out empty lines
-        lines = filter( lambda x: x, self.lines())
+        lines = filter(lambda x: x, self.lines())
         outputs = []
         total = 0
         self.payto_address = None
-
         if len(lines) == 1:
             data = lines[0]
             if data.startswith("bitcoin:"):
@@ -123,12 +118,12 @@ class PayToEdit(ScanQRTextEdit):
 
         for i, line in enumerate(lines):
             try:
-                type, to_address, amount = self.parse_address_and_amount(line)
+                _type, to_address, amount = self.parse_address_and_amount(line)
             except:
                 self.errors.append((i, line.strip()))
                 continue
 
-            outputs.append((type, to_address, amount))
+            outputs.append((_type, to_address, amount))
             total += amount
 
         self.outputs = outputs
@@ -158,10 +153,8 @@ class PayToEdit(ScanQRTextEdit):
 
         return self.outputs[:]
 
-
     def lines(self):
-        return str(self.toPlainText()).split('\n')
-
+        return unicode(self.toPlainText()).split('\n')
 
     def is_multiline(self):
         return len(self.lines()) > 1
