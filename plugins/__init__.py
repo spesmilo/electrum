@@ -66,6 +66,16 @@ descriptions = [
         'available_for': ['qt'],
     },
     {
+        'name':'keepkey',
+        'fullname': 'KeepKey',
+        'description': _('Provides support for KeepKey hardware wallet'),
+        'available_for': ['qt'],
+        'requires': [('keepkeylib','github.com/keepkey/python-keepkey')],
+        'requires_wallet_type': ['keepkey'],
+        'registers_wallet_type': ('hardware', 'keepkey', _("KeepKey wallet")),
+        'available_for': ['qt', 'cmdline'],
+    },
+    {
         'name': 'labels',
         'fullname': _('LabelSync'),
         'description': '\n'.join([
