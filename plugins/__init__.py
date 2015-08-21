@@ -60,6 +60,15 @@ descriptions = [
         'available_for': ['qt'],
     },
     {
+        'name':'keepkey',
+        'fullname': 'KeepKey',
+        'description': _('Provides support for KeepKey hardware wallet'),
+        'requires': [('keepkeylib','github.com/keepkey/python-keepkey')],
+        'requires_wallet_type': ['keepkey'],
+        'registers_wallet_type': ('hardware', 'keepkey', _("KeepKey wallet")),
+        'available_for': ['qt', 'cmdline'],
+    },
+    {
         'name': 'labels',
         'fullname': _('LabelSync'),
         'description': '\n'.join([
@@ -79,7 +88,6 @@ descriptions = [
         'name':'trezor',
         'fullname': 'Trezor Wallet',
         'description': _('Provides support for Trezor hardware wallet'),
-        'available_for': ['qt'],
         'requires': [('trezorlib','github.com/trezor/python-trezor')],
         'requires_wallet_type': ['trezor'],
         'registers_wallet_type': ('hardware', 'trezor', _("Trezor wallet")),
