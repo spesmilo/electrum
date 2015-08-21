@@ -256,6 +256,13 @@ class ElectrumWindow(QMainWindow):
         self.clear_receive_tab()
         self.update_receive_tab()
         self.show()
+        if self.wallet.is_watching_only():
+            msg = ' '.join([
+                _("This wallet is watching-only."),
+                _("This means you will not be able to spend Bitcoins with it."),
+                _("Make sure you own the seed phrase or the private keys, before you request Bitcoins to be sent to this wallet.")
+            ])
+            QMessageBox.warning(self, _('Information'), msg, _('OK'))
         run_hook('load_wallet', wallet, self)
 
     def import_old_contacts(self):
