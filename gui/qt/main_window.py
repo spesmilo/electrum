@@ -315,16 +315,16 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(None, _('Warning'), str(e), _('OK'))
             return
         action = wallet.get_action()
-        self.hide()
         # run wizard
         if action is not None:
+            self.hide()
             wallet = self.gui_object.run_wizard(storage, action)
+            # keep current wallet
+            if not wallet:
+                self.show()
+                return
         else:
             wallet.start_threads(self.network)
-        # keep current wallet
-        if not wallet:
-            self.show()
-            return
         # close current wallet
         self.close_wallet()
         # load new wallet in gui
