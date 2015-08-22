@@ -1,3 +1,8 @@
+# Release 2.4.3
+ * Support for KeepKey hardware wallet
+ * Simplified Chinese wordlist
+ * Minor bugfixes and GUI tweaks
+
 # Release 2.4.2
  * Command line can read arguments from stdin (pipe)
  * Speedup fee computation for large transactions
