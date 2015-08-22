@@ -3,7 +3,9 @@ import Queue
 import os
 import sys
 import random
+import select
 import traceback
+from collections import deque
 
 import socks
 import socket
@@ -11,9 +13,9 @@ import json
 
 import util
 from bitcoin import *
-import interface
+from interface import Connection, Interface
 from blockchain import Blockchain
-from collections import deque
+from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 
 DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 
@@ -122,11 +124,13 @@ def deserialize_server(server_str):
 def serialize_server(host, port, protocol):
     return str(':'.join([host, port, protocol]))
 
-
 class Network(util.DaemonThread):
-    """The Network class manages a set of connections to remote
-    electrum servers, each connection is handled by its own
-    thread object returned from Interface().  Its external API:
+    """The Network class manages a set of connections to remote electrum
+    servers, each connected socket is handled by an Interface() object.
+    Connections are initiated by a Connection() thread which stops once
+    the connection succeeds or fails.
+
+    Our external API:
 
     - Member functions get_header(), get_parameters(), get_status_value(),
                        new_blockchain_height(), set_parameters(), start(),
@@ -140,7 +144,6 @@ class Network(util.DaemonThread):
         self.config = SimpleConfig(config) if type(config) == type({}) else config
         self.num_server = 8 if not self.config.get('oneserver') else 0
         self.blockchain = Blockchain(self.config, self)
-        self.queue = Queue.Queue()
         self.requests_queue = pipe.send_queue
         self.response_queue = pipe.get_queue
         # A deque of interface header requests, processed left-to-right
@@ -172,7 +175,7 @@ class Network(util.DaemonThread):
         self.subscribed_addresses = set()
         # cached address status
         self.addr_responses = {}
-        # unanswered requests
+        # Requests from client we've not seen a response to
         self.unanswered_requests = {}
         # retry times
         self.server_retry_time = time.time()
@@ -183,6 +186,8 @@ class Network(util.DaemonThread):
         self.interface = None
         self.interfaces = {}
         self.auto_connect = self.config.get('auto_connect', False)
+        self.connecting = {}
+        self.socket_queue = Queue.Queue()
         self.start_network(deserialize_server(self.default_server)[2],
                            deserialize_proxy(self.config.get('proxy')))
 
@@ -227,19 +232,22 @@ class Network(util.DaemonThread):
         self.notify('status')
 
     def is_connected(self):
-        return self.interface and self.interface.is_connected()
+        return self.interface is not None
+
+    def queue_request(self, method, params):
+        self.interface.queue_request({'method': method, 'params': params})
 
     def send_subscriptions(self):
         # clear cache
         self.cached_responses = {}
         self.print_error('sending subscriptions to', self.interface.server, len(self.unanswered_requests), len(self.subscribed_addresses))
         for r in self.unanswered_requests.values():
-            self.interface.send_request(r)
+            self.interface.queue_request(r)
         for addr in self.subscribed_addresses:
-            self.interface.send_request({'method':'blockchain.address.subscribe','params':[addr]})
-        self.interface.send_request({'method':'server.banner','params':[]})
-        self.interface.send_request({'method':'server.peers.subscribe','params':[]})
-        self.interface.send_request({'method':'blockchain.estimatefee','params':[2]})
+            self.queue_request('blockchain.address.subscribe', [addr])
+        self.queue_request('server.banner', [])
+        self.queue_request('server.peers.subscribe', [])
+        self.queue_request('blockchain.estimatefee', [2])
 
     def get_status_value(self, key):
         if key == 'status':
@@ -266,7 +274,7 @@ class Network(util.DaemonThread):
 
     def get_interfaces(self):
         '''The interfaces that are in connected state'''
-        return [s for s, i in self.interfaces.items() if i.is_connected()]
+        return self.interfaces.keys()
 
     def get_servers(self):
         if self.irc_servers:
@@ -283,12 +291,11 @@ class Network(util.DaemonThread):
         return out
 
     def start_interface(self, server):
-        if not server in self.interfaces.keys():
+        if (not server in self.interfaces and not server in self.connecting):
             if server == self.default_server:
                 self.set_status('connecting')
-            i = interface.Interface(server, self.queue, self.config)
-            self.interfaces[i.server] = i
-            i.start()
+            c = Connection(server, self.socket_queue, self.config.path)
+            self.connecting[server] = c
 
     def start_random_interface(self):
         exclude_set = self.disconnected_servers.union(set(self.interfaces))
@@ -315,6 +322,7 @@ class Network(util.DaemonThread):
 
     def start_network(self, protocol, proxy):
         assert not self.interface and not self.interfaces
+        assert not self.connecting and self.socket_queue.empty()
         self.print_error('starting network')
         self.disconnected_servers = set([])
         self.protocol = protocol
@@ -323,10 +331,13 @@ class Network(util.DaemonThread):
 
     def stop_network(self):
         self.print_error("stopping network")
-        for i in self.interfaces.values():
-            i.stop()
-        self.interface = None
-        self.interfaces = {}
+        for interface in self.interfaces.values():
+            self.close_interface(interface)
+        assert self.interface is None
+        assert not self.interfaces
+        self.connecting = {}
+        # Get a new queue - no old pending connections thanks!
+        self.socket_queue = Queue.Queue()
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
         self.auto_connect = auto_connect
@@ -342,7 +353,10 @@ class Network(util.DaemonThread):
             self.switch_lagging_interface()
 
     def switch_to_random_interface(self):
+        '''Switch to a random connected server other than the current one'''
         servers = self.get_interfaces()    # Those in connected state
+        if self.default_server in servers:
+            servers.remove(self.default_server)
         if servers:
             self.switch_to_interface(random.choice(servers))
 
@@ -365,30 +379,28 @@ class Network(util.DaemonThread):
             self.start_interface(server)
             return
         i = self.interfaces[server]
-        if not i.is_connected():
-            # do nothing; we will switch once connected
-            return
         if self.interface != i:
             self.print_error("switching to", server)
             # stop any current interface in order to terminate subscriptions
-            self.stop_interface()
+            self.close_interface(self.interface)
             self.interface = i
             self.addr_responses = {}
             self.send_subscriptions()
             self.set_status('connected')
             self.notify('updated')
 
-    def stop_interface(self):
-        if self.interface:
-            self.interface.stop()
-            self.interface = None
+    def close_interface(self, interface):
+        if interface:
+            self.interfaces.pop(interface.server)
+            if interface.server == self.default_server:
+                self.interface = None
+            interface.close()
 
-    def add_recent_server(self, i):
+    def add_recent_server(self, server):
         # list is ordered
-        s = i.server
-        if s in self.recent_servers:
-            self.recent_servers.remove(s)
-        self.recent_servers.insert(0,s)
+        if server in self.recent_servers:
+            self.recent_servers.remove(server)
+        self.recent_servers.insert(0, server)
         self.recent_servers = self.recent_servers[0:20]
         self.save_recent_servers()
 
@@ -396,70 +408,75 @@ class Network(util.DaemonThread):
         self.switch_lagging_interface(i.server)
         self.notify('updated')
 
-    def process_if_notification(self, i):
-        '''Handle interface addition and removal through notifications'''
-        if i.is_connected():
-            self.add_recent_server(i)
-            i.send_request({'method':'blockchain.headers.subscribe','params':[]})
-            if i.server == self.default_server:
-                self.switch_to_interface(i.server)
-        else:
-            self.interfaces.pop(i.server, None)
-            self.heights.pop(i.server, None)
-            if i == self.interface:
-                self.interface = None
-                self.addr_responses = {}
-                self.set_status('disconnected')
-            self.disconnected_servers.add(i.server)
-        # Our set of interfaces changed
-        self.notify('interfaces')
-
-    def process_response(self, i, response):
-        # the id comes from the daemon or the network proxy
-        _id = response.get('id')
-        if _id is not None:
-            if i != self.interface:
-                return
-            self.unanswered_requests.pop(_id)
-
-        method = response.get('method')
+    def process_response(self, interface, response):
+        error = response.get('error')
         result = response.get('result')
-        if method == 'blockchain.headers.subscribe':
-            self.on_header(i, response)
+        method = response.get('method')
+
+        # We handle some responses; return the rest to the client.
+        if method == 'server.version':
+            interface.server_version = result
+        elif method == 'blockchain.headers.subscribe':
+            if error is None:
+                self.on_header(interface, result)
         elif method == 'server.peers.subscribe':
-            self.irc_servers = parse_servers(result)
-            self.notify('servers')
+            if error is None:
+                self.irc_servers = parse_servers(result)
+                self.notify('servers')
         elif method == 'server.banner':
-            self.banner = result
-            self.notify('banner')
+            if error is None:
+                self.banner = result
+                self.notify('banner')
         elif method == 'blockchain.estimatefee':
-            from bitcoin import COIN
-            self.fee = int(result * COIN)
-            self.print_error("recommended fee", self.fee)
-            self.notify('fee')
-        elif method == 'blockchain.address.subscribe':
-            addr = response.get('params')[0]
-            self.addr_responses[addr] = result
-            self.response_queue.put(response)
+            if error is None:
+                self.fee = int(result * COIN)
+                self.print_error("recommended fee", self.fee)
+                self.notify('fee')
         elif method == 'blockchain.block.get_chunk':
-            self.on_get_chunk(i, response)
+            self.on_get_chunk(interface, response)
         elif method == 'blockchain.block.get_header':
-            self.on_get_header(i, response)
+            self.on_get_header(interface, response)
         else:
+            # Cache address subscription results
+            if method == 'blockchain.address.subscribe' and error is None:
+                addr = response['params'][0]
+                self.addr_responses[addr] = result
             self.response_queue.put(response)
 
-    def handle_requests(self):
-        '''Some requests require connectivity, others we handle locally in
-        process_request() and must do so in order to e.g. prevent the
-        daemon seeming unresponsive.
-        '''
-        unhandled = []
+    def process_responses(self, interface):
+        notifications, responses = interface.get_responses()
+
+        for request, response in responses:
+            # Client ID was given by the daemon or proxy
+            client_id = request.get('id')
+            if client_id is not None:
+                if interface != self.interface:
+                    continue
+                self.unanswered_requests.pop(client_id)
+            # Copy the request method and params to the response
+            response['method'] = request.get('method')
+            response['params'] = request.get('params')
+            response['id'] = client_id
+            self.process_response(interface, response)
+
+        for response in notifications:
+            if not response:  # Closed remotely
+                self.connection_down(interface.server)
+                break
+            # Rewrite response shape to match subscription request response
+            method = response.get('method')
+            if method == 'blockchain.headers.subscribe':
+                response['result'] = response['params'][0]
+                response['params'] = []
+            elif method == 'blockchain.address.subscribe':
+                params = response['params']
+                response['params'] = [params[0]]  # addr
+                response['result'] = params[1]
+            self.process_response(interface, response)
+
+    def handle_incoming_requests(self):
         while not self.requests_queue.empty():
-            request = self.requests_queue.get()
-            if not self.process_request(request):
-                unhandled.append(request)
-        for request in unhandled:
-            self.requests_queue.put(request)
+            self.process_request(self.requests_queue.get())
 
     def process_request(self, request):
         '''Returns true if the request was processed.'''
@@ -490,22 +507,62 @@ class Network(util.DaemonThread):
 
         # This request needs connectivity.  If we don't have an
         # interface, we cannot process it.
-        if not self.is_connected():
+        if not self.interface:
             return False
 
         self.unanswered_requests[_id] = request
-        self.interface.send_request(request)
+        self.interface.queue_request(request)
         return True
 
-    def check_interfaces(self):
+    def connection_down(self, server):
+        '''A connection to server either went down, or was never made.
+        We distinguish by whether it is in self.interfaces.'''
+        self.disconnected_servers.add(server)
+        if server == self.default_server:
+            self.set_status('disconnected')
+        if server in self.interfaces:
+            self.close_interface(self.interfaces[server])
+            self.heights.pop(server, None)
+            self.notify('interfaces')
+
+    def new_interface(self, server, socket):
+        self.add_recent_server(server)
+        self.interfaces[server] = interface = Interface(server, socket)
+        interface.queue_request({'method': 'blockchain.headers.subscribe',
+                                 'params': []})
+        if server == self.default_server:
+            self.switch_to_interface(server)
+        self.notify('interfaces')
+
+    def maintain_sockets(self):
+        '''Socket maintenance.'''
+        # Responses to connection attempts?
+        while not self.socket_queue.empty():
+            server, socket = self.socket_queue.get()
+            self.connecting.pop(server)
+            if socket:
+                self.new_interface(server, socket)
+            else:
+                self.connection_down(server)
+
+        # Send pings and shut down stale interfaces
+        for interface in self.interfaces.values():
+            if interface.has_timed_out():
+                self.connection_down(interface.server)
+            elif interface.ping_required():
+                version_req = {'method': 'server.version',
+                               'params': [ELECTRUM_VERSION, PROTOCOL_VERSION]}
+                interface.queue_request(version_req)
+
         now = time.time()
         # nodes
-        if len(self.interfaces) < self.num_server:
+        if len(self.interfaces) + len(self.connecting) < self.num_server:
             self.start_random_interface()
             if now - self.nodes_retry_time > NODES_RETRY_INTERVAL:
                 self.print_error('network: retrying connections')
                 self.disconnected_servers = set([])
                 self.nodes_retry_time = now
+
         # main interface
         if not self.is_connected():
             if self.auto_connect:
@@ -520,7 +577,8 @@ class Network(util.DaemonThread):
 
     def request_chunk(self, interface, data, idx):
         interface.print_error("requesting chunk %d" % idx)
-        interface.send_request({'method':'blockchain.block.get_chunk', 'params':[idx]})
+        interface.queue_request({'method':'blockchain.block.get_chunk',
+                                 'params':[idx]})
         data['chunk_idx'] = idx
         data['req_time'] = time.time()
 
@@ -540,7 +598,8 @@ class Network(util.DaemonThread):
 
     def request_header(self, interface, data, height):
         interface.print_error("requesting header %d" % height)
-        interface.send_request({'method':'blockchain.block.get_header', 'params':[height]})
+        interface.queue_request({'method':'blockchain.block.get_header',
+                                 'params':[height]})
         data['header_height'] = height
         data['req_time'] = time.time()
         if not 'chain' in data:
@@ -566,7 +625,9 @@ class Network(util.DaemonThread):
                     self.request_header(interface, data, next_height)
 
     def bc_request_headers(self, interface, data):
-        '''Send a request for the next header, or a chunk of them, if necessary'''
+        '''Send a request for the next header, or a chunk of them,
+        if necessary.
+        '''
         local_height, if_height = self.get_local_height(), data['if_height']
         if if_height <= local_height:
             return False
@@ -578,11 +639,12 @@ class Network(util.DaemonThread):
 
     def handle_bc_requests(self):
         '''Work through each interface that has notified us of a new header.
-        Send it requests if it is ahead of our blockchain object'''
+        Send it requests if it is ahead of our blockchain object.
+        '''
         while self.bc_requests:
             interface, data = self.bc_requests.popleft()
             # If the connection was lost move on
-            if not interface.is_connected():
+            if not interface in self.interfaces.values():
                 continue
 
             req_time = data.get('req_time')
@@ -593,36 +655,39 @@ class Network(util.DaemonThread):
                     continue
             elif time.time() - req_time > 10:
                 interface.print_error("blockchain request timed out")
-                interface.stop()
+                self.connection_down(interface.server)
                 continue
             # Put updated request state back at head of deque
             self.bc_requests.appendleft((interface, data))
             break
 
+    def wait_on_sockets(self):
+        # Python docs say Windows doesn't like empty selects.
+        # Sleep to prevent busy looping
+        if not self.interfaces:
+            time.sleep(0.1)
+            return
+        rin = [i for i in self.interfaces.values()]
+        win = [i for i in self.interfaces.values() if i.unsent_requests]
+        rout, wout, xout = select.select(rin, win, [], 0.1)
+        assert not xout
+        for interface in wout:
+            interface.send_requests()
+        for interface in rout:
+            self.process_responses(interface)
+
     def run(self):
         self.blockchain.init()
         while self.is_running():
-            self.check_interfaces()
-            self.handle_requests()
+            self.maintain_sockets()
+            self.wait_on_sockets()
+            self.handle_incoming_requests()
             self.handle_bc_requests()
-            try:
-                i, response = self.queue.get(timeout=0.1)
-            except Queue.Empty:
-                continue
-
-            # if response is None it is a notification about the interface
-            if response is None:
-                self.process_if_notification(i)
-            else:
-                self.process_response(i, response)
 
         self.stop_network()
         self.print_error("stopped")
 
-    def on_header(self, i, r):
-        header = r.get('result')
-        if not header:
-            return
+    def on_header(self, i, header):
         height = header.get('block_height')
         if not height:
             return
