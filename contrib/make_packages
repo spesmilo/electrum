@@ -46,21 +46,6 @@ if __name__ == '__main__':
     os.system("pyrcc4 icons.qrc -o gui/qt/icons_rc.py")
     os.system("python setup.py sdist --format=zip,gztar")
 
-    _tgz="Electrum-%s.tar.gz"%version
-    _zip="Electrum-%s.zip"%version
+    print "Packages are ready in dist"
 
-    os.chdir("dist")
-    password = getpass.getpass("Password:")
-    for f in [_tgz,_zip]:
-        os.system( "gpg --sign --armor --detach --passphrase \"%s\" %s"%(password, f) )
-
-    md5_tgz = hashlib.md5(file(_tgz, 'r').read()).digest().encode('hex')
-    md5_zip = hashlib.md5(file(_zip, 'r').read()).digest().encode('hex')
-    os.chdir("..")
-
-    print ""
-    print "Packages are ready:"
-    print "dist/%s     "%_tgz, md5_tgz
-    print "dist/%s        "%_zip, md5_zip
-    print "To make a release, upload the files to the server, and update the webpages in branch gh-pages"
 
