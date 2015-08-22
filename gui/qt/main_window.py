@@ -219,7 +219,9 @@ class ElectrumWindow(QMainWindow):
             self.account_selector.hide()
 
     def close_wallet(self):
-        self.wallet.stop_threads()
+        if self.wallet:
+            self.wallet.storage.put('accounts_expanded', self.accounts_expanded)
+            self.wallet.stop_threads()
         run_hook('close_wallet')
 
     def load_wallet(self, wallet):
@@ -288,11 +290,36 @@ class ElectrumWindow(QMainWindow):
             self.wallet.synchronize()
 
     def open_wallet(self):
-        wallet_folder = self.wallet.storage.path
+        wallet_folder = self.get_wallet_folder()
         filename = unicode(QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder))
         if not filename:
             return
         self.load_wallet_file(filename)
+
+    def run_wizard(self, storage, action):
+        import installwizard
+        if storage.file_exists and action != 'new':
+            msg = _("The file '%s' contains an incompletely created wallet.")%storage.path + '\n'\
+                  + _("Do you want to complete its creation now?")
+            if not self.question(msg):
+                if self.question(_("Do you want to delete '%s'?")%storage.path):
+                    os.remove(storage.path)
+                    QMessageBox.information(self, _('Warning'), _('The file was removed'), _('OK'))
+                    return
+                return
+        wizard = installwizard.InstallWizard(self.config, self.network, storage, self)
+        wizard.show()
+        if action == 'new':
+            action, wallet_type = wizard.restore_or_create()
+        else:
+            wallet_type = None
+        try:
+            wallet = wizard.run(action, wallet_type)
+        except BaseException as e:
+            traceback.print_exc(file=sys.stdout)
+            QMessageBox.information(None, _('Error'), str(e), _('OK'))
+            return
+        return wallet
 
     def load_wallet_file(self, filename):
         try:
@@ -301,27 +328,26 @@ class ElectrumWindow(QMainWindow):
             self.show_message(str(e))
             return
         if not storage.file_exists:
-            self.show_message(_("File not found") + ' ' + filename)
             recent = self.config.get('recently_open', [])
             if filename in recent:
                 recent.remove(filename)
                 self.config.set_key('recently_open', recent)
-            return
-        # read wizard action
-        try:
-            wallet = Wallet(storage)
-        except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
-            QMessageBox.warning(None, _('Warning'), str(e), _('OK'))
-            return
-        action = wallet.get_action()
+            action = 'new'
+        else:
+            try:
+                wallet = Wallet(storage)
+            except BaseException as e:
+                traceback.print_exc(file=sys.stdout)
+                QMessageBox.warning(None, _('Warning'), str(e), _('OK'))
+                return
+            action = wallet.get_action()
         # run wizard
         if action is not None:
-            self.hide()
-            wallet = self.gui_object.run_wizard(storage, action)
+            self.tabs.hide()
+            wallet = self.run_wizard(storage, action)
             # keep current wallet
             if not wallet:
-                self.show()
+                self.tabs.show()
                 return
         else:
             wallet.start_threads(self.network)
@@ -350,10 +376,12 @@ class ElectrumWindow(QMainWindow):
             except (IOError, os.error), reason:
                 QMessageBox.critical(None,"Unable to create backup", _("Electrum was unable to copy your wallet file to the specified location.")+"\n" + str(reason))
 
+    def get_wallet_folder(self):
+        return os.path.dirname(os.path.abspath(self.wallet.storage.path if self.wallet else self.config.get_wallet_path()))
 
     def new_wallet(self):
         import installwizard
-        wallet_folder = os.path.dirname(os.path.abspath(self.wallet.storage.path))
+        wallet_folder = self.get_wallet_folder()
         i = 1
         while True:
             filename = "wallet_%d"%i
@@ -369,11 +397,11 @@ class ElectrumWindow(QMainWindow):
         if storage.file_exists:
             QMessageBox.critical(None, "Error", _("File exists"))
             return
-        self.hide()
-        wizard = installwizard.InstallWizard(self.config, self.network, storage, self.app)
+        self.tabs.hide()
+        wizard = installwizard.InstallWizard(self.config, self.network, storage, self)
         action, wallet_type = wizard.restore_or_create()
         if not action:
-            self.show()
+            self.tabs.show()
             return
         # close current wallet, but keep a reference to it
         self.close_wallet()
@@ -606,6 +634,8 @@ class ElectrumWindow(QMainWindow):
 
     def update_wallet(self):
         self.update_status()
+        if self.wallet is None:
+            return
         if self.wallet.up_to_date or not self.network or not self.network.is_connected():
             self.update_tabs()
 
@@ -2837,7 +2867,6 @@ class ElectrumWindow(QMainWindow):
             g = self.geometry()
             self.config.set_key("winpos-qt", [g.left(),g.top(),g.width(),g.height()])
         self.config.set_key("console-history", self.console.history[-50:], True)
-        self.wallet.storage.put('accounts_expanded', self.accounts_expanded)
         event.accept()
 
 

@@ -142,30 +142,6 @@ class ElectrumGui:
     def set_url(self, uri):
         self.current_window.pay_to_URI(uri)
 
-    def run_wizard(self, storage, action):
-        import installwizard
-        if storage.file_exists and action != 'new':
-            msg = _("The file '%s' contains an incompletely created wallet.")%storage.path + '\n'\
-                  + _("Do you want to complete its creation now?")
-            if not util.question(msg):
-                if util.question(_("Do you want to delete '%s'?")%storage.path):
-                    os.remove(storage.path)
-                    QMessageBox.information(None, _('Warning'), _('The file was removed'), _('OK'))
-                    return
-                return
-        wizard = installwizard.InstallWizard(self.config, self.network, storage, self.app)
-        wizard.show()
-        if action == 'new':
-            action, wallet_type = wizard.restore_or_create()
-        else:
-            wallet_type = None
-        try:
-            wallet = wizard.run(action, wallet_type)
-        except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
-            QMessageBox.information(None, _('Error'), str(e), _('OK'))
-            return
-        return wallet
 
     def main(self, url):
 
@@ -173,29 +149,6 @@ class ElectrumGui:
         if last_wallet is not None and self.config.get('wallet_path') is None:
             if os.path.exists(last_wallet):
                 self.config.cmdline_options['default_wallet_path'] = last_wallet
-        try:
-            storage = WalletStorage(self.config.get_wallet_path())
-        except BaseException as e:
-            QMessageBox.warning(None, _('Warning'), str(e), _('OK'))
-            self.config.set_key('gui_last_wallet', None)
-            return
-
-        if storage.file_exists:
-            try:
-                wallet = Wallet(storage)
-            except BaseException as e:
-                QMessageBox.warning(None, _('Warning'), str(e), _('OK'))
-                return
-            action = wallet.get_action()
-        else:
-            action = 'new'
-
-        if action is not None:
-            wallet = self.run_wizard(storage, action)
-            if not wallet:
-                return
-        else:
-            wallet.start_threads(self.network)
 
         # init tray
         self.dark_icon = self.config.get("dark_icon", False)
@@ -209,14 +162,15 @@ class ElectrumGui:
         # main window
         self.main_window = w = ElectrumWindow(self.config, self.network, self)
         self.current_window = self.main_window
+        w.show()
 
         #lite window
         self.init_lite()
 
+        w.load_wallet_file(self.config.get_wallet_path())
+
         # plugins interact with main window
         run_hook('init_qt', self)
-
-        w.load_wallet(wallet)
 
         # initial configuration
         if self.config.get('hide_gui') is True and self.tray.isVisible():
