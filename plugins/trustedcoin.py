@@ -194,8 +194,8 @@ class Wallet_2fa(Multisig_Wallet):
     def make_seed(self):
         return Mnemonic('english').make_seed(num_bits=256, prefix=SEED_PREFIX)
 
-    def estimated_fee(self, tx):
-        fee = Multisig_Wallet.estimated_fee(self, tx)
+    def estimated_fee(self, tx, fee_per_kb):
+        fee = Multisig_Wallet.estimated_fee(self, tx, fee_per_kb)
         x = run_hook('extra_fee', tx)
         if x: fee += x
         return fee
