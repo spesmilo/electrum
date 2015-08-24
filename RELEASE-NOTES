@@ -1,3 +1,6 @@
+# Release 2.4.4
+ * fix bug with trustedcoin plugin
+
 # Release 2.4.3
  * Support for KeepKey hardware wallet
  * Simplified Chinese wordlist
