@@ -13,12 +13,14 @@ class TestInterface(unittest.TestCase):
         self.assertFalse(interface._match_hostname('asd.fgh.com', '*.zxc.com'))
 
     def test_check_host_name(self):
-        self.assertFalse(interface.check_host_name(None, None))
-        self.assertFalse(interface.check_host_name(
+        i = interface.TcpConnection(server=':1:', queue=None, config_path=None)
+
+        self.assertFalse(i.check_host_name(None, None))
+        self.assertFalse(i.check_host_name(
             peercert={'subjectAltName': []}, name=''))
-        self.assertTrue(interface.check_host_name(
-            peercert={'subjectAltName': [('DNS', '*.bar.com')]},
+        self.assertTrue(i.check_host_name(
+            peercert={'subjectAltName': [('DNS', 'foo.bar.com')]},
             name='foo.bar.com'))
-        self.assertTrue(interface.check_host_name(
-            peercert={'subject': [('commonName', '*.bar.com')]},
+        self.assertTrue(i.check_host_name(
+            peercert={'subject': [('commonName', 'foo.bar.com')]},
             name='foo.bar.com'))

@@ -165,6 +165,7 @@ class Plugin(BasePlugin):
         self.exchanger = Exchanger(self)
         self.exchanger.start()
         self.win = None
+        self.resp_hist = {}
 
     @hook
     def init_qt(self, gui):
@@ -172,7 +173,6 @@ class Plugin(BasePlugin):
         self.win = self.gui.main_window
         self.win.connect(self.win, SIGNAL("refresh_currencies()"), self.win.update_status)
         self.btc_rate = Decimal("0.0")
-        self.resp_hist = {}
         self.tx_list = {}
         self.gui.exchanger = self.exchanger #
         self.add_send_edit()
@@ -306,8 +306,8 @@ class Plugin(BasePlugin):
             return
 
         self.win.is_edit = True
-        self.win.history_list.setColumnCount(6)
-        self.win.history_list.setHeaderLabels( [ '', _('Date'), _('Description') , _('Amount'), _('Balance'), _('Fiat Amount')] )
+        self.win.history_list.setColumnCount(7)
+        self.win.history_list.setHeaderLabels( [ '', '', _('Date'), _('Description') , _('Amount'), _('Balance'), _('Fiat Amount')] )
         root = self.win.history_list.invisibleRootItem()
         childcount = root.childCount()
         for i in range(childcount):
@@ -351,12 +351,12 @@ class Plugin(BasePlugin):
                 except KeyError:
                     tx_fiat_val = _("No data")
             tx_fiat_val = " "*(12-len(tx_fiat_val)) + tx_fiat_val
-            item.setText(5, tx_fiat_val)
-            item.setFont(5, QFont(MONOSPACE_FONT))
+            item.setText(6, tx_fiat_val)
+            item.setFont(6, QFont(MONOSPACE_FONT))
             if Decimal(str(tx_info['value'])) < 0:
-                item.setForeground(5, QBrush(QColor("#BC1E1E")))
+                item.setForeground(6, QBrush(QColor("#BC1E1E")))
 
-        self.win.history_list.setColumnWidth(5, 120)
+        self.win.history_list.setColumnWidth(6, 120)
         self.win.is_edit = False
 
 
@@ -422,8 +422,8 @@ class Plugin(BasePlugin):
                 self.request_history_rates()
             else:
                 self.config.set_key('history_rates', 'unchecked')
-                self.win.history_list.setHeaderLabels( [ '', _('Date'), _('Description') , _('Amount'), _('Balance')] )
-                self.win.history_list.setColumnCount(5)
+                self.win.history_list.setHeaderLabels( [ '', '', _('Date'), _('Description') , _('Amount'), _('Balance')] )
+                self.win.history_list.setColumnCount(6)
 
         def set_hist_check(hist_checkbox):
             cur_exchange = self.config.get('use_exchange', "BTC-e")
