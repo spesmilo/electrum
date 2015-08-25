@@ -7,6 +7,47 @@ unsigned_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf3863
 signed_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000006c493046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d985012102e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
 
 
+class TestBCDataStream(unittest.TestCase):
+
+    def test_compact_size(self):
+        s = transaction.BCDataStream()
+        values = [0, 1, 252, 253, 2**16-1, 2**16, 2**32-1, 2**32, 2**64-1]
+        for v in values:
+            s.write_compact_size(v)
+
+        with self.assertRaises(transaction.SerializationError):
+            s.write_compact_size(-1)
+
+        self.assertEquals(s.input.encode('hex'),
+                          '0001fcfdfd00fdfffffe00000100feffffffffff0000000001000000ffffffffffffffffff')
+        for v in values:
+            self.assertEquals(s.read_compact_size(), v)
+
+        with self.assertRaises(IndexError):
+            s.read_compact_size()
+
+    def test_string(self):
+        s = transaction.BCDataStream()
+        with self.assertRaises(transaction.SerializationError):
+            s.read_string()
+
+        msgs = ['Hello', ' ', 'World', '', '!']
+        for msg in msgs:
+            s.write_string(msg)
+        for msg in msgs:
+            self.assertEquals(s.read_string(), msg)
+
+        with self.assertRaises(transaction.SerializationError):
+            s.read_string()
+
+    def test_bytes(self):
+        s = transaction.BCDataStream()
+        s.write('foobar')
+        self.assertEquals(s.read_bytes(3), 'foo')
+        self.assertEquals(s.read_bytes(2), 'ba')
+        self.assertEquals(s.read_bytes(4), 'r')
+        self.assertEquals(s.read_bytes(1), '')
+
 class TestTransaction(unittest.TestCase):
 
     def test_tx_unsigned(self):
