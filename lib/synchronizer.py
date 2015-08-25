@@ -128,7 +128,8 @@ class WalletSynchronizer():
             return
         self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
         self.requested_tx.remove((tx_hash, tx_height))
-        self.print_error("received tx:", tx_hash, len(tx.raw))
+        self.print_error("received tx %s height: %d bytes: %d" %
+                         (tx_hash, tx_height, len(tx.raw)))
         # callbacks
         self.network.trigger_callback('new_transaction', (tx,))
         if not self.requested_tx:
