@@ -7,6 +7,47 @@ unsigned_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf3863
 signed_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000006c493046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d985012102e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
 
 
+class TestBCDataStream(unittest.TestCase):
+
+    def test_compact_size(self):
+        s = transaction.BCDataStream()
+        values = [0, 1, 252, 253, 2**16-1, 2**16, 2**32-1, 2**32, 2**64-1]
+        for v in values:
+            s.write_compact_size(v)
+
+        with self.assertRaises(transaction.SerializationError):
+            s.write_compact_size(-1)
+
+        self.assertEquals(s.input.encode('hex'),
+                          '0001fcfdfd00fdfffffe00000100feffffffffff0000000001000000ffffffffffffffffff')
+        for v in values:
+            self.assertEquals(s.read_compact_size(), v)
+
+        with self.assertRaises(IndexError):
+            s.read_compact_size()
+
+    def test_string(self):
+        s = transaction.BCDataStream()
+        with self.assertRaises(transaction.SerializationError):
+            s.read_string()
+
+        msgs = ['Hello', ' ', 'World', '', '!']
+        for msg in msgs:
+            s.write_string(msg)
+        for msg in msgs:
+            self.assertEquals(s.read_string(), msg)
+
+        with self.assertRaises(transaction.SerializationError):
+            s.read_string()
+
+    def test_bytes(self):
+        s = transaction.BCDataStream()
+        s.write('foobar')
+        self.assertEquals(s.read_bytes(3), 'foo')
+        self.assertEquals(s.read_bytes(2), 'ba')
+        self.assertEquals(s.read_bytes(4), 'r')
+        self.assertEquals(s.read_bytes(1), '')
+
 class TestTransaction(unittest.TestCase):
 
     def test_tx_unsigned(self):
@@ -112,3 +153,54 @@ class TestTransaction(unittest.TestCase):
 
         tx.sign(keypairs={x_pubkey: privkey})
         self.assertEquals(tx.serialize(), signed_blob)
+
+    def test_sweep(self):
+        privkeys = ['5HuH1SHoSVrgtPEwew9JzVAHGoKyp47x564mBCTgVmUT2Me1Q18']
+        unspent = [
+            {
+                "height": 371447,
+                "tx_hash": "8e4d173db094786cc128b0c12eebc2200c0d8bfc3ad04ba39f487222d18bae3c",
+                "tx_pos": 0,
+                "value": 599995800
+            }
+        ]
+        to_address = '1JtBahwvii2pRkBmb4QMfcJQux1rk3Jkbq'
+        network = NetworkMock(unspent)
+        tx = transaction.Transaction.sweep(privkeys, network, to_address, fee=5000)
+        result = transaction.deserialize(tx.serialize())
+        expected = {
+            'inputs': [{
+                'address': '1t28kmZypcPQrunmJk212dcPGPxbBtB6Y',
+                'is_coinbase': False,
+                'num_sig': 1,
+                'prevout_hash': '8e4d173db094786cc128b0c12eebc2200c0d8bfc3ad04ba39f487222d18bae3c',
+                'prevout_n': 0,
+                'pubkeys': ['047b9f9014f8d0d6f24dcaf5681b6ab185bd821e0fcce29d84e0452845baf1b2dbe332a7cd4dbdab786adda6d71b2188298c756b265c63de2794f7317b71a7ac02'],
+                'scriptSig': '48304502203f1ff200490d18bcb802c7cf7ba4264727b089f1db6746a62997285b5ac77969022100e495591ea5111bb23a782984736f32942570fda781b7ed085fc8c88a9756aaac0141047b9f9014f8d0d6f24dcaf5681b6ab185bd821e0fcce29d84e0452845baf1b2dbe332a7cd4dbdab786adda6d71b2188298c756b265c63de2794f7317b71a7ac02',
+                'sequence': 4294967295,
+                'signatures': ['304502203f1ff200490d18bcb802c7cf7ba4264727b089f1db6746a62997285b5ac77969022100e495591ea5111bb23a782984736f32942570fda781b7ed085fc8c88a9756aaac'],
+                'x_pubkeys': ['047b9f9014f8d0d6f24dcaf5681b6ab185bd821e0fcce29d84e0452845baf1b2dbe332a7cd4dbdab786adda6d71b2188298c756b265c63de2794f7317b71a7ac02']}],
+            'lockTime': 0,
+            'outputs': [{'address': '1JtBahwvii2pRkBmb4QMfcJQux1rk3Jkbq',
+                'prevout_n': 0,
+                'scriptPubKey': '76a914c4282f6060b811ee695ebb2068b8788213451d6a88ac',
+                'type': 'address',
+                'value': 599990800}],
+            'version': 1}
+        self.assertEquals(result, expected)
+
+        network = NetworkMock([])
+        tx = transaction.Transaction.sweep(privkeys, network, to_address, fee=5000)
+        self.assertEquals(tx, None)
+
+        privkeys = []
+        tx = transaction.Transaction.sweep(privkeys, network, to_address, fee=5000)
+        self.assertEquals(tx, None)
+
+class NetworkMock(object):
+
+    def __init__(self, unspent):
+        self.unspent = unspent
+
+    def synchronous_get(self, arg):
+        return [self.unspent]
