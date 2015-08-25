@@ -306,7 +306,7 @@ class MiniWindow(QDialog):
         self.actuator.g.closeEvent(event)
         qApp.quit()
 
-    def pay_from_URI(self, URI):
+    def pay_to_URI(self, URI):
         try:
             out = util.parse_URI(URI)
         except:
