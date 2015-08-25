@@ -616,7 +616,7 @@ class Plugin(BasePlugin):
             self.window.pluginsdialog.close()
         uri = "bitcoin:" + self.billing_info['billing_address'] + "?message=TrustedCoin %d Prepaid Transactions&amount="%k + str(Decimal(v)/100000000)
         self.is_billing = True
-        self.window.pay_from_URI(uri)
+        self.window.pay_to_URI(uri)
         self.window.payto_e.setFrozen(True)
         self.window.message_e.setFrozen(True)
         self.window.amount_e.setFrozen(True)
