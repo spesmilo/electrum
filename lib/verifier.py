@@ -40,9 +40,9 @@ class SPV(util.DaemonThread):
         while self.is_running():
             unverified = self.wallet.get_unverified_txs()
             for (tx_hash, tx_height) in unverified:
-                if self.merkle_roots.get(tx_hash) is None and tx_hash not in requested_merkle:
+                if tx_hash not in self.merkle_roots and tx_hash not in requested_merkle:
                     if self.network.send([ ('blockchain.transaction.get_merkle',[tx_hash, tx_height]) ], self.queue.put):
-                        self.print_error('requesting merkle', tx_hash)
+                        self.print_error('requested merkle', tx_hash)
                         requested_merkle.add(tx_hash)
             try:
                 r = self.queue.get(timeout=0.1)

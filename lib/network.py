@@ -593,6 +593,7 @@ class Network(util.DaemonThread):
                 # If not finished, get the next chunk
                 if idx < 0 or self.get_local_height() >= data['if_height']:
                     self.bc_requests.popleft()
+                    self.notify('updated')
                 else:
                     self.request_chunk(interface, data, idx)
 
