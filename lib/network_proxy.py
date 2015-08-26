@@ -60,15 +60,13 @@ class NetworkProxy(util.DaemonThread):
         self.blockchain_height = 0
         self.server_height = 0
         self.interfaces = []
-        self.jobs = []
         # value returned by estimatefee
         self.fee = None
 
 
     def run(self):
         while self.is_running():
-            for job in self.jobs:
-                job()
+            self.run_jobs()    # Synchronizer and Verifier
             try:
                 response = self.pipe.get()
             except util.timeout:
@@ -186,9 +184,6 @@ class NetworkProxy(util.DaemonThread):
 
     def get_interfaces(self):
         return self.interfaces
-
-    def get_header(self, height):
-        return self.synchronous_get([('network.get_header', [height])])[0]
 
     def get_local_height(self):
         return self.blockchain_height

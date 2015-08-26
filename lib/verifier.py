@@ -17,63 +17,53 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import threading
-import Queue
-
-
-import util
+from util import ThreadJob
+from functools import partial
 from bitcoin import *
 
 
-class SPV(util.DaemonThread):
+class SPV(ThreadJob):
     """ Simple Payment Verification """
 
     def __init__(self, network, wallet):
-        util.DaemonThread.__init__(self)
         self.wallet = wallet
         self.network = network
-        self.merkle_roots    = {}                                  # hashed by me
-        self.queue = Queue.Queue()
+        # Keyed by tx hash.  Value is None if the merkle branch was
+        # requested, and the merkle root once it has been verified
+        self.merkle_roots = {}
 
     def run(self):
-        requested_merkle = set()
-        while self.is_running():
-            unverified = self.wallet.get_unverified_txs()
-            for (tx_hash, tx_height) in unverified:
-                if tx_hash not in self.merkle_roots and tx_hash not in requested_merkle:
-                    if self.network.send([ ('blockchain.transaction.get_merkle',[tx_hash, tx_height]) ], self.queue.put):
-                        self.print_error('requested merkle', tx_hash)
-                        requested_merkle.add(tx_hash)
-            try:
-                r = self.queue.get(timeout=0.1)
-            except Queue.Empty:
-                continue
-            if not r:
-                continue
+        unverified = self.wallet.get_unverified_txs()
+        for (tx_hash, tx_height) in unverified:
+            if tx_hash not in self.merkle_roots:
+                request = ('blockchain.transaction.get_merkle',
+                           [tx_hash, tx_height])
+                if self.network.send([request], self.merkle_response):
+                    self.print_error('requested merkle', tx_hash)
+                    self.merkle_roots[tx_hash] = None
 
-            if r.get('error'):
-                self.print_error('Verifier received an error:', r)
-                continue
+    def merkle_response(self, r):
+        if r.get('error'):
+            self.print_error('received an error:', r)
+            return
 
-            # 3. handle response
-            method = r['method']
-            params = r['params']
-            result = r['result']
+        params = r['params']
+        result = r['result']
 
-            if method == 'blockchain.transaction.get_merkle':
-                tx_hash = params[0]
-                self.verify_merkle(tx_hash, result)
+        # Get the header asynchronously - as a thread job we cannot block
+        tx_hash = params[0]
+        request = ('network.get_header',[result.get('block_height')])
+        self.network.send([request], partial(self.verify, tx_hash, result))
 
-        self.print_error("stopped")
-
-
-    def verify_merkle(self, tx_hash, result):
-        tx_height = result.get('block_height')
-        pos = result.get('pos')
-        merkle_root = self.hash_merkle_root(result['merkle'], tx_hash, pos)
-        header = self.network.get_header(tx_height)
-        if not header: return
-        if header.get('merkle_root') != merkle_root:
+    def verify(self, tx_hash, merkle, header):
+        '''Verify the hash of the server-provided merkle branch to a
+        transaction matches the merkle root of its block
+        '''
+        tx_height = merkle.get('block_height')
+        pos = merkle.get('pos')
+        merkle_root = self.hash_merkle_root(merkle['merkle'], tx_hash, pos)
+        header = header.get('result')
+        if not header or header.get('merkle_root') != merkle_root:
             self.print_error("merkle verification failed for", tx_hash)
             return
 
