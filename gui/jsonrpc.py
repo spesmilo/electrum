@@ -60,7 +60,7 @@ class ElectrumGui:
         for cmdname in known_commands:
             self.server.register_function(getattr(self.cmd_runner, cmdname), cmdname)
 
-    def main(self, url):
+    def main(self):
         self.wallet.start_threads(self.network)
         while True:
             try:

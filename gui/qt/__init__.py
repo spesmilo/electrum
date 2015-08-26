@@ -62,17 +62,21 @@ class OpenFileEventFilter(QObject):
         return False
 
 
+
 class ElectrumGui:
 
-    def __init__(self, config, network, app=None):
+    def __init__(self, config, network):
         set_language(config.get('language'))
         self.network = network
         self.config = config
-        self.windows = []
+        self.windows = {}
         self.efilter = OpenFileEventFilter(self.windows)
-        if app is None:
-            self.app = QApplication(sys.argv)
+        self.app = QApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
+        self.timer = Timer()
+
+        self.app.connect(self.app, QtCore.SIGNAL('new_window'), self.start_new_window)
+
 
     def build_tray_menu(self):
         m = QMenu()
@@ -102,48 +106,27 @@ class ElectrumGui:
     def close(self):
         self.current_window.close()
 
-    def go_full(self):
-        self.config.set_key('lite_mode', False, True)
-        self.lite_window.hide()
-        self.main_window.show()
-        self.main_window.raise_()
-        self.current_window = self.main_window
+    def new_window(self, config):
+        self.app.emit(SIGNAL('new_window'), config)
 
-    def go_lite(self):
-        self.config.set_key('lite_mode', True, True)
-        self.main_window.hide()
-        self.lite_window.show()
-        self.lite_window.raise_()
-        self.current_window = self.lite_window
+    def start_new_window(self, config):
+        path = config.get_wallet_path()
+        if path not in self.windows:
+            w = ElectrumWindow(config, self.network, self)
+            w.connect_slots(self.timer)
+            w.load_wallet_file(path)
+            w.show()
+            self.windows[path] = w
 
-
-    def init_lite(self):
-        import lite_window
-        if not self.check_qt_version():
-            if self.config.get('lite_mode') is True:
-                msg = "Electrum was unable to load the 'Lite GUI' because it needs Qt version >= 4.7.\nChanging your config to use the 'Classic' GUI"
-                QMessageBox.warning(None, "Could not start Lite GUI.", msg)
-                self.config.set_key('lite_mode', False, True)
-                sys.exit(0)
-            self.lite_window = None
-            return
-
-        actuator = lite_window.MiniActuator(self.main_window)
-        actuator.load_theme()
-        self.lite_window = lite_window.MiniWindow(actuator, self.go_full, self.config)
-        driver = lite_window.MiniDriver(self.main_window, self.lite_window)
+        w = self.windows[path]
+        url = config.get('url')
+        if url:
+            w.pay_to_URI(url)
+        return w
 
 
-
-    def check_qt_version(self):
-        qtVersion = qVersion()
-        return int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7
-
-    def set_url(self, uri):
-        self.current_window.pay_to_URI(uri)
-
-
-    def main(self, url):
+    def main(self):
+        self.timer.start()
 
         last_wallet = self.config.get('gui_last_wallet')
         if last_wallet is not None and self.config.get('wallet_path') is None:
@@ -160,14 +143,7 @@ class ElectrumGui:
         self.tray.show()
 
         # main window
-        self.main_window = w = ElectrumWindow(self.config, self.network, self)
-        self.current_window = self.main_window
-        w.show()
-
-        #lite window
-        self.init_lite()
-
-        w.load_wallet_file(self.config.get_wallet_path())
+        self.current_window = self.main_window = self.start_new_window(self.config)
 
         # plugins interact with main window
         run_hook('init_qt', self)
@@ -175,30 +151,19 @@ class ElectrumGui:
         # initial configuration
         if self.config.get('hide_gui') is True and self.tray.isVisible():
             self.main_window.hide()
-            self.lite_window.hide()
-        else:
-            if self.config.get('lite_mode') is True:
-                self.go_lite()
-            else:
-                self.go_full()
 
-        s = Timer()
-        s.start()
-
-        self.windows.append(w)
-        if url:
-            self.set_url(url)
-
-        w.connect_slots(s)
 
         signal.signal(signal.SIGINT, lambda *args: self.app.quit())
-        self.app.exec_()
-        if self.tray:
-            self.tray.hide()
 
-        # clipboard persistence
-        # see http://www.mail-archive.com/pyqt@riverbankcomputing.com/msg17328.html
+        # main loop
+        self.app.exec_()
+
+        # clipboard persistence. see http://www.mail-archive.com/pyqt@riverbankcomputing.com/msg17328.html
         event = QtCore.QEvent(QtCore.QEvent.Clipboard)
         self.app.sendEvent(self.app.clipboard(), event)
 
-        w.close_wallet()
+        for window in self.windows.values():
+            window.close_wallet()
+
+        if self.tray:
+            self.tray.hide()

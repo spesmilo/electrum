@@ -25,6 +25,13 @@ import sys
 import time
 import traceback
 
+import threading
+import socket
+import Queue
+from collections import defaultdict
+
+DAEMON_SOCKET = 'daemon.sock'
+
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
 is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "setup-release.py"))
@@ -72,7 +79,6 @@ if is_bundle or is_local or is_android:
 from electrum import util
 from electrum import SimpleConfig, Network, Wallet, WalletStorage, NetworkProxy
 from electrum.util import print_msg, print_error, print_stderr, print_json, set_verbosity, InvalidPassword
-from electrum.daemon import get_daemon
 from electrum.plugins import init_plugins, run_hook, always_hook
 from electrum.commands import get_parser, known_commands, Commands, config_variables
 
@@ -91,90 +97,17 @@ def prompt_password(prompt, confirm=True):
 
 
 
-def run_gui(config):
-    url = config.get('url')
-    if url:
-        if os.path.exists(url):
-            # assume this is a payment request
-            url = "bitcoin:?r=file://"+ os.path.join(os.getcwd(), url)
-
-        if not re.match('^bitcoin:', url):
-            print_stderr('unknown command:', url)
-            sys.exit(1)
-
+def init_gui(config, network_proxy):
     gui_name = config.get('gui', 'qt')
     if gui_name in ['lite', 'classic']:
         gui_name = 'qt'
-
-    try:
-        gui = __import__('electrum_gui.' + gui_name, fromlist=['electrum_gui'])
-    except ImportError:
-        traceback.print_exc(file=sys.stdout)
-        sys.exit()
-
-    # network interface
-    if not config.get('offline'):
-        s = get_daemon(config, False)
-        if s:
-            print_msg("Connected to daemon")
-        network = NetworkProxy(s, config)
-        network.start()
-    else:
-        network = None
-
-    gui = gui.ElectrumGui(config, network)
-    gui.main(url)
-
-    if network:
-        network.stop()
-
-    # sleep to let socket threads timeout
-    time.sleep(0.3)
-    sys.exit(0)
-
-
-def run_daemon(config):
-    cmd = config.get('subcommand')
-    if cmd not in ['start', 'stop', 'status']:
-        print_msg("syntax: electrum daemon <start|status|stop>")
-        sys.exit(1)
-    s = get_daemon(config, False)
-    if cmd == 'start':
-        if s:
-            print_msg("Daemon already running")
-            sys.exit(1)
-        get_daemon(config, True)
-        sys.exit(0)
-    elif cmd in ['status','stop']:
-        if not s:
-            print_msg("Daemon not running")
-            sys.exit(1)
-        network = NetworkProxy(s, config)
-        network.start()
-        if cmd == 'status':
-            p = network.get_parameters()
-            print_json({
-                'path': network.config.path,
-                'server': p[0],
-                'blockchain_height': network.get_local_height(),
-                'server_height': network.get_server_height(),
-                'nodes': network.get_interfaces(),
-                'connected': network.is_connected(),
-                'auto_connect': p[4],
-            })
-        elif cmd == 'stop':
-            network.stop_daemon()
-            print_msg("Daemon stopped")
-        network.stop()
-    else:
-        print "unknown command \"%s\""% arg
-    sys.exit(0)
+    gui = __import__('electrum_gui.' + gui_name, fromlist=['electrum_gui'])
+    gui = gui.ElectrumGui(config, network_proxy)
+    return gui
 
 
 
-
-
-def run_cmdline(config):
+def init_cmdline(config):
 
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
@@ -195,11 +128,6 @@ def run_cmdline(config):
 
     if cmdname == 'listrequests' and config.get('status'):
         cmd.requires_network = True
-
-    # arguments passed to function
-    args = map(lambda x: config.get(x), cmd.params)
-    # options
-    args += map(lambda x: config.get(x), cmd.options)
 
     # instanciate wallet for command-line
     storage = WalletStorage(config.get_wallet_path())
@@ -292,25 +220,6 @@ def run_cmdline(config):
     else:
         password = None
 
-    # start network threads
-    if cmd.requires_network and not config.get('offline'):
-        s = get_daemon(config, False)
-        if not s:
-            print_msg("Network daemon is not running. Try 'electrum daemon start'\nIf you want to run this command offline, use the -o flag.")
-            sys.exit(1)
-        network = NetworkProxy(s, config)
-        network.start()
-        while network.status == 'unknown':
-            time.sleep(0.1)
-        if not network.is_connected():
-            print_msg("daemon is not connected")
-            sys.exit(1)
-        if wallet:
-            wallet.start_threads(network)
-            wallet.update()
-    else:
-        network = None
-
     # run the command
     if cmd.name == 'deseed':
         if not wallet.seed:
@@ -330,36 +239,188 @@ def run_cmdline(config):
                 print_msg("Done.")
             else:
                 print_msg("Action canceled.")
+        sys.exit(0)
 
     elif cmd.name == 'password':
         new_password = prompt_password('New password:')
         wallet.update_password(password, new_password)
+        sys.exit(0)
 
-    else:
-        cmd_runner = Commands(config, wallet, network)
-        func = getattr(cmd_runner, cmd.name)
-        cmd_runner.password = password
+    return cmd, password
+
+
+def run_command(config, network, password):
+    cmdname = config.get('cmd')
+    cmd = known_commands[cmdname]
+    # instanciate wallet for command-line
+    storage = WalletStorage(config.get_wallet_path())
+    # create wallet instance
+    wallet = Wallet(storage) if cmd.requires_wallet else None
+    # arguments passed to function
+    args = map(lambda x: config.get(x), cmd.params)
+    # options
+    args += map(lambda x: config.get(x), cmd.options)
+
+    cmd_runner = Commands(config, wallet, network)
+    cmd_runner.password = password
+    func = getattr(cmd_runner, cmd.name)
+    result = func(*args)
+
+    if wallet:
+        wallet.stop_threads()
+
+    return result
+
+
+class ClientThread(util.DaemonThread):
+
+    def __init__(self, server, s):
+        util.DaemonThread.__init__(self)
+        self.server = server
+        self.client_pipe = util.SocketPipe(s)
+        self.response_queue = Queue.Queue()
+        self.server.add_client(self)
+        self.subscriptions = defaultdict(list)
+        self.network = self.server.network
+
+    def run(self):
+        config_options = self.client_pipe.get()
+        password = config_options.get('password')
+        config = SimpleConfig(config_options)
+        cmd = config.get('cmd')
+        if cmd == 'gui':
+            self.server.gui.new_window(config)
+            response = "ok"
+        elif cmd == 'daemon':
+            sub = config.get('subcommand')
+            assert sub in ['start', 'stop', 'status']
+            if sub == 'start':
+                response = "Daemon already running"
+            elif sub == 'status':
+                p = self.network.get_parameters()
+                response = {
+                    'path': self.network.config.path,
+                    'server': p[0],
+                    'blockchain_height': self.network.get_local_height(),
+                    'server_height': self.network.get_server_height(),
+                    'nodes': self.network.get_interfaces(),
+                    'connected': self.network.is_connected(),
+                    'auto_connect': p[4],
+                }
+            elif sub == 'stop':
+                self.server.stop()
+                response = "Daemon stopped"
+        else:
+            try:
+                response = run_command(config, self.network, password)
+            except BaseException as e:
+                err = traceback.format_exc()
+                response = {'error':err}
+        # send response and exit
+        self.client_pipe.send(response)
+        self.server.remove_client(self)
+        
+
+
+
+class NetworkServer(util.DaemonThread):
+
+    def __init__(self, config, network_proxy):
+        util.DaemonThread.__init__(self)
+        self.debug = False
+        self.config = config
+        self.pipe = util.QueuePipe()
+        self.network_proxy = network_proxy
+        self.network = self.network_proxy.network
+        self.lock = threading.RLock()
+        # each GUI is a client of the daemon
+        self.clients = []
+
+    def add_client(self, client):
+        for key in ['fee', 'status', 'banner', 'updated', 'servers', 'interfaces']:
+            value = self.network.get_status_value(key)
+            client.response_queue.put({'method':'network.status', 'params':[key, value]})
+        with self.lock:
+            self.clients.append(client)
+            print_error("new client:", len(self.clients))
+
+    def remove_client(self, client):
+        with self.lock:
+            self.clients.remove(client)
+            print_error("client quit:", len(self.clients))
+
+    def run(self):
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        daemon_socket = os.path.join(self.config.path, DAEMON_SOCKET)
+        if os.path.exists(daemon_socket):
+            os.remove(daemon_socket)
+        daemon_timeout = self.config.get('daemon_timeout', None)
+        s.bind(daemon_socket)
+        s.listen(5)
+        s.settimeout(0.1)
+        while self.is_running():
+            try:
+                connection, address = s.accept()
+            except socket.timeout:
+                continue
+            client = ClientThread(self, connection)
+            client.start()
+        print_error("Daemon exiting")
+
+
+
+
+def get_daemon(config, start_daemon):
+    daemon_socket = os.path.join(config.path, DAEMON_SOCKET)
+    daemon_started = False
+    while True:
         try:
-            result = func(*args)
-        except Exception:
-            traceback.print_exc(file=sys.stderr)
-            sys.exit(1)
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            s.connect(daemon_socket)
+            return s
+        except socket.error:
+            if not start_daemon:
+                return False
+            elif not daemon_started:
+                daemon_started = True
+            else:
+                time.sleep(0.1)
+        except:
+            # do not use daemon if AF_UNIX is not available (windows)
+            return False
 
-        if type(result) == str:
-            print_msg(result)
-        elif result is not None:
-            print_json(result)
 
-    # shutdown wallet and network
-    if cmd.requires_network and not config.get('offline'):
-        if wallet:
-            wallet.stop_threads()
-        network.stop()
+
+def check_www_dir(rdir):
+    # rewrite index.html every time
+    import urllib, urlparse, shutil, os
+    if not os.path.exists(rdir):
+        os.mkdir(rdir)
+    index = os.path.join(rdir, 'index.html')
+    src = os.path.join(os.path.dirname(__file__), 'www', 'index.html')
+    shutil.copy(src, index)
+    files = [
+        "https://code.jquery.com/jquery-1.9.1.min.js",
+        "https://raw.githubusercontent.com/davidshimjs/qrcodejs/master/qrcode.js",
+        "https://code.jquery.com/ui/1.10.3/jquery-ui.js",
+        "https://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css"
+    ]
+    for URL in files:
+        path = urlparse.urlsplit(URL).path
+        filename = os.path.basename(path)
+        path = os.path.join(rdir, filename)
+        if not os.path.exists(path):
+            print_error("downloading ", URL)
+            urllib.urlretrieve(URL, path)
 
 
 
 
 if __name__ == '__main__':
+
+    # make sure that certificates are here
+    assert os.path.exists(requests.utils.DEFAULT_CA_BUNDLE_PATH)
 
     # on osx, delete Process Serial Number arg generated for apps launched in Finder
     sys.argv = filter(lambda x: not x.startswith('-psn'), sys.argv)
@@ -385,8 +446,8 @@ if __name__ == '__main__':
         elif arg == '?':
             sys.argv[i] = prompt_password('Enter argument (will not echo):', False)
 
-    # parse cmd line
-    parser = get_parser(run_gui, run_daemon, run_cmdline)
+    # parse command line
+    parser = get_parser()
     args = parser.parse_args()
 
     # config is an object passed to the various constructors (wallet, interface, gui)
@@ -408,16 +469,81 @@ if __name__ == '__main__':
         config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
 
     set_verbosity(config_options.get('verbose'))
+
     config = SimpleConfig(config_options)
+    cmd_name = config.get('cmd')
 
-    assert os.path.exists(requests.utils.DEFAULT_CA_BUNDLE_PATH)
-
-    gui_name = config.get('gui', 'qt') if args.cmd == 'gui' else 'cmdline'
+    # check url
+    url = config.get('url')
+    if url:
+        if os.path.exists(url):
+            # assume this is a payment request
+            url = "bitcoin:?r=file://"+ os.path.join(os.getcwd(), url)
+        if not re.match('^bitcoin:', url):
+            print_stderr('unknown command:', url)
+            sys.exit(1)
 
     # initialize plugins.
     if not is_android:
+        gui_name = config.get('gui', 'qt') if cmd_name == 'gui' else 'cmdline'
         init_plugins(config, is_bundle or is_local or is_android, gui_name)
 
-    # call function attached to parser
-    args.func(config)
-    sys.exit(0)
+    # get password if needed
+    if cmd_name not in ['gui', 'daemon']:
+        cmd, password = init_cmdline(config)
+        if not cmd.requires_network or config.get('offline'):
+            result = run_command(config, None, password)
+            print_json(result)
+            sys.exit(1)
+
+    # check if daemon is running
+    s = get_daemon(config, False)
+    if s:
+        p = util.SocketPipe(s)
+        p.send(config_options)
+        result = p.get()
+        s.close()
+        if type(result) in [str, unicode]:
+            print_msg(result)
+        elif result is not None:
+            if result.get('error'):
+                print_stderr(result.get('error'))
+            else:
+                print_json(result)
+        sys.exit(0)
+
+    # daemon is not running
+    if cmd_name == 'gui':
+        network_proxy = NetworkProxy(None, config)
+        network_proxy.start()
+        server = NetworkServer(config, network_proxy)
+        server.start()
+        server.gui = init_gui(config, network_proxy)
+        server.gui.main()
+    elif cmd_name == 'daemon':
+        subcommand = config.get('subcommand')
+        if subcommand in ['status', 'stop']:
+            print_msg("Daemon not running")
+            sys.exit(1)
+        elif subcommand == 'start':
+            p = os.fork()
+            if p == 0:
+                network_proxy = NetworkProxy(None, config)
+                network_proxy.start()
+                server = NetworkServer(config, network_proxy)
+                if config.get('websocket_server'):
+                    import websockets
+                    websockets.WebSocketServer(config, server).start()
+                if config.get('requests_dir'):
+                    check_www_dir(config.get('requests_dir'))
+                server.start()
+                server.join()
+            else:
+                print_stderr("starting daemon (PID %d)"%p)
+                sys.exit(0)
+        else:
+            print_msg("syntax: electrum daemon <start|status|stop>")
+            sys.exit(1)
+    else:
+        print_msg("Network daemon is not running. Try 'electrum daemon start'\nIf you want to run this command offline, use the -o flag.")
+        sys.exit(1)

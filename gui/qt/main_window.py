@@ -117,8 +117,6 @@ class ElectrumWindow(QMainWindow):
 
         self.gui_object = gui_object
         self.tray = gui_object.tray
-        self.go_lite = gui_object.go_lite
-        self.lite = None
         self.app = gui_object.app
 
         self.invoices = InvoiceStore(self.config)
@@ -1899,9 +1897,6 @@ class ElectrumWindow(QMainWindow):
         self.search_box.textChanged.connect(self.do_search)
         self.search_box.hide()
         sb.addPermanentWidget(self.search_box)
-
-        if (int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
-            sb.addPermanentWidget( StatusBarButton( QIcon(":icons/switchgui.png"), _("Switch to Lite Mode"), self.go_lite ) )
 
         self.lock_icon = QIcon()
         self.password_button = StatusBarButton( self.lock_icon, _("Password"), self.change_password_dialog )

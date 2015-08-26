@@ -1289,7 +1289,7 @@ class ElectrumGui():
         self.config = config
 
 
-    def main(self, url=None):
+    def main(self):
 
         storage = WalletStorage(self.config.get_wallet_path())
         if not storage.file_exists:
@@ -1334,7 +1334,7 @@ class ElectrumGui():
             self.restore_wallet(wallet)
 
         w = ElectrumWindow(self.wallet, self.config, self.network)
-        if url: w.set_url(url)
+        #if url: w.set_url(url)
         Gtk.main()
 
     def restore_or_create(self):
