@@ -38,7 +38,7 @@ from version import *
 from transaction import Transaction
 from plugins import run_hook
 import bitcoin
-from synchronizer import WalletSynchronizer
+from synchronizer import Synchronizer
 from mnemonic import Mnemonic
 
 import paymentrequest
@@ -1110,8 +1110,8 @@ class Abstract_Wallet(object):
             self.verifier = SPV(self.network, self)
             self.verifier.start()
             self.set_verifier(self.verifier)
-            self.synchronizer = WalletSynchronizer(self, network)
-            network.jobs.append(self.synchronizer.main_loop)
+            self.synchronizer = Synchronizer(self, network)
+            network.add_job(self.synchronizer)
         else:
             self.verifier = None
             self.synchronizer = None
@@ -1119,7 +1119,7 @@ class Abstract_Wallet(object):
     def stop_threads(self):
         if self.network:
             self.verifier.stop()
-            self.network.jobs.remove(self.synchronizer.main_loop)
+            self.network.remove_job(self.synchronizer)
             self.synchronizer = None
             self.storage.put('stored_height', self.get_local_height(), True)
 

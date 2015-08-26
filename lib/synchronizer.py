@@ -21,10 +21,10 @@ from threading import Lock
 
 from bitcoin import Hash, hash_encode
 from transaction import Transaction
-from util import print_error, print_msg
+from util import print_error, print_msg, ThreadJob
 
 
-class WalletSynchronizer():
+class Synchronizer(ThreadJob):
     '''The synchronizer keeps the wallet up-to-date with its set of
     addresses and their transactions.  It subscribes over the network
     to wallet addresses, gets the wallet to generate new addresses
@@ -45,12 +45,6 @@ class WalletSynchronizer():
         self.requested_addrs = set()
         self.lock = Lock()
         self.initialize()
-
-    def print_error(self, *msg):
-        print_error("[Synchronizer]", *msg)
-
-    def print_msg(self, *msg):
-        print_msg("[Synchronizer]", *msg)
 
     def parse_response(self, response):
         if response.get('error'):
@@ -165,7 +159,7 @@ class WalletSynchronizer():
             self.print_error("missing tx", self.requested_tx)
         self.subscribe_to_addresses(set(self.wallet.addresses(True)))
 
-    def main_loop(self):
+    def run(self):
         '''Called from the network proxy thread main loop.'''
         # 1. Create new addresses
         self.wallet.synchronize()
