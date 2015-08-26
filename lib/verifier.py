@@ -28,18 +28,19 @@ class SPV(ThreadJob):
     def __init__(self, network, wallet):
         self.wallet = wallet
         self.network = network
-        self.merkle_roots    = {}                                  # hashed by me
-        self.requested_merkle = set()
+        # Keyed by tx hash.  Value is None if the merkle branch was
+        # requested, and the merkle root once it has been verified
+        self.merkle_roots = {}
 
     def run(self):
         unverified = self.wallet.get_unverified_txs()
         for (tx_hash, tx_height) in unverified:
-            if tx_hash not in self.merkle_roots and tx_hash not in self.requested_merkle:
+            if tx_hash not in self.merkle_roots:
                 request = ('blockchain.transaction.get_merkle',
                            [tx_hash, tx_height])
                 if self.network.send([request], self.merkle_response):
                     self.print_error('requested merkle', tx_hash)
-                    self.requested_merkle.add(tx_hash)
+                    self.merkle_roots[tx_hash] = None
 
     def merkle_response(self, r):
         if r.get('error'):
