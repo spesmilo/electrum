@@ -1086,9 +1086,7 @@ class Abstract_Wallet(object):
             return True
         return False
 
-    def set_verifier(self, verifier):
-        self.verifier = verifier
-
+    def prepare_for_verifier(self):
         # review transactions that are in the history
         for addr, hist in self.history.items():
             for tx_hash, tx_height in hist:
@@ -1107,9 +1105,9 @@ class Abstract_Wallet(object):
         from verifier import SPV
         self.network = network
         if self.network is not None:
+            self.prepare_for_verifier()
             self.verifier = SPV(self.network, self)
-            self.verifier.start()
-            self.set_verifier(self.verifier)
+            network.add_job(self.verifier)
             self.synchronizer = Synchronizer(self, network)
             network.add_job(self.synchronizer)
         else:
@@ -1118,9 +1116,10 @@ class Abstract_Wallet(object):
 
     def stop_threads(self):
         if self.network:
-            self.verifier.stop()
             self.network.remove_job(self.synchronizer)
+            self.network.remove_job(self.verifier)
             self.synchronizer = None
+            self.verifier = None
             self.storage.put('stored_height', self.get_local_height(), True)
 
     def restore(self, cb):
