@@ -16,6 +16,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import sys
+import traceback
 import threading
 import Queue
 
@@ -73,7 +75,11 @@ class NetworkProxy(util.DaemonThread):
                 continue
             if response is None:
                 break
-            self.process(response)
+            # Protect against ill-formed or malicious server responses
+            try:
+                self.process(response)
+            except:
+                traceback.print_exc(file=sys.stderr)
         self.trigger_callback('stop')
         if self.network:
             self.network.stop()
