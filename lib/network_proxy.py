@@ -22,11 +22,8 @@ import threading
 import Queue
 
 import util
-from network import Network
-from util import print_error
+from network import Network, serialize_proxy, serialize_server
 from simple_config import SimpleConfig
-from network import serialize_proxy, serialize_server
-
 
 
 class NetworkProxy(util.DaemonThread):
@@ -87,7 +84,7 @@ class NetworkProxy(util.DaemonThread):
 
     def process(self, response):
         if self.debug:
-            print_error("<--", response)
+            self.print_error("<--", response)
 
         if response.get('method') == 'network.status':
             key, value = response.get('params')
@@ -124,11 +121,12 @@ class NetworkProxy(util.DaemonThread):
                         callback = k
                         break
                 else:
-                    print_error( "received unexpected notification", method, params)
+                    self.print_error("received unexpected notification",
+                                     method, params)
                     return
 
-
-        r = {'method':method, 'params':params, 'result':result, 'id':msg_id, 'error':error}
+        r = {'method':method, 'params':params, 'result':result,
+             'id':msg_id, 'error':error}
         callback(r)
 
 
@@ -159,7 +157,7 @@ class NetworkProxy(util.DaemonThread):
                 ids.append(self.message_id)
                 requests.append(request)
                 if self.debug:
-                    print_error("-->", request)
+                    self.print_error("-->", request)
                 self.message_id += 1
 
             self.pipe.send_all(requests)
