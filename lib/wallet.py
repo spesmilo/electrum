@@ -171,7 +171,8 @@ class Abstract_Wallet(object):
 
         # spv
         self.verifier = None
-        # Transactions pending verification.  Each value is the transaction height.  Access with self.lock.
+        # Transactions pending verification.  A map from tx hash to transaction
+        # height.  Access is not contended so no lock is needed.
         self.unverified_tx = {}
         # Verified transactions.  Each value is a (height, timestamp, block_pos) tuple.  Access with self.lock.
         self.verified_tx   = storage.get('verified_tx3',{})
@@ -417,8 +418,7 @@ class Abstract_Wallet(object):
 
     def add_unverified_tx(self, tx_hash, tx_height):
         if tx_height > 0:
-            with self.lock:
-                self.unverified_tx[tx_hash] = tx_height
+            self.unverified_tx[tx_hash] = tx_height
 
     def add_verified_tx(self, tx_hash, info):
         with self.lock:
@@ -429,13 +429,13 @@ class Abstract_Wallet(object):
         self.network.trigger_callback('verified', (tx_hash, conf, timestamp))
 
     def get_unverified_txs(self):
-        '''Returns a list of tuples (tx_hash, height) that are unverified and not beyond local height'''
+        '''Returns a list of tuples (tx_hash, height) that are unverified
+        and not beyond local height'''
         txs = []
-        with self.lock:
-            for tx_hash, tx_height in self.unverified_tx.items():
-                # do not request merkle branch before headers are available
-                if tx_hash not in self.verified_tx and tx_height <= self.get_local_height():
-                    txs.append((tx_hash, tx_height))
+        for tx_hash, tx_height in self.unverified_tx.items():
+            # do not request merkle branch before headers are available
+            if tx_hash not in self.verified_tx and tx_height <= self.get_local_height():
+                txs.append((tx_hash, tx_height))
         return txs
 
     def undo_verifications(self, height):
@@ -473,7 +473,7 @@ class Abstract_Wallet(object):
         "return position, even if the tx is unverified"
         with self.lock:
             x = self.verified_tx.get(tx_hash)
-            y = self.unverified_tx.get(tx_hash)
+        y = self.unverified_tx.get(tx_hash)
         if x:
             height, timestamp, pos = x
             return height, pos
