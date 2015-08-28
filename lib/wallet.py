@@ -417,10 +417,13 @@ class Abstract_Wallet(object):
         return decrypted
 
     def add_unverified_tx(self, tx_hash, tx_height):
-        if tx_height > 0:
+        # Only add if confirmed and not verified
+        if tx_height > 0 and tx_hash not in self.verified_tx:
             self.unverified_tx[tx_hash] = tx_height
 
     def add_verified_tx(self, tx_hash, info):
+        # Remove from the unverified map and add to the verified map and
+        self.unverified_tx.pop(tx_hash, None)
         with self.lock:
             self.verified_tx[tx_hash] = info  # (tx_height, timestamp, pos)
         self.storage.put('verified_tx3', self.verified_tx, True)
@@ -429,14 +432,8 @@ class Abstract_Wallet(object):
         self.network.trigger_callback('verified', (tx_hash, conf, timestamp))
 
     def get_unverified_txs(self):
-        '''Returns a list of tuples (tx_hash, height) that are unverified
-        and not beyond local height'''
-        txs = []
-        for tx_hash, tx_height in self.unverified_tx.items():
-            # do not request merkle branch before headers are available
-            if tx_hash not in self.verified_tx and tx_height <= self.get_local_height():
-                txs.append((tx_hash, tx_height))
-        return txs
+        '''Returns a map from tx hash to transaction height'''
+        return self.unverified_tx
 
     def undo_verifications(self, height):
         '''Used by the verifier when a reorg has happened'''

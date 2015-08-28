@@ -33,9 +33,11 @@ class SPV(ThreadJob):
         self.merkle_roots = {}
 
     def run(self):
+        lh = self.wallet.get_local_height()
         unverified = self.wallet.get_unverified_txs()
-        for (tx_hash, tx_height) in unverified:
-            if tx_hash not in self.merkle_roots:
+        for tx_hash, tx_height in unverified.items():
+            # do not request merkle branch before headers are available
+            if tx_hash not in self.merkle_roots and tx_height <= lh:
                 request = ('blockchain.transaction.get_merkle',
                            [tx_hash, tx_height])
                 if self.network.send([request], self.merkle_response):
@@ -64,6 +66,8 @@ class SPV(ThreadJob):
         merkle_root = self.hash_merkle_root(merkle['merkle'], tx_hash, pos)
         header = header.get('result')
         if not header or header.get('merkle_root') != merkle_root:
+            # FIXME: we should make a fresh connection to a server to
+            # recover from this, as this TX will now never verify
             self.print_error("merkle verification failed for", tx_hash)
             return
 
