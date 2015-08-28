@@ -326,12 +326,10 @@ class MyTreeWidget(QTreeWidget):
         if column is None:
             column = self.edit_column
         if column==self.edit_column and item.isSelected():
-            text = unicode(item.text(column))
-            key = str(item.data(0, Qt.UserRole).toString())
             self.is_edit = True
-            item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
+            item.setFlags(item.flags() | Qt.ItemIsEditable)
             self.editItem(item, column)
-            item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
+            item.setFlags(item.flags() & ~Qt.ItemIsEditable)
             self.is_edit = False
 
     def label_changed(self, item, column):
