@@ -1508,6 +1508,7 @@ class ElectrumWindow(QMainWindow):
 
     def create_contacts_tab(self):
         l = MyTreeWidget(self, self.create_contact_menu, [_('Name'), _('Address'), _('Type')], 1, [0, 1])
+        l.setSelectionMode(QAbstractItemView.ExtendedSelection)
         l.item_edited = self.contact_edited
         self.contacts_list = l
         return self.create_list_tab(l)
@@ -1639,12 +1640,16 @@ class ElectrumWindow(QMainWindow):
         self.tabs.setCurrentIndex(1)
         self.payto_e.paytomany()
 
-    def payto(self, addr):
-        if not addr:
-            return
+    def payto_contacts(self, labels):
+        paytos = [self.get_contact_payto(label) for label in labels]
         self.tabs.setCurrentIndex(1)
-        self.payto_e.setText(addr)
-        self.amount_e.setFocus()
+        if len(paytos) == 1:
+            self.payto_e.setText(paytos[0])
+            self.amount_e.setFocus()
+        else:
+            text = "\n".join([payto + ", 0" for payto in paytos])
+            self.payto_e.setText(text)
+            self.payto_e.setFocus()
 
     def contact_edited(self, item, column, prior):
         if column == 0:  # Remove old contact if renamed
@@ -1662,29 +1667,35 @@ class ElectrumWindow(QMainWindow):
         self.update_completions()
         return True
 
-    def delete_contact(self, x):
-        if not self.question(_("Do you want to remove")+" %s "%x +_("from your list of contacts?")):
+    def delete_contacts(self, labels):
+        if not self.question(_("Remove %s from your list of contacts?")
+                             % " + ".join(labels)):
             return
-        self.contacts.pop(x)
+        for label in labels:
+            self.contacts.pop(label)
         self.update_history_tab()
         self.update_contacts_tab()
         self.update_completions()
 
     def create_contact_menu(self, position):
-        item = self.contacts_list.itemAt(position)
         menu = QMenu()
-        if not item:
+        selected = self.contacts_list.selectedItems()
+        if not selected:
             menu.addAction(_("New contact"), lambda: self.new_contact_dialog())
         else:
-            key = unicode(item.text(0))
-            menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(key))
-            menu.addAction(_("Pay to"), lambda: self.payto(self.get_contact_payto(key)))
-            menu.addAction(_("Delete"), lambda: self.delete_contact(key))
-            addr_URL = block_explorer_URL(self.config, 'addr', unicode(item.text(1)))
-            if addr_URL:
-                menu.addAction(_("View on block explorer"), lambda: webbrowser.open(addr_URL))
+            labels = [unicode(item.text(0)) for item in selected]
+            addrs = [unicode(item.text(1)) for item in selected]
+            menu.addAction(_("Copy to Clipboard"), lambda:
+                           self.app.clipboard().setText('\n'.join(labels)))
+            menu.addAction(_("Pay to"), lambda: self.payto_contacts(labels))
+            menu.addAction(_("Delete"), lambda: self.delete_contacts(labels))
+            URLs = [URL for URL in [block_explorer_URL(self.config, 'addr', addr)
+                                    for addr in addrs] if URL is not None]
+            if URLs:
+                menu.addAction(_("View on block explorer"),
+                               lambda: map(webbrowser.open, URLs))
 
-        run_hook('create_contact_menu', menu, item)
+        run_hook('create_contact_menu', menu, selected)
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
 
@@ -1941,7 +1952,9 @@ class ElectrumWindow(QMainWindow):
         vbox.addWidget(QLabel(_('New Contact') + ':'))
         grid = QGridLayout()
         line1 = QLineEdit()
+        line1.setFixedWidth(280)
         line2 = QLineEdit()
+        line2.setFixedWidth(280)
         grid.addWidget(QLabel(_("Address")), 1, 0)
         grid.addWidget(line1, 1, 1)
         grid.addWidget(QLabel(_("Name")), 2, 0)
