@@ -1507,7 +1507,7 @@ class ElectrumWindow(QMainWindow):
         return self.create_list_tab(l)
 
     def create_contacts_tab(self):
-        l = MyTreeWidget(self, self.create_contact_menu, [_('Name'), _('Address'), _('Type')], 1, [0, 1])
+        l = MyTreeWidget(self, self.create_contact_menu, [_('Name'), _('Value'), _('Type')], 1, [0, 1])
         l.setSelectionMode(QAbstractItemView.ExtendedSelection)
         l.item_edited = self.contact_edited
         self.contacts_list = l
@@ -1685,12 +1685,15 @@ class ElectrumWindow(QMainWindow):
         else:
             labels = [unicode(item.text(0)) for item in selected]
             addrs = [unicode(item.text(1)) for item in selected]
+            types = [unicode(item.text(2)) for item in selected]
             menu.addAction(_("Copy to Clipboard"), lambda:
                            self.app.clipboard().setText('\n'.join(labels)))
             menu.addAction(_("Pay to"), lambda: self.payto_contacts(labels))
             menu.addAction(_("Delete"), lambda: self.delete_contacts(labels))
-            URLs = [URL for URL in [block_explorer_URL(self.config, 'addr', addr)
-                                    for addr in addrs] if URL is not None]
+            URLs = []
+            for (addr, _type) in zip(addrs, types):
+                if _type == 'address':
+                    URLs.append(block_explorer_URL(self.config, 'addr', addr))
             if URLs:
                 menu.addAction(_("View on block explorer"),
                                lambda: map(webbrowser.open, URLs))
@@ -1826,7 +1829,10 @@ class ElectrumWindow(QMainWindow):
         l.clear()
         for key in sorted(self.contacts.keys()):
             _type, value = self.contacts[key]
-            item = EditableItem([key, value, _type])
+            if _type == 'address':
+                item = EditableItem([key, value, _type])
+            else: # openalias items shouldn't be editable
+                item = QTreeWidgetItem([key, value, _type])
             item.setData(0, Qt.UserRole, key)
             l.addTopLevelItem(item)
             if key == current_key:
