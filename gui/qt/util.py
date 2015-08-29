@@ -283,11 +283,25 @@ def filename_field(parent, config, defaultname, select_msg):
 
     return vbox, filename_e, b1
 
+class EditableItem(QTreeWidgetItem):
+    def __init__(self, columns):
+        QTreeWidgetItem.__init__(self, columns)
+        self.setFlags(self.flags() | Qt.ItemIsEditable)
 
+class EditableItemDelegate(QStyledItemDelegate):
+    def __init__(self, parent, editable_columns):
+        QStyledItemDelegate.__init__(self, parent)
+        self.editable_columns = editable_columns
+
+    def createEditor(self, parent, option, index):
+        if index.column() not in self.editable_columns:
+            return None
+        return QStyledItemDelegate.createEditor(self, parent, option, index)
 
 class MyTreeWidget(QTreeWidget):
 
-    def __init__(self, parent, create_menu, headers, stretch_column=None):
+    def __init__(self, parent, create_menu, headers, stretch_column=None,
+                 editable_columns=None):
         QTreeWidget.__init__(self, parent)
         self.parent = parent
         self.setColumnCount(len(headers))
@@ -299,11 +313,15 @@ class MyTreeWidget(QTreeWidget):
         # extend the syntax for consistency
         self.addChild = self.addTopLevelItem
         self.insertChild = self.insertTopLevelItem
-        # editable column
-        self.is_edit = False
-        self.edit_column = stretch_column
-        self.itemDoubleClicked.connect(self.edit_label)
-        self.itemChanged.connect(self.label_changed)
+
+        # Control which columns are editable
+        if editable_columns is None:
+            editable_columns = [stretch_column]
+        self.setEditTriggers(QAbstractItemView.DoubleClicked |
+                             QAbstractItemView.EditKeyPressed)
+        self.setItemDelegate(EditableItemDelegate(self, editable_columns))
+        self.itemChanged.connect(self.item_edited)
+
         # stretch
         for i in range(len(headers)):
             self.header().setResizeMode(i, QHeaderView.Stretch if i == stretch_column else QHeaderView.ResizeToContents)
@@ -322,35 +340,19 @@ class MyTreeWidget(QTreeWidget):
                 break
         self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), QPoint(50, i*5 + j - 1))
 
-    def edit_label(self, item, column=None):
-        if column is None:
-            column = self.edit_column
-        if column==self.edit_column and item.isSelected():
-            self.is_edit = True
-            item.setFlags(item.flags() | Qt.ItemIsEditable)
-            self.editItem(item, column)
-            item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-            self.is_edit = False
-
-    def label_changed(self, item, column):
-        if column != self.edit_column:
-            return
-        if self.is_edit:
-            return
-        self.is_edit = True
+    def item_edited(self, item, column, prior):
+        '''Called only when the text actually changes'''
         key = str(item.data(0, Qt.UserRole).toString())
-        text = unicode(item.text(self.edit_column))
-        changed = self.parent.wallet.set_label(key, text)
+        text = unicode(item.text(column))
+        self.parent.wallet.set_label(key, text)
         if text:
-            item.setForeground(self.edit_column, QBrush(QColor('black')))
+            item.setForeground(column, QBrush(QColor('black')))
         else:
             text = self.parent.wallet.get_default_label(key)
-            item.setText(self.edit_column, text)
-            item.setForeground(self.edit_column, QBrush(QColor('gray')))
-        self.is_edit = False
-        if changed:
-            self.parent.update_history_tab()
-            self.parent.update_completions()
+            item.setText(column, text)
+            item.setForeground(column, QBrush(QColor('gray')))
+        self.parent.update_history_tab()
+        self.parent.update_completions()
 
     def get_leaves(self, root):
         child_count = root.childCount()

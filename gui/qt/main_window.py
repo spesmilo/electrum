@@ -951,7 +951,7 @@ class ElectrumWindow(QMainWindow):
             requestor = req.get('name', '')
             amount_str = self.format_amount(amount) if amount else ""
             account = ''
-            item = QTreeWidgetItem([date, account, address, '', message, amount_str, pr_tooltips.get(status,'')])
+            item = EditableItem([date, account, address, '', message, amount_str, pr_tooltips.get(status,'')])
             if signature is not None:
                 item.setIcon(3, QIcon(":icons/seal.png"))
                 item.setToolTip(3, 'signed by '+ requestor)
@@ -1521,7 +1521,7 @@ class ElectrumWindow(QMainWindow):
             requestor = pr.get_requestor()
             exp = pr.get_expiration_date()
             date_str = util.format_time(exp) if exp else _('Never')
-            item = QTreeWidgetItem( [ date_str, requestor, pr.memo, self.format_amount(pr.get_amount(), whitespaces=True), pr_tooltips.get(status,'')] )
+            item = EditableItem([date_str, requestor, pr.memo, self.format_amount(pr.get_amount(), whitespaces=True), pr_tooltips.get(status,'')])
             item.setIcon(4, QIcon(pr_icons.get(status)))
             item.setData(0, Qt.UserRole, key)
             item.setFont(1, QFont(MONOSPACE_FONT))
@@ -1772,7 +1772,7 @@ class ElectrumWindow(QMainWindow):
                     label = self.wallet.labels.get(address,'')
                     c, u, x = self.wallet.get_addr_balance(address)
                     balance = self.format_amount(c + u + x)
-                    item = QTreeWidgetItem( [ address, label, balance, "%d"%num] )
+                    item = EditableItem( [ address, label, balance, "%d"%num] )
                     item.setFont(0, QFont(MONOSPACE_FONT))
                     item.setData(0, Qt.UserRole, address)
                     item.setData(0, Qt.UserRole+1, True) # label can be edited
@@ -1798,7 +1798,7 @@ class ElectrumWindow(QMainWindow):
         l.clear()
         for key in sorted(self.contacts.keys()):
             _type, value = self.contacts[key]
-            item = QTreeWidgetItem([key, value, _type])
+            item = EditableItem([key, value, _type])
             item.setData(0, Qt.UserRole, key)
             l.addTopLevelItem(item)
             if key == current_key:
