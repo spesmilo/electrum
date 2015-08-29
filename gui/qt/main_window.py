@@ -1507,7 +1507,8 @@ class ElectrumWindow(QMainWindow):
         return self.create_list_tab(l)
 
     def create_contacts_tab(self):
-        l = MyTreeWidget(self, self.create_contact_menu, [_('Key'), _('Value'), _('Type')], 1)
+        l = MyTreeWidget(self, self.create_contact_menu, [_('Name'), _('Address'), _('Type')], 1, [0, 1])
+        l.item_edited = self.contact_edited
         self.contacts_list = l
         return self.create_list_tab(l)
 
@@ -1644,6 +1645,22 @@ class ElectrumWindow(QMainWindow):
         self.tabs.setCurrentIndex(1)
         self.payto_e.setText(addr)
         self.amount_e.setFocus()
+
+    def contact_edited(self, item, column, prior):
+        if column == 0:  # Remove old contact if renamed
+            self.contacts.pop(prior)
+        self.set_contact(unicode(item.text(0)), unicode(item.text(1)))
+
+    def set_contact(self, label, address):
+        if not is_valid(address):
+            QMessageBox.warning(self, _('Error'), _('Invalid Address'), _('OK'))
+            self.update_contacts_tab()  # Displays original unchanged value
+            return False
+        self.contacts[label] = ('address', address)
+        self.update_contacts_tab()
+        self.update_history_tab()
+        self.update_completions()
+        return True
 
     def delete_contact(self, x):
         if not self.question(_("Do you want to remove")+" %s "%x +_("from your list of contacts?")):
@@ -1936,19 +1953,8 @@ class ElectrumWindow(QMainWindow):
         if not d.exec_():
             return
 
-        address = str(line1.text())
-        label = unicode(line2.text())
-
-        if not is_valid(address):
-            QMessageBox.warning(self, _('Error'), _('Invalid Address'), _('OK'))
-            return
-
-        self.contacts[label] = ('address', address)
-
-        self.update_contacts_tab()
-        self.update_history_tab()
-        self.update_completions()
-        self.tabs.setCurrentIndex(3)
+        if self.set_contact(unicode(line2.text()), str(line1.text())):
+            self.tabs.setCurrentIndex(4)
 
 
     @protected

@@ -289,13 +289,10 @@ class EditableItem(QTreeWidgetItem):
         self.setFlags(self.flags() | Qt.ItemIsEditable)
 
 class EditableItemDelegate(QStyledItemDelegate):
-    def __init__(self, parent, editable_columns):
-        QStyledItemDelegate.__init__(self, parent)
-        self.editable_columns = editable_columns
-
     def createEditor(self, parent, option, index):
-        if index.column() not in self.editable_columns:
+        if index.column() not in self.parent().editable_columns:
             return None
+        self.parent().prior_text = unicode(index.data().toString())
         return QStyledItemDelegate.createEditor(self, parent, option, index)
 
 class MyTreeWidget(QTreeWidget):
@@ -317,10 +314,11 @@ class MyTreeWidget(QTreeWidget):
         # Control which columns are editable
         if editable_columns is None:
             editable_columns = [stretch_column]
+        self.editable_columns = editable_columns
         self.setEditTriggers(QAbstractItemView.DoubleClicked |
                              QAbstractItemView.EditKeyPressed)
-        self.setItemDelegate(EditableItemDelegate(self, editable_columns))
-        self.itemChanged.connect(self.item_edited)
+        self.setItemDelegate(EditableItemDelegate(self))
+        self.itemChanged.connect(self.item_changed)
 
         # stretch
         for i in range(len(headers)):
@@ -339,6 +337,10 @@ class MyTreeWidget(QTreeWidget):
             if self.itemAt(QPoint(0,i*5 + j)) != item:
                 break
         self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), QPoint(50, i*5 + j - 1))
+
+    def item_changed(self, item, column):
+        '''Called only when the text actually changes'''
+        self.item_edited(item, column, self.prior_text)
 
     def item_edited(self, item, column, prior):
         '''Called only when the text actually changes'''
