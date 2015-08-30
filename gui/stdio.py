@@ -170,7 +170,7 @@ class ElectrumGui:
             print(msg)
 
            
-    def main(self,url):
+    def main(self):
         while self.done == 0: self.main_command()
 
     def do_send(self):

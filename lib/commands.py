@@ -724,7 +724,7 @@ def add_network_options(parser):
 from util import profiler
 
 @profiler
-def get_parser(run_gui, run_daemon, run_cmdline):
+def get_parser():
     # parent parser, because set_default_subparser removes global options
     parent_parser = argparse.ArgumentParser('parent', add_help=False)
     group = parent_parser.add_argument_group('global options')
@@ -740,7 +740,7 @@ def get_parser(run_gui, run_daemon, run_cmdline):
     # gui
     parser_gui = subparsers.add_parser('gui', parents=[parent_parser], description="Run Electrum's Graphical User Interface.", help="Run GUI (default)")
     parser_gui.add_argument("url", nargs='?', default=None, help="litecoin URI (or bip70 file)")
-    parser_gui.set_defaults(func=run_gui)
+    #parser_gui.set_defaults(func=run_gui)
     parser_gui.add_argument("-g", "--gui", dest="gui", help="select graphical user interface", choices=['qt', 'lite', 'gtk', 'text', 'stdio', 'jsonrpc'])
     parser_gui.add_argument("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")
     parser_gui.add_argument("-L", "--lang", dest="language", default=None, help="default language used in GUI")
@@ -748,13 +748,13 @@ def get_parser(run_gui, run_daemon, run_cmdline):
     # daemon
     parser_daemon = subparsers.add_parser('daemon', parents=[parent_parser], help="Run Daemon")
     parser_daemon.add_argument("subcommand", choices=['start', 'status', 'stop'])
-    parser_daemon.set_defaults(func=run_daemon)
+    #parser_daemon.set_defaults(func=run_daemon)
     add_network_options(parser_daemon)
     # commands
     for cmdname in sorted(known_commands.keys()):
         cmd = known_commands[cmdname]
         p = subparsers.add_parser(cmdname, parents=[parent_parser], help=cmd.help, description=cmd.description)
-        p.set_defaults(func=run_cmdline)
+        #p.set_defaults(func=run_cmdline)
         if cmd.requires_password:
             p.add_argument("-W", "--password", dest="password", default=None, help="password")
         for optname, default in zip(cmd.options, cmd.defaults):

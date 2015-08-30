@@ -11,5 +11,4 @@ import transaction
 from transaction import Transaction
 from plugins import BasePlugin
 from commands import Commands, known_commands
-from daemon import NetworkServer
 from network_proxy import NetworkProxy

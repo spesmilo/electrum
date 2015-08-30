@@ -62,7 +62,7 @@ class HistoryWidget(MyTreeWidget):
             v_str = self.parent.format_amount(value, True, whitespaces=True)
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             label, is_default_label = self.wallet.get_label(tx_hash)
-            item = QTreeWidgetItem(['', tx_hash, time_str, label, v_str, balance_str])
+            item = EditableItem(['', tx_hash, time_str, label, v_str, balance_str])
             item.setIcon(0, icon)
             item.setFont(3, QFont(MONOSPACE_FONT))
             item.setFont(4, QFont(MONOSPACE_FONT))
@@ -103,4 +103,3 @@ class HistoryWidget(MyTreeWidget):
         menu.addAction(_("Edit description"), lambda: self.edit_label(item))
         menu.addAction(_("View on block explorer"), lambda: webbrowser.open(tx_URL))
         menu.exec_(self.viewport().mapToGlobal(position))
-

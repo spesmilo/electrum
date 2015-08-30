@@ -964,7 +964,7 @@ class ElectrumGui:
             wallet.start_threads(network)
 
 
-    def main(self, url):
+    def main(self):
         s = 'main'
         while True:
             add_menu(s)
