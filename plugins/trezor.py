@@ -156,7 +156,7 @@ class Plugin(BasePlugin):
 
     @hook
     def installwizard_restore(self, wizard, storage):
-        if storage.get('wallet_type') != 'trezor': 
+        if storage.get('wallet_type') != 'trezor':
             return
         seed = wizard.enter_seed_dialog("Enter your Trezor seed", None, func=lambda x:True)
         if not seed:
@@ -477,7 +477,7 @@ class TrezorWallet(BIP32_HD_Wallet):
 
             ptx = self.transactions.get(tx_hash)
             if ptx is None:
-                ptx = self.network.synchronous_get([('blockchain.transaction.get', [tx_hash])])[0]
+                ptx = self.network.synchronous_get(('blockchain.transaction.get', [tx_hash]))
                 ptx = Transaction(ptx)
             prev_tx[tx_hash] = ptx
 
@@ -665,5 +665,5 @@ if TREZOR:
             except ConnectionError:
                 self.bad = True
                 raise
-    
+
             return resp

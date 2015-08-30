@@ -77,7 +77,7 @@ if is_bundle or is_local or is_android:
 
 
 from electrum import util
-from electrum import SimpleConfig, Network, Wallet, WalletStorage, NetworkProxy
+from electrum import SimpleConfig, Network, Wallet, WalletStorage
 from electrum.util import print_msg, print_error, print_stderr, print_json, set_verbosity, InvalidPassword
 from electrum.plugins import init_plugins, run_hook, always_hook
 from electrum.commands import get_parser, known_commands, Commands, config_variables
@@ -97,12 +97,12 @@ def prompt_password(prompt, confirm=True):
 
 
 
-def init_gui(config, network_proxy):
+def init_gui(config, network):
     gui_name = config.get('gui', 'qt')
     if gui_name in ['lite', 'classic']:
         gui_name = 'qt'
     gui = __import__('electrum_gui.' + gui_name, fromlist=['electrum_gui'])
-    gui = gui.ElectrumGui(config, network_proxy)
+    gui = gui.ElectrumGui(config, network)
     return gui
 
 
@@ -157,8 +157,7 @@ def init_cmdline(config):
                 wallet = Wallet.from_seed(seed, password, storage)
 
             if not config.get('offline'):
-                s = get_daemon(config, False)
-                network = NetworkProxy(s, config)
+                network = Network(config)
                 network.start()
                 wallet.start_threads(network)
                 print_msg("Recovering wallet...")
@@ -326,19 +325,18 @@ class ClientThread(util.DaemonThread):
         # send response and exit
         self.client_pipe.send(response)
         self.server.remove_client(self)
-        
+
 
 
 
 class NetworkServer(util.DaemonThread):
 
-    def __init__(self, config, network_proxy):
+    def __init__(self, config, network):
         util.DaemonThread.__init__(self)
         self.debug = False
         self.config = config
         self.pipe = util.QueuePipe()
-        self.network_proxy = network_proxy
-        self.network = self.network_proxy.network
+        self.network = network
         self.lock = threading.RLock()
         # each GUI is a client of the daemon
         self.clients = []
@@ -516,11 +514,11 @@ if __name__ == '__main__':
 
     # daemon is not running
     if cmd_name == 'gui':
-        network_proxy = NetworkProxy(None, config)
-        network_proxy.start()
-        server = NetworkServer(config, network_proxy)
+        network = Network(config)
+        network.start()
+        server = NetworkServer(config, network)
         server.start()
-        server.gui = init_gui(config, network_proxy)
+        server.gui = init_gui(config, network)
         server.gui.main()
     elif cmd_name == 'daemon':
         subcommand = config.get('subcommand')
@@ -530,9 +528,9 @@ if __name__ == '__main__':
         elif subcommand == 'start':
             p = os.fork()
             if p == 0:
-                network_proxy = NetworkProxy(None, config)
-                network_proxy.start()
-                server = NetworkServer(config, network_proxy)
+                network = Network(config)
+                network.start()
+                server = NetworkServer(config, network)
                 if config.get('websocket_server'):
                     import websockets
                     websockets.WebSocketServer(config, server).start()

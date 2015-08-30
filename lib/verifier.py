@@ -40,9 +40,9 @@ class SPV(ThreadJob):
             if tx_hash not in self.merkle_roots and tx_height <= lh:
                 request = ('blockchain.transaction.get_merkle',
                            [tx_hash, tx_height])
-                if self.network.send([request], self.merkle_response):
-                    self.print_error('requested merkle', tx_hash)
-                    self.merkle_roots[tx_hash] = None
+                self.network.send([request], self.merkle_response)
+                self.print_error('requested merkle', tx_hash)
+                self.merkle_roots[tx_hash] = None
 
     def merkle_response(self, r):
         if r.get('error'):

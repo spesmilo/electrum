@@ -12,8 +12,7 @@ except Exception:
 
 # start network
 c = electrum.SimpleConfig()
-s = electrum.daemon.get_daemon(c,True)
-network = electrum.NetworkProxy(s,c)
+network = electrum.Network(c)
 network.start()
 
 # wait until connected
@@ -31,4 +30,3 @@ network.send([('blockchain.address.subscribe',[addr])], callback)
 # 3. wait for results
 while network.is_connected():
     time.sleep(1)
-
