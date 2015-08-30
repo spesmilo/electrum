@@ -235,11 +235,12 @@ class Plugin(BasePlugin):
         client = self.get_client()
         inputs = self.tx_inputs(tx, True)
         outputs = self.tx_outputs(tx)
-        #try:
-        signed_tx = client.sign_tx('Bitcoin', inputs, outputs)[1]
-        #except Exception, e:
-        #    give_error(e)
-        #finally:
+        try:
+            signed_tx = client.sign_tx('Bitcoin', inputs, outputs)[1]
+        except Exception, e:
+            self.handler.stop()
+            give_error(e)
+        
         self.handler.stop()
 
         raw = signed_tx.encode('hex')
@@ -526,7 +527,7 @@ class KeepKeyGuiMixin(object):
             message = "Confirm address on KeepKey device to continue"
         else:
             message = "Check KeepKey device to continue"
-        self.handler.show_message(message)
+        self.handler.show_message(msg.code, message, self)
         return proto.ButtonAck()
 
     def callback_PinMatrixRequest(self, msg):
@@ -591,8 +592,10 @@ class KeepKeyQtHandler:
     def stop(self):
         self.win.emit(SIGNAL('keepkey_done'))
 
-    def show_message(self, msg):
+    def show_message(self, msg_code, msg, client):
+        self.messsage_code = msg_code
         self.message = msg
+        self.client = client
         self.win.emit(SIGNAL('message_dialog'))
 
     def get_pin(self, msg):
@@ -651,6 +654,11 @@ class KeepKeyQtHandler:
         l = QLabel(self.message)
         vbox = QVBoxLayout(self.d)
         vbox.addWidget(l)
+
+        if self.messsage_code in (3, 8):
+            vbox.addLayout(Buttons(CancelButton(self.d)))
+            self.d.connect(self.d, SIGNAL('rejected()'), self.client.cancel)
+
         self.d.show()
 
     def dialog_stop(self):
