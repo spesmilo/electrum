@@ -292,7 +292,9 @@ class EditableItemDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
         if index.column() not in self.parent().editable_columns:
             return None
-        self.parent().prior_text = unicode(index.data().toString())
+        self.parent().editing = (self.parent().currentItem(),
+                                 index.column(),
+                                 unicode(index.data().toString()))
         return QStyledItemDelegate.createEditor(self, parent, option, index)
 
 class MyTreeWidget(QTreeWidget):
@@ -312,6 +314,7 @@ class MyTreeWidget(QTreeWidget):
         self.insertChild = self.insertTopLevelItem
 
         # Control which columns are editable
+        self.editing = (None, None, None)
         if editable_columns is None:
             editable_columns = [stretch_column]
         self.editable_columns = editable_columns
@@ -340,7 +343,9 @@ class MyTreeWidget(QTreeWidget):
 
     def item_changed(self, item, column):
         '''Called only when the text actually changes'''
-        self.item_edited(item, column, self.prior_text)
+        # Only pass user edits to item_edited()
+        if item == self.editing[0] and column == self.editing[1]:
+            self.item_edited(item, column, self.editing[2])
 
     def item_edited(self, item, column, prior):
         '''Called only when the text actually changes'''
