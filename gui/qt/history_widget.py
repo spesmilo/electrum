@@ -94,7 +94,19 @@ class HistoryWidget(MyTreeWidget):
         tx_hash = str(item.data(0, Qt.UserRole).toString())
         if not tx_hash:
             return
-        tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
+          
+        my_tx_addresses = [] 
+        tx = self.wallet.transactions.get(tx_hash)
+        tx_dict = tx.as_dict()
+        for x in self.wallet.transactions.get(tx_hash).inputs:
+          addr = x.get('address')
+          if self.wallet.is_mine(addr):
+            my_tx_addresses.append(addr)
+        
+        output_addrs = [x for x in tx.get_output_addresses() if self.wallet.is_mine(x)]
+        my_tx_addresses.extend(output_addrs)
+
+        tx_URL = block_explorer_URL(self.config, 'tx', tx_hash, my_tx_addresses)
         if not tx_URL:
             return
         menu = QMenu()

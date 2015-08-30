@@ -254,6 +254,9 @@ block_explorer_info = {
                         {'tx': 'tx', 'addr': 'address'}),
     'TradeBlock.com': ('https://tradeblock.com/blockchain',
                         {'tx': 'tx', 'addr': 'address'}),
+    'blockonomics.co': ('https://www.blockonomics.co',
+                        {'tx': 'api/tx', 'addr': '#/search',
+                         'use_noslash_format': True}),
 }
 
 def block_explorer(config):
@@ -262,13 +265,20 @@ def block_explorer(config):
 def block_explorer_tuple(config):
     return block_explorer_info.get(block_explorer(config))
 
-def block_explorer_URL(config, kind, item):
+def block_explorer_URL(config, kind, item, my_tx_addresses=None):
     be_tuple = block_explorer_tuple(config)
     if not be_tuple:
         return
     kind_str = be_tuple[1].get(kind)
     if not kind_str:
         return
+    if (be_tuple[1].get('use_noslash_format')):
+      if kind == 'tx':
+        params = "?txid={0}&addr={1}".format(item,','.join(my_tx_addresses)) 
+      else:
+        params = "?q={0}".format(item)
+      return "{0}/{1}{2}".format(be_tuple[0], kind_str, params)  
+
     url_parts = [be_tuple[0], kind_str, item]
     return "/".join(url_parts)
 
