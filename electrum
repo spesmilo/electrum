@@ -258,6 +258,13 @@ def run_command(config, network, password):
     wallet = Wallet(storage) if cmd.requires_wallet else None
     # arguments passed to function
     args = map(lambda x: config.get(x), cmd.params)
+    # decode json arguments
+    def json_decode(x):
+        try:
+            return json.loads(x)
+        except:
+            return x
+    args = map(json_decode, args)
     # options
     args += map(lambda x: config.get(x), cmd.options)
 
@@ -434,12 +441,7 @@ if __name__ == '__main__':
     for i, arg in enumerate(sys.argv):
         if arg == '-':
             if not sys.stdin.isatty():
-                pipe_data = sys.stdin.read()
-                try:
-                    pipe_data = json.loads(pipe_data)
-                except:
-                    pass
-                sys.argv[i] = pipe_data
+                sys.argv[i] = sys.stdin.read()
                 break
             else:
                 raise BaseException('Cannot get argument from stdin')
@@ -506,7 +508,7 @@ if __name__ == '__main__':
         if type(result) in [str, unicode]:
             print_msg(result)
         elif result is not None:
-            if result.get('error'):
+            if type(result) is dir and result.get('error'):
                 print_stderr(result.get('error'))
             else:
                 print_json(result)
