@@ -238,9 +238,10 @@ class Plugin(BasePlugin):
         try:
             signed_tx = client.sign_tx('Bitcoin', inputs, outputs)[1]
         except Exception, e:
-            give_error(e)
-        finally:
             self.handler.stop()
+            give_error(e)
+        
+        self.handler.stop()
 
         raw = signed_tx.encode('hex')
         tx.update_signatures(raw)
