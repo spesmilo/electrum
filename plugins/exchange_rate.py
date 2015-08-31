@@ -2,18 +2,15 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 import datetime
-import decimal
 import requests
-import json
 import threading
 import time
-import re
-from ssl import SSLError
 from decimal import Decimal
 
 from electrum.bitcoin import COIN
 from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
+from electrum.util import ThreadJob
 from electrum_gui.qt.util import *
 from electrum_gui.qt.amountedit import AmountEdit
 
@@ -38,36 +35,28 @@ EXCH_SUPPORT_HIST = [("CoinDesk", "USD"),
                      ("BitcoinVenezuela", "ARS"),
                      ("BitcoinVenezuela", "VEF")]
 
-class Exchanger(threading.Thread):
+class Exchanger(ThreadJob):
 
     def __init__(self, parent):
-        threading.Thread.__init__(self)
-        self.daemon = True
         self.parent = parent
         self.quote_currencies = None
-        self.lock = threading.Lock()
-        self.query_rates = threading.Event()
+        self.timeout = 0
         self.use_exchange = self.parent.config.get('use_exchange', "Blockchain")
         self.parent.exchanges = EXCHANGES
         #self.parent.win.emit(SIGNAL("refresh_exchanges_combo()"))
         #self.parent.win.emit(SIGNAL("refresh_currencies_combo()"))
-        self.is_running = False
 
     def get_json(self, site, get_string):
         resp = requests.request('GET', 'https://' + site + get_string, headers={"User-Agent":"Electrum"})
         return resp.json()
 
     def exchange(self, btc_amount, quote_currency):
-        with self.lock:
-            if self.quote_currencies is None:
-                return None
-            quote_currencies = self.quote_currencies.copy()
+        if self.quote_currencies is None:
+            return None
+        quote_currencies = self.quote_currencies.copy()
         if quote_currency not in quote_currencies:
             return None
         return btc_amount * Decimal(str(quote_currencies[quote_currency]))
-
-    def stop(self):
-        self.is_running = False
 
     def update_rate(self):
         self.use_exchange = self.parent.config.get('use_exchange', "Blockchain")
@@ -92,18 +81,14 @@ class Exchanger(threading.Thread):
         except Exception as e:
             self.parent.print_error(e)
             rates = {}
-        with self.lock:
-            self.quote_currencies = rates
-            self.parent.set_currencies(rates)
+        self.quote_currencies = rates
+        self.parent.set_currencies(rates)
         self.parent.refresh_fields()
 
     def run(self):
-        self.is_running = True
-        while self.is_running:
-            self.query_rates.clear()
+        if self.timeout <= time.time():
             self.update_rate()
-            self.query_rates.wait(150)
-
+            self.timeout = time.time() + 150
 
     def update_cd(self):
         resp_currencies = self.get_json('api.coindesk.com', "/v1/bpi/supported-currencies.json")
@@ -188,10 +173,18 @@ class Plugin(BasePlugin):
         self.exchanges = [self.config.get('use_exchange', "Blockchain")]
         # Do price discovery
         self.exchanger = Exchanger(self)
-        self.exchanger.start()
         self.win = None
         self.resp_hist = {}
         self.fields = {}
+        self.network = None
+
+    @hook
+    def set_network(self, network):
+        if self.network:
+            self.network.remove_job(self.exchanger)
+        self.network = network
+        if network:
+            network.add_job(self.exchanger)
 
     @hook
     def init_qt(self, gui):
@@ -207,7 +200,7 @@ class Plugin(BasePlugin):
 
     def close(self):
         BasePlugin.close(self)
-        self.exchanger.stop()
+        self.set_network(None)
         self.exchanger = None
         self.gui.exchanger = None
         self.send_fiat_e.hide()
@@ -269,6 +262,7 @@ class Plugin(BasePlugin):
 
         self.tx_list = tx_list
         self.cur_exchange = self.config.get('use_exchange', "Blockchain")
+        self.set_network(wallet.network)
         t = threading.Thread(target=self.request_history_rates, args=())
         t.setDaemon(True)
         t.start()
@@ -422,7 +416,7 @@ class Plugin(BasePlugin):
                 self.config.set_key('use_exchange', cur_request, True)
                 self.currencies = []
                 combo.clear()
-                self.exchanger.query_rates.set()
+                self.timeout = 0
                 cur_currency = self.fiat_unit()
                 if (cur_request, cur_currency) in EXCH_SUPPORT_HIST:
                     hist_checkbox.setEnabled(True)
@@ -473,7 +467,7 @@ class Plugin(BasePlugin):
 
         def ok_clicked():
             if self.config.get('use_exchange', "Blockchain") in ["CoinDesk", "itBit"]:
-                self.exchanger.query_rates.set()
+                self.timeout = 0
             d.accept();
 
         set_exchanges(combo_ex)

@@ -17,6 +17,7 @@ from bitcoin import *
 from interface import Connection, Interface
 from blockchain import Blockchain
 from version import ELECTRUM_VERSION, PROTOCOL_VERSION
+from plugins import run_hook
 
 DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 
@@ -132,7 +133,7 @@ class Network(util.DaemonThread):
 
     - Member functions get_header(), get_interfaces(), get_local_height(),
           get_parameters(), get_server_height(), get_status_value(),
-          is_connected(), new_blockchain_height(), set_parameters(), start(),
+          is_connected(), new_blockchain_height(), set_parameters(),
           stop()
     """
 
@@ -750,6 +751,7 @@ class Network(util.DaemonThread):
             self.process_responses(interface)
 
     def run(self):
+        run_hook('set_network', self)
         self.blockchain.init()
         while self.is_running():
             self.maintain_sockets()
@@ -759,6 +761,7 @@ class Network(util.DaemonThread):
             self.process_pending_sends()
 
         self.stop_network()
+        run_hook('set_network', None)
         self.trigger_callback('stop')
         self.print_error("stopped")
 
