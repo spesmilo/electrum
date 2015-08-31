@@ -203,4 +203,4 @@ class NetworkMock(object):
         self.unspent = unspent
 
     def synchronous_get(self, arg):
-        return [self.unspent]
+        return self.unspent
