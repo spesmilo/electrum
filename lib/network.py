@@ -367,7 +367,7 @@ class Network(util.DaemonThread):
         self.config.set_key("proxy", proxy_str, False)
         self.config.set_key("server", server, True)
         # abort if changes were not allowed by config
-        if self.config.get('server') != server_str or self.config.get('proxy') != proxy_str:
+        if self.config.get('server') != server or self.config.get('proxy') != proxy_str:
             return
 
         self.auto_connect = auto_connect
