@@ -95,6 +95,7 @@ class Exchanger(threading.Thread):
         with self.lock:
             self.quote_currencies = rates
             self.parent.set_currencies(rates)
+        self.parent.refresh_fields()
 
     def run(self):
         self.is_running = True
@@ -190,6 +191,7 @@ class Plugin(BasePlugin):
         self.exchanger.start()
         self.win = None
         self.resp_hist = {}
+        self.fields = {}
 
     @hook
     def init_qt(self, gui):
@@ -496,6 +498,11 @@ class Plugin(BasePlugin):
     def fiat_unit(self):
         return self.config.get("currency", "EUR")
 
+    def refresh_fields(self):
+        '''Update the display at the new rate'''
+        for field in self.fields.values():
+            field.textEdited.emit(field.text())
+
     def add_send_edit(self):
         self.send_fiat_e = AmountEdit(self.fiat_unit)
         btc_e = self.win.amount_e
@@ -513,6 +520,7 @@ class Plugin(BasePlugin):
     def connect_fields(self, btc_e, fiat_e, fee_e):
         def fiat_changed():
             fiat_e.setStyleSheet(BLACK_FG)
+            self.fields[(fiat_e, btc_e)] = fiat_e
             try:
                 fiat_amount = Decimal(str(fiat_e.text()))
             except:
@@ -528,6 +536,7 @@ class Plugin(BasePlugin):
         fiat_e.textEdited.connect(fiat_changed)
         def btc_changed():
             btc_e.setStyleSheet(BLACK_FG)
+            self.fields[(fiat_e, btc_e)] = btc_e
             if self.exchanger is None:
                 return
             btc_amount = btc_e.get_amount()
@@ -541,6 +550,7 @@ class Plugin(BasePlugin):
                 fiat_e.setCursorPosition(pos)
                 fiat_e.setStyleSheet(BLUE_FG)
         btc_e.textEdited.connect(btc_changed)
+        self.fields[(fiat_e, btc_e)] = btc_e
 
     @hook
     def do_clear(self):
