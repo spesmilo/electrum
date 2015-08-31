@@ -545,7 +545,7 @@ class Transaction:
         for privkey in privkeys:
             pubkey = public_key_from_private_key(privkey)
             address = address_from_private_key(privkey)
-            u = network.synchronous_get([ ('blockchain.address.listunspent',[address])])[0]
+            u = network.synchronous_get(('blockchain.address.listunspent',[address]))
             pay_script = klass.pay_script('address', address)
             for item in u:
                 item['scriptPubKey'] = pay_script

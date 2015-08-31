@@ -103,7 +103,7 @@ class Commands:
         """Create a new wallet"""
 
     @command('')
-    def restore(self):
+    def restore(self, concealed=False, mpk=None):
         """Restore a wallet from seed. """
 
     @command('w')
@@ -148,7 +148,7 @@ class Commands:
         """Return the transaction history of any address. Note: This is a
         walletless server query, results are not checked by SPV.
         """
-        return self.network.synchronous_get([('blockchain.address.get_history', [address])])[0]
+        return self.network.synchronous_get(('blockchain.address.get_history', [address]))
 
     @command('nw')
     def listunspent(self):
@@ -165,16 +165,15 @@ class Commands:
         """Returns the UTXO list of any address. Note: This
         is a walletless server query, results are not checked by SPV.
         """
-        return self.network.synchronous_get([('blockchain.address.listunspent', [address])])[0]
+        return self.network.synchronous_get(('blockchain.address.listunspent', [address]))
 
     @command('n')
     def getutxoaddress(self, txid, pos):
         """Get the address of a UTXO. Note: This is a walletless server query, results are
         not checked by SPV.
         """
-        r = self.network.synchronous_get([('blockchain.utxo.get_address', [txid, pos])])
-        if r:
-            return {'address':r[0]}
+        r = self.network.synchronous_get(('blockchain.utxo.get_address', [txid, pos]))
+        return {'address': r}
 
     @command('wp')
     def createrawtx(self, inputs, outputs, unsigned=False):
@@ -219,7 +218,7 @@ class Commands:
     def broadcast(self, tx):
         """Broadcast a transaction to the network. """
         t = Transaction(tx)
-        return self.network.synchronous_get([('blockchain.transaction.broadcast', [str(t)])])[0]
+        return self.network.synchronous_get(('blockchain.transaction.broadcast', [str(t)]))
 
     @command('')
     def createmultisig(self, num, pubkeys):
@@ -287,7 +286,7 @@ class Commands:
         """Return the balance of any address. Note: This is a walletless
         server query, results are not checked by SPV.
         """
-        out = self.network.synchronous_get([('blockchain.address.get_balance', [address])])[0]
+        out = self.network.synchronous_get(('blockchain.address.get_balance', [address]))
         out["confirmed"] =  str(Decimal(out["confirmed"])/COIN)
         out["unconfirmed"] =  str(Decimal(out["unconfirmed"])/COIN)
         return out
@@ -295,7 +294,7 @@ class Commands:
     @command('n')
     def getproof(self, address):
         """Get Merkle branch of an address in the UTXO set"""
-        p = self.network.synchronous_get([('blockchain.address.get_proof', [address])])[0]
+        p = self.network.synchronous_get(('blockchain.address.get_proof', [address]))
         out = []
         for i,s in p:
             out.append(i)
@@ -305,7 +304,7 @@ class Commands:
     def getmerkle(self, txid, height):
         """Get Merkle branch of a transaction included in a block. Electrum
         uses this to verify transactions (Simple Payment Verification)."""
-        return self.network.synchronous_get([('blockchain.transaction.get_merkle', [txid, int(height)])])[0]
+        return self.network.synchronous_get(('blockchain.transaction.get_merkle', [txid, int(height)]))
 
     @command('n')
     def getservers(self):
@@ -522,7 +521,7 @@ class Commands:
         """Retrieve a transaction. """
         tx = self.wallet.transactions.get(txid) if self.wallet else None
         if tx is None and self.network:
-            raw = self.network.synchronous_get([('blockchain.transaction.get', [txid])])[0]
+            raw = self.network.synchronous_get(('blockchain.transaction.get', [txid]))
             if raw:
                 tx = Transaction(raw)
             else:

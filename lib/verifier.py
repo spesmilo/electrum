@@ -18,7 +18,6 @@
 
 
 from util import ThreadJob
-from functools import partial
 from bitcoin import *
 
 
@@ -40,31 +39,25 @@ class SPV(ThreadJob):
             if tx_hash not in self.merkle_roots and tx_height <= lh:
                 request = ('blockchain.transaction.get_merkle',
                            [tx_hash, tx_height])
-                if self.network.send([request], self.merkle_response):
-                    self.print_error('requested merkle', tx_hash)
-                    self.merkle_roots[tx_hash] = None
+                self.network.send([request], self.verify_merkle)
+                self.print_error('requested merkle', tx_hash)
+                self.merkle_roots[tx_hash] = None
 
-    def merkle_response(self, r):
+    def verify_merkle(self, r):
         if r.get('error'):
             self.print_error('received an error:', r)
             return
 
         params = r['params']
-        result = r['result']
+        merkle = r['result']
 
-        # Get the header asynchronously - as a thread job we cannot block
+        # Verify the hash of the server-provided merkle branch to a
+        # transaction matches the merkle root of its block
         tx_hash = params[0]
-        request = ('network.get_header',[result.get('block_height')])
-        self.network.send([request], partial(self.verify, tx_hash, result))
-
-    def verify(self, tx_hash, merkle, header):
-        '''Verify the hash of the server-provided merkle branch to a
-        transaction matches the merkle root of its block
-        '''
         tx_height = merkle.get('block_height')
         pos = merkle.get('pos')
         merkle_root = self.hash_merkle_root(merkle['merkle'], tx_hash, pos)
-        header = header.get('result')
+        header = self.network.get_header(tx_height)
         if not header or header.get('merkle_root') != merkle_root:
             # FIXME: we should make a fresh connection to a server to
             # recover from this, as this TX will now never verify

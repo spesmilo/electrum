@@ -2357,7 +2357,7 @@ class ElectrumWindow(QMainWindow):
         txid, ok = QInputDialog.getText(self, _('Lookup transaction'), _('Transaction ID') + ':')
         if ok and txid:
             try:
-                r = self.network.synchronous_get([('blockchain.transaction.get',[str(txid)])])[0]
+                r = self.network.synchronous_get(('blockchain.transaction.get',[str(txid)]))
             except BaseException as e:
                 self.show_message(str(e))
                 return

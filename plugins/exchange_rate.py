@@ -2,18 +2,15 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 import datetime
-import decimal
 import requests
-import json
 import threading
 import time
-import re
-from ssl import SSLError
 from decimal import Decimal
 
 from electrum_ltc.bitcoin import COIN
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.i18n import _
+from electrum_ltc.util import ThreadJob
 from electrum_ltc_gui.qt.util import *
 from electrum_ltc_gui.qt.amountedit import AmountEdit
 
@@ -36,36 +33,28 @@ EXCH_SUPPORT_HIST = [("BitcoinVenezuela", "ARS"),
                      ("Kraken", "EUR"),
                      ("Kraken", "USD")]
 
-class Exchanger(threading.Thread):
+class Exchanger(ThreadJob):
 
     def __init__(self, parent):
-        threading.Thread.__init__(self)
-        self.daemon = True
         self.parent = parent
         self.quote_currencies = None
-        self.lock = threading.Lock()
-        self.query_rates = threading.Event()
+        self.timeout = 0
         self.use_exchange = self.parent.config.get('use_exchange', "BTC-e")
         self.parent.exchanges = EXCHANGES
         #self.parent.win.emit(SIGNAL("refresh_exchanges_combo()"))
         #self.parent.win.emit(SIGNAL("refresh_currencies_combo()"))
-        self.is_running = False
 
     def get_json(self, site, get_string):
         resp = requests.request('GET', 'https://' + site + get_string, verify=False, headers={"User-Agent":"Electrum"})
         return resp.json()
 
     def exchange(self, btc_amount, quote_currency):
-        with self.lock:
-            if self.quote_currencies is None:
-                return None
-            quote_currencies = self.quote_currencies.copy()
+        if self.quote_currencies is None:
+            return None
+        quote_currencies = self.quote_currencies.copy()
         if quote_currency not in quote_currencies:
             return None
         return btc_amount * Decimal(str(quote_currencies[quote_currency]))
-
-    def stop(self):
-        self.is_running = False
 
     def update_rate(self):
         self.use_exchange = self.parent.config.get('use_exchange', "BTC-e")
@@ -86,17 +75,14 @@ class Exchanger(threading.Thread):
         except Exception as e:
             self.parent.print_error(e)
             rates = {}
-        with self.lock:
-            self.quote_currencies = rates
-            self.parent.set_currencies(rates)
+        self.quote_currencies = rates
+        self.parent.set_currencies(rates)
+        self.parent.refresh_fields()
 
     def run(self):
-        self.is_running = True
-        while self.is_running:
-            self.query_rates.clear()
+        if self.timeout <= time.time():
             self.update_rate()
-            self.query_rates.wait(150)
-
+            self.timeout = time.time() + 150
 
     def update_b2c(self):
         jsonresp = self.get_json('www.bit2c.co.il', "/Exchanges/LTCNIS/Ticker.json")
@@ -163,9 +149,18 @@ class Plugin(BasePlugin):
         self.exchanges = [self.config.get('use_exchange', "BTC-e")]
         # Do price discovery
         self.exchanger = Exchanger(self)
-        self.exchanger.start()
         self.win = None
         self.resp_hist = {}
+        self.fields = {}
+        self.network = None
+
+    @hook
+    def set_network(self, network):
+        if self.network:
+            self.network.remove_job(self.exchanger)
+        self.network = network
+        if network:
+            network.add_job(self.exchanger)
 
     @hook
     def init_qt(self, gui):
@@ -181,7 +176,7 @@ class Plugin(BasePlugin):
 
     def close(self):
         BasePlugin.close(self)
-        self.exchanger.stop()
+        self.set_network(None)
         self.exchanger = None
         self.gui.exchanger = None
         self.send_fiat_e.hide()
@@ -243,6 +238,7 @@ class Plugin(BasePlugin):
 
         self.tx_list = tx_list
         self.cur_exchange = self.config.get('use_exchange', "BTC-e")
+        self.set_network(wallet.network)
         t = threading.Thread(target=self.request_history_rates, args=())
         t.setDaemon(True)
         t.start()
@@ -407,7 +403,7 @@ class Plugin(BasePlugin):
                 self.config.set_key('use_exchange', cur_request, True)
                 self.currencies = []
                 combo.clear()
-                self.exchanger.query_rates.set()
+                self.timeout = 0
                 cur_currency = self.fiat_unit()
                 if (cur_request, cur_currency) in EXCH_SUPPORT_HIST:
                     hist_checkbox.setEnabled(True)
@@ -460,7 +456,7 @@ class Plugin(BasePlugin):
 
         def ok_clicked():
             if self.config.get('use_exchange', "BTC-e") in ["CoinDesk", "itBit"]:
-                self.exchanger.query_rates.set()
+                self.timeout = 0
             d.accept();
 
         set_exchanges(combo_ex)
@@ -485,6 +481,11 @@ class Plugin(BasePlugin):
     def fiat_unit(self):
         return self.config.get("currency", "EUR")
 
+    def refresh_fields(self):
+        '''Update the display at the new rate'''
+        for field in self.fields.values():
+            field.textEdited.emit(field.text())
+
     def add_send_edit(self):
         self.send_fiat_e = AmountEdit(self.fiat_unit)
         btc_e = self.win.amount_e
@@ -502,6 +503,7 @@ class Plugin(BasePlugin):
     def connect_fields(self, btc_e, fiat_e, fee_e):
         def fiat_changed():
             fiat_e.setStyleSheet(BLACK_FG)
+            self.fields[(fiat_e, btc_e)] = fiat_e
             try:
                 fiat_amount = Decimal(str(fiat_e.text()))
             except:
@@ -517,6 +519,7 @@ class Plugin(BasePlugin):
         fiat_e.textEdited.connect(fiat_changed)
         def btc_changed():
             btc_e.setStyleSheet(BLACK_FG)
+            self.fields[(fiat_e, btc_e)] = btc_e
             if self.exchanger is None:
                 return
             btc_amount = btc_e.get_amount()
@@ -530,6 +533,7 @@ class Plugin(BasePlugin):
                 fiat_e.setCursorPosition(pos)
                 fiat_e.setStyleSheet(BLUE_FG)
         btc_e.textEdited.connect(btc_changed)
+        self.fields[(fiat_e, btc_e)] = btc_e
 
     @hook
     def do_clear(self):
