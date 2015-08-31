@@ -255,6 +255,7 @@ class ElectrumWindow(QMainWindow):
         self.update_console()
         self.clear_receive_tab()
         self.update_receive_tab()
+        self.tabs.show()
         self.show()
         if self.wallet.is_watching_only():
             msg = ' '.join([
@@ -409,7 +410,6 @@ class ElectrumWindow(QMainWindow):
         else:
             self.wallet.start_threads(self.network)
             self.load_wallet(self.wallet)
-        self.show()
 
     def update_recently_visited(self, filename=None):
         recent = self.config.get('recently_open', [])
