@@ -21,7 +21,6 @@ def get_interfaces(servers, timeout=10):
             server, socket = socket_queue.get(True, 1)
         except Queue.Empty:
             continue
-        connecting.pop(server)
         if socket:
             interfaces[server] = Interface(server, socket)
     return interfaces
