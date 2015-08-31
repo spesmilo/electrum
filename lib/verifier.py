@@ -18,7 +18,6 @@
 
 
 from util import ThreadJob
-from functools import partial
 from bitcoin import *
 
 
