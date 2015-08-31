@@ -103,7 +103,7 @@ class Commands:
         """Create a new wallet"""
 
     @command('')
-    def restore(self, concealed = False):
+    def restore(self, concealed=False, mpk=None):
         """Restore a wallet from seed. """
 
     @command('w')
