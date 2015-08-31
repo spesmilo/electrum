@@ -75,6 +75,6 @@ def send_request(peers, request):
     for peer in interfaces:
         if not peer in responses:
             print peer, "did not answer"
-    results = dict(zip(responses.keys(), [t[0][1] for t in responses.values()]))
+    results = dict(zip(responses.keys(), [t[0][1].get('result') for t in responses.values()]))
     print "%d answers"%len(results)
     return results
