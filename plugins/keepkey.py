@@ -283,13 +283,14 @@ class Plugin(BasePlugin):
                         )
                         # find which key is mine
                         for x_pubkey in x_pubkeys:
-                            xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
-                            if xpub in self.xpub_path:
-                                xpub_n = self.get_client().expand_path(self.xpub_path[xpub])
-                                txinputtype.address_n.extend(xpub_n + s)
-                                break
-                            else:
-                                raise
+                            if is_extended_pubkey(x_pubkey):
+                                xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
+                                if xpub in self.xpub_path:
+                                    xpub_n = self.get_client().expand_path(self.xpub_path[xpub])
+                                    txinputtype.address_n.extend(xpub_n + s)
+                                    break
+                                else:
+                                    raise
 
                 prev_hash = unhexlify(txin['prevout_hash'])
                 prev_index = txin['prevout_n']
