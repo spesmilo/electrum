@@ -69,7 +69,7 @@ class ElectrumGui:
         set_language(config.get('language'))
         self.network = network
         self.config = config
-        self.windows = {}
+        self.windows = []
         self.efilter = OpenFileEventFilter(self.windows)
         self.app = QApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
@@ -109,16 +109,25 @@ class ElectrumGui:
     def new_window(self, config):
         self.app.emit(SIGNAL('new_window'), config)
 
-    def start_new_window(self, config):
-        path = config.get_wallet_path()
-        if path not in self.windows:
+    def load_wallet_file(self, path):
+        self.app.emit(SIGNAL('new_window'), self.config, path)
+
+    def start_new_window(self, config, path=None):
+        if path is None:
+            path = config.get_wallet_path()
+        for w in self.windows:
+            if w.config.get_wallet_path() == path:
+                # Un-minimize the window and raise it
+                w.setWindowState(w.windowState() & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
+                w.activateWindow()
+                break
+        else:
             w = ElectrumWindow(config, self.network, self)
             w.connect_slots(self.timer)
             w.load_wallet_file(path)
             w.show()
-            self.windows[path] = w
+            self.windows.append(w)
 
-        w = self.windows[path]
         url = config.get('url')
         if url:
             w.pay_to_URI(url)
@@ -161,9 +170,6 @@ class ElectrumGui:
         # clipboard persistence. see http://www.mail-archive.com/pyqt@riverbankcomputing.com/msg17328.html
         event = QtCore.QEvent(QtCore.QEvent.Clipboard)
         self.app.sendEvent(self.app.clipboard(), event)
-
-        for window in self.windows.values():
-            window.close_wallet()
 
         if self.tray:
             self.tray.hide()

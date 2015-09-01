@@ -141,10 +141,10 @@ class ElectrumWindow(QMainWindow):
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
 
-        try:
-            self.setGeometry(*self.config.get("winpos-qt"))
-        except:
-            self.setGeometry(100, 100, 840, 400)
+        #try:
+        #    self.setGeometry(*self.config.get("winpos-qt"))
+        #except:
+        #    self.setGeometry(100, 100, 840, 400)
 
         if self.config.get("is_maximized"):
             self.showMaximized()
@@ -217,13 +217,13 @@ class ElectrumWindow(QMainWindow):
             self.account_selector.hide()
 
     def close_wallet(self):
+        print_error('close_wallet', self.config.get_wallet_path())
         if self.wallet:
             self.wallet.storage.put('accounts_expanded', self.accounts_expanded)
             self.wallet.stop_threads()
         run_hook('close_wallet')
 
     def load_wallet(self, wallet):
-        import electrum_ltc as electrum
         self.wallet = wallet
         # backward compatibility
         self.update_wallet_format()
@@ -255,6 +255,7 @@ class ElectrumWindow(QMainWindow):
         self.update_console()
         self.clear_receive_tab()
         self.update_receive_tab()
+        self.tabs.show()
         self.show()
         if self.wallet.is_watching_only():
             msg = ' '.join([
@@ -292,7 +293,7 @@ class ElectrumWindow(QMainWindow):
         filename = unicode(QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder))
         if not filename:
             return
-        self.load_wallet_file(filename)
+        self.gui_object.load_wallet_file(filename)
 
     def run_wizard(self, storage, action):
         import installwizard
@@ -409,7 +410,6 @@ class ElectrumWindow(QMainWindow):
         else:
             self.wallet.start_threads(self.network)
             self.load_wallet(self.wallet)
-        self.show()
 
     def update_recently_visited(self, filename=None):
         recent = self.config.get('recently_open', [])
@@ -423,7 +423,7 @@ class ElectrumWindow(QMainWindow):
         for i, k in enumerate(sorted(recent)):
             b = os.path.basename(k)
             def loader(k):
-                return lambda: self.load_wallet_file(k)
+                return lambda: self.gui_object.load_wallet_file(k)
             self.recently_visited_menu.addAction(b, loader(k)).setShortcut(QKeySequence("Ctrl+%d"%(i+1)))
         self.recently_visited_menu.setEnabled(len(recent))
 
@@ -552,7 +552,9 @@ class ElectrumWindow(QMainWindow):
         if self.qr_window:
             self.qr_window.close()
         QMainWindow.close(self)
+        self.close_wallet()
         run_hook('close_main_window')
+        self.gui_object.windows.remove(self)
 
     def connect_slots(self, sender):
         self.connect(sender, QtCore.SIGNAL('timersignal'), self.timer_actions)
