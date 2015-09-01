@@ -217,6 +217,7 @@ class ElectrumWindow(QMainWindow):
             self.account_selector.hide()
 
     def close_wallet(self):
+        print_error('close_wallet', self.config.get_wallet_path())
         if self.wallet:
             self.wallet.storage.put('accounts_expanded', self.accounts_expanded)
             self.wallet.stop_threads()
@@ -551,7 +552,9 @@ class ElectrumWindow(QMainWindow):
         if self.qr_window:
             self.qr_window.close()
         QMainWindow.close(self)
+        self.close_wallet()
         run_hook('close_main_window')
+        self.gui_object.windows.remove(self)
 
     def connect_slots(self, sender):
         self.connect(sender, QtCore.SIGNAL('timersignal'), self.timer_actions)
