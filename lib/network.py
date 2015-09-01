@@ -762,7 +762,6 @@ class Network(util.DaemonThread):
 
         self.stop_network()
         run_hook('set_network', None)
-        self.trigger_callback('stop')
         self.print_error("stopped")
 
     def on_header(self, i, header):
