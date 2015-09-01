@@ -113,6 +113,9 @@ class ElectrumGui:
         path = config.get_wallet_path()
         for w in self.windows:
             if w.config.get_wallet_path() == path:
+                # Un-minimize the window and raise it
+                w.setWindowState(w.windowState() & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
+                w.activateWindow()
                 break
         else:
             w = ElectrumWindow(config, self.network, self)
