@@ -223,7 +223,6 @@ class ElectrumWindow(QMainWindow):
         run_hook('close_wallet')
 
     def load_wallet(self, wallet):
-        import electrum
         self.wallet = wallet
         # backward compatibility
         self.update_wallet_format()
