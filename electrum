@@ -296,10 +296,13 @@ class ClientThread(util.DaemonThread):
         cmd = config.get('cmd')
         if cmd == 'gui':
             if self.server.gui:
-                self.server.gui.new_window(config)
-                response = "ok"
+                if hasattr(server.gui, 'new_window'):
+                    self.server.gui.new_window(config)
+                    response = "ok"
+                else:
+                    response = "error: current GUI does not support multiple windows"
             else:
-                response = "Error: Electrum daemon is running"
+                response = "error: Electrum daemon is running"
         elif cmd == 'daemon':
             sub = config.get('subcommand')
             assert sub in ['start', 'stop', 'status']
