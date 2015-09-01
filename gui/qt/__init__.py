@@ -109,8 +109,12 @@ class ElectrumGui:
     def new_window(self, config):
         self.app.emit(SIGNAL('new_window'), config)
 
-    def start_new_window(self, config):
-        path = config.get_wallet_path()
+    def load_wallet_file(self, path):
+        self.app.emit(SIGNAL('new_window'), self.config, path)
+
+    def start_new_window(self, config, path=None):
+        if path is None:
+            path = config.get_wallet_path()
         for w in self.windows:
             if w.config.get_wallet_path() == path:
                 break

@@ -141,10 +141,10 @@ class ElectrumWindow(QMainWindow):
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
 
-        try:
-            self.setGeometry(*self.config.get("winpos-qt"))
-        except:
-            self.setGeometry(100, 100, 840, 400)
+        #try:
+        #    self.setGeometry(*self.config.get("winpos-qt"))
+        #except:
+        #    self.setGeometry(100, 100, 840, 400)
 
         if self.config.get("is_maximized"):
             self.showMaximized()
@@ -293,7 +293,7 @@ class ElectrumWindow(QMainWindow):
         filename = unicode(QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder))
         if not filename:
             return
-        self.load_wallet_file(filename)
+        self.gui_object.load_wallet_file(filename)
 
     def run_wizard(self, storage, action):
         import installwizard
@@ -423,7 +423,7 @@ class ElectrumWindow(QMainWindow):
         for i, k in enumerate(sorted(recent)):
             b = os.path.basename(k)
             def loader(k):
-                return lambda: self.load_wallet_file(k)
+                return lambda: self.gui_object.load_wallet_file(k)
             self.recently_visited_menu.addAction(b, loader(k)).setShortcut(QKeySequence("Ctrl+%d"%(i+1)))
         self.recently_visited_menu.setEnabled(len(recent))
 
