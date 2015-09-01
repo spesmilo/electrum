@@ -295,8 +295,11 @@ class ClientThread(util.DaemonThread):
         config = SimpleConfig(config_options)
         cmd = config.get('cmd')
         if cmd == 'gui':
-            self.server.gui.new_window(config)
-            response = "ok"
+            if self.server.gui:
+                self.server.gui.new_window(config)
+                response = "ok"
+            else:
+                response = "Error: Electrum daemon is running"
         elif cmd == 'daemon':
             sub = config.get('subcommand')
             assert sub in ['start', 'stop', 'status']
@@ -340,6 +343,8 @@ class NetworkServer(util.DaemonThread):
         self.lock = threading.RLock()
         # each GUI is a client of the daemon
         self.clients = []
+        # gui is None is we run as daemon
+        self.gui = None
 
     def add_client(self, client):
         for key in ['fee', 'status', 'banner', 'updated', 'servers', 'interfaces']:
