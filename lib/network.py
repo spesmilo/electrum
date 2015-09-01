@@ -315,6 +315,7 @@ class Network(util.DaemonThread):
     def start_interface(self, server):
         if (not server in self.interfaces and not server in self.connecting):
             if server == self.default_server:
+                self.print_error("connecting to %s as new interface" % server)
                 self.set_status('connecting')
             c = Connection(server, self.socket_queue, self.config.path)
             self.connecting[server] = c
@@ -405,7 +406,6 @@ class Network(util.DaemonThread):
         if server already is our interface.'''
         self.default_server = server
         if server not in self.interfaces:
-            self.print_error("starting %s; will switch once connected" % server)
             self.start_interface(server)
             return
         i = self.interfaces[server]
