@@ -305,7 +305,7 @@ class ElectrumWindow(QMainWindow):
         filename = unicode(QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder))
         if not filename:
             return
-        self.gui_object.load_wallet_file(filename)
+        self.gui_object.new_window(filename)
 
 
     def backup_wallet(self):
@@ -337,7 +337,7 @@ class ElectrumWindow(QMainWindow):
         for i, k in enumerate(sorted(recent)):
             b = os.path.basename(k)
             def loader(k):
-                return lambda: self.gui_object.load_wallet_file(k)
+                return lambda: self.gui_object.new_window(k)
             self.recently_visited_menu.addAction(b, loader(k)).setShortcut(QKeySequence("Ctrl+%d"%(i+1)))
         self.recently_visited_menu.setEnabled(len(recent))
 
