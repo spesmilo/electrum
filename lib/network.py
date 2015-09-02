@@ -261,7 +261,7 @@ class Network(util.DaemonThread):
         self.cached_responses = {}
         self.print_error('sending subscriptions to', self.interface.server, len(self.unanswered_requests), len(self.subscribed_addresses))
         for r in self.unanswered_requests.values():
-            self.interface.queue_request(r)
+            self.interface.queue_request(r[0])
         for addr in self.subscribed_addresses:
             self.queue_request('blockchain.address.subscribe', [addr])
         self.queue_request('server.banner', [])
