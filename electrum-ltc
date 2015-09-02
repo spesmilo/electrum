@@ -297,12 +297,13 @@ class ClientThread(util.DaemonThread):
         if cmd == 'gui':
             if self.server.gui:
                 if hasattr(server.gui, 'new_window'):
-                    self.server.gui.new_window(config)
+                    path = config.get_wallet_path()
+                    self.server.gui.new_window(path)
                     response = "ok"
                 else:
                     response = "error: current GUI does not support multiple windows"
             else:
-                response = "error: Electrum daemon is running"
+                response = "Error: Electrum is running in daemon mode. Please stop the daemon first."
         elif cmd == 'daemon':
             sub = config.get('subcommand')
             assert sub in ['start', 'stop', 'status']
