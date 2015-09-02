@@ -510,8 +510,9 @@ class Network(util.DaemonThread):
                 break
             # Rewrite response shape to match subscription request response
             method = response.get('method')
+            params = response.get('params')
             if method == 'blockchain.headers.subscribe':
-                response['result'] = response['params'][0]
+                response['result'] = params[0]
                 response['params'] = []
             elif method == 'blockchain.address.subscribe':
                 response['params'] = [params[0]]  # addr
