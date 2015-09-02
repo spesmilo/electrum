@@ -65,9 +65,9 @@ class CosignWidget(QWidget):
 
 class InstallWizard(QDialog):
 
-    def __init__(self, config, network, storage, parent):
-        QDialog.__init__(self, parent)
-        self.app = parent.app
+    def __init__(self, config, network, storage, app):
+        QDialog.__init__(self)
+        self.app = app
         self.config = config
         self.network = network
         self.storage = storage

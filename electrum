@@ -296,9 +296,9 @@ class ClientThread(util.DaemonThread):
         cmd = config.get('cmd')
         if cmd == 'gui':
             if self.server.gui:
-                if hasattr(server.gui, 'load_wallet_file'):
+                if hasattr(server.gui, 'new_window'):
                     path = config.get_wallet_path()
-                    self.server.gui.load_wallet_file(path)
+                    self.server.gui.new_window(path)
                     response = "ok"
                 else:
                     response = "error: current GUI does not support multiple windows"
