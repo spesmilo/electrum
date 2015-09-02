@@ -70,7 +70,7 @@ def init_plugins(config, is_local, gui_name):
 
     def register_wallet_type(name, x):
         import wallet
-        x += (lambda: plugin_loader(config, name),)
+        x += (lambda storage: plugin_loader(config, name).constructor(storage),)
         wallet.wallet_types.append(x)
 
     descriptions = electrum_plugins.descriptions
