@@ -243,8 +243,6 @@ class Interface:
 
     def queue_request(self, request):
         '''Queue a request.'''
-        if type(request) != type({}):
-            traceback.print_exc(file=sys.stderr)
         self.request_time = time.time()
         self.unsent_requests.append(request)
 
