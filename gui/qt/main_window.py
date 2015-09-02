@@ -229,7 +229,7 @@ class ElectrumWindow(QMainWindow):
             self.account_selector.hide()
 
     def close_wallet(self):
-        print_error('close_wallet', self.config.get_wallet_path())
+        print_error('close_wallet', self.wallet.storage.path)
         if self.wallet:
             self.wallet.storage.put('accounts_expanded', self.accounts_expanded)
             self.wallet.stop_threads()
@@ -388,7 +388,7 @@ class ElectrumWindow(QMainWindow):
                 QMessageBox.critical(None,"Unable to create backup", _("Electrum was unable to copy your wallet file to the specified location.")+"\n" + str(reason))
 
     def get_wallet_folder(self):
-        return os.path.dirname(os.path.abspath(self.wallet.storage.path if self.wallet else self.config.get_wallet_path()))
+        return os.path.dirname(os.path.abspath(self.wallet.storage.path if self.wallet else self.wallet.storage.path))
 
     def new_wallet(self):
         import installwizard

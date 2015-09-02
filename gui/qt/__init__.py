@@ -120,7 +120,7 @@ class ElectrumGui:
         if path is None:
             path = config.get_wallet_path()
         for w in self.windows:
-            if w.config.get_wallet_path() == path:
+            if w.wallet.storage.path == path:
                 w.bring_to_top()
                 break
         else:
