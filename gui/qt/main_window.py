@@ -186,6 +186,18 @@ class ElectrumWindow(QMainWindow):
         self.require_fee_update = False
         self.tx_notifications = []
 
+    def is_hidden(self):
+        return self.isMinimized() or self.isHidden()
+
+    def show_or_hide(self):
+        if self.is_hidden():
+            self.bring_to_top()
+        else:
+            self.hide()
+
+    def bring_to_top(self):
+        self.show()
+        self.raise_()
 
     def register_callback(self, name, method):
         """ run callback in the qt thread """
@@ -554,7 +566,7 @@ class ElectrumWindow(QMainWindow):
         QMainWindow.close(self)
         self.close_wallet()
         run_hook('close_main_window')
-        self.gui_object.windows.remove(self)
+        self.gui_object.close_window(self)
 
     def connect_slots(self, sender):
         self.connect(sender, QtCore.SIGNAL('timersignal'), self.timer_actions)

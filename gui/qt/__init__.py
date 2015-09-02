@@ -75,36 +75,51 @@ class ElectrumGui:
         self.app.installEventFilter(self.efilter)
         self.timer = Timer()
 
+        # init tray
+        self.dark_icon = self.config.get("dark_icon", False)
+        self.tray = QSystemTrayIcon(self.tray_icon(), None)
+        self.tray.setToolTip('Electrum')
+        self.tray.activated.connect(self.tray_activated)
+        self.build_tray_menu()
+        self.tray.show()
         self.app.connect(self.app, QtCore.SIGNAL('new_window'), self.start_new_window)
 
-
     def build_tray_menu(self):
+        # Avoid immediate GC of old menu when window closed via its action
+        self.old_menu = self.tray.contextMenu()
         m = QMenu()
-        m.addAction(_("Show/Hide"), self.show_or_hide)
+        for window in self.windows:
+            submenu = m.addMenu(window.wallet.basename())
+            submenu.addAction(_("Show/Hide"), window.show_or_hide)
+            submenu.addAction(_("Close"), window.close)
         m.addAction(_("Dark/Light"), self.toggle_tray_icon)
         m.addSeparator()
         m.addAction(_("Exit Electrum"), self.close)
         self.tray.setContextMenu(m)
 
+    def tray_icon(self):
+        if self.dark_icon:
+            return QIcon(':icons/electrum_dark_icon.png')
+        else:
+            return QIcon(':icons/electrum_light_icon.png')
+
     def toggle_tray_icon(self):
         self.dark_icon = not self.dark_icon
         self.config.set_key("dark_icon", self.dark_icon, True)
-        icon = QIcon(":icons/electrum_dark_icon.png") if self.dark_icon else QIcon(':icons/electrum_light_icon.png')
-        self.tray.setIcon(icon)
-
-    def show_or_hide(self):
-        self.tray_activated(QSystemTrayIcon.DoubleClick)
+        self.tray.setIcon(self.tray_icon())
 
     def tray_activated(self, reason):
         if reason == QSystemTrayIcon.DoubleClick:
-            if self.current_window.isMinimized() or self.current_window.isHidden():
-                self.current_window.show()
-                self.current_window.raise_()
+            if all([w.is_hidden() for w in self.windows]):
+                for w in self.windows:
+                    w.bring_to_top()
             else:
-                self.current_window.hide()
+                for w in self.windows:
+                    w.hide()
 
     def close(self):
-        self.current_window.close()
+        for window in self.windows:
+            window.close()
 
     def new_window(self, config):
         self.app.emit(SIGNAL('new_window'), config)
@@ -117,9 +132,7 @@ class ElectrumGui:
             path = config.get_wallet_path()
         for w in self.windows:
             if w.config.get_wallet_path() == path:
-                # Un-minimize the window and raise it
-                w.setWindowState(w.windowState() & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
-                w.activateWindow()
+                w.bring_to_top()
                 break
         else:
             w = ElectrumWindow(config, self.network, self)
@@ -127,12 +140,16 @@ class ElectrumGui:
             w.load_wallet_file(path)
             w.show()
             self.windows.append(w)
+            self.build_tray_menu()
 
         url = config.get('url')
         if url:
             w.pay_to_URI(url)
         return w
 
+    def close_window(self, window):
+        self.windows.remove(window)
+        self.build_tray_menu()
 
     def main(self):
         self.timer.start()
@@ -141,15 +158,6 @@ class ElectrumGui:
         if last_wallet is not None and self.config.get('wallet_path') is None:
             if os.path.exists(last_wallet):
                 self.config.cmdline_options['default_wallet_path'] = last_wallet
-
-        # init tray
-        self.dark_icon = self.config.get("dark_icon", False)
-        icon = QIcon(":icons/electrum_dark_icon.png") if self.dark_icon else QIcon(':icons/electrum_light_icon.png')
-        self.tray = QSystemTrayIcon(icon, None)
-        self.tray.setToolTip('Electrum')
-        self.tray.activated.connect(self.tray_activated)
-        self.build_tray_menu()
-        self.tray.show()
 
         # main window
         self.current_window = self.main_window = self.start_new_window(self.config)
