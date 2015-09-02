@@ -149,7 +149,7 @@ class ElectrumGui:
                 self.config.cmdline_options['default_wallet_path'] = last_wallet
 
         # main window
-        self.current_window = self.main_window = self.start_new_window(self.config)
+        self.main_window = self.start_new_window(self.config)
 
         # plugins interact with main window
         run_hook('init_qt', self)
