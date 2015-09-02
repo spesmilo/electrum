@@ -2349,15 +2349,13 @@ class ElectrumWindow(QMainWindow):
                 file_content = f.read()
         except (ValueError, IOError, os.error), reason:
             QMessageBox.critical(None, _("Unable to read file or no transaction found"), _("Electrum was unable to open your transaction file") + "\n" + str(reason))
-
         return self.tx_from_text(file_content)
-
 
     def do_process_from_text(self):
         text = text_dialog(self, _('Input raw transaction'), _("Transaction:"), _("Load transaction"))
         if not text:
             return
-        tx = self.tx_from_text(text)
+        tx = self.tx_from_text()
         if tx:
             self.show_transaction(tx)
 
@@ -2370,8 +2368,9 @@ class ElectrumWindow(QMainWindow):
         from electrum import transaction
         txid, ok = QInputDialog.getText(self, _('Lookup transaction'), _('Transaction ID') + ':')
         if ok and txid:
+            txid = str(txid).strip()
             try:
-                r = self.network.synchronous_get(('blockchain.transaction.get',[str(txid)]))
+                r = self.network.synchronous_get(('blockchain.transaction.get',[txid]))
             except BaseException as e:
                 self.show_message(str(e))
                 return
