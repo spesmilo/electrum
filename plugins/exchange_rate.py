@@ -41,10 +41,6 @@ class Exchanger(ThreadJob):
         self.parent = parent
         self.quote_currencies = None
         self.timeout = 0
-        self.use_exchange = self.parent.config.get('use_exchange', "Blockchain")
-        self.parent.exchanges = EXCHANGES
-        #self.parent.win.emit(SIGNAL("refresh_exchanges_combo()"))
-        #self.parent.win.emit(SIGNAL("refresh_currencies_combo()"))
 
     def get_json(self, site, get_string):
         resp = requests.request('GET', 'https://' + site + get_string, headers={"User-Agent":"Electrum"})
@@ -59,7 +55,6 @@ class Exchanger(ThreadJob):
         return btc_amount * Decimal(str(quote_currencies[quote_currency]))
 
     def update_rate(self):
-        self.use_exchange = self.parent.config.get('use_exchange', "Blockchain")
         update_rates = {
             "BitcoinAverage": self.update_ba,
             "BitcoinVenezuela": self.update_bv,
@@ -77,7 +72,7 @@ class Exchanger(ThreadJob):
             "Winkdex": self.update_wd,
         }
         try:
-            rates = update_rates[self.use_exchange]()
+            rates = update_rates[self.parent.exchange]()
         except Exception as e:
             self.parent.print_error(e)
             rates = {}
@@ -169,8 +164,8 @@ class Plugin(BasePlugin):
 
     def __init__(self,a,b):
         BasePlugin.__init__(self,a,b)
+        self.exchange = self.config.get('use_exchange', "Blockchain")
         self.currencies = [self.fiat_unit()]
-        self.exchanges = [self.config.get('use_exchange', "Blockchain")]
         # Do price discovery
         self.exchanger = Exchanger(self)
         self.win = None
@@ -243,7 +238,6 @@ class Plugin(BasePlugin):
 
     def create_fiat_balance_text(self, btc_balance):
         quote_currency = self.fiat_unit()
-        self.exchanger.use_exchange = self.config.get("use_exchange", "Blockchain")
         cur_rate = self.exchanger.exchange(Decimal("1.0"), quote_currency)
         if cur_rate is None:
             quote_text = ""
@@ -261,7 +255,6 @@ class Plugin(BasePlugin):
             tx_list[tx_hash] = {'value': value, 'timestamp': timestamp }
 
         self.tx_list = tx_list
-        self.cur_exchange = self.config.get('use_exchange', "Blockchain")
         self.set_network(wallet.network)
         t = threading.Thread(target=self.request_history_rates, args=())
         t.setDaemon(True)
@@ -284,17 +277,17 @@ class Plugin(BasePlugin):
             return
         maxtimestr = datetime.datetime.now().strftime('%Y-%m-%d')
 
-        if self.cur_exchange == "CoinDesk":
+        if self.exchange == "CoinDesk":
             try:
                 self.resp_hist = self.exchanger.get_json('api.coindesk.com', "/v1/bpi/historical/close.json?start=" + mintimestr + "&end=" + maxtimestr)
             except Exception:
                 return
-        elif self.cur_exchange == "Winkdex":
+        elif self.exchange == "Winkdex":
             try:
                 self.resp_hist = self.exchanger.get_json('winkdex.com', "/api/v0/series?start_time=1342915200")['series'][0]['results']
             except Exception:
                 return
-        elif self.cur_exchange == "BitcoinVenezuela":
+        elif self.exchange == "BitcoinVenezuela":
             cur_currency = self.fiat_unit()
             if cur_currency == "VEF":
                 try:
@@ -336,13 +329,13 @@ class Plugin(BasePlugin):
                 pass
             tx_time = int(tx_info['timestamp'])
             tx_value = Decimal(str(tx_info['value'])) / COIN
-            if self.cur_exchange == "CoinDesk":
+            if self.exchange == "CoinDesk":
                 tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
                 try:
                     tx_fiat_val = "%.2f %s" % (tx_value * Decimal(self.resp_hist['bpi'][tx_time_str]), "USD")
                 except KeyError:
                     tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(str(tx_info['value']))/COIN , "USD")
-            elif self.cur_exchange == "Winkdex":
+            elif self.exchange == "Winkdex":
                 tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d') + "T16:00:00-04:00"
                 try:
                     tx_rate = self.resp_hist[[x['timestamp'] for x in self.resp_hist].index(tx_time_str)]['price']
@@ -351,7 +344,7 @@ class Plugin(BasePlugin):
                     tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(tx_info['value'])/COIN , "USD")
                 except KeyError:
                     tx_fiat_val = _("No data")
-            elif self.cur_exchange == "BitcoinVenezuela":
+            elif self.exchange == "BitcoinVenezuela":
                 tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
                 try:
                     num = self.resp_hist[tx_time_str].replace(',','')
@@ -381,6 +374,8 @@ class Plugin(BasePlugin):
         layout.addWidget(QLabel(_('History Rates: ')), 2, 0)
         combo = QComboBox()
         combo_ex = QComboBox()
+        combo_ex.addItems(EXCHANGES)
+        combo_ex.setCurrentIndex(combo_ex.findText(self.exchange))
         hist_checkbox = QCheckBox()
         hist_checkbox.setEnabled(False)
         hist_checkbox.setChecked(self.config.get('history_rates', 'unchecked') != 'unchecked')
@@ -393,8 +388,7 @@ class Plugin(BasePlugin):
                 return
             if cur_request != self.fiat_unit():
                 self.config.set_key('currency', cur_request, True)
-                cur_exchange = self.config.get('use_exchange', "Blockchain")
-                if (cur_exchange, cur_request) in EXCH_SUPPORT_HIST:
+                if (self.exchange, cur_request) in EXCH_SUPPORT_HIST:
                     hist_checkbox.setEnabled(True)
                 else:
                     disable_check()
@@ -410,15 +404,16 @@ class Plugin(BasePlugin):
             hist_checkbox.setChecked(False)
             hist_checkbox.setEnabled(False)
 
-        def on_change_ex(x):
-            cur_request = str(self.exchanges[x])
-            if cur_request != self.config.get('use_exchange', "Blockchain"):
-                self.config.set_key('use_exchange', cur_request, True)
+        def on_change_ex(exchange):
+            exchange = str(exchange)
+            if exchange != self.exchange:
+                self.exchange = exchange
+                self.config.set_key('use_exchange', exchange, True)
                 self.currencies = []
                 combo.clear()
                 self.timeout = 0
                 cur_currency = self.fiat_unit()
-                if (cur_request, cur_currency) in EXCH_SUPPORT_HIST:
+                if (exchange, cur_currency) in EXCH_SUPPORT_HIST:
                     hist_checkbox.setEnabled(True)
                 else:
                     disable_check()
@@ -435,8 +430,7 @@ class Plugin(BasePlugin):
                 self.win.history_list.setColumnCount(6)
 
         def set_hist_check(hist_checkbox):
-            cur_exchange = self.config.get('use_exchange', "Blockchain")
-            hist_checkbox.setEnabled(cur_exchange in ["CoinDesk", "Winkdex", "BitcoinVenezuela"])
+            hist_checkbox.setEnabled(self.exchange in ["CoinDesk", "Winkdex", "BitcoinVenezuela"])
 
         def set_currencies(combo):
             try:
@@ -453,24 +447,11 @@ class Plugin(BasePlugin):
             combo.blockSignals(False)
             combo.setCurrentIndex(index)
 
-        def set_exchanges(combo_ex):
-            try:
-                combo_ex.clear()
-            except Exception:
-                return
-            combo_ex.addItems(self.exchanges)
-            try:
-                index = self.exchanges.index(self.config.get('use_exchange', "Blockchain"))
-            except Exception:
-                index = 0
-            combo_ex.setCurrentIndex(index)
-
         def ok_clicked():
-            if self.config.get('use_exchange', "Blockchain") in ["CoinDesk", "itBit"]:
+            if self.exchange in ["CoinDesk", "itBit"]:
                 self.timeout = 0
             d.accept();
 
-        set_exchanges(combo_ex)
         set_currencies(combo)
         set_hist_check(hist_checkbox)
         combo.currentIndexChanged.connect(on_change)
