@@ -113,9 +113,6 @@ class ElectrumGui:
         for window in self.windows:
             window.close()
 
-    def new_window(self, config):
-        self.app.emit(SIGNAL('new_window'), config)
-
     def load_wallet_file(self, path):
         self.app.emit(SIGNAL('new_window'), self.config, path)
 
