@@ -229,8 +229,8 @@ class ElectrumWindow(QMainWindow):
             self.account_selector.hide()
 
     def close_wallet(self):
-        print_error('close_wallet', self.wallet.storage.path)
         if self.wallet:
+            print_error('close_wallet', self.wallet.storage.path)
             self.wallet.storage.put('accounts_expanded', self.accounts_expanded)
             self.wallet.stop_threads()
         run_hook('close_wallet')
