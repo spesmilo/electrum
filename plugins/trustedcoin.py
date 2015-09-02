@@ -319,7 +319,7 @@ class Plugin(BasePlugin):
         wallet.add_master_public_key('x3/', xpub3)
 
     @hook
-    def do_clear(self):
+    def do_clear(self, window):
         self.is_billing = False
 
     @hook

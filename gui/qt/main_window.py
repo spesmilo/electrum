@@ -1395,7 +1395,7 @@ class ElectrumWindow(QMainWindow):
             e.setFrozen(False)
         self.set_pay_from([])
         self.update_status()
-        run_hook('do_clear')
+        run_hook('do_clear', self)
 
     def set_frozen_state(self, addrs, freeze):
         self.wallet.set_frozen_state(addrs, freeze)

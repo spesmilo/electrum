@@ -76,7 +76,7 @@ class HistoryWidget(MyTreeWidget):
             self.insertTopLevelItem(0, item)
             if current_tx == tx_hash:
                 self.setCurrentItem(item)
-        run_hook('history_tab_update')
+        run_hook('history_tab_update', self.parent)
 
     def update_item(self, tx_hash, conf, timestamp):
         icon, time_str = self.get_icon(conf, timestamp)
