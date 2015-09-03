@@ -171,10 +171,11 @@ class Plugin(BasePlugin):
         self.btc_rate = Decimal("0.0")
         self.network = None
         self.gui = None
+        self.wallet_tx_list = {}
 
     @hook
     def set_network(self, network):
-        if self.gui and network != self.network:
+        if network != self.network:
             if self.network:
                 self.network.remove_job(self.exchanger)
             self.network = network
@@ -257,7 +258,7 @@ class Plugin(BasePlugin):
             tx_hash, conf, value, timestamp, balance = item
             tx_list[tx_hash] = {'value': value, 'timestamp': timestamp }
 
-        wallet.fx_tx_list = tx_list
+        self.wallet_tx_list[wallet] = tx_list
         self.set_network(wallet.network)
         t = threading.Thread(target=self.request_history_rates, args=(tx_list,))
         t.setDaemon(True)
@@ -315,9 +316,9 @@ class Plugin(BasePlugin):
 
         for window in self.gui.windows:
             wallet = window.wallet
-            if not wallet:
+            tx_list = self.wallet_tx_list.get(wallet)
+            if not wallet or not tx_list:
                 continue
-            tx_list = wallet.fx_tx_list
             window.is_edit = True
             window.history_list.setColumnCount(7)
             window.history_list.setHeaderLabels([ '', '', _('Date'), _('Description') , _('Amount'), _('Balance'), _('Fiat Amount')] )
