@@ -217,7 +217,6 @@ class ElectrumGui:
             if not wallet:
                 return
             w = ElectrumWindow(config, self.network, self)
-            run_hook('new_window', w)
             w.connect_slots(self.timer)
 
             # load new wallet in gui

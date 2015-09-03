@@ -185,6 +185,8 @@ class ElectrumWindow(QMainWindow):
         self.fetch_alias()
         self.require_fee_update = False
         self.tx_notifications = []
+        # hook
+        run_hook('new_window', self)
 
     def is_hidden(self):
         return self.isMinimized() or self.isHidden()
