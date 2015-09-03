@@ -185,8 +185,6 @@ class Plugin(BasePlugin):
     @hook
     def init_qt(self, gui):
         self.gui = gui
-        for window in gui.windows:
-            self.new_window(window)
 
     @hook
     def new_window(self, window):
