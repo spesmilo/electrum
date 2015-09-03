@@ -20,7 +20,6 @@
 from decimal import Decimal
 import json
 import os
-import re
 import sys
 import time
 import traceback
@@ -298,7 +297,7 @@ class ClientThread(util.DaemonThread):
             if self.server.gui:
                 if hasattr(server.gui, 'new_window'):
                     path = config.get_wallet_path()
-                    self.server.gui.new_window(path)
+                    self.server.gui.new_window(path, config.get('url'))
                     response = "ok"
                 else:
                     response = "error: current GUI does not support multiple windows"
@@ -481,16 +480,6 @@ if __name__ == '__main__':
 
     config = SimpleConfig(config_options)
     cmd_name = config.get('cmd')
-
-    # check url
-    url = config.get('url')
-    if url:
-        if os.path.exists(url):
-            # assume this is a payment request
-            url = "bitcoin:?r=file://"+ os.path.join(os.getcwd(), url)
-        if not re.match('^bitcoin:', url):
-            print_stderr('unknown command:', url)
-            sys.exit(1)
 
     # initialize plugins.
     plugins = None
