@@ -142,6 +142,13 @@ def user_dir():
     elif "LOCALAPPDATA" in os.environ:
         return os.path.join(os.environ["LOCALAPPDATA"], "Electrum-LTC")
     elif 'ANDROID_DATA' in os.environ:
+        try:
+            import jnius
+            env  = jnius.autoclass('android.os.Environment')
+            _dir =  env.getExternalStorageDirectory().getPath()
+            return _dir + '/electrum-ltc/'
+        except ImportError:
+            pass
         return "/sdcard/electrum-ltc/"
     else:
         #raise Exception("No home directory found in environment variables.")
