@@ -46,7 +46,7 @@ class Plugins:
                 continue
             x = item.get('registers_wallet_type')
             if x:
-                self.register_wallet_type(name, x)
+                self.register_wallet_type(config, name, x)
             if config.get('use_' + name):
                 self.load_plugin(config, name)
 
@@ -109,7 +109,7 @@ class Plugins:
             self.load_plugin(config, name)
         return self.plugins[name]
 
-    def register_wallet_type(self, name, x):
+    def register_wallet_type(self, config, name, x):
         import wallet
         x += (lambda: self.wallet_plugin_loader(config, name),)
         wallet.wallet_types.append(x)
