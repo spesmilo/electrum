@@ -44,7 +44,6 @@ from electrum import util, bitcoin, commands, Wallet
 from electrum import SimpleConfig, Wallet, WalletStorage
 from electrum import Imported_Wallet
 from electrum import paymentrequest
-from electrum.contacts import Contacts
 
 from amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit
 from network_dialog import NetworkDialog
@@ -82,7 +81,7 @@ class StatusBarButton(QPushButton):
 
 
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
-from electrum.paymentrequest import PaymentRequest, InvoiceStore, get_payment_request
+from electrum.paymentrequest import PaymentRequest, get_payment_request
 
 pr_icons = {
     PR_UNPAID:":icons/unpaid.png",
@@ -114,13 +113,11 @@ class ElectrumWindow(QMainWindow):
         self.config = config
         self.network = network
         self.wallet = None
-
         self.gui_object = gui_object
+        self.invoices = gui_object.invoices
+        self.contacts = gui_object.contacts
         self.tray = gui_object.tray
         self.app = gui_object.app
-
-        self.invoices = InvoiceStore(self.config)
-        self.contacts = Contacts(self.config)
 
         self.create_status_bar()
         self.need_update = threading.Event()
