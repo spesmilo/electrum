@@ -229,9 +229,6 @@ class ElectrumGui:
             self.build_tray_menu()
 
         if uri:
-            if os.path.exists(uri):
-                # assume this is a payment request
-                uri = "bitcoin:?r=file://"+ os.path.join(os.getcwd(), uri)
             w.pay_to_URI(uri)
 
         return w
