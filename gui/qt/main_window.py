@@ -2259,7 +2259,7 @@ class ElectrumWindow(QMainWindow):
         text = text_dialog(self, _('Input raw transaction'), _("Transaction:"), _("Load transaction"))
         if not text:
             return
-        tx = self.tx_from_text()
+        tx = self.tx_from_text(text)
         if tx:
             self.show_transaction(tx)
 
