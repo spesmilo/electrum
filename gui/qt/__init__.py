@@ -32,6 +32,8 @@ import PyQt4.QtCore as QtCore
 from electrum_ltc.i18n import _, set_language
 from electrum_ltc.plugins import run_hook
 from electrum_ltc import SimpleConfig, Wallet, WalletStorage
+from electrum_ltc.paymentrequest import InvoiceStore
+from electrum_ltc.contacts import Contacts
 
 try:
     import icons_rc
@@ -68,7 +70,9 @@ class ElectrumGui:
         self.app = QApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
         self.timer = Timer()
-
+        # shared objects
+        self.invoices = InvoiceStore(self.config)
+        self.contacts = Contacts(self.config)
         # init tray
         self.dark_icon = self.config.get("dark_icon", False)
         self.tray = QSystemTrayIcon(self.tray_icon(), None)
