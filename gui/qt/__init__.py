@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import sys
-import os.path
+import os
 import signal
 
 try:
@@ -199,13 +199,13 @@ class ElectrumGui:
             return
         wallet = wizard.run(action, wallet_type)
         if wallet:
-            self.start_new_window(full_path)
+            self.new_window(full_path)
 
-    def new_window(self, path):
+    def new_window(self, path, uri=None):
         # Use a signal as can be called from daemon thread
-        self.app.emit(SIGNAL('new_window'), path)
+        self.app.emit(SIGNAL('new_window'), path, uri)
 
-    def start_new_window(self, path):
+    def start_new_window(self, path, uri):
         for w in self.windows:
             if w.wallet.storage.path == path:
                 w.bring_to_top()
@@ -228,9 +228,9 @@ class ElectrumGui:
             self.windows.append(w)
             self.build_tray_menu()
 
-        url = self.config.get('url')
-        if url:
-            w.pay_to_URI(url)
+        if uri:
+            w.pay_to_URI(uri)
+
         return w
 
     def close_window(self, window):
@@ -246,7 +246,8 @@ class ElectrumGui:
                 self.config.cmdline_options['default_wallet_path'] = last_wallet
 
         # main window
-        self.main_window = self.start_new_window(self.config.get_wallet_path())
+        self.main_window = self.start_new_window(self.config.get_wallet_path(),
+                                                 self.config.get('url'))
         if not self.main_window:
             return
 

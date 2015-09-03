@@ -298,7 +298,7 @@ class ClientThread(util.DaemonThread):
             if self.server.gui:
                 if hasattr(server.gui, 'new_window'):
                     path = config.get_wallet_path()
-                    self.server.gui.new_window(path)
+                    self.server.gui.new_window(path, config.get('url'))
                     response = "ok"
                 else:
                     response = "error: current GUI does not support multiple windows"
@@ -479,18 +479,19 @@ if __name__ == '__main__':
 
     set_verbosity(config_options.get('verbose'))
 
+    # check uri
+    uri = config_options.get('url')
+    if uri:
+        if os.path.exists(uri):
+            # assume this is a payment request
+            uri = "litecoin:?r=file://"+ os.path.join(os.getcwd(), uri)
+        if not re.match('^litecoin:', uri):
+            print_stderr('unknown command:', uri)
+            sys.exit(1)
+        config_options['url'] = uri
+
     config = SimpleConfig(config_options)
     cmd_name = config.get('cmd')
-
-    # check url
-    url = config.get('url')
-    if url:
-        if os.path.exists(url):
-            # assume this is a payment request
-            url = "litecoin:?r=file://"+ os.path.join(os.getcwd(), url)
-        if not re.match('^litecoin:', url):
-            print_stderr('unknown command:', url)
-            sys.exit(1)
 
     # initialize plugins.
     plugins = None
@@ -510,6 +511,7 @@ if __name__ == '__main__':
     s = get_daemon(config, False)
     if s:
         p = util.SocketPipe(s)
+        p.set_timeout(1000000)
         p.send(config_options)
         result = p.get()
         s.close()

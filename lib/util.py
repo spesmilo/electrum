@@ -384,7 +384,7 @@ class SocketPipe:
     def get(self):
         while True:
             response, self.message = parse_json(self.message)
-            if response:
+            if response is not None:
                 return response
             try:
                 data = self.socket.recv(1024)
@@ -395,7 +395,7 @@ class SocketPipe:
             except socket.error, err:
                 if err.errno == 60:
                     raise timeout
-                elif err.errno in [11, 10035]:
+                elif err.errno in [11, 35, 10035]:
                     print_error("socket errno", err.errno)
                     time.sleep(0.1)
                     continue

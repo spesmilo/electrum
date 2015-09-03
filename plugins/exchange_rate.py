@@ -304,8 +304,9 @@ class Plugin(BasePlugin):
             else:
                 return
 
-        for window in self.gui.windows:
-            window.need_update.set()
+        if self.gui:
+            for window in self.gui.windows:
+                window.need_update.set()
 
     def requires_settings(self):
         return True
