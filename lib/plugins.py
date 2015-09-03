@@ -26,70 +26,93 @@ from util import *
 from i18n import _
 from util import print_error, profiler
 
-plugins = {}
-descriptions = []
-loader = None
+class Plugins:
 
-def is_available(name, w):
-    for d in descriptions:
-        if d.get('name') == name:
-            break
-    else:
-        return False
-    deps = d.get('requires', [])
-    for dep, s in deps:
+    @profiler
+    def __init__(self, config, is_local, gui_name):
+        if is_local:
+            find = imp.find_module('plugins')
+            plugins = imp.load_module('electrum_ltc_plugins', *find)
+            self.pathname = find[1]
+        else:
+            plugins = __import__('electrum_ltc_plugins')
+            self.pathname = None
+
+        self.plugins = {}
+        self.descriptions = plugins.descriptions
+        for item in self.descriptions:
+            name = item['name']
+            if gui_name not in item.get('available_for', []):
+                continue
+            x = item.get('registers_wallet_type')
+            if x:
+                self.register_wallet_type(config, name, x)
+            if config.get('use_' + name):
+                self.load_plugin(config, name)
+
+    def print_error(self, *msg):
+        print_error("[%s]" % self.__class__.__name__, *msg)
+
+    def get(self, name):
+        return self.plugins.get(name)
+
+    def count(self):
+        return len(self.plugins)
+
+    def load_plugin(self, config, name):
+        full_name = 'electrum_ltc_plugins.' + name
         try:
-            __import__(dep)
-        except ImportError:
-            return False
-    wallet_types = d.get('requires_wallet_type')
-    if wallet_types:
-        if w.wallet_type not in wallet_types:
-            return False
-    return True
-
-
-def plugin_loader(config, name):
-    global plugins
-    if plugins.get(name) is None:
-        print_error(_("Loading plugin by constructor:"), name)
-        p = loader(name)
-        plugins[name] = p.Plugin(config, name)
-    return plugins[name]
-
-@profiler
-def init_plugins(config, is_local, gui_name):
-    global plugins, descriptions, loader
-    if is_local:
-        fp, pathname, description = imp.find_module('plugins')
-        electrum_plugins = imp.load_module('electrum_ltc_plugins', fp, pathname, description)
-        loader = lambda name: imp.load_source('electrum_ltc_plugins.' + name, os.path.join(pathname, name + '.py'))
-    else:
-        electrum_plugins = __import__('electrum_ltc_plugins')
-        loader = lambda name: __import__('electrum_ltc_plugins.' + name, fromlist=['electrum_ltc_plugins'])
-
-    def register_wallet_type(name, x):
-        import wallet
-        x += (lambda: plugin_loader(config, name),)
-        wallet.wallet_types.append(x)
-
-    descriptions = electrum_plugins.descriptions
-    for item in descriptions:
-        name = item['name']
-        if gui_name not in item.get('available_for', []):
-            continue
-        x = item.get('registers_wallet_type')
-        if x:
-            register_wallet_type(name, x)
-        if not config.get('use_' + name):
-            continue
-        try:
-            p = loader(name)
-            plugins[name] = p.Plugin(config, name)
+            if self.pathname:  # local
+                path = os.path.join(self.pathname, name + '.py')
+                p = imp.load_source(full_name, path)
+            else:
+                p = __import__(full_name, fromlist=['electrum_ltc_plugins'])
+            plugin = p.Plugin(config, name)
+            self.plugins[name] = plugin
+            self.print_error("loaded", name)
+            return plugin
         except Exception:
             print_msg(_("Error: cannot initialize plugin"), name)
             traceback.print_exc(file=sys.stdout)
+            return None
 
+    def toggle_enabled(self, config, name):
+        p = self.get(name)
+        config.set_key('use_' + name, p is None, True)
+        if p:
+            self.plugins.pop(name)
+            p.close()
+            self.print_error("closed", name)
+            return None
+        return self.load_plugin(config, name)
+
+    def is_available(self, name, w):
+        for d in self.descriptions:
+            if d.get('name') == name:
+                break
+        else:
+            return False
+        deps = d.get('requires', [])
+        for dep, s in deps:
+            try:
+                __import__(dep)
+            except ImportError:
+                return False
+        wallet_types = d.get('requires_wallet_type')
+        if wallet_types:
+            if w.wallet_type not in wallet_types:
+                return False
+        return True
+
+    def wallet_plugin_loader(self, config, name):
+        if self.plugins.get(name) is None:
+            self.load_plugin(config, name)
+        return self.plugins[name]
+
+    def register_wallet_type(self, config, name, x):
+        import wallet
+        x += (lambda: self.wallet_plugin_loader(config, name),)
+        wallet.wallet_types.append(x)
 
 hook_names = set()
 hooks = {}
@@ -157,14 +180,6 @@ class BasePlugin:
     def requires_settings(self):
         return False
 
-    def enable(self):
-        self.set_enabled(True)
-        return True
-
-    def disable(self):
-        self.set_enabled(False)
-        return True
-
     @hook
     def load_wallet(self, wallet, window): pass
 
@@ -178,9 +193,6 @@ class BasePlugin:
 
     def is_available(self):
         return True
-
-    def set_enabled(self, enabled):
-        self.config.set_key('use_'+self.name, enabled, True)
 
     def settings_dialog(self):
         pass

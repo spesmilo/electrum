@@ -79,7 +79,7 @@ if is_bundle or is_local or is_android:
 from electrum_ltc import util
 from electrum_ltc import SimpleConfig, Network, Wallet, WalletStorage
 from electrum_ltc.util import print_msg, print_error, print_stderr, print_json, set_verbosity, InvalidPassword
-from electrum_ltc.plugins import init_plugins, run_hook, always_hook
+from electrum_ltc.plugins import Plugins, run_hook, always_hook
 from electrum_ltc.commands import get_parser, known_commands, Commands, config_variables
 
 
@@ -97,12 +97,12 @@ def prompt_password(prompt, confirm=True):
 
 
 
-def init_gui(config, network):
+def init_gui(config, network, plugins):
     gui_name = config.get('gui', 'qt')
     if gui_name in ['lite', 'classic']:
         gui_name = 'qt'
     gui = __import__('electrum_ltc_gui.' + gui_name, fromlist=['electrum_ltc_gui'])
-    gui = gui.ElectrumGui(config, network)
+    gui = gui.ElectrumGui(config, network, plugins)
     return gui
 
 
@@ -493,9 +493,10 @@ if __name__ == '__main__':
             sys.exit(1)
 
     # initialize plugins.
+    plugins = None
     if not is_android:
         gui_name = config.get('gui', 'qt') if cmd_name == 'gui' else 'cmdline'
-        init_plugins(config, is_bundle or is_local or is_android, gui_name)
+        plugins = Plugins(config, is_bundle or is_local or is_android, gui_name)
 
     # get password if needed
     if cmd_name not in ['gui', 'daemon']:
@@ -527,7 +528,7 @@ if __name__ == '__main__':
         network.start()
         server = NetworkServer(config, network)
         server.start()
-        server.gui = init_gui(config, network)
+        server.gui = init_gui(config, network, plugins)
         server.gui.main()
     elif cmd_name == 'daemon':
         subcommand = config.get('subcommand')

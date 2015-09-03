@@ -147,10 +147,11 @@ class Plugin(BasePlugin):
         self.btc_rate = Decimal("0.0")
         self.network = None
         self.gui = None
+        self.wallet_tx_list = {}
 
     @hook
     def set_network(self, network):
-        if self.gui and network != self.network:
+        if network != self.network:
             if self.network:
                 self.network.remove_job(self.exchanger)
             self.network = network
@@ -160,8 +161,10 @@ class Plugin(BasePlugin):
     @hook
     def init_qt(self, gui):
         self.gui = gui
+        # For mid-session plugin loads
         for window in gui.windows:
             self.new_window(window)
+        self.new_wallets([window.wallet for window in gui.windows])
 
     @hook
     def new_window(self, window):
@@ -228,26 +231,43 @@ class Plugin(BasePlugin):
 
     @hook
     def load_wallet(self, wallet, window):
-        tx_list = {}
-        for item in wallet.get_history(wallet.storage.get("current_account", None)):
-            tx_hash, conf, value, timestamp, balance = item
-            tx_list[tx_hash] = {'value': value, 'timestamp': timestamp }
+        self.new_wallets([wallet])
 
-        wallet.fx_tx_list = tx_list
-        self.set_network(wallet.network)
-        t = threading.Thread(target=self.request_history_rates, args=(tx_list,))
-        t.setDaemon(True)
-        t.start()
+    def new_wallets(self, wallets):
+        if wallets:
+            # For mid-session plugin loads
+            self.set_network(wallets[0].network)
+            for wallet in wallets:
+                if wallet not in self.wallet_tx_list:
+                    self.wallet_tx_list[wallet] = None
+            self.get_historical_rates()
 
-
-    def requires_settings(self):
-        return True
-
-
-    def request_history_rates(self, tx_list):
-        if self.config.get('history_rates') != "checked" or not tx_list:
+    def get_historical_rates(self):
+        '''Request historic rates for all wallets for which they haven't yet
+        been requested
+        '''
+        if self.config.get('history_rates') != "checked":
             return
+        all_txs = {}
+        new = False
+        for wallet in self.wallet_tx_list:
+            if self.wallet_tx_list[wallet] is None:
+                new = True
+                tx_list = {}
+                for item in wallet.get_history(wallet.storage.get("current_account", None)):
+                    tx_hash, conf, value, timestamp, balance = item
+                    tx_list[tx_hash] = {'value': value, 'timestamp': timestamp }
+                    # FIXME: not robust to request failure
+                self.wallet_tx_list[wallet] = tx_list
+            all_txs.update(self.wallet_tx_list[wallet])
+        if new:
+            self.print_error("requesting historical FX rates")
+            t = threading.Thread(target=self.request_historical_rates,
+                                 args=(all_txs,))
+            t.setDaemon(True)
+            t.start()
 
+    def request_historical_rates(self, tx_list):
         try:
             mintimestr = datetime.datetime.fromtimestamp(int(min(tx_list.items(), key=lambda x: x[1]['timestamp'])[1]['timestamp'])).strftime('%Y-%m-%d')
         except Exception:
@@ -287,70 +307,74 @@ class Plugin(BasePlugin):
         for window in self.gui.windows:
             window.need_update.set()
 
+    def requires_settings(self):
+        return True
+
     @hook
     def history_tab_update(self, window):
         if self.config.get('history_rates') != "checked":
             return
         if not self.resp_hist:
             return
-
-        for window in self.gui.windows:
-            wallet = window.wallet
-            if not wallet:
-                continue
-            tx_list = wallet.fx_tx_list
-            window.is_edit = True
-            window.history_list.setColumnCount(7)
-            window.history_list.setHeaderLabels([ '', '', _('Date'), _('Description') , _('Amount'), _('Balance'), _('Fiat Amount')] )
-            root = window.history_list.invisibleRootItem()
-            childcount = root.childCount()
-            for i in range(childcount):
-                item = root.child(i)
+        wallet = window.wallet
+        tx_list = self.wallet_tx_list.get(wallet)
+        if not wallet or not tx_list:
+            return
+        window.is_edit = True
+        window.history_list.setColumnCount(7)
+        window.history_list.setHeaderLabels([ '', '', _('Date'), _('Description') , _('Amount'), _('Balance'), _('Fiat Amount')] )
+        root = window.history_list.invisibleRootItem()
+        childcount = root.childCount()
+        for i in range(childcount):
+            item = root.child(i)
+            try:
+                tx_info = tx_list[str(item.data(0, Qt.UserRole).toPyObject())]
+            except Exception:
+                newtx = wallet.get_history()
+                v = newtx[[x[0] for x in newtx].index(str(item.data(0, Qt.UserRole).toPyObject()))][2]
+                tx_info = {'timestamp':int(time.time()), 'value': v}
+                pass
+            tx_time = int(tx_info['timestamp'])
+            tx_value = Decimal(str(tx_info['value'])) / COIN
+            if self.exchange == "CoinDesk":
+                tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
                 try:
-                    tx_info = tx_list[str(item.data(0, Qt.UserRole).toPyObject())]
-                except Exception:
-                    newtx = wallet.get_history()
-                    v = newtx[[x[0] for x in newtx].index(str(item.data(0, Qt.UserRole).toPyObject()))][2]
-                    tx_info = {'timestamp':int(time.time()), 'value': v}
-                    pass
-                tx_time = int(tx_info['timestamp'])
-                tx_value = Decimal(str(tx_info['value'])) / COIN
-                if self.exchange == "CoinDesk":
-                    tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
-                    try:
-                        tx_fiat_val = "%.2f %s" % (tx_value * Decimal(self.resp_hist['bpi'][tx_time_str]), "USD")
-                    except KeyError:
-                        tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(str(tx_info['value']))/COIN , "USD")
-                elif self.exchange == "Winkdex":
-                    tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d') + "T16:00:00-04:00"
-                    try:
-                        tx_rate = self.resp_hist[[x['timestamp'] for x in self.resp_hist].index(tx_time_str)]['price']
-                        tx_fiat_val = "%.2f %s" % (tx_value * Decimal(tx_rate)/Decimal("100.0"), "USD")
-                    except ValueError:
-                        tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(tx_info['value'])/COIN , "USD")
-                    except KeyError:
-                        tx_fiat_val = _("No data")
-                elif self.exchange == "BitcoinVenezuela":
-                    tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
-                    try:
-                        num = self.resp_hist[tx_time_str].replace(',','')
-                        tx_fiat_val = "%.2f %s" % (tx_value * Decimal(num), self.fiat_unit())
-                    except KeyError:
-                        tx_fiat_val = _("No data")
-                elif self.exchange == "Kraken":
-                    tx_day_time = int(tx_time / 86400) * 86400
-                    try:
-                        num = self.resp_hist[tx_day_time]
-                        tx_fiat_val = "%.2f %s" % (Decimal(str(tx_info['value'])) / COIN * Decimal(num), self.fiat_unit())
-                    except KeyError:
-                        tx_fiat_val = _("No data")
+                    tx_fiat_val = "%.2f %s" % (tx_value * Decimal(self.resp_hist['bpi'][tx_time_str]), "USD")
+                except KeyError:
+                    tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(str(tx_info['value']))/COIN , "USD")
+            elif self.exchange == "Winkdex":
+                tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d') + "T16:00:00-04:00"
+                try:
+                    tx_rate = self.resp_hist[[x['timestamp'] for x in self.resp_hist].index(tx_time_str)]['price']
+                    tx_fiat_val = "%.2f %s" % (tx_value * Decimal(tx_rate)/Decimal("100.0"), "USD")
+                except ValueError:
+                    tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(tx_info['value'])/COIN , "USD")
+                except KeyError:
+                    tx_fiat_val = _("No data")
+            elif self.exchange == "BitcoinVenezuela":
+                tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
+                try:
+                    num = self.resp_hist[tx_time_str].replace(',','')
+                    tx_fiat_val = "%.2f %s" % (tx_value * Decimal(num), self.fiat_unit())
+                except KeyError:
+                    tx_fiat_val = _("No data")
+            elif self.exchange == "Kraken":
+                tx_day_time = int(tx_time / 86400) * 86400
+                try:
+                    num = self.resp_hist[tx_day_time]
+                    tx_fiat_val = "%.2f %s" % (Decimal(str(tx_info['value'])) / COIN * Decimal(num), self.fiat_unit())
+                except KeyError:
+                    tx_fiat_val = _("No data")
 
-                tx_fiat_val = " "*(12-len(tx_fiat_val)) + tx_fiat_val
-                item.setText(6, tx_fiat_val)
-                item.setFont(6, QFont(MONOSPACE_FONT))
-                if Decimal(str(tx_info['value'])) < 0:
-                    item.setForeground(6, QBrush(QColor("#BC1E1E")))
+            tx_fiat_val = " "*(12-len(tx_fiat_val)) + tx_fiat_val
+            item.setText(6, tx_fiat_val)
+            item.setFont(6, QFont(MONOSPACE_FONT))
+            if Decimal(str(tx_info['value'])) < 0:
+                item.setForeground(6, QBrush(QColor("#BC1E1E")))
 
+            # We autosize but in some cases QT doesn't handle that
+            # properly for new columns it seems
+            window.history_list.setColumnWidth(6, 120)
             window.is_edit = False
 
 
@@ -417,7 +441,7 @@ class Plugin(BasePlugin):
         def on_change_hist(checked):
             if checked:
                 self.config.set_key('history_rates', 'checked')
-                self.request_history_rates()
+                self.get_historical_rates()
             else:
                 self.config.set_key('history_rates', 'unchecked')
                 for window in self.gui.windows:

@@ -58,10 +58,11 @@ class OpenFileEventFilter(QObject):
 
 class ElectrumGui:
 
-    def __init__(self, config, network):
+    def __init__(self, config, network, plugins):
         set_language(config.get('language'))
         self.network = network
         self.config = config
+        self.plugins = plugins
         self.windows = []
         self.efilter = OpenFileEventFilter(self.windows)
         self.app = QApplication(sys.argv)
@@ -198,15 +199,13 @@ class ElectrumGui:
             return
         wallet = wizard.run(action, wallet_type)
         if wallet:
-            self.start_new_window(self.config, full_path)
+            self.start_new_window(full_path)
 
     def new_window(self, path):
         # Use a signal as can be called from daemon thread
-        self.app.emit(SIGNAL('new_window'), self.config, path)
+        self.app.emit(SIGNAL('new_window'), path)
 
-    def start_new_window(self, config, path=None):
-        if path is None:
-            path = config.get_wallet_path()
+    def start_new_window(self, path):
         for w in self.windows:
             if w.wallet.storage.path == path:
                 w.bring_to_top()
@@ -215,8 +214,7 @@ class ElectrumGui:
             wallet = self.load_wallet_file(path)
             if not wallet:
                 return
-            w = ElectrumWindow(config, self.network, self)
-            run_hook('new_window', w)
+            w = ElectrumWindow(self.config, self.network, self)
             w.connect_slots(self.timer)
 
             # load new wallet in gui
@@ -230,7 +228,7 @@ class ElectrumGui:
             self.windows.append(w)
             self.build_tray_menu()
 
-        url = config.get('url')
+        url = self.config.get('url')
         if url:
             w.pay_to_URI(url)
         return w
@@ -248,7 +246,7 @@ class ElectrumGui:
                 self.config.cmdline_options['default_wallet_path'] = last_wallet
 
         # main window
-        self.main_window = self.start_new_window(self.config)
+        self.main_window = self.start_new_window(self.config.get_wallet_path())
         if not self.main_window:
             return
 
