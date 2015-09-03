@@ -199,9 +199,9 @@ class ElectrumGui:
             return
         wallet = wizard.run(action, wallet_type)
         if wallet:
-            self.start_new_window(full_path, None)
+            self.new_window(full_path)
 
-    def new_window(self, path, uri):
+    def new_window(self, path, uri=None):
         # Use a signal as can be called from daemon thread
         self.app.emit(SIGNAL('new_window'), path, uri)
 
