@@ -2811,11 +2811,11 @@ class ElectrumWindow(QMainWindow):
 
 
     def plugins_dialog(self):
-        from electrum.plugins import plugins, descriptions, is_available, loader
-
         self.pluginsdialog = d = QDialog(self)
         d.setWindowTitle(_('Electrum Plugins'))
         d.setModal(1)
+
+        plugins = self.gui_object.plugins
 
         vbox = QVBoxLayout(d)
 
@@ -2828,40 +2828,34 @@ class ElectrumWindow(QMainWindow):
 
         w = QWidget()
         scroll.setWidget(w)
-        w.setMinimumHeight(len(plugins)*35)
+        w.setMinimumHeight(plugins.count() * 35)
 
         grid = QGridLayout()
         grid.setColumnStretch(0,1)
         w.setLayout(grid)
 
         def do_toggle(cb, name, w):
-            p = plugins.get(name)
+            p = plugins.toggle_enabled(self.config, name)
             if p:
-                p.disable()
-                p.close()
-                plugins.pop(name)
-            else:
-                module = loader(name)
-                plugins[name] = p = module.Plugin(self.config, name)
-                p.enable()
+                # FIXME: this is hosed for multiple windows
                 p.wallet = self.wallet
                 p.load_wallet(self.wallet, self)
                 p.init_qt(self.gui_object)
-            r = p.is_enabled()
-            cb.setChecked(r)
-            if w: w.setEnabled(r)
+            enabled = p is not None
+            cb.setChecked(enabled)
+            if w: w.setEnabled(enabled)
 
         def mk_toggle(cb, name, w):
             return lambda: do_toggle(cb, name, w)
 
-        for i, descr in enumerate(descriptions):
+        for i, descr in enumerate(plugins.descriptions):
             name = descr['name']
             p = plugins.get(name)
             if descr.get('registers_wallet_type'):
                 continue
             try:
                 cb = QCheckBox(descr['fullname'])
-                cb.setEnabled(is_available(name, self.wallet))
+                cb.setEnabled(plugins.is_available(name, self.wallet))
                 cb.setChecked(p is not None and p.is_enabled())
                 grid.addWidget(cb, i, 0)
                 if p and p.requires_settings():

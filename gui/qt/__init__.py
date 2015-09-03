@@ -58,10 +58,11 @@ class OpenFileEventFilter(QObject):
 
 class ElectrumGui:
 
-    def __init__(self, config, network):
+    def __init__(self, config, network, plugins):
         set_language(config.get('language'))
         self.network = network
         self.config = config
+        self.plugins = plugins
         self.windows = []
         self.efilter = OpenFileEventFilter(self.windows)
         self.app = QApplication(sys.argv)
