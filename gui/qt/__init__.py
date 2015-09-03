@@ -201,6 +201,7 @@ class ElectrumGui:
             self.start_new_window(self.config, full_path)
 
     def new_window(self, path):
+        # Use a signal as can be called from daemon thread
         self.app.emit(SIGNAL('new_window'), self.config, path)
 
     def start_new_window(self, config, path=None):
@@ -215,6 +216,7 @@ class ElectrumGui:
             if not wallet:
                 return
             w = ElectrumWindow(config, self.network, self)
+            run_hook('new_window', w)
             w.connect_slots(self.timer)
 
             # load new wallet in gui

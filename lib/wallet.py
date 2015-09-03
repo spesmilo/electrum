@@ -1924,9 +1924,12 @@ class Wallet(object):
 
         wallet_type = storage.get('wallet_type')
         if wallet_type:
-            for cat, t, name, c in wallet_types:
+            for cat, t, name, loader in wallet_types:
                 if t == wallet_type:
-                    WalletClass = c
+                    if cat in ['hardware', 'twofactor']:
+                        WalletClass = lambda storage: apply(loader().constructor, (storage,))
+                    else:
+                        WalletClass = loader
                     break
             else:
                 if re.match('(\d+)of(\d+)', wallet_type):
