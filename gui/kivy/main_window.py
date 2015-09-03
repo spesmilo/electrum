@@ -3,6 +3,7 @@ import datetime
 
 from electrum import WalletStorage, Wallet
 from electrum.i18n import _, set_language
+from electrum.contacts import Contacts
 
 from kivy.config import Config
 Config.set('modules', 'screen', 'droid2')
@@ -185,6 +186,9 @@ class ElectrumWindow(App):
         self.network = network = kwargs.get('network', None)
         self.electrum_config = config = kwargs.get('config', None)
         self.gui_object = kwargs.get('gui_object', None)
+
+        self.config = self.gui_object.config
+        self.contacts = Contacts(self.config)
 
         self.bind(url=self.set_url)
         # were we sent a url?
@@ -743,7 +747,9 @@ class ElectrumWindow(App):
 
         child = -1
         children = contact_list.children
-        for address in self.wallet.addressbook:
+
+        for key in sorted(self.contacts.keys()):
+            _type, address = self.contacts[key]
             label = self.wallet.labels.get(address, '')
             child += 1
             try:
