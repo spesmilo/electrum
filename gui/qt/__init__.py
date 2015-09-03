@@ -18,7 +18,6 @@
 
 import sys
 import os
-import re
 import signal
 
 try:
@@ -230,15 +229,10 @@ class ElectrumGui:
             self.build_tray_menu()
 
         if uri:
-            print "URI: ", uri
             if os.path.exists(uri):
                 # assume this is a payment request
                 uri = "bitcoin:?r=file://"+ os.path.join(os.getcwd(), uri)
-            if re.match('^bitcoin:', uri):
-                w.pay_to_URI(uri)
-            else:
-                QMessageBox.critical(None, "Error",
-                                     _("bad bitcoin URI: %s") % uri)
+            w.pay_to_URI(uri)
 
         return w
 

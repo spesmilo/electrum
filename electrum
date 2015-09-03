@@ -20,6 +20,7 @@
 from decimal import Decimal
 import json
 import os
+import re
 import sys
 import time
 import traceback
@@ -480,6 +481,14 @@ if __name__ == '__main__':
 
     config = SimpleConfig(config_options)
     cmd_name = config.get('cmd')
+
+    # check uri
+    uri = config.get('url')
+    if uri:
+        # Assume a file is a payment request
+        if not os.path.exists(uri) and not re.match('^bitcoin:', uri):
+            print_stderr('unknown command:', uri)
+            sys.exit(1)
 
     # initialize plugins.
     plugins = None
