@@ -185,6 +185,10 @@ class Plugin(BasePlugin):
     @hook
     def init_qt(self, gui):
         self.gui = gui
+        # For mid-session plugin loads
+        for window in gui.windows:
+            self.new_window(window)
+        self.new_wallets([window.wallet for window in gui.windows])
 
     @hook
     def new_window(self, window):
@@ -251,26 +255,44 @@ class Plugin(BasePlugin):
 
     @hook
     def load_wallet(self, wallet, window):
-        tx_list = {}
-        for item in wallet.get_history(wallet.storage.get("current_account", None)):
-            tx_hash, conf, value, timestamp, balance = item
-            tx_list[tx_hash] = {'value': value, 'timestamp': timestamp }
+        self.new_wallets([wallet])
 
-        self.wallet_tx_list[wallet] = tx_list
-        self.set_network(wallet.network)
-        t = threading.Thread(target=self.request_history_rates, args=(tx_list,))
-        t.setDaemon(True)
-        t.start()
+    def new_wallets(self, wallets):
+        if wallets:
+            # For mid-session plugin loads
+            self.set_network(wallets[0].network)
+            for wallet in wallets:
+                if wallet not in self.wallet_tx_list:
+                    self.wallet_tx_list[wallet] = None
+            self.get_historical_rates()
 
-
-    def requires_settings(self):
-        return True
-
-
-    def request_history_rates(self, tx_list):
-        if self.config.get('history_rates') != "checked" or not tx_list:
+    def get_historical_rates(self):
+        '''Request historic rates for all wallets for which they haven't yet
+        been requested
+        '''
+        if self.config.get('history_rates') != "checked":
             return
+        all_txs = {}
+        new = False
+        for wallet in self.wallet_tx_list:
+            if self.wallet_tx_list[wallet] is None:
+                new = True
+                self.print_error("New wallet:", wallet)
+                tx_list = {}
+                for item in wallet.get_history(wallet.storage.get("current_account", None)):
+                    tx_hash, conf, value, timestamp, balance = item
+                    tx_list[tx_hash] = {'value': value, 'timestamp': timestamp }
+                    # FIXME: not robust to request failure
+                self.wallet_tx_list[wallet] = tx_list
+            all_txs.update(self.wallet_tx_list[wallet])
+        if new:
+            self.print_error("requesting historical FX rates")
+            t = threading.Thread(target=self.request_historical_rates,
+                                 args=(all_txs,))
+            t.setDaemon(True)
+            t.start()
 
+    def request_historical_rates(self, tx_list):
         try:
             mintimestr = datetime.datetime.fromtimestamp(int(min(tx_list.items(), key=lambda x: x[1]['timestamp'])[1]['timestamp'])).strftime('%Y-%m-%d')
         except Exception:
@@ -304,6 +326,9 @@ class Plugin(BasePlugin):
 
         for window in self.gui.windows:
             window.need_update.set()
+
+    def requires_settings(self):
+        return True
 
     @hook
     def history_tab_update(self, window):
@@ -360,6 +385,9 @@ class Plugin(BasePlugin):
             if Decimal(str(tx_info['value'])) < 0:
                 item.setForeground(6, QBrush(QColor("#BC1E1E")))
 
+            # We autosize but in some cases QT doesn't handle that
+            # properly for new columns it seems
+            window.history_list.setColumnWidth(6, 120)
             window.is_edit = False
 
 
@@ -426,7 +454,7 @@ class Plugin(BasePlugin):
         def on_change_hist(checked):
             if checked:
                 self.config.set_key('history_rates', 'checked')
-                self.request_history_rates()
+                self.get_historical_rates()
             else:
                 self.config.set_key('history_rates', 'unchecked')
                 for window in self.gui.windows:
