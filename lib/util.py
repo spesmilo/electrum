@@ -392,7 +392,7 @@ class SocketPipe:
     def get(self):
         while True:
             response, self.message = parse_json(self.message)
-            if response:
+            if response is not None:
                 return response
             try:
                 data = self.socket.recv(1024)

@@ -510,6 +510,7 @@ if __name__ == '__main__':
     s = get_daemon(config, False)
     if s:
         p = util.SocketPipe(s)
+        p.set_timeout(False)
         p.send(config_options)
         result = p.get()
         s.close()
