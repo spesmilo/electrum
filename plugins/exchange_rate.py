@@ -277,7 +277,6 @@ class Plugin(BasePlugin):
         for wallet in self.wallet_tx_list:
             if self.wallet_tx_list[wallet] is None:
                 new = True
-                self.print_error("New wallet:", wallet)
                 tx_list = {}
                 for item in wallet.get_history(wallet.storage.get("current_account", None)):
                     tx_hash, conf, value, timestamp, balance = item
