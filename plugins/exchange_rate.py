@@ -313,11 +313,10 @@ class Plugin(BasePlugin):
             return
         if not self.resp_hist:
             return
-
         wallet = window.wallet
         tx_list = self.wallet_tx_list.get(wallet)
         if not wallet or not tx_list:
-            continue
+            return
         window.is_edit = True
         window.history_list.setColumnCount(7)
         window.history_list.setHeaderLabels([ '', '', _('Date'), _('Description') , _('Amount'), _('Balance'), _('Fiat Amount')] )
