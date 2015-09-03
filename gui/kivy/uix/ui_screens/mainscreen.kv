@@ -268,7 +268,7 @@
                         id: fee_e
                         color: .761, .761, .761, 1
                         font_size: '12dp'
-                        amt: app.format_amount(app.wallet.fee) if app.wallet else 0
+                        amt: app.format_amount(app.wallet.fee_per_kb(app.gui_object.config)) if app.wallet else 0
                         text:
                             u'[b]{sign}{symbl}{amt}[/b] of fee'.\
                             format(symbl=lbl_symbl.text,\

@@ -153,6 +153,9 @@ class Exchanger(EventDispatcher):
         if not self.parent.network or not self.parent.network.is_connected():
             return
 
+        # temporarily disabled
+        return
+
         update_rates = {
             "BitcoinAverage": self.update_ba,
             "BitcoinVenezuela": self.update_bv,

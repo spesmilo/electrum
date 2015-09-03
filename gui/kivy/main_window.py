@@ -251,7 +251,7 @@ class ElectrumWindow(App):
 
         self.on_size(win, win.size)
         config = self.electrum_config
-        storage = WalletStorage(config)
+        storage = WalletStorage(config.get_wallet_path())
 
         Logger.info('Electrum: Check for existing wallet')
 
@@ -599,7 +599,7 @@ class ElectrumWindow(App):
 
     def parse_histories(self, items):
         for item in items:
-            tx_hash, conf, is_mine, value, fee, balance, timestamp = item
+            tx_hash, conf, value, timestamp, balance = item
             time_str = _("unknown")
             if conf > 0:
                 try:
@@ -644,7 +644,7 @@ class ElectrumWindow(App):
         except AttributeError:
             return
         histories = self.parse_histories(reversed(
-                        self.wallet.get_tx_history(self.current_account)))
+                        self.wallet.get_history(self.current_account)))
 
         # repopulate History Card
         last_widget = history_card.ids.content.children[-1]
@@ -892,7 +892,8 @@ class ElectrumWindow(App):
         '''
         if not self.network or not self.network.is_connected():
             return
-
+        # temporarily disabled for merge
+        return
         iface = self.network
         ptfn = iface.pending_transactions_for_notifications
         if len(ptfn) > 0:

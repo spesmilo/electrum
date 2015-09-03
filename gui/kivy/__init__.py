@@ -76,7 +76,7 @@ class ElectrumGui:
         #self.current_window.pary_from_URI
         pass
 
-    def main(self, url):
+    def main(self):
         ''' The main entry point of the kivy ux
         :param url: 'bitcoin:' uri as mentioned in bip0021
         :type url: str
@@ -85,6 +85,5 @@ class ElectrumGui:
 
         self.main_window = w = ElectrumWindow(config=self.config,
                                               network=self.network,
-                                              url=url,
                                               gui_object=self)
         w.run()
