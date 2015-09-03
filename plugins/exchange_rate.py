@@ -314,55 +314,54 @@ class Plugin(BasePlugin):
         if not self.resp_hist:
             return
 
-        for window in self.gui.windows:
-            wallet = window.wallet
-            tx_list = self.wallet_tx_list.get(wallet)
-            if not wallet or not tx_list:
-                continue
-            window.is_edit = True
-            window.history_list.setColumnCount(7)
-            window.history_list.setHeaderLabels([ '', '', _('Date'), _('Description') , _('Amount'), _('Balance'), _('Fiat Amount')] )
-            root = window.history_list.invisibleRootItem()
-            childcount = root.childCount()
-            for i in range(childcount):
-                item = root.child(i)
+        wallet = window.wallet
+        tx_list = self.wallet_tx_list.get(wallet)
+        if not wallet or not tx_list:
+            continue
+        window.is_edit = True
+        window.history_list.setColumnCount(7)
+        window.history_list.setHeaderLabels([ '', '', _('Date'), _('Description') , _('Amount'), _('Balance'), _('Fiat Amount')] )
+        root = window.history_list.invisibleRootItem()
+        childcount = root.childCount()
+        for i in range(childcount):
+            item = root.child(i)
+            try:
+                tx_info = tx_list[str(item.data(0, Qt.UserRole).toPyObject())]
+            except Exception:
+                newtx = wallet.get_history()
+                v = newtx[[x[0] for x in newtx].index(str(item.data(0, Qt.UserRole).toPyObject()))][2]
+                tx_info = {'timestamp':int(time.time()), 'value': v}
+                pass
+            tx_time = int(tx_info['timestamp'])
+            tx_value = Decimal(str(tx_info['value'])) / COIN
+            if self.exchange == "CoinDesk":
+                tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
                 try:
-                    tx_info = tx_list[str(item.data(0, Qt.UserRole).toPyObject())]
-                except Exception:
-                    newtx = wallet.get_history()
-                    v = newtx[[x[0] for x in newtx].index(str(item.data(0, Qt.UserRole).toPyObject()))][2]
-                    tx_info = {'timestamp':int(time.time()), 'value': v}
-                    pass
-                tx_time = int(tx_info['timestamp'])
-                tx_value = Decimal(str(tx_info['value'])) / COIN
-                if self.exchange == "CoinDesk":
-                    tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
-                    try:
-                        tx_fiat_val = "%.2f %s" % (tx_value * Decimal(self.resp_hist['bpi'][tx_time_str]), "USD")
-                    except KeyError:
-                        tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(str(tx_info['value']))/COIN , "USD")
-                elif self.exchange == "Winkdex":
-                    tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d') + "T16:00:00-04:00"
-                    try:
-                        tx_rate = self.resp_hist[[x['timestamp'] for x in self.resp_hist].index(tx_time_str)]['price']
-                        tx_fiat_val = "%.2f %s" % (tx_value * Decimal(tx_rate)/Decimal("100.0"), "USD")
-                    except ValueError:
-                        tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(tx_info['value'])/COIN , "USD")
-                    except KeyError:
-                        tx_fiat_val = _("No data")
-                elif self.exchange == "BitcoinVenezuela":
-                    tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
-                    try:
-                        num = self.resp_hist[tx_time_str].replace(',','')
-                        tx_fiat_val = "%.2f %s" % (tx_value * Decimal(num), self.fiat_unit())
-                    except KeyError:
-                        tx_fiat_val = _("No data")
+                    tx_fiat_val = "%.2f %s" % (tx_value * Decimal(self.resp_hist['bpi'][tx_time_str]), "USD")
+                except KeyError:
+                    tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(str(tx_info['value']))/COIN , "USD")
+            elif self.exchange == "Winkdex":
+                tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d') + "T16:00:00-04:00"
+                try:
+                    tx_rate = self.resp_hist[[x['timestamp'] for x in self.resp_hist].index(tx_time_str)]['price']
+                    tx_fiat_val = "%.2f %s" % (tx_value * Decimal(tx_rate)/Decimal("100.0"), "USD")
+                except ValueError:
+                    tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(tx_info['value'])/COIN , "USD")
+                except KeyError:
+                    tx_fiat_val = _("No data")
+            elif self.exchange == "BitcoinVenezuela":
+                tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
+                try:
+                    num = self.resp_hist[tx_time_str].replace(',','')
+                    tx_fiat_val = "%.2f %s" % (tx_value * Decimal(num), self.fiat_unit())
+                except KeyError:
+                    tx_fiat_val = _("No data")
 
-                tx_fiat_val = " "*(12-len(tx_fiat_val)) + tx_fiat_val
-                item.setText(6, tx_fiat_val)
-                item.setFont(6, QFont(MONOSPACE_FONT))
-                if Decimal(str(tx_info['value'])) < 0:
-                    item.setForeground(6, QBrush(QColor("#BC1E1E")))
+            tx_fiat_val = " "*(12-len(tx_fiat_val)) + tx_fiat_val
+            item.setText(6, tx_fiat_val)
+            item.setFont(6, QFont(MONOSPACE_FONT))
+            if Decimal(str(tx_info['value'])) < 0:
+                item.setForeground(6, QBrush(QColor("#BC1E1E")))
 
             window.is_edit = False
 
