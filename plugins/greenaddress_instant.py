@@ -16,19 +16,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import base64
 import urllib
-import json
 import sys
 import requests
 
 from PyQt4.QtGui import QMessageBox, QApplication, QPushButton
 
-from electrum.account import BIP32_Account
-from electrum import bitcoin, util
-from electrum import transaction
 from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
-from electrum.bitcoin import regenerate_key
 
 
 
@@ -37,49 +33,48 @@ class Plugin(BasePlugin):
     button_label = _("Verify GA instant")
 
     @hook
-    def init_qt(self, gui):
-        self.win = gui.main_window
-
-    @hook
     def transaction_dialog(self, d):
-        self.wallet = d.wallet
-        self.verify_button = b = QPushButton(self.button_label)
-        b.clicked.connect(lambda: self.do_verify(d.tx))
-        d.buttons.insert(0, b)
+        d.verify_button = QPushButton(self.button_label)
+        d.verify_button.clicked.connect(lambda: self.do_verify(d))
+        d.buttons.insert(0, d.verify_button)
         self.transaction_dialog_update(d)
 
-    def get_my_addr(self, tx):
+    def get_my_addr(self, d):
         """Returns the address for given tx which can be used to request
         instant confirmation verification from GreenAddress"""
-
-        for addr, _ in tx.get_outputs():
-            if self.wallet.is_mine(addr):
+        for addr, _ in d.tx.get_outputs():
+            if d.wallet.is_mine(addr):
                 return addr
         return None
 
     @hook
     def transaction_dialog_update(self, d):
-        if d.tx.is_complete() and self.get_my_addr(d.tx):
-            self.verify_button.show()
+        if d.tx.is_complete() and self.get_my_addr(d):
+            d.verify_button.show()
         else:
-            self.verify_button.hide()
+            d.verify_button.hide()
 
-    def do_verify(self, tx):
+    def do_verify(self, d):
+        tx = d.tx
+        wallet = d.wallet
+        window = d.parent
         # 1. get the password and sign the verification request
         password = None
-        if self.wallet.use_encryption:
-            msg = _('GreenAddress requires your signature to verify that transaction is instant.\n'
-                    'Please enter your password to sign a verification request.')
-            password = self.win.password_dialog(msg)
+        if wallet.use_encryption:
+            msg = _('GreenAddress requires your signature \n'
+                    'to verify that transaction is instant.\n'
+                    'Please enter your password to sign a\n'
+                    'verification request.')
+            password = window.password_dialog(msg)
             if not password:
                 return
         try:
-            self.verify_button.setText(_('Verifying...'))
+            d.verify_button.setText(_('Verifying...'))
             QApplication.processEvents()  # update the button label
 
-            addr = self.get_my_addr(tx)
+            addr = self.get_my_addr(d)
             message = "Please verify if %s is GreenAddress instant confirmed" % tx.hash()
-            sig = self.wallet.sign_message(addr, message, password)
+            sig = wallet.sign_message(addr, message, password)
             sig = base64.b64encode(sig)
 
             # 2. send the request
@@ -99,4 +94,4 @@ class Plugin(BasePlugin):
             traceback.print_exc(file=sys.stdout)
             QMessageBox.information(None, _('Error'), str(e), _('OK'))
         finally:
-            self.verify_button.setText(self.button_label)
+            d.verify_button.setText(self.button_label)
