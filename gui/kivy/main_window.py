@@ -173,7 +173,6 @@ class ElectrumWindow(App):
     def __init__(self, **kwargs):
         # initialize variables
         self._clipboard = None
-        self.console = None
         self.exchanger = None
         self.info_bubble = None
         self.qrscanner = None
@@ -201,8 +200,6 @@ class ElectrumWindow(App):
             Clock.create_trigger(self.update_wallet, .5)
         self._trigger_update_status =\
             Clock.create_trigger(self.update_status, .5)
-        self._trigger_update_console =\
-            Clock.create_trigger(self.update_console, .5)
         self._trigger_notify_transactions = \
             Clock.create_trigger(self.notify_transactions, 5)
 
@@ -415,13 +412,8 @@ class ElectrumWindow(App):
         # connect callbacks
         if self.network:
             self.network.register_callback('updated', self._trigger_update_wallet)
-            #self.network.register_callback('banner', self.console.show_message(self.network.banner))
-            self.network.register_callback('disconnected', self._trigger_update_status)
-            self.network.register_callback('disconnecting', self._trigger_update_status)
+            self.network.register_callback('status', self._trigger_update_status)
             self.network.register_callback('new_transaction', self._trigger_notify_transactions)
-
-            # set initial message
-            #self.console.show_message(self.network.banner)
 
         self.wallet = None
 
@@ -463,36 +455,15 @@ class ElectrumWindow(App):
         '''
         #TODO: fix me allow other currencies to be used for history rates
         quote_currency = self.exchanger.symbols.get('USD', 'USD')
-
         if rate is None:
             quote_text = "..."
         else:
             quote_text = "{0}{1:.3}".format(quote_currency, rate)
-
         item = item()
         if item:
             item.quote_text = quote_text
         return quote_text
 
-    def update_console(self, *dt):
-        console = self.console
-        if console:
-            console = self.console
-            console.history = self.config.get("console-history",[])
-            console.history_index = len(console.history)
-
-            console.updateNamespace({'wallet' : self.wallet, 'network' : self.network, 'gui':self})
-            console.updateNamespace({'util' : util, 'bitcoin':bitcoin})
-
-            c = commands.Commands(self.wallet, self.network, lambda: self.console.set_json(True))
-            methods = {}
-            def mkfunc(f, method):
-                return lambda *args: apply( f, (method, args, self.password_dialog ))
-            for m in dir(c):
-                if m[0]=='_' or m in ['network','wallet']: continue
-                methods[m] = mkfunc(c._run, m)
-
-            console.updateNamespace(methods)
 
     def load_wallet(self, wallet):
         self.wallet = wallet
