@@ -128,6 +128,7 @@ class Plugins:
 
     def on_close_window(self, window):
         self.windows.remove(window)
+        self.trigger('on_close_window', window)
 
 hook_names = set()
 hooks = {}
@@ -212,5 +213,8 @@ class BasePlugin:
         pass
 
     # Events
+    def on_close_window(self, window):
+        pass
+
     def on_new_window(self, window):
         pass
