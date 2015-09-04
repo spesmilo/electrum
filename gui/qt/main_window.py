@@ -1172,7 +1172,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def do_send(self):
-        if run_hook('before_send'):
+        if run_hook('before_send', window):
             return
         r = self.read_send_tab()
         if not r:
@@ -1228,7 +1228,7 @@ class ElectrumWindow(QMainWindow):
         self.send_button.setDisabled(True)
 
         # call hook to see if plugin needs gui interaction
-        run_hook('sign_tx', tx)
+        run_hook('sign_tx', parent, tx)
 
         # sign the tx
         success = [False]  # Array to work around python scoping

@@ -25,6 +25,7 @@ import json
 from hashlib import sha256
 from urlparse import urljoin
 from urllib import quote
+from functools import partial
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -325,9 +326,8 @@ class Plugin(BasePlugin):
     @hook
     def load_wallet(self, wallet, window):
         self.wallet = wallet
-        self.window = window
-        self.trustedcoin_button = StatusBarButton(QIcon(":icons/trustedcoin.png"), _("TrustedCoin"), self.settings_dialog)
-        self.window.statusBar().addPermanentWidget(self.trustedcoin_button)
+        self.trustedcoin_button = StatusBarButton(QIcon(":icons/trustedcoin.png"), _("TrustedCoin"), partial(self.settings_dialog, window))
+        window.statusBar().addPermanentWidget(self.trustedcoin_button)
         self.xpub = self.wallet.master_public_keys.get('x1/')
         self.user_id = self.get_user_id()[1]
         t = threading.Thread(target=self.request_billing_info)
@@ -337,11 +337,6 @@ class Plugin(BasePlugin):
     @hook
     def installwizard_load_wallet(self, wallet, window):
         self.wallet = wallet
-        self.window = window
-
-    @hook
-    def close_wallet(self):
-        self.window.statusBar().removeWidget(self.trustedcoin_button)
 
     @hook
     def get_wizard_action(self, window, wallet, action):
@@ -375,7 +370,6 @@ class Plugin(BasePlugin):
 
     def create_remote_key(self, wallet, window):
         self.wallet = wallet
-        self.window = window
 
         if wallet.storage.get('wallet_type') != '2fa':
             raise
@@ -396,7 +390,7 @@ class Plugin(BasePlugin):
         try:
             r = server.create(xpub_hot, xpub_cold, email)
         except socket.error:
-            self.window.show_message('Server not reachable, aborting')
+            window.show_message('Server not reachable, aborting')
             return
         except TrustedCoinException as e:
             if e.status_code == 409:
@@ -409,7 +403,7 @@ class Plugin(BasePlugin):
         else:
             otp_secret = r.get('otp_secret')
             if not otp_secret:
-                self.window.show_message(_('Error'))
+                window.show_message(_('Error'))
                 return
             _xpub3 = r['xpubkey_cosigner']
             _id = r['id']
@@ -417,10 +411,10 @@ class Plugin(BasePlugin):
                 assert _id == self.user_id, ("user id error", _id, self.user_id)
                 assert xpub3 == _xpub3, ("xpub3 error", xpub3, _xpub3)
             except Exception as e:
-                self.window.show_message(str(e))
+                window.show_message(str(e))
                 return
 
-        if not self.setup_google_auth(self.window, self.user_id, otp_secret):
+        if not self.setup_google_auth(window, self.user_id, otp_secret):
             return
 
         self.wallet.add_master_public_key('x3/', xpub3)
@@ -441,7 +435,7 @@ class Plugin(BasePlugin):
         return False
 
     @hook
-    def sign_tx(self, tx):
+    def sign_tx(self, window, tx):
         self.print_error("twofactor:sign_tx")
         if self.wallet.storage.get('wallet_type') != '2fa':
             return
@@ -451,17 +445,17 @@ class Plugin(BasePlugin):
             self.auth_code = None
             return
 
-        self.auth_code = self.auth_dialog()
+        self.auth_code = self.auth_dialog(window)
 
     @hook
-    def before_send(self):
+    def before_send(self, window):
         # request billing info before forming the transaction
         self.billing_info = None
-        self.waiting_dialog = WaitingDialog(self.window, 'please wait...', self.request_billing_info)
+        self.waiting_dialog = WaitingDialog(window, 'please wait...', self.request_billing_info)
         self.waiting_dialog.start()
         self.waiting_dialog.wait()
         if self.billing_info is None:
-            self.window.show_message('Could not contact server')
+            window.show_message('Could not contact server')
             return True
         return False
 
@@ -518,8 +512,8 @@ class Plugin(BasePlugin):
         self.print_error("twofactor: is complete", tx.is_complete())
 
 
-    def auth_dialog(self ):
-        d = QDialog(self.window)
+    def auth_dialog(self, window):
+        d = QDialog(window)
         d.setModal(1)
         vbox = QVBoxLayout(d)
         pw = AmountEdit(None, is_int = True)
@@ -535,16 +529,16 @@ class Plugin(BasePlugin):
             return
         return pw.get_amount()
 
-    def settings_dialog(self):
-        self.waiting_dialog = WaitingDialog(self.window, 'please wait...', self.request_billing_info, self.show_settings_dialog)
+    def settings_dialog(self, window):
+        self.waiting_dialog = WaitingDialog(window, 'please wait...', self.request_billing_info, partial(self.show_settings_dialog, window))
         self.waiting_dialog.start()
 
-    def show_settings_dialog(self, success):
+    def show_settings_dialog(self, window, success):
         if not success:
-            self.window.show_message(_('Server not reachable.'))
+            window.show_message(_('Server not reachable.'))
             return
 
-        d = QDialog(self.window)
+        d = QDialog(window)
         d.setWindowTitle("TrustedCoin Information")
         d.setMinimumSize(500, 200)
         vbox = QVBoxLayout(d)
@@ -577,7 +571,7 @@ class Plugin(BasePlugin):
 
         v = self.price_per_tx.get(1)
         grid.addWidget(QLabel(_("Price per transaction (not prepaid):")), 0, 0)
-        grid.addWidget(QLabel(self.window.format_amount(v) + ' ' + self.window.base_unit()), 0, 1)
+        grid.addWidget(QLabel(window.format_amount(v) + ' ' + window.base_unit()), 0, 1)
 
         i = 1
 
@@ -588,9 +582,9 @@ class Plugin(BasePlugin):
             if k == 1:
                 continue
             grid.addWidget(QLabel("Price for %d prepaid transactions:"%k), i, 0)
-            grid.addWidget(QLabel("%d x "%k + self.window.format_amount(v/k) + ' ' + self.window.base_unit()), i, 1)
+            grid.addWidget(QLabel("%d x "%k + window.format_amount(v/k) + ' ' + window.base_unit()), i, 1)
             b = QPushButton(_("Buy"))
-            b.clicked.connect(lambda b, k=k, v=v: self.on_buy(k, v, d))
+            b.clicked.connect(lambda b, k=k, v=v: self.on_buy(window, k, v, d))
             grid.addWidget(b, i, 2)
             i += 1
 
@@ -610,16 +604,16 @@ class Plugin(BasePlugin):
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
 
-    def on_buy(self, k, v, d):
+    def on_buy(self, window, k, v, d):
         d.close()
-        if self.window.pluginsdialog:
-            self.window.pluginsdialog.close()
+        if window.pluginsdialog:
+            window.pluginsdialog.close()
         uri = "bitcoin:" + self.billing_info['billing_address'] + "?message=TrustedCoin %d Prepaid Transactions&amount="%k + str(Decimal(v)/100000000)
         self.is_billing = True
-        self.window.pay_to_URI(uri)
-        self.window.payto_e.setFrozen(True)
-        self.window.message_e.setFrozen(True)
-        self.window.amount_e.setFrozen(True)
+        window.pay_to_URI(uri)
+        window.payto_e.setFrozen(True)
+        window.message_e.setFrozen(True)
+        window.amount_e.setFrozen(True)
 
     def request_billing_info(self):
         billing_info = server.get(self.user_id)
@@ -706,5 +700,5 @@ class Plugin(BasePlugin):
                 server.auth(_id, otp)
                 return True
             except:
-                QMessageBox.information(self.window, _('Message'), _('Incorrect password'), _('OK'))
+                QMessageBox.information(window, _('Message'), _('Incorrect password'), _('OK'))
                 pw.setText('')

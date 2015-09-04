@@ -83,15 +83,14 @@ class Plugin(BasePlugin):
     def load_wallet(self, wallet, window):
         self.wallet = wallet
         self.wallet.plugin = self
-        self.window = window
         if self.handler is None:
-            self.handler = BTChipQTHandler(self.window.app)
+            self.handler = BTChipQTHandler(window.app)
         if self.btchip_is_connected():
             if not self.wallet.check_proper_device():
-                QMessageBox.information(self.window, _('Error'), _("This wallet does not match your Ledger device"), _('OK'))
+                QMessageBox.information(window, _('Error'), _("This wallet does not match your Ledger device"), _('OK'))
                 self.wallet.force_watching_only = True
         else:
-            QMessageBox.information(self.window, _('Error'), _("Ledger device not detected.\nContinuing in watching-only mode."), _('OK'))
+            QMessageBox.information(window, _('Error'), _("Ledger device not detected.\nContinuing in watching-only mode."), _('OK'))
             self.wallet.force_watching_only = True
 
     @hook
@@ -111,7 +110,7 @@ class Plugin(BasePlugin):
         return wallet
 
     @hook
-    def sign_tx(self, tx):
+    def sign_tx(self, window, tx):
         tx.error = None
         try:
             self.wallet.sign_transaction(tx, None)
