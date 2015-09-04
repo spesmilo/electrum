@@ -1172,7 +1172,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def do_send(self):
-        if run_hook('before_send', window):
+        if run_hook('before_send', self):
             return
         r = self.read_send_tab()
         if not r:
