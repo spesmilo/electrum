@@ -1754,7 +1754,10 @@ class ElectrumWindow(QMainWindow):
         console.history = self.config.get("console-history",[])
         console.history_index = len(console.history)
 
-        console.updateNamespace({'wallet' : self.wallet, 'network' : self.network, 'gui':self})
+        console.updateNamespace({'wallet' : self.wallet,
+                                 'network' : self.network,
+                                 'plugins' : self.gui_object.plugins,
+                                 'gui': self})
         console.updateNamespace({'util' : util, 'bitcoin':bitcoin})
 
         c = commands.Commands(self.config, self.wallet, self.network, lambda: self.console.set_json(True))
