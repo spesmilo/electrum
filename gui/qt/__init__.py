@@ -231,6 +231,7 @@ class ElectrumGui:
             w.show()
             self.windows.append(w)
             self.build_tray_menu()
+            self.plugins.on_new_window(w)
 
         if uri:
             w.pay_to_URI(uri)
@@ -240,6 +241,7 @@ class ElectrumGui:
     def close_window(self, window):
         self.windows.remove(window)
         self.build_tray_menu()
+        self.plugins.on_close_window(window)
 
     def main(self):
         self.timer.start()

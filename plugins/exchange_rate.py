@@ -75,7 +75,7 @@ class Exchanger(ThreadJob):
         self.parent.refresh_fields()
 
     def run(self):
-        if self.parent.gui and self.timeout <= time.time():
+        if self.parent.parent.windows and self.timeout <= time.time():
             self.update_rate()
             self.timeout = time.time() + 150
 
@@ -138,15 +138,14 @@ class Exchanger(ThreadJob):
 
 class Plugin(BasePlugin):
 
-    def __init__(self,a,b):
-        BasePlugin.__init__(self,a,b)
+    def __init__(self, parent, config, name):
+        BasePlugin.__init__(self, parent, config, name)
         self.exchange = self.config.get('use_exchange', "BTC-e")
         self.currencies = [self.fiat_unit()]
         self.exchanger = Exchanger(self)
         self.resp_hist = {}
         self.btc_rate = Decimal("0.0")
         self.network = None
-        self.gui = None
         self.wallet_tx_list = {}
 
     @hook
@@ -158,35 +157,27 @@ class Plugin(BasePlugin):
             if network:
                 network.add_job(self.exchanger)
 
-    @hook
-    def init_qt(self, gui):
-        self.gui = gui
-        # For mid-session plugin loads
-        for window in gui.windows:
-            self.new_window(window)
-        self.new_wallets([window.wallet for window in gui.windows])
-
-    @hook
-    def new_window(self, window):
+    def on_new_window(self, window):
         window.connect(window, SIGNAL("refresh_currencies()"),
                        window.update_status)
         window.fx_fields = {}
         self.add_send_edit(window)
         self.add_receive_edit(window)
         window.update_status()
+        self.new_wallets([window.wallet])
 
     def close(self):
         BasePlugin.close(self)
         self.set_network(None)
         self.exchanger = None
-        for window in self.gui.windows:
+        for window in self.parent.windows:
             window.send_fiat_e.hide()
             window.receive_fiat_e.hide()
             window.update_status()
 
     def set_currencies(self, currency_options):
         self.currencies = sorted(currency_options)
-        for window in self.gui.windows:
+        for window in self.parent.windows:
             window.emit(SIGNAL("refresh_currencies()"))
             window.emit(SIGNAL("refresh_currencies_combo()"))
 
@@ -304,9 +295,8 @@ class Plugin(BasePlugin):
             else:
                 return
 
-        if self.gui:
-            for window in self.gui.windows:
-                window.need_update.set()
+        for window in self.parent.windows:
+            window.need_update.set()
 
     def requires_settings(self):
         return True
@@ -409,7 +399,7 @@ class Plugin(BasePlugin):
                     hist_checkbox.setEnabled(True)
                 else:
                     disable_check()
-                for window in self.gui.windows:
+                for window in self.parent.windows:
                     window.update_status()
                 try:
                     self.fiat_button
@@ -436,7 +426,7 @@ class Plugin(BasePlugin):
                 else:
                     disable_check()
                 set_currencies(combo)
-                for window in self.gui.windows:
+                for window in self.parent.windows:
                     window.update_status()
 
         def on_change_hist(checked):
@@ -445,7 +435,7 @@ class Plugin(BasePlugin):
                 self.get_historical_rates()
             else:
                 self.config.set_key('history_rates', 'unchecked')
-                for window in self.gui.windows:
+                for window in self.parent.windows:
                     window.history_list.setHeaderLabels( [ '', '', _('Date'), _('Description') , _('Amount'), _('Balance')] )
                     window.history_list.setColumnCount(6)
 
@@ -479,7 +469,7 @@ class Plugin(BasePlugin):
         combo.currentIndexChanged.connect(on_change)
         combo_ex.currentIndexChanged.connect(on_change_ex)
         hist_checkbox.stateChanged.connect(on_change_hist)
-        for window in self.gui.windows:
+        for window in self.parent.windows:
             combo.connect(window, SIGNAL('refresh_currencies_combo()'), lambda: set_currencies(combo))
         combo_ex.connect(d, SIGNAL('refresh_exchanges_combo()'), lambda: set_exchanges(combo_ex))
         ok_button.clicked.connect(lambda: ok_clicked())
@@ -498,7 +488,7 @@ class Plugin(BasePlugin):
 
     def refresh_fields(self):
         '''Update the display at the new rate'''
-        for window in self.gui.windows:
+        for window in self.parent.windows:
             for field in window.fx_fields.values():
                 field.textEdited.emit(field.text())
 

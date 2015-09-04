@@ -39,6 +39,7 @@ class Plugins:
             self.pathname = None
 
         self.plugins = {}
+        self.windows = []
         self.descriptions = plugins.descriptions
         for item in self.descriptions:
             name = item['name']
@@ -67,7 +68,10 @@ class Plugins:
                 p = imp.load_source(full_name, path)
             else:
                 p = __import__(full_name, fromlist=['electrum_ltc_plugins'])
-            plugin = p.Plugin(config, name)
+            plugin = p.Plugin(self, config, name)
+            # Inform the plugin of our windows
+            for window in self.windows:
+                plugin.on_new_window(window)
             self.plugins[name] = plugin
             self.print_error("loaded", name)
             return plugin
@@ -114,6 +118,18 @@ class Plugins:
         x += (lambda: self.wallet_plugin_loader(config, name),)
         wallet.wallet_types.append(x)
 
+    def trigger(self, event, *args, **kwargs):
+        for plugin in self.plugins.values():
+            getattr(plugin, event)(*args, **kwargs)
+
+    def on_new_window(self, window):
+        self.windows.append(window)
+        self.trigger('on_new_window', window)
+
+    def on_close_window(self, window):
+        self.windows.remove(window)
+        self.trigger('on_close_window', window)
+
 hook_names = set()
 hooks = {}
 
@@ -155,7 +171,8 @@ def _run_hook(name, always, *args):
 
 class BasePlugin:
 
-    def __init__(self, config, name):
+    def __init__(self, parent, config, name):
+        self.parent = parent  # The plugins object
         self.name = name
         self.config = config
         self.wallet = None
@@ -186,8 +203,6 @@ class BasePlugin:
     @hook
     def close_wallet(self): pass
 
-    #def init(self): pass
-
     def is_enabled(self):
         return self.is_available() and self.config.get('use_'+self.name) is True
 
@@ -195,4 +210,11 @@ class BasePlugin:
         return True
 
     def settings_dialog(self):
+        pass
+
+    # Events
+    def on_close_window(self, window):
+        pass
+
+    def on_new_window(self, window):
         pass

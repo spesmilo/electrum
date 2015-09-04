@@ -182,8 +182,6 @@ class ElectrumWindow(QMainWindow):
         self.fetch_alias()
         self.require_fee_update = False
         self.tx_notifications = []
-        # hook
-        run_hook('new_window', self)
 
     def is_hidden(self):
         return self.isMinimized() or self.isHidden()
@@ -461,14 +459,6 @@ class ElectrumWindow(QMainWindow):
             self.config.set_key('io_dir', os.path.dirname(fileName), True)
         return fileName
 
-    def close(self):
-        if self.qr_window:
-            self.qr_window.close()
-        QMainWindow.close(self)
-        self.close_wallet()
-        run_hook('close_main_window')
-        self.gui_object.close_window(self)
-
     def connect_slots(self, sender):
         self.connect(sender, QtCore.SIGNAL('timersignal'), self.timer_actions)
 
@@ -707,7 +697,7 @@ class ElectrumWindow(QMainWindow):
         item = self.receive_list.itemAt(position)
         addr = str(item.text(2))
         req = self.wallet.receive_requests[addr]
-        menu = QMenu()
+        menu = QMenu(self)
         menu.addAction(_("Copy Address"), lambda: self.view_and_paste(_('Address'), '', addr))
         menu.addAction(_("Copy URI"), lambda: self.view_and_paste('URI', '', self.get_request_URI(addr)))
         menu.addAction(_("Save as BIP70 file"), lambda: self.export_payment_request(addr))
@@ -1764,7 +1754,10 @@ class ElectrumWindow(QMainWindow):
         console.history = self.config.get("console-history",[])
         console.history_index = len(console.history)
 
-        console.updateNamespace({'wallet' : self.wallet, 'network' : self.network, 'gui':self})
+        console.updateNamespace({'wallet' : self.wallet,
+                                 'network' : self.network,
+                                 'plugins' : self.gui_object.plugins,
+                                 'gui': self})
         console.updateNamespace({'util' : util, 'bitcoin':bitcoin})
 
         c = commands.Commands(self.config, self.wallet, self.network, lambda: self.console.set_json(True))
@@ -2806,6 +2799,11 @@ class ElectrumWindow(QMainWindow):
             g = self.geometry()
             self.config.set_key("winpos-qt", [g.left(),g.top(),g.width(),g.height()])
         self.config.set_key("console-history", self.console.history[-50:], True)
+        if self.qr_window:
+            self.qr_window.close()
+        self.close_wallet()
+        run_hook('close_main_window')
+        self.gui_object.close_window(self)
         event.accept()
 
 
@@ -2835,11 +2833,6 @@ class ElectrumWindow(QMainWindow):
 
         def do_toggle(cb, name, w):
             p = plugins.toggle_enabled(self.config, name)
-            if p:
-                # FIXME: this is hosed for multiple windows
-                p.wallet = self.wallet
-                p.load_wallet(self.wallet, self)
-                p.init_qt(self.gui_object)
             enabled = p is not None
             cb.setChecked(enabled)
             if w: w.setEnabled(enabled)
