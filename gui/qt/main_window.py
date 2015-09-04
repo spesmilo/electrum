@@ -2802,7 +2802,6 @@ class ElectrumWindow(QMainWindow):
         if self.qr_window:
             self.qr_window.close()
         self.close_wallet()
-        run_hook('close_main_window')
         self.gui_object.close_window(self)
         event.accept()
 

@@ -228,7 +228,11 @@ class ElectrumGui:
                 self.config.set_key('gui_last_wallet', path)
             # add to recently visited
             w.update_recently_visited(path)
-            w.show()
+            # initial configuration
+            if self.config.get('hide_gui') is True and self.tray.isVisible():
+                w.hide()
+            else:
+                w.show()
             self.windows.append(w)
             self.build_tray_menu()
             self.plugins.on_new_window(w)
@@ -251,19 +255,9 @@ class ElectrumGui:
             if os.path.exists(last_wallet):
                 self.config.cmdline_options['default_wallet_path'] = last_wallet
 
-        # main window
-        self.main_window = self.start_new_window(self.config.get_wallet_path(),
-                                                 self.config.get('url'))
-        if not self.main_window:
+        if not self.start_new_window(self.config.get_wallet_path(),
+                                     self.config.get('url')):
             return
-
-        # plugins interact with main window
-        run_hook('init_qt', self)
-
-        # initial configuration
-        if self.config.get('hide_gui') is True and self.tray.isVisible():
-            self.main_window.hide()
-
 
         signal.signal(signal.SIGINT, lambda *args: self.app.quit())
 
@@ -274,5 +268,4 @@ class ElectrumGui:
         event = QtCore.QEvent(QtCore.QEvent.Clipboard)
         self.app.sendEvent(self.app.clipboard(), event)
 
-        if self.tray:
-            self.tray.hide()
+        self.tray.hide()
