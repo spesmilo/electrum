@@ -2,7 +2,9 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 import datetime
+import inspect
 import requests
+import sys
 import threading
 import time
 from decimal import Decimal
@@ -14,26 +16,132 @@ from electrum.util import ThreadJob
 from electrum_gui.qt.util import *
 from electrum_gui.qt.amountedit import AmountEdit
 
+class ExchangeBase:
+    def get_json(self, site, get_string):
+        response = requests.request('GET', 'https://' + site + get_string,
+                                    headers={'User-Agent' : 'Electrum'})
+        return response.json()
 
-EXCHANGES = ["BitcoinAverage",
-             "BitcoinVenezuela",
-             "BTCParalelo",
-             "Bitcurex",
-             "Bitmarket",
-             "BitPay",
-             "Blockchain",
-             "BTCChina",
-             "CaVirtEx",
-             "Coinbase",
-             "CoinDesk",
-             "itBit",
-             "LocalBitcoins",
-             "Winkdex"]
+    def name():
+        return self.__class__.__name__
 
-EXCH_SUPPORT_HIST = [("CoinDesk", "USD"),
-                     ("Winkdex", "USD"),
-                     ("BitcoinVenezuela", "ARS"),
-                     ("BitcoinVenezuela", "VEF")]
+    def update(self, ccy):
+        return {}
+
+    def history_ccys(self):
+        return []
+
+    def historical_rates(self, ccy, minstr, maxstr):
+        return {}
+
+class BitcoinAverage(ExchangeBase):
+    def update(self, ccy):
+        json = self.get_json('api.bitcoinaverage.com', '/ticker/global/all')
+        return dict([(r, Decimal(jsonresp[r]['last']))
+                     for r in json if r != 'timestamp'])
+
+class BitcoinVenezuela(ExchangeBase):
+    def update(self, ccy):
+        json = self.get_json('api.bitcoinvenezuela.com', '/')
+        return dict([(r, Decimal(json['BTC'][r]))
+                     for r in json['BTC']])
+
+    def history_ccys(self):
+        return ['ARS', 'VEF']
+
+    def historical_rates(self, ccy, minstr, maxstr):
+        return self.get_json('api.bitcoinvenezuela.com',
+                             "/historical/index.php?coin=BTC")[ccy +'_BTC']
+
+class BTCParalelo(ExchangeBase):
+    def update(self, ccy):
+        json = self.get_json('btcparalelo.com', '/api/price')
+        return {'VEF': Decimal(json['price'])}
+
+class Bitcurex(ExchangeBase):
+    def update(self, ccy):
+        json = self.get_json('pln.bitcurex.com', '/data/ticker.json')
+        pln_price = json['last']
+        return {'PLN': Decimal(pln_price)}
+
+class Bitmarket(ExchangeBase):
+    def update(self, ccy):
+        json = self.get_json('www.bitmarket.pl', '/json/BTCPLN/ticker.json')
+        return {'PLN': Decimal(json['last'])}
+
+class BitPay(ExchangeBase):
+    def update(self, ccy):
+        json = self.get_json('bitpay.com', '/api/rates')
+        return dict([(r['code'], Decimal(r['rate'])) for r in json])
+
+class Blockchain(ExchangeBase):
+    def update(self, ccy):
+        json = self.get_json('blockchain.info', '/ticker')
+        return dict([(r, Decimal(json[r]['15m'])) for r in json])
+
+class BTCChina(ExchangeBase):
+    def update(self, ccy):
+        json = self.get_json('data.btcchina.com', '/data/ticker')
+        return {'CNY': Decimal(json['ticker']['last'])}
+
+class CaVirtEx(ExchangeBase):
+    def update(self, ccy):
+        json = self.get_json('www.cavirtex.com', '/api/CAD/ticker.json')
+        return {'CAD': Decimal(json['last'])}
+
+class Coinbase(ExchangeBase):
+    def update(self, ccy):
+        json = self.get_json('coinbase.com',
+                             '/api/v1/currencies/exchange_rates')
+        return dict([(r[7:].upper(), Decimal(json[r]))
+                     for r in json if r.startswith('btc_to_')])
+
+class CoinDesk(ExchangeBase):
+    def update(self, ccy):
+        dicts = self.get_json('api.coindesk.com',
+                              '/v1/bpi/supported-currencies.json')
+        json = self.get_json('api.coindesk.com',
+                             '/v1/bpi/currentprice/%s.json' % ccy)
+        ccys = [d['currency'] for d in dicts]
+        result = dict.fromkeys(ccys)
+        result[ccy] = Decimal(json['bpi'][ccy]['rate'])
+        return result
+
+    def history_ccys(self):
+        return ['USD']
+
+    def historical_rates(self, ccy, minstr, maxstr):
+        return self.get_json('api.coindesk.com',
+                             "/v1/bpi/historical/close.json?start="
+                             + minstr + "&end=" + maxstr)
+
+class itBit(ExchangeBase):
+    def update(self, ccy):
+        ccys = ['USD', 'EUR', 'SGD']
+        json = self.get_json('api.itbit.com', '/v1/markets/XBT%s/ticker' % ccy)
+        result = dict.fromkeys(ccys)
+        result[ccy] = Decimal(json['lastPrice'])
+        return result
+
+class LocalBitcoins(ExchangeBase):
+    def update(self, ccy):
+        json = self.get_json('localbitcoins.com',
+                             '/bitcoinaverage/ticker-all-currencies/')
+        return dict([(r, Decimal(json[r]['rates']['last'])) for r in json])
+
+class Winkdex(ExchangeBase):
+    def update(self, ccy):
+        json = self.get_json('winkdex.com', '/api/v0/price')
+        return {'USD': Decimal(winkresp['price'] / 100.0)}
+
+    def history_ccys(self):
+        return ['USD']
+
+    def historical_rates(self, ccy, minstr, maxstr):
+        json = self.get_json('winkdex.com',
+                             "/api/v0/series?start_time=1342915200")
+        return json['series'][0]['results']
+
 
 class Exchanger(ThreadJob):
 
@@ -43,28 +151,13 @@ class Exchanger(ThreadJob):
         self.timeout = 0
 
     def get_json(self, site, get_string):
-        resp = requests.request('GET', 'https://' + site + get_string, headers={"User-Agent":"Electrum"})
+        resp = requests.request('GET', 'https://' + site + get_string,
+                                headers={"User-Agent":"Electrum"})
         return resp.json()
 
     def update_rate(self):
-        update_rates = {
-            "BitcoinAverage": self.update_ba,
-            "BitcoinVenezuela": self.update_bv,
-            "BTCParalelo": self.update_bpl,
-            "Bitcurex": self.update_bx,
-            "Bitmarket": self.update_bm,
-            "BitPay": self.update_bp,
-            "Blockchain": self.update_bc,
-            "BTCChina": self.update_CNY,
-            "CaVirtEx": self.update_cv,
-            "CoinDesk": self.update_cd,
-            "Coinbase": self.update_cb,
-            "itBit": self.update_ib,
-            "LocalBitcoins": self.update_lb,
-            "Winkdex": self.update_wd,
-        }
         try:
-            rates = update_rates[self.parent.exchange]()
+            rates = self.parent.exchange.update(self.parent.fiat_unit())
         except Exception as e:
             self.parent.print_error(e)
             rates = {}
@@ -77,92 +170,35 @@ class Exchanger(ThreadJob):
             self.update_rate()
             self.timeout = time.time() + 150
 
-    def update_cd(self):
-        resp_currencies = self.get_json('api.coindesk.com', "/v1/bpi/supported-currencies.json")
-        quote_currencies = {}
-        for cur in resp_currencies:
-            quote_currencies[str(cur["currency"])] = 0.0
-        current_cur = self.parent.config.get("currency", "EUR")
-        if current_cur in quote_currencies:
-            resp_rate = self.get_json('api.coindesk.com', "/v1/bpi/currentprice/" + str(current_cur) + ".json")
-            quote_currencies[str(current_cur)] = Decimal(str(resp_rate["bpi"][str(current_cur)]["rate_float"]))
-        return quote_currencies
-
-    def update_ib(self):
-        available_currencies = ["USD", "EUR", "SGD"]
-        quote_currencies = {}
-        for cur in available_currencies:
-            quote_currencies[cur] = 0.0
-        current_cur = self.parent.config.get("currency", "EUR")
-        if current_cur in available_currencies:
-            resp_rate = self.get_json('api.itbit.com', "/v1/markets/XBT" + str(current_cur) + "/ticker")
-            quote_currencies[str(current_cur)] = Decimal(str(resp_rate["lastPrice"]))
-        return quote_currencies
-
-    def update_wd(self):
-        winkresp = self.get_json('winkdex.com', "/api/v0/price")
-        return {"USD": Decimal(str(winkresp["price"]))/Decimal("100.0")}
-
-    def update_cv(self):
-        jsonresp = self.get_json('www.cavirtex.com', "/api/CAD/ticker.json")
-        cadprice = jsonresp["last"]
-        return {"CAD": Decimal(str(cadprice))}
-
-    def update_bm(self):
-        jsonresp = self.get_json('www.bitmarket.pl', "/json/BTCPLN/ticker.json")
-        pln_price = jsonresp["last"]
-        return {"PLN": Decimal(str(pln_price))}
-
-    def update_bx(self):
-        jsonresp = self.get_json('pln.bitcurex.com', "/data/ticker.json")
-        pln_price = jsonresp["last"]
-        return {"PLN": Decimal(str(pln_price))}
-
-    def update_CNY(self):
-        jsonresp = self.get_json('data.btcchina.com', "/data/ticker")
-        cnyprice = jsonresp["ticker"]["last"]
-        return {"CNY": Decimal(str(cnyprice))}
-
-    def update_bp(self):
-        jsonresp = self.get_json('bitpay.com', "/api/rates")
-        return dict([(str(r["code"]), Decimal(r["rate"])) for r in jsonresp])
-
-    def update_cb(self):
-        jsonresp = self.get_json('coinbase.com', "/api/v1/currencies/exchange_rates")
-        return dict([(r[7:].upper(), Decimal(str(jsonresp[r]))) for r in jsonresp if r.startswith("btc_to_")])
-
-    def update_bc(self):
-        jsonresp = self.get_json('blockchain.info', "/ticker")
-        return dict([(r, Decimal(str(jsonresp[r]["15m"]))) for r in jsonresp])
-
-    def update_lb(self):
-        jsonresp = self.get_json('localbitcoins.com', "/bitcoinaverage/ticker-all-currencies/")
-        return dict([(r, Decimal(jsonresp[r]["rates"]["last"])) for r in jsonresp])
-
-    def update_bv(self):
-        jsonresp = self.get_json('api.bitcoinvenezuela.com', "/")
-        return dict([(r, Decimal(jsonresp["BTC"][r])) for r in jsonresp["BTC"]])
-
-    def update_bpl(self):
-        jsonresp = self.get_json('btcparalelo.com', "/api/price")
-        return {"VEF": Decimal(jsonresp["price"])}
-
-    def update_ba(self):
-        jsonresp = self.get_json('api.bitcoinaverage.com', "/ticker/global/all")
-        return dict([(r, Decimal(jsonresp[r]["last"])) for r in jsonresp if not r == "timestamp"])
-
-
 class Plugin(BasePlugin):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
-        self.exchange = self.config.get('use_exchange', "Blockchain")
+        is_exchange = lambda obj: (inspect.isclass(obj)
+                                   and issubclass(obj, ExchangeBase))
+        self.exchanges = dict(inspect.getmembers(sys.modules[__name__],
+                                                 is_exchange))
+        self.network = None
+        self.set_exchange(self.config_exchange())
         self.currencies = [self.fiat_unit()]
         self.exchanger = Exchanger(self)
         self.resp_hist = {}
         self.btc_rate = Decimal("0.0")
-        self.network = None
         self.wallet_tx_list = {}
+
+    def config_exchange(self):
+        return self.config.get('use_exchange', 'Blockchain')
+
+    def config_history(self):
+        return self.config.get('history_rates', 'unchecked') != 'unchecked'
+
+    def set_exchange(self, name):
+        class_ = self.exchanges.get(name) or self.exchanges.values()[0]
+        name = class_.__name__
+        self.print_error("using exchange", name)
+        if self.config_exchange() != name:
+            self.config.set_key('use_exchange', name, True)
+        self.exchange = class_()
 
     @hook
     def set_network(self, network):
@@ -201,7 +237,7 @@ class Plugin(BasePlugin):
         '''Returns None, or the exchange rate as a Decimal'''
         rate = self.exchanger.quotes.get(self.fiat_unit())
         if rate:
-            return Decimal(str(rate))
+            return Decimal(rate)
 
     @hook
     def get_fiat_balance_text(self, btc_balance, r):
@@ -258,7 +294,7 @@ class Plugin(BasePlugin):
         '''Request historic rates for all wallets for which they haven't yet
         been requested
         '''
-        if self.config.get('history_rates') != "checked":
+        if not self.config_history():
             return
         all_txs = {}
         new = False
@@ -282,35 +318,11 @@ class Plugin(BasePlugin):
     def request_historical_rates(self, tx_list):
         try:
             mintimestr = datetime.datetime.fromtimestamp(int(min(tx_list.items(), key=lambda x: x[1]['timestamp'])[1]['timestamp'])).strftime('%Y-%m-%d')
+            maxtimestr = datetime.datetime.now().strftime('%Y-%m-%d')
+            self.resp_hist = self.exchange.historical_rates(
+                self.fiat_unit(), mintimestr, maxtimestr)
         except Exception:
             return
-        maxtimestr = datetime.datetime.now().strftime('%Y-%m-%d')
-
-        if self.exchange == "CoinDesk":
-            try:
-                self.resp_hist = self.exchanger.get_json('api.coindesk.com', "/v1/bpi/historical/close.json?start=" + mintimestr + "&end=" + maxtimestr)
-            except Exception:
-                return
-        elif self.exchange == "Winkdex":
-            try:
-                self.resp_hist = self.exchanger.get_json('winkdex.com', "/api/v0/series?start_time=1342915200")['series'][0]['results']
-            except Exception:
-                return
-        elif self.exchange == "BitcoinVenezuela":
-            cur_currency = self.fiat_unit()
-            if cur_currency == "VEF":
-                try:
-                    self.resp_hist = self.exchanger.get_json('api.bitcoinvenezuela.com', "/historical/index.php?coin=BTC")['VEF_BTC']
-                except Exception:
-                    return
-            elif cur_currency == "ARS":
-                try:
-                    self.resp_hist = self.exchanger.get_json('api.bitcoinvenezuela.com', "/historical/index.php?coin=BTC")['ARS_BTC']
-                except Exception:
-                    return
-            else:
-                return
-
         for window in self.parent.windows:
             window.need_update.set()
 
@@ -332,6 +344,7 @@ class Plugin(BasePlugin):
         window.history_list.setHeaderLabels([ '', '', _('Date'), _('Description') , _('Amount'), _('Balance'), _('Fiat Amount')] )
         root = window.history_list.invisibleRootItem()
         childcount = root.childCount()
+        exchange = self.exchange.__class__.__name__
         for i in range(childcount):
             item = root.child(i)
             try:
@@ -343,13 +356,13 @@ class Plugin(BasePlugin):
                 pass
             tx_time = int(tx_info['timestamp'])
             tx_value = Decimal(str(tx_info['value'])) / COIN
-            if self.exchange == "CoinDesk":
+            if exchange == "CoinDesk":
                 tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
                 try:
                     tx_fiat_val = "%.2f %s" % (tx_value * Decimal(self.resp_hist['bpi'][tx_time_str]), "USD")
                 except KeyError:
                     tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(str(tx_info['value']))/COIN , "USD")
-            elif self.exchange == "Winkdex":
+            elif exchange == "Winkdex":
                 tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d') + "T16:00:00-04:00"
                 try:
                     tx_rate = self.resp_hist[[x['timestamp'] for x in self.resp_hist].index(tx_time_str)]['price']
@@ -358,7 +371,7 @@ class Plugin(BasePlugin):
                     tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(tx_info['value'])/COIN , "USD")
                 except KeyError:
                     tx_fiat_val = _("No data")
-            elif self.exchange == "BitcoinVenezuela":
+            elif exchange == "BitcoinVenezuela":
                 tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
                 try:
                     num = self.resp_hist[tx_time_str].replace(',','')
@@ -390,50 +403,36 @@ class Plugin(BasePlugin):
         layout.addWidget(QLabel(_('History Rates: ')), 2, 0)
         combo = QComboBox()
         combo_ex = QComboBox()
-        combo_ex.addItems(EXCHANGES)
-        combo_ex.setCurrentIndex(combo_ex.findText(self.exchange))
+        combo_ex.addItems(self.exchanges.keys())
+        combo_ex.setCurrentIndex(combo_ex.findText(self.config_exchange()))
+
         hist_checkbox = QCheckBox()
-        hist_checkbox.setEnabled(False)
-        hist_checkbox.setChecked(self.config.get('history_rates', 'unchecked') != 'unchecked')
         ok_button = QPushButton(_("OK"))
+
+        def hist_checkbox_update():
+            hist_checkbox.setEnabled(self.fiat_unit() in
+                                     self.exchange.history_ccys())
+            hist_checkbox.setChecked(self.config_history())
 
         def on_change(x):
             try:
-                cur_request = str(self.currencies[x])
+                ccy = str(self.currencies[x])
             except Exception:
                 return
-            if cur_request != self.fiat_unit():
-                self.config.set_key('currency', cur_request, True)
-                if (self.exchange, cur_request) in EXCH_SUPPORT_HIST:
-                    hist_checkbox.setEnabled(True)
-                else:
-                    disable_check()
+            if ccy != self.fiat_unit():
+                self.config.set_key('currency', ccy, True)
+                hist_checkbox_update()
                 for window in self.parent.windows:
                     window.update_status()
-                try:
-                    self.fiat_button
-                except:
-                    pass
-                else:
-                    self.fiat_button.setText(cur_request)
-
-        def disable_check():
-            hist_checkbox.setChecked(False)
-            hist_checkbox.setEnabled(False)
 
         def on_change_ex(exchange):
             exchange = str(exchange)
-            if exchange != self.exchange:
-                self.exchange = exchange
-                self.config.set_key('use_exchange', exchange, True)
+            if exchange != self.exchange.__name__:
+                self.set_exchange(exchange)
                 self.currencies = []
                 combo.clear()
-                self.timeout = 0
-                cur_currency = self.fiat_unit()
-                if (exchange, cur_currency) in EXCH_SUPPORT_HIST:
-                    hist_checkbox.setEnabled(True)
-                else:
-                    disable_check()
+                self.exchanger.timeout = 0
+                hist_checkbox_update()
                 set_currencies(combo)
                 for window in self.parent.windows:
                     window.update_status()
@@ -447,9 +446,6 @@ class Plugin(BasePlugin):
                 for window in self.parent.windows:
                     window.history_list.setHeaderLabels( [ '', '', _('Date'), _('Description') , _('Amount'), _('Balance')] )
                     window.history_list.setColumnCount(6)
-
-        def set_hist_check(hist_checkbox):
-            hist_checkbox.setEnabled(self.exchange in ["CoinDesk", "Winkdex", "BitcoinVenezuela"])
 
         def set_currencies(combo):
             try:
@@ -471,8 +467,8 @@ class Plugin(BasePlugin):
                 self.timeout = 0
             d.accept();
 
+        hist_checkbox_update()
         set_currencies(combo)
-        set_hist_check(hist_checkbox)
         combo.currentIndexChanged.connect(on_change)
         combo_ex.currentIndexChanged.connect(on_change_ex)
         hist_checkbox.stateChanged.connect(on_change_hist)
