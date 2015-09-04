@@ -17,9 +17,6 @@ except:
     flag_matlib=False
 
 
-
-
-
 class Plugin(BasePlugin):
 
     def is_available(self):
@@ -29,17 +26,13 @@ class Plugin(BasePlugin):
             return False
 
     @hook
-    def init_qt(self, gui):
-        self.win = gui.main_window
-
-    @hook
-    def export_history_dialog(self, d,hbox):
-        self.wallet = d.wallet
-        history = self.wallet.get_history()
+    def export_history_dialog(self, window, hbox):
+        wallet = window.wallet
+        history = wallet.get_history()
         if len(history) > 0:
             b = QPushButton(_("Preview plot"))
             hbox.addWidget(b)
-            b.clicked.connect(lambda: self.do_plot(self.wallet, history))
+            b.clicked.connect(lambda: self.do_plot(wallet, history))
         else:
             b = QPushButton(_("No history to plot"))
             hbox.addWidget(b)

@@ -5,6 +5,7 @@ from time import sleep
 import unicodedata
 import threading
 import re
+from functools import partial
 
 from PyQt4.Qt import QMessageBox, QDialog, QVBoxLayout, QLabel, QThread, SIGNAL, QGridLayout, QInputDialog, QPushButton
 import PyQt4.QtCore as QtCore
@@ -128,27 +129,21 @@ class Plugin(BasePlugin):
     def load_wallet(self, wallet, window):
         self.print_error("load_wallet")
         self.wallet = wallet
-        self.window = window
         self.wallet.plugin = self
-        self.keepkey_button = StatusBarButton(QIcon(":icons/keepkey.png"), _("KeepKey"), self.settings_dialog)
+        self.keepkey_button = StatusBarButton(QIcon(":icons/keepkey.png"), _("KeepKey"), partial(self.settings_dialog, window))
         if type(window) is ElectrumWindow:
-            self.window.statusBar().addPermanentWidget(self.keepkey_button)
+            window.statusBar().addPermanentWidget(self.keepkey_button)
         if self.handler is None:
-            self.handler = KeepKeyQtHandler(self.window)
+            self.handler = KeepKeyQtHandler(window)
         try:
             self.get_client().ping('t')
         except BaseException as e:
-            QMessageBox.information(self.window, _('Error'), _("KeepKey device not detected.\nContinuing in watching-only mode." + '\n\nReason:\n' + str(e)), _('OK'))
+            QMessageBox.information(window, _('Error'), _("KeepKey device not detected.\nContinuing in watching-only mode." + '\n\nReason:\n' + str(e)), _('OK'))
             self.wallet.force_watching_only = True
             return
         if self.wallet.addresses() and not self.wallet.check_proper_device():
-            QMessageBox.information(self.window, _('Error'), _("This wallet does not match your KeepKey device"), _('OK'))
+            QMessageBox.information(window, _('Error'), _("This wallet does not match your KeepKey device"), _('OK'))
             self.wallet.force_watching_only = True
-
-    @hook
-    def close_wallet(self):
-        if type(self.window) is ElectrumWindow:
-            self.window.statusBar().removeWidget(self.keepkey_button)
 
     @hook
     def installwizard_load_wallet(self, wallet, window):
@@ -196,11 +191,11 @@ class Plugin(BasePlugin):
             self.handler.stop()
 
 
-    def settings_dialog(self):
+    def settings_dialog(self, window):
         try:
             device_id = self.get_client().get_device_id()
         except BaseException as e:
-            self.window.show_message(str(e))
+            window.show_message(str(e))
             return
         get_label = lambda: self.get_client().features.label
         update_label = lambda: current_label_label.setText("Label: %s" % get_label())

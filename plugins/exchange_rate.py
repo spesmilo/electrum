@@ -37,20 +37,12 @@ class Exchanger(ThreadJob):
 
     def __init__(self, parent):
         self.parent = parent
-        self.quote_currencies = None
+        self.quotes = {}
         self.timeout = 0
 
     def get_json(self, site, get_string):
         resp = requests.request('GET', 'https://' + site + get_string, verify=False, headers={"User-Agent":"Electrum"})
         return resp.json()
-
-    def exchange(self, btc_amount, quote_currency):
-        if self.quote_currencies is None:
-            return None
-        quote_currencies = self.quote_currencies.copy()
-        if quote_currency not in quote_currencies:
-            return None
-        return btc_amount * Decimal(str(quote_currencies[quote_currency]))
 
     def update_rate(self):
         update_rates = {
@@ -70,7 +62,7 @@ class Exchanger(ThreadJob):
         except Exception as e:
             self.parent.print_error(e)
             rates = {}
-        self.quote_currencies = rates
+        self.quotes = rates
         self.parent.set_currencies(rates)
         self.parent.refresh_fields()
 
@@ -181,6 +173,12 @@ class Plugin(BasePlugin):
             window.emit(SIGNAL("refresh_currencies()"))
             window.emit(SIGNAL("refresh_currencies_combo()"))
 
+    def exchange_rate(self):
+        '''Returns None, or the exchange rate as a Decimal'''
+        rate = self.exchanger.quotes.get(self.fiat_unit())
+        if rate:
+            return Decimal(str(rate))
+
     @hook
     def get_fiat_balance_text(self, btc_balance, r):
         # return balance as: 1.23 USD
@@ -210,14 +208,13 @@ class Plugin(BasePlugin):
         r2[0] = text
 
     def create_fiat_balance_text(self, btc_balance):
-        quote_currency = self.fiat_unit()
-        cur_rate = self.exchanger.exchange(Decimal("1.0"), quote_currency)
+        cur_rate = self.exchange_rate()
         if cur_rate is None:
             quote_text = ""
         else:
             quote_balance = btc_balance * Decimal(cur_rate)
             self.btc_rate = cur_rate
-            quote_text = "%.2f %s" % (quote_balance, quote_currency)
+            quote_text = "%.2f %s" % (quote_balance, self.fiat_unit())
         return quote_text
 
     @hook
@@ -519,7 +516,7 @@ class Plugin(BasePlugin):
                 btc_e.setText("")
                 if fee_e: fee_e.setText("")
                 return
-            exchange_rate = self.exchanger.exchange(Decimal("1.0"), self.fiat_unit())
+            exchange_rate = self.exchange_rate()
             if exchange_rate is not None:
                 btc_amount = fiat_amount/exchange_rate
                 btc_e.setAmount(int(btc_amount*Decimal(COIN)))
@@ -529,14 +526,12 @@ class Plugin(BasePlugin):
         def btc_changed():
             btc_e.setStyleSheet(BLACK_FG)
             window.fx_fields[(fiat_e, btc_e)] = btc_e
-            if self.exchanger is None:
-                return
             btc_amount = btc_e.get_amount()
-            if btc_amount is None:
+            rate = self.exchange_rate()
+            if rate is None or btc_amount is None:
                 fiat_e.setText("")
-                return
-            fiat_amount = self.exchanger.exchange(Decimal(btc_amount)/Decimal(COIN), self.fiat_unit())
-            if fiat_amount is not None:
+            else:
+                fiat_amount = rate * Decimal(btc_amount) / Decimal(COIN)
                 pos = fiat_e.cursorPosition()
                 fiat_e.setText("%.2f"%fiat_amount)
                 fiat_e.setCursorPosition(pos)

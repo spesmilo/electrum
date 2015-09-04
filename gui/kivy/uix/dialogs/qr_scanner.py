@@ -12,16 +12,12 @@ class QrScannerDialog(Factory.AnimatedPopup):
         instance.stop()
         self.dismiss()
         uri = App.get_running_app().decode_uri(value[0].data)
-        #address = uri.get('address', 'empty')
-        #label = uri.get('label', '')
-        #amount = uri.get('amount', 0.0)
-        #message = uir.get('message', '')
-        self.dispatch('on_omplete', uri)
+        self.dispatch('on_complete', uri)
 
-    def on_complete(self):
+    def on_complete(self, x):
         ''' Default Handler for on_complete event.
         '''
-        pass
+        print x
 
 
 Builder.load_string('''

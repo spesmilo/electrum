@@ -173,7 +173,6 @@ class ElectrumWindow(App):
     def __init__(self, **kwargs):
         # initialize variables
         self._clipboard = None
-        self.console = None
         self.exchanger = None
         self.info_bubble = None
         self.qrscanner = None
@@ -201,8 +200,6 @@ class ElectrumWindow(App):
             Clock.create_trigger(self.update_wallet, .5)
         self._trigger_update_status =\
             Clock.create_trigger(self.update_status, .5)
-        self._trigger_update_console =\
-            Clock.create_trigger(self.update_console, .5)
         self._trigger_notify_transactions = \
             Clock.create_trigger(self.notify_transactions, 5)
 
@@ -415,13 +412,8 @@ class ElectrumWindow(App):
         # connect callbacks
         if self.network:
             self.network.register_callback('updated', self._trigger_update_wallet)
-            #self.network.register_callback('banner', self.console.show_message(self.network.banner))
-            self.network.register_callback('disconnected', self._trigger_update_status)
-            self.network.register_callback('disconnecting', self._trigger_update_status)
+            self.network.register_callback('status', self._trigger_update_status)
             self.network.register_callback('new_transaction', self._trigger_notify_transactions)
-
-            # set initial message
-            #self.console.show_message(self.network.banner)
 
         self.wallet = None
 
@@ -463,36 +455,15 @@ class ElectrumWindow(App):
         '''
         #TODO: fix me allow other currencies to be used for history rates
         quote_currency = self.exchanger.symbols.get('USD', 'USD')
-
         if rate is None:
             quote_text = "..."
         else:
             quote_text = "{0}{1:.3}".format(quote_currency, rate)
-
         item = item()
         if item:
             item.quote_text = quote_text
         return quote_text
 
-    def update_console(self, *dt):
-        console = self.console
-        if console:
-            console = self.console
-            console.history = self.config.get("console-history",[])
-            console.history_index = len(console.history)
-
-            console.updateNamespace({'wallet' : self.wallet, 'network' : self.network, 'gui':self})
-            console.updateNamespace({'util' : util, 'bitcoin':bitcoin})
-
-            c = commands.Commands(self.wallet, self.network, lambda: self.console.set_json(True))
-            methods = {}
-            def mkfunc(f, method):
-                return lambda *args: apply( f, (method, args, self.password_dialog ))
-            for m in dir(c):
-                if m[0]=='_' or m in ['network','wallet']: continue
-                methods[m] = mkfunc(c._run, m)
-
-            console.updateNamespace(methods)
 
     def load_wallet(self, wallet):
         self.wallet = wallet
@@ -526,36 +497,24 @@ class ElectrumWindow(App):
 
         if self.network is None or not self.network.is_running():
             text = _("Offline")
-            #icon = QIcon(":icons/status_disconnected.png")
 
         elif self.network.is_connected():
-            if not self.wallet.up_to_date:
+            server_height = self.network.get_server_height()
+            server_lag = self.network.get_local_height() - server_height
+            if not self.wallet.up_to_date or server_height == 0:
                 text = _("Synchronizing...")
-                #icon = QIcon(":icons/status_waiting.png")
-            elif self.network.server_lag > 1:
-                text = _("Server is lagging (%d blocks)"%self.network.server_lag)
-                #icon = QIcon(":icons/status_lagging.png")
+            elif server_lag > 1:
+                text = _("Server is lagging (%d blocks)"%server_lag)
             else:
-                c, u = self.wallet.get_account_balance(self.current_account)
-                text =  self.format_amount(c)
+                c, u, x = self.wallet.get_account_balance(self.current_account)
+                text = self.format_amount(c)
                 if u:
-                    unconfirmed =  " [%s unconfirmed]"\
-                        %( self.format_amount(u, True).strip())
-                quote_text = self.create_quote_text(Decimal(c+u)/100000000,
-                                                    mode='symbol') or ''
-
-                #r = {}
-                #run_hook('set_quote_text', c+u, r)
-                #quote = r.get(0)
-                #if quote:
-                #    text += "  (%s)"%quote
-
-                #self.notify(_("Balance: ") + text)
-                #icon = QIcon(":icons/status_connected.png")
+                    unconfirmed =  " [%s unconfirmed]" %( self.format_amount(u, True).strip())
+                if x:
+                    unmatured =  " [%s unmatured]"%(self.format_amount(x, True).strip())
+                quote_text = self.create_quote_text(Decimal(c+u+x)/100000000, mode='symbol') or ''
         else:
             text = _("Not connected")
-            #icon = QIcon(":icons/status_disconnected.png")
-
         try:
             status_card = self.root.main_screen.ids.tabs.ids.\
                         screen_dashboard.ids.status_card
@@ -583,10 +542,9 @@ class ElectrumWindow(App):
             self.exchanger.start()
             return
         self._trigger_update_status()
-        if (self.wallet.up_to_date or  not self.network or not self.network.is_connected()):
+        if self.wallet.up_to_date or not self.network or not self.network.is_connected():
             self.update_history_tab()
             self.update_contacts_tab()
-            self.update_completions()
 
     def update_account_selector(self):
         # account selector
@@ -626,11 +584,11 @@ class ElectrumWindow(App):
                 icon = "atlas://gui/kivy/theming/light/confirmed"
 
             if value is not None:
-                v_str = self.format_amount(value, True, whitespaces=True)
+                v_str = self.format_amount(value, True).replace(',','.')
             else:
                 v_str = '--'
 
-            balance_str = self.format_amount(balance, whitespaces=True)
+            balance_str = self.format_amount(balance).replace(',','.')
 
             if tx_hash:
                 label, is_default_label = self.wallet.get_label(tx_hash)
@@ -672,7 +630,7 @@ class ElectrumWindow(App):
             ri.date = date_time
             mintimestr = date_time.split()[0]
             ri.address = address
-            ri.amount = amount.strip()
+            ri.amount = amount
             ri.quote_text = get_history_rate(ref(ri),
                                              Decimal(amount),
                                              mintimestr)
@@ -778,17 +736,6 @@ class ElectrumWindow(App):
             balance = self.format_amount(c + u)
             self.from_list.addTopLevelItem(QTreeWidgetItem( [addr, balance] ))
 
-
-
-    def update_completions(self):
-        #TODO: check and remove if not used
-        l = []
-        for addr, label in self.wallet.labels.items():
-            if addr in self.wallet.addressbook:
-                l.append(label + '  <' + addr + '>')
-
-        #self.run_hook('update_completions', l)
-        self.completions = l
 
     def protected(func):
         return lambda s, *args, **kwargs: s.do_protect(func, args, **kwargs)
@@ -1026,7 +973,6 @@ class ElectrumWindow(App):
             self.wallet.add_contact(address)
             self.update_contacts_tab()
             self.update_history_tab()
-            self.update_completions()
         else:
             self.show_error(_('Invalid Address'))
 
@@ -1223,7 +1169,6 @@ class ElectrumWindow(App):
             self.wallet.set_label(x, None)
             self.update_history_tab()
             self.update_contacts_tab()
-            self.update_completions()
 
     def show_error(self, error, width='200dp', pos=None, arrow_pos=None,
         exit=False, icon='atlas://gui/kivy/theming/light/error', duration=0,
