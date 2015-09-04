@@ -584,11 +584,11 @@ class ElectrumWindow(App):
                 icon = "atlas://gui/kivy/theming/light/confirmed"
 
             if value is not None:
-                v_str = self.format_amount(value, True, whitespaces=True)
+                v_str = self.format_amount(value, True).replace(',','.')
             else:
                 v_str = '--'
 
-            balance_str = self.format_amount(balance, whitespaces=True)
+            balance_str = self.format_amount(balance).replace(',','.')
 
             if tx_hash:
                 label, is_default_label = self.wallet.get_label(tx_hash)
@@ -630,7 +630,7 @@ class ElectrumWindow(App):
             ri.date = date_time
             mintimestr = date_time.split()[0]
             ri.address = address
-            ri.amount = amount.strip()
+            ri.amount = amount
             ri.quote_text = get_history_rate(ref(ri),
                                              Decimal(amount),
                                              mintimestr)
