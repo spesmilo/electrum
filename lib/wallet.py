@@ -367,7 +367,7 @@ class Abstract_Wallet(object):
         if changed:
             self.storage.put('labels', self.labels, True)
 
-        run_hook('set_label', name, text, changed)
+        run_hook('set_label', self, name, text, changed)
         return changed
 
     def addresses(self, include_change = True):

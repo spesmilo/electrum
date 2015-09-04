@@ -83,7 +83,6 @@ class Plugin(BasePlugin):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
-        self.daemon = True
         self.listener = None
         self.obj = QObject()
         self.obj.connect(self.obj, SIGNAL('cosigner:receive'), self.on_receive)
