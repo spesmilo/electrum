@@ -25,11 +25,11 @@ source.exclude_exts = spec
 #source.exclude_patterns = license,images/*/*.jpg
 
 # (str) Application versioning (method 1)
-#version.regex = __version__ = '(.*)'
-#version.filename = %(source.dir)s/main.py
+version.regex = ELECTRUM_VERSION = '(.*)'
+version.filename = %(source.dir)s/lib/version.py
 
 # (str) Application versioning (method 2)
-version = 1.9.8
+#version = 1.9.8
 
 # (list) Application requirements
 requirements = tlslite, openssl, pyopenssl, pil, qrcode, ecdsa, pbkdf2, pyasn1, pyasn1-modules,  plyer==master, kivy==master
