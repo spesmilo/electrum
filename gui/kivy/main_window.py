@@ -497,36 +497,24 @@ class ElectrumWindow(App):
 
         if self.network is None or not self.network.is_running():
             text = _("Offline")
-            #icon = QIcon(":icons/status_disconnected.png")
 
         elif self.network.is_connected():
-            if not self.wallet.up_to_date:
+            server_height = self.network.get_server_height()
+            server_lag = self.network.get_local_height() - server_height
+            if not self.wallet.up_to_date or server_height == 0:
                 text = _("Synchronizing...")
-                #icon = QIcon(":icons/status_waiting.png")
-            elif self.network.server_lag > 1:
-                text = _("Server is lagging (%d blocks)"%self.network.server_lag)
-                #icon = QIcon(":icons/status_lagging.png")
+            elif server_lag > 1:
+                text = _("Server is lagging (%d blocks)"%server_lag)
             else:
-                c, u = self.wallet.get_account_balance(self.current_account)
-                text =  self.format_amount(c)
+                c, u, x = self.wallet.get_account_balance(self.current_account)
+                text = self.format_amount(c)
                 if u:
-                    unconfirmed =  " [%s unconfirmed]"\
-                        %( self.format_amount(u, True).strip())
-                quote_text = self.create_quote_text(Decimal(c+u)/100000000,
-                                                    mode='symbol') or ''
-
-                #r = {}
-                #run_hook('set_quote_text', c+u, r)
-                #quote = r.get(0)
-                #if quote:
-                #    text += "  (%s)"%quote
-
-                #self.notify(_("Balance: ") + text)
-                #icon = QIcon(":icons/status_connected.png")
+                    unconfirmed =  " [%s unconfirmed]" %( self.format_amount(u, True).strip())
+                if x:
+                    unmatured =  " [%s unmatured]"%(self.format_amount(x, True).strip())
+                quote_text = self.create_quote_text(Decimal(c+u+x)/100000000, mode='symbol') or ''
         else:
             text = _("Not connected")
-            #icon = QIcon(":icons/status_disconnected.png")
-
         try:
             status_card = self.root.main_screen.ids.tabs.ids.\
                         screen_dashboard.ids.status_card
