@@ -162,8 +162,8 @@ class Exchanger(ThreadJob):
 
 class Plugin(BasePlugin):
 
-    def __init__(self,a,b):
-        BasePlugin.__init__(self,a,b)
+    def __init__(self, parent, config, name):
+        BasePlugin.__init__(self, parent, config, name)
         self.exchange = self.config.get('use_exchange', "Blockchain")
         self.currencies = [self.fiat_unit()]
         self.exchanger = Exchanger(self)

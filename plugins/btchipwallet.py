@@ -34,8 +34,8 @@ except ImportError:
 
 class Plugin(BasePlugin):
 
-    def __init__(self, gui, name):
-        BasePlugin.__init__(self, gui, name)
+    def __init__(self, parent, config, name):
+        BasePlugin.__init__(self, parent, config, name)
         self._is_available = self._init()
         self.wallet = None
         self.handler = None
@@ -170,10 +170,10 @@ class BTChipWallet(BIP32_HD_Wallet):
 
         aborted = False
         if not self.client or self.client.bad:
-            try:   
+            try:
                 d = getDongle(BTCHIP_DEBUG)
                 self.client = btchip(d)
-                self.client.handler = self.plugin.handler                
+                self.client.handler = self.plugin.handler
                 firmware = self.client.getFirmwareVersion()['version'].split(".")
                 if not checkFirmware(firmware):
                     d.close()
@@ -416,7 +416,7 @@ class BTChipWallet(BIP32_HD_Wallet):
                 format_satoshis_plain(self.get_tx_fee(tx)), changePath, bytearray(rawTx.decode('hex')))
                 if firstTransaction:
                     transactionOutput = outputData['outputData']
-                if outputData['confirmationNeeded']:                    
+                if outputData['confirmationNeeded']:
                     # TODO : handle different confirmation types. For the time being only supports keyboard 2FA
                     self.plugin.handler.stop()
                     if 'keycardData' in outputData:
@@ -532,7 +532,7 @@ class BTChipQTHandler:
         return self.response
 
     def auth_dialog(self):
-        response = QInputDialog.getText(None, "Ledger Wallet Authentication", self.message, QLineEdit.Password)        
+        response = QInputDialog.getText(None, "Ledger Wallet Authentication", self.message, QLineEdit.Password)
         if not response[1]:
             self.response = None
         else:
@@ -563,7 +563,7 @@ class BTChipCmdLineHandler:
         print_msg(msg)
 
     def prompt_auth(self, msg):
-        import getpass        
+        import getpass
         print_msg(msg)
         response = getpass.getpass('')
         if len(response) == 0:

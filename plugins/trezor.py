@@ -48,8 +48,8 @@ def give_error(message):
 
 class Plugin(BasePlugin):
 
-    def __init__(self, config, name):
-        BasePlugin.__init__(self, config, name)
+    def __init__(self, parent, config, name):
+        BasePlugin.__init__(self, parent, config, name)
         self._is_available = self._init()
         self.wallet = None
         self.handler = None

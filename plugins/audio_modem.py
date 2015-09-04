@@ -27,8 +27,8 @@ except ImportError:
 
 class Plugin(BasePlugin):
 
-    def __init__(self, config, name):
-        BasePlugin.__init__(self, config, name)
+    def __init__(self, parent, config, name):
+        BasePlugin.__init__(self, parent, config, name)
         if self.is_available():
             self.modem_config = amodem.config.slowest()
             self.library_name = {
@@ -141,5 +141,3 @@ class Plugin(BasePlugin):
         msg = 'Receiving from Audio MODEM ({0:.1f} kbps)...'.format(kbps)
         return WaitingDialog(parent=parent, message=msg,
                              run_task=receiver_thread, on_success=on_success)
-
-

@@ -67,7 +67,7 @@ class Plugins:
                 p = imp.load_source(full_name, path)
             else:
                 p = __import__(full_name, fromlist=['electrum_plugins'])
-            plugin = p.Plugin(config, name)
+            plugin = p.Plugin(self, config, name)
             self.plugins[name] = plugin
             self.print_error("loaded", name)
             return plugin
@@ -155,7 +155,8 @@ def _run_hook(name, always, *args):
 
 class BasePlugin:
 
-    def __init__(self, config, name):
+    def __init__(self, parent, config, name):
+        self.parent = parent  # The plugins object
         self.name = name
         self.config = config
         self.wallet = None

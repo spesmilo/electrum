@@ -114,8 +114,8 @@ class Plugin(BasePlugin):
     def is_available(self):
         return True
 
-    def __init__(self, a, b):
-        BasePlugin.__init__(self, a, b)
+    def __init__(self, parent, config, name)
+        BasePlugin.__init__(self, parent, config, name)
         self.imap_server = self.config.get('email_server', '')
         self.username = self.config.get('email_username', '')
         self.password = self.config.get('email_password', '')
@@ -204,7 +204,7 @@ class Plugin(BasePlugin):
         vbox.addStretch()
         vbox.addLayout(Buttons(CloseButton(d), OkButton(d)))
 
-        if not d.exec_(): 
+        if not d.exec_():
             return
 
         server = str(server_e.text())
@@ -215,5 +215,3 @@ class Plugin(BasePlugin):
 
         password = str(password_e.text())
         self.config.set_key('email_password', password)
-
-
