@@ -697,7 +697,7 @@ class ElectrumWindow(QMainWindow):
         item = self.receive_list.itemAt(position)
         addr = str(item.text(2))
         req = self.wallet.receive_requests[addr]
-        menu = QMenu()
+        menu = QMenu(self)
         menu.addAction(_("Copy Address"), lambda: self.view_and_paste(_('Address'), '', addr))
         menu.addAction(_("Copy URI"), lambda: self.view_and_paste('URI', '', self.get_request_URI(addr)))
         menu.addAction(_("Save as BIP70 file"), lambda: self.export_payment_request(addr))
