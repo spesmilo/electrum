@@ -2835,11 +2835,6 @@ class ElectrumWindow(QMainWindow):
 
         def do_toggle(cb, name, w):
             p = plugins.toggle_enabled(self.config, name)
-            if p:
-                # FIXME: this is hosed for multiple windows
-                p.wallet = self.wallet
-                p.load_wallet(self.wallet, self)
-                p.init_qt(self.gui_object)
             enabled = p is not None
             cb.setChecked(enabled)
             if w: w.setEnabled(enabled)

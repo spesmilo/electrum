@@ -39,6 +39,7 @@ class Plugins:
             self.pathname = None
 
         self.plugins = {}
+        self.windows = []
         self.descriptions = plugins.descriptions
         for item in self.descriptions:
             name = item['name']
@@ -113,6 +114,12 @@ class Plugins:
         import wallet
         x += (lambda: self.wallet_plugin_loader(config, name),)
         wallet.wallet_types.append(x)
+
+    def on_new_window(self, window):
+        self.windows.append(window)
+
+    def on_close_window(self, window):
+        self.windows.remove(window)
 
 hook_names = set()
 hooks = {}
