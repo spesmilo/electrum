@@ -171,10 +171,6 @@ class Plugin(BasePlugin):
         self.btc_rate = Decimal("0.0")
         self.network = None
         self.wallet_tx_list = {}
-        # For mid-session plugin loads
-        for window in parent.windows:
-            self.new_window(window)
-        self.new_wallets([window.wallet for window in parent.windows])
 
     @hook
     def set_network(self, network):
@@ -185,14 +181,14 @@ class Plugin(BasePlugin):
             if network:
                 network.add_job(self.exchanger)
 
-    @hook
-    def new_window(self, window):
+    def on_new_window(self, window):
         window.connect(window, SIGNAL("refresh_currencies()"),
                        window.update_status)
         window.fx_fields = {}
         self.add_send_edit(window)
         self.add_receive_edit(window)
         window.update_status()
+        self.new_wallets([window.wallet])
 
     def close(self):
         BasePlugin.close(self)

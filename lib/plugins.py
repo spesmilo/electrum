@@ -69,6 +69,9 @@ class Plugins:
             else:
                 p = __import__(full_name, fromlist=['electrum_plugins'])
             plugin = p.Plugin(self, config, name)
+            # Inform the plugin of our windows
+            for window in self.windows:
+                plugin.on_new_window(window)
             self.plugins[name] = plugin
             self.print_error("loaded", name)
             return plugin
@@ -115,8 +118,13 @@ class Plugins:
         x += (lambda: self.wallet_plugin_loader(config, name),)
         wallet.wallet_types.append(x)
 
+    def trigger(self, event, *args, **kwargs):
+        for plugin in self.plugins.values():
+            getattr(plugin, event)(*args, **kwargs)
+
     def on_new_window(self, window):
         self.windows.append(window)
+        self.trigger('on_new_window', window)
 
     def on_close_window(self, window):
         self.windows.remove(window)
@@ -194,8 +202,6 @@ class BasePlugin:
     @hook
     def close_wallet(self): pass
 
-    #def init(self): pass
-
     def is_enabled(self):
         return self.is_available() and self.config.get('use_'+self.name) is True
 
@@ -203,4 +209,8 @@ class BasePlugin:
         return True
 
     def settings_dialog(self):
+        pass
+
+    # Events
+    def on_new_window(self, window):
         pass
