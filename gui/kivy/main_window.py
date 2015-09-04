@@ -583,10 +583,9 @@ class ElectrumWindow(App):
             self.exchanger.start()
             return
         self._trigger_update_status()
-        if (self.wallet.up_to_date or  not self.network or not self.network.is_connected()):
+        if self.wallet.up_to_date or not self.network or not self.network.is_connected():
             self.update_history_tab()
             self.update_contacts_tab()
-            self.update_completions()
 
     def update_account_selector(self):
         # account selector
@@ -778,17 +777,6 @@ class ElectrumWindow(App):
             balance = self.format_amount(c + u)
             self.from_list.addTopLevelItem(QTreeWidgetItem( [addr, balance] ))
 
-
-
-    def update_completions(self):
-        #TODO: check and remove if not used
-        l = []
-        for addr, label in self.wallet.labels.items():
-            if addr in self.wallet.addressbook:
-                l.append(label + '  <' + addr + '>')
-
-        #self.run_hook('update_completions', l)
-        self.completions = l
 
     def protected(func):
         return lambda s, *args, **kwargs: s.do_protect(func, args, **kwargs)
@@ -1026,7 +1014,6 @@ class ElectrumWindow(App):
             self.wallet.add_contact(address)
             self.update_contacts_tab()
             self.update_history_tab()
-            self.update_completions()
         else:
             self.show_error(_('Invalid Address'))
 
@@ -1223,7 +1210,6 @@ class ElectrumWindow(App):
             self.wallet.set_label(x, None)
             self.update_history_tab()
             self.update_contacts_tab()
-            self.update_completions()
 
     def show_error(self, error, width='200dp', pos=None, arrow_pos=None,
         exit=False, icon='atlas://gui/kivy/theming/light/error', duration=0,
