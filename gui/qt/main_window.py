@@ -461,14 +461,6 @@ class ElectrumWindow(QMainWindow):
             self.config.set_key('io_dir', os.path.dirname(fileName), True)
         return fileName
 
-    def close(self):
-        if self.qr_window:
-            self.qr_window.close()
-        QMainWindow.close(self)
-        self.close_wallet()
-        run_hook('close_main_window')
-        self.gui_object.close_window(self)
-
     def connect_slots(self, sender):
         self.connect(sender, QtCore.SIGNAL('timersignal'), self.timer_actions)
 
@@ -2806,6 +2798,11 @@ class ElectrumWindow(QMainWindow):
             g = self.geometry()
             self.config.set_key("winpos-qt", [g.left(),g.top(),g.width(),g.height()])
         self.config.set_key("console-history", self.console.history[-50:], True)
+        if self.qr_window:
+            self.qr_window.close()
+        self.close_wallet()
+        run_hook('close_main_window')
+        self.gui_object.close_window(self)
         event.accept()
 
 
