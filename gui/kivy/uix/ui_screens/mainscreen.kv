@@ -1095,7 +1095,7 @@
     amount_color: '#000000ff'
     quote_text: '0'
     address: u''
-    address_known: unicode(self.address or self.address[1:]) in app.wallet.addressbook + self.labels.keys()
+    address_known: unicode(self.address or self.address[1:]) in app.contacts.keys() + self.labels.keys()
     confirmations: 0
     date: '0/0/0'
     fee: _('unknown')

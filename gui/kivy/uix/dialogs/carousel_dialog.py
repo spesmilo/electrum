@@ -120,10 +120,11 @@ class RecentActivityDialog(CarouselDialog):
 
         tx_hash = item.tx_hash
         tx = app.wallet.transactions.get(tx_hash)
+        tx.deserialize()
 
         if tx_hash in app.wallet.transactions.keys():
-            is_relevant, is_mine, v, fee = app.wallet.get_tx_value(tx)
-            conf, timestamp = app.wallet.verifier.get_confirmations(tx_hash)
+            is_relevant, is_mine, v, fee = app.wallet.get_wallet_delta(tx)
+            conf, timestamp = app.wallet.get_confirmations(tx_hash)
         else:
             is_mine = False
 
@@ -139,7 +140,7 @@ class RecentActivityDialog(CarouselDialog):
         addresses = app.wallet.addresses()
         _labels = {}
 
-        self.wallet_name = app.wallet.get_account_names()[0]
+        self.wallet_name = app.wallet.get_account_names()['0']
         for address in addresses:
             _labels[labels.get(address, address)] = address
 
@@ -229,10 +230,11 @@ class RecentActivityDialog(CarouselDialog):
         tx_hash = self.tx_hash
         if tx_hash:
             tx = app.wallet.transactions.get(tx_hash)
+            tx.deserialize()
             if mode == 'out':
                 content.data = \
                     [(address, app.format_amount(value))\
-                    for address, value in tx.outputs]
+                    for _type, address, value in tx.outputs]
             else:
                 content.data = \
                     [(input['address'], input['prevout_hash'])\
