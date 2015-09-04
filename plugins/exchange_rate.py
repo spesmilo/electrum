@@ -22,7 +22,7 @@ class ExchangeBase:
                                     headers={'User-Agent' : 'Electrum'})
         return response.json()
 
-    def name():
+    def name(self):
         return self.__class__.__name__
 
     def update(self, ccy):
@@ -132,7 +132,7 @@ class LocalBitcoins(ExchangeBase):
 class Winkdex(ExchangeBase):
     def update(self, ccy):
         json = self.get_json('winkdex.com', '/api/v0/price')
-        return {'USD': Decimal(winkresp['price'] / 100.0)}
+        return {'USD': Decimal(json['price'] / 100.0)}
 
     def history_ccys(self):
         return ['USD']
@@ -344,7 +344,7 @@ class Plugin(BasePlugin):
         window.history_list.setHeaderLabels([ '', '', _('Date'), _('Description') , _('Amount'), _('Balance'), _('Fiat Amount')] )
         root = window.history_list.invisibleRootItem()
         childcount = root.childCount()
-        exchange = self.exchange.__class__.__name__
+        exchange = self.exchange.name()
         for i in range(childcount):
             item = root.child(i)
             try:
@@ -403,7 +403,7 @@ class Plugin(BasePlugin):
         layout.addWidget(QLabel(_('History Rates: ')), 2, 0)
         combo = QComboBox()
         combo_ex = QComboBox()
-        combo_ex.addItems(self.exchanges.keys())
+        combo_ex.addItems(sorted(self.exchanges.keys()))
         combo_ex.setCurrentIndex(combo_ex.findText(self.config_exchange()))
 
         hist_checkbox = QCheckBox()
@@ -425,9 +425,9 @@ class Plugin(BasePlugin):
                 for window in self.parent.windows:
                     window.update_status()
 
-        def on_change_ex(exchange):
-            exchange = str(exchange)
-            if exchange != self.exchange.__name__:
+        def on_change_ex(idx):
+            exchange = str(combo_ex.currentText())
+            if exchange != self.exchange.name():
                 self.set_exchange(exchange)
                 self.currencies = []
                 combo.clear()
