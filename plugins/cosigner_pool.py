@@ -48,7 +48,6 @@ class Listener(util.DaemonThread):
         self.parent = parent
         self.received = set()
         self.keyhashes = []
-        self.timeout = 0
 
     def set_keyhashes(self, keyhashes):
         self.keyhashes = keyhashes
