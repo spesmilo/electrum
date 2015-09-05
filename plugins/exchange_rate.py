@@ -348,7 +348,7 @@ class Plugin(BasePlugin):
         tx_hash, conf, value, timestamp, balance = tx
         date = timestamp_to_datetime(timestamp)
         if not date:
-            date = timestmap_to_datetime(0)
+            date = timestamp_to_datetime(0)
         text = self.exchange.historical_value_str(self.fiat_unit(), value, date)
         entry.append("%16s"%text)
 
