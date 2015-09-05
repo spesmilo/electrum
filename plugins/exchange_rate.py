@@ -50,7 +50,7 @@ class ExchangeBase:
 
     def get_historical_rates(self, ccy):
         result = self.history.get(ccy)
-        if not result:
+        if not result and ccy in self.history_ccys():
             self.print_error("requesting historical rates for", ccy)
             t = threading.Thread(target=self.historical_rates, args=(ccy,))
             t.setDaemon(True)
@@ -192,6 +192,8 @@ class Plugin(BasePlugin, ThreadJob):
         self.sig.connect(self.sig, SIGNAL('fx_quotes'), self.on_fx_quotes)
         self.sig.connect(self.sig, SIGNAL('fx_history'), self.on_fx_history)
         self.ccy_combo = None
+        self.hist_checkbox = None
+        self.ccy = self.config_ccy()
 
         is_exchange = lambda obj: (inspect.isclass(obj)
                                    and issubclass(obj, ExchangeBase))
@@ -207,8 +209,12 @@ class Plugin(BasePlugin, ThreadJob):
         # This runs from the network thread which catches exceptions
         if self.parent.windows and self.timeout <= time.time():
             self.timeout = time.time() + 150
-            rates = self.exchange.update(self.fiat_unit())
+            rates = self.exchange.update(self.ccy)
             self.refresh_fields()
+
+    def config_ccy(self):
+        '''Use when dynamic fetching is needed'''
+        return self.config.get("currency", "EUR")
 
     def config_exchange(self):
         return self.config.get('use_exchange', 'Blockchain')
@@ -252,20 +258,29 @@ class Plugin(BasePlugin, ThreadJob):
     def on_ccy_combo_change(self):
         '''Called when the chosen currency changes'''
         ccy = str(self.ccy_combo.currentText())
-        if ccy != self.fiat_unit():
+        if ccy and ccy != self.ccy:
+            print "Setting:", ccy
+            self.ccy = ccy
             self.config.set_key('currency', ccy, True)
             self.update_status_bars()
             self.get_historical_rates()
-            hist_checkbox_update()
+            self.hist_checkbox_update()
+
+    def hist_checkbox_update(self):
+        if self.hist_checkbox:
+            self.hist_checkbox.setEnabled(self.ccy in self.exchange.history_ccys())
+            self.hist_checkbox.setChecked(self.config_history())
 
     def populate_ccy_combo(self):
         # There should be at most one instance of the settings dialog
         combo = self.ccy_combo
         # NOTE: bool(combo) is False if it is empty.  Nuts.
         if combo is not None:
+            combo.blockSignals(True)
             combo.clear()
-            combo.addItems(self.exchange.quotes.keys())
-            combo.setCurrentIndex(combo.findText(self.fiat_unit()))
+            combo.addItems(sorted(self.exchange.quotes.keys()))
+            combo.blockSignals(False)
+            combo.setCurrentIndex(combo.findText(self.ccy))
 
     def close(self):
         BasePlugin.close(self)
@@ -277,7 +292,7 @@ class Plugin(BasePlugin, ThreadJob):
 
     def exchange_rate(self):
         '''Returns None, or the exchange rate as a Decimal'''
-        rate = self.exchange.quotes.get(self.fiat_unit())
+        rate = self.exchange.quotes.get(self.ccy)
         if rate:
             return Decimal(rate)
 
@@ -316,21 +331,12 @@ class Plugin(BasePlugin, ThreadJob):
         else:
             quote_balance = btc_balance * Decimal(cur_rate)
             self.btc_rate = cur_rate
-            quote_text = "%.2f %s" % (quote_balance, self.fiat_unit())
+            quote_text = "%.2f %s" % (quote_balance, self.ccy)
         return quote_text
 
     def get_historical_rates(self):
         if self.config_history():
-            self.exchange.get_historical_rates(self.fiat_unit())
-
-    def request_historical_rates(self):
-        try:
-            self.history = self.exchange.historical_rates(self.fiat_unit())
-        except Exception:
-            traceback.print_exc(file=sys.stderr)
-            return
-        for window in self.parent.windows:
-            window.need_update.set()
+            self.exchange.get_historical_rates(self.ccy)
 
     def requires_settings(self):
         return True
@@ -355,7 +361,7 @@ class Plugin(BasePlugin, ThreadJob):
         if not date:
             date = timestamp_to_datetime(0)
         for amount in [value, balance]:
-            text = self.historical_value_str(self.fiat_unit(), amount, date)
+            text = self.historical_value_str(self.ccy, amount, date)
             entry.append("%16s" % text)
 
     def settings_widget(self, window):
@@ -374,16 +380,11 @@ class Plugin(BasePlugin, ThreadJob):
         self.ccy_combo.currentIndexChanged.connect(self.on_ccy_combo_change)
         self.populate_ccy_combo()
 
-        def hist_checkbox_update():
-            hist_checkbox.setEnabled(self.fiat_unit() in
-                                     self.exchange.history_ccys())
-            hist_checkbox.setChecked(self.config_history())
-
         def on_change_ex(idx):
             exchange = str(combo_ex.currentText())
             if exchange != self.exchange.name():
                 self.set_exchange(exchange)
-                hist_checkbox_update()
+                self.hist_checkbox_update()
 
         def on_change_hist(checked):
             if checked:
@@ -402,25 +403,21 @@ class Plugin(BasePlugin, ThreadJob):
         combo_ex.setCurrentIndex(combo_ex.findText(self.config_exchange()))
         combo_ex.currentIndexChanged.connect(on_change_ex)
 
-        hist_checkbox = QCheckBox()
-        hist_checkbox_update()
-        hist_checkbox.stateChanged.connect(on_change_hist)
-        combo_ex.connect(d, SIGNAL('refresh_exchanges_combo()'), lambda: set_exchanges(combo_ex))
+        self.hist_checkbox = QCheckBox()
+        self.hist_checkbox.stateChanged.connect(on_change_hist)
+        self.hist_checkbox_update()
 
         ok_button = QPushButton(_("OK"))
         ok_button.clicked.connect(lambda: ok_clicked())
 
         layout.addWidget(self.ccy_combo,1,1)
         layout.addWidget(combo_ex,0,1)
-        layout.addWidget(hist_checkbox,2,1)
+        layout.addWidget(self.hist_checkbox,2,1)
         layout.addWidget(ok_button,3,1)
 
         result = d.exec_()
         self.ccy_combo = None
         return result
-
-    def fiat_unit(self):
-        return self.config.get("currency", "EUR")
 
     def refresh_fields(self):
         '''Update the display at the new rate'''
@@ -429,13 +426,13 @@ class Plugin(BasePlugin, ThreadJob):
                 field.textEdited.emit(field.text())
 
     def add_send_edit(self, window):
-        window.send_fiat_e = AmountEdit(self.fiat_unit)
+        window.send_fiat_e = AmountEdit(self.config_ccy)
         self.connect_fields(window, True)
         window.send_grid.addWidget(window.send_fiat_e, 4, 3, Qt.AlignHCenter)
         window.amount_e.frozen.connect(lambda: window.send_fiat_e.setFrozen(window.amount_e.isReadOnly()))
 
     def add_receive_edit(self, window):
-        window.receive_fiat_e = AmountEdit(self.fiat_unit)
+        window.receive_fiat_e = AmountEdit(self.config_ccy)
         self.connect_fields(window, False)
         window.receive_grid.addWidget(window.receive_fiat_e, 2, 3, Qt.AlignHCenter)
 
