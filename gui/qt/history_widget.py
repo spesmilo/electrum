@@ -54,8 +54,9 @@ class HistoryWidget(MyTreeWidget):
         item = self.currentItem()
         current_tx = item.data(0, Qt.UserRole).toString() if item else None
         self.clear()
-        for item in h:
-            tx_hash, conf, value, timestamp, balance = item
+        entries = []
+        for tx in h:
+            tx_hash, conf, value, timestamp, balance = tx
             if conf is None and timestamp is None:
                 continue  # skip history in offline mode
             icon, time_str = self.get_icon(conf, timestamp)
@@ -76,7 +77,8 @@ class HistoryWidget(MyTreeWidget):
             self.insertTopLevelItem(0, item)
             if current_tx == tx_hash:
                 self.setCurrentItem(item)
-        run_hook('history_tab_update', self.parent)
+            entries.append((item, tx))
+        run_hook('history_tab_update', self.parent, entries)
 
     def update_item(self, tx_hash, conf, timestamp):
         icon, time_str = self.get_icon(conf, timestamp)

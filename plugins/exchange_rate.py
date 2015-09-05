@@ -1,38 +1,71 @@
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
-import datetime
+from datetime import datetime, date
 import inspect
 import requests
 import sys
 import threading
 import time
+import traceback
 from decimal import Decimal
 
 from electrum.bitcoin import COIN
 from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
-from electrum.util import ThreadJob
+from electrum.util import print_error, ThreadJob, timestamp_to_datetime
+from electrum.util import format_satoshis
 from electrum_gui.qt.util import *
 from electrum_gui.qt.amountedit import AmountEdit
 
 class ExchangeBase:
+    history = {}
+    quotes = {}
+
     def get_json(self, site, get_string):
         response = requests.request('GET', 'https://' + site + get_string,
                                     headers={'User-Agent' : 'Electrum'})
         return response.json()
 
+    def print_error(self, *msg):
+        print_error("[%s]" % self.name(), *msg)
+
     def name(self):
         return self.__class__.__name__
 
     def update(self, ccy):
-        return {}
+        self.quotes = self.get_rates(ccy)
+        return self.quotes
 
     def history_ccys(self):
         return []
 
-    def historical_rates(self, ccy, minstr, maxstr):
-        return {}
+    def set_history(self, ccy, history):
+        '''History is a map of "%Y-%m-%d" strings to values'''
+        self.history[ccy] = history
+
+    def get_historical_rates(self, ccy):
+        result = self.history.get(ccy)
+        if not result:
+            self.print_error("requesting historical rates for", ccy)
+            t = threading.Thread(target=self.historical_rates, args=(ccy,))
+            t.setDaemon(True)
+            t.start()
+        return result
+
+    def historical_rate(self, ccy, d_t):
+        if d_t.date() == datetime.today().date():
+            rate = self.quotes.get(ccy)
+        else:
+            rate = self.history.get(ccy, {}).get(d_t.strftime('%Y-%m-%d'))
+        return rate
+
+    def historical_value_str(self, ccy, satoshis, d_t):
+        rate = self.historical_rate(ccy, d_t)
+        if rate:
+             value = round(Decimal(satoshis) / COIN * Decimal(rate), 2)
+             return " ".join(["{:,.2f}".format(value), ccy])
+        return _("No data")
 
 class BitcoinAverage(ExchangeBase):
     def update(self, ccy):
@@ -41,63 +74,63 @@ class BitcoinAverage(ExchangeBase):
                      for r in json if r != 'timestamp'])
 
 class BitcoinVenezuela(ExchangeBase):
-    def update(self, ccy):
+    def get_rates(self, ccy):
         json = self.get_json('api.bitcoinvenezuela.com', '/')
         return dict([(r, Decimal(json['BTC'][r]))
                      for r in json['BTC']])
 
     def history_ccys(self):
-        return ['ARS', 'VEF']
+        return ['ARS', 'EUR', 'USD', 'VEF']
 
-    def historical_rates(self, ccy, minstr, maxstr):
+    def historical_rates(self, ccy):
         return self.get_json('api.bitcoinvenezuela.com',
                              "/historical/index.php?coin=BTC")[ccy +'_BTC']
 
 class BTCParalelo(ExchangeBase):
-    def update(self, ccy):
+    def get_rates(self, ccy):
         json = self.get_json('btcparalelo.com', '/api/price')
         return {'VEF': Decimal(json['price'])}
 
 class Bitcurex(ExchangeBase):
-    def update(self, ccy):
+    def get_rates(self, ccy):
         json = self.get_json('pln.bitcurex.com', '/data/ticker.json')
         pln_price = json['last']
         return {'PLN': Decimal(pln_price)}
 
 class Bitmarket(ExchangeBase):
-    def update(self, ccy):
+    def get_rates(self, ccy):
         json = self.get_json('www.bitmarket.pl', '/json/BTCPLN/ticker.json')
         return {'PLN': Decimal(json['last'])}
 
 class BitPay(ExchangeBase):
-    def update(self, ccy):
+    def get_rates(self, ccy):
         json = self.get_json('bitpay.com', '/api/rates')
         return dict([(r['code'], Decimal(r['rate'])) for r in json])
 
 class Blockchain(ExchangeBase):
-    def update(self, ccy):
+    def get_rates(self, ccy):
         json = self.get_json('blockchain.info', '/ticker')
         return dict([(r, Decimal(json[r]['15m'])) for r in json])
 
 class BTCChina(ExchangeBase):
-    def update(self, ccy):
+    def get_rates(self, ccy):
         json = self.get_json('data.btcchina.com', '/data/ticker')
         return {'CNY': Decimal(json['ticker']['last'])}
 
 class CaVirtEx(ExchangeBase):
-    def update(self, ccy):
+    def get_rates(self, ccy):
         json = self.get_json('www.cavirtex.com', '/api/CAD/ticker.json')
         return {'CAD': Decimal(json['last'])}
 
 class Coinbase(ExchangeBase):
-    def update(self, ccy):
+    def get_rates(self, ccy):
         json = self.get_json('coinbase.com',
                              '/api/v1/currencies/exchange_rates')
         return dict([(r[7:].upper(), Decimal(json[r]))
                      for r in json if r.startswith('btc_to_')])
 
 class CoinDesk(ExchangeBase):
-    def update(self, ccy):
+    def get_rates(self, ccy):
         dicts = self.get_json('api.coindesk.com',
                               '/v1/bpi/supported-currencies.json')
         json = self.get_json('api.coindesk.com',
@@ -107,16 +140,23 @@ class CoinDesk(ExchangeBase):
         result[ccy] = Decimal(json['bpi'][ccy]['rate'])
         return result
 
-    def history_ccys(self):
-        return ['USD']
+    def history_starts(self):
+        return { 'USD': '2012-11-30' }
 
-    def historical_rates(self, ccy, minstr, maxstr):
-        return self.get_json('api.coindesk.com',
-                             "/v1/bpi/historical/close.json?start="
-                             + minstr + "&end=" + maxstr)
+    def history_ccys(self):
+        return self.history_starts().keys()
+
+    def historical_rates(self, ccy):
+        start = self.history_starts()[ccy]
+        end = datetime.today().strftime('%Y-%m-%d')
+        # Note ?currency and ?index don't work as documented.  Sigh.
+        query = ('/v1/bpi/historical/close.json?start=%s&end=%s'
+                 % (start, end))
+        json = self.get_json('api.coindesk.com', query)
+        self.set_history(ccy, json['bpi'])
 
 class itBit(ExchangeBase):
-    def update(self, ccy):
+    def get_rates(self, ccy):
         ccys = ['USD', 'EUR', 'SGD']
         json = self.get_json('api.itbit.com', '/v1/markets/XBT%s/ticker' % ccy)
         result = dict.fromkeys(ccys)
@@ -124,20 +164,20 @@ class itBit(ExchangeBase):
         return result
 
 class LocalBitcoins(ExchangeBase):
-    def update(self, ccy):
+    def get_rates(self, ccy):
         json = self.get_json('localbitcoins.com',
                              '/bitcoinaverage/ticker-all-currencies/')
         return dict([(r, Decimal(json[r]['rates']['last'])) for r in json])
 
 class Winkdex(ExchangeBase):
-    def update(self, ccy):
+    def get_rates(self, ccy):
         json = self.get_json('winkdex.com', '/api/v0/price')
         return {'USD': Decimal(json['price'] / 100.0)}
 
     def history_ccys(self):
         return ['USD']
 
-    def historical_rates(self, ccy, minstr, maxstr):
+    def historical_rates(self, ccy):
         json = self.get_json('winkdex.com',
                              "/api/v0/series?start_time=1342915200")
         return json['series'][0]['results']
@@ -147,7 +187,6 @@ class Exchanger(ThreadJob):
 
     def __init__(self, parent):
         self.parent = parent
-        self.quotes = {}
         self.timeout = 0
 
     def get_json(self, site, get_string):
@@ -159,9 +198,8 @@ class Exchanger(ThreadJob):
         try:
             rates = self.parent.exchange.update(self.parent.fiat_unit())
         except Exception as e:
-            self.parent.print_error(e)
-            rates = {}
-        self.quotes = rates
+            traceback.print_exc(file=sys.stderr)
+            return
         self.parent.set_currencies(rates)
         self.parent.refresh_fields()
 
@@ -182,9 +220,9 @@ class Plugin(BasePlugin):
         self.set_exchange(self.config_exchange())
         self.currencies = [self.fiat_unit()]
         self.exchanger = Exchanger(self)
-        self.resp_hist = {}
+        self.history = {}
         self.btc_rate = Decimal("0.0")
-        self.wallet_tx_list = {}
+        self.get_historical_rates()
 
     def config_exchange(self):
         return self.config.get('use_exchange', 'Blockchain')
@@ -216,7 +254,6 @@ class Plugin(BasePlugin):
         self.add_send_edit(window)
         self.add_receive_edit(window)
         window.update_status()
-        self.new_wallets([window.wallet])
 
     def close(self):
         BasePlugin.close(self)
@@ -235,7 +272,7 @@ class Plugin(BasePlugin):
 
     def exchange_rate(self):
         '''Returns None, or the exchange rate as a Decimal'''
-        rate = self.exchanger.quotes.get(self.fiat_unit())
+        rate = self.exchange.quotes.get(self.fiat_unit())
         if rate:
             return Decimal(rate)
 
@@ -279,49 +316,17 @@ class Plugin(BasePlugin):
 
     @hook
     def load_wallet(self, wallet, window):
-        self.new_wallets([wallet])
-
-    def new_wallets(self, wallets):
-        if wallets:
-            # For mid-session plugin loads
-            self.set_network(wallets[0].network)
-            for wallet in wallets:
-                if wallet not in self.wallet_tx_list:
-                    self.wallet_tx_list[wallet] = None
-            self.get_historical_rates()
+        self.get_historical_rates()
 
     def get_historical_rates(self):
-        '''Request historic rates for all wallets for which they haven't yet
-        been requested
-        '''
-        if not self.config_history():
-            return
-        all_txs = {}
-        new = False
-        for wallet in self.wallet_tx_list:
-            if self.wallet_tx_list[wallet] is None:
-                new = True
-                tx_list = {}
-                for item in wallet.get_history(wallet.storage.get("current_account", None)):
-                    tx_hash, conf, value, timestamp, balance = item
-                    tx_list[tx_hash] = {'value': value, 'timestamp': timestamp }
-                    # FIXME: not robust to request failure
-                self.wallet_tx_list[wallet] = tx_list
-            all_txs.update(self.wallet_tx_list[wallet])
-        if new:
-            self.print_error("requesting historical FX rates")
-            t = threading.Thread(target=self.request_historical_rates,
-                                 args=(all_txs,))
-            t.setDaemon(True)
-            t.start()
+        if self.config_history():
+            self.exchange.get_historical_rates(self.fiat_unit())
 
-    def request_historical_rates(self, tx_list):
+    def request_historical_rates(self):
         try:
-            mintimestr = datetime.datetime.fromtimestamp(int(min(tx_list.items(), key=lambda x: x[1]['timestamp'])[1]['timestamp'])).strftime('%Y-%m-%d')
-            maxtimestr = datetime.datetime.now().strftime('%Y-%m-%d')
-            self.resp_hist = self.exchange.historical_rates(
-                self.fiat_unit(), mintimestr, maxtimestr)
+            self.history = self.exchange.historical_rates(self.fiat_unit())
         except Exception:
+            traceback.print_exc(file=sys.stderr)
             return
         for window in self.parent.windows:
             window.need_update.set()
@@ -330,66 +335,24 @@ class Plugin(BasePlugin):
         return True
 
     @hook
-    def history_tab_update(self, window):
-        if self.config.get('history_rates') != "checked":
+    def history_tab_update(self, window, entries):
+        if not self.config_history():
             return
-        if not self.resp_hist:
-            return
-        wallet = window.wallet
-        tx_list = self.wallet_tx_list.get(wallet)
-        if not wallet or not tx_list:
-            return
-        window.is_edit = True
-        window.history_list.setColumnCount(7)
-        window.history_list.setHeaderLabels([ '', '', _('Date'), _('Description') , _('Amount'), _('Balance'), _('Fiat Amount')] )
-        root = window.history_list.invisibleRootItem()
-        childcount = root.childCount()
-        exchange = self.exchange.name()
-        for i in range(childcount):
-            item = root.child(i)
-            try:
-                tx_info = tx_list[str(item.data(0, Qt.UserRole).toPyObject())]
-            except Exception:
-                newtx = wallet.get_history()
-                v = newtx[[x[0] for x in newtx].index(str(item.data(0, Qt.UserRole).toPyObject()))][2]
-                tx_info = {'timestamp':int(time.time()), 'value': v}
-                pass
-            tx_time = int(tx_info['timestamp'])
-            tx_value = Decimal(str(tx_info['value'])) / COIN
-            if exchange == "CoinDesk":
-                tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
-                try:
-                    tx_fiat_val = "%.2f %s" % (tx_value * Decimal(self.resp_hist['bpi'][tx_time_str]), "USD")
-                except KeyError:
-                    tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(str(tx_info['value']))/COIN , "USD")
-            elif exchange == "Winkdex":
-                tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d') + "T16:00:00-04:00"
-                try:
-                    tx_rate = self.resp_hist[[x['timestamp'] for x in self.resp_hist].index(tx_time_str)]['price']
-                    tx_fiat_val = "%.2f %s" % (tx_value * Decimal(tx_rate)/Decimal("100.0"), "USD")
-                except ValueError:
-                    tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(tx_info['value'])/COIN , "USD")
-                except KeyError:
-                    tx_fiat_val = _("No data")
-            elif exchange == "BitcoinVenezuela":
-                tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
-                try:
-                    num = self.resp_hist[tx_time_str].replace(',','')
-                    tx_fiat_val = "%.2f %s" % (tx_value * Decimal(num), self.fiat_unit())
-                except KeyError:
-                    tx_fiat_val = _("No data")
-
-            tx_fiat_val = " "*(12-len(tx_fiat_val)) + tx_fiat_val
-            item.setText(6, tx_fiat_val)
+        history_list = window.history_list
+        history_list.setColumnCount(7)
+        history_list.header().setResizeMode(6, QHeaderView.ResizeToContents)
+        history_list.setHeaderLabels([ '', '', _('Date'), _('Description') , _('Amount'), _('Balance'), _('Fiat Amount')] )
+        for item, tx in entries:
+            tx_hash, conf, value, timestamp, balance = tx
+            date = timestamp_to_datetime(timestamp)
+            if not date:
+                date = timestmap_to_datetime(0)
+            text = self.exchange.historical_value_str(self.fiat_unit(),
+                                                      value, date)
+            item.setText(6, "%16s" % text)
             item.setFont(6, QFont(MONOSPACE_FONT))
-            if Decimal(str(tx_info['value'])) < 0:
+            if value < 0:
                 item.setForeground(6, QBrush(QColor("#BC1E1E")))
-
-            # We autosize but in some cases QT doesn't handle that
-            # properly for new columns it seems
-            window.history_list.setColumnWidth(6, 120)
-            window.is_edit = False
-
 
     def settings_widget(self, window):
         return EnterButton(_('Settings'), self.settings_dialog)
