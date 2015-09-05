@@ -255,6 +255,17 @@ class Plugin(BasePlugin):
         window.fx_fields = {}
         self.add_send_edit(window)
         self.add_receive_edit(window)
+        history_list = window.history_list
+        cols = history_list.columnCount()
+        header = history_list.headerItem()
+        labels = [header.text(c) for c in range(history_list.columnCount())]
+        labels.extend([_('Fiat Amount'), _('Fiat Balance')])
+        history_list.setColumnCount(cols + 2)
+        # For unclear reasons setting this column to ResizeToContents
+        # makes e.g. label editing very slow
+        history_list.setColumnWidth(cols, 120)
+        history_list.setColumnWidth(cols + 1, 120)
+        history_list.setHeaderLabels(labels)
         window.update_status()
 
     def close(self):
@@ -264,6 +275,8 @@ class Plugin(BasePlugin):
         for window in self.parent.windows:
             window.send_fiat_e.hide()
             window.receive_fiat_e.hide()
+            if self.config_history():
+                window.history_list.setColumnCount(window.history_list.columnCount() - 2)
             window.update_status()
 
     def set_currencies(self, currency_options):
@@ -403,9 +416,6 @@ class Plugin(BasePlugin):
                 self.get_historical_rates()
             else:
                 self.config.set_key('history_rates', 'unchecked')
-                for window in self.parent.windows:
-                    window.history_list.setHeaderLabels( [ '', '', _('Date'), _('Description') , _('Amount'), _('Balance')] )
-                    window.history_list.setColumnCount(6)
 
         def set_currencies(combo):
             try:
