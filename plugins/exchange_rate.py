@@ -180,7 +180,9 @@ class Winkdex(ExchangeBase):
     def historical_rates(self, ccy):
         json = self.get_json('winkdex.com',
                              "/api/v0/series?start_time=1342915200")
-        return json['series'][0]['results']
+        history = json['series'][0]['results']
+        self.set_history(ccy, dict([(h['timestamp'][:10], h['price'] / 100.0)
+                                    for h in history]))
 
 
 class Exchanger(ThreadJob):
@@ -342,7 +344,7 @@ class Plugin(BasePlugin):
         history_list.setColumnCount(7)
         # For unclear reasons setting this column to ResizeToContents
         # makes e.g. label editing very slow
-        history_list.setColumnWidth(6, 120)
+        history_list.setColumnWidth(6, 130)
         #window.history_list.header().setResizeMode(6, QHeaderView.ResizeToConte
         history_list.setHeaderLabels([ '', '', _('Date'), _('Description') , _('Amount'), _('Balance'), _('Fiat Amount')] )
         for item, tx in entries:
