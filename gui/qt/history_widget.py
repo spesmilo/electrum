@@ -28,7 +28,9 @@ from electrum_ltc.plugins import run_hook
 class HistoryWidget(MyTreeWidget):
 
     def __init__(self, parent=None):
-        MyTreeWidget.__init__(self, parent, self.create_menu, ['', '', _('Date'), _('Description') , _('Amount'), _('Balance')], 3)
+        headers = ['', '', _('Date'), _('Description') , _('Amount'), _('Balance')]
+        run_hook('history_tab_headers', headers)
+        MyTreeWidget.__init__(self, parent, self.create_menu, headers, 3)
         self.setColumnHidden(1, True)
         self.config = self.parent.config
         self.setSortingEnabled(False)
@@ -54,19 +56,22 @@ class HistoryWidget(MyTreeWidget):
         item = self.currentItem()
         current_tx = item.data(0, Qt.UserRole).toString() if item else None
         self.clear()
-        for item in h:
-            tx_hash, conf, value, timestamp, balance = item
+        run_hook('history_tab_update_begin')
+        for tx in h:
+            tx_hash, conf, value, timestamp, balance = tx
             if conf is None and timestamp is None:
                 continue  # skip history in offline mode
             icon, time_str = self.get_icon(conf, timestamp)
             v_str = self.parent.format_amount(value, True, whitespaces=True)
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             label, is_default_label = self.wallet.get_label(tx_hash)
-            item = EditableItem(['', tx_hash, time_str, label, v_str, balance_str])
+            entry = ['', tx_hash, time_str, label, v_str, balance_str]
+            run_hook('history_tab_update', tx, entry)
+            item = EditableItem(entry)
             item.setIcon(0, icon)
-            item.setFont(3, QFont(MONOSPACE_FONT))
-            item.setFont(4, QFont(MONOSPACE_FONT))
-            item.setFont(5, QFont(MONOSPACE_FONT))
+            for i in range(len(entry)):
+                if i!=2:
+                    item.setFont(i, QFont(MONOSPACE_FONT))
             if value < 0:
                 item.setForeground(4, QBrush(QColor("#BC1E1E")))
             if tx_hash:
@@ -76,7 +81,6 @@ class HistoryWidget(MyTreeWidget):
             self.insertTopLevelItem(0, item)
             if current_tx == tx_hash:
                 self.setCurrentItem(item)
-        run_hook('history_tab_update', self.parent)
 
     def update_item(self, tx_hash, conf, timestamp):
         icon, time_str = self.get_icon(conf, timestamp)

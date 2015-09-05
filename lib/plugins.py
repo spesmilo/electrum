@@ -40,6 +40,7 @@ class Plugins:
 
         self.plugins = {}
         self.windows = []
+        self.network = None
         self.descriptions = plugins.descriptions
         for item in self.descriptions:
             name = item['name']
@@ -118,6 +119,16 @@ class Plugins:
         x += (lambda: self.wallet_plugin_loader(config, name),)
         wallet.wallet_types.append(x)
 
+    def set_network(self, network):
+        if network != self.network:
+            jobs = [job for plugin in self.plugins.values()
+                    for job in plugin.thread_jobs()]
+            if self.network:
+                self.network.remove_jobs(jobs)
+            self.network = network
+            if network:
+                network.add_jobs(jobs)
+
     def trigger(self, event, *args, **kwargs):
         for plugin in self.plugins.values():
             getattr(plugin, event)(*args, **kwargs)
@@ -129,6 +140,7 @@ class Plugins:
     def on_close_window(self, window):
         self.windows.remove(window)
         self.trigger('on_close_window', window)
+
 
 hook_names = set()
 hooks = {}
@@ -193,6 +205,9 @@ class BasePlugin:
 
     def requires_settings(self):
         return False
+
+    def thread_jobs(self):
+        return []
 
     @hook
     def load_wallet(self, wallet, window): pass

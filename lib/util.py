@@ -7,6 +7,7 @@ import traceback
 import urlparse
 import urllib
 import threading
+from i18n import _
 
 def normalize_version(v):
     return [int(x) for x in re.sub(r'(\.0+)*$','', v).split(".")]
@@ -15,7 +16,6 @@ class NotEnoughFunds(Exception): pass
 
 class InvalidPassword(Exception):
     def __str__(self):
-        from i18n import _
         return _("Incorrect password")
 
 class MyEncoder(json.JSONEncoder):
@@ -51,9 +51,9 @@ class DaemonThread(threading.Thread):
         self.job_lock = threading.Lock()
         self.jobs = []
 
-    def add_job(self, job):
+    def add_jobs(self, jobs):
         with self.job_lock:
-            self.jobs.append(job)
+            self.jobs.extend(jobs)
 
     def run_jobs(self):
         # Don't let a throwing job disrupt the thread, future runs of
@@ -66,9 +66,10 @@ class DaemonThread(threading.Thread):
                 except:
                     traceback.print_exc(file=sys.stderr)
 
-    def remove_job(self, job):
+    def remove_jobs(self, jobs):
         with self.job_lock:
-            self.jobs.remove(job)
+            for job in jobs:
+                self.jobs.remove(job)
 
     def start(self):
         with self.running_lock:
@@ -182,13 +183,15 @@ def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespa
         result = " " * (15 - len(result)) + result
     return result.decode('utf8')
 
-def format_time(timestamp):
-    import datetime
+def timestamp_to_datetime(timestamp):
     try:
-        time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+        return datetime.fromtimestamp(timestamp)
     except:
-        time_str = "unknown"
-    return time_str
+        return None
+
+def format_time(timestamp):
+    date = timestamp_to_datetime(timestamp)
+    return date.isoformat(' ')[:-3] if date else _("Unknown")
 
 
 # Takes a timestamp and returns a string with the approximation of the age
