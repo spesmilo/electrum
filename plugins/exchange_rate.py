@@ -185,32 +185,7 @@ class Winkdex(ExchangeBase):
                                     for h in history]))
 
 
-class Exchanger(ThreadJob):
-
-    def __init__(self, parent):
-        self.parent = parent
-        self.timeout = 0
-
-    def get_json(self, site, get_string):
-        resp = requests.request('GET', 'https://' + site + get_string,
-                                headers={"User-Agent":"Electrum"})
-        return resp.json()
-
-    def update_rate(self):
-        try:
-            rates = self.parent.exchange.update(self.parent.fiat_unit())
-        except Exception as e:
-            traceback.print_exc(file=sys.stderr)
-            return
-        self.parent.set_currencies(rates)
-        self.parent.refresh_fields()
-
-    def run(self):
-        if self.parent.parent.windows and self.timeout <= time.time():
-            self.update_rate()
-            self.timeout = time.time() + 150
-
-class Plugin(BasePlugin):
+class Plugin(BasePlugin, ThreadJob):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
@@ -221,10 +196,17 @@ class Plugin(BasePlugin):
         self.network = None
         self.set_exchange(self.config_exchange())
         self.currencies = [self.fiat_unit()]
-        self.exchanger = Exchanger(self)
-        self.history = {}
         self.btc_rate = Decimal("0.0")
         self.get_historical_rates()
+        self.timeout = 0
+
+    def run(self):
+        # This runs from the network thread which catches exceptions
+        if self.parent.windows and self.timeout <= time.time():
+            self.timeout = time.time() + 150
+            rates = self.exchange.update(self.fiat_unit())
+            self.set_currencies(rates)
+            self.refresh_fields()
 
     def config_exchange(self):
         return self.config.get('use_exchange', 'Blockchain')
@@ -244,10 +226,10 @@ class Plugin(BasePlugin):
     def set_network(self, network):
         if network != self.network:
             if self.network:
-                self.network.remove_job(self.exchanger)
+                self.network.remove_job(self)
             self.network = network
             if network:
-                network.add_job(self.exchanger)
+                network.add_job(self)
 
     def on_new_window(self, window):
         window.connect(window, SIGNAL("refresh_currencies()"),
@@ -260,7 +242,6 @@ class Plugin(BasePlugin):
     def close(self):
         BasePlugin.close(self)
         self.set_network(None)
-        self.exchanger = None
         for window in self.parent.windows:
             window.send_fiat_e.hide()
             window.receive_fiat_e.hide()
@@ -392,7 +373,7 @@ class Plugin(BasePlugin):
                 self.set_exchange(exchange)
                 self.currencies = []
                 combo.clear()
-                self.exchanger.timeout = 0
+                self.timeout = 0
                 hist_checkbox_update()
                 set_currencies(combo)
                 for window in self.parent.windows:
