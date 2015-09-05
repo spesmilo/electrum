@@ -255,6 +255,17 @@ class Plugin(BasePlugin):
         window.fx_fields = {}
         self.add_send_edit(window)
         self.add_receive_edit(window)
+        history_list = window.history_list
+        cols = history_list.columnCount()
+        header = history_list.headerItem()
+        labels = [header.text(c) for c in range(history_list.columnCount())]
+        labels.extend([_('Fiat Amount'), _('Fiat Balance')])
+        history_list.setColumnCount(cols + 2)
+        # For unclear reasons setting this column to ResizeToContents
+        # makes e.g. label editing very slow
+        history_list.setColumnWidth(cols, 120)
+        history_list.setColumnWidth(cols + 1, 120)
+        history_list.setHeaderLabels(labels)
         window.update_status()
 
     def close(self):
@@ -264,6 +275,8 @@ class Plugin(BasePlugin):
         for window in self.parent.windows:
             window.send_fiat_e.hide()
             window.receive_fiat_e.hide()
+            if self.config_history():
+                window.history_list.setColumnCount(window.history_list.columnCount() - 2)
             window.update_status()
 
     def set_currencies(self, currency_options):
@@ -340,24 +353,19 @@ class Plugin(BasePlugin):
     def history_tab_update(self, window, entries):
         if not self.config_history():
             return
-        history_list = window.history_list
-        history_list.setColumnCount(7)
-        # For unclear reasons setting this column to ResizeToContents
-        # makes e.g. label editing very slow
-        history_list.setColumnWidth(6, 130)
-        #window.history_list.header().setResizeMode(6, QHeaderView.ResizeToConte
-        history_list.setHeaderLabels([ '', '', _('Date'), _('Description') , _('Amount'), _('Balance'), _('Fiat Amount')] )
+        ccy = self.fiat_unit()
+        first = window.history_list.columnCount() - 2
         for item, tx in entries:
             tx_hash, conf, value, timestamp, balance = tx
             date = timestamp_to_datetime(timestamp)
             if not date:
                 date = timestmap_to_datetime(0)
-            text = self.exchange.historical_value_str(self.fiat_unit(),
-                                                      value, date)
-            item.setText(6, "%16s" % text)
-            item.setFont(6, QFont(MONOSPACE_FONT))
-            if value < 0:
-                item.setForeground(6, QBrush(QColor("#BC1E1E")))
+            for column, amount in [(first, value), (first + 1, balance)]:
+                text = self.exchange.historical_value_str(ccy, amount, date)
+                item.setText(column, "%16s" % text)
+                item.setFont(column, QFont(MONOSPACE_FONT))
+                if amount < 0:
+                    item.setForeground(column, QBrush(QColor("#BC1E1E")))
 
     def settings_widget(self, window):
         return EnterButton(_('Settings'), self.settings_dialog)
@@ -411,9 +419,6 @@ class Plugin(BasePlugin):
                 self.get_historical_rates()
             else:
                 self.config.set_key('history_rates', 'unchecked')
-                for window in self.parent.windows:
-                    window.history_list.setHeaderLabels( [ '', '', _('Date'), _('Description') , _('Amount'), _('Balance')] )
-                    window.history_list.setColumnCount(6)
 
         def set_currencies(combo):
             try:
