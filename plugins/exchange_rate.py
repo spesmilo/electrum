@@ -60,12 +60,6 @@ class ExchangeBase:
             rate = self.history.get(ccy, {}).get(d_t.strftime('%Y-%m-%d'))
         return rate
 
-    def historical_value_str(self, ccy, satoshis, d_t):
-        rate = self.historical_rate(ccy, d_t)
-        if rate:
-             value = round(Decimal(satoshis) / COIN * Decimal(rate), 2)
-             return " ".join(["{:,.2f}".format(value), ccy])
-        return _("No data")
 
 class BitcoinAverage(ExchangeBase):
     def update(self, ccy):
@@ -310,9 +304,16 @@ class Plugin(BasePlugin, ThreadJob):
     def requires_settings(self):
         return True
 
+    def historical_value_str(self, ccy, satoshis, d_t):
+        rate = self.exchange.historical_rate(ccy, d_t)
+        if rate:
+             value = round(Decimal(satoshis) / COIN * Decimal(rate), 2)
+             return " ".join(["{:,.2f}".format(value), ccy])
+        return _("No data")
+
     @hook
     def history_tab_headers(self, headers):
-        headers.append(_('Fiat Amount'))
+        headers.extend([_('Fiat Amount'), _('Fiat Balance')])
 
     @hook
     def history_tab_update(self, tx, entry):
@@ -322,8 +323,9 @@ class Plugin(BasePlugin, ThreadJob):
         date = timestamp_to_datetime(timestamp)
         if not date:
             date = timestamp_to_datetime(0)
-        text = self.exchange.historical_value_str(self.fiat_unit(), value, date)
-        entry.append("%16s"%text)
+        for amount in [value, balance]:
+            text = self.historical_value_str(self.fiat_unit(), amount, date)
+            entry.append("%16s" % text)
 
     def settings_widget(self, window):
         return EnterButton(_('Settings'), self.settings_dialog)
