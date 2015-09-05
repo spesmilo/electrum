@@ -19,8 +19,10 @@ from electrum_gui.qt.util import *
 from electrum_gui.qt.amountedit import AmountEdit
 
 class ExchangeBase:
-    history = {}
-    quotes = {}
+    def __init__(self, sig):
+        self.history = {}
+        self.quotes = {}
+        self.sig = sig
 
     def get_json(self, site, get_string):
         response = requests.request('GET', 'https://' + site + get_string,
@@ -35,6 +37,7 @@ class ExchangeBase:
 
     def update(self, ccy):
         self.quotes = self.get_rates(ccy)
+        self.sig.emit(SIGNAL('fx_quotes'))
         return self.quotes
 
     def history_ccys(self):
@@ -43,6 +46,7 @@ class ExchangeBase:
     def set_history(self, ccy, history):
         '''History is a map of "%Y-%m-%d" strings to values'''
         self.history[ccy] = history
+        self.sig.emit(SIGNAL("fx_history"))
 
     def get_historical_rates(self, ccy):
         result = self.history.get(ccy)
@@ -183,15 +187,18 @@ class Plugin(BasePlugin, ThreadJob):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
+        # Signal object first
+        self.sig = QObject()
+        self.sig.connect(self.sig, SIGNAL('fx_quotes'), self.on_fx_quotes)
+        self.sig.connect(self.sig, SIGNAL('fx_history'), self.on_fx_history)
+        self.ccy_combo = None
+
         is_exchange = lambda obj: (inspect.isclass(obj)
                                    and issubclass(obj, ExchangeBase))
         self.exchanges = dict(inspect.getmembers(sys.modules[__name__],
                                                  is_exchange))
         self.set_exchange(self.config_exchange())
-        self.currencies = [self.fiat_unit()]
         self.btc_rate = Decimal("0.0")
-        self.get_historical_rates()
-        self.timeout = 0
 
     def thread_jobs(self):
         return [self]
@@ -201,7 +208,6 @@ class Plugin(BasePlugin, ThreadJob):
         if self.parent.windows and self.timeout <= time.time():
             self.timeout = time.time() + 150
             rates = self.exchange.update(self.fiat_unit())
-            self.set_currencies(rates)
             self.refresh_fields()
 
     def config_exchange(self):
@@ -216,15 +222,50 @@ class Plugin(BasePlugin, ThreadJob):
         self.print_error("using exchange", name)
         if self.config_exchange() != name:
             self.config.set_key('use_exchange', name, True)
-        self.exchange = class_()
+        self.exchange = class_(self.sig)
+        # A new exchange means new fx quotes, initially empty.  Force
+        # a quote refresh
+        self.timeout = 0
+        self.get_historical_rates()
+        self.on_fx_quotes()
+
+    def update_status_bars(self):
+        '''Update status bar fiat balance in all windows'''
+        for window in self.parent.windows:
+            window.update_status()
 
     def on_new_window(self, window):
-        window.connect(window, SIGNAL("refresh_currencies()"),
-                       window.update_status)
         window.fx_fields = {}
         self.add_send_edit(window)
         self.add_receive_edit(window)
         window.update_status()
+
+    def on_fx_history(self):
+        '''Called when historical fx quotes are updated'''
+        pass
+
+    def on_fx_quotes(self):
+        '''Called when fresh spot fx quotes come in'''
+        self.update_status_bars()
+        self.populate_ccy_combo()
+
+    def on_ccy_combo_change(self):
+        '''Called when the chosen currency changes'''
+        ccy = str(self.ccy_combo.currentText())
+        if ccy != self.fiat_unit():
+            self.config.set_key('currency', ccy, True)
+            self.update_status_bars()
+            self.get_historical_rates()
+            hist_checkbox_update()
+
+    def populate_ccy_combo(self):
+        # There should be at most one instance of the settings dialog
+        combo = self.ccy_combo
+        # NOTE: bool(combo) is False if it is empty.  Nuts.
+        if combo is not None:
+            combo.clear()
+            combo.addItems(self.exchange.quotes.keys())
+            combo.setCurrentIndex(combo.findText(self.fiat_unit()))
 
     def close(self):
         BasePlugin.close(self)
@@ -233,12 +274,6 @@ class Plugin(BasePlugin, ThreadJob):
             window.receive_fiat_e.hide()
             window.update_history_tab()
             window.update_status()
-
-    def set_currencies(self, currency_options):
-        self.currencies = sorted(currency_options)
-        for window in self.parent.windows:
-            window.emit(SIGNAL("refresh_currencies()"))
-            window.emit(SIGNAL("refresh_currencies_combo()"))
 
     def exchange_rate(self):
         '''Returns None, or the exchange rate as a Decimal'''
@@ -333,42 +368,22 @@ class Plugin(BasePlugin, ThreadJob):
         layout.addWidget(QLabel(_('Exchange rate API: ')), 0, 0)
         layout.addWidget(QLabel(_('Currency: ')), 1, 0)
         layout.addWidget(QLabel(_('History Rates: ')), 2, 0)
-        combo = QComboBox()
-        combo_ex = QComboBox()
-        combo_ex.addItems(sorted(self.exchanges.keys()))
-        combo_ex.setCurrentIndex(combo_ex.findText(self.config_exchange()))
 
-        hist_checkbox = QCheckBox()
-        ok_button = QPushButton(_("OK"))
+        # Currency list
+        self.ccy_combo = QComboBox()
+        self.ccy_combo.currentIndexChanged.connect(self.on_ccy_combo_change)
+        self.populate_ccy_combo()
 
         def hist_checkbox_update():
             hist_checkbox.setEnabled(self.fiat_unit() in
                                      self.exchange.history_ccys())
             hist_checkbox.setChecked(self.config_history())
 
-        def on_change(x):
-            try:
-                ccy = str(self.currencies[x])
-            except Exception:
-                return
-            if ccy != self.fiat_unit():
-                self.config.set_key('currency', ccy, True)
-                self.get_historical_rates()
-                hist_checkbox_update()
-                for window in self.parent.windows:
-                    window.update_status()
-
         def on_change_ex(idx):
             exchange = str(combo_ex.currentText())
             if exchange != self.exchange.name():
                 self.set_exchange(exchange)
-                self.currencies = []
-                combo.clear()
-                self.timeout = 0
                 hist_checkbox_update()
-                set_currencies(combo)
-                for window in self.parent.windows:
-                    window.update_status()
 
         def on_change_hist(checked):
             if checked:
@@ -377,44 +392,32 @@ class Plugin(BasePlugin, ThreadJob):
             else:
                 self.config.set_key('history_rates', 'unchecked')
 
-        def set_currencies(combo):
-            try:
-                combo.blockSignals(True)
-                current_currency = self.fiat_unit()
-                combo.clear()
-            except Exception:
-                return
-            combo.addItems(self.currencies)
-            try:
-                index = self.currencies.index(current_currency)
-            except Exception:
-                index = 0
-            combo.blockSignals(False)
-            combo.setCurrentIndex(index)
-
         def ok_clicked():
             if self.exchange in ["CoinDesk", "itBit"]:
                 self.timeout = 0
             d.accept();
 
-        hist_checkbox_update()
-        set_currencies(combo)
-        combo.currentIndexChanged.connect(on_change)
+        combo_ex = QComboBox()
+        combo_ex.addItems(sorted(self.exchanges.keys()))
+        combo_ex.setCurrentIndex(combo_ex.findText(self.config_exchange()))
         combo_ex.currentIndexChanged.connect(on_change_ex)
+
+        hist_checkbox = QCheckBox()
+        hist_checkbox_update()
         hist_checkbox.stateChanged.connect(on_change_hist)
-        for window in self.parent.windows:
-            combo.connect(window, SIGNAL('refresh_currencies_combo()'), lambda: set_currencies(combo))
         combo_ex.connect(d, SIGNAL('refresh_exchanges_combo()'), lambda: set_exchanges(combo_ex))
+
+        ok_button = QPushButton(_("OK"))
         ok_button.clicked.connect(lambda: ok_clicked())
-        layout.addWidget(combo,1,1)
+
+        layout.addWidget(self.ccy_combo,1,1)
         layout.addWidget(combo_ex,0,1)
         layout.addWidget(hist_checkbox,2,1)
         layout.addWidget(ok_button,3,1)
 
-        if d.exec_():
-            return True
-        else:
-            return False
+        result = d.exec_()
+        self.ccy_combo = None
+        return result
 
     def fiat_unit(self):
         return self.config.get("currency", "EUR")

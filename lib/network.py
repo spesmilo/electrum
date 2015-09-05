@@ -17,7 +17,6 @@ from bitcoin import *
 from interface import Connection, Interface
 from blockchain import Blockchain
 from version import ELECTRUM_VERSION, PROTOCOL_VERSION
-from plugins import run_hook
 
 DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 
@@ -137,7 +136,7 @@ class Network(util.DaemonThread):
           stop()
     """
 
-    def __init__(self, config=None):
+    def __init__(self, config=None, plugins=None):
         if config is None:
             config = {}  # Do not use mutables as default values!
         util.DaemonThread.__init__(self)
@@ -194,6 +193,9 @@ class Network(util.DaemonThread):
         self.socket_queue = Queue.Queue()
         self.start_network(deserialize_server(self.default_server)[2],
                            deserialize_proxy(self.config.get('proxy')))
+        self.plugins = plugins
+        if self.plugins:
+            self.plugins.set_network(self)
 
     def register_callback(self, event, callback):
         with self.lock:
@@ -752,7 +754,6 @@ class Network(util.DaemonThread):
             self.process_responses(interface)
 
     def run(self):
-        run_hook('set_network', self)
         self.blockchain.init()
         while self.is_running():
             self.maintain_sockets()
@@ -762,7 +763,8 @@ class Network(util.DaemonThread):
             self.process_pending_sends()
 
         self.stop_network()
-        run_hook('set_network', None)
+        if self.plugins:
+            self.plugins.set_network(None)
         self.print_error("stopped")
 
     def on_header(self, i, header):

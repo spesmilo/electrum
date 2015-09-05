@@ -526,7 +526,7 @@ if __name__ == '__main__':
 
     # daemon is not running
     if cmd_name == 'gui':
-        network = Network(config)
+        network = Network(config, plugins)
         network.start()
         server = NetworkServer(config, network)
         server.start()
@@ -540,7 +540,7 @@ if __name__ == '__main__':
         elif subcommand == 'start':
             p = os.fork()
             if p == 0:
-                network = Network(config)
+                network = Network(config, plugins)
                 network.start()
                 server = NetworkServer(config, network)
                 if config.get('websocket_server'):

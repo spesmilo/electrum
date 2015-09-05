@@ -26,13 +26,6 @@ from util import *
 from i18n import _
 from util import print_error, profiler
 
-hook_names = set()
-hooks = {}
-
-def hook(func):
-    hook_names.add(func.func_name)
-    return func
-
 class Plugins:
 
     @profiler
@@ -126,11 +119,10 @@ class Plugins:
         x += (lambda: self.wallet_plugin_loader(config, name),)
         wallet.wallet_types.append(x)
 
-    @hook
     def set_network(self, network):
         if network != self.network:
-            jobs = [job in plugin.thread_jobs()
-                    for plugin in self.plugins.values()]
+            jobs = [job for plugin in self.plugins.values()
+                    for job in plugin.thread_jobs()]
             if self.network:
                 self.network.remove_jobs(jobs)
             self.network = network
@@ -148,6 +140,14 @@ class Plugins:
     def on_close_window(self, window):
         self.windows.remove(window)
         self.trigger('on_close_window', window)
+
+
+hook_names = set()
+hooks = {}
+
+def hook(func):
+    hook_names.add(func.func_name)
+    return func
 
 def run_hook(name, *args):
     return _run_hook(name, False, *args)
