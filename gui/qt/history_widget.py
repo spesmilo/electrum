@@ -56,7 +56,6 @@ class HistoryWidget(MyTreeWidget):
         item = self.currentItem()
         current_tx = item.data(0, Qt.UserRole).toString() if item else None
         self.clear()
-        entries = []
         for tx in h:
             tx_hash, conf, value, timestamp, balance = tx
             if conf is None and timestamp is None:
@@ -81,7 +80,6 @@ class HistoryWidget(MyTreeWidget):
             self.insertTopLevelItem(0, item)
             if current_tx == tx_hash:
                 self.setCurrentItem(item)
-            entries.append((item, tx))
 
     def update_item(self, tx_hash, conf, timestamp):
         icon, time_str = self.get_icon(conf, timestamp)
