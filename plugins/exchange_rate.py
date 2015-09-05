@@ -340,7 +340,10 @@ class Plugin(BasePlugin):
             return
         history_list = window.history_list
         history_list.setColumnCount(7)
-        history_list.header().setResizeMode(6, QHeaderView.ResizeToContents)
+        # For unclear reasons setting this column to ResizeToContents
+        # makes e.g. label editing very slow
+        history_list.setColumnWidth(6, 120)
+        #window.history_list.header().setResizeMode(6, QHeaderView.ResizeToConte
         history_list.setHeaderLabels([ '', '', _('Date'), _('Description') , _('Amount'), _('Balance'), _('Fiat Amount')] )
         for item, tx in entries:
             tx_hash, conf, value, timestamp, balance = tx
