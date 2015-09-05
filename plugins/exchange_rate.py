@@ -262,7 +262,6 @@ class Plugin(BasePlugin, ThreadJob):
         '''Called when the chosen currency changes'''
         ccy = str(self.ccy_combo.currentText())
         if ccy and ccy != self.ccy:
-            print "Setting:", ccy
             self.ccy = ccy
             self.config.set_key('currency', ccy, True)
             self.update_status_bars()
@@ -348,10 +347,9 @@ class Plugin(BasePlugin, ThreadJob):
         rate = self.exchange.historical_rate(ccy, d_t)
         # Frequently there is no rate for today, until tomorrow :)
         # Use spot quotes in that case
-        if rate is None and d_t.date() == datetime.today().date():
+        if rate is None and (datetime.today().date() - d_t.date()).days <= 2:
             rate = self.exchange.quotes.get(ccy)
-            if rate is not None:
-                self.history_used_spot = True
+            self.history_used_spot = True
         if rate:
              value = round(Decimal(satoshis) / COIN * Decimal(rate), 2)
              return " ".join(["{:,.2f}".format(value), ccy])
@@ -362,7 +360,7 @@ class Plugin(BasePlugin, ThreadJob):
         headers.extend([_('Fiat Amount'), _('Fiat Balance')])
 
     @hook
-    def history_tab_update(self):
+    def history_tab_update_begin(self):
         self.history_used_spot = False
 
     @hook
