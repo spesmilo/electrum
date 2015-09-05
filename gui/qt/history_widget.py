@@ -56,6 +56,7 @@ class HistoryWidget(MyTreeWidget):
         item = self.currentItem()
         current_tx = item.data(0, Qt.UserRole).toString() if item else None
         self.clear()
+        run_hook('history_tab_update_begin')
         for tx in h:
             tx_hash, conf, value, timestamp, balance = tx
             if conf is None and timestamp is None:

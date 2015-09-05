@@ -1,11 +1,11 @@
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
-from datetime import datetime, date
+from datetime import datetime
 import inspect
 import requests
 import sys
-import threading
+from threading import Thread
 import time
 import traceback
 from decimal import Decimal
@@ -52,17 +52,13 @@ class ExchangeBase:
         result = self.history.get(ccy)
         if not result and ccy in self.history_ccys():
             self.print_error("requesting historical rates for", ccy)
-            t = threading.Thread(target=self.historical_rates, args=(ccy,))
+            t = Thread(target=self.historical_rates, args=(ccy,))
             t.setDaemon(True)
             t.start()
         return result
 
     def historical_rate(self, ccy, d_t):
-        if d_t.date() == datetime.today().date():
-            rate = self.quotes.get(ccy)
-        else:
-            rate = self.history.get(ccy, {}).get(d_t.strftime('%Y-%m-%d'))
-        return rate
+        return self.history.get(ccy, {}).get(d_t.strftime('%Y-%m-%d'))
 
 
 class BitcoinAverage(ExchangeBase):
@@ -191,15 +187,17 @@ class Plugin(BasePlugin, ThreadJob):
         self.sig = QObject()
         self.sig.connect(self.sig, SIGNAL('fx_quotes'), self.on_fx_quotes)
         self.sig.connect(self.sig, SIGNAL('fx_history'), self.on_fx_history)
+        self.ccy = self.config_ccy()
+        self.history_used_spot = False
         self.ccy_combo = None
         self.hist_checkbox = None
-        self.ccy = self.config_ccy()
 
         is_exchange = lambda obj: (inspect.isclass(obj)
                                    and issubclass(obj, ExchangeBase))
         self.exchanges = dict(inspect.getmembers(sys.modules[__name__],
                                                  is_exchange))
         self.set_exchange(self.config_exchange())
+        # FIXME: kill this
         self.btc_rate = Decimal("0.0")
 
     def thread_jobs(self):
@@ -248,12 +246,16 @@ class Plugin(BasePlugin, ThreadJob):
 
     def on_fx_history(self):
         '''Called when historical fx quotes are updated'''
-        pass
+        for window in self.parent.windows:
+            window.update_history_tab()
 
     def on_fx_quotes(self):
         '''Called when fresh spot fx quotes come in'''
         self.update_status_bars()
         self.populate_ccy_combo()
+        # History tab needs updating if it used spot
+        if self.history_used_spot:
+            self.on_fx_history()
 
     def on_ccy_combo_change(self):
         '''Called when the chosen currency changes'''
@@ -263,7 +265,7 @@ class Plugin(BasePlugin, ThreadJob):
             self.ccy = ccy
             self.config.set_key('currency', ccy, True)
             self.update_status_bars()
-            self.get_historical_rates()
+            self.get_historical_rates() # Because self.ccy changes
             self.hist_checkbox_update()
 
     def hist_checkbox_update(self):
@@ -343,6 +345,12 @@ class Plugin(BasePlugin, ThreadJob):
 
     def historical_value_str(self, ccy, satoshis, d_t):
         rate = self.exchange.historical_rate(ccy, d_t)
+        # Frequently there is no rate for today, until tomorrow :)
+        # Use spot quotes in that case
+        if rate is None and d_t.date() == datetime.today().date():
+            rate = self.exchange.quotes.get(ccy)
+            if rate is not None:
+                self.history_used_spot = True
         if rate:
              value = round(Decimal(satoshis) / COIN * Decimal(rate), 2)
              return " ".join(["{:,.2f}".format(value), ccy])
@@ -351,6 +359,10 @@ class Plugin(BasePlugin, ThreadJob):
     @hook
     def history_tab_headers(self, headers):
         headers.extend([_('Fiat Amount'), _('Fiat Balance')])
+
+    @hook
+    def history_tab_update(self):
+        self.history_used_spot = False
 
     @hook
     def history_tab_update(self, tx, entry):
