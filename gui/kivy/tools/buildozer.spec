@@ -32,7 +32,7 @@ version.filename = %(source.dir)s/lib/version.py
 #version = 1.9.8
 
 # (list) Application requirements
-requirements = tlslite, openssl, pyopenssl, pil, qrcode, ecdsa, pbkdf2, pyasn1, pyasn1-modules,  plyer==master, kivy==master
+requirements = requests, dnspython, openssl, pil, qrcode, ecdsa, pbkdf2, plyer==master, kivy==master
 
 # (str) Presplash of the application
 presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png

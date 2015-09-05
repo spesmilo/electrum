@@ -337,27 +337,19 @@ class Plugin(BasePlugin):
         return True
 
     @hook
-    def history_tab_update(self, window, entries):
+    def history_tab_headers(self, headers):
+        headers.append(_('Fiat Amount'))
+
+    @hook
+    def history_tab_update(self, tx, entry):
         if not self.config_history():
             return
-        history_list = window.history_list
-        history_list.setColumnCount(7)
-        # For unclear reasons setting this column to ResizeToContents
-        # makes e.g. label editing very slow
-        history_list.setColumnWidth(6, 130)
-        #window.history_list.header().setResizeMode(6, QHeaderView.ResizeToConte
-        history_list.setHeaderLabels([ '', '', _('Date'), _('Description') , _('Amount'), _('Balance'), _('Fiat Amount')] )
-        for item, tx in entries:
-            tx_hash, conf, value, timestamp, balance = tx
-            date = timestamp_to_datetime(timestamp)
-            if not date:
-                date = timestmap_to_datetime(0)
-            text = self.exchange.historical_value_str(self.fiat_unit(),
-                                                      value, date)
-            item.setText(6, "%16s" % text)
-            item.setFont(6, QFont(MONOSPACE_FONT))
-            if value < 0:
-                item.setForeground(6, QBrush(QColor("#BC1E1E")))
+        tx_hash, conf, value, timestamp, balance = tx
+        date = timestamp_to_datetime(timestamp)
+        if not date:
+            date = timestmap_to_datetime(0)
+        text = self.exchange.historical_value_str(self.fiat_unit(), value, date)
+        entry.append("%16s"%text)
 
     def settings_widget(self, window):
         return EnterButton(_('Settings'), self.settings_dialog)
