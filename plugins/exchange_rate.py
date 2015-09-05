@@ -284,10 +284,6 @@ class Plugin(BasePlugin, ThreadJob):
             quote_text = "%.2f %s" % (quote_balance, self.fiat_unit())
         return quote_text
 
-    @hook
-    def load_wallet(self, wallet, window):
-        self.get_historical_rates()
-
     def get_historical_rates(self):
         if self.config_history():
             self.exchange.get_historical_rates(self.fiat_unit())
@@ -357,6 +353,7 @@ class Plugin(BasePlugin, ThreadJob):
                 return
             if ccy != self.fiat_unit():
                 self.config.set_key('currency', ccy, True)
+                self.get_historical_rates()
                 hist_checkbox_update()
                 for window in self.parent.windows:
                     window.update_status()
