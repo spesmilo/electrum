@@ -193,7 +193,8 @@ class Plugin(BasePlugin, ThreadJob):
         self.hist_checkbox = None
 
         is_exchange = lambda obj: (inspect.isclass(obj)
-                                   and issubclass(obj, ExchangeBase))
+                                   and issubclass(obj, ExchangeBase)
+                                   and obj != ExchangeBase)
         self.exchanges = dict(inspect.getmembers(sys.modules[__name__],
                                                  is_exchange))
         self.set_exchange(self.config_exchange())
