@@ -70,7 +70,8 @@ class HistoryWidget(MyTreeWidget):
             item = EditableItem(entry)
             item.setIcon(0, icon)
             for i in range(len(entry)):
-                item.setFont(i, QFont(MONOSPACE_FONT))
+                if i!=2:
+                    item.setFont(i, QFont(MONOSPACE_FONT))
             if value < 0:
                 item.setForeground(4, QBrush(QColor("#BC1E1E")))
             if tx_hash:
