@@ -193,12 +193,14 @@ class Plugin(BasePlugin, ThreadJob):
                                    and issubclass(obj, ExchangeBase))
         self.exchanges = dict(inspect.getmembers(sys.modules[__name__],
                                                  is_exchange))
-        self.network = None
         self.set_exchange(self.config_exchange())
         self.currencies = [self.fiat_unit()]
         self.btc_rate = Decimal("0.0")
         self.get_historical_rates()
         self.timeout = 0
+
+    def thread_jobs(self):
+        return [self]
 
     def run(self):
         # This runs from the network thread which catches exceptions
@@ -222,15 +224,6 @@ class Plugin(BasePlugin, ThreadJob):
             self.config.set_key('use_exchange', name, True)
         self.exchange = class_()
 
-    @hook
-    def set_network(self, network):
-        if network != self.network:
-            if self.network:
-                self.network.remove_job(self)
-            self.network = network
-            if network:
-                network.add_job(self)
-
     def on_new_window(self, window):
         window.connect(window, SIGNAL("refresh_currencies()"),
                        window.update_status)
@@ -241,7 +234,6 @@ class Plugin(BasePlugin, ThreadJob):
 
     def close(self):
         BasePlugin.close(self)
-        self.set_network(None)
         for window in self.parent.windows:
             window.send_fiat_e.hide()
             window.receive_fiat_e.hide()

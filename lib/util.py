@@ -51,9 +51,9 @@ class DaemonThread(threading.Thread):
         self.job_lock = threading.Lock()
         self.jobs = []
 
-    def add_job(self, job):
+    def add_jobs(self, jobs):
         with self.job_lock:
-            self.jobs.append(job)
+            self.jobs.extend(jobs)
 
     def run_jobs(self):
         # Don't let a throwing job disrupt the thread, future runs of
@@ -66,9 +66,10 @@ class DaemonThread(threading.Thread):
                 except:
                     traceback.print_exc(file=sys.stderr)
 
-    def remove_job(self, job):
+    def remove_jobs(self, jobs):
         with self.job_lock:
-            self.jobs.remove(job)
+            for job in jobs:
+                self.jobs.remove(job)
 
     def start(self):
         with self.running_lock:

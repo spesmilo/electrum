@@ -1109,17 +1109,15 @@ class Abstract_Wallet(object):
         if self.network is not None:
             self.prepare_for_verifier()
             self.verifier = SPV(self.network, self)
-            network.add_job(self.verifier)
             self.synchronizer = Synchronizer(self, network)
-            network.add_job(self.synchronizer)
+            network.add_jobs([self.verifier, self.synchronizer])
         else:
             self.verifier = None
             self.synchronizer = None
 
     def stop_threads(self):
         if self.network:
-            self.network.remove_job(self.synchronizer)
-            self.network.remove_job(self.verifier)
+            self.network.remove_jobs([self.synchronizer, self.verifier])
             self.synchronizer = None
             self.verifier = None
             self.storage.put('stored_height', self.get_local_height(), True)
