@@ -34,8 +34,12 @@ class ExchangeBase(PrintError):
         self.quotes = {}
         self.sig = sig
 
+    def protocol(self):
+        return "https"
+
     def get_json(self, site, get_string):
-        response = requests.request('GET', 'https://' + site + get_string,
+        url = "".join([self.protocol(), '://', site, get_string])
+        response = requests.request('GET', url,
                                     headers={'User-Agent' : 'Electrum'})
         return response.json()
 
@@ -44,10 +48,13 @@ class ExchangeBase(PrintError):
 
     def update(self, ccy):
         self.print_error("getting fx quotes for", ccy)
-        self.quotes = self.get_rates(ccy)
-        self.print_error("received fx quotes")
-        self.sig.emit(SIGNAL('fx_quotes'))
-        return self.quotes
+        try:
+            self.quotes = self.get_rates(ccy)
+            self.print_error("received fx quotes")
+            self.sig.emit(SIGNAL('fx_quotes'))
+        except:
+            traceback.print_exc(file=sys.stderr)
+            self.print_error("failed to get fx quotes")
 
     def history_ccys(self):
         return []
@@ -74,7 +81,7 @@ class ExchangeBase(PrintError):
 class BitcoinAverage(ExchangeBase):
     def update(self, ccy):
         json = self.get_json('api.bitcoinaverage.com', '/ticker/global/all')
-        return dict([(r, Decimal(jsonresp[r]['last']))
+        return dict([(r, Decimal(json[r]['last']))
                      for r in json if r != 'timestamp'])
 
 class BitcoinVenezuela(ExchangeBase):
@@ -82,6 +89,9 @@ class BitcoinVenezuela(ExchangeBase):
         json = self.get_json('api.bitcoinvenezuela.com', '/')
         return dict([(r, Decimal(json['BTC'][r]))
                      for r in json['BTC']])
+
+    def protocol(self):
+        return "http"
 
     def history_ccys(self):
         return ['ARS', 'EUR', 'USD', 'VEF']
@@ -94,6 +104,9 @@ class BTCParalelo(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('btcparalelo.com', '/api/price')
         return {'VEF': Decimal(json['price'])}
+
+    def protocol(self):
+        return "http"
 
 class Bitcurex(ExchangeBase):
     def get_rates(self, ccy):
@@ -237,6 +250,9 @@ class Plugin(BasePlugin, ThreadJob):
     def config_history(self):
         return self.config.get('history_rates', 'unchecked') != 'unchecked'
 
+    def show_history(self):
+        return self.config_history() and self.exchange.history_ccys()
+
     def set_exchange(self, name):
         class_ = self.exchanges.get(name) or self.exchanges.values()[0]
         name = class_.__name__
@@ -311,11 +327,15 @@ class Plugin(BasePlugin, ThreadJob):
         # Get rid of hooks before updating status bars.
         BasePlugin.close(self)
         self.update_status_bars()
+        self.refresh_headers()
         for window, data in self.windows.items():
             for edit in data['edits']:
                 edit.hide()
-            window.history_list.refresh_headers()
             window.update_status()
+
+    def refresh_headers(self):
+        for window in self.windows:
+            window.history_list.refresh_headers()
 
     def on_fx_history(self):
         '''Called when historical fx quotes are updated'''
@@ -378,7 +398,7 @@ class Plugin(BasePlugin, ThreadJob):
         result['text'] = text
 
     def get_historical_rates(self):
-        if self.config_history():
+        if self.show_history():
             self.exchange.get_historical_rates(self.ccy)
 
     def requires_settings(self):
@@ -401,7 +421,7 @@ class Plugin(BasePlugin, ThreadJob):
 
     @hook
     def history_tab_headers(self, headers):
-        if self.config_history():
+        if self.show_history():
             headers.extend([_('Fiat Amount'), _('Fiat Balance')])
 
     @hook
@@ -410,7 +430,7 @@ class Plugin(BasePlugin, ThreadJob):
 
     @hook
     def history_tab_update(self, tx, entry):
-        if not self.config_history():
+        if not self.show_history():
             return
         tx_hash, conf, value, timestamp, balance = tx
         date = timestamp_to_datetime(timestamp)
@@ -448,6 +468,7 @@ class Plugin(BasePlugin, ThreadJob):
                 self.get_historical_rates()
             else:
                 self.config.set_key('history_rates', 'unchecked')
+            self.refresh_headers()
 
         def ok_clicked():
             self.timeout = 0
