@@ -24,6 +24,7 @@ import webbrowser
 import csv
 from decimal import Decimal
 import base64
+from functools import partial
 
 import PyQt4
 from PyQt4.QtGui import *
@@ -518,7 +519,7 @@ class ElectrumWindow(QMainWindow):
                 if x:
                     text +=  " [%s unmatured]"%(self.format_amount(x, True).strip())
                 # append fiat balance and price from exchange rate plugin
-                r = {}
+                r = {'text': ''}
                 run_hook('get_fiat_status_text', c + u + x, r)
                 text += r['text']
                 icon = QIcon(":icons/status_connected.png")
@@ -2822,14 +2823,20 @@ class ElectrumWindow(QMainWindow):
         grid.setColumnStretch(0,1)
         w.setLayout(grid)
 
-        def do_toggle(cb, name, w):
-            p = plugins.toggle_enabled(self.config, name)
-            enabled = p is not None
-            cb.setChecked(enabled)
-            if w: w.setEnabled(enabled)
+        settings_widgets = {}
 
-        def mk_toggle(cb, name, w):
-            return lambda: do_toggle(cb, name, w)
+        def enable_settings_widget(p, name, i):
+            widget = settings_widgets.get(name)
+            if not widget and p and p.requires_settings():
+                widget = settings_widgets[name] = p.settings_widget(self)
+                grid.addWidget(widget, i, 1)
+            if widget:
+                widget.setEnabled(bool(p and p.is_enabled()))
+
+        def do_toggle(cb, name, i):
+            p = plugins.toggle_enabled(self.config, name)
+            cb.setChecked(bool(p))
+            enable_settings_widget(p, name, i)
 
         for i, descr in enumerate(plugins.descriptions):
             name = descr['name']
@@ -2841,13 +2848,8 @@ class ElectrumWindow(QMainWindow):
                 cb.setEnabled(plugins.is_available(name, self.wallet))
                 cb.setChecked(p is not None and p.is_enabled())
                 grid.addWidget(cb, i, 0)
-                if p and p.requires_settings():
-                    w = p.settings_widget(self)
-                    w.setEnabled(p.is_enabled())
-                    grid.addWidget(w, i, 1)
-                else:
-                    w = None
-                cb.clicked.connect(mk_toggle(cb, name, w))
+                enable_settings_widget(p, name, i)
+                cb.clicked.connect(partial(do_toggle, cb, name, i))
                 msg = descr['description']
                 if descr.get('requires'):
                     msg += '\n\n' + _('Requires') + ':\n' + '\n'.join(map(lambda x: x[1], descr.get('requires')))
