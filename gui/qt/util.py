@@ -303,9 +303,7 @@ class MyTreeWidget(QTreeWidget):
                  editable_columns=None):
         QTreeWidget.__init__(self, parent)
         self.parent = parent
-        self.setColumnCount(len(headers))
-        self.setHeaderLabels(headers)
-        self.header().setStretchLastSection(False)
+        self.stretch_column = stretch_column
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.itemActivated.connect(self.on_activated)
         self.customContextMenuRequested.connect(create_menu)
@@ -322,11 +320,18 @@ class MyTreeWidget(QTreeWidget):
                              QAbstractItemView.EditKeyPressed)
         self.setItemDelegate(EditableItemDelegate(self))
         self.itemChanged.connect(self.item_changed)
-
-        # stretch
-        for i in range(len(headers)):
-            self.header().setResizeMode(i, QHeaderView.Stretch if i == stretch_column else QHeaderView.ResizeToContents)
+        self.update_headers(headers)
         self.setSortingEnabled(True)
+
+    def update_headers(self, headers):
+        self.setColumnCount(len(headers))
+        self.setHeaderLabels(headers)
+        self.header().setStretchLastSection(False)
+        for col in range(len(headers)):
+            if col == self.stretch_column:
+                self.header().setResizeMode(col, QHeaderView.Stretch)
+            else:
+                self.header().setResizeMode(col, QHeaderView.ResizeToContents)
 
     def on_activated(self, item):
         if not item:

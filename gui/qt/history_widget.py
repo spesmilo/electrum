@@ -28,12 +28,17 @@ from electrum.plugins import run_hook
 class HistoryWidget(MyTreeWidget):
 
     def __init__(self, parent=None):
-        headers = ['', '', _('Date'), _('Description') , _('Amount'), _('Balance')]
-        run_hook('history_tab_headers', headers)
-        MyTreeWidget.__init__(self, parent, self.create_menu, headers, 3)
+        MyTreeWidget.__init__(self, parent, self.create_menu, [], 3)
+        self.refresh_headers()
         self.setColumnHidden(1, True)
         self.config = self.parent.config
         self.setSortingEnabled(False)
+
+    def refresh_headers(self):
+        headers = ['', '', _('Date'), _('Description') , _('Amount'),
+                   _('Balance')]
+        run_hook('history_tab_headers', headers)
+        self.update_headers(headers)
 
     def get_icon(self, conf, timestamp):
         time_str = _("unknown")

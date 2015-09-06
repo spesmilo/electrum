@@ -268,6 +268,7 @@ class Plugin(BasePlugin, ThreadJob):
                                 'last_edited': {}}
         self.connect_fields(window, window.amount_e, send_e, window.fee_e)
         self.connect_fields(window, window.receive_amount_e, receive_e, None)
+        window.history_list.refresh_headers()
         window.update_status()
 
     def connect_fields(self, window, btc_e, fiat_e, fee_e):
@@ -313,6 +314,7 @@ class Plugin(BasePlugin, ThreadJob):
         for window, data in self.windows.items():
             for edit in data['edits']:
                 edit.hide()
+            window.history_list.refresh_headers()
             window.update_status()
 
     def on_fx_history(self):
