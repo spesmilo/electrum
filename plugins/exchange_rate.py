@@ -203,8 +203,6 @@ class Plugin(BasePlugin, ThreadJob):
         self.exchanges = dict(inspect.getmembers(sys.modules[__name__],
                                                  is_exchange))
         self.set_exchange(self.config_exchange())
-        # FIXME: kill this
-        self.btc_rate = Decimal("0.0")
 
     def thread_jobs(self):
         return [self]
