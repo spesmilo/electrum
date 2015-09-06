@@ -24,9 +24,9 @@ import pkgutil
 
 from util import *
 from i18n import _
-from util import print_error, profiler
+from util import profiler, PrintError
 
-class Plugins:
+class Plugins(PrintError):
 
     @profiler
     def __init__(self, config, is_local, gui_name):
@@ -52,9 +52,6 @@ class Plugins:
             if config.get('use_' + name):
                 self.load_plugin(config, name)
 
-    def print_error(self, *msg):
-        print_error("[%s]" % self.__class__.__name__, *msg)
-
     def get(self, name):
         return self.plugins.get(name)
 
@@ -73,6 +70,8 @@ class Plugins:
             # Inform the plugin of our windows
             for window in self.windows:
                 plugin.on_new_window(window)
+            if self.network:
+                self.network.add_jobs(plugin.thread_jobs())
             self.plugins[name] = plugin
             self.print_error("loaded", name)
             return plugin
@@ -80,6 +79,10 @@ class Plugins:
             print_msg(_("Error: cannot initialize plugin"), name)
             traceback.print_exc(file=sys.stdout)
             return None
+
+    def close_plugin(self, plugin):
+        if self.network:
+            self.network.remove_jobs(plugin.thread_jobs())
 
     def toggle_enabled(self, config, name):
         p = self.get(name)
@@ -178,7 +181,7 @@ def _run_hook(name, always, *args):
         return results[0]
 
 
-class BasePlugin:
+class BasePlugin(PrintError):
 
     def __init__(self, parent, config, name):
         self.parent = parent  # The plugins object
@@ -192,6 +195,9 @@ class BasePlugin:
                 l.append((self, getattr(self, k)))
                 hooks[k] = l
 
+    def diagnostic_name(self):
+        return self.name
+
     def close(self):
         # remove self from hooks
         for k in dir(self):
@@ -199,9 +205,7 @@ class BasePlugin:
                 l = hooks.get(k, [])
                 l.remove((self, getattr(self, k)))
                 hooks[k] = l
-
-    def print_error(self, *msg):
-        print_error("[%s]"%self.name, *msg)
+        self.parent.close_plugin(self)
 
     def requires_settings(self):
         return False

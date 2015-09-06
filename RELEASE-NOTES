@@ -12,6 +12,7 @@
    exchange rate plugin now run as separate jobs within the networking
    thread instead of as their own threads.  The elimination of so many
    threads should lead to reduced lock contention and CPU usage.
+ * Plugins are revamped, particularly the exchange rate plugin.
  * Various bugfixes.
 
 # Release 2.4.4

@@ -16,20 +16,17 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import sys
 import os
 import hashlib
 import ast
 import threading
 import random
 import time
-import math
 import json
 import copy
 from operator import itemgetter
 
-from util import print_msg, print_error, NotEnoughFunds
-from util import profiler
+from util import NotEnoughFunds, PrintError, profiler
 
 from bitcoin import *
 from account import *
@@ -49,14 +46,14 @@ import paymentrequest
 IMPORTED_ACCOUNT = '/x'
 
 
-class WalletStorage(object):
+class WalletStorage(PrintError):
 
     def __init__(self, path):
         self.lock = threading.RLock()
         self.data = {}
         self.path = path
         self.file_exists = False
-        print_error( "wallet path", self.path )
+        self.print_error("wallet path", self.path)
         if self.path:
             self.read(self.path)
 
@@ -87,7 +84,7 @@ class WalletStorage(object):
                     json.dumps(key)
                     json.dumps(value)
                 except:
-                    print_error('Failed to convert label to json format', key)
+                    self.print_error('Failed to convert label to json format', key)
                     continue
                 self.data[key] = value
         self.file_exists = True
@@ -106,7 +103,7 @@ class WalletStorage(object):
             json.dumps(key)
             json.dumps(value)
         except:
-            print_error("json error: cannot save", key)
+            self.print_error("json error: cannot save", key)
             return
         with self.lock:
             if value is not None:
@@ -136,7 +133,7 @@ class WalletStorage(object):
 
 
 
-class Abstract_Wallet(object):
+class Abstract_Wallet(PrintError):
     """
     Wallet classes are created to handle various address generation methods.
     Completion states (watching-only, single account, no seed, etc) are handled inside classes.
@@ -191,6 +188,9 @@ class Abstract_Wallet(object):
         if self.storage.get('wallet_type') is None:
             self.storage.put('wallet_type', self.wallet_type, True)
 
+    def diagnostic_name(self):
+        return self.basename()
+
     @profiler
     def load_transactions(self):
         self.txi = self.storage.get('txi', {})
@@ -202,7 +202,7 @@ class Abstract_Wallet(object):
             tx = Transaction(raw)
             self.transactions[tx_hash] = tx
             if self.txi.get(tx_hash) is None and self.txo.get(tx_hash) is None and (tx_hash not in self.pruned_txo.values()):
-                print_error("removing unreferenced tx", tx_hash)
+                self.print_error("removing unreferenced tx", tx_hash)
                 self.transactions.pop(tx_hash)
 
     @profiler
@@ -291,7 +291,7 @@ class Abstract_Wallet(object):
                 except:
                     pass
             else:
-                print_error("cannot load account", v)
+                self.print_error("cannot load account", v)
 
     def synchronize(self):
         pass
@@ -689,7 +689,7 @@ class Abstract_Wallet(object):
         for addr, l in dd.items():
             for n, v, is_cb in l:
                 if n == prevout_n:
-                    print_error("found pay-to-pubkey address:", addr)
+                    self.print_error("found pay-to-pubkey address:", addr)
                     return addr
 
     def add_transaction(self, tx_hash, tx):
@@ -745,7 +745,7 @@ class Abstract_Wallet(object):
 
     def remove_transaction(self, tx_hash):
         with self.transaction_lock:
-            print_error("removing tx from history", tx_hash)
+            self.print_error("removing tx from history", tx_hash)
             #tx = self.transactions.pop(tx_hash)
             for ser, hh in self.pruned_txo.items():
                 if hh == tx_hash:
@@ -841,7 +841,7 @@ class Abstract_Wallet(object):
 
         # fixme: this may happen if history is incomplete
         if balance not in [None, 0]:
-            print_error("Error: history not synchronized")
+            self.print_error("Error: history not synchronized")
             return []
 
         return h2
@@ -929,7 +929,7 @@ class Abstract_Wallet(object):
                     fee = fixed_fee if fixed_fee is not None else self.estimated_fee(tx, fee_per_kb)
                     continue
                 break
-        print_error("using %d inputs"%len(tx.inputs))
+        self.print_error("using %d inputs"%len(tx.inputs))
 
         # change address
         if not change_addr:
@@ -962,11 +962,11 @@ class Abstract_Wallet(object):
             change_amount = total - ( amount + fee )
             if change_amount > DUST_THRESHOLD:
                 tx.outputs.append(('address', change_addr, change_amount))
-                print_error('change', change_amount)
+                self.print_error('change', change_amount)
             else:
-                print_error('not keeping dust', change_amount)
+                self.print_error('not keeping dust', change_amount)
         else:
-            print_error('not keeping dust', change_amount)
+            self.print_error('not keeping dust', change_amount)
 
         # Sort the inputs and outputs deterministically
         tx.BIP_LI01_sort()
@@ -1099,7 +1099,7 @@ class Abstract_Wallet(object):
             vr = self.verified_tx.keys() + self.unverified_tx.keys()
         for tx_hash in self.transactions.keys():
             if tx_hash not in vr:
-                print_error("removing transaction", tx_hash)
+                self.print_error("removing transaction", tx_hash)
                 self.transactions.pop(tx_hash)
 
     def start_threads(self, network):
@@ -1742,19 +1742,19 @@ class BIP32_HD_Wallet(BIP32_Wallet):
                 self.next_account = self.get_next_account(None)
                 self.storage.put('next_account2', self.next_account)
             except:
-                print_error('cannot get next account')
+                self.print_error('cannot get next account')
         # check pending account
         if self.next_account is not None:
             next_id, next_xpub, next_pubkey, next_address = self.next_account
             if self.address_is_old(next_address):
-                print_error("creating account", next_id)
+                self.print_error("creating account", next_id)
                 self.add_account(next_id, BIP32_Account({'xpub':next_xpub}))
                 # here the user should get a notification
                 self.next_account = None
                 self.storage.put('next_account2', self.next_account)
             elif self.history.get(next_address, []):
                 if next_id not in self.accounts:
-                    print_error("create pending account", next_id)
+                    self.print_error("create pending account", next_id)
                     self.accounts[next_id] = PendingAccount({'pending':True, 'address':next_address, 'pubkey':next_pubkey})
                     self.save_accounts()
 

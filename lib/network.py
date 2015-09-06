@@ -645,7 +645,8 @@ class Network(util.DaemonThread):
         # main interface
         if not self.is_connected():
             if self.auto_connect:
-                self.switch_to_random_interface()
+                if not self.is_connecting():
+                    self.switch_to_random_interface()
             else:
                 if self.default_server in self.disconnected_servers:
                     if now - self.server_retry_time > SERVER_RETRY_INTERVAL:

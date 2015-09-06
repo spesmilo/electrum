@@ -14,60 +14,78 @@ from functools import partial
 from electrum_ltc.bitcoin import COIN
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.i18n import _
-from electrum_ltc.util import print_error, ThreadJob, timestamp_to_datetime
+from electrum_ltc.util import PrintError, ThreadJob, timestamp_to_datetime
 from electrum_ltc.util import format_satoshis
 from electrum_ltc_gui.qt.util import *
 from electrum_ltc_gui.qt.amountedit import AmountEdit
 
-class ExchangeBase:
+# See https://en.wikipedia.org/wiki/ISO_4217
+CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
+                  'CVE': 0, 'DJF': 0, 'GNF': 0, 'IQD': 3, 'ISK': 0,
+                  'JOD': 3, 'JPY': 0, 'KMF': 0, 'KRW': 0, 'KWD': 3,
+                  'LYD': 3, 'MGA': 1, 'MRO': 1, 'OMR': 3, 'PYG': 0,
+                  'RWF': 0, 'TND': 3, 'UGX': 0, 'UYI': 0, 'VND': 0,
+                  'VUV': 0, 'XAF': 0, 'XAG': 2, 'XAU': 4, 'XOF': 0,
+                  'XPF': 0}
+
+class ExchangeBase(PrintError):
     def __init__(self, sig):
         self.history = {}
         self.quotes = {}
         self.sig = sig
 
-    def get_json(self, site, get_string):
-        response = requests.request('GET', 'https://' + site + get_string,
-                                    headers={'User-Agent' : 'Electrum'},
-                                    verify=False)
-        return response.json()
+    def protocol(self):
+        return "https"
 
-    def print_error(self, *msg):
-        print_error("[%s]" % self.name(), *msg)
+    def get_json(self, site, get_string):
+        url = "".join([self.protocol(), '://', site, get_string])
+        response = requests.request('GET', url,
+                                    headers={'User-Agent' : 'Electrum'})
+        return response.json()
 
     def name(self):
         return self.__class__.__name__
 
+    def update_safe(self, ccy):
+        try:
+            self.print_error("getting fx quotes for", ccy)
+            self.quotes = self.get_rates(ccy)
+            self.print_error("received fx quotes")
+            self.sig.emit(SIGNAL('fx_quotes'))
+        except Exception, e:
+            self.print_error("failed fx quotes:", e)
+
     def update(self, ccy):
-        self.print_error("getting fx quotes for", ccy)
-        self.quotes = self.get_rates(ccy)
-        self.print_error("received fx quotes")
-        self.sig.emit(SIGNAL('fx_quotes'))
-        return self.quotes
+        t = Thread(target=self.update_safe, args=(ccy,))
+        t.setDaemon(True)
+        t.start()
 
-    def history_ccys(self):
-        return []
-
-    def set_history(self, ccy, history):
-        '''History is a map of "%Y-%m-%d" strings to values'''
-        self.history[ccy] = history
-        self.print_error("received fx history for", ccy)
-        self.sig.emit(SIGNAL("fx_history"))
+    def get_historical_rates_safe(self, ccy):
+        try:
+            self.print_error("requesting fx history for", ccy)
+            self.history[ccy] = self.historical_rates(ccy)
+            self.print_error("received fx history for", ccy)
+            self.sig.emit(SIGNAL("fx_history"))
+        except Exception, e:
+            self.print_error("failed fx history:", e)
 
     def get_historical_rates(self, ccy):
         result = self.history.get(ccy)
         if not result and ccy in self.history_ccys():
-            self.print_error("requesting historical rates for", ccy)
-            t = Thread(target=self.historical_rates, args=(ccy,))
+            t = Thread(target=self.get_historical_rates_safe, args=(ccy,))
             t.setDaemon(True)
             t.start()
         return result
+
+    def history_ccys(self):
+        return []
 
     def historical_rate(self, ccy, d_t):
         return self.history.get(ccy, {}).get(d_t.strftime('%Y-%m-%d'))
 
 
 class Bit2C(ExchangeBase):
-    def update(self, ccy):
+    def get_rates(self, ccy):
         json = self.get_json('www.bit2c.co.il', '/Exchanges/LTCNIS/Ticker.json')
         return {'NIS': Decimal(json['ll'])}
 
@@ -77,14 +95,16 @@ class BitcoinVenezuela(ExchangeBase):
         return dict([(r, Decimal(json['LTC'][r]))
                      for r in json['LTC']])
 
+    def protocol(self):
+        return "http"
+
     def history_ccys(self):
         return ['ARS', 'EUR', 'USD', 'VEF']
 
     def historical_rates(self, ccy):
         json = self.get_json('api.bitcoinvenezuela.com',
                              '/historical/index.php?coin=LTC')
-        history = json[ccy +'_LTC']
-        self.set_history(ccy, history)
+        return json[ccy +'_LTC']
 
 class Bitfinex(ExchangeBase):
     def get_rates(self, ccy):
@@ -141,9 +161,8 @@ class Kraken(ExchangeBase):
         query = '/0/public/OHLC?pair=LTC%s&interval=1440' % ccy
         json = self.get_json('api.kraken.com', query)
         history = json['result']['XLTCZ'+ccy]
-        self.set_history(ccy, dict([(time.strftime('%Y-%m-%d',
-                                     time.localtime(t[0])), t[4])
-                                    for t in history]))
+        return dict([(time.strftime('%Y-%m-%d', time.localtime(t[0])), t[4])
+                                    for t in history])
 
 class OKCoin(ExchangeBase):
     def get_rates(self, ccy):
@@ -172,6 +191,11 @@ class Plugin(BasePlugin, ThreadJob):
                                                  is_exchange))
         self.set_exchange(self.config_exchange())
 
+    def ccy_amount_str(self, amount, commas):
+        prec = CCY_PRECISIONS.get(self.ccy, 2)
+        fmt_str = "{:%s.%df}" % ("," if commas else "", max(0, prec))
+        return fmt_str.format(round(amount, prec))
+
     def thread_jobs(self):
         return [self]
 
@@ -190,6 +214,9 @@ class Plugin(BasePlugin, ThreadJob):
 
     def config_history(self):
         return self.config.get('history_rates', 'unchecked') != 'unchecked'
+
+    def show_history(self):
+        return self.config_history() and self.exchange.history_ccys()
 
     def set_exchange(self, name):
         class_ = self.exchanges.get(name) or self.exchanges.values()[0]
@@ -222,6 +249,7 @@ class Plugin(BasePlugin, ThreadJob):
                                 'last_edited': {}}
         self.connect_fields(window, window.amount_e, send_e, window.fee_e)
         self.connect_fields(window, window.receive_amount_e, receive_e, None)
+        window.history_list.refresh_headers()
         window.update_status()
 
     def connect_fields(self, window, btc_e, fiat_e, fee_e):
@@ -245,7 +273,8 @@ class Plugin(BasePlugin, ThreadJob):
                     if fee_e: window.update_fee()
                     btc_e.setStyleSheet(BLUE_FG)
                 else:
-                    fiat_e.setText("%.2f" % (amount * Decimal(rate) / COIN))
+                    fiat_e.setText(self.ccy_amount_str(
+                        amount * Decimal(rate) / COIN, False))
                     fiat_e.setStyleSheet(BLUE_FG)
 
         fiat_e.textEdited.connect(partial(edit_changed, fiat_e))
@@ -263,10 +292,15 @@ class Plugin(BasePlugin, ThreadJob):
         # Get rid of hooks before updating status bars.
         BasePlugin.close(self)
         self.update_status_bars()
+        self.refresh_headers()
         for window, data in self.windows.items():
             for edit in data['edits']:
                 edit.hide()
             window.update_status()
+
+    def refresh_headers(self):
+        for window in self.windows:
+            window.history_list.refresh_headers()
 
     def on_fx_history(self):
         '''Called when historical fx quotes are updated'''
@@ -329,7 +363,7 @@ class Plugin(BasePlugin, ThreadJob):
         result['text'] = text
 
     def get_historical_rates(self):
-        if self.config_history():
+        if self.show_history():
             self.exchange.get_historical_rates(self.ccy)
 
     def requires_settings(self):
@@ -337,8 +371,8 @@ class Plugin(BasePlugin, ThreadJob):
 
     def value_str(self, satoshis, rate):
         if rate:
-             value = round(Decimal(satoshis) / COIN * Decimal(rate), 2)
-             return " ".join(["{:,.2f}".format(value), self.ccy])
+            value = Decimal(satoshis) / COIN * Decimal(rate)
+            return "%s %s" % (self.ccy_amount_str(value, True), self.ccy)
         return _("No data")
 
     def historical_value_str(self, satoshis, d_t):
@@ -352,7 +386,8 @@ class Plugin(BasePlugin, ThreadJob):
 
     @hook
     def history_tab_headers(self, headers):
-        headers.extend([_('Fiat Amount'), _('Fiat Balance')])
+        if self.show_history():
+            headers.extend([_('Fiat Amount'), _('Fiat Balance')])
 
     @hook
     def history_tab_update_begin(self):
@@ -360,7 +395,7 @@ class Plugin(BasePlugin, ThreadJob):
 
     @hook
     def history_tab_update(self, tx, entry):
-        if not self.config_history():
+        if not self.show_history():
             return
         tx_hash, conf, value, timestamp, balance = tx
         date = timestamp_to_datetime(timestamp)
@@ -398,6 +433,7 @@ class Plugin(BasePlugin, ThreadJob):
                 self.get_historical_rates()
             else:
                 self.config.set_key('history_rates', 'unchecked')
+            self.refresh_headers()
 
         def ok_clicked():
             self.timeout = 0

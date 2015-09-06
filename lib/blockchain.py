@@ -28,7 +28,7 @@ except ImportError:
     from scrypt import scrypt_1024_1_1_80 as getPoWHash
 
 
-class Blockchain():
+class Blockchain(util.PrintError):
     '''Manages blockchain headers and their verification'''
     def __init__(self, config, network):
         self.config = config
@@ -36,9 +36,6 @@ class Blockchain():
         self.headers_url = 'https://electrum-ltc.org/blockchain_headers'
         self.local_height = 0
         self.set_local_height()
-
-    def print_error(self, *msg):
-        util.print_error("[blockchain]", *msg)
 
     def height(self):
         return self.local_height
