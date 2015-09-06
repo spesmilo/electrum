@@ -45,7 +45,7 @@ from electrum import SimpleConfig, Wallet, WalletStorage
 from electrum import Imported_Wallet
 from electrum import paymentrequest
 
-from amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit
+from amountedit import BTCAmountEdit, MyLineEdit, BTCkBEdit
 from network_dialog import NetworkDialog
 from qrcodewidget import QRCodeWidget, QRDialog
 from qrtextedit import ScanQRTextEdit, ShowQRTextEdit
@@ -523,14 +523,12 @@ class ElectrumWindow(QMainWindow):
                 quote = r.get(0)
                 if quote:
                     text += "%s"%quote
-
-                if self.tray:
-                    self.tray.setToolTip("%s (%s)" % (text, self.wallet.basename()))
                 icon = QIcon(":icons/status_connected.png")
         else:
             text = _("Not connected")
             icon = QIcon(":icons/status_disconnected.png")
 
+        self.tray.setToolTip("%s (%s)" % (text, self.wallet.basename()))
         self.balance_label.setText(text)
         self.status_button.setIcon( icon )
 

@@ -15,7 +15,6 @@ from electrum import util
 import seed_dialog
 from network_dialog import NetworkDialog
 from util import *
-from amountedit import AmountEdit
 
 from electrum.plugins import always_hook, run_hook
 from electrum.mnemonic import prepare_seed

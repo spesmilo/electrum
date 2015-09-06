@@ -9,6 +9,7 @@ from threading import Thread
 import time
 import traceback
 from decimal import Decimal
+from functools import partial
 
 from electrum.bitcoin import COIN
 from electrum.plugins import BasePlugin, hook
@@ -36,7 +37,9 @@ class ExchangeBase:
         return self.__class__.__name__
 
     def update(self, ccy):
+        self.print_error("getting fx quotes for", ccy)
         self.quotes = self.get_rates(ccy)
+        self.print_error("received fx quotes")
         self.sig.emit(SIGNAL('fx_quotes'))
         return self.quotes
 
@@ -46,6 +49,7 @@ class ExchangeBase:
     def set_history(self, ccy, history):
         '''History is a map of "%Y-%m-%d" strings to values'''
         self.history[ccy] = history
+        self.print_error("received fx history for", ccy)
         self.sig.emit(SIGNAL("fx_history"))
 
     def get_historical_rates(self, ccy):
@@ -131,7 +135,7 @@ class CoinDesk(ExchangeBase):
                              '/v1/bpi/currentprice/%s.json' % ccy)
         ccys = [d['currency'] for d in dicts]
         result = dict.fromkeys(ccys)
-        result[ccy] = Decimal(json['bpi'][ccy]['rate'])
+        result[ccy] = Decimal(json['bpi'][ccy]['rate_float'])
         return result
 
     def history_starts(self):
@@ -191,6 +195,7 @@ class Plugin(BasePlugin, ThreadJob):
         self.history_used_spot = False
         self.ccy_combo = None
         self.hist_checkbox = None
+        self.windows = dict()
 
         is_exchange = lambda obj: (inspect.isclass(obj)
                                    and issubclass(obj, ExchangeBase)
@@ -206,10 +211,9 @@ class Plugin(BasePlugin, ThreadJob):
 
     def run(self):
         # This runs from the network thread which catches exceptions
-        if self.parent.windows and self.timeout <= time.time():
+        if self.windows and self.timeout <= time.time():
             self.timeout = time.time() + 150
-            rates = self.exchange.update(self.ccy)
-            self.refresh_fields()
+            self.exchange.update(self.ccy)
 
     def config_ccy(self):
         '''Use when dynamic fetching is needed'''
@@ -236,24 +240,81 @@ class Plugin(BasePlugin, ThreadJob):
 
     def update_status_bars(self):
         '''Update status bar fiat balance in all windows'''
-        for window in self.parent.windows:
+        for window in self.windows:
             window.update_status()
 
     def on_new_window(self, window):
-        window.fx_fields = {}
-        self.add_send_edit(window)
-        self.add_receive_edit(window)
+        # Additional send and receive edit boxes
+        send_e = AmountEdit(self.config_ccy)
+        window.send_grid.addWidget(send_e, 4, 3, Qt.AlignHCenter)
+        window.amount_e.frozen.connect(
+            lambda: send_e.setFrozen(window.amount_e.isReadOnly()))
+        receive_e = AmountEdit(self.config_ccy)
+        window.receive_grid.addWidget(receive_e, 2, 3, Qt.AlignHCenter)
+
+        self.windows[window] = {'edits': (send_e, receive_e),
+                                'last_edited': {}}
+        self.connect_fields(window, window.amount_e, send_e, window.fee_e)
+        self.connect_fields(window, window.receive_amount_e, receive_e, None)
         window.update_status()
+
+    def connect_fields(self, window, btc_e, fiat_e, fee_e):
+        last_edited = self.windows[window]['last_edited']
+
+        def edit_changed(edit):
+            edit.setStyleSheet(BLACK_FG)
+            last_edited[(fiat_e, btc_e)] = edit
+            amount = edit.get_amount()
+            rate = self.exchange_rate()
+            if rate is None or amount is None:
+                if edit is fiat_e:
+                    btc_e.setText("")
+                    if fee_e:
+                        fee_e.setText("")
+                else:
+                    fiat_e.setText("")
+            else:
+                if edit is fiat_e:
+                    btc_e.setAmount(int(amount / Decimal(rate) * COIN))
+                    if fee_e: window.update_fee()
+                    btc_e.setStyleSheet(BLUE_FG)
+                else:
+                    fiat_e.setText("%.2f" % (amount * Decimal(rate) / COIN))
+                    fiat_e.setStyleSheet(BLUE_FG)
+
+        fiat_e.textEdited.connect(partial(edit_changed, fiat_e))
+        btc_e.textEdited.connect(partial(edit_changed, btc_e))
+        last_edited[(fiat_e, btc_e)] = btc_e
+
+    @hook
+    def do_clear(self, window):
+        self.windows[window]['edits'][0].setText('')
+
+    def on_close_window(self, window):
+        self.windows.pop(window)
+
+    def close(self):
+        # Get rid of hooks before updating status bars.
+        BasePlugin.close(self)
+        self.update_status_bars()
+        for window, data in self.windows.items():
+            for edit in data['edits']:
+                edit.hide()
+            window.update_status()
 
     def on_fx_history(self):
         '''Called when historical fx quotes are updated'''
-        for window in self.parent.windows:
+        for window in self.windows:
             window.update_history_tab()
 
     def on_fx_quotes(self):
         '''Called when fresh spot fx quotes come in'''
         self.update_status_bars()
         self.populate_ccy_combo()
+        # Refresh edits with the new rate
+        for window, data in self.windows.items():
+            for edit in data['last_edited'].values():
+                edit.textEdited.emit(edit.text())
         # History tab needs updating if it used spot
         if self.history_used_spot:
             self.on_fx_history()
@@ -283,14 +344,6 @@ class Plugin(BasePlugin, ThreadJob):
             combo.addItems(sorted(self.exchange.quotes.keys()))
             combo.blockSignals(False)
             combo.setCurrentIndex(combo.findText(self.ccy))
-
-    def close(self):
-        BasePlugin.close(self)
-        for window in self.parent.windows:
-            window.send_fiat_e.hide()
-            window.receive_fiat_e.hide()
-            window.update_history_tab()
-            window.update_status()
 
     def exchange_rate(self):
         '''Returns None, or the exchange rate as a Decimal'''
@@ -405,9 +458,9 @@ class Plugin(BasePlugin, ThreadJob):
                 self.config.set_key('history_rates', 'unchecked')
 
         def ok_clicked():
-            if self.exchange in ["CoinDesk", "itBit"]:
-                self.timeout = 0
-            d.accept();
+            self.timeout = 0
+            self.ccy_combo = None
+            d.accept()
 
         combo_ex = QComboBox()
         combo_ex.addItems(sorted(self.exchanges.keys()))
@@ -426,66 +479,4 @@ class Plugin(BasePlugin, ThreadJob):
         layout.addWidget(self.hist_checkbox,2,1)
         layout.addWidget(ok_button,3,1)
 
-        result = d.exec_()
-        self.ccy_combo = None
-        return result
-
-    def refresh_fields(self):
-        '''Update the display at the new rate'''
-        for window in self.parent.windows:
-            for field in window.fx_fields.values():
-                field.textEdited.emit(field.text())
-
-    def add_send_edit(self, window):
-        window.send_fiat_e = AmountEdit(self.config_ccy)
-        self.connect_fields(window, True)
-        window.send_grid.addWidget(window.send_fiat_e, 4, 3, Qt.AlignHCenter)
-        window.amount_e.frozen.connect(lambda: window.send_fiat_e.setFrozen(window.amount_e.isReadOnly()))
-
-    def add_receive_edit(self, window):
-        window.receive_fiat_e = AmountEdit(self.config_ccy)
-        self.connect_fields(window, False)
-        window.receive_grid.addWidget(window.receive_fiat_e, 2, 3, Qt.AlignHCenter)
-
-    def connect_fields(self, window, send):
-        if send:
-            btc_e, fiat_e, fee_e = (window.amount_e, window.send_fiat_e,
-                                    window.fee_e)
-        else:
-            btc_e, fiat_e, fee_e = (window.receive_amount_e,
-                                    window.receive_fiat_e, None)
-        def fiat_changed():
-            fiat_e.setStyleSheet(BLACK_FG)
-            window.fx_fields[(fiat_e, btc_e)] = fiat_e
-            try:
-                fiat_amount = Decimal(str(fiat_e.text()))
-            except:
-                btc_e.setText("")
-                if fee_e: fee_e.setText("")
-                return
-            exchange_rate = self.exchange_rate()
-            if exchange_rate is not None:
-                btc_amount = fiat_amount/exchange_rate
-                btc_e.setAmount(int(btc_amount*Decimal(COIN)))
-                btc_e.setStyleSheet(BLUE_FG)
-                if fee_e: window.update_fee()
-        fiat_e.textEdited.connect(fiat_changed)
-        def btc_changed():
-            btc_e.setStyleSheet(BLACK_FG)
-            window.fx_fields[(fiat_e, btc_e)] = btc_e
-            btc_amount = btc_e.get_amount()
-            rate = self.exchange_rate()
-            if rate is None or btc_amount is None:
-                fiat_e.setText("")
-            else:
-                fiat_amount = rate * Decimal(btc_amount) / Decimal(COIN)
-                pos = fiat_e.cursorPosition()
-                fiat_e.setText("%.2f"%fiat_amount)
-                fiat_e.setCursorPosition(pos)
-                fiat_e.setStyleSheet(BLUE_FG)
-        btc_e.textEdited.connect(btc_changed)
-        window.fx_fields[(fiat_e, btc_e)] = btc_e
-
-    @hook
-    def do_clear(self, window):
-        window.send_fiat_e.setText('')
+        return d.exec_()
