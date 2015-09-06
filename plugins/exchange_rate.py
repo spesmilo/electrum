@@ -186,7 +186,8 @@ class itBit(ExchangeBase):
         ccys = ['USD', 'EUR', 'SGD']
         json = self.get_json('api.itbit.com', '/v1/markets/XBT%s/ticker' % ccy)
         result = dict.fromkeys(ccys)
-        result[ccy] = Decimal(json['lastPrice'])
+        if ccy in ccys:
+            result[ccy] = Decimal(json['lastPrice'])
         return result
 
 class LocalBitcoins(ExchangeBase):
