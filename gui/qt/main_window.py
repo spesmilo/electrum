@@ -519,10 +519,8 @@ class ElectrumWindow(QMainWindow):
                     text +=  " [%s unmatured]"%(self.format_amount(x, True).strip())
                 # append fiat balance and price from exchange rate plugin
                 r = {}
-                run_hook('get_fiat_status_text', c+u, r)
-                quote = r.get(0)
-                if quote:
-                    text += "%s"%quote
+                run_hook('get_fiat_status_text', c + u + x, r)
+                text += r['text']
                 icon = QIcon(":icons/status_connected.png")
         else:
             text = _("Not connected")

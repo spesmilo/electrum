@@ -352,42 +352,15 @@ class Plugin(BasePlugin, ThreadJob):
             return Decimal(rate)
 
     @hook
-    def get_fiat_balance_text(self, btc_balance, r):
-        # return balance as: 1.23 USD
-        r[0] = self.create_fiat_balance_text(Decimal(btc_balance) / COIN)
-
-    def get_fiat_price_text(self, r):
-        # return BTC price as: 123.45 USD
-        r[0] = self.create_fiat_balance_text(1)
-        quote = r[0]
-        if quote:
-            r[0] = "%s"%quote
-
-    @hook
-    def get_fiat_status_text(self, btc_balance, r2):
+    def get_fiat_status_text(self, btc_balance, result):
         # return status as:   (1.23 USD)    1 BTC~123.45 USD
-        text = ""
-        r = {}
-        self.get_fiat_price_text(r)
-        quote = r.get(0)
-        if quote:
-            price_text = "1 BTC~%s"%quote
-            fiat_currency = quote[-3:]
-            btc_price = self.btc_rate
-            fiat_balance = Decimal(btc_price) * Decimal(btc_balance) / COIN
-            balance_text = "(%.2f %s)" % (fiat_balance,fiat_currency)
-            text = "  " + balance_text + "     " + price_text + " "
-        r2[0] = text
-
-    def create_fiat_balance_text(self, btc_balance):
-        cur_rate = self.exchange_rate()
-        if cur_rate is None:
-            quote_text = ""
+        rate = self.exchange_rate()
+        if rate is None:
+            text = _("  (No FX rate available)")
         else:
-            quote_balance = btc_balance * Decimal(cur_rate)
-            self.btc_rate = cur_rate
-            quote_text = "%.2f %s" % (quote_balance, self.ccy)
-        return quote_text
+            text =  "  (%s)    1 BTC~%s" % (self.value_str(btc_balance, rate),
+                                            self.value_str(COIN, rate))
+        result['text'] = text
 
     def get_historical_rates(self):
         if self.config_history():
@@ -396,17 +369,20 @@ class Plugin(BasePlugin, ThreadJob):
     def requires_settings(self):
         return True
 
-    def historical_value_str(self, ccy, satoshis, d_t):
-        rate = self.exchange.historical_rate(ccy, d_t)
+    def value_str(self, satoshis, rate):
+        if rate:
+             value = round(Decimal(satoshis) / COIN * Decimal(rate), 2)
+             return " ".join(["{:,.2f}".format(value), self.ccy])
+        return _("No data")
+
+    def historical_value_str(self, satoshis, d_t):
+        rate = self.exchange.historical_rate(self.ccy, d_t)
         # Frequently there is no rate for today, until tomorrow :)
         # Use spot quotes in that case
         if rate is None and (datetime.today().date() - d_t.date()).days <= 2:
-            rate = self.exchange.quotes.get(ccy)
+            rate = self.exchange.quotes.get(self.ccy)
             self.history_used_spot = True
-        if rate:
-             value = round(Decimal(satoshis) / COIN * Decimal(rate), 2)
-             return " ".join(["{:,.2f}".format(value), ccy])
-        return _("No data")
+        return self.value_str(satoshis, rate)
 
     @hook
     def history_tab_headers(self, headers):
@@ -425,7 +401,7 @@ class Plugin(BasePlugin, ThreadJob):
         if not date:
             date = timestamp_to_datetime(0)
         for amount in [value, balance]:
-            text = self.historical_value_str(self.ccy, amount, date)
+            text = self.historical_value_str(amount, date)
             entry.append("%16s" % text)
 
     def settings_widget(self, window):
