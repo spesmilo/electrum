@@ -401,7 +401,8 @@ class Plugin(BasePlugin, ThreadJob):
 
     @hook
     def history_tab_headers(self, headers):
-        headers.extend([_('Fiat Amount'), _('Fiat Balance')])
+        if self.config_history():
+            headers.extend([_('Fiat Amount'), _('Fiat Balance')])
 
     @hook
     def history_tab_update_begin(self):
