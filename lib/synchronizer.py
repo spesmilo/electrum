@@ -98,6 +98,10 @@ class Synchronizer(ThreadJob):
 
         # Check that the status corresponds to what was announced
         hist = map(lambda item: (item['tx_hash'], item['height']), result)
+        # Note if the server hasn't been patched to sort the items properly
+        if hist != sorted(hist, key=lambda x:x[1]):
+            self.network.interface.print_error("serving improperly sorted "
+                                               "address histories")
         if self.wallet.get_status(hist) != server_status:
             self.print_error("error: status mismatch: %s" % addr)
             return
