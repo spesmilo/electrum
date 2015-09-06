@@ -73,6 +73,8 @@ class Plugins:
             # Inform the plugin of our windows
             for window in self.windows:
                 plugin.on_new_window(window)
+            if self.network:
+                self.network.add_jobs(plugin.thread_jobs())
             self.plugins[name] = plugin
             self.print_error("loaded", name)
             return plugin
@@ -80,6 +82,10 @@ class Plugins:
             print_msg(_("Error: cannot initialize plugin"), name)
             traceback.print_exc(file=sys.stdout)
             return None
+
+    def close_plugin(self, plugin):
+        if self.network:
+            self.network.remove_jobs(plugin.thread_jobs())
 
     def toggle_enabled(self, config, name):
         p = self.get(name)
@@ -199,6 +205,7 @@ class BasePlugin:
                 l = hooks.get(k, [])
                 l.remove((self, getattr(self, k)))
                 hooks[k] = l
+        self.parent.close_plugin(self)
 
     def print_error(self, *msg):
         print_error("[%s]"%self.name, *msg)
