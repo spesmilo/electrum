@@ -19,6 +19,15 @@ from electrum.util import format_satoshis
 from electrum_gui.qt.util import *
 from electrum_gui.qt.amountedit import AmountEdit
 
+# See https://en.wikipedia.org/wiki/ISO_4217
+CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
+                  'CVE': 0, 'DJF': 0, 'GNF': 0, 'IQD': 3, 'ISK': 0,
+                  'JOD': 3, 'JPY': 0, 'KMF': 0, 'KRW': 0, 'KWD': 3,
+                  'LYD': 3, 'MGA': 1, 'MRO': 1, 'OMR': 3, 'PYG': 0,
+                  'RWF': 0, 'TND': 3, 'UGX': 0, 'UYI': 0, 'VND': 0,
+                  'VUV': 0, 'XAF': 0, 'XAG': 2, 'XAU': 4, 'XOF': 0,
+                  'XPF': 0}
+
 class ExchangeBase:
     def __init__(self, sig):
         self.history = {}
@@ -204,6 +213,11 @@ class Plugin(BasePlugin, ThreadJob):
                                                  is_exchange))
         self.set_exchange(self.config_exchange())
 
+    def ccy_amount_str(self, amount, commas):
+        prec = CCY_PRECISIONS.get(self.ccy, 2)
+        fmt_str = "{:%s.%df}" % ("," if commas else "", max(0, prec))
+        return fmt_str.format(round(amount, prec))
+
     def thread_jobs(self):
         return [self]
 
@@ -277,7 +291,8 @@ class Plugin(BasePlugin, ThreadJob):
                     if fee_e: window.update_fee()
                     btc_e.setStyleSheet(BLUE_FG)
                 else:
-                    fiat_e.setText("%.2f" % (amount * Decimal(rate) / COIN))
+                    fiat_e.setText(self.ccy_amount_str(
+                        amount * Decimal(rate) / COIN, False))
                     fiat_e.setStyleSheet(BLUE_FG)
 
         fiat_e.textEdited.connect(partial(edit_changed, fiat_e))
@@ -369,8 +384,8 @@ class Plugin(BasePlugin, ThreadJob):
 
     def value_str(self, satoshis, rate):
         if rate:
-             value = round(Decimal(satoshis) / COIN * Decimal(rate), 2)
-             return " ".join(["{:,.2f}".format(value), self.ccy])
+            value = Decimal(satoshis) / COIN * Decimal(rate)
+            return "%s %s" % (self.ccy_amount_str(value, True), self.ccy)
         return _("No data")
 
     def historical_value_str(self, satoshis, d_t):
