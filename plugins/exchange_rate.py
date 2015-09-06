@@ -46,33 +46,39 @@ class ExchangeBase(PrintError):
     def name(self):
         return self.__class__.__name__
 
-    def update(self, ccy):
-        self.print_error("getting fx quotes for", ccy)
+    def update_safe(self, ccy):
         try:
+            self.print_error("getting fx quotes for", ccy)
             self.quotes = self.get_rates(ccy)
             self.print_error("received fx quotes")
             self.sig.emit(SIGNAL('fx_quotes'))
-        except:
-            traceback.print_exc(file=sys.stderr)
-            self.print_error("failed to get fx quotes")
+        except Exception, e:
+            self.print_error("failed fx quotes:", e)
 
-    def history_ccys(self):
-        return []
+    def update(self, ccy):
+        t = Thread(target=self.update_safe, args=(ccy,))
+        t.setDaemon(True)
+        t.start()
 
-    def set_history(self, ccy, history):
-        '''History is a map of "%Y-%m-%d" strings to values'''
-        self.history[ccy] = history
-        self.print_error("received fx history for", ccy)
-        self.sig.emit(SIGNAL("fx_history"))
+    def get_historical_rates_safe(self, ccy):
+        try:
+            self.print_error("requesting fx history for", ccy)
+            self.history[ccy] = self.historical_rates(ccy)
+            self.print_error("received fx history for", ccy)
+            self.sig.emit(SIGNAL("fx_history"))
+        except Exception, e:
+            self.print_error("failed fx history:", e)
 
     def get_historical_rates(self, ccy):
         result = self.history.get(ccy)
         if not result and ccy in self.history_ccys():
-            self.print_error("requesting historical rates for", ccy)
-            t = Thread(target=self.historical_rates, args=(ccy,))
+            t = Thread(target=self.get_historical_rates_safe, args=(ccy,))
             t.setDaemon(True)
             t.start()
         return result
+
+    def history_ccys(self):
+        return []
 
     def historical_rate(self, ccy, d_t):
         return self.history.get(ccy, {}).get(d_t.strftime('%Y-%m-%d'))
@@ -173,7 +179,7 @@ class CoinDesk(ExchangeBase):
         query = ('/v1/bpi/historical/close.json?start=%s&end=%s'
                  % (start, end))
         json = self.get_json('api.coindesk.com', query)
-        self.set_history(ccy, json['bpi'])
+        return json['bpi']
 
 class itBit(ExchangeBase):
     def get_rates(self, ccy):
@@ -201,8 +207,8 @@ class Winkdex(ExchangeBase):
         json = self.get_json('winkdex.com',
                              "/api/v0/series?start_time=1342915200")
         history = json['series'][0]['results']
-        self.set_history(ccy, dict([(h['timestamp'][:10], h['price'] / 100.0)
-                                    for h in history]))
+        return dict([(h['timestamp'][:10], h['price'] / 100.0)
+                     for h in history])
 
 
 class Plugin(BasePlugin, ThreadJob):
