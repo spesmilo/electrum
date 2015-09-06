@@ -25,22 +25,27 @@ class MyEncoder(json.JSONEncoder):
             return obj.as_dict()
         return super(MyEncoder, self).default(obj)
 
-class ThreadJob:
+class PrintError:
+    '''A handy base class'''
+    def diagnostic_name(self):
+        return self.__class__.__name__
+
+    def print_error(self, *msg):
+        print_error("[%s]" % self.diagnostic_name(), *msg)
+
+    def print_msg(self, *msg):
+        print_msg("[%s]" % self.diagnostic_name(), *msg)
+
+class ThreadJob(PrintError):
     """A job that is run periodically from a thread's main loop.  run() is
     called from that thread's context.
     """
-
-    def print_error(self, *msg):
-        print_error("[%s]" % self.__class__.__name__, *msg)
-
-    def print_msg(self, *msg):
-        print_msg("[%s]" % self.__class__.__name__, *msg)
 
     def run(self):
         """Called periodically from the thread"""
         pass
 
-class DaemonThread(threading.Thread):
+class DaemonThread(threading.Thread, PrintError):
     """ daemon thread that terminates cleanly """
 
     def __init__(self):
@@ -83,12 +88,6 @@ class DaemonThread(threading.Thread):
     def stop(self):
         with self.running_lock:
             self.running = False
-
-    def print_error(self, *msg):
-        print_error("[%s]" % self.__class__.__name__, *msg)
-
-    def print_msg(self, *msg):
-        print_msg("[%s]" % self.__class__.__name__, *msg)
 
 
 

@@ -24,9 +24,9 @@ import pkgutil
 
 from util import *
 from i18n import _
-from util import print_error, profiler
+from util import profiler, PrintError
 
-class Plugins:
+class Plugins(PrintError):
 
     @profiler
     def __init__(self, config, is_local, gui_name):
@@ -51,9 +51,6 @@ class Plugins:
                 self.register_wallet_type(config, name, x)
             if config.get('use_' + name):
                 self.load_plugin(config, name)
-
-    def print_error(self, *msg):
-        print_error("[%s]" % self.__class__.__name__, *msg)
 
     def get(self, name):
         return self.plugins.get(name)
@@ -184,7 +181,7 @@ def _run_hook(name, always, *args):
         return results[0]
 
 
-class BasePlugin:
+class BasePlugin(PrintError):
 
     def __init__(self, parent, config, name):
         self.parent = parent  # The plugins object
@@ -198,6 +195,9 @@ class BasePlugin:
                 l.append((self, getattr(self, k)))
                 hooks[k] = l
 
+    def diagnostic_name(self):
+        return self.name
+
     def close(self):
         # remove self from hooks
         for k in dir(self):
@@ -206,9 +206,6 @@ class BasePlugin:
                 l.remove((self, getattr(self, k)))
                 hooks[k] = l
         self.parent.close_plugin(self)
-
-    def print_error(self, *msg):
-        print_error("[%s]"%self.name, *msg)
 
     def requires_settings(self):
         return False

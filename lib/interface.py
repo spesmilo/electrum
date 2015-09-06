@@ -49,7 +49,7 @@ def Connection(server, queue, config_path):
     c.start()
     return c
 
-class TcpConnection(threading.Thread):
+class TcpConnection(threading.Thread, util.PrintError):
 
     def __init__(self, server, queue, config_path):
         threading.Thread.__init__(self)
@@ -62,8 +62,8 @@ class TcpConnection(threading.Thread):
         self.port = int(self.port)
         self.use_ssl = (self.protocol == 's')
 
-    def print_error(self, *msg):
-        util.print_error("[%s]" % self.host, *msg)
+    def diagnostic_name(self):
+        return self.host
 
     def check_host_name(self, peercert, name):
         """Simple certificate/host name checker.  Returns True if the
@@ -203,7 +203,7 @@ class TcpConnection(threading.Thread):
             self.print_error("connected")
         self.queue.put((self.server, socket))
 
-class Interface:
+class Interface(util.PrintError):
     """The Interface class handles a socket connected to a single remote
     electrum server.  It's exposed API is:
 
@@ -229,8 +229,8 @@ class Interface:
         self.last_ping = 0
         self.closed_remotely = False
 
-    def print_error(self, *msg):
-        util.print_error("[%s]" % self.host, *msg)
+    def diagnostic_name(self):
+        return self.host
 
     def fileno(self):
         # Needed for select

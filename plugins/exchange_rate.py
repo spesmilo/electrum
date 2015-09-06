@@ -14,7 +14,7 @@ from functools import partial
 from electrum.bitcoin import COIN
 from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
-from electrum.util import print_error, ThreadJob, timestamp_to_datetime
+from electrum.util import PrintError, ThreadJob, timestamp_to_datetime
 from electrum.util import format_satoshis
 from electrum_gui.qt.util import *
 from electrum_gui.qt.amountedit import AmountEdit
@@ -28,7 +28,7 @@ CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
                   'VUV': 0, 'XAF': 0, 'XAG': 2, 'XAU': 4, 'XOF': 0,
                   'XPF': 0}
 
-class ExchangeBase:
+class ExchangeBase(PrintError):
     def __init__(self, sig):
         self.history = {}
         self.quotes = {}
@@ -38,9 +38,6 @@ class ExchangeBase:
         response = requests.request('GET', 'https://' + site + get_string,
                                     headers={'User-Agent' : 'Electrum'})
         return response.json()
-
-    def print_error(self, *msg):
-        print_error("[%s]" % self.name(), *msg)
 
     def name(self):
         return self.__class__.__name__
@@ -114,10 +111,13 @@ class BitPay(ExchangeBase):
         json = self.get_json('bitpay.com', '/api/rates')
         return dict([(r['code'], Decimal(r['rate'])) for r in json])
 
-class Blockchain(ExchangeBase):
+class BlockchainInfo(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('blockchain.info', '/ticker')
         return dict([(r, Decimal(json[r]['15m'])) for r in json])
+
+    def name(self):
+        return "Blockchain"
 
 class BTCChina(ExchangeBase):
     def get_rates(self, ccy):
