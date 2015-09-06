@@ -37,8 +37,8 @@ from electrum.bitcoin import MIN_RELAY_TX_FEE, COIN, is_valid
 from electrum.plugins import run_hook
 from electrum.i18n import _
 from electrum.util import block_explorer, block_explorer_info, block_explorer_URL
-from electrum.util import print_error, print_msg
-from electrum.util import format_satoshis, format_satoshis_plain, format_time, NotEnoughFunds, StoreDict
+from electrum.util import format_satoshis, format_satoshis_plain, format_time
+from electrum.util import PrintError, NotEnoughFunds, StoreDict
 from electrum import Transaction
 from electrum import mnemonic
 from electrum import util, bitcoin, commands, Wallet
@@ -105,7 +105,7 @@ expiration_values = [
 
 
 
-class ElectrumWindow(QMainWindow):
+class ElectrumWindow(QMainWindow, PrintError):
     labelsChanged = pyqtSignal()
 
     def __init__(self, config, network, gui_object):
@@ -184,6 +184,10 @@ class ElectrumWindow(QMainWindow):
         self.require_fee_update = False
         self.tx_notifications = []
 
+    def diagnostic_name(self):
+        return "%s/%s" % (PrintError.diagnostic_name(self),
+                          self.wallet.basename() if self.wallet else "None")
+
     def is_hidden(self):
         return self.isMinimized() or self.isHidden()
 
@@ -228,7 +232,7 @@ class ElectrumWindow(QMainWindow):
 
     def close_wallet(self):
         if self.wallet:
-            print_error('close_wallet', self.wallet.storage.path)
+            self.print_error('close_wallet', self.wallet.storage.path)
             self.wallet.storage.put('accounts_expanded', self.accounts_expanded)
             self.wallet.stop_threads()
         run_hook('close_wallet')
@@ -417,7 +421,7 @@ class ElectrumWindow(QMainWindow):
     def notify_transactions(self):
         if not self.network or not self.network.is_connected():
             return
-        print_error("Notifying GUI")
+        self.print_error("Notifying GUI")
         if len(self.tx_notifications) > 0:
             # Combine the transactions if there are more then three
             tx_amount = len(self.tx_notifications)
@@ -2855,7 +2859,7 @@ class ElectrumWindow(QMainWindow):
                     msg += '\n\n' + _('Requires') + ':\n' + '\n'.join(map(lambda x: x[1], descr.get('requires')))
                 grid.addWidget(HelpButton(msg), i, 2)
             except Exception:
-                print_msg("Error: cannot display plugin", name)
+                self.print_msg("error: cannot display plugin", name)
                 traceback.print_exc(file=sys.stdout)
         grid.setRowStretch(i+1,1)
         vbox.addLayout(Buttons(CloseButton(d)))
