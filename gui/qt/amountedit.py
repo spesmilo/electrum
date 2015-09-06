@@ -63,10 +63,9 @@ class AmountEdit(MyLineEdit):
 
     def get_amount(self):
         try:
-            x = int(str(self.text()))
+            return (int if self.is_int else Decimal)(str(self.text()))
         except:
             return None
-        return x
 
 
 class BTCAmountEdit(AmountEdit):

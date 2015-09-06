@@ -15,7 +15,6 @@ from electrum_ltc import util
 import seed_dialog
 from network_dialog import NetworkDialog
 from util import *
-from amountedit import AmountEdit
 
 from electrum_ltc.plugins import always_hook, run_hook
 from electrum_ltc.mnemonic import prepare_seed
