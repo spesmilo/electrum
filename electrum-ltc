@@ -36,6 +36,7 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
 is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "setup-release.py"))
 is_android = 'ANDROID_DATA' in os.environ
+is_kivy = os.environ.get('PYTHONHOME','').find('kivy') != -1
 
 if is_local or is_android:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
@@ -463,7 +464,8 @@ if __name__ == '__main__':
     if is_android:
         config_options = {
             'verbose': True,
-            'gui': 'android',
+            'cmd': 'gui',
+            'gui': 'kivy' if is_kivy else 'android',
             'auto_connect': True,
         }
     else:

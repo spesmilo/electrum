@@ -47,7 +47,7 @@ class Command:
         self.requires_wallet = 'w' in s
         self.requires_password = 'p' in s
         self.description = func.__doc__
-        self.help = self.description.split('.')[0]
+        self.help = self.description.split('.')[0] if self.description else None
         varnames = func.func_code.co_varnames[1:func.func_code.co_argcount]
         self.defaults = func.func_defaults
         if self.defaults:
