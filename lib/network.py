@@ -27,7 +27,6 @@ DEFAULT_SERVERS = {
     'ecdsa.net':{'t':'50001', 's':'110'},
     'electrum0.electricnewyear.net':{'t':'50001', 's':'50002'},
     'kirsche.emzy.de':DEFAULT_PORTS,
-    'jwu42.hopto.org':{'t':'50001', 's':'50002'},
     'VPS.hsmiths.com':{'t':'50001', 's':'50002'},
     'ELECTRUM.jdubya.info':{'t':'50001', 's':'50002'},
     'electrum.no-ip.org':{'t':'50001', 's':'50002', 'g':'443'},
