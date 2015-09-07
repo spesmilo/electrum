@@ -119,9 +119,11 @@ class BTCChina(ExchangeBase):
 class BTCe(ExchangeBase):
     def get_rates(self, ccy):
         ccys = ['EUR', 'RUR', 'USD']
-        json = self.get_json('btc-e.com', '/api/3/ticker/ltc_%s' % ccy.lower())
+        ccy_str = '-'.join(['ltc_%s' % c.lower() for c in ccys])
+        json = self.get_json('btc-e.com', '/api/3/ticker/%s' % ccy_str)
         result = dict.fromkeys(ccys)
-        result[ccy] = Decimal(json['ltc_%s' % ccy.lower()]['last'])
+        for ccy in ccys:
+            result[ccy] = Decimal(json['ltc_%s' % ccy.lower()]['last'])
         return result
 
 class CaVirtEx(ExchangeBase):
@@ -140,7 +142,8 @@ class HitBTC(ExchangeBase):
         ccys = ['EUR', 'USD']
         json = self.get_json('api.hitbtc.com', '/api/1/public/LTC%s/ticker' % ccy)
         result = dict.fromkeys(ccys)
-        result[ccy] = Decimal(json['last'])
+        if ccy in ccys:
+            result[ccy] = Decimal(json['last'])
         return result
 
 class Kraken(ExchangeBase):
