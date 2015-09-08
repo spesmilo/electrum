@@ -1754,7 +1754,7 @@ class ElectrumWindow(QMainWindow, PrintError):
         console.updateNamespace({'wallet' : self.wallet,
                                  'network' : self.network,
                                  'plugins' : self.gui_object.plugins,
-                                 'gui': self})
+                                 'window': self})
         console.updateNamespace({'util' : util, 'bitcoin':bitcoin})
 
         c = commands.Commands(self.config, self.wallet, self.network, lambda: self.console.set_json(True))
