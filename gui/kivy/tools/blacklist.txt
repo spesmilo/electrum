@@ -24,6 +24,13 @@ pygame/sndarray.pyo
 pygame/surfarray.pyo
 pygame/_arraysurfarray.pyo
 
+# unused electrum
+gui/android*
+gui/gtk*
+gui/qt*
+gui/kivy/tools
+
+
 # unused kivy files (platform specific)
 kivy/input/providers/wm_*
 kivy/input/providers/mactouch*
@@ -33,6 +40,14 @@ kivy/input/providers/hidinput*
 kivy/core/camera/camera_videocapture*
 kivy/core/spelling/*osx*
 kivy/core/video/video_pyglet*
+
+kivy/adapters
+kivy/modules
+kivy/uix/sandbox
+kivy/uix/pagelayout
+kivy/uix/video
+kivy/uix/vkeyboard
+kivy/uix/videoplayer
 
 # unused encodings
 lib-dynload/*codec*
