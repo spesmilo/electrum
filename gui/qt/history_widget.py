@@ -75,6 +75,8 @@ class HistoryWidget(MyTreeWidget):
             item = EditableItem(entry)
             item.setIcon(0, icon)
             for i in range(len(entry)):
+                if i>3:
+                    item.setTextAlignment(i, Qt.AlignRight)
                 if i!=2:
                     item.setFont(i, QFont(MONOSPACE_FONT))
             if value < 0:

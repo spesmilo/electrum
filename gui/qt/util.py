@@ -328,10 +328,8 @@ class MyTreeWidget(QTreeWidget):
         self.setHeaderLabels(headers)
         self.header().setStretchLastSection(False)
         for col in range(len(headers)):
-            if col == self.stretch_column:
-                self.header().setResizeMode(col, QHeaderView.Stretch)
-            else:
-                self.header().setResizeMode(col, QHeaderView.ResizeToContents)
+            sm = QHeaderView.Stretch if col == self.stretch_column else QHeaderView.ResizeToContents
+            self.header().setResizeMode(col, sm)
 
     def on_activated(self, item):
         if not item:

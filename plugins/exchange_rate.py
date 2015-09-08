@@ -361,8 +361,8 @@ class Plugin(BasePlugin, ThreadJob):
         if rate is None:
             text = _("  (No FX rate available)")
         else:
-            text =  "  (%s)    1 LTC~%s" % (self.value_str(btc_balance, rate),
-                                            self.value_str(COIN, rate))
+            text =  "  (%s %s)    1 LTC~%s %s" % (self.value_str(btc_balance, rate), self.ccy,
+                                                  self.value_str(COIN, rate), self.ccy)
         result['text'] = text
 
     def get_historical_rates(self):
@@ -375,7 +375,7 @@ class Plugin(BasePlugin, ThreadJob):
     def value_str(self, satoshis, rate):
         if rate:
             value = Decimal(satoshis) / COIN * Decimal(rate)
-            return "%s %s" % (self.ccy_amount_str(value, True), self.ccy)
+            return "%s" % (self.ccy_amount_str(value, True))
         return _("No data")
 
     def historical_value_str(self, satoshis, d_t):
@@ -390,7 +390,7 @@ class Plugin(BasePlugin, ThreadJob):
     @hook
     def history_tab_headers(self, headers):
         if self.show_history():
-            headers.extend([_('Fiat Amount'), _('Fiat Balance')])
+            headers.extend(['%s '%self.ccy + _('Amount'), '%s '%self.ccy + _('Balance')])
 
     @hook
     def history_tab_update_begin(self):
@@ -406,7 +406,7 @@ class Plugin(BasePlugin, ThreadJob):
             date = timestamp_to_datetime(0)
         for amount in [value, balance]:
             text = self.historical_value_str(amount, date)
-            entry.append("%16s" % text)
+            entry.append(text)
 
     def settings_widget(self, window):
         return EnterButton(_('Settings'), self.settings_dialog)
