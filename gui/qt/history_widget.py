@@ -32,7 +32,6 @@ class HistoryWidget(MyTreeWidget):
         self.refresh_headers()
         self.setColumnHidden(1, True)
         self.config = self.parent.config
-        self.setSortingEnabled(False)
 
     def refresh_headers(self):
         headers = ['', '', _('Date'), _('Description') , _('Amount'),
@@ -72,7 +71,7 @@ class HistoryWidget(MyTreeWidget):
             label, is_default_label = self.wallet.get_label(tx_hash)
             entry = ['', tx_hash, time_str, label, v_str, balance_str]
             run_hook('history_tab_update', tx, entry)
-            item = EditableItem(entry)
+            item = QTreeWidgetItem(entry)
             item.setIcon(0, icon)
             for i in range(len(entry)):
                 if i>3:

@@ -855,7 +855,7 @@ class ElectrumWindow(QMainWindow, PrintError):
             requestor = req.get('name', '')
             amount_str = self.format_amount(amount) if amount else ""
             account = ''
-            item = EditableItem([date, account, address, '', message, amount_str, pr_tooltips.get(status,'')])
+            item = QTreeWidgetItem([date, account, address, '', message, amount_str, pr_tooltips.get(status,'')])
             if signature is not None:
                 item.setIcon(3, QIcon(":icons/seal.png"))
                 item.setToolTip(3, 'signed by '+ requestor)
@@ -921,7 +921,6 @@ class ElectrumWindow(QMainWindow, PrintError):
         self.from_label = QLabel(_('From'))
         grid.addWidget(self.from_label, 3, 0)
         self.from_list = MyTreeWidget(self, self.from_list_menu, ['',''])
-        self.from_list.setSortingEnabled(False)
         self.from_list.setHeaderHidden(True)
         self.from_list.setMaximumHeight(80)
         grid.addWidget(self.from_list, 3, 1, 1, 3)
@@ -1000,6 +999,7 @@ class ElectrumWindow(QMainWindow, PrintError):
         self.invoices_label = QLabel(_('Invoices'))
         self.invoices_list = MyTreeWidget(self, self.invoices_list_menu,
                                           [_('Expires'), _('Requestor'), _('Description'), _('Amount'), _('Status')], 2)
+        self.invoices_list.setSortingEnabled(True)
         self.invoices_list.header().setResizeMode(1, QHeaderView.Interactive)
         self.invoices_list.setColumnWidth(1, 200)
 
@@ -1406,14 +1406,15 @@ class ElectrumWindow(QMainWindow, PrintError):
     def create_addresses_tab(self):
         l = MyTreeWidget(self, self.create_receive_menu, [ _('Address'), _('Label'), _('Balance'), _('Tx')], 1)
         l.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        l.setSortingEnabled(False)
         self.address_list = l
         return self.create_list_tab(l)
 
     def create_contacts_tab(self):
         l = MyTreeWidget(self, self.create_contact_menu, [_('Name'), _('Value'), _('Type')], 1, [0, 1])
         l.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        l.item_edited = self.contact_edited
+        l.setSortingEnabled(True)
+        l.on_edited = self.on_contact_edited
+        l.on_permit_edit = self.on_permit_contact_edit
         self.contacts_list = l
         return self.create_list_tab(l)
 
@@ -1427,7 +1428,7 @@ class ElectrumWindow(QMainWindow, PrintError):
             requestor = pr.get_requestor()
             exp = pr.get_expiration_date()
             date_str = util.format_time(exp) if exp else _('Never')
-            item = EditableItem([date_str, requestor, pr.memo, self.format_amount(pr.get_amount(), whitespaces=True), pr_tooltips.get(status,'')])
+            item = QTreeWidgetItem([date_str, requestor, pr.memo, self.format_amount(pr.get_amount(), whitespaces=True), pr_tooltips.get(status,'')])
             item.setIcon(4, QIcon(pr_icons.get(status)))
             item.setData(0, Qt.UserRole, key)
             item.setFont(1, QFont(MONOSPACE_FONT))
@@ -1551,7 +1552,11 @@ class ElectrumWindow(QMainWindow, PrintError):
             self.payto_e.setText(text)
             self.payto_e.setFocus()
 
-    def contact_edited(self, item, column, prior):
+    def on_permit_contact_edit(self, item, column):
+        # openalias items shouldn't be editable
+        return item.text(2) != "openalias"
+
+    def on_contact_edited(self, item, column, prior):
         if column == 0:  # Remove old contact if renamed
             self.contacts.pop(prior)
         self.set_contact(unicode(item.text(0)), unicode(item.text(1)))
@@ -1703,7 +1708,7 @@ class ElectrumWindow(QMainWindow, PrintError):
                     label = self.wallet.labels.get(address,'')
                     c, u, x = self.wallet.get_addr_balance(address)
                     balance = self.format_amount(c + u + x)
-                    item = EditableItem( [ address, label, balance, "%d"%num] )
+                    item = QTreeWidgetItem([address, label, balance, "%d"%num])
                     item.setFont(0, QFont(MONOSPACE_FONT))
                     item.setData(0, Qt.UserRole, address)
                     item.setData(0, Qt.UserRole+1, True) # label can be edited
@@ -1729,10 +1734,7 @@ class ElectrumWindow(QMainWindow, PrintError):
         l.clear()
         for key in sorted(self.contacts.keys()):
             _type, value = self.contacts[key]
-            if _type == 'address':
-                item = EditableItem([key, value, _type])
-            else: # openalias items shouldn't be editable
-                item = QTreeWidgetItem([key, value, _type])
+            item = QTreeWidgetItem([key, value, _type])
             item.setData(0, Qt.UserRole, key)
             l.addTopLevelItem(item)
             if key == current_key:
