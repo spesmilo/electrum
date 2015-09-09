@@ -1124,8 +1124,8 @@ class ElectrumWindow(App):
         else:
             info_bubble.fs = False
             info_bubble.icon = icon
-            if img.texture and img._coreimage:
-                img.reload()
+            #if img.texture and img._coreimage:
+            #    img.reload()
             img.allow_stretch = False
             info_bubble.dim_background = False
             info_bubble.background_image = 'atlas://data/images/defaulttheme/bubble'
