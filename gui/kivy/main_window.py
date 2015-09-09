@@ -410,6 +410,7 @@ class ElectrumWindow(App):
                          module='electrum_gui.kivy.uix.screens')
         Factory.register('CSpinner',
                          module='electrum_gui.kivy.uix.screens')
+
         # preload widgets. Remove this if you want to load the widgets on demand
         Cache.append('electrum_widgets', 'AnimatedPopup', Factory.AnimatedPopup())
         Cache.append('electrum_widgets', 'TabbedCarousel', Factory.TabbedCarousel())
@@ -1065,42 +1066,6 @@ class ElectrumWindow(App):
                 result[k] = v[0]
 
         return result
-
-    def delete_imported_key(self, addr):
-        self.wallet.delete_imported_key(addr)
-        self.update_receive_tab()
-        self.update_history_tab()
-
-    def delete_pending_account(self, k):
-        self.wallet.delete_pending_account(k)
-        self.update_receive_tab()
-
-    def get_sendable_balance(self):
-        return sum(sum(self.wallet.get_addr_balance(a))
-                   for a in self.get_payment_sources())
-
-
-    def get_payment_sources(self):
-        return self.wallet.get_account_addresses(self.current_account)
-
-    def payto(self, addr):
-        if not addr:
-            return
-        label = self.wallet.labels.get(addr)
-        m_addr = label + '  <' + addr + '>' if label else addr
-        self.tabs.setCurrentIndex(1)
-        self.payto_e.setText(m_addr)
-        self.amount_e.setFocus()
-
-
-    def delete_contact(self, x):
-        if self.question(_("Do you want to remove") +
-                         " %s "%x +
-                         _("from your list of contacts?")):
-            self.wallet.delete_contact(x)
-            self.wallet.set_label(x, None)
-            self.update_history_tab()
-            self.update_contacts_tab()
 
     def show_error(self, error, width='200dp', pos=None, arrow_pos=None,
         exit=False, icon='atlas://gui/kivy/theming/light/error', duration=0,
