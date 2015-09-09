@@ -378,10 +378,10 @@
                     height: blue_bottom.item_height if app.expert_mode else 0
         CreateAccountButtonGreen:
             background_color: (1, 1, 1, 1) if self.disabled else ((.258, .80, .388, 1) if self.state == 'normal' else (.203, .490, .741, 1))
-            text: _('Goto next step') if app.wallet and app.wallet.seed else _('Create unsigned transaction')
+            text: _('Send')
             size_hint_y: None
             height: '38dp'
-            disabled: True if wallet_selection.opacity == 0 else False
+            disabled: False
             on_release: app.do_send()
         Widget
 
