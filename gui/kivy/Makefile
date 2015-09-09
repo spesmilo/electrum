@@ -8,8 +8,8 @@ theming:
 apk:
 	# running pre build setup
 	@cp tools/buildozer.spec ../../buildozer.spec
-	# rename electrum to main.py
-	@mv ../../electrum ../../main.py
+	# copy electrum to main.py
+	@cp ../../electrum ../../main.py
 	@-if [ ! -d "../../.buildozer" ];then \
 		cd ../..; buildozer android debug;\
 		cp -f gui/kivy/tools/blacklist.txt .buildozer/android/platform/python-for-android/src/blacklist.txt;\
@@ -20,6 +20,6 @@ apk:
 clean:
 	# Cleaning up
 	# rename main.py to electrum
-	@-mv ../../main.py ../../electrum
+	@-rm ../../main.py
 	# remove buildozer.spec
 	@-rm ../../buildozer.spec
