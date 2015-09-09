@@ -303,6 +303,7 @@ class MyTreeWidget(QTreeWidget):
 
         # Control which columns are editable
         self.editor = None
+        self.pending_update = False
         if editable_columns is None:
             editable_columns = [stretch_column]
         self.editable_columns = editable_columns
@@ -372,6 +373,11 @@ class MyTreeWidget(QTreeWidget):
                 self.on_edited(*self.editing_itemcol)
                 self.editor = None
 
+            # Now do any pending updates
+            if self.editor is None and self.pending_update:
+                self.pending_update = False
+                self.on_update()
+
     def on_edited(self, item, column, prior):
         '''Called only when the text actually changes'''
         key = str(item.data(0, Qt.UserRole).toString())
@@ -383,8 +389,18 @@ class MyTreeWidget(QTreeWidget):
             text = self.parent.wallet.get_default_label(key)
             item.setText(column, text)
             item.setForeground(column, QBrush(QColor('gray')))
-        self.parent.update_history_tab()
+        self.parent.history_list.update()
         self.parent.update_completions()
+
+    def update(self):
+        # Defer updates if editing
+        if self.editor:
+            self.pending_update = True
+        else:
+            self.on_update()
+
+    def on_update(self):
+        pass
 
     def get_leaves(self, root):
         child_count = root.childCount()

@@ -55,8 +55,11 @@ class HistoryWidget(MyTreeWidget):
             icon = QIcon(":icons/confirmed.png")
         return icon, time_str
 
-    def update(self, h):
+    def on_update(self):
         self.wallet = self.parent.wallet
+        domain = self.wallet.get_account_addresses(self.parent.current_account)
+        h = self.wallet.get_history(domain)
+
         item = self.currentItem()
         current_tx = item.data(0, Qt.UserRole).toString() if item else None
         self.clear()
