@@ -8,8 +8,6 @@ theming:
 apk:
 	# running pre build setup
 	@cp tools/buildozer.spec ../../buildozer.spec
-	# get aes.py
-	@cd ../..; curl -O -L https://raw.github.com/devrandom/slowaes/master/python/aes.py
 	# rename electrum to main.py
 	@mv ../../electrum-ltc ../../main.py
 	@-if [ ! -d "../../.buildozer" ];then \
@@ -21,8 +19,6 @@ apk:
 	@make clean
 clean:
 	# Cleaning up
-	# remove aes
-	@-rm ../../aes.py
 	# rename main.py to electrum
 	@-mv ../../main.py ../../electrum-ltc
 	# remove buildozer.spec

@@ -308,7 +308,7 @@ class Plugin(BasePlugin, ThreadJob):
     def on_fx_history(self):
         '''Called when historical fx quotes are updated'''
         for window in self.windows:
-            window.update_history_tab()
+            window.history_list.update()
 
     def on_fx_quotes(self):
         '''Called when fresh spot fx quotes come in'''

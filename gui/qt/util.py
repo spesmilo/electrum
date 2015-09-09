@@ -283,19 +283,9 @@ def filename_field(parent, config, defaultname, select_msg):
 
     return vbox, filename_e, b1
 
-class EditableItem(QTreeWidgetItem):
-    def __init__(self, columns):
-        QTreeWidgetItem.__init__(self, columns)
-        self.setFlags(self.flags() | Qt.ItemIsEditable)
-
-class EditableItemDelegate(QStyledItemDelegate):
+class ElectrumItemDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
-        if index.column() not in self.parent().editable_columns:
-            return None
-        self.parent().editing = (self.parent().currentItem(),
-                                 index.column(),
-                                 unicode(index.data().toString()))
-        return QStyledItemDelegate.createEditor(self, parent, option, index)
+        return self.parent().createEditor(parent, option, index)
 
 class MyTreeWidget(QTreeWidget):
 
@@ -305,23 +295,21 @@ class MyTreeWidget(QTreeWidget):
         self.parent = parent
         self.stretch_column = stretch_column
         self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.itemActivated.connect(self.on_activated)
         self.customContextMenuRequested.connect(create_menu)
+        self.setUniformRowHeights(True)
         # extend the syntax for consistency
         self.addChild = self.addTopLevelItem
         self.insertChild = self.insertTopLevelItem
 
         # Control which columns are editable
-        self.editing = (None, None, None)
+        self.editor = None
+        self.pending_update = False
         if editable_columns is None:
             editable_columns = [stretch_column]
         self.editable_columns = editable_columns
-        self.setEditTriggers(QAbstractItemView.DoubleClicked |
-                             QAbstractItemView.EditKeyPressed)
-        self.setItemDelegate(EditableItemDelegate(self))
-        self.itemChanged.connect(self.item_changed)
+        self.setItemDelegate(ElectrumItemDelegate(self))
+        self.itemActivated.connect(self.on_activated)
         self.update_headers(headers)
-        self.setSortingEnabled(True)
 
     def update_headers(self, headers):
         self.setColumnCount(len(headers))
@@ -331,26 +319,66 @@ class MyTreeWidget(QTreeWidget):
             sm = QHeaderView.Stretch if col == self.stretch_column else QHeaderView.ResizeToContents
             self.header().setResizeMode(col, sm)
 
-    def on_activated(self, item):
-        if not item:
-            return
-        for i in range(0,self.viewport().height()/5):
-            if self.itemAt(QPoint(0,i*5)) == item:
-                break
+    def editItem(self, item, column):
+        if column in self.editable_columns:
+            self.editing_itemcol = (item, column, unicode(item.text(column)))
+            # Calling setFlags causes on_changed events for some reason
+            item.setFlags(item.flags() | Qt.ItemIsEditable)
+            QTreeWidget.editItem(self, item, column)
+            item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_F2:
+            self.on_activated(self.currentItem(), self.currentColumn())
         else:
-            return
-        for j in range(0,30):
-            if self.itemAt(QPoint(0,i*5 + j)) != item:
-                break
-        self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), QPoint(50, i*5 + j - 1))
+            QTreeWidget.keyPressEvent(self, event)
 
-    def item_changed(self, item, column):
-        '''Called only when the text actually changes'''
-        # Only pass user edits to item_edited()
-        if item == self.editing[0] and column == self.editing[1]:
-            self.item_edited(item, column, self.editing[2])
+    def permit_edit(self, item, column):
+        return (column in self.editable_columns
+                and self.on_permit_edit(item, column))
 
-    def item_edited(self, item, column, prior):
+    def on_permit_edit(self, item, column):
+        return True
+
+    def on_activated(self, item, column):
+        if self.permit_edit(item, column):
+            self.editItem(item, column)
+        else:
+            pt = self.visualItemRect(item).bottomLeft()
+            pt.setX(50)
+            self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), pt)
+
+    def createEditor(self, parent, option, index):
+        self.editor = QStyledItemDelegate.createEditor(self.itemDelegate(),
+                                                       parent, option, index)
+        self.editor.connect(self.editor, SIGNAL("editingFinished()"),
+                            self.editing_finished)
+        return self.editor
+
+    def editing_finished(self):
+        # Long-time QT bug - pressing Enter to finish editing signals
+        # editingFinished twice.  If the item changed the sequence is
+        # Enter key:  editingFinished, on_change, editingFinished
+        # Mouse: on_change, editingFinished
+        # This mess is the cleanest way to ensure we make the
+        # on_edited callback with the updated item
+        if self.editor:
+            (item, column, prior_text) = self.editing_itemcol
+            if self.editor.text() == prior_text:
+                self.editor = None  # Unchanged - ignore any 2nd call
+            elif item.text(column) == prior_text:
+                pass # Buggy first call on Enter key, item not yet updated
+            else:
+                # What we want - the updated item
+                self.on_edited(*self.editing_itemcol)
+                self.editor = None
+
+            # Now do any pending updates
+            if self.editor is None and self.pending_update:
+                self.pending_update = False
+                self.on_update()
+
+    def on_edited(self, item, column, prior):
         '''Called only when the text actually changes'''
         key = str(item.data(0, Qt.UserRole).toString())
         text = unicode(item.text(column))
@@ -361,8 +389,18 @@ class MyTreeWidget(QTreeWidget):
             text = self.parent.wallet.get_default_label(key)
             item.setText(column, text)
             item.setForeground(column, QBrush(QColor('gray')))
-        self.parent.update_history_tab()
+        self.parent.history_list.update()
         self.parent.update_completions()
+
+    def update(self):
+        # Defer updates if editing
+        if self.editor:
+            self.pending_update = True
+        else:
+            self.on_update()
+
+    def on_update(self):
+        pass
 
     def get_leaves(self, root):
         child_count = root.childCount()

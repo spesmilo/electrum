@@ -1,5 +1,7 @@
-import  sys
+import sys
 import datetime
+
+from android import activity
 
 from electrum_ltc import WalletStorage, Wallet
 from electrum_ltc.i18n import _, set_language
@@ -206,13 +208,29 @@ class ElectrumWindow(App):
     def set_url(self, instance, url):
         self.gui_object.set_url(url)
 
-    def scan_qr(self, on_complete):
+    def old_scan_qr(self, on_complete):
         dlg = Cache.get('electrum_ltc_widgets', 'QrScannerDialog')
         if not dlg:
             dlg = Factory.QrScannerDialog()
             Cache.append('electrum_ltc_widgets', 'QrScannerDialog', dlg)
             dlg.bind(on_complete=on_complete)
         dlg.open()
+
+    def scan_qr(self, on_complete):
+        from jnius import autoclass
+        PythonActivity = autoclass('org.renpy.android.PythonActivity')
+        Intent = autoclass('android.content.Intent')
+        intent = Intent("com.google.zxing.client.android.SCAN")
+        intent.putExtra("SCAN_MODE", "QR_CODE_MODE")
+        def on_qr_result(requestCode, resultCode, intent):
+            if requestCode == 0:
+                if resultCode == -1: # RESULT_OK:
+                    contents = intent.getStringExtra("SCAN_RESULT")
+                    if intent.getStringExtra("SCAN_RESULT_FORMAT") == 'QR_CODE':
+                        uri = App.get_running_app().decode_uri(contents)
+                        on_complete(uri)
+        activity.bind(on_activity_result=on_qr_result)
+        PythonActivity.mActivity.startActivityForResult(intent, 0)
 
     def build(self):
         global Builder

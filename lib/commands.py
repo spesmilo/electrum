@@ -411,18 +411,6 @@ class Commands:
             self.wallet.sign_transaction(tx, self.password)
         return tx
 
-    def _read_csv(self, csvpath):
-        import csv
-        outputs = []
-        with open(csvpath, 'rb') as csvfile:
-            csvReader = csv.reader(csvfile, delimiter=',')
-            for row in csvReader:
-                address, amount = row
-                assert bitcoin.is_address(address)
-                amount = Decimal(amount)
-                outputs.append((address, amount))
-        return outputs
-
     @command('wp')
     def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False, broadcast=False):
         """Create a transaction. """
@@ -435,10 +423,9 @@ class Commands:
             return tx.deserialize() if deserialized else tx
 
     @command('wp')
-    def paytomany(self, csv_file, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False, broadcast=False):
+    def paytomany(self, outputs, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False, broadcast=False):
         """Create a multi-output transaction. """
         domain = [from_addr] if from_addr else None
-        outputs = self._read_csv(csv_file)
         tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned)
         if broadcast:
             r, h = self.wallet.sendtx(tx)
@@ -629,7 +616,7 @@ param_descriptions = {
     'encrypted': 'Encrypted message',
     'amount': 'Amount to be sent (in LTC). Type \'!\' to send the maximum available.',
     'requested_amount': 'Requested amount (in LTC).',
-    'csv_file': 'CSV file of recipient, amount',
+    'outputs': 'list of ["address", amount]',
 }
 
 command_options = {
