@@ -972,7 +972,7 @@ class Abstract_Wallet(PrintError):
         # Sort the inputs and outputs deterministically
         tx.BIP_LI01_sort()
 
-        run_hook('make_unsigned_transaction', tx)
+        run_hook('make_unsigned_transaction', self, tx)
         return tx
 
     def mktx(self, outputs, password, config, fee=None, change_addr=None, domain=None):
@@ -1022,7 +1022,7 @@ class Abstract_Wallet(PrintError):
             tx.sign(keypairs)
         # Run hook, and raise if error
         tx.error = None
-        run_hook('sign_transaction', tx, password)
+        run_hook('sign_transaction', self, tx, password)
         if tx.error:
             raise BaseException(tx.error)
 

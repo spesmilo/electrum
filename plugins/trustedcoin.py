@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import threading
+from threading import Thread
 import socket
 import os
 import re
@@ -170,7 +170,6 @@ class TrustedCoinCosignerClient(object):
 
 server = TrustedCoinCosignerClient(user_agent="Electrum/" + version.ELECTRUM_VERSION)
 
-
 class Wallet_2fa(Multisig_Wallet):
 
     def __init__(self, storage):
@@ -197,71 +196,110 @@ class Wallet_2fa(Multisig_Wallet):
 
     def estimated_fee(self, tx, fee_per_kb):
         fee = Multisig_Wallet.estimated_fee(self, tx, fee_per_kb)
-        x = run_hook('extra_fee', tx)
+        x = run_hook('extra_fee', self, tx)
         if x: fee += x
         return fee
 
     def get_tx_fee(self, tx):
         fee = Multisig_Wallet.get_tx_fee(self, tx)
-        x = run_hook('extra_fee', tx)
+        x = run_hook('extra_fee', self, tx)
         if x: fee += x
         return fee
 
+# Utility functions
 
+def get_user_id(wallet):
+    def make_long_id(xpub_hot, xpub_cold):
+        return bitcoin.sha256(''.join(sorted([xpub_hot, xpub_cold])))
+
+    xpub_hot = wallet.master_public_keys["x1/"]
+    xpub_cold = wallet.master_public_keys["x2/"]
+    long_id = make_long_id(xpub_hot, xpub_cold)
+    short_id = hashlib.sha256(long_id).hexdigest()
+    return long_id, short_id
+
+def make_xpub(xpub, s):
+    _, _, _, c, cK = deserialize_xkey(xpub)
+    cK2, c2 = bitcoin._CKD_pub(cK, c, s)
+    xpub2 = ("0488B21E" + "00" + "00000000" + "00000000").decode("hex") + c2 + cK2
+    return EncodeBase58Check(xpub2)
+
+def restore_third_key(wallet):
+    long_user_id, short_id = get_user_id(wallet)
+    xpub3 = make_xpub(signing_xpub, long_user_id)
+    wallet.add_master_public_key('x3/', xpub3)
+
+def make_billing_address(wallet, num):
+    long_id, short_id = get_user_id(wallet)
+    xpub = make_xpub(billing_xpub, long_id)
+    _, _, _, c, cK = deserialize_xkey(xpub)
+    cK, c = bitcoin.CKD_pub(cK, c, num)
+    address = public_key_to_bc_address( cK )
+    return address
+
+def need_server(wallet, tx):
+    from electrum.account import BIP32_Account
+    # Detect if the server is needed
+    long_id, short_id = get_user_id(wallet)
+    xpub3 = wallet.master_public_keys['x3/']
+    for x in tx.inputs_to_sign():
+        if x[0:2] == 'ff':
+            xpub, sequence = BIP32_Account.parse_xpubkey(x)
+            if xpub == xpub3:
+                return True
+    return False
 
 class Plugin(BasePlugin):
-
-    wallet = None
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
         self.seed_func = lambda x: bitcoin.is_new_seed(x, SEED_PREFIX)
-        self.billing_info = None
-        self.is_billing = False
+        # Keyed by wallet to handle multiple pertinent windows.  Each
+        # wallet is a 2fa wallet.  Each value is a dictionary with
+        # information about the wallet for the plugin
+        self.wallets = {}
 
     def constructor(self, s):
         return Wallet_2fa(s)
 
     def is_available(self):
-        if not self.wallet:
-            return False
-        if self.wallet.storage.get('wallet_type') == '2fa':
-            return True
-        return False
+        return bool(self.wallets)
 
-    def set_enabled(self, enabled):
-        self.wallet.storage.put('use_' + self.name, enabled)
+    def set_enabled(self, wallet, enabled):
+        wallet.storage.put('use_' + self.name, enabled)
 
     def is_enabled(self):
-        if not self.is_available():
-            return False
-        if self.wallet.master_private_keys.get('x2/'):
-            return False
+        return (self.is_available() and
+                not all(wallet.master_private_keys.get('x2/')
+                        for wallet in self.wallets.keys()))
+
+    def on_new_window(self, window):
+        wallet = window.wallet
+        if wallet.storage.get('wallet_type') == '2fa':
+            button = StatusBarButton(QIcon(":icons/trustedcoin.png"),
+                                     _("TrustedCoin"),
+                                     partial(self.settings_dialog, window))
+            window.statusBar().addPermanentWidget(button)
+            self.wallets[wallet] = {
+                'is_billing' : False,
+                'billing_info' : None,
+                'button' : button,        # Avoid loss to GC
+                }
+            t = Thread(target=self.request_billing_info, args=(wallet,))
+            t.setDaemon(True)
+            t.start()
+
+    def on_close_window(self, window):
+        self.wallets.pop(window.wallet, None)
+
+    def request_billing_info(self, wallet):
+        billing_info = server.get(get_user_id(wallet)[1])
+        billing_address = make_billing_address(wallet, billing_info['billing_index'])
+        assert billing_address == billing_info['billing_address']
+        wallet_info = self.wallets[wallet]
+        wallet_info['billing_info'] = billing_info
+        wallet_info['price_per_tx'] = dict(billing_info['price_per_tx'])
         return True
-
-    def make_long_id(self, xpub_hot, xpub_cold):
-        return bitcoin.sha256(''.join(sorted([xpub_hot, xpub_cold])))
-
-    def get_user_id(self):
-        xpub_hot = self.wallet.master_public_keys["x1/"]
-        xpub_cold = self.wallet.master_public_keys["x2/"]
-        long_id = self.make_long_id(xpub_hot, xpub_cold)
-        short_id = hashlib.sha256(long_id).hexdigest()
-        return long_id, short_id
-
-    def make_xpub(self, xpub, s):
-        _, _, _, c, cK = deserialize_xkey(xpub)
-        cK2, c2 = bitcoin._CKD_pub(cK, c, s)
-        xpub2 = ("0488B21E" + "00" + "00000000" + "00000000").decode("hex") + c2 + cK2
-        return EncodeBase58Check(xpub2)
-
-    def make_billing_address(self, num):
-        long_id, short_id = self.get_user_id()
-        xpub = self.make_xpub(billing_xpub, long_id)
-        _, _, _, c, cK = deserialize_xkey(xpub)
-        cK, c = bitcoin.CKD_pub(cK, c, num)
-        address = public_key_to_bc_address( cK )
-        return address
 
     def create_extended_seed(self, wallet, window):
         seed = wallet.make_seed()
@@ -309,34 +347,12 @@ class Plugin(BasePlugin):
         icon = QPixmap(':icons/trustedcoin.png')
         if not window.question(''.join(msg), icon=icon):
             return False
-        self.wallet = wallet
-        self.set_enabled(True)
+        self.set_enabled(wallet, True)
         return True
-
-
-    def restore_third_key(self, wallet):
-        long_user_id, short_id = self.get_user_id()
-        xpub3 = self.make_xpub(signing_xpub, long_user_id)
-        wallet.add_master_public_key('x3/', xpub3)
 
     @hook
     def do_clear(self, window):
-        self.is_billing = False
-
-    @hook
-    def load_wallet(self, wallet, window):
-        self.wallet = wallet
-        self.trustedcoin_button = StatusBarButton(QIcon(":icons/trustedcoin.png"), _("TrustedCoin"), partial(self.settings_dialog, window))
-        window.statusBar().addPermanentWidget(self.trustedcoin_button)
-        self.xpub = self.wallet.master_public_keys.get('x1/')
-        self.user_id = self.get_user_id()[1]
-        t = threading.Thread(target=self.request_billing_info)
-        t.setDaemon(True)
-        t.start()
-
-    @hook
-    def installwizard_load_wallet(self, wallet, window):
-        self.wallet = wallet
+        self.wallets[window.wallet]['is_billing'] = False
 
     @hook
     def get_wizard_action(self, window, wallet, action):
@@ -352,7 +368,6 @@ class Plugin(BasePlugin):
         if not seed:
             return
         wallet = Wallet_2fa(storage)
-        self.wallet = wallet
         password = window.password_dialog()
 
         wallet.add_seed(seed, password)
@@ -361,16 +376,14 @@ class Plugin(BasePlugin):
         wallet.add_cosigner_seed(' '.join(words[0:n]), 'x1/', password)
         wallet.add_cosigner_seed(' '.join(words[n:]), 'x2/', password)
 
-        self.restore_third_key(wallet)
+        restore_third_key(wallet)
         wallet.create_main_account(password)
         # disable plugin
-        self.set_enabled(False)
+        self.set_enabled(wallet, False)
         return wallet
 
 
     def create_remote_key(self, wallet, window):
-        self.wallet = wallet
-
         if wallet.storage.get('wallet_type') != '2fa':
             raise
             return
@@ -383,8 +396,8 @@ class Plugin(BasePlugin):
         xpub_cold = wallet.master_public_keys["x2/"]
 
         # Generate third key deterministically.
-        long_user_id, self.user_id = self.get_user_id()
-        xpub3 = self.make_xpub(signing_xpub, long_user_id)
+        long_user_id, short_id = get_user_id(wallet)
+        xpub3 = make_xpub(signing_xpub, long_user_id)
 
         # secret must be sent by the server
         try:
@@ -408,109 +421,17 @@ class Plugin(BasePlugin):
             _xpub3 = r['xpubkey_cosigner']
             _id = r['id']
             try:
-                assert _id == self.user_id, ("user id error", _id, self.user_id)
+                assert _id == short_id, ("user id error", _id, short_id)
                 assert xpub3 == _xpub3, ("xpub3 error", xpub3, _xpub3)
             except Exception as e:
                 window.show_message(str(e))
                 return
 
-        if not self.setup_google_auth(window, self.user_id, otp_secret):
+        if not self.setup_google_auth(window, short_id, otp_secret):
             return
 
-        self.wallet.add_master_public_key('x3/', xpub3)
+        wallet.add_master_public_key('x3/', xpub3)
         return True
-
-
-
-    def need_server(self, tx):
-        from electrum.account import BIP32_Account
-        # Detect if the server is needed
-        long_id, short_id = self.get_user_id()
-        xpub3 = self.wallet.master_public_keys['x3/']
-        for x in tx.inputs_to_sign():
-            if x[0:2] == 'ff':
-                xpub, sequence = BIP32_Account.parse_xpubkey(x)
-                if xpub == xpub3:
-                    return True
-        return False
-
-    @hook
-    def sign_tx(self, window, tx):
-        self.print_error("twofactor:sign_tx")
-        if self.wallet.storage.get('wallet_type') != '2fa':
-            return
-
-        if not self.need_server(tx):
-            self.print_error("twofactor: xpub3 not needed")
-            self.auth_code = None
-            return
-
-        self.auth_code = self.auth_dialog(window)
-
-    @hook
-    def before_send(self, window):
-        # request billing info before forming the transaction
-        self.billing_info = None
-        self.waiting_dialog = WaitingDialog(window, 'please wait...', self.request_billing_info)
-        self.waiting_dialog.start()
-        self.waiting_dialog.wait()
-        if self.billing_info is None:
-            window.show_message('Could not contact server')
-            return True
-        return False
-
-    @hook
-    def extra_fee(self, tx):
-        if self.billing_info.get('tx_remaining'):
-            return 0
-        if self.is_billing:
-            return 0
-        # trustedcoin won't charge if the total inputs is lower than their fee
-        price = int(self.price_per_tx.get(1))
-        assert price <= 100000
-        if tx.input_value() < price:
-            self.print_error("not charging for this tx")
-            return 0
-        return price
-
-    @hook
-    def make_unsigned_transaction(self, tx):
-        price = self.extra_fee(tx)
-        if not price:
-            return
-        tx.outputs.append(('address', self.billing_info['billing_address'], price))
-
-    @hook
-    def sign_transaction(self, tx, password):
-        self.print_error("twofactor:sign")
-        if self.wallet.storage.get('wallet_type') != '2fa':
-            self.print_error("twofactor: aborting")
-            return
-
-        self.long_user_id, self.user_id = self.get_user_id()
-
-        if not self.auth_code:
-            return
-
-        if tx.is_complete():
-            return
-
-        tx_dict = tx.as_dict()
-        raw_tx = tx_dict["hex"]
-        try:
-            r = server.sign(self.user_id, raw_tx, self.auth_code)
-        except Exception as e:
-            tx.error = str(e)
-            return
-
-        self.print_error( "received answer", r)
-        if not r:
-            return
-
-        raw_tx = r.get('transaction')
-        tx.update(raw_tx)
-        self.print_error("twofactor: is complete", tx.is_complete())
-
 
     def auth_dialog(self, window):
         d = QDialog(window)
@@ -529,8 +450,93 @@ class Plugin(BasePlugin):
             return
         return pw.get_amount()
 
+    @hook
+    def sign_tx(self, window, tx):
+        self.print_error("twofactor:sign_tx")
+        if window.wallet in self.wallets:
+            auth_code = None
+            if need_server(window.wallet, tx):
+                auth_code = self.auth_dialog(window)
+            else:
+                self.print_error("twofactor: xpub3 not needed")
+            self.wallets[window.wallet]['auth_code'] = auth_code
+
+    @hook
+    def abort_send(self, window):
+        if window.wallet in self.wallets:
+            wallet_info = self.wallets[window.wallet]
+            # request billing info before forming the transaction
+            wallet_info['billing_info'] = None
+            task = partial(self.request_billing_info, window.wallet)
+            waiting_dialog = WaitingDialog(window, 'please wait...', task)
+            waiting_dialog.start()
+            waiting_dialog.wait()
+            if wallet_info['billing_info'] is None:
+                window.show_message('Could not contact server')
+                return True
+        return False
+
+    @hook
+    def extra_fee(self, wallet, tx):
+        if not wallet in self.wallets:
+            return 0
+        wallet_info = self.wallets[wallet]
+        if wallet_info['billing_info'].get('tx_remaining'):
+            return 0
+        if wallet_info['is_billing']:
+            return 0
+        # trustedcoin won't charge if the total inputs is lower than their fee
+        price = int(wallet_info['price_per_tx'].get(1))
+        assert price <= 100000
+        if tx.input_value() < price:
+            self.print_error("not charging for this tx")
+            return 0
+        return price
+
+    @hook
+    def make_unsigned_transaction(self, wallet, tx):
+        if wallet in self.wallets:
+            price = self.extra_fee(wallet, tx)
+            if not price:
+                return
+            address = self.wallets[wallet]['billing_info']['billing_address']
+            tx.outputs.append(('address', address, price))
+
+    @hook
+    def sign_transaction(self, wallet, tx, password):
+        self.print_error("twofactor:sign")
+        if not wallet in self.wallets:
+            self.print_error("not 2fa wallet")
+            return
+
+        auth_code = self.wallets[wallet]['auth_code']
+        if not auth_code:
+            self.print_error("sign_transaction: no auth code")
+            return
+
+        if tx.is_complete():
+            return
+
+        long_user_id, short_id = get_user_id(wallet)
+        tx_dict = tx.as_dict()
+        raw_tx = tx_dict["hex"]
+        try:
+            r = server.sign(short_id, raw_tx, auth_code)
+        except Exception as e:
+            tx.error = str(e)
+            return
+
+        self.print_error( "received answer", r)
+        if not r:
+            return
+
+        raw_tx = r.get('transaction')
+        tx.update(raw_tx)
+        self.print_error("twofactor: is complete", tx.is_complete())
+
     def settings_dialog(self, window):
-        self.waiting_dialog = WaitingDialog(window, 'please wait...', self.request_billing_info, partial(self.show_settings_dialog, window))
+        task = partial(self.request_billing_info, window.wallet)
+        self.waiting_dialog = WaitingDialog(window, 'please wait...', task, partial(self.show_settings_dialog, window))
         self.waiting_dialog.start()
 
     def show_settings_dialog(self, window, success):
@@ -538,6 +544,7 @@ class Plugin(BasePlugin):
             window.show_message(_('Server not reachable.'))
             return
 
+        wallet = window.wallet
         d = QDialog(window)
         d.setWindowTitle("TrustedCoin Information")
         d.setMinimumSize(500, 200)
@@ -569,16 +576,17 @@ class Plugin(BasePlugin):
         grid = QGridLayout()
         vbox.addLayout(grid)
 
-        v = self.price_per_tx.get(1)
+        price_per_tx = self.wallets[wallet]['price_per_tx']
+        v = price_per_tx.get(1)
         grid.addWidget(QLabel(_("Price per transaction (not prepaid):")), 0, 0)
         grid.addWidget(QLabel(window.format_amount(v) + ' ' + window.base_unit()), 0, 1)
 
         i = 1
 
-        if 10 not in self.price_per_tx:
-            self.price_per_tx[10] = 10 * self.price_per_tx.get(1)
+        if 10 not in price_per_tx:
+            price_per_tx[10] = 10 * price_per_tx.get(1)
 
-        for k, v in sorted(self.price_per_tx.items()):
+        for k, v in sorted(price_per_tx.items()):
             if k == 1:
                 continue
             grid.addWidget(QLabel("Price for %d prepaid transactions:"%k), i, 0)
@@ -588,7 +596,7 @@ class Plugin(BasePlugin):
             grid.addWidget(b, i, 2)
             i += 1
 
-        n = self.billing_info.get('tx_remaining', 0)
+        n = self.wallets[wallet]['billing_info'].get('tx_remaining', 0)
         grid.addWidget(QLabel(_("Your wallet has %d prepaid transactions.")%n), i, 0)
 
         # tranfer button
@@ -608,20 +616,13 @@ class Plugin(BasePlugin):
         d.close()
         if window.pluginsdialog:
             window.pluginsdialog.close()
-        uri = "bitcoin:" + self.billing_info['billing_address'] + "?message=TrustedCoin %d Prepaid Transactions&amount="%k + str(Decimal(v)/100000000)
-        self.is_billing = True
+        wallet_info = self.wallets[window.wallet]
+        uri = "bitcoin:" + wallet_info['billing_info']['billing_address'] + "?message=TrustedCoin %d Prepaid Transactions&amount="%k + str(Decimal(v)/100000000)
+        wallet_info['is_billing'] = True
         window.pay_to_URI(uri)
         window.payto_e.setFrozen(True)
         window.message_e.setFrozen(True)
         window.amount_e.setFrozen(True)
-
-    def request_billing_info(self):
-        billing_info = server.get(self.user_id)
-        billing_address = self.make_billing_address(billing_info['billing_index'])
-        assert billing_address == billing_info['billing_address']
-        self.billing_info = billing_info
-        self.price_per_tx = dict(self.billing_info['price_per_tx'])
-        return True
 
     def accept_terms_of_use(self, window):
         vbox = QVBoxLayout()
@@ -649,7 +650,7 @@ class Plugin(BasePlugin):
             tos_e.setText(self.TOS)
 
         window.connect(window, SIGNAL('twofactor:TOS'), on_result)
-        t = threading.Thread(target=request_TOS)
+        t = Thread(target=request_TOS)
         t.setDaemon(True)
         t.start()
 
