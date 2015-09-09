@@ -221,7 +221,6 @@ class Interface(util.PrintError):
         self.pipe.set_timeout(0.0)  # Don't wait for data
         # Dump network messages.  Set at runtime from the console.
         self.debug = False
-        self.message_id = 0
         self.unsent_requests = []
         self.unanswered_requests = {}
         # Set last ping to zero to ensure immediate ping
@@ -241,32 +240,26 @@ class Interface(util.PrintError):
             self.socket.shutdown(socket.SHUT_RDWR)
         self.socket.close()
 
-    def queue_request(self, request):
-        '''Queue a request.'''
+    def queue_request(self, *args):  # method, params, _id
+        '''Queue a request, later to be send with send_requests when the
+        socket is available for writing.
+        '''
         self.request_time = time.time()
-        self.unsent_requests.append(request)
+        self.unsent_requests.append(args)
 
     def send_requests(self):
         '''Sends all queued requests.  Returns False on failure.'''
-        def copy_request(orig):
-            # Replace ID after making copy - mustn't change caller's copy
-            request = orig.copy()
-            request['id'] = self.message_id
-            self.message_id += 1
-            if self.debug:
-                self.print_error("-->", request, orig.get('id'))
-            return request
-
-        requests_as_sent = map(copy_request, self.unsent_requests)
+        make_dict = lambda (m, p, i): {'method': m, 'params': p, 'id': i}
+        wire_requests = map(make_dict, self.unsent_requests)
         try:
-            self.pipe.send_all(requests_as_sent)
+            self.pipe.send_all(wire_requests)
         except socket.error, e:
             self.print_error("socket error:", e)
             return False
-        # unanswered_requests stores the original unmodified user
-        # request, keyed by wire ID
-        for n, request in enumerate(self.unsent_requests):
-            self.unanswered_requests[requests_as_sent[n]['id']] = request
+        for request in self.unsent_requests:
+            if self.debug:
+                self.print_error("-->", request)
+            self.unanswered_requests[request[2]] = request
         self.unsent_requests = []
         return True
 
@@ -291,37 +284,39 @@ class Interface(util.PrintError):
 
     def get_responses(self):
         '''Call if there is data available on the socket.  Returns a list of
-        notifications and a list of responses.  The notifications are
-        singleton unsolicited responses presumably as a result of
-        prior subscriptions.  The responses are (request, response)
-        pairs.  If the connection was closed remotely or the remote
-        server is misbehaving, the last notification will be None.
+        (request, response) pairs.  Notifications are singleton
+        unsolicited responses presumably as a result of prior
+        subscriptions, so request is None and there is no 'id' member.
+        Otherwise it is a response, which has an 'id' member and a
+        corresponding request.  If the connection was closed remotely
+        or the remote server is misbehaving, a (None, None) will appear.
         '''
-        notifications, responses = [], []
+        responses = []
         while True:
             try:
                 response = self.pipe.get()
             except util.timeout:
                 break
             if response is None:
-                notifications.append(None)
+                responses.append((None, None))
                 self.closed_remotely = True
                 self.print_error("connection closed remotely")
                 break
             if self.debug:
                 self.print_error("<--", response)
-            wire_id = response.pop('id', None)
-            if wire_id is None:
-                notifications.append(response)
-            elif wire_id in self.unanswered_requests:
-                request = self.unanswered_requests.pop(wire_id)
-                responses.append((request, response))
+            wire_id = response.get('id', None)
+            if wire_id is None:  # Notification
+                responses.append((None, response))
             else:
-                notifications.append(None)
-                self.print_error("unknown wire ID", wire_id)
-                break
+                request = self.unanswered_requests.pop(wire_id, None)
+                if request:
+                    responses.append((request, response))
+                else:
+                    self.print_error("unknown wire ID", wire_id)
+                    responses.append(None, None) # Signal
+                    break
 
-        return notifications, responses
+        return responses
 
 
 def check_cert(host, cert):

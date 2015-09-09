@@ -16,13 +16,15 @@ def get_interfaces(servers, timeout=10):
             connecting[server] = Connection(server, socket_queue, config.path)
     interfaces = {}
     timeout = time.time() + timeout
-    while time.time() < timeout:
+    count = 0
+    while time.time() < timeout and count < len(servers):
         try:
-            server, socket = socket_queue.get(True, 1)
+            server, socket = socket_queue.get(True, 0.3)
         except Queue.Empty:
             continue
         if socket:
             interfaces[server] = Interface(server, socket)
+        count += 1
     return interfaces
 
 def wait_on_interfaces(interfaces, timeout=10):
@@ -37,7 +39,7 @@ def wait_on_interfaces(interfaces, timeout=10):
         for interface in wout:
             interface.send_requests()
         for interface in rout:
-            notifications, responses = interface.get_responses()
+            responses = interface.get_responses()
             if responses:
                 result[interface.server].extend(responses)
     return result
@@ -52,25 +54,23 @@ def get_peers():
         return []
     # 2. get list of peers
     interface = interfaces[server]
-    interface.queue_request({'id':0, 'method': 'server.peers.subscribe',
-                             'params': []})
-    responses = wait_on_interfaces(interfaces)
-    responses = responses.get(server)
+    interface.queue_request('server.peers.subscribe', [], 0)
+    responses = wait_on_interfaces(interfaces).get(server)
     if responses:
         response = responses[0][1]  # One response, (req, response) tuple
         peers = parse_servers(response.get('result'))
         peers = filter_protocol(peers,'s')
     return peers
 
-def send_request(peers, request):
+def send_request(peers, method, params):
     print "Contacting %d servers"%len(peers)
     interfaces = get_interfaces(peers)
     print "%d servers could be reached" % len(interfaces)
     for peer in peers:
         if not peer in interfaces:
             print "Connection failed:", peer
-    for i in interfaces.values():
-        i.queue_request(request)
+    for msg_id, i in enumerate(interfaces.values()):
+        i.queue_request(method, params, msg_id)
     responses = wait_on_interfaces(interfaces)
     for peer in interfaces:
         if not peer in responses:
