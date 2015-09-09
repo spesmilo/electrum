@@ -418,6 +418,7 @@ class Network(util.DaemonThread):
         if server already is our interface.'''
         self.default_server = server
         if server not in self.interfaces:
+            self.interface = None
             self.start_interface(server)
             return
         i = self.interfaces[server]
