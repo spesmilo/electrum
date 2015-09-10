@@ -95,38 +95,10 @@ class InstallWizard(Widget):
 
         action = dialog.action
         if button == dialog.ids.create:
-            # create
-            # TODO take from UI instead of hardcoding
-            #t = dialog.wallet_type
-            t = 'standard'
-
-            if t == 'standard':
-                wallet = Wallet(self.storage)
-                action = 'create'
-
-            elif t == '2fa':
-                wallet = Wallet_2of3(self.storage)
-                run_hook('create_cold_seed', wallet, self)
-                self.create_cold_seed(wallet)
-                return
-
-            elif t == '2of2':
-                wallet = Wallet_2of2(self.storage)
-                action = 'create_2of2_1'
-
-            elif t == '2of3':
-                wallet = Wallet_2of3(self.storage)
-                action = 'create_2of3_1'
-
-        if action in ['create_2fa_2', 'create_2of3_2']:
-            wallet = Wallet_2of3(self.storage)
-
-        if action in ['create', 'create_2of2_1',
-                      'create_2fa_2', 'create_2of3_1']:
-            self.password_dialog(wallet=wallet, mode=action)
+            wallet = Wallet(self.storage)
+            self.password_dialog(wallet=wallet, mode='create')
 
         elif button == dialog.ids.restore:
-            # restore
             wallet = None
             self.restore_seed_dialog(wallet)
 
@@ -134,72 +106,12 @@ class InstallWizard(Widget):
             self.dispatch('on_wizard_complete', None)
 
     def restore_seed_dialog(self, wallet):
-        #TODO t currently hardcoded
-        t = 'standard'
-        if t == 'standard':
-            from electrum_gui.kivy.uix.dialogs.create_restore import\
-                RestoreSeedDialog
-            RestoreSeedDialog(
-                on_release=partial(self.on_verify_restore_ok, wallet),
-                                    wizard=weakref.proxy(self)).open()
+        from electrum_gui.kivy.uix.dialogs.create_restore import\
+            RestoreSeedDialog
+        RestoreSeedDialog(
+            on_release=partial(self.on_verify_restore_ok, wallet),
+            wizard=weakref.proxy(self)).open()
 
-        elif t in ['2fa', '2of2']:
-            r = self.multi_seed_dialog(1)
-            if not r:
-                return
-            text1, text2 = r
-            password = self.password_dialog(wallet=wallet)
-            if t == '2of2':
-                wallet = Wallet_2of2(self.storage)
-            elif t == '2of3':
-                wallet = Wallet_2of3(self.storage)
-            elif t == '2fa':
-                wallet = Wallet_2of3(self.storage)
-
-            if Wallet.is_seed(text1):
-                wallet.add_seed(text1, password)
-                if Wallet.is_seed(text2):
-                    wallet.add_cold_seed(text2, password)
-                else:
-                    wallet.add_master_public_key("cold/", text2)
-
-            elif Wallet.is_mpk(text1):
-                if Wallet.is_seed(text2):
-                    wallet.add_seed(text2, password)
-                    wallet.add_master_public_key("cold/", text1)
-                else:
-                    wallet.add_master_public_key("m/", text1)
-                    wallet.add_master_public_key("cold/", text2)
-
-            if t == '2fa':
-                run_hook('restore_third_key', wallet, self)
-
-            wallet.create_account()
-
-        elif t in ['2of3']:
-            r = self.multi_seed_dialog(2)
-            if not r:
-                return
-            text1, text2, text3 = r
-            password = self.password_dialog()
-            wallet = Wallet_2of3(self.storage)
-
-            if Wallet.is_seed(text1):
-                wallet.add_seed(text1, password)
-                if Wallet.is_seed(text2):
-                    wallet.add_cold_seed(text2, password)
-                else:
-                    wallet.add_master_public_key("cold/", text2)
-            
-            elif Wallet.is_mpk(text1):
-                if Wallet.is_seed(text2):
-                    wallet.add_seed(text2, password)
-                    wallet.add_master_public_key("cold/", text1)
-                else:
-                    wallet.add_master_public_key("m/", text1)
-                    wallet.add_master_public_key("cold/", text2)
-            
-            wallet.create_account()
 
     def on_verify_restore_ok(self, wallet, _dlg, btn, restore=False):
         if btn in (_dlg.ids.back, _dlg.ids.but_close) :
@@ -267,50 +179,16 @@ class InstallWizard(Widget):
             if instance is None:
                 # in initial phase create mode
                 # save seed with password
-                wallet.add_seed(seed, password)
-                sid = None if mode == 'create' else 'hot'
 
-                if mode == 'create':
-                    def create(password):
-                        wallet.create_accounts(password)
-                        wallet.synchronize()  # generate first addresses offline
+                def create(password):
+                    wallet.add_seed(seed, password)
+                    wallet.create_master_keys(password)
+                    wallet.create_main_account(password)
+                    wallet.synchronize()  # generate first addresses offline
 
-                    self.waiting_dialog(partial(create, password),
-                                        on_complete=partial(self.load_network,
-                                                            wallet, mode=mode))
-                elif mode == 'create_2of2_1':
-                    mode = 'create_2of2_2'
-                elif mode == 'create_2of3_1':
-                    mode = 'create_2of3_2'
-                elif mode == 'create_2fa_2':
-                    mode = 'create_2fa_3'
-
-                if mode == 'create_2of2_2':
-                    xpub_hot = wallet.master_public_keys.get("m/")
-                    xpub = self.multi_mpk_dialog(xpub_hot, 1)
-                    if not xpub:
-                        return
-                    wallet.add_master_public_key("cold/", xpub)
-                    wallet.create_account()
-                    self.waiting_dialog(wallet.synchronize)
-
-                if mode == 'create_2of3_2':
-                    xpub_hot = wallet.master_public_keys.get("m/")
-                    r = self.multi_mpk_dialog(xpub_hot, 2)
-                    if not r:
-                        return
-                    xpub1, xpub2 = r
-                    wallet.add_master_public_key("cold/", xpub1)
-                    wallet.add_master_public_key("remote/", xpub2)
-                    wallet.create_account()
-                    self.waiting_dialog(wallet.synchronize)
-
-                if mode == 'create_2fa_3':
-                    run_hook('create_remote_key', wallet, self)
-                    if not wallet.master_public_keys.get("remote/"):
-                        return
-                    wallet.create_account()
-                    self.waiting_dialog(wallet.synchronize)
+                self.waiting_dialog(partial(create, password),
+                                    on_complete=partial(self.load_network,
+                                                        wallet, mode=mode))
 
 
         from electrum_gui.kivy.uix.dialogs.create_restore import InitSeedDialog
@@ -419,7 +297,6 @@ class InstallWizard(Widget):
                     text=_('Password successfully updated'), duration=1,
                     pos=_btn.pos)
             _dlg.close()
-
 
             if instance is None:  # in initial phase
                 self.load_wallet()
