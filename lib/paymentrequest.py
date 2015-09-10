@@ -128,6 +128,7 @@ class PaymentRequest:
         try:
             x, ca = verify_cert_chain(cert.certificate)
         except BaseException as e:
+            traceback.print_exc(file=sys.stderr)
             self.error = str(e)
             return False
         # get requestor name

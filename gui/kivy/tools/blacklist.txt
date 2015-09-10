@@ -29,7 +29,7 @@ gui/android*
 gui/gtk*
 gui/qt*
 gui/kivy/tools
-
+build/*
 
 # unused kivy files (platform specific)
 kivy/input/providers/wm_*

@@ -179,8 +179,6 @@ class Network(util.DaemonThread):
 
         # subscriptions and requests
         self.subscribed_addresses = set()
-        # cached address status
-        self.addr_responses = {}
         # Requests from client we've not seen a response to
         self.unanswered_requests = {}
         # retry times
@@ -258,15 +256,26 @@ class Network(util.DaemonThread):
     def is_up_to_date(self):
         return self.unanswered_requests == {}
 
-    def queue_request(self, method, params):
-        self.interface.queue_request({'method': method, 'params': params})
+    def queue_request(self, method, params, interface=None):
+        # If you want to queue a request on any interface it must go
+        # through this function so message ids are properly tracked
+        if interface is None:
+            interface = self.interface
+        message_id = self.message_id
+        self.message_id += 1
+        interface.queue_request(method, params, message_id)
+        return message_id
 
     def send_subscriptions(self):
         # clear cache
         self.cached_responses = {}
         self.print_error('sending subscriptions to', self.interface.server, len(self.unanswered_requests), len(self.subscribed_addresses))
-        for r in self.unanswered_requests.values():
-            self.interface.queue_request(r[0])
+        # Resend unanswered requests
+        requests = self.unanswered_requests.values()
+        self.unanswered_requests = {}
+        for request in requests:
+            message_id = self.queue_request(request[0], request[1])
+            self.unanswered_requests[message_id] = request
         for addr in self.subscribed_addresses:
             self.queue_request('blockchain.address.subscribe', [addr])
         self.queue_request('server.banner', [])
@@ -411,6 +420,7 @@ class Network(util.DaemonThread):
         if server already is our interface.'''
         self.default_server = server
         if server not in self.interfaces:
+            self.interface = None
             self.start_interface(server)
             return
         i = self.interfaces[server]
@@ -419,7 +429,6 @@ class Network(util.DaemonThread):
             # stop any current interface in order to terminate subscriptions
             self.close_interface(self.interface)
             self.interface = i
-            self.addr_responses = {}
             self.send_subscriptions()
             self.set_status('connected')
             self.notify('updated')
@@ -474,10 +483,6 @@ class Network(util.DaemonThread):
         elif method == 'blockchain.block.get_header':
             self.on_get_header(interface, response)
         else:
-            # Cache address subscription results
-            if method == 'blockchain.address.subscribe' and error is None:
-                addr = response['params'][0]
-                self.addr_responses[addr] = response
             if callback is None:
                 params = response['params']
                 with self.lock:
@@ -492,37 +497,42 @@ class Network(util.DaemonThread):
                 callback(response)
 
     def process_responses(self, interface):
-        notifications, responses = interface.get_responses()
+        responses = interface.get_responses()
 
         for request, response in responses:
-            # Client ID was given by the daemon or proxy
-            client_id = request.get('id')
-            if client_id is not None:
-                if interface != self.interface:
-                    continue
-                _req, callback = self.unanswered_requests.pop(client_id)
+            callback = None
+            if request:
+                method, params, message_id = request
+                # client requests go through self.send() with a
+                # callback, are only sent to the current interface,
+                # and are placed in the unanswered_requests dictionary
+                client_req = self.unanswered_requests.pop(message_id, None)
+                if client_req:
+                    assert interface == self.interface
+                    callback = client_req[2]
+                # Copy the request method and params to the response
+                response['method'] = method
+                response['params'] = params
+                # Only once we've received a response to an addr subscription
+                # add it to the list; avoids double-sends on reconnection
+                if method == 'blockchain.address.subscribe':
+                    self.subscribed_addresses.add(params[0])
             else:
-                callback = None
-            # Copy the request method and params to the response
-            response['method'] = request.get('method')
-            response['params'] = request.get('params')
-            response['id'] = client_id
-            self.process_response(interface, response, callback)
+                if not response:  # Closed remotely / misbehaving
+                    self.connection_down(interface.server)
+                    break
+                # Rewrite response shape to match subscription request response
+                method = response.get('method')
+                params = response.get('params')
+                if method == 'blockchain.headers.subscribe':
+                    response['result'] = params[0]
+                    response['params'] = []
+                elif method == 'blockchain.address.subscribe':
+                    response['params'] = [params[0]]  # addr
+                    response['result'] = params[1]
 
-        for response in notifications:
-            if not response:  # Closed remotely
-                self.connection_down(interface.server)
-                break
-            # Rewrite response shape to match subscription request response
-            method = response.get('method')
-            params = response.get('params')
-            if method == 'blockchain.headers.subscribe':
-                response['result'] = params[0]
-                response['params'] = []
-            elif method == 'blockchain.address.subscribe':
-                response['params'] = [params[0]]  # addr
-                response['result'] = params[1]
-            self.process_response(interface, response, None)
+            # Response is now in canonical form
+            self.process_response(interface, response, callback)
 
     def send(self, messages, callback):
         '''Messages is a list of (method, value) tuples'''
@@ -539,16 +549,11 @@ class Network(util.DaemonThread):
                 for sub in subs:
                     if sub not in self.subscriptions[callback]:
                         self.subscriptions[callback].append(sub)
-                _id = self.message_id
-                self.message_id += len(messages)
 
             unsent = []
             for message in messages:
-                method, params = message
-                request = {'id': _id, 'method': method, 'params': params}
-                if not self.process_request(request, callback):
+                if not self.process_request(message, callback):
                     unsent.append(message)
-                _id += 1
 
             if unsent:
                 with self.lock:
@@ -557,12 +562,10 @@ class Network(util.DaemonThread):
     # FIXME: inline this function
     def process_request(self, request, callback):
         '''Returns true if the request was processed.'''
-        method = request['method']
-        params = request['params']
-        _id = request['id']
+        method, params = request
 
         if method.startswith('network.'):
-            out = {'id':_id}
+            out = {}
             try:
                 f = getattr(self, method[8:])
                 out['result'] = f(*params)
@@ -575,13 +578,6 @@ class Network(util.DaemonThread):
             callback(out)
             return True
 
-        if method == 'blockchain.address.subscribe':
-            addr = params[0]
-            self.subscribed_addresses.add(addr)
-            if addr in self.addr_responses:
-                callback(self.addr_responses[addr])
-                return True
-
         # This request needs connectivity.  If we don't have an
         # interface, we cannot process it.
         if not self.interface:
@@ -589,8 +585,8 @@ class Network(util.DaemonThread):
 
         if self.debug:
             self.print_error("-->", request)
-        self.unanswered_requests[_id] = request, callback
-        self.interface.queue_request(request)
+        message_id = self.queue_request(method, params)
+        self.unanswered_requests[message_id] = method, params, callback
         return True
 
     def connection_down(self, server):
@@ -607,8 +603,7 @@ class Network(util.DaemonThread):
     def new_interface(self, server, socket):
         self.add_recent_server(server)
         self.interfaces[server] = interface = Interface(server, socket)
-        interface.queue_request({'method': 'blockchain.headers.subscribe',
-                                 'params': []})
+        self.queue_request('blockchain.headers.subscribe', [], interface)
         if server == self.default_server:
             self.switch_to_interface(server)
         self.notify('interfaces')
@@ -629,9 +624,8 @@ class Network(util.DaemonThread):
             if interface.has_timed_out():
                 self.connection_down(interface.server)
             elif interface.ping_required():
-                version_req = {'method': 'server.version',
-                               'params': [ELECTRUM_VERSION, PROTOCOL_VERSION]}
-                interface.queue_request(version_req)
+                params = [ELECTRUM_VERSION, PROTOCOL_VERSION]
+                self.queue_request('server.version', params, interface)
 
         now = time.time()
         # nodes
@@ -657,8 +651,7 @@ class Network(util.DaemonThread):
 
     def request_chunk(self, interface, data, idx):
         interface.print_error("requesting chunk %d" % idx)
-        interface.queue_request({'method':'blockchain.block.get_chunk',
-                                 'params':[idx]})
+        self.queue_request('blockchain.block.get_chunk', [idx], interface)
         data['chunk_idx'] = idx
         data['req_time'] = time.time()
 
@@ -679,8 +672,7 @@ class Network(util.DaemonThread):
 
     def request_header(self, interface, data, height):
         interface.print_error("requesting header %d" % height)
-        interface.queue_request({'method':'blockchain.block.get_header',
-                                 'params':[height]})
+        self.queue_request('blockchain.block.get_header', [height], interface)
         data['header_height'] = height
         data['req_time'] = time.time()
         if not 'chain' in data:

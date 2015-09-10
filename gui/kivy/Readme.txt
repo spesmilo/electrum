@@ -1,3 +1,5 @@
+Before compiling, create packages: `contrib/make_packages`
+
 Commands::
 
     `make theming` to make a atlas out of a list of pngs

@@ -1,11 +1,11 @@
 import sys
 import datetime
-
-from android import activity
+import traceback
 
 from electrum_ltc import WalletStorage, Wallet
 from electrum_ltc.i18n import _, set_language
 from electrum_ltc.contacts import Contacts
+from electrum_ltc import bitcoin
 
 from kivy.config import Config
 Config.set('modules', 'screen', 'droid2')
@@ -29,11 +29,10 @@ Factory.register('InstallWizard',
                  module='electrum_ltc_gui.kivy.uix.dialogs.installwizard')
 Factory.register('InfoBubble', module='electrum_ltc_gui.kivy.uix.dialogs')
 Factory.register('ELTextInput', module='electrum_ltc_gui.kivy.uix.screens')
-Factory.register('QrScannerDialog', module='electrum_ltc_gui.kivy.uix.dialogs.qr_scanner')
 
 
 # delayed imports: for startup speed on android
-notification = app = Decimal = ref = format_satoshis = bitcoin = Builder = None
+notification = app = Decimal = ref = format_satoshis = Builder = None
 inch = None
 util = False
 re = None
@@ -124,6 +123,17 @@ class ElectrumWindow(App):
     '''Number of zeros used while representing the value in base_unit.
     '''
 
+    def get_amount(self, amount_str):
+        from electrum_ltc.bitcoin import COIN
+        from decimal import Decimal
+        try:
+            x = Decimal(str(amount_str))
+        except:
+            return None
+        p = pow(10, self.decimal_point)
+        return int(p * x)
+
+
     navigation_higherarchy = ListProperty([])
     '''This is a list of the current navigation higherarchy of the app used to
     navigate using back button.
@@ -188,8 +198,8 @@ class ElectrumWindow(App):
         self.electrum_config = config = kwargs.get('config', None)
         self.gui_object = kwargs.get('gui_object', None)
 
-        self.config = self.gui_object.config
-        self.contacts = Contacts(self.config)
+        #self.config = self.gui_object.config
+        self.contacts = Contacts(self.electrum_config)
 
         self.bind(url=self.set_url)
         # were we sent a url?
@@ -208,16 +218,9 @@ class ElectrumWindow(App):
     def set_url(self, instance, url):
         self.gui_object.set_url(url)
 
-    def old_scan_qr(self, on_complete):
-        dlg = Cache.get('electrum_ltc_widgets', 'QrScannerDialog')
-        if not dlg:
-            dlg = Factory.QrScannerDialog()
-            Cache.append('electrum_ltc_widgets', 'QrScannerDialog', dlg)
-            dlg.bind(on_complete=on_complete)
-        dlg.open()
-
     def scan_qr(self, on_complete):
         from jnius import autoclass
+        from android import activity
         PythonActivity = autoclass('org.renpy.android.PythonActivity')
         Intent = autoclass('android.content.Intent')
         intent = Intent("com.google.zxing.client.android.SCAN")
@@ -407,6 +410,7 @@ class ElectrumWindow(App):
                          module='electrum_ltc_gui.kivy.uix.screens')
         Factory.register('CSpinner',
                          module='electrum_ltc_gui.kivy.uix.screens')
+
         # preload widgets. Remove this if you want to load the widgets on demand
         Cache.append('electrum_ltc_widgets', 'AnimatedPopup', Factory.AnimatedPopup())
         Cache.append('electrum_ltc_widgets', 'TabbedCarousel', Factory.TabbedCarousel())
@@ -498,9 +502,7 @@ class ElectrumWindow(App):
         # since the callback has been called before the GUI was initialized
         self.update_history_tab()
         self.notify_transactions()
-        self.update_account_selector()
 
-        #run_hook('load_wallet', wallet)
 
     def update_status(self, *dt):
         if not self.wallet:
@@ -564,18 +566,6 @@ class ElectrumWindow(App):
             self.update_history_tab()
             self.update_contacts_tab()
 
-    def update_account_selector(self):
-        # account selector
-        #TODO
-        return
-        accounts = self.wallet.get_account_names()
-        self.account_selector.clear()
-        if len(accounts) > 1:
-            self.account_selector.addItems([_("All accounts")] + accounts.values())
-            self.account_selector.setCurrentIndex(0)
-            self.account_selector.show()
-        else:
-            self.account_selector.hide()
 
     def parse_histories(self, items):
         for item in items:
@@ -742,45 +732,12 @@ class ElectrumWindow(App):
 
         #self.run_hook('update_contacts_tab')
 
-    def set_pay_from(self, l):
-        #TODO
-        return
-        self.pay_from = l
-        self.from_list.clear()
-        self.from_label.setHidden(len(self.pay_from) == 0)
-        self.from_list.setHidden(len(self.pay_from) == 0)
-        for addr in self.pay_from:
-            c, u = self.wallet.get_addr_balance(addr)
-            balance = self.format_amount(c + u)
-            self.from_list.addTopLevelItem(QTreeWidgetItem( [addr, balance] ))
-
-
-    def protected(func):
-        return lambda s, *args, **kwargs: s.do_protect(func, args, **kwargs)
-
-    def do_protect(self, func, **kwargs):
-        print kwargs
-        instance = kwargs.get('instance', None)
-        password = kwargs.get('password', None)
-        message = kwargs.get('message', '')
-
-        def run_func(instance=None, password=None):
-            args = (self, instance, password)
-            apply(func, args)
-
-        if self.wallet.use_encryption:
-            return self.password_required_dialog(post_ok=run_func, message=message)
-
-        return run_func()
-
     def do_send(self):
         app = App.get_running_app()
         screen_send = app.root.main_screen.ids.tabs.ids.screen_send
         scrn = screen_send.ids
         label = unicode(scrn.message_e.text)
-
         r = unicode(scrn.payto_e.text).strip()
-
         # label or alias, with address in brackets
         global re
         if not re:
@@ -788,75 +745,45 @@ class ElectrumWindow(App):
         m = re.match('(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
         to_address = m.group(2) if m else r
 
-        global bitcoin
-        if not bitcoin:
-            from electrum_ltc import bitcoin
-
         if not bitcoin.is_address(to_address):
-            app.show_error(_('Invalid Litecoin Address') +
-                                            ':\n' + to_address)
+            app.show_error(_('Invalid Litecoin Address') + ':\n' + to_address)
             return
 
-        amount = scrn.amount_e.text
+        amount = self.get_amount(scrn.amount_e.text)
+
         fee = scrn.fee_e.amt
         if not fee:
             app.show_error(_('Invalid Fee'))
             return
 
-        from pudb import set_trace; set_trace()
-        message = 'sending {} {} to {}'.format(\
-            app.base_unit, scrn.amount_e.text, r)
+        #from pudb import set_trace; set_trace()
+        message = 'sending {} {} to {}'.format(app.base_unit, scrn.amount_e.text, r)
 
-        confirm_fee = self.config.get('confirm_amount', 100000)
-        if fee >= confirm_fee:
-            if not self.question(_("The fee for this transaction seems unusually high.\nAre you really sure you want to pay %(fee)s in fees?")%{ 'fee' : self.format_amount(fee) + ' '+ self.base_unit()}):
-                return
+        # assume no password and fee is None
+        password = None
+        fee = None
+        self.send_tx([('address', to_address, amount)], fee, label, password)
 
-        self.send_tx(to_address, amount, fee, label)
-
-    @protected
     def send_tx(self, outputs, fee, label, password):
-
-        # first, create an unsigned tx 
-        domain = self.get_payment_sources()
+        app = App.get_running_app()
+        # make unsigned transaction
+        coins = self.wallet.get_spendable_coins()
         try:
-            tx = self.wallet.make_unsigned_transaction(outputs, fee, None, domain)
-            tx.error = None
+            tx = self.wallet.make_unsigned_transaction(coins, outputs, self.electrum_config, fee)
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
-            self.show_info(str(e))
+            app.show_error(str(e))
             return
+        # sign transaction
+        try:
+            self.wallet.sign_transaction(tx, password)
+        except Exception as e:
+            traceback.print_exc(file=sys.stdout)
+            app.show_error(str(e))
+            return
+        # broadcast
+        self.wallet.sendtx(tx)
 
-        # call hook to see if plugin needs gui interaction
-        #run_hook('send_tx', tx)
-
-        # sign the tx
-        def sign_thread():
-            time.sleep(0.1)
-            keypairs = {}
-            self.wallet.add_keypairs_from_wallet(tx, keypairs, password)
-            self.wallet.sign_transaction(tx, keypairs, password)
-            return tx, fee, label
-
-        def sign_done(tx, fee, label):
-            if tx.error:
-                self.show_info(tx.error)
-                return
-            if fee < tx.required_fee(self.wallet.verifier):
-                self.show_error(_("This transaction requires a higher fee, or "
-                                  "it will not be propagated by the network."))
-                return
-            if label:
-                self.wallet.set_label(tx.hash(), label)
-
-            if not self.gui_object.payment_request:
-                if not tx.is_complete() or self.config.get('show_before_broadcast'):
-                    self.show_transaction(tx)
-                    return
-
-            self.broadcast_transaction(tx)
-
-        WaitingDialog(self, 'Signing..').start(sign_thread, sign_done)
 
     def notify_transactions(self, *dt):
         '''
@@ -1063,7 +990,6 @@ class ElectrumWindow(App):
 
         self.set_frozen(content, False)
 
-        self.set_pay_from([])
         self.update_status()
 
     def set_frozen(self, entry, frozen):
@@ -1141,53 +1067,6 @@ class ElectrumWindow(App):
 
         return result
 
-    def delete_imported_key(self, addr):
-        self.wallet.delete_imported_key(addr)
-        self.update_receive_tab()
-        self.update_history_tab()
-
-    def delete_pending_account(self, k):
-        self.wallet.delete_pending_account(k)
-        self.update_receive_tab()
-
-    def get_sendable_balance(self):
-        return sum(sum(self.wallet.get_addr_balance(a))
-                   for a in self.get_payment_sources())
-
-
-    def get_payment_sources(self):
-        if self.pay_from:
-            return self.pay_from
-        else:
-            return self.wallet.get_account_addresses(self.current_account)
-
-
-    def send_from_addresses(self, addrs):
-        self.set_pay_from( addrs )
-        tabs = self.tabs
-        screen_send = tabs.ids.screen_send
-        self.tabs.setCurrentIndex(1)
-
-
-    def payto(self, addr):
-        if not addr:
-            return
-        label = self.wallet.labels.get(addr)
-        m_addr = label + '  <' + addr + '>' if label else addr
-        self.tabs.setCurrentIndex(1)
-        self.payto_e.setText(m_addr)
-        self.amount_e.setFocus()
-
-
-    def delete_contact(self, x):
-        if self.question(_("Do you want to remove") +
-                         " %s "%x +
-                         _("from your list of contacts?")):
-            self.wallet.delete_contact(x)
-            self.wallet.set_label(x, None)
-            self.update_history_tab()
-            self.update_contacts_tab()
-
     def show_error(self, error, width='200dp', pos=None, arrow_pos=None,
         exit=False, icon='atlas://gui/kivy/theming/light/error', duration=0,
         modal=False):
@@ -1245,8 +1124,8 @@ class ElectrumWindow(App):
         else:
             info_bubble.fs = False
             info_bubble.icon = icon
-            if img.texture and img._coreimage:
-                img.reload()
+            #if img.texture and img._coreimage:
+            #    img.reload()
             img.allow_stretch = False
             info_bubble.dim_background = False
             info_bubble.background_image = 'atlas://data/images/defaulttheme/bubble'

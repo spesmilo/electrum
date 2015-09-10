@@ -10,7 +10,7 @@ set_verbosity(False)
 
 config = SimpleConfig()
 servers = filter_protocol(protocol = 't')
-results = util.send_request(servers, {'method':'blockchain.headers.subscribe', 'params':[]})
+results = util.send_request(servers, 'blockchain.headers.subscribe', [])
 
 d = defaultdict(int)
 
