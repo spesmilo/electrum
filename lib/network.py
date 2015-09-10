@@ -175,8 +175,6 @@ class Network(util.DaemonThread):
 
         # subscriptions and requests
         self.subscribed_addresses = set()
-        # cached address status
-        self.addr_responses = {}
         # Requests from client we've not seen a response to
         self.unanswered_requests = {}
         # retry times
@@ -427,7 +425,6 @@ class Network(util.DaemonThread):
             # stop any current interface in order to terminate subscriptions
             self.close_interface(self.interface)
             self.interface = i
-            self.addr_responses = {}
             self.send_subscriptions()
             self.set_status('connected')
             self.notify('updated')
@@ -482,10 +479,6 @@ class Network(util.DaemonThread):
         elif method == 'blockchain.block.get_header':
             self.on_get_header(interface, response)
         else:
-            # Cache address subscription results
-            if method == 'blockchain.address.subscribe' and error is None:
-                addr = response['params'][0]
-                self.addr_responses[addr] = response
             if callback is None:
                 params = response['params']
                 with self.lock:
@@ -580,9 +573,6 @@ class Network(util.DaemonThread):
         if method == 'blockchain.address.subscribe':
             addr = params[0]
             self.subscribed_addresses.add(addr)
-            if addr in self.addr_responses:
-                callback(self.addr_responses[addr])
-                return True
 
         # This request needs connectivity.  If we don't have an
         # interface, we cannot process it.
