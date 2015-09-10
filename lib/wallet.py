@@ -40,8 +40,6 @@ from mnemonic import Mnemonic
 
 import paymentrequest
 
-
-
 # internal ID for imported account
 IMPORTED_ACCOUNT = '/x'
 
@@ -365,9 +363,9 @@ class Abstract_Wallet(PrintError):
                 changed = True
 
         if changed:
+            run_hook('set_label', self, name, text)
             self.storage.put('labels', self.labels, True)
 
-        run_hook('set_label', self, name, text, changed)
         return changed
 
     def addresses(self, include_change = True):
