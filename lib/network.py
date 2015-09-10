@@ -509,6 +509,10 @@ class Network(util.DaemonThread):
                 # Copy the request method and params to the response
                 response['method'] = method
                 response['params'] = params
+                # Only once we've received a response to an addr subscription
+                # add it to the list; avoids double-sends on reconnection
+                if method == 'blockchain.address.subscribe':
+                    self.subscribed_addresses.add(params[0])
             else:
                 if not response:  # Closed remotely / misbehaving
                     self.connection_down(interface.server)
@@ -569,10 +573,6 @@ class Network(util.DaemonThread):
                 self.print_error("network error", str(e))
             callback(out)
             return True
-
-        if method == 'blockchain.address.subscribe':
-            addr = params[0]
-            self.subscribed_addresses.add(addr)
 
         # This request needs connectivity.  If we don't have an
         # interface, we cannot process it.
