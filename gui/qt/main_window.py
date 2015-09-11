@@ -1219,10 +1219,13 @@ class ElectrumWindow(QMainWindow, PrintError):
                     self.do_clear()
                 else:
                     self.broadcast_transaction(tx, tx_desc)
-        self.sign_tx(tx, sign_done, password)
+        self.sign_tx_with_password(tx, sign_done, password)
 
-
+    @protected
     def sign_tx(self, tx, callback, password, parent=None):
+        self.sign_tx_with_password(tx, callback, password, parent)
+
+    def sign_tx_with_password(self, tx, callback, password, parent=None):
         '''Sign the transaction in a separate thread.  When done, calls
         the callback with a success code of True or False.
         '''
