@@ -76,16 +76,16 @@ class Plugin(BasePlugin):
             self.set_nonce(wallet, nonce)
         return nonce
 
-    def set_nonce(self, wallet, nonce):
+    def set_nonce(self, wallet, nonce, force_write=True):
         self.print_error("set", wallet.basename(), "nonce to", nonce)
-        wallet.storage.put("wallet_nonce", nonce, True)
+        wallet.storage.put("wallet_nonce", nonce, force_write)
 
     def requires_settings(self):
         return True
 
     @hook
-    def set_label(self, wallet, item, label, changed):
-        if not changed or not wallet in self.wallets:
+    def set_label(self, wallet, item, label):
+        if not wallet in self.wallets:
             return
         nonce = self.get_nonce(wallet)
         wallet_id = self.wallets[wallet][2]
@@ -97,7 +97,8 @@ class Plugin(BasePlugin):
                              args=["POST", "/label", False, bundle])
         t.setDaemon(True)
         t.start()
-        self.set_nonce(wallet, nonce + 1)
+        # Caller will write the wallet
+        self.set_nonce(wallet, nonce + 1, force_write=False)
 
     def settings_widget(self, window):
         return EnterButton(_('Settings'),

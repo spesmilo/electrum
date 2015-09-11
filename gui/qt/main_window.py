@@ -282,12 +282,13 @@ class ElectrumWindow(QMainWindow, PrintError):
 
     def import_old_contacts(self):
         # backward compatibility: import contacts
-        addressbook = set(self.wallet.storage.get('contacts', []))
-        for k in addressbook:
-            l = self.wallet.labels.get(k)
-            if bitcoin.is_address(k) and l:
-                self.contacts[l] = ('address', k)
-        self.wallet.storage.put('contacts', None)
+        old_contacts = self.wallet.storage.get('contacts', [])
+        if old_contacts:
+            for k in set(old_contacts):
+                l = self.wallet.labels.get(k)
+                if bitcoin.is_address(k) and l:
+                    self.contacts[l] = ('address', k)
+            self.wallet.storage.put('contacts', None)
 
     def update_wallet_format(self):
         # convert old-format imported keys

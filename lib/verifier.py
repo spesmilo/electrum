@@ -32,7 +32,7 @@ class SPV(ThreadJob):
         self.merkle_roots = {}
 
     def run(self):
-        lh = self.wallet.get_local_height()
+        lh = self.network.get_local_height()
         unverified = self.wallet.get_unverified_txs()
         for tx_hash, tx_height in unverified.items():
             # do not request merkle branch before headers are available
