@@ -51,6 +51,7 @@ class WalletStorage(PrintError):
         self.data = {}
         self.path = path
         self.file_exists = False
+        self.modified = False
         self.print_error("wallet path", self.path)
         if self.path:
             self.read(self.path)
@@ -94,7 +95,7 @@ class WalletStorage(PrintError):
                 v = default
             else:
                 v = copy.deepcopy(v)
-            return v
+        return v
 
     def put(self, key, value, save = True):
         try:
@@ -105,16 +106,22 @@ class WalletStorage(PrintError):
             return
         with self.lock:
             if value is not None:
-                self.data[key] = copy.deepcopy(value)
+                if self.data.get(key) != value:
+                    self.modified = True
+                    self.data[key] = copy.deepcopy(value)
             elif key in self.data:
+                self.modified = True
                 self.data.pop(key)
-            if save:
-                self.write()
+        if save:
+            self.write()
 
     def write(self):
         assert not threading.currentThread().isDaemon()
+        if not self.modified:
+            return
+        with self.lock:
+            s = json.dumps(self.data, indent=4, sort_keys=True)
         temp_path = "%s.tmp.%s" % (self.path, os.getpid())
-        s = json.dumps(self.data, indent=4, sort_keys=True)
         with open(temp_path, "w") as f:
             f.write(s)
             f.flush()
@@ -128,6 +135,7 @@ class WalletStorage(PrintError):
         if 'ANDROID_DATA' not in os.environ:
             import stat
             os.chmod(self.path,stat.S_IREAD | stat.S_IWRITE)
+        self.print_error("saved")
 
 
 
