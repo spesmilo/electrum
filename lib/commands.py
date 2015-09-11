@@ -66,8 +66,8 @@ def command(s):
         name = func.__name__
         known_commands[name] = Command(func, s)
         @wraps(func)
-        def func_wrapper(*args):
-            return func(*args)
+        def func_wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
         return func_wrapper
     return decorator
 
