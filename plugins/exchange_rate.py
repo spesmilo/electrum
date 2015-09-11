@@ -394,14 +394,18 @@ class Plugin(BasePlugin, ThreadJob):
             return Decimal(rate)
 
     @hook
+    def format_amount_and_units(self, btc_balance):
+        rate = self.exchange_rate()
+        return '' if rate is None else " (%s %s)" % (self.value_str(btc_balance, rate), self.ccy)
+
+    @hook
     def get_fiat_status_text(self, btc_balance, result):
         # return status as:   (1.23 USD)    1 BTC~123.45 USD
         rate = self.exchange_rate()
         if rate is None:
             text = _("  (No FX rate available)")
         else:
-            text =  "  (%s %s)    1 BTC~%s %s" % (self.value_str(btc_balance, rate), self.ccy,
-                                                  self.value_str(COIN, rate), self.ccy)
+            text =  "1 BTC~%s %s" % (self.value_str(COIN, rate), self.ccy)
         result['text'] = text
 
     def get_historical_rates(self):
