@@ -558,20 +558,6 @@ class Network(util.DaemonThread):
         '''Returns true if the request was processed.'''
         method, params = request
 
-        if method.startswith('network.'):
-            out = {}
-            try:
-                f = getattr(self, method[8:])
-                out['result'] = f(*params)
-            except AttributeError:
-                out['error'] = "unknown method"
-            except BaseException as e:
-                out['error'] = str(e)
-                traceback.print_exc(file=sys.stdout)
-                self.print_error("network error", str(e))
-            callback(out)
-            return True
-
         # This request needs connectivity.  If we don't have an
         # interface, we cannot process it.
         if not self.interface:
