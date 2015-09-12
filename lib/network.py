@@ -263,8 +263,6 @@ class Network(util.DaemonThread):
         return message_id
 
     def send_subscriptions(self):
-        # clear cache
-        self.cached_responses = {}
         self.print_error('sending subscriptions to', self.interface.server, len(self.unanswered_requests), len(self.subscribed_addresses))
         # Resend unanswered requests
         requests = self.unanswered_requests.values()
