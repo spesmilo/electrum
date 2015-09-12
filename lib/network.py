@@ -534,8 +534,14 @@ class Network(util.DaemonThread):
             self.pending_sends.append((messages, callback))
 
     def process_pending_sends(self):
-        sends = self.pending_sends
-        self.pending_sends = []
+        # Requests needs connectivity.  If we don't have an interface,
+        # we cannot process them.
+        if not self.interface:
+            return
+
+        with self.lock:
+            sends = self.pending_sends
+            self.pending_sends = []
 
         for messages, callback in sends:
             subs = filter(lambda (m,v): m.endswith('.subscribe'), messages)
@@ -544,30 +550,11 @@ class Network(util.DaemonThread):
                     if sub not in self.subscriptions[callback]:
                         self.subscriptions[callback].append(sub)
 
-            unsent = []
-            for message in messages:
-                if not self.process_request(message, callback):
-                    unsent.append(message)
-
-            if unsent:
-                with self.lock:
-                    self.pending_sends.append((unsent, callback))
-
-    # FIXME: inline this function
-    def process_request(self, request, callback):
-        '''Returns true if the request was processed.'''
-        method, params = request
-
-        # This request needs connectivity.  If we don't have an
-        # interface, we cannot process it.
-        if not self.interface:
-            return False
-
-        if self.debug:
-            self.print_error("-->", request)
-        message_id = self.queue_request(method, params)
-        self.unanswered_requests[message_id] = method, params, callback
-        return True
+            for method, params in messages:
+                if self.debug:
+                    self.print_error("-->", request)
+                message_id = self.queue_request(method, params)
+                self.unanswered_requests[message_id] = method, params, callback
 
     def connection_down(self, server):
         '''A connection to server either went down, or was never made.
