@@ -259,6 +259,8 @@ class Network(util.DaemonThread):
             interface = self.interface
         message_id = self.message_id
         self.message_id += 1
+        if self.debug:
+            self.print_error(interface.host, "-->", method, params, message_id)
         interface.queue_request(method, params, message_id)
         return message_id
 
@@ -551,8 +553,6 @@ class Network(util.DaemonThread):
                         self.subscriptions[callback].append(sub)
 
             for method, params in messages:
-                if self.debug:
-                    self.print_error("-->", request)
                 message_id = self.queue_request(method, params)
                 self.unanswered_requests[message_id] = method, params, callback
 
