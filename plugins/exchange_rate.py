@@ -444,9 +444,10 @@ class Plugin(BasePlugin, ThreadJob):
         if not self.show_history():
             return
         tx_hash, conf, value, timestamp, balance = tx
-        date = timestamp_to_datetime(timestamp)
-        if not date:
-            date = timestamp_to_datetime(0)
+        if conf <= 0:
+            date = datetime.today()
+        else
+            date = timestamp_to_datetime(timestamp)
         for amount in [value, balance]:
             text = self.historical_value_str(amount, date)
             entry.append(text)
