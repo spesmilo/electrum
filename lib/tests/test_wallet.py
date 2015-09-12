@@ -55,8 +55,9 @@ class TestWalletStorage(WalletTestCase):
         storage = WalletStorage(self.wallet_path)
 
         some_dict = {"a":"b", "c":"d"}
-        storage.data = some_dict
 
+        for key, value in some_dict.items():
+            storage.put(key, value, False)
         storage.write()
 
         contents = ""

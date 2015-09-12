@@ -263,12 +263,12 @@ class Network(util.DaemonThread):
             interface = self.interface
         message_id = self.message_id
         self.message_id += 1
+        if self.debug:
+            self.print_error(interface.host, "-->", method, params, message_id)
         interface.queue_request(method, params, message_id)
         return message_id
 
     def send_subscriptions(self):
-        # clear cache
-        self.cached_responses = {}
         self.print_error('sending subscriptions to', self.interface.server, len(self.unanswered_requests), len(self.subscribed_addresses))
         # Resend unanswered requests
         requests = self.unanswered_requests.values()
@@ -540,8 +540,14 @@ class Network(util.DaemonThread):
             self.pending_sends.append((messages, callback))
 
     def process_pending_sends(self):
-        sends = self.pending_sends
-        self.pending_sends = []
+        # Requests needs connectivity.  If we don't have an interface,
+        # we cannot process them.
+        if not self.interface:
+            return
+
+        with self.lock:
+            sends = self.pending_sends
+            self.pending_sends = []
 
         for messages, callback in sends:
             subs = filter(lambda (m,v): m.endswith('.subscribe'), messages)
@@ -550,44 +556,9 @@ class Network(util.DaemonThread):
                     if sub not in self.subscriptions[callback]:
                         self.subscriptions[callback].append(sub)
 
-            unsent = []
-            for message in messages:
-                if not self.process_request(message, callback):
-                    unsent.append(message)
-
-            if unsent:
-                with self.lock:
-                    self.pending_sends.append((unsent, callback))
-
-    # FIXME: inline this function
-    def process_request(self, request, callback):
-        '''Returns true if the request was processed.'''
-        method, params = request
-
-        if method.startswith('network.'):
-            out = {}
-            try:
-                f = getattr(self, method[8:])
-                out['result'] = f(*params)
-            except AttributeError:
-                out['error'] = "unknown method"
-            except BaseException as e:
-                out['error'] = str(e)
-                traceback.print_exc(file=sys.stdout)
-                self.print_error("network error", str(e))
-            callback(out)
-            return True
-
-        # This request needs connectivity.  If we don't have an
-        # interface, we cannot process it.
-        if not self.interface:
-            return False
-
-        if self.debug:
-            self.print_error("-->", request)
-        message_id = self.queue_request(method, params)
-        self.unanswered_requests[message_id] = method, params, callback
-        return True
+            for method, params in messages:
+                message_id = self.queue_request(method, params)
+                self.unanswered_requests[message_id] = method, params, callback
 
     def connection_down(self, server):
         '''A connection to server either went down, or was never made.

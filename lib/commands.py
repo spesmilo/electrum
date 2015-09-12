@@ -66,8 +66,8 @@ def command(s):
         name = func.__name__
         known_commands[name] = Command(func, s)
         @wraps(func)
-        def func_wrapper(*args):
-            return func(*args)
+        def func_wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
         return func_wrapper
     return decorator
 
@@ -482,7 +482,7 @@ class Commands:
 
     @command('w')
     def listaddresses(self, receiving=False, change=False, show_labels=False, frozen=False, unused=False, funded=False, show_balance=False):
-        """List wallet addresses. Returns your list of addresses."""
+        """List wallet addresses. Returns the list of all addresses in your wallet. Use optional arguments to filter the results."""
         out = []
         for addr in self.wallet.addresses(True):
             if frozen and not self.wallet.is_frozen(addr):

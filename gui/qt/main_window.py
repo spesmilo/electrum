@@ -432,8 +432,8 @@ class ElectrumWindow(QMainWindow, PrintError):
                     is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
                     if(v > 0):
                         total_amount += v
-                self.notify(_("%(txs)s new transactions received. Total amount received in the new transactions %(amount)s %(unit)s") \
-                            % { 'txs' : tx_amount, 'amount' : self.format_amount(total_amount), 'unit' : self.base_unit()})
+                self.notify(_("%(txs)s new transactions received. Total amount received in the new transactions %(amount)s") \
+                            % { 'txs' : tx_amount, 'amount' : self.format_amount_and_units(total_amount)})
                 self.tx_notifications = []
             else:
               for tx in self.tx_notifications:
@@ -441,7 +441,7 @@ class ElectrumWindow(QMainWindow, PrintError):
                       self.tx_notifications.remove(tx)
                       is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
                       if(v > 0):
-                          self.notify(_("New transaction received. %(amount)s %(unit)s") % { 'amount' : self.format_amount(v), 'unit' : self.base_unit()})
+                          self.notify(_("New transaction received. %(amount)s") % { 'amount' : self.format_amount_and_units(v)})
 
     def notify(self, message):
         if self.tray:
@@ -483,6 +483,13 @@ class ElectrumWindow(QMainWindow, PrintError):
     def format_amount(self, x, is_diff=False, whitespaces=False):
         return format_satoshis(x, is_diff, self.num_zeros, self.decimal_point, whitespaces)
 
+    def format_amount_and_units(self, amount):
+        text = self.format_amount(amount) + ' '+ self.base_unit()
+        x = run_hook('format_amount_and_units', amount)
+        if x:
+            text += ''.join(x)
+        return text
+
     def get_decimal_point(self):
         return self.decimal_point
 
@@ -518,7 +525,7 @@ class ElectrumWindow(QMainWindow, PrintError):
                 icon = QIcon(":icons/status_lagging.png")
             else:
                 c, u, x = self.wallet.get_account_balance(self.current_account)
-                text =  _("Balance" ) + ": %s "%(self.format_amount(c)) + self.base_unit()
+                text =  _("Balance" ) + ": %s "%(self.format_amount_and_units(c))
                 if u:
                     text +=  " [%s unconfirmed]"%(self.format_amount(u, True).strip())
                 if x:
@@ -1159,13 +1166,6 @@ class ElectrumWindow(QMainWindow, PrintError):
             QMessageBox.warning(self, _('Error'), _('Invalid Fee'), _('OK'))
             return
 
-        amount = sum(map(lambda x:x[2], outputs))
-        confirm_amount = self.config.get('confirm_amount', 10*COIN)
-        if amount >= confirm_amount:
-            o = '\n'.join(map(lambda x:x[1], outputs))
-            if not self.question(_("send %(amount)s to %(address)s?")%{ 'amount' : self.format_amount(amount) + ' '+ self.base_unit(), 'address' : o}):
-                return
-
         coins = self.get_coins()
         return outputs, fee, label, coins
 
@@ -1177,6 +1177,7 @@ class ElectrumWindow(QMainWindow, PrintError):
         if not r:
             return
         outputs, fee, tx_desc, coins = r
+        amount = sum(map(lambda x:x[2], outputs))
         try:
             tx = self.wallet.make_unsigned_transaction(coins, outputs, self.config, fee)
         except NotEnoughFunds:
@@ -1191,34 +1192,40 @@ class ElectrumWindow(QMainWindow, PrintError):
             QMessageBox.warning(self, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
             return
 
-        if not self.config.get('can_edit_fees', False):
-            if not self.question(_("A fee of %(fee)s will be added to this transaction.\nProceed?")%{ 'fee' : self.format_amount(fee) + ' '+ self.base_unit()}):
-                return
-        else:
-            confirm_fee = self.config.get('confirm_fee', 1000000)
-            if fee >= confirm_fee:
-                msg = '\n'.join([
-                    _("The fee for this transaction seems unusually high."),
-                    _("Are you really sure you want to pay %(fee)s in fees?")%{ 'fee' : self.format_amount(fee) + ' '+ self.base_unit()}
-                ])
-                if not self.question(msg):
-                    return
-
         if self.show_before_broadcast():
             self.show_transaction(tx, tx_desc)
+            return
+        # confirmation dialog
+        confirm_amount = self.config.get('confirm_amount', 10*COIN)
+        msg = [
+            _("Amount to be sent") + ": " + self.format_amount_and_units(amount),
+            _("Transaction fee") + ": " + self.format_amount_and_units(fee),
+        ]
+        if self.wallet.use_encryption:
+            msg.append(_("Enter your password to proceed"))
+            password = self.password_dialog('\n'.join(msg))
+            if not password:
+                return
         else:
-            def sign_done(success):
-                if success:
-                    if not tx.is_complete():
-                        self.show_transaction(tx)
-                        self.do_clear()
-                    else:
-                        self.broadcast_transaction(tx, tx_desc)
-            self.sign_tx(tx, sign_done)
+            msg.append(_('Proceed?'))
+            password = None
+            if not self.question('\n'.join(msg)):
+                return
 
+        def sign_done(success):
+            if success:
+                if not tx.is_complete():
+                    self.show_transaction(tx)
+                    self.do_clear()
+                else:
+                    self.broadcast_transaction(tx, tx_desc)
+        self.sign_tx_with_password(tx, sign_done, password)
 
     @protected
     def sign_tx(self, tx, callback, password, parent=None):
+        self.sign_tx_with_password(tx, callback, password, parent)
+
+    def sign_tx_with_password(self, tx, callback, password, parent=None):
         '''Sign the transaction in a separate thread.  When done, calls
         the callback with a success code of True or False.
         '''
@@ -1246,6 +1253,15 @@ class ElectrumWindow(QMainWindow, PrintError):
 
 
     def broadcast_transaction(self, tx, tx_desc, parent=None):
+
+        confirm_fee = self.config.get('confirm_fee', 1000000)
+        if tx.get_fee() >= confirm_fee:
+            msg = '\n'.join([
+                _("The fee for this transaction seems unusually high."),
+                _("Are you really sure you want to pay %(fee)s in fees?")%{ 'fee' : self.format_amount_and_units(fee)}
+            ])
+            if not self.question(msg):
+                return
 
         def broadcast_thread():
             # non-GUI thread
