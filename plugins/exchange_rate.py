@@ -446,7 +446,7 @@ class Plugin(BasePlugin, ThreadJob):
         tx_hash, conf, value, timestamp, balance = tx
         if conf <= 0:
             date = datetime.today()
-        else
+        else:
             date = timestamp_to_datetime(timestamp)
         for amount in [value, balance]:
             text = self.historical_value_str(amount, date)
