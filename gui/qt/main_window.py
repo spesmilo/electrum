@@ -98,7 +98,7 @@ pr_tooltips = {
 
 expiration_values = [
     (_('1 hour'), 60*60),
-    (_('1 day'), 24*64*64),
+    (_('1 day'), 24*60*60),
     (_('1 week'), 7*24*60*60),
     (_('Never'), None)
 ]
@@ -607,7 +607,7 @@ class ElectrumWindow(QMainWindow, PrintError):
             _('Expired requests have to be deleted manually from your list, in order to free the corresponding Bitcoin addresses.'),
             _('The bitcoin address never expires and will always be part of this electrum wallet.'),
         ])
-        grid.addWidget(HelpLabel(_('Request expires in'), msg), 3, 0)
+        grid.addWidget(HelpLabel(_('Request expires'), msg), 3, 0)
         grid.addWidget(self.expires_combo, 3, 1)
         self.expires_label = QLineEdit('')
         self.expires_label.setReadOnly(1)
