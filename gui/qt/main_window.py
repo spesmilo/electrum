@@ -98,7 +98,7 @@ pr_tooltips = {
 
 expiration_values = [
     (_('1 hour'), 60*60),
-    (_('1 day'), 24*64*64),
+    (_('1 day'), 24*60*60),
     (_('1 week'), 7*24*60*60),
     (_('Never'), None)
 ]
