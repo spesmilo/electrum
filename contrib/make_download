@@ -41,7 +41,7 @@ for k, n in files.items():
         string = re.sub("<div id=\"%s\">(.*?)</div>"%k, '', string, flags=re.DOTALL + re.MULTILINE)
         continue
     if os.system("gpg --verify %s"%sigpath) != 0:
-        raise
+        raise BaseException(sigpath)
     string = string.replace("##link_%s##"%k, link)
 
 
@@ -55,10 +55,9 @@ from versions import android_template, android_page
 with open(android_template) as f:
     string = f.read()
 
-e4a_name = "e4a-%s.zip"%version
-e4a_zipname = e4a_name.replace(".","")
-string = string.replace("##VERSION##",version)
-string = string.replace("##ZIPNAME##",e4a_zipname)
+e4a_zipname = "e4a-%s.zip"%version
+string = string.replace("##VERSION##", version)
+string = string.replace("##ZIPNAME##", e4a_zipname)
 
 with open(android_page,'w') as f:
     f.write(string)

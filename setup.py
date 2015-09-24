@@ -17,11 +17,11 @@ if sys.version_info[:3] < (2, 7, 0):
 
 
 data_files = []
-if platform.system() == 'Linux' or platform.system() == 'FreeBSD':
+if platform.system() in [ 'Linux', 'FreeBSD', 'DragonFly']:
     usr_share = os.path.join(sys.prefix, "share")
     data_files += [
         (os.path.join(usr_share, 'applications/'), ['electrum.desktop']),
-        (os.path.join(usr_share, 'app-install', 'icons/'), ['icons/electrum.png'])
+        (os.path.join(usr_share, 'pixmaps/'), ['icons/electrum.png'])
     ]
 
 
@@ -33,11 +33,8 @@ setup(
         'ecdsa>=0.9',
         'pbkdf2',
         'requests',
-        'pyasn1-modules',
-        'pyasn1',
         'qrcode',
         'protobuf',
-        'tlslite',
         'dnspython',
     ],
     package_dir={
@@ -48,6 +45,7 @@ setup(
     packages=['electrum','electrum_gui','electrum_gui.qt','electrum_plugins'],
     package_data={
         'electrum': [
+            'www/index.html',
             'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electrum.mo',
         ],

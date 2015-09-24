@@ -25,7 +25,8 @@ gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gdk, GObject, cairo
 from decimal import Decimal
 from electrum.util import print_error, InvalidPassword
-from electrum.bitcoin import is_valid
+from electrum.bitcoin import is_valid, COIN
+from electrum.wallet import NotEnoughFunds
 from electrum import WalletStorage, Wallet
 
 Gdk.threads_init()
@@ -34,7 +35,6 @@ import platform
 MONOSPACE_FONT = 'Lucida Console' if platform.system() == 'Windows' else 'monospace'
 
 from electrum.util import format_satoshis, parse_URI
-from electrum.network import DEFAULT_SERVERS
 from electrum.bitcoin import MIN_RELAY_TX_FEE
 
 def numbify(entry, is_int = False):
@@ -48,7 +48,7 @@ def numbify(entry, is_int = False):
             s = s.replace('.','')
             s = s[:p] + '.' + s[p:p+8]
         try:
-            amount = int( Decimal(s) * 100000000 )
+            amount = int(Decimal(s) * COIN)
         except Exception:
             amount = None
     else:
@@ -164,7 +164,7 @@ def run_settings_dialog(self):
     fee_label.set_size_request(150,10)
     fee_label.show()
     fee.pack_start(fee_label,False, False, 10)
-    fee_entry.set_text( str( Decimal(self.wallet.fee_per_kb) /100000000 ) )
+    fee_entry.set_text(str(Decimal(self.wallet.fee_per_kb) / COIN))
     fee_entry.connect('changed', numbify, False)
     fee_entry.show()
     fee.pack_start(fee_entry,False,False, 10)
@@ -196,11 +196,11 @@ def run_settings_dialog(self):
         return
 
     try:
-        fee = int( 100000000 * Decimal(fee) )
+        fee = int(COIN * Decimal(fee))
     except Exception:
         show_message("error")
         return
-    self.wallet.set_fee(fee)
+    self.config.set_key('fee_per_kb', fee)
 
     try:
         nz = int( nz )
@@ -466,6 +466,9 @@ class ElectrumWindow:
         self.window.set_default_size(720, 350)
         self.wallet_updated = False
 
+        from electrum.util import StoreDict
+        self.contacts = StoreDict(self.config, 'contacts')
+
         vbox = Gtk.VBox()
 
         self.notebook = Gtk.Notebook()
@@ -685,8 +688,9 @@ class ElectrumWindow:
             if not is_fee: fee = None
             if amount is None:
                 return
+            coins = self.wallet.get_spendable_coins()
             try:
-                tx = self.wallet.make_unsigned_transaction([('op_return', 'dummy_tx', amount)], fee)
+                tx = self.wallet.make_unsigned_transaction(coins, [('op_return', 'dummy_tx', amount)], self.config, fee)
                 self.funds_error = False
             except NotEnoughFunds:
                 self.funds_error = True
@@ -694,7 +698,7 @@ class ElectrumWindow:
             if not self.funds_error:
                 if not is_fee:
                     fee = tx.get_fee()
-                    fee_entry.set_text( str( Decimal( fee ) / 100000000 ) )
+                    fee_entry.set_text(str(Decimal(fee) / COIN))
                     self.fee_box.show()
                 amount_entry.modify_text(Gtk.StateType.NORMAL, Gdk.color_parse("#000000"))
                 fee_entry.modify_text(Gtk.StateType.NORMAL, Gdk.color_parse("#000000"))
@@ -726,9 +730,12 @@ class ElectrumWindow:
             entry.modify_base(Gtk.StateType.NORMAL, Gdk.color_parse("#ffffff"))
 
     def set_url(self, url):
-        payto, amount, label, message, payment_request = parse_URI(url)
+        out = parse_URI(url)
+        address = out.get('address')
+        message = out.get('message')
+        amount = out.get('amount')
         self.notebook.set_current_page(1)
-        self.payto_entry.set_text(payto)
+        self.payto_entry.set_text(address)
         self.message_entry.set_text(message)
         self.amount_entry.set_text(amount)
         self.payto_sig.set_visible(False)
@@ -787,12 +794,12 @@ class ElectrumWindow:
             return
 
         try:
-            amount = int( Decimal(amount_entry.get_text()) * 100000000 )
+            amount = int(Decimal(amount_entry.get_text()) * COIN)
         except Exception:
             self.show_message( "invalid amount")
             return
         try:
-            fee = int( Decimal(fee_entry.get_text()) * 100000000 )
+            fee = int(Decimal(fee_entry.get_text()) * COIN)
         except Exception:
             self.show_message( "invalid fee")
             return
@@ -805,12 +812,12 @@ class ElectrumWindow:
             password = None
 
         try:
-            tx = self.wallet.mktx( [(to_address, amount)], password, fee )
+            tx = self.wallet.mktx( [(to_address, amount)], password, self.config, fee)
         except Exception as e:
             self.show_message(str(e))
             return
 
-        if tx.requires_fee(self.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
+        if tx.requires_fee(self.wallet) and fee < MIN_RELAY_TX_FEE:
             self.show_message( "This transaction requires a higher fee, or it will not be propagated by the network." )
             return
 
@@ -1077,10 +1084,7 @@ class ElectrumWindow:
                 path, col = treeview.get_cursor()
                 if path:
                     address = liststore.get_value( liststore.get_iter(path), 0)
-                    if address in wallet.frozen_addresses:
-                        wallet.unfreeze(address)
-                    else:
-                        wallet.freeze(address)
+                    wallet.set_frozen_state([address], not wallet.is_frozen(address))
                     self.update_receiving_tab()
             button.connect("clicked", freeze_address, treeview, liststore, self.wallet)
             button.show()
@@ -1119,9 +1123,12 @@ class ElectrumWindow:
                 text = "Synchronizing..."
             else:
                 self.status_image.set_from_stock(Gtk.STOCK_YES, Gtk.IconSize.MENU)
-                c, u = self.wallet.get_balance()
-                text =  "Balance: %s "%( format_satoshis(c,False,self.num_zeros) )
-                if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True,self.num_zeros).strip() )
+                c, u, x = self.wallet.get_balance()
+                text = "Balance: %s "%(format_satoshis(c, False, self.num_zeros))
+                if u:
+                    text += "[%s unconfirmed]"%(format_satoshis(u, True, self.num_zeros).strip())
+                if x:
+                    text += "[%s unmatured]"%(format_satoshis(x, True, self.num_zeros).strip())
         else:
             self.status_image.set_from_stock(Gtk.STOCK_NO, Gtk.IconSize.MENU)
             self.network_button.set_tooltip_text("Not connected.")
@@ -1145,33 +1152,26 @@ class ElectrumWindow:
             if self.wallet.is_change(address): Type = "C"
             if address in self.wallet.imported_keys.keys():
                 Type = "I"
-            c, u = self.wallet.get_addr_balance(address)
-            if address in self.wallet.frozen_addresses: Type = Type + "F"
+            c, u, x = self.wallet.get_addr_balance(address)
+            if self.wallet.is_frozen(address): Type = Type + "F"
             label = self.wallet.labels.get(address)
             h = self.wallet.history.get(address,[])
             n = len(h)
             tx = "0" if n==0 else "%d"%n
-            self.recv_list.append((address, label, tx, format_satoshis(c,False,self.num_zeros), Type ))
+            self.recv_list.append((address, label, tx, format_satoshis(c+u+x, False, self.num_zeros), Type ))
 
     def update_sending_tab(self):
-        # detect addresses that are not mine in history, add them here...
         self.addressbook_list.clear()
-        #for alias, v in self.wallet.aliases.items():
-        #    s, target = v
-        #    label = self.wallet.labels.get(alias)
-        #    self.addressbook_list.append((alias, label, '-'))
-            
-        for address in self.wallet.addressbook:
-            label = self.wallet.labels.get(address)
-            n = self.wallet.get_num_tx(address)
-            self.addressbook_list.append((address, label, "%d"%n))
+        for k, v in self.contacts.items():
+            t, v = v
+            self.addressbook_list.append((k, v, t))
 
     def update_history_tab(self):
         cursor = self.history_treeview.get_cursor()[0]
         self.history_list.clear()
 
-        for item in self.wallet.get_tx_history():
-            tx_hash, conf, is_mine, value, fee, balance, timestamp = item
+        for item in self.wallet.get_history():
+            tx_hash, conf, value, timestamp, balance = item
             if conf > 0:
                 try:
                     time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
@@ -1199,8 +1199,9 @@ class ElectrumWindow:
         import datetime
         if not tx_hash: return ''
         tx = self.wallet.transactions.get(tx_hash)
-        is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
-        conf, timestamp = self.wallet.verifier.get_confirmations(tx_hash)
+        tx.deserialize()
+        is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
+        conf, timestamp = self.wallet.get_confirmations(tx_hash)
 
         if timestamp:
             time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
@@ -1267,7 +1268,7 @@ class ElectrumWindow:
 
         if result == 1:
             if is_valid(address):
-                self.wallet.add_contact(address,label)
+                self.contacts[label] = address
                 self.update_sending_tab()
             else:
                 errorDialog = Gtk.MessageDialog(
@@ -1290,7 +1291,7 @@ class ElectrumGui():
 
     def main(self, url=None):
 
-        storage = WalletStorage(self.config)
+        storage = WalletStorage(self.config.get_wallet_path())
         if not storage.file_exists:
             action = self.restore_or_create()
             if not action:

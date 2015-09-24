@@ -35,12 +35,9 @@ class Plugin(BasePlugin):
                 'Linux': 'libportaudio.so'
             }[platform.system()]
 
-    def fullname(self):
-        return 'Audio MODEM'
-
-    def description(self):
-        return ('Provides support for air-gapped transaction signing.\n\n'
-                'Requires http://github.com/romanz/amodem/')
+    @hook
+    def init_qt(self, gui):
+        pass
 
     def is_available(self):
         return amodem is not None
@@ -85,14 +82,14 @@ class Plugin(BasePlugin):
             self.sender = self._send(parent=dialog, blob=blob)
             self.sender.start()
         b.clicked.connect(handler)
-        dialog.buttons.insertWidget(1, b)
+        dialog.sharing_buttons.insert(-1, b)
 
     @hook
     def scan_text_edit(self, parent):
         def handler():
             self.receiver = self._recv(parent=parent)
             self.receiver.start()
-        parent.add_button(':icons/microphone.png', handler, _("Read from microphone"))
+        parent.addButton(':icons/microphone.png', handler, _("Read from microphone"))
 
     @hook
     def show_text_edit(self, parent):
@@ -100,7 +97,7 @@ class Plugin(BasePlugin):
             blob = str(parent.toPlainText())
             self.sender = self._send(parent=parent, blob=blob)
             self.sender.start()
-        parent.add_button(':icons/speaker.png', handler, _("Send to speaker"))
+        parent.addButton(':icons/speaker.png', handler, _("Send to speaker"))
 
     def _audio_interface(self):
         interface = amodem.audio.Interface(config=self.modem_config)

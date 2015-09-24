@@ -24,6 +24,8 @@ import re
 from decimal import Decimal
 from electrum import bitcoin
 
+import util
+
 RE_ADDRESS = '[1-9A-HJ-NP-Za-km-z]{26,}'
 RE_ALIAS = '(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>'
 
@@ -31,8 +33,10 @@ frozen_style = "QWidget { background-color:none; border:none;}"
 normal_style = "QPlainTextEdit { }"
 
 class PayToEdit(ScanQRTextEdit):
+
     def __init__(self, win):
-        super(PayToEdit,self).__init__(win=win)
+        ScanQRTextEdit.__init__(self)
+        self.win = win
         self.amount_edit = win.amount_e
         self.document().contentsChanged.connect(self.update_size)
         self.heightMin = 0
@@ -42,9 +46,12 @@ class PayToEdit(ScanQRTextEdit):
         self.outputs = []
         self.errors = []
         self.is_pr = False
-        self.scan_f = self.win.pay_from_URI
+        self.is_alias = False
+        self.scan_f = win.pay_to_URI
         self.update_size()
         self.payto_address = None
+
+        self.previous_payto = ''
 
     def lock_amount(self):
         self.amount_edit.setFrozen(True)
@@ -59,50 +66,43 @@ class PayToEdit(ScanQRTextEdit):
             button.setHidden(b)
 
     def setGreen(self):
-        self.is_pr = True
-        self.setStyleSheet("QWidget { background-color:#80ff80;}")
+        self.setStyleSheet(util.GREEN_BG)
 
     def setExpired(self):
-        self.is_pr = True
-        self.setStyleSheet("QWidget { background-color:#ffcccc;}")
+        self.setStyleSheet(util.RED_BG)
 
     def parse_address_and_amount(self, line):
         x, y = line.split(',')
         n = re.match('^SCRIPT\s+([0-9a-fA-F]+)$', x.strip())
         if n:
-            _type = 'script'
-            address = n.group(1).decode('hex')
+            script = str(n.group(1)).decode('hex')
             amount = self.parse_amount(y)
+            return 'script', script, amount
         else:
-            _type = 'address'
             address = self.parse_address(x)
             amount = self.parse_amount(y)
-        return _type, address, amount
-
+            return 'address', address, amount
 
     def parse_amount(self, x):
         p = pow(10, self.amount_edit.decimal_point())
-        return int( p * Decimal(x.strip()))
-
+        return int(p * Decimal(x.strip()))
 
     def parse_address(self, line):
         r = line.strip()
         m = re.match('^'+RE_ALIAS+'$', r)
-        address = m.group(2) if m else r
+        address = str(m.group(2) if m else r)
         assert bitcoin.is_address(address)
         return address
-
 
     def check_text(self):
         self.errors = []
         if self.is_pr:
             return
         # filter out empty lines
-        lines = filter( lambda x: x, self.lines())
+        lines = filter(lambda x: x, self.lines())
         outputs = []
         total = 0
         self.payto_address = None
-
         if len(lines) == 1:
             data = lines[0]
             if data.startswith("bitcoin:"):
@@ -118,12 +118,12 @@ class PayToEdit(ScanQRTextEdit):
 
         for i, line in enumerate(lines):
             try:
-                type, to_address, amount = self.parse_address_and_amount(line)
+                _type, to_address, amount = self.parse_address_and_amount(line)
             except:
                 self.errors.append((i, line.strip()))
                 continue
 
-            outputs.append((type, to_address, amount))
+            outputs.append((_type, to_address, amount))
             total += amount
 
         self.outputs = outputs
@@ -133,8 +133,6 @@ class PayToEdit(ScanQRTextEdit):
             self.amount_edit.setAmount(total)
         else:
             self.amount_edit.setText("")
-
-        self.amount_edit.textEdited.emit("")
 
         if total or len(lines)>1:
             self.lock_amount()
@@ -155,14 +153,23 @@ class PayToEdit(ScanQRTextEdit):
 
         return self.outputs[:]
 
-
     def lines(self):
-        return str(self.toPlainText()).split('\n')
-
+        return unicode(self.toPlainText()).split('\n')
 
     def is_multiline(self):
         return len(self.lines()) > 1
 
+    def paytomany(self):
+        from electrum.i18n import _
+        self.setText("\n\n\n")
+        self.update_size()
+        msg = '\n'.join([
+            _('Enter a list of outputs in the \'Pay to\' field.'),
+            _('One output per line.'),
+            _('Format: address, amount.'),
+            _('You may load a CSV file using the file icon.')
+        ])
+        QMessageBox.warning(self, _('Pay to many'), msg, _('OK'))
 
     def update_size(self):
         docHeight = self.document().size().height()
@@ -242,3 +249,45 @@ class PayToEdit(ScanQRTextEdit):
         if data.startswith("bitcoin:"):
             self.scan_f(data)
             # TODO: update fee
+
+    def resolve(self):
+        self.is_alias = False
+        if self.hasFocus():
+            return
+        if self.is_multiline():  # only supports single line entries atm
+            return
+        if self.is_pr:
+            return
+        key = str(self.toPlainText())
+        if key == self.previous_payto:
+            return
+        self.previous_payto = key
+        if not (('.' in key) and (not '<' in key) and (not ' ' in key)):
+            return
+        try:
+            data = self.win.contacts.resolve(key)
+        except:
+            return
+        if not data:
+            return
+        self.is_alias = True
+
+        address = data.get('address')
+        name = data.get('name')
+        new_url = key + ' <' + address + '>'
+        self.setText(new_url)
+        self.previous_payto = new_url
+
+        #if self.win.config.get('openalias_autoadd') == 'checked':
+        self.win.contacts[key] = ('openalias', name)
+        self.win.update_contacts_tab()
+
+        self.setFrozen(True)
+        if data.get('type') == 'openalias':
+            self.validated = data.get('validated')
+            if self.validated:
+                self.setGreen()
+            else:
+                self.setExpired()
+        else:
+            self.validated = None

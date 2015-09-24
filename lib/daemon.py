@@ -24,6 +24,7 @@ import threading
 import traceback
 import json
 import Queue
+from collections import defaultdict
 
 import util
 from network import Network
@@ -35,13 +36,14 @@ DAEMON_SOCKET = 'daemon.sock'
 
 def do_start_daemon(config):
     import subprocess
+    args = [sys.executable, __file__, config.path]
     logfile = open(os.path.join(config.path, 'daemon.log'),'w')
-    p = subprocess.Popen([sys.executable,__file__], stderr=logfile, stdout=logfile, close_fds=(os.name=="posix"))
+    p = subprocess.Popen(args, stderr=logfile, stdout=logfile, close_fds=(os.name=="posix"))
     print_stderr("starting daemon (PID %d)"%p.pid)
 
 
 
-def get_daemon(config, start_daemon=True):
+def get_daemon(config, start_daemon):
     import socket
     daemon_socket = os.path.join(config.path, DAEMON_SOCKET)
     daemon_started = False
@@ -49,8 +51,6 @@ def get_daemon(config, start_daemon=True):
         try:
             s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             s.connect(daemon_socket)
-            if not daemon_started:
-                print_stderr("Connected to daemon")
             return s
         except socket.error:
             if not start_daemon:
@@ -74,6 +74,7 @@ class ClientThread(util.DaemonThread):
         self.client_pipe = util.SocketPipe(s)
         self.response_queue = Queue.Queue()
         self.server.add_client(self)
+        self.subscriptions = defaultdict(list)
 
     def reading_thread(self):
         while self.is_running():
@@ -84,9 +85,13 @@ class ClientThread(util.DaemonThread):
             if request is None:
                 self.running = False
                 break
-            if request.get('method') == 'daemon.stop':
+            method = request.get('method')
+            params = request.get('params')
+            if method == 'daemon.stop':
                 self.server.stop()
                 continue
+            if method[-10:] == '.subscribe':
+                self.subscriptions[method].append(params)
             self.server.send_request(self, request)
 
     def run(self):
@@ -113,20 +118,16 @@ class NetworkServer(util.DaemonThread):
         util.DaemonThread.__init__(self)
         self.debug = False
         self.config = config
-        self.network = Network(config)
-        # network sends responses on that queue
-        self.network_queue = Queue.Queue()
-
-        self.running = False
+        self.pipe = util.QueuePipe()
+        self.network = Network(self.pipe, config)
         self.lock = threading.RLock()
-
         # each GUI is a client of the daemon
         self.clients = []
         self.request_id = 0
         self.requests = {}
 
     def add_client(self, client):
-        for key in ['status','banner','updated','servers','interfaces']:
+        for key in ['fee', 'status', 'banner', 'updated', 'servers', 'interfaces']:
             value = self.network.get_status_value(key)
             client.response_queue.put({'method':'network.status', 'params':[key, value]})
         with self.lock:
@@ -143,18 +144,16 @@ class NetworkServer(util.DaemonThread):
             self.request_id += 1
             self.requests[self.request_id] = (request['id'], client)
             request['id'] = self.request_id
-
         if self.debug:
             print_error("-->", request)
-        self.network.requests_queue.put(request)
-
+        self.pipe.send(request)
 
     def run(self):
-        self.network.start(self.network_queue)
+        self.network.start()
         while self.is_running():
             try:
-                response = self.network_queue.get(timeout=0.1)
-            except Queue.Empty:
+                response = self.pipe.get()
+            except util.timeout:
                 continue
             if self.debug:
                 print_error("<--", response)
@@ -166,12 +165,13 @@ class NetworkServer(util.DaemonThread):
                 client.response_queue.put(response)
             else:
                 # notification
+                m = response.get('method')
+                v = response.get('params')
                 for client in self.clients:
-                    client.response_queue.put(response)
-
+                    if m == 'network.status' or v in client.subscriptions.get(m, []):
+                        client.response_queue.put(response)
         self.network.stop()
         print_error("server exiting")
-
 
 
 def daemon_loop(server):
@@ -180,7 +180,7 @@ def daemon_loop(server):
     daemon_socket = os.path.join(server.config.path, DAEMON_SOCKET)
     if os.path.exists(daemon_socket):
         os.remove(daemon_socket)
-    daemon_timeout = server.config.get('daemon_timeout', 5*60)
+    daemon_timeout = server.config.get('daemon_timeout', None)
     s.bind(daemon_socket)
     s.listen(5)
     s.settimeout(1)
@@ -189,6 +189,8 @@ def daemon_loop(server):
         try:
             connection, address = s.accept()
         except socket.timeout:
+            if daemon_timeout is None:
+                continue
             if not server.clients:
                 if time.time() - t > daemon_timeout:
                     print_error("Daemon timeout")
@@ -205,12 +207,45 @@ def daemon_loop(server):
     print_error("Daemon exiting")
 
 
+
+def check_www_dir(rdir):
+    # rewrite index.html every time
+    import urllib, urlparse, shutil, os
+    if not os.path.exists(rdir):
+        os.mkdir(rdir)
+    index = os.path.join(rdir, 'index.html')
+    src = os.path.join(os.path.dirname(__file__), 'www', 'index.html')
+    shutil.copy(src, index)
+    files = [
+        "https://code.jquery.com/jquery-1.9.1.min.js",
+        "https://raw.githubusercontent.com/davidshimjs/qrcodejs/master/qrcode.js",
+        "https://code.jquery.com/ui/1.10.3/jquery-ui.js",
+        "https://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css"
+    ]
+    for URL in files:
+        path = urlparse.urlsplit(URL).path
+        filename = os.path.basename(path)
+        path = os.path.join(rdir, filename)
+        if not os.path.exists(path):
+            print_error("downloading ", URL)
+            urllib.urlretrieve(URL, path)
+
+
 if __name__ == '__main__':
     import simple_config, util
-    config = simple_config.SimpleConfig()
+    _config = {}
+    if len(sys.argv) > 1:
+        _config['electrum_path'] = sys.argv[1]
+    config = simple_config.SimpleConfig(_config)
     util.set_verbosity(True)
     server = NetworkServer(config)
     server.start()
+    if config.get('websocket_server'):
+        import websockets
+        websockets.WebSocketServer(config, server).start()
+    if config.get('requests_dir'):
+        check_www_dir(config.get('requests_dir'))
+
     try:
         daemon_loop(server)
     except KeyboardInterrupt:

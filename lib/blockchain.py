@@ -17,86 +17,51 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import threading, time, Queue, os, sys, shutil
-from util import user_dir, print_error
+import os
 import util
 from bitcoin import *
 
 
-class Blockchain(util.DaemonThread):
-
+class Blockchain():
+    '''Manages blockchain headers and their verification'''
     def __init__(self, config, network):
-        util.DaemonThread.__init__(self)
         self.config = config
         self.network = network
-        self.lock = threading.Lock()
+        self.headers_url = 'https://headers.electrum.org/blockchain_headers'
         self.local_height = 0
-        self.headers_url = 'http://headers.electrum.org/blockchain_headers'
         self.set_local_height()
-        self.queue = Queue.Queue()
+
+    def print_error(self, *msg):
+        util.print_error("[blockchain]", *msg)
 
     def height(self):
         return self.local_height
 
-    def run(self):
+    def init(self):
         self.init_headers_file()
         self.set_local_height()
-        self.print_error("%d blocks"%self.local_height)
-
-        while self.is_running():
-            try:
-                result = self.queue.get(timeout=0.1)
-            except Queue.Empty:
-                continue
-            if not result:
-                continue
-            i, header = result
-            if not header:
-                continue
-            height = header.get('block_height')
-            if height <= self.local_height:
-                continue
-            if height > self.local_height + 50:
-                if not self.get_and_verify_chunks(i, header, height):
-                    continue
-            if height > self.local_height:
-                # get missing parts from interface (until it connects to my chain)
-                chain = self.get_chain( i, header )
-                # skip that server if the result is not consistent
-                if not chain:
-                    print_error('e')
-                    continue
-                # verify the chain
-                if self.verify_chain( chain ):
-                    print_error("height:", height, i.server)
-                    for header in chain:
-                        self.save_header(header)
-                else:
-                    print_error("error", i.server)
-                    # todo: dismiss that server
-                    continue
-            self.network.new_blockchain_height(height, i)
-
-        self.print_error("stopped")
-
+        self.print_error("%d blocks" % self.local_height)
 
     def verify_chain(self, chain):
-
         first_header = chain[0]
         prev_header = self.read_header(first_header.get('block_height') -1)
 
         for header in chain:
-
             height = header.get('block_height')
-
             prev_hash = self.hash_header(prev_header)
+            if prev_hash != header.get('prev_block_hash'):
+                self.print_error("prev hash mismatch: %s vs %s"
+                                 % (prev_hash, header.get('prev_block_hash')))
+                return False
             bits, target = self.get_target(height/2016, chain)
+            if bits != header.get('bits'):
+                self.print_error("bits mismatch: %s vs %s"
+                                 % (bits, header.get('bits')))
+                return False
             _hash = self.hash_header(header)
-            try:
-                assert prev_hash == header.get('prev_block_hash')
-                assert bits == header.get('bits')
-                assert int('0x'+_hash,16) < target
-            except Exception:
+            if int('0x'+_hash, 16) > target:
+                self.print_error("insufficient proof of work: %s vs target %s"
+                                 % (int('0x'+_hash, 16), target))
                 return False
 
             prev_header = header
@@ -132,7 +97,7 @@ class Blockchain(util.DaemonThread):
             previous_hash = _hash
 
         self.save_chunk(index, data)
-        print_error("validated chunk %d"%height)
+        self.print_error("validated chunk %d to height %d" % (index, height))
 
 
 
@@ -161,21 +126,20 @@ class Blockchain(util.DaemonThread):
         return rev_hex(Hash(self.header_to_string(header).decode('hex')).encode('hex'))
 
     def path(self):
-        return os.path.join( self.config.path, 'blockchain_headers')
+        return os.path.join(self.config.path, 'blockchain_headers')
 
     def init_headers_file(self):
         filename = self.path()
         if os.path.exists(filename):
             return
-
         try:
             import urllib, socket
             socket.setdefaulttimeout(30)
-            print_error("downloading ", self.headers_url )
+            self.print_error("downloading ", self.headers_url )
             urllib.urlretrieve(self.headers_url, filename)
-            print_error("done.")
+            self.print_error("done.")
         except Exception:
-            print_error( "download failed. creating file", filename )
+            self.print_error( "download failed. creating file", filename )
             open(filename,'wb+').close()
 
     def save_chunk(self, index, chunk):
@@ -197,14 +161,12 @@ class Blockchain(util.DaemonThread):
         f.close()
         self.set_local_height()
 
-
     def set_local_height(self):
         name = self.path()
         if os.path.exists(name):
             h = os.path.getsize(name)/80 - 1
             if self.local_height != h:
                 self.local_height = h
-
 
     def read_header(self, block_height):
         name = self.path()
@@ -216,7 +178,6 @@ class Blockchain(util.DaemonThread):
             if len(h) == 80:
                 h = self.header_from_string(h)
                 return h
-
 
     def get_target(self, index, chain=None):
         if chain is None:
@@ -263,74 +224,38 @@ class Blockchain(util.DaemonThread):
         new_bits = c + MM * i
         return new_bits, new_target
 
+    def connect_header(self, chain, header):
+        '''Builds a header chain until it connects.  Returns True if it has
+        successfully connected, False if verification failed, otherwise the
+        height of the next header needed.'''
+        chain.append(header)  # Ordered by decreasing height
+        previous_height = header['block_height'] - 1
+        previous_header = self.read_header(previous_height)
 
-    def request_header(self, i, h, queue):
-        print_error("requesting header %d from %s"%(h, i.server))
-        i.send_request({'method':'blockchain.block.get_header', 'params':[h]}, queue)
+        # Missing header, request it
+        if not previous_header:
+            return previous_height
 
-    def retrieve_request(self, queue):
-        while self.is_running():
-            try:
-                ir = queue.get(timeout=1)
-            except Queue.Empty:
-                print_error('blockchain: request timeout')
-                continue
-            i, r = ir
-            result = r['result']
-            return result
+        # Does it connect to my chain?
+        prev_hash = self.hash_header(previous_header)
+        if prev_hash != header.get('prev_block_hash'):
+            self.print_error("reorg")
+            return previous_height
 
-    def get_chain(self, interface, final_header):
+        # The chain is complete.  Reverse to order by increasing height
+        chain.reverse()
+        if self.verify_chain(chain):
+            self.print_error("connected at height:", previous_height)
+            for header in chain:
+                self.save_header(header)
+            return True
 
-        header = final_header
-        chain = [ final_header ]
-        requested_header = False
-        queue = Queue.Queue()
+        return False
 
-        while self.is_running():
-
-            if requested_header:
-                header = self.retrieve_request(queue)
-                if not header: return
-                chain = [ header ] + chain
-                requested_header = False
-
-            height = header.get('block_height')
-            previous_header = self.read_header(height -1)
-            if not previous_header:
-                self.request_header(interface, height - 1, queue)
-                requested_header = True
-                continue
-
-            # verify that it connects to my chain
-            prev_hash = self.hash_header(previous_header)
-            if prev_hash != header.get('prev_block_hash'):
-                print_error("reorg")
-                self.request_header(interface, height - 1, queue)
-                requested_header = True
-                continue
-
-            else:
-                # the chain is complete
-                return chain
-
-
-    def get_and_verify_chunks(self, i, header, height):
-
-        queue = Queue.Queue()
-        min_index = (self.local_height + 1)/2016
-        max_index = (height + 1)/2016
-        n = min_index
-        while n < max_index + 1:
-            print_error( "Requesting chunk:", n )
-            i.send_request({'method':'blockchain.block.get_chunk', 'params':[n]}, queue)
-            r = self.retrieve_request(queue)
-            try:
-                self.verify_chunk(n, r)
-                n = n + 1
-            except Exception:
-                print_error('Verify chunk failed!')
-                n = n - 1
-                if n < 0:
-                    return False
-
-        return True
+    def connect_chunk(self, idx, chunk):
+        try:
+            self.verify_chunk(idx, chunk)
+            return idx + 1
+        except Exception:
+            self.print_error('verify_chunk failed')
+            return idx - 1

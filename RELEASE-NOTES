@@ -1,3 +1,134 @@
+# Release 2.4.4
+ * fix bug with trustedcoin plugin
+
+# Release 2.4.3
+ * Support for KeepKey hardware wallet
+ * Simplified Chinese wordlist
+ * Minor bugfixes and GUI tweaks
+
+# Release 2.4.2
+ * Command line can read arguments from stdin (pipe)
+ * Speedup fee computation for large transactions
+ * Various bugfixes
+
+# Release 2.4.1
+ * Use ssl.PROTOCOL_TLSv1
+ * Fix DNSSEC issues with ECDSA signatures
+ * Replace TLSLite dependency with minimal RSA implementation
+ * Dynamic Fees: using estimatefee value returned by server
+ * Various GUI improvements
+
+# Release 2.4
+ * Payment to DNS names storing a Bitcoin addresses (OpenAlias) is
+   supported directly, without activating a plugin. The verification
+   uses DNSSEC.
+ * The DNSSEC verification code was rewritten. The previous code,
+   which was part of the OpenAlias plugin, is vulnerable and should
+   not be trusted (Electrum 2.0 to 2.3).
+ * Payment requests can be signed using Bitcoin addresses stored
+   in DNS (OpenAlias). The identity of the requestor is verified using
+   DNSSEC.
+ * Payment requests signed with OpenAlias keys can be shared as
+   bitcoin: URIs, if they are simple (a single address-type
+   output). The BIP21 URI scheme is extended with 'name', 'sig',
+   'time', 'exp'.
+ * Arbitrary m-of-n multisig wallets are supported (n<=15).
+ * Multisig transactions can be signed with Trezor. When you create
+   the multisig wallet, just enter the xpub of your existing Trezor
+   wallet.
+ * Transaction fees set manually in the GUI are retained, including
+   when the user uses the '!' shortcut.
+ * New 'email' plugin, that enables sending and receiving payment
+   requests by email.
+ * The daemon supports Websocket notifications of payments.
+
+# Release 2.3.3
+ * fix proxy settings (issue #1309)
+ * improvements to the transaction dialog:
+    - request password after showing transaction
+    - show change addresses in yellow color
+
+# Release 2.3.2
+ * minor bugfixes
+ * updated ledger plugin
+ * sort inputs/outputs lexicographically (BIP-LI01)
+
+# Release 2.3.1
+ * patch a bug with payment requests
+
+# Release 2.3
+ * Improved logic for the network layer.
+ * More efficient coin selection. Spend oldest coins first, and
+   minimize the number of transaction inputs.
+ * Plugins are loaded independently of the GUI. As a result, Openalias,
+   TrustedCoin and Trezor wallets can be used with the command
+   line. Example: 'electrum payto <openalias> <amount>'
+ * The command line has been refactored:
+  - Arguments are parsed with argparse.
+  - The inline help includes a description of options.
+  - Some commands have been renamed. Notably, 'mktx' and 'payto' have
+    been merged into a single command, with a --broadcast option.
+   Type 'electrum --help' for a complete overview.
+ * The command line accepts the '!' syntax to send the maximum
+   amount available. It can be combined with the '--from' option.
+   Example: 'payto <destination> ! --from <from_address>'
+ * The command line also accepts a '?' shortcut for private keys
+   arguments, that triggers a prompt.
+ * Payment requests can be managed with the command line, using the
+   following commands: 'addrequest', 'rmrequest', 'listrequests'.
+   Payment requests can be signed with a SSL certificate, and published
+   as bip70 files in a public web directory. To see the relevant
+   configuration variables, type 'electrum addrequest --help'
+ * Commands can be called with jsonrpc, using the 'jsonrpc' gui. The
+   jsonrpc interface may be called by php.
+
+# Release 2.2
+ * Show amounts (thousands separators and decimal point)
+   according to locale in GUI
+ * Show unmatured coins in balance
+ * Fix exchange rates plugin
+ * Network layer: refactoring and fixes
+
+# Release 2.1.1
+ * patch a bug that prevents new wallet creation.
+ * fix connection issue on osx binaries
+
+# Release 2.1
+ * Faster startup, thanks to the following optimizations:
+   1. Transaction input/outputs are cached in the wallet file
+   2. Fast X509 certificate parser, not using pyasn1 anymore.
+   3. The Label Sync plugin only requests modified labels.
+ * The 'Invoices' and 'Send' tabs have been merged.
+ * Contacts are stored in a separate file, shared between wallets.
+ * A Search Box is available in the GUI (Ctrl-S)
+ * Payment requests have an expiration date and can be exported to
+   BIP70 files.
+ * file: scheme support in BIP72 URIs: "bitcoin:?r=file:///..."
+ * Own addresses are shown in green in the Transaction dialog.
+ * Address History dialog.
+ * The OpenAlias plugin was improved.
+ * Various bug fixes and GUI improvements.
+ * A new LabelSync backend is being used an import of the old
+   database was made but since the release came later it's
+   recommended that you do a full push when you upgrade.
+
+# Release 2.0.4 - Minor GUI improvements
+ * The password dialog will ask for password again if the user enters
+   a wrong password
+ * The Master Public Key dialog displays which keys belong to the
+   wallet, and which are cosigners
+ * The transaction dialog will ask to save unsaved transaction
+   received from cosigner pool, when user clicks on 'Close'
+ * The multisig restore dialog accepts xprv keys.
+ * The network daemon must be started explicitly before using commands
+   that require a connection
+   Example:
+     electrum daemon start
+     electrum getaddressunspent <addr>
+     electrum daemon status
+     electrum daemon stop
+   If a daemon is running, the GUI will use it.
+
 # Release 2.0.3 - bugfixes and minor GUI improvements
  * Do not use daemon threads (fix #960)
  * Add a zoom button to receive tab
@@ -7,7 +138,6 @@
 # Release 2.0.2 - bugfixes
  * Fix transaction sweep (#1066)
  * Fix thread timing bug (#1054)
-
 
 # Release 2.0.1 - bugfixes
  * Fix critical bug in Trezor address derivation: passphrases were not
@@ -107,7 +237,7 @@
   a Patrica tree of all UTXOs, an idea proposed by Alan Reiner in the
   bitcointalk forum. This property allows the client to directly
   request the balance of any address. The new commands are:
-     1. getaddressbalance <address> 
+     1. getaddressbalance <address>
      2. getaddressunspent <address>
      3. getutxoaddress <txid> <pos>
 
@@ -163,13 +293,13 @@ bugfixes: connection problems, transactions staying unverified
 
 # Release 1.8.1
 
-* Notification option when receiving new tranactions 
-* Confirm dialogue before sending large amounts 
+* Notification option when receiving new tranactions
+* Confirm dialogue before sending large amounts
 * Alternative datafile location for non-windows systems
 * Fix offline wallet creation
 * Remove enforced tx fee
 * Tray icon improvements
-* Various bugfixes 
+* Various bugfixes
 
 
 # Release 1.8
@@ -194,7 +324,7 @@ bugfixes: connection problems, transactions staying unverified
 * Classic GUI asks users to enter their seed on wallet creation
 
 
-# Release 1.7.2:  
+# Release 1.7.2:
 
 * Transactions that are in the same block are displayed in chronological order in the history.
 * The client computes transaction priority and rejects zero-fee transactions that need a fee.
@@ -235,17 +365,17 @@ https://bitcointalk.org/index.php?topic=144575.0
   For a single address, use the address menu (right-click).
   To export the keys of your entire wallet, use the settings dialog (import/export tab).
 
-* It is possible to create, sign and redeem multisig transaction using the 
+* It is possible to create, sign and redeem multisig transaction using the
 command line interface.  This is made possible by the following new commands:
     dumpprivkey, listunspent, createmultisig, createrawtransaction, decoderawtransaction, signrawtransaction
-The syntax of these commands is similar to their bitcoind counterpart. 
+The syntax of these commands is similar to their bitcoind counterpart.
 For an example, see Gavin's tutorial: https://gist.github.com/gavinandresen/3966071
 
-* Offline wallets now work in a way similar to Armory: 
+* Offline wallets now work in a way similar to Armory:
   1. user creates an unsigned transaction using the online (watching-only) wallet.
   2. unsigned transaction is copied to the offline computer, and signed by the offline wallet.
   3. signed transaction is copied to the online computer, broadcasted by the online client.
-  4. All these steps can be done via the command line interface or the classic GUI. 
+  4. All these steps can be done via the command line interface or the classic GUI.
 
 * Many command line commands have been renamed in order to make the syntax consistent with bitcoind.
 
@@ -276,23 +406,23 @@ For an example, see Gavin's tutorial: https://gist.github.com/gavinandresen/3966
 * (Bug) Under rare circumstances changing password with incorrect password could damage wallet
 
 == Lite GUI
-* (Chore) Use blockchain.info for exchange rate data 
+* (Chore) Use blockchain.info for exchange rate data
 * (Feature) added currency conversion for BRL, CNY, RUB
 * (Feature) Saraha theme
-* (Feature) csv import/export for transactions including labels 
+* (Feature) csv import/export for transactions including labels
 
 == Classic GUI
 * (Chore) pruning servers now called "p", full servers "f" to avoid confusion with terms
 * (Feature) Debits in history shown in red
-* (Feature) csv import/export for transactions including labels 
+* (Feature) csv import/export for transactions including labels
 
 # Release 1.5.8 (02-01-2013)
 
 == Core
-* (Bug) Fix pending address balance on received coins for pruning servers 
+* (Bug) Fix pending address balance on received coins for pruning servers
 * (Bug) Fix history command line option to show output again (regression by SPV)
 * (Chore) Add timeout to blockchain headers file download by HTTP
-* (Feature) new option: -L, --language: default language used in GUI. 
+* (Feature) new option: -L, --language: default language used in GUI.
 
 == Lite GUI
 * (Bug) Sending to auto-completed contacts works again
@@ -312,4 +442,3 @@ For an example, see Gavin's tutorial: https://gist.github.com/gavinandresen/3966
 * (Feature) Added a label dialog after sending a transaction.
 * (Feature) Reworked receiving addresses; instead of a random selection from one of your receiving addresses a new widget will show listing unused addresses.
 * (Chore)   Removed server selection. With all the new server options a simple menu item does not suffice anymore.
-

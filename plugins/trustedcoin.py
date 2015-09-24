@@ -34,7 +34,7 @@ from electrum import bitcoin
 from electrum.bitcoin import *
 from electrum.mnemonic import Mnemonic
 from electrum import version
-from electrum.wallet import Wallet_2of3
+from electrum.wallet import Multisig_Wallet, BIP32_Wallet
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, run_hook, hook
 
@@ -62,7 +62,7 @@ class TrustedCoinCosignerClient(object):
         self.base_url = base_url
         self.debug = debug
         self.user_agent = user_agent
-        
+
     def send_request(self, method, relative_url, data=None):
         kwargs = {'headers': {}}
         if self.user_agent:
@@ -85,12 +85,12 @@ class TrustedCoinCosignerClient(object):
                 r = response.json()
                 if 'message' in r:
                     message = r['message']
-            raise TrustedCoinException(message, response.status_code)        
+            raise TrustedCoinException(message, response.status_code)
         if response.headers.get('content-type') == 'application/json':
             return response.json()
         else:
             return response.text
-        
+
     def get_terms_of_service(self, billing_plan='electrum-per-tx-otp'):
         """
         Returns the TOS for the given billing plan as a plain/text unicode string.
@@ -98,13 +98,13 @@ class TrustedCoinCosignerClient(object):
         """
         payload = {'billing_plan': billing_plan}
         return self.send_request('get', 'tos', payload)
-        
+
     def create(self, xpubkey1, xpubkey2, email, billing_plan='electrum-per-tx-otp'):
         """
         Creates a new cosigner resource.
         :param xpubkey1: a bip32 extended public key (customarily the hot key)
         :param xpubkey2: a bip32 extended public key (customarily the cold key)
-        :param email: a contact email 
+        :param email: a contact email
         :param billing_plan: the billing plan for the cosigner
         """
         payload = {
@@ -114,7 +114,7 @@ class TrustedCoinCosignerClient(object):
             'billing_plan': billing_plan,
         }
         return self.send_request('post', 'cosigner', payload)
-        
+
     def auth(self, id, otp):
         """
         Attempt to authenticate for a particular cosigner.
@@ -123,7 +123,7 @@ class TrustedCoinCosignerClient(object):
         """
         payload = {'otp': otp}
         return self.send_request('post', 'cosigner/%s/auth' % quote(id), payload)
-        
+
     def get(self, id):
         """
         Attempt to authenticate for a particular cosigner.
@@ -131,7 +131,7 @@ class TrustedCoinCosignerClient(object):
         :param otp: the one time password
         """
         return self.send_request('get', 'cosigner/%s' % quote(id))
-        
+
     def sign(self, id, transaction, otp):
         """
         Attempt to authenticate for a particular cosigner.
@@ -157,7 +157,7 @@ class TrustedCoinCosignerClient(object):
             'otp': otp,
             'recipient': recipient,
             'timestamp': int(time.time()),
-            
+
         }
         relative_url = 'cosigner/%s/transfer' % quote(id)
         full_url = urljoin(self.base_url, relative_url)
@@ -170,9 +170,13 @@ class TrustedCoinCosignerClient(object):
 server = TrustedCoinCosignerClient(user_agent="Electrum/" + version.ELECTRUM_VERSION)
 
 
-class Wallet_2fa(Wallet_2of3):
+class Wallet_2fa(Multisig_Wallet):
 
-    wallet_type = '2fa'
+    def __init__(self, storage):
+        BIP32_Wallet.__init__(self, storage)
+        self.wallet_type = '2fa'
+        self.m = 2
+        self.n = 3
 
     def get_action(self):
         xpub1 = self.master_public_keys.get("x1/")
@@ -190,14 +194,14 @@ class Wallet_2fa(Wallet_2of3):
     def make_seed(self):
         return Mnemonic('english').make_seed(num_bits=256, prefix=SEED_PREFIX)
 
-    def estimated_fee(self, tx):
-        fee = Wallet_2of3.estimated_fee(self, tx)
+    def estimated_fee(self, tx, fee_per_kb):
+        fee = Multisig_Wallet.estimated_fee(self, tx, fee_per_kb)
         x = run_hook('extra_fee', tx)
         if x: fee += x
         return fee
 
     def get_tx_fee(self, tx):
-        fee = Wallet_2of3.get_tx_fee(self, tx)
+        fee = Multisig_Wallet.get_tx_fee(self, tx)
         x = run_hook('extra_fee', tx)
         if x: fee += x
         return fee
@@ -210,17 +214,12 @@ class Plugin(BasePlugin):
 
     def __init__(self, x, y):
         BasePlugin.__init__(self, x, y)
-        electrum.wallet.wallet_types.append(('twofactor', '2fa', _("Wallet with two-factor authentication"), Wallet_2fa))
         self.seed_func = lambda x: bitcoin.is_new_seed(x, SEED_PREFIX)
         self.billing_info = None
         self.is_billing = False
 
-    def fullname(self):
-        return 'Two Factor Authentication'
-
-    def description(self):
-        return _("This plugin adds two-factor authentication to your wallet.") + '<br/>'\
-            + _("For more information, visit") + " <a href=\"https://api.trustedcoin.com/#/electrum-help\">https://api.trustedcoin.com/#/electrum-help</a>"
+    def constructor(self, s):
+        return Wallet_2fa(s)
 
     def is_available(self):
         if not self.wallet:
@@ -228,9 +227,6 @@ class Plugin(BasePlugin):
         if self.wallet.storage.get('wallet_type') == '2fa':
             return True
         return False
-
-    def requires_settings(self):
-        return True
 
     def set_enabled(self, enabled):
         self.wallet.storage.put('use_' + self.name, enabled)
@@ -266,13 +262,6 @@ class Plugin(BasePlugin):
         address = public_key_to_bc_address( cK )
         return address
 
-    def enable(self):
-        if self.is_enabled():
-            self.window.show_message('Error: Two-factor authentication is already activated on this wallet')
-            return
-        self.set_enabled(True)
-        self.window.show_message('Two-factor authentication is enabled.')
-
     def create_extended_seed(self, wallet, window):
         seed = wallet.make_seed()
         if not window.show_seed(seed, None):
@@ -290,7 +279,7 @@ class Plugin(BasePlugin):
         wallet.add_cosigner_seed(' '.join(words[0:n]), 'x1/', password)
         wallet.add_cosigner_xpub(' '.join(words[n:]), 'x2/')
 
-        msg = [ 
+        msg = [
             _('Your wallet file is:') + " %s"%os.path.abspath(wallet.storage.path),
             _('You need to be online in order to complete the creation of your wallet.'),
             _('If you generated your seed on an offline computer, click on "%s" to close this window, move your wallet file to an online computer and reopen it with Electrum.') % _('Close'),
@@ -330,22 +319,25 @@ class Plugin(BasePlugin):
         wallet.add_master_public_key('x3/', xpub3)
 
     @hook
-    def init_qt(self, gui):
-        self.window = gui.main_window
-
-    @hook
     def do_clear(self):
         self.is_billing = False
 
     @hook
-    def load_wallet(self, wallet):
-        self.trustedcoin_button = StatusBarButton( QIcon(":icons/trustedcoin.png"), _("Network"), self.settings_dialog)
+    def load_wallet(self, wallet, window):
+        self.wallet = wallet
+        self.window = window
+        self.trustedcoin_button = StatusBarButton(QIcon(":icons/trustedcoin.png"), _("TrustedCoin"), self.settings_dialog)
         self.window.statusBar().addPermanentWidget(self.trustedcoin_button)
         self.xpub = self.wallet.master_public_keys.get('x1/')
         self.user_id = self.get_user_id()[1]
         t = threading.Thread(target=self.request_billing_info)
         t.setDaemon(True)
         t.start()
+
+    @hook
+    def installwizard_load_wallet(self, wallet, window):
+        self.wallet = wallet
+        self.window = window
 
     @hook
     def close_wallet(self):
@@ -355,14 +347,14 @@ class Plugin(BasePlugin):
     def get_wizard_action(self, window, wallet, action):
         if hasattr(self, action):
             return getattr(self, action)
-            
+
     @hook
     def installwizard_restore(self, window, storage):
-        if storage.get('wallet_type') != '2fa': 
+        if storage.get('wallet_type') != '2fa':
             return
 
         seed = window.enter_seed_dialog("Enter your seed", None, func=self.seed_func)
-        if not seed: 
+        if not seed:
             return
         wallet = Wallet_2fa(storage)
         self.wallet = wallet
@@ -385,7 +377,7 @@ class Plugin(BasePlugin):
         self.wallet = wallet
         self.window = window
 
-        if wallet.storage.get('wallet_type') != '2fa': 
+        if wallet.storage.get('wallet_type') != '2fa':
             raise
             return
 
@@ -406,22 +398,29 @@ class Plugin(BasePlugin):
         except socket.error:
             self.window.show_message('Server not reachable, aborting')
             return
+        except TrustedCoinException as e:
+            if e.status_code == 409:
+                r = None
+            else:
+                raise e
 
-        otp_secret = r.get('otp_secret')
-        if not otp_secret:
-            self.window.show_message(_('Error'))
-            return
+        if r is None:
+            otp_secret = None
+        else:
+            otp_secret = r.get('otp_secret')
+            if not otp_secret:
+                self.window.show_message(_('Error'))
+                return
+            _xpub3 = r['xpubkey_cosigner']
+            _id = r['id']
+            try:
+                assert _id == self.user_id, ("user id error", _id, self.user_id)
+                assert xpub3 == _xpub3, ("xpub3 error", xpub3, _xpub3)
+            except Exception as e:
+                self.window.show_message(str(e))
+                return
 
-        _xpub3 = r['xpubkey_cosigner']
-        _id = r['id']
-        try:
-            assert _id == self.user_id, ("user id error", _id, self.user_id)
-            assert xpub3 == _xpub3, ("xpub3 error", xpub3, _xpub3)
-        except Exception as e:
-            self.window.show_message(str(e))
-            return
-            
-        if not self.setup_google_auth(self.window, _id, otp_secret):
+        if not self.setup_google_auth(self.window, self.user_id, otp_secret):
             return
 
         self.wallet.add_master_public_key('x3/', xpub3)
@@ -442,13 +441,13 @@ class Plugin(BasePlugin):
         return False
 
     @hook
-    def send_tx(self, tx):
-        print_error("twofactor:send_tx")
+    def sign_tx(self, tx):
+        self.print_error("twofactor:sign_tx")
         if self.wallet.storage.get('wallet_type') != '2fa':
             return
 
         if not self.need_server(tx):
-            print_error("twofactor: xpub3 not needed")
+            self.print_error("twofactor: xpub3 not needed")
             self.auth_code = None
             return
 
@@ -476,7 +475,7 @@ class Plugin(BasePlugin):
         price = int(self.price_per_tx.get(1))
         assert price <= 100000
         if tx.input_value() < price:
-            print_error("not charging for this tx")
+            self.print_error("not charging for this tx")
             return 0
         return price
 
@@ -489,9 +488,9 @@ class Plugin(BasePlugin):
 
     @hook
     def sign_transaction(self, tx, password):
-        print_error("twofactor:sign")
+        self.print_error("twofactor:sign")
         if self.wallet.storage.get('wallet_type') != '2fa':
-            print_error("twofactor: aborting")
+            self.print_error("twofactor: aborting")
             return
 
         self.long_user_id, self.user_id = self.get_user_id()
@@ -510,13 +509,13 @@ class Plugin(BasePlugin):
             tx.error = str(e)
             return
 
-        print_error( "received answer", r)
+        self.print_error( "received answer", r)
         if not r:
-            return 
+            return
 
         raw_tx = r.get('transaction')
         tx.update(raw_tx)
-        print_error("twofactor: is complete", tx.is_complete())
+        self.print_error("twofactor: is complete", tx.is_complete())
 
 
     def auth_dialog(self ):
@@ -532,12 +531,9 @@ class Plugin(BasePlugin):
         grid.addWidget(pw, 1, 1)
         vbox.addLayout(grid)
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
-        if not d.exec_(): 
+        if not d.exec_():
             return
         return pw.get_amount()
-
-    def settings_widget(self, window):
-        return EnterButton(_('Settings'), self.settings_dialog)
 
     def settings_dialog(self):
         self.waiting_dialog = WaitingDialog(self.window, 'please wait...', self.request_billing_info, self.show_settings_dialog)
@@ -560,7 +556,7 @@ class Plugin(BasePlugin):
               + _("For more information, visit") + " <a href=\"https://api.trustedcoin.com/#/electrum-help\">https://api.trustedcoin.com/#/electrum-help</a>"
         label = QLabel(msg)
         label.setOpenExternalLinks(1)
-        
+
         hbox.addStretch(10)
         hbox.addWidget(logo)
         hbox.addStretch(10)
@@ -584,24 +580,19 @@ class Plugin(BasePlugin):
         grid.addWidget(QLabel(self.window.format_amount(v) + ' ' + self.window.base_unit()), 0, 1)
 
         i = 1
+
+        if 10 not in self.price_per_tx:
+            self.price_per_tx[10] = 10 * self.price_per_tx.get(1)
+
         for k, v in sorted(self.price_per_tx.items()):
-            if k!=1:
-                grid.addWidget(QLabel("Price for %d prepaid transactions:"%k), i, 0)
-                grid.addWidget(QLabel(self.window.format_amount(v) + ' ' + self.window.base_unit()), i, 1)
-                b = QPushButton(_("Buy"))
-                grid.addWidget(b, i, 2)
-                def on_buy():
-                    d.close()
-                    if self.window.pluginsdialog:
-                        self.window.pluginsdialog.close()
-                    uri = "bitcoin:" + self.billing_info['billing_address'] + "?message=TrustedCoin Prepaid Transactions&amount="+str(Decimal(v)/100000000)
-                    self.is_billing = True
-                    self.window.pay_from_URI(uri)
-                    self.window.payto_e.setFrozen(True)
-                    self.window.message_e.setFrozen(True)
-                    self.window.amount_e.setFrozen(True)
-                b.clicked.connect(on_buy)
-                i += 1
+            if k == 1:
+                continue
+            grid.addWidget(QLabel("Price for %d prepaid transactions:"%k), i, 0)
+            grid.addWidget(QLabel("%d x "%k + self.window.format_amount(v/k) + ' ' + self.window.base_unit()), i, 1)
+            b = QPushButton(_("Buy"))
+            b.clicked.connect(lambda b, k=k, v=v: self.on_buy(k, v, d))
+            grid.addWidget(b, i, 2)
+            i += 1
 
         n = self.billing_info.get('tx_remaining', 0)
         grid.addWidget(QLabel(_("Your wallet has %d prepaid transactions.")%n), i, 0)
@@ -619,6 +610,16 @@ class Plugin(BasePlugin):
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
 
+    def on_buy(self, k, v, d):
+        d.close()
+        if self.window.pluginsdialog:
+            self.window.pluginsdialog.close()
+        uri = "bitcoin:" + self.billing_info['billing_address'] + "?message=TrustedCoin %d Prepaid Transactions&amount="%k + str(Decimal(v)/100000000)
+        self.is_billing = True
+        self.window.pay_from_URI(uri)
+        self.window.payto_e.setFrozen(True)
+        self.window.message_e.setFrozen(True)
+        self.window.amount_e.setFrozen(True)
 
     def request_billing_info(self):
         billing_info = server.get(self.user_id)
@@ -649,7 +650,7 @@ class Plugin(BasePlugin):
             tos = server.get_terms_of_service()
             self.TOS = tos
             window.emit(SIGNAL('twofactor:TOS'))
-            
+
         def on_result():
             tos_e.setText(self.TOS)
 
@@ -662,7 +663,7 @@ class Plugin(BasePlugin):
         email_e.textChanged.connect(lambda: accept_button.setEnabled(re.match(regexp,email_e.text()) is not None))
         email_e.setFocus(True)
 
-        if not window.exec_(): 
+        if not window.exec_():
             return
 
         email = str(email_e.text())
@@ -670,16 +671,21 @@ class Plugin(BasePlugin):
 
 
     def setup_google_auth(self, window, _id, otp_secret):
-        uri = "otpauth://totp/%s?secret=%s"%('trustedcoin.com', otp_secret)
         vbox = QVBoxLayout()
         window.set_layout(vbox)
-        vbox.addWidget(QLabel("Please scan this QR code in Google Authenticator."))
-        qrw = QRCodeWidget(uri)
-        vbox.addWidget(qrw, 1)
-        #vbox.addWidget(QLabel(data), 0, Qt.AlignHCenter)
+        if otp_secret is not None:
+            uri = "otpauth://totp/%s?secret=%s"%('trustedcoin.com', otp_secret)
+            vbox.addWidget(QLabel("Please scan this QR code in Google Authenticator."))
+            qrw = QRCodeWidget(uri)
+            vbox.addWidget(qrw, 1)
+            msg = _('Then, enter your Google Authenticator code:')
+        else:
+            label = QLabel("This wallet is already registered, but it was never authenticated. To finalize your registration, please enter your Google Authenticator Code. If you do not have this code, delete the wallet file and start a new registration")
+            label.setWordWrap(1)
+            vbox.addWidget(label)
+            msg = _('Google Authenticator code:')
 
         hbox = QHBoxLayout()
-        msg = _('Then, enter your Google Authenticator code:')
         hbox.addWidget(QLabel(msg))
         pw = AmountEdit(None, is_int = True)
         pw.setFocus(True)
@@ -692,14 +698,13 @@ class Plugin(BasePlugin):
         vbox.addLayout(Buttons(CancelButton(window), b))
         pw.textChanged.connect(lambda: b.setEnabled(len(pw.text())==6))
 
-        window.exec_()
-        otp = pw.get_amount()
-        try:
-            server.auth(_id, otp)
-        except:
-            self.window.show_message('Incorrect password, aborting')
-            return
-
-        return True
-
-
+        while True:
+            if not window.exec_():
+                return False
+            otp = pw.get_amount()
+            try:
+                server.auth(_id, otp)
+                return True
+            except:
+                QMessageBox.information(self.window, _('Message'), _('Incorrect password'), _('OK'))
+                pw.setText('')

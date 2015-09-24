@@ -23,7 +23,7 @@ import re
 import time
 from electrum.wallet import Wallet, WalletStorage
 import webbrowser
-import history_widget
+import history_widget_lite
 import receiving_widget
 from electrum import util
 import datetime
@@ -36,7 +36,7 @@ import shutil
 
 from util import *
 
-bitcoin = lambda v: v * 100000000
+bitcoin = lambda v: v * COIN
 
 def IconButton(filename, parent=None):
     pixmap = QPixmap(filename)
@@ -200,7 +200,7 @@ class MiniWindow(QDialog):
 
         self.send_button.setMaximumWidth(125)
 
-        self.history_list = history_widget.HistoryWidget()
+        self.history_list = history_widget_lite.HistoryWidget()
         self.history_list.setObjectName("history")
         self.history_list.hide()
         self.history_list.setAlternatingRowColors(True)
@@ -308,12 +308,15 @@ class MiniWindow(QDialog):
 
     def pay_from_URI(self, URI):
         try:
-            dest_address, amount, label, message, request_url = util.parse_URI(URI)
+            out = util.parse_URI(URI)
         except:
             return
-        self.address_input.setText(dest_address)
-        self.address_field_changed(dest_address)
-        self.amount_input.setText(str(amount))
+        address = out.get('address')
+        amount = out.get('amount')
+        amount_text = str(D(amount) / (10**self.actuator.g.decimal_point))
+        self.address_input.setText(address)
+        self.address_field_changed(address)
+        self.amount_input.setText(amount_text)
 
     def activate(self):
         pass
@@ -450,7 +453,7 @@ class MiniWindow(QDialog):
         self.history_list.empty()
 
         for item in tx_history[-10:]:
-            tx_hash, conf, is_mine, value, fee, balance, timestamp = item
+            tx_hash, conf, value, timestamp, balance = item
             label = self.actuator.g.wallet.get_label(tx_hash)[0]
             v_str = self.actuator.g.format_amount(value, True)
             self.history_list.append(label, v_str, age(timestamp))
@@ -789,9 +792,9 @@ class MiniDriver(QObject):
         self.network = main_window.network
         self.window = mini_window
 
-        if self.network:
-            self.network.register_callback('updated',self.update_callback)
-            self.network.register_callback('status', self.update_callback)
+        #if self.network:
+        #    self.network.register_callback('updated',self.update_callback)
+        #    self.network.register_callback('status', self.update_callback)
 
         self.state = None
 
@@ -850,19 +853,16 @@ class MiniDriver(QObject):
         self.window.activate()
 
     def update_balance(self):
-        conf_balance, unconf_balance = self.g.wallet.get_balance()
-        balance = D(conf_balance + unconf_balance)
+        conf_balance, unconf_balance, x = self.g.wallet.get_balance()
+        balance = D(conf_balance + unconf_balance + x)
         self.window.set_balances(balance)
 
     def update_completions(self):
-        completions = []
-        for addr, label in self.g.wallet.labels.items():
-            if addr in self.g.wallet.addressbook:
-                completions.append("%s <%s>" % (label, addr))
+        completions = [self.g.get_contact_payto(key) for key in self.g.contacts.keys()]
         self.window.update_completions(completions)
 
     def update_history(self):
-        tx_history = self.g.wallet.get_tx_history()
+        tx_history = self.g.wallet.get_history()
         self.window.update_history(tx_history)
 
 

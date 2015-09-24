@@ -21,8 +21,6 @@ if __name__ == '__main__':
     shutil.copyfile('scripts/authenticator.py', target + '/authenticator.py')
     shutil.copytree("packages",'dist/e4a-%s/packages'%version, ignore=shutil.ignore_patterns('*.pyc'))
     shutil.copytree("lib",'dist/e4a-%s/lib'%version, ignore=shutil.ignore_patterns('*.pyc'))
-    # dns is not used by android app
-    os.system('rm -rf %s/packages/dns'%target)
     os.mkdir(target + '/gui')
     shutil.copyfile('gui/android.py', target + '/gui/android.py')
     open(target + '/gui/__init__.py','w').close()
@@ -34,7 +32,5 @@ if __name__ == '__main__':
 
     # change filename because some 3G carriers do not allow users to download a zip file...
     e4a_name = "e4a-%s.zip"%version
-    e4a_name2 = e4a_name.replace(".","")
-    os.system("mv %s %s"%(e4a_name, e4a_name2))
-    print "dist/%s"%e4a_name2
+    print "dist/%s"%e4a_name
 
