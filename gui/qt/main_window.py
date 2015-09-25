@@ -1202,6 +1202,9 @@ class ElectrumWindow(QMainWindow, PrintError):
             _("Amount to be sent") + ": " + self.format_amount_and_units(amount),
             _("Transaction fee") + ": " + self.format_amount_and_units(fee),
         ]
+        if tx.get_fee() >= self.config.get('confirm_fee', 100000):
+            msg.append(_('Warning')+ ': ' + _("The fee for this transaction seems unusually high."))
+
         if self.wallet.use_encryption:
             msg.append(_("Enter your password to proceed"))
             password = self.password_dialog('\n'.join(msg))
@@ -1254,15 +1257,6 @@ class ElectrumWindow(QMainWindow, PrintError):
 
 
     def broadcast_transaction(self, tx, tx_desc, parent=None):
-
-        confirm_fee = self.config.get('confirm_fee', 100000)
-        if tx.get_fee() >= confirm_fee:
-            msg = '\n'.join([
-                _("The fee for this transaction seems unusually high."),
-                _("Are you really sure you want to pay %(fee)s in fees?")%{ 'fee' : self.format_amount_and_units(fee)}
-            ])
-            if not self.question(msg):
-                return
 
         def broadcast_thread():
             # non-GUI thread
