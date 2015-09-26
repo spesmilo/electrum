@@ -84,7 +84,7 @@ class Plugin(BasePlugin):
         self.wallet = wallet
         self.wallet.plugin = self
         if self.handler is None:
-            self.handler = BTChipQTHandler(window.app)
+            self.handler = BTChipQTHandler(window)
         if self.btchip_is_connected():
             if not self.wallet.check_proper_device():
                 QMessageBox.information(window, _('Error'), _("This wallet does not match your Ledger device"), _('OK'))
