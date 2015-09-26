@@ -64,9 +64,8 @@ class CosignWidget(QWidget):
 
 class InstallWizard(QDialog):
 
-    def __init__(self, config, network, storage, app):
+    def __init__(self, config, network, storage):
         QDialog.__init__(self)
-        self.app = app
         self.config = config
         self.network = network
         self.storage = storage
@@ -400,24 +399,6 @@ class InstallWizard(QDialog):
         wallet_type = '%dof%d'%(m,n)
         return wallet_type
 
-
-    def question(self, msg, yes_label=_('OK'), no_label=_('Cancel'), icon=None):
-        vbox = QVBoxLayout()
-        self.set_layout(vbox)
-        if icon:
-            logo = QLabel()
-            logo.setPixmap(icon)
-            vbox.addWidget(logo)
-        label = QLabel(msg)
-        label.setWordWrap(True)
-        vbox.addWidget(label)
-        vbox.addStretch(1)
-        vbox.addLayout(Buttons(CancelButton(self, no_label), OkButton(self, yes_label)))
-        if not self.exec_():
-            return None
-        return True
-
-
     def show_seed(self, seed, sid):
         vbox = seed_dialog.show_seed_box_msg(seed, sid)
         vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _("Next"))))
@@ -432,9 +413,32 @@ class InstallWizard(QDialog):
         self.set_layout( make_password_dialog(self, None, msg) )
         return run_password_dialog(self, None, self)[2]
 
+    def run(self, action):
+        if self.storage.file_exists and action != 'new':
+            path = self.storage.path
+            msg = _("The file '%s' contains an incompletely created wallet.\n"
+                    "Do you want to complete its creation now?") % path
+            if not question(msg):
+                if question(_("Do you want to delete '%s'?") % path):
+                    os.remove(path)
+                    QMessageBox.information(self, _('Warning'),
+                                            _('The file was removed'), _('OK'))
+                    return
+                return
+        self.show()
+        if action == 'new':
+            action, wallet_type = self.restore_or_create()
+        else:
+            wallet_type = None
+        try:
+            wallet = self.run_wallet_type(action, wallet_type)
+        except BaseException as e:
+            traceback.print_exc(file=sys.stdout)
+            QMessageBox.information(None, _('Error'), str(e), _('OK'))
+            return
+        return wallet
 
-    def run(self, action, wallet_type):
-
+    def run_wallet_type(self, action, wallet_type):
         if action in ['create', 'restore']:
             if wallet_type == 'multisig':
                 wallet_type = self.multisig_choice()
