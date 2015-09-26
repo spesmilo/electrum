@@ -242,11 +242,11 @@ class Plugin(BasePlugin, ThreadJob):
     def on_new_window(self, window):
         # Additional send and receive edit boxes
         send_e = AmountEdit(self.config_ccy)
-        window.send_grid.addWidget(send_e, 4, 3, Qt.AlignHCenter)
+        window.send_grid.addWidget(send_e, 4, 2, Qt.AlignLeft)
         window.amount_e.frozen.connect(
             lambda: send_e.setFrozen(window.amount_e.isReadOnly()))
         receive_e = AmountEdit(self.config_ccy)
-        window.receive_grid.addWidget(receive_e, 2, 3, Qt.AlignHCenter)
+        window.receive_grid.addWidget(receive_e, 2, 2, Qt.AlignLeft)
 
         self.windows[window] = {'edits': (send_e, receive_e),
                                 'last_edited': {}}
@@ -377,6 +377,8 @@ class Plugin(BasePlugin, ThreadJob):
         return True
 
     def value_str(self, satoshis, rate):
+        if satoshis is None:  # Can happen with incomplete history
+            return _("Unknown")
         if rate:
             value = Decimal(satoshis) / COIN * Decimal(rate)
             return "%s" % (self.ccy_amount_str(value, True))

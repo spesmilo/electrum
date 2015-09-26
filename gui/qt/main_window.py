@@ -135,14 +135,9 @@ class ElectrumWindow(QMainWindow, PrintError):
         tabs.addTab(self.create_addresses_tab(), _('Addresses') )
         tabs.addTab(self.create_contacts_tab(), _('Contacts') )
         tabs.addTab(self.create_console_tab(), _('Console') )
-        tabs.setMinimumSize(600, 400)
+        tabs.setMinimumSize(660, 400)
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
-
-        #try:
-        #    self.setGeometry(*self.config.get("winpos-qt"))
-        #except:
-        #    self.setGeometry(100, 100, 840, 400)
 
         if self.config.get("is_maximized"):
             self.showMaximized()
@@ -574,9 +569,11 @@ class ElectrumWindow(QMainWindow, PrintError):
         show_transaction(tx, self, tx_desc)
 
     def create_receive_tab(self):
-
+        # A 4-column grid layout.  All the stretch is in the last column.
+        # The exchange rate plugin adds a fiat widget in column 2
         self.receive_grid = grid = QGridLayout()
-        grid.setColumnMinimumWidth(3, 300)
+        grid.setSpacing(8)
+        grid.setColumnStretch(3, 1)
 
         self.receive_address_e = ButtonsLineEdit()
         self.receive_address_e.addCopyButton(self.app)
@@ -586,21 +583,22 @@ class ElectrumWindow(QMainWindow, PrintError):
         self.receive_address_e.textChanged.connect(self.update_receive_qr)
         self.receive_address_e.setFocusPolicy(Qt.NoFocus)
         grid.addWidget(self.receive_address_label, 0, 0)
-        grid.addWidget(self.receive_address_e, 0, 1, 1, 4)
+        grid.addWidget(self.receive_address_e, 0, 1, 1, -1)
 
         self.receive_message_e = QLineEdit()
         grid.addWidget(QLabel(_('Description')), 1, 0)
-        grid.addWidget(self.receive_message_e, 1, 1, 1, 4)
+        grid.addWidget(self.receive_message_e, 1, 1, 1, -1)
         self.receive_message_e.textChanged.connect(self.update_receive_qr)
 
         self.receive_amount_e = BTCAmountEdit(self.get_decimal_point)
         grid.addWidget(QLabel(_('Requested amount')), 2, 0)
-        grid.addWidget(self.receive_amount_e, 2, 1, 1, 2)
+        grid.addWidget(self.receive_amount_e, 2, 1)
         self.receive_amount_e.textChanged.connect(self.update_receive_qr)
 
         self.expires_combo = QComboBox()
         self.expires_combo.addItems(map(lambda x:x[0], expiration_values))
         self.expires_combo.setCurrentIndex(1)
+        self.expires_combo.setFixedWidth(self.receive_amount_e.width())
         msg = ' '.join([
             _('Expiration date of your request.'),
             _('This information is seen by the recipient if you send them a signed payment request.'),
@@ -613,7 +611,7 @@ class ElectrumWindow(QMainWindow, PrintError):
         self.expires_label.setReadOnly(1)
         self.expires_label.setFocusPolicy(Qt.NoFocus)
         self.expires_label.hide()
-        grid.addWidget(self.expires_label, 3, 1, 1, 2)
+        grid.addWidget(self.expires_label, 3, 1)
 
         self.save_request_button = QPushButton(_('Save'))
         self.save_request_button.clicked.connect(self.save_payment_request)
@@ -630,6 +628,7 @@ class ElectrumWindow(QMainWindow, PrintError):
         buttons.addStretch(1)
         buttons.addWidget(self.save_request_button)
         buttons.addWidget(self.new_request_button)
+        grid.addLayout(buttons, 4, 1, 1, 2)
 
         self.receive_requests_label = QLabel(_('My Requests'))
         self.receive_list = MyTreeWidget(self, self.receive_list_menu, [_('Date'), _('Account'), _('Address'), '', _('Description'), _('Amount'), _('Status')], 4)
@@ -644,11 +643,10 @@ class ElectrumWindow(QMainWindow, PrintError):
         # layout
         vbox_g = QVBoxLayout()
         vbox_g.addLayout(grid)
-        vbox_g.addLayout(buttons)
+        vbox_g.addStretch()
 
         hbox = QHBoxLayout()
         hbox.addLayout(vbox_g)
-        hbox.addStretch()
         hbox.addWidget(self.receive_qr)
 
         w = QWidget()
@@ -657,6 +655,7 @@ class ElectrumWindow(QMainWindow, PrintError):
         vbox.addStretch(1)
         vbox.addWidget(self.receive_requests_label)
         vbox.addWidget(self.receive_list)
+        vbox.setStretchFactor(self.receive_list, 1000)
 
         return w
 
@@ -896,11 +895,11 @@ class ElectrumWindow(QMainWindow, PrintError):
         self.send_button.setText(text)
 
     def create_send_tab(self):
+        # A 4-column grid layout.  All the stretch is in the last column.
+        # The exchange rate plugin adds a fiat widget in column 2
         self.send_grid = grid = QGridLayout()
         grid.setSpacing(8)
-        grid.setColumnMinimumWidth(3,300)
-        grid.setColumnStretch(5,1)
-        grid.setRowStretch(8, 1)
+        grid.setColumnStretch(3, 1)
 
         from paytoedit import PayToEdit
         self.amount_e = BTCAmountEdit(self.get_decimal_point)
@@ -909,7 +908,7 @@ class ElectrumWindow(QMainWindow, PrintError):
               + _('You may enter a Litecoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Litecoin address)')
         payto_label = HelpLabel(_('Pay to'), msg)
         grid.addWidget(payto_label, 1, 0)
-        grid.addWidget(self.payto_e, 1, 1, 1, 3)
+        grid.addWidget(self.payto_e, 1, 1, 1, -1)
 
         completer = QCompleter()
         completer.setCaseSensitivity(False)
@@ -921,14 +920,14 @@ class ElectrumWindow(QMainWindow, PrintError):
         description_label = HelpLabel(_('Description'), msg)
         grid.addWidget(description_label, 2, 0)
         self.message_e = MyLineEdit()
-        grid.addWidget(self.message_e, 2, 1, 1, 3)
+        grid.addWidget(self.message_e, 2, 1, 1, -1)
 
         self.from_label = QLabel(_('From'))
         grid.addWidget(self.from_label, 3, 0)
         self.from_list = MyTreeWidget(self, self.from_list_menu, ['',''])
         self.from_list.setHeaderHidden(True)
         self.from_list.setMaximumHeight(80)
-        grid.addWidget(self.from_list, 3, 1, 1, 3)
+        grid.addWidget(self.from_list, 3, 1, 1, -1)
         self.set_pay_from([])
 
         msg = _('Amount to be sent.') + '\n\n' \
@@ -937,7 +936,7 @@ class ElectrumWindow(QMainWindow, PrintError):
               + _('Keyboard shortcut: type "!" to send all your coins.')
         amount_label = HelpLabel(_('Amount'), msg)
         grid.addWidget(amount_label, 4, 0)
-        grid.addWidget(self.amount_e, 4, 1, 1, 2)
+        grid.addWidget(self.amount_e, 4, 1)
 
         msg = _('Litecoin transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
               + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
@@ -945,7 +944,7 @@ class ElectrumWindow(QMainWindow, PrintError):
         self.fee_e_label = HelpLabel(_('Fee'), msg)
         self.fee_e = BTCAmountEdit(self.get_decimal_point)
         grid.addWidget(self.fee_e_label, 5, 0)
-        grid.addWidget(self.fee_e, 5, 1, 1, 2)
+        grid.addWidget(self.fee_e, 5, 1)
 
         self.send_button = EnterButton(_("Send"), self.do_send)
         self.clear_button = EnterButton(_("Clear"), self.do_clear)
@@ -953,6 +952,7 @@ class ElectrumWindow(QMainWindow, PrintError):
         buttons.addStretch(1)
         buttons.addWidget(self.send_button)
         buttons.addWidget(self.clear_button)
+        grid.addLayout(buttons, 6, 1, 1, 2)
 
         def on_shortcut():
             sendable = self.get_sendable_balance()
@@ -1011,17 +1011,15 @@ class ElectrumWindow(QMainWindow, PrintError):
 
         vbox0 = QVBoxLayout()
         vbox0.addLayout(grid)
-        vbox0.addLayout(buttons)
-        vbox0.addStretch(1)
         hbox = QHBoxLayout()
         hbox.addLayout(vbox0)
-        hbox.addStretch(1)
         w = QWidget()
         vbox = QVBoxLayout(w)
         vbox.addLayout(hbox)
-        vbox.addStretch()
+        vbox.addStretch(1)
         vbox.addWidget(self.invoices_label)
         vbox.addWidget(self.invoices_list)
+        vbox.setStretchFactor(self.invoices_list, 1000)
 
         # Defer this until grid is parented to avoid ugly flash during startup
         self.update_fee_edit()
@@ -1202,6 +1200,9 @@ class ElectrumWindow(QMainWindow, PrintError):
             _("Amount to be sent") + ": " + self.format_amount_and_units(amount),
             _("Transaction fee") + ": " + self.format_amount_and_units(fee),
         ]
+        if tx.get_fee() >= self.config.get('confirm_fee', 1000000):
+            msg.append(_('Warning')+ ': ' + _("The fee for this transaction seems unusually high."))
+
         if self.wallet.use_encryption:
             msg.append(_("Enter your password to proceed"))
             password = self.password_dialog('\n'.join(msg))
@@ -1254,15 +1255,6 @@ class ElectrumWindow(QMainWindow, PrintError):
 
 
     def broadcast_transaction(self, tx, tx_desc, parent=None):
-
-        confirm_fee = self.config.get('confirm_fee', 1000000)
-        if tx.get_fee() >= confirm_fee:
-            msg = '\n'.join([
-                _("The fee for this transaction seems unusually high."),
-                _("Are you really sure you want to pay %(fee)s in fees?")%{ 'fee' : self.format_amount_and_units(fee)}
-            ])
-            if not self.question(msg):
-                return
 
         def broadcast_thread():
             # non-GUI thread

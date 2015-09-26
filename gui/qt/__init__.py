@@ -34,6 +34,8 @@ from electrum_ltc.plugins import run_hook
 from electrum_ltc import SimpleConfig, Wallet, WalletStorage
 from electrum_ltc.paymentrequest import InvoiceStore
 from electrum_ltc.contacts import Contacts
+from installwizard import InstallWizard
+
 
 try:
     import icons_rc
@@ -119,31 +121,6 @@ class ElectrumGui:
         for window in self.windows:
             window.close()
 
-    def run_wizard(self, storage, action):
-        import installwizard
-        if storage.file_exists and action != 'new':
-            msg = _("The file '%s' contains an incompletely created wallet.")%storage.path + '\n'\
-                  + _("Do you want to complete its creation now?")
-            if not self.question(msg):
-                if self.question(_("Do you want to delete '%s'?")%storage.path):
-                    os.remove(storage.path)
-                    QMessageBox.information(self, _('Warning'), _('The file was removed'), _('OK'))
-                    return
-                return
-        wizard = installwizard.InstallWizard(self.config, self.network, storage, self)
-        wizard.show()
-        if action == 'new':
-            action, wallet_type = wizard.restore_or_create()
-        else:
-            wallet_type = None
-        try:
-            wallet = wizard.run(action, wallet_type)
-        except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
-            QMessageBox.information(None, _('Error'), str(e), _('OK'))
-            return
-        return wallet
-
     def load_wallet_file(self, filename):
         try:
             storage = WalletStorage(filename)
@@ -166,7 +143,8 @@ class ElectrumGui:
             action = wallet.get_action()
         # run wizard
         if action is not None:
-            wallet = self.run_wizard(storage, action)
+            wizard = InstallWizard(self.config, self.network, storage)
+            wallet = wizard.run(action)
             # keep current wallet
             if not wallet:
                 return
@@ -180,7 +158,6 @@ class ElectrumGui:
         return os.path.dirname(os.path.abspath(self.config.get_wallet_path()))
 
     def new_wallet(self):
-        import installwizard
         wallet_folder = self.get_wallet_folder()
         i = 1
         while True:
@@ -197,11 +174,8 @@ class ElectrumGui:
         if storage.file_exists:
             QMessageBox.critical(None, "Error", _("File exists"))
             return
-        wizard = installwizard.InstallWizard(self.config, self.network, storage, self.app)
-        action, wallet_type = wizard.restore_or_create()
-        if not action:
-            return
-        wallet = wizard.run(action, wallet_type)
+        wizard = InstallWizard(self.config, self.network, storage)
+        wallet = wizard.run('new')
         if wallet:
             self.new_window(full_path)
 
