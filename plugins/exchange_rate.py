@@ -416,6 +416,8 @@ class Plugin(BasePlugin, ThreadJob):
         return True
 
     def value_str(self, satoshis, rate):
+        if satoshis is None:  # Can happen with incomplete history
+            return _("Unknown")
         if rate:
             value = Decimal(satoshis) / COIN * Decimal(rate)
             return "%s" % (self.ccy_amount_str(value, True))
