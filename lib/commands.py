@@ -532,7 +532,7 @@ class Commands:
             PR_PAID: 'Paid',
             PR_EXPIRED: 'Expired',
         }
-        out['amount'] = format_satoshis(out.get('amount')) + ' BTC'
+        out['amount (BTC)'] = format_satoshis(out.pop('amount'))
         out['status'] = pr_str[out.get('status', PR_UNKNOWN)]
         return out
 
