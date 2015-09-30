@@ -1,4 +1,5 @@
 import sys
+import time
 import datetime
 import traceback
 
@@ -6,6 +7,7 @@ from electrum import WalletStorage, Wallet
 from electrum.i18n import _, set_language
 from electrum.contacts import Contacts
 from electrum import bitcoin
+from electrum.util import profiler, print_error
 
 from kivy.config import Config
 Config.set('modules', 'screen', 'droid2')
@@ -180,8 +182,6 @@ class ElectrumWindow(App):
     :attr:`wallet` is a `ObjectProperty` defaults to None.
     '''
 
-    __events__ = ('on_back', )
-
     def __init__(self, **kwargs):
         # initialize variables
         self._clipboard = None
@@ -299,15 +299,6 @@ class ElectrumWindow(App):
         if self.wallet:
             self.wallet.stop_threads()
 
-    def on_back(self):
-        ''' Manage screen hierarchy
-        '''
-        try:
-            self.navigation_higherarchy.pop()()
-        except IndexError:
-            # capture back button and pause app.
-            self._pause()
-
     def on_keyboard_height(self, window, height):
         win = window
         active_widg = win.children[0]
@@ -349,9 +340,6 @@ class ElectrumWindow(App):
         if key in (319, 282): #f1/settings button on android
             self.gui.main_gui.toggle_settings(self)
             return True
-        if key == 27:
-            self.dispatch('on_back')
-            return True
 
     def on_wizard_complete(self, instance, wallet):
         if not wallet:
@@ -360,29 +348,14 @@ class ElectrumWindow(App):
             app.show_error('Electrum: No Wallet set/found. Exiting...',
                            exit=True)
 
-
         self.init_ui()
-        # plugins that need to change the GUI do it here
-        #run_hook('init')
-
         self.load_wallet(wallet)
 
+    @profiler
     def init_ui(self):
         ''' Initialize The Ux part of electrum. This function performs the basic
         tasks of setting up the ui.
         '''
-
-        # unused?
-        #self._close_electrum = False
-
-        #self._tray_icon = 'icons/" + (electrum_dark_icon.png'\
-        #    if platform == 'mac' else 'electrum_light_icon.png')
-
-        #setup tray TODO: use the systray branch
-        #self.tray = SystemTrayIcon(self.icon, self)
-        #self.tray.setToolTip('Electrum')
-        #self.tray.activated.connect(self.tray_activated)
-
         global ref
         if not ref:
             from weakref import ref
@@ -416,7 +389,6 @@ class ElectrumWindow(App):
         Cache.append('electrum_widgets', 'TabbedCarousel', Factory.TabbedCarousel())
         Cache.append('electrum_widgets', 'QRCodeWidget', Factory.QRCodeWidget())
         Cache.append('electrum_widgets', 'CSpinner', Factory.CSpinner())
-
 
         # load and focus the ui
         #Load mainscreen
@@ -487,22 +459,15 @@ class ElectrumWindow(App):
         return quote_text
 
 
+    @profiler
     def load_wallet(self, wallet):
         self.wallet = wallet
-        self.accounts_expanded = self.wallet.storage.get('accounts_expanded', {})
         self.current_account = self.wallet.storage.get('current_account', None)
-
-        title = 'Electrum ' + self.wallet.electrum_version + ' - '\
-            + self.wallet.storage.path
-        if wallet.is_watching_only():
-            title += ' [{}]'.format(_('watching only'))
-        self.title = title
         self.update_wallet()
         # Once GUI has been initialized check if we want to announce something
         # since the callback has been called before the GUI was initialized
         self.update_history_tab()
         self.notify_transactions()
-
 
     def update_status(self, *dt):
         if not self.wallet:
@@ -553,6 +518,7 @@ class ElectrumWindow(App):
         return format_satoshis(x, is_diff, self.num_zeros,
                                self.decimal_point, whitespaces)
 
+    @profiler
     def update_wallet(self, *dt):
         '''
         '''
@@ -565,7 +531,6 @@ class ElectrumWindow(App):
         if self.wallet.up_to_date or not self.network or not self.network.is_connected():
             self.update_history_tab()
             self.update_contacts_tab()
-
 
     def parse_histories(self, items):
         for item in items:
@@ -606,8 +571,8 @@ class ElectrumWindow(App):
 
             yield (conf, icon, time_str, label, v_str, balance_str, tx_hash)
 
+    @profiler
     def update_history_tab(self, see_all=False):
-
         try:
             history_card = self.root.main_screen.ids.tabs.ids.\
                         screen_dashboard.ids.recent_activity_card
@@ -651,60 +616,6 @@ class ElectrumWindow(App):
 
         history_card.ids.btn_see_all.opacity = (0 if count < 8 else 1)
 
-    def update_receive_tab(self):
-        #TODO move to address managment
-        return
-        data = []
-
-        if self.current_account is None:
-            account_items = self.wallet.accounts.items()
-        elif self.current_account != -1:
-            account_items = [(self.current_account, self.wallet.accounts.get(self.current_account))]
-        else:
-            account_items = []
-
-        for k, account in account_items:
-            name = account.get('name', str(k))
-            c, u = self.wallet.get_account_balance(k)
-            data = [(name, '', self.format_amount(c + u), '')]
-
-            for is_change in ([0, 1] if self.expert_mode else [0]):
-                if self.expert_mode:
-                    name = "Receiving" if not is_change else "Change"
-                    seq_item = (name, '', '', '')
-                    data.append(seq_item)
-                else:
-                    seq_item = data
-                is_red = False
-                gap = 0
-
-                for address in account[is_change]:
-                    h = self.wallet.history.get(address, [])
-
-                    if h == []:
-                        gap += 1
-                        if gap > self.wallet.gap_limit:
-                            is_red = True
-                    else:
-                        gap = 0
-
-                    num_tx = '*' if h == ['*'] else "%d" % len(h)
-                    item = (address, self.wallet.labels.get(address, ''), '', num_tx)
-                    data.append(item)
-                    self.update_receive_item(item)
-
-        if self.wallet.imported_keys and (self.current_account is None
-                                          or self.current_account == -1):
-            c, u = self.wallet.get_imported_balance()
-            data.append((_('Imported'), '', self.format_amount(c + u), ''))
-            for address in self.wallet.imported_keys.keys():
-                item = (address, self.wallet.labels.get(address, ''), '', '')
-                data.append(item)
-                self.update_receive_item(item)
-
-        receive_list = app.root.main_screen.ids.tabs.ids\
-            .screen_receive.receive_view
-        receive_list.content_adapter.data = data
 
     def update_contacts_tab(self):
         contact_list = self.root.main_screen.ids.tabs.ids.\
@@ -784,7 +695,7 @@ class ElectrumWindow(App):
         # broadcast
         self.wallet.sendtx(tx)
 
-
+    @profiler
     def notify_transactions(self, *dt):
         '''
         '''
@@ -999,15 +910,6 @@ class ElectrumWindow(App):
         else:
             entry.disabled = False
             Factory.Animation(opacity=1).start(content)
-
-    def set_addrs_frozen(self,addrs,freeze):
-        for addr in addrs:
-            if not addr: continue
-            if addr in self.wallet.frozen_addresses and not freeze:
-                self.wallet.unfreeze(addr)
-            elif addr not in self.wallet.frozen_addresses and freeze:
-                self.wallet.freeze(addr)
-        self.update_receive_tab()
 
     def payment_request_error(self):
         tabs = self.tabs
