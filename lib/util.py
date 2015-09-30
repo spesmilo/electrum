@@ -253,6 +253,8 @@ block_explorer_info = {
                         {'tx': 'Transaction', 'addr': 'Address'}),
     'Blockchain.info': ('https://blockchain.info',
                         {'tx': 'tx', 'addr': 'address'}),
+    'blockchainbdgpzk.onion': ('https://blockchainbdgpzk.onion',
+                        {'tx': 'tx', 'addr': 'address'}),
     'Blockr.io': ('https://btc.blockr.io',
                         {'tx': 'tx/info', 'addr': 'address/info'}),
     'Blocktrail.com': ('https://www.blocktrail.com/BTC',
