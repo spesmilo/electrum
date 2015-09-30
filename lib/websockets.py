@@ -24,7 +24,7 @@ except ImportError:
     print "install SimpleWebSocketServer"
     sys.exit()
 
-import util, daemon
+import util
 
 request_queue = Queue.Queue()
 
@@ -44,7 +44,7 @@ class ElectrumWebSocket(WebSocket):
 
 
 
-class WsClientThread(daemon.ClientThread):
+class WsClientThread(util.DaemonThread):
 
     def __init__(self, config, server):
         util.DaemonThread.__init__(self)

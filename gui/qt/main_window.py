@@ -412,8 +412,13 @@ class ElectrumWindow(QMainWindow, PrintError):
             _("Version")+" %s" % (self.wallet.electrum_version) + "\n\n" + _("Electrum's focus is speed, with low resource usage and simplifying Litecoin. You do not need to perform regular backups, because your wallet can be recovered from a secret phrase that you can memorize or write on paper. Startup times are instant because it operates in conjunction with high-performance servers that handle the most complicated parts of the Litecoin system."))
 
     def show_report_bug(self):
-        QMessageBox.information(self, "Electrum-LTC - " + _("Reporting Bugs"),
-            _("Please report any bugs as issues on github:")+" <a href=\"https://github.com/pooler/electrum-ltc/issues\">https://github.com/pooler/electrum-ltc/issues</a>")
+        msg = ' '.join([
+            _("Please report any bugs as issues on github:<br/>"),
+            "<a href=\"https://github.com/pooler/electrum-ltc/issues\">https://github.com/pooler/electrum-ltc/issues</a><br/><br/>",
+            _("Before reporting a bug, upgrade to the most recent version of Electrum (latest release or git HEAD), and include the version number in your report."),
+            _("Try to explain not only what the bug is, but how it occurs.")
+         ])
+        QMessageBox.information(self, "Electrum-LTC - " + _("Reporting Bugs"), msg)
 
 
     def new_transaction(self, tx):
