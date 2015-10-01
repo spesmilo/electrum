@@ -112,15 +112,14 @@ class WalletStorage(PrintError):
             elif key in self.data:
                 self.modified = True
                 self.data.pop(key)
-        if save:
-            self.write()
+            if save:
+                self.write()
 
     def write(self):
         assert not threading.currentThread().isDaemon()
         if not self.modified:
             return
-        with self.lock:
-            s = json.dumps(self.data, indent=4, sort_keys=True)
+        s = json.dumps(self.data, indent=4, sort_keys=True)
         temp_path = "%s.tmp.%s" % (self.path, os.getpid())
         with open(temp_path, "w") as f:
             f.write(s)
