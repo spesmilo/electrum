@@ -147,6 +147,8 @@ class Plugin(BasePlugin):
 
     @hook
     def installwizard_load_wallet(self, wallet, window):
+        if type(wallet) != TrezorWallet:
+            return
         self.load_wallet(wallet, window)
 
     @hook
