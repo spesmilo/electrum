@@ -25,7 +25,7 @@ class MyEncoder(json.JSONEncoder):
             return obj.as_dict()
         return super(MyEncoder, self).default(obj)
 
-class PrintError:
+class PrintError(object):
     '''A handy base class'''
     def diagnostic_name(self):
         return self.__class__.__name__
