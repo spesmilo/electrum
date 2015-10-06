@@ -6,8 +6,7 @@ import traceback
 from electrum import WalletStorage, Wallet
 from electrum.i18n import _, set_language
 from electrum.contacts import Contacts
-from electrum import bitcoin
-from electrum.util import profiler, print_error
+from electrum.util import profiler
 
 from kivy.app import App
 from kivy.core.window import Window
@@ -100,7 +99,7 @@ class ElectrumWindow(App):
     '''
 
     status = StringProperty(_('Not Connected'))
-    balance = StringProperty('')
+
 
 
     def _get_num_zeros(self):
@@ -498,14 +497,12 @@ class ElectrumWindow(App):
             else:
                 c, u, x = self.wallet.get_account_balance(self.current_account)
                 text = self.format_amount(c)
-                self.balance = text
                 if u:
                     unconfirmed =  " [%s unconfirmed]" %( self.format_amount(u, True).strip())
                 if x:
                     unmatured =  " [%s unmatured]"%(self.format_amount(x, True).strip())
-                self.balance = text.strip()
                 quote_text = self.create_quote_text(Decimal(c+u+x)/100000000, mode='symbol') or ''
-                self.status = self.balance
+                self.status = text.strip() + ' ' + self.base_unit
         else:
             self.status = _("Not connected")
             
@@ -551,55 +548,6 @@ class ElectrumWindow(App):
         if self.contacts_screen:
             self.contacts_screen.update()
 
-
-    def do_send(self):
-        app = App.get_running_app()
-        screen_send = app.root.main_screen.ids.tabs.ids.screen_send
-        scrn = screen_send.ids
-        label = unicode(scrn.message_e.text)
-        r = unicode(scrn.payto_e.text).strip()
-        # label or alias, with address in brackets
-        m = re.match('(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
-        to_address = m.group(2) if m else r
-
-        if not bitcoin.is_address(to_address):
-            app.show_error(_('Invalid Bitcoin Address') + ':\n' + to_address)
-            return
-
-        amount = self.get_amount(scrn.amount_e.text)
-
-        fee = scrn.fee_e.amt
-        if not fee:
-            app.show_error(_('Invalid Fee'))
-            return
-
-        #from pudb import set_trace; set_trace()
-        message = 'sending {} {} to {}'.format(app.base_unit, scrn.amount_e.text, r)
-
-        # assume no password and fee is None
-        password = None
-        fee = None
-        self.send_tx([('address', to_address, amount)], fee, label, password)
-
-    def send_tx(self, outputs, fee, label, password):
-        app = App.get_running_app()
-        # make unsigned transaction
-        coins = self.wallet.get_spendable_coins()
-        try:
-            tx = self.wallet.make_unsigned_transaction(coins, outputs, self.electrum_config, fee)
-        except Exception as e:
-            traceback.print_exc(file=sys.stdout)
-            app.show_error(str(e))
-            return
-        # sign transaction
-        try:
-            self.wallet.sign_transaction(tx, password)
-        except Exception as e:
-            traceback.print_exc(file=sys.stdout)
-            app.show_error(str(e))
-            return
-        # broadcast
-        self.wallet.sendtx(tx)
 
     @profiler
     def notify_transactions(self, *dt):

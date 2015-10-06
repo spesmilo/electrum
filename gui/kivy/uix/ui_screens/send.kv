@@ -23,6 +23,7 @@
 
 SendScreen:
 
+    id: send_screen
     mode: 'address'
     name: 'send'
     #action_view: Factory.SendActionView()
@@ -207,7 +208,7 @@ SendScreen:
             size_hint_y: None
             height: '38dp'
             disabled: False
-            on_release: app.do_send()
+            on_release: send_screen.do_send()
         Widget
 
 

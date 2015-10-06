@@ -1,4 +1,4 @@
-''' Kivy Widget that accepts data and displas qrcode
+''' Kivy Widget that accepts data and displays qrcode
 '''
 
 from threading import Thread
@@ -28,7 +28,7 @@ Builder.load_string('''
             pos: self.pos
     canvas.after:
         Color:
-            rgba: .5, .5, .5, 1 if root.show_border else 0
+            rgba: .5, .5, .5, 0
         Line:
             width: dp(1.333)
             points:
@@ -46,13 +46,6 @@ Builder.load_string('''
 ''')
 
 class QRCodeWidget(FloatLayout):
-
-    show_border = BooleanProperty(True)
-    '''Whether to show border around the widget.
-
-    :data:`show_border` is a :class:`~kivy.properties.BooleanProperty`,
-    defaulting to `True`.
-    '''
 
     data = StringProperty(None, allow_none=True)
     ''' Data using which the qrcode is generated.
@@ -77,7 +70,7 @@ class QRCodeWidget(FloatLayout):
         self._qrtexture = None
 
     def on_data(self, instance, value):
-        print "on data"
+        print "on data", value
         if not (self.canvas or value):
             return
         img = self.ids.get('qrimage', None)
@@ -86,18 +79,15 @@ class QRCodeWidget(FloatLayout):
             # if texture hasn't yet been created delay the texture updation
             Clock.schedule_once(lambda dt: self.on_data(instance, value))
             return
-        img.anim_delay = .05
-        img.source = self.loading_image
-        Thread(target=partial(self.generate_qr, value)).start()
 
-    def generate_qr(self, value):
-        self.set_data(value)
+        #Thread(target=partial(self.update_qr, )).start()
         self.update_qr()
 
     def set_data(self, data):
+        print "set data", data
         if self.data == data:
             return
-        MinSize = 210 if len(addr) < 128 else 500
+        MinSize = 210 if len(data) < 128 else 500
         self.setMinimumSize((MinSize, MinSize))
         self.data = data
         self.qr = None
@@ -107,18 +97,14 @@ class QRCodeWidget(FloatLayout):
             return
         L = qrcode.constants.ERROR_CORRECT_L
         data = self.data
-        try:
-            self.qr = qr = qrcode.QRCode(
-                version=None,
-                error_correction=L,
-                box_size=10,
-                border=0,
-                )
-            qr.add_data(data)
-            qr.make(fit=True)
-        except Exception as e:
-            print e
-            self.qr=None
+        self.qr = qr = qrcode.QRCode(
+            version=None,
+            error_correction=L,
+            box_size=10,
+            border=0,
+        )
+        qr.add_data(data)
+        qr.make(fit=True)
         self.update_texture()
 
     def setMinimumSize(self, size):
@@ -132,7 +118,7 @@ class QRCodeWidget(FloatLayout):
         texture.mag_filter = 'nearest'
 
     def update_texture(self):
-        if not self.addr:
+        if not self.qr:
             return
 
         matrix = self.qr.get_matrix()

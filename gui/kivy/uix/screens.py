@@ -8,9 +8,7 @@ from kivy.lang import Builder
 from kivy.factory import Factory
 
 from electrum.i18n import _
-
-# Delayed imports
-app = None
+from electrum.util import profiler
 
 
 class CScreen(Factory.Screen):
@@ -40,16 +38,17 @@ class CScreen(Factory.Screen):
     def update(self):
         pass
 
-    def on_activate(self):
-        
-        if self.kvname and not self.loaded:
-            print "loading:" + self.kvname
-            self.screen = Builder.load_file('gui/kivy/uix/ui_screens/' + self.kvname + '.kv')
-            self.add_widget(self.screen)
-            self.loaded = True
-            self.update()
-            setattr(self.app, self.kvname + '_screen', self)
+    @profiler
+    def load_screen(self):
+        self.screen = Builder.load_file('gui/kivy/uix/ui_screens/' + self.kvname + '.kv')
+        self.add_widget(self.screen)
+        self.loaded = True
+        self.update()
+        setattr(self.app, self.kvname + '_screen', self)
 
+    def on_activate(self):
+        if self.kvname and not self.loaded:
+            self.load_screen()
         #Clock.schedule_once(lambda dt: self._change_action_view())
 
     def on_leave(self):
@@ -197,8 +196,62 @@ class SendScreen(CScreen):
         self.ids.message_e.text = uri.get('message', '')
         self.ids.amount_e.text = uri.get('amount', '')
 
+    def do_send(self):
+        import re
+        from electrum import bitcoin
+        scrn = self.ids
+        label = unicode(scrn.message_e.text)
+        r = unicode(scrn.payto_e.text).strip()
+        # label or alias, with address in brackets
+        m = re.match('(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
+        to_address = m.group(2) if m else r
+
+        if not bitcoin.is_address(to_address):
+            self.app.show_error(_('Invalid Bitcoin Address') + ':\n' + to_address)
+            return
+
+        amount = self.app.get_amount(scrn.amount_e.text)
+        fee = scrn.fee_e.amt
+        if not fee:
+            app.show_error(_('Invalid Fee'))
+            return
+
+        message = 'sending {} {} to {}'.format(app.base_unit, scrn.amount_e.text, r)
+
+        # assume no password and fee is None
+        password = None
+        fee = None
+        #self.send_tx([('address', to_address, amount)], fee, label, password)
+
+    def send_tx(self, outputs, fee, label, password):
+        app = App.get_running_app()
+        # make unsigned transaction
+        coins = self.wallet.get_spendable_coins()
+        try:
+            tx = self.wallet.make_unsigned_transaction(coins, outputs, self.electrum_config, fee)
+        except Exception as e:
+            traceback.print_exc(file=sys.stdout)
+            app.show_error(str(e))
+            return
+        # sign transaction
+        try:
+            self.wallet.sign_transaction(tx, password)
+        except Exception as e:
+            traceback.print_exc(file=sys.stdout)
+            app.show_error(str(e))
+            return
+        # broadcast
+        self.wallet.sendtx(tx)
+
+
+
 class ReceiveScreen(CScreen):
     kvname = 'receive'
+    def update(self):
+        addr = self.app.wallet.get_unused_address(None)
+        qr = self.screen.ids.get('qr')
+        qr.set_data(addr)
+
 
 class ContactsScreen(CScreen):
     kvname = 'contacts'
