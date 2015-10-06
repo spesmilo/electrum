@@ -9,11 +9,6 @@ from electrum.contacts import Contacts
 from electrum import bitcoin
 from electrum.util import profiler, print_error
 
-from kivy.config import Config
-Config.set('modules', 'screen', 'droid2')
-Config.set('graphics', 'width', '480')
-Config.set('graphics', 'height', '840')
-
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.logger import Logger
@@ -23,8 +18,7 @@ from kivy.properties import (OptionProperty, AliasProperty, ObjectProperty,
 from kivy.cache import Cache
 from kivy.clock import Clock
 from kivy.factory import Factory
-
-from electrum_gui.kivy.uix.drawer import Drawer
+from kivy.metrics import inch, metrics
 
 # lazy imports for factory so that widgets can be used in kv
 Factory.register('InstallWizard',
@@ -34,14 +28,30 @@ Factory.register('ELTextInput', module='electrum_gui.kivy.uix.screens')
 
 
 # delayed imports: for startup speed on android
-notification = app = Decimal = ref = format_satoshis = Builder = None
-inch = None
+notification = app = ref = format_satoshis = Builder = None
 util = False
-re = None
+
+from decimal import Decimal
+import re
 
 # register widget cache for keeping memory down timeout to forever to cache
 # the data
 Cache.register('electrum_widgets', timeout=0)
+
+from kivy.uix.screenmanager import Screen
+from kivy.uix.tabbedpanel import TabbedPanel
+
+class ElectrumScreen(Screen):
+    fullscreen = BooleanProperty(False)
+    #def add_widget(self, *args):
+    #    if 'content' in self.ids:
+    #        return self.ids.content.add_widget(*args)
+    #    return super(ElectrumScreen, self).add_widget(*args)
+
+
+Factory.register('TabbedCarousel', module='electrum_gui.kivy.uix.screens')
+
+
 
 class ElectrumWindow(App):
 
@@ -102,11 +112,9 @@ class ElectrumWindow(App):
     :attr:`electrum_config` is a `ObjectProperty`, defaults to None.
     '''
 
-    status = StringProperty(_('Uninitialised'))
-    '''The status of the connection should show the balance when connected
+    status = StringProperty(_('Not Connected'))
+    balance = StringProperty('')
 
-    :attr:`status` is a `StringProperty` defaults to 'uninitialised'
-    '''
 
     def _get_num_zeros(self):
         try:
@@ -136,11 +144,8 @@ class ElectrumWindow(App):
         return int(p * x)
 
 
-    navigation_higherarchy = ListProperty([])
-    '''This is a list of the current navigation higherarchy of the app used to
-    navigate using back button.
-
-    :attr:`navigation_higherarchy` is s `ListProperty` defaults to []
+    hierarchy = ListProperty([])
+    '''used to navigate with the back button.
     '''
 
     _orientation = OptionProperty('landscape',
@@ -239,6 +244,8 @@ class ElectrumWindow(App):
         global Builder
         if not Builder:
             from kivy.lang import Builder
+
+
         return Builder.load_file('gui/kivy/main.kv')
 
     def _pause(self):
@@ -252,6 +259,7 @@ class ElectrumWindow(App):
     def on_start(self):
         ''' This is the start point of the kivy ui
         '''
+        Logger.info("dpi: {} {}".format(metrics.dpi, metrics.dpi_rounded))
         win = Window
         win.bind(size=self.on_size,
                     on_keyboard=self.on_keyboard)
@@ -298,6 +306,14 @@ class ElectrumWindow(App):
     def on_stop(self):
         if self.wallet:
             self.wallet.stop_threads()
+
+    def on_back(self):
+        try:
+            self.hierarchy.pop()()
+        except IndexError:
+            # capture back button and pause app.
+            self._pause()
+
 
     def on_keyboard_height(self, window, height):
         win = window
@@ -351,6 +367,12 @@ class ElectrumWindow(App):
         self.init_ui()
         self.load_wallet(wallet)
 
+    def popup_dialog(self, name):
+        popup = Builder.load_file('gui/kivy/uix/ui_screens/'+name+'.kv')
+        popup.open()
+
+
+
     @profiler
     def init_ui(self):
         ''' Initialize The Ux part of electrum. This function performs the basic
@@ -366,13 +388,15 @@ class ElectrumWindow(App):
         self.completions = []
 
         # setup UX
-        self.screens = ['mainscreen',]
+        self.screens = {}
 
         #setup lazy imports for mainscreen
         Factory.register('AnimatedPopup',
                          module='electrum_gui.kivy.uix.dialogs')
-        Factory.register('TabbedCarousel',
-                         module='electrum_gui.kivy.uix.screens')
+
+        #Factory.register('TabbedCarousel',
+        #                 module='electrum_gui.kivy.uix.screens')
+
         Factory.register('ScreenDashboard',
                          module='electrum_gui.kivy.uix.screens')
         #Factory.register('EffectWidget',
@@ -386,17 +410,26 @@ class ElectrumWindow(App):
 
         # preload widgets. Remove this if you want to load the widgets on demand
         Cache.append('electrum_widgets', 'AnimatedPopup', Factory.AnimatedPopup())
-        Cache.append('electrum_widgets', 'TabbedCarousel', Factory.TabbedCarousel())
+
+        #Cache.append('electrum_widgets', 'TabbedCarousel', Factory.TabbedCarousel())
+
         Cache.append('electrum_widgets', 'QRCodeWidget', Factory.QRCodeWidget())
         Cache.append('electrum_widgets', 'CSpinner', Factory.CSpinner())
 
         # load and focus the ui
         #Load mainscreen
-        dr = Builder.load_file('gui/kivy/uix/ui_screens/mainscreen.kv')
-        self.root.add_widget(dr)
-        self.root.manager = manager = dr.ids.manager
-        self.root.main_screen = m = manager.screens[0]
-        self.tabs = m.ids.tabs
+
+        #dr = Builder.load_file('gui/kivy/uix/ui_screens/mainscreen.kv')
+        #self.root.add_widget(dr)
+        #self.root.manager = manager = dr.ids.manager
+        #self.root.main_screen = m = manager.screens[0]
+        #self.tabs = m.ids.tabs
+
+        self.root.manager = self.root.ids['manager']
+        self.recent_activity_card = None
+        self.history_screen = None
+        self.contacts_screen = None
+        self.wallet_screen = None
 
         #TODO
         # load left_menu
@@ -410,6 +443,7 @@ class ElectrumWindow(App):
             self.network.register_callback('new_transaction', self._trigger_notify_transactions)
 
         self.wallet = None
+
 
     def create_quote_text(self, btc_balance, mode='normal'):
         '''
@@ -473,10 +507,6 @@ class ElectrumWindow(App):
         if not self.wallet:
             return
 
-        global Decimal
-        if not Decimal:
-            from decimal import Decimal
-
         unconfirmed = ''
         quote_text = ''
 
@@ -487,34 +517,38 @@ class ElectrumWindow(App):
             server_height = self.network.get_server_height()
             server_lag = self.network.get_local_height() - server_height
             if not self.wallet.up_to_date or server_height == 0:
-                text = _("Synchronizing...")
+                self.status = _("Synchronizing...")
             elif server_lag > 1:
-                text = _("Server is lagging (%d blocks)"%server_lag)
+                self.status = _("Server lagging (%d blocks)"%server_lag)
             else:
                 c, u, x = self.wallet.get_account_balance(self.current_account)
                 text = self.format_amount(c)
+                self.balance = text
                 if u:
                     unconfirmed =  " [%s unconfirmed]" %( self.format_amount(u, True).strip())
                 if x:
                     unmatured =  " [%s unmatured]"%(self.format_amount(x, True).strip())
+                self.balance = text.strip()
                 quote_text = self.create_quote_text(Decimal(c+u+x)/100000000, mode='symbol') or ''
+                self.status = self.balance
         else:
-            text = _("Not connected")
-        try:
-            status_card = self.root.main_screen.ids.tabs.ids.\
-                        screen_dashboard.ids.status_card
-        except AttributeError:
-            return
-        self.status = text.strip()
+            self.status = _("Not connected")
+            
+        return
+
+        print self.root.manager.ids
+
+        #try:
+        status_card = self.root.main_screen.ids.tabs.ids.\
+                      screen_dashboard.ids.status_card
+        #except AttributeError:
+        #    return
+
         status_card.quote_text = quote_text.strip()
         status_card.uncomfirmed = unconfirmed.strip()
 
     def format_amount(self, x, is_diff=False, whitespaces=False):
-        '''
-        '''
-        global format_satoshis
-        if not format_satoshis:
-            from electrum.util import format_satoshis
+        from electrum.util import format_satoshis
         return format_satoshis(x, is_diff, self.num_zeros,
                                self.decimal_point, whitespaces)
 
@@ -532,116 +566,16 @@ class ElectrumWindow(App):
             self.update_history_tab()
             self.update_contacts_tab()
 
-    def parse_histories(self, items):
-        for item in items:
-            tx_hash, conf, value, timestamp, balance = item
-            time_str = _("unknown")
-            if conf > 0:
-                try:
-                    time_str = datetime.datetime.fromtimestamp(
-                                    timestamp).isoformat(' ')[:-3]
-                except Exception:
-                    time_str = _("error")
-
-            if conf == -1:
-                time_str = _('unverified')
-                icon = "atlas://gui/kivy/theming/light/close"
-            elif conf == 0:
-                time_str = _('pending')
-                icon = "atlas://gui/kivy/theming/light/unconfirmed"
-            elif conf < 6:
-                time_str = ''  # add new to fix error when conf < 0
-                conf = max(1, conf)
-                icon = "atlas://gui/kivy/theming/light/clock{}".format(conf)
-            else:
-                icon = "atlas://gui/kivy/theming/light/confirmed"
-
-            if value is not None:
-                v_str = self.format_amount(value, True).replace(',','.')
-            else:
-                v_str = '--'
-
-            balance_str = self.format_amount(balance).replace(',','.')
-
-            if tx_hash:
-                label, is_default_label = self.wallet.get_label(tx_hash)
-            else:
-                label = _('Pruned transaction outputs')
-                is_default_label = False
-
-            yield (conf, icon, time_str, label, v_str, balance_str, tx_hash)
 
     @profiler
     def update_history_tab(self, see_all=False):
-        try:
-            history_card = self.root.main_screen.ids.tabs.ids.\
-                        screen_dashboard.ids.recent_activity_card
-        except AttributeError:
-            return
-        histories = self.parse_histories(reversed(
-                        self.wallet.get_history(self.current_account)))
-
-        # repopulate History Card
-        last_widget = history_card.ids.content.children[-1]
-        history_card.ids.content.clear_widgets()
-        history_add = history_card.ids.content.add_widget
-        history_add(last_widget)
-        RecentActivityItem = Factory.RecentActivityItem
-        global Decimal, ref
-        if not ref:
-            from weakref import ref
-        if not Decimal:
-            from decimal import Decimal
-
-        get_history_rate = self.get_history_rate
-        count = 0
-        for items in histories:
-            count += 1
-            conf, icon, date_time, address, amount, balance, tx = items
-            ri = RecentActivityItem()
-            ri.icon = icon
-            ri.date = date_time
-            mintimestr = date_time.split()[0]
-            ri.address = address
-            ri.amount = amount
-            ri.quote_text = get_history_rate(ref(ri),
-                                             Decimal(amount),
-                                             mintimestr)
-            ri.balance = balance
-            ri.confirmations = conf
-            ri.tx_hash = tx
-            history_add(ri)
-            if count == 8 and not see_all:
-                break
-
-        history_card.ids.btn_see_all.opacity = (0 if count < 8 else 1)
-
+        if self.history_screen:
+            self.history_screen.update(see_all)
 
     def update_contacts_tab(self):
-        contact_list = self.root.main_screen.ids.tabs.ids.\
-            screen_contacts.ids.contact_container
-        #contact_list.clear_widgets()
+        if self.contacts_screen:
+            self.contacts_screen.update()
 
-        child = -1
-        children = contact_list.children
-
-        for key in sorted(self.contacts.keys()):
-            _type, address = self.contacts[key]
-            label = self.wallet.labels.get(address, '')
-            child += 1
-            try:
-                if children[child].label == label:
-                    continue
-            except IndexError:
-                pass
-            tx = self.wallet.get_num_tx(address)
-            ci = Factory.ContactItem()
-            ci.address = address
-            ci.label = label
-            ci.tx_amount = tx
-            contact_list.add_widget(ci)
-
-        #self.run_hook('update_contacts_tab')
 
     def do_send(self):
         app = App.get_running_app()
@@ -650,9 +584,6 @@ class ElectrumWindow(App):
         label = unicode(scrn.message_e.text)
         r = unicode(scrn.payto_e.text).strip()
         # label or alias, with address in brackets
-        global re
-        if not re:
-            import re
         m = re.match('(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
         to_address = m.group(2) if m else r
 
@@ -774,46 +705,23 @@ class ElectrumWindow(App):
     def on_size(self, instance, value):
         width, height = value
         self._orientation = 'landscape' if width > height else 'portrait'
-
-        global inch
-        if not inch:
-            from kivy.metrics import inch
-
         self._ui_mode = 'tablet' if min(width, height) > inch(3.51) else 'phone'
-        Logger.debug('orientation: {} ui_mode: {}'.format(self._orientation,
-                                                          self._ui_mode))
+        #Logger.info("size: {} {}".format(width, height))
+        #Logger.info('orientation: {}'.format(self._orientation))
+        #Logger.info('ui_mode: {}'.format(self._ui_mode))
 
-    def load_screen(self, index=0, direction='left', manager=None, switch=True):
-        ''' Load the appropriate screen as mentioned in the parameters.
-        '''
+    def load_screen(self, name, direction='left', manager=None):
+        screen = self.screens.get(name)
+        if screen is None:
+            screen = Builder.load_file('gui/kivy/uix/ui_screens/' + name + '.kv')
+            screen.name = name
+            self.screens[name] = screen
         manager = manager or self.root.manager
-        screen = Builder.load_file('gui/kivy/uix/ui_screens/'\
-            + self.screens[index] + '.kv')
-        screen.name = self.screens[index]
-        if switch:
-            manager.switch_to(screen, direction=direction)
-        return screen
+        manager.switch_to(screen, direction=direction)
 
-    def load_next_screen(self):
-        '''
-        '''
-        manager = root.manager
-        try:
-            self.load_screen(self.screens.index(manager.current_screen.name)+1,
-                             manager=manager)
-        except IndexError:
-            self.load_screen()
-
-    def load_previous_screen(self):
-        ''' Load the previous screen from disk.
-        '''
-        manager = root.manager
-        try:
-            self.load_screen(self.screens.index(manager.current_screen.name)-1,
-                             direction='right',
-                             manager=manager)
-        except IndexError:
-            pass
+    def load_history(self):
+        #Builder.load_file('gui/kivy/uix/ui_screens/history.kv')
+        print "load history", self.root.manager.ids.history
 
     def save_new_contact(self, address, label):
         address = unicode(address)
