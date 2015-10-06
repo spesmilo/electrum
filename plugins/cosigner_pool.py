@@ -29,13 +29,14 @@ from electrum_grs import transaction
 from electrum_grs.plugins import BasePlugin, hook
 from electrum_grs.i18n import _
 
+from electrum_grs_gui.qt.transaction_dialog import show_transaction
+
 import sys
 import traceback
 
 
 PORT = 12344
 HOST = 'ecdsa.net'
-description = _("This plugin facilitates the use of multi-signatures wallets. It sends and receives partially signed transactions from/to your cosigner wallet. Transactions are encrypted and stored on a remote server.") 
 server = xmlrpclib.ServerProxy('http://%s:%d'%(HOST,PORT), allow_none=True)
 
 
@@ -83,20 +84,10 @@ class Plugin(BasePlugin):
     wallet = None
     listener = None
 
-    def fullname(self):
-        return 'Cosigner Pool'
-
-    def description(self):
-        return description
-
     @hook
     def init_qt(self, gui):
         self.win = gui.main_window
         self.win.connect(self.win, SIGNAL('cosigner:receive'), self.on_receive)
-
-    def enable(self):
-        self.set_enabled(True)
-        return True
 
     def is_available(self):
         if self.wallet is None:
@@ -104,7 +95,7 @@ class Plugin(BasePlugin):
         return self.wallet.wallet_type in ['2of2', '2of3']
 
     @hook
-    def load_wallet(self, wallet):
+    def load_wallet(self, wallet, window):
         self.wallet = wallet
         if not self.is_available():
             return
@@ -124,12 +115,15 @@ class Plugin(BasePlugin):
     def transaction_dialog(self, d):
         self.send_button = b = QPushButton(_("Send to cosigner"))
         b.clicked.connect(lambda: self.do_send(d.tx))
-        d.buttons.insert(2, b)
+        d.buttons.insert(0, b)
         self.transaction_dialog_update(d)
 
     @hook
     def transaction_dialog_update(self, d):
         if d.tx.is_complete():
+            self.send_button.hide()
+            return
+        if self.wallet.can_sign(d.tx):
             self.send_button.hide()
             return
         for xpub, K, _hash in self.cosigner_list:
@@ -158,6 +152,7 @@ class Plugin(BasePlugin):
             try:
                 server.put(_hash, message)
             except Exception as e:
+                traceback.print_exc(file=sys.stdout)
                 self.win.show_message(str(e))
                 return
         self.win.show_message("Your transaction was sent to the cosigning pool.\nOpen your cosigner wallet to retrieve it.")
@@ -187,8 +182,5 @@ class Plugin(BasePlugin):
             return
 
         self.listener.clear()
-        tx = transaction.Transaction.deserialize(message)
-        self.win.show_transaction(tx)
-
-
-
+        tx = transaction.Transaction(message)
+        show_transaction(tx, self.win, prompt_if_unsaved=True)

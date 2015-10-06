@@ -22,7 +22,6 @@ import PyQt4.QtCore as QtCore
 from electrum_grs.i18n import _
 from electrum_grs import mnemonic
 from util import *
-from qrcodewidget import QRCodeWidget, QRDialog
 from qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 
 class SeedDialog(QDialog):
@@ -72,7 +71,7 @@ def enter_seed_box(msg, window, sid=None, text=None):
     label = QLabel(msg)
     label.setWordWrap(True)
     if not text:
-        seed_e = ScanQRTextEdit(win=window)
+        seed_e = ScanQRTextEdit()
         seed_e.setTabChangesFocus(True)
     else:
         seed_e = ShowQRTextEdit(text=text)

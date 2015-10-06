@@ -17,49 +17,63 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import random, ast, re, errno, os
-import threading, traceback, sys, time, json, Queue
+import copy, re, errno, os
+import threading, traceback, sys, time, Queue
 import socket
 import ssl
 
 import requests
 ca_path = requests.certs.where()
 
-from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 import util
+import x509
+import pem
+from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 from simple_config import SimpleConfig
 
-import x509
-import util
 
-DEFAULT_TIMEOUT = 5
+def Interface(server, response_queue, config = None):
+    """Interface factory function.  The returned interface class handles the connection
+    to a single remote electrum server.  The object handles all necessary locking.  It's
+    exposed API is:
 
-
-
-def Interface(server, config = None):
+    - Inherits everything from threading.Thread.
+    - Member functions send_request(), stop(), is_connected()
+    - Member variable server.
+    
+    "server" is constant for the object's lifetime and hence synchronization is unnecessary.
+    """
     host, port, protocol = server.split(':')
-    port = int(port)
     if protocol in 'st':
-        return TcpInterface(server, config)
+        return TcpInterface(server, response_queue, config)
     else:
         raise Exception('Unknown protocol: %s'%protocol)
 
+# Connection status
+CS_OPENING, CS_CONNECTED, CS_FAILED = range(3)
+
 class TcpInterface(threading.Thread):
 
-    def __init__(self, server, config = None):
+    def __init__(self, server, response_queue, config = None):
         threading.Thread.__init__(self)
         self.daemon = True
         self.config = config if config is not None else SimpleConfig()
-        self.lock = threading.Lock()
-        self.is_connected = False
+        # Set by stop(); no more data is exchanged and the thread exits after gracefully
+        # closing the socket
+        self.disconnect = False
+        self._status = CS_OPENING
         self.debug = False # dump network messages. can be changed at runtime using the console
         self.message_id = 0
+        self.response_queue = response_queue
+        self.request_queue = Queue.Queue()
         self.unanswered_requests = {}
-        # are we waiting for a pong?
-        self.is_ping = False
+        # request timeouts
+        self.request_time = time.time()
+        self.ping_time = 0
         # parse server
         self.server = server
         self.host, self.port, self.protocol = self.server.split(':')
+        self.host = str(self.host)
         self.port = int(self.port)
         self.use_ssl = (self.protocol == 's')
 
@@ -75,8 +89,7 @@ class TcpInterface(threading.Thread):
         result = response.get('result')
 
         if msg_id is not None:
-            with self.lock:
-                method, params, _id, queue = self.unanswered_requests.pop(msg_id)
+            method, params, _id, queue = self.unanswered_requests.pop(msg_id)
             if queue is None:
                 queue = self.response_queue
         else:
@@ -99,38 +112,12 @@ class TcpInterface(threading.Thread):
 
         if method == 'server.version':
             self.server_version = result
-            self.is_ping = False
             return
 
         if error:
             queue.put((self, {'method':method, 'params':params, 'error':error, 'id':_id}))
         else:
             queue.put((self, {'method':method, 'params':params, 'result':result, 'id':_id}))
-
-
-    def check_host_name(self, peercert, name):
-        """Simple certificate/host name checker.  Returns True if the
-        certificate matches, False otherwise.  Does not support
-        wildcards."""
-        # Check that the peer has supplied a certificate.
-        # None/{} is not acceptable.
-        if not peercert:
-            return False
-        if peercert.has_key("subjectAltName"):
-            for typ, val in peercert["subjectAltName"]:
-                if typ == "DNS" and val == name:
-                    return True
-        else:
-            # Only check the subject DN if there is no subject alternative
-            # name.
-            cn = None
-            for attr, val in peercert["subject"]:
-                # Use most-specific (last) commonName attribute.
-                if attr == "commonName":
-                    cn = val
-            if cn is not None:
-                return cn == name
-        return False
 
 
     def get_simple_socket(self):
@@ -143,6 +130,8 @@ class TcpInterface(threading.Thread):
             try:
                 s = socket.socket(res[0], socket.SOCK_STREAM)
                 s.connect(res[4])
+                s.settimeout(2)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
                 return s
             except BaseException as e:
                 continue
@@ -160,18 +149,20 @@ class TcpInterface(threading.Thread):
                     return
                 # try with CA first
                 try:
-                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv23, cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_path, do_handshake_on_connect=True)
+                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_TLSv1, cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_path, do_handshake_on_connect=True)
                 except ssl.SSLError, e:
                     s = None
-                if s and self.check_host_name(s.getpeercert(), self.host):
+                if s and check_host_name(s.getpeercert(), self.host):
                     self.print_error("SSL certificate signed by CA")
                     return s
 
                 # get server certificate.
                 # Do not use ssl.get_server_certificate because it does not work with proxy
                 s = self.get_simple_socket()
+                if s is None:
+                    return
                 try:
-                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv23, cert_reqs=ssl.CERT_NONE, ca_certs=None)
+                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_TLSv1, cert_reqs=ssl.CERT_NONE, ca_certs=None)
                 except ssl.SSLError, e:
                     self.print_error("SSL error retrieving SSL certificate:", e)
                     return
@@ -191,13 +182,10 @@ class TcpInterface(threading.Thread):
         if s is None:
             return
 
-        s.settimeout(2)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-
         if self.use_ssl:
             try:
                 s = ssl.wrap_socket(s,
-                                    ssl_version=ssl.PROTOCOL_SSLv23,
+                                    ssl_version=ssl.PROTOCOL_TLSv1,
                                     cert_reqs=ssl.CERT_REQUIRED,
                                     ca_certs= (temporary_path if is_new else cert_path),
                                     do_handshake_on_connect=True)
@@ -214,9 +202,8 @@ class TcpInterface(threading.Thread):
                     with open(cert_path) as f:
                         cert = f.read()
                     try:
-                        x = x509.X509()
-                        x.parse(cert)
-                        x.slow_parse()
+                        b = pem.dePem(cert, 'CERTIFICATE')
+                        x = x509.X509(b)
                     except:
                         traceback.print_exc(file=sys.stderr)
                         self.print_error("wrong certificate")
@@ -242,100 +229,123 @@ class TcpInterface(threading.Thread):
 
         return s
 
+    def send_request(self, request, response_queue = None):
+        '''Queue a request.'''
+        self.request_time = time.time()
+        self.request_queue.put((copy.deepcopy(request), response_queue))
 
-    def send_request(self, request, queue=None):
-        _id = request.get('id')
-        method = request.get('method')
-        params = request.get('params')
-        with self.lock:
+    def send_requests(self):
+        '''Sends all queued requests'''
+        while self.is_connected() and not self.request_queue.empty():
+            request, response_queue = self.request_queue.get()
+            method = request.get('method')
+            params = request.get('params')
+            r = {'id': self.message_id, 'method': method, 'params': params}
             try:
-                r = {'id':self.message_id, 'method':method, 'params':params}
                 self.pipe.send(r)
-                if self.debug:
-                    self.print_error("-->", r)
             except socket.error, e:
-                self.print_error("socked error:", e)
-                self.is_connected = False
+                self.print_error("socket error:", e)
+                self.stop()
                 return
-            self.unanswered_requests[self.message_id] = method, params, _id, queue
+            if self.debug:
+                self.print_error("-->", r)
+            self.unanswered_requests[self.message_id] = method, params, request.get('id'), response_queue
             self.message_id += 1
 
+    def is_connected(self):
+        '''True if status is connected'''
+        return self._status == CS_CONNECTED and not self.disconnect
+
     def stop(self):
-        if self.is_connected and self.protocol in 'st' and self.s:
-            self.s.shutdown(socket.SHUT_RDWR)
-            self.s.close()
-        self.is_connected = False
-        self.print_error("stopped")
+        if not self.disconnect:
+            self.disconnect = True
+            self.print_error("disconnecting")
 
-    def start(self, response_queue):
-        self.response_queue = response_queue
-        threading.Thread.start(self)
+    def maybe_ping(self):
+        # ping the server with server.version
+        if time.time() - self.ping_time > 60:
+            self.send_request({'method':'server.version', 'params':[ELECTRUM_VERSION, PROTOCOL_VERSION]})
+            self.ping_time = time.time()
+        # stop interface if we have been waiting for more than 10 seconds
+        if self.unanswered_requests and time.time() - self.request_time > 10 and self.pipe.idle_time() > 10:
+            self.print_error("interface timeout", len(self.unanswered_requests))
+            self.stop()
 
-    def run(self):
-        self.s = self.get_socket()
-        if self.s:
-            self.pipe = util.SocketPipe(self.s)
-            self.s.settimeout(2)
-            self.is_connected = True
-            self.print_error("connected")
-
-        self.change_status()
-        if not self.is_connected:
-            return
-
-        # ping timer
-        ping_time = 0
-        # request timer
-        request_time = False
-        while self.is_connected:
-            # ping the server with server.version
-            if time.time() - ping_time > 60:
-                if self.is_ping:
-                    self.print_error("ping timeout")
-                    self.is_connected = False
-                    break
-                else:
-                    self.send_request({'method':'server.version', 'params':[ELECTRUM_VERSION, PROTOCOL_VERSION]})
-                    self.is_ping = True
-                    ping_time = time.time()
+    def get_and_process_response(self):
+        if self.is_connected():
             try:
                 response = self.pipe.get()
             except util.timeout:
-                if self.unanswered_requests:
-                    if request_time is False:
-                        request_time = time.time()
-                        self.print_error("setting timer")
-                    else:
-                        if time.time() - request_time > 10:
-                            self.print_error("request timeout", len(self.unanswered_requests))
-                            self.is_connected = False
-                            break
-                continue
+                return
+            # If remote side closed the socket, SocketPipe closes our socket and returns None
             if response is None:
-                self.is_connected = False
-                break
-            if request_time is not False:
-                self.print_error("stopping timer")
-                request_time = False
-            self.process_response(response)
+                self.disconnect = True
+                self.print_error("connection closed remotely")
+            else:
+                self.process_response(response)
 
-        self.change_status()
+    def run(self):
+        s = self.get_socket()
+        if s:
+            self.pipe = util.SocketPipe(s)
+            s.settimeout(0.1)
+            self.print_error("connected")
+            self._status = CS_CONNECTED
+            # Indicate to parent that we've connected
+            self.notify_status()
+            while self.is_connected():
+                self.maybe_ping()
+                self.send_requests()
+                self.get_and_process_response()
+            s.shutdown(socket.SHUT_RDWR)
+            s.close()
 
+        # Also for the s is None case 
+        self._status = CS_FAILED
+        # Indicate to parent that the connection is now down
+        self.notify_status()
 
-    def change_status(self):
-        # print_error( "change status", self.server, self.is_connected)
+    def notify_status(self):
+        '''Notify owner that we have just connected or just failed the connection.
+        Owner determines which through e.g. testing is_connected()'''
         self.response_queue.put((self, None))
 
 
+def _match_hostname(name, val):
+    if val == name:
+        return True
+
+    return val.startswith('*.') and name.endswith(val[1:])
 
 
+def check_host_name(peercert, name):
+    """Simple certificate/host name checker.  Returns True if the
+    certificate matches, False otherwise."""
+    # Check that the peer has supplied a certificate.
+    # None/{} is not acceptable.
+    if not peercert:
+        return False
+    if peercert.has_key("subjectAltName"):
+        for typ, val in peercert["subjectAltName"]:
+            if typ == "DNS" and _match_hostname(name, val):
+                return True
+    else:
+        # Only check the subject DN if there is no subject alternative
+        # name.
+        cn = None
+        for attr, val in peercert["subject"]:
+            # Use most-specific (last) commonName attribute.
+            if attr == "commonName":
+                cn = val
+        if cn is not None:
+            return _match_hostname(name, cn)
+    return False
 
 
 def check_cert(host, cert):
     try:
-        x = x509.X509()
-        x.parse(cert)
-        x.slow_parse()
+        b = pem.dePem(cert, 'CERTIFICATE')
+        x = x509.X509(b)
     except:
         traceback.print_exc(file=sys.stdout)
         return

@@ -1,31 +1,96 @@
-from util import print_error
-import traceback, sys
+#!/usr/bin/env python
+#
+# Electrum - lightweight Bitcoin client
+# Copyright (C) 2015 Thomas Voegtlin
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+import traceback
+import sys
+import os
+import imp
+import pkgutil
+
 from util import *
 from i18n import _
+from util import print_error, profiler
 
-plugins = []
+plugins = {}
+descriptions = []
+loader = None
 
-
-def init_plugins(config, local):
-    import imp, pkgutil, __builtin__, os
-    global plugins
-
-    if local:
-        fp, pathname, description = imp.find_module('plugins')
-        plugin_names = [name for a, name, b in pkgutil.iter_modules([pathname])]
-        plugin_names = filter( lambda name: os.path.exists(os.path.join(pathname,name+'.py')), plugin_names)
-        imp.load_module('electrum_plugins', fp, pathname, description)
-        plugin_modules = map(lambda name: imp.load_source('electrum_plugins.'+name, os.path.join(pathname,name+'.py')), plugin_names)
+def is_available(name, w):
+    for d in descriptions:
+        if d.get('name') == name:
+            break
     else:
-        import electrum_plugins
-        plugin_names = [name for a, name, b in pkgutil.iter_modules(electrum_plugins.__path__)]
-        plugin_modules = [ __import__('electrum_plugins.'+name, fromlist=['electrum_plugins']) for name in plugin_names]
-
-    for name, p in zip(plugin_names, plugin_modules):
+        return False
+    deps = d.get('requires', [])
+    for dep, s in deps:
         try:
-            plugins.append( p.Plugin(config, name) )
+            __import__(dep)
+        except ImportError:
+            return False
+    wallet_types = d.get('requires_wallet_type')
+    if wallet_types:
+        if w.wallet_type not in wallet_types:
+            return False
+    return True
+
+
+@profiler
+def init_plugins(config, is_local, gui_name):
+    global plugins, descriptions, loader
+    if is_local:
+        fp, pathname, description = imp.find_module('plugins')
+        electrum_plugins = imp.load_module('electrum_plugins', fp, pathname, description)
+        loader = lambda name: imp.load_source('electrum_plugins.' + name, os.path.join(pathname, name + '.py'))
+    else:
+        electrum_plugins = __import__('electrum_plugins')
+        loader = lambda name: __import__('electrum_plugins.' + name, fromlist=['electrum_plugins'])
+
+    def constructor(name, storage):
+        if plugins.get(name) is None:
+            try:
+                print_error(_("Loading plugin by constructor:"), name)
+                p = loader(name)
+                plugins[name] = p.Plugin(config, name)
+            except:
+                print_msg(_("Error: cannot initialize plugin"), name)
+                return
+        return plugins[name].constructor(storage)
+
+    def register_wallet_type(name, x, constructor):
+        import wallet
+        x += (lambda storage: constructor(name, storage),)
+        wallet.wallet_types.append(x)
+
+    descriptions = electrum_plugins.descriptions
+    for item in descriptions:
+        name = item['name']
+        if gui_name not in item.get('available_for', []):
+            continue
+        x = item.get('registers_wallet_type')
+        if x:
+            register_wallet_type(name, x, constructor)
+        if not config.get('use_' + name):
+            continue
+        try:
+            p = loader(name)
+            plugins[name] = p.Plugin(config, name)
         except Exception:
-            print_msg(_("Error: cannot initialize plugin"),p)
+            print_msg(_("Error: cannot initialize plugin"), name)
             traceback.print_exc(file=sys.stdout)
 
 
@@ -33,23 +98,25 @@ hook_names = set()
 hooks = {}
 
 def hook(func):
-    n = func.func_name
-    if n not in hook_names:
-        hook_names.add(n)
+    hook_names.add(func.func_name)
     return func
 
-
 def run_hook(name, *args):
-    SPECIAL_HOOKS = ['get_wizard_action','installwizard_restore']
+    return _run_hook(name, False, *args)
+
+def always_hook(name, *args):
+    return _run_hook(name, True, *args)
+
+def _run_hook(name, always, *args):
     results = []
-    f_list = hooks.get(name,[])
+    f_list = hooks.get(name, [])
     for p, f in f_list:
         if name == 'load_wallet':
             p.wallet = args[0]
         if name == 'init_qt':
             gui = args[0]
             p.window = gui.main_window
-        if name in SPECIAL_HOOKS or p.is_enabled():
+        if always or p.is_enabled():
             try:
                 r = f(*args)
             except Exception:
@@ -79,11 +146,16 @@ class BasePlugin:
                 l.append((self, getattr(self, k)))
                 hooks[k] = l
 
-    def fullname(self):
-        return self.name
+    def close(self):
+        # remove self from hooks
+        for k in dir(self):
+            if k in hook_names:
+                l = hooks.get(k, [])
+                l.remove((self, getattr(self, k)))
+                hooks[k] = l
 
-    def description(self):
-        return 'undefined'
+    def print_error(self, *msg):
+        print_error("[%s]"%self.name, *msg)
 
     def requires_settings(self):
         return False
@@ -96,17 +168,13 @@ class BasePlugin:
         self.set_enabled(False)
         return True
 
-    def init_qt(self, gui): pass
-
     @hook
-    def load_wallet(self, wallet): pass
+    def load_wallet(self, wallet, window): pass
 
     @hook
     def close_wallet(self): pass
 
     #def init(self): pass
-
-    def close(self): pass
 
     def is_enabled(self):
         return self.is_available() and self.config.get('use_'+self.name) is True

@@ -16,8 +16,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import threading, httplib, re, socket
+import threading, re, socket
 import webbrowser
+import requests
+
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
@@ -30,19 +32,20 @@ class VersionGetter(threading.Thread):
     def __init__(self, label):
         threading.Thread.__init__(self)
         self.label = label
+        self.daemon = True
 
     def run(self):
+        # No domain for electrum-grs
+        return
+
         try:
-            # No domain for electrum-grs
-            con = httplib.HTTPSConnection('',timeout=5)#electrum.org', timeout=5)
-            con.request("GET", "/version")
-            res = con.getresponse()
-        except socket.error as msg:
+            res = requests.request("GET", "https://electrum.org/version")
+        except:
             print_error("Could not retrieve version information")
             return
 
-        if res.status == 200:
-            latest_version = res.read()
+        if res.status_code == 200:
+            latest_version = res.text
             latest_version = latest_version.replace("\n","")
             if(re.match('^\d+(\.\d+)*$', latest_version)):
                 self.label.callback(latest_version)

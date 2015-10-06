@@ -17,11 +17,11 @@ if sys.version_info[:3] < (2, 7, 0):
 
 
 data_files = []
-if platform.system() == 'Linux' or platform.system() == 'FreeBSD':
+if platform.system() in [ 'Linux', 'FreeBSD', 'DragonFly']:
     usr_share = os.path.join(sys.prefix, "share")
     data_files += [
         (os.path.join(usr_share, 'applications/'), ['electrum-grs.desktop']),
-        (os.path.join(usr_share, 'app-install', 'icons/'), ['icons/electrum-grs.png'])
+        (os.path.join(usr_share, 'pixmaps/'), ['icons/electrum-grs.png'])
     ]
 
 
@@ -33,11 +33,8 @@ setup(
         'ecdsa>=0.9',
         'pbkdf2',
         'requests',
-        'pyasn1-modules',
-        'pyasn1',
         'qrcode',
         'protobuf',
-        'tlslite',
         'dnspython',
         'groestlcoin_hash'
     ],
@@ -52,6 +49,7 @@ setup(
     packages=['electrum_grs','electrum_grs_gui','electrum_grs_gui.qt','electrum_grs_plugins'],
     package_data={
         'electrum_grs': [
+            'www/index.html',
             'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electrum.mo',
         ],

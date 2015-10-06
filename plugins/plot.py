@@ -5,7 +5,7 @@ from electrum_grs.i18n import _
 
 import datetime
 from electrum_grs.util import format_satoshis
-
+from electrum_grs.bitcoin import COIN
 
 try:
     import matplotlib.pyplot as plt
@@ -22,13 +22,6 @@ except:
 
 class Plugin(BasePlugin):
 
-
-    def fullname(self):
-        return 'Plot History'
-
-    def description(self):
-        return '%s\n%s' % (_("Ability to plot transaction history in graphical mode."), _("Warning: Requires matplotlib library."))
-
     def is_available(self):
         if flag_matlib:
             return True
@@ -42,56 +35,41 @@ class Plugin(BasePlugin):
     @hook
     def export_history_dialog(self, d,hbox):
         self.wallet = d.wallet
-
-        history = self.wallet.get_tx_history()
-
+        history = self.wallet.get_history()
         if len(history) > 0:
             b = QPushButton(_("Preview plot"))
             hbox.addWidget(b)
-            b.clicked.connect(lambda: self.do_plot(self.wallet))
+            b.clicked.connect(lambda: self.do_plot(self.wallet, history))
         else:
             b = QPushButton(_("No history to plot"))
             hbox.addWidget(b)
 
 
-
-    def do_plot(self,wallet):
-        history = wallet.get_tx_history()
+    def do_plot(self, wallet, history):
         balance_Val=[]
         fee_val=[]
         value_val=[]
         datenums=[]
-        unknown_trans=0
-        pending_trans=0
-        counter_trans=0
+        unknown_trans = 0
+        pending_trans = 0
+        counter_trans = 0
+        balance = 0
         for item in history:
-            tx_hash, confirmations, is_mine, value, fee, balance, timestamp = item
+            tx_hash, confirmations, value, timestamp, balance = item
             if confirmations:
                 if timestamp is not None:
                     try:
                         datenums.append(md.date2num(datetime.datetime.fromtimestamp(timestamp)))
-                        balance_string = format_satoshis(balance, False)
-                        balance_Val.append(float((format_satoshis(balance,False)))*1000.0)
+                        balance_Val.append(1000.*balance/COIN)
                     except [RuntimeError, TypeError, NameError] as reason:
-                        unknown_trans=unknown_trans+1
+                        unknown_trans += 1
                         pass
                 else:
-                    unknown_trans=unknown_trans+1
+                    unknown_trans += 1
             else:
-                pending_trans=pending_trans+1
+                pending_trans += 1
 
-            if value is not None:
-                value_string = format_satoshis(value, True)
-                value_val.append(float(value_string)*1000.0)
-            else:
-                value_string = '--'
-
-            if fee is not None:
-                fee_string = format_satoshis(fee, True)
-                fee_val.append(float(fee_string))
-            else:
-                fee_string = '0'
-
+            value_val.append(1000.*value/COIN)
             if tx_hash:
                 label, is_default_label = wallet.get_label(tx_hash)
                 label = label.encode('utf-8')
@@ -139,10 +117,7 @@ class Plugin(BasePlugin):
 
         xfmt = md.DateFormatter('%Y-%m-%d')
         ax.xaxis.set_major_formatter(xfmt)
-        axarr[1].plot(datenums,fee_val,marker='o',linestyle='-',color='red',label='Fee')
         axarr[1].plot(datenums,value_val,marker='o',linestyle='-',color='green',label='Value')
-
-
 
 
         axarr[1].legend(loc='upper left')
