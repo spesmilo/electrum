@@ -2336,7 +2336,7 @@ class ElectrumWindow(QMainWindow):
         e.setReadOnly(True)
         vbox.addWidget(e)
 
-        defaultname = 'electrum-private-keys.csv'
+        defaultname = 'electrum-grs-private-keys.csv'
         select_msg = _('Select file to export your private keys to')
         hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
         vbox.addLayout(hbox)
@@ -2430,7 +2430,7 @@ class ElectrumWindow(QMainWindow):
         d.setWindowTitle(_('Export History'))
         d.setMinimumSize(400, 200)
         vbox = QVBoxLayout(d)
-        defaultname = os.path.expanduser('~/electrum-history.csv')
+        defaultname = os.path.expanduser('~/electrum-grs-history.csv')
         select_msg = _('Select file to export your wallet transactions to')
         hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
         vbox.addLayout(hbox)

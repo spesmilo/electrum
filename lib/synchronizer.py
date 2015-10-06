@@ -19,7 +19,7 @@
 
 from threading import Lock
 
-from bitcoin import Hash, hash_encode
+from bitcoin import Hash, hash_encode, sha256
 from transaction import Transaction
 from util import print_error, print_msg
 
@@ -119,7 +119,7 @@ class WalletSynchronizer():
         if not params:
             return
         tx_hash, tx_height = params
-        assert tx_hash == hash_encode(Hash(result.decode('hex')))
+        assert tx_hash == hash_encode(sha256(result.decode('hex')))
         tx = Transaction(result)
         try:
             tx.deserialize()
