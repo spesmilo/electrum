@@ -18,7 +18,7 @@ from kivy.clock import Clock
 
 Builder.load_string('''
 <QRCodeWidget>
-    on_parent: if args[1]: qrimage.source = self.loading_image
+    #on_parent: if args[1]: qrimage.source = self.loading_image
     canvas.before:
         # Draw white Rectangle
         Color:
@@ -61,7 +61,7 @@ class QRCodeWidget(FloatLayout):
     defaulting to `(1, 1, 1, 1)`.
     '''
 
-    loading_image = StringProperty('gui/kivy/theming/loading.gif')
+    #loading_image = StringProperty('gui/kivy/theming/loading.gif')
 
     def __init__(self, **kwargs):
         super(QRCodeWidget, self).__init__(**kwargs)

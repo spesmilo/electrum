@@ -216,29 +216,27 @@ class SendScreen(CScreen):
             app.show_error(_('Invalid Fee'))
             return
 
-        message = 'sending {} {} to {}'.format(app.base_unit, scrn.amount_e.text, r)
-
+        message = 'sending {} {} to {}'.format(self.app.base_unit, scrn.amount_e.text, r)
         # assume no password and fee is None
         password = None
         fee = None
-        #self.send_tx([('address', to_address, amount)], fee, label, password)
+        self.send_tx([('address', to_address, amount)], fee, label, password)
 
     def send_tx(self, outputs, fee, label, password):
-        app = App.get_running_app()
         # make unsigned transaction
-        coins = self.wallet.get_spendable_coins()
+        coins = self.app.wallet.get_spendable_coins()
         try:
-            tx = self.wallet.make_unsigned_transaction(coins, outputs, self.electrum_config, fee)
+            tx = self.app.wallet.make_unsigned_transaction(coins, outputs, self.electrum_config, fee)
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
-            app.show_error(str(e))
+            self.app.show_error(str(e))
             return
         # sign transaction
         try:
-            self.wallet.sign_transaction(tx, password)
+            self.app.wallet.sign_transaction(tx, password)
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
-            app.show_error(str(e))
+            self.app.show_error(str(e))
             return
         # broadcast
         self.wallet.sendtx(tx)
@@ -247,6 +245,7 @@ class SendScreen(CScreen):
 
 class ReceiveScreen(CScreen):
     kvname = 'receive'
+    @profiler
     def update(self):
         addr = self.app.wallet.get_unused_address(None)
         qr = self.screen.ids.get('qr')
