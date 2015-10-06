@@ -6,36 +6,6 @@
 #:set mbtc_symbol unichr(187)
 #:set font_light 'data/fonts/Roboto-Condensed.ttf'
 
-<SendActionView@ActionView>
-    foreground_color: (.466, .466, .466, 1)
-    color_active: (0.235, .588, .89, 1)
-    WalletActionPrevious:
-        id: action_previous
-        width: but_star.width
-    ActionButton:
-        id: action_logo
-        important: True
-        size_hint: 1, 1
-        markup: True
-        mipmap: True
-        bold: True
-        markup: True
-        color: 1, 1, 1, 1
-        text:
-            "[color=#777777][sub] [sup][size=9dp]{}[/size][/sup][/sub]{}[/color]"\
-            .format(app.base_unit, app.status)
-        font_size: '22dp'
-        minimum_width: '1dp'
-    Butt_star:
-        id: but_star
-        on_release:
-            if self.state == 'down':\
-            app.show_info_bubble(\
-            text='[b]Expert mode on[/b]\n you can now select your address',\
-            icon='atlas://gui/kivy/theming/light/star_big_inactive',\
-            duration=1, arrow_pos='', width='250dp')
-
-
 
 
 <TextInputSendBlue@TextInput>
@@ -55,7 +25,7 @@ SendScreen:
 
     mode: 'address'
     name: 'send'
-    action_view: Factory.SendActionView()
+    #action_view: Factory.SendActionView()
     #on_deactivate:
     #    self.ids.amount_e.focus = False
     #    self.ids.payto_e.focus = False
@@ -206,9 +176,9 @@ SendScreen:
                     color: blue_bottom.foreground_color
                 BoxLayout:
                     id: message_selection
-                    opacity: 1 if app.expert_mode else 0
+                    opacity: 1
                     size_hint: 1, None
-                    height: blue_bottom.item_height if app.expert_mode else 0
+                    height: blue_bottom.item_height
                     spacing: '5dp'
                     Image:
                         source: 'atlas://gui/kivy/theming/light/pen'
@@ -228,9 +198,9 @@ SendScreen:
                 AddressSelector:
                     id: address_selection
                     foreground_color: blue_bottom.foreground_color
-                    opacity: 1 if app.expert_mode else 0
+                    opacity: 1
                     size_hint: 1, None
-                    height: blue_bottom.item_height if app.expert_mode else 0
+                    height: blue_bottom.item_height
         Button:
             #background_color: (1, 1, 1, 1) if self.disabled else ((.258, .80, .388, 1) if self.state == 'normal' else (.203, .490, .741, 1))
             text: _('Send')

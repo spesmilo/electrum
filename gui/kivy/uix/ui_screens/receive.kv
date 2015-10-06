@@ -107,9 +107,9 @@ ReceiveScreen:
                 AddressSelector:
                     id: address_selection
                     foreground_color: blue_bottom.foreground_color
-                    opacity: 1 if app.expert_mode else 0
+                    opacity: 1
                     size_hint: 1, None
-                    height: blue_bottom.item_height if app.expert_mode else 0
+                    height: blue_bottom.item_height
                     on_text:
                         if not args[1].startswith('Select'):\
                         qr.data = app.encode_uri(args[1],\
@@ -161,11 +161,3 @@ ReceiveScreen:
             .format(app.base_unit, app.status)
         font_size: '22dp'
         minimum_width: '1dp'
-    Butt_star:
-        id: but_star
-        on_release:
-            if self.state == 'down':\
-            app.show_info_bubble(\
-            text='[b]Expert mode on[/b]\n you can now select your address',\
-            icon='atlas://gui/kivy/theming/light/star_big_inactive',\
-            duration=1, arrow_pos='', width='250dp')

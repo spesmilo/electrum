@@ -95,27 +95,6 @@
             size: root.size
             pos: root.pos
 
-<Butt_star@ActionToggleButton>:
-    important: True
-    size_hint_x: None
-    width: '32dp'
-    mipmap: True
-    state: 'down' if app.expert_mode else 'normal'
-    background_down: self.background_normal
-    foreground_color: (.466, .466, .466, 1)
-    color_active: (0.235, .588, .89, 1)
-    on_release: app.expert_mode = True if self.state == 'down' else False
-    Image:
-        source: 'atlas://gui/kivy/theming/light/star_big_inactive'
-        center: root.center
-        size: root.width/1.5, self.width
-        color:
-            root.foreground_color if root.state == 'normal' else root.color_active
-        canvas.after:
-            Color:
-                rgba: 1, 1, 1, 1
-        source: 
-        allow_stretch: True
 
 <ELTextInput>
     padding: '10dp', '4dp'
@@ -262,20 +241,20 @@
     text: _("Select Your address")
 
 
-<ElectrumScreen>
-    ScrollView:
-        do_scroll_x: False
-        do_scroll_y: False if root.fullscreen else (content.height > root.height - dp(16))
-        AnchorLayout:
-            size_hint_y: None
-            height: root.height if root.fullscreen else max(root.height, content.height)
-            GridLayout:
-                id: content
-                cols: 1
-                spacing: '8dp'
-                padding: '8dp'
-                size_hint: (1, 1) if root.fullscreen else (.8, None)
-                height: self.height if root.fullscreen else self.minimum_height
+#<ElectrumScreen>
+#    ScrollView:
+#        do_scroll_x: False
+#        do_scroll_y: False if root.fullscreen else (content.height > root.height - dp(16))
+#        AnchorLayout:
+#            size_hint_y: None
+#            height: root.height if root.fullscreen else max(root.height, content.height)
+#            GridLayout:
+#                id: content
+#                cols: 1
+#                spacing: '8dp'
+#                padding: '8dp'
+#                size_hint: (1, 1) if root.fullscreen else (.8, None)
+#                height: self.height if root.fullscreen else self.minimum_height
 
 
 <TabbedCarousel>

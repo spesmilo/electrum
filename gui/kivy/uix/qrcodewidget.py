@@ -4,20 +4,15 @@
 from threading import Thread
 from functools import partial
 
-from kivy.uix.floatlayout import FloatLayout
+import qrcode
 
+from kivy.uix.floatlayout import FloatLayout
 from kivy.graphics.texture import Texture
 from kivy.properties import StringProperty
 from kivy.properties import ObjectProperty, StringProperty, ListProperty,\
     BooleanProperty
 from kivy.lang import Builder
 from kivy.clock import Clock
-
-try:
-    import qrcode
-except ImportError:
-    import sys
-    sys.exit("Error: qrcode does not seem to be installed. Try 'sudo pip install qrcode'")
 
 
 
@@ -77,11 +72,12 @@ class QRCodeWidget(FloatLayout):
 
     def __init__(self, **kwargs):
         super(QRCodeWidget, self).__init__(**kwargs)
-        self.addr = None
+        self.data = None
         self.qr = None
         self._qrtexture = None
 
     def on_data(self, instance, value):
+        print "on data"
         if not (self.canvas or value):
             return
         img = self.ids.get('qrimage', None)
@@ -95,31 +91,30 @@ class QRCodeWidget(FloatLayout):
         Thread(target=partial(self.generate_qr, value)).start()
 
     def generate_qr(self, value):
-        self.set_addr(value)
+        self.set_data(value)
         self.update_qr()
 
-    def set_addr(self, addr):
-        if self.addr == addr:
+    def set_data(self, data):
+        if self.data == data:
             return
         MinSize = 210 if len(addr) < 128 else 500
         self.setMinimumSize((MinSize, MinSize))
-        self.addr = addr
+        self.data = data
         self.qr = None
 
     def update_qr(self):
-        if not self.addr and self.qr:
+        if not self.data and self.qr:
             return
-        QRCode = qrcode.QRCode
         L = qrcode.constants.ERROR_CORRECT_L
-        addr = self.addr
+        data = self.data
         try:
-            self.qr = qr = QRCode(
+            self.qr = qr = qrcode.QRCode(
                 version=None,
                 error_correction=L,
                 box_size=10,
                 border=0,
                 )
-            qr.add_data(addr)
+            qr.add_data(data)
             qr.make(fit=True)
         except Exception as e:
             print e

@@ -41,13 +41,6 @@ Cache.register('electrum_widgets', timeout=0)
 from kivy.uix.screenmanager import Screen
 from kivy.uix.tabbedpanel import TabbedPanel
 
-class ElectrumScreen(Screen):
-    fullscreen = BooleanProperty(False)
-    #def add_widget(self, *args):
-    #    if 'content' in self.ids:
-    #        return self.ids.content.add_widget(*args)
-    #    return super(ElectrumScreen, self).add_widget(*args)
-
 
 Factory.register('TabbedCarousel', module='electrum_gui.kivy.uix.screens')
 
@@ -77,12 +70,6 @@ class ElectrumWindow(App):
     '''List of currencies supported by the current exchanger plugin.
 
     :attr:`currencies` is a `ListProperty` default to ['Eur', 'GBP'. 'USD'].
-    '''
-
-    expert_mode = BooleanProperty(False)
-    '''This defines whether expert mode options are available in the ui.
-
-    :attr:`expert_mode` is a `BooleanProperty` defaults to `False`.
     '''
 
     def _get_decimal(self):
@@ -417,22 +404,10 @@ class ElectrumWindow(App):
         Cache.append('electrum_widgets', 'CSpinner', Factory.CSpinner())
 
         # load and focus the ui
-        #Load mainscreen
-
-        #dr = Builder.load_file('gui/kivy/uix/ui_screens/mainscreen.kv')
-        #self.root.add_widget(dr)
-        #self.root.manager = manager = dr.ids.manager
-        #self.root.main_screen = m = manager.screens[0]
-        #self.tabs = m.ids.tabs
-
         self.root.manager = self.root.ids['manager']
         self.recent_activity_card = None
         self.history_screen = None
         self.contacts_screen = None
-        self.wallet_screen = None
-
-        #TODO
-        # load left_menu
 
         self.icon = "icons/electrum.png"
 
@@ -710,18 +685,6 @@ class ElectrumWindow(App):
         #Logger.info('orientation: {}'.format(self._orientation))
         #Logger.info('ui_mode: {}'.format(self._ui_mode))
 
-    def load_screen(self, name, direction='left', manager=None):
-        screen = self.screens.get(name)
-        if screen is None:
-            screen = Builder.load_file('gui/kivy/uix/ui_screens/' + name + '.kv')
-            screen.name = name
-            self.screens[name] = screen
-        manager = manager or self.root.manager
-        manager.switch_to(screen, direction=direction)
-
-    def load_history(self):
-        #Builder.load_file('gui/kivy/uix/ui_screens/history.kv')
-        print "load history", self.root.manager.ids.history
 
     def save_new_contact(self, address, label):
         address = unicode(address)
@@ -729,7 +692,6 @@ class ElectrumWindow(App):
         global is_valid
         if not is_valid:
             from electrum.bitcoin import is_valid
-
 
         if is_valid(address):
             if label:

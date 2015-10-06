@@ -50,10 +50,6 @@ class CScreen(Factory.Screen):
             self.update()
             setattr(self.app, self.kvname + '_screen', self)
 
-            #app.history_screen = screen
-            #app.recent_activity_card = screen.ids.recent_activity_card
-            #app.update_history_tab()
-
         #Clock.schedule_once(lambda dt: self._change_action_view())
 
     def on_leave(self):
