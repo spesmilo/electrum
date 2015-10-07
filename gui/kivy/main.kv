@@ -372,23 +372,18 @@
         tab_height: '48dp'
         #default_tab: send_tab
         strip_border: 0, 0, 0, 0
-
         HistoryScreen:
             id: history_screen
             tab: history_tab
-
         SendScreen:
             id: send_screen
             tab: send_tab
-
         ReceiveScreen:
             id: receive_screen
             tab: receive_tab
-
         ContactsScreen:
             id: contacts_screen
             tab: contacts_tab
-
         CleanHeader:
             id: history_tab
             text: _('History')
@@ -407,27 +402,6 @@
             slide: 3
 
 
-<ActionButton>:
-    border: 4, 0, 0, 0
-    #background_down: 'atlas://gui/kivy/theming/light/overflow_btn_dn'
-
-<OverflowButton@ActionButton>
-    text_size: dp(50), None
-    last: False
-    halign: 'left'
-    valign: 'middle'
-    overflow: None
-    #background_normal:
-    #    'atlas://gui/kivy/theming/light/' +\
-    #    ('action_button_group'\
-    #    if (self.inside_group and not self.last) else 'tab_btn')
-
-    #on_press:
-    #    ddn = self.overflow._dropdown
-    #    Factory.Animation.cancel_all(ddn)
-    #    anim = Factory.Animation(opacity=0, d=.25)
-    #    anim.bind(on_complete=ddn.dismiss)
-    #    anim.start(ddn)
 
 BoxLayout:
 
@@ -466,30 +440,22 @@ BoxLayout:
                 minimum_width: '1dp'
 
             ActionOverflow:
-                id: action_overflow
-                width: '60dp'
-                OverflowButton:
+                id: ao
+                size_hint: 1, 1
+                ActionButton:
                     text: _('Network')
-                    overflow: action_overflow
+                    on_press: ao._dropdown.dismiss()
                     on_release: app.popup_dialog('network')
-                OverflowButton:
+                ActionButton:
                     text: _('Wallet')
-                    overflow: action_overflow
+                    on_press: ao._dropdown.dismiss()
                     on_release: app.popup_dialog('wallet')
-                OverflowButton:
+                ActionButton:
                     text: _('Preferences')
-                    overflow: action_overflow
+                    on_press: ao._dropdown.dismiss()
                     on_release: app.popup_dialog('settings')
                 
     ScreenManager:
         id: manager
-        #tabs: Factory.ScreenTabs()
         ScreenTabs:
             id: tabs
-            name: "tabs"
-
-        #on_current_screen:
-            #spnr.text = args[1].name
-            #idx = app.screen_names.index(args[1].name)
-            #if idx > -1: app.hierarchy.append(idx)
-            #args
