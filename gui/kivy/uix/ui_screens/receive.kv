@@ -1,0 +1,44 @@
+#:import _ electrum_ltc.i18n._
+#:import Decimal decimal.Decimal
+#:set btc_symbol unichr(171)
+#:set mbtc_symbol unichr(187)
+#:set font_light 'data/fonts/Roboto-Condensed.ttf'
+
+
+
+ReceiveScreen:
+    id: receive_screen
+    name: 'receive'
+    mode: 'qr'
+    on_mode: if args[1] == 'nfc': from electrum_ltc_gui.kivy.nfc_scanner import NFCScanner
+
+    BoxLayout
+        padding: '12dp', '12dp', '12dp', '12dp'
+        spacing: '12dp'
+        mode: 'qr'
+        orientation: 'vertical'
+
+        FloatLayout:
+            id: bl
+            QRCodeWidget:
+                id: qr
+                size_hint: None, 1
+                width: min(self.height, bl.width)
+                pos_hint: {'center': (.5, .5)}
+                on_touch_down:
+                    if self.collide_point(*args[1].pos):\
+                    app.show_info_bubble(icon=self.ids.qrimage.texture, text='texture')
+
+        GridLayout:
+            id: grid
+            cols: 1
+            Button:
+                text: 'Amount: None'
+                size_hint_y: None
+                height: '48dp'
+                on_release: receive_screen.set_amount_dialog()
+            Button:
+                text: 'Message: None'
+                size_hint_y: None
+                height: '48dp'
+

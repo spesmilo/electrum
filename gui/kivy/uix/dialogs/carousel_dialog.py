@@ -91,9 +91,10 @@ class RecentActivityDialog(CarouselDialog):
     '''
     '''
     def on_activate(self):
+
         # animate to first slide
-        carousel = self.carousel_content.carousel
-        carousel.load_slide(carousel.slides[0])
+        #carousel = self.carousel_content.carousel
+        #carousel.load_slide(carousel.slides[0])
 
         item = self.item
         try:
