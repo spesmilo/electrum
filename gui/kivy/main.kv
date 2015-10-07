@@ -256,6 +256,10 @@
 #                size_hint: (1, 1) if root.fullscreen else (.8, None)
 #                height: self.height if root.fullscreen else self.minimum_height
 
+<TabbedPanelStrip>:
+    on_parent:
+        if self.parent: self.parent.bar_width = 0
+
 
 <TabbedCarousel>
     carousel: carousel
