@@ -1,3 +1,4 @@
+#:import os os
 
 
 <WalletSelector@BlueSpinner>
@@ -6,9 +7,28 @@
     text: _('Select your wallet')
 
 
-ElectrumScreen:
+Popup:
+    BoxLayout:
+        orientation: 'vertical'
+        GridLayout:
+            size_hint_y: None
+            cols: 2
+            Label:
+                height: '32dp'
+                size_hint_y: None
+                text: _('Wallet file') + ':'
+            TextInput:
+                id: text_input
+                height: '32dp'
+                size_hint_y: None
+                text: os.path.basename(app.wallet.storage.path)
 
-    WalletSelector:
-        id: wallet_selection
-        size_hint: 1, None
-        height: blue_bottom.item_height if app.expert_mode else 0
+        FileChooserIconView:
+            id: wallet_selector
+            path: os.path.dirname(app.wallet.storage.path)
+            on_selection: text_input.text = os.path.basename(self.selection[0]) if self.selection else ''
+
+    #WalletSelector:
+    #    id: wallet_selection
+    #    size_hint: 1, None
+    #    height: blue_bottom.item_height

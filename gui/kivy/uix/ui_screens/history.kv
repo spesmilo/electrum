@@ -99,7 +99,7 @@
                 u'[color=#B2B3B3][size=12sp]{qt}[/size]'\
                 u'[/color]'.format(amount_color=root.amount_color,\
                 amount=root.amount[1:], qt=root.quote_text, sign=root.amount[0],\
-                symbol=btc_symbol if app.base_unit == 'BTC' else mbtc_symbol)
+                symbol=btc_symbol if app.base_unit == 'LTC' else mbtc_symbol)
     CardSeparator
 
 <CardRecentActivity@Card>
@@ -168,7 +168,7 @@
             text:
                 u'[color=#4E4F4F]{}{}[/color]'\
                 .format('' if not self.balance_in_numbers else\
-                (btc_symbol if app.base_unit == 'BTC' else mbtc_symbol), root.status)
+                (btc_symbol if app.base_unit == 'LTC' else mbtc_symbol), root.status)
         BoxLayout
             pos_hint: {'y': 0, 'right': 1}
             spacing: '5dp'

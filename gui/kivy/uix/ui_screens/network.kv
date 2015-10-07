@@ -1,10 +1,30 @@
 Popup:
-    id: network
+    id: nd
     title: _('Network')
+
+    on_open:
+        host.text, nd.port, nd.protocol, nd.proxy, auto_connect.active = app.network.get_parameters()
+
+    on_dismiss:
+        app.network.set_parameters(host.text, nd.port, nd.protocol, nd.proxy, auto_connect.active)
+
     BoxLayout:
+        orientation: 'vertical'
+
+        GridLayout:
+            cols: 2
+            Label:
+                text: _('Auto-connect')
+            CheckBox:
+                id: auto_connect
+                size_hint_y: None
+            Label:
+                text: _('Server')
+            Label:
+                id: host
 
         Button:
             size_hint_y: None
             height: '48dp'
-            text: 'close'
-            on_release: network.dismiss()
+            text: _('Close')
+            on_release: nd.dismiss()
