@@ -379,28 +379,12 @@ class ElectrumWindow(App):
         #setup lazy imports for mainscreen
         Factory.register('AnimatedPopup',
                          module='electrum_gui.kivy.uix.dialogs')
-
-        #Factory.register('TabbedCarousel',
-        #                 module='electrum_gui.kivy.uix.screens')
-
-        Factory.register('ScreenDashboard',
-                         module='electrum_gui.kivy.uix.screens')
-        #Factory.register('EffectWidget',
-        #                 module='electrum_gui.kivy.uix.effectwidget')
         Factory.register('QRCodeWidget',
                          module='electrum_gui.kivy.uix.qrcodewidget')
-        Factory.register('MainScreen',
-                         module='electrum_gui.kivy.uix.screens')
-        Factory.register('CSpinner',
-                         module='electrum_gui.kivy.uix.screens')
 
         # preload widgets. Remove this if you want to load the widgets on demand
-        Cache.append('electrum_widgets', 'AnimatedPopup', Factory.AnimatedPopup())
-
-        #Cache.append('electrum_widgets', 'TabbedCarousel', Factory.TabbedCarousel())
-
-        Cache.append('electrum_widgets', 'QRCodeWidget', Factory.QRCodeWidget())
-        Cache.append('electrum_widgets', 'CSpinner', Factory.CSpinner())
+        #Cache.append('electrum_widgets', 'AnimatedPopup', Factory.AnimatedPopup())
+        #Cache.append('electrum_widgets', 'QRCodeWidget', Factory.QRCodeWidget())
 
         # load and focus the ui
         self.root.manager = self.root.ids['manager']

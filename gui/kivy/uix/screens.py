@@ -1,3 +1,8 @@
+from weakref import ref
+from decimal import Decimal
+import re
+import datetime
+
 from kivy.app import App
 from kivy.cache import Cache
 from kivy.clock import Clock
@@ -9,12 +14,11 @@ from kivy.factory import Factory
 
 from electrum.i18n import _
 from electrum.util import profiler
-
+from electrum import bitcoin
 
 class CScreen(Factory.Screen):
 
     __events__ = ('on_activate', 'on_deactivate', 'on_enter', 'on_leave')
-
     action_view = ObjectProperty(None)
     loaded = False
     kvname = None
@@ -80,7 +84,7 @@ class HistoryScreen(CScreen):
         ra_dialog.item = item
         ra_dialog.open()
 
-    def parse_histories(self, items):
+    def parse_history(self, items):
         for item in items:
             tx_hash, conf, value, timestamp, balance = item
             time_str = _("unknown")
@@ -122,23 +126,19 @@ class HistoryScreen(CScreen):
     def update(self, see_all=False):
 
         history_card = self.screen.ids.recent_activity_card
-        histories = self.parse_histories(reversed(
-                        self.app.wallet.get_history(self.app.current_account)))
+        history = self.parse_history(reversed(
+            self.app.wallet.get_history(self.app.current_account)))
         # repopulate History Card
         last_widget = history_card.ids.content.children[-1]
         history_card.ids.content.clear_widgets()
         history_add = history_card.ids.content.add_widget
         history_add(last_widget)
         RecentActivityItem = Factory.RecentActivityItem
-
-        from weakref import ref
-        from decimal import Decimal
-
         get_history_rate = self.app.get_history_rate
         count = 0
-        for items in histories:
+        for item in history:
             count += 1
-            conf, icon, date_time, address, amount, balance, tx = items
+            conf, icon, date_time, address, amount, balance, tx = item
             ri = RecentActivityItem()
             ri.icon = icon
             ri.date = date_time
@@ -197,8 +197,6 @@ class SendScreen(CScreen):
         self.ids.amount_e.text = uri.get('amount', '')
 
     def do_send(self):
-        import re
-        from electrum import bitcoin
         scrn = self.ids
         label = unicode(scrn.message_e.text)
         r = unicode(scrn.payto_e.text).strip()
