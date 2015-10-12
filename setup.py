@@ -36,10 +36,7 @@ setup(
         'qrcode',
         'protobuf',
         'dnspython',
-        'groestlcoin_hash'
-    ],
-    dependency_links=[
-        'git+https://github.com/groestlcoin/groestlcoin-hash-python#egg=groestlcoin_hash'
+        'coinhash>=1.1.5'
     ],
     package_dir={
         'electrum_grs': 'lib',

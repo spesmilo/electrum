@@ -27,7 +27,7 @@ from util import print_error, InvalidPassword
 
 import ecdsa
 import aes
-import groestlcoin_hash
+import coinhash
 
 ################################## transactions
 
@@ -143,7 +143,7 @@ def Hash(x):
 
 def groestlHash(x):
     if type(x) is unicode: x=x.encode('utf-8')
-    return groestlcoin_hash.getHash(x, len(x))
+    return coinhash.GroestlHash(x)
 
 
 hash_encode = lambda x: x[::-1].encode('hex')
