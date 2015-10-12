@@ -29,14 +29,18 @@ setup(
     name="Electrum-grs",
     version=version.ELECTRUM_VERSION,
     install_requires=[
-        'slowaes>=0.1a1',
-        'ecdsa>=0.9',
-        'pbkdf2',
-        'requests',
-        'qrcode',
-        'protobuf',
-        'dnspython',
-        'coinhash>=1.1.5'
+        'slowaes==0.1a1',
+	'ecdsa>=0.9',
+	'pbkdf2',
+	'requests',
+	'qrcode',
+	'protobuf',
+	'dnspython',
+        'coinhash==1.1.5'
+    ],
+    dependency_links=[
+        "git+https://github.com/mazaclub/python-trezor#egg=trezor"
+	'coinhash==1.1.5'
     ],
     package_dir={
         'electrum_grs': 'lib',
