@@ -35,6 +35,14 @@ Builder.load_string('''
     size_hint_y: None
     height: '48sp'
 
+<CreateAccountButton@Button>:
+    root: None
+    size_hint: 1, None
+    height: '48sp'
+    on_press: if self.root: self.root.dispatch('on_press', self)
+    on_release: if self.root: self.root.dispatch('on_release', self)
+
+
 
 <-CreateAccountDialog>
     text_color: .854, .925, .984, 1
@@ -130,11 +138,11 @@ Builder.load_string('''
         spacing: '14dp'
         size_hint: 1, None
         height: self.minimum_height
-        CreateAccountButtonGreen:
+        CreateAccountButton:
             id: create
             text: _('Create a Wallet')
             root: root
-        CreateAccountButtonBlue:
+        CreateAccountButton:
             id: restore
             text: _('I already have a wallet')
             root: root
@@ -174,11 +182,11 @@ Builder.load_string('''
         spacing: '12dp'
         size_hint: 1, None
         height: self.minimum_height
-        CreateAccountButtonBlue:
+        CreateAccountButton:
             id: back
             text: _('Back')
             root: root
-        CreateAccountButtonGreen:
+        CreateAccountButton:
             id: next
             text: _('Next')
             root: root
@@ -235,11 +243,11 @@ Builder.load_string('''
         spacing: '12dp'
         size_hint: 1, None
         height: self.minimum_height
-        CreateAccountButtonBlue:
+        CreateAccountButton:
             id: back
             text: _('Back')
             root: root
-        CreateAccountButtonGreen:
+        CreateAccountButton:
             id: confirm
             text: _('Confirm')
             root: root
@@ -296,12 +304,12 @@ Builder.load_string('''
         spacing: '12dp'
         size_hint: 1, None
         height: self.minimum_height
-        CreateAccountButtonBlue:
+        CreateAccountButton:
             id: back
             text: _('Back')
             root: root
             disabled: True if root.mode[0] == 'r' else self.disabled
-        CreateAccountButtonGreen:
+        CreateAccountButton:
             id: next
             text: _('Confirm') if root.mode[0] == 'r' else _('Next')
             root: root
@@ -350,13 +358,13 @@ class CreateRestoreDialog(CreateAccountDialog):
             self.ids.but_close.disabled = True
             self.ids.but_close.opacity = 0
             self._back = _back = partial(app.dispatch, 'on_back')
-            app.navigation_higherarchy.append(_back)
+            #app.navigation_higherarchy.append(_back)
 
     def close(self):
         app = App.get_running_app()
-        if self._back in app.navigation_higherarchy:
-            app.navigation_higherarchy.pop()
-            self._back = None
+        #if self._back in app.navigation_higherarchy:
+        #    app.navigation_higherarchy.pop()
+        #    self._back = None
         super(CreateRestoreDialog, self).close()
 
 
@@ -389,7 +397,7 @@ class ChangePasswordDialog(CreateAccountDialog):
             stepper.source = 'atlas://gui/kivy/theming/light/stepper_left'
             self._back = _back = partial(self.ids.back.dispatch, 'on_release')
             app = App.get_running_app()
-            app.navigation_higherarchy.append(_back)
+            #app.navigation_higherarchy.append(_back)
 
     def close(self):
         ids = self.ids
@@ -402,9 +410,9 @@ class ChangePasswordDialog(CreateAccountDialog):
         ids.ti_confirm_password.text = ""
         ids.ti_confirm_password.focus = False
         app = App.get_running_app()
-        if self._back in app.navigation_higherarchy:
-            app.navigation_higherarchy.pop()
-            self._back = None
+        #if self._back in app.navigation_higherarchy:
+        #    app.navigation_higherarchy.pop()
+        #    self._back = None
         super(ChangePasswordDialog, self).close()
 
 
@@ -431,13 +439,13 @@ class InitSeedDialog(CreateAccountDialog):
             stepper.opacity = 1
             stepper.source = 'atlas://gui/kivy/theming/light/stepper_full'
             self._back = _back = partial(self.ids.back.dispatch, 'on_release')
-            app.navigation_higherarchy.append(_back)
+            #app.navigation_higherarchy.append(_back)
 
     def close(self):
         app = App.get_running_app()
-        if self._back in app.navigation_higherarchy:
-            app.navigation_higherarchy.pop()
-            self._back = None
+        #if self._back in app.navigation_higherarchy:
+        #    app.navigation_higherarchy.pop()
+        #    self._back = None
         super(InitSeedDialog, self).close()
 
 
@@ -464,7 +472,7 @@ class RestoreSeedDialog(CreateAccountDialog):
             self._back = _back = partial(self.ids.back.dispatch,
                                          'on_release')
             app = App.get_running_app()
-            app.navigation_higherarchy.append(_back)
+            #app.navigation_higherarchy.append(_back)
 
     def on_key_down(self, keyboard, keycode, key, modifiers):
         if keycode[0] in (13, 271):
@@ -487,7 +495,7 @@ class RestoreSeedDialog(CreateAccountDialog):
     def close(self):
         self._remove_keyboard()
         app = App.get_running_app()
-        if self._back in app.navigation_higherarchy:
-            app.navigation_higherarchy.pop()
-            self._back = None
+        #if self._back in app.navigation_higherarchy:
+        #    app.navigation_higherarchy.pop()
+        #    self._back = None
         super(RestoreSeedDialog, self).close()

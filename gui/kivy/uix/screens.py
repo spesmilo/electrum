@@ -134,6 +134,8 @@ class HistoryScreen(CScreen):
             yield (conf, icon, time_str, label, v_str, balance_str, tx_hash, quote_text)
 
     def update(self, see_all=False):
+        if self.app.wallet is None:
+            return
 
         history_card = self.screen.ids.recent_activity_card
         history = self.parse_history(reversed(
