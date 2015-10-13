@@ -381,15 +381,10 @@ class ElectrumWindow(App):
         ''' Initialize The Ux part of electrum. This function performs the basic
         tasks of setting up the ui.
         '''
-        global ref
-        if not ref:
-            from weakref import ref
-
+        from weakref import ref
         set_language(self.electrum_config.get('language'))
 
         self.funds_error = False
-        self.completions = []
-
         # setup UX
         self.screens = {}
 
@@ -806,3 +801,18 @@ class ElectrumWindow(App):
         if not pos:
                 pos = (win.center[0], win.center[1] - (info_bubble.height/2))
         info_bubble.show(pos, duration, width, modal=modal, exit=exit)
+
+
+    def password_dialog(self, f, args):
+        if self.wallet.use_encryption:
+            popup = Builder.load_file('gui/kivy/uix/ui_screens/password.kv')
+            def callback():
+                pw = popup.ids.text_input.text
+                Clock.schedule_once(lambda x: apply(f, args + (pw,)), 0.5)
+            popup.on_dismiss = callback
+            popup.open()
+        else:
+            apply(f, args + (None,))
+
+
+

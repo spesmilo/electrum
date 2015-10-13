@@ -2,6 +2,7 @@ from weakref import ref
 from decimal import Decimal
 import re
 import datetime
+import traceback, sys
 
 from kivy.app import App
 from kivy.cache import Cache
@@ -96,11 +97,9 @@ class HistoryScreen(CScreen):
             time_str = _("unknown")
             if conf > 0:
                 try:
-                    time_str = datetime.datetime.fromtimestamp(
-                                    timestamp).isoformat(' ')[:-3]
+                    time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
                 except Exception:
                     time_str = _("error")
-
             if conf == -1:
                 time_str = _('unverified')
                 icon = "atlas://gui/kivy/theming/light/close"
@@ -153,7 +152,6 @@ class HistoryScreen(CScreen):
             ri = RecentActivityItem()
             ri.icon = icon
             ri.date = date_time
-            mintimestr = date_time.split()[0]
             ri.address = address
             ri.amount = amount
             ri.quote_text = quote_text
@@ -223,17 +221,16 @@ class SendScreen(CScreen):
             app.show_error(_('Invalid Fee'))
             return
 
-        message = 'sending {} {} to {}'.format(self.app.base_unit, scrn.amount_e.text, r)
-        # assume no password and fee is None
-        password = None
         fee = None
-        self.send_tx([('address', to_address, amount)], fee, label, password)
+        message = 'sending {} {} to {}'.format(self.app.base_unit, scrn.amount_e.text, r)
+        outputs = [('address', to_address, amount)]
+        self.app.password_dialog(self.send_tx, (outputs, fee, label))
 
     def send_tx(self, outputs, fee, label, password):
         # make unsigned transaction
         coins = self.app.wallet.get_spendable_coins()
         try:
-            tx = self.app.wallet.make_unsigned_transaction(coins, outputs, self.electrum_config, fee)
+            tx = self.app.wallet.make_unsigned_transaction(coins, outputs, self.app.electrum_config, fee)
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             self.app.show_error(str(e))
@@ -246,8 +243,8 @@ class SendScreen(CScreen):
             self.app.show_error(str(e))
             return
         # broadcast
-        self.wallet.sendtx(tx)
-
+        ok, txid = self.app.wallet.sendtx(tx)
+        self.app.show_info(txid)
 
 
 class ReceiveScreen(CScreen):
