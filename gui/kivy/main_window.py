@@ -1,12 +1,15 @@
+import re
 import sys
 import time
 import datetime
 import traceback
+from decimal import Decimal
 
 from electrum import WalletStorage, Wallet
 from electrum.i18n import _, set_language
 from electrum.contacts import Contacts
 from electrum.util import profiler
+from electrum.plugins import run_hook
 
 from kivy.app import App
 from kivy.core.window import Window
@@ -18,6 +21,7 @@ from kivy.cache import Cache
 from kivy.clock import Clock
 from kivy.factory import Factory
 from kivy.metrics import inch, metrics
+from kivy.lang import Builder
 
 # lazy imports for factory so that widgets can be used in kv
 Factory.register('InstallWizard',
@@ -27,11 +31,9 @@ Factory.register('ELTextInput', module='electrum_gui.kivy.uix.screens')
 
 
 # delayed imports: for startup speed on android
-notification = app = ref = format_satoshis = Builder = None
+notification = app = ref = format_satoshis = None
 util = False
 
-from decimal import Decimal
-import re
 
 # register widget cache for keeping memory down timeout to forever to cache
 # the data
@@ -39,7 +41,8 @@ Cache.register('electrum_widgets', timeout=0)
 
 from kivy.uix.screenmanager import Screen
 from kivy.uix.tabbedpanel import TabbedPanel
-
+from kivy.uix.label import Label
+from kivy.uix.checkbox import CheckBox
 
 Factory.register('TabbedCarousel', module='electrum_gui.kivy.uix.screens')
 
@@ -176,7 +179,6 @@ class ElectrumWindow(App):
     def __init__(self, **kwargs):
         # initialize variables
         self._clipboard = None
-        self.exchanger = None
         self.info_bubble = None
         self.qrscanner = None
         self.nfcscanner = None
@@ -185,8 +187,10 @@ class ElectrumWindow(App):
         super(ElectrumWindow, self).__init__(**kwargs)
 
         title = _('Electrum App')
-        self.network = network = kwargs.get('network', None)
         self.electrum_config = config = kwargs.get('config', None)
+        self.network = network = kwargs.get('network', None)
+        self.plugins = kwargs.get('plugins', [])
+
         self.gui_object = kwargs.get('gui_object', None)
 
         #self.config = self.gui_object.config
@@ -205,6 +209,8 @@ class ElectrumWindow(App):
             Clock.create_trigger(self.update_status, .5)
         self._trigger_notify_transactions = \
             Clock.create_trigger(self.notify_transactions, 5)
+
+
 
     def set_url(self, instance, url):
         self.gui_object.set_url(url)
@@ -226,12 +232,23 @@ class ElectrumWindow(App):
         activity.bind(on_activity_result=on_qr_result)
         PythonActivity.mActivity.startActivityForResult(intent, 0)
 
+    def show_plugins(self, plugins_list):
+        def on_checkbox_active(cb, value):
+            self.plugins.toggle_enabled(self.electrum_config, cb.name)
+        for item in self.plugins.descriptions:
+            if 'kivy' not in item.get('available_for', []):
+                continue
+            name = item.get('name')
+            label = Label(text=item.get('fullname'))
+            plugins_list.add_widget(label)
+            cb = CheckBox()
+            cb.name = name
+            p = self.plugins.get(name)
+            cb.active = (p is not None) and p.is_enabled()
+            cb.bind(active=on_checkbox_active)
+            plugins_list.add_widget(cb)
+
     def build(self):
-        global Builder
-        if not Builder:
-            from kivy.lang import Builder
-
-
         return Builder.load_file('gui/kivy/main.kv')
 
     def _pause(self):
@@ -403,52 +420,11 @@ class ElectrumWindow(App):
         self.wallet = None
 
 
-    def create_quote_text(self, btc_balance, mode='normal'):
-        '''
-        '''
-        if not self.exchanger:
-            return
-        quote_currency = self.exchanger.currency
-        quote_balance = self.exchanger.exchange(btc_balance, quote_currency)
-
-        if quote_currency and mode == 'symbol':
-            quote_currency = self.exchanger.symbols.get(quote_currency,
-                                                        quote_currency)
-
-        if quote_balance is None:
-            quote_text = u"..."
-        else:
-            quote_text = u"%s%.2f" % (quote_currency,
-                                     quote_balance)
-        return quote_text
 
     def set_currencies(self, quote_currencies):
         self.currencies = sorted(quote_currencies.keys())
         self._trigger_update_status()
 
-    def get_history_rate(self, item, btc_balance, mintime):
-        '''Historical rates: currently only using coindesk by default.
-        '''
-        maxtime = datetime.datetime.now().strftime('%Y-%m-%d')
-        rate = self.exchanger.get_history_rate(item, btc_balance, mintime,
-                                                maxtime)
-
-        return self.set_history_rate(item, rate)
-
-
-    def set_history_rate(self, item, rate):
-        '''
-        '''
-        #TODO: fix me allow other currencies to be used for history rates
-        quote_currency = self.exchanger.symbols.get('USD', 'USD')
-        if rate is None:
-            quote_text = "..."
-        else:
-            quote_text = "{0}{1:.3}".format(quote_currency, rate)
-        item = item()
-        if item:
-            item.quote_text = quote_text
-        return quote_text
 
 
     @profiler
@@ -485,7 +461,7 @@ class ElectrumWindow(App):
                     unconfirmed =  " [%s unconfirmed]" %( self.format_amount(u, True).strip())
                 if x:
                     unmatured =  " [%s unmatured]"%(self.format_amount(x, True).strip())
-                quote_text = self.create_quote_text(Decimal(c+u+x)/100000000, mode='symbol') or ''
+                #quote_text = self.create_quote_text(Decimal(c+u+x)/100000000, mode='symbol') or ''
                 self.status = text.strip() + ' ' + self.base_unit
         else:
             self.status = _("Not connected")
@@ -510,13 +486,6 @@ class ElectrumWindow(App):
 
     @profiler
     def update_wallet(self, *dt):
-        '''
-        '''
-        if not self.exchanger:
-            from electrum_gui.kivy.plugins.exchange_rate import Exchanger
-            self.exchanger = Exchanger(self)
-            self.exchanger.start()
-            return
         self._trigger_update_status()
         if self.wallet.up_to_date or not self.network or not self.network.is_connected():
             self.update_history_tab()

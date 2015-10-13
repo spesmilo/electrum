@@ -61,10 +61,11 @@ from main_window import ElectrumWindow
 
 class ElectrumGui:
 
-    def __init__(self, config, network, app=None):
+    def __init__(self, config, network, plugins, app=None):
         Logger.debug('ElectrumGUI: initialising')
         self.network = network
         self.config = config
+        self.plugins = plugins
 
         #:TODO
         # implement kivy plugin mechanism that needs to be more extensible
@@ -85,5 +86,6 @@ class ElectrumGui:
 
         self.main_window = w = ElectrumWindow(config=self.config,
                                               network=self.network,
+                                              plugins = self.plugins,
                                               gui_object=self)
         w.run()

@@ -423,6 +423,7 @@ class Plugin(BasePlugin, ThreadJob):
             return "%s" % (self.ccy_amount_str(value, True))
         return _("No data")
 
+    @hook
     def historical_value_str(self, satoshis, d_t):
         rate = self.exchange.historical_rate(self.ccy, d_t)
         # Frequently there is no rate for today, until tomorrow :)

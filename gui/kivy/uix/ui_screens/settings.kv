@@ -1,27 +1,26 @@
 Popup:
     id: settings
     title: _('Settings')
+
     BoxLayout:
 
-        Button:
-            size_hint_y: None
-            height: '48dp'
-            text: 'Button normal'
-        
-        Button:
-            size_hint_y: None
-            height: '48dp'
-            text: 'Button down'
-            state: 'down'
+        orientation: 'vertical'
+        size_hint_y: None
 
-        Button:
-            size_hint_y: None
-            height: '48dp'
-            text: 'Button disabled'
-            disabled: True
+        GridLayout:
+            cols: 2
+            Label:
+                text: _('Base unit')
+                height: '48dp'
+            Spinner:
+                text: 'BTC'
+                values: ('BTC', 'mBTC')
+                height: '48dp'
             
         Button:
-            size_hint_y: None
+            #size_hint_y: None
             height: '48dp'
-            text: 'close'
+            text: _('Close')
             on_release: settings.dismiss()
+        #Widget:
+        #    size_hint_y: None
