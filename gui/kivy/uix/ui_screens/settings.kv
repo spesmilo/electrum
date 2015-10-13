@@ -5,7 +5,6 @@ Popup:
     BoxLayout:
 
         orientation: 'vertical'
-        size_hint: 1, None
 
         GridLayout:
             cols: 2
@@ -16,6 +15,7 @@ Popup:
             Spinner:
                 text: 'BTC'
                 values: ('BTC', 'mBTC')
+                size_hint: 1, None
                 height: '48dp'
 
             Label:
@@ -24,12 +24,14 @@ Popup:
                 height: '48dp'
             TextInput:
                 size_hint: 1, None
-            
-            
+                height: '48dp'
+                multiline: False
         Button:
-            #size_hint_y: None
+            size_hint: 1, None
             height: '48dp'
             text: _('Close')
             on_release: settings.dismiss()
-        #Widget:
-        #    size_hint_y: None
+
+        Widget:
+            size_hint: 1, 1
+
