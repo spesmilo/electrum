@@ -57,7 +57,7 @@ descriptions = [
         'name': 'exchange_rate',
         'fullname': _("Exchange rates"),
         'description': _("Exchange rates and currency conversion tools."),
-        'available_for': ['qt'],
+        'available_for': ['qt','kivy'],
     },
     {
         'name':'keepkey',
@@ -72,10 +72,10 @@ descriptions = [
         'name': 'labels',
         'fullname': _('LabelSync'),
         'description': '\n'.join([
-            _("The new and improved LabelSync plugin. This can sync your labels across multiple Electrum installs by using a remote database to save your data. Labels, transactions ids and addresses are encrypted before they are sent to the remote server."),
+            _("Synchronize your labels across multiple Electrum installs by using a remote database to save your data. Labels, transactions ids and addresses are encrypted before they are sent to the remote server."),
             _("The label sync's server software is open-source as well and can be found on github.com/maran/electrum-sync-server")
         ]),
-        'available_for': ['qt']
+        'available_for': ['qt','kivy']
     },
     {
         'name': 'plot',

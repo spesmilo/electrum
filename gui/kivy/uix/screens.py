@@ -15,6 +15,8 @@ from kivy.factory import Factory
 from electrum_ltc.i18n import _
 from electrum_ltc.util import profiler
 from electrum_ltc import bitcoin
+from electrum_ltc.util import timestamp_to_datetime
+from electrum_ltc.plugins import run_hook
 
 class CScreen(Factory.Screen):
 
@@ -84,6 +86,10 @@ class HistoryScreen(CScreen):
         ra_dialog.item = item
         ra_dialog.open()
 
+    def get_history_rate(self, btc_balance, timestamp):
+        date = timestamp_to_datetime(timestamp)
+        return run_hook('historical_value_str', btc_balance, date)
+
     def parse_history(self, items):
         for item in items:
             tx_hash, conf, value, timestamp, balance = item
@@ -121,7 +127,11 @@ class HistoryScreen(CScreen):
                 label = _('Pruned transaction outputs')
                 is_default_label = False
 
-            yield (conf, icon, time_str, label, v_str, balance_str, tx_hash)
+            quote_currency = 'USD'
+            rate = self.get_history_rate(value, timestamp)
+            quote_text = "..." if rate is None else "{0:.3} {1}".format(rate, quote_currency)
+
+            yield (conf, icon, time_str, label, v_str, balance_str, tx_hash, quote_text)
 
     def update(self, see_all=False):
 
@@ -134,20 +144,17 @@ class HistoryScreen(CScreen):
         history_add = history_card.ids.content.add_widget
         history_add(last_widget)
         RecentActivityItem = Factory.RecentActivityItem
-        get_history_rate = self.app.get_history_rate
         count = 0
         for item in history:
             count += 1
-            conf, icon, date_time, address, amount, balance, tx = item
+            conf, icon, date_time, address, amount, balance, tx, quote_text = item
             ri = RecentActivityItem()
             ri.icon = icon
             ri.date = date_time
             mintimestr = date_time.split()[0]
             ri.address = address
             ri.amount = amount
-            ri.quote_text = get_history_rate(ref(ri),
-                                             Decimal(amount),
-                                             mintimestr)
+            ri.quote_text = quote_text
             ri.balance = balance
             ri.confirmations = conf
             ri.tx_hash = tx

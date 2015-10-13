@@ -451,13 +451,17 @@ BoxLayout:
                     on_press: ao._dropdown.dismiss()
                     on_release: app.popup_dialog('network')
                 ActionButton:
-                    text: _('Wallet')
+                    text: _('Settings')
+                    on_press: ao._dropdown.dismiss()
+                    on_release: app.popup_dialog('settings')
+                ActionButton:
+                    text: _('Wallets')
                     on_press: ao._dropdown.dismiss()
                     on_release: app.popup_dialog('wallet')
                 ActionButton:
-                    text: _('Preferences')
+                    text: _('Plugins')
                     on_press: ao._dropdown.dismiss()
-                    on_release: app.popup_dialog('settings')
+                    on_release: app.popup_dialog('plugins')
                 
     ScreenManager:
         id: manager
