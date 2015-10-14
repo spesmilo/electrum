@@ -387,7 +387,7 @@ from ecdsa.util import string_to_number, number_to_string
 def msg_magic(message):
     varint = var_int(len(message))
     encoded_varint = "".join([chr(int(varint[i:i+2], 16)) for i in xrange(0, len(varint), 2)])
-    return "\x1cGroestlcoin Signed Message:\n" + encoded_varint + message
+    return "\x1cGroestlCoin Signed Message:\n" + encoded_varint + message
 
 
 def verify_message(address, signature, message):
@@ -492,7 +492,7 @@ class EC_KEY(object):
         return signature
 
     def sign_message(self, message, compressed, address):
-        signature = self.sign(Hash(msg_magic(message)))
+        signature = self.sign(sha256(msg_magic(message)))
         for i in range(4):
             sig = chr(27 + i + (4 if compressed else 0)) + signature
             try:
@@ -517,7 +517,7 @@ class EC_KEY(object):
             compressed = False
         recid = nV - 27
 
-        h = Hash(msg_magic(message))
+        h = sha256(msg_magic(message))
         public_key = MyVerifyingKey.from_signature(sig[1:], recid, h, curve = SECP256k1)
         # check public key
         public_key.verify_digest(sig[1:], h, sigdecode = ecdsa.util.sigdecode_string)
