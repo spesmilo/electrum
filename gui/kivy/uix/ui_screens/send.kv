@@ -6,8 +6,6 @@
 #:set mbtc_symbol unichr(187)
 #:set font_light 'data/fonts/Roboto-Condensed.ttf'
 
-
-
 <TextInputSendBlue@TextInput>
     padding: '5dp'
     size_hint: 1, None
@@ -19,6 +17,40 @@
     background_color: 1, 1, 1, 1
     background_normal: 'atlas://gui/kivy/theming/light/tab_btn'
     background_active: 'atlas://gui/kivy/theming/light/textinput_active'
+
+<SendToggle@ToggleButton>
+    source: ''
+    markup: False
+    bold: True
+    border: 4, 4, 4, 4
+    group: 'transfer_type'
+    background_normal: self.background_down
+    color:
+        (.140, .140, .140, 1) if self.state == 'down' else (.796, .796, .796, 1)
+    canvas.after:
+        Color:
+            rgba: 1, 1, 1, 1
+    Image:
+        source: root.source
+        color: root.color
+        size: '30dp', '30dp'
+        center_x: root.center_x - ((root.texture_size[0]/2)+(self.width/1.5))
+        center_y: root.center_y
+
+
+
+<SendReceiveToggle@BoxLayout>
+    padding: '5dp', '5dp'
+    size_hint: 1, None
+    height: '45dp'
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 1
+        BorderImage:
+            border: 12, 12, 12, 12
+            source: 'atlas://gui/kivy/theming/light/card'
+            size: self.width + dp(3), self.height
+            pos: self.x - dp(1.5), self.y
 
 
 SendScreen:
@@ -38,107 +70,48 @@ SendScreen:
         mode: 'address'
         SendReceiveToggle:
             SendToggle:
-                id: toggle_address
-                text: 'ADDRESS'
+                id: qr
+                text: 'Scan QR Code'
                 group: 'send_type'
-                state: 'down' if root.mode == 'address' else 'normal'
-                source: 'atlas://gui/kivy/theming/light/globe'
-                background_down: 'atlas://gui/kivy/theming/light/btn_send_address'
+                source: 'atlas://gui/kivy/theming/light/qrcode'
                 on_release:
-                    if root.mode == 'address': root.mode = 'fc'
-                    root.mode = 'address'
+                    app.scan_qr(on_complete=root.set_qr_data)
+                state: 'down'
+                background_down: 'atlas://gui/kivy/theming/light/btn_send_nfc'
             SendToggle:
-                id: toggle_nfc
+                id: nfc_toggle
                 text: 'NFC'
                 group: 'send_type'
-                state: 'down' if root.mode == 'nfc' else 'normal'
+                state: 'normal'
                 source: 'atlas://gui/kivy/theming/light/nfc'
                 background_down: 'atlas://gui/kivy/theming/light/btn_send_nfc'
-                on_release:
-                    if root.mode == 'nfc': root.mode = 'str'
-                    root.mode = 'nfc'
         GridLayout:
             id: grid
             cols: 1
             size_hint: 1, None
             height: self.minimum_height
-            SendReceiveCardTop
-                id: card_address
-                BoxLayout
-                    size_hint: 1, None
-                    height: '42dp'
-                    rows: 1
-                    Label
-                        id: lbl_symbl
-                        bold: True
-                        color: amount_e.foreground_color
-                        text_size: self.size
-                        valign: 'bottom'
-                        halign: 'left'
-                        font_size: '22sp'
-                        text:
-                            u'[font={fnt}]{smbl}[/font]'.\
-                            format(smbl=btc_symbol if app.base_unit == 'BTC' else mbtc_symbol, fnt=font_light)
-                        size_hint_x: .25
-                    ELTextInput:
-                        id: amount_e
-                        input_type: 'number'
-                        multiline: False
-                        bold: True
-                        font_size: '50sp'
-                        foreground_color: .308, .308, .308, 1
-                        background_normal: 'atlas://gui/kivy/theming/light/tab_btn'
-                        pos_hint: {'top': 1.5}
-                        size_hint: .7, None
-                        height: '67dp'
-                        hint_text: 'Amount'
-                        text: '0.0'
-                        on_text_validate: payto_e.focus = True
-                CardSeparator
-                BoxLayout:
-                    size_hint: 1, None
-                    height: '42dp'
-                    spacing: '5dp'
-                    Label:
-                        id: fee_e
-                        color: .761, .761, .761, 1
-                        font_size: '12dp'
-                        amt: app.format_amount(app.wallet.fee_per_kb(app.gui_object.config)) if app.wallet else 0
-                        text:
-                            u'[b]{sign}{symbl}{amt}[/b] of fee'.\
-                            format(symbl=lbl_symbl.text,\
-                            sign='+' if self.amt > 0 else '-', amt=self.amt)
-                        size_hint_x: None
-                        width: self.texture_size[0]
-                        halign: 'left'
-                        valign: 'middle'
-                    IconButton:
-                        color: 0.694, 0.694, 0.694, 1
-                        source: 'atlas://gui/kivy/theming/light/gear'
-                        pos_hint: {'center_y': .5}
-                        size_hint: None, None
-                        size: '22dp', '22dp'
-                        on_release:
-                            dlg = Cache.get('electrum_widgets', 'TransactionFeeDialog')
 
-                            if not dlg:\
-                            Factory.register('SelectionDialog', module='electrum_gui.kivy.uix.dialogs');\
-                            dlg = Factory.TransactionFeeDialog();\
-                            Cache.append('electrum_widgets', 'TransactionDialog', dlg)
-
-                            dlg.return_obj = fee_e
-                            dlg.open()
-                    Label:
-                        font_size: '12dp'
-                        color: fee_e.color
-                        #text: u'= {}'.format(app.create_quote_text(Decimal(float(amount_e.text)), mode='symbol')) if amount_e.text else u'0'
-                        text_size: self.size
-                        halign: 'right'
-                        valign: 'middle'
             SendReceiveBlueBottom:
                 id: blue_bottom
                 size_hint: 1, None
                 height: self.minimum_height
+                BoxLayout
+                    size_hint: 1, None
+                    height: blue_bottom.item_height
+                    Label:
+                        id: lbl_symbl
+                        text: 'Amount'
+                        size_hint: 0.5, None
+                        height: '38dp'
+                    Button:
+                        id: amount_e
+                        text: ''
+                        size_hint: 0.5, None
+                        height: '38dp'
+                        on_release: app.amount_dialog(amount_e, None)
+                CardSeparator
+                    opacity: message_selection.opacity
+                    color: blue_bottom.foreground_color
                 BoxLayout
                     size_hint: 1, None
                     height: blue_bottom.item_height
@@ -165,13 +138,6 @@ SendScreen:
                             Rectangle:
                                 size: self.size
                                 pos: self.pos
-                    IconButton:
-                        id: qr
-                        source: 'atlas://gui/kivy/theming/light/qrcode'
-                        pos_hint: {'center_y': .5}
-                        size_hint: None, None
-                        size: '22dp', '22dp'
-                        on_release: app.scan_qr(on_complete=root.set_qr_data)
                 CardSeparator
                     opacity: message_selection.opacity
                     color: blue_bottom.foreground_color
@@ -192,13 +158,19 @@ SendScreen:
                         on_text_validate:
                             anim = Factory.Animation(opacity=1, height=blue_bottom.item_height)
                             anim.start(wallet_selection)
-        Button:
-            #background_color: (1, 1, 1, 1) if self.disabled else ((.258, .80, .388, 1) if self.state == 'normal' else (.203, .490, .741, 1))
-            text: _('Send')
-            size_hint_y: None
-            height: '38dp'
-            disabled: False
-            on_release: send_screen.do_send()
+
+        BoxLayout:
+            Button:
+                text: _('Clear')
+                size_hint_y: None
+                height: '38dp'
+                disabled: False
+            Button:
+                text: _('Send')
+                size_hint_y: None
+                height: '38dp'
+                disabled: False
+                on_release: send_screen.do_send()
         Widget
 
 

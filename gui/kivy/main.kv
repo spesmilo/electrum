@@ -160,18 +160,6 @@
     on_release: app.root.children[0].toggle_drawer()
 
 
-<SendReceiveToggle@BoxLayout>
-    padding: '5dp', '5dp'
-    size_hint: 1, None
-    height: '45dp'
-    canvas.before:
-        Color:
-            rgba: 1, 1, 1, 1
-        BorderImage:
-            border: 12, 12, 12, 12
-            source: 'atlas://gui/kivy/theming/light/card'
-            size: self.width + dp(3), self.height
-            pos: self.x - dp(1.5), self.y
 
 <SendReceiveCardTop@GridLayout>
     canvas.before:
@@ -204,24 +192,6 @@
     padding: '12dp', 0
 
 
-<SendToggle@ToggleButton>
-    source: ''
-    group: 'transfer_type'
-    markup: False
-    bold: True
-    border: 4, 4, 4, 4
-    background_normal: self.background_down
-    color:
-        (.140, .140, .140, 1) if self.state == 'down' else (.796, .796, .796, 1)
-    canvas.after:
-        Color:
-            rgba: 1, 1, 1, 1
-    Image:
-        source: root.source
-        color: root.color
-        size: '30dp', '30dp'
-        center_x: root.center_x - ((root.texture_size[0]/2)+(self.width/1.5))
-        center_y: root.center_y
 
 
 <CardSeparator@Widget>
@@ -237,7 +207,7 @@
 
 <AddressSelector@BlueSpinner>
     icon: 'atlas://gui/kivy/theming/light/globe'
-    values: app.wallet.addresses() if app.wallet else []
+    values: [] #app.wallet.addresses() if app.wallet else []
     text: _("Select Your address")
 
 

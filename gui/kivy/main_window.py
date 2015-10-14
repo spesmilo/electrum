@@ -808,7 +808,8 @@ class ElectrumWindow(App):
         popup.ids.amount_label.text = label.text
         def cb():
             label.text = popup.ids.amount_label.text
-            callback()
+            if callback:
+                callback()
         popup.on_dismiss = cb
         popup.open()
 
