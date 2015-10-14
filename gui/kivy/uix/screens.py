@@ -272,12 +272,15 @@ class ReceiveScreen(CScreen):
         raise
 
     def update_qr(self):
-        address_label = self.screen.ids.get('address')
-        address = address_label.text
-        amount_label = self.screen.ids.get('amount')
-        amount = amount_label.text
+        from electrum.util import create_URI
+        address = self.screen.ids.get('address').text
+        amount = self.screen.ids.get('amount').text
+        default_text = self.screen.ids.get('amount').default_text
+        amount = None if amount == default_text else 100000000 * Decimal(amount)
+        msg = self.screen.ids.get('message').text
+        uri = create_URI(address, amount, msg)
+        print "z", msg
         qr = self.screen.ids.get('qr')
-        uri = 'bitcoin:'+ address + '?amount='+amount if address and amount else address
         qr.set_data(uri)
 
 

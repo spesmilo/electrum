@@ -6,17 +6,6 @@
 #:set mbtc_symbol unichr(187)
 #:set font_light 'data/fonts/Roboto-Condensed.ttf'
 
-<TextInputSendBlue@TextInput>
-    padding: '5dp'
-    size_hint: 1, None
-    height: '27dp'
-    pos_hint: {'center_y':.5}
-    multiline: False
-    hint_text_color: self.foreground_color
-    foreground_color: .843, .914, .972, 1
-    background_color: 1, 1, 1, 1
-    background_normal: 'atlas://gui/kivy/theming/light/tab_btn'
-    background_active: 'atlas://gui/kivy/theming/light/textinput_active'
 
 <SendToggle@ToggleButton>
     source: ''
@@ -56,7 +45,6 @@
 SendScreen:
 
     id: send_screen
-    mode: 'address'
     name: 'send'
     #action_view: Factory.SendActionView()
     #on_deactivate:
@@ -67,8 +55,8 @@ SendScreen:
         padding: '12dp', '12dp', '12dp', '12dp'
         spacing: '12dp'
         orientation: 'vertical'
-        mode: 'address'
         SendReceiveToggle:
+            size_hint: 1, None
             SendToggle:
                 id: qr
                 text: 'QR Code'
@@ -99,7 +87,7 @@ SendScreen:
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
-                TextInputSendBlue:
+                TextInputBlue:
                     id: payto_e
                     hint_text: "Recipient"
             CardSeparator:
@@ -115,12 +103,13 @@ SendScreen:
                     pos_hint: {'center_y': .5}
                 Button:
                     id: amount_e
-                    text: 'Amount'
-                    text_size: (amount_e.width-15, None)
+                    default_text: 'Amount'
+                    text: self.default_text
+                    text_size: (self.width-15, None)
                     halign: 'left'
                     size_hint: 0.5, None
                     height: '38dp'
-                    on_release: app.amount_dialog(amount_e, None)
+                    on_release: app.amount_dialog(self, None)
                     background_color: .238, .585, .878, 0
             CardSeparator:
                 opacity: message_selection.opacity
@@ -136,22 +125,23 @@ SendScreen:
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
-                TextInputSendBlue:
+                TextInputBlue:
                     id: message_e
                     hint_text: 'Optional description'
         BoxLayout:
             size_hint: 1, None
+            height: '38dp'
             Button:
                 text: _('Clear')
-                size_hint_y: None
+                size_hint: 1, None
                 height: '38dp'
                 on_release: send_screen.do_clear()
             Button:
                 text: _('Send')
-                size_hint_y: None
+                size_hint: 1, None
                 height: '38dp'
                 on_release: send_screen.do_send()
         Widget:
-            size_hint: 1, None
+            size_hint: 1, 1
 
 
