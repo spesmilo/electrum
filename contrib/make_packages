@@ -3,16 +3,6 @@
 import sys, re, shutil, os, hashlib
 import imp
 import getpass
-import subprocess
-
-def recurse_into(target, ext, func):
-    # traverse root directory, and list directories as dirs and files as files
-    for root, dirs, files in os.walk(target):
-        for dfile in files:
-            if dfile.endswith(ext):
-                print('Running {} on file: {}'.format(func, dfile))
-                func(os.path.join(root, dfile))
- 
 
 if __name__ == '__main__':
 
@@ -22,26 +12,34 @@ if __name__ == '__main__':
     version = v.ELECTRUM_VERSION
     print "version", version
 
-    # install dependencies into 'packages' directory
-    deps = ['slowaes>=0.1a1',
-        'ecdsa>=0.9',
+    # copy dependencies into 'packages' directory
+    deps = [
+        'aes',
+        'ecdsa',
         'pbkdf2',
-        'requests',
+        'requests', # note: requests-2.5.1 is needed to build with pyinstaller
         'qrcode',
-        'protobuf',
-        'dnspython',
-        'six']
-
-    popen = subprocess.Popen
-    target = os.path.join(d, 'packages')
+        'google/protobuf',
+        'dns',
+        'six',
+    ]
+    # don't use /usr/lib
+    sys.path = ['/usr/local/lib/python2.7/dist-packages']
     for module in deps:
-        subprocess.call('pip install {} -t {}'.format(module, target), shell=True)
-
-    # recurse into dir and run func on extensions
-    recurse_into(target, '.pyc', os.unlink)
+        f, pathname, descr = imp.find_module(module)
+        target = 'packages/' + module + descr[0]
+        if os.path.exists(target):
+            continue
+        d = os.path.dirname(target)
+        if d and not (os.path.exists(d)):
+            os.makedirs(d)
+        if descr[0]:
+            shutil.copy(pathname, target)
+        else:
+            shutil.copytree(pathname, target, ignore=shutil.ignore_patterns('*.pyc'))
 
     # fix google/__init__.py needed by pyinstaller
-    n = d + '/packages/google/__init__.py'
+    n = 'packages/google/__init__.py'
     if not os.path.exists(n):
         os.system("echo \# do not remove>%s"%n)
 
