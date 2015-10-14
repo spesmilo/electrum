@@ -792,9 +792,11 @@ class ElectrumWindow(App):
 
     def amount_dialog(self, label, callback):
         popup = Builder.load_file('gui/kivy/uix/ui_screens/amount.kv')
-        popup.ids.amount_label.text = label.text
+        if label.text != 'Amount':
+            popup.ids.amount_label.text = label.text
         def cb():
-            label.text = popup.ids.amount_label.text
+            o = popup.ids.amount_label.text
+            label.text = o if o else 'Amount'
             if callback:
                 callback()
         popup.on_dismiss = cb

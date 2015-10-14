@@ -56,11 +56,18 @@ Popup:
                 text: '<'
                 on_release: amount_label.text = amount_label.text[:-1]
 
-        Button:
+        BoxLayout:
             size_hint: 0.5, None
-            height: '48dp'
-            text: _('OK')
-            on_release: popup.dismiss()
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Max')
+                on_release: popup.dismiss()
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('OK')
+                on_release: popup.dismiss()
 
         Widget:
             size_hint: 1, None

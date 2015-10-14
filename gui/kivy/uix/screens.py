@@ -205,7 +205,8 @@ class SendScreen(CScreen):
 
     def do_clear(self):
         cts = self.ids
-        cts.payto_e.text = cts.message_e.text = cts.amount_e.text = ''
+        cts.payto_e.text = cts.message_e.text = ''
+        cts.amount_e.text = 'Amount'
         #self.set_frozen(content, False)
         #self.update_status()
 

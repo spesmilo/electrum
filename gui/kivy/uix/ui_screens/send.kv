@@ -71,7 +71,7 @@ SendScreen:
         SendReceiveToggle:
             SendToggle:
                 id: qr
-                text: 'Scan QR Code'
+                text: 'QR Code'
                 group: 'send_type'
                 source: 'atlas://gui/kivy/theming/light/qrcode'
                 on_release:
@@ -98,17 +98,19 @@ SendScreen:
                 BoxLayout
                     size_hint: 1, None
                     height: blue_bottom.item_height
-                    Label:
-                        id: lbl_symbl
+                    Image:
+                        source: 'atlas://gui/kivy/theming/light/bit_logo'
+                        size_hint: None, None
+                        size: '22dp', '22dp'
+                        pos_hint: {'center_y': .5}
+                    Button:
+                        id: amount_e
                         text: 'Amount'
                         size_hint: 0.5, None
                         height: '38dp'
-                    Button:
-                        id: amount_e
-                        text: ''
-                        size_hint: 0.5, None
-                        height: '38dp'
                         on_release: app.amount_dialog(amount_e, None)
+                        background_color: .238, .585, .878, 0
+
                 CardSeparator
                     opacity: message_selection.opacity
                     color: blue_bottom.foreground_color
@@ -129,15 +131,6 @@ SendScreen:
                             height=blue_bottom.item_height)\
                             .start(message_selection)
                             message_e.focus = True
-                    Widget:
-                        size_hint: None, None
-                        width: dp(2)
-                        height: qr.height
-                        pos_hint: {'center_y':.5}
-                        canvas.after:
-                            Rectangle:
-                                size: self.size
-                                pos: self.pos
                 CardSeparator
                     opacity: message_selection.opacity
                     color: blue_bottom.foreground_color
@@ -155,9 +148,9 @@ SendScreen:
                     TextInputSendBlue:
                         id: message_e
                         hint_text: 'Enter description here'
-                        on_text_validate:
-                            anim = Factory.Animation(opacity=1, height=blue_bottom.item_height)
-                            anim.start(wallet_selection)
+                        #on_text_validate:
+                        #    anim = Factory.Animation(opacity=1, height=blue_bottom.item_height)
+                        #    anim.start(wallet_selection)
 
         BoxLayout:
             Button:
