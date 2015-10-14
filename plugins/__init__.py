@@ -21,15 +21,6 @@ from electrum_grs.i18n import _
 
 descriptions = [
     {
-        'name': 'btchipwallet',
-        'fullname': _('Ledger Wallet'),
-        'description': _('Provides support for Ledger hardware wallet'),
-        'requires': [('btchip', 'github.com/ledgerhq/btchip-python')],
-        'requires_wallet_type': ['btchip'],
-        'registers_wallet_type': ('hardware', 'btchip', _("Ledger wallet")),
-        'available_for': ['qt', 'cmdline'],
-    },
-    {
         'name': 'cosigner_pool',
         'fullname': _('Cosigner Pool'),
         'description': ' '.join([
@@ -47,29 +38,11 @@ descriptions = [
         'available_for': ['qt'],
     },
     {
-        'name':'keepkey',
-        'fullname': 'KeepKey',
-        'description': _('Provides support for KeepKey hardware wallet'),
-        'requires': [('keepkeylib','github.com/keepkey/python-keepkey')],
-        'requires_wallet_type': ['keepkey'],
-        'registers_wallet_type': ('hardware', 'keepkey', _("KeepKey wallet")),
-        'available_for': ['qt', 'cmdline'],
-    },
-    {
         'name': 'plot',
         'fullname': 'Plot History',
         'description': _("Ability to plot transaction history in graphical mode."),
         'requires': [('matplotlib', 'matplotlib')],
         'available_for': ['qt'],
-    },
-    {
-        'name':'trezor',
-        'fullname': 'Trezor Wallet',
-        'description': _('Provides support for Trezor hardware wallet'),
-        'requires': [('trezorlib','github.com/trezor/python-trezor')],
-        'requires_wallet_type': ['trezor'],
-        'registers_wallet_type': ('hardware', 'trezor', _("Trezor wallet")),
-        'available_for': ['qt', 'cmdline'],
     },
     {
         'name': 'virtualkeyboard',
