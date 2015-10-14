@@ -9,14 +9,12 @@
 ReceiveScreen:
     id: receive_screen
     name: 'receive'
-    mode: 'qr'
-    on_mode: if args[1] == 'nfc': from electrum_gui.kivy.nfc_scanner import NFCScanner
 
     BoxLayout
         padding: '12dp', '12dp', '12dp', '12dp'
         spacing: '12dp'
-        mode: 'qr'
         orientation: 'vertical'
+        size_hint: 1, 1
 
         FloatLayout:
             id: bl
@@ -31,14 +29,32 @@ ReceiveScreen:
 
         GridLayout:
             id: grid
-            cols: 1
+            cols: 2
+            Label:
+                text: 'Address'
+                size_hint: 0.5, None
+                height: '38dp'
+            AddressSelector:
+                id: address
+                size_hint: 0.5, None
+                height: '38dp'
+            Label:
+                text: 'Amount'
+                size_hint: 0.5, None
+                height: '38dp'
             Button:
-                text: 'Amount: None'
-                size_hint_y: None
+                id: amount
+                text: ''
+                size_hint: 0.5, None
+                height: '38dp'
+                on_release: app.amount_dialog(amount, receive_screen.parent.update_qr)
+            Label:
+                text: 'Description'
+                size_hint: 0.5, None
                 height: '48dp'
-                on_release: receive_screen.set_amount_dialog()
-            Button:
-                text: 'Message: None'
-                size_hint_y: None
-                height: '48dp'
-
+            TextInput:
+                text: ''
+                on_text: receive_screen.parent.update_qr
+                multiline: False
+                size_hint: 0.5, None
+                height: '38dp'

@@ -192,16 +192,6 @@ SendScreen:
                         on_text_validate:
                             anim = Factory.Animation(opacity=1, height=blue_bottom.item_height)
                             anim.start(wallet_selection)
-                #anim.start(address_selection)
-                CardSeparator
-                    opacity: address_selection.opacity
-                    color: blue_bottom.foreground_color
-                AddressSelector:
-                    id: address_selection
-                    foreground_color: blue_bottom.foreground_color
-                    opacity: 1
-                    size_hint: 1, None
-                    height: blue_bottom.item_height
         Button:
             #background_color: (1, 1, 1, 1) if self.disabled else ((.258, .80, .388, 1) if self.state == 'normal' else (.203, .490, .741, 1))
             text: _('Send')

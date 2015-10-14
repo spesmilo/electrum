@@ -249,11 +249,31 @@ class SendScreen(CScreen):
 
 class ReceiveScreen(CScreen):
     kvname = 'receive'
-    @profiler
+
     def update(self):
         addr = self.app.wallet.get_unused_address(None)
+        address_label = self.screen.ids.get('address')
+        address_label.text = addr
+        self.update_qr()
+
+    def amount_callback(self, popup):
+        amount_label = self.screen.ids.get('amount')
+        amount_label.text = popup.ids.amount_label.text
+        self.update_qr()
+
+    @profiler
+    def update_qrtt(self):
+        raise
+
+    def update_qr(self):
+        address_label = self.screen.ids.get('address')
+        address = address_label.text
+        amount_label = self.screen.ids.get('amount')
+        amount = amount_label.text
         qr = self.screen.ids.get('qr')
-        qr.set_data(addr)
+        uri = 'bitcoin:'+ address + '?amount='+amount if address and amount else address
+        qr.set_data(uri)
+
 
 
 class ContactsScreen(CScreen):

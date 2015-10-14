@@ -803,6 +803,15 @@ class ElectrumWindow(App):
         info_bubble.show(pos, duration, width, modal=modal, exit=exit)
 
 
+    def amount_dialog(self, label, callback):
+        popup = Builder.load_file('gui/kivy/uix/ui_screens/amount.kv')
+        popup.ids.amount_label.text = label.text
+        def cb():
+            label.text = popup.ids.amount_label.text
+            callback()
+        popup.on_dismiss = cb
+        popup.open()
+
     def password_dialog(self, f, args):
         if self.wallet.use_encryption:
             popup = Builder.load_file('gui/kivy/uix/ui_screens/password.kv')
