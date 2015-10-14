@@ -25,7 +25,10 @@ Popup:
                 id: host
 
         Button:
-            size_hint_y: None
+            size_hint: 0.5, None
             height: '48dp'
             text: _('Close')
             on_release: nd.dismiss()
+
+        Widget:
+            size_hint: 1, 1

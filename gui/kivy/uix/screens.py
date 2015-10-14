@@ -279,9 +279,16 @@ class ReceiveScreen(CScreen):
         amount = None if amount == default_text else 100000000 * Decimal(amount)
         msg = self.screen.ids.get('message').text
         uri = create_URI(address, amount, msg)
-        print "z", msg
         qr = self.screen.ids.get('qr')
         qr.set_data(uri)
+
+    def do_share(self):
+        pass
+
+    def do_clear(self):
+        a = self.screen.ids.get('amount')
+        a.text = a.default_text
+        self.screen.ids.get('message').text = ''
 
 
 
