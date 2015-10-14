@@ -27,34 +27,51 @@ ReceiveScreen:
                     if self.collide_point(*args[1].pos):\
                     app.show_info_bubble(icon=self.ids.qrimage.texture, text='texture')
 
-        GridLayout:
-            id: grid
-            cols: 2
-            Label:
-                text: 'Address'
-                size_hint: 0.5, None
-                height: '38dp'
+
+        SendReceiveBlueBottom:
+            id: blue_bottom
+            size_hint: 1, None
+            height: self.minimum_height
             AddressSelector:
                 id: address
                 size_hint: 0.5, None
                 height: '38dp'
-            Label:
-                text: 'Amount'
-                size_hint: 0.5, None
-                height: '38dp'
-            Button:
-                id: amount
-                text: ''
-                size_hint: 0.5, None
-                height: '38dp'
-                on_release: app.amount_dialog(amount, receive_screen.parent.update_qr)
-            Label:
-                text: 'Description'
-                size_hint: 0.5, None
-                height: '48dp'
-            TextInput:
-                text: ''
-                on_text: receive_screen.parent.update_qr
-                multiline: False
-                size_hint: 0.5, None
-                height: '38dp'
+            CardSeparator:
+                opacity: message_selection.opacity
+                color: blue_bottom.foreground_color
+            BoxLayout:
+                size_hint: 1, None
+                height: blue_bottom.item_height
+                Image:
+                    source: 'atlas://gui/kivy/theming/light/bit_logo'
+                    size_hint: None, None
+                    size: '22dp', '22dp'
+                    pos_hint: {'center_y': .5}
+                Button:
+                    id: amount
+                    default_text: 'Amount (optional)'
+                    text: self.default_text
+                    text_size: (amount.width-15, None)
+                    halign: 'left'
+                    size_hint: 0.5, None
+                    height: '38dp'
+                    on_release: app.amount_dialog(amount, receive_screen.parent.update_qr)
+                    background_color: 0, 0, 0, 0
+            CardSeparator:
+                opacity: message_selection.opacity
+                color: blue_bottom.foreground_color
+            BoxLayout:
+                id: message_selection
+                opacity: 1
+                size_hint: 1, None
+                height: blue_bottom.item_height
+                spacing: '5dp'
+                Image:
+                    source: 'atlas://gui/kivy/theming/light/pen'
+                    size_hint: None, None
+                    size: '22dp', '22dp'
+                    pos_hint: {'center_y': .5}
+                TextInputSendBlue:
+                    id: message_e
+                    hint_text: 'Description (optional)'
+

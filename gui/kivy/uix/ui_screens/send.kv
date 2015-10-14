@@ -85,74 +85,62 @@ SendScreen:
                 state: 'normal'
                 source: 'atlas://gui/kivy/theming/light/nfc'
                 background_down: 'atlas://gui/kivy/theming/light/btn_send_nfc'
-        GridLayout:
-            id: grid
-            cols: 1
+
+        SendReceiveBlueBottom:
+            id: blue_bottom
             size_hint: 1, None
             height: self.minimum_height
-
-            SendReceiveBlueBottom:
-                id: blue_bottom
+            BoxLayout:
                 size_hint: 1, None
-                height: self.minimum_height
-                BoxLayout
-                    size_hint: 1, None
-                    height: blue_bottom.item_height
-                    Image:
-                        source: 'atlas://gui/kivy/theming/light/bit_logo'
-                        size_hint: None, None
-                        size: '22dp', '22dp'
-                        pos_hint: {'center_y': .5}
-                    Button:
-                        id: amount_e
-                        text: 'Amount'
-                        size_hint: 0.5, None
-                        height: '38dp'
-                        on_release: app.amount_dialog(amount_e, None)
-                        background_color: .238, .585, .878, 0
-
-                CardSeparator
-                    opacity: message_selection.opacity
-                    color: blue_bottom.foreground_color
-                BoxLayout
-                    size_hint: 1, None
-                    height: blue_bottom.item_height
-                    spacing: '5dp'
-                    Image:
-                        source: 'atlas://gui/kivy/theming/light/contact'
-                        size_hint: None, None
-                        size: '22dp', '22dp'
-                        pos_hint: {'center_y': .5}
-                    TextInputSendBlue:
-                        id: payto_e
-                        hint_text: "Enter Contact or adress"
-                        on_text_validate:
-                            Factory.Animation(opacity=1,\
-                            height=blue_bottom.item_height)\
-                            .start(message_selection)
-                            message_e.focus = True
-                CardSeparator
-                    opacity: message_selection.opacity
-                    color: blue_bottom.foreground_color
-                BoxLayout:
-                    id: message_selection
-                    opacity: 1
-                    size_hint: 1, None
-                    height: blue_bottom.item_height
-                    spacing: '5dp'
-                    Image:
-                        source: 'atlas://gui/kivy/theming/light/pen'
-                        size_hint: None, None
-                        size: '22dp', '22dp'
-                        pos_hint: {'center_y': .5}
-                    TextInputSendBlue:
-                        id: message_e
-                        hint_text: 'Enter description here'
-                        #on_text_validate:
-                        #    anim = Factory.Animation(opacity=1, height=blue_bottom.item_height)
-                        #    anim.start(wallet_selection)
-
+                height: blue_bottom.item_height
+                spacing: '5dp'
+                Image:
+                    source: 'atlas://gui/kivy/theming/light/contact'
+                    size_hint: None, None
+                    size: '22dp', '22dp'
+                    pos_hint: {'center_y': .5}
+                TextInputSendBlue:
+                    id: payto_e
+                    hint_text: "Recipient"
+            CardSeparator:
+                opacity: message_selection.opacity
+                color: blue_bottom.foreground_color
+            BoxLayout:
+                size_hint: 1, None
+                height: blue_bottom.item_height
+                Image:
+                    source: 'atlas://gui/kivy/theming/light/bit_logo'
+                    size_hint: None, None
+                    size: '22dp', '22dp'
+                    pos_hint: {'center_y': .5}
+                Button:
+                    id: amount_e
+                    text: 'Amount'
+                    text_size: (amount_e.width-15, None)
+                    halign: 'left'
+                    size_hint: 0.5, None
+                    height: '38dp'
+                    on_release: app.amount_dialog(amount_e, None)
+                    background_color: .238, .585, .878, 0
+            CardSeparator:
+                opacity: message_selection.opacity
+                color: blue_bottom.foreground_color
+            BoxLayout:
+                id: message_selection
+                opacity: 1
+                size_hint: 1, None
+                height: blue_bottom.item_height
+                spacing: '5dp'
+                Image:
+                    source: 'atlas://gui/kivy/theming/light/pen'
+                    size_hint: None, None
+                    size: '22dp', '22dp'
+                    pos_hint: {'center_y': .5}
+                TextInputSendBlue:
+                    id: message_e
+                    hint_text: 'Optional description'
         BoxLayout:
+            size_hint: 1, None
             Button:
                 text: _('Clear')
                 size_hint_y: None
@@ -163,6 +151,7 @@ SendScreen:
                 size_hint_y: None
                 height: '38dp'
                 on_release: send_screen.do_send()
-        Widget
+        Widget:
+            size_hint: 1, None
 
 
