@@ -203,6 +203,12 @@ class SendScreen(CScreen):
         self.ids.message_e.text = uri.get('message', '')
         self.ids.amount_e.text = uri.get('amount', '')
 
+    def do_clear(self):
+        cts = self.ids
+        cts.payto_e.text = cts.message_e.text = cts.amount_e.text = ''
+        #self.set_frozen(content, False)
+        #self.update_status()
+
     def do_send(self):
         scrn = self.ids
         label = unicode(scrn.message_e.text)
@@ -216,11 +222,10 @@ class SendScreen(CScreen):
             return
 
         amount = self.app.get_amount(scrn.amount_e.text)
-        fee = scrn.fee_e.amt
-        if not fee:
-            app.show_error(_('Invalid Fee'))
-            return
-
+        #fee = scrn.fee_e.amt
+        #if not fee:
+        #    app.show_error(_('Invalid Fee'))
+        #    return
         fee = None
         message = 'sending {} {} to {}'.format(self.app.base_unit, scrn.amount_e.text, r)
         outputs = [('address', to_address, amount)]

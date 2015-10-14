@@ -581,7 +581,6 @@ class ElectrumWindow(App):
         #Logger.info('orientation: {}'.format(self._orientation))
         #Logger.info('ui_mode: {}'.format(self._ui_mode))
 
-
     def save_new_contact(self, address, label):
         address = unicode(address)
         label = unicode(label)
@@ -656,18 +655,6 @@ class ElectrumWindow(App):
 
         # wait for screen to load
         Clock.schedule_once(set_address, .5)
-
-    def do_clear(self):
-        tabs = self.tabs
-        screen_send = tabs.ids.screen_send
-        content = screen_send.ids.content
-        cts = content.ids
-        cts.payto_e.text = cts.message_e.text = cts.amount_e.text = \
-            cts.fee_e.text = ''
-
-        self.set_frozen(content, False)
-
-        self.update_status()
 
     def set_frozen(self, entry, frozen):
         if frozen:

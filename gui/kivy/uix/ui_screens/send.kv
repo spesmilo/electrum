@@ -164,12 +164,11 @@ SendScreen:
                 text: _('Clear')
                 size_hint_y: None
                 height: '38dp'
-                disabled: False
+                on_release: send_screen.do_clear()
             Button:
                 text: _('Send')
                 size_hint_y: None
                 height: '38dp'
-                disabled: False
                 on_release: send_screen.do_send()
         Widget
 
