@@ -52,6 +52,8 @@ base_units = {'BTC':8, 'mBTC':5, 'uBTC':2}
 
 class ElectrumWindow(App):
 
+    electrum_config = ObjectProperty(None)
+
     def _get_bu(self):
         return self.electrum_config.get('base_unit', 'mBTC')
 
@@ -64,7 +66,9 @@ class ElectrumWindow(App):
 
     base_unit = AliasProperty(_get_bu, _set_bu)
 
-    electrum_config = ObjectProperty(None)
+    def _rotate_bu(self):
+        keys = sorted(base_units.keys())
+        self.base_unit = keys[ (keys.index(self.base_unit) + 1) % len(keys)]
 
     status = StringProperty(_('Not Connected'))
 

@@ -13,13 +13,13 @@ Popup:
                 text: _('Base unit')
                 height: '48dp'
                 size_hint: 1, None
-            Spinner:
+            Button:
                 text: app.base_unit
-                values: ('BTC', 'mBTC')
                 size_hint: 1, None
                 height: '48dp'
-                on_text: app.base_unit = self.text
-
+                on_release:
+                    app._rotate_bu()
+                    self.text = app.base_unit
             Label:
                 size_hint: 1, None
                 text: 'OpenAlias'
