@@ -160,18 +160,6 @@
     on_release: app.root.children[0].toggle_drawer()
 
 
-<SendReceiveToggle@BoxLayout>
-    padding: '5dp', '5dp'
-    size_hint: 1, None
-    height: '45dp'
-    canvas.before:
-        Color:
-            rgba: 1, 1, 1, 1
-        BorderImage:
-            border: 12, 12, 12, 12
-            source: 'atlas://gui/kivy/theming/light/card'
-            size: self.width + dp(3), self.height
-            pos: self.x - dp(1.5), self.y
 
 <SendReceiveCardTop@GridLayout>
     canvas.before:
@@ -195,8 +183,6 @@
             source: 'atlas://gui/kivy/theming/light/card_bottom'
             size: self.size
             pos: self.pos
-        Color:
-            rgba: 1, 1, 1, 1
 
     item_height: dp(42)
     foreground_color: .843, .914, .972, 1
@@ -204,24 +190,6 @@
     padding: '12dp', 0
 
 
-<SendToggle@ToggleButton>
-    source: ''
-    group: 'transfer_type'
-    markup: False
-    bold: True
-    border: 4, 4, 4, 4
-    background_normal: self.background_down
-    color:
-        (.140, .140, .140, 1) if self.state == 'down' else (.796, .796, .796, 1)
-    canvas.after:
-        Color:
-            rgba: 1, 1, 1, 1
-    Image:
-        source: root.source
-        color: root.color
-        size: '30dp', '30dp'
-        center_x: root.center_x - ((root.texture_size[0]/2)+(self.width/1.5))
-        center_y: root.center_y
 
 
 <CardSeparator@Widget>
@@ -237,8 +205,20 @@
 
 <AddressSelector@BlueSpinner>
     icon: 'atlas://gui/kivy/theming/light/globe'
-    values: app.wallet.addresses() if app.wallet else []
+    values: [] #app.wallet.addresses() if app.wallet else []
     text: _("Select Your address")
+
+<TextInputBlue@TextInput>
+    padding: '5dp'
+    size_hint: 1, None
+    height: '27dp'
+    pos_hint: {'center_y':.5}
+    multiline: False
+    hint_text_color: self.foreground_color
+    foreground_color: .843, .914, .972, 1
+    background_color: 1, 1, 1, 1
+    background_normal: 'atlas://gui/kivy/theming/light/tab_btn'
+    background_active: 'atlas://gui/kivy/theming/light/textinput_active'
 
 
 #<ElectrumScreen>

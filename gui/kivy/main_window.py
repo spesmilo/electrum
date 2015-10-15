@@ -581,7 +581,6 @@ class ElectrumWindow(App):
         #Logger.info('orientation: {}'.format(self._orientation))
         #Logger.info('ui_mode: {}'.format(self._ui_mode))
 
-
     def save_new_contact(self, address, label):
         address = unicode(address)
         label = unicode(label)
@@ -656,18 +655,6 @@ class ElectrumWindow(App):
 
         # wait for screen to load
         Clock.schedule_once(set_address, .5)
-
-    def do_clear(self):
-        tabs = self.tabs
-        screen_send = tabs.ids.screen_send
-        content = screen_send.ids.content
-        cts = content.ids
-        cts.payto_e.text = cts.message_e.text = cts.amount_e.text = \
-            cts.fee_e.text = ''
-
-        self.set_frozen(content, False)
-
-        self.update_status()
 
     def set_frozen(self, entry, frozen):
         if frozen:
@@ -802,6 +789,18 @@ class ElectrumWindow(App):
                 pos = (win.center[0], win.center[1] - (info_bubble.height/2))
         info_bubble.show(pos, duration, width, modal=modal, exit=exit)
 
+
+    def amount_dialog(self, label, callback):
+        popup = Builder.load_file('gui/kivy/uix/ui_screens/amount.kv')
+        if label.text != label.default_text:
+            popup.ids.amount_label.text = label.text
+        def cb():
+            o = popup.ids.amount_label.text
+            label.text = o if o else label.default_text
+            if callback:
+                callback()
+        popup.on_dismiss = cb
+        popup.open()
 
     def password_dialog(self, f, args):
         if self.wallet.use_encryption:

@@ -203,6 +203,13 @@ class SendScreen(CScreen):
         self.ids.message_e.text = uri.get('message', '')
         self.ids.amount_e.text = uri.get('amount', '')
 
+    def do_clear(self):
+        cts = self.ids
+        cts.payto_e.text = cts.message_e.text = ''
+        cts.amount_e.text = 'Amount'
+        #self.set_frozen(content, False)
+        #self.update_status()
+
     def do_send(self):
         scrn = self.ids
         label = unicode(scrn.message_e.text)
@@ -216,11 +223,10 @@ class SendScreen(CScreen):
             return
 
         amount = self.app.get_amount(scrn.amount_e.text)
-        fee = scrn.fee_e.amt
-        if not fee:
-            app.show_error(_('Invalid Fee'))
-            return
-
+        #fee = scrn.fee_e.amt
+        #if not fee:
+        #    app.show_error(_('Invalid Fee'))
+        #    return
         fee = None
         message = 'sending {} {} to {}'.format(self.app.base_unit, scrn.amount_e.text, r)
         outputs = [('address', to_address, amount)]
@@ -249,11 +255,34 @@ class SendScreen(CScreen):
 
 class ReceiveScreen(CScreen):
     kvname = 'receive'
-    @profiler
+
     def update(self):
         addr = self.app.wallet.get_unused_address(None)
+        address_label = self.screen.ids.get('address')
+        address_label.text = addr
+        self.update_qr()
+
+    def amount_callback(self, popup):
+        amount_label = self.screen.ids.get('amount')
+        amount_label.text = popup.ids.amount_label.text
+        self.update_qr()
+
+    @profiler
+    def update_qrtt(self):
+        raise
+
+    def update_qr(self):
+        from electrum_ltc.util import create_URI
+        address = self.screen.ids.get('address').text
+        amount = self.screen.ids.get('amount').text
+        default_text = self.screen.ids.get('amount').default_text
+        amount = None if amount == default_text else 100000000 * Decimal(amount)
+        msg = self.screen.ids.get('message').text
+        uri = create_URI(address, amount, msg)
+        print "z", msg
         qr = self.screen.ids.get('qr')
-        qr.set_data(addr)
+        qr.set_data(uri)
+
 
 
 class ContactsScreen(CScreen):
