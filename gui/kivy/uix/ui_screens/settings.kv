@@ -9,10 +9,11 @@ Popup:
         GridLayout:
             cols: 2
             size_hint: 1, None
+            height: '100dp'
             Label:
                 text: _('Base unit')
-                height: '48dp'
                 size_hint: 1, None
+                height: '48dp'
             Button:
                 text: app.base_unit
                 size_hint: 1, None
@@ -35,5 +36,5 @@ Popup:
             on_release: settings.dismiss()
 
         Widget:
-            size_hint: 1, 0.8
+            size_hint: 1, 1
 
