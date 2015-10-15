@@ -130,6 +130,11 @@ class BitPay(ExchangeBase):
         json = self.get_json('bitpay.com', '/api/rates')
         return dict([(r['code'], Decimal(r['rate'])) for r in json])
 
+class BitStamp(ExchangeBase):
+    def get_rates(self, ccy):
+        json = self.get_json('www.bitstamp.net', '/api/ticker/')
+        return {'USD': Decimal(json['last'])}
+
 class BlockchainInfo(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('blockchain.info', '/ticker')
