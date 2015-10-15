@@ -85,7 +85,7 @@ class ExchangeBase(PrintError):
 
 
 class BitcoinAverage(ExchangeBase):
-    def update(self, ccy):
+    def get_rates(self, ccy):
         json = self.get_json('api.bitcoinaverage.com', '/ticker/global/all')
         return dict([(r, Decimal(json[r]['last']))
                      for r in json if r != 'timestamp'])
