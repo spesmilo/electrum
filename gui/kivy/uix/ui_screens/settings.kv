@@ -14,10 +14,11 @@ Popup:
                 height: '48dp'
                 size_hint: 1, None
             Spinner:
-                text: 'BTC'
+                text: app.base_unit
                 values: ('BTC', 'mBTC')
                 size_hint: 1, None
                 height: '48dp'
+                on_text: app.base_unit = self.text
 
             Label:
                 size_hint: 1, None
