@@ -195,7 +195,7 @@ class SendScreen(CScreen):
         self.ids.message_e.text = uri.get('message', '')
         amount = uri.get('amount')
         if amount:
-            amount_str = str( a / Decimal(self.app.decimal_point()))
+            amount_str = str( Decimal(amount) / pow(10, self.app.decimal_point()))
             self.ids.amount_e.text = amount_str + ' ' + self.app.base_unit
 
     def do_clear(self):
