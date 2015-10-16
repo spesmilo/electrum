@@ -12,49 +12,55 @@ Popup:
         
         halign: 'center'
 
-        Label:
-            id: amount_label
-            text: ''
+        BoxLayout:
+            Label:
+                id: amount_label
+                text: ''
+                value: ''
+                on_value:
+                    self.text = self.value + ' ' + app.base_unit
+            Widget:
+                size_hint_x: 1
 
         GridLayout:
             cols: 3
             size_hint: 0.5, 1
             KButton:
                 text: '1'
-                on_release: amount_label.text += self.text
+                on_release: amount_label.value += self.text
             KButton:
                 text: '2'
-                on_release: amount_label.text += self.text
+                on_release: amount_label.value += self.text
             KButton:
                 text: '3'
-                on_release: amount_label.text += self.text
+                on_release: amount_label.value += self.text
             KButton:
                 text: '4'
-                on_release: amount_label.text += self.text
+                on_release: amount_label.value += self.text
             KButton:
                 text: '5'
-                on_release: amount_label.text += self.text
+                on_release: amount_label.value += self.text
             KButton:
                 text: '6'
-                on_release: amount_label.text += self.text
+                on_release: amount_label.value += self.text
             KButton:
                 text: '7'
-                on_release: amount_label.text += self.text
+                on_release: amount_label.value += self.text
             KButton:
                 text: '8'
-                on_release: amount_label.text += self.text
+                on_release: amount_label.value += self.text
             KButton:
                 text: '9'
-                on_release: amount_label.text += self.text
+                on_release: amount_label.value += self.text
             KButton:
                 text: '.'
-                on_release: amount_label.text += self.text
+                on_release: amount_label.value += self.text
             KButton:
                 text: '0'
-                on_release: amount_label.text += self.text
+                on_release: amount_label.value += self.text
             KButton:
                 text: '<'
-                on_release: amount_label.text = amount_label.text[:-1]
+                on_release: amount_label.value = amount_label.value[:-1]
 
         BoxLayout:
             size_hint: 0.5, None

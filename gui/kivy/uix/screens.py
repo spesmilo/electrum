@@ -193,12 +193,15 @@ class SendScreen(CScreen):
     def set_qr_data(self, uri):
         self.ids.payto_e.text = uri.get('address', '')
         self.ids.message_e.text = uri.get('message', '')
-        self.ids.amount_e.text = uri.get('amount', '')
+        amount = uri.get('amount')
+        if amount:
+            amount_str = str( a / Decimal(self.app.decimal_point()))
+            self.ids.amount_e.text = amount_str + ' ' + self.app.base_unit
 
     def do_clear(self):
-        cts = self.ids
-        cts.payto_e.text = cts.message_e.text = ''
-        cts.amount_e.text = 'Amount'
+        self.ids.payto_e.text = ''
+        self.ids.message_e.text = ''
+        self.ids.amount_e.text = 'Amount'
         #self.set_frozen(content, False)
         #self.update_status()
 
@@ -268,7 +271,12 @@ class ReceiveScreen(CScreen):
         address = self.screen.ids.get('address').text
         amount = self.screen.ids.get('amount').text
         default_text = self.screen.ids.get('amount').default_text
-        amount = None if amount == default_text else 100000000 * Decimal(amount)
+        if amount == default_text:
+            amount = None
+        else:
+            a, u = amount.split()
+            assert u == self.app.base_unit
+            amount = Decimal(a) * pow(10, self.app.decimal_point())
         msg = self.screen.ids.get('message').text
         uri = create_URI(address, amount, msg)
         qr = self.screen.ids.get('qr')

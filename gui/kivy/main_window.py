@@ -5,6 +5,7 @@ import datetime
 import traceback
 from decimal import Decimal
 
+import electrum
 from electrum import WalletStorage, Wallet
 from electrum.i18n import _, set_language
 from electrum.contacts import Contacts
@@ -93,10 +94,10 @@ class ElectrumWindow(App):
     '''
 
     def get_amount(self, amount_str):
-        from electrum.bitcoin import COIN
-        from decimal import Decimal
+        a, u = amount_str.split()
+        assert u == self.base_unit
         try:
-            x = Decimal(str(amount_str))
+            x = Decimal(a)
         except:
             return None
         p = pow(10, self.decimal_point())
@@ -168,9 +169,9 @@ class ElectrumWindow(App):
 
         self.bind(url=self.set_url)
         # were we sent a url?
-        url = kwargs.get('url', None)
+        url = self.electrum_config.get('url', None)
         if url:
-            self.gui_object.set_url(url)
+            self.set_url(url)
 
         # create triggers so as to minimize updation a max of 2 times a sec
         self._trigger_update_wallet =\
@@ -180,10 +181,10 @@ class ElectrumWindow(App):
         self._trigger_notify_transactions = \
             Clock.create_trigger(self.notify_transactions, 5)
 
-
-
-    def set_url(self, instance, url):
-        self.gui_object.set_url(url)
+    def set_url(self, url):
+        print "set url", url
+        url = electrum.util.parse_URI(url)
+        self.send_screen.set_qr_data(url)
 
     def scan_qr(self, on_complete):
         from jnius import autoclass
@@ -197,7 +198,7 @@ class ElectrumWindow(App):
                 if resultCode == -1: # RESULT_OK:
                     contents = intent.getStringExtra("SCAN_RESULT")
                     if intent.getStringExtra("SCAN_RESULT_FORMAT") == 'QR_CODE':
-                        uri = App.get_running_app().decode_uri(contents)
+                        uri = electrum.util.parse_URI(contents)
                         on_complete(uri)
         activity.bind(on_activity_result=on_qr_result)
         PythonActivity.mActivity.startActivityForResult(intent, 0)
@@ -638,54 +639,6 @@ class ElectrumWindow(App):
         self.do_clear()
         self.show_info(self.gui_object.payment_request.error)
 
-    def encode_uri(self, addr, amount=0, label='',
-                   message='', size='', currency='btc'):
-        ''' Convert to BIP0021 compatible URI
-        '''
-        uri = 'bitcoin:{}'.format(addr)
-        first = True
-        if amount:
-            uri += '{}amount={}'.format('?' if first else '&', amount)
-            first = False
-        if label:
-            uri += '{}label={}'.format('?' if first else '&', label)
-            first = False
-        if message:
-            uri += '{}?message={}'.format('?' if first else '&', message)
-            first = False
-        if size:
-            uri += '{}size={}'.format('?' if not first else '&', size)
-        return uri
-
-    def decode_uri(self, uri):
-        if ':' not in uri:
-            # It's just an address (not BIP21)
-            return {'address': uri}
-
-        if '//' not in uri:
-            # Workaround for urlparse, it don't handle bitcoin: URI properly
-            uri = uri.replace(':', '://')
-
-        try:
-            uri = urlparse(uri)
-        except NameError:
-            # delayed import
-            from urlparse import urlparse, parse_qs
-            uri = urlparse(uri)
-
-        result = {'address': uri.netloc}
-
-        if uri.path.startswith('?'):
-            params = parse_qs(uri.path[1:])
-        else:
-            params = parse_qs(uri.path)
-
-        for k,v in params.items():
-            if k in ('amount', 'label', 'message', 'size'):
-                result[k] = v[0]
-
-        return result
-
     def show_error(self, error, width='200dp', pos=None, arrow_pos=None,
         exit=False, icon='atlas://gui/kivy/theming/light/error', duration=0,
         modal=False):
@@ -757,7 +710,9 @@ class ElectrumWindow(App):
     def amount_dialog(self, label, callback):
         popup = Builder.load_file('gui/kivy/uix/ui_screens/amount.kv')
         if label.text != label.default_text:
-            popup.ids.amount_label.text = label.text
+            a, u = label.text.split()
+            assert u == self.base_unit
+            popup.ids.amount_label.value = a
         def cb():
             o = popup.ids.amount_label.text
             label.text = o if o else label.default_text
