@@ -439,6 +439,17 @@ class ElectrumWindow(App):
         status_card.quote_text = quote_text.strip()
         status_card.uncomfirmed = unconfirmed.strip()
 
+
+    def update_amount(self, amount, c):
+        if c == '<':
+            return amount[:-1]
+        try:
+            s = amount + c
+            amount = s  if Decimal(s)!=0 else ''            
+        except:
+            pass
+        return amount
+
     def format_amount(self, x, is_diff=False, whitespaces=False):
         from electrum.util import format_satoshis
         return format_satoshis(x, is_diff, self.num_zeros,
@@ -712,9 +723,9 @@ class ElectrumWindow(App):
         if label.text != label.default_text:
             a, u = label.text.split()
             assert u == self.base_unit
-            popup.ids.amount_label.value = a
+            popup.ids.a.amount = a
         def cb():
-            o = popup.ids.amount_label.text
+            o = popup.ids.a.text
             label.text = o if o else label.default_text
             if callback:
                 callback()
