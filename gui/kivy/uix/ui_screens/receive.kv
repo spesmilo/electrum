@@ -15,12 +15,6 @@ ReceiveScreen:
         spacing: '12dp'
         orientation: 'vertical'
         size_hint: 1, 1
-
-        AddressSelector:
-            id: address
-            size_hint: 1, None
-            height: '38dp'
-
         FloatLayout:
             id: bl
             QRCodeWidget:
@@ -32,6 +26,11 @@ ReceiveScreen:
                 on_touch_down:
                     self.shaded = not self.shaded
                     self.foreground_color = (0, 0, 0, 0.5) if self.shaded else (0, 0, 0, 0)
+        Label:
+            id: address
+            size_hint: 1, None
+            height: '38dp'
+            opacity: 0.5 if qr.shaded else 1
 
         SendReceiveBlueBottom:
             id: blue_bottom
