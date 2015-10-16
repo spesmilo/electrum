@@ -8,6 +8,7 @@ import sys
 from threading import Thread
 import time
 import traceback
+import csv
 from decimal import Decimal
 from functools import partial
 
@@ -42,6 +43,13 @@ class ExchangeBase(PrintError):
         response = requests.request('GET', url,
                                     headers={'User-Agent' : 'Electrum'})
         return response.json()
+
+    def get_csv(self, site, get_string):
+        url = "".join([self.protocol(), '://', site, get_string])
+        response = requests.request('GET', url,
+                                    headers={'User-Agent' : 'Electrum'})
+        reader = csv.DictReader(response.content.split('\n'))
+        return list(reader)
 
     def name(self):
         return self.__class__.__name__
@@ -85,10 +93,21 @@ class ExchangeBase(PrintError):
 
 
 class BitcoinAverage(ExchangeBase):
-    def update(self, ccy):
+    def get_rates(self, ccy):
         json = self.get_json('api.bitcoinaverage.com', '/ticker/global/all')
         return dict([(r, Decimal(json[r]['last']))
                      for r in json if r != 'timestamp'])
+
+    def history_ccys(self):
+        return ['AUD', 'BRL', 'CAD', 'CHF', 'CNY', 'EUR', 'GBP', 'IDR', 'ILS',
+                'MXN', 'NOK', 'NZD', 'PLN', 'RON', 'RUB', 'SEK', 'SGD', 'USD',
+                'ZAR']
+
+    def historical_rates(self, ccy):
+        history = self.get_csv('api.bitcoinaverage.com',
+                               "/history/%s/per_day_all_time_history.csv" % ccy)
+        return dict([(h['datetime'][:10], h['average'])
+                     for h in history])
 
 class BitcoinVenezuela(ExchangeBase):
     def get_rates(self, ccy):
@@ -129,6 +148,11 @@ class BitPay(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('bitpay.com', '/api/rates')
         return dict([(r['code'], Decimal(r['rate'])) for r in json])
+
+class BitStamp(ExchangeBase):
+    def get_rates(self, ccy):
+        json = self.get_json('www.bitstamp.net', '/api/ticker/')
+        return {'USD': Decimal(json['last'])}
 
 class BlockchainInfo(ExchangeBase):
     def get_rates(self, ccy):
