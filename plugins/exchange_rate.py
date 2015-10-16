@@ -8,6 +8,7 @@ import sys
 from threading import Thread
 import time
 import traceback
+import csv
 from decimal import Decimal
 from functools import partial
 
@@ -42,6 +43,13 @@ class ExchangeBase(PrintError):
         response = requests.request('GET', url,
                                     headers={'User-Agent' : 'Electrum'})
         return response.json()
+
+    def get_csv(self, site, get_string):
+        url = "".join([self.protocol(), '://', site, get_string])
+        response = requests.request('GET', url,
+                                    headers={'User-Agent' : 'Electrum'})
+        reader = csv.DictReader(response.content.split('\n'))
+        return list(reader)
 
     def name(self):
         return self.__class__.__name__
