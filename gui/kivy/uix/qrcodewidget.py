@@ -18,7 +18,6 @@ from kivy.clock import Clock
 
 Builder.load_string('''
 <QRCodeWidget>
-    #on_parent: if args[1]: qrimage.source = self.loading_image
     canvas.before:
         # Draw white Rectangle
         Color:
@@ -28,15 +27,10 @@ Builder.load_string('''
             pos: self.pos
     canvas.after:
         Color:
-            rgba: .5, .5, .5, 0
-        Line:
-            width: dp(1.333)
-            points:
-                self.x + dp(2), self.y + dp(2),\
-                self.right - dp(2), self.y + dp(2),\
-                self.right - dp(2), self.top - dp(2),\
-                self.x + dp(2), self.top - dp(2),\
-                self.x + dp(2), self.y + dp(2)
+            rgba: root.foreground_color
+        Rectangle:
+            size: self.size
+            pos: self.pos
     Image
         id: qrimage
         pos_hint: {'center_x': .5, 'center_y': .5}
@@ -48,18 +42,11 @@ Builder.load_string('''
 class QRCodeWidget(FloatLayout):
 
     data = StringProperty(None, allow_none=True)
-    ''' Data using which the qrcode is generated.
-
-    :data:`data` is a :class:`~kivy.properties.StringProperty`, defaulting to
-    `None`.
-    '''
 
     background_color = ListProperty((1, 1, 1, 1))
-    ''' Background color of the background of the widget.
 
-    :data:`background_color` is a :class:`~kivy.properties.ListProperty`,
-    defaulting to `(1, 1, 1, 1)`.
-    '''
+    foreground_color = ListProperty((0, 0, 0, 0))
+
 
     #loading_image = StringProperty('gui/kivy/theming/loading.gif')
 
