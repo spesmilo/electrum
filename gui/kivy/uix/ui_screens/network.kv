@@ -5,9 +5,6 @@ Popup:
     on_open:
         host.text, nd.port, nd.protocol, nd.proxy, auto_connect.active = app.network.get_parameters()
 
-    on_dismiss:
-        app.network.set_parameters(host.text, nd.port, nd.protocol, nd.proxy, auto_connect.active)
-
     BoxLayout:
 
         orientation: 'vertical'
@@ -21,11 +18,26 @@ Popup:
                 size_hint_y: None
             Label:
                 text: _('Server')
-            Label:
+            Spinner:
                 id: host
+                text: ''
+                values: app.network.get_servers()
 
-        Button:
-            size_hint_y: None
-            height: '48dp'
-            text: _('Close')
-            on_release: nd.dismiss()
+
+        BoxLayout:
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Cancel')
+                on_release:
+                    nd.dismiss()
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('OK')
+                on_release:
+                    app.network.set_parameters(host.text, nd.port, nd.protocol, nd.proxy, auto_connect.active)
+                    nd.dismiss()
+
+        Widget:
+            size_hint: 1, 1

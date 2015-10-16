@@ -113,13 +113,6 @@ class HistoryScreen(CScreen):
             else:
                 icon = "atlas://gui/kivy/theming/light/confirmed"
 
-            if value is not None:
-                v_str = self.app.format_amount(value, True).replace(',','.')
-            else:
-                v_str = '--'
-
-            balance_str = self.app.format_amount(balance).replace(',','.')
-
             if tx_hash:
                 label, is_default_label = self.app.wallet.get_label(tx_hash)
             else:
@@ -130,7 +123,7 @@ class HistoryScreen(CScreen):
             rate = self.get_history_rate(value, timestamp)
             quote_text = "..." if rate is None else "{0:.3} {1}".format(rate, quote_currency)
 
-            yield (conf, icon, time_str, label, v_str, balance_str, tx_hash, quote_text)
+            yield (conf, icon, time_str, label, value, tx_hash, quote_text)
 
     def update(self, see_all=False):
         if self.app.wallet is None:
@@ -148,14 +141,13 @@ class HistoryScreen(CScreen):
         count = 0
         for item in history:
             count += 1
-            conf, icon, date_time, address, amount, balance, tx, quote_text = item
+            conf, icon, date_time, address, value, tx, quote_text = item
             ri = RecentActivityItem()
             ri.icon = icon
             ri.date = date_time
             ri.address = address
-            ri.amount = amount
+            ri.value = value
             ri.quote_text = quote_text
-            ri.balance = balance
             ri.confirmations = conf
             ri.tx_hash = tx
             history_add(ri)
@@ -279,9 +271,16 @@ class ReceiveScreen(CScreen):
         amount = None if amount == default_text else 100000000 * Decimal(amount)
         msg = self.screen.ids.get('message').text
         uri = create_URI(address, amount, msg)
-        print "z", msg
         qr = self.screen.ids.get('qr')
         qr.set_data(uri)
+
+    def do_share(self):
+        pass
+
+    def do_clear(self):
+        a = self.screen.ids.get('amount')
+        a.text = a.default_text
+        self.screen.ids.get('message').text = ''
 
 
 

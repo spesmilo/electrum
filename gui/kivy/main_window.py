@@ -48,62 +48,32 @@ Factory.register('TabbedCarousel', module='electrum_ltc_gui.kivy.uix.screens')
 
 
 
+base_units = {'LTC':8, 'mLTC':5, 'uLTC':2}
+
 class ElectrumWindow(App):
 
+    electrum_config = ObjectProperty(None)
+
     def _get_bu(self):
-        assert self.decimal_point in (5,8)
-        return "LTC" if self.decimal_point == 8 else "mLTC"
+        return self.electrum_config.get('base_unit', 'LTC')
 
     def _set_bu(self, value):
-        try:
-            self.electrum_config.set_key('base_unit', value, True)
-        except AttributeError:
-            Logger.error('Electrum: Config not set '
-                         'While trying to save value to config')
+        assert value in base_units.keys()
+        self.electrum_config.set_key('base_unit', value, True)
+        self.update_status()
+        if self.history_screen:
+            self.history_screen.update()
 
-    base_unit = AliasProperty(_get_bu, _set_bu, bind=('decimal_point',))
-    '''BTC or UBTC or mBTC...
+    base_unit = AliasProperty(_get_bu, _set_bu)
 
-    :attr:`base_unit` is a `AliasProperty` defaults to the unit set in
-    electrum config.
-    '''
-
-    currencies = ListProperty(['EUR', 'GBP', 'USD'])
-    '''List of currencies supported by the current exchanger plugin.
-
-    :attr:`currencies` is a `ListProperty` default to ['Eur', 'GBP'. 'USD'].
-    '''
-
-    def _get_decimal(self):
-        try:
-            return self.electrum_config.get('decimal_point', 8)
-        except AttributeError:
-            return 8
-
-    def _set_decimal(self, value):
-        try:
-            self.electrum_config.set_key('decimal_point', value, True)
-        except AttributeError:
-            Logger.error('Electrum: Config not set '
-                         'While trying to save value to config')
-
-    decimal_point = AliasProperty(_get_decimal, _set_decimal)
-    '''This defines the decimal point to be used determining the
-    :attr:`decimal_point`.
-
-    :attr:`decimal_point` is a `AliasProperty` defaults to the value gotten
-    from electrum config.
-    '''
-
-    electrum_config = ObjectProperty(None)
-    '''Holds the electrum config
-
-    :attr:`electrum_config` is a `ObjectProperty`, defaults to None.
-    '''
+    def _rotate_bu(self):
+        keys = sorted(base_units.keys())
+        self.base_unit = keys[ (keys.index(self.base_unit) + 1) % len(keys)]
 
     status = StringProperty(_('Not Connected'))
 
-
+    def decimal_point(self):
+        return base_units[self.base_unit]
 
     def _get_num_zeros(self):
         try:
@@ -129,7 +99,7 @@ class ElectrumWindow(App):
             x = Decimal(str(amount_str))
         except:
             return None
-        p = pow(10, self.decimal_point)
+        p = pow(10, self.decimal_point())
         return int(p * x)
 
 
@@ -416,12 +386,6 @@ class ElectrumWindow(App):
 
 
 
-    def set_currencies(self, quote_currencies):
-        self.currencies = sorted(quote_currencies.keys())
-        self._trigger_update_status()
-
-
-
     @profiler
     def load_wallet(self, wallet):
         self.wallet = wallet
@@ -477,7 +441,7 @@ class ElectrumWindow(App):
     def format_amount(self, x, is_diff=False, whitespaces=False):
         from electrum_ltc.util import format_satoshis
         return format_satoshis(x, is_diff, self.num_zeros,
-                               self.decimal_point, whitespaces)
+                               self.decimal_point(), whitespaces)
 
     @profiler
     def update_wallet(self, *dt):

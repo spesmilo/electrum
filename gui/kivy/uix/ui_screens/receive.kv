@@ -16,6 +16,11 @@ ReceiveScreen:
         orientation: 'vertical'
         size_hint: 1, 1
 
+        AddressSelector:
+            id: address
+            size_hint: 1, None
+            height: '38dp'
+
         FloatLayout:
             id: bl
             QRCodeWidget:
@@ -27,18 +32,10 @@ ReceiveScreen:
                     if self.collide_point(*args[1].pos):\
                     app.show_info_bubble(icon=self.ids.qrimage.texture, text='texture')
 
-
         SendReceiveBlueBottom:
             id: blue_bottom
             size_hint: 1, None
             height: self.minimum_height
-            AddressSelector:
-                id: address
-                size_hint: 0.5, None
-                height: '38dp'
-            CardSeparator:
-                opacity: message_selection.opacity
-                color: blue_bottom.foreground_color
             BoxLayout:
                 size_hint: 1, None
                 height: blue_bottom.item_height
@@ -74,6 +71,21 @@ ReceiveScreen:
                 TextInputBlue:
                     id: message
                     hint_text: 'Description (optional)'
-                    on_text_validate: receive_screen.parent.update_qr
+                    on_text_validate: receive_screen.parent.update_qr()
+
+        BoxLayout:
+            size_hint: 1, None
+            height: '38dp'
+            Button:
+                text: _('Clear')
+                size_hint: 1, None
+                height: '38dp'
+                on_release: receive_screen.parent.do_clear()
+            Button:
+                text: _('Share')
+                size_hint: 1, None
+                height: '38dp'
+                on_release: receive_screen.parent.do_share()
+
         Widget:
-            size_hint: 1, 0.5
+            size_hint: 1, 0.3
