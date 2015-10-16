@@ -504,8 +504,11 @@ if __name__ == '__main__':
 
     # daemon is not running
     if cmd_name == 'gui':
-        network = Network(config, plugins)
-        network.start()
+        if not config.get('offline'):
+            network = Network(config, plugins)
+            network.start()
+        else:
+            network = None
         server = NetworkServer(config, network)
         server.start()
         server.gui = init_gui(config, network, plugins)
