@@ -538,7 +538,7 @@ class ElectrumWindow(QMainWindow, PrintError):
                 # append fiat balance and price from exchange rate plugin
                 rate = run_hook('get_fiat_status_text', c + u + x)
                 if rate:
-                    text += "1 BTC~%s" % rate
+                    text += rate
                 icon = QIcon(":icons/status_connected.png")
         else:
             text = _("Not connected")
