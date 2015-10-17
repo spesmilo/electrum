@@ -423,14 +423,9 @@ class Plugin(BasePlugin, ThreadJob):
         return '' if rate is None else " (%s %s)" % (self.value_str(btc_balance, rate), self.ccy)
 
     @hook
-    def get_fiat_status_text(self, btc_balance, result):
-        # return status as:   (1.23 USD)    1 BTC~123.45 USD
+    def get_fiat_status_text(self, btc_balance):
         rate = self.exchange_rate()
-        if rate is None:
-            text = _("  (No FX rate available)")
-        else:
-            text =  "1 BTC~%s %s" % (self.value_str(COIN, rate), self.ccy)
-        result['text'] = text
+        return _("  (No FX rate available)") if rate is None else "%s %s" % (self.value_str(COIN, rate), self.ccy)
 
     def get_historical_rates(self):
         if self.show_history():
