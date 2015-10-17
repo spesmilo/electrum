@@ -73,10 +73,6 @@ class ElectrumGui:
         # base
         #init_plugins(self)
 
-    def set_url(self, url):
-        #self.current_window.pary_from_URI
-        pass
-
     def main(self):
         ''' The main entry point of the kivy ux
         :param url: 'bitcoin:' uri as mentioned in bip0021
