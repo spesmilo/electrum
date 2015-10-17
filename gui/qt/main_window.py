@@ -1811,9 +1811,6 @@ class ElectrumWindow(QMainWindow, PrintError):
         self.balance_label = QLabel("")
         sb.addWidget(self.balance_label)
 
-        from version_getter import UpdateLabel
-        self.updatelabel = UpdateLabel(self.config, sb)
-
         self.account_selector = QComboBox()
         self.account_selector.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self.connect(self.account_selector,SIGNAL("activated(QString)"),self.change_account)
