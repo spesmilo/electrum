@@ -717,6 +717,10 @@ class ElectrumWindow(App):
                 pos = (win.center[0], win.center[1] - (info_bubble.height/2))
         info_bubble.show(pos, duration, width, modal=modal, exit=exit)
 
+    def tx_dialog(self, tx_hash):
+        popup = Builder.load_file('gui/kivy/uix/ui_screens/transaction.kv')
+        popup.tx_hash = tx_hash
+        popup.open()
 
     def amount_dialog(self, label, callback):
         popup = Builder.load_file('gui/kivy/uix/ui_screens/amount.kv')

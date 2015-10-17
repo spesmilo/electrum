@@ -160,20 +160,6 @@
     on_release: app.root.children[0].toggle_drawer()
 
 
-
-<SendReceiveCardTop@GridLayout>
-    canvas.before:
-        BorderImage:
-            border: 9, 9, 9, 9
-            source: 'atlas://gui/kivy/theming/light/card_top'
-            size: self.size
-            pos:self.pos
-    padding: '12dp', '22dp', '12dp', 0
-    cols: 1
-    size_hint: 1, None
-    height: '120dp'
-    spacing: '4dp'
-
 <SendReceiveBlueBottom@GridLayout>
     canvas.before:
         Color:
@@ -188,8 +174,6 @@
     foreground_color: .843, .914, .972, 1
     cols: 1
     padding: '12dp', 0
-
-
 
 
 <CardSeparator@Widget>
@@ -245,68 +229,6 @@
         on_index: root.on_index(*args)
         id: carousel
 
-
-<CarouselIndicator@TabbedCarousel>
-    tab_pos: 'bottom_mid'
-    tab_height: '32dp'
-    tab_width: self.tab_height
-    #background_image: 'atlas://data/images/defaulttheme/action_item'
-    strip_border: 0, 0, 0, 0
-
-<CloseButton@IconButton>
-    source: 'atlas://gui/kivy/theming/light/closebutton'
-    opacity: 1 if self.state == 'normal' else .75
-    size_hint: None, None
-    size: '27dp', '27dp'
-
-<-CarouselDialog>
-    header_color: '#707070ff'
-    text_color: 0.701, 0.701, 0.701, 1
-    title_size: '13sp'
-    title: ''
-    separator_color: 0.89, 0.89, 0.89, 1
-    background: 'atlas://gui/kivy/theming/light/tab_btn'
-    carousel_content: carousel_content
-    canvas.before:
-        Color:
-            rgba: 0, 0, 0, .9
-        Rectangle:
-            size: Window.size
-            pos: 0, 0
-        Color:
-            rgba: 1, 1, 1, 1
-        BorderImage:
-            border: 12, 12, 12, 12
-            source: 'atlas://gui/kivy/theming/light/dialog'
-            size: root.width, root.height - self.carousel_content.tab_height if self.carousel_content else 0
-            pos: root.x, self.y + self.carousel_content.tab_height if self.carousel_content else 10
-    BoxLayout:
-        orientation: 'vertical'
-        GridLayout:
-            cols: 1
-            size_hint: 1, None
-            height: self.minimum_height
-            padding: 0, '7sp'
-            Label:
-                font_size: root.title_size
-                text: u'[color={}]{}[/color]'.format(root.header_color, root.title)
-                text_size: self.width, None
-                halign: 'left'
-                size_hint: 1, None
-                height: self.texture_size[1]
-            CardSeparator:
-                color: root.separator_color
-                height: root.separator_height
-        FloatLayout:
-            size_hint: None, None
-            size: 0, 0
-            CloseButton:
-                id: but_close
-                top: root.top - dp(10)
-                right: root.right - dp(10)
-                on_release: root.dismiss()
-        CarouselIndicator:
-            id: carousel_content
 
 
 <CleanHeader@TabbedPanelHeader>

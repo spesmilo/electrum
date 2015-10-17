@@ -53,7 +53,7 @@
 
 <RecentActivityItem@CardItem>
     icon: 'atlas://gui/kivy/theming/light/important'
-    address:'no address set'
+    address: 'no address set'
     value: 0
     amount: app.format_amount(self.value, True) if self.value is not None else '--'
     amount_color: '#DB3627' if self.value < 0 else '#2EA442'
@@ -63,7 +63,7 @@
 
     spacing: '9dp'
     on_release:
-        app.history_screen.show_tx_details(root)
+        app.tx_dialog(root.tx_hash)
     BoxLayout:
         size_hint: 1, None
         spacing: '8dp'
@@ -123,78 +123,6 @@
         height: self.minimum_height
         CardSeparator
 
-<CardPaymentRequest@Card>
-    CardLabel:
-        text: _('PAYMENT REQUEST')
-    CardSeparator:
-
-<CardStatusInfo@Card>
-    padding: '12dp' , '12dp'
-    status: app.status
-    quote_text: ''
-    unconfirmed: ''
-    cols: 2
-    FloatLayout
-        anchor_x: 'left'
-        size_hint: 1, None
-        height: '82dp'
-        IconButton:
-            mipmap: True
-            pos_hint: {'x': 0, 'center_y': .45}
-            color: .90, .90, .90, 1
-            source: 'atlas://gui/kivy/theming/light/qrcode'
-            size_hint: None, .85
-            width: self.height
-            on_release:
-                dlg = Cache.get('electrum_widgets', 'WalletAddressesDialog')
-
-                if not dlg:\
-                Factory.register('WalletAddressesDialog', module='electrum_gui.kivy.uix.dialogs.carousel_dialog');\
-                dlg = Factory.WalletAddressesDialog();\
-                Cache.append('electrum_widgets', 'WalletAddressesDialog', dlg)
-
-                dlg.open()
-        CardLabel:
-            id: top_label
-            halign: 'right'
-            valign: 'top'
-            bold: True
-            pos_hint: {'top': 1, 'right': 1}
-            font_name: font_light
-            #balance_in_numbers:  bool(ord(root.status[0]) not in range(ord('A'), ord('z')))
-            balance_in_numbers:  True
-            font_size: '50sp' if self.balance_in_numbers else '30sp'
-            text_size: self.width, root.height/2
-            text:
-                u'[color=#4E4F4F]{}{}[/color]'\
-                .format('' if not self.balance_in_numbers else\
-                (btc_symbol if app.base_unit == 'BTC' else mbtc_symbol), root.status)
-        BoxLayout
-            pos_hint: {'y': 0, 'right': 1}
-            spacing: '5dp'
-            CardLabel
-                halign: 'right'
-                markup: True
-                font_size: '22dp'
-                font_name: font_light
-                text: u'[color=#c3c3c3]{}[/color]'.format(root.quote_text)
-            IconButton
-                color: .698, .698, .698, 1
-                source: 'atlas://gui/kivy/theming/light/gear'
-                size_hint_y: None
-                height: '28dp'
-                opacity: .5 if self.state == 'down' else 1
-                on_release:
-                    dlg = Cache.get('electrum_widgets', 'CurrencySelectionDialog')
-
-                    if not dlg:\
-                    Factory.register('SelectionDialog', module='electrum_gui.kivy.uix.dialogs');\
-                    dlg = Factory.CurrencySelectionDialog();\
-                    Cache.append('electrum_widgets', 'CurrencySelectionDialog', dlg)
-
-                    dlg.open()
-
-
 
 HistoryScreen:
     name: 'history'
@@ -209,16 +137,6 @@ HistoryScreen:
             height: self.minimum_height
             padding: '12dp'
             spacing: '12dp'
-            #GridLayout:
-            #    cols: 1
-            #    size_hint: 1, None
-            #    height: self.minimum_height
-            #    spacing: '12dp'
-            #    orientation: 'vertical'
-            #    CardStatusInfo:
-            #        id: status_card
-            #    CardPaymentRequest:
-            #        id: payment_card
             CardRecentActivity:
                 id: recent_activity_card
 
