@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env/python2
 
 # python setup.py sdist --format=zip,gztar
 
@@ -12,8 +12,6 @@ version = imp.load_source('version', 'lib/version.py')
 
 if sys.version_info[:3] < (2, 7, 0):
     sys.exit("Error: Electrum requires Python version >= 2.7.0...")
-if sys.version_info[:3] >= (3, 0, 0):
-    sys.exit("Error: Electrum requires Python 2")
 
 data_files = []
 
