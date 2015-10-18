@@ -7,7 +7,7 @@ NAME_ROOT=electrum
 
 # These settings probably don't need any change
 export WINEPREFIX=/opt/wine-electrum
-PYHOME=c:/python26
+PYHOME=c:/python27
 PYTHON="wine $PYHOME/python.exe -OO -B"
 
 # Let's begin!
@@ -42,24 +42,17 @@ cp -r electrum-git $WINEPREFIX/drive_c/electrum
 cp electrum-git/LICENCE .
 
 # Build Qt resources
-wine $WINEPREFIX/drive_c/Python26/Lib/site-packages/PyQt4/pyrcc4.exe C:/electrum/icons.qrc -o C:/electrum/lib/icons_rc.py
-
-# Copy ZBar libraries to electrum
-#cp "$WINEPREFIX/drive_c/Program Files (x86)/ZBar/bin/"*.dll "$WINEPREFIX/drive_c/electrum/"
+wine $WINEPREFIX/drive_c/Python27/Lib/site-packages/PyQt4/pyrcc4.exe C:/electrum/icons.qrc -o C:/electrum/lib/icons_rc.py
+wine $WINEPREFIX/drive_c/Python27/Lib/site-packages/PyQt4/pyrcc4.exe C:/electrum/icons.qrc -o C:/electrum/gui/qt/icons_rc.py
 
 cd ..
 
 rm -rf dist/
 
-# For building standalone compressed EXE, run:
-$PYTHON "C:/pyinstaller/pyinstaller.py" --noconfirm --ascii -w --onefile "C:/electrum/electrum"
-
-# For building uncompressed directory of dependencies, run:
 $PYTHON "C:/pyinstaller/pyinstaller.py" --noconfirm --ascii -w deterministic.spec
 
 # For building NSIS installer, run:
-wine "$WINEPREFIX/drive_c/Program Files (x86)/NSIS/makensis.exe" electrum.nsi
-#wine $WINEPREFIX/drive_c/Program\ Files\ \(x86\)/NSIS/makensis.exe electrum.nsis
+wine "$WINEPREFIX/drive_c/Program Files/NSIS/makensis.exe" electrum.nsi
 
 DATE=`date +"%Y%m%d"`
 cd dist
