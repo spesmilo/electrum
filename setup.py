@@ -1,4 +1,4 @@
-#!/usr/bin/env/python2
+#!/usr/bin/env python2
 
 # python setup.py sdist --format=zip,gztar
 
