@@ -405,9 +405,9 @@ class SocketPipe:
                 if err.errno == 60:
                     raise timeout
                 elif err.errno in [11, 35, 10035]:
-                    print_error("socket errno", err.errno)
-                    time.sleep(0.1)
-                    continue
+                    print_error("socket errno %d (resource temporarily unavailable)"% err.errno)
+                    time.sleep(0.2)
+                    raise timeout
                 else:
                     print_error("pipe: socket error", err)
                     data = ''

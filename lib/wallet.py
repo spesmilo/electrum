@@ -769,9 +769,11 @@ class Abstract_Wallet(PrintError):
                         dd.pop(addr)
                     else:
                         dd[addr] = l
-            self.txi.pop(tx_hash)
-            self.txo.pop(tx_hash)
-
+            try:
+                self.txi.pop(tx_hash)
+                self.txo.pop(tx_hash)
+            except KeyErrror:
+                self.print_error("tx was not in history", tx_hash)
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
         self.add_transaction(tx_hash, tx)

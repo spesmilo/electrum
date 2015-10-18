@@ -399,6 +399,22 @@ class InstallWizard(QDialog):
         wallet_type = '%dof%d'%(m,n)
         return wallet_type
 
+    def question(self, msg, yes_label=_('OK'), no_label=_('Cancel'), icon=None):
+        vbox = QVBoxLayout()
+        self.set_layout(vbox)
+        if icon:
+            logo = QLabel()
+            logo.setPixmap(icon)
+            vbox.addWidget(logo)
+        label = QLabel(msg)
+        label.setWordWrap(True)
+        vbox.addWidget(label)
+        vbox.addStretch(1)
+        vbox.addLayout(Buttons(CancelButton(self, no_label), OkButton(self, yes_label)))
+        if not self.exec_():
+            return None
+        return True
+
     def show_seed(self, seed, sid):
         vbox = seed_dialog.show_seed_box_msg(seed, sid)
         vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _("Next"))))
