@@ -8,22 +8,21 @@ import sys
 import platform
 import imp
 
-
 version = imp.load_source('version', 'lib/version.py')
 
 if sys.version_info[:3] < (2, 7, 0):
     sys.exit("Error: Electrum requires Python version >= 2.7.0...")
-
-
+if sys.version_info[:3] >= (3, 0, 0):
+    sys.exit("Error: Electrum requires Python 2")
 
 data_files = []
-if platform.system() in [ 'Linux', 'FreeBSD', 'DragonFly']:
+
+if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
     usr_share = os.path.join(sys.prefix, "share")
     data_files += [
         (os.path.join(usr_share, 'applications/'), ['electrum.desktop']),
         (os.path.join(usr_share, 'pixmaps/'), ['icons/electrum.png'])
     ]
-
 
 setup(
     name="Electrum",
@@ -48,14 +47,6 @@ setup(
             'www/index.html',
             'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electrum.mo',
-        ],
-        'electrum_gui': [
-            "qt/themes/cleanlook/name.cfg",
-            "qt/themes/cleanlook/style.css",
-            "qt/themes/sahara/name.cfg",
-            "qt/themes/sahara/style.css",
-            "qt/themes/dark/name.cfg",
-            "qt/themes/dark/style.css",
         ]
     },
     scripts=['electrum'],
