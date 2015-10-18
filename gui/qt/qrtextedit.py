@@ -12,6 +12,7 @@ class ShowQRTextEdit(ButtonsTextEdit):
         ButtonsTextEdit.__init__(self, text)
         self.setReadOnly(1)
         self.addButton(":icons/qrcode.png", self.qr_show, _("Show as QR code"))
+        self.paranoid = paranoid
 
         if paranoid:
             # Paranoid flag forces the user to write down what's in the box, 
@@ -36,6 +37,13 @@ class ShowQRTextEdit(ButtonsTextEdit):
         except:
             s = unicode(self.toPlainText())
         QRDialog(s).exec_()
+
+    def contextMenuEvent(self, e):
+        if self.paranoid: return
+        m = self.createStandardContextMenu()
+        m.addAction(_("Show as QR code"), self.qr_show)
+        m.exec_(e.globalPos())
+
 
 class ScanQRTextEdit(ButtonsTextEdit):
 
