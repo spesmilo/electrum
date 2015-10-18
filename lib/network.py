@@ -190,7 +190,7 @@ class Network(util.DaemonThread):
         self.interface = None
         self.interfaces = {}
         self.auto_connect = self.config.get('auto_connect', False)
-        self.connecting = {}
+        self.connecting = set()
         self.socket_queue = Queue.Queue()
         self.start_network(deserialize_server(self.default_server)[2],
                            deserialize_proxy(self.config.get('proxy')))
@@ -331,8 +331,8 @@ class Network(util.DaemonThread):
             if server == self.default_server:
                 self.print_error("connecting to %s as new interface" % server)
                 self.set_status('connecting')
+            self.connecting.add(server)
             c = Connection(server, self.socket_queue, self.config.path)
-            self.connecting[server] = c
 
     def start_random_interface(self):
         exclude_set = self.disconnected_servers.union(set(self.interfaces))
@@ -372,7 +372,7 @@ class Network(util.DaemonThread):
             self.close_interface(interface)
         assert self.interface is None
         assert not self.interfaces
-        self.connecting = {}
+        self.connecting = set()
         # Get a new queue - no old pending connections thanks!
         self.socket_queue = Queue.Queue()
 
@@ -584,7 +584,7 @@ class Network(util.DaemonThread):
         # Responses to connection attempts?
         while not self.socket_queue.empty():
             server, socket = self.socket_queue.get()
-            self.connecting.pop(server)
+            self.connecting.remove(server)
             if socket:
                 self.new_interface(server, socket)
             else:

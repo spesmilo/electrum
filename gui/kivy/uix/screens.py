@@ -75,18 +75,6 @@ class HistoryScreen(CScreen):
         self.ra_dialog = None
         super(HistoryScreen, self).__init__(**kwargs)
 
-    def show_tx_details(self, item):
-        ra_dialog = Cache.get('electrum_ltc_widgets', 'RecentActivityDialog')
-        if not ra_dialog:
-            Factory.register('RecentActivityDialog',
-                             module='electrum_ltc_gui.kivy.uix.dialogs.carousel_dialog')
-            Factory.register('GridView',
-                             module='electrum_ltc_gui.kivy.uix.gridview')
-            ra_dialog = ra_dialog = Factory.RecentActivityDialog()
-            Cache.append('electrum_ltc_widgets', 'RecentActivityDialog', ra_dialog)
-        ra_dialog.item = item
-        ra_dialog.open()
-
     def get_history_rate(self, btc_balance, timestamp):
         date = timestamp_to_datetime(timestamp)
         return run_hook('historical_value_str', btc_balance, date)
