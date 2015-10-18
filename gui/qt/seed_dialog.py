@@ -75,7 +75,7 @@ def enter_seed_box(msg, window, sid=None, text=None):
         seed_e = ScanQRTextEdit()
         seed_e.setTabChangesFocus(True)
     else:
-        seed_e = ShowQRTextEdit(text=text)
+        seed_e = ShowQRTextEdit(text=text, paranoid=True)
     seed_e.setMaximumHeight(130)
     vbox.addWidget(label)
     grid = QGridLayout()
