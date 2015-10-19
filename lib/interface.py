@@ -35,7 +35,7 @@ import pem
 
 
 def Connection(server, queue, config_path):
-    """Makes asynchronous connections to a remote remote electrum server.
+    """Makes asynchronous connections to a remote electrum server.
     Returns the running thread that is making the connection.
 
     Once the thread has connected, it finishes, placing a tuple on the

@@ -444,7 +444,7 @@ if __name__ == '__main__':
             'verbose': True,
             'cmd': 'gui',
             'gui': 'kivy' if is_kivy else 'android',
-            'auto_connect': True,
+            #'auto_connect': True,
         }
     else:
         config_options = args.__dict__
@@ -474,10 +474,8 @@ if __name__ == '__main__':
     cmd_name = config.get('cmd')
 
     # initialize plugins.
-    plugins = None
-    if not is_android:
-        gui_name = config.get('gui', 'qt') if cmd_name == 'gui' else 'cmdline'
-        plugins = Plugins(config, is_bundle or is_local or is_android, gui_name)
+    gui_name = config.get('gui', 'qt') if cmd_name == 'gui' else 'cmdline'
+    plugins = Plugins(config, is_bundle or is_local or is_android, gui_name)
 
     # get password if needed
     if cmd_name not in ['gui', 'daemon']:
@@ -506,8 +504,11 @@ if __name__ == '__main__':
 
     # daemon is not running
     if cmd_name == 'gui':
-        network = Network(config, plugins)
-        network.start()
+        if not config.get('offline'):
+            network = Network(config, plugins)
+            network.start()
+        else:
+            network = None
         server = NetworkServer(config, network)
         server.start()
         server.gui = init_gui(config, network, plugins)

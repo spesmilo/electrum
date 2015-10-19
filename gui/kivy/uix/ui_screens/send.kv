@@ -1,0 +1,147 @@
+#:import _ electrum.i18n._
+#:import Decimal decimal.Decimal
+
+#:import Factory kivy.factory.Factory
+#:set btc_symbol unichr(171)
+#:set mbtc_symbol unichr(187)
+#:set font_light 'data/fonts/Roboto-Condensed.ttf'
+
+
+<SendToggle@ToggleButton>
+    source: ''
+    markup: False
+    bold: True
+    border: 4, 4, 4, 4
+    group: 'transfer_type'
+    background_normal: self.background_down
+    color:
+        (.140, .140, .140, 1) if self.state == 'down' else (.796, .796, .796, 1)
+    canvas.after:
+        Color:
+            rgba: 1, 1, 1, 1
+    Image:
+        source: root.source
+        color: root.color
+        size: '30dp', '30dp'
+        center_x: root.center_x - ((root.texture_size[0]/2)+(self.width/1.5))
+        center_y: root.center_y
+
+
+
+<SendReceiveToggle@BoxLayout>
+    padding: '5dp', '5dp'
+    size_hint: 1, None
+    height: '45dp'
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 1
+        BorderImage:
+            border: 12, 12, 12, 12
+            source: 'atlas://gui/kivy/theming/light/card'
+            size: self.width + dp(3), self.height
+            pos: self.x - dp(1.5), self.y
+
+
+SendScreen:
+
+    id: send_screen
+    name: 'send'
+    #action_view: Factory.SendActionView()
+    #on_deactivate:
+    #    self.ids.amount_e.focus = False
+    #    self.ids.payto_e.focus = False
+    #    self.ids.message_e.focus = False
+    BoxLayout
+        padding: '12dp', '12dp', '12dp', '12dp'
+        spacing: '12dp'
+        orientation: 'vertical'
+        SendReceiveToggle:
+            size_hint: 1, None
+            SendToggle:
+                id: qr
+                text: 'QR Code'
+                group: 'send_type'
+                source: 'atlas://gui/kivy/theming/light/qrcode'
+                on_release:
+                    app.scan_qr(on_complete=root.set_qr_data)
+                state: 'down'
+                background_down: 'atlas://gui/kivy/theming/light/btn_send_nfc'
+            SendToggle:
+                id: nfc_toggle
+                text: 'NFC'
+                group: 'send_type'
+                state: 'normal'
+                source: 'atlas://gui/kivy/theming/light/nfc'
+                background_down: 'atlas://gui/kivy/theming/light/btn_send_nfc'
+
+        SendReceiveBlueBottom:
+            id: blue_bottom
+            size_hint: 1, None
+            height: self.minimum_height
+            BoxLayout:
+                size_hint: 1, None
+                height: blue_bottom.item_height
+                spacing: '5dp'
+                Image:
+                    source: 'atlas://gui/kivy/theming/light/contact'
+                    size_hint: None, None
+                    size: '22dp', '22dp'
+                    pos_hint: {'center_y': .5}
+                TextInputBlue:
+                    id: payto_e
+                    hint_text: "Recipient"
+            CardSeparator:
+                opacity: message_selection.opacity
+                color: blue_bottom.foreground_color
+            BoxLayout:
+                size_hint: 1, None
+                height: blue_bottom.item_height
+                Image:
+                    source: 'atlas://gui/kivy/theming/light/bit_logo'
+                    size_hint: None, None
+                    size: '22dp', '22dp'
+                    pos_hint: {'center_y': .5}
+                Button:
+                    id: amount_e
+                    default_text: 'Amount'
+                    text: self.default_text
+                    text_size: (self.width-15, None)
+                    halign: 'left'
+                    size_hint: 0.5, None
+                    height: '38dp'
+                    on_release: app.amount_dialog(self, None)
+                    background_color: .238, .585, .878, 0
+            CardSeparator:
+                opacity: message_selection.opacity
+                color: blue_bottom.foreground_color
+            BoxLayout:
+                id: message_selection
+                opacity: 1
+                size_hint: 1, None
+                height: blue_bottom.item_height
+                spacing: '5dp'
+                Image:
+                    source: 'atlas://gui/kivy/theming/light/pen'
+                    size_hint: None, None
+                    size: '22dp', '22dp'
+                    pos_hint: {'center_y': .5}
+                TextInputBlue:
+                    id: message_e
+                    hint_text: 'Description (optional)'
+        BoxLayout:
+            size_hint: 1, None
+            height: '38dp'
+            Button:
+                text: _('Clear')
+                size_hint: 1, None
+                height: '38dp'
+                on_release: send_screen.do_clear()
+            Button:
+                text: _('Send')
+                size_hint: 1, None
+                height: '38dp'
+                on_release: send_screen.do_send()
+        Widget:
+            size_hint: 1, 1
+
+

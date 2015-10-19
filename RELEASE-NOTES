@@ -1,22 +1,24 @@
+# Release 2.5.1 (bugfixes)
+ * signatures in transactions were still using the old class
+ * make sure that setup.py uses python2
+ * fix wizard crash with trustedcoin plugin
+ * fix socket infinite loop
+ * fix history bug #1479
+
 # Release 2.5
- * All electrum windows are now part of the same process.  When starting
-   a new GUI electrum instance, that instance starts a daemon if there is
-   none running.  Otherwise it connects to the running daemon and sends the
-   it information to open a window in the daemon's process, and the new
-   instance then terminates.
- * With the daemon changes, network and network proxy code could be unified.
-   This should improve the robustness of electrum's networking.
- * Networking was rewritten to multiplex use select(), so all server
-   communication is handled by a single thread rather than a thread
-   per server connection.  Moreover, the synchronizer, verifier, and
-   exchange rate plugin now run as separate jobs within the networking
-   thread instead of as their own threads.  The elimination of so many
-   threads should lead to reduced lock contention and CPU usage.
+ * Low-S values are used in signatures (BIP 62).
+ * The Kivy GUI has been merged into master.
+ * The Qt GUI supports multiple windows in the same process. When a
+   new Electrum instance is started, it checks for an already running
+   Electrum process, and connects to it.
+ * The network layer uses select(), so all server communication is
+   handled by a single thread. Moreover, the synchronizer, verifier,
+   and exchange rate plugin now run as separate jobs within the
+   networking thread instead of as their own threads.
  * Plugins are revamped, particularly the exchange rate plugin.
- * Various bugfixes.
 
 # Release 2.4.4
- * fix bug with trustedcoin plugin
+ * Fix bug with TrustedCoin plugin
 
 # Release 2.4.3
  * Support for KeepKey hardware wallet

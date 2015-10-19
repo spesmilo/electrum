@@ -492,7 +492,7 @@ class ElectrumWindow(QMainWindow, PrintError):
         text = self.format_amount(amount) + ' '+ self.base_unit()
         x = run_hook('format_amount_and_units', amount)
         if x:
-            text += ''.join(x)
+            text += x
         return text
 
     def get_decimal_point(self):
@@ -536,9 +536,9 @@ class ElectrumWindow(QMainWindow, PrintError):
                 if x:
                     text +=  " [%s unmatured]"%(self.format_amount(x, True).strip())
                 # append fiat balance and price from exchange rate plugin
-                r = {'text': ''}
-                run_hook('get_fiat_status_text', c + u + x, r)
-                text += r['text']
+                rate = run_hook('get_fiat_status_text', c + u + x)
+                if rate:
+                    text += rate
                 icon = QIcon(":icons/status_connected.png")
         else:
             text = _("Not connected")
@@ -1810,9 +1810,6 @@ class ElectrumWindow(QMainWindow, PrintError):
 
         self.balance_label = QLabel("")
         sb.addWidget(self.balance_label)
-
-        from version_getter import UpdateLabel
-        self.updatelabel = UpdateLabel(self.config, sb)
 
         self.account_selector = QComboBox()
         self.account_selector.setSizeAdjustPolicy(QComboBox.AdjustToContents)

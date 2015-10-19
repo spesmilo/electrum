@@ -1,4 +1,6 @@
 #:import Window kivy.core.window.Window
+#:import Factory kivy.factory.Factory
+#:import _ electrum.i18n._
 
 # Custom Global Widgets
 
@@ -6,6 +8,79 @@
     rows: 1
     size_hint: 1, None
     height: self.minimum_height
+
+<LightOptions@SpinnerOption>
+    font_size: '14sp'
+    border: 4, 4, 4, 4
+    color: 0.439, 0.439, 0.439, .8
+    background_normal: 'atlas://gui/kivy/theming/light/action_button_group'
+    background_down: 'atlas://gui/kivy/theming/light/overflow_btn_dn'
+    size_hint_y: None
+    height: '48dp'
+    text_size: self.size[0] - dp(20), self.size[1]
+    halign: 'left'
+    valign: 'middle'
+    shorten: True
+    on_press:
+        ddn = self.parent.parent
+        Factory.Animation(opacity=0, d=.25).start(ddn)
+
+<OppositeDropDown@DropDown>
+    #auto_width: False
+    size_hint: None, None
+    size: self.container.minimum_size if self.container else (0, 0)
+    on_container: if args[1]: self.container.padding = '4dp', '4dp', '4dp', '4dp'
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 1
+        BorderImage:
+            pos:self.pos
+            border: 20, 20, 20, 20
+            source: 'atlas://gui/kivy/theming/light/dropdown_background'
+            size: self.size
+
+<OppositeSpinner@CSpinner>
+    dropdown_cls: Factory.OppositeDropDown
+    option_cls: Factory.LightOptions
+    border: 20, 20, 9, 9
+    background_normal: 'atlas://gui/kivy/theming/light/action_group_dark'
+    background_down: self.background_normal
+    values: ('Copy to clipboard', 'Send Payment')
+    size_hint: None, 1
+    width: '12dp'
+    on_release:
+        ddn = self._dropdown
+        ddn.opacity = 0
+        Factory.Animation(opacity=1, d=.25).start(ddn)
+
+
+<BlueSpinner@BoxLayout>
+    foreground_color: 1, 1, 1, 1
+    spacing: '9dp'
+    text: ''
+    values: ('', )
+    icon: ''
+    Image:
+        source: root.icon
+        size_hint: None, None
+        size: '22dp', '22dp'
+        pos_hint: {'center_y': .5}
+    OppositeSpinner:
+        color: root.foreground_color
+        background_normal: 'atlas://gui/kivy/theming/light/action_group_light'
+        markup: False
+        shorten: True
+        font_size: '16dp'
+        size_hint: 1, .7
+        pos_hint: {'center_y': .5}
+        text: root.text
+        text_size: self.size
+        halign: 'left'
+        valign: 'middle'
+        on_text:
+            root.text = args[1]
+        values: root.values
+
 
 <IconButton@ButtonBehavior+Image>
     allow_stretch: True
@@ -20,27 +95,6 @@
             size: root.size
             pos: root.pos
 
-<Butt_star@ActionToggleButton>:
-    important: True
-    size_hint_x: None
-    width: '32dp'
-    mipmap: True
-    state: 'down' if app.expert_mode else 'normal'
-    background_down: self.background_normal
-    foreground_color: (.466, .466, .466, 1)
-    color_active: (0.235, .588, .89, 1)
-    on_release: app.expert_mode = True if self.state == 'down' else False
-    Image:
-        source: 'atlas://gui/kivy/theming/light/star_big_inactive'
-        center: root.center
-        size: root.width/1.5, self.width
-        color:
-            root.foreground_color if root.state == 'normal' else root.color_active
-        canvas.after:
-            Color:
-                rgba: 1, 1, 1, 1
-        source: 
-        allow_stretch: True
 
 <ELTextInput>
     padding: '10dp', '4dp'
@@ -50,39 +104,8 @@
     background_normal: 'atlas://gui/kivy/theming/light/textinput_active'
 
 
-<CreateAccountButtonBlue@Button>
-    canvas.after:
-        Color
-            rgba: 1, 1, 1, 1 if self.disabled else 0
-        Rectangle:
-            texture: self.texture
-            size: self.size
-            pos: self.pos
-        Color
-            rgba: .5, .5, .5, .5 if self.disabled else 0
-        Rectangle:
-            texture: self.texture
-            size: self.size
-            pos: self.x - dp(1), self.y + dp(1)
-    border: 15, 5, 5, 5
-    background_color: (1, 1, 1, 1) if self.disabled else (.203, .490, .741, 1 if self.state == 'normal' else .75)
-    size_hint: 1, None
-    height: '48sp'
-    text_size: self.size
-    halign: 'center'
-    valign: 'middle'
-    root: None
-    background_normal: 'atlas://gui/kivy/theming/light/btn_create_account'
-    background_down: 'atlas://gui/kivy/theming/light/btn_create_account'
-    background_disabled_normal: 'atlas://gui/kivy/theming/light/btn_create_act_disabled'
-    on_press: if self.root: self.root.dispatch('on_press', self)
-    on_release: if self.root: self.root.dispatch('on_release', self)
-
-
-<CreateAccountButtonGreen@CreateAccountButtonBlue>
-    background_color: (1, 1, 1, 1) if self.disabled else (.415, .717, 0, 1 if self.state == 'normal' else .75)
 ###########################
-##    Gloabal Defaults
+#     Global Defaults
 ###########################
 <TextInput>
     on_focus: app._focused_widget = root
@@ -127,11 +150,213 @@
             size_hint: 1, 1
             width: 0 if root.fs else (root.width - img.width)
 
-StencilView:
-    manager: None
+
+
+<WalletActionPrevious@ActionPrevious>
+    app_icon: 'atlas://gui/kivy/theming/light/' + ('wallets' if app.ui_mode[0] != 't' else 'tab_btn')
+    with_previous: False
+    size_hint: None, 1
+    mipmap: True
+    on_release: app.root.children[0].toggle_drawer()
+
+
+<SendReceiveBlueBottom@GridLayout>
     canvas.before:
         Color:
-            rgba: 1, 1, 1, 1
-        Rectangle
+            rgba: .238, .585, .878, 1
+        BorderImage:
+            border: 9, 9, 9, 9
+            source: 'atlas://gui/kivy/theming/light/card_bottom'
             size: self.size
             pos: self.pos
+
+    item_height: dp(42)
+    foreground_color: .843, .914, .972, 1
+    cols: 1
+    padding: '12dp', 0
+
+
+<CardSeparator@Widget>
+    size_hint: 1, None
+    height: dp(1)
+    color: .909, .909, .909, 1
+    canvas:
+        Color:
+            rgba: root.color if root.color else (0, 0, 0, 0)
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
+<AddressSelector@BlueSpinner>
+    icon: 'atlas://gui/kivy/theming/light/globe'
+    values: [] #app.wallet.addresses() if app.wallet else []
+    text: _("Select Your address")
+
+<TextInputBlue@TextInput>
+    padding: '5dp'
+    size_hint: 1, None
+    height: '27dp'
+    pos_hint: {'center_y':.5}
+    multiline: False
+    hint_text_color: self.foreground_color
+    foreground_color: .843, .914, .972, 1
+    background_color: 1, 1, 1, 1
+    background_normal: 'atlas://gui/kivy/theming/light/tab_btn'
+    background_active: 'atlas://gui/kivy/theming/light/textinput_active'
+
+
+<KButton@Button>:
+    size_hint: 1, None
+    height: '48dp'
+    on_release: self.label.amount = app.update_amount(self.label.amount, self.text)
+
+
+<TabbedPanelStrip>:
+    on_parent:
+        if self.parent: self.parent.bar_width = 0
+
+
+<TabbedCarousel>
+    carousel: carousel
+    do_default_tab: False
+    Carousel:
+        scroll_timeout: 190
+        anim_type: 'out_quart'
+        min_move: .05
+        anim_move_duration: .1
+        anim_cancel_duration: .54
+        scroll_distance: '10dp'
+        on_index: root.on_index(*args)
+        id: carousel
+
+
+
+<CleanHeader@TabbedPanelHeader>
+    border: 0, 0, 16, 0
+    markup: False
+    text_size: self.size
+    halign: 'center'
+    valign: 'middle'
+    bold: True
+    font_size: '12.5sp'
+    background_normal: 'atlas://gui/kivy/theming/light/tab_btn'
+    background_disabled_normal: 'atlas://gui/kivy/theming/light/tab_btn_disabled'
+    background_down: 'atlas://gui/kivy/theming/light/tab_btn_pressed'
+    #canvas.before:
+    #    Color:
+    #        rgba: .6, .6, .6, .7
+    #    Rectangle:
+    #        size: self.size
+    #        pos: self.x + 1, self.y - 1
+    #        texture: self.texture
+
+
+<ColoredLabel@Label>:
+    font_size: '48sp'
+    color: (.6, .6, .6, 1)
+    canvas.before:
+        Color:
+            rgb: (.9, .9, .9)
+        Rectangle:
+            pos: self.x + sp(2), self.y + sp(2)
+            size: self.width - sp(4), self.height - sp(4)
+
+
+
+<ScreenTabs@Screen>
+    TabbedCarousel:
+        id: panel
+        tab_height: '48dp'
+        #default_tab: send_tab
+        strip_border: 0, 0, 0, 0
+        HistoryScreen:
+            id: history_screen
+            tab: history_tab
+        SendScreen:
+            id: send_screen
+            tab: send_tab
+        ReceiveScreen:
+            id: receive_screen
+            tab: receive_tab
+        ContactsScreen:
+            id: contacts_screen
+            tab: contacts_tab
+        CleanHeader:
+            id: history_tab
+            text: _('History')
+            slide: 0
+        CleanHeader:
+            id: send_tab
+            text: _('Send')
+            slide: 1
+        CleanHeader:
+            id: receive_tab
+            text: _('Receive')
+            slide: 2
+        CleanHeader:
+            id: contacts_tab
+            text: _('Contacts')
+            slide: 3
+
+
+
+BoxLayout:
+
+    orientation: 'vertical'
+
+    canvas.before:
+        Color:
+            rgb: .6, .6, .6
+        Rectangle:
+            size: self.size
+            source: 'gui/kivy/data/background.png'
+
+    ActionBar:
+
+        ActionView:
+            id: av
+
+            ActionPrevious: 
+                app_icon: 'atlas://gui/kivy/theming/light/logo'
+                with_previous: False
+                on_release: app.on_back()
+
+            ActionButton:
+                id: action_status
+                important: True
+                size_hint: 1, 1
+                markup: True
+                mipmap: True
+                bold: True
+                markup: True
+                color: 1, 1, 1, 1
+                text:
+                    "[color=#777777]{}[/color]"\
+                    .format(app.status)
+                font_size: '22dp'
+                minimum_width: '1dp'
+
+            ActionOverflow:
+                id: ao
+                size_hint: 1, 1
+                ActionButton:
+                    text: _('Network')
+                    on_press: ao._dropdown.dismiss()
+                    on_release: app.popup_dialog('network')
+                ActionButton:
+                    text: _('Settings')
+                    on_press: ao._dropdown.dismiss()
+                    on_release: app.popup_dialog('settings')
+                ActionButton:
+                    text: _('Wallets')
+                    on_press: ao._dropdown.dismiss()
+                    on_release: app.popup_dialog('wallet')
+                ActionButton:
+                    text: _('Plugins')
+                    on_press: ao._dropdown.dismiss()
+                    on_release: app.popup_dialog('plugins')
+                
+    ScreenManager:
+        id: manager
+        ScreenTabs:
+            id: tabs

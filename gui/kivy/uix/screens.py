@@ -1,3 +1,9 @@
+from weakref import ref
+from decimal import Decimal
+import re
+import datetime
+import traceback, sys
+
 from kivy.app import App
 from kivy.cache import Cache
 from kivy.clock import Clock
@@ -7,16 +13,19 @@ from kivy.properties import (ObjectProperty, DictProperty, NumericProperty,
 from kivy.lang import Builder
 from kivy.factory import Factory
 
-
-# Delayed imports
-app = None
-
+from electrum.i18n import _
+from electrum.util import profiler
+from electrum import bitcoin
+from electrum.util import timestamp_to_datetime
+from electrum.plugins import run_hook
 
 class CScreen(Factory.Screen):
 
     __events__ = ('on_activate', 'on_deactivate', 'on_enter', 'on_leave')
-
     action_view = ObjectProperty(None)
+    loaded = False
+    kvname = None
+    app = App.get_running_app()
 
     def _change_action_view(self):
         app = App.get_running_app()
@@ -31,38 +40,109 @@ class CScreen(Factory.Screen):
     def on_enter(self):
         # FIXME: use a proper event don't use animation time of screen
         Clock.schedule_once(lambda dt: self.dispatch('on_activate'), .25)
+        pass
+
+    def update(self):
+        pass
+
+    @profiler
+    def load_screen(self):
+        self.screen = Builder.load_file('gui/kivy/uix/ui_screens/' + self.kvname + '.kv')
+        self.add_widget(self.screen)
+        self.loaded = True
+        self.update()
+        setattr(self.app, self.kvname + '_screen', self)
 
     def on_activate(self):
-        Clock.schedule_once(lambda dt: self._change_action_view())
+        if self.kvname and not self.loaded:
+            self.load_screen()
+        #Clock.schedule_once(lambda dt: self._change_action_view())
 
     def on_leave(self):
         self.dispatch('on_deactivate')
 
     def on_deactivate(self):
-        Clock.schedule_once(lambda dt: self._change_action_view())
+        pass
+        #Clock.schedule_once(lambda dt: self._change_action_view())
 
 
-class ScreenDashboard(CScreen):
-    ''' Dashboard screen: Used to display the main dashboard.
-    '''
+class HistoryScreen(CScreen):
 
     tab = ObjectProperty(None)
+    kvname = 'history'
 
     def __init__(self, **kwargs):
         self.ra_dialog = None
-        super(ScreenDashboard, self).__init__(**kwargs)
+        super(HistoryScreen, self).__init__(**kwargs)
 
-    def show_tx_details(self, item):
-        ra_dialog = Cache.get('electrum_widgets', 'RecentActivityDialog')
-        if not ra_dialog:
-            Factory.register('RecentActivityDialog',
-                             module='electrum_gui.kivy.uix.dialogs.carousel_dialog')
-            Factory.register('GridView',
-                             module='electrum_gui.kivy.uix.gridview')
-            ra_dialog = ra_dialog = Factory.RecentActivityDialog()
-            Cache.append('electrum_widgets', 'RecentActivityDialog', ra_dialog)
-        ra_dialog.item = item
-        ra_dialog.open()
+    def get_history_rate(self, btc_balance, timestamp):
+        date = timestamp_to_datetime(timestamp)
+        return run_hook('historical_value_str', btc_balance, date)
+
+    def parse_history(self, items):
+        for item in items:
+            tx_hash, conf, value, timestamp, balance = item
+            time_str = _("unknown")
+            if conf > 0:
+                try:
+                    time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+                except Exception:
+                    time_str = _("error")
+            if conf == -1:
+                time_str = _('unverified')
+                icon = "atlas://gui/kivy/theming/light/close"
+            elif conf == 0:
+                time_str = _('pending')
+                icon = "atlas://gui/kivy/theming/light/unconfirmed"
+            elif conf < 6:
+                time_str = ''  # add new to fix error when conf < 0
+                conf = max(1, conf)
+                icon = "atlas://gui/kivy/theming/light/clock{}".format(conf)
+            else:
+                icon = "atlas://gui/kivy/theming/light/confirmed"
+
+            if tx_hash:
+                label, is_default_label = self.app.wallet.get_label(tx_hash)
+            else:
+                label = _('Pruned transaction outputs')
+                is_default_label = False
+
+            quote_currency = 'USD'
+            rate = self.get_history_rate(value, timestamp)
+            quote_text = "..." if rate is None else "{0:.3} {1}".format(rate, quote_currency)
+
+            yield (conf, icon, time_str, label, value, tx_hash, quote_text)
+
+    def update(self, see_all=False):
+        if self.app.wallet is None:
+            return
+
+        history_card = self.screen.ids.recent_activity_card
+        history = self.parse_history(reversed(
+            self.app.wallet.get_history(self.app.current_account)))
+        # repopulate History Card
+        last_widget = history_card.ids.content.children[-1]
+        history_card.ids.content.clear_widgets()
+        history_add = history_card.ids.content.add_widget
+        history_add(last_widget)
+        RecentActivityItem = Factory.RecentActivityItem
+        count = 0
+        for item in history:
+            count += 1
+            conf, icon, date_time, address, value, tx, quote_text = item
+            ri = RecentActivityItem()
+            ri.icon = icon
+            ri.date = date_time
+            ri.address = address
+            ri.value = value
+            ri.quote_text = quote_text
+            ri.confirmations = conf
+            ri.tx_hash = tx
+            history_add(ri)
+            if count == 8 and not see_all:
+                break
+
+        history_card.ids.btn_see_all.opacity = (0 if count < 8 else 1)
 
 
 class ScreenAddress(CScreen):
@@ -95,22 +175,113 @@ class ScreenPassword(Factory.Screen):
         pass
 
 
-class MainScreen(Factory.Screen):
-    pass
 
-
-class ScreenSend(CScreen):
-
+class SendScreen(CScreen):
+    kvname = 'send'
     def set_qr_data(self, uri):
         self.ids.payto_e.text = uri.get('address', '')
         self.ids.message_e.text = uri.get('message', '')
-        self.ids.amount_e.text = uri.get('amount', '')
+        amount = uri.get('amount')
+        if amount:
+            amount_str = str( Decimal(amount) / pow(10, self.app.decimal_point()))
+            self.ids.amount_e.text = amount_str + ' ' + self.app.base_unit
 
-class ScreenReceive(CScreen):
-    pass
+    def do_clear(self):
+        self.ids.payto_e.text = ''
+        self.ids.message_e.text = ''
+        self.ids.amount_e.text = 'Amount'
+        #self.set_frozen(content, False)
+        #self.update_status()
+
+    def do_send(self):
+        scrn = self.ids
+        label = unicode(scrn.message_e.text)
+        r = unicode(scrn.payto_e.text).strip()
+        # label or alias, with address in brackets
+        m = re.match('(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
+        to_address = m.group(2) if m else r
+
+        if not bitcoin.is_address(to_address):
+            self.app.show_error(_('Invalid Bitcoin Address') + ':\n' + to_address)
+            return
+
+        amount = self.app.get_amount(scrn.amount_e.text)
+        #fee = scrn.fee_e.amt
+        #if not fee:
+        #    app.show_error(_('Invalid Fee'))
+        #    return
+        fee = None
+        message = 'sending {} {} to {}'.format(self.app.base_unit, scrn.amount_e.text, r)
+        outputs = [('address', to_address, amount)]
+        self.app.password_dialog(self.send_tx, (outputs, fee, label))
+
+    def send_tx(self, outputs, fee, label, password):
+        # make unsigned transaction
+        coins = self.app.wallet.get_spendable_coins()
+        try:
+            tx = self.app.wallet.make_unsigned_transaction(coins, outputs, self.app.electrum_config, fee)
+        except Exception as e:
+            traceback.print_exc(file=sys.stdout)
+            self.app.show_error(str(e))
+            return
+        # sign transaction
+        try:
+            self.app.wallet.sign_transaction(tx, password)
+        except Exception as e:
+            traceback.print_exc(file=sys.stdout)
+            self.app.show_error(str(e))
+            return
+        # broadcast
+        ok, txid = self.app.wallet.sendtx(tx)
+        self.app.show_info(txid)
 
 
-class ScreenContacts(CScreen):
+class ReceiveScreen(CScreen):
+    kvname = 'receive'
+
+    def update(self):
+        addr = self.app.wallet.get_unused_address(None)
+        address_label = self.screen.ids.get('address')
+        address_label.text = addr
+        self.update_qr()
+
+    def amount_callback(self, popup):
+        amount_label = self.screen.ids.get('amount')
+        amount_label.text = popup.ids.amount_label.text
+        self.update_qr()
+
+    @profiler
+    def update_qrtt(self):
+        raise
+
+    def update_qr(self):
+        from electrum.util import create_URI
+        address = self.screen.ids.get('address').text
+        amount = self.screen.ids.get('amount').text
+        default_text = self.screen.ids.get('amount').default_text
+        if amount == default_text:
+            amount = None
+        else:
+            a, u = amount.split()
+            assert u == self.app.base_unit
+            amount = Decimal(a) * pow(10, self.app.decimal_point())
+        msg = self.screen.ids.get('message').text
+        uri = create_URI(address, amount, msg)
+        qr = self.screen.ids.get('qr')
+        qr.set_data(uri)
+
+    def do_share(self):
+        pass
+
+    def do_clear(self):
+        a = self.screen.ids.get('amount')
+        a.text = a.default_text
+        self.screen.ids.get('message').text = ''
+
+
+
+class ContactsScreen(CScreen):
+    kvname = 'contacts'
 
     def add_new_contact(self):
         dlg = Cache.get('electrum_widgets', 'NewContactDialog')
@@ -118,6 +289,25 @@ class ScreenContacts(CScreen):
             dlg = NewContactDialog()
             Cache.append('electrum_widgets', 'NewContactDialog', dlg)
         dlg.open()
+
+    def update(self):
+        contact_list = self.screen.ids.contact_container
+        contact_list.clear_widgets()
+        child = -1
+        children = contact_list.children
+        for key in sorted(self.app.contacts.keys()):
+            _type, value = self.app.contacts[key]
+            child += 1
+            try:
+                if children[child].label == value:
+                    continue
+            except IndexError:
+                pass
+            ci = Factory.ContactItem()
+            ci.address = key
+            ci.label = value
+            contact_list.add_widget(ci)
+
 
 
 class CSpinner(Factory.Spinner):
@@ -139,7 +329,7 @@ class CSpinner(Factory.Spinner):
 
 
 class TabbedCarousel(Factory.TabbedPanel):
-    '''Custom TabbedOanel using a carousel used in the Main Screen
+    '''Custom TabbedPanel using a carousel used in the Main Screen
     '''
 
     carousel = ObjectProperty(None)
