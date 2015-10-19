@@ -38,6 +38,12 @@ descriptions = [
         'available_for': ['qt'],
     },
     {
+        'name': 'exchange_rate',
+        'fullname': _("Exchange rates"),
+        'description': _("Exchange rates and currency conversion tools."),
+        'available_for': ['qt'],
+    },
+    {
         'name': 'plot',
         'fullname': 'Plot History',
         'description': _("Ability to plot transaction history in graphical mode."),
