@@ -1,3 +1,10 @@
+# Release 2.5.1 (bugfixes)
+ * signatures in transactions were still using the old class
+ * make sure that setup.py uses python2
+ * fix wizard crash with trustedcoin plugin
+ * fix socket infinite loop
+ * fix history bug #1479
+
 # Release 2.5
  * Low-S values are used in signatures (BIP 62).
  * The Kivy GUI has been merged into master.
