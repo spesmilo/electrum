@@ -416,7 +416,7 @@ class InstallWizard(QDialog):
         return True
 
     def show_seed(self, seed, sid):
-        vbox = seed_dialog.show_seed_box_msg(seed, sid)
+        vbox = seed_dialog.show_seed_box_msg(seed, sid, paranoid=True)
         vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _("Next"))))
         self.set_layout(vbox)
         return self.exec_()
