@@ -141,61 +141,6 @@ class TestTransaction(unittest.TestCase):
         res = transaction.parse_xpub('fd307d260305ef27224bbcf6cf5238d2b3638b5a78d5')
         self.assertEquals(res, (None, 'LWdgGJGqSmaGYcp6e21RvpGmcuexJorNEH'))
 
-    def test_sign_tx(self):
-        tx = transaction.Transaction(unsigned_blob)
-        tx.deserialize()
-
-        x_pubkey = 'ff0488b21e03ef2afea18000000089689bff23e1e7fb2f161daa37270a97a3d8c2e537584b2d304ecb47b86d21fc021b010d3bd425f8cf2e04824bfdf1f1f5ff1d51fadd9a41f9e3fb8dd3403b1bfe00000000'
-        privkey = 'T6xPSX4BPefFvFG3ZgJinHUg1tA7dzRBhxXtbaGwTZfu3rHqs9mC'
-
-        tx.sign(keypairs={x_pubkey: privkey})
-        self.assertEquals(tx.serialize(), signed_blob)
-
-        tx.sign(keypairs={x_pubkey: privkey})
-        self.assertEquals(tx.serialize(), signed_blob)
-
-    def test_sweep(self):
-        privkeys = ['6uD1UZqLLvKZMm8oAkwGmswTEGtT1rZyqmTvtPUiDDo4iCbep6Q']
-        unspent = [
-            {
-                "height": 371447,
-                "tx_hash": "8e4d173db094786cc128b0c12eebc2200c0d8bfc3ad04ba39f487222d18bae3c",
-                "tx_pos": 0,
-                "value": 599995800
-            }
-        ]
-        to_address = 'Ld78qvFkoNGsgYsvmCPewdNB8AP8rFDEJQ'
-        network = NetworkMock(unspent)
-        tx = transaction.Transaction.sweep(privkeys, network, to_address, fee=5000)
-        result = transaction.deserialize(tx.serialize())
-        expected = {
-            'inputs': [{
-                'address': 'LL6yPy5Q4UrSffbwwSjKH3hNbUmEkzCH1S',
-                'is_coinbase': False,
-                'num_sig': 1,
-                'prevout_hash': '8e4d173db094786cc128b0c12eebc2200c0d8bfc3ad04ba39f487222d18bae3c',
-                'prevout_n': 0,
-                'pubkeys': ['047b9f9014f8d0d6f24dcaf5681b6ab185bd821e0fcce29d84e0452845baf1b2dbe332a7cd4dbdab786adda6d71b2188298c756b265c63de2794f7317b71a7ac02'],
-                'scriptSig': '48304502203f1ff200490d18bcb802c7cf7ba4264727b089f1db6746a62997285b5ac77969022100e495591ea5111bb23a782984736f32942570fda781b7ed085fc8c88a9756aaac0141047b9f9014f8d0d6f24dcaf5681b6ab185bd821e0fcce29d84e0452845baf1b2dbe332a7cd4dbdab786adda6d71b2188298c756b265c63de2794f7317b71a7ac02',
-                'sequence': 4294967295,
-                'signatures': ['304502203f1ff200490d18bcb802c7cf7ba4264727b089f1db6746a62997285b5ac77969022100e495591ea5111bb23a782984736f32942570fda781b7ed085fc8c88a9756aaac'],
-                'x_pubkeys': ['047b9f9014f8d0d6f24dcaf5681b6ab185bd821e0fcce29d84e0452845baf1b2dbe332a7cd4dbdab786adda6d71b2188298c756b265c63de2794f7317b71a7ac02']}],
-            'lockTime': 0,
-            'outputs': [{'address': 'Ld78qvFkoNGsgYsvmCPewdNB8AP8rFDEJQ',
-                'prevout_n': 0,
-                'scriptPubKey': '76a914c4282f6060b811ee695ebb2068b8788213451d6a88ac',
-                'type': 'address',
-                'value': 599990800}],
-            'version': 1}
-        self.assertEquals(result, expected)
-
-        network = NetworkMock([])
-        tx = transaction.Transaction.sweep(privkeys, network, to_address, fee=5000)
-        self.assertEquals(tx, None)
-
-        privkeys = []
-        tx = transaction.Transaction.sweep(privkeys, network, to_address, fee=5000)
-        self.assertEquals(tx, None)
 
 class NetworkMock(object):
 
