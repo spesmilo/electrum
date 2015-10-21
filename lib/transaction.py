@@ -470,7 +470,14 @@ class Transaction:
         return self.raw
 
     def __init__(self, raw):
-        self.raw = raw.strip() if raw else None
+        if raw is None:
+            self.raw = None
+        elif type(raw) in [str, unicode]:
+            self.raw = raw.strip() if raw else None
+        elif type(raw) is dict:
+            self.raw = raw['hex']
+        else:
+            raise BaseException("cannot initialize transaction", raw)
         self.inputs = None
 
     def update(self, raw):
