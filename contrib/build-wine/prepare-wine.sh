@@ -8,8 +8,11 @@ PYINSTALLER_URL=https://pypi.python.org/packages/source/P/PyInstaller/PyInstalle
 NSIS_URL=http://prdownloads.sourceforge.net/nsis/nsis-2.46-setup.exe?download
 SETUPTOOLS_URL=https://pypi.python.org/packages/2.7/s/setuptools/setuptools-0.6c11.win32-py2.7.exe
 
-# These settings probably don't need change
-export WINEPREFIX=/opt/wine-electrum
+
+## These settings probably don't need change
+export WINEPREFIX=/opt/electrum/wine64
+#export WINEARCH='win32'
+
 PYHOME=c:/python27
 PYTHON="wine $PYHOME/python.exe -OO -B"
 
@@ -19,8 +22,10 @@ set -e
 
 # Clean up Wine environment
 echo "Cleaning $WINEPREFIX"
-rm -rf $WINEPREFIX/*
+rm -rf $WINEPREFIX
 echo "done"
+
+wine 'wineboot'
 
 echo "Cleaning tmp"
 rm -rf tmp
@@ -53,9 +58,6 @@ mv PyInstaller-2.1 $WINEPREFIX/drive_c/pyinstaller
 # Install setuptools
 wget -O setuptools.exe "$SETUPTOOLS_URL"
 wine setuptools.exe
-
-# Install dependencies
-wine "$PYHOME\\Scripts\\easy_install.exe" ecdsa #zbar
 
 # Install NSIS installer
 wget -q -O nsis.exe "$NSIS_URL"
