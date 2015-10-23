@@ -1,300 +1,357 @@
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
-import datetime
-import decimal
+from datetime import datetime
+import inspect
 import requests
-import json
-import threading
+import sys
+from threading import Thread
 import time
-import re
-from ssl import SSLError
+import traceback
+import csv
 from decimal import Decimal
+from functools import partial
 
 from electrum_grs.bitcoin import COIN
 from electrum_grs.plugins import BasePlugin, hook
 from electrum_grs.i18n import _
+from electrum_grs.util import PrintError, ThreadJob, timestamp_to_datetime
+from electrum_grs.util import format_satoshis
 from electrum_grs_gui.qt.util import *
 from electrum_grs_gui.qt.amountedit import AmountEdit
 
+# See https://en.wikipedia.org/wiki/ISO_4217
+CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
+                  'CVE': 0, 'DJF': 0, 'GNF': 0, 'IQD': 3, 'ISK': 0,
+                  'JOD': 3, 'JPY': 0, 'KMF': 0, 'KRW': 0, 'KWD': 3,
+                  'LYD': 3, 'MGA': 1, 'MRO': 1, 'OMR': 3, 'PYG': 0,
+                  'RWF': 0, 'TND': 3, 'UGX': 0, 'UYI': 0, 'VND': 0,
+                  'VUV': 0, 'XAF': 0, 'XAG': 2, 'XAU': 4, 'XOF': 0,
+                  'XPF': 0, 'BTC': 8}
 
-EXCHANGES = ['Poloniex']
+class ExchangeBase(PrintError):
+    def __init__(self, sig):
+        self.history = {}
+        self.quotes = {}
+        self.sig = sig
 
-EXCH_SUPPORT_HIST = [("CoinDesk", "USD"),
-                     ("Winkdex", "USD"),
-                     ("BitcoinVenezuela", "ARS"),
-                     ("BitcoinVenezuela", "VEF")]
-
-class Exchanger(threading.Thread):
-
-    def __init__(self, parent):
-        threading.Thread.__init__(self)
-        self.daemon = True
-        self.parent = parent
-        self.quote_currencies = None
-        self.lock = threading.Lock()
-        self.query_rates = threading.Event()
-        self.use_exchange = self.parent.config.get('use_exchange', "Poloniex")
-        self.parent.exchanges = EXCHANGES
-        #self.parent.win.emit(SIGNAL("refresh_exchanges_combo()"))
-        #self.parent.win.emit(SIGNAL("refresh_currencies_combo()"))
-        self.is_running = False
+    def protocol(self):
+        return "https"
 
     def get_json(self, site, get_string):
-        resp = requests.request('GET', 'https://' + site + get_string, headers={"User-Agent":"Electrum"})
-        return resp.json()
+        url = "".join([self.protocol(), '://', site, get_string])
+        response = requests.request('GET', url,
+                                    headers={'User-Agent' : 'Electrum'})
+        return response.json()
 
-    def exchange(self, btc_amount, quote_currency):
-        with self.lock:
-            if self.quote_currencies is None:
-                return None
-            quote_currencies = self.quote_currencies.copy()
-        if quote_currency not in quote_currencies:
-            return None
-        return btc_amount * Decimal(str(quote_currencies[quote_currency]))
+    def get_csv(self, site, get_string):
+        url = "".join([self.protocol(), '://', site, get_string])
+        response = requests.request('GET', url,
+                                    headers={'User-Agent' : 'Electrum'})
+        reader = csv.DictReader(response.content.split('\n'))
+        return list(reader)
 
-    def stop(self):
-        self.is_running = False
+    def name(self):
+        return self.__class__.__name__
 
-    def update_rate(self):
-        self.use_exchange = self.parent.config.get('use_exchange', "Poloniex")
-        update_rates = {
-            "Poloniex": self.update_polo,
-        }
+    def update_safe(self, ccy):
         try:
-            rates = update_rates[self.use_exchange]()
-        except Exception as e:
-            self.parent.print_error(e)
-            rates = {}
-        with self.lock:
-            self.quote_currencies = rates
-            self.parent.set_currencies(rates)
+            self.print_error("getting fx quotes for", ccy)
+            self.quotes = self.get_rates(ccy)
+            self.print_error("received fx quotes")
+            self.sig.emit(SIGNAL('fx_quotes'))
+        except Exception, e:
+            self.print_error("failed fx quotes:", e)
 
-    def run(self):
-        self.is_running = True
-        while self.is_running:
-            self.query_rates.clear()
-            self.update_rate()
-            self.query_rates.wait(150)
+    def update(self, ccy):
+        t = Thread(target=self.update_safe, args=(ccy,))
+        t.setDaemon(True)
+        t.start()
 
-    def update_polo(self):
+    def get_historical_rates_safe(self, ccy):
+        try:
+            self.print_error("requesting fx history for", ccy)
+            self.history[ccy] = self.historical_rates(ccy)
+            self.print_error("received fx history for", ccy)
+            self.sig.emit(SIGNAL("fx_history"))
+        except Exception, e:
+            self.print_error("failed fx history:", e)
+
+    def get_historical_rates(self, ccy):
+        result = self.history.get(ccy)
+        if not result and ccy in self.history_ccys():
+            t = Thread(target=self.get_historical_rates_safe, args=(ccy,))
+            t.setDaemon(True)
+            t.start()
+        return result
+
+    def history_ccys(self):
+        return []
+
+    def historical_rate(self, ccy, d_t):
+        return self.history.get(ccy, {}).get(d_t.strftime('%Y-%m-%d'))
+
+
+class BlockchainInfo(ExchangeBase):
+    def get_rates(self, ccy):
+        json = self.get_json('blockchain.info', '/ticker')
+        return dict([(r, Decimal(json[r]['15m'])) for r in json])
+
+    def name(self):
+        return "Blockchain"
+
+class Poloniex(ExchangeBase):
+    def get_rates(self, ccy):
         quote_currencies = {}
         tickers = self.get_json('poloniex.com', '/public?command=returnTicker')
         grs_ticker = tickers.get('BTC_GRS')
         grs_btc_rate = quote_currencies['BTC'] = Decimal(grs_ticker['last'])
 
-        blockchain_tickers = self.update_bc()
+        blockchain_tickers = BlockchainInfo(self.sig).get_rates(ccy)
         for currency, btc_rate in blockchain_tickers.items():
             quote_currencies[currency] = grs_btc_rate * btc_rate
 
         return quote_currencies
 
-    def update_bc(self):
-        jsonresp = self.get_json('blockchain.info', "/ticker")
-        return dict([(r, Decimal(str(jsonresp[r]["15m"]))) for r in jsonresp])
 
-class Plugin(BasePlugin):
+class Plugin(BasePlugin, ThreadJob):
 
-    def __init__(self,a,b):
-        BasePlugin.__init__(self,a,b)
-        self.currencies = [self.fiat_unit()]
-        self.exchanges = [self.config.get('use_exchange', "Poloniex")]
-        # Do price discovery
-        self.exchanger = Exchanger(self)
-        self.exchanger.start()
-        self.win = None
+    def __init__(self, parent, config, name):
+        BasePlugin.__init__(self, parent, config, name)
+        # Signal object first
+        self.sig = QObject()
+        self.sig.connect(self.sig, SIGNAL('fx_quotes'), self.on_fx_quotes)
+        self.sig.connect(self.sig, SIGNAL('fx_history'), self.on_fx_history)
+        self.ccy = self.config_ccy()
+        self.history_used_spot = False
+        self.ccy_combo = None
+        self.hist_checkbox = None
+        self.windows = dict()
+
+        is_exchange = lambda obj: (inspect.isclass(obj)
+                                   and issubclass(obj, ExchangeBase)
+                                   and obj != ExchangeBase
+                                   and obj != BlockchainInfo)
+        self.exchanges = dict(inspect.getmembers(sys.modules[__name__],
+                                                 is_exchange))
+        self.set_exchange(self.config_exchange())
+
+    def ccy_amount_str(self, amount, commas):
+        prec = CCY_PRECISIONS.get(self.ccy, 2)
+        fmt_str = "{:%s.%df}" % ("," if commas else "", max(0, prec))
+        return fmt_str.format(round(amount, prec))
+
+    def thread_jobs(self):
+        return [self]
+
+    def run(self):
+        # This runs from the network thread which catches exceptions
+        if self.windows and self.timeout <= time.time():
+            self.timeout = time.time() + 150
+            self.exchange.update(self.ccy)
+
+    def config_ccy(self):
+        '''Use when dynamic fetching is needed'''
+        return self.config.get("currency", "BTC")
+
+    def config_exchange(self):
+        return self.config.get('use_exchange', 'Poloniex')
+
+    def config_history(self):
+        return self.config.get('history_rates', 'unchecked') != 'unchecked'
+
+    def show_history(self):
+        return self.config_history() and self.exchange.history_ccys()
+
+    def set_exchange(self, name):
+        class_ = self.exchanges.get(name) or self.exchanges.values()[0]
+        name = class_.__name__
+        self.print_error("using exchange", name)
+        if self.config_exchange() != name:
+            self.config.set_key('use_exchange', name, True)
+        self.exchange = class_(self.sig)
+        # A new exchange means new fx quotes, initially empty.  Force
+        # a quote refresh
+        self.timeout = 0
+        self.get_historical_rates()
+        self.on_fx_quotes()
+
+    def update_status_bars(self):
+        '''Update status bar fiat balance in all windows'''
+        for window in self.windows:
+            window.update_status()
+
+    def on_new_window(self, window):
+        # Additional send and receive edit boxes
+        send_e = AmountEdit(self.config_ccy)
+        window.send_grid.addWidget(send_e, 4, 2, Qt.AlignLeft)
+        window.amount_e.frozen.connect(
+            lambda: send_e.setFrozen(window.amount_e.isReadOnly()))
+        receive_e = AmountEdit(self.config_ccy)
+        window.receive_grid.addWidget(receive_e, 2, 2, Qt.AlignLeft)
+
+        self.windows[window] = {'edits': (send_e, receive_e),
+                                'last_edited': {}}
+        self.connect_fields(window, window.amount_e, send_e, window.fee_e)
+        self.connect_fields(window, window.receive_amount_e, receive_e, None)
+        window.history_list.refresh_headers()
+        window.update_status()
+
+    def connect_fields(self, window, btc_e, fiat_e, fee_e):
+        last_edited = self.windows[window]['last_edited']
+
+        def edit_changed(edit):
+            edit.setStyleSheet(BLACK_FG)
+            last_edited[(fiat_e, btc_e)] = edit
+            amount = edit.get_amount()
+            rate = self.exchange_rate()
+            if rate is None or amount is None:
+                if edit is fiat_e:
+                    btc_e.setText("")
+                    if fee_e:
+                        fee_e.setText("")
+                else:
+                    fiat_e.setText("")
+            else:
+                if edit is fiat_e:
+                    btc_e.setAmount(int(amount / Decimal(rate) * COIN))
+                    if fee_e: window.update_fee()
+                    btc_e.setStyleSheet(BLUE_FG)
+                else:
+                    fiat_e.setText(self.ccy_amount_str(
+                        amount * Decimal(rate) / COIN, False))
+                    fiat_e.setStyleSheet(BLUE_FG)
+
+        fiat_e.textEdited.connect(partial(edit_changed, fiat_e))
+        btc_e.textEdited.connect(partial(edit_changed, btc_e))
+        last_edited[(fiat_e, btc_e)] = btc_e
 
     @hook
-    def init_qt(self, gui):
-        self.gui = gui
-        self.win = self.gui.main_window
-        self.win.connect(self.win, SIGNAL("refresh_currencies()"), self.win.update_status)
-        self.btc_rate = Decimal("0.0")
-        self.resp_hist = {}
-        self.tx_list = {}
-        self.gui.exchanger = self.exchanger #
-        self.add_send_edit()
-        self.add_receive_edit()
-        self.win.update_status()
+    def do_clear(self, window):
+        self.windows[window]['edits'][0].setText('')
+
+    def on_close_window(self, window):
+        self.windows.pop(window)
 
     def close(self):
+        # Get rid of hooks before updating status bars.
         BasePlugin.close(self)
-        self.exchanger.stop()
-        self.exchanger = None
-        self.gui.exchanger = None
-        self.send_fiat_e.hide()
-        self.receive_fiat_e.hide()
-        self.win.update_status()
+        self.update_status_bars()
+        self.refresh_headers()
+        for window, data in self.windows.items():
+            for edit in data['edits']:
+                edit.hide()
+            window.update_status()
 
-    def set_currencies(self, currency_options):
-        self.currencies = sorted(currency_options)
-        if self.win:
-            self.win.emit(SIGNAL("refresh_currencies()"))
-            self.win.emit(SIGNAL("refresh_currencies_combo()"))
+    def refresh_headers(self):
+        for window in self.windows:
+            window.history_list.refresh_headers()
+
+    def on_fx_history(self):
+        '''Called when historical fx quotes are updated'''
+        for window in self.windows:
+            window.history_list.update()
+
+    def on_fx_quotes(self):
+        '''Called when fresh spot fx quotes come in'''
+        self.update_status_bars()
+        self.populate_ccy_combo()
+        # Refresh edits with the new rate
+        for window, data in self.windows.items():
+            for edit in data['last_edited'].values():
+                edit.textEdited.emit(edit.text())
+        # History tab needs updating if it used spot
+        if self.history_used_spot:
+            self.on_fx_history()
+
+    def on_ccy_combo_change(self):
+        '''Called when the chosen currency changes'''
+        ccy = str(self.ccy_combo.currentText())
+        if ccy and ccy != self.ccy:
+            self.ccy = ccy
+            self.config.set_key('currency', ccy, True)
+            self.update_status_bars()
+            self.get_historical_rates() # Because self.ccy changes
+            self.hist_checkbox_update()
+
+    def hist_checkbox_update(self):
+        if self.hist_checkbox:
+            self.hist_checkbox.setEnabled(self.ccy in self.exchange.history_ccys())
+            self.hist_checkbox.setChecked(self.config_history())
+
+    def populate_ccy_combo(self):
+        # There should be at most one instance of the settings dialog
+        combo = self.ccy_combo
+        # NOTE: bool(combo) is False if it is empty.  Nuts.
+        if combo is not None:
+            combo.blockSignals(True)
+            combo.clear()
+            combo.addItems(sorted(self.exchange.quotes.keys()))
+            combo.blockSignals(False)
+            combo.setCurrentIndex(combo.findText(self.ccy))
+
+    def exchange_rate(self):
+        '''Returns None, or the exchange rate as a Decimal'''
+        rate = self.exchange.quotes.get(self.ccy)
+        if rate:
+            return Decimal(rate)
 
     @hook
-    def get_fiat_balance_text(self, btc_balance, r):
-        # return balance as: 1.23 USD
-        r[0] = self.create_fiat_balance_text(Decimal(btc_balance) / COIN)
-
-    def get_fiat_price_text(self, r):
-        # return BTC price as: 123.45 USD
-        r[0] = self.create_fiat_balance_text(1)
-        quote = r[0]
-        if quote:
-            r[0] = "%s"%quote
+    def format_amount_and_units(self, btc_balance):
+        rate = self.exchange_rate()
+        return '' if rate is None else " (%s %s)" % (self.value_str(btc_balance, rate), self.ccy)
 
     @hook
-    def get_fiat_status_text(self, btc_balance, r2):
-        # return status as:   (1.23 USD)    1 BTC~123.45 USD
-        text = ""
-        r = {}
-        self.get_fiat_price_text(r)
-        quote = r.get(0)
-        if quote:
-            price_text = "1 GRS~%s"%quote
-            fiat_currency = quote[-3:]
-            btc_price = self.btc_rate
-            fiat_balance = Decimal(btc_price) * Decimal(btc_balance) / COIN
-            balance_text = "(%.2f %s)" % (fiat_balance,fiat_currency)
-            # If BTC, show all eight digits.
-            if fiat_currency == 'BTC':
-                balance_text = "(%.8f %s)" % (fiat_balance,fiat_currency)
-            text = "  " + balance_text + "     " + price_text + " "
-        r2[0] = text
+    def get_fiat_status_text(self, btc_balance):
+        rate = self.exchange_rate()
+        return _("  (No FX rate available)") if rate is None else "1 GRS~%s %s" % (self.value_str(COIN, rate), self.ccy)
 
-    def create_fiat_balance_text(self, btc_balance):
-        quote_currency = self.fiat_unit()
-        self.exchanger.use_exchange = self.config.get("use_exchange", "Poloniex")
-        cur_rate = self.exchanger.exchange(Decimal("1.0"), quote_currency)
-        if cur_rate is None:
-            quote_text = ""
-        else:
-            quote_balance = btc_balance * Decimal(cur_rate)
-            self.btc_rate = cur_rate
-            quote_text = "%.8f %s" % (quote_balance, quote_currency)
-        return quote_text
-
-    @hook
-    def load_wallet(self, wallet, window):
-        tx_list = {}
-        for item in self.wallet.get_history(self.wallet.storage.get("current_account", None)):
-            tx_hash, conf, value, timestamp, balance = item
-            tx_list[tx_hash] = {'value': value, 'timestamp': timestamp }
-
-        self.tx_list = tx_list
-        self.cur_exchange = self.config.get('use_exchange', "Poloniex")
-        t = threading.Thread(target=self.request_history_rates, args=())
-        t.setDaemon(True)
-        t.start()
-
+    def get_historical_rates(self):
+        if self.show_history():
+            self.exchange.get_historical_rates(self.ccy)
 
     def requires_settings(self):
         return True
 
-
-    def request_history_rates(self):
-        # None available.
-        return
-
-        if self.config.get('history_rates') != "checked":
-            return
-        if not self.tx_list:
-            return
-
-        try:
-            mintimestr = datetime.datetime.fromtimestamp(int(min(self.tx_list.items(), key=lambda x: x[1]['timestamp'])[1]['timestamp'])).strftime('%Y-%m-%d')
-        except Exception:
-            return
-        maxtimestr = datetime.datetime.now().strftime('%Y-%m-%d')
-
-        if self.cur_exchange == "CoinDesk":
-            try:
-                self.resp_hist = self.exchanger.get_json('api.coindesk.com', "/v1/bpi/historical/close.json?start=" + mintimestr + "&end=" + maxtimestr)
-            except Exception:
-                return
-        elif self.cur_exchange == "Winkdex":
-            try:
-                self.resp_hist = self.exchanger.get_json('winkdex.com', "/api/v0/series?start_time=1342915200")['series'][0]['results']
-            except Exception:
-                return
-        elif self.cur_exchange == "BitcoinVenezuela":
-            cur_currency = self.fiat_unit()
-            if cur_currency == "VEF":
-                try:
-                    self.resp_hist = self.exchanger.get_json('api.bitcoinvenezuela.com', "/historical/index.php?coin=BTC")['VEF_BTC']
-                except Exception:
-                    return
-            elif cur_currency == "ARS":
-                try:
-                    self.resp_hist = self.exchanger.get_json('api.bitcoinvenezuela.com', "/historical/index.php?coin=BTC")['ARS_BTC']
-                except Exception:
-                    return
-            else:
-                return
-
-        self.win.need_update.set()
+    def value_str(self, satoshis, rate):
+        if satoshis is None:  # Can happen with incomplete history
+            return _("Unknown")
+        if rate:
+            value = Decimal(satoshis) / COIN * Decimal(rate)
+            return "%s" % (self.ccy_amount_str(value, True))
+        return _("No data")
 
     @hook
-    def history_tab_update(self):
-        # None available.
-        return
+    def historical_value_str(self, satoshis, d_t):
+        rate = self.exchange.historical_rate(self.ccy, d_t)
+        # Frequently there is no rate for today, until tomorrow :)
+        # Use spot quotes in that case
+        if rate is None and (datetime.today().date() - d_t.date()).days <= 2:
+            rate = self.exchange.quotes.get(self.ccy)
+            self.history_used_spot = True
+        return self.value_str(satoshis, rate)
 
-        if self.config.get('history_rates') != "checked":
+    @hook
+    def history_tab_headers(self, headers):
+        if self.show_history():
+            headers.extend(['%s '%self.ccy + _('Amount'), '%s '%self.ccy + _('Balance')])
+
+    @hook
+    def history_tab_update_begin(self):
+        self.history_used_spot = False
+
+    @hook
+    def history_tab_update(self, tx, entry):
+        if not self.show_history():
             return
-        if not self.resp_hist:
-            return
-        if not self.wallet:
-            return
-
-        self.win.is_edit = True
-        self.win.history_list.setColumnCount(6)
-        self.win.history_list.setHeaderLabels( [ '', _('Date'), _('Description') , _('Amount'), _('Balance'), _('Fiat Amount')] )
-        root = self.win.history_list.invisibleRootItem()
-        childcount = root.childCount()
-        for i in range(childcount):
-            item = root.child(i)
-            try:
-                tx_info = self.tx_list[str(item.data(0, Qt.UserRole).toPyObject())]
-            except Exception:
-                newtx = self.wallet.get_history()
-                v = newtx[[x[0] for x in newtx].index(str(item.data(0, Qt.UserRole).toPyObject()))][2]
-                tx_info = {'timestamp':int(time.time()), 'value': v}
-                pass
-            tx_time = int(tx_info['timestamp'])
-            tx_value = Decimal(str(tx_info['value'])) / COIN
-            if self.cur_exchange == "CoinDesk":
-                tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
-                try:
-                    tx_fiat_val = "%.2f %s" % (tx_value * Decimal(self.resp_hist['bpi'][tx_time_str]), "USD")
-                except KeyError:
-                    tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(str(tx_info['value']))/COIN , "USD")
-            elif self.cur_exchange == "Winkdex":
-                tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d') + "T16:00:00-04:00"
-                try:
-                    tx_rate = self.resp_hist[[x['timestamp'] for x in self.resp_hist].index(tx_time_str)]['price']
-                    tx_fiat_val = "%.2f %s" % (tx_value * Decimal(tx_rate)/Decimal("100.0"), "USD")
-                except ValueError:
-                    tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(tx_info['value'])/COIN , "USD")
-                except KeyError:
-                    tx_fiat_val = _("No data")
-            elif self.cur_exchange == "BitcoinVenezuela":
-                tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
-                try:
-                    num = self.resp_hist[tx_time_str].replace(',','')
-                    tx_fiat_val = "%.2f %s" % (tx_value * Decimal(num), self.fiat_unit())
-                except KeyError:
-                    tx_fiat_val = _("No data")
-
-            tx_fiat_val = " "*(12-len(tx_fiat_val)) + tx_fiat_val
-            item.setText(5, tx_fiat_val)
-            item.setFont(5, QFont(MONOSPACE_FONT))
-            if Decimal(str(tx_info['value'])) < 0:
-                item.setForeground(5, QBrush(QColor("#BC1E1E")))
-
-        self.win.history_list.setColumnWidth(5, 120)
-        self.win.is_edit = False
-
+        tx_hash, conf, value, timestamp, balance = tx
+        if conf <= 0:
+            date = datetime.today()
+        else:
+            date = timestamp_to_datetime(timestamp)
+        for amount in [value, balance]:
+            text = self.historical_value_str(amount, date)
+            entry.append(text)
 
     def settings_widget(self, window):
         return EnterButton(_('Settings'), self.settings_dialog)
@@ -305,168 +362,49 @@ class Plugin(BasePlugin):
         layout = QGridLayout(d)
         layout.addWidget(QLabel(_('Exchange rate API: ')), 0, 0)
         layout.addWidget(QLabel(_('Currency: ')), 1, 0)
-        # None available.
+        # Disabled.
         # layout.addWidget(QLabel(_('History Rates: ')), 2, 0)
-        combo = QComboBox()
-        combo_ex = QComboBox()
-        hist_checkbox = QCheckBox()
-        hist_checkbox.setEnabled(False)
-        hist_checkbox.setChecked(self.config.get('history_rates', 'unchecked') != 'unchecked')
-        ok_button = QPushButton(_("OK"))
 
-        def on_change(x):
-            try:
-                cur_request = str(self.currencies[x])
-            except Exception:
-                return
-            if cur_request != self.fiat_unit():
-                self.config.set_key('currency', cur_request, True)
-                cur_exchange = self.config.get('use_exchange', "Poloniex")
-                if (cur_exchange, cur_request) in EXCH_SUPPORT_HIST:
-                    hist_checkbox.setEnabled(True)
-                else:
-                    disable_check()
-                self.win.update_status()
-                try:
-                    self.fiat_button
-                except:
-                    pass
-                else:
-                    self.fiat_button.setText(cur_request)
+        # Currency list
+        self.ccy_combo = QComboBox()
+        self.ccy_combo.currentIndexChanged.connect(self.on_ccy_combo_change)
+        self.populate_ccy_combo()
 
-        def disable_check():
-            hist_checkbox.setChecked(False)
-            hist_checkbox.setEnabled(False)
-
-        def on_change_ex(x):
-            cur_request = str(self.exchanges[x])
-            if cur_request != self.config.get('use_exchange', "Poloniex"):
-                self.config.set_key('use_exchange', cur_request, True)
-                self.currencies = []
-                combo.clear()
-                self.exchanger.query_rates.set()
-                cur_currency = self.fiat_unit()
-                if (cur_request, cur_currency) in EXCH_SUPPORT_HIST:
-                    hist_checkbox.setEnabled(True)
-                else:
-                    disable_check()
-                set_currencies(combo)
-                self.win.update_status()
+        def on_change_ex(idx):
+            exchange = str(combo_ex.currentText())
+            if exchange != self.exchange.name():
+                self.set_exchange(exchange)
+                self.hist_checkbox_update()
 
         def on_change_hist(checked):
             if checked:
                 self.config.set_key('history_rates', 'checked')
-                self.request_history_rates()
+                self.get_historical_rates()
             else:
                 self.config.set_key('history_rates', 'unchecked')
-                self.win.history_list.setHeaderLabels( [ '', _('Date'), _('Description') , _('Amount'), _('Balance')] )
-                self.win.history_list.setColumnCount(5)
-
-        def set_hist_check(hist_checkbox):
-            cur_exchange = self.config.get('use_exchange', "Poloniex")
-            hist_checkbox.setEnabled(cur_exchange in ["CoinDesk", "Winkdex", "BitcoinVenezuela"])
-
-        def set_currencies(combo):
-            try:
-                combo.blockSignals(True)
-                current_currency = self.fiat_unit()
-                combo.clear()
-            except Exception:
-                return
-            combo.addItems(self.currencies)
-            try:
-                index = self.currencies.index(current_currency)
-            except Exception:
-                index = 0
-            combo.blockSignals(False)
-            combo.setCurrentIndex(index)
-
-        def set_exchanges(combo_ex):
-            try:
-                combo_ex.clear()
-            except Exception:
-                return
-            combo_ex.addItems(self.exchanges)
-            try:
-                index = self.exchanges.index(self.config.get('use_exchange', "Poloniex"))
-            except Exception:
-                index = 0
-            combo_ex.setCurrentIndex(index)
+            self.refresh_headers()
 
         def ok_clicked():
-            if self.config.get('use_exchange', "Poloniex") in ["CoinDesk", "itBit"]:
-                self.exchanger.query_rates.set()
-            d.accept();
+            self.timeout = 0
+            self.ccy_combo = None
+            d.accept()
 
-        set_exchanges(combo_ex)
-        set_currencies(combo)
-        set_hist_check(hist_checkbox)
-        combo.currentIndexChanged.connect(on_change)
+        combo_ex = QComboBox()
+        combo_ex.addItems(sorted(self.exchanges.keys()))
+        combo_ex.setCurrentIndex(combo_ex.findText(self.config_exchange()))
         combo_ex.currentIndexChanged.connect(on_change_ex)
-        hist_checkbox.stateChanged.connect(on_change_hist)
-        combo.connect(self.win, SIGNAL('refresh_currencies_combo()'), lambda: set_currencies(combo))
-        combo_ex.connect(d, SIGNAL('refresh_exchanges_combo()'), lambda: set_exchanges(combo_ex))
+
+        self.hist_checkbox = QCheckBox()
+        self.hist_checkbox.stateChanged.connect(on_change_hist)
+        self.hist_checkbox_update()
+
+        ok_button = QPushButton(_("OK"))
         ok_button.clicked.connect(lambda: ok_clicked())
-        layout.addWidget(combo,1,1)
+
+        layout.addWidget(self.ccy_combo,1,1)
         layout.addWidget(combo_ex,0,1)
-        # None available.
-        # layout.addWidget(hist_checkbox,2,1)
+        # Disabled.
+        # layout.addWidget(self.hist_checkbox,2,1)
         layout.addWidget(ok_button,3,1)
 
-        if d.exec_():
-            return True
-        else:
-            return False
-
-    def fiat_unit(self):
-        return self.config.get("currency", "BTC")
-
-    def add_send_edit(self):
-        self.send_fiat_e = AmountEdit(self.fiat_unit)
-        btc_e = self.win.amount_e
-        fee_e = self.win.fee_e
-        self.connect_fields(btc_e, self.send_fiat_e, fee_e)
-        self.win.send_grid.addWidget(self.send_fiat_e, 4, 3, Qt.AlignHCenter)
-        btc_e.frozen.connect(lambda: self.send_fiat_e.setFrozen(btc_e.isReadOnly()))
-
-    def add_receive_edit(self):
-        self.receive_fiat_e = AmountEdit(self.fiat_unit)
-        btc_e = self.win.receive_amount_e
-        self.connect_fields(btc_e, self.receive_fiat_e, None)
-        self.win.receive_grid.addWidget(self.receive_fiat_e, 2, 3, Qt.AlignHCenter)
-
-    def connect_fields(self, btc_e, fiat_e, fee_e):
-        def fiat_changed():
-            fiat_e.setStyleSheet(BLACK_FG)
-            try:
-                fiat_amount = Decimal(str(fiat_e.text()))
-            except:
-                btc_e.setText("")
-                if fee_e: fee_e.setText("")
-                return
-            exchange_rate = self.exchanger.exchange(Decimal("1.0"), self.fiat_unit())
-            if exchange_rate is not None:
-                btc_amount = fiat_amount/exchange_rate
-                btc_e.setAmount(int(btc_amount*Decimal(COIN)))
-                btc_e.setStyleSheet(BLUE_FG)
-                if fee_e: self.win.update_fee()
-        fiat_e.textEdited.connect(fiat_changed)
-        def btc_changed():
-            btc_e.setStyleSheet(BLACK_FG)
-            if self.exchanger is None:
-                return
-            btc_amount = btc_e.get_amount()
-            if btc_amount is None:
-                fiat_e.setText("")
-                return
-            fiat_amount = self.exchanger.exchange(Decimal(btc_amount)/Decimal(COIN), self.fiat_unit())
-            if fiat_amount is not None:
-                pos = fiat_e.cursorPosition()
-                fiat_e.setText("%.2f"%fiat_amount)
-                fiat_e.setCursorPosition(pos)
-                fiat_e.setStyleSheet(BLUE_FG)
-        btc_e.textEdited.connect(btc_changed)
-
-    @hook
-    def do_clear(self):
-        self.send_fiat_e.setText('')
+        return d.exec_()
