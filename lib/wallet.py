@@ -125,6 +125,10 @@ class WalletStorage(PrintError):
             f.write(s)
             f.flush()
             os.fsync(f.fileno())
+
+        if 'ANDROID_DATA' not in os.environ:
+            import stat
+            mode = os.stat(self.path).st_mode if os.path.exists(self.path) else stat.S_IREAD | stat.S_IWRITE
         # perform atomic write on POSIX systems
         try:
             os.rename(temp_path, self.path)
@@ -133,7 +137,7 @@ class WalletStorage(PrintError):
             os.rename(temp_path, self.path)
         if 'ANDROID_DATA' not in os.environ:
             import stat
-            os.chmod(self.path,stat.S_IREAD | stat.S_IWRITE)
+            os.chmod(self.path, mode)
         self.print_error("saved")
 
 
