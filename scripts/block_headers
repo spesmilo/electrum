@@ -7,8 +7,7 @@ import electrum_grs
 
 # start network
 c = electrum_grs.SimpleConfig()
-s = electrum_grs.daemon.get_daemon(c,True)
-network = electrum_grs.NetworkProxy(s,c)
+network = electrum_grs.Network(c)
 network.start()
 
 # wait until connected
@@ -26,4 +25,3 @@ network.send([('blockchain.headers.subscribe',[])], callback)
 # 3. wait for results
 while network.is_connected():
     time.sleep(1)
-

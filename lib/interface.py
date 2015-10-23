@@ -17,10 +17,14 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import copy, re, errno, os
-import threading, traceback, sys, time, Queue
+import os
+import re
 import socket
 import ssl
+import sys
+import threading
+import time
+import traceback
 
 import requests
 ca_path = requests.certs.where()
@@ -28,97 +32,62 @@ ca_path = requests.certs.where()
 import util
 import x509
 import pem
-from version import ELECTRUM_VERSION, PROTOCOL_VERSION
-from simple_config import SimpleConfig
 
 
-def Interface(server, response_queue, config = None):
-    """Interface factory function.  The returned interface class handles the connection
-    to a single remote electrum server.  The object handles all necessary locking.  It's
-    exposed API is:
+def Connection(server, queue, config_path):
+    """Makes asynchronous connections to a remote electrum server.
+    Returns the running thread that is making the connection.
 
-    - Inherits everything from threading.Thread.
-    - Member functions send_request(), stop(), is_connected()
-    - Member variable server.
-    
-    "server" is constant for the object's lifetime and hence synchronization is unnecessary.
+    Once the thread has connected, it finishes, placing a tuple on the
+    queue of the form (server, socket), where socket is None if
+    connection failed.
     """
     host, port, protocol = server.split(':')
-    if protocol in 'st':
-        return TcpInterface(server, response_queue, config)
-    else:
-        raise Exception('Unknown protocol: %s'%protocol)
+    if not protocol in 'st':
+        raise Exception('Unknown protocol: %s' % protocol)
+    c = TcpConnection(server, queue, config_path)
+    c.start()
+    return c
 
-# Connection status
-CS_OPENING, CS_CONNECTED, CS_FAILED = range(3)
+class TcpConnection(threading.Thread, util.PrintError):
 
-class TcpInterface(threading.Thread):
-
-    def __init__(self, server, response_queue, config = None):
+    def __init__(self, server, queue, config_path):
         threading.Thread.__init__(self)
         self.daemon = True
-        self.config = config if config is not None else SimpleConfig()
-        # Set by stop(); no more data is exchanged and the thread exits after gracefully
-        # closing the socket
-        self.disconnect = False
-        self._status = CS_OPENING
-        self.debug = False # dump network messages. can be changed at runtime using the console
-        self.message_id = 0
-        self.response_queue = response_queue
-        self.request_queue = Queue.Queue()
-        self.unanswered_requests = {}
-        # request timeouts
-        self.request_time = time.time()
-        self.ping_time = 0
-        # parse server
+        self.config_path = config_path
+        self.queue = queue
         self.server = server
         self.host, self.port, self.protocol = self.server.split(':')
         self.host = str(self.host)
         self.port = int(self.port)
         self.use_ssl = (self.protocol == 's')
 
-    def print_error(self, *msg):
-        util.print_error("[%s]"%self.host, *msg)
+    def diagnostic_name(self):
+        return self.host
 
-    def process_response(self, response):
-        if self.debug:
-            self.print_error("<--", response)
-
-        msg_id = response.get('id')
-        error = response.get('error')
-        result = response.get('result')
-
-        if msg_id is not None:
-            method, params, _id, queue = self.unanswered_requests.pop(msg_id)
-            if queue is None:
-                queue = self.response_queue
+    def check_host_name(self, peercert, name):
+        """Simple certificate/host name checker.  Returns True if the
+        certificate matches, False otherwise.  Does not support
+        wildcards."""
+        # Check that the peer has supplied a certificate.
+        # None/{} is not acceptable.
+        if not peercert:
+            return False
+        if peercert.has_key("subjectAltName"):
+            for typ, val in peercert["subjectAltName"]:
+                if typ == "DNS" and val == name:
+                    return True
         else:
-            # notification
-            method = response.get('method')
-            params = response.get('params')
-            _id = None
-            queue = self.response_queue
-            # restore parameters
-            if method == 'blockchain.numblocks.subscribe':
-                result = params[0]
-                params = []
-            elif method == 'blockchain.headers.subscribe':
-                result = params[0]
-                params = []
-            elif method == 'blockchain.address.subscribe':
-                addr = params[0]
-                result = params[1]
-                params = [addr]
-
-        if method == 'server.version':
-            self.server_version = result
-            return
-
-        if error:
-            queue.put((self, {'method':method, 'params':params, 'error':error, 'id':_id}))
-        else:
-            queue.put((self, {'method':method, 'params':params, 'result':result, 'id':_id}))
-
+            # Only check the subject DN if there is no subject alternative
+            # name.
+            cn = None
+            for attr, val in peercert["subject"]:
+                # Use most-specific (last) commonName attribute.
+                if attr == "commonName":
+                    cn = val
+            if cn is not None:
+                return cn == name
+        return False
 
     def get_simple_socket(self):
         try:
@@ -138,10 +107,9 @@ class TcpInterface(threading.Thread):
         else:
             self.print_error("failed to connect", str(e))
 
-
     def get_socket(self):
         if self.use_ssl:
-            cert_path = os.path.join( self.config.path, 'certs', self.host)
+            cert_path = os.path.join(self.config_path, 'certs', self.host)
             if not os.path.exists(cert_path):
                 is_new = True
                 s = self.get_simple_socket()
@@ -152,7 +120,7 @@ class TcpInterface(threading.Thread):
                     s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_TLSv1, cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_path, do_handshake_on_connect=True)
                 except ssl.SSLError, e:
                     s = None
-                if s and check_host_name(s.getpeercert(), self.host):
+                if s and self.check_host_name(s.getpeercert(), self.host):
                     self.print_error("SSL certificate signed by CA")
                     return s
 
@@ -229,117 +197,126 @@ class TcpInterface(threading.Thread):
 
         return s
 
-    def send_request(self, request, response_queue = None):
-        '''Queue a request.'''
+    def run(self):
+        socket = self.get_socket()
+        if socket:
+            self.print_error("connected")
+        self.queue.put((self.server, socket))
+
+class Interface(util.PrintError):
+    """The Interface class handles a socket connected to a single remote
+    electrum server.  It's exposed API is:
+
+    - Member functions close(), fileno(), get_responses(), has_timed_out(),
+      ping_required(), queue_request(), send_requests()
+    - Member variable server.
+    """
+
+    def __init__(self, server, socket):
+        self.server = server
+        self.host, _, _ = server.split(':')
+        self.socket = socket
+
+        self.pipe = util.SocketPipe(socket)
+        self.pipe.set_timeout(0.0)  # Don't wait for data
+        # Dump network messages.  Set at runtime from the console.
+        self.debug = False
+        self.unsent_requests = []
+        self.unanswered_requests = {}
+        # Set last ping to zero to ensure immediate ping
+        self.last_request = time.time()
+        self.last_ping = 0
+        self.closed_remotely = False
+
+    def diagnostic_name(self):
+        return self.host
+
+    def fileno(self):
+        # Needed for select
+        return self.socket.fileno()
+
+    def close(self):
+        if not self.closed_remotely:
+            self.socket.shutdown(socket.SHUT_RDWR)
+        self.socket.close()
+
+    def queue_request(self, *args):  # method, params, _id
+        '''Queue a request, later to be send with send_requests when the
+        socket is available for writing.
+        '''
         self.request_time = time.time()
-        self.request_queue.put((copy.deepcopy(request), response_queue))
+        self.unsent_requests.append(args)
 
     def send_requests(self):
-        '''Sends all queued requests'''
-        while self.is_connected() and not self.request_queue.empty():
-            request, response_queue = self.request_queue.get()
-            method = request.get('method')
-            params = request.get('params')
-            r = {'id': self.message_id, 'method': method, 'params': params}
-            try:
-                self.pipe.send(r)
-            except socket.error, e:
-                self.print_error("socket error:", e)
-                self.stop()
-                return
+        '''Sends all queued requests.  Returns False on failure.'''
+        make_dict = lambda (m, p, i): {'method': m, 'params': p, 'id': i}
+        wire_requests = map(make_dict, self.unsent_requests)
+        try:
+            self.pipe.send_all(wire_requests)
+        except socket.error, e:
+            self.print_error("socket error:", e)
+            return False
+        for request in self.unsent_requests:
             if self.debug:
-                self.print_error("-->", r)
-            self.unanswered_requests[self.message_id] = method, params, request.get('id'), response_queue
-            self.message_id += 1
+                self.print_error("-->", request)
+            self.unanswered_requests[request[2]] = request
+        self.unsent_requests = []
+        return True
 
-    def is_connected(self):
-        '''True if status is connected'''
-        return self._status == CS_CONNECTED and not self.disconnect
+    def ping_required(self):
+        '''Maintains time since last ping.  Returns True if a ping should
+        be sent.
+        '''
+        now = time.time()
+        if now - self.last_ping > 60:
+            self.last_ping = now
+            return True
+        return False
 
-    def stop(self):
-        if not self.disconnect:
-            self.disconnect = True
-            self.print_error("disconnecting")
+    def has_timed_out(self):
+        '''Returns True if the interface has timed out.'''
+        if (self.unanswered_requests and time.time() - self.request_time > 10
+            and self.pipe.idle_time() > 10):
+            self.print_error("timeout", len(self.unanswered_requests))
+            return True
 
-    def maybe_ping(self):
-        # ping the server with server.version
-        if time.time() - self.ping_time > 60:
-            self.send_request({'method':'server.version', 'params':[ELECTRUM_VERSION, PROTOCOL_VERSION]})
-            self.ping_time = time.time()
-        # stop interface if we have been waiting for more than 10 seconds
-        if self.unanswered_requests and time.time() - self.request_time > 10 and self.pipe.idle_time() > 10:
-            self.print_error("interface timeout", len(self.unanswered_requests))
-            self.stop()
+        return False
 
-    def get_and_process_response(self):
-        if self.is_connected():
+    def get_responses(self):
+        '''Call if there is data available on the socket.  Returns a list of
+        (request, response) pairs.  Notifications are singleton
+        unsolicited responses presumably as a result of prior
+        subscriptions, so request is None and there is no 'id' member.
+        Otherwise it is a response, which has an 'id' member and a
+        corresponding request.  If the connection was closed remotely
+        or the remote server is misbehaving, a (None, None) will appear.
+        '''
+        responses = []
+        while True:
             try:
                 response = self.pipe.get()
             except util.timeout:
-                return
-            # If remote side closed the socket, SocketPipe closes our socket and returns None
+                break
             if response is None:
-                self.disconnect = True
+                responses.append((None, None))
+                self.closed_remotely = True
                 self.print_error("connection closed remotely")
+                break
+            if self.debug:
+                self.print_error("<--", response)
+            wire_id = response.get('id', None)
+            if wire_id is None:  # Notification
+                responses.append((None, response))
             else:
-                self.process_response(response)
+                request = self.unanswered_requests.pop(wire_id, None)
+                if request:
+                    responses.append((request, response))
+                else:
+                    self.print_error("unknown wire ID", wire_id)
+                    responses.append(None, None) # Signal
+                    break
 
-    def run(self):
-        s = self.get_socket()
-        if s:
-            self.pipe = util.SocketPipe(s)
-            s.settimeout(0.1)
-            self.print_error("connected")
-            self._status = CS_CONNECTED
-            # Indicate to parent that we've connected
-            self.notify_status()
-            while self.is_connected():
-                self.maybe_ping()
-                self.send_requests()
-                self.get_and_process_response()
-            s.shutdown(socket.SHUT_RDWR)
-            s.close()
-
-        # Also for the s is None case 
-        self._status = CS_FAILED
-        # Indicate to parent that the connection is now down
-        self.notify_status()
-
-    def notify_status(self):
-        '''Notify owner that we have just connected or just failed the connection.
-        Owner determines which through e.g. testing is_connected()'''
-        self.response_queue.put((self, None))
-
-
-def _match_hostname(name, val):
-    if val == name:
-        return True
-
-    return val.startswith('*.') and name.endswith(val[1:])
-
-
-def check_host_name(peercert, name):
-    """Simple certificate/host name checker.  Returns True if the
-    certificate matches, False otherwise."""
-    # Check that the peer has supplied a certificate.
-    # None/{} is not acceptable.
-    if not peercert:
-        return False
-    if peercert.has_key("subjectAltName"):
-        for typ, val in peercert["subjectAltName"]:
-            if typ == "DNS" and _match_hostname(name, val):
-                return True
-    else:
-        # Only check the subject DN if there is no subject alternative
-        # name.
-        cn = None
-        for attr, val in peercert["subject"]:
-            # Use most-specific (last) commonName attribute.
-            if attr == "commonName":
-                cn = val
-        if cn is not None:
-            return _match_hostname(name, cn)
-    return False
+        return responses
 
 
 def check_cert(host, cert):
@@ -361,7 +338,15 @@ def check_cert(host, cert):
     util.print_msg(m)
 
 
+# Used by tests
+def _match_hostname(name, val):
+    if val == name:
+        return True
+
+    return val.startswith('*.') and name.endswith(val[1:])
+
 def test_certificates():
+    from simple_config import SimpleConfig
     config = SimpleConfig()
     mydir = os.path.join(config.path, "certs")
     certs = os.listdir(mydir)

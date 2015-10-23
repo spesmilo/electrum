@@ -32,7 +32,6 @@ import struct
 #
 import struct
 import StringIO
-import mmap
 import random
 
 NO_SIGNATURE = 'ff'
@@ -54,16 +53,6 @@ class BCDataStream(object):
             self.input = bytes
         else:
             self.input += bytes
-
-    def map_file(self, file, start):  # Initialize with bytes from file
-        self.input = mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
-        self.read_cursor = start
-
-    def seek_file(self, position):
-        self.read_cursor = position
-
-    def close_file(self):
-        self.input.close()
 
     def read_string(self):
         # Strings are encoded depending on length:
@@ -545,7 +534,7 @@ class Transaction:
         for privkey in privkeys:
             pubkey = public_key_from_private_key(privkey)
             address = address_from_private_key(privkey)
-            u = network.synchronous_get([ ('blockchain.address.listunspent',[address])])[0]
+            u = network.synchronous_get(('blockchain.address.listunspent',[address]))
             pay_script = klass.pay_script('address', address)
             for item in u:
                 item['scriptPubKey'] = pay_script
@@ -756,7 +745,7 @@ class Transaction:
                     for_sig = sha256(self.tx_for_sig(i).decode('hex'))
                     pkey = regenerate_key(sec)
                     secexp = pkey.secret
-                    private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
+                    private_key = bitcoin.MySigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
                     public_key = private_key.get_verifying_key()
                     sig = private_key.sign_digest_deterministic( for_sig, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der )
                     assert public_key.verify_digest( sig, for_sig, sigdecode = ecdsa.util.sigdecode_der)

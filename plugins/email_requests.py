@@ -22,8 +22,6 @@ import socket
 import time
 import threading
 import base64
-import re
-import platform
 from decimal import Decimal
 from Queue import Queue
 
@@ -114,39 +112,36 @@ class Plugin(BasePlugin):
     def is_available(self):
         return True
 
-    def __init__(self, a, b):
-        BasePlugin.__init__(self, a, b)
+    def __init__(self, parent, config, name):
+        BasePlugin.__init__(self, parent, config, name)
         self.imap_server = self.config.get('email_server', '')
         self.username = self.config.get('email_username', '')
         self.password = self.config.get('email_password', '')
         if self.imap_server and self.username and self.password:
             self.processor = Processor(self.imap_server, self.username, self.password, self.on_receive)
             self.processor.start()
-        self.win = None
+        self.obj = QObject()
+        self.obj.connect(self.obj, SIGNAL('email:new_invoice'), self.new_invoice)
 
     def on_receive(self, pr_str):
         self.print_error('received payment request')
         self.pr = PaymentRequest(pr_str)
-        if self.win:
-            self.win.emit(SIGNAL('email:new_invoice'))
+        self.obj.emit(SIGNAL('email:new_invoice'))
 
     def new_invoice(self):
-        self.win.invoices.add(self.pr)
-        self.win.update_invoices_list()
-
-    @hook
-    def init_qt(self, gui):
-        from electrum_gui.qt.util import ThreadedButton
-        self.win = gui.main_window
-        self.win.connect(self.win, SIGNAL('email:new_invoice'), self.new_invoice)
+        if self.parent.windows:
+            window = self.parent.windows[0]
+            window.invoices.add(self.pr)
+            window.update_invoices_list()
 
     @hook
     def receive_list_menu(self, menu, addr):
-        menu.addAction(_("Send via e-mail"), lambda: self.send(addr))
+        window = menu.parentWidget()
+        menu.addAction(_("Send via e-mail"), lambda: self.send(window, addr))
 
-    def send(self, addr):
+    def send(self, window, addr):
         from electrum_grs import paymentrequest
-        r = self.wallet.receive_requests.get(addr)
+        r = window.wallet.receive_requests.get(addr)
         message = r.get('memo', '')
         if r.get('signature'):
             pr = paymentrequest.serialize_request(r)
@@ -154,7 +149,7 @@ class Plugin(BasePlugin):
             pr = paymentrequest.make_request(self.config, r)
         if not pr:
             return
-        recipient, ok = QtGui.QInputDialog.getText(self.win, 'Send request', 'Email invoice to:')
+        recipient, ok = QtGui.QInputDialog.getText(window, 'Send request', 'Email invoice to:')
         if not ok:
             return
         recipient = str(recipient)
@@ -163,22 +158,23 @@ class Plugin(BasePlugin):
         try:
             self.processor.send(recipient, message, payload)
         except BaseException as e:
-            self.win.show_message(str(e))
+            window.show_message(str(e))
             return
 
-        self.win.show_message(_('Request sent.'))
+        window.show_message(_('Request sent.'))
 
 
     def requires_settings(self):
         return True
 
     def settings_widget(self, window):
+        self.settings_window = window
         return EnterButton(_('Settings'), self.settings_dialog)
 
     def settings_dialog(self, x):
         from electrum_gui.qt.util import Buttons, CloseButton, OkButton
 
-        d = QDialog(self.window)
+        d = QDialog(self.settings_window)
         d.setWindowTitle("Email settings")
         d.setMinimumSize(500, 200)
 
@@ -204,7 +200,7 @@ class Plugin(BasePlugin):
         vbox.addStretch()
         vbox.addLayout(Buttons(CloseButton(d), OkButton(d)))
 
-        if not d.exec_(): 
+        if not d.exec_():
             return
 
         server = str(server_e.text())
@@ -215,5 +211,3 @@ class Plugin(BasePlugin):
 
         password = str(password_e.text())
         self.config.set_key('email_password', password)
-
-

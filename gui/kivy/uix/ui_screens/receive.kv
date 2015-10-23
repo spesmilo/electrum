@@ -1,0 +1,91 @@
+#:import _ electrum.i18n._
+#:import Decimal decimal.Decimal
+#:set btc_symbol unichr(171)
+#:set mbtc_symbol unichr(187)
+#:set font_light 'data/fonts/Roboto-Condensed.ttf'
+
+
+
+ReceiveScreen:
+    id: receive_screen
+    name: 'receive'
+
+    BoxLayout
+        padding: '12dp', '12dp', '12dp', '12dp'
+        spacing: '12dp'
+        orientation: 'vertical'
+        size_hint: 1, 1
+        FloatLayout:
+            id: bl
+            QRCodeWidget:
+                id: qr
+                size_hint: None, 1
+                width: min(self.height, bl.width)
+                pos_hint: {'center': (.5, .5)}
+                shaded: False
+                on_touch_down:
+                    self.shaded = not self.shaded
+                    self.foreground_color = (0, 0, 0, 0.5) if self.shaded else (0, 0, 0, 0)
+        Label:
+            id: address
+            size_hint: 1, None
+            height: '38dp'
+            opacity: 0.5 if qr.shaded else 1
+
+        SendReceiveBlueBottom:
+            id: blue_bottom
+            size_hint: 1, None
+            height: self.minimum_height
+            BoxLayout:
+                size_hint: 1, None
+                height: blue_bottom.item_height
+                Image:
+                    source: 'atlas://gui/kivy/theming/light/bit_logo'
+                    size_hint: None, None
+                    size: '22dp', '22dp'
+                    pos_hint: {'center_y': .5}
+                Button:
+                    id: amount
+                    default_text: 'Amount (optional)'
+                    text: self.default_text
+                    text_size: (amount.width-15, None)
+                    halign: 'left'
+                    size_hint: 0.5, None
+                    height: '38dp'
+                    on_release: app.amount_dialog(amount, receive_screen.parent.update_qr)
+                    background_color: 0, 0, 0, 0
+            CardSeparator:
+                opacity: message_selection.opacity
+                color: blue_bottom.foreground_color
+            BoxLayout:
+                id: message_selection
+                opacity: 1
+                size_hint: 1, None
+                height: blue_bottom.item_height
+                spacing: '5dp'
+                Image:
+                    source: 'atlas://gui/kivy/theming/light/pen'
+                    size_hint: None, None
+                    size: '22dp', '22dp'
+                    pos_hint: {'center_y': .5}
+                TextInputBlue:
+                    id: message
+                    hint_text: 'Description (optional)'
+                    on_text_validate: receive_screen.parent.update_qr()
+
+        BoxLayout:
+            size_hint: 1, None
+            height: '38dp'
+            Button:
+                text: _('Clear')
+                size_hint: 1, None
+                height: '38dp'
+                on_release: receive_screen.parent.do_clear()
+            Button:
+                text: _('Share')
+                size_hint: 1, None
+                height: '38dp'
+                on_release: receive_screen.parent.do_share()
+
+        Widget:
+            size_hint: 1, 0.3

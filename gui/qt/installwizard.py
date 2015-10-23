@@ -15,7 +15,6 @@ from electrum_grs import util
 import seed_dialog
 from network_dialog import NetworkDialog
 from util import *
-from amountedit import AmountEdit
 
 from electrum_grs.plugins import always_hook, run_hook
 from electrum_grs.mnemonic import prepare_seed
@@ -65,9 +64,8 @@ class CosignWidget(QWidget):
 
 class InstallWizard(QDialog):
 
-    def __init__(self, config, network, storage, app):
+    def __init__(self, config, network, storage):
         QDialog.__init__(self)
-        self.app = app
         self.config = config
         self.network = network
         self.storage = storage
@@ -89,23 +87,34 @@ class InstallWizard(QDialog):
         vbox = QVBoxLayout()
         main_label = QLabel(_("Electrum-GRS could not find an existing wallet."))
         vbox.addWidget(main_label)
+
         grid = QGridLayout()
         grid.setSpacing(5)
+
         gb1 = QGroupBox(_("What do you want to do?"))
         vbox.addWidget(gb1)
+        vbox1 = QVBoxLayout()
+        gb1.setLayout(vbox1)
+
         b1 = QRadioButton(gb1)
         b1.setText(_("Create new wallet"))
         b1.setChecked(True)
+
         b2 = QRadioButton(gb1)
         b2.setText(_("Restore a wallet or import keys"))
+
         group1 = QButtonGroup()
         group1.addButton(b1)
         group1.addButton(b2)
-        vbox.addWidget(b1)
-        vbox.addWidget(b2)
+        vbox1.addWidget(b1)
+        vbox1.addWidget(b2)
 
         gb2 = QGroupBox(_("Wallet type:"))
         vbox.addWidget(gb2)
+
+        vbox2 = QVBoxLayout()
+        gb2.setLayout(vbox2)
+
         group2 = QButtonGroup()
 
         self.wallet_types = [
@@ -120,9 +129,10 @@ class InstallWizard(QDialog):
                 continue
             button = QRadioButton(gb2)
             button.setText(name)
-            vbox.addWidget(button)
+            vbox2.addWidget(button)
             group2.addButton(button)
             group2.setId(button, i)
+
             if i==0:
                 button.setChecked(True)
 
@@ -329,11 +339,15 @@ class InstallWizard(QDialog):
         vbox.addWidget(QLabel(title))
         gb2 = QGroupBox(msg)
         vbox.addWidget(gb2)
+
+        vbox2 = QVBoxLayout()
+        gb2.setLayout(vbox2)
+
         group2 = QButtonGroup()
         for i,c in enumerate(choices):
             button = QRadioButton(gb2)
             button.setText(c[1])
-            vbox.addWidget(button)
+            vbox2.addWidget(button)
             group2.addButton(button)
             group2.setId(button, i)
             if i==0:
@@ -387,7 +401,6 @@ class InstallWizard(QDialog):
         wallet_type = '%dof%d'%(m,n)
         return wallet_type
 
-
     def question(self, msg, yes_label=_('OK'), no_label=_('Cancel'), icon=None):
         vbox = QVBoxLayout()
         self.set_layout(vbox)
@@ -404,7 +417,6 @@ class InstallWizard(QDialog):
             return None
         return True
 
-
     def show_seed(self, seed, sid):
         vbox = seed_dialog.show_seed_box_msg(seed, sid)
         vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _("Next"))))
@@ -419,17 +431,51 @@ class InstallWizard(QDialog):
         self.set_layout( make_password_dialog(self, None, msg) )
         return run_password_dialog(self, None, self)[2]
 
+    def run(self, action):
+        if self.storage.file_exists and action != 'new':
+            path = self.storage.path
+            msg = _("The file '%s' contains an incompletely created wallet.\n"
+                    "Do you want to complete its creation now?") % path
+            if not question(msg):
+                if question(_("Do you want to delete '%s'?") % path):
+                    os.remove(path)
+                    QMessageBox.information(self, _('Warning'),
+                                            _('The file was removed'), _('OK'))
+                    return
+                return
+        self.show()
+        if action == 'new':
+            action, wallet_type = self.restore_or_create()
+        else:
+            wallet_type = None
+        try:
+            wallet = self.run_wallet_type(action, wallet_type)
+        except BaseException as e:
+            traceback.print_exc(file=sys.stdout)
+            QMessageBox.information(None, _('Error'), str(e), _('OK'))
+            return
+        return wallet
 
-    def run(self, action, wallet_type):
-
+    def run_wallet_type(self, action, wallet_type):
         if action in ['create', 'restore']:
             if wallet_type == 'multisig':
                 wallet_type = self.multisig_choice()
                 if not wallet_type:
                     return
             elif wallet_type == 'hardware':
-                hardware_wallets = map(lambda x:(x[1],x[2]), filter(lambda x:x[0]=='hardware', electrum_grs.wallet.wallet_types))
+                hardware_wallets = []
+                for item in electrum_grs.wallet.wallet_types:
+                    t, name, description, loader = item
+                    if t == 'hardware':
+                        try:
+                            p = loader()
+                        except:
+                            util.print_error("cannot load plugin for:", name)
+                            continue
+                        if p:
+                            hardware_wallets.append((name, description))
                 wallet_type = self.choice(_("Hardware Wallet"), 'Select your hardware wallet', hardware_wallets)
+
                 if not wallet_type:
                     return
             elif wallet_type == 'twofactor':

@@ -41,7 +41,7 @@ descriptions = [
         'name': 'exchange_rate',
         'fullname': _("Exchange rates"),
         'description': _("Exchange rates and currency conversion tools."),
-        'available_for': ['qt'],
+        'available_for': ['qt','kivy'],
     },
     {
         'name': 'plot',

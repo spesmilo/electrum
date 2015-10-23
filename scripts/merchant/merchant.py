@@ -54,7 +54,7 @@ def check_create_table(conn):
     c = conn.cursor()
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='electrum_payments';")
     data = c.fetchall()
-    if not data: 
+    if not data:
         c.execute("""CREATE TABLE electrum_payments (address VARCHAR(40), amount FLOAT, confirmations INT(8), received_at TIMESTAMP, expires_at TIMESTAMP, paid INT(1), processed INT(1));""")
         conn.commit()
 
@@ -95,7 +95,7 @@ def on_wallet_update():
 
         s = (value)/1.e8
         print "balance for %s:"%addr, s, requested_amount
-        if s>= requested_amount: 
+        if s>= requested_amount:
             print "payment accepted", addr
             out_queue.put( ('payment', addr))
 
@@ -162,7 +162,7 @@ def send_command(cmd, params):
     except socket.error:
         print "Server not running"
         return 1
-        
+
     try:
         out = f(*params)
     except socket.error:
@@ -186,9 +186,9 @@ def db_thread():
         data = cur.fetchall()
 
         # add pending requests to the wallet
-        for item in data: 
+        for item in data:
             addr, amount, confirmations = item
-            if addr in pending_requests: 
+            if addr in pending_requests:
                 continue
             else:
                 with wallet.lock:
@@ -216,7 +216,7 @@ def db_thread():
             print sql
             cur.execute(sql)
 
-        # set paid=0 for expired requests 
+        # set paid=0 for expired requests
         cur.execute("""UPDATE electrum_payments set paid=0 WHERE expires_at < CURRENT_TIMESTAMP and paid is NULL;""")
 
         # do callback for addresses that received payment or expired
@@ -241,7 +241,7 @@ def db_thread():
             except ValueError, e:
                 print e
                 print "cannot do callback", data_json
-        
+
         conn.commit()
 
     conn.close()
@@ -259,8 +259,7 @@ if __name__ == '__main__':
 
     # start network
     c = electrum_grs.SimpleConfig({'wallet_path':wallet_path})
-    daemon_socket = electrum_grs.daemon.get_daemon(c, True)
-    network = electrum_grs.NetworkProxy(daemon_socket, config)
+    network = electrum_grs.Network(config)
     network.start()
 
     # wait until connected
@@ -284,7 +283,7 @@ if __name__ == '__main__':
     network.register_callback('updated', on_wallet_update)
 
     threading.Thread(target=db_thread, args=()).start()
-    
+
     out_queue = Queue.Queue()
     # server thread
     from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
@@ -299,4 +298,3 @@ if __name__ == '__main__':
             server.handle_request()
         except socket.timeout:
             continue
-

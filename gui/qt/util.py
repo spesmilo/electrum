@@ -283,76 +283,124 @@ def filename_field(parent, config, defaultname, select_msg):
 
     return vbox, filename_e, b1
 
-
+class ElectrumItemDelegate(QStyledItemDelegate):
+    def createEditor(self, parent, option, index):
+        return self.parent().createEditor(parent, option, index)
 
 class MyTreeWidget(QTreeWidget):
 
-    def __init__(self, parent, create_menu, headers, stretch_column=None):
+    def __init__(self, parent, create_menu, headers, stretch_column=None,
+                 editable_columns=None):
         QTreeWidget.__init__(self, parent)
         self.parent = parent
-        self.setColumnCount(len(headers))
-        self.setHeaderLabels(headers)
-        self.header().setStretchLastSection(False)
+        self.stretch_column = stretch_column
         self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.itemActivated.connect(self.on_activated)
         self.customContextMenuRequested.connect(create_menu)
+        self.setUniformRowHeights(True)
         # extend the syntax for consistency
         self.addChild = self.addTopLevelItem
         self.insertChild = self.insertTopLevelItem
-        # editable column
-        self.is_edit = False
-        self.edit_column = stretch_column
-        self.itemDoubleClicked.connect(self.edit_label)
-        self.itemChanged.connect(self.label_changed)
-        # stretch
-        for i in range(len(headers)):
-            self.header().setResizeMode(i, QHeaderView.Stretch if i == stretch_column else QHeaderView.ResizeToContents)
-        self.setSortingEnabled(True)
 
-    def on_activated(self, item):
-        if not item:
-            return
-        for i in range(0,self.viewport().height()/5):
-            if self.itemAt(QPoint(0,i*5)) == item:
-                break
+        # Control which columns are editable
+        self.editor = None
+        self.pending_update = False
+        if editable_columns is None:
+            editable_columns = [stretch_column]
+        self.editable_columns = editable_columns
+        self.setItemDelegate(ElectrumItemDelegate(self))
+        self.itemActivated.connect(self.on_activated)
+        self.update_headers(headers)
+
+    def update_headers(self, headers):
+        self.setColumnCount(len(headers))
+        self.setHeaderLabels(headers)
+        self.header().setStretchLastSection(False)
+        for col in range(len(headers)):
+            sm = QHeaderView.Stretch if col == self.stretch_column else QHeaderView.ResizeToContents
+            self.header().setResizeMode(col, sm)
+
+    def editItem(self, item, column):
+        if column in self.editable_columns:
+            self.editing_itemcol = (item, column, unicode(item.text(column)))
+            # Calling setFlags causes on_changed events for some reason
+            item.setFlags(item.flags() | Qt.ItemIsEditable)
+            QTreeWidget.editItem(self, item, column)
+            item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_F2:
+            self.on_activated(self.currentItem(), self.currentColumn())
         else:
-            return
-        for j in range(0,30):
-            if self.itemAt(QPoint(0,i*5 + j)) != item:
-                break
-        self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), QPoint(50, i*5 + j - 1))
+            QTreeWidget.keyPressEvent(self, event)
 
-    def edit_label(self, item, column=None):
-        if column is None:
-            column = self.edit_column
-        if column==self.edit_column and item.isSelected():
-            text = unicode(item.text(column))
-            key = str(item.data(0, Qt.UserRole).toString())
-            self.is_edit = True
-            item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
+    def permit_edit(self, item, column):
+        return (column in self.editable_columns
+                and self.on_permit_edit(item, column))
+
+    def on_permit_edit(self, item, column):
+        return True
+
+    def on_activated(self, item, column):
+        if self.permit_edit(item, column):
             self.editItem(item, column)
-            item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
-            self.is_edit = False
+        else:
+            pt = self.visualItemRect(item).bottomLeft()
+            pt.setX(50)
+            self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), pt)
 
-    def label_changed(self, item, column):
-        if column != self.edit_column:
-            return
-        if self.is_edit:
-            return
-        self.is_edit = True
+    def createEditor(self, parent, option, index):
+        self.editor = QStyledItemDelegate.createEditor(self.itemDelegate(),
+                                                       parent, option, index)
+        self.editor.connect(self.editor, SIGNAL("editingFinished()"),
+                            self.editing_finished)
+        return self.editor
+
+    def editing_finished(self):
+        # Long-time QT bug - pressing Enter to finish editing signals
+        # editingFinished twice.  If the item changed the sequence is
+        # Enter key:  editingFinished, on_change, editingFinished
+        # Mouse: on_change, editingFinished
+        # This mess is the cleanest way to ensure we make the
+        # on_edited callback with the updated item
+        if self.editor:
+            (item, column, prior_text) = self.editing_itemcol
+            if self.editor.text() == prior_text:
+                self.editor = None  # Unchanged - ignore any 2nd call
+            elif item.text(column) == prior_text:
+                pass # Buggy first call on Enter key, item not yet updated
+            else:
+                # What we want - the updated item
+                self.on_edited(*self.editing_itemcol)
+                self.editor = None
+
+            # Now do any pending updates
+            if self.editor is None and self.pending_update:
+                self.pending_update = False
+                self.on_update()
+
+    def on_edited(self, item, column, prior):
+        '''Called only when the text actually changes'''
         key = str(item.data(0, Qt.UserRole).toString())
-        text = unicode(item.text(self.edit_column))
-        changed = self.parent.wallet.set_label(key, text)
+        text = unicode(item.text(column))
+        self.parent.wallet.set_label(key, text)
         if text:
-            item.setForeground(self.edit_column, QBrush(QColor('black')))
+            item.setForeground(column, QBrush(QColor('black')))
         else:
             text = self.parent.wallet.get_default_label(key)
-            item.setText(self.edit_column, text)
-            item.setForeground(self.edit_column, QBrush(QColor('gray')))
-        self.is_edit = False
-        if changed:
-            self.parent.update_history_tab()
-            self.parent.update_completions()
+            item.setText(column, text)
+            item.setForeground(column, QBrush(QColor('gray')))
+        self.parent.history_list.update()
+        self.parent.update_completions()
+
+    def update(self):
+        # Defer updates if editing
+        if self.editor:
+            self.pending_update = True
+        else:
+            self.on_update()
+
+    def on_update(self):
+        pass
 
     def get_leaves(self, root):
         child_count = root.childCount()

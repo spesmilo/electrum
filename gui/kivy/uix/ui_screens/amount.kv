@@ -1,0 +1,93 @@
+#:import Decimal decimal.Decimal
+
+
+Popup:
+    id: popup
+    title: _('Amount')
+
+    AnchorLayout:
+        anchor_x: 'center'
+
+        BoxLayout:
+            orientation: 'vertical'
+            size_hint: 0.8, 1
+
+            BoxLayout:
+                size_hint: 1, None
+                height: '48dp'
+                id: 'spendable'
+                Label:
+                    text: _('Spendable:')
+                    size_hint_x: 1
+                Button:
+                    size_hint_x: 1
+                    height: '48dp'
+                    text: ''
+                    on_release: a.value = "max"
+
+            BoxLayout:
+                size_hint: 1, None
+                height: '48dp'
+                Label:
+                    id: a
+                    amount: ''
+                    text: self.amount + ' ' + app.base_unit if self.amount else ''
+                Widget:
+                    size_hint_x: 1
+
+            Widget:
+                size_hint: 1, 1
+
+            GridLayout:
+                size_hint: 1, None
+                height: '300dp'
+                cols: 3
+                KButton:
+                    text: '1'
+                    label: a
+                KButton:
+                    text: '2'
+                    label: a
+                KButton:
+                    text: '3'
+                    label: a
+                KButton:
+                    text: '4'
+                    label: a
+                KButton:
+                    text: '5'
+                    label: a
+                KButton:
+                    text: '6'
+                    label: a
+                KButton:
+                    text: '7'
+                    label: a
+                KButton:
+                    text: '8'
+                    label: a
+                KButton:
+                    text: '9'
+                    label: a
+                KButton:
+                    text: '.'
+                    label: a
+                KButton:
+                    text: '0'
+                    label: a
+                KButton:
+                    text: '<'
+                    label: a
+
+            BoxLayout:
+                size_hint: 1, None
+                height: '48dp'
+                Widget:
+                    size_hint: 0.7, None
+                    height: '48dp'
+                Button:
+                    size_hint: 0.3, None
+                    height: '48dp'
+                    text: _('OK')
+                    on_release: popup.dismiss()
+                    

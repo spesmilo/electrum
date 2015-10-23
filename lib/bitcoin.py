@@ -473,6 +473,19 @@ class MyVerifyingKey(ecdsa.VerifyingKey):
         return klass.from_public_point( Q, curve )
 
 
+class MySigningKey(ecdsa.SigningKey):
+    """Enforce low S values in signatures"""
+
+    def sign_number(self, number, entropy=None, k=None):
+        curve = SECP256k1
+        G = curve.generator
+        order = G.order()
+        r, s = ecdsa.SigningKey.sign_number(self, number, entropy, k)
+        if s > order/2:
+            s = order - s
+        return r, s
+
+
 class EC_KEY(object):
 
     def __init__( self, k ):
@@ -485,7 +498,7 @@ class EC_KEY(object):
         return point_to_ser(self.pubkey.point, compressed).encode('hex')
 
     def sign(self, msg_hash):
-        private_key = ecdsa.SigningKey.from_secret_exponent(self.secret, curve = SECP256k1)
+        private_key = MySigningKey.from_secret_exponent(self.secret, curve = SECP256k1)
         public_key = private_key.get_verifying_key()
         signature = private_key.sign_digest_deterministic(msg_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_string)
         assert public_key.verify_digest(signature, msg_hash, sigdecode = ecdsa.util.sigdecode_string)

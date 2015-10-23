@@ -193,7 +193,7 @@ def read_user_config(path):
         with open(config_path, "r") as f:
             data = f.read()
     except IOError:
-        print_msg("Error: Cannot read config file.")
+        print_msg("Error: Cannot read config file.", path)
         return {}
     try:
         result = json.loads(data)

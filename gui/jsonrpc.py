@@ -36,7 +36,7 @@ class RequestHandler(SimpleJSONRPCRequestHandler):
         self.end_headers()
 
     def end_headers(self):
-        self.send_header("Access-Control-Allow-Headers", 
+        self.send_header("Access-Control-Allow-Headers",
                          "Origin, X-Requested-With, Content-Type, Accept")
         self.send_header("Access-Control-Allow-Origin", "*")
         SimpleJSONRPCRequestHandler.end_headers(self)
@@ -45,7 +45,7 @@ class RequestHandler(SimpleJSONRPCRequestHandler):
 
 class ElectrumGui:
 
-    def __init__(self, config, network):
+    def __init__(self, config, network, plugins):
         self.network = network
         self.config = config
         storage = WalletStorage(self.config.get_wallet_path())
@@ -60,7 +60,7 @@ class ElectrumGui:
         for cmdname in known_commands:
             self.server.register_function(getattr(self.cmd_runner, cmdname), cmdname)
 
-    def main(self, url):
+    def main(self):
         self.wallet.start_threads(self.network)
         while True:
             try:

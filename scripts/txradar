@@ -7,7 +7,7 @@ except:
     sys.exit(1)
 
 peers = util.get_peers()
-results = util.send_request(peers, {'method':'blockchain.transaction.get','params':[tx]})
+results = util.send_request(peers, 'blockchain.transaction.get', [tx])
 
 r1 = []
 r2 = []
@@ -17,4 +17,3 @@ for k, v in results.items():
 
 print "Received %d answers"%len(results)
 print "Propagation rate: %.1f percent" % (len(r1) *100./(len(r1)+ len(r2)))
-

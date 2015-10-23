@@ -23,7 +23,7 @@ from bitcoin import *
 
 USE_DIFF_RETARGET = True
 
-class Blockchain():
+class Blockchain(util.PrintError):
     '''Manages blockchain headers and their verification'''
     def __init__(self, config, network):
         self.config = config
@@ -32,9 +32,6 @@ class Blockchain():
         # No URL for Groestlcoin
         self.headers_url = ''#'http://headers.electrum.org/blockchain_headers'
         self.set_local_height()
-
-    def print_error(self, *msg):
-        util.print_error("[blockchain]", *msg)
 
     def height(self):
         return self.local_height

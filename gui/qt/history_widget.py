@@ -29,10 +29,16 @@ from electrum_grs.plugins import run_hook
 class HistoryWidget(MyTreeWidget):
 
     def __init__(self, parent=None):
-        MyTreeWidget.__init__(self, parent, self.create_menu, ['', '', _('Date'), _('Description') , _('Amount'), _('Balance')], 3)
+        MyTreeWidget.__init__(self, parent, self.create_menu, [], 3)
+        self.refresh_headers()
         self.setColumnHidden(1, True)
         self.config = self.parent.config
-        self.setSortingEnabled(False)
+
+    def refresh_headers(self):
+        headers = ['', '', _('Date'), _('Description') , _('Amount'),
+                   _('Balance')]
+        run_hook('history_tab_headers', headers)
+        self.update_headers(headers)
 
     def get_icon(self, conf, timestamp):
         time_str = _("unknown")
@@ -50,24 +56,32 @@ class HistoryWidget(MyTreeWidget):
             icon = QIcon(":icons/confirmed.png")
         return icon, time_str
 
-    def update(self, h):
+    def on_update(self):
         self.wallet = self.parent.wallet
+        domain = self.wallet.get_account_addresses(self.parent.current_account)
+        h = self.wallet.get_history(domain)
+
         item = self.currentItem()
         current_tx = item.data(0, Qt.UserRole).toString() if item else None
         self.clear()
-        for item in h:
-            tx_hash, conf, value, timestamp, balance = item
+        run_hook('history_tab_update_begin')
+        for tx in h:
+            tx_hash, conf, value, timestamp, balance = tx
             if conf is None and timestamp is None:
                 continue  # skip history in offline mode
             icon, time_str = self.get_icon(conf, timestamp)
             v_str = self.parent.format_amount(value, True, whitespaces=True)
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             label, is_default_label = self.wallet.get_label(tx_hash)
-            item = QTreeWidgetItem(['', tx_hash, time_str, label, v_str, balance_str])
+            entry = ['', tx_hash, time_str, label, v_str, balance_str]
+            run_hook('history_tab_update', tx, entry)
+            item = QTreeWidgetItem(entry)
             item.setIcon(0, icon)
-            item.setFont(3, QFont(MONOSPACE_FONT))
-            item.setFont(4, QFont(MONOSPACE_FONT))
-            item.setFont(5, QFont(MONOSPACE_FONT))
+            for i in range(len(entry)):
+                if i>3:
+                    item.setTextAlignment(i, Qt.AlignRight)
+                if i!=2:
+                    item.setFont(i, QFont(MONOSPACE_FONT))
             if value < 0:
                 item.setForeground(4, QBrush(QColor("#BC1E1E")))
             if tx_hash:
@@ -77,7 +91,6 @@ class HistoryWidget(MyTreeWidget):
             self.insertTopLevelItem(0, item)
             if current_tx == tx_hash:
                 self.setCurrentItem(item)
-        run_hook('history_tab_update')
 
     def update_item(self, tx_hash, conf, timestamp):
         icon, time_str = self.get_icon(conf, timestamp)
@@ -101,7 +114,6 @@ class HistoryWidget(MyTreeWidget):
         menu = QMenu()
         menu.addAction(_("Copy ID to Clipboard"), lambda: self.parent.app.clipboard().setText(tx_hash))
         menu.addAction(_("Details"), lambda: self.parent.show_transaction(self.wallet.transactions.get(tx_hash)))
-        menu.addAction(_("Edit description"), lambda: self.edit_label(item))
+        menu.addAction(_("Edit description"), lambda: self.editItem(item, self.editable_columns[0]))
         menu.addAction(_("View on block explorer"), lambda: webbrowser.open(tx_URL))
         menu.exec_(self.viewport().mapToGlobal(position))
-

@@ -14,8 +14,13 @@ import os
 import math
 import base64
 import binascii
+import hashlib
 
 from pem import *
+
+
+def SHA1(x):
+    return hashlib.sha1(x).digest()
 
 
 # **************************************************************************
