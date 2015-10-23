@@ -1,0 +1,13 @@
+diff --git a/electrum-ltc b/electrum-ltc
+index 6029abb..beec018 100755
+--- a/electrum-ltc
++++ b/electrum-ltc
+@@ -454,6 +454,8 @@ if __name__ == '__main__':
+         if config_options.get('server'):
+             config_options['auto_connect'] = False
+ 
++    config_options['portable'] = True
++
+     if config_options.get('portable'):
+         config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum-ltc_data')
+ 

@@ -5,10 +5,13 @@ ELECTRUM_GIT_URL=git://github.com/spesmilo/electrum.git
 BRANCH=master
 NAME_ROOT=electrum
 
+
 # These settings probably don't need any change
-export WINEPREFIX=/opt/wine-electrum
+export WINEPREFIX=/opt/electrum/wine64
+
 PYHOME=c:/python27
 PYTHON="wine $PYHOME/python.exe -OO -B"
+
 
 # Let's begin!
 cd `dirname $0`
@@ -19,27 +22,27 @@ cd tmp
 if [ -d "electrum-git" ]; then
     # GIT repository found, update it
     echo "Pull"
-
     cd electrum-git
     git pull
     cd ..
-
 else
     # GIT repository not found, clone it
     echo "Clone"
-
     git clone -b $BRANCH $ELECTRUM_GIT_URL electrum-git
 fi
 
 cd electrum-git
-COMMIT_HASH=`git rev-parse HEAD | awk '{ print substr($1, 0, 11) }'`
-echo "Last commit: $COMMIT_HASH"
-cd ..
+VERSION=`git describe --tags`
+echo "Last commit: $VERSION"
 
+cd ..
 
 rm -rf $WINEPREFIX/drive_c/electrum
 cp -r electrum-git $WINEPREFIX/drive_c/electrum
 cp electrum-git/LICENCE .
+
+# add python packages (built with make_packages)
+cp -r ../../../packages $WINEPREFIX/drive_c/electrum/
 
 # Build Qt resources
 wine $WINEPREFIX/drive_c/Python27/Lib/site-packages/PyQt4/pyrcc4.exe C:/electrum/icons.qrc -o C:/electrum/lib/icons_rc.py
@@ -49,14 +52,27 @@ cd ..
 
 rm -rf dist/
 
+# build standalone version
 $PYTHON "C:/pyinstaller/pyinstaller.py" --noconfirm --ascii -w deterministic.spec
 
-# For building NSIS installer, run:
-wine "$WINEPREFIX/drive_c/Program Files/NSIS/makensis.exe" electrum.nsi
+# build NSIS installer
+wine "$WINEPREFIX/drive_c/Program Files (x86)/NSIS/makensis.exe" electrum.nsi
 
-DATE=`date +"%Y%m%d"`
 cd dist
-mv electrum.exe $NAME_ROOT-$DATE-$COMMIT_HASH.exe
-mv electrum $NAME_ROOT-$DATE-$COMMIT_HASH
-mv electrum-setup.exe $NAME_ROOT-$DATE-$COMMIT_HASH-setup.exe
-zip -r $NAME_ROOT-$DATE-$COMMIT_HASH.zip $NAME_ROOT-$DATE-$COMMIT_HASH
+mv electrum.exe $NAME_ROOT-$VERSION.exe
+mv electrum-setup.exe $NAME_ROOT-$VERSION-setup.exe
+mv electrum $NAME_ROOT-$VERSION
+zip -r $NAME_ROOT-$VERSION.zip $NAME_ROOT-$VERSION
+cd ..
+
+# build portable version
+cp portable.patch $WINEPREFIX/drive_c/electrum
+pushd $WINEPREFIX/drive_c/electrum
+patch < portable.patch 
+popd
+$PYTHON "C:/pyinstaller/pyinstaller.py" --noconfirm --ascii -w deterministic.spec
+cd dist
+mv electrum.exe $NAME_ROOT-$VERSION-portable.exe
+cd ..
+
+echo "Done."

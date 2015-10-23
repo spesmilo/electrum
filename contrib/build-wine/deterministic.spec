@@ -5,7 +5,6 @@ home = 'C:\\electrum\\'
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([home+'electrum-ltc',
               home+'gui/qt/main_window.py',
-              home+'gui/qt/lite_window.py',
               home+'gui/text.py',
               home+'lib/util.py',
               home+'lib/wallet.py',
@@ -13,10 +12,13 @@ a = Analysis([home+'electrum-ltc',
               home+'lib/bitcoin.py',
               home+'lib/dnssec.py',
               home+'lib/commands.py',
+              home+'plugins/cosigner_pool.py',
+              home+'plugins/email_requests.py',
+              home+'plugins/trezor.py',
               home+'packages/requests/utils.py'
               ],
-             pathex=['lib','gui','plugins','packages'],
-             hiddenimports=['lib','gui'],
+             pathex=[home+'lib', home+'gui', home+'plugins', home+'packages'],
+             hiddenimports=['lib', 'gui'],
              hookspath=[])
 
 ##### include folder in distribution #######

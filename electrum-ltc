@@ -462,9 +462,6 @@ if __name__ == '__main__':
     # check uri
     uri = config_options.get('url')
     if uri:
-        if os.path.exists(uri):
-            # assume this is a payment request
-            uri = "litecoin:?r=file://"+ os.path.join(os.getcwd(), uri)
         if not re.match('^litecoin:', uri):
             print_stderr('unknown command:', uri)
             sys.exit(1)
