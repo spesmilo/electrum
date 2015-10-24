@@ -112,8 +112,9 @@ class BitcoinAverage(ExchangeBase):
 class BitcoinVenezuela(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('api.bitcoinvenezuela.com', '/')
-        return dict([(r, Decimal(json['BTC'][r]))
-                     for r in json['BTC']])
+        rates = [(r, json['BTC'][r]) for r in json['BTC']
+                 if json['BTC'][r] is not None]  # Giving NULL for LTC
+        return dict(rates)
 
     def protocol(self):
         return "http"
