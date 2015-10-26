@@ -1258,12 +1258,16 @@ class Abstract_Wallet(PrintError):
     def can_change_password(self):
         return not self.is_watching_only()
 
-    def get_unused_address(self, account):
+    def get_unused_addresses(self, account):
         # fixme: use slots from expired requests
         domain = self.get_account_addresses(account, include_change=False)
-        for addr in domain:
-            if not self.history.get(addr) and addr not in self.receive_requests.keys():
-                return addr
+        return [addr for addr in domain if not self.history.get(addr)
+                and addr not in self.receive_requests.keys()]
+
+    def get_unused_address(self, account):
+        addrs = self.get_unused_addresses(account)
+        if addrs:
+            return addrs[0]
 
     def get_payment_request(self, addr, config):
         import util
