@@ -117,7 +117,7 @@ class TcpConnection(threading.Thread, util.PrintError):
                     return
                 # try with CA first
                 try:
-                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_TLSv1, cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_path, do_handshake_on_connect=True)
+                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv23, cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_path, do_handshake_on_connect=True)
                 except ssl.SSLError, e:
                     s = None
                 if s and self.check_host_name(s.getpeercert(), self.host):
@@ -130,7 +130,7 @@ class TcpConnection(threading.Thread, util.PrintError):
                 if s is None:
                     return
                 try:
-                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_TLSv1, cert_reqs=ssl.CERT_NONE, ca_certs=None)
+                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv23, cert_reqs=ssl.CERT_NONE, ca_certs=None)
                 except ssl.SSLError, e:
                     self.print_error("SSL error retrieving SSL certificate:", e)
                     return
@@ -153,7 +153,7 @@ class TcpConnection(threading.Thread, util.PrintError):
         if self.use_ssl:
             try:
                 s = ssl.wrap_socket(s,
-                                    ssl_version=ssl.PROTOCOL_TLSv1,
+                                    ssl_version=ssl.PROTOCOL_SSLv23,
                                     cert_reqs=ssl.CERT_REQUIRED,
                                     ca_certs= (temporary_path if is_new else cert_path),
                                     do_handshake_on_connect=True)
