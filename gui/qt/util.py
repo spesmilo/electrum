@@ -392,12 +392,15 @@ class MyTreeWidget(QTreeWidget):
         self.parent.history_list.update()
         self.parent.update_completions()
 
-    def update(self):
+    def update(self, h=None):
         # Defer updates if editing
         if self.editor:
             self.pending_update = True
         else:
-            self.on_update()
+            if h==None:
+                self.on_update()
+            else:
+                self.on_update(h)
 
     def on_update(self):
         pass
