@@ -103,8 +103,10 @@ class Commands:
         """Create a new wallet"""
 
     @command('')
-    def restore(self, concealed=False, mpk=None):
-        """Restore a wallet from seed. """
+    def restore(self, concealed=False):
+        """Restore a wallet. A wallet can be restored from a seed phrase, a
+        master public key, a master private key, a list of bitcoin addresses
+        or bitcoin private keys."""
 
     @command('w')
     def deseed(self):
@@ -629,7 +631,6 @@ command_options = {
     'entropy':     (None, "--entropy",     "Custom entropy"),
     'language':    ("-L", "--lang",        "Default language for wordlist"),
     'gap_limit':   ("-G", "--gap",         "Gap limit"),
-    'mpk':         (None, "--mpk",         "Restore from master public key"),
     'deserialized':("-d", "--deserialized","Return deserialized transaction"),
     'privkey':     (None, "--privkey",     "Private key. Set to '?' to get a prompt."),
     'unsigned':    ("-u", "--unsigned",    "Do not sign transaction"),
