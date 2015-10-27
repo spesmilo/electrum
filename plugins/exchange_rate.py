@@ -100,8 +100,9 @@ class Bit2C(ExchangeBase):
 class BitcoinVenezuela(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('api.bitcoinvenezuela.com', '/')
-        return dict([(r, Decimal(json['LTC'][r]))
-                     for r in json['LTC']])
+        rates = [(r, json['LTC'][r]) for r in json['LTC']
+                 if json['LTC'][r] is not None]  # Giving NULL sometimes
+        return dict(rates)
 
     def protocol(self):
         return "http"

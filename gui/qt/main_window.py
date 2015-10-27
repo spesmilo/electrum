@@ -2482,7 +2482,8 @@ class ElectrumWindow(QMainWindow, PrintError):
         keys_e.setTabChangesFocus(True)
         vbox.addWidget(keys_e)
 
-        h, address_e = address_field(self.wallet.addresses(False))
+        addresses = self.wallet.get_unused_addresses(self.current_account)
+        h, address_e = address_field(addresses)
         vbox.addLayout(h)
 
         vbox.addStretch(1)
