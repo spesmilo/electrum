@@ -561,47 +561,26 @@ class InstallWizard(QDialog):
 
 
     def restore(self, t):
-
-            if t == 'standard':
-                text = self.enter_seed_dialog(MSG_ENTER_ANYTHING, None)
-                if not text:
-                    return
-                if Wallet.is_xprv(text):
-                    password = self.password_dialog()
-                    wallet = Wallet.from_xprv(text, password, self.storage)
-                elif Wallet.is_old_mpk(text):
-                    wallet = Wallet.from_old_mpk(text, self.storage)
-                elif Wallet.is_xpub(text):
-                    wallet = Wallet.from_xpub(text, self.storage)
-                elif Wallet.is_address(text):
-                    wallet = Wallet.from_address(text, self.storage)
-                elif Wallet.is_private_key(text):
-                    password = self.password_dialog()
-                    wallet = Wallet.from_private_key(text, password, self.storage)
-                elif Wallet.is_seed(text):
-                    password = self.password_dialog()
-                    wallet = Wallet.from_seed(text, password, self.storage)
-                else:
-                    raise BaseException('unknown wallet type')
-
-            elif re.match('(\d+)of(\d+)', t):
-                n = int(re.match('(\d+)of(\d+)', t).group(2))
-                key_list = self.multi_seed_dialog(n - 1)
-                if not key_list:
-                    return
-                password = self.password_dialog() if any(map(lambda x: Wallet.is_seed(x) or Wallet.is_xprv(x), key_list)) else None
-                wallet = Wallet.from_multisig(key_list, password, self.storage, t)
-
-            else:
-                self.storage.put('wallet_type', t, False)
-                # call the constructor to load the plugin (side effect)
-                Wallet(self.storage)
-                wallet = always_hook('installwizard_restore', self, self.storage)
-                if not wallet:
-                    util.print_error("no wallet")
-                    return
-
-            # create first keys offline
-            self.waiting_dialog(wallet.synchronize)
-
-            return wallet
+        if t == 'standard':
+            text = self.enter_seed_dialog(MSG_ENTER_ANYTHING, None)
+            if not text:
+                return
+            wallet = Wallet.from_text(text, self.password_dialog, self.storage)
+        elif re.match('(\d+)of(\d+)', t):
+            n = int(re.match('(\d+)of(\d+)', t).group(2))
+            key_list = self.multi_seed_dialog(n - 1)
+            if not key_list:
+                return
+            password = self.password_dialog() if any(map(lambda x: Wallet.is_seed(x) or Wallet.is_xprv(x), key_list)) else None
+            wallet = Wallet.from_multisig(key_list, password, self.storage, t)
+        else:
+            self.storage.put('wallet_type', t, False)
+            # call the constructor to load the plugin (side effect)
+            Wallet(self.storage)
+            wallet = always_hook('installwizard_restore', self, self.storage)
+            if not wallet:
+                util.print_error("no wallet")
+                return
+        # create first keys offline
+        self.waiting_dialog(wallet.synchronize)
+        return wallet

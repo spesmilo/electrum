@@ -2085,3 +2085,24 @@ class Wallet(object):
         self.storage.put('use_encryption', self.use_encryption, True)
         self.create_main_account(password)
         return self
+
+    @classmethod
+    def from_text(klass, text, password_dialog, storage):
+        if Wallet.is_xprv(text):
+            password = password_dialog()
+            wallet = klass.from_xprv(text, password, storage)
+        elif Wallet.is_old_mpk(text):
+            wallet = klass.from_old_mpk(text, storage)
+        elif Wallet.is_xpub(text):
+            wallet = klass.from_xpub(text, storage)
+        elif Wallet.is_address(text):
+            wallet = klass.from_address(text, storage)
+        elif Wallet.is_private_key(text):
+            password = password_dialog()
+            wallet = klass.from_private_key(text, password, storage)
+        elif Wallet.is_seed(text):
+            password = password_dialog()
+            wallet = klass.from_seed(text, password, storage)
+        else:
+            raise BaseException('Invalid seedphrase or key')
+        return wallet
