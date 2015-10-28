@@ -1047,6 +1047,8 @@ class Abstract_Wallet(PrintError):
     def send_tx(self, tx):
         # asynchronous
         self.tx_event.clear()
+        # fixme: this does not handle the case where server does not answer
+        assert self.network.interface, "Not connected."
         self.network.send([('blockchain.transaction.broadcast', [str(tx)])], self.on_broadcast)
         return tx.hash()
 
