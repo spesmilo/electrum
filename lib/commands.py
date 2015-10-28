@@ -109,11 +109,11 @@ class Commands:
         public key, a master private key, a list of bitcoin addresses
         or bitcoin private keys. If you want to be prompted for your
         seed, type '?' or ':' (concealed) """
-        self.wallet.restore(lambda x: print_msg(x))
-        #self.wallet.synchronize()
-        msg = "Recovery successful" if self.wallet.is_found() else "Warning: Found no history for this wallet"
-        if not self.network:
-            msg += "\nWarning: This wallet was restored offline. It may contain more addresses than displayed."
+        self.wallet.restore(lambda x: x)
+        if self.network:
+            msg = "Recovery successful" if self.wallet.is_found() else "Found no history for this wallet"
+        else:
+            msg = "This wallet was restored offline. It may contain more addresses than displayed."
         return msg
 
     @command('w')

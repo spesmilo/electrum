@@ -233,7 +233,7 @@ def run_command(config, network, password):
     # create wallet instance
     wallet = Wallet(storage) if cmd.requires_wallet else None
     # start threads
-    if network:
+    if wallet and network:
         wallet.start_threads(network)
     # arguments passed to function
     args = map(lambda x: config.get(x), cmd.params)
