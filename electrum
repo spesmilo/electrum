@@ -173,13 +173,13 @@ def init_cmdline(config):
         print_msg("Wallet saved in '%s'" % wallet.storage.path)
         sys.exit(0)
 
-    else:
-        if cmd.requires_wallet and not storage.file_exists:
-            print_msg("Error: Wallet file not found.")
-            print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
-            sys.exit(0)
-        # create wallet instance
-        wallet = Wallet(storage) if cmd.requires_wallet else None
+    if cmd.requires_wallet and not storage.file_exists:
+        print_msg("Error: Wallet file not found.")
+        print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
+        sys.exit(0)
+
+    # create wallet instance
+    wallet = Wallet(storage) if cmd.requires_wallet else None
 
     # notify plugins
     always_hook('cmdline_load_wallet', wallet)
