@@ -1,3 +1,9 @@
+# Release 2.5.2 (bugfixes)
+ * fix bug #1513 (client tries to broadcast transaction while not connected)
+ * fix synchronization bug (#1520)
+ * fix command line bug (#1494)
+ * fixes for exchange rate plugin
+
 # Release 2.5.1 (bugfixes)
  * signatures in transactions were still using the old class
  * make sure that setup.py uses python2

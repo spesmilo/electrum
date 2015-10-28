@@ -101,6 +101,7 @@ class Commands:
     @command('')
     def create(self):
         """Create a new wallet"""
+        raise BaseException('Not a JSON-RPC command')
 
     @command('wn')
     def restore(self, text):
@@ -108,15 +109,18 @@ class Commands:
         public key, a master private key, a list of bitcoin addresses
         or bitcoin private keys. If you want to be prompted for your
         seed, type '?' or ':' (concealed) """
+        raise BaseException('Not a JSON-RPC command')
 
     @command('w')
     def deseed(self):
         """Remove seed from wallet. This creates a seedless, watching-only
         wallet."""
+        raise BaseException('Not a JSON-RPC command')
 
     @command('wp')
     def password(self):
         """Change wallet password. """
+        raise BaseException('Not a JSON-RPC command')
 
     @command('')
     def getconfig(self, key):
