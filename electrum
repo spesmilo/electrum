@@ -147,7 +147,18 @@ def init_cmdline(config):
                 wallet = Wallet.from_text(text, password, storage)
             except BaseException as e:
                 sys.exit(str(e))
-            wallet.synchronize()
+            if not config.get('offline'):
+                network = Network(config)
+                network.start()
+                wallet.start_threads(network)
+                print_msg("Recovering wallet...")
+                wallet.synchronize()
+                wallet.restore(lambda x: x)
+                msg = "Recovery successful" if wallet.is_found() else "Found no history for this wallet"
+            else:
+                msg = "This wallet was restored offline. It may contain more addresses than displayed."
+            print_msg(msg)
+
         else:
             password = password_dialog()
             wallet = Wallet(storage)
@@ -160,6 +171,7 @@ def init_cmdline(config):
             print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
 
         print_msg("Wallet saved in '%s'" % wallet.storage.path)
+        sys.exit(0)
 
     else:
         if cmd.requires_wallet and not storage.file_exists:
