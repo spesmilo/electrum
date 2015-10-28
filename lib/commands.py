@@ -101,13 +101,20 @@ class Commands:
     @command('')
     def create(self):
         """Create a new wallet"""
+        return True
 
-    @command('')
+    @command('wn')
     def restore(self, text):
         """Restore a wallet from text. Text can be a seed phrase, a master
         public key, a master private key, a list of bitcoin addresses
         or bitcoin private keys. If you want to be prompted for your
         seed, type '?' or ':' (concealed) """
+        self.wallet.restore(lambda x: print_msg(x))
+        #self.wallet.synchronize()
+        msg = "Recovery successful" if self.wallet.is_found() else "Warning: Found no history for this wallet"
+        if not self.network:
+            msg += "\nWarning: This wallet was restored offline. It may contain more addresses than displayed."
+        return msg
 
     @command('w')
     def deseed(self):

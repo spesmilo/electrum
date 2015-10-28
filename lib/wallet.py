@@ -1135,8 +1135,28 @@ class Abstract_Wallet(PrintError):
             self.verifier = None
             self.storage.put('stored_height', self.get_local_height(), True)
 
-    def restore(self, cb):
-        pass
+    def restore(self, callback):
+        from i18n import _
+        def wait_for_wallet():
+            self.set_up_to_date(False)
+            while not self.is_up_to_date():
+                msg = "%s\n%s %d"%(
+                    _("Please wait..."),
+                    _("Addresses generated:"),
+                    len(self.addresses(True)))
+                apply(callback, (msg,))
+                time.sleep(0.1)
+        def wait_for_network():
+            while not self.network.is_connected():
+                msg = "%s \n" % (_("Connecting..."))
+                apply(callback, (msg,))
+                time.sleep(0.1)
+        # wait until we are connected, because the user might have selected another server
+        if self.network:
+            wait_for_network()
+            wait_for_wallet()
+        else:
+            self.synchronize()
 
     def get_accounts(self):
         return self.accounts
@@ -1508,32 +1528,6 @@ class Deterministic_Wallet(Abstract_Wallet):
         with self.lock:
             for account in self.accounts.values():
                 account.synchronize(self)
-
-    def restore(self, callback):
-        from i18n import _
-        def wait_for_wallet():
-            self.set_up_to_date(False)
-            while not self.is_up_to_date():
-                msg = "%s\n%s %d"%(
-                    _("Please wait..."),
-                    _("Addresses generated:"),
-                    len(self.addresses(True)))
-
-                apply(callback, (msg,))
-                time.sleep(0.1)
-
-        def wait_for_network():
-            while not self.network.is_connected():
-                msg = "%s \n" % (_("Connecting..."))
-                apply(callback, (msg,))
-                time.sleep(0.1)
-
-        # wait until we are connected, because the user might have selected another server
-        if self.network:
-            wait_for_network()
-            wait_for_wallet()
-        else:
-            self.synchronize()
 
     def is_beyond_limit(self, address, account, is_change):
         if type(account) == ImportedAccount:
@@ -2089,9 +2083,8 @@ class Wallet(object):
         return self
 
     @classmethod
-    def from_text(klass, text, password_dialog, storage):
+    def from_text(klass, text, password, storage):
         if Wallet.is_xprv(text):
-            password = password_dialog()
             wallet = klass.from_xprv(text, password, storage)
         elif Wallet.is_old_mpk(text):
             wallet = klass.from_old_mpk(text, storage)
@@ -2100,10 +2093,8 @@ class Wallet(object):
         elif Wallet.is_address(text):
             wallet = klass.from_address(text, storage)
         elif Wallet.is_private_key(text):
-            password = password_dialog()
             wallet = klass.from_private_key(text, password, storage)
         elif Wallet.is_seed(text):
-            password = password_dialog()
             wallet = klass.from_seed(text, password, storage)
         else:
             raise BaseException('Invalid seedphrase or key')

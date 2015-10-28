@@ -565,7 +565,8 @@ class InstallWizard(QDialog):
             text = self.enter_seed_dialog(MSG_ENTER_ANYTHING, None)
             if not text:
                 return
-            wallet = Wallet.from_text(text, self.password_dialog, self.storage)
+            password = self.password_dialog() if Wallet.is_seed(text) or Wallet.is_xprv(text) or Wallet.is_private_key(text) else None
+            wallet = Wallet.from_text(text, password, self.storage)
         elif re.match('(\d+)of(\d+)', t):
             n = int(re.match('(\d+)of(\d+)', t).group(2))
             key_list = self.multi_seed_dialog(n - 1)
