@@ -87,7 +87,7 @@ from electrum.commands import get_parser, known_commands, Commands, config_varia
 # get password routine
 def prompt_password(prompt, confirm=True):
     import getpass
-    password = getpass.getpass(prompt)
+    password = getpass.getpass(prompt, stream=None)
     if password and confirm:
         password2 = getpass.getpass("Confirm: ")
         if password != password2:
@@ -141,8 +141,7 @@ def init_cmdline(config):
             return prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
 
         if cmd.name == 'restore':
-            import getpass
-            text = getpass.getpass(prompt="seed:", stream=None) if config.get('concealed') else raw_input("seed or key(s):")
+            text = config.get('text')
             try:
                 wallet = Wallet.from_text(text, password_dialog, storage)
             except BaseException as e:
@@ -425,6 +424,8 @@ if __name__ == '__main__':
             else:
                 raise BaseException('Cannot get argument from stdin')
         elif arg == '?':
+            sys.argv[i] = raw_input("Enter argument:")
+        elif arg == ':':
             sys.argv[i] = prompt_password('Enter argument (will not echo):', False)
 
     # parse command line

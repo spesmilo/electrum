@@ -103,10 +103,11 @@ class Commands:
         """Create a new wallet"""
 
     @command('')
-    def restore(self, concealed=False):
-        """Restore a wallet. A wallet can be restored from a seed phrase, a
-        master public key, a master private key, a list of bitcoin addresses
-        or bitcoin private keys."""
+    def restore(self, text):
+        """Restore a wallet from text. Text can be a seed phrase, a master
+        public key, a master private key, a list of bitcoin addresses
+        or bitcoin private keys. If you want to be prompted for your
+        seed, type '?' or ':' (concealed) """
 
     @command('w')
     def deseed(self):
@@ -615,7 +616,6 @@ param_descriptions = {
 
 command_options = {
     'password':    ("-W", "--password",    "Password"),
-    'concealed':   ("-C", "--concealed",   "Don't echo seed to console when restoring"),
     'receiving':   (None, "--receiving",   "Show only receiving addresses"),
     'change':      (None, "--change",      "Show only change addresses"),
     'frozen':      (None, "--frozen",      "Show only frozen addresses"),
