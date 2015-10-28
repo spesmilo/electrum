@@ -55,10 +55,13 @@ class HistoryWidget(MyTreeWidget):
             icon = QIcon(":icons/confirmed.png")
         return icon, time_str
 
+    def get_domain(self):
+        '''Replaced in address_dialog.py'''
+        return self.wallet.get_account_addresses(self.parent.current_account)
+
     def on_update(self):
         self.wallet = self.parent.wallet
-        domain = self.wallet.get_account_addresses(self.parent.current_account)
-        h = self.wallet.get_history(domain)
+        h = self.wallet.get_history(self.get_domain())
 
         item = self.currentItem()
         current_tx = item.data(0, Qt.UserRole).toString() if item else None

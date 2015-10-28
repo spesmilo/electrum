@@ -87,7 +87,7 @@ from electrum_ltc.commands import get_parser, known_commands, Commands, config_v
 # get password routine
 def prompt_password(prompt, confirm=True):
     import getpass
-    password = getpass.getpass(prompt)
+    password = getpass.getpass(prompt, stream=None)
     if password and confirm:
         password2 = getpass.getpass("Confirm: ")
         if password != password2:
@@ -141,27 +141,23 @@ def init_cmdline(config):
             return prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
 
         if cmd.name == 'restore':
-            import getpass
-            text = getpass.getpass(prompt="seed:", stream=None) if config.get('concealed') else raw_input("seed or key(s):")
+            text = config.get('text')
+            password = password_dialog() if Wallet.is_seed(text) or Wallet.is_xprv(text) or Wallet.is_private_key(text) else None
             try:
-                wallet = Wallet.from_text(text, password_dialog, storage)
+                wallet = Wallet.from_text(text, password, storage)
             except BaseException as e:
                 sys.exit(str(e))
-
             if not config.get('offline'):
                 network = Network(config)
                 network.start()
                 wallet.start_threads(network)
                 print_msg("Recovering wallet...")
+                wallet.synchronize()
                 wallet.restore(lambda x: x)
-                wallet.synchronize()
-                if wallet.is_found():
-                    print_msg("Recovery successful")
-                else:
-                    print_msg("Warning: Found no history for this wallet")
+                msg = "Recovery successful" if wallet.is_found() else "Found no history for this wallet"
             else:
-                wallet.synchronize()
-                print_msg("Warning: This wallet was restored offline. It may contain more addresses than displayed.")
+                msg = "This wallet was restored offline. It may contain more addresses than displayed."
+            print_msg(msg)
 
         else:
             password = password_dialog()
@@ -175,10 +171,9 @@ def init_cmdline(config):
             print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
 
         print_msg("Wallet saved in '%s'" % wallet.storage.path)
-        # terminate
         sys.exit(0)
 
-    if cmd.name not in ['create', 'restore'] and cmd.requires_wallet and not storage.file_exists:
+    if cmd.requires_wallet and not storage.file_exists:
         print_msg("Error: Wallet file not found.")
         print_msg("Type 'electrum-ltc create' to create a new wallet, or provide a path to a wallet with the -w option")
         sys.exit(0)
@@ -249,6 +244,9 @@ def run_command(config, network, password):
     storage = WalletStorage(config.get_wallet_path())
     # create wallet instance
     wallet = Wallet(storage) if cmd.requires_wallet else None
+    # start threads
+    if wallet and network:
+        wallet.start_threads(network)
     # arguments passed to function
     args = map(lambda x: config.get(x), cmd.params)
     # decode json arguments
@@ -265,10 +263,9 @@ def run_command(config, network, password):
     cmd_runner.password = password
     func = getattr(cmd_runner, cmd.name)
     result = func(*args)
-
+    # stop threads
     if wallet:
         wallet.stop_threads()
-
     return result
 
 
@@ -425,6 +422,8 @@ if __name__ == '__main__':
             else:
                 raise BaseException('Cannot get argument from stdin')
         elif arg == '?':
+            sys.argv[i] = raw_input("Enter argument:")
+        elif arg == ':':
             sys.argv[i] = prompt_password('Enter argument (will not echo):', False)
 
     # parse command line

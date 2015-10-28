@@ -101,21 +101,26 @@ class Commands:
     @command('')
     def create(self):
         """Create a new wallet"""
+        raise BaseException('Not a JSON-RPC command')
 
-    @command('')
-    def restore(self, concealed=False):
-        """Restore a wallet. A wallet can be restored from a seed phrase, a
-        master public key, a master private key, a list of bitcoin addresses
-        or bitcoin private keys."""
+    @command('wn')
+    def restore(self, text):
+        """Restore a wallet from text. Text can be a seed phrase, a master
+        public key, a master private key, a list of Litecoin addresses
+        or Litecoin private keys. If you want to be prompted for your
+        seed, type '?' or ':' (concealed) """
+        raise BaseException('Not a JSON-RPC command')
 
     @command('w')
     def deseed(self):
         """Remove seed from wallet. This creates a seedless, watching-only
         wallet."""
+        raise BaseException('Not a JSON-RPC command')
 
     @command('wp')
     def password(self):
         """Change wallet password. """
+        raise BaseException('Not a JSON-RPC command')
 
     @command('')
     def getconfig(self, key):
@@ -615,7 +620,6 @@ param_descriptions = {
 
 command_options = {
     'password':    ("-W", "--password",    "Password"),
-    'concealed':   ("-C", "--concealed",   "Don't echo seed to console when restoring"),
     'receiving':   (None, "--receiving",   "Show only receiving addresses"),
     'change':      (None, "--change",      "Show only change addresses"),
     'frozen':      (None, "--frozen",      "Show only frozen addresses"),
