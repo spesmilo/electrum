@@ -201,7 +201,7 @@ class Commands:
         tx = Transaction.from_io(tx_inputs, outputs)
         if not unsigned:
             self.wallet.sign_transaction(tx, self.password)
-        return tx
+        return tx.as_dict()
 
     @command('wp')
     def signtransaction(self, tx, privkey=None):
@@ -213,7 +213,7 @@ class Commands:
             t.sign({pubkey:privkey})
         else:
             self.wallet.sign_transaction(t, self.password)
-        return t
+        return t.as_dict()
 
     @command('')
     def deserialize(self, tx):
@@ -423,14 +423,14 @@ class Commands:
         """Create a transaction. """
         domain = [from_addr] if from_addr else None
         tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned)
-        return tx.deserialize() if deserialized else tx
+        return tx.deserialize() if deserialized else tx.as_dict()
 
     @command('wpn')
     def paytomany(self, outputs, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False):
         """Create a multi-output transaction. """
         domain = [from_addr] if from_addr else None
         tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned)
-        return tx.deserialize() if deserialized else tx
+        return tx.deserialize() if deserialized else tx.as_dict()
 
     @command('wn')
     def history(self):
@@ -512,7 +512,7 @@ class Commands:
                 tx = Transaction(raw)
             else:
                 raise BaseException("Unknown transaction")
-        return tx.deserialize() if deserialized else tx
+        return tx.deserialize() if deserialized else tx.as_dict()
 
     @command('')
     def encrypt(self, pubkey, message):
