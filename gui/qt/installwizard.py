@@ -549,7 +549,7 @@ class InstallWizard(QDialog):
         wallet.start_threads(self.network)
 
         if action == 'restore':
-            self.waiting_dialog(lambda: wallet.restore(self.waiting_label.setText))
+            self.waiting_dialog(lambda: wallet.wait_until_synchronized(self.waiting_label.setText))
             if self.network:
                 msg = _("Recovery successful") if wallet.is_found() else _("No transactions found for this seed")
             else:

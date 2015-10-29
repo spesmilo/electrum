@@ -153,7 +153,7 @@ def init_cmdline(config):
                 wallet.start_threads(network)
                 print_msg("Recovering wallet...")
                 wallet.synchronize()
-                wallet.restore(lambda x: x)
+                wallet.wait_until_synchronized()
                 msg = "Recovery successful" if wallet.is_found() else "Found no history for this wallet"
             else:
                 msg = "This wallet was restored offline. It may contain more addresses than displayed."
@@ -247,6 +247,7 @@ def run_command(config, network, password):
     # start threads
     if wallet and network:
         wallet.start_threads(network)
+        wallet.wait_until_synchronized()
     # arguments passed to function
     args = map(lambda x: config.get(x), cmd.params)
     # decode json arguments

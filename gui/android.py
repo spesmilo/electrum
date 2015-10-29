@@ -953,7 +953,7 @@ class ElectrumGui:
             droid.dialogShow()
             wallet.start_threads(network)
             if action == 'restore':
-                wallet.restore(lambda x: None)
+                wallet.wait_until_synchronized()
             else:
                 wallet.synchronize()
             droid.dialogDismiss()

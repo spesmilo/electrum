@@ -314,11 +314,6 @@ class Abstract_Wallet(PrintError):
     def is_up_to_date(self):
         with self.lock: return self.up_to_date
 
-    def update(self):
-        self.up_to_date = False
-        while not self.is_up_to_date():
-            time.sleep(0.1)
-
     def is_imported(self, addr):
         account = self.accounts.get(IMPORTED_ACCOUNT)
         if account:
@@ -1134,21 +1129,23 @@ class Abstract_Wallet(PrintError):
             self.verifier = None
             self.storage.put('stored_height', self.get_local_height(), True)
 
-    def restore(self, callback):
+    def wait_until_synchronized(self, callback=None):
         from i18n import _
         def wait_for_wallet():
             self.set_up_to_date(False)
             while not self.is_up_to_date():
-                msg = "%s\n%s %d"%(
-                    _("Please wait..."),
-                    _("Addresses generated:"),
-                    len(self.addresses(True)))
-                apply(callback, (msg,))
+                if callback:
+                    msg = "%s\n%s %d"%(
+                        _("Please wait..."),
+                        _("Addresses generated:"),
+                        len(self.addresses(True)))
+                    apply(callback, (msg,))
                 time.sleep(0.1)
         def wait_for_network():
             while not self.network.is_connected():
-                msg = "%s \n" % (_("Connecting..."))
-                apply(callback, (msg,))
+                if callback:
+                    msg = "%s \n" % (_("Connecting..."))
+                    apply(callback, (msg,))
                 time.sleep(0.1)
         # wait until we are connected, because the user might have selected another server
         if self.network:

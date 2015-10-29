@@ -24,7 +24,7 @@ files = {
 }
 
 for k, n in files.items():
-    path = "binaries/%s"%n
+    path = "dist/%s"%n
     link = "https://download.electrum-ltc.org/%s"%n
     if not os.path.exists(path):
         os.system("wget -q %s -O %s" % (link, path))

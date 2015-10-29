@@ -1357,8 +1357,8 @@ class ElectrumGui():
         dialog.show()
 
         def recover_thread( wallet, dialog ):
-            wallet.restore(lambda x:x)
-            GObject.idle_add( dialog.destroy )
+            wallet.wait_until_synchronized()
+            GObject.idle_add(dialog.destroy)
 
         thread.start_new_thread( recover_thread, ( wallet, dialog ) )
         r = dialog.run()

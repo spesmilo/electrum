@@ -531,7 +531,7 @@ class Commands:
             PR_PAID: 'Paid',
             PR_EXPIRED: 'Expired',
         }
-        out['amount (LTC)'] = format_satoshis(out.pop('amount'))
+        out['amount (LTC)'] = format_satoshis(out.get('amount'))
         out['status'] = pr_str[out.get('status', PR_UNKNOWN)]
         return out
 
@@ -577,7 +577,8 @@ class Commands:
         expiration = int(expiration)
         req = self.wallet.make_payment_request(addr, amount, memo, expiration)
         self.wallet.add_payment_request(req, self.config)
-        return self._format_request(req)
+        out = self.wallet.get_payment_request(addr, self.config)
+        return self._format_request(out)
 
     @command('wp')
     def signrequest(self, address):
