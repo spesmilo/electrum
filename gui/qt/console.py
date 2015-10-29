@@ -213,9 +213,10 @@ class Console(QtGui.QPlainTextEdit):
                 try:
                     # eval is generally considered bad practice. use it wisely!
                     result = eval(command, self.namespace, self.namespace)
+                    result = util.json_encode(result)
                     if result != None:
                         if self.is_json:
-                            util.print_json(result)
+                            util.print_msg(result)
                         else:
                             self.appendPlainText(repr(result))
                 except SyntaxError:

@@ -112,14 +112,18 @@ def print_msg(*args):
     sys.stdout.write(" ".join(args) + "\n")
     sys.stdout.flush()
 
-def print_json(obj):
+def json_encode(obj):
     try:
         s = json.dumps(obj, sort_keys = True, indent = 4, cls=MyEncoder)
     except TypeError:
         s = repr(obj)
-    sys.stdout.write(s + "\n")
-    sys.stdout.flush()
+    return s
 
+def json_decode(x):
+    try:
+        return json.loads(x)
+    except:
+        return x
 
 # decorator that prints execution time
 def profiler(func):

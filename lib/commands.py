@@ -418,14 +418,14 @@ class Commands:
             self.wallet.sign_transaction(tx, self.password)
         return tx
 
-    @command('wp')
+    @command('wpn')
     def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False):
         """Create a transaction. """
         domain = [from_addr] if from_addr else None
         tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned)
         return tx.deserialize() if deserialized else tx
 
-    @command('wp')
+    @command('wpn')
     def paytomany(self, outputs, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False):
         """Create a multi-output transaction. """
         domain = [from_addr] if from_addr else None
@@ -657,8 +657,8 @@ arg_types = {
     'pubkeys': json.loads,
     'inputs': json.loads,
     'outputs': json.loads,
-    'tx_fee': lambda x: Decimal(x) if x is not None else None,
-    'amount': lambda x: Decimal(x) if x!='!' else '!',
+    'tx_fee': lambda x: float(x) if x is not None else None,
+    'amount': lambda x: float(x) if x!='!' else '!',
 }
 
 config_variables = {
