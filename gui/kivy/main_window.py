@@ -443,9 +443,13 @@ class ElectrumWindow(App):
     def update_amount(self, amount, c):
         if c == '<':
             return amount[:-1]
+        if c == '.' and amount == '':
+            return '0.'
+        if c == '0' and amount == '0':
+            return '0'
         try:
-            s = amount + c
-            amount = s  if Decimal(s)!=0 else ''            
+            Decimal(amount+c)
+            amount += c
         except:
             pass
         return amount
