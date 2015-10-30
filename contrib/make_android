@@ -24,6 +24,8 @@ if __name__ == '__main__':
     os.mkdir(target + '/gui')
     shutil.copyfile('gui/android.py', target + '/gui/android.py')
     open(target + '/gui/__init__.py','w').close()
+    os.mkdir(target + '/plugins')
+    shutil.copyfile('plugins/__init__.py', target + '/plugins/__init__.py')
 
     os.chdir("dist")
     # create the zip file
