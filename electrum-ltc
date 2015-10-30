@@ -79,7 +79,7 @@ if is_bundle or is_local or is_android:
 
 from electrum_ltc import util
 from electrum_ltc import SimpleConfig, Network, Wallet, WalletStorage
-from electrum_ltc.util import print_msg, print_error, print_stderr, print_json, set_verbosity, InvalidPassword
+from electrum_ltc.util import print_msg, print_error, print_stderr, json_encode, json_decode, set_verbosity, InvalidPassword
 from electrum_ltc.plugins import Plugins, run_hook, always_hook
 from electrum_ltc.commands import get_parser, known_commands, Commands, config_variables
 
@@ -251,15 +251,9 @@ def run_command(config, network, password):
     # arguments passed to function
     args = map(lambda x: config.get(x), cmd.params)
     # decode json arguments
-    def json_decode(x):
-        try:
-            return json.loads(x)
-        except:
-            return x
     args = map(json_decode, args)
     # options
     args += map(lambda x: config.get(x), cmd.options)
-
     cmd_runner = Commands(config, wallet, network)
     cmd_runner.password = password
     func = getattr(cmd_runner, cmd.name)
@@ -467,13 +461,15 @@ if __name__ == '__main__':
     gui_name = config.get('gui', 'qt') if cmd_name == 'gui' else 'cmdline'
     plugins = Plugins(config, is_bundle or is_local or is_android, gui_name)
 
-    # get password if needed
+    # run command offline
     if cmd_name not in ['gui', 'daemon']:
         cmd, password = init_cmdline(config)
         if not cmd.requires_network or config.get('offline'):
             result = run_command(config, None, password)
-            print_json(result)
-            sys.exit(1)
+            print_msg(json_encode(result))
+            sys.exit(0)
+        else:
+            config_options['password'] = password
 
     # check if daemon is running
     s = get_daemon(config, False)
@@ -485,11 +481,10 @@ if __name__ == '__main__':
         s.close()
         if type(result) in [str, unicode]:
             print_msg(result)
+        elif type(result) is dict and result.get('error'):
+            print_stderr(result.get('error'))
         elif result is not None:
-            if type(result) is dir and result.get('error'):
-                print_stderr(result.get('error'))
-            else:
-                print_json(result)
+            print_msg(json_encode(result))
         sys.exit(0)
 
     # daemon is not running

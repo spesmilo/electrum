@@ -201,7 +201,7 @@ class Commands:
         tx = Transaction.from_io(tx_inputs, outputs)
         if not unsigned:
             self.wallet.sign_transaction(tx, self.password)
-        return tx
+        return tx.as_dict()
 
     @command('wp')
     def signtransaction(self, tx, privkey=None):
@@ -213,7 +213,7 @@ class Commands:
             t.sign({pubkey:privkey})
         else:
             self.wallet.sign_transaction(t, self.password)
-        return t
+        return t.as_dict()
 
     @command('')
     def deserialize(self, tx):
@@ -418,19 +418,19 @@ class Commands:
             self.wallet.sign_transaction(tx, self.password)
         return tx
 
-    @command('wp')
-    def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False):
+    @command('wpn')
+    def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False):
         """Create a transaction. """
         domain = [from_addr] if from_addr else None
         tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned)
-        return tx.deserialize() if deserialized else tx
+        return tx.as_dict()
 
-    @command('wp')
-    def paytomany(self, outputs, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False):
+    @command('wpn')
+    def paytomany(self, outputs, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False):
         """Create a multi-output transaction. """
         domain = [from_addr] if from_addr else None
         tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned)
-        return tx.deserialize() if deserialized else tx
+        return tx.as_dict()
 
     @command('wn')
     def history(self):
@@ -503,7 +503,7 @@ class Commands:
         return out
 
     @command('nw')
-    def gettransaction(self, txid, deserialized=False):
+    def gettransaction(self, txid):
         """Retrieve a transaction. """
         tx = self.wallet.transactions.get(txid) if self.wallet else None
         if tx is None and self.network:
@@ -512,7 +512,7 @@ class Commands:
                 tx = Transaction(raw)
             else:
                 raise BaseException("Unknown transaction")
-        return tx.deserialize() if deserialized else tx
+        return tx.as_dict()
 
     @command('')
     def encrypt(self, pubkey, message):
@@ -636,7 +636,6 @@ command_options = {
     'entropy':     (None, "--entropy",     "Custom entropy"),
     'language':    ("-L", "--lang",        "Default language for wordlist"),
     'gap_limit':   ("-G", "--gap",         "Gap limit"),
-    'deserialized':("-d", "--deserialized","Return deserialized transaction"),
     'privkey':     (None, "--privkey",     "Private key. Set to '?' to get a prompt."),
     'unsigned':    ("-u", "--unsigned",    "Do not sign transaction"),
     'domain':      ("-D", "--domain",      "List of addresses"),
@@ -657,8 +656,8 @@ arg_types = {
     'pubkeys': json.loads,
     'inputs': json.loads,
     'outputs': json.loads,
-    'tx_fee': lambda x: Decimal(x) if x is not None else None,
-    'amount': lambda x: Decimal(x) if x!='!' else '!',
+    'tx_fee': lambda x: float(x) if x is not None else None,
+    'amount': lambda x: float(x) if x!='!' else '!',
 }
 
 config_variables = {
