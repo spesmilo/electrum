@@ -298,7 +298,10 @@
             text: _('Contacts')
             slide: 3
 
-
+<ActionOvrButton@ActionButton>
+    on_release:
+        if self.parent: self.parent.parent.dismiss()
+        app.popup_dialog(self.text.lower())
 
 BoxLayout:
 
@@ -316,10 +319,12 @@ BoxLayout:
         ActionView:
             id: av
 
-            ActionPrevious: 
+            ActionPrevious:
                 app_icon: 'atlas://gui/kivy/theming/light/logo'
                 with_previous: False
                 on_release: app.on_back()
+                size_hint_x: None
+                width: ao.width
 
             ActionButton:
                 id: action_status
@@ -338,24 +343,19 @@ BoxLayout:
 
             ActionOverflow:
                 id: ao
-                size_hint: 1, 1
-                ActionButton:
+                ActionOvrButton:
                     text: _('Network')
-                    on_press: ao._dropdown.dismiss()
-                    on_release: app.popup_dialog('network')
-                ActionButton:
+                    on_parent:
+                        # when widget overflow drop down is shown, adjust the width
+                        parent = args[1]
+                        if parent: ao._dropdown.width = sp(200)
+                ActionOvrButton:
                     text: _('Settings')
-                    on_press: ao._dropdown.dismiss()
-                    on_release: app.popup_dialog('settings')
-                ActionButton:
+                ActionOvrButton:
                     text: _('Wallets')
-                    on_press: ao._dropdown.dismiss()
-                    on_release: app.popup_dialog('wallet')
-                ActionButton:
+                ActionOvrButton:
                     text: _('Plugins')
-                    on_press: ao._dropdown.dismiss()
-                    on_release: app.popup_dialog('plugins')
-                
+
     ScreenManager:
         id: manager
         ScreenTabs:
