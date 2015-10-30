@@ -15,20 +15,8 @@ Popup:
             BoxLayout:
                 size_hint: 1, None
                 height: '48dp'
-                id: 'spendable'
                 Label:
-                    text: _('Spendable:')
-                    size_hint_x: 1
-                Button:
-                    size_hint_x: 1
-                    height: '48dp'
-                    amount: app.get_max_amount()
-                    text: self.amount + ' ' + app.base_unit
-                    on_release: a.amount = self.amount
-
-            BoxLayout:
-                size_hint: 1, None
-                height: '48dp'
+                    text: 'Amount'
                 Label:
                     id: a
                     amount: ''
@@ -79,6 +67,13 @@ Popup:
                 KButton:
                     text: '<'
                     label: a
+                Button:
+                    size_hint: 1, None
+                    height: '48dp'
+                    text: 'Max'
+                    on_release: a.amount = app.get_max_amount()
+
+
 
             BoxLayout:
                 size_hint: 1, None
