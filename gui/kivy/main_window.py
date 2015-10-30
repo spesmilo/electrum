@@ -731,10 +731,8 @@ class ElectrumWindow(App):
         popup.tx_hash = tx_hash
         popup.open()
 
-    def amount_dialog(self, label, callback):
+    def amount_dialog(self, label, callback, show_max):
         popup = Builder.load_file('gui/kivy/uix/ui_screens/amount.kv')
-        # Hide max_button
-        show_max = False
         but_max = popup.ids.but_max
         if not show_max:
             but_max.disabled = True

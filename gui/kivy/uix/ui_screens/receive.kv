@@ -52,7 +52,7 @@ ReceiveScreen:
                     halign: 'left'
                     size_hint: 0.5, None
                     height: '38dp'
-                    on_release: app.amount_dialog(amount, receive_screen.parent.update_qr)
+                    on_release: app.amount_dialog(amount, receive_screen.parent.update_qr, False)
                     background_color: 0, 0, 0, 0
             CardSeparator:
                 opacity: message_selection.opacity
