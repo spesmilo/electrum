@@ -42,6 +42,7 @@ class Synchronizer(ThreadJob):
         # Entries are (tx_hash, tx_height) tuples
         self.requested_tx = set()
         self.requested_histories = {}
+        self.processed_histories = set()
         self.requested_addrs = set()
         self.lock = Lock()
         self.initialize()
@@ -53,8 +54,10 @@ class Synchronizer(ThreadJob):
         return response['params'], response['result']
 
     def is_up_to_date(self):
-        return (not self.requested_tx and not self.requested_histories
-                and not self.requested_addrs)
+        return (not self.requested_tx
+                and not self.requested_histories
+                and not self.requested_addrs
+                and not self.processed_histories)
 
     def add(self, address):
         '''This can be called from the proxy or GUI threads.'''
@@ -79,38 +82,36 @@ class Synchronizer(ThreadJob):
         if self.wallet.get_status(history) != result:
             if self.requested_histories.get(addr) is None:
                 self.network.send([('blockchain.address.get_history', [addr])],
-                                  self.addr_history_response)
+                                  self.process_history)
                 self.requested_histories[addr] = result
 
-    def addr_history_response(self, response):
+    def process_history(self, response):
         params, result = self.parse_response(response)
         if not params:
             return
         addr = params[0]
         self.print_error("receiving history", addr, len(result))
+        # add addr to the list of histories being processed
+        self.processed_histories.add(addr)
         server_status = self.requested_histories.pop(addr)
-
-        # Check that txids are unique
         hashes = set(map(lambda item: item['tx_hash'], result))
+        hist = map(lambda item: (item['tx_hash'], item['height']), result)
+        # Check that txids are unique
         if len(hashes) != len(result):
             self.print_error("error: server history has non-unique txids: %s"% addr)
-            return
-
         # Check that the status corresponds to what was announced
-        hist = map(lambda item: (item['tx_hash'], item['height']), result)
-        # Note if the server hasn't been patched to sort the items properly
-        if hist != sorted(hist, key=lambda x:x[1]):
-            self.network.interface.print_error("serving improperly sorted "
-                                               "address histories")
-        if self.wallet.get_status(hist) != server_status:
+        elif self.wallet.get_status(hist) != server_status:
             self.print_error("error: status mismatch: %s" % addr)
-            return
-
-        # Store received history
-        self.wallet.receive_history_callback(addr, hist)
-
-        # Request transactions we don't have
-        self.request_missing_txs(hist)
+        else:
+            # Note if the server hasn't been patched to sort the items properly
+            if hist != sorted(hist, key=lambda x:x[1]):
+                self.network.interface.print_error("serving improperly sorted address histories")
+            # Store received history
+            self.wallet.receive_history_callback(addr, hist)
+            # Request transactions we don't have
+            self.request_missing_txs(hist)
+        # Finally, allow up_to_date
+        self.processed_histories.remove(addr)
 
     def tx_response(self, response):
         params, result = self.parse_response(response)
