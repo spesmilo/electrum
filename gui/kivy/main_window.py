@@ -425,7 +425,7 @@ class ElectrumWindow(App):
                 self.status = text.strip() + ' ' + self.base_unit
         else:
             self.status = _("Not connected")
-            
+
         return
 
         print self.root.manager.ids
@@ -733,6 +733,16 @@ class ElectrumWindow(App):
 
     def amount_dialog(self, label, callback):
         popup = Builder.load_file('gui/kivy/uix/ui_screens/amount.kv')
+        # Hide max_button
+        show_max = False
+        but_max = popup.ids.but_max
+        if not show_max:
+            but_max.disabled = True
+            but_max.opacity = 0
+        else:
+            but_max.disabled = False
+            but_max.opacity = 1
+
         if label.text != label.default_text:
             a, u = label.text.split()
             assert u == self.base_unit
@@ -755,6 +765,3 @@ class ElectrumWindow(App):
             popup.open()
         else:
             apply(f, args + (None,))
-
-
-
