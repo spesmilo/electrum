@@ -88,29 +88,25 @@ class Synchronizer(ThreadJob):
             return
         addr = params[0]
         self.print_error("receiving history", addr, len(result))
-        server_status = self.requested_histories.pop(addr)
-
-        # Check that txids are unique
+        server_status = self.requested_histories[addr]
         hashes = set(map(lambda item: item['tx_hash'], result))
-        if len(hashes) != len(result):
-            self.print_error("error: server history has non-unique txids: %s"% addr)
-            return
-
-        # Check that the status corresponds to what was announced
         hist = map(lambda item: (item['tx_hash'], item['height']), result)
         # Note if the server hasn't been patched to sort the items properly
         if hist != sorted(hist, key=lambda x:x[1]):
-            self.network.interface.print_error("serving improperly sorted "
-                                               "address histories")
-        if self.wallet.get_status(hist) != server_status:
+            self.network.interface.print_error("serving improperly sorted address histories")
+        # Check that txids are unique
+        if len(hashes) != len(result):
+            self.print_error("error: server history has non-unique txids: %s"% addr)
+        # Check that the status corresponds to what was announced
+        elif self.wallet.get_status(hist) != server_status:
             self.print_error("error: status mismatch: %s" % addr)
-            return
-
-        # Store received history
-        self.wallet.receive_history_callback(addr, hist)
-
-        # Request transactions we don't have
-        self.request_missing_txs(hist)
+        else:
+            # Store received history
+            self.wallet.receive_history_callback(addr, hist)
+            # Request transactions we don't have
+            self.request_missing_txs(hist)
+        # Remove request; this allows up_to_date to be True
+        self.requested_histories.pop(addr)
 
     def tx_response(self, response):
         params, result = self.parse_response(response)
