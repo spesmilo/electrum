@@ -633,6 +633,19 @@ class Abstract_Wallet(PrintError):
                     coins = coins[1:] + [ coins[0] ]
         return [value for height, value in coins]
 
+    def get_max_amount(self, config, inputs, fee):
+        sendable = sum(map(lambda x:x['value'], inputs))
+        for i in inputs:
+            self.add_input_info(i)
+        addr = self.addresses(False)[0]
+        output = ('address', addr, sendable)
+        dummy_tx = Transaction.from_io(inputs, [output])
+        if fee is None:
+            fee_per_kb = self.fee_per_kb(config)
+            fee = self.estimated_fee(dummy_tx, fee_per_kb)
+        amount = max(0, sendable - fee)
+        return amount, fee
+
     def get_account_name(self, k):
         return self.labels.get(k, self.accounts[k].get_name(k))
 

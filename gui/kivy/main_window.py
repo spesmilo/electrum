@@ -440,6 +440,11 @@ class ElectrumWindow(App):
         status_card.uncomfirmed = unconfirmed.strip()
 
 
+    def get_max_amount(self):
+        inputs = self.wallet.get_spendable_coins(None)
+        amount, fee = self.wallet.get_max_amount(self.electrum_config, inputs, None)
+        return self.format_amount(amount)
+
     def update_amount(self, amount, c):
         if c == '<':
             return amount[:-1]

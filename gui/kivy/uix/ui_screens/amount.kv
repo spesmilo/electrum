@@ -22,8 +22,9 @@ Popup:
                 Button:
                     size_hint_x: 1
                     height: '48dp'
-                    text: ''
-                    on_release: a.value = "max"
+                    amount: app.get_max_amount()
+                    text: self.amount + ' ' + app.base_unit
+                    on_release: a.amount = self.amount
 
             BoxLayout:
                 size_hint: 1, None

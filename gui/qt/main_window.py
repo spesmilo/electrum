@@ -965,22 +965,15 @@ class ElectrumWindow(QMainWindow, PrintError):
         grid.addLayout(buttons, 6, 1, 1, 2)
 
         def on_shortcut():
-            sendable = self.get_sendable_balance()
             inputs = self.get_coins()
-            for i in inputs:
-                self.wallet.add_input_info(i)
-            addr = self.payto_e.payto_address if self.payto_e.payto_address else self.dummy_address
-            output = ('address', addr, sendable)
-            dummy_tx = Transaction.from_io(inputs, [output])
+            amount, fee = self.wallet.get_max_amount(self.config, inputs, self.fee_e.get_amount())
             if self.fee_e.get_amount() is None:
-                fee_per_kb = self.wallet.fee_per_kb(self.config)
-                self.fee_e.setAmount(self.wallet.estimated_fee(dummy_tx, fee_per_kb))
-            self.amount_e.setAmount(max(0, sendable - self.fee_e.get_amount()))
+                self.fee_e.setAmount(fee)
+            self.amount_e.setAmount(max(0, amount))
             # emit signal for fiat_amount update
             self.amount_e.textEdited.emit("")
 
         self.amount_e.shortcut.connect(on_shortcut)
-
         self.payto_e.textChanged.connect(self.update_fee)
         self.amount_e.textEdited.connect(self.update_fee)
         self.fee_e.textEdited.connect(self.update_fee)
@@ -1537,10 +1530,6 @@ class ElectrumWindow(QMainWindow, PrintError):
 
         run_hook('receive_menu', menu, addrs)
         menu.exec_(self.address_list.viewport().mapToGlobal(position))
-
-
-    def get_sendable_balance(self):
-        return sum(map(lambda x:x['value'], self.get_coins()))
 
 
     def get_coins(self):
