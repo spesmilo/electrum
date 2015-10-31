@@ -64,8 +64,9 @@ class CosignWidget(QWidget):
 
 class InstallWizard(QDialog):
 
-    def __init__(self, config, network, storage):
+    def __init__(self, app, config, network, storage):
         QDialog.__init__(self)
+        self.app = app
         self.config = config
         self.network = network
         self.storage = storage
@@ -416,11 +417,10 @@ class InstallWizard(QDialog):
         return True
 
     def show_seed(self, seed, sid):
-        vbox = seed_dialog.show_seed_box_msg(seed, sid, paranoid=True)
+        vbox = seed_dialog.show_seed_box_msg(seed, sid)
         vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _("Next"))))
         self.set_layout(vbox)
         return self.exec_()
-
 
     def password_dialog(self):
         msg = _("Please choose a password to encrypt your wallet keys.")+'\n'\
@@ -506,6 +506,7 @@ class InstallWizard(QDialog):
                 seed = wallet.make_seed(lang)
                 if not self.show_seed(seed, None):
                     return
+                self.app.clipboard().clear()
                 if not self.verify_seed(seed, None):
                     return
                 password = self.password_dialog()

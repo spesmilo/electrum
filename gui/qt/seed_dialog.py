@@ -47,9 +47,9 @@ def icon_filename(sid):
         return ":icons/seed.png"
 
 
-def show_seed_box_msg(seedphrase, sid=None, paranoid=False):
+def show_seed_box_msg(seedphrase, sid=None):
     msg =  _("Your wallet generation seed is") + ":"
-    vbox = show_seed_box(msg, seedphrase, sid, paranoid=paranoid)
+    vbox = show_seed_box(msg, seedphrase, sid)
     msg = ''.join([
         "<p>",
         _("Please save these %d words on paper (order is important).")%len(seedphrase.split()) + " ",
@@ -68,11 +68,11 @@ def show_seed_box_msg(seedphrase, sid=None, paranoid=False):
     vbox.addStretch(1)
     return vbox
 
-def show_seed_box(msg, seed, sid, paranoid=False):
-    vbox, seed_e = enter_seed_box(msg, None, sid=sid, text=seed, paranoid=paranoid)
+def show_seed_box(msg, seed, sid):
+    vbox, seed_e = enter_seed_box(msg, None, sid=sid, text=seed)
     return vbox
 
-def enter_seed_box(msg, window, sid=None, text=None, paranoid=False):
+def enter_seed_box(msg, window, sid=None, text=None):
     vbox = QVBoxLayout()
     logo = QLabel()
     logo.setPixmap(QPixmap(icon_filename(sid)).scaledToWidth(56))
@@ -83,7 +83,7 @@ def enter_seed_box(msg, window, sid=None, text=None, paranoid=False):
         seed_e = ScanQRTextEdit()
         seed_e.setTabChangesFocus(True)
     else:
-        seed_e = ShowQRTextEdit(text=text, paranoid=paranoid)
+        seed_e = ShowQRTextEdit(text=text)
     seed_e.setMaximumHeight(130)
     vbox.addWidget(label)
     grid = QGridLayout()
