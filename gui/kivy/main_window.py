@@ -441,9 +441,10 @@ class ElectrumWindow(App):
 
 
     def get_max_amount(self):
+        from electrum.util import format_satoshis_plain
         inputs = self.wallet.get_spendable_coins(None)
         amount, fee = self.wallet.get_max_amount(self.electrum_config, inputs, None)
-        return self.format_amount(amount)
+        return format_satoshis_plain(amount, self.decimal_point())
 
     def update_amount(self, amount, c):
         if c == '<':
