@@ -8,10 +8,26 @@ from util import ButtonsTextEdit
 
 class ShowQRTextEdit(ButtonsTextEdit):
 
-    def __init__(self, text=None):
+    def __init__(self, text=None, paranoid=False):
         ButtonsTextEdit.__init__(self, text)
         self.setReadOnly(1)
         self.addButton(":icons/qrcode.png", self.qr_show, _("Show as QR code"))
+        self.paranoid = paranoid
+
+        if paranoid:
+            # Paranoid flag forces the user to write down what's in the box, 
+            # like Mycelium does. This is useful since many users just copy
+            # and paste their code, then when disaster strikes they don't have
+            # it written down anywhere.
+            self.setAcceptDrops(False) # No dragging and dropping
+            # Use custom context menu to remove copy/paste from menu
+            self.setContextMenuPolicy(Qt.ActionsContextMenu)
+            self.qaction = QAction(_("Show as QR code"), self)
+            self.qaction.triggered.connect(self.qr_show)
+            self.addAction(self.qaction)
+            # No text selection allowed.
+            self.setTextInteractionFlags(Qt.NoTextInteraction)
+
         run_hook('show_text_edit', self)
 
     def qr_show(self):
@@ -23,6 +39,7 @@ class ShowQRTextEdit(ButtonsTextEdit):
         QRDialog(s).exec_()
 
     def contextMenuEvent(self, e):
+        if self.paranoid: return
         m = self.createStandardContextMenu()
         m.addAction(_("Show as QR code"), self.qr_show)
         m.exec_(e.globalPos())
