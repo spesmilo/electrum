@@ -15,6 +15,8 @@ a = Analysis([home+'electrum-ltc',
               home+'plugins/cosigner_pool.py',
               home+'plugins/email_requests.py',
               home+'plugins/trezor.py',
+              home+'plugins/keepkey.py',
+              home+'plugins/btchipwallet.py',
               home+'packages/requests/utils.py'
               ],
              pathex=[home+'lib', home+'gui', home+'plugins', home+'packages'],
