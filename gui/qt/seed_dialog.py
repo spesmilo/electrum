@@ -50,11 +50,19 @@ def icon_filename(sid):
 def show_seed_box_msg(seedphrase, sid=None):
     msg =  _("Your wallet generation seed is") + ":"
     vbox = show_seed_box(msg, seedphrase, sid)
-    save_msg = _("Please save these %d words on paper (order is important).")%len(seedphrase.split()) + " "
-    msg2 = save_msg + " " \
-           + _("This seed will allow you to recover your wallet in case of computer failure.") + "<br/>" \
-           + "<b>"+_("WARNING")+":</b> " + _("Never disclose your seed. Never type it on a website.") + "</b><p>"
-    label2 = QLabel(msg2)
+    msg = ''.join([
+        "<p>",
+        _("Please save these %d words on paper (order is important).")%len(seedphrase.split()) + " ",
+        _("This seed will allow you to recover your wallet in case of computer failure.") + "<br/>",
+        "</p>",
+        "<b>" + _("WARNING") + ":</b> ",
+        "<ul>",
+        "<li>" + _("Never disclose your seed.") + "</li>",
+        "<li>" + _("Never type it on a website.") + "</li>",
+        "<li>" + _("Do not send your seed to a printer.") + "</li>",
+        "</ul>"
+    ])
+    label2 = QLabel(msg)
     label2.setWordWrap(True)
     vbox.addWidget(label2)
     vbox.addStretch(1)

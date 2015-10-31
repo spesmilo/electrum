@@ -3,6 +3,7 @@ from decimal import Decimal
 import re
 import datetime
 import traceback, sys
+import threading
 
 from kivy.app import App
 from kivy.cache import Cache
@@ -215,7 +216,11 @@ class SendScreen(CScreen):
         outputs = [('address', to_address, amount)]
         self.app.password_dialog(self.send_tx, (outputs, fee, label))
 
-    def send_tx(self, outputs, fee, label, password):
+    def send_tx(self, *args):
+        self.app.show_info("Sending...")
+        threading.Thread(target=self.send_tx_thread, args=args).start()
+
+    def send_tx_thread(self, outputs, fee, label, password):
         # make unsigned transaction
         coins = self.app.wallet.get_spendable_coins()
         try:

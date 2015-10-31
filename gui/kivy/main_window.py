@@ -183,7 +183,7 @@ class ElectrumWindow(App):
 
     def set_url(self, url):
         print "set url", url
-        url = electrum.util.parse_URI(url)
+        url = electrum_ltc.util.parse_URI(url)
         self.send_screen.set_qr_data(url)
 
     def scan_qr(self, on_complete):
@@ -441,9 +441,10 @@ class ElectrumWindow(App):
 
 
     def get_max_amount(self):
+        from electrum_ltc.util import format_satoshis_plain
         inputs = self.wallet.get_spendable_coins(None)
         amount, fee = self.wallet.get_max_amount(self.electrum_config, inputs, None)
-        return self.format_amount(amount)
+        return format_satoshis_plain(amount, self.decimal_point())
 
     def update_amount(self, amount, c):
         if c == '<':
