@@ -270,40 +270,23 @@ class InstallWizard(QDialog):
         self.exec_()
 
 
-
-
     def network_dialog(self):
-        # skip this if config already exists
-        if self.config.get('server') is not None:
-            return
-
         grid = QGridLayout()
         grid.setSpacing(5)
-
         label = QLabel(_("Electrum communicates with remote servers to get information about your transactions and addresses. The servers all fulfil the same purpose only differing in hardware. In most cases you simply want to let Electrum pick one at random if you have a preference though feel free to select a server manually.") + "\n\n" \
                       + _("How do you want to connect to a server:")+" ")
         label.setWordWrap(True)
         grid.addWidget(label, 0, 0)
-
         gb = QGroupBox()
-
         b1 = QRadioButton(gb)
         b1.setText(_("Auto connect"))
         b1.setChecked(True)
-
         b2 = QRadioButton(gb)
         b2.setText(_("Select server manually"))
-
-        #b3 = QRadioButton(gb)
-        #b3.setText(_("Stay offline"))
-
         grid.addWidget(b1,1,0)
         grid.addWidget(b2,2,0)
-        #grid.addWidget(b3,3,0)
-
         vbox = QVBoxLayout()
         vbox.addLayout(grid)
-
         vbox.addStretch(1)
         vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _('Next'))))
 
@@ -539,12 +522,12 @@ class InstallWizard(QDialog):
 
 
         if self.network:
-            if self.network.interfaces:
+            # show network dialog if config does not exist
+            if self.config.get('server') is None:
                 self.network_dialog()
-            else:
-                QMessageBox.information(None, _('Warning'), _('You are offline'), _('OK'))
-                self.network.stop()
-                self.network = None
+        else:
+            QMessageBox.information(None, _('Warning'), _('You are offline'), _('OK'))
+
 
         # start wallet threads
         wallet.start_threads(self.network)
