@@ -139,11 +139,6 @@ class ElectrumWindow(QMainWindow, PrintError):
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
 
-        try:
-            self.setGeometry(*self.config.get("winpos-qt"))
-        except:
-            self.setGeometry(100, 100, 840, 400)
-
         if self.config.get("is_maximized"):
             self.showMaximized()
 
@@ -270,6 +265,11 @@ class ElectrumWindow(QMainWindow, PrintError):
         self.clear_receive_tab()
         self.receive_list.update()
         self.tabs.show()
+        # set geometry
+        try:
+            self.setGeometry(*self.wallet.storage.get("winpos-qt"))
+        except:
+            self.setGeometry(100, 100, 840, 400)
         self.show()
         if self.wallet.is_watching_only():
             msg = ' '.join([
@@ -2802,7 +2802,7 @@ class ElectrumWindow(QMainWindow, PrintError):
         self.config.set_key("is_maximized", self.isMaximized())
         if not self.isMaximized():
             g = self.geometry()
-            self.config.set_key("winpos-qt", [g.left(),g.top(),g.width(),g.height()])
+            self.wallet.storage.put("winpos-qt", [g.left(),g.top(),g.width(),g.height()])
         self.config.set_key("console-history", self.console.history[-50:], True)
         if self.qr_window:
             self.qr_window.close()
