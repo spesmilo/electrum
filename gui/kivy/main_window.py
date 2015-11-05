@@ -30,6 +30,9 @@ Factory.register('InstallWizard',
 Factory.register('InfoBubble', module='electrum_ltc_gui.kivy.uix.dialogs')
 Factory.register('ELTextInput', module='electrum_ltc_gui.kivy.uix.screens')
 
+from kivy.core.window import Window
+Window.softinput_mode = 'below_target'
+
 
 # delayed imports: for startup speed on android
 notification = app = ref = format_satoshis = None

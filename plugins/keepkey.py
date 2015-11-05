@@ -445,6 +445,8 @@ class KeepKeyWallet(BIP32_HD_Wallet):
         #return str(decrypted_msg)
 
     def sign_message(self, address, message, password):
+        if self.has_seed():
+            return BIP32_HD_Wallet.sign_message(self, address, message, password)
         if not self.check_proper_device():
             give_error('Wrong device or password')
         try:
@@ -461,6 +463,8 @@ class KeepKeyWallet(BIP32_HD_Wallet):
         return msg_sig.signature
 
     def sign_transaction(self, tx, password):
+        if self.has_seed():
+            return BIP32_HD_Wallet.sign_transaction(self, tx, password)
         if tx.is_complete():
             return
         if not self.check_proper_device():

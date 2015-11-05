@@ -201,7 +201,7 @@ class ElectrumGui:
             if c == "n": return
 
         try:
-            tx = self.wallet.mktx( [(self.str_recipient, amount)], password, self.config, fee)
+            tx = self.wallet.mktx( [("address", self.str_recipient, amount)], password, self.config, fee)
         except Exception as e:
             print(str(e))
             return
