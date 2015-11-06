@@ -73,14 +73,15 @@ class Synchronizer(ThreadJob):
         if not params:
             return
         addr = params[0]
-        if addr in self.requested_addrs:  # Notifications won't be in
-            self.requested_addrs.remove(addr)
         history = self.wallet.get_address_history(addr)
         if self.wallet.get_status(history) != result:
             if self.requested_histories.get(addr) is None:
+                self.requested_histories[addr] = result
                 self.network.send([('blockchain.address.get_history', [addr])],
                                   self.addr_history_response)
-                self.requested_histories[addr] = result
+        # remove addr from list only after it is added to requested_histories
+        if addr in self.requested_addrs:  # Notifications won't be in
+            self.requested_addrs.remove(addr)
 
     def addr_history_response(self, response):
         params, result = self.parse_response(response)
