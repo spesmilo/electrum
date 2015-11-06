@@ -58,7 +58,7 @@ class ElectrumGui:
             self.network.register_callback('disconnected', self.refresh)
             self.network.register_callback('disconnecting', self.refresh)
 
-        self.tab_names = [_("History"), _("Send"), _("Receive"), _("Contacts"), _("Wall")]
+        self.tab_names = [_("History"), _("Send"), _("Receive"), _("Addresses"), _("Contacts"), _("Banner")]
         self.num_tabs = len(self.tab_names)
 
 
@@ -145,14 +145,18 @@ class ElectrumGui:
         for i in range(self.num_tabs):
             self.stdscr.addstr( 0, 2 + 2*i + len(''.join(self.tab_names[0:i])), ' '+self.tab_names[i]+' ', curses.A_BOLD if self.tab == i else 0)
 
-        self.stdscr.addstr( self.maxy -1, self.maxx-30, ' '.join([_("Settings"), _("Network"), _("Quit")]))
+        self.stdscr.addstr(self.maxy -1, self.maxx-30, ' '.join([_("Settings"), _("Network"), _("Quit")]))
 
+    def print_receive(self):
+        addr = self.wallet.get_unused_address(None)
+        self.stdscr.addstr(2, 1, "Address: "+addr)
+        self.print_qr(addr)
 
     def print_contacts(self):
         messages = map(lambda x: "%20s   %45s "%(x[0], x[1][1]), self.contacts.items())
         self.print_list(messages, "%19s  %15s "%("Key", "Value"))
 
-    def print_receive(self):
+    def print_addresses(self):
         fmt = "%-35s  %-30s"
         messages = map(lambda addr: fmt % (addr, self.wallet.labels.get(addr,"")), self.wallet.addresses())
         self.print_list(messages,   fmt % ("Address", "Label"))
@@ -174,6 +178,18 @@ class ElectrumGui:
     def print_banner(self):
         if self.network:
             self.print_list( self.network.banner.split('\n'))
+
+    def print_qr(self, data):
+        import qrcode, StringIO
+        s = StringIO.StringIO()
+        self.qr = qrcode.QRCode()
+        self.qr.add_data(data)
+        self.qr.print_ascii(out=s, invert=True)
+        msg = s.getvalue()
+        lines = msg.split('\n')
+        for i, l in enumerate(lines):
+            l = l.encode("utf-8")
+            self.stdscr.addstr(i+5, 5, l)
 
     def print_list(self, list, firstline = None):
         self.maxpos = len(list)
@@ -275,8 +291,9 @@ class ElectrumGui:
             self.run_tab(0, self.print_history, self.run_history_tab)
             self.run_tab(1, self.print_send_tab, self.run_send_tab)
             self.run_tab(2, self.print_receive, self.run_receive_tab)
-            self.run_tab(3, self.print_contacts, self.run_contacts_tab)
-            self.run_tab(4, self.print_banner, self.run_banner_tab)
+            self.run_tab(3, self.print_addresses, self.run_banner_tab)
+            self.run_tab(4, self.print_contacts, self.run_contacts_tab)
+            self.run_tab(5, self.print_banner, self.run_banner_tab)
 
         tty.setcbreak(sys.stdin)
         curses.nocbreak()
