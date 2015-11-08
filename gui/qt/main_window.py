@@ -2698,6 +2698,7 @@ class ElectrumWindow(QMainWindow, PrintError):
             self.history_list.update()
             self.receive_list.update()
             self.address_list.update()
+            self.do_clear()
             fee_e.setAmount(self.wallet.fee_per_kb(self.config))
             self.update_status()
         unit_combo.currentIndexChanged.connect(on_unit)
