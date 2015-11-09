@@ -2686,6 +2686,8 @@ class ElectrumWindow(QMainWindow, PrintError):
             unit_result = units[unit_combo.currentIndex()]
             if self.base_unit() == unit_result:
                 return
+            edits = self.amount_e, self.fee_e, self.receive_amount_e, fee_e
+            amounts = [edit.get_amount() for edit in edits]
             if unit_result == 'BTC':
                 self.decimal_point = 8
             elif unit_result == 'mBTC':
@@ -2698,8 +2700,8 @@ class ElectrumWindow(QMainWindow, PrintError):
             self.history_list.update()
             self.receive_list.update()
             self.address_list.update()
-            self.do_clear()
-            fee_e.setAmount(self.wallet.fee_per_kb(self.config))
+            for edit, amount in zip(edits, amounts):
+                edit.setAmount(amount)
             self.update_status()
         unit_combo.currentIndexChanged.connect(on_unit)
         gui_widgets.append((unit_label, unit_combo))
