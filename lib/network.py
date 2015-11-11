@@ -556,6 +556,13 @@ class Network(util.DaemonThread):
                 message_id = self.queue_request(method, params)
                 self.unanswered_requests[message_id] = method, params, callback
 
+    def unsubscribe(self, callback):
+        '''Unsubscribe a callback to free object references to enable GC.'''
+        # Note: we can't unsubscribe from the server, so if we receive
+        # subsequent notifications process_response() will emit a harmless
+        # "received unexpected notification" warning
+        self.subscriptions.pop(callback, None)
+
     def connection_down(self, server):
         '''A connection to server either went down, or was never made.
         We distinguish by whether it is in self.interfaces.'''

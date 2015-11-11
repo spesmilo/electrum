@@ -56,6 +56,9 @@ class Synchronizer(ThreadJob):
         return (not self.requested_tx and not self.requested_histories
                 and not self.requested_addrs)
 
+    def release(self):
+        self.network.unsubscribe(self.addr_subscription_response)
+
     def add(self, address):
         '''This can be called from the proxy or GUI threads.'''
         with self.lock:
