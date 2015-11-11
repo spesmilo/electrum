@@ -224,7 +224,8 @@ class Abstract_Wallet(PrintError):
             self.storage.put('transactions', tx, False)
             self.storage.put('txi', self.txi, False)
             self.storage.put('txo', self.txo, False)
-            self.storage.put('pruned_txo', self.pruned_txo, True)
+            self.storage.put('pruned_txo', self.pruned_txo, False)
+            self.storage.put('addr_history', self.history, True)
 
     def clear_history(self):
         with self.transaction_lock:
@@ -235,7 +236,6 @@ class Abstract_Wallet(PrintError):
         with self.lock:
             self.history = {}
             self.tx_addr_hist = {}
-        self.storage.put('addr_history', self.history, True)
 
     @profiler
     def build_reverse_history(self):
@@ -262,8 +262,9 @@ class Abstract_Wallet(PrintError):
                 if tx is not None:
                     tx.deserialize()
                     self.add_transaction(tx_hash, tx)
+                    save = True
         if save:
-            self.storage.put('addr_history', self.history, True)
+            self.save_transactions()
 
     # wizard action
     def get_action(self):
@@ -789,6 +790,7 @@ class Abstract_Wallet(PrintError):
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
         self.add_transaction(tx_hash, tx)
+        self.save_transactions()
         self.add_unverified_tx(tx_hash, tx_height)
 
 
@@ -803,7 +805,6 @@ class Abstract_Wallet(PrintError):
                         self.remove_transaction(tx_hash)
 
             self.history[addr] = hist
-            self.storage.put('addr_history', self.history, True)
 
         for tx_hash, tx_height in hist:
             # add it in case it was previously unconfirmed
@@ -818,6 +819,8 @@ class Abstract_Wallet(PrintError):
                 tx.deserialize()
                 self.add_transaction(tx_hash, tx)
 
+        # Write updated TXI, TXO etc.
+        self.save_transactions()
 
     def get_history(self, domain=None):
         from collections import defaultdict
