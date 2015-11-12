@@ -435,7 +435,7 @@ class Abstract_Wallet(PrintError):
         self.storage.put('verified_tx3', self.verified_tx, True)
 
         conf, timestamp = self.get_confirmations(tx_hash)
-        self.network.trigger_callback('verified', (tx_hash, conf, timestamp))
+        self.network.trigger_callback('verified', tx_hash, conf, timestamp)
 
     def get_unverified_txs(self):
         '''Returns a map from tx hash to transaction height'''

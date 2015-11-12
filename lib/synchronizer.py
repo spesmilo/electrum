@@ -129,7 +129,7 @@ class Synchronizer(ThreadJob):
         self.print_error("received tx %s height: %d bytes: %d" %
                          (tx_hash, tx_height, len(tx.raw)))
         # callbacks
-        self.network.trigger_callback('new_transaction', (tx,))
+        self.network.trigger_callback('new_transaction', tx)
         if not self.requested_tx:
             self.network.trigger_callback('updated')
 
