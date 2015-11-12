@@ -163,7 +163,6 @@ class ElectrumWindow(QMainWindow, PrintError):
             self.network.register_callback('updated', lambda: self.need_update.set())
             self.network.register_callback('new_transaction', self.new_transaction)
             self.register_callback('status', self.update_status)
-            self.register_callback('close', self.close)
             self.register_callback('banner', self.console.showMessage)
             self.register_callback('verified', self.history_list.update_item)
 
