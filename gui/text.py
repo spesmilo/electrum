@@ -54,9 +54,6 @@ class ElectrumGui:
 
         if self.network:
             self.network.register_callback('updated', self.update)
-            self.network.register_callback('connected', self.refresh)
-            self.network.register_callback('disconnected', self.refresh)
-            self.network.register_callback('disconnecting', self.refresh)
 
         self.tab_names = [_("History"), _("Send"), _("Receive"), _("Addresses"), _("Contacts"), _("Banner")]
         self.num_tabs = len(self.tab_names)

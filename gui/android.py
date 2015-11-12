@@ -909,9 +909,6 @@ class ElectrumGui:
         network = _network
         config = _config
         network.register_callback('updated', update_callback)
-        network.register_callback('connected', update_callback)
-        network.register_callback('disconnected', update_callback)
-        network.register_callback('disconnecting', update_callback)
 
         contacts = util.StoreDict(config, 'contacts')
 
