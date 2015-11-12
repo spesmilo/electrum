@@ -897,6 +897,9 @@ class Abstract_Wallet(PrintError):
         # this method can be overloaded
         return tx.get_fee()
 
+    def dust_threshold(self):
+        return 182 * 3 * MIN_RELAY_TX_FEE/1000
+
     @profiler
     def estimated_fee(self, tx, fee_per_kb):
         estimated_size = len(tx.serialize(-1))/2
@@ -975,7 +978,7 @@ class Abstract_Wallet(PrintError):
         change_amount = total - ( amount + fee )
         if fixed_fee is not None and change_amount > 0:
             tx.outputs.append(('address', change_addr, change_amount))
-        elif change_amount > DUST_THRESHOLD:
+        elif change_amount > self.dust_threshold():
             tx.outputs.append(('address', change_addr, change_amount))
             # recompute fee including change output
             fee = self.estimated_fee(tx, fee_per_kb)
@@ -983,7 +986,7 @@ class Abstract_Wallet(PrintError):
             tx.outputs.pop()
             # if change is still above dust threshold, re-add change output.
             change_amount = total - ( amount + fee )
-            if change_amount > DUST_THRESHOLD:
+            if change_amount > self.dust_threshold():
                 tx.outputs.append(('address', change_addr, change_amount))
                 self.print_error('change', change_amount)
             else:
