@@ -1,3 +1,6 @@
+# Release 2.5.4
+ * increase MIN_RELAY_TX_FEE to avoid dust transactions
+
 # Release 2.5.3 (bugfixes)
  * installwizard: do not allow direct copy-paste of the seed
  * installwizard: fix bug #1531 (starting offline)
