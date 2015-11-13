@@ -30,7 +30,6 @@ import aes
 
 ################################## transactions
 
-DUST_THRESHOLD = 0
 DUST_SOFT_LIMIT = 100000
 MIN_RELAY_TX_FEE = 100000
 RECOMMENDED_FEE = 100000

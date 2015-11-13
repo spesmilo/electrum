@@ -53,6 +53,9 @@ class Plugin(BasePlugin):
         t.setDaemon(True)
         t.start()
 
+    def on_close_window(self, window):
+        self.wallets.pop(window.wallet)
+
     def version(self):
         return "0.0.1"
 

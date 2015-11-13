@@ -202,10 +202,10 @@ class Network(util.DaemonThread):
         with self.lock:
             self.callbacks[event].append(callback)
 
-    def trigger_callback(self, event, params=()):
+    def trigger_callback(self, event, *args):
         with self.lock:
             callbacks = self.callbacks[event][:]
-        [callback(*params) for callback in callbacks]
+        [callback(*args) for callback in callbacks]
 
     def read_recent_servers(self):
         if not self.config.path:
@@ -298,11 +298,10 @@ class Network(util.DaemonThread):
         return value
 
     def notify(self, key):
-        value = self.get_status_value(key)
         if key in ['status', 'updated']:
             self.trigger_callback(key)
         else:
-            self.trigger_callback(key, (value,))
+            self.trigger_callback(key, self.get_status_value(key))
 
     def get_parameters(self):
         host, port, protocol = deserialize_server(self.default_server)
@@ -559,6 +558,13 @@ class Network(util.DaemonThread):
             for method, params in messages:
                 message_id = self.queue_request(method, params)
                 self.unanswered_requests[message_id] = method, params, callback
+
+    def unsubscribe(self, callback):
+        '''Unsubscribe a callback to free object references to enable GC.'''
+        # Note: we can't unsubscribe from the server, so if we receive
+        # subsequent notifications process_response() will emit a harmless
+        # "received unexpected notification" warning
+        self.subscriptions.pop(callback, None)
 
     def connection_down(self, server):
         '''A connection to server either went down, or was never made.

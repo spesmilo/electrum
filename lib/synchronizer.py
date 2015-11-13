@@ -56,6 +56,9 @@ class Synchronizer(ThreadJob):
         return (not self.requested_tx and not self.requested_histories
                 and not self.requested_addrs)
 
+    def release(self):
+        self.network.unsubscribe(self.addr_subscription_response)
+
     def add(self, address):
         '''This can be called from the proxy or GUI threads.'''
         with self.lock:
@@ -126,7 +129,7 @@ class Synchronizer(ThreadJob):
         self.print_error("received tx %s height: %d bytes: %d" %
                          (tx_hash, tx_height, len(tx.raw)))
         # callbacks
-        self.network.trigger_callback('new_transaction', (tx,))
+        self.network.trigger_callback('new_transaction', tx)
         if not self.requested_tx:
             self.network.trigger_callback('updated')
 

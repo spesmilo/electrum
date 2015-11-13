@@ -24,7 +24,6 @@ if [ -d "electrum-git" ]; then
     echo "Pull"
     cd electrum-git
     git pull
-    git checkout $1
     cd ..
 else
     # GIT repository not found, clone it

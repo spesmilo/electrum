@@ -36,6 +36,7 @@ from transaction import Transaction
 from plugins import run_hook
 import bitcoin
 from synchronizer import Synchronizer
+from verifier import SPV
 from mnemonic import Mnemonic
 
 import paymentrequest
@@ -434,7 +435,7 @@ class Abstract_Wallet(PrintError):
         self.storage.put('verified_tx3', self.verified_tx, True)
 
         conf, timestamp = self.get_confirmations(tx_hash)
-        self.network.trigger_callback('verified', (tx_hash, conf, timestamp))
+        self.network.trigger_callback('verified', tx_hash, conf, timestamp)
 
     def get_unverified_txs(self):
         '''Returns a map from tx hash to transaction height'''
@@ -897,6 +898,9 @@ class Abstract_Wallet(PrintError):
         # this method can be overloaded
         return tx.get_fee()
 
+    def dust_threshold(self):
+        return 0
+
     @profiler
     def estimated_fee(self, tx, fee_per_kb):
         estimated_size = len(tx.serialize(-1))/2
@@ -974,7 +978,7 @@ class Abstract_Wallet(PrintError):
         change_amount = total - ( amount + fee )
         if fixed_fee is not None and change_amount > 0:
             tx.outputs.append(('address', change_addr, change_amount))
-        elif change_amount > DUST_THRESHOLD:
+        elif change_amount > self.dust_threshold():
             tx.outputs.append(('address', change_addr, change_amount))
             # recompute fee including change output
             fee = self.estimated_fee(tx, fee_per_kb)
@@ -982,7 +986,7 @@ class Abstract_Wallet(PrintError):
             tx.outputs.pop()
             # if change is still above dust threshold, re-add change output.
             change_amount = total - ( amount + fee )
-            if change_amount > DUST_THRESHOLD:
+            if change_amount > self.dust_threshold():
                 tx.outputs.append(('address', change_addr, change_amount))
                 self.print_error('change', change_amount)
             else:
@@ -1127,7 +1131,6 @@ class Abstract_Wallet(PrintError):
                 self.transactions.pop(tx_hash)
 
     def start_threads(self, network):
-        from verifier import SPV
         self.network = network
         if self.network is not None:
             self.prepare_for_verifier()
@@ -1141,8 +1144,11 @@ class Abstract_Wallet(PrintError):
     def stop_threads(self):
         if self.network:
             self.network.remove_jobs([self.synchronizer, self.verifier])
+            self.synchronizer.release()
             self.synchronizer = None
             self.verifier = None
+            # Now no references to the syncronizer or verifier
+            # remain so they will be GC-ed
             self.storage.put('stored_height', self.get_local_height(), True)
 
     def wait_until_synchronized(self, callback=None):
