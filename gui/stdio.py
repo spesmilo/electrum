@@ -34,10 +34,7 @@ class ElectrumGui:
         self.wallet.start_threads(network)
         self.contacts = StoreDict(self.config, 'contacts')
 
-        self.wallet.network.register_callback('updated', self.updated)
-
-        self.wallet.network.register_callback('peers', self.peers)
-        self.wallet.network.register_callback('banner', self.print_banner)
+        network.register_callback(self.on_network, ['updated', 'banner'])
         self.commands = [_("[h] - displays this help text"), \
                          _("[i] - display transaction history"), \
                          _("[o] - enter payment order"), \
@@ -48,6 +45,12 @@ class ElectrumGui:
                          _("[b] - print server banner"), \
                          _("[q] - quit") ]
         self.num_commands = len(self.commands)
+
+    def on_network(self, event, *args):
+        if event == 'updated':
+            self.updated()
+        elif event == 'banner':
+            self.print_banner()
 
     def main_command(self):
         self.print_balance()
@@ -64,12 +67,6 @@ class ElectrumGui:
         elif c == "e" : self.settings_dialog()
         elif c == "q" : self.done = 1
         else: self.print_commands()
-
-    def peers(self):
-        print("got peers list:")
-        l = filter_protocol(self.wallet.network.get_servers(), 's')
-        for s in l:
-            print (s)
 
     def updated(self):
         s = self.get_balance()

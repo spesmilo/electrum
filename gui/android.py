@@ -491,7 +491,7 @@ def make_new_contact():
 
 do_refresh = False
 
-def update_callback():
+def update_callback(event):
     global do_refresh
     print "gui callback", network.is_connected()
     do_refresh = True
@@ -908,7 +908,7 @@ class ElectrumGui:
         global wallet, network, contacts, config
         network = _network
         config = _config
-        network.register_callback('updated', update_callback)
+        network.register_callback(update_callback, ['updated'])
 
         contacts = util.StoreDict(config, 'contacts')
 

@@ -78,7 +78,7 @@ def row_to_dict(x):
 
 
 # this process detects when addresses have received payments
-def on_wallet_update():
+def on_wallet_update(event):
     for addr, v in pending_requests.items():
         h = wallet.history.get(addr, [])
         requested_amount = v.get('requested')
@@ -280,7 +280,7 @@ if __name__ == '__main__':
 
     wallet.synchronize = lambda: None # prevent address creation by the wallet
     wallet.start_threads(network)
-    network.register_callback('updated', on_wallet_update)
+    network.register_callback(on_wallet_update, ['updated'])
 
     threading.Thread(target=db_thread, args=()).start()
 
