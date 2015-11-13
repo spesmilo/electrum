@@ -34,6 +34,10 @@ from electrum.plugins import run_hook
 from electrum import SimpleConfig, Wallet, WalletStorage
 from electrum.paymentrequest import InvoiceStore
 from electrum.contacts import Contacts
+from electrum.synchronizer import Synchronizer
+from electrum.verifier import SPV
+from electrum.util import DebugMem
+from electrum.wallet import Abstract_Wallet
 from installwizard import InstallWizard
 
 
@@ -64,6 +68,10 @@ class ElectrumGui:
 
     def __init__(self, config, network, plugins):
         set_language(config.get('language'))
+        # Uncomment this call to verify objects are being properly
+        # GC-ed when windows are closed
+        #network.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,
+        #                            ElectrumWindow], interval=5)])
         self.network = network
         self.config = config
         self.plugins = plugins

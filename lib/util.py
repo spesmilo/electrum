@@ -1,6 +1,7 @@
 import os, sys, re, json
 import platform
 import shutil
+from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
 import traceback
@@ -44,6 +45,31 @@ class ThreadJob(PrintError):
     def run(self):
         """Called periodically from the thread"""
         pass
+
+class DebugMem(ThreadJob):
+    '''A handy class for debugging GC memory leaks'''
+    def __init__(self, classes, interval=30):
+        self.next_time = 0
+        self.classes = classes
+        self.interval = interval
+
+    def mem_stats(self):
+        import gc
+        self.print_error("Start memscan")
+        gc.collect()
+        objmap = defaultdict(list)
+        for obj in gc.get_objects():
+            for class_ in self.classes:
+                if isinstance(obj, class_):
+                    objmap[class_].append(obj)
+        for class_, objs in objmap.items():
+            self.print_error("%s: %d" % (class_.__name__, len(objs)))
+        self.print_error("Finish memscan")
+
+    def run(self):
+        if time.time() > self.next_time:
+            self.mem_stats()
+            self.next_time = time.time() + self.interval
 
 class DaemonThread(threading.Thread, PrintError):
     """ daemon thread that terminates cleanly """
@@ -555,4 +581,3 @@ def check_www_dir(rdir):
         if not os.path.exists(path):
             print_error("downloading ", URL)
             urllib.urlretrieve(URL, path)
-
