@@ -162,8 +162,6 @@ def _run_hook(name, always, *args):
     results = []
     f_list = hooks.get(name, [])
     for p, f in f_list:
-        if name == 'load_wallet':
-            p.wallet = args[0]
         if always or p.is_enabled():
             try:
                 r = f(*args)
@@ -173,8 +171,6 @@ def _run_hook(name, always, *args):
                 r = False
             if r:
                 results.append(r)
-        if name == 'close_wallet':
-            p.wallet = None
 
     if results:
         assert len(results) == 1, results

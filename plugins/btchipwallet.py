@@ -94,6 +94,10 @@ class Plugin(BasePlugin):
             self.wallet.force_watching_only = True
 
     @hook
+    def close_wallet(self):
+        self.wallet = None
+
+    @hook
     def installwizard_load_wallet(self, wallet, window):
         if type(wallet) != BTChipWallet:
             return
