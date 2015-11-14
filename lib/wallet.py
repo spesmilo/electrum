@@ -139,7 +139,7 @@ class WalletStorage(PrintError):
         if 'ANDROID_DATA' not in os.environ:
             import stat
             os.chmod(self.path, mode)
-        self.print_error("saved")
+        self.print_error("saved", self.path)
 
 
 
