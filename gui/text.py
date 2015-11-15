@@ -182,6 +182,7 @@ class ElectrumGui:
         self.qr = qrcode.QRCode()
         self.qr.add_data(data)
         self.qr.print_ascii(out=s, invert=True)
+        self.qr.print_ascii(out=s, invert=False)
         msg = s.getvalue()
         lines = msg.split('\n')
         for i, l in enumerate(lines):
