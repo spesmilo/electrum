@@ -20,6 +20,7 @@ import sys, time, threading
 import os.path, json, traceback
 import shutil
 import socket
+import weakref
 import webbrowser
 import csv
 from decimal import Decimal
@@ -144,14 +145,15 @@ class ElectrumWindow(QMainWindow, PrintError):
         self.setWindowIcon(QIcon(":icons/electrum-ltc.png"))
         self.init_menubar()
 
+        wrtabs = weakref.proxy(tabs)
         QShortcut(QKeySequence("Ctrl+W"), self, self.close)
         QShortcut(QKeySequence("Ctrl+Q"), self, self.close)
         QShortcut(QKeySequence("Ctrl+R"), self, self.update_wallet)
-        QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() - 1 )%tabs.count() ))
-        QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() + 1 )%tabs.count() ))
+        QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: wrtabs.setCurrentIndex((wrtabs.currentIndex() - 1)%wrtabs.count()))
+        QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: wrtabs.setCurrentIndex((wrtabs.currentIndex() + 1)%wrtabs.count()))
 
-        for i in range(tabs.count()):
-            QShortcut(QKeySequence("Alt+" + str(i + 1)), self, lambda i=i: tabs.setCurrentIndex(i))
+        for i in range(wrtabs.count()):
+            QShortcut(QKeySequence("Alt+" + str(i + 1)), self, lambda i=i: wrtabs.setCurrentIndex(i))
 
         self.connect(self, QtCore.SIGNAL('payment_request_ok'), self.payment_request_ok)
         self.connect(self, QtCore.SIGNAL('payment_request_error'), self.payment_request_error)
@@ -160,12 +162,14 @@ class ElectrumWindow(QMainWindow, PrintError):
 
         # network callbacks
         if self.network:
-            self.network.register_callback('updated', lambda: self.need_update.set())
-            self.network.register_callback('new_transaction', self.new_transaction)
-            self.register_callback('status', self.update_status)
-            self.register_callback('banner', self.console.showMessage)
-            self.register_callback('verified', self.history_list.update_item)
-
+            self.connect(self, QtCore.SIGNAL('network'), self.on_network_qt)
+            interests = ['updated', 'new_transaction', 'status',
+                         'banner', 'verified']
+            # To avoid leaking references to "self" that prevent the
+            # window from being GC-ed when closed, callbacks should be
+            # methods of this class only, and specifically not be
+            # partials, lambdas or methods of subobjects.  Hence...
+            self.network.register_callback(self.on_network, interests)
             # set initial message
             self.console.showMessage(self.network.banner)
 
@@ -194,11 +198,27 @@ class ElectrumWindow(QMainWindow, PrintError):
         self.show()
         self.raise_()
 
-    def register_callback(self, name, method):
-        """ run callback in the qt thread """
-        self.connect(self, QtCore.SIGNAL(name), method)
-        self.network.register_callback(name, lambda *params: self.emit(QtCore.SIGNAL(name), *params))
+    def on_network(self, event, *args):
+        if event == 'updated':
+            self.need_update.set()
+        elif event == 'new_transaction':
+            self.tx_notifications.append(args[0])
+        elif event in ['status', 'banner', 'verified']:
+            # Handle in GUI thread
+            self.emit(QtCore.SIGNAL('network'), event, *args)
+        else:
+            self.print_error("unexpected network message:", event, args)
 
+    def on_network_qt(self, event, *args):
+        # Handle a network message in the GUI thread
+        if event == 'status':
+            self.update_status()
+        elif event == 'banner':
+            self.console.showMessage(args[0])
+        elif event == 'verified':
+            self.history_list.update_item(*args)
+        else:
+            self.print_error("unexpected network_qt signal:", event, args)
 
     def fetch_alias(self):
         self.alias_info = None
@@ -417,10 +437,6 @@ class ElectrumWindow(QMainWindow, PrintError):
             _("Try to explain not only what the bug is, but how it occurs.")
          ])
         QMessageBox.information(self, "Electrum-LTC - " + _("Reporting Bugs"), msg)
-
-
-    def new_transaction(self, tx):
-        self.tx_notifications.append(tx)
 
     def notify_transactions(self):
         if not self.network or not self.network.is_connected():
@@ -2800,6 +2816,8 @@ class ElectrumWindow(QMainWindow, PrintError):
         NetworkDialog(self.wallet.network, self.config, self).do_exec()
 
     def closeEvent(self, event):
+        if self.network:
+            self.network.unregister_callback(self.on_network)
         self.config.set_key("is_maximized", self.isMaximized())
         if not self.isMaximized():
             g = self.geometry()

@@ -198,14 +198,21 @@ class Network(util.DaemonThread):
         if self.plugins:
             self.plugins.set_network(self)
 
-    def register_callback(self, event, callback):
+    def register_callback(self, callback, events):
         with self.lock:
-            self.callbacks[event].append(callback)
+            for event in events:
+                self.callbacks[event].append(callback)
+
+    def unregister_callback(self, callback):
+        with self.lock:
+            for callbacks in self.callbacks.values():
+                if callback in callbacks:
+                    callbacks.remove(callback)
 
     def trigger_callback(self, event, *args):
         with self.lock:
             callbacks = self.callbacks[event][:]
-        [callback(*args) for callback in callbacks]
+        [callback(event, *args) for callback in callbacks]
 
     def read_recent_servers(self):
         if not self.config.path:

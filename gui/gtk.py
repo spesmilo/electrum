@@ -551,7 +551,7 @@ class ElectrumWindow:
         self.context_id = self.status_bar.get_context_id("statusbar")
         self.update_status_bar()
 
-        self.network.register_callback('updated', self.update_callback)
+        self.network.register_callback(self.update_callback, ['updated'])
 
 
         def update_status_bar_thread():
@@ -585,7 +585,7 @@ class ElectrumWindow:
             thread.start_new_thread(check_recipient_thread, ())
         self.notebook.set_current_page(0)
 
-    def update_callback(self):
+    def update_callback(self, event):
         self.wallet_updated = True
 
     def do_update_password(self, button, wallet):

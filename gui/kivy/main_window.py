@@ -382,13 +382,18 @@ class ElectrumWindow(App):
 
         # connect callbacks
         if self.network:
-            self.network.register_callback('updated', self._trigger_update_wallet)
-            self.network.register_callback('status', self._trigger_update_status)
-            self.network.register_callback('new_transaction', self._trigger_notify_transactions)
+            interests = ['update', 'status', 'new_transaction']
+            self.network.register_callback(self.on_network, interests)
 
         self.wallet = None
 
-
+    def on_network(self, event, *args):
+        if event == 'updated':
+            self._trigger_update_wallet()
+        elif event == 'status':
+            self._trigger_update_status()
+        elif event == 'new_transaction':
+            self._trigger_notify_transactions(*args)
 
     @profiler
     def load_wallet(self, wallet):
