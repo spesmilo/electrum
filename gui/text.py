@@ -35,6 +35,7 @@ class ElectrumGui:
         curses.use_default_colors()
         curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLUE)
         curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_CYAN)
+        curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_WHITE);
         self.stdscr.keypad(1)
         self.stdscr.border(0)
         self.maxy, self.maxx = self.stdscr.getmaxyx()
@@ -181,12 +182,12 @@ class ElectrumGui:
         s = StringIO.StringIO()
         self.qr = qrcode.QRCode()
         self.qr.add_data(data)
-        self.qr.print_ascii(out=s, invert=True)
+        self.qr.print_ascii(out=s, invert=False)
         msg = s.getvalue()
         lines = msg.split('\n')
         for i, l in enumerate(lines):
             l = l.encode("utf-8")
-            self.stdscr.addstr(i+5, 5, l)
+            self.stdscr.addstr(i+5, 5, l, curses.color_pair(3))
 
     def print_list(self, list, firstline = None):
         self.maxpos = len(list)
@@ -393,13 +394,11 @@ class ElectrumGui:
 
 
     def settings_dialog(self):
+        fee = str(Decimal(self.wallet.fee_per_kb(self.config)) / COIN)
         out = self.run_dialog('Settings', [
-            {'label':'Default GUI', 'type':'list', 'choices':['classic','lite','gtk','text'], 'value':self.config.get('gui')},
-            {'label':'Default fee', 'type':'satoshis', 'value': format_satoshis(self.wallet.fee_per_kb).strip() }
+            {'label':'Default fee', 'type':'satoshis', 'value': fee }
             ], buttons = 1)
         if out:
-            if out.get('Default GUI'):
-                self.config.set_key('gui', out['Default GUI'], True)
             if out.get('Default fee'):
                 fee = int(Decimal(out['Default fee']) * COIN)
                 self.config.set_key('fee_per_kb', fee, True)
@@ -453,7 +452,7 @@ class ElectrumGui:
                     w.addstr( 2+interval*i, 2, label, curses.A_REVERSE if self.popup_pos%numpos==i else 0)
 
             if buttons:
-                w.addstr( 5+interval*i, 10, "[  ok  ]",     curses.A_REVERSE if self.popup_pos%numpos==(numpos-2) else curses.color_pair(2))
+                w.addstr( 5+interval*i, 10, "[  ok  ]", curses.A_REVERSE if self.popup_pos%numpos==(numpos-2) else curses.color_pair(2))
                 w.addstr( 5+interval*i, 25, "[cancel]", curses.A_REVERSE if self.popup_pos%numpos==(numpos-1) else curses.color_pair(2))
 
             w.refresh()
