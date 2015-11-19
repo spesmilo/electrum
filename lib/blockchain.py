@@ -88,7 +88,7 @@ class Blockchain(util.PrintError):
             _hash = self.hash_header(header)
             assert previous_hash == header.get('prev_block_hash')
             assert bits == header.get('bits')
-            assert int('0x'+_hash,16) < target
+            assert int('0x'+_hash,16) <= target
 
             previous_header = header
             previous_hash = _hash
