@@ -369,29 +369,17 @@ class NetworkServer(util.DaemonThread):
         print_error("Daemon exiting")
 
 
-
-
-def get_daemon(config, start_daemon):
+def get_daemon(config):
     daemon_socket = os.path.join(config.path, DAEMON_SOCKET)
-    daemon_started = False
-    while True:
-        try:
-            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            s.connect(daemon_socket)
-            return s
-        except socket.error:
-            if not start_daemon:
-                return False
-            elif not daemon_started:
-                daemon_started = True
-            else:
-                time.sleep(0.1)
-        except:
-            # do not use daemon if AF_UNIX is not available (windows)
-            return False
-
-
-
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.connect(daemon_socket)
+        return s
+    except socket.error:
+        return False
+    except:
+        # do not use daemon if AF_UNIX is not available (windows)
+        return False
 
 
 
@@ -472,7 +460,7 @@ if __name__ == '__main__':
             config_options['password'] = password
 
     # check if daemon is running
-    s = get_daemon(config, False)
+    s = get_daemon(config)
     if s:
         p = util.SocketPipe(s)
         p.set_timeout(1000000)
