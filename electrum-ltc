@@ -30,7 +30,6 @@ import socket
 import Queue
 from collections import defaultdict
 
-DAEMON_SOCKET = 'daemon.sock'
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
@@ -350,13 +349,11 @@ class NetworkServer(util.DaemonThread):
             print_error("client quit:", len(self.clients))
 
     def run(self):
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        daemon_socket = os.path.join(self.config.path, DAEMON_SOCKET)
-        if os.path.exists(daemon_socket):
-            os.remove(daemon_socket)
-        daemon_timeout = self.config.get('daemon_timeout', None)
-        s.bind(daemon_socket)
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(('', 0))
+        lockfile = os.path.join(self.config.path, 'lock')
+        with open(lockfile, 'w') as f:
+            f.write("%d"%s.getsockname()[1])
         s.listen(5)
         s.settimeout(0.1)
         while self.is_running():
@@ -369,30 +366,16 @@ class NetworkServer(util.DaemonThread):
         print_error("Daemon exiting")
 
 
-
-
-def get_daemon(config, start_daemon):
-    daemon_socket = os.path.join(config.path, DAEMON_SOCKET)
-    daemon_started = False
-    while True:
-        try:
-            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            s.connect(daemon_socket)
-            return s
-        except socket.error:
-            if not start_daemon:
-                return False
-            elif not daemon_started:
-                daemon_started = True
-            else:
-                time.sleep(0.1)
-        except:
-            # do not use daemon if AF_UNIX is not available (windows)
-            return False
-
-
-
-
+def get_daemon(config):
+    lockfile = os.path.join(config.path, 'lock')
+    try:
+        with open(lockfile) as f:
+            num = int(f.read())
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect(('', num))
+        return s
+    except:
+        return False
 
 
 if __name__ == '__main__':
@@ -472,7 +455,7 @@ if __name__ == '__main__':
             config_options['password'] = password
 
     # check if daemon is running
-    s = get_daemon(config, False)
+    s = get_daemon(config)
     if s:
         p = util.SocketPipe(s)
         p.set_timeout(1000000)
