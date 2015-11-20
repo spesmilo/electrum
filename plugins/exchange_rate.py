@@ -27,7 +27,7 @@ CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
                   'LYD': 3, 'MGA': 1, 'MRO': 1, 'OMR': 3, 'PYG': 0,
                   'RWF': 0, 'TND': 3, 'UGX': 0, 'UYI': 0, 'VND': 0,
                   'VUV': 0, 'XAF': 0, 'XAG': 2, 'XAU': 4, 'XOF': 0,
-                  'XPF': 0}
+                  'XPF': 0, 'MXN': 2}
 
 class ExchangeBase(PrintError):
     def __init__(self, sig):
@@ -130,6 +130,14 @@ class BTCParalelo(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('btcparalelo.com', '/api/price')
         return {'VEF': Decimal(json['price'])}
+
+    def protocol(self):
+        return "http"
+
+class Bitso(ExchangeBase):
+    def get_rates(self, ccy):
+        json = self.get_json('api.bitso.com', '/v2/ticker')
+        return {'MXN': Decimal(json['last'])}
 
     def protocol(self):
         return "http"
