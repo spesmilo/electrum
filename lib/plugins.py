@@ -39,7 +39,6 @@ class Plugins(PrintError):
             self.pathname = None
 
         self.plugins = {}
-        self.windows = []
         self.network = None
         self.descriptions = plugins.descriptions
         for item in self.descriptions:
@@ -51,6 +50,7 @@ class Plugins(PrintError):
                 self.register_wallet_type(config, name, x)
             if config.get('use_' + name):
                 self.load_plugin(config, name)
+
 
     def get(self, name):
         return self.plugins.get(name)
@@ -67,9 +67,6 @@ class Plugins(PrintError):
             else:
                 p = __import__(full_name, fromlist=['electrum_plugins'])
             plugin = p.Plugin(self, config, name)
-            # Inform the plugin of our windows
-            for window in self.windows:
-                plugin.on_new_window(window)
             if self.network:
                 self.network.add_jobs(plugin.thread_jobs())
             self.plugins[name] = plugin
@@ -79,6 +76,7 @@ class Plugins(PrintError):
             print_msg(_("Error: cannot initialize plugin"), name)
             traceback.print_exc(file=sys.stdout)
             return None
+
 
     def close_plugin(self, plugin):
         if self.network:
@@ -132,17 +130,6 @@ class Plugins(PrintError):
             if network:
                 network.add_jobs(jobs)
 
-    def trigger(self, event, *args, **kwargs):
-        for plugin in self.plugins.values():
-            getattr(plugin, event)(*args, **kwargs)
-
-    def on_new_window(self, window):
-        self.windows.append(window)
-        self.trigger('on_new_window', window)
-
-    def on_close_window(self, window):
-        self.windows.remove(window)
-        self.trigger('on_close_window', window)
 
 
 hook_names = set()
@@ -226,9 +213,3 @@ class BasePlugin(PrintError):
     def settings_dialog(self):
         pass
 
-    # Events
-    def on_close_window(self, window):
-        pass
-
-    def on_new_window(self, window):
-        pass

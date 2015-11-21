@@ -91,6 +91,7 @@ class ElectrumGui:
         self.build_tray_menu()
         self.tray.show()
         self.app.connect(self.app, QtCore.SIGNAL('new_window'), self.start_new_window)
+        run_hook('init_qt', self)
 
     def build_tray_menu(self):
         # Avoid immediate GC of old menu when window closed via its action
@@ -217,7 +218,7 @@ class ElectrumGui:
                 w.show()
             self.windows.append(w)
             self.build_tray_menu()
-            self.plugins.on_new_window(w)
+            run_hook('on_new_window', w)
 
         if uri:
             w.pay_to_URI(uri)
@@ -227,7 +228,7 @@ class ElectrumGui:
     def close_window(self, window):
         self.windows.remove(window)
         self.build_tray_menu()
-        self.plugins.on_close_window(window)
+        run_hook('on_close_window', window)
 
     def main(self):
         self.timer.start()

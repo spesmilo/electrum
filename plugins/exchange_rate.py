@@ -30,10 +30,12 @@ CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
                   'XPF': 0}
 
 class ExchangeBase(PrintError):
-    def __init__(self, sig):
+
+    def __init__(self, on_quotes, on_history):
         self.history = {}
         self.quotes = {}
-        self.sig = sig
+        self.on_quotes = on_quotes
+        self.on_history = on_history
 
     def protocol(self):
         return "https"
@@ -59,7 +61,7 @@ class ExchangeBase(PrintError):
             self.print_error("getting fx quotes for", ccy)
             self.quotes = self.get_rates(ccy)
             self.print_error("received fx quotes")
-            self.sig.emit(SIGNAL('fx_quotes'))
+            self.on_quotes()
         except Exception, e:
             self.print_error("failed fx quotes:", e)
 
@@ -73,7 +75,7 @@ class ExchangeBase(PrintError):
             self.print_error("requesting fx history for", ccy)
             self.history[ccy] = self.historical_rates(ccy)
             self.print_error("received fx history for", ccy)
-            self.sig.emit(SIGNAL("fx_history"))
+            self.on_history()
         except Exception, e:
             self.print_error("failed fx history:", e)
 
@@ -241,16 +243,11 @@ class Plugin(BasePlugin, ThreadJob):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
-        # Signal object first
-        self.sig = QObject()
-        self.sig.connect(self.sig, SIGNAL('fx_quotes'), self.on_fx_quotes)
-        self.sig.connect(self.sig, SIGNAL('fx_history'), self.on_fx_history)
         self.ccy = self.config_ccy()
         self.history_used_spot = False
         self.ccy_combo = None
         self.hist_checkbox = None
-        self.windows = dict()
-
+        self.app = None
         is_exchange = lambda obj: (inspect.isclass(obj)
                                    and issubclass(obj, ExchangeBase)
                                    and obj != ExchangeBase)
@@ -268,7 +265,7 @@ class Plugin(BasePlugin, ThreadJob):
 
     def run(self):
         # This runs from the network thread which catches exceptions
-        if self.windows and self.timeout <= time.time():
+        if self.timeout <= time.time():
             self.timeout = time.time() + 150
             self.exchange.update(self.ccy)
 
@@ -285,24 +282,26 @@ class Plugin(BasePlugin, ThreadJob):
     def show_history(self):
         return self.config_history() and self.exchange.history_ccys()
 
+
     def set_exchange(self, name):
         class_ = self.exchanges.get(name) or self.exchanges.values()[0]
         name = class_.__name__
         self.print_error("using exchange", name)
         if self.config_exchange() != name:
             self.config.set_key('use_exchange', name, True)
-        self.exchange = class_(self.sig)
+
+        on_quotes = lambda: self.app.emit(SIGNAL('new_fx_quotes'))
+        on_history = lambda: self.app.emit(SIGNAL('new_fx_history'))
+        self.exchange = class_(on_quotes, on_history)
         # A new exchange means new fx quotes, initially empty.  Force
         # a quote refresh
         self.timeout = 0
         self.get_historical_rates()
-        self.on_fx_quotes()
+        #self.on_fx_quotes()
 
-    def update_status_bars(self):
-        '''Update status bar fiat balance in all windows'''
-        for window in self.windows:
-            window.update_status()
 
+
+    @hook
     def on_new_window(self, window):
         # Additional send and receive edit boxes
         send_e = AmountEdit(self.config_ccy)
@@ -311,20 +310,23 @@ class Plugin(BasePlugin, ThreadJob):
             lambda: send_e.setFrozen(window.amount_e.isReadOnly()))
         receive_e = AmountEdit(self.config_ccy)
         window.receive_grid.addWidget(receive_e, 2, 2, Qt.AlignLeft)
-
-        self.windows[window] = {'edits': (send_e, receive_e),
-                                'last_edited': {}}
+        window.fiat_send_e = send_e
+        window.fiat_receive_e = receive_e
         self.connect_fields(window, window.amount_e, send_e, window.fee_e)
         self.connect_fields(window, window.receive_amount_e, receive_e, None)
         window.history_list.refresh_headers()
         window.update_status()
+        window.connect(window.app, SIGNAL('new_fx_quotes'), lambda: self.on_fx_quotes(window))
+        window.connect(window.app, SIGNAL('new_fx_history'), lambda: self.on_fx_history(window))
+        window.connect(window.app, SIGNAL('close_fx_plugin'), lambda: self.restore_window(window))
+        window.connect(window.app, SIGNAL('refresh_headers'), window.history_list.refresh_headers)
+
 
     def connect_fields(self, window, btc_e, fiat_e, fee_e):
-        last_edited = self.windows[window]['last_edited']
 
         def edit_changed(edit):
             edit.setStyleSheet(BLACK_FG)
-            last_edited[(fiat_e, btc_e)] = edit
+            fiat_e.is_last_edited = (edit == fiat_e)
             amount = edit.get_amount()
             rate = self.exchange_rate()
             if rate is None or amount is None:
@@ -346,45 +348,43 @@ class Plugin(BasePlugin, ThreadJob):
 
         fiat_e.textEdited.connect(partial(edit_changed, fiat_e))
         btc_e.textEdited.connect(partial(edit_changed, btc_e))
-        last_edited[(fiat_e, btc_e)] = btc_e
+        fiat_e.is_last_edited = False
+
+    @hook
+    def init_qt(self, gui):
+        self.app = gui.app
 
     @hook
     def do_clear(self, window):
-        self.windows[window]['edits'][0].setText('')
-
-    def on_close_window(self, window):
-        self.windows.pop(window)
+        window.fiat_send_e.setText('')
 
     def close(self):
         # Get rid of hooks before updating status bars.
         BasePlugin.close(self)
-        self.update_status_bars()
-        self.refresh_headers()
-        for window, data in self.windows.items():
-            for edit in data['edits']:
-                edit.hide()
-            window.update_status()
+        self.app.emit(SIGNAL('close_fx_plugin'))
 
-    def refresh_headers(self):
-        for window in self.windows:
-            window.history_list.refresh_headers()
+    def restore_window(self, window):
+        window.update_status()
+        window.history_list.refresh_headers()
+        window.fiat_send_e.hide()
+        window.fiat_receive_e.hide()
 
-    def on_fx_history(self):
+    def on_fx_history(self, window):
         '''Called when historical fx quotes are updated'''
-        for window in self.windows:
-            window.history_list.update()
+        window.history_list.update()
 
-    def on_fx_quotes(self):
+    def on_fx_quotes(self, window):
         '''Called when fresh spot fx quotes come in'''
-        self.update_status_bars()
+        window.update_status()
         self.populate_ccy_combo()
         # Refresh edits with the new rate
-        for window, data in self.windows.items():
-            for edit in data['last_edited'].values():
-                edit.textEdited.emit(edit.text())
+        edit = window.fiat_send_e if window.fiat_send_e.is_last_edited else window.amount_e
+        edit.textEdited.emit(edit.text())
+        edit = window.fiat_receive_e if window.fiat_receive_e.is_last_edited else window.receive_amount_e
+        edit.textEdited.emit(edit.text())
         # History tab needs updating if it used spot
         if self.history_used_spot:
-            self.on_fx_history()
+            self.on_fx_history(window)
 
     def on_ccy_combo_change(self):
         '''Called when the chosen currency changes'''
@@ -392,7 +392,7 @@ class Plugin(BasePlugin, ThreadJob):
         if ccy and ccy != self.ccy:
             self.ccy = ccy
             self.config.set_key('currency', ccy, True)
-            self.update_status_bars()
+            self.app.emit(SIGNAL('new_fx_quotes'))
             self.get_historical_rates() # Because self.ccy changes
             self.hist_checkbox_update()
 
@@ -503,7 +503,7 @@ class Plugin(BasePlugin, ThreadJob):
                 self.get_historical_rates()
             else:
                 self.config.set_key('history_rates', 'unchecked')
-            self.refresh_headers()
+            self.app.emit(SIGNAL('refresh_headers'))
 
         def ok_clicked():
             self.timeout = 0

@@ -35,6 +35,7 @@ class Plugin(BasePlugin):
         self.obj = QObject()
         self.obj.connect(self.obj, SIGNAL('labels:pulled'), self.on_pulled)
 
+    @hook
     def on_new_window(self, window):
         wallet = window.wallet
         nonce = self.get_nonce(wallet)
@@ -53,6 +54,7 @@ class Plugin(BasePlugin):
         t.setDaemon(True)
         t.start()
 
+    @hook
     def on_close_window(self, window):
         self.wallets.pop(window.wallet)
 
