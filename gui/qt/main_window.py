@@ -107,7 +107,6 @@ expiration_values = [
 
 
 class ElectrumWindow(QMainWindow, PrintError):
-    labelsChanged = pyqtSignal()
 
     def __init__(self, config, network, gui_object):
         QMainWindow.__init__(self)
@@ -157,7 +156,6 @@ class ElectrumWindow(QMainWindow, PrintError):
 
         self.connect(self, QtCore.SIGNAL('payment_request_ok'), self.payment_request_ok)
         self.connect(self, QtCore.SIGNAL('payment_request_error'), self.payment_request_error)
-        self.labelsChanged.connect(self.update_tabs)
         self.history_list.setFocus(True)
 
         # network callbacks

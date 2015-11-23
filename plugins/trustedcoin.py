@@ -27,9 +27,6 @@ from urlparse import urljoin
 from urllib import quote
 from functools import partial
 
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
-
 import electrum
 from electrum import bitcoin
 from electrum.bitcoin import *
@@ -39,10 +36,6 @@ from electrum.wallet import Multisig_Wallet, BIP32_Wallet
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, run_hook, hook
 
-from electrum_gui.qt.util import *
-from electrum_gui.qt.qrcodewidget import QRCodeWidget
-from electrum_gui.qt.amountedit import AmountEdit
-from electrum_gui.qt.main_window import StatusBarButton
 
 from decimal import Decimal
 
@@ -460,6 +453,16 @@ class Plugin(BasePlugin):
         wallet.add_master_public_key('x3/', xpub3)
         return True
 
+
+from PyQt4.QtGui import *
+from PyQt4.QtCore import *
+from electrum_gui.qt.util import *
+from electrum_gui.qt.qrcodewidget import QRCodeWidget
+from electrum_gui.qt.amountedit import AmountEdit
+from electrum_gui.qt.main_window import StatusBarButton
+
+class QtPlugin(Plugin):
+
     def auth_dialog(self, window):
         d = QDialog(window)
         d.setModal(1)
@@ -674,3 +677,5 @@ class Plugin(BasePlugin):
             except:
                 QMessageBox.information(window, _('Message'), _('Incorrect password'), _('OK'))
                 pw.setText('')
+
+

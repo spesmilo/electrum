@@ -25,7 +25,7 @@ except ImportError:
     print_error('Audio MODEM is not found.')
 
 
-class Plugin(BasePlugin):
+class QtPlugin(BasePlugin):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)

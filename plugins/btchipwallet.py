@@ -1,5 +1,3 @@
-from PyQt4.Qt import QApplication, QMessageBox, QDialog, QInputDialog, QLineEdit, QVBoxLayout, QLabel, QThread, SIGNAL
-import PyQt4.QtCore as QtCore
 from binascii import unhexlify
 from binascii import hexlify
 from struct import pack,unpack
@@ -7,7 +5,6 @@ from sys import stderr
 from time import sleep
 
 import electrum
-from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
 from electrum.account import BIP32_Account
 from electrum.bitcoin import EncodeBase58Check, DecodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
 from electrum.i18n import _
@@ -32,96 +29,6 @@ try:
 except ImportError:
     BTCHIP = False
 
-class Plugin(BasePlugin):
-
-    def __init__(self, parent, config, name):
-        BasePlugin.__init__(self, parent, config, name)
-        self._is_available = self._init()
-        self.wallet = None
-        self.handler = None
-
-    def constructor(self, s):
-        return BTChipWallet(s)
-
-    def _init(self):
-        return BTCHIP
-
-    def is_available(self):
-        if not self._is_available:
-            return False
-        if not self.wallet:
-            return False
-        if self.wallet.storage.get('wallet_type') != 'btchip':
-            return False
-        return True
-
-    def set_enabled(self, enabled):
-        self.wallet.storage.put('use_' + self.name, enabled)
-
-    def is_enabled(self):
-        if not self.is_available():
-            return False
-        if self.wallet.has_seed():
-            return False
-        return True
-
-    def btchip_is_connected(self):
-        try:
-            self.wallet.get_client().getFirmwareVersion()
-        except:
-            return False
-        return True
-
-    @hook
-    def cmdline_load_wallet(self, wallet):
-        self.wallet = wallet
-        self.wallet.plugin = self
-        if self.handler is None:
-            self.handler = BTChipCmdLineHandler()
-
-    @hook
-    def load_wallet(self, wallet, window):
-        self.wallet = wallet
-        self.wallet.plugin = self
-        if self.handler is None:
-            self.handler = BTChipQTHandler(window)
-        if self.btchip_is_connected():
-            if not self.wallet.check_proper_device():
-                QMessageBox.information(window, _('Error'), _("This wallet does not match your Ledger device"), _('OK'))
-                self.wallet.force_watching_only = True
-        else:
-            QMessageBox.information(window, _('Error'), _("Ledger device not detected.\nContinuing in watching-only mode."), _('OK'))
-            self.wallet.force_watching_only = True
-
-    @hook
-    def close_wallet(self):
-        self.wallet = None
-
-    @hook
-    def installwizard_load_wallet(self, wallet, window):
-        if type(wallet) != BTChipWallet:
-            return
-        self.load_wallet(wallet, window)
-
-    @hook
-    def installwizard_restore(self, wizard, storage):
-        if storage.get('wallet_type') != 'btchip':
-            return
-        wallet = BTChipWallet(storage)
-        try:
-            wallet.create_main_account(None)
-        except BaseException as e:
-            QMessageBox.information(None, _('Error'), str(e), _('OK'))
-            return
-        return wallet
-
-    @hook
-    def sign_tx(self, window, tx):
-        tx.error = None
-        try:
-            self.wallet.sign_transaction(tx, None)
-        except Exception as e:
-            tx.error = str(e)
 
 class BTChipWallet(BIP32_HD_Wallet):
     wallet_type = 'btchip'
@@ -517,6 +424,98 @@ class BTChipWallet(BIP32_HD_Wallet):
             return False, None, None
         return True, response, response
 
+
+class Plugin(BasePlugin):
+
+    def __init__(self, parent, config, name):
+        BasePlugin.__init__(self, parent, config, name)
+        self._is_available = self._init()
+        self.wallet = None
+        self.handler = None
+
+    def constructor(self, s):
+        return BTChipWallet(s)
+
+    def _init(self):
+        return BTCHIP
+
+    def is_available(self):
+        if not self._is_available:
+            return False
+        if not self.wallet:
+            return False
+        if self.wallet.storage.get('wallet_type') != 'btchip':
+            return False
+        return True
+
+    def set_enabled(self, enabled):
+        self.wallet.storage.put('use_' + self.name, enabled)
+
+    def is_enabled(self):
+        if not self.is_available():
+            return False
+        if self.wallet.has_seed():
+            return False
+        return True
+
+    def btchip_is_connected(self):
+        try:
+            self.wallet.get_client().getFirmwareVersion()
+        except:
+            return False
+        return True
+
+    @hook
+    def close_wallet(self):
+        self.wallet = None
+
+    @hook
+    def installwizard_load_wallet(self, wallet, window):
+        if type(wallet) != BTChipWallet:
+            return
+        self.load_wallet(wallet, window)
+
+    @hook
+    def installwizard_restore(self, wizard, storage):
+        if storage.get('wallet_type') != 'btchip':
+            return
+        wallet = BTChipWallet(storage)
+        try:
+            wallet.create_main_account(None)
+        except BaseException as e:
+            QMessageBox.information(None, _('Error'), str(e), _('OK'))
+            return
+        return wallet
+
+    @hook
+    def sign_tx(self, window, tx):
+        tx.error = None
+        try:
+            self.wallet.sign_transaction(tx, None)
+        except Exception as e:
+            tx.error = str(e)
+
+from PyQt4.Qt import QApplication, QMessageBox, QDialog, QInputDialog, QLineEdit, QVBoxLayout, QLabel, QThread, SIGNAL
+import PyQt4.QtCore as QtCore
+from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
+
+class QtPlugin(Plugin):
+
+    @hook
+    def load_wallet(self, wallet, window):
+        self.wallet = wallet
+        self.wallet.plugin = self
+        if self.handler is None:
+            self.handler = BTChipQTHandler(window)
+        if self.btchip_is_connected():
+            if not self.wallet.check_proper_device():
+                QMessageBox.information(window, _('Error'), _("This wallet does not match your Ledger device"), _('OK'))
+                self.wallet.force_watching_only = True
+        else:
+            QMessageBox.information(window, _('Error'), _("Ledger device not detected.\nContinuing in watching-only mode."), _('OK'))
+            self.wallet.force_watching_only = True
+
+
 class BTChipQTHandler:
 
     def __init__(self, win):
@@ -562,6 +561,15 @@ class BTChipQTHandler:
         if self.d is not None:
             self.d.hide()
             self.d = None
+
+class CmdlinePlugin(Plugin):
+    @hook
+    def cmdline_load_wallet(self, wallet):
+        self.wallet = wallet
+        self.wallet.plugin = self
+        if self.handler is None:
+            self.handler = BTChipCmdLineHandler()
+
 
 class BTChipCmdLineHandler:
 

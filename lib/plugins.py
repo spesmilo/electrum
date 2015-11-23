@@ -40,6 +40,7 @@ class Plugins(PrintError):
 
         self.plugins = {}
         self.network = None
+        self.gui_name = gui_name
         self.descriptions = plugins.descriptions
         for item in self.descriptions:
             name = item['name']
@@ -66,7 +67,15 @@ class Plugins(PrintError):
                 p = imp.load_source(full_name, path)
             else:
                 p = __import__(full_name, fromlist=['electrum_plugins'])
-            plugin = p.Plugin(self, config, name)
+
+            if self.gui_name == 'qt':
+                klass = p.QtPlugin
+            elif self.gui_name == 'cmdline':
+                klass = p.CmdlinePlugin
+            else:
+                return
+
+            plugin = klass(self, config, name)
             if self.network:
                 self.network.add_jobs(plugin.thread_jobs())
             self.plugins[name] = plugin

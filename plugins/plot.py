@@ -17,7 +17,7 @@ except:
     flag_matlib=False
 
 
-class Plugin(BasePlugin):
+class QtPlugin(BasePlugin):
 
     def is_available(self):
         if flag_matlib:

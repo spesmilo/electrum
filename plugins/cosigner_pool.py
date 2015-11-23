@@ -79,7 +79,7 @@ class Listener(util.DaemonThread):
             time.sleep(30)
 
 
-class Plugin(BasePlugin):
+class QtPlugin(BasePlugin):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)

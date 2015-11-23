@@ -3,7 +3,7 @@ from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
 import random
 
-class Plugin(BasePlugin):
+class QtPlugin(BasePlugin):
 
     vkb = None
     vkb_index = 0

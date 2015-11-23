@@ -28,7 +28,7 @@ from electrum.i18n import _
 
 
 
-class Plugin(BasePlugin):
+class QtPlugin(BasePlugin):
 
     button_label = _("Verify GA instant")
 

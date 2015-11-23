@@ -1,6 +1,3 @@
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
-
 from datetime import datetime
 import inspect
 import requests
@@ -17,8 +14,7 @@ from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
 from electrum.util import PrintError, ThreadJob, timestamp_to_datetime
 from electrum.util import format_satoshis
-from electrum_gui.qt.util import *
-from electrum_gui.qt.amountedit import AmountEdit
+
 
 # See https://en.wikipedia.org/wiki/ISO_4217
 CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
@@ -301,25 +297,79 @@ class Plugin(BasePlugin, ThreadJob):
 
 
 
+    def exchange_rate(self):
+        '''Returns None, or the exchange rate as a Decimal'''
+        rate = self.exchange.quotes.get(self.ccy)
+        if rate:
+            return Decimal(rate)
+
     @hook
-    def on_new_window(self, window):
-        # Additional send and receive edit boxes
-        send_e = AmountEdit(self.config_ccy)
-        window.send_grid.addWidget(send_e, 4, 2, Qt.AlignLeft)
-        window.amount_e.frozen.connect(
-            lambda: send_e.setFrozen(window.amount_e.isReadOnly()))
-        receive_e = AmountEdit(self.config_ccy)
-        window.receive_grid.addWidget(receive_e, 2, 2, Qt.AlignLeft)
-        window.fiat_send_e = send_e
-        window.fiat_receive_e = receive_e
-        self.connect_fields(window, window.amount_e, send_e, window.fee_e)
-        self.connect_fields(window, window.receive_amount_e, receive_e, None)
-        window.history_list.refresh_headers()
-        window.update_status()
-        window.connect(window.app, SIGNAL('new_fx_quotes'), lambda: self.on_fx_quotes(window))
-        window.connect(window.app, SIGNAL('new_fx_history'), lambda: self.on_fx_history(window))
-        window.connect(window.app, SIGNAL('close_fx_plugin'), lambda: self.restore_window(window))
-        window.connect(window.app, SIGNAL('refresh_headers'), window.history_list.refresh_headers)
+    def format_amount_and_units(self, btc_balance):
+        rate = self.exchange_rate()
+        return '' if rate is None else " (%s %s)" % (self.value_str(btc_balance, rate), self.ccy)
+
+    @hook
+    def get_fiat_status_text(self, btc_balance):
+        rate = self.exchange_rate()
+        return _("  (No FX rate available)") if rate is None else "1 BTC~%s %s" % (self.value_str(COIN, rate), self.ccy)
+
+    def get_historical_rates(self):
+        if self.show_history():
+            self.exchange.get_historical_rates(self.ccy)
+
+    def requires_settings(self):
+        return True
+
+    def value_str(self, satoshis, rate):
+        if satoshis is None:  # Can happen with incomplete history
+            return _("Unknown")
+        if rate:
+            value = Decimal(satoshis) / COIN * Decimal(rate)
+            return "%s" % (self.ccy_amount_str(value, True))
+        return _("No data")
+
+    @hook
+    def historical_value_str(self, satoshis, d_t):
+        rate = self.exchange.historical_rate(self.ccy, d_t)
+        # Frequently there is no rate for today, until tomorrow :)
+        # Use spot quotes in that case
+        if rate is None and (datetime.today().date() - d_t.date()).days <= 2:
+            rate = self.exchange.quotes.get(self.ccy)
+            self.history_used_spot = True
+        return self.value_str(satoshis, rate)
+
+    @hook
+    def history_tab_headers(self, headers):
+        if self.show_history():
+            headers.extend(['%s '%self.ccy + _('Amount'), '%s '%self.ccy + _('Balance')])
+
+    @hook
+    def history_tab_update_begin(self):
+        self.history_used_spot = False
+
+    @hook
+    def history_tab_update(self, tx, entry):
+        if not self.show_history():
+            return
+        tx_hash, conf, value, timestamp, balance = tx
+        if conf <= 0:
+            date = datetime.today()
+        else:
+            date = timestamp_to_datetime(timestamp)
+        for amount in [value, balance]:
+            text = self.historical_value_str(amount, date)
+            entry.append(text)
+
+
+
+
+from PyQt4.QtGui import *
+from PyQt4.QtCore import *
+from electrum_gui.qt.util import *
+from electrum_gui.qt.amountedit import AmountEdit
+
+
+class QtPlugin(Plugin):
 
 
     def connect_fields(self, window, btc_e, fiat_e, fee_e):
@@ -412,68 +462,25 @@ class Plugin(BasePlugin, ThreadJob):
             combo.blockSignals(False)
             combo.setCurrentIndex(combo.findText(self.ccy))
 
-    def exchange_rate(self):
-        '''Returns None, or the exchange rate as a Decimal'''
-        rate = self.exchange.quotes.get(self.ccy)
-        if rate:
-            return Decimal(rate)
-
     @hook
-    def format_amount_and_units(self, btc_balance):
-        rate = self.exchange_rate()
-        return '' if rate is None else " (%s %s)" % (self.value_str(btc_balance, rate), self.ccy)
-
-    @hook
-    def get_fiat_status_text(self, btc_balance):
-        rate = self.exchange_rate()
-        return _("  (No FX rate available)") if rate is None else "1 BTC~%s %s" % (self.value_str(COIN, rate), self.ccy)
-
-    def get_historical_rates(self):
-        if self.show_history():
-            self.exchange.get_historical_rates(self.ccy)
-
-    def requires_settings(self):
-        return True
-
-    def value_str(self, satoshis, rate):
-        if satoshis is None:  # Can happen with incomplete history
-            return _("Unknown")
-        if rate:
-            value = Decimal(satoshis) / COIN * Decimal(rate)
-            return "%s" % (self.ccy_amount_str(value, True))
-        return _("No data")
-
-    @hook
-    def historical_value_str(self, satoshis, d_t):
-        rate = self.exchange.historical_rate(self.ccy, d_t)
-        # Frequently there is no rate for today, until tomorrow :)
-        # Use spot quotes in that case
-        if rate is None and (datetime.today().date() - d_t.date()).days <= 2:
-            rate = self.exchange.quotes.get(self.ccy)
-            self.history_used_spot = True
-        return self.value_str(satoshis, rate)
-
-    @hook
-    def history_tab_headers(self, headers):
-        if self.show_history():
-            headers.extend(['%s '%self.ccy + _('Amount'), '%s '%self.ccy + _('Balance')])
-
-    @hook
-    def history_tab_update_begin(self):
-        self.history_used_spot = False
-
-    @hook
-    def history_tab_update(self, tx, entry):
-        if not self.show_history():
-            return
-        tx_hash, conf, value, timestamp, balance = tx
-        if conf <= 0:
-            date = datetime.today()
-        else:
-            date = timestamp_to_datetime(timestamp)
-        for amount in [value, balance]:
-            text = self.historical_value_str(amount, date)
-            entry.append(text)
+    def on_new_window(self, window):
+        # Additional send and receive edit boxes
+        send_e = AmountEdit(self.config_ccy)
+        window.send_grid.addWidget(send_e, 4, 2, Qt.AlignLeft)
+        window.amount_e.frozen.connect(
+            lambda: send_e.setFrozen(window.amount_e.isReadOnly()))
+        receive_e = AmountEdit(self.config_ccy)
+        window.receive_grid.addWidget(receive_e, 2, 2, Qt.AlignLeft)
+        window.fiat_send_e = send_e
+        window.fiat_receive_e = receive_e
+        self.connect_fields(window, window.amount_e, send_e, window.fee_e)
+        self.connect_fields(window, window.receive_amount_e, receive_e, None)
+        window.history_list.refresh_headers()
+        window.update_status()
+        window.connect(window.app, SIGNAL('new_fx_quotes'), lambda: self.on_fx_quotes(window))
+        window.connect(window.app, SIGNAL('new_fx_history'), lambda: self.on_fx_history(window))
+        window.connect(window.app, SIGNAL('close_fx_plugin'), lambda: self.restore_window(window))
+        window.connect(window.app, SIGNAL('refresh_headers'), window.history_list.refresh_headers)
 
     def settings_widget(self, window):
         return EnterButton(_('Settings'), self.settings_dialog)
