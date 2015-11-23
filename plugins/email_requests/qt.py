@@ -101,7 +101,7 @@ class Processor(threading.Thread):
         s.quit()
 
 
-class QtPlugin(BasePlugin):
+class Plugin(BasePlugin):
 
     def fullname(self):
         return 'Email'

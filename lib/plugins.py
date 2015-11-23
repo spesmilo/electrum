@@ -33,25 +33,24 @@ class Plugins(PrintError):
         if is_local:
             find = imp.find_module('plugins')
             plugins = imp.load_module('electrum_plugins', *find)
-            self.pathname = find[1]
         else:
             plugins = __import__('electrum_plugins')
-            self.pathname = None
-
+        self.pkgpath = os.path.dirname(plugins.__file__)
         self.plugins = {}
         self.network = None
         self.gui_name = gui_name
-        self.descriptions = plugins.descriptions
-        for item in self.descriptions:
-            name = item['name']
-            if gui_name not in item.get('available_for', []):
+        self.descriptions = []
+        for loader, name, ispkg in pkgutil.iter_modules([self.pkgpath]):
+            m = loader.find_module(name).load_module(name)
+            d = m.__dict__
+            if gui_name not in d.get('available_for', []):
                 continue
-            x = item.get('registers_wallet_type')
+            self.descriptions.append(d)
+            x = d.get('registers_wallet_type')
             if x:
                 self.register_wallet_type(config, name, x)
-            if config.get('use_' + name):
+            if not d.get('requires_wallet_type') and config.get('use_' + name):
                 self.load_plugin(config, name)
-
 
     def get(self, name):
         return self.plugins.get(name)
@@ -60,22 +59,10 @@ class Plugins(PrintError):
         return len(self.plugins)
 
     def load_plugin(self, config, name):
-        full_name = 'electrum_plugins.' + name
+        full_name = 'electrum_plugins.' + name + '.' + self.gui_name
         try:
-            if self.pathname:  # local
-                path = os.path.join(self.pathname, name + '.py')
-                p = imp.load_source(full_name, path)
-            else:
-                p = __import__(full_name, fromlist=['electrum_plugins'])
-
-            if self.gui_name == 'qt':
-                klass = p.QtPlugin
-            elif self.gui_name == 'cmdline':
-                klass = p.CmdlinePlugin
-            else:
-                return
-
-            plugin = klass(self, config, name)
+            p = pkgutil.find_loader(full_name).load_module(full_name)
+            plugin = p.Plugin(self, config, name)
             if self.network:
                 self.network.add_jobs(plugin.thread_jobs())
             self.plugins[name] = plugin
@@ -103,7 +90,7 @@ class Plugins(PrintError):
 
     def is_available(self, name, w):
         for d in self.descriptions:
-            if d.get('name') == name:
+            if d.get('__name__') == name:
                 break
         else:
             return False

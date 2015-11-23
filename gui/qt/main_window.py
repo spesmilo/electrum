@@ -2867,7 +2867,7 @@ class ElectrumWindow(QMainWindow, PrintError):
             run_hook('init_qt', self.gui_object)
 
         for i, descr in enumerate(plugins.descriptions):
-            name = descr['name']
+            name = descr['__name__']
             p = plugins.get(name)
             if descr.get('registers_wallet_type'):
                 continue
