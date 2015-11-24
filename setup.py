@@ -38,6 +38,7 @@ setup(
         'electrum',
         'electrum_gui',
         'electrum_gui.qt',
+        'electrum_plugins',
         'electrum_plugins.audio_modem',
         'electrum_plugins.cosigner_pool',
         'electrum_plugins.email_requests',
