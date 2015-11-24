@@ -21,8 +21,7 @@ CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
                   'JOD': 3, 'JPY': 0, 'KMF': 0, 'KRW': 0, 'KWD': 3,
                   'LYD': 3, 'MGA': 1, 'MRO': 1, 'OMR': 3, 'PYG': 0,
                   'RWF': 0, 'TND': 3, 'UGX': 0, 'UYI': 0, 'VND': 0,
-                  'VUV': 0, 'XAF': 0, 'XAG': 2, 'XAU': 4, 'XOF': 0,
-                  'XPF': 0, 'MXN': 2}
+                  'VUV': 0, 'XAF': 0, 'XAU': 4, 'XOF': 0, 'XPF': 0}
 
 class ExchangeBase(PrintError):
 
@@ -367,7 +366,3 @@ class FxPlugin(BasePlugin, ThreadJob):
         for amount in [value, balance]:
             text = self.historical_value_str(amount, date)
             entry.append(text)
-
-
-
-
