@@ -35,12 +35,26 @@ setup(
         'protobuf',
         'dnspython',
     ],
+    packages=[
+        'electrum_ltc',
+        'electrum_ltc_gui',
+        'electrum_ltc_gui.qt',
+        'electrum_ltc_plugins.audio_modem',
+        'electrum_ltc_plugins.cosigner_pool',
+        'electrum_ltc_plugins.email_requests',
+        'electrum_ltc_plugins.exchange_rate',
+        'electrum_ltc_plugins.keepkey',
+        'electrum_ltc_plugins.labels',
+        'electrum_ltc_plugins.ledger',
+        'electrum_ltc_plugins.plot',
+        'electrum_ltc_plugins.trezor',
+        'electrum_ltc_plugins.virtualkeyboard',
+    ],
     package_dir={
         'electrum_ltc': 'lib',
         'electrum_ltc_gui': 'gui',
         'electrum_ltc_plugins': 'plugins',
     },
-    packages=['electrum_ltc','electrum_ltc_gui','electrum_ltc_gui.qt','electrum_ltc_plugins'],
     package_data={
         'electrum_ltc': [
             'www/index.html',

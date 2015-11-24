@@ -1045,11 +1045,6 @@ class Abstract_Wallet(PrintError):
         # Sign
         if keypairs:
             tx.sign(keypairs)
-        # Run hook, and raise if error
-        tx.error = None
-        run_hook('sign_transaction', self, tx, password)
-        if tx.error:
-            raise BaseException(tx.error)
 
 
     def sendtx(self, tx):

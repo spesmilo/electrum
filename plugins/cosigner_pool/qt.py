@@ -89,43 +89,38 @@ class Plugin(BasePlugin):
         self.keys = []
         self.cosigner_list = []
 
+    @hook
     def on_new_window(self, window):
-        self.update()
+        self.update(window)
 
+    @hook
     def on_close_window(self, window):
-        self.update()
-
-    def available_wallets(self):
-        result = {}
-        for window in self.parent.windows:
-            if window.wallet.wallet_type in ['2of2', '2of3']:
-                result[window.wallet] = window
-        return result
+        self.update(window)
 
     def is_available(self):
-        return bool(self.available_wallets())
+        return True
 
-    def update(self):
-        wallets = self.available_wallets()
-        if wallets:
-            if self.listener is None:
-                self.print_error("starting listener")
-                self.listener = Listener(self)
-                self.listener.start()
+    def update(self, window):
+        wallet = window.wallet
+        if wallet.wallet_type not in ['2of2', '2of3']:
+            return
+        if self.listener is None:
+            self.print_error("starting listener")
+            self.listener = Listener(self)
+            self.listener.start()
         elif self.listener:
             self.print_error("shutting down listener")
             self.listener.stop()
             self.listener = None
         self.keys = []
         self.cosigner_list = []
-        for wallet, window in wallets.items():
-            for key, xpub in wallet.master_public_keys.items():
-                K = bitcoin.deserialize_xkey(xpub)[-1].encode('hex')
-                _hash = bitcoin.Hash(K).encode('hex')
-                if wallet.master_private_keys.get(key):
-                    self.keys.append((key, _hash, window))
-                else:
-                    self.cosigner_list.append((window, xpub, K, _hash))
+        for key, xpub in wallet.master_public_keys.items():
+            K = bitcoin.deserialize_xkey(xpub)[-1].encode('hex')
+            _hash = bitcoin.Hash(K).encode('hex')
+            if wallet.master_private_keys.get(key):
+                self.keys.append((key, _hash, window))
+            else:
+                self.cosigner_list.append((window, xpub, K, _hash))
         if self.listener:
             self.listener.set_keyhashes([t[1] for t in self.keys])
 

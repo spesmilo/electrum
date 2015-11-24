@@ -129,10 +129,8 @@ class Plugin(BasePlugin):
         self.obj.emit(SIGNAL('email:new_invoice'))
 
     def new_invoice(self):
-        if self.parent.windows:
-            window = self.parent.windows[0]
-            window.invoices.add(self.pr)
-            window.update_invoices_list()
+        self.parent.invoices.add(self.pr)
+        #window.update_invoices_list()
 
     @hook
     def receive_list_menu(self, menu, addr):

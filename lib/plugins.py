@@ -33,23 +33,23 @@ class Plugins(PrintError):
         if is_local:
             find = imp.find_module('plugins')
             plugins = imp.load_module('electrum_ltc_plugins', *find)
-            self.pathname = find[1]
         else:
             plugins = __import__('electrum_ltc_plugins')
-            self.pathname = None
-
+        self.pkgpath = os.path.dirname(plugins.__file__)
         self.plugins = {}
-        self.windows = []
         self.network = None
-        self.descriptions = plugins.descriptions
-        for item in self.descriptions:
-            name = item['name']
-            if gui_name not in item.get('available_for', []):
+        self.gui_name = gui_name
+        self.descriptions = []
+        for loader, name, ispkg in pkgutil.iter_modules([self.pkgpath]):
+            m = loader.find_module(name).load_module(name)
+            d = m.__dict__
+            if gui_name not in d.get('available_for', []):
                 continue
-            x = item.get('registers_wallet_type')
+            self.descriptions.append(d)
+            x = d.get('registers_wallet_type')
             if x:
                 self.register_wallet_type(config, name, x)
-            if config.get('use_' + name):
+            if not d.get('requires_wallet_type') and config.get('use_' + name):
                 self.load_plugin(config, name)
 
     def get(self, name):
@@ -59,17 +59,10 @@ class Plugins(PrintError):
         return len(self.plugins)
 
     def load_plugin(self, config, name):
-        full_name = 'electrum_ltc_plugins.' + name
+        full_name = 'electrum_ltc_plugins.' + name + '.' + self.gui_name
         try:
-            if self.pathname:  # local
-                path = os.path.join(self.pathname, name + '.py')
-                p = imp.load_source(full_name, path)
-            else:
-                p = __import__(full_name, fromlist=['electrum_ltc_plugins'])
+            p = pkgutil.find_loader(full_name).load_module(full_name)
             plugin = p.Plugin(self, config, name)
-            # Inform the plugin of our windows
-            for window in self.windows:
-                plugin.on_new_window(window)
             if self.network:
                 self.network.add_jobs(plugin.thread_jobs())
             self.plugins[name] = plugin
@@ -79,6 +72,7 @@ class Plugins(PrintError):
             print_msg(_("Error: cannot initialize plugin"), name)
             traceback.print_exc(file=sys.stdout)
             return None
+
 
     def close_plugin(self, plugin):
         if self.network:
@@ -96,7 +90,7 @@ class Plugins(PrintError):
 
     def is_available(self, name, w):
         for d in self.descriptions:
-            if d.get('name') == name:
+            if d.get('__name__') == name:
                 break
         else:
             return False
@@ -132,17 +126,6 @@ class Plugins(PrintError):
             if network:
                 network.add_jobs(jobs)
 
-    def trigger(self, event, *args, **kwargs):
-        for plugin in self.plugins.values():
-            getattr(plugin, event)(*args, **kwargs)
-
-    def on_new_window(self, window):
-        self.windows.append(window)
-        self.trigger('on_new_window', window)
-
-    def on_close_window(self, window):
-        self.windows.remove(window)
-        self.trigger('on_close_window', window)
 
 
 hook_names = set()
@@ -226,9 +209,3 @@ class BasePlugin(PrintError):
     def settings_dialog(self):
         pass
 
-    # Events
-    def on_close_window(self, window):
-        pass
-
-    def on_new_window(self, window):
-        pass
