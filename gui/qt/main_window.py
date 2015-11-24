@@ -108,13 +108,12 @@ expiration_values = [
 
 class ElectrumWindow(QMainWindow, PrintError):
 
-    def __init__(self, config, network, gui_object):
+    def __init__(self, gui_object, wallet):
         QMainWindow.__init__(self)
 
-        self.config = config
-        self.network = network
-        self.wallet = None
         self.gui_object = gui_object
+        self.config = config = gui_object.config
+        self.network = gui_object.network
         self.invoices = gui_object.invoices
         self.contacts = gui_object.contacts
         self.tray = gui_object.tray
@@ -178,6 +177,8 @@ class ElectrumWindow(QMainWindow, PrintError):
         self.fetch_alias()
         self.require_fee_update = False
         self.tx_notifications = []
+        # load wallet
+        self.load_wallet(wallet)
 
     def diagnostic_name(self):
         return "%s/%s" % (PrintError.diagnostic_name(self),
