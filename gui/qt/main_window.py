@@ -1379,16 +1379,11 @@ class ElectrumWindow(QMainWindow, PrintError):
         amount = out.get('amount')
         label = out.get('label')
         message = out.get('message')
-        if label:
-            if self.wallet.labels.get(address) != label:
-                if self.question(_('Save label "%(label)s" for address %(address)s ?'%{'label':label,'address':address})):
-                    if address not in self.wallet.addressbook and not self.wallet.is_mine(address):
-                        self.wallet.addressbook.append(address)
-                        self.wallet.set_label(address, label)
-        else:
-            label = self.wallet.labels.get(address)
+        # use label as description (not BIP21 compliant)
+        if label and not message:
+            message = label
         if address:
-            self.payto_e.setText(label + '  <'+ address +'>' if label else address)
+            self.payto_e.setText(address)
         if message:
             self.message_e.setText(message)
         if amount:
