@@ -476,7 +476,7 @@ if __name__ == '__main__':
                 server = NetworkServer(config, network)
                 if config.get('websocket_server'):
                     from electrum import websockets
-                    websockets.WebSocketServer(config, server).start()
+                    websockets.WebSocketServer(config, network).start()
                 if config.get('requests_dir'):
                     util.check_www_dir(config.get('requests_dir'))
                 server.start()

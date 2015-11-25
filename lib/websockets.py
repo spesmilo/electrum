@@ -32,7 +32,7 @@ class ElectrumWebSocket(WebSocket):
 
     def handleMessage(self):
         assert self.data[0:3] == 'id:'
-        print "message received", self.data
+        util.print_error("message received", self.data)
         request_id = self.data[3:]
         request_queue.put((self, request_id))
 
