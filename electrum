@@ -126,9 +126,6 @@ def init_cmdline(config):
         cmd.requires_password = False
         cmd.requires_wallet = False
 
-    if cmdname == 'listrequests' and config.get('status'):
-        cmd.requires_network = True
-
     # instanciate wallet for command-line
     storage = WalletStorage(config.get_wallet_path())
 
