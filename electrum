@@ -269,8 +269,6 @@ class ClientThread(util.DaemonThread):
         util.DaemonThread.__init__(self)
         self.server = server
         self.client_pipe = util.SocketPipe(s)
-        self.response_queue = Queue.Queue()
-        self.server.add_client(self)
         self.subscriptions = defaultdict(list)
         self.network = self.server.network
 
@@ -316,7 +314,6 @@ class ClientThread(util.DaemonThread):
                 response = {'error':err}
         # send response and exit
         self.client_pipe.send(response)
-        self.server.remove_client(self)
 
 
 
@@ -330,23 +327,8 @@ class NetworkServer(util.DaemonThread):
         self.pipe = util.QueuePipe()
         self.network = network
         self.lock = threading.RLock()
-        # each GUI is a client of the daemon
-        self.clients = []
         # gui is None is we run as daemon
         self.gui = None
-
-    def add_client(self, client):
-        for key in ['fee', 'status', 'banner', 'updated', 'servers', 'interfaces']:
-            value = self.network.get_status_value(key)
-            client.response_queue.put({'method':'network.status', 'params':[key, value]})
-        with self.lock:
-            self.clients.append(client)
-            print_error("new client:", len(self.clients))
-
-    def remove_client(self, client):
-        with self.lock:
-            self.clients.remove(client)
-            print_error("client quit:", len(self.clients))
 
     def run(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

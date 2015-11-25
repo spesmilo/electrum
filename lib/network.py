@@ -537,7 +537,7 @@ class Network(util.DaemonThread):
             self.process_response(interface, response, callback)
 
     def send(self, messages, callback):
-        '''Messages is a list of (method, value) tuples'''
+        '''Messages is a list of (method, params) tuples'''
         with self.lock:
             self.pending_sends.append((messages, callback))
 
