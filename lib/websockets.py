@@ -97,7 +97,7 @@ class WsClientThread(util.DaemonThread):
             elif method == 'blockchain.address.get_balance':
                 addr = params[0]
                 l = self.subscriptions.get(addr, [])
-                for ws, amount in :l:
+                for ws, amount in l:
                     if not ws.closed:
                         if sum(result.values()) >=amount:
                             ws.sendMessage(unicode('paid'))
