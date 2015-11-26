@@ -302,18 +302,6 @@ class TrustedCoinPlugin(BasePlugin):
     def is_enabled(self):
         return True
 
-    @hook
-    def on_new_window(self, window):
-        wallet = window.wallet
-        if wallet.storage.get('wallet_type') == '2fa':
-            button = StatusBarButton(QIcon(":icons/trustedcoin.png"),
-                                     _("TrustedCoin"),
-                                     partial(self.settings_dialog, window))
-            window.statusBar().addPermanentWidget(button)
-            t = Thread(target=self.request_billing_info, args=(wallet,))
-            t.setDaemon(True)
-            t.start()
-
     def request_billing_info(self, wallet):
         billing_info = server.get(wallet.get_user_id()[1])
         billing_address = make_billing_address(wallet, billing_info['billing_index'])

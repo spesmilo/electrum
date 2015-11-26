@@ -1,11 +1,28 @@
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
+
 from electrum_gui.qt.util import *
 from electrum_gui.qt.qrcodewidget import QRCodeWidget
 from electrum_gui.qt.amountedit import AmountEdit
 from electrum_gui.qt.main_window import StatusBarButton
+from electrum.i18n import _
+from electrum.plugins import hook
+
+from trustedcoin import TrustedCoinPlugin
 
 class Plugin(TrustedCoinPlugin):
+
+    @hook
+    def on_new_window(self, window):
+        wallet = window.wallet
+        if wallet.storage.get('wallet_type') == '2fa':
+            button = StatusBarButton(QIcon(":icons/trustedcoin.png"),
+                                     _("TrustedCoin"),
+                                     partial(self.settings_dialog, window))
+            window.statusBar().addPermanentWidget(button)
+            t = Thread(target=self.request_billing_info, args=(wallet,))
+            t.setDaemon(True)
+            t.start()
 
     def auth_dialog(self, window):
         d = QDialog(window)
