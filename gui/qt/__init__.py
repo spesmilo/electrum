@@ -201,11 +201,8 @@ class ElectrumGui:
             wallet = self.load_wallet_file(path)
             if not wallet:
                 return
-            w = ElectrumWindow(self.config, self.network, self)
+            w = ElectrumWindow(self, wallet)
             w.connect_slots(self.timer)
-
-            # load new wallet in gui
-            w.load_wallet(wallet)
             # save path
             if self.config.get('wallet_path') is None:
                 self.config.set_key('gui_last_wallet', path)

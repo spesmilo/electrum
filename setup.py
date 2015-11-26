@@ -39,6 +39,7 @@ setup(
         'electrum_ltc',
         'electrum_ltc_gui',
         'electrum_ltc_gui.qt',
+        'electrum_ltc_plugins',
         'electrum_ltc_plugins.audio_modem',
         'electrum_ltc_plugins.cosigner_pool',
         'electrum_ltc_plugins.email_requests',
