@@ -260,11 +260,10 @@ def run_command(config, network, password):
     return result
 
 
-class ClientThread(threading.Thread):
+class ClientThread(util.DaemonThread):
 
     def __init__(self, server, s):
-        threading.Thread.__init__(self)
-        self.daemon = True
+        util.DaemonThread.__init__(self)
         self.server = server
         self.client_pipe = util.SocketPipe(s)
         self.network = self.server.network
