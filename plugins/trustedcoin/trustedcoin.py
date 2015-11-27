@@ -25,7 +25,6 @@ import json
 from hashlib import sha256
 from urlparse import urljoin
 from urllib import quote
-from functools import partial
 
 import electrum
 from electrum import bitcoin
