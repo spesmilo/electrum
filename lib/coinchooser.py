@@ -18,7 +18,6 @@
 
 from operator import itemgetter
 
-from bitcoin import MIN_RELAY_TX_FEE
 from util import NotEnoughFunds, PrintError, profiler
 from transaction import Transaction
 
