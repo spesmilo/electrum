@@ -645,7 +645,7 @@ class Abstract_Wallet(PrintError):
         dummy_tx = Transaction.from_io(inputs, [output])
         if fee is None:
             fee_per_kb = self.fee_per_kb(config)
-            fee = self.estimated_fee(dummy_tx, fee_per_kb)
+            fee = dummy_tx.estimated_fee(fee_per_kb)
         amount = max(0, sendable - fee)
         return amount, fee
 
@@ -898,14 +898,6 @@ class Abstract_Wallet(PrintError):
     def get_tx_fee(self, tx):
         # this method can be overloaded
         return tx.get_fee()
-
-    @profiler
-    def estimated_fee(self, tx, fee_per_kb):
-        estimated_size = len(tx.serialize(-1))/2
-        fee = int(fee_per_kb * estimated_size / 1000.)
-        if fee < MIN_RELAY_TX_FEE: # and tx.requires_fee(self):
-            fee = MIN_RELAY_TX_FEE
-        return fee
 
     def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None, change_addr=None):
         # check outputs

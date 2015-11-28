@@ -207,7 +207,7 @@ class Wallet_2fa(Multisig_Wallet):
         return price
 
     def estimated_fee(self, tx, fee_per_kb):
-        fee = Multisig_Wallet.estimated_fee(self, tx, fee_per_kb)
+        fee = tx.estimated_fee(fee_per_kb)
         fee += self.extra_fee(tx)
         return fee
 
@@ -440,5 +440,3 @@ class TrustedCoinPlugin(BasePlugin):
 
         wallet.add_master_public_key('x3/', xpub3)
         return True
-
-

@@ -30,7 +30,7 @@ class CoinChooser(PrintError):
     def fee(self, tx, fixed_fee, fee_per_kb):
         if fixed_fee is not None:
             return fixed_fee
-        return self.wallet.estimated_fee(tx, fee_per_kb)
+        return tx.estimated_fee(fee_per_kb)
 
     def dust_threshold(self):
         return 182 * 3 * MIN_RELAY_TX_FEE/1000
@@ -88,7 +88,7 @@ class CoinChooser(PrintError):
         elif change_amount > self.dust_threshold():
             tx.outputs.append(('address', change_addr, change_amount))
             # recompute fee including change output
-            fee = self.wallet.estimated_fee(tx, fee_per_kb)
+            fee = tx.estimated_fee(fee_per_kb)
             # remove change output
             tx.outputs.pop()
             # if change is still above dust threshold, re-add change output.
