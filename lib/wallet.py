@@ -24,9 +24,8 @@ import random
 import time
 import json
 import copy
-from operator import itemgetter
 
-from util import NotEnoughFunds, PrintError, profiler
+from util import PrintError, profiler
 
 from bitcoin import *
 from account import *
@@ -35,6 +34,7 @@ from version import *
 from transaction import Transaction
 from plugins import run_hook
 import bitcoin
+from coinchooser import CoinChooser
 from synchronizer import Synchronizer
 from verifier import SPV
 from mnemonic import Mnemonic
@@ -153,6 +153,7 @@ class Abstract_Wallet(PrintError):
         self.network = None
         self.electrum_version = ELECTRUM_VERSION
         self.gap_limit_for_change = 6 # constant
+        self.coin_chooser = CoinChooser(self)
         # saved fields
         self.seed_version          = storage.get('seed_version', NEW_SEED_VERSION)
         self.use_change            = storage.get('use_change',True)
@@ -898,9 +899,6 @@ class Abstract_Wallet(PrintError):
         # this method can be overloaded
         return tx.get_fee()
 
-    def dust_threshold(self):
-        return 182 * 3 * MIN_RELAY_TX_FEE/1000
-
     @profiler
     def estimated_fee(self, tx, fee_per_kb):
         estimated_size = len(tx.serialize(-1))/2
@@ -916,84 +914,29 @@ class Abstract_Wallet(PrintError):
                 assert is_address(data), "Address " + data + " is invalid!"
 
         fee_per_kb = self.fee_per_kb(config)
-        amount = sum(map(lambda x:x[2], outputs))
-        total = 0
-        inputs = []
-        tx = Transaction.from_io(inputs, outputs)
-        fee = fixed_fee if fixed_fee is not None else 0
-        # add inputs, sorted by age
-        for item in coins:
-            v = item.get('value')
-            total += v
-            self.add_input_info(item)
-            tx.add_input(item)
-            # no need to estimate fee until we have reached desired amount
-            if total < amount + fee:
-                continue
-            fee = fixed_fee if fixed_fee is not None else self.estimated_fee(tx, fee_per_kb)
-            if total >= amount + fee:
-                break
-        else:
-            raise NotEnoughFunds()
-        # remove unneeded inputs.
-        removed = False
-        for item in sorted(tx.inputs, key=itemgetter('value')):
-            v = item.get('value')
-            if total - v >= amount + fee:
-                tx.inputs.remove(item)
-                total -= v
-                removed = True
-                continue
-            else:
-                break
-        if removed:
-            fee = fixed_fee if fixed_fee is not None else self.estimated_fee(tx, fee_per_kb)
-            for item in sorted(tx.inputs, key=itemgetter('value')):
-                v = item.get('value')
-                if total - v >= amount + fee:
-                    tx.inputs.remove(item)
-                    total -= v
-                    fee = fixed_fee if fixed_fee is not None else self.estimated_fee(tx, fee_per_kb)
-                    continue
-                break
-        self.print_error("using %d inputs"%len(tx.inputs))
 
         # change address
-        if not change_addr:
+        if change_addr:
+            change_addrs = [change_addr]
+        else:
             # send change to one of the accounts involved in the tx
-            address = inputs[0].get('address')
+            address = coins[0].get('address')
             account, _ = self.get_address_index(address)
             if self.use_change and self.accounts[account].has_change():
-                # New change addresses are created only after a few confirmations.
-                # Choose an unused change address if any, otherwise take one at random
-                change_addrs = self.accounts[account].get_addresses(1)[-self.gap_limit_for_change:]
-                for change_addr in change_addrs:
-                    if self.get_num_tx(change_addr) == 0:
-                        break
-                else:
-                    change_addr = random.choice(change_addrs)
+                # New change addresses are created only after a few
+                # confirmations.  Select the unused addresses within the
+                # gap limit; if none take one at random
+                addrs = self.accounts[account].get_addresses(1)[-self.gap_limit_for_change:]
+                change_addrs = [addr for addr in addrs if
+                                self.get_num_tx(change_addr) == 0]
+                if not change_addrs:
+                    change_addrs = [random.choice(addrs)]
             else:
-                change_addr = address
+                change_addrs = [address]
 
-        # if change is above dust threshold, add a change output.
-        change_amount = total - ( amount + fee )
-        if fixed_fee is not None and change_amount > 0:
-            tx.outputs.append(('address', change_addr, change_amount))
-        elif change_amount > self.dust_threshold():
-            tx.outputs.append(('address', change_addr, change_amount))
-            # recompute fee including change output
-            fee = self.estimated_fee(tx, fee_per_kb)
-            # remove change output
-            tx.outputs.pop()
-            # if change is still above dust threshold, re-add change output.
-            change_amount = total - ( amount + fee )
-            if change_amount > self.dust_threshold():
-                tx.outputs.append(('address', change_addr, change_amount))
-                self.print_error('change', change_amount)
-            else:
-                self.print_error('not keeping dust', change_amount)
-        else:
-            self.print_error('not keeping dust', change_amount)
+        # Let the coin chooser select the coins to spend
+        tx = self.coin_chooser.make_tx(coins, outputs, change_addrs,
+                                       fixed_fee, fee_per_kb)
 
         # Sort the inputs and outputs deterministically
         tx.BIP_LI01_sort()
