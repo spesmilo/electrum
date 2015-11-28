@@ -933,10 +933,8 @@ class Abstract_Wallet(PrintError):
                 return fixed_fee
             return tx.estimated_fee(fee_per_kb)
 
-        # If a fixed fee is specified, keep even dust change
+        # Change <= dust threshold is added to the tx fee
         dust_threshold = 182 * 3 * MIN_RELAY_TX_FEE / 1000
-        if fixed_fee is None:
-            dust_threshold = 0
 
         # Let the coin chooser select the coins to spend
         tx = self.coin_chooser.make_tx(coins, outputs, change_addrs,
