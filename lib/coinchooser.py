@@ -24,8 +24,6 @@ from transaction import Transaction
 
 
 class CoinChooser(PrintError):
-    def __init__(self, wallet):
-        self.wallet = wallet
 
     def make_tx(self, coins, outputs, change_addrs, fee_estimator,
                 dust_threshold):
@@ -42,7 +40,6 @@ class CoinChooser(PrintError):
         for item in coins:
             v = item.get('value')
             total += v
-            self.wallet.add_input_info(item)
             tx.add_input(item)
             # no need to estimate fee until we have reached desired amount
             if total < amount + fee:

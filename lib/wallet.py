@@ -153,7 +153,7 @@ class Abstract_Wallet(PrintError):
         self.network = None
         self.electrum_version = ELECTRUM_VERSION
         self.gap_limit_for_change = 6 # constant
-        self.coin_chooser = CoinChooser(self)
+        self.coin_chooser = CoinChooser()
         # saved fields
         self.seed_version          = storage.get('seed_version', NEW_SEED_VERSION)
         self.use_change            = storage.get('use_change',True)
@@ -904,6 +904,9 @@ class Abstract_Wallet(PrintError):
         for type, data, value in outputs:
             if type == 'address':
                 assert is_address(data), "Address " + data + " is invalid!"
+
+        for item in coins:
+            self.add_input_info(item)
 
         # change address
         if change_addr:
