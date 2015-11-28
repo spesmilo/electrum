@@ -905,8 +905,6 @@ class Abstract_Wallet(PrintError):
             if type == 'address':
                 assert is_address(data), "Address " + data + " is invalid!"
 
-        fee_per_kb = self.fee_per_kb(config)
-
         # change address
         if change_addr:
             change_addrs = [change_addr]
@@ -926,9 +924,20 @@ class Abstract_Wallet(PrintError):
             else:
                 change_addrs = [address]
 
+        fee_per_kb = self.fee_per_kb(config)
+        def fee_estimator(tx):
+            if fixed_fee is not None:
+                return fixed_fee
+            return tx.estimated_fee(fee_per_kb)
+
+        # If a fixed fee is specified, keep even dust change
+        dust_threshold = 182 * 3 * MIN_RELAY_TX_FEE / 1000
+        if fixed_fee is None:
+            dust_threshold = 0
+
         # Let the coin chooser select the coins to spend
         tx = self.coin_chooser.make_tx(coins, outputs, change_addrs,
-                                       fixed_fee, fee_per_kb)
+                                       fee_estimator, dust_threshold)
 
         # Sort the inputs and outputs deterministically
         tx.BIP_LI01_sort()

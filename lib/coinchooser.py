@@ -27,21 +27,17 @@ class CoinChooser(PrintError):
     def __init__(self, wallet):
         self.wallet = wallet
 
-    def fee(self, tx, fixed_fee, fee_per_kb):
-        if fixed_fee is not None:
-            return fixed_fee
-        return tx.estimated_fee(fee_per_kb)
-
-    def dust_threshold(self):
-        return 182 * 3 * MIN_RELAY_TX_FEE/1000
-
-    def make_tx(self, coins, outputs, change_addrs, fixed_fee, fee_per_kb):
-        '''Select unspent coins to spend to pay outputs.'''
+    def make_tx(self, coins, outputs, change_addrs, fee_estimator,
+                dust_threshold):
+        '''Select unspent coins to spend to pay outputs.  If the change is
+        greater than dust_threshold (after adding the change output to
+        the transaction) it is kept, otherwise none is sent and it is
+        added to the transaction fee.'''
         amount = sum(map(lambda x: x[2], outputs))
         total = 0
         inputs = []
         tx = Transaction.from_io(inputs, outputs)
-        fee = self.fee(tx, fixed_fee, fee_per_kb)
+        fee = fee_estimator(tx)
         # add inputs, sorted by age
         for item in coins:
             v = item.get('value')
@@ -51,7 +47,7 @@ class CoinChooser(PrintError):
             # no need to estimate fee until we have reached desired amount
             if total < amount + fee:
                 continue
-            fee = self.fee(tx, fixed_fee, fee_per_kb)
+            fee = fee_estimator(tx)
             if total >= amount + fee:
                 break
         else:
@@ -69,13 +65,13 @@ class CoinChooser(PrintError):
             else:
                 break
         if removed:
-            fee = self.fee(tx, fixed_fee, fee_per_kb)
+            fee = fee_estimator(tx)
             for item in sorted(tx.inputs, key=itemgetter('value')):
                 v = item.get('value')
                 if total - v >= amount + fee:
                     tx.inputs.remove(item)
                     total -= v
-                    fee = self.fee(tx, fixed_fee, fee_per_kb)
+                    fee = fee_estimator(tx)
                     continue
                 break
         self.print_error("using %d inputs" % len(tx.inputs))
@@ -83,22 +79,21 @@ class CoinChooser(PrintError):
         # if change is above dust threshold, add a change output.
         change_addr = change_addrs[0]
         change_amount = total - (amount + fee)
-        if fixed_fee is not None and change_amount > 0:
+
+        # See if change would still be greater than dust after adding
+        # the change to the transaction
+        if change_amount > dust_threshold:
             tx.outputs.append(('address', change_addr, change_amount))
-        elif change_amount > self.dust_threshold():
-            tx.outputs.append(('address', change_addr, change_amount))
-            # recompute fee including change output
-            fee = tx.estimated_fee(fee_per_kb)
+            fee = fee_estimator(tx)
             # remove change output
             tx.outputs.pop()
-            # if change is still above dust threshold, re-add change output.
             change_amount = total - (amount + fee)
-            if change_amount > self.dust_threshold():
-                tx.outputs.append(('address', change_addr, change_amount))
-                self.print_error('change', change_amount)
-            else:
-                self.print_error('not keeping dust', change_amount)
-        else:
+
+        # If change is still above dust threshold, keep the change.
+        if change_amount > dust_threshold:
+            tx.outputs.append(('address', change_addr, change_amount))
+            self.print_error('change', change_amount)
+        elif change_amount:
             self.print_error('not keeping dust', change_amount)
 
         return tx
