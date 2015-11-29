@@ -35,7 +35,7 @@ from version import *
 from transaction import Transaction
 from plugins import run_hook
 import bitcoin
-from coinchooser import CoinChooser
+from coinchooser import COIN_CHOOSERS
 from synchronizer import Synchronizer
 from verifier import SPV
 from mnemonic import Mnemonic
@@ -44,7 +44,6 @@ import paymentrequest
 
 # internal ID for imported account
 IMPORTED_ACCOUNT = '/x'
-
 
 class WalletStorage(PrintError):
 
@@ -156,7 +155,6 @@ class Abstract_Wallet(PrintError):
         self.network = None
         self.electrum_version = ELECTRUM_VERSION
         self.gap_limit_for_change = 6 # constant
-        self.coin_chooser = CoinChooser()
         # saved fields
         self.seed_version          = storage.get('seed_version', NEW_SEED_VERSION)
         self.use_change            = storage.get('use_change',True)
@@ -195,6 +193,7 @@ class Abstract_Wallet(PrintError):
         self.lock = threading.Lock()
         self.transaction_lock = threading.Lock()
         self.tx_event = threading.Event()
+        self.tx_cache = (None, None, None, None, None)
 
         self.check_history()
 
@@ -204,6 +203,7 @@ class Abstract_Wallet(PrintError):
 
     def diagnostic_name(self):
         return self.basename()
+
 
     @profiler
     def load_transactions(self):
@@ -896,6 +896,16 @@ class Abstract_Wallet(PrintError):
         # this method can be overloaded
         return tx.get_fee()
 
+    def coin_chooser_name(self, config):
+        kind = config.get('coin_chooser')
+        if not kind in COIN_CHOOSERS:
+            kind = 'Classic'
+        return kind
+
+    def coin_chooser(self, config):
+        klass = COIN_CHOOSERS[self.coin_chooser_name(config)]
+        return klass()
+
     def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None, change_addr=None):
         # check outputs
         for type, data, value in outputs:
@@ -934,12 +944,23 @@ class Abstract_Wallet(PrintError):
         # Change <= dust threshold is added to the tx fee
         dust_threshold = 182 * 3 * MIN_RELAY_TX_FEE / 1000
 
+        # Check cache to see if we just calculated this.  If prior
+        # calculated a fee and this fixes it to the same, return same
+        # answer, to avoid random coin selection changing the answer
+        if self.tx_cache[:4] == (outputs, coins, change_addrs, dust_threshold):
+            tx = self.tx_cache[4]
+            if tx.get_fee() == fee_estimator(tx.estimated_size()):
+                return tx
+
         # Let the coin chooser select the coins to spend
-        tx = self.coin_chooser.make_tx(coins, outputs, change_addrs,
-                                       fee_estimator, dust_threshold)
+        coin_chooser = self.coin_chooser(config)
+        tx = coin_chooser.make_tx(coins, outputs, change_addrs,
+                                  fee_estimator, dust_threshold)
 
         # Sort the inputs and outputs deterministically
         tx.BIP_LI01_sort()
+
+        self.tx_cache = (outputs, coins, change_addrs, dust_threshold, tx)
 
         run_hook('make_unsigned_transaction', self, tx)
         return tx
