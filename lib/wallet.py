@@ -627,15 +627,9 @@ class Abstract_Wallet(PrintError):
                     'height':tx_height,
                     'coinbase':is_cb
                 }
-                coins.append((tx_height, output))
+                coins.append(output)
                 continue
-        # sort by age
-        if coins:
-            coins = sorted(coins)
-            if coins[-1][0] != 0:
-                while coins[0][0] == 0:
-                    coins = coins[1:] + [ coins[0] ]
-        return [value for height, value in coins]
+        return coins
 
     def get_max_amount(self, config, inputs, fee):
         sendable = sum(map(lambda x:x['value'], inputs))
