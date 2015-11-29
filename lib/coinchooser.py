@@ -32,8 +32,7 @@ class CoinChooser(PrintError):
         added to the transaction fee.'''
         amount = sum(map(lambda x: x[2], outputs))
         total = 0
-        inputs = []
-        tx = Transaction.from_io(inputs, outputs)
+        tx = Transaction.from_io([], outputs)
         fee = fee_estimator(tx)
         # add inputs, sorted by age
         for item in coins:

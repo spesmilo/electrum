@@ -689,13 +689,21 @@ class Transaction:
     def get_fee(self):
         return self.input_value() - self.output_value()
 
-    @profiler
-    def estimated_fee(self, fee_per_kb):
-        estimated_size = len(self.serialize(-1)) / 2
-        fee = int(fee_per_kb * estimated_size / 1000.)
+    @classmethod
+    def estimated_fee_for_size(self, fee_per_kb, size):
+        '''Given a fee per kB in satoshis, and a tx size in bytes,
+        returns the transaction fee.'''
+        fee = int(fee_per_kb * size / 1000.)
         if fee < MIN_RELAY_TX_FEE:
             fee = MIN_RELAY_TX_FEE
         return fee
+
+    @profiler
+    def estimated_fee(self, fee_per_kb):
+        '''Return an estimated fee given a fee per kB in satoshis.'''
+        # Remember self.serialize returns an ASCII hex string
+        size = len(self.serialize(-1)) / 2
+        return self.estimated_fee_for_size(fee_per_kb, size)
 
     def signature_count(self):
         r = 0

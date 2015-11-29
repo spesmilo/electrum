@@ -927,11 +927,14 @@ class Abstract_Wallet(PrintError):
             else:
                 change_addrs = [address]
 
-        fee_per_kb = self.fee_per_kb(config)
-        def fee_estimator(tx):
-            if fixed_fee is not None:
+        # Fee estimator
+        if fixed_fee is None:
+            fee_per_kb = self.fee_per_kb(config)
+            def fee_estimator(tx):
+                return tx.estimated_fee(fee_per_kb)
+        else:
+            def fee_estimator(tx):
                 return fixed_fee
-            return tx.estimated_fee(fee_per_kb)
 
         # Change <= dust threshold is added to the tx fee
         dust_threshold = 182 * 3 * MIN_RELAY_TX_FEE / 1000
