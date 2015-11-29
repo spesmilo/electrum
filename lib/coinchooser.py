@@ -57,9 +57,6 @@ class CoinChooserBase(PrintError):
         buckets = self.bucketize_coins(coins)
         buckets = self.choose_buckets(buckets, output_total, fee)
 
-        self.print_error("using %d inputs" % len(tx.inputs))
-        self.print_error("using buckets:", [bucket.desc for bucket in buckets])
-
         tx.inputs = [coin for b in buckets for coin in b.coins]
         input_total = sum(bucket.value for bucket in buckets)
         tx_size = base_size + sum(bucket.size for bucket in buckets)
@@ -75,6 +72,9 @@ class CoinChooserBase(PrintError):
             self.print_error('change', change_amount)
         elif change_amount:
             self.print_error('not keeping dust', change_amount)
+
+        self.print_error("using %d inputs" % len(tx.inputs))
+        self.print_error("using buckets:", [bucket.desc for bucket in buckets])
 
         return tx
 
