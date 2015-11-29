@@ -24,6 +24,7 @@ import random
 import time
 import json
 import copy
+from functools import partial
 
 from util import PrintError, profiler
 
@@ -929,12 +930,10 @@ class Abstract_Wallet(PrintError):
 
         # Fee estimator
         if fixed_fee is None:
-            fee_per_kb = self.fee_per_kb(config)
-            def fee_estimator(tx):
-                return tx.estimated_fee(fee_per_kb)
+            fee_estimator = partial(Transaction.fee_for_size,
+                                    self.fee_per_kb(config))
         else:
-            def fee_estimator(tx):
-                return fixed_fee
+            fee_estimator = lambda size: fixed_fee
 
         # Change <= dust threshold is added to the tx fee
         dust_threshold = 182 * 3 * MIN_RELAY_TX_FEE / 1000

@@ -33,60 +33,42 @@ class CoinChooser(PrintError):
         amount = sum(map(lambda x: x[2], outputs))
         total = 0
         tx = Transaction.from_io([], outputs)
-        fee = fee_estimator(tx)
+
+        # Size of the transaction with no inputs and no change
+        base_size = tx.estimated_size()
+        # Pay to bitcoin address serializes as 34 bytes
+        change_size = 34
+        # Size of each serialized coin
+        for coin in coins:
+            coin['size'] = Transaction.estimated_input_size(coin)
+
+        size = base_size
         # add inputs, sorted by age
         for item in coins:
             v = item.get('value')
             total += v
+            size += item['size']
             tx.add_input(item)
-            # no need to estimate fee until we have reached desired amount
-            if total < amount + fee:
-                continue
-            fee = fee_estimator(tx)
-            if total >= amount + fee:
+            if total >= amount + fee_estimator(size):
                 break
         else:
             raise NotEnoughFunds()
 
         # remove unneeded inputs.
-        removed = False
         for item in sorted(tx.inputs, key=itemgetter('value')):
             v = item.get('value')
-            if total - v >= amount + fee:
+            if total - v >= amount + fee_estimator(size - item['size']):
                 tx.inputs.remove(item)
                 total -= v
-                removed = True
-                continue
-            else:
-                break
-        if removed:
-            fee = fee_estimator(tx)
-            for item in sorted(tx.inputs, key=itemgetter('value')):
-                v = item.get('value')
-                if total - v >= amount + fee:
-                    tx.inputs.remove(item)
-                    total -= v
-                    fee = fee_estimator(tx)
-                    continue
-                break
+                size -= item['size']
         self.print_error("using %d inputs" % len(tx.inputs))
 
-        # if change is above dust threshold, add a change output.
-        change_addr = change_addrs[0]
-        change_amount = total - (amount + fee)
-
-        # See if change would still be greater than dust after adding
-        # the change to the transaction
+        # If change is above dust threshold after accounting for the
+        # size of the change output, add it to the transaction.
+        change_amount = total - (amount + fee_estimator(size + change_size))
         if change_amount > dust_threshold:
-            tx.outputs.append(('address', change_addr, change_amount))
-            fee = fee_estimator(tx)
-            # remove change output
-            tx.outputs.pop()
-            change_amount = total - (amount + fee)
-
-        # If change is still above dust threshold, keep the change.
-        if change_amount > dust_threshold:
-            tx.outputs.append(('address', change_addr, change_amount))
+            tx.outputs.append(('address', change_addrs[0], change_amount))
+            size += change_size
             self.print_error('change', change_amount)
         elif change_amount:
             self.print_error('not keeping dust', change_amount)
