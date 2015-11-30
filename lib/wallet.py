@@ -118,7 +118,9 @@ class WalletStorage(PrintError):
                 self.write()
 
     def write(self):
-        assert not threading.currentThread().isDaemon()
+        if threading.currentThread().isDaemon():
+            self.print_error('warning: daemon thread cannot write wallet')
+            return
         if not self.modified:
             return
         s = json.dumps(self.data, indent=4, sort_keys=True)

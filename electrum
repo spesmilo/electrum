@@ -81,6 +81,7 @@ from electrum import SimpleConfig, Network, Wallet, WalletStorage
 from electrum.util import print_msg, print_error, print_stderr, json_encode, json_decode, set_verbosity, InvalidPassword
 from electrum.plugins import Plugins, run_hook, always_hook
 from electrum.commands import get_parser, known_commands, Commands, config_variables
+from electrum.daemon import Daemon, get_daemon
 
 
 # get password routine
@@ -233,136 +234,18 @@ def init_cmdline(config):
     return cmd, password
 
 
-def run_command(config, cmd, network, wallet, password):
-    if wallet and network:
-        wallet.wait_until_synchronized()
+def run_offline_command(config, cmd, wallet, password):
     # arguments passed to function
     args = map(lambda x: config.get(x), cmd.params)
     # decode json arguments
     args = map(json_decode, args)
     # options
     args += map(lambda x: config.get(x), cmd.options)
-    cmd_runner = Commands(config, wallet, network)
+    cmd_runner = Commands(config, wallet, None)
     cmd_runner.password = password
     func = getattr(cmd_runner, cmd.name)
     result = func(*args)
     return result
-
-
-class ClientThread(util.DaemonThread):
-
-    def __init__(self, server, s):
-        util.DaemonThread.__init__(self)
-        self.server = server
-        self.client_pipe = util.SocketPipe(s)
-        self.network = self.server.network
-
-    def run(self):
-        config_options = self.client_pipe.get()
-        password = config_options.get('password')
-        config = SimpleConfig(config_options)
-        cmd = config.get('cmd')
-        if cmd == 'gui':
-            if self.server.gui:
-                if hasattr(server.gui, 'new_window'):
-                    path = config.get_wallet_path()
-                    self.server.gui.new_window(path, config.get('url'))
-                    response = "ok"
-                else:
-                    response = "error: current GUI does not support multiple windows"
-            else:
-                response = "Error: Electrum is running in daemon mode. Please stop the daemon first."
-        elif cmd == 'daemon':
-            sub = config.get('subcommand')
-            assert sub in ['start', 'stop', 'status']
-            if sub == 'start':
-                response = "Daemon already running"
-            elif sub == 'status':
-                p = self.network.get_parameters()
-                response = {
-                    'path': self.network.config.path,
-                    'server': p[0],
-                    'blockchain_height': self.network.get_local_height(),
-                    'server_height': self.network.get_server_height(),
-                    'nodes': self.network.get_interfaces(),
-                    'connected': self.network.is_connected(),
-                    'auto_connect': p[4],
-                    'wallets': self.server.wallets.keys(),
-                }
-            elif sub == 'stop':
-                self.server.stop()
-                response = "Daemon stopped"
-        else:
-            c = known_commands[cmd]
-            wallet = self.server.load_wallet(config) if c.requires_wallet else None
-            try:
-                response = run_command(config, c, self.network, wallet, password)
-            except BaseException as e:
-                err = traceback.format_exc()
-                response = {'error':err}
-        # send response and exit
-        self.client_pipe.send(response)
-
-
-
-
-class NetworkServer(util.DaemonThread):
-
-    def __init__(self, config, network):
-        util.DaemonThread.__init__(self)
-        self.debug = False
-        self.config = config
-        self.pipe = util.QueuePipe()
-        self.network = network
-        self.lock = threading.RLock()
-        # gui is None is we run as daemon
-        self.gui = None
-        self.wallets = {}
-
-    def load_wallet(self, config):
-        path = config.get_wallet_path()
-        if path in self.wallets:
-            wallet = self.wallets[path]
-        else:
-            storage = WalletStorage(path)
-            wallet = Wallet(storage)
-            wallet.start_threads(self.network)
-            self.wallets[path] = wallet
-        return wallet
-
-    def run(self):
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.bind(('', 0))
-        lockfile = os.path.join(self.config.path, 'lock')
-        with open(lockfile, 'w') as f:
-            f.write("%d"%s.getsockname()[1])
-        s.listen(5)
-        s.settimeout(0.1)
-        while self.is_running():
-            try:
-                connection, address = s.accept()
-            except socket.timeout:
-                continue
-            client = ClientThread(self, connection)
-            client.start()
-        print_error("Daemon exiting")
-
-    def stop(self):
-        for k, wallet in self.wallets.items():
-            wallet.stop_threads()
-        util.DaemonThread.stop(self)
-
-
-def get_daemon(config):
-    lockfile = os.path.join(config.path, 'lock')
-    try:
-        with open(lockfile) as f:
-            num = int(f.read())
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect(('', num))
-        return s
-    except:
-        return False
 
 
 if __name__ == '__main__':
@@ -441,20 +324,23 @@ if __name__ == '__main__':
                 wallet = Wallet(storage)
             else:
                 wallet = None
-            result = run_command(config, cmd, None, wallet, password)
+            result = run_offline_command(config, cmd, wallet, password)
             print_msg(json_encode(result))
             sys.exit(0)
         else:
             config_options['password'] = password
 
-    # check if daemon is running
-    s = get_daemon(config)
-    if s:
-        p = util.SocketPipe(s)
-        p.set_timeout(1000000)
-        p.send(config_options)
-        result = p.get()
-        s.close()
+    server = get_daemon(config)
+
+    # daemon is running
+    if server is not None:
+        cmdname = config_options.get('cmd')
+        if cmdname == 'daemon':
+            result = server.daemon(config_options)
+        elif cmdname == 'gui':
+            result = server.gui(config_options)
+        else:
+            result = server.run_cmdline(config_options)
         if type(result) in [str, unicode]:
             print_msg(result)
         elif type(result) is dict and result.get('error'):
@@ -470,10 +356,13 @@ if __name__ == '__main__':
             network.start()
         else:
             network = None
-        server = NetworkServer(config, network)
+        server = Daemon(config, network)
         server.start()
         server.gui = init_gui(config, network, plugins)
         server.gui.main()
+        server.stop()
+        sys.exit(0)
+
     elif cmd_name == 'daemon':
         subcommand = config.get('subcommand')
         if subcommand in ['status', 'stop']:
@@ -484,7 +373,7 @@ if __name__ == '__main__':
             if p == 0:
                 network = Network(config, plugins)
                 network.start()
-                server = NetworkServer(config, network)
+                server = Daemon(config, network)
                 if config.get('websocket_server'):
                     from electrum import websockets
                     websockets.WebSocketServer(config, network).start()
