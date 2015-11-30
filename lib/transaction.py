@@ -646,7 +646,7 @@ class Transaction:
     def serialize_input(self, txin, i, for_sig):
         # Prev hash and index
         s = txin['prevout_hash'].decode('hex')[::-1].encode('hex')
-        s = int_to_hex(txin['prevout_n'], 4)
+        s += int_to_hex(txin['prevout_n'], 4)
         # Script length, script, sequence
         script = self.input_script(txin, i, for_sig)
         s += var_int(len(script) / 2)
