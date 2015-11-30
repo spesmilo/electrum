@@ -33,6 +33,7 @@ setup(
         'qrcode',
         'protobuf',
         'dnspython',
+        'jsonrpclib',
     ],
     packages=[
         'electrum',
