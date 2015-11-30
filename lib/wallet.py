@@ -24,6 +24,7 @@ import random
 import time
 import json
 import copy
+from functools import partial
 
 from util import PrintError, profiler
 
@@ -117,7 +118,9 @@ class WalletStorage(PrintError):
                 self.write()
 
     def write(self):
-        assert not threading.currentThread().isDaemon()
+        if threading.currentThread().isDaemon():
+            self.print_error('warning: daemon thread cannot write wallet')
+            return
         if not self.modified:
             return
         s = json.dumps(self.data, indent=4, sort_keys=True)
@@ -626,15 +629,9 @@ class Abstract_Wallet(PrintError):
                     'height':tx_height,
                     'coinbase':is_cb
                 }
-                coins.append((tx_height, output))
+                coins.append(output)
                 continue
-        # sort by age
-        if coins:
-            coins = sorted(coins)
-            if coins[-1][0] != 0:
-                while coins[0][0] == 0:
-                    coins = coins[1:] + [ coins[0] ]
-        return [value for height, value in coins]
+        return coins
 
     def get_max_amount(self, config, inputs, fee):
         sendable = sum(map(lambda x:x['value'], inputs))
@@ -927,11 +924,12 @@ class Abstract_Wallet(PrintError):
             else:
                 change_addrs = [address]
 
-        fee_per_kb = self.fee_per_kb(config)
-        def fee_estimator(tx):
-            if fixed_fee is not None:
-                return fixed_fee
-            return tx.estimated_fee(fee_per_kb)
+        # Fee estimator
+        if fixed_fee is None:
+            fee_estimator = partial(Transaction.fee_for_size,
+                                    self.fee_per_kb(config))
+        else:
+            fee_estimator = lambda size: fixed_fee
 
         # Change <= dust threshold is added to the tx fee
         dust_threshold = 0 # 182 * 3 * MIN_RELAY_TX_FEE / 1000

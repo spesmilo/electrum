@@ -595,6 +595,7 @@ class Transaction:
             raise
         return script
 
+    @classmethod
     def input_script(self, txin, i, for_sig):
         # for_sig:
         #   -1   : do not sign, estimate length
@@ -641,6 +642,18 @@ class Transaction:
 
         return script
 
+    @classmethod
+    def serialize_input(self, txin, i, for_sig):
+        # Prev hash and index
+        s = txin['prevout_hash'].decode('hex')[::-1].encode('hex')
+        s = int_to_hex(txin['prevout_n'], 4)
+        # Script length, script, sequence
+        script = self.input_script(txin, i, for_sig)
+        s += var_int(len(script) / 2)
+        s += script
+        s += "ffffffff"
+        return s
+
     def BIP_LI01_sort(self):
         # See https://github.com/kristovatlas/rfc/blob/master/bips/bip-li01.mediawiki
         self.inputs.sort(key = lambda i: (i['prevout_hash'], i['prevout_n']))
@@ -652,12 +665,7 @@ class Transaction:
         s  = int_to_hex(1,4)                                         # version
         s += var_int( len(inputs) )                                  # number of inputs
         for i, txin in enumerate(inputs):
-            s += txin['prevout_hash'].decode('hex')[::-1].encode('hex')   # prev hash
-            s += int_to_hex(txin['prevout_n'], 4)                         # prev index
-            script = self.input_script(txin, i, for_sig)
-            s += var_int( len(script)/2 )                            # script length
-            s += script
-            s += "ffffffff"                                          # sequence
+            s += self.serialize_input(txin, i, for_sig)
         s += var_int( len(outputs) )                                 # number of outputs
         for output in outputs:
             output_type, addr, amount = output
@@ -689,13 +697,28 @@ class Transaction:
     def get_fee(self):
         return self.input_value() - self.output_value()
 
-    @profiler
-    def estimated_fee(self, fee_per_kb):
-        estimated_size = len(self.serialize(-1)) / 2
-        fee = int(fee_per_kb * estimated_size / 1000.)
+    @classmethod
+    def fee_for_size(self, fee_per_kb, size):
+        '''Given a fee per kB in satoshis, and a tx size in bytes,
+        returns the transaction fee.'''
+        fee = int(fee_per_kb * size / 1000.)
         if fee < MIN_RELAY_TX_FEE:
             fee = MIN_RELAY_TX_FEE
         return fee
+
+    @profiler
+    def estimated_size(self):
+        '''Return an estimated tx size in bytes.'''
+        return len(self.serialize(-1)) / 2  # ASCII hex string
+
+    @classmethod
+    def estimated_input_size(self, txin):
+        '''Return an estimated of serialized input size in bytes.'''
+        return len(self.serialize_input(txin, -1, -1)) / 2
+
+    def estimated_fee(self, fee_per_kb):
+        '''Return an estimated fee given a fee per kB in satoshis.'''
+        return self.fee_for_size(fee_per_kb, self.estimated_size())
 
     def signature_count(self):
         r = 0

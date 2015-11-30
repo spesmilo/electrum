@@ -600,6 +600,22 @@ class Commands:
         for k in self.wallet.receive_requests.keys():
             self.wallet.remove_payment_request(k, self.config)
 
+    @command('n')
+    def watchaddress(self, address, URL):
+        """Watch an address. Everytime the address changes, a http POST is sent to the URL."""
+        def callback(x):
+            import urllib2
+            headers = {'content-type':'application/json'}
+            data = {'address':address, 'status':x.get('result')}
+            try:
+                req = urllib2.Request(URL, json.dumps(data), headers)
+                response_stream = urllib2.urlopen(req)
+                util.print_error('Got Response for %s' % address)
+            except BaseException as e:
+                util.print_error(str(e))
+        self.network.send([('blockchain.address.subscribe', [address])], callback)
+        return "ok"
+
 
 param_descriptions = {
     'privkey': 'Private key. Type \'?\' to get a prompt.',

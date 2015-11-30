@@ -977,8 +977,9 @@ class ElectrumWindow(QMainWindow, PrintError):
 
         def on_shortcut():
             inputs = self.get_coins()
-            amount, fee = self.wallet.get_max_amount(self.config, inputs, self.fee_e.get_amount())
-            if self.fee_e.get_amount() is None:
+            fee = self.fee_e.get_amount() if self.fee_e.isModified() else None
+            amount, fee = self.wallet.get_max_amount(self.config, inputs, fee)
+            if not self.fee_e.isModified():
                 self.fee_e.setAmount(fee)
             self.amount_e.setAmount(max(0, amount))
             # emit signal for fiat_amount update
