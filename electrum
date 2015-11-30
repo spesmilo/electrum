@@ -356,10 +356,10 @@ if __name__ == '__main__':
             network.start()
         else:
             network = None
-        server = Daemon(config, network)
+        gui = init_gui(config, network, plugins)
+        server = Daemon(config, network, gui)
         server.start()
-        server.gui = init_gui(config, network, plugins)
-        server.gui.main()
+        gui.main()
         server.stop()
         sys.exit(0)
 

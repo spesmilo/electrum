@@ -56,12 +56,16 @@ class RequestHandler(SimpleJSONRPCRequestHandler):
 
 class Daemon(util.DaemonThread):
 
-    def __init__(self, config, network):
+    def __init__(self, config, network, gui=None):
         util.DaemonThread.__init__(self)
         self.config = config
         self.network = network
+        self.gui = gui
         self.wallets = {}
-        self.wallet = self.load_wallet(config)
+        if gui is None:
+            self.wallet = self.load_wallet(config)
+        else:
+            self.wallet = None
         self.cmd_runner = Commands(self.config, self.wallet, self.network)
         host = config.get('rpchost', 'localhost')
         port = config.get('rpcport', 7777)
@@ -72,7 +76,7 @@ class Daemon(util.DaemonThread):
         self.server.register_function(self.run_cmdline, 'run_cmdline')
         self.server.register_function(self.ping, 'ping')
         self.server.register_function(self.daemon, 'daemon')
-        self.server.register_function(self.gui, 'gui')
+        self.server.register_function(self.run_gui, 'gui')
 
     def ping(self):
         return True
@@ -99,7 +103,7 @@ class Daemon(util.DaemonThread):
             response = "Daemon stopped"
         return response
 
-    def gui(self, config_options):
+    def run_gui(self, config_options):
         config = SimpleConfig(config_options)
         if self.gui:
             if hasattr(self.gui, 'new_window'):
