@@ -170,7 +170,10 @@ class Network(util.DaemonThread):
         self.heights = {}
         self.merkle_roots = {}
         self.utxo_roots = {}
+        # callbacks passed with subscriptions
         self.subscriptions = defaultdict(list)
+        self.sub_cache = {}
+        # callbacks set by the GUI
         self.callbacks = defaultdict(list)
 
         dir_path = os.path.join( self.config.path, 'certs')
@@ -277,6 +280,7 @@ class Network(util.DaemonThread):
 
     def send_subscriptions(self):
         self.print_error('sending subscriptions to', self.interface.server, len(self.unanswered_requests), len(self.subscribed_addresses))
+        self.sub_cache.clear()
         # Resend unanswered requests
         requests = self.unanswered_requests.values()
         self.unanswered_requests = {}
@@ -458,12 +462,13 @@ class Network(util.DaemonThread):
         self.switch_lagging_interface(i.server)
         self.notify('updated')
 
-    def process_response(self, interface, response, callback):
+    def process_response(self, interface, response, callbacks):
         if self.debug:
             self.print_error("<--", response)
         error = response.get('error')
         result = response.get('result')
         method = response.get('method')
+        params = response.get('params')
 
         # We handle some responses; return the rest to the client.
         if method == 'server.version':
@@ -488,25 +493,14 @@ class Network(util.DaemonThread):
             self.on_get_chunk(interface, response)
         elif method == 'blockchain.block.get_header':
             self.on_get_header(interface, response)
-        else:
-            if callback is None:
-                params = response['params']
-                with self.lock:
-                    for k,v in self.subscriptions.items():
-                        if (method, params) in v:
-                            callback = k
-                            break
-            if callback is None:
-                self.print_error("received unexpected notification",
-                                 method, params)
-            else:
-                callback(response)
+
+        for callback in callbacks:
+            callback(response)
 
     def process_responses(self, interface):
         responses = interface.get_responses()
 
         for request, response in responses:
-            callback = None
             if request:
                 method, params, message_id = request
                 # client requests go through self.send() with a
@@ -515,7 +509,9 @@ class Network(util.DaemonThread):
                 client_req = self.unanswered_requests.pop(message_id, None)
                 if client_req:
                     assert interface == self.interface
-                    callback = client_req[2]
+                    callbacks = [client_req[2]]
+                else:
+                    callbacks = []
                 # Copy the request method and params to the response
                 response['method'] = method
                 response['params'] = params
@@ -536,14 +532,18 @@ class Network(util.DaemonThread):
                 elif method == 'blockchain.address.subscribe':
                     response['params'] = [params[0]]  # addr
                     response['result'] = params[1]
-
+                callbacks = self.subscriptions.get(repr((method, params)), [])
+            # update cache if it's a subscription
+            if method.endswith('.subscribe'):
+                self.sub_cache[repr((method, params))] = response
             # Response is now in canonical form
-            self.process_response(interface, response, callback)
+            self.process_response(interface, response, callbacks)
 
     def send(self, messages, callback):
         '''Messages is a list of (method, params) tuples'''
         with self.lock:
             self.pending_sends.append((messages, callback))
+
 
     def process_pending_sends(self):
         # Requests needs connectivity.  If we don't have an interface,
@@ -556,22 +556,33 @@ class Network(util.DaemonThread):
             self.pending_sends = []
 
         for messages, callback in sends:
-            subs = filter(lambda (m,v): m.endswith('.subscribe'), messages)
-            with self.lock:
-                for sub in subs:
-                    if sub not in self.subscriptions[callback]:
-                        self.subscriptions[callback].append(sub)
-
             for method, params in messages:
-                message_id = self.queue_request(method, params)
-                self.unanswered_requests[message_id] = method, params, callback
+                k = repr((method, params))
+                if method.endswith('.subscribe'):
+                    # add callback to list
+                    l = self.subscriptions.get(k, [])
+                    if callback not in l:
+                        l.append(callback)
+                    self.subscriptions[k] = l
+
+                # check cached response for subscriptions
+                r = self.sub_cache.get(k)
+                if r is not None:
+                    util.print_error("cache hit", k)
+                    callback(r)
+                else:
+                    message_id = self.queue_request(method, params)
+                    self.unanswered_requests[message_id] = method, params, callback
 
     def unsubscribe(self, callback):
         '''Unsubscribe a callback to free object references to enable GC.'''
         # Note: we can't unsubscribe from the server, so if we receive
         # subsequent notifications process_response() will emit a harmless
         # "received unexpected notification" warning
-        self.subscriptions.pop(callback, None)
+        with self.lock:
+            for v in self.subscriptions.values():
+                if callback in v:
+                    v.remove(callback)
 
     def connection_down(self, server):
         '''A connection to server either went down, or was never made.

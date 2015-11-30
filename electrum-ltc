@@ -233,16 +233,8 @@ def init_cmdline(config):
     return cmd, password
 
 
-def run_command(config, network, password):
-    cmdname = config.get('cmd')
-    cmd = known_commands[cmdname]
-    # instanciate wallet for command-line
-    storage = WalletStorage(config.get_wallet_path())
-    # create wallet instance
-    wallet = Wallet(storage) if cmd.requires_wallet else None
-    # start threads
+def run_command(config, cmd, network, wallet, password):
     if wallet and network:
-        wallet.start_threads(network)
         wallet.wait_until_synchronized()
     # arguments passed to function
     args = map(lambda x: config.get(x), cmd.params)
@@ -254,9 +246,6 @@ def run_command(config, network, password):
     cmd_runner.password = password
     func = getattr(cmd_runner, cmd.name)
     result = func(*args)
-    # stop threads
-    if wallet:
-        wallet.stop_threads()
     return result
 
 
@@ -266,7 +255,6 @@ class ClientThread(util.DaemonThread):
         util.DaemonThread.__init__(self)
         self.server = server
         self.client_pipe = util.SocketPipe(s)
-        self.subscriptions = defaultdict(list)
         self.network = self.server.network
 
     def run(self):
@@ -299,13 +287,16 @@ class ClientThread(util.DaemonThread):
                     'nodes': self.network.get_interfaces(),
                     'connected': self.network.is_connected(),
                     'auto_connect': p[4],
+                    'wallets': self.server.wallets.keys(),
                 }
             elif sub == 'stop':
                 self.server.stop()
                 response = "Daemon stopped"
         else:
+            c = known_commands[cmd]
+            wallet = self.server.load_wallet(config) if c.requires_wallet else None
             try:
-                response = run_command(config, self.network, password)
+                response = run_command(config, c, self.network, wallet, password)
             except BaseException as e:
                 err = traceback.format_exc()
                 response = {'error':err}
@@ -326,6 +317,18 @@ class NetworkServer(util.DaemonThread):
         self.lock = threading.RLock()
         # gui is None is we run as daemon
         self.gui = None
+        self.wallets = {}
+
+    def load_wallet(self, config):
+        path = config.get_wallet_path()
+        if path in self.wallets:
+            wallet = self.wallets[path]
+        else:
+            storage = WalletStorage(path)
+            wallet = Wallet(storage)
+            wallet.start_threads(self.network)
+            self.wallets[path] = wallet
+        return wallet
 
     def run(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -343,6 +346,11 @@ class NetworkServer(util.DaemonThread):
             client = ClientThread(self, connection)
             client.start()
         print_error("Daemon exiting")
+
+    def stop(self):
+        for k, wallet in self.wallets.items():
+            wallet.stop_threads()
+        util.DaemonThread.stop(self)
 
 
 def get_daemon(config):
@@ -427,7 +435,13 @@ if __name__ == '__main__':
     if cmd_name not in ['gui', 'daemon']:
         cmd, password = init_cmdline(config)
         if not cmd.requires_network or config.get('offline'):
-            result = run_command(config, None, password)
+            if cmd.requires_wallet:
+                path = config.get_wallet_path()
+                storage = WalletStorage(path)
+                wallet = Wallet(storage)
+            else:
+                wallet = None
+            result = run_command(config, cmd, None, wallet, password)
             print_msg(json_encode(result))
             sys.exit(0)
         else:
