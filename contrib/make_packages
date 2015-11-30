@@ -22,6 +22,7 @@ if __name__ == '__main__':
         'google/protobuf',
         'dns',
         'six',
+        'jsonrpclib',
     ]
     # don't use /usr/lib
     sys.path = ['/usr/local/lib/python2.7/dist-packages']
