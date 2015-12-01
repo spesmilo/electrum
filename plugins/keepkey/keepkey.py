@@ -420,7 +420,7 @@ class KeepKeyPlugin(BasePlugin):
 
 
 
-class CmdlinePlugin(Plugin):
+class CmdlinePlugin(KeepKeyPlugin):
 
     @hook
     def cmdline_load_wallet(self, wallet):
@@ -499,92 +499,6 @@ class KeepKeyCmdLineHandler:
         print_msg(msg)
 
 
-class KeepKeyQtHandler:
-
-    def __init__(self, win):
-        self.win = win
-        self.win.connect(win, SIGNAL('keepkey_done'), self.dialog_stop)
-        self.win.connect(win, SIGNAL('message_dialog'), self.message_dialog)
-        self.win.connect(win, SIGNAL('pin_dialog'), self.pin_dialog)
-        self.win.connect(win, SIGNAL('passphrase_dialog'), self.passphrase_dialog)
-        self.done = threading.Event()
-
-    def stop(self):
-        self.win.emit(SIGNAL('keepkey_done'))
-
-    def show_message(self, msg_code, msg, client):
-        self.messsage_code = msg_code
-        self.message = msg
-        self.client = client
-        self.win.emit(SIGNAL('message_dialog'))
-
-    def get_pin(self, msg):
-        self.done.clear()
-        self.message = msg
-        self.win.emit(SIGNAL('pin_dialog'))
-        self.done.wait()
-        return self.response
-
-    def get_passphrase(self, msg):
-        self.done.clear()
-        self.message = msg
-        self.win.emit(SIGNAL('passphrase_dialog'))
-        self.done.wait()
-        return self.passphrase
-
-    def pin_dialog(self):
-        d = QDialog(None)
-        d.setModal(1)
-        d.setWindowTitle(_("Enter PIN"))
-        d.setWindowFlags(d.windowFlags() | QtCore.Qt.WindowStaysOnTopHint)
-        matrix = PinMatrixWidget()
-        vbox = QVBoxLayout()
-        vbox.addWidget(QLabel(self.message))
-        vbox.addWidget(matrix)
-        vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
-        d.setLayout(vbox)
-        if not d.exec_():
-            self.response = None
-        self.response = str(matrix.get_value())
-        self.done.set()
-
-    def passphrase_dialog(self):
-        if type(self.win) is ElectrumWindow:
-            passphrase = self.win.password_dialog(_("Please enter your KeepKey passphrase"))
-            self.passphrase = unicodedata.normalize('NFKD', unicode(passphrase)) if passphrase else ''
-        else:
-            assert type(self.win) is InstallWizard
-            from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
-            d = QDialog()
-            d.setModal(1)
-            d.setLayout(make_password_dialog(d, None, self.message, False))
-            confirmed, p, passphrase = run_password_dialog(d, None, None)
-            if not confirmed:
-                QMessageBox.critical(None, _('Error'), _("Password request canceled"), _('OK'))
-                self.passphrase = None
-            else:
-                self.passphrase = unicodedata.normalize('NFKD', unicode(passphrase)) if passphrase else ''
-        self.done.set()
-
-    def message_dialog(self):
-        self.d = QDialog()
-        self.d.setModal(1)
-        self.d.setWindowTitle('Please Check KeepKey Device')
-        self.d.setWindowFlags(self.d.windowFlags() | QtCore.Qt.WindowStaysOnTopHint)
-        l = QLabel(self.message)
-        vbox = QVBoxLayout(self.d)
-        vbox.addWidget(l)
-
-        if self.messsage_code in (3, 8):
-            vbox.addLayout(Buttons(CancelButton(self.d)))
-            self.d.connect(self.d, SIGNAL('rejected()'), self.client.cancel)
-
-        self.d.show()
-
-    def dialog_stop(self):
-        self.d.hide()
-
-
 if KEEPKEY:
     class QtGuiKeepKeyClient(ProtocolMixin, KeepKeyGuiMixin, BaseClient):
         def call_raw(self, msg):
@@ -595,3 +509,4 @@ if KEEPKEY:
                 raise
 
             return resp
+

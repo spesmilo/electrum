@@ -496,7 +496,7 @@ class LedgerPlugin(BasePlugin):
             tx.error = str(e)
 
 
-class CmdlinePlugin(Plugin):
+class CmdlinePlugin(LedgerPlugin):
     @hook
     def cmdline_load_wallet(self, wallet):
         self.wallet = wallet
