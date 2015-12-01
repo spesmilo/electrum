@@ -382,7 +382,7 @@ class ElectrumWindow(App):
 
         # connect callbacks
         if self.network:
-            interests = ['update', 'status', 'new_transaction']
+            interests = ['updated', 'status', 'new_transaction']
             self.network.register_callback(self.on_network, interests)
 
         self.wallet = None
