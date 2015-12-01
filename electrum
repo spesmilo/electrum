@@ -231,7 +231,7 @@ def init_cmdline(config):
         wallet.update_password(password, new_password)
         sys.exit(0)
 
-    return cmd, password
+    return cmd, password, wallet
 
 
 def run_offline_command(config, cmd, wallet, password):
@@ -316,14 +316,8 @@ if __name__ == '__main__':
 
     # run command offline
     if cmd_name not in ['gui', 'daemon']:
-        cmd, password = init_cmdline(config)
+        cmd, password, wallet = init_cmdline(config)
         if not cmd.requires_network or config.get('offline'):
-            if cmd.requires_wallet:
-                path = config.get_wallet_path()
-                storage = WalletStorage(path)
-                wallet = Wallet(storage)
-            else:
-                wallet = None
             result = run_offline_command(config, cmd, wallet, password)
             print_msg(json_encode(result))
             sys.exit(0)
