@@ -75,13 +75,13 @@ class Daemon(util.DaemonThread):
             self.server.register_function(getattr(self.cmd_runner, cmdname), cmdname)
         self.server.register_function(self.run_cmdline, 'run_cmdline')
         self.server.register_function(self.ping, 'ping')
-        self.server.register_function(self.daemon, 'daemon')
+        self.server.register_function(self.run_daemon, 'daemon')
         self.server.register_function(self.run_gui, 'gui')
 
     def ping(self):
         return True
 
-    def daemon(self, config):
+    def run_daemon(self, config):
         sub = config.get('subcommand')
         assert sub in ['start', 'stop', 'status']
         if sub == 'start':
