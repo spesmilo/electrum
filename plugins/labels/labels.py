@@ -1,3 +1,4 @@
+import hashlib
 import requests
 import threading
 import json
@@ -132,7 +133,17 @@ class LabelsPlugin(BasePlugin):
             traceback.print_exc(file=sys.stderr)
             self.print_error("could not retrieve labels")
 
-
-
-
-
+    def start_wallet(self, wallet):
+        nonce = self.get_nonce(wallet)
+        self.print_error("wallet", wallet.basename(), "nonce is", nonce)
+        mpk = ''.join(sorted(wallet.get_master_public_keys().values()))
+        if not mpk:
+            return
+        password = hashlib.sha1(mpk).digest().encode('hex')[:32]
+        iv = hashlib.sha256(password).digest()[:16]
+        wallet_id = hashlib.sha256(mpk).digest().encode('hex')
+        self.wallets[wallet] = (password, iv, wallet_id)
+        # If there is an auth token we can try to actually start syncing
+        t = threading.Thread(target=self.pull_thread, args=(wallet, False))
+        t.setDaemon(True)
+        t.start()

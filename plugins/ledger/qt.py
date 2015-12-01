@@ -1,6 +1,10 @@
 from PyQt4.Qt import QApplication, QMessageBox, QDialog, QInputDialog, QLineEdit, QVBoxLayout, QLabel, QThread, SIGNAL
 import PyQt4.QtCore as QtCore
+
 from electrum_ltc_gui.qt.password_dialog import make_password_dialog, run_password_dialog
+from electrum_ltc.plugins import BasePlugin, hook
+
+from ledger import LedgerPlugin
 
 class Plugin(LedgerPlugin):
 

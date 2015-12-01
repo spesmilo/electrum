@@ -30,8 +30,8 @@ Factory.register('InstallWizard',
 Factory.register('InfoBubble', module='electrum_ltc_gui.kivy.uix.dialogs')
 Factory.register('ELTextInput', module='electrum_ltc_gui.kivy.uix.screens')
 
-from kivy.core.window import Window
-Window.softinput_mode = 'below_target'
+#from kivy.core.window import Window
+#Window.softinput_mode = 'below_target'
 
 
 # delayed imports: for startup speed on android
@@ -212,8 +212,8 @@ class ElectrumWindow(App):
         for item in self.plugins.descriptions:
             if 'kivy' not in item.get('available_for', []):
                 continue
-            name = item.get('name')
-            label = Label(text=item.get('fullname'))
+            name = item.get('__name__')
+            label = Label(text=item.get('fullname'), height='48db', size_hint=(1, None))
             plugins_list.add_widget(label)
             cb = CheckBox()
             cb.name = name
@@ -382,7 +382,7 @@ class ElectrumWindow(App):
 
         # connect callbacks
         if self.network:
-            interests = ['update', 'status', 'new_transaction']
+            interests = ['updated', 'status', 'new_transaction']
             self.network.register_callback(self.on_network, interests)
 
         self.wallet = None
@@ -404,6 +404,7 @@ class ElectrumWindow(App):
         # since the callback has been called before the GUI was initialized
         self.update_history_tab()
         self.notify_transactions()
+        run_hook('load_wallet', wallet, self)
 
     def update_status(self, *dt):
         if not self.wallet:

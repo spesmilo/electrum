@@ -5,8 +5,9 @@ Popup:
         orientation: 'vertical'
 
         GridLayout:
-            size_hint: 1, None
             cols: 2
+            size_hint: 1, None
+            height: '100dp'
             id: plugins_list
             on_parent:
                 app.show_plugins(plugins_list)
@@ -18,4 +19,3 @@ Popup:
 
         Widget:
             size_hint: 1, 0.8
-

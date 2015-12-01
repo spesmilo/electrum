@@ -12,7 +12,7 @@ import unicodedata
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import hook, always_hook, run_hook
 
-from trezor import TrezorPlugin
+from trezor import TrezorPlugin, TrezorWallet
 
 class TrezorQtHandler:
 

@@ -194,12 +194,6 @@ class BasePlugin(PrintError):
     def thread_jobs(self):
         return []
 
-    @hook
-    def load_wallet(self, wallet, window): pass
-
-    @hook
-    def close_wallet(self): pass
-
     def is_enabled(self):
         return self.is_available() and self.config.get('use_'+self.name) is True
 
