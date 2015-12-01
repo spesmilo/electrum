@@ -1,8 +1,8 @@
-from trezor import TrezorPlugin
+from keepkey import KeepKeyPlugin
 from electrum.util import print_msg
 from electrum.plugins import hook
 
-class TrezorCmdLineHandler:
+class KeepKeyCmdLineHandler:
 
     def get_passphrase(self, msg):
         import getpass
@@ -22,13 +22,11 @@ class TrezorCmdLineHandler:
     def show_message(self, msg):
         print_msg(msg)
 
-
-class Plugin(TrezorPlugin):
-
+class Plugin(KeepKeyPlugin):
     @hook
     def cmdline_load_wallet(self, wallet):
         self.wallet = wallet
         self.wallet.plugin = self
         if self.handler is None:
-            self.handler = TrezorCmdLineHandler()
+            self.handler = KeepKeyCmdLineHandler()
 
