@@ -30,8 +30,8 @@ Factory.register('InstallWizard',
 Factory.register('InfoBubble', module='electrum_gui.kivy.uix.dialogs')
 Factory.register('ELTextInput', module='electrum_gui.kivy.uix.screens')
 
-from kivy.core.window import Window
-Window.softinput_mode = 'below_target'
+#from kivy.core.window import Window
+#Window.softinput_mode = 'below_target'
 
 
 # delayed imports: for startup speed on android
@@ -212,8 +212,8 @@ class ElectrumWindow(App):
         for item in self.plugins.descriptions:
             if 'kivy' not in item.get('available_for', []):
                 continue
-            name = item.get('name')
-            label = Label(text=item.get('fullname'))
+            name = item.get('__name__')
+            label = Label(text=item.get('fullname'), height='48db', size_hint=(1, None))
             plugins_list.add_widget(label)
             cb = CheckBox()
             cb.name = name
