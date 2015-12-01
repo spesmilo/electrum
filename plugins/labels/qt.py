@@ -1,4 +1,3 @@
-import hashlib
 import threading
 from functools import partial
 
@@ -59,20 +58,7 @@ class Plugin(LabelsPlugin):
     @hook
     def on_new_window(self, window):
         window.connect(window.app, SIGNAL('labels_changed'), window.update_tabs)
-        wallet = window.wallet
-        nonce = self.get_nonce(wallet)
-        self.print_error("wallet", wallet.basename(), "nonce is", nonce)
-        mpk = ''.join(sorted(wallet.get_master_public_keys().values()))
-        if not mpk:
-            return
-        password = hashlib.sha1(mpk).digest().encode('hex')[:32]
-        iv = hashlib.sha256(password).digest()[:16]
-        wallet_id = hashlib.sha256(mpk).digest().encode('hex')
-        self.wallets[wallet] = (password, iv, wallet_id)
-        # If there is an auth token we can try to actually start syncing
-        t = threading.Thread(target=self.pull_thread, args=(wallet, False))
-        t.setDaemon(True)
-        t.start()
+        self.start_wallet(window.wallet)
 
     @hook
     def on_close_window(self, window):

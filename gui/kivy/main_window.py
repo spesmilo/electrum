@@ -404,6 +404,7 @@ class ElectrumWindow(App):
         # since the callback has been called before the GUI was initialized
         self.update_history_tab()
         self.notify_transactions()
+        run_hook('load_wallet', wallet, self)
 
     def update_status(self, *dt):
         if not self.wallet:
