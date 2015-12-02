@@ -192,6 +192,19 @@
     values: [] #app.wallet.addresses() if app.wallet else []
     text: _("Select Your address")
 
+<AmountButton@Button>:
+    background_color: .238, .585, .878, 0
+    halign: 'left'
+    text_size: (self.width-15, None)
+    size_hint: 0.5, None
+    default_text: 'Amount'
+    text: self.default_text
+    padding: '5dp', '5db'
+    height: '40dp'
+    text_color: self.foreground_color
+    foreground_color: 1, 0, 0, 1
+
+
 <TextInputBlue@TextInput>
     padding: '5dp'
     size_hint: 1, None
@@ -199,8 +212,8 @@
     pos_hint: {'center_y':.5}
     multiline: False
     hint_text_color: self.foreground_color
-    foreground_color: .843, .914, .972, 1
-    background_color: 1, 1, 1, 1
+    foreground_color: 1, 1, 1, 1
+    font_size: '16dp'
     background_normal: 'atlas://gui/kivy/theming/light/tab_btn'
     background_active: 'atlas://gui/kivy/theming/light/textinput_active'
 

@@ -64,20 +64,15 @@ SendScreen:
                 size_hint: 1, None
                 height: blue_bottom.item_height
                 Image:
-                    source: 'atlas://gui/kivy/theming/light/bit_logo'
+                    source: 'atlas://gui/kivy/theming/light/globe'
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
-                Button:
+                AmountButton:
                     id: amount_e
-                    default_text: 'Amount'
-                    text: self.default_text
-                    text_size: (self.width-15, None)
-                    halign: 'left'
-                    size_hint: 0.5, None
-                    height: '48dp'
                     on_release: app.amount_dialog(self, None, True)
-                    background_color: .238, .585, .878, 0
+
+
             CardSeparator:
                 opacity: message_selection.opacity
                 color: blue_bottom.foreground_color
@@ -94,7 +89,7 @@ SendScreen:
                     pos_hint: {'center_y': .5}
                 TextInputBlue:
                     id: message_e
-                    hint_text: 'Description (optional)'
+                    hint_text: 'Description'
         BoxLayout:
             size_hint: 1, None
             height: '48dp'

@@ -25,7 +25,7 @@ Popup:
                     id: button_fiat
                     size_hint: 1, None
                     height: '48dp'
-                    text: '<->'
+                    text: '/'
                     on_release: a.is_fiat = not a.is_fiat
 
             Widget:
@@ -78,14 +78,22 @@ Popup:
                     text: 'Max'
                     on_release: a.amount = app.get_max_amount()
 
+            Widget:
+                size_hint: 1, None
+
             BoxLayout:
                 size_hint: 1, None
                 height: '48dp'
+                Button:
+                    size_hint: 1, None
+                    height: '48dp'
+                    text: 'Clear'
+                    on_release: a.amount = ''
                 Widget:
-                    size_hint: 0.7, None
+                    size_hint: 1, None
                     height: '48dp'
                 Button:
-                    size_hint: 0.3, None
+                    size_hint: 1, None
                     height: '48dp'
                     text: _('OK')
                     on_release: popup.dismiss()
