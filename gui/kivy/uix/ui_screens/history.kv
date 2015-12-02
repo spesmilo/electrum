@@ -103,18 +103,6 @@
     CardSeparator
 
 <CardRecentActivity@Card>
-    BoxLayout:
-        size_hint: 1, None
-        height: lbl.height
-        CardLabel:
-            id: lbl
-            text: _('RECENT ACTIVITY')
-        CardButton:
-            id: btn_see_all
-            disabled: True if not self.opacity else False
-            text: _('SEE ALL')
-            font_size: '12sp'
-            on_release: app.update_history_tab(see_all=True)
     GridLayout:
         id: content
         spacing: '7dp'

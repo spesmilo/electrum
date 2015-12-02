@@ -504,8 +504,8 @@ class ElectrumWindow(QMainWindow, PrintError):
     def format_amount_and_units(self, amount):
         text = self.format_amount(amount) + ' '+ self.base_unit()
         x = run_hook('format_amount_and_units', amount)
-        if x:
-            text += x
+        if text and x:
+            text += ' (%s)'%x
         return text
 
     def get_decimal_point(self):

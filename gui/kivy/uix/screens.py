@@ -143,7 +143,6 @@ class HistoryScreen(CScreen):
             if count == 8 and not see_all:
                 break
 
-        history_card.ids.btn_see_all.opacity = (0 if count < 8 else 1)
 
 
 class ScreenAddress(CScreen):

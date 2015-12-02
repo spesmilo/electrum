@@ -29,12 +29,17 @@ Popup:
                 size_hint: 1, None
                 height: '48dp'
                 multiline: False
-        Button:
-            size_hint: 1, None
-            height: '48dp'
-            text: _('Close')
-            on_release: settings.dismiss()
 
         Widget:
             size_hint: 1, 1
+
+        BoxLayout:
+            Widget:
+                size_hint: 0.5, None
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('OK')
+                on_release:
+                    settings.dismiss()
 

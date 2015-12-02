@@ -128,6 +128,7 @@ android.add_libs_armeabi = lib/android/*.so
 #ios.codesign.release = %(ios.codesign.debug)s
 
 
+
 [buildozer]
 
 # (int) Log level (0 = error only, 1 = info, 2 = debug (with command output))

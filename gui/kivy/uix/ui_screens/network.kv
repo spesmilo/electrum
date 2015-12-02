@@ -23,14 +23,12 @@ Popup:
                 text: ''
                 values: app.network.get_servers()
 
+        Widget:
+            size_hint: 1, 1
 
         BoxLayout:
-            Button:
+            Widget:
                 size_hint: 0.5, None
-                height: '48dp'
-                text: _('Cancel')
-                on_release:
-                    nd.dismiss()
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
@@ -39,5 +37,3 @@ Popup:
                     app.network.set_parameters(host.text, nd.port, nd.protocol, nd.proxy, auto_connect.active)
                     nd.dismiss()
 
-        Widget:
-            size_hint: 1, 1

@@ -96,6 +96,16 @@ class ElectrumWindow(App):
     '''Number of zeros used while representing the value in base_unit.
     '''
 
+    def get_amount_text(self, amount_str, is_fiat):
+        text = amount_str + ' ' + self.base_unit if amount_str else ''
+        if text:
+            amount = self.get_amount(text)
+            x = run_hook('format_amount_and_units', amount)
+            if x:
+                text += ' / ' + x
+        return text
+
+
     def get_amount(self, amount_str):
         a, u = amount_str.split()
         assert u == self.base_unit
@@ -733,7 +743,7 @@ class ElectrumWindow(App):
             info_bubble.background_image = 'atlas://data/images/defaulttheme/bubble'
         info_bubble.message = text
         if not pos:
-                pos = (win.center[0], win.center[1] - (info_bubble.height/2))
+            pos = (win.center[0], win.center[1] - (info_bubble.height/2))
         info_bubble.show(pos, duration, width, modal=modal, exit=exit)
 
     def tx_dialog(self, tx_hash):

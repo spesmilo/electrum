@@ -11,11 +11,17 @@ Popup:
             id: plugins_list
             on_parent:
                 app.show_plugins(plugins_list)
-        Button:
-            size_hint: 1, None
-            height: '48dp'
-            text: _('Close')
-            on_release: popup.dismiss()
 
         Widget:
-            size_hint: 1, 0.8
+            size_hint: 1, 1
+
+        BoxLayout:
+            Widget:
+                size_hint: 0.5, None
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('OK')
+                on_release:
+                    popup.dismiss()
+
