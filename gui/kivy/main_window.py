@@ -180,11 +180,11 @@ class ElectrumWindow(App):
         #self.config = self.gui_object.config
         self.contacts = Contacts(self.electrum_config)
 
-        self.bind(url=self.set_url)
+        self.bind(url=self.set_URI)
         # were we sent a url?
         url = self.electrum_config.get('url', None)
         if url:
-            self.set_url(url)
+            self.set_URI(url)
 
         # create triggers so as to minimize updation a max of 2 times a sec
         self._trigger_update_wallet =\
@@ -194,10 +194,26 @@ class ElectrumWindow(App):
         self._trigger_notify_transactions = \
             Clock.create_trigger(self.notify_transactions, 5)
 
-    def set_url(self, url):
-        print "set url", url
-        url = electrum.util.parse_URI(url)
-        self.send_screen.set_qr_data(url)
+    def set_URI(self, url):
+        try:
+            url = electrum.util.parse_URI(url)
+        except:
+            self.show_info("Invalid URI", url)
+            return
+        self.send_screen.set_URI(url)
+
+    def send_from_clipboard(self, on_complete):
+        if not self._clipboard:
+            from kivy.core.clipboard import Clipboard
+            self._clipboard = Clipboard
+        contents = self._clipboard.get()
+        try:
+            uri = electrum.util.parse_URI(contents)
+        except:
+            self.show_info("Invalid URI", url)
+            return
+        on_complete(uri)
+
 
     def scan_qr(self, on_complete):
         from jnius import autoclass
@@ -211,7 +227,11 @@ class ElectrumWindow(App):
                 if resultCode == -1: # RESULT_OK:
                     contents = intent.getStringExtra("SCAN_RESULT")
                     if intent.getStringExtra("SCAN_RESULT_FORMAT") == 'QR_CODE':
-                        uri = electrum.util.parse_URI(contents)
+                        try:
+                            uri = electrum.util.parse_URI(contents)
+                        except:
+                            self.show_info("Invalid URI", url)
+                            return
                         on_complete(uri)
         activity.bind(on_activity_result=on_qr_result)
         PythonActivity.mActivity.startActivityForResult(intent, 0)

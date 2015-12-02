@@ -177,8 +177,11 @@ class ScreenPassword(Factory.Screen):
 
 
 class SendScreen(CScreen):
+
     kvname = 'send'
-    def set_qr_data(self, uri):
+
+    def set_URI(self, uri):
+        print "z", uri
         self.ids.payto_e.text = uri.get('address', '')
         self.ids.message_e.text = uri.get('message', '')
         amount = uri.get('amount')

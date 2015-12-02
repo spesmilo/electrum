@@ -29,7 +29,7 @@ ReceiveScreen:
         Label:
             id: address
             size_hint: 1, None
-            height: '38dp'
+            height: '48dp'
             opacity: 0.5 if qr.shaded else 1
 
         SendReceiveBlueBottom:
@@ -51,7 +51,7 @@ ReceiveScreen:
                     text_size: (amount.width-15, None)
                     halign: 'left'
                     size_hint: 0.5, None
-                    height: '38dp'
+                    height: '48dp'
                     on_release: app.amount_dialog(amount, receive_screen.parent.update_qr, False)
                     background_color: 0, 0, 0, 0
             CardSeparator:
@@ -75,16 +75,16 @@ ReceiveScreen:
 
         BoxLayout:
             size_hint: 1, None
-            height: '38dp'
+            height: '48dp'
             Button:
                 text: _('Clear')
                 size_hint: 1, None
-                height: '38dp'
+                height: '48dp'
                 on_release: receive_screen.parent.do_clear()
             Button:
                 text: _('Share')
                 size_hint: 1, None
-                height: '38dp'
+                height: '48dp'
                 on_release: receive_screen.parent.do_share()
 
         Widget:
