@@ -119,6 +119,9 @@ android.add_libs_armeabi = lib/android/*.so
 # project.properties automatically.)
 #android.library_references =
 
+android.p4a_whitelist = lib-dynload/_csv.so
+
+
 #
 # iOS specific
 #
