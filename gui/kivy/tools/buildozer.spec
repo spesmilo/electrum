@@ -13,13 +13,14 @@ package.domain = org.electrum
 source.dir = .
 
 # (list) Source files to include (let empty to include all the files)
-source.include_exts = py,png,jpg,kv,atlas,ttf,*,txt, gif, pem
+source.include_exts = py,png,jpg,kv,atlas,ttf,txt, gif, pem
 
 # (list) Source files to exclude (let empty to not exclude anything)
 source.exclude_exts = spec
 
 # (list) List of directory to exclude (let empty to not exclude anything)
-#source.exclude_dirs =
+source.exclude_dirs = bin, build, contrib, gui/android, gui/gtk, gui/qt, gui/kivy/tools
+
 
 # (list) List of exclusions using pattern matching
 #source.exclude_patterns = license,images/*/*.jpg

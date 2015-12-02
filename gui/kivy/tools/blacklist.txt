@@ -24,14 +24,6 @@ pygame/sndarray.pyo
 pygame/surfarray.pyo
 pygame/_arraysurfarray.pyo
 
-# unused electrum
-gui/android*
-gui/gtk*
-gui/qt*
-gui/kivy/tools
-build/*
-contrib/*
-
 # unused kivy files (platform specific)
 kivy/input/providers/wm_*
 kivy/input/providers/mactouch*
