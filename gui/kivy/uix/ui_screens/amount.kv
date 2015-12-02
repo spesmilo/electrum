@@ -12,21 +12,14 @@ Popup:
             orientation: 'vertical'
             size_hint: 0.8, 1
             BoxLayout:
-                size_hint: 1, None
+                size_hint: 1, 1
                 height: '48dp'
                 Label:
                     id: a
                     amount: ''
                     is_fiat: False
                     text: app.get_amount_text(self.amount, self.is_fiat)
-                Widget:
-                    size_hint_x: 1
-                Button:
-                    id: button_fiat
-                    size_hint: 1, None
-                    height: '48dp'
-                    text: '/'
-                    on_release: a.is_fiat = not a.is_fiat
+                    size_hint: 1, 1
 
             Widget:
                 size_hint: 1, 1
@@ -77,6 +70,17 @@ Popup:
                     height: '48dp'
                     text: 'Max'
                     on_release: a.amount = app.get_max_amount()
+                Button:
+                    id: button_fiat
+                    size_hint: 1, None
+                    height: '48dp'
+                    text: '/'
+                    on_release: a.is_fiat = not a.is_fiat
+                Button:
+                    size_hint: 1, None
+                    height: '48dp'
+                    text: 'Clear'
+                    on_release: a.amount = ''
 
             Widget:
                 size_hint: 1, None
@@ -84,13 +88,8 @@ Popup:
             BoxLayout:
                 size_hint: 1, None
                 height: '48dp'
-                Button:
-                    size_hint: 1, None
-                    height: '48dp'
-                    text: 'Clear'
-                    on_release: a.amount = ''
                 Widget:
-                    size_hint: 1, None
+                    size_hint: 2, None
                     height: '48dp'
                 Button:
                     size_hint: 1, None
