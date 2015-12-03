@@ -265,7 +265,7 @@ class FxPlugin(BasePlugin, ThreadJob):
         return [self]
 
     def run(self):
-        # This runs from the network thread which catches exceptions
+        # This runs from the plugins thread which catches exceptions
         if self.timeout <= time.time():
             self.timeout = time.time() + 150
             self.exchange.update(self.ccy)

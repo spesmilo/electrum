@@ -346,15 +346,15 @@ if __name__ == '__main__':
     # daemon is not running
     if cmd_name == 'gui':
         if not config.get('offline'):
-            network = Network(config, plugins)
+            network = Network(config)
             network.start()
+            plugins.start()
         else:
             network = None
         gui = init_gui(config, network, plugins)
-        server = Daemon(config, network, gui)
-        server.start()
+        daemon = Daemon(config, network, gui)
+        daemon.start()
         gui.main()
-        server.stop()
         sys.exit(0)
 
     elif cmd_name == 'daemon':
@@ -365,16 +365,17 @@ if __name__ == '__main__':
         elif subcommand == 'start':
             p = os.fork()
             if p == 0:
-                network = Network(config, plugins)
+                network = Network(config)
                 network.start()
-                server = Daemon(config, network)
+                plugins.start()
+                daemon = Daemon(config, network)
                 if config.get('websocket_server'):
                     from electrum import websockets
                     websockets.WebSocketServer(config, network).start()
                 if config.get('requests_dir'):
                     util.check_www_dir(config.get('requests_dir'))
-                server.start()
-                server.join()
+                daemon.start()
+                daemon.join()
             else:
                 print_stderr("starting daemon (PID %d)"%p)
                 sys.exit(0)

@@ -21,15 +21,17 @@ import sys
 import os
 import imp
 import pkgutil
+import time
 
 from util import *
 from i18n import _
-from util import profiler, PrintError
+from util import profiler, PrintError, DaemonThread
 
-class Plugins(PrintError):
+class Plugins(DaemonThread):
 
     @profiler
     def __init__(self, config, is_local, gui_name):
+        DaemonThread.__init__(self)
         if is_local:
             find = imp.find_module('plugins')
             plugins = imp.load_module('electrum_plugins', *find)
@@ -116,16 +118,14 @@ class Plugins(PrintError):
         x += (lambda: self.wallet_plugin_loader(config, name),)
         wallet.wallet_types.append(x)
 
-    def set_network(self, network):
-        if network != self.network:
-            jobs = [job for plugin in self.plugins.values()
-                    for job in plugin.thread_jobs()]
-            if self.network:
-                self.network.remove_jobs(jobs)
-            self.network = network
-            if network:
-                network.add_jobs(jobs)
-
+    def run(self):
+        jobs = [job for plugin in self.plugins.values()
+                for job in plugin.thread_jobs()]
+        self.add_jobs(jobs)
+        while self.is_running():
+            time.sleep(0.1)
+            self.run_jobs()
+        self.print_error("stopped")
 
 
 hook_names = set()
