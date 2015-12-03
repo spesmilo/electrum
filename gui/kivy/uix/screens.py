@@ -143,7 +143,6 @@ class HistoryScreen(CScreen):
             if count == 8 and not see_all:
                 break
 
-        history_card.ids.btn_see_all.opacity = (0 if count < 8 else 1)
 
 
 class ScreenAddress(CScreen):
@@ -178,8 +177,11 @@ class ScreenPassword(Factory.Screen):
 
 
 class SendScreen(CScreen):
+
     kvname = 'send'
-    def set_qr_data(self, uri):
+
+    def set_URI(self, uri):
+        print "z", uri
         self.ids.payto_e.text = uri.get('address', '')
         self.ids.message_e.text = uri.get('message', '')
         amount = uri.get('amount')

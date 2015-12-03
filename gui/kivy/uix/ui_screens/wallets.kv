@@ -1,13 +1,8 @@
 #:import os os
 
-
-<WalletSelector@BlueSpinner>
-    icon: 'atlas://gui/kivy/theming/light/wallet'
-    values: ('default Wallet',)
-    text: _('Select your wallet')
-
-
 Popup:
+    title: _('Wallets')
+    id: popup
     BoxLayout:
         orientation: 'vertical'
         GridLayout:
@@ -27,8 +22,14 @@ Popup:
             id: wallet_selector
             path: os.path.dirname(app.wallet.storage.path)
             on_selection: text_input.text = os.path.basename(self.selection[0]) if self.selection else ''
+            size_hint: 1, 1
 
-    #WalletSelector:
-    #    id: wallet_selection
-    #    size_hint: 1, None
-    #    height: blue_bottom.item_height
+        BoxLayout:
+            Widget:
+                size_hint: 0.5, None
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('OK')
+                on_release:
+                    popup.dismiss()

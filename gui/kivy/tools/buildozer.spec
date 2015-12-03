@@ -13,13 +13,14 @@ package.domain = org.electrum-ltc
 source.dir = .
 
 # (list) Source files to include (let empty to include all the files)
-source.include_exts = py,png,jpg,kv,atlas,ttf,*,txt, gif, pem
+source.include_exts = py,png,jpg,kv,atlas,ttf,txt, gif, pem
 
 # (list) Source files to exclude (let empty to not exclude anything)
 source.exclude_exts = spec
 
 # (list) List of directory to exclude (let empty to not exclude anything)
-#source.exclude_dirs =
+source.exclude_dirs = bin, build, contrib, gui/android, gui/gtk, gui/qt, gui/kivy/tools
+
 
 # (list) List of exclusions using pattern matching
 #source.exclude_patterns = license,images/*/*.jpg
@@ -35,10 +36,12 @@ version.filename = %(source.dir)s/lib/version.py
 requirements = openssl, pil, plyer==master, kivy==master
 
 # (str) Presplash of the application
-presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
+#presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
+presplash.filename = %(source.dir)s/icons/electrum-ltc.png
 
 # (str) Icon of the application
-icon.filename = %(source.dir)s/icons/electrum_android_launcher_icon.png
+#icon.filename = %(source.dir)s/icons/electrum_android_launcher_icon.png
+icon.filename = %(source.dir)s/icons/electrum_launcher.png
 
 # (str) Supported orientation (one of landscape, portrait or all)
 orientation = portrait
@@ -116,6 +119,9 @@ android.add_libs_armeabi = lib/android/*.so
 # project.properties automatically.)
 #android.library_references =
 
+android.p4a_whitelist = lib-dynload/_csv.so
+
+
 #
 # iOS specific
 #
@@ -126,6 +132,7 @@ android.add_libs_armeabi = lib/android/*.so
 
 # (str) Name of the certificate to use for signing the release version
 #ios.codesign.release = %(ios.codesign.debug)s
+
 
 
 [buildozer]

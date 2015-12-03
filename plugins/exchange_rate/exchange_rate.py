@@ -250,7 +250,7 @@ class FxPlugin(BasePlugin, ThreadJob):
     @hook
     def format_amount_and_units(self, btc_balance):
         rate = self.exchange_rate()
-        return '' if rate is None else " (%s %s)" % (self.value_str(btc_balance, rate), self.ccy)
+        return '' if rate is None else "%s %s" % (self.value_str(btc_balance, rate), self.ccy)
 
     @hook
     def get_fiat_status_text(self, btc_balance):
