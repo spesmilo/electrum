@@ -209,7 +209,12 @@ class CoinDesk(ExchangeBase):
                  % (start, end))
         json = self.get_json('api.coindesk.com', query)
         return json['bpi']
-
+        
+class Coinsecure(ExchangeBase):
+    def get_rates(self, ccy):
+        json = self.get_json('api.coinsecure.in', '/v0/noauth/lasttrade')
+        return {'INR': Decimal(json['result'][0]['lasttrade'][0][bid][0][rate] / 100.0 )}
+        
 class itBit(ExchangeBase):
     def get_rates(self, ccy):
         ccys = ['USD', 'EUR', 'SGD']
