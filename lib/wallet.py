@@ -927,12 +927,12 @@ class Abstract_Wallet(PrintError):
         # Fee estimator
         if fixed_fee is None:
             fee_estimator = partial(Transaction.fee_for_size,
-                                    self.fee_per_kb(config))
+                                    self.fee_per_kb(config), outputs=outputs)
         else:
             fee_estimator = lambda size: fixed_fee
 
         # Change <= dust threshold is added to the tx fee
-        dust_threshold = 0 # 182 * 3 * MIN_RELAY_TX_FEE / 1000
+        dust_threshold = DUST_SOFT_LIMIT
 
         # Let the coin chooser select the coins to spend
         tx = self.coin_chooser.make_tx(coins, outputs, change_addrs,
