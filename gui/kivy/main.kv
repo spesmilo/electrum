@@ -221,7 +221,7 @@
 <KButton@Button>:
     size_hint: 1, None
     height: '48dp'
-    on_release: self.label.amount = app.update_amount(self.label.amount, self.text)
+    on_release: app.update_amount(self.label, self.text)
 
 
 <TabbedPanelStrip>:

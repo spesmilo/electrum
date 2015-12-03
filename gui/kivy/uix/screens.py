@@ -258,9 +258,6 @@ class ReceiveScreen(CScreen):
         self.update_qr()
 
     @profiler
-    def update_qrtt(self):
-        raise
-
     def update_qr(self):
         from electrum.util import create_URI
         address = self.screen.ids.get('address').text

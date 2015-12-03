@@ -11,6 +11,7 @@ from electrum.i18n import _, set_language
 from electrum.contacts import Contacts
 from electrum.util import profiler
 from electrum.plugins import run_hook
+from electrum.util import format_satoshis, format_satoshis_plain
 
 from kivy.app import App
 from kivy.core.window import Window
@@ -35,7 +36,7 @@ Factory.register('ELTextInput', module='electrum_gui.kivy.uix.screens')
 
 
 # delayed imports: for startup speed on android
-notification = app = ref = format_satoshis = None
+notification = app = ref = None
 util = False
 
 
@@ -76,35 +77,35 @@ class ElectrumWindow(App):
 
     status = StringProperty(_('Not Connected'))
 
+    fiat_unit = StringProperty('')
+
     def decimal_point(self):
         return base_units[self.base_unit]
 
-    def _get_num_zeros(self):
-        try:
-            return self.electrum_config.get('num_zeros', 0)
-        except AttributeError:
-            return 0
+    def toggle_fiat(self, a):
+        if not a.is_fiat:
+            if a.fiat_text:
+                a.fiat_amount = str(a.fiat_text).split()[0]
+        else:
+            if a.btc_text:
+                a.amount = str(a.btc_text).split()[0]
+        a.is_fiat = not a.is_fiat
 
-    def _set_num_zeros(self):
-        try:
-            self.electrum_config.set_key('num_zeros', value, True)
-        except AttributeError:
-            Logger.error('Electrum: Config not available '
-                         'While trying to save value to config')
+    def btc_to_fiat(self, amount_str):
+        if not amount_str:
+            return ''
+        satoshis = self.get_amount(amount_str + ' ' + self.base_unit)
+        fiat_text = run_hook('format_amount_and_units', satoshis)
+        return fiat_text if fiat_text else ''
 
-    num_zeros = AliasProperty(_get_num_zeros , _set_num_zeros)
-    '''Number of zeros used while representing the value in base_unit.
-    '''
-
-    def get_amount_text(self, amount_str, is_fiat):
-        text = amount_str + ' ' + self.base_unit if amount_str else ''
-        if text:
-            amount = self.get_amount(text)
-            x = run_hook('format_amount_and_units', amount)
-            if x:
-                text += ' / ' + x
-        return text
-
+    def fiat_to_btc(self, fiat_amount):
+        if not fiat_amount:
+            return ''
+        satoshis = pow(10, 8)
+        x = run_hook('format_amount_and_units', satoshis)
+        rate, unit = x.split()
+        amount = satoshis * Decimal(fiat_amount) / Decimal(rate)
+        return format_satoshis_plain(amount, self.decimal_point()) + ' ' + self.base_unit
 
     def get_amount(self, amount_str):
         a, u = amount_str.split()
@@ -480,29 +481,33 @@ class ElectrumWindow(App):
 
 
     def get_max_amount(self):
-        from electrum.util import format_satoshis_plain
         inputs = self.wallet.get_spendable_coins(None)
         amount, fee = self.wallet.get_max_amount(self.electrum_config, inputs, None)
         return format_satoshis_plain(amount, self.decimal_point())
 
-    def update_amount(self, amount, c):
+    def update_amount(self, label, c):
+        amount = label.fiat_amount if label.is_fiat else label.amount
         if c == '<':
-            return amount[:-1]
-        if c == '.' and amount == '':
-            return '0.'
-        if c == '0' and amount == '0':
-            return '0'
-        try:
-            Decimal(amount+c)
-            amount += c
-        except:
-            pass
-        return amount
+            amount = amount[:-1]
+        elif c == '.' and amount == '':
+            amount = '0.'
+        elif c == '0' and amount == '0':
+            amount = '0'
+        else:
+            try:
+                Decimal(amount+c)
+                amount += c
+            except:
+                pass
+
+        if label.is_fiat:
+            label.fiat_amount = amount
+        else:
+            label.amount = amount
+
 
     def format_amount(self, x, is_diff=False, whitespaces=False):
-        from electrum.util import format_satoshis
-        return format_satoshis(x, is_diff, self.num_zeros,
-                               self.decimal_point(), whitespaces)
+        return format_satoshis(x, is_diff, 0, self.decimal_point(), whitespaces)
 
     @profiler
     def update_wallet(self, *dt):
@@ -786,7 +791,7 @@ class ElectrumWindow(App):
             assert u == self.base_unit
             popup.ids.a.amount = a
         def cb():
-            o = popup.ids.a.text
+            o = popup.ids.a.btc_text
             label.text = o if o else label.default_text
             if callback:
                 callback()
