@@ -7,8 +7,19 @@
 
 
 ReceiveScreen:
-    id: receive_screen
+    id: s
     name: 'receive'
+
+    address: ''
+    amount: ''
+    message: ''
+
+    on_address:
+        self.parent.update_qr()
+    on_amount:
+        self.parent.update_qr()
+    on_message:
+        self.parent.update_qr()
 
     BoxLayout
         padding: '12dp', '12dp', '12dp', '12dp'
@@ -27,10 +38,11 @@ ReceiveScreen:
                     self.shaded = not self.shaded
                     self.foreground_color = (0, 0, 0, 0.5) if self.shaded else (0, 0, 0, 0)
         Label:
-            id: address
+            id: address_label
             size_hint: 1, None
             height: '48dp'
             opacity: 0.5 if qr.shaded else 1
+            text: s.address
 
         SendReceiveBlueBottom:
             id: blue_bottom
@@ -45,8 +57,9 @@ ReceiveScreen:
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
                 AmountButton:
-                    id: amount
-                    on_release: app.amount_dialog(amount, receive_screen.parent.update_qr, False)
+                    id: amount_label
+                    text: s.amount if s.amount else 'Amount'
+                    on_release: app.amount_dialog(s, False)
             CardSeparator:
                 opacity: message_selection.opacity
                 color: blue_bottom.foreground_color
@@ -62,23 +75,23 @@ ReceiveScreen:
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
                 TextInputBlue:
-                    id: message
+                    id: message_input
                     hint_text: 'Description'
-                    on_text_validate: receive_screen.parent.update_qr()
+                    text: s.message
+                    on_text_validate: s.message = self.text
 
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
             Button:
+                text: _('Copy')
+                size_hint: 1, None
+                height: '48dp'
+                on_release: s.parent.do_copy()
+            Button:
                 text: _('Clear')
                 size_hint: 1, None
                 height: '48dp'
-                on_release: receive_screen.parent.do_clear()
-            Button:
-                text: _('Share')
-                size_hint: 1, None
-                height: '48dp'
-                on_release: receive_screen.parent.do_share()
-
+                on_release: s.parent.do_clear()
         Widget:
             size_hint: 1, 0.3

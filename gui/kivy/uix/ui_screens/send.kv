@@ -7,36 +7,14 @@
 #:set font_light 'data/fonts/Roboto-Condensed.ttf'
 
 
-<SendToggle@ToggleButton>
-    source: ''
-    markup: False
-    bold: True
-    border: 4, 4, 4, 4
-    group: 'transfer_type'
-    background_normal: self.background_down
-    color:
-        (.140, .140, .140, 1) if self.state == 'down' else (.796, .796, .796, 1)
-    canvas.after:
-        Color:
-            rgba: 1, 1, 1, 1
-    Image:
-        source: root.source
-        color: root.color
-        size: '30dp', '30dp'
-        center_x: root.center_x - ((root.texture_size[0]/2)+(self.width/1.5))
-        center_y: root.center_y
-
-
-
 SendScreen:
 
-    id: send_screen
+    id: s
     name: 'send'
-    #action_view: Factory.SendActionView()
-    #on_deactivate:
-    #    self.ids.amount_e.focus = False
-    #    self.ids.payto_e.focus = False
-    #    self.ids.message_e.focus = False
+    address: ''
+    amount: ''
+    message: ''
+
     BoxLayout
         padding: '12dp', '12dp', '12dp', '12dp'
         spacing: '12dp'
@@ -56,6 +34,7 @@ SendScreen:
                     pos_hint: {'center_y': .5}
                 TextInputBlue:
                     id: payto_e
+                    text: s.address
                     hint_text: "Recipient"
             CardSeparator:
                 opacity: message_selection.opacity
@@ -70,8 +49,8 @@ SendScreen:
                     pos_hint: {'center_y': .5}
                 AmountButton:
                     id: amount_e
-                    on_release: app.amount_dialog(self, None, True)
-
+                    text: s.amount if s.amount else 'Amount'
+                    on_release: app.amount_dialog(s, True)
 
             CardSeparator:
                 opacity: message_selection.opacity
@@ -89,6 +68,7 @@ SendScreen:
                     pos_hint: {'center_y': .5}
                 TextInputBlue:
                     id: message_e
+                    text: s.message
                     hint_text: 'Description'
         BoxLayout:
             size_hint: 1, None
@@ -97,26 +77,28 @@ SendScreen:
                 id: qr
                 text: _('QR Code')
                 on_release:
-                    app.scan_qr(on_complete=root.set_URI)
+                    app.scan_qr(on_complete=s.parent.set_URI)
             Button:
                 id: paste_button
-                text: _('Clipboard')
+                text: _('Paste')
                 on_release:
-                    app.send_from_clipboard(on_complete=root.set_URI)
+                    s.parent.do_paste()
             Button:
                 text: _('Clear')
                 size_hint: 1, None
                 height: '48dp'
-                on_release: send_screen.do_clear()
-        Widget:
-            size_hint: 1, 1
+                on_release: s.parent.do_clear()
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
+            Widget:
+                size_hint: 1, 1
             Button:
                 text: _('Send')
                 size_hint: 1, None
                 height: '48dp'
-                on_release: send_screen.do_send()
+                on_release: s.parent.do_send()
+        Widget:
+            size_hint: 1, 1
 
 

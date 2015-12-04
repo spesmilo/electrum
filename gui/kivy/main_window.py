@@ -48,6 +48,7 @@ from kivy.uix.screenmanager import Screen
 from kivy.uix.tabbedpanel import TabbedPanel
 from kivy.uix.label import Label
 from kivy.uix.checkbox import CheckBox
+from kivy.core.clipboard import Clipboard
 
 Factory.register('TabbedCarousel', module='electrum_gui.kivy.uix.screens')
 
@@ -163,7 +164,7 @@ class ElectrumWindow(App):
 
     def __init__(self, **kwargs):
         # initialize variables
-        self._clipboard = None
+        self._clipboard = Clipboard
         self.info_bubble = None
         self.qrscanner = None
         self.nfcscanner = None
@@ -202,18 +203,6 @@ class ElectrumWindow(App):
             self.show_info("Invalid URI", url)
             return
         self.send_screen.set_URI(url)
-
-    def send_from_clipboard(self, on_complete):
-        if not self._clipboard:
-            from kivy.core.clipboard import Clipboard
-            self._clipboard = Clipboard
-        contents = self._clipboard.get()
-        try:
-            uri = electrum.util.parse_URI(contents)
-        except:
-            self.show_info("Invalid URI", url)
-            return
-        on_complete(uri)
 
 
     def scan_qr(self, on_complete):
@@ -564,14 +553,6 @@ class ElectrumWindow(App):
                               format(txs=tx_amount, amount=self.format_amount(v),
                                      unit=self.base_unit))
 
-    def copy(self, text):
-        ''' Copy provided text to clipboard
-        '''
-        if not self._clipboard:
-            from kivy.core.clipboard import Clipboard
-            self._clipboard = Clipboard
-        self._clipboard.put(text, 'text/plain')
-
     def notify(self, message):
         try:
             global notification, os
@@ -776,7 +757,7 @@ class ElectrumWindow(App):
         popup.tx_hash = tx_hash
         popup.open()
 
-    def amount_dialog(self, label, callback, show_max):
+    def amount_dialog(self, screen, show_max):
         popup = Builder.load_file('gui/kivy/uix/ui_screens/amount.kv')
         but_max = popup.ids.but_max
         if not show_max:
@@ -786,15 +767,16 @@ class ElectrumWindow(App):
             but_max.disabled = False
             but_max.opacity = 1
 
-        if label.text != label.default_text:
-            a, u = label.text.split()
+        amount = screen.amount
+        if amount:
+            a, u = str(amount).split()
             assert u == self.base_unit
             popup.ids.a.amount = a
+
         def cb():
             o = popup.ids.a.btc_text
-            label.text = o if o else label.default_text
-            if callback:
-                callback()
+            screen.amount = o
+
         popup.on_dismiss = cb
         popup.open()
 
