@@ -207,11 +207,15 @@ class SendScreen(CScreen):
 
     def do_send(self):
         address = str(self.screen.address)
-        amount = self.app.get_amount(self.screen.amount)
-        message = unicode(self.screen.message)
-        if not bitcoin.is_address(self.address):
+        if not bitcoin.is_address(address):
             self.app.show_error(_('Invalid Bitcoin Address') + ':\n' + address)
             return
+        try:
+            amount = self.app.get_amount(self.screen.amount)
+        except:
+            self.app.show_error(_('Invalid amount') + ':\n' + self.screen.amount)
+            return
+        message = unicode(self.screen.message)
         fee = None
         outputs = [('address', address, amount)]
         self.app.password_dialog(self.send_tx, (outputs, fee, message))
