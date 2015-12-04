@@ -298,6 +298,7 @@ class InstallWizard(QDialog):
             return NetworkDialog(self.network, self.config, None).do_exec()
         else:
             self.config.set_key('auto_connect', True, True)
+            self.network.auto_connect = True
             return
 
 

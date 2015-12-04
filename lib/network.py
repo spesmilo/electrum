@@ -139,7 +139,7 @@ class Network(util.DaemonThread):
           stop()
     """
 
-    def __init__(self, config=None, plugins=None):
+    def __init__(self, config=None):
         if config is None:
             config = {}  # Do not use mutables as default values!
         util.DaemonThread.__init__(self)
@@ -197,9 +197,6 @@ class Network(util.DaemonThread):
         self.socket_queue = Queue.Queue()
         self.start_network(deserialize_server(self.default_server)[2],
                            deserialize_proxy(self.config.get('proxy')))
-        self.plugins = plugins
-        if self.plugins:
-            self.plugins.set_network(self)
 
     def register_callback(self, callback, events):
         with self.lock:
@@ -358,6 +355,7 @@ class Network(util.DaemonThread):
     def set_proxy(self, proxy):
         self.proxy = proxy
         if proxy:
+            self.print_error('setting proxy', proxy)
             proxy_mode = proxy_modes.index(proxy["mode"]) + 1
             socks.setdefaultproxy(proxy_mode, proxy["host"], int(proxy["port"]))
             socket.socket = socks.socksocket
@@ -754,8 +752,6 @@ class Network(util.DaemonThread):
             self.process_pending_sends()
 
         self.stop_network()
-        if self.plugins:
-            self.plugins.set_network(None)
         self.print_error("stopped")
 
     def on_header(self, i, header):
