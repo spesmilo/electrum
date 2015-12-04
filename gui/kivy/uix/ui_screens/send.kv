@@ -68,8 +68,9 @@ SendScreen:
                     pos_hint: {'center_y': .5}
                 TextInputBlue:
                     id: message_e
-                    text: s.message
                     hint_text: 'Description'
+                    text: s.message
+                    on_text_validate: s.message = self.text
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
