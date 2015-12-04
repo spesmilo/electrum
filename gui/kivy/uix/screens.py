@@ -10,12 +10,14 @@ from kivy.cache import Cache
 from kivy.clock import Clock
 from kivy.compat import string_types
 from kivy.properties import (ObjectProperty, DictProperty, NumericProperty,
-                             ListProperty)
+                             ListProperty, StringProperty)
+
+
 from kivy.lang import Builder
 from kivy.factory import Factory
 
 from electrum_ltc.i18n import _
-from electrum_ltc.util import profiler
+from electrum_ltc.util import profiler, parse_URI
 from electrum_ltc import bitcoin
 from electrum_ltc.util import timestamp_to_datetime
 from electrum_ltc.plugins import run_hook
@@ -181,42 +183,42 @@ class SendScreen(CScreen):
     kvname = 'send'
 
     def set_URI(self, uri):
-        print "z", uri
-        self.ids.payto_e.text = uri.get('address', '')
-        self.ids.message_e.text = uri.get('message', '')
+        print "set uri", uri
+        self.screen.address = uri.get('address', '')
+        self.screen.message = uri.get('message', '')
         amount = uri.get('amount')
         if amount:
             amount_str = str( Decimal(amount) / pow(10, self.app.decimal_point()))
-            self.ids.amount_e.text = amount_str + ' ' + self.app.base_unit
+            self.screen.amount = amount_str + ' ' + self.app.base_unit
 
     def do_clear(self):
-        self.ids.payto_e.text = ''
-        self.ids.message_e.text = ''
-        self.ids.amount_e.text = 'Amount'
-        #self.set_frozen(content, False)
-        #self.update_status()
+        self.screen.amount = ''
+        self.screen.message = ''
+        self.screen.address = ''
+
+    def do_paste(self):
+        contents = unicode(self.app._clipboard.get())
+        try:
+            uri = parse_URI(contents)
+        except:
+            self.app.show_info("Invalid URI", contents)
+            return
+        self.set_URI(uri)
 
     def do_send(self):
-        scrn = self.ids
-        label = unicode(scrn.message_e.text)
-        r = unicode(scrn.payto_e.text).strip()
-        # label or alias, with address in brackets
-        m = re.match('(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
-        to_address = m.group(2) if m else r
-
-        if not bitcoin.is_address(to_address):
-            self.app.show_error(_('Invalid Litecoin Address') + ':\n' + to_address)
+        address = str(self.screen.address)
+        if not bitcoin.is_address(address):
+            self.app.show_error(_('Invalid Litecoin Address') + ':\n' + address)
             return
-
-        amount = self.app.get_amount(scrn.amount_e.text)
-        #fee = scrn.fee_e.amt
-        #if not fee:
-        #    app.show_error(_('Invalid Fee'))
-        #    return
+        try:
+            amount = self.app.get_amount(self.screen.amount)
+        except:
+            self.app.show_error(_('Invalid amount') + ':\n' + self.screen.amount)
+            return
+        message = unicode(self.screen.message)
         fee = None
-        message = 'sending {} {} to {}'.format(self.app.base_unit, scrn.amount_e.text, r)
-        outputs = [('address', to_address, amount)]
-        self.app.password_dialog(self.send_tx, (outputs, fee, label))
+        outputs = [('address', address, amount)]
+        self.app.password_dialog(self.send_tx, (outputs, fee, message))
 
     def send_tx(self, *args):
         self.app.show_info("Sending...")
@@ -244,43 +246,41 @@ class SendScreen(CScreen):
 
 
 class ReceiveScreen(CScreen):
-    kvname = 'receive'
 
+    kvname = 'receive'
+    
     def update(self):
-        addr = self.app.wallet.get_unused_address(None)
-        address_label = self.screen.ids.get('address')
-        address_label.text = addr
-        self.update_qr()
+        self.screen.address = self.app.wallet.get_unused_address(None)
 
     def amount_callback(self, popup):
         amount_label = self.screen.ids.get('amount')
         amount_label.text = popup.ids.amount_label.text
         self.update_qr()
 
-    @profiler
-    def update_qr(self):
+    def get_URI(self):
         from electrum_ltc.util import create_URI
-        address = self.screen.ids.get('address').text
-        amount = self.screen.ids.get('amount').text
-        default_text = self.screen.ids.get('amount').default_text
-        if amount == default_text:
-            amount = None
-        else:
-            a, u = amount.split()
+        amount = self.screen.amount
+        if amount:
+            a, u = self.screen.amount.split()
             assert u == self.app.base_unit
             amount = Decimal(a) * pow(10, self.app.decimal_point())
-        msg = self.screen.ids.get('message').text
-        uri = create_URI(address, amount, msg)
+        return create_URI(self.screen.address, amount, self.screen.message)
+
+    @profiler
+    def update_qr(self):
+        uri = self.get_URI()
         qr = self.screen.ids.get('qr')
         qr.set_data(uri)
 
-    def do_share(self):
-        pass
+    def do_copy(self):
+        uri = self.get_URI()
+        print "put", uri
+        self.app._clipboard.put(uri, 'text/plain')
+        print "get", self.app._clipboard.get()
 
     def do_clear(self):
-        a = self.screen.ids.get('amount')
-        a.text = a.default_text
-        self.screen.ids.get('message').text = ''
+        self.screen.amount = ''
+        self.screen.message = ''
 
 
 
