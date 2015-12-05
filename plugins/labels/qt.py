@@ -62,5 +62,4 @@ class Plugin(LabelsPlugin):
 
     @hook
     def on_close_window(self, window):
-        self.wallets.pop(window.wallet)
-
+        self.stop_wallet(window.wallet)
