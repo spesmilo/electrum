@@ -95,18 +95,20 @@ class ElectrumWindow(App):
     def btc_to_fiat(self, amount_str):
         if not amount_str:
             return ''
-        satoshis = self.get_amount(amount_str + ' ' + self.base_unit)
-        fiat_text = run_hook('format_amount_and_units', satoshis)
-        return fiat_text if fiat_text else ''
+        rate = run_hook('exchange_rate')
+        if not rate:
+            return ''
+        fiat_amount = self.get_amount(amount_str + ' ' + self.base_unit) * rate / pow(10, 8)
+        return "{:.2f}".format(fiat_amount).rstrip('0').rstrip('.') + ' ' + self.fiat_unit
 
     def fiat_to_btc(self, fiat_amount):
         if not fiat_amount:
             return ''
-        satoshis = pow(10, 8)
-        x = run_hook('format_amount_and_units', satoshis)
-        rate, unit = x.split()
-        amount = satoshis * Decimal(fiat_amount) / Decimal(rate)
-        return format_satoshis_plain(amount, self.decimal_point()) + ' ' + self.base_unit
+        rate = run_hook('exchange_rate')
+        if not rate:
+            return ''
+        satoshis = int(pow(10,8) * Decimal(fiat_amount) / Decimal(rate))
+        return format_satoshis_plain(satoshis, self.decimal_point()) + ' ' + self.base_unit
 
     def get_amount(self, amount_str):
         a, u = amount_str.split()
