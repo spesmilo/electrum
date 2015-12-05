@@ -16,16 +16,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import socket, os
 import jsonrpclib
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCRequestHandler
 
-import util
-from util import print_msg, print_error, print_stderr, json_encode, json_decode, set_verbosity, InvalidPassword
+from util import json_decode, DaemonThread
 from wallet import WalletStorage, Wallet
 from commands import known_commands, Commands
 from simple_config import SimpleConfig
-from network import Network
 
 
 def get_daemon(config):
@@ -54,10 +51,10 @@ class RequestHandler(SimpleJSONRPCRequestHandler):
 
 
 
-class Daemon(util.DaemonThread):
+class Daemon(DaemonThread):
 
     def __init__(self, config, network, gui=None):
-        util.DaemonThread.__init__(self)
+        DaemonThread.__init__(self)
         self.config = config
         self.network = network
         self.gui = gui
@@ -154,4 +151,4 @@ class Daemon(util.DaemonThread):
     def stop(self):
         for k, wallet in self.wallets.items():
             wallet.stop_threads()
-        util.DaemonThread.stop(self)
+        DaemonThread.stop(self)
