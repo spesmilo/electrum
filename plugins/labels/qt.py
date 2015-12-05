@@ -1,14 +1,11 @@
-import threading
 from functools import partial
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-import PyQt4.QtCore as QtCore
-import PyQt4.QtGui as QtGui
 
 from electrum.plugins import hook
 from electrum.i18n import _
-from electrum_gui.qt import HelpButton, EnterButton
+from electrum_gui.qt import EnterButton
 from electrum_gui.qt.util import ThreadedButton, Buttons, CancelButton, OkButton
 
 from labels import LabelsPlugin
