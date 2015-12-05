@@ -70,7 +70,7 @@ class Daemon(util.DaemonThread):
         host = config.get('rpchost', 'localhost')
         port = config.get('rpcport', 7777)
         self.server = SimpleJSONRPCServer((host, port), requestHandler=RequestHandler, logRequests=False)
-        self.server.socket.settimeout(1)
+        self.server.timeout = 1.0
         for cmdname in known_commands:
             self.server.register_function(getattr(self.cmd_runner, cmdname), cmdname)
         self.server.register_function(self.run_cmdline, 'run_cmdline')
@@ -149,12 +149,7 @@ class Daemon(util.DaemonThread):
 
     def run(self):
         while self.is_running():
-            try:
-                self.server.handle_request()
-            except socket.timeout:
-                continue
-            except:
-                break
+            self.server.handle_request()
 
     def stop(self):
         for k, wallet in self.wallets.items():
