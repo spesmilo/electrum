@@ -331,11 +331,9 @@ BoxLayout:
 
         ActionView:
             id: av
-
             ActionPrevious:
                 app_icon: 'atlas://gui/kivy/theming/light/logo'
                 with_previous: False
-                on_release: app.on_back()
                 size_hint_x: None
                 width: ao.width
 
@@ -353,8 +351,6 @@ BoxLayout:
                     .format(app.status)
                 font_size: '22dp'
                 minimum_width: '1dp'
-                on_release:
-                    app.context_action()
 
             ActionButton:
                 id: context_button
