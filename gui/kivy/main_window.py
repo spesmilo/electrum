@@ -78,7 +78,7 @@ class ElectrumWindow(App):
         self.base_unit = keys[ (keys.index(self.base_unit) + 1) % len(keys)]
 
     context = StringProperty('')
-    context_action = lambda: None
+    context_action = lambda x: None
     status = StringProperty(_('Not Connected'))
     fiat_unit = StringProperty('')
 
