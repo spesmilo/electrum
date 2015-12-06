@@ -245,6 +245,7 @@
 
 
 <CleanHeader@TabbedPanelHeader>
+    #border: 0, 0, 16, 0
     border: 0, 0, 16, 0
     markup: False
     text_size: self.size
@@ -253,7 +254,6 @@
     bold: True
     font_size: '12.5sp'
     background_normal: 'atlas://gui/kivy/theming/light/tab_btn'
-    background_disabled_normal: 'atlas://gui/kivy/theming/light/tab_btn_disabled'
     background_down: 'atlas://gui/kivy/theming/light/tab_btn_pressed'
     #canvas.before:
     #    Color:
@@ -333,9 +333,9 @@ BoxLayout:
             id: av
             ActionPrevious:
                 app_icon: 'atlas://gui/kivy/theming/light/logo'
+                app_icon_width: '100dp'
                 with_previous: False
                 size_hint_x: None
-                width: ao.width
 
             ActionButton:
                 id: action_status
