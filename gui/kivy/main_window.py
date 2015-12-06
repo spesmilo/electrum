@@ -48,6 +48,7 @@ from kivy.uix.screenmanager import Screen
 from kivy.uix.tabbedpanel import TabbedPanel
 from kivy.uix.label import Label
 from kivy.uix.checkbox import CheckBox
+from kivy.uix.switch import Switch
 from kivy.core.clipboard import Clipboard
 
 Factory.register('TabbedCarousel', module='electrum_gui.kivy.uix.screens')
@@ -230,20 +231,20 @@ class ElectrumWindow(App):
         PythonActivity.mActivity.startActivityForResult(intent, 0)
 
     def show_plugins(self, plugins_list):
-        def on_checkbox_active(cb, value):
-            self.plugins.toggle_enabled(self.electrum_config, cb.name)
+        def on_active(sw, value):
+            self.plugins.toggle_enabled(self.electrum_config, sw.name)
         for item in self.plugins.descriptions:
             if 'kivy' not in item.get('available_for', []):
                 continue
             name = item.get('__name__')
             label = Label(text=item.get('fullname'), height='48db', size_hint=(1, None))
             plugins_list.add_widget(label)
-            cb = CheckBox()
-            cb.name = name
+            sw = Switch()
+            sw.name = name
             p = self.plugins.get(name)
-            cb.active = (p is not None) and p.is_enabled()
-            cb.bind(active=on_checkbox_active)
-            plugins_list.add_widget(cb)
+            sw.active = (p is not None) and p.is_enabled()
+            sw.bind(active=on_active)
+            plugins_list.add_widget(sw)
 
     def build(self):
         return Builder.load_file('gui/kivy/main.kv')
