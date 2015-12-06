@@ -38,7 +38,7 @@
     size: self.texture_size[0] + dp(32), self.texture_size[1] + dp(7)
 
 
-<CardItem@ButtonBehavior+GridLayout>
+<CardItem@ToggleButtonBehavior+GridLayout>
     canvas.before:
         Color:
             rgba: 0.192, .498, 0.745, 1 if self.state == 'down' else 0
@@ -50,6 +50,7 @@
     spacing: '2dp'
     size_hint: 1, None
     height: self.minimum_height
+    group: 'history'
 
 <RecentActivityItem@CardItem>
     icon: 'atlas://gui/kivy/theming/light/important'
@@ -60,10 +61,9 @@
     confirmations: 0
     date: '0/0/0'
     quote_text: '.'
-
     spacing: '9dp'
     on_release:
-        app.tx_dialog(root.tx_hash)
+        app.tx_selected(root.tx_hash, self.state)
     BoxLayout:
         size_hint: 1, None
         spacing: '8dp'
