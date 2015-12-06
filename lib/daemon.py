@@ -16,16 +16,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import socket, os
 import jsonrpclib
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCRequestHandler
 
-import util
-from util import print_msg, print_error, print_stderr, json_encode, json_decode, set_verbosity, InvalidPassword
+from util import json_decode, DaemonThread
 from wallet import WalletStorage, Wallet
 from commands import known_commands, Commands
 from simple_config import SimpleConfig
-from network import Network
 
 
 def get_daemon(config):
@@ -54,10 +51,10 @@ class RequestHandler(SimpleJSONRPCRequestHandler):
 
 
 
-class Daemon(util.DaemonThread):
+class Daemon(DaemonThread):
 
     def __init__(self, config, network, gui=None):
-        util.DaemonThread.__init__(self)
+        DaemonThread.__init__(self)
         self.config = config
         self.network = network
         self.gui = gui
@@ -70,7 +67,7 @@ class Daemon(util.DaemonThread):
         host = config.get('rpchost', 'localhost')
         port = config.get('rpcport', 7777)
         self.server = SimpleJSONRPCServer((host, port), requestHandler=RequestHandler, logRequests=False)
-        self.server.socket.settimeout(1)
+        self.server.timeout = 1.0
         for cmdname in known_commands:
             self.server.register_function(getattr(self.cmd_runner, cmdname), cmdname)
         self.server.register_function(self.run_cmdline, 'run_cmdline')
@@ -149,14 +146,9 @@ class Daemon(util.DaemonThread):
 
     def run(self):
         while self.is_running():
-            try:
-                self.server.handle_request()
-            except socket.timeout:
-                continue
-            except:
-                break
+            self.server.handle_request()
 
     def stop(self):
         for k, wallet in self.wallets.items():
             wallet.stop_threads()
-        util.DaemonThread.stop(self)
+        DaemonThread.stop(self)

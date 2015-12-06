@@ -241,6 +241,7 @@ class FxPlugin(BasePlugin, ThreadJob):
     def on_history(self):
         pass
 
+    @hook
     def exchange_rate(self):
         '''Returns None, or the exchange rate as a Decimal'''
         rate = self.exchange.quotes.get(self.ccy)

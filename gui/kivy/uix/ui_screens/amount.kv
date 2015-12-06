@@ -72,12 +72,14 @@ Popup:
                     size_hint: 1, None
                     height: '48dp'
                     text: 'Max'
-                    on_release: a.amount = app.get_max_amount()
+                    on_release:
+                        a.is_fiat = False
+                        a.amount = app.get_max_amount()
                 Button:
                     id: button_fiat
                     size_hint: 1, None
                     height: '48dp'
-                    text: '/'
+                    text: app.fiat_unit if a.is_fiat else app.base_unit
                     on_release:
                         app.toggle_fiat(a)
                 Button:

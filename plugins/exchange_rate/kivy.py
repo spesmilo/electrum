@@ -9,3 +9,7 @@ class Plugin(FxPlugin):
     def on_quotes(self):
         self.print_error("on quotes", self.ccy)
         self.window.fiat_unit = self.ccy
+
+    def on_history(self):
+        self.print_error("on history")
+        self.window.history_screen.update()

@@ -203,9 +203,6 @@ class ElectrumGui:
                 return
             w = ElectrumWindow(self, wallet)
             w.connect_slots(self.timer)
-            # save path
-            if self.config.get('wallet_path') is None:
-                self.config.set_key('gui_last_wallet', path)
             # add to recently visited
             w.update_recently_visited(path)
             # initial configuration
@@ -225,14 +222,18 @@ class ElectrumGui:
     def close_window(self, window):
         self.windows.remove(window)
         self.build_tray_menu()
+        # save wallet path of last open window
+        if self.config.get('wallet_path') is None and not self.windows:
+            path = window.wallet.storage.path
+            self.config.set_key('gui_last_wallet', path)
         run_hook('on_close_window', window)
 
     def main(self):
         self.timer.start()
-
-        last_wallet = self.config.get('gui_last_wallet')
-        if last_wallet is not None and self.config.get('wallet_path') is None:
-            if os.path.exists(last_wallet):
+        # open last wallet
+        if self.config.get('wallet_path') is None:
+            last_wallet = self.config.get('gui_last_wallet')
+            if last_wallet is not None and os.path.exists(last_wallet):
                 self.config.cmdline_options['default_wallet_path'] = last_wallet
 
         if not self.start_new_window(self.config.get_wallet_path(),

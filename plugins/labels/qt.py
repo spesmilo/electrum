@@ -1,14 +1,11 @@
-import threading
 from functools import partial
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-import PyQt4.QtCore as QtCore
-import PyQt4.QtGui as QtGui
 
 from electrum_ltc.plugins import hook
 from electrum_ltc.i18n import _
-from electrum_ltc_gui.qt import HelpButton, EnterButton
+from electrum_ltc_gui.qt import EnterButton
 from electrum_ltc_gui.qt.util import ThreadedButton, Buttons, CancelButton, OkButton
 
 from labels import LabelsPlugin
@@ -62,5 +59,4 @@ class Plugin(LabelsPlugin):
 
     @hook
     def on_close_window(self, window):
-        self.wallets.pop(window.wallet)
-
+        self.stop_wallet(window.wallet)

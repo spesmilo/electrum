@@ -147,3 +147,6 @@ class LabelsPlugin(BasePlugin):
         t = threading.Thread(target=self.pull_thread, args=(wallet, False))
         t.setDaemon(True)
         t.start()
+
+    def stop_wallet(self, wallet):
+        self.wallets.pop(wallet, None)
