@@ -76,8 +76,9 @@ class ElectrumWindow(App):
         keys = sorted(base_units.keys())
         self.base_unit = keys[ (keys.index(self.base_unit) + 1) % len(keys)]
 
+    context = StringProperty('')
+    context_action = lambda: None
     status = StringProperty(_('Not Connected'))
-
     fiat_unit = StringProperty('')
 
     def decimal_point(self):
@@ -758,6 +759,17 @@ class ElectrumWindow(App):
         popup = Builder.load_file('gui/kivy/uix/ui_screens/transaction.kv')
         popup.tx_hash = tx_hash
         popup.open()
+
+    def tx_selected(self, txid, state):
+        if state == 'down':
+            self.context = 'tx'
+            self.context_action = lambda: self.tx_dialog(txid)
+        else:
+            self.reset_context()
+
+    def reset_context(self):
+        self.context = ''
+        self.context_action = lambda: None
 
     def amount_dialog(self, screen, show_max):
         popup = Builder.load_file('gui/kivy/uix/ui_screens/amount.kv')

@@ -353,6 +353,16 @@ BoxLayout:
                     .format(app.status)
                 font_size: '22dp'
                 minimum_width: '1dp'
+                on_release:
+                    app.context_action()
+
+            ActionButton:
+                id: context_button
+                text: app.context
+                width: 0
+                on_text:
+                    self.width = 20 if self.text else 0
+                on_release: app.context_action()
 
             ActionOverflow:
                 id: ao
