@@ -322,7 +322,7 @@
     orientation: 'vertical'
     title: ''
     description: ''
-    size_hint: 1, None
+    size_hint: 1, 1
     Label:
         id: title
         text: self.parent.title
@@ -333,7 +333,7 @@
     Label:
         text: self.parent.description
         size_hint: 1, 1
-        text_size: self.size
+        text_size: self.width, None
         color: 0.8, 0.8, 0.8, 1
         halign: 'left'
 

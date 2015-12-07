@@ -13,7 +13,7 @@ Popup:
         CardSeparator
         SettingsItem:
             title: _('Denomination') + ' (' + app.base_unit + ')'
-            description: "Base unit for Bitcoin amounts."
+            description: _("Base unit for Bitcoin amounts.")
             on_release:
                 app._rotate_bu()
                 self.title = _('Denomination') + ' (' + app.base_unit + ')'

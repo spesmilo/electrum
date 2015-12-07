@@ -808,7 +808,7 @@ class ElectrumWindow(App):
         self.protected(self._change_password, ())
 
     def _change_password(self, old_password):
-        if old_password:
+        if self.wallet.use_encryption:
             try:
                 self.wallet.check_password(old_password)
             except InvalidPassword:
