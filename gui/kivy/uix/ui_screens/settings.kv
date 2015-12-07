@@ -6,6 +6,12 @@ Popup:
 
         orientation: 'vertical'
 
+        Button:
+            text: _('Set PIN Code')
+            size_hint: 1, None
+            height: '48dp'
+            on_release: app.change_password()
+
         GridLayout:
             cols: 2
             size_hint: 1, None

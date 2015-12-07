@@ -85,15 +85,6 @@ class ElectrumWindow(App):
     def decimal_point(self):
         return base_units[self.base_unit]
 
-    def toggle_fiat(self, a):
-        if not a.is_fiat:
-            if a.fiat_text:
-                a.fiat_amount = str(a.fiat_text).split()[0]
-        else:
-            if a.btc_text:
-                a.amount = str(a.btc_text).split()[0]
-        a.is_fiat = not a.is_fiat
-
     def btc_to_fiat(self, amount_str):
         if not amount_str:
             return ''
@@ -101,7 +92,7 @@ class ElectrumWindow(App):
         if not rate:
             return ''
         fiat_amount = self.get_amount(amount_str + ' ' + self.base_unit) * rate / pow(10, 8)
-        return "{:.2f}".format(fiat_amount).rstrip('0').rstrip('.') + ' ' + self.fiat_unit
+        return "{:.2f}".format(fiat_amount).rstrip('0').rstrip('.')
 
     def fiat_to_btc(self, fiat_amount):
         if not fiat_amount:
@@ -110,7 +101,7 @@ class ElectrumWindow(App):
         if not rate:
             return ''
         satoshis = int(pow(10,8) * Decimal(fiat_amount) / Decimal(rate))
-        return format_satoshis_plain(satoshis, self.decimal_point()) + ' ' + self.base_unit
+        return format_satoshis_plain(satoshis, self.decimal_point())
 
     def get_amount(self, amount_str):
         a, u = amount_str.split()
@@ -478,6 +469,19 @@ class ElectrumWindow(App):
         amount, fee = self.wallet.get_max_amount(self.electrum_config, inputs, None)
         return format_satoshis_plain(amount, self.decimal_point())
 
+    def update_password(self, label, c):
+        text = label.password
+        if c == '<':
+            text = text[:-1]
+        elif c == 'Clear':
+            text = ''
+        else:
+            text += c
+        label.password = text
+
+    def toggle_fiat(self, a):
+        a.is_fiat = not a.is_fiat
+
     def update_amount(self, label, c):
         amount = label.fiat_amount if label.is_fiat else label.amount
         if c == '<':
@@ -497,7 +501,6 @@ class ElectrumWindow(App):
             label.fiat_amount = amount
         else:
             label.amount = amount
-
 
     def format_amount(self, x, is_diff=False, whitespaces=False):
         return format_satoshis(x, is_diff, 0, self.decimal_point(), whitespaces)
@@ -786,7 +789,7 @@ class ElectrumWindow(App):
         if amount:
             a, u = str(amount).split()
             assert u == self.base_unit
-            popup.ids.a.amount = a
+            popup.ids.kb.amount = a
 
         def cb():
             o = popup.ids.a.btc_text
@@ -795,11 +798,17 @@ class ElectrumWindow(App):
         popup.on_dismiss = cb
         popup.open()
 
+    def change_password(self):
+        self.password_dialog(self._change_password, ())
+
+    def _change_password(self, password):
+        print "zs", password
+
     def password_dialog(self, f, args):
         if self.wallet.use_encryption:
             popup = Builder.load_file('gui/kivy/uix/ui_screens/password.kv')
             def callback():
-                pw = popup.ids.text_input.text
+                pw = popup.ids.kb.password
                 Clock.schedule_once(lambda x: apply(f, args + (pw,)), 0.5)
             popup.on_dismiss = callback
             popup.open()

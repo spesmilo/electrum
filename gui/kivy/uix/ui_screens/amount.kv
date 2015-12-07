@@ -16,79 +16,69 @@ Popup:
                 height: '48dp'
                 Label:
                     id: a
-                    amount: ''
-                    fiat_amount: ''
-                    is_fiat: False
-                    btc_text: app.fiat_to_btc(self.fiat_amount) if self.is_fiat else (self.amount + ' ' + app.base_unit if self.amount else '')
-                    fiat_text: (self.fiat_amount + ' ' + app.fiat_unit if self.fiat_amount else '') if self.is_fiat else app.btc_to_fiat(self.amount)
-                    text: (self.fiat_text + ' / ' + self.btc_text if self.is_fiat else self.btc_text + ' / ' + self.fiat_text) if self.btc_text else ''
+                    btc_text: (kb.amount + ' ' + app.base_unit) if kb.amount else ''
+                    fiat_text: (kb.fiat_amount + ' ' + app.fiat_unit) if kb.fiat_amount else ''
+                    text: (self.fiat_text + ' / ' + self.btc_text if kb.is_fiat else self.btc_text + ' / ' + self.fiat_text) if self.btc_text else ''
                     size_hint: 1, 1
-
             Widget:
                 size_hint: 1, 1
-
             GridLayout:
+                id: kb
+                amount: ''
+                fiat_amount: ''
+                is_fiat: False
+                on_fiat_amount: if self.is_fiat: self.amount = app.fiat_to_btc(self.fiat_amount)
+                on_amount: if not self.is_fiat: self.fiat_amount = app.btc_to_fiat(self.amount)
+                update_text: app.update_amount
                 size_hint: 1, None
                 height: '300dp'
                 cols: 3
                 KButton:
                     text: '1'
-                    label: a
                 KButton:
                     text: '2'
-                    label: a
                 KButton:
                     text: '3'
-                    label: a
                 KButton:
                     text: '4'
-                    label: a
                 KButton:
                     text: '5'
-                    label: a
                 KButton:
                     text: '6'
-                    label: a
                 KButton:
                     text: '7'
-                    label: a
                 KButton:
                     text: '8'
-                    label: a
                 KButton:
                     text: '9'
-                    label: a
                 KButton:
                     text: '.'
-                    label: a
                 KButton:
                     text: '0'
-                    label: a
                 KButton:
                     text: '<'
-                    label: a
                 Button:
                     id: but_max
                     size_hint: 1, None
                     height: '48dp'
                     text: 'Max'
                     on_release:
-                        a.is_fiat = False
-                        a.amount = app.get_max_amount()
+                        kb.is_fiat = False
+                        kb.amount = app.get_max_amount()
                 Button:
                     id: button_fiat
                     size_hint: 1, None
                     height: '48dp'
-                    text: app.fiat_unit if a.is_fiat else app.base_unit
+                    text: app.fiat_unit if kb.is_fiat else app.base_unit
                     on_release:
-                        app.toggle_fiat(a)
+                        app.toggle_fiat(kb)
                 Button:
                     size_hint: 1, None
                     height: '48dp'
                     text: 'Clear'
                     on_release:
-                        a.amount = ''
-                        a.fiat_amount = ''
+                        kb.amount = ''
+                        kb.fiat_amount = ''
 
             Widget:
                 size_hint: 1, None

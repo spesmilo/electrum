@@ -274,9 +274,7 @@ class ReceiveScreen(CScreen):
 
     def do_copy(self):
         uri = self.get_URI()
-        print "put", uri
         self.app._clipboard.put(uri, 'text/plain')
-        print "get", self.app._clipboard.get()
 
     def do_clear(self):
         self.screen.amount = ''
