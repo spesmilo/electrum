@@ -317,6 +317,27 @@
         if self.parent: self.parent.parent.dismiss()
         app.popup_dialog(self.name)
 
+
+<SettingsItem@ButtonBehavior+BoxLayout>
+    orientation: 'vertical'
+    title: ''
+    description: ''
+    size_hint: 1, None
+    Label:
+        id: title
+        text: self.parent.title
+        size_hint: 1, 1
+        bold: True
+        text_size: self.size
+        halign: 'left'
+    Label:
+        text: self.parent.description
+        size_hint: 1, 1
+        text_size: self.size
+        color: 0.8, 0.8, 0.8, 1
+        halign: 'left'
+
+
 BoxLayout:
 
     orientation: 'vertical'

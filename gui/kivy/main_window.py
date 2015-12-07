@@ -9,7 +9,7 @@ import electrum
 from electrum import WalletStorage, Wallet
 from electrum.i18n import _, set_language
 from electrum.contacts import Contacts
-from electrum.util import profiler
+from electrum.util import profiler, InvalidPassword
 from electrum.plugins import run_hook
 from electrum.util import format_satoshis, format_satoshis_plain
 
@@ -798,19 +798,40 @@ class ElectrumWindow(App):
         popup.on_dismiss = cb
         popup.open()
 
-    def change_password(self):
-        self.password_dialog(self._change_password, ())
-
-    def _change_password(self, password):
-        print "zs", password
-
-    def password_dialog(self, f, args):
+    def protected(self, f, args):
         if self.wallet.use_encryption:
-            popup = Builder.load_file('gui/kivy/uix/ui_screens/password.kv')
-            def callback():
-                pw = popup.ids.kb.password
-                Clock.schedule_once(lambda x: apply(f, args + (pw,)), 0.5)
-            popup.on_dismiss = callback
-            popup.open()
+            self.password_dialog(_('Enter PIN'), f, args)
         else:
             apply(f, args + (None,))
+
+    def change_password(self):
+        self.protected(self._change_password, ())
+
+    def _change_password(self, old_password):
+        if old_password:
+            try:
+                self.wallet.check_password(old_password)
+            except InvalidPassword:
+                self.show_error("Invalid PIN")
+                return
+        self.password_dialog(_('Enter new PIN'), self._change_password2, (old_password,))
+
+    def _change_password2(self, old_password, new_password):
+        self.password_dialog(_('Confirm new PIN'), self._change_password3, (old_password, new_password))
+
+    def _change_password3(self, old_password, new_password, confirmed_password):
+        if new_password == confirmed_password:
+            self.wallet.update_password(old_password, new_password)
+        else:
+            self.show_error("PIN numbers do not match")
+
+    def password_dialog(self, title, f, args):
+        popup = Builder.load_file('gui/kivy/uix/ui_screens/password.kv')
+        popup.title = title
+        def callback():
+            pw = popup.ids.kb.password
+            Clock.schedule_once(lambda x: apply(f, args + (pw,)), 0.1)
+        popup.on_dismiss = callback
+        popup.open()
+
+

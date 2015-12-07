@@ -218,7 +218,7 @@ class SendScreen(CScreen):
         message = unicode(self.screen.message)
         fee = None
         outputs = [('address', address, amount)]
-        self.app.password_dialog(self.send_tx, (outputs, fee, message))
+        self.app.protected(self.send_tx, (outputs, fee, message))
 
     def send_tx(self, *args):
         self.app.show_info("Sending...")
