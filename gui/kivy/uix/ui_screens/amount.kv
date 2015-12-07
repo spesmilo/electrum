@@ -20,6 +20,7 @@ Popup:
                     fiat_text: (kb.fiat_amount + ' ' + app.fiat_unit) if kb.fiat_amount else ''
                     text: (self.fiat_text + ' / ' + self.btc_text if kb.is_fiat else self.btc_text + ' / ' + self.fiat_text) if self.btc_text else ''
                     size_hint: 1, 1
+                    font_size: '22dp'
             Widget:
                 size_hint: 1, 1
             GridLayout:
