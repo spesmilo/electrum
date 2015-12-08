@@ -16,6 +16,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import ast, os
+
 import jsonrpclib
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCRequestHandler
 
@@ -25,9 +27,15 @@ from commands import known_commands, Commands
 from simple_config import SimpleConfig
 
 
+def lockfile(config):
+    return os.path.join(config.path, 'daemon')
+
 def get_daemon(config):
-    host = config.get('rpchost', 'localhost')
-    port = config.get('rpcport', 7777)
+    try:
+        with open(lockfile(config)) as f:
+            host, port = ast.literal_eval(f.read())
+    except:
+        return
     server = jsonrpclib.Server('http://%s:%d' % (host, port))
     # check if daemon is running
     try:
@@ -65,8 +73,10 @@ class Daemon(DaemonThread):
             self.wallet = None
         self.cmd_runner = Commands(self.config, self.wallet, self.network)
         host = config.get('rpchost', 'localhost')
-        port = config.get('rpcport', 7777)
+        port = config.get('rpcport', 0)
         self.server = SimpleJSONRPCServer((host, port), requestHandler=RequestHandler, logRequests=False)
+        with open(lockfile(config), 'w') as f:
+            f.write(repr(self.server.socket.getsockname()))
         self.server.timeout = 0.1
         for cmdname in known_commands:
             self.server.register_function(getattr(self.cmd_runner, cmdname), cmdname)
@@ -147,6 +157,7 @@ class Daemon(DaemonThread):
     def run(self):
         while self.is_running():
             self.server.handle_request()
+        os.unlink(lockfile(self.config))
 
     def stop(self):
         for k, wallet in self.wallets.items():
