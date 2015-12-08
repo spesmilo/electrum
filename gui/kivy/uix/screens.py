@@ -218,7 +218,7 @@ class SendScreen(CScreen):
         message = unicode(self.screen.message)
         fee = None
         outputs = [('address', address, amount)]
-        self.app.password_dialog(self.send_tx, (outputs, fee, message))
+        self.app.protected(self.send_tx, (outputs, fee, message))
 
     def send_tx(self, *args):
         self.app.show_info("Sending...")
@@ -274,9 +274,7 @@ class ReceiveScreen(CScreen):
 
     def do_copy(self):
         uri = self.get_URI()
-        print "put", uri
         self.app._clipboard.put(uri, 'text/plain')
-        print "get", self.app._clipboard.get()
 
     def do_clear(self):
         self.screen.amount = ''

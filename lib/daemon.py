@@ -67,7 +67,7 @@ class Daemon(DaemonThread):
         host = config.get('rpchost', 'localhost')
         port = config.get('rpcport', 7777)
         self.server = SimpleJSONRPCServer((host, port), requestHandler=RequestHandler, logRequests=False)
-        self.server.timeout = 1.0
+        self.server.timeout = 0.1
         for cmdname in known_commands:
             self.server.register_function(getattr(self.cmd_runner, cmdname), cmdname)
         self.server.register_function(self.run_cmdline, 'run_cmdline')

@@ -3,32 +3,24 @@ Popup:
     title: _('Settings')
 
     BoxLayout:
-
         orientation: 'vertical'
-
-        GridLayout:
-            cols: 2
-            size_hint: 1, None
-            height: '100dp'
-            Label:
-                text: _('Base unit')
-                size_hint: 1, None
-                height: '48dp'
-            Button:
-                text: app.base_unit
-                size_hint: 1, None
-                height: '48dp'
-                on_release:
-                    app._rotate_bu()
-                    self.text = app.base_unit
-            Label:
-                size_hint: 1, None
-                text: 'OpenAlias'
-                height: '48dp'
-            TextInput:
-                size_hint: 1, None
-                height: '48dp'
-                multiline: False
+        SettingsItem:
+            title: _('PIN Code') + ' (%s)'%('ON' if app.wallet.use_encryption else 'OFF')
+            description: _("Your PIN code will be required in order to spend litecoins.")
+            on_release:
+                app.change_password()
+                self.title = _('PIN Code') + ' (%s)'%('ON' if app.wallet.use_encryption else 'OFF')
+        CardSeparator
+        SettingsItem:
+            title: _('Denomination') + ' (' + app.base_unit + ')'
+            description: _("Base unit for Litecoin amounts.")
+            on_release:
+                app._rotate_bu()
+                self.title = _('Denomination') + ' (' + app.base_unit + ')'
+        CardSeparator
+        SettingsItem:
+            title: _('OpenAlias')
+            description: "Email-like address."
 
         Widget:
             size_hint: 1, 1
