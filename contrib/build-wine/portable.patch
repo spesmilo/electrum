@@ -1,0 +1,13 @@
+diff --git a/electrum b/electrum
+index 8c972c6..46903b7 100755
+--- a/electrum
++++ b/electrum
+@@ -454,6 +454,8 @@ if __name__ == '__main__':
+         if config_options.get('server'):
+             config_options['auto_connect'] = False
+ 
++    config_options['portable'] = True
++
+     if config_options.get('portable'):
+         config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
+ 

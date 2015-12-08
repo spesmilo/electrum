@@ -909,9 +909,6 @@ class ElectrumGui:
         network = _network
         config = _config
         network.register_callback('updated', update_callback)
-        network.register_callback('connected', update_callback)
-        network.register_callback('disconnected', update_callback)
-        network.register_callback('disconnecting', update_callback)
 
         contacts = util.StoreDict(config, 'contacts')
 
@@ -953,7 +950,7 @@ class ElectrumGui:
             droid.dialogShow()
             wallet.start_threads(network)
             if action == 'restore':
-                wallet.restore(lambda x: None)
+                wallet.wait_until_synchronized()
             else:
                 wallet.synchronize()
             droid.dialogDismiss()

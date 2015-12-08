@@ -101,19 +101,26 @@ class Commands:
     @command('')
     def create(self):
         """Create a new wallet"""
+        raise BaseException('Not a JSON-RPC command')
 
-    @command('')
-    def restore(self, concealed=False, mpk=None):
-        """Restore a wallet from seed. """
+    @command('wn')
+    def restore(self, text):
+        """Restore a wallet from text. Text can be a seed phrase, a master
+        public key, a master private key, a list of bitcoin addresses
+        or bitcoin private keys. If you want to be prompted for your
+        seed, type '?' or ':' (concealed) """
+        raise BaseException('Not a JSON-RPC command')
 
     @command('w')
     def deseed(self):
         """Remove seed from wallet. This creates a seedless, watching-only
         wallet."""
+        raise BaseException('Not a JSON-RPC command')
 
     @command('wp')
     def password(self):
         """Change wallet password. """
+        raise BaseException('Not a JSON-RPC command')
 
     @command('')
     def getconfig(self, key):
@@ -194,7 +201,7 @@ class Commands:
         tx = Transaction.from_io(tx_inputs, outputs)
         if not unsigned:
             self.wallet.sign_transaction(tx, self.password)
-        return tx
+        return tx.as_dict()
 
     @command('wp')
     def signtransaction(self, tx, privkey=None):
@@ -206,7 +213,7 @@ class Commands:
             t.sign({pubkey:privkey})
         else:
             self.wallet.sign_transaction(t, self.password)
-        return t
+        return t.as_dict()
 
     @command('')
     def deserialize(self, tx):
@@ -411,27 +418,19 @@ class Commands:
             self.wallet.sign_transaction(tx, self.password)
         return tx
 
-    @command('wp')
-    def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False, broadcast=False):
+    @command('wpn')
+    def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False):
         """Create a transaction. """
         domain = [from_addr] if from_addr else None
         tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned)
-        if broadcast:
-            r, h = self.wallet.sendtx(tx)
-            return h
-        else:
-            return tx.deserialize() if deserialized else tx
+        return tx.as_dict()
 
-    @command('wp')
-    def paytomany(self, outputs, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, deserialized=False, broadcast=False):
+    @command('wpn')
+    def paytomany(self, outputs, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False):
         """Create a multi-output transaction. """
         domain = [from_addr] if from_addr else None
         tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned)
-        if broadcast:
-            r, h = self.wallet.sendtx(tx)
-            return h
-        else:
-            return tx.deserialize() if deserialized else tx
+        return tx.as_dict()
 
     @command('wn')
     def history(self):
@@ -504,7 +503,7 @@ class Commands:
         return out
 
     @command('nw')
-    def gettransaction(self, txid, deserialized=False):
+    def gettransaction(self, txid):
         """Retrieve a transaction. """
         tx = self.wallet.transactions.get(txid) if self.wallet else None
         if tx is None and self.network:
@@ -513,7 +512,7 @@ class Commands:
                 tx = Transaction(raw)
             else:
                 raise BaseException("Unknown transaction")
-        return tx.deserialize() if deserialized else tx
+        return tx.as_dict()
 
     @command('')
     def encrypt(self, pubkey, message):
@@ -532,7 +531,7 @@ class Commands:
             PR_PAID: 'Paid',
             PR_EXPIRED: 'Expired',
         }
-        out['amount (BTC)'] = format_satoshis(out.pop('amount'))
+        out['amount (BTC)'] = format_satoshis(out.get('amount'))
         out['status'] = pr_str[out.get('status', PR_UNKNOWN)]
         return out
 
@@ -578,7 +577,8 @@ class Commands:
         expiration = int(expiration)
         req = self.wallet.make_payment_request(addr, amount, memo, expiration)
         self.wallet.add_payment_request(req, self.config)
-        return self._format_request(req)
+        out = self.wallet.get_payment_request(addr, self.config)
+        return self._format_request(out)
 
     @command('wp')
     def signrequest(self, address):
@@ -620,9 +620,7 @@ param_descriptions = {
 }
 
 command_options = {
-    'broadcast':   (None, "--broadcast",   "Broadcast the transaction to the Bitcoin network"),
     'password':    ("-W", "--password",    "Password"),
-    'concealed':   ("-C", "--concealed",   "Don't echo seed to console when restoring"),
     'receiving':   (None, "--receiving",   "Show only receiving addresses"),
     'change':      (None, "--change",      "Show only change addresses"),
     'frozen':      (None, "--frozen",      "Show only frozen addresses"),
@@ -638,8 +636,6 @@ command_options = {
     'entropy':     (None, "--entropy",     "Custom entropy"),
     'language':    ("-L", "--lang",        "Default language for wordlist"),
     'gap_limit':   ("-G", "--gap",         "Gap limit"),
-    'mpk':         (None, "--mpk",         "Restore from master public key"),
-    'deserialized':("-d", "--deserialized","Return deserialized transaction"),
     'privkey':     (None, "--privkey",     "Private key. Set to '?' to get a prompt."),
     'unsigned':    ("-u", "--unsigned",    "Do not sign transaction"),
     'domain':      ("-D", "--domain",      "List of addresses"),
@@ -660,8 +656,8 @@ arg_types = {
     'pubkeys': json.loads,
     'inputs': json.loads,
     'outputs': json.loads,
-    'tx_fee': lambda x: Decimal(x) if x is not None else None,
-    'amount': lambda x: Decimal(x) if x!='!' else '!',
+    'tx_fee': lambda x: float(x) if x is not None else None,
+    'amount': lambda x: float(x) if x!='!' else '!',
 }
 
 config_variables = {

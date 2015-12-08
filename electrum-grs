@@ -79,7 +79,7 @@ if is_bundle or is_local or is_android:
 
 from electrum_grs import util
 from electrum_grs import SimpleConfig, Network, Wallet, WalletStorage
-from electrum_grs.util import print_msg, print_error, print_stderr, print_json, set_verbosity, InvalidPassword
+from electrum_grs.util import print_msg, print_error, print_stderr, json_encode, json_decode, set_verbosity, InvalidPassword
 from electrum_grs.plugins import Plugins, run_hook, always_hook
 from electrum_grs.commands import get_parser, known_commands, Commands, config_variables
 
@@ -87,7 +87,7 @@ from electrum_grs.commands import get_parser, known_commands, Commands, config_v
 # get password routine
 def prompt_password(prompt, confirm=True):
     import getpass
-    password = getpass.getpass(prompt)
+    password = getpass.getpass(prompt, stream=None)
     if password and confirm:
         password2 = getpass.getpass("Confirm: ")
         if password != password2:
@@ -136,42 +136,31 @@ def init_cmdline(config):
     if cmd.name in ['create', 'restore']:
         if storage.file_exists:
             sys.exit("Error: Remove the existing wallet first!")
-        if config.get('password') is not None:
-            password = config.get('password')
-        elif cmd.name == 'restore' and config.get('mpk'):
-            password = None
-        else:
-            password = prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
+
+        def password_dialog():
+            return prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
 
         if cmd.name == 'restore':
-            mpk = config.get('mpk')
-            if mpk:
-                if Wallet.is_old_mpk(mpk):
-                    wallet = Wallet.from_old_mpk(mpk, storage)
-                if Wallet.is_xpub(mpk):
-                    wallet = Wallet.from_xpub(mpk, storage)
-            else:
-                import getpass
-                seed = getpass.getpass(prompt="seed:", stream=None) if config.get('concealed') else raw_input("seed:")
-                if not Wallet.is_seed(seed):
-                    sys.exit("Error: Invalid seed")
-                wallet = Wallet.from_seed(seed, password, storage)
-
+            text = config.get('text')
+            password = password_dialog() if Wallet.is_seed(text) or Wallet.is_xprv(text) or Wallet.is_private_key(text) else None
+            try:
+                wallet = Wallet.from_text(text, password, storage)
+            except BaseException as e:
+                sys.exit(str(e))
             if not config.get('offline'):
                 network = Network(config)
                 network.start()
                 wallet.start_threads(network)
                 print_msg("Recovering wallet...")
-                wallet.restore(lambda x: x)
-                if wallet.is_found():
-                    print_msg("Recovery successful")
-                else:
-                    print_msg("Warning: Found no history for this wallet")
-            else:
                 wallet.synchronize()
-                print_msg("Warning: This wallet was restored offline. It may contain more addresses than displayed.")
+                wallet.wait_until_synchronized()
+                msg = "Recovery successful" if wallet.is_found() else "Found no history for this wallet"
+            else:
+                msg = "This wallet was restored offline. It may contain more addresses than displayed."
+            print_msg(msg)
 
         else:
+            password = password_dialog()
             wallet = Wallet(storage)
             seed = wallet.make_seed()
             wallet.add_seed(seed, password)
@@ -182,10 +171,9 @@ def init_cmdline(config):
             print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
 
         print_msg("Wallet saved in '%s'" % wallet.storage.path)
-        # terminate
         sys.exit(0)
 
-    if cmd.name not in ['create', 'restore'] and cmd.requires_wallet and not storage.file_exists:
+    if cmd.requires_wallet and not storage.file_exists:
         print_msg("Error: Wallet file not found.")
         print_msg("Type 'electrum-grs create' to create a new wallet, or provide a path to a wallet with the -w option")
         sys.exit(0)
@@ -256,26 +244,23 @@ def run_command(config, network, password):
     storage = WalletStorage(config.get_wallet_path())
     # create wallet instance
     wallet = Wallet(storage) if cmd.requires_wallet else None
+    # start threads
+    if wallet and network:
+        wallet.start_threads(network)
+        wallet.wait_until_synchronized()
     # arguments passed to function
     args = map(lambda x: config.get(x), cmd.params)
     # decode json arguments
-    def json_decode(x):
-        try:
-            return json.loads(x)
-        except:
-            return x
     args = map(json_decode, args)
     # options
     args += map(lambda x: config.get(x), cmd.options)
-
     cmd_runner = Commands(config, wallet, network)
     cmd_runner.password = password
     func = getattr(cmd_runner, cmd.name)
     result = func(*args)
-
+    # stop threads
     if wallet:
         wallet.stop_threads()
-
     return result
 
 
@@ -432,6 +417,8 @@ if __name__ == '__main__':
             else:
                 raise BaseException('Cannot get argument from stdin')
         elif arg == '?':
+            sys.argv[i] = raw_input("Enter argument:")
+        elif arg == ':':
             sys.argv[i] = prompt_password('Enter argument (will not echo):', False)
 
     # parse command line
@@ -462,9 +449,6 @@ if __name__ == '__main__':
     # check uri
     uri = config_options.get('url')
     if uri:
-        if os.path.exists(uri):
-            # assume this is a payment request
-            uri = "bitcoin:?r=file://"+ os.path.join(os.getcwd(), uri)
         if not re.match('^bitcoin:', uri):
             print_stderr('unknown command:', uri)
             sys.exit(1)
@@ -477,13 +461,15 @@ if __name__ == '__main__':
     gui_name = config.get('gui', 'qt') if cmd_name == 'gui' else 'cmdline'
     plugins = Plugins(config, is_bundle or is_local or is_android, gui_name)
 
-    # get password if needed
+    # run command offline
     if cmd_name not in ['gui', 'daemon']:
         cmd, password = init_cmdline(config)
         if not cmd.requires_network or config.get('offline'):
             result = run_command(config, None, password)
-            print_json(result)
-            sys.exit(1)
+            print_msg(json_encode(result))
+            sys.exit(0)
+        else:
+            config_options['password'] = password
 
     # check if daemon is running
     s = get_daemon(config, False)
@@ -495,11 +481,10 @@ if __name__ == '__main__':
         s.close()
         if type(result) in [str, unicode]:
             print_msg(result)
+        elif type(result) is dict and result.get('error'):
+            print_stderr(result.get('error'))
         elif result is not None:
-            if type(result) is dir and result.get('error'):
-                print_stderr(result.get('error'))
-            else:
-                print_json(result)
+            print_msg(json_encode(result))
         sys.exit(0)
 
     # daemon is not running

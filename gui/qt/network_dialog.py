@@ -17,13 +17,15 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import sys, time, datetime, re, threading
-from electrum_grs.i18n import _
-from electrum_grs.util import print_error, print_msg
 import os.path, json, ast, traceback
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
+
+from electrum_grs.i18n import _
+from electrum_grs.util import print_error, print_msg
 from electrum_grs import DEFAULT_PORTS
+from electrum_grs.network import serialize_server, deserialize_server
 
 from util import *
 
@@ -224,9 +226,14 @@ class NetworkDialog(QDialog):
         if not self.exec_():
             return
 
-        host = str( self.server_host.text() )
-        port = str( self.server_port.text() )
+        host = str(self.server_host.text())
+        port = str(self.server_port.text())
         protocol = 's' if self.ssl_cb.isChecked() else 't'
+        # sanitize
+        try:
+            deserialize_server(serialize_server(host, port, protocol))
+        except:
+            return
 
         if self.proxy_mode.currentText() != 'NONE':
             proxy = { 'mode':str(self.proxy_mode.currentText()).lower(),

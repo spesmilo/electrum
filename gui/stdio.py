@@ -35,9 +35,7 @@ class ElectrumGui:
         self.contacts = StoreDict(self.config, 'contacts')
 
         self.wallet.network.register_callback('updated', self.updated)
-        self.wallet.network.register_callback('connected', self.connected)
-        self.wallet.network.register_callback('disconnected', self.disconnected)
-        self.wallet.network.register_callback('disconnecting', self.disconnecting)
+
         self.wallet.network.register_callback('peers', self.peers)
         self.wallet.network.register_callback('banner', self.print_banner)
         self.commands = [_("[h] - displays this help text"), \
@@ -72,15 +70,6 @@ class ElectrumGui:
         l = filter_protocol(self.wallet.network.get_servers(), 's')
         for s in l:
             print (s)
-
-    def connected(self):
-        print ("connected")
-
-    def disconnected(self):
-        print ("disconnected")
-
-    def disconnecting(self):
-        print ("disconnecting")
 
     def updated(self):
         s = self.get_balance()
@@ -201,7 +190,7 @@ class ElectrumGui:
             if c == "n": return
 
         try:
-            tx = self.wallet.mktx( [(self.str_recipient, amount)], password, self.config, fee)
+            tx = self.wallet.mktx( [("address", self.str_recipient, amount)], password, self.config, fee)
         except Exception as e:
             print(str(e))
             return

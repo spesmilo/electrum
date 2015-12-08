@@ -36,6 +36,7 @@ from transaction import Transaction
 from plugins import run_hook
 import bitcoin
 from synchronizer import Synchronizer
+from verifier import SPV
 from mnemonic import Mnemonic
 
 import paymentrequest
@@ -125,6 +126,10 @@ class WalletStorage(PrintError):
             f.write(s)
             f.flush()
             os.fsync(f.fileno())
+
+        if 'ANDROID_DATA' not in os.environ:
+            import stat
+            mode = os.stat(self.path).st_mode if os.path.exists(self.path) else stat.S_IREAD | stat.S_IWRITE
         # perform atomic write on POSIX systems
         try:
             os.rename(temp_path, self.path)
@@ -133,7 +138,7 @@ class WalletStorage(PrintError):
             os.rename(temp_path, self.path)
         if 'ANDROID_DATA' not in os.environ:
             import stat
-            os.chmod(self.path,stat.S_IREAD | stat.S_IWRITE)
+            os.chmod(self.path, mode)
         self.print_error("saved")
 
 
@@ -220,7 +225,8 @@ class Abstract_Wallet(PrintError):
             self.storage.put('transactions', tx, False)
             self.storage.put('txi', self.txi, False)
             self.storage.put('txo', self.txo, False)
-            self.storage.put('pruned_txo', self.pruned_txo, True)
+            self.storage.put('pruned_txo', self.pruned_txo, False)
+            self.storage.put('addr_history', self.history, True)
 
     def clear_history(self):
         with self.transaction_lock:
@@ -231,7 +237,6 @@ class Abstract_Wallet(PrintError):
         with self.lock:
             self.history = {}
             self.tx_addr_hist = {}
-        self.storage.put('addr_history', self.history, True)
 
     @profiler
     def build_reverse_history(self):
@@ -258,8 +263,9 @@ class Abstract_Wallet(PrintError):
                 if tx is not None:
                     tx.deserialize()
                     self.add_transaction(tx_hash, tx)
+                    save = True
         if save:
-            self.storage.put('addr_history', self.history, True)
+            self.save_transactions()
 
     # wizard action
     def get_action(self):
@@ -309,11 +315,6 @@ class Abstract_Wallet(PrintError):
 
     def is_up_to_date(self):
         with self.lock: return self.up_to_date
-
-    def update(self):
-        self.up_to_date = False
-        while not self.is_up_to_date():
-            time.sleep(0.1)
 
     def is_imported(self, addr):
         account = self.accounts.get(IMPORTED_ACCOUNT)
@@ -434,7 +435,7 @@ class Abstract_Wallet(PrintError):
         self.storage.put('verified_tx3', self.verified_tx, True)
 
         conf, timestamp = self.get_confirmations(tx_hash)
-        self.network.trigger_callback('verified', (tx_hash, conf, timestamp))
+        self.network.trigger_callback('verified', tx_hash, conf, timestamp)
 
     def get_unverified_txs(self):
         '''Returns a map from tx hash to transaction height'''
@@ -634,6 +635,19 @@ class Abstract_Wallet(PrintError):
                     coins = coins[1:] + [ coins[0] ]
         return [value for height, value in coins]
 
+    def get_max_amount(self, config, inputs, fee):
+        sendable = sum(map(lambda x:x['value'], inputs))
+        for i in inputs:
+            self.add_input_info(i)
+        addr = self.addresses(False)[0]
+        output = ('address', addr, sendable)
+        dummy_tx = Transaction.from_io(inputs, [output])
+        if fee is None:
+            fee_per_kb = self.fee_per_kb(config)
+            fee = self.estimated_fee(dummy_tx, fee_per_kb)
+        amount = max(0, sendable - fee)
+        return amount, fee
+
     def get_account_name(self, k):
         return self.labels.get(k, self.accounts[k].get_name(k))
 
@@ -772,11 +786,12 @@ class Abstract_Wallet(PrintError):
             try:
                 self.txi.pop(tx_hash)
                 self.txo.pop(tx_hash)
-            except KeyErrror:
+            except KeyError:
                 self.print_error("tx was not in history", tx_hash)
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
         self.add_transaction(tx_hash, tx)
+        self.save_transactions()
         self.add_unverified_tx(tx_hash, tx_height)
 
 
@@ -791,7 +806,6 @@ class Abstract_Wallet(PrintError):
                         self.remove_transaction(tx_hash)
 
             self.history[addr] = hist
-            self.storage.put('addr_history', self.history, True)
 
         for tx_hash, tx_height in hist:
             # add it in case it was previously unconfirmed
@@ -806,6 +820,8 @@ class Abstract_Wallet(PrintError):
                 tx.deserialize()
                 self.add_transaction(tx_hash, tx)
 
+        # Write updated TXI, TXO etc.
+        self.save_transactions()
 
     def get_history(self, domain=None):
         from collections import defaultdict
@@ -881,6 +897,9 @@ class Abstract_Wallet(PrintError):
     def get_tx_fee(self, tx):
         # this method can be overloaded
         return tx.get_fee()
+
+    def dust_threshold(self):
+        return 182 * 3 * MIN_RELAY_TX_FEE/1000
 
     @profiler
     def estimated_fee(self, tx, fee_per_kb):
@@ -960,7 +979,7 @@ class Abstract_Wallet(PrintError):
         change_amount = total - ( amount + fee )
         if fixed_fee is not None and change_amount > 0:
             tx.outputs.append(('address', change_addr, change_amount))
-        elif change_amount > DUST_THRESHOLD:
+        elif change_amount > self.dust_threshold():
             tx.outputs.append(('address', change_addr, change_amount))
             # recompute fee including change output
             fee = self.estimated_fee(tx, fee_per_kb)
@@ -968,7 +987,7 @@ class Abstract_Wallet(PrintError):
             tx.outputs.pop()
             # if change is still above dust threshold, re-add change output.
             change_amount = total - ( amount + fee )
-            if change_amount > DUST_THRESHOLD:
+            if change_amount > self.dust_threshold():
                 tx.outputs.append(('address', change_addr, change_amount))
                 self.print_error('change', change_amount)
             else:
@@ -1043,6 +1062,8 @@ class Abstract_Wallet(PrintError):
     def send_tx(self, tx):
         # asynchronous
         self.tx_event.clear()
+        # fixme: this does not handle the case where server does not answer
+        assert self.network.interface, "Not connected."
         self.network.send([('blockchain.transaction.broadcast', [str(tx)])], self.on_broadcast)
         return tx.hash()
 
@@ -1111,7 +1132,6 @@ class Abstract_Wallet(PrintError):
                 self.transactions.pop(tx_hash)
 
     def start_threads(self, network):
-        from verifier import SPV
         self.network = network
         if self.network is not None:
             self.prepare_for_verifier()
@@ -1125,12 +1145,37 @@ class Abstract_Wallet(PrintError):
     def stop_threads(self):
         if self.network:
             self.network.remove_jobs([self.synchronizer, self.verifier])
+            self.synchronizer.release()
             self.synchronizer = None
             self.verifier = None
+            # Now no references to the syncronizer or verifier
+            # remain so they will be GC-ed
             self.storage.put('stored_height', self.get_local_height(), True)
 
-    def restore(self, cb):
-        pass
+    def wait_until_synchronized(self, callback=None):
+        from i18n import _
+        def wait_for_wallet():
+            self.set_up_to_date(False)
+            while not self.is_up_to_date():
+                if callback:
+                    msg = "%s\n%s %d"%(
+                        _("Please wait..."),
+                        _("Addresses generated:"),
+                        len(self.addresses(True)))
+                    apply(callback, (msg,))
+                time.sleep(0.1)
+        def wait_for_network():
+            while not self.network.is_connected():
+                if callback:
+                    msg = "%s \n" % (_("Connecting..."))
+                    apply(callback, (msg,))
+                time.sleep(0.1)
+        # wait until we are connected, because the user might have selected another server
+        if self.network:
+            wait_for_network()
+            wait_for_wallet()
+        else:
+            self.synchronize()
 
     def get_accounts(self):
         return self.accounts
@@ -1254,12 +1299,16 @@ class Abstract_Wallet(PrintError):
     def can_change_password(self):
         return not self.is_watching_only()
 
-    def get_unused_address(self, account):
+    def get_unused_addresses(self, account):
         # fixme: use slots from expired requests
         domain = self.get_account_addresses(account, include_change=False)
-        for addr in domain:
-            if not self.history.get(addr) and addr not in self.receive_requests.keys():
-                return addr
+        return [addr for addr in domain if not self.history.get(addr)
+                and addr not in self.receive_requests.keys()]
+
+    def get_unused_address(self, account):
+        addrs = self.get_unused_addresses(account)
+        if addrs:
+            return addrs[0]
 
     def get_payment_request(self, addr, config):
         import util
@@ -1498,32 +1547,6 @@ class Deterministic_Wallet(Abstract_Wallet):
         with self.lock:
             for account in self.accounts.values():
                 account.synchronize(self)
-
-    def restore(self, callback):
-        from i18n import _
-        def wait_for_wallet():
-            self.set_up_to_date(False)
-            while not self.is_up_to_date():
-                msg = "%s\n%s %d"%(
-                    _("Please wait..."),
-                    _("Addresses generated:"),
-                    len(self.addresses(True)))
-
-                apply(callback, (msg,))
-                time.sleep(0.1)
-
-        def wait_for_network():
-            while not self.network.is_connected():
-                msg = "%s \n" % (_("Connecting..."))
-                apply(callback, (msg,))
-                time.sleep(0.1)
-
-        # wait until we are connected, because the user might have selected another server
-        if self.network:
-            wait_for_network()
-            wait_for_wallet()
-        else:
-            self.synchronize()
 
     def is_beyond_limit(self, address, account, is_change):
         if type(account) == ImportedAccount:
@@ -2077,3 +2100,21 @@ class Wallet(object):
         self.storage.put('use_encryption', self.use_encryption, True)
         self.create_main_account(password)
         return self
+
+    @classmethod
+    def from_text(klass, text, password, storage):
+        if Wallet.is_xprv(text):
+            wallet = klass.from_xprv(text, password, storage)
+        elif Wallet.is_old_mpk(text):
+            wallet = klass.from_old_mpk(text, storage)
+        elif Wallet.is_xpub(text):
+            wallet = klass.from_xpub(text, storage)
+        elif Wallet.is_address(text):
+            wallet = klass.from_address(text, storage)
+        elif Wallet.is_private_key(text):
+            wallet = klass.from_private_key(text, password, storage)
+        elif Wallet.is_seed(text):
+            wallet = klass.from_seed(text, password, storage)
+        else:
+            raise BaseException('Invalid seedphrase or key')
+        return wallet

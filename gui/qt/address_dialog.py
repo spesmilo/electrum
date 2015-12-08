@@ -16,23 +16,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import sys, time, datetime, re, threading
-from electrum_grs.i18n import _, set_language
-from electrum_grs.util import print_error, print_msg
-import os.path, json, ast, traceback
-import shutil
-import StringIO
+from electrum_grs.i18n import _
 
-
-try:
-    import PyQt4
-except Exception:
-    sys.exit("Error: Could not import PyQt4 on Linux systems, you may try 'sudo apt-get install python-qt4'")
-
+import PyQt4
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-import PyQt4.QtCore as QtCore
-
 
 from util import *
 from history_widget import HistoryWidget
@@ -63,16 +51,16 @@ class AddressDialog(QDialog):
 
         vbox.addWidget(QLabel(_("History")))
         self.hw = HistoryWidget(self.parent)
+        self.hw.get_domain = self.get_domain
         vbox.addWidget(self.hw)
 
         vbox.addStretch(1)
         vbox.addLayout(Buttons(CloseButton(self)))
         self.format_amount = self.parent.format_amount
+        self.hw.update()
 
-        h = self.wallet.get_history([self.address])
-        self.hw.update(h)
-
-
+    def get_domain(self):
+        return [self.address]
 
     def show_qr(self):
         text = self.address
@@ -80,6 +68,3 @@ class AddressDialog(QDialog):
             self.parent.show_qrcode(text, 'Address')
         except Exception as e:
             self.show_message(str(e))
-
-
-

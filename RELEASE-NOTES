@@ -1,3 +1,16 @@
+# Release 2.5.4
+ * increase MIN_RELAY_TX_FEE to avoid dust transactions
+
+# Release 2.5.3 (bugfixes)
+ * installwizard: do not allow direct copy-paste of the seed
+ * installwizard: fix bug #1531 (starting offline)
+
+# Release 2.5.2 (bugfixes)
+ * fix bug #1513 (client tries to broadcast transaction while not connected)
+ * fix synchronization bug (#1520)
+ * fix command line bug (#1494)
+ * fixes for exchange rate plugin
+
 # Release 2.5.1 (bugfixes)
  * signatures in transactions were still using the old class
  * make sure that setup.py uses python2

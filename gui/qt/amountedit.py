@@ -95,7 +95,7 @@ class BTCAmountEdit(AmountEdit):
 
     def setAmount(self, amount):
         if amount is None:
-            self.setText("")
+            self.setText(" ") # Space forces repaint in case units changed
         else:
             self.setText(format_satoshis_plain(amount, self.decimal_point()))
 

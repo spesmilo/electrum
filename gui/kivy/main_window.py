@@ -30,6 +30,9 @@ Factory.register('InstallWizard',
 Factory.register('InfoBubble', module='electrum_gui.kivy.uix.dialogs')
 Factory.register('ELTextInput', module='electrum_gui.kivy.uix.screens')
 
+from kivy.core.window import Window
+Window.softinput_mode = 'below_target'
+
 
 # delayed imports: for startup speed on android
 notification = app = ref = format_satoshis = None
@@ -425,7 +428,7 @@ class ElectrumWindow(App):
                 self.status = text.strip() + ' ' + self.base_unit
         else:
             self.status = _("Not connected")
-            
+
         return
 
         print self.root.manager.ids
@@ -440,12 +443,22 @@ class ElectrumWindow(App):
         status_card.uncomfirmed = unconfirmed.strip()
 
 
+    def get_max_amount(self):
+        from electrum.util import format_satoshis_plain
+        inputs = self.wallet.get_spendable_coins(None)
+        amount, fee = self.wallet.get_max_amount(self.electrum_config, inputs, None)
+        return format_satoshis_plain(amount, self.decimal_point())
+
     def update_amount(self, amount, c):
         if c == '<':
             return amount[:-1]
+        if c == '.' and amount == '':
+            return '0.'
+        if c == '0' and amount == '0':
+            return '0'
         try:
-            s = amount + c
-            amount = s  if Decimal(s)!=0 else ''            
+            Decimal(amount+c)
+            amount += c
         except:
             pass
         return amount
@@ -722,8 +735,16 @@ class ElectrumWindow(App):
         popup.tx_hash = tx_hash
         popup.open()
 
-    def amount_dialog(self, label, callback):
+    def amount_dialog(self, label, callback, show_max):
         popup = Builder.load_file('gui/kivy/uix/ui_screens/amount.kv')
+        but_max = popup.ids.but_max
+        if not show_max:
+            but_max.disabled = True
+            but_max.opacity = 0
+        else:
+            but_max.disabled = False
+            but_max.opacity = 1
+
         if label.text != label.default_text:
             a, u = label.text.split()
             assert u == self.base_unit
@@ -746,6 +767,3 @@ class ElectrumWindow(App):
             popup.open()
         else:
             apply(f, args + (None,))
-
-
-

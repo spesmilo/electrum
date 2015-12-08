@@ -145,7 +145,7 @@ class ElectrumGui:
             action = wallet.get_action()
         # run wizard
         if action is not None:
-            wizard = InstallWizard(self.config, self.network, storage)
+            wizard = InstallWizard(self.app, self.config, self.network, storage)
             wallet = wizard.run(action)
             # keep current wallet
             if not wallet:
@@ -176,7 +176,7 @@ class ElectrumGui:
         if storage.file_exists:
             QMessageBox.critical(None, "Error", _("File exists"))
             return
-        wizard = InstallWizard(self.config, self.network, storage)
+        wizard = InstallWizard(self.app, self.config, self.network, storage)
         wallet = wizard.run('new')
         if wallet:
             self.new_window(full_path)

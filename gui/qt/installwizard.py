@@ -64,8 +64,9 @@ class CosignWidget(QWidget):
 
 class InstallWizard(QDialog):
 
-    def __init__(self, config, network, storage):
+    def __init__(self, app, config, network, storage):
         QDialog.__init__(self)
+        self.app = app
         self.config = config
         self.network = network
         self.storage = storage
@@ -271,13 +272,7 @@ class InstallWizard(QDialog):
         self.exec_()
 
 
-
-
     def network_dialog(self):
-        # skip this if config already exists
-        if self.config.get('server') is not None:
-            return
-
         grid = QGridLayout()
         grid.setSpacing(5)
 
@@ -285,26 +280,16 @@ class InstallWizard(QDialog):
                       + _("How do you want to connect to a server:")+" ")
         label.setWordWrap(True)
         grid.addWidget(label, 0, 0)
-
         gb = QGroupBox()
-
         b1 = QRadioButton(gb)
         b1.setText(_("Auto connect"))
         b1.setChecked(True)
-
         b2 = QRadioButton(gb)
         b2.setText(_("Select server manually"))
-
-        #b3 = QRadioButton(gb)
-        #b3.setText(_("Stay offline"))
-
         grid.addWidget(b1,1,0)
         grid.addWidget(b2,2,0)
-        #grid.addWidget(b3,3,0)
-
         vbox = QVBoxLayout()
         vbox.addLayout(grid)
-
         vbox.addStretch(1)
         vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _('Next'))))
 
@@ -423,7 +408,6 @@ class InstallWizard(QDialog):
         self.set_layout(vbox)
         return self.exec_()
 
-
     def password_dialog(self):
         msg = _("Please choose a password to encrypt your wallet keys.")+'\n'\
               +_("Leave these fields empty if you want to disable encryption.")
@@ -508,6 +492,7 @@ class InstallWizard(QDialog):
                 seed = wallet.make_seed(lang)
                 if not self.show_seed(seed, None):
                     return
+                self.app.clipboard().clear()
                 if not self.verify_seed(seed, None):
                     return
                 password = self.password_dialog()
@@ -540,18 +525,18 @@ class InstallWizard(QDialog):
 
 
         if self.network:
-            if self.network.interfaces:
+            # show network dialog if config does not exist
+            if self.config.get('server') is None:
                 self.network_dialog()
-            else:
-                QMessageBox.information(None, _('Warning'), _('You are offline'), _('OK'))
-                self.network.stop()
-                self.network = None
+        else:
+            QMessageBox.information(None, _('Warning'), _('You are offline'), _('OK'))
+
 
         # start wallet threads
         wallet.start_threads(self.network)
 
         if action == 'restore':
-            self.waiting_dialog(lambda: wallet.restore(self.waiting_label.setText))
+            self.waiting_dialog(lambda: wallet.wait_until_synchronized(self.waiting_label.setText))
             if self.network:
                 msg = _("Recovery successful") if wallet.is_found() else _("No transactions found for this seed")
             else:
@@ -563,47 +548,27 @@ class InstallWizard(QDialog):
 
 
     def restore(self, t):
-
-            if t == 'standard':
-                text = self.enter_seed_dialog(MSG_ENTER_ANYTHING, None)
-                if not text:
-                    return
-                if Wallet.is_xprv(text):
-                    password = self.password_dialog()
-                    wallet = Wallet.from_xprv(text, password, self.storage)
-                elif Wallet.is_old_mpk(text):
-                    wallet = Wallet.from_old_mpk(text, self.storage)
-                elif Wallet.is_xpub(text):
-                    wallet = Wallet.from_xpub(text, self.storage)
-                elif Wallet.is_address(text):
-                    wallet = Wallet.from_address(text, self.storage)
-                elif Wallet.is_private_key(text):
-                    password = self.password_dialog()
-                    wallet = Wallet.from_private_key(text, password, self.storage)
-                elif Wallet.is_seed(text):
-                    password = self.password_dialog()
-                    wallet = Wallet.from_seed(text, password, self.storage)
-                else:
-                    raise BaseException('unknown wallet type')
-
-            elif re.match('(\d+)of(\d+)', t):
-                n = int(re.match('(\d+)of(\d+)', t).group(2))
-                key_list = self.multi_seed_dialog(n - 1)
-                if not key_list:
-                    return
-                password = self.password_dialog() if any(map(lambda x: Wallet.is_seed(x) or Wallet.is_xprv(x), key_list)) else None
-                wallet = Wallet.from_multisig(key_list, password, self.storage, t)
-
-            else:
-                self.storage.put('wallet_type', t, False)
-                # call the constructor to load the plugin (side effect)
-                Wallet(self.storage)
-                wallet = always_hook('installwizard_restore', self, self.storage)
-                if not wallet:
-                    util.print_error("no wallet")
-                    return
-
-            # create first keys offline
-            self.waiting_dialog(wallet.synchronize)
-
-            return wallet
+        if t == 'standard':
+            text = self.enter_seed_dialog(MSG_ENTER_ANYTHING, None)
+            if not text:
+                return
+            password = self.password_dialog() if Wallet.is_seed(text) or Wallet.is_xprv(text) or Wallet.is_private_key(text) else None
+            wallet = Wallet.from_text(text, password, self.storage)
+        elif re.match('(\d+)of(\d+)', t):
+            n = int(re.match('(\d+)of(\d+)', t).group(2))
+            key_list = self.multi_seed_dialog(n - 1)
+            if not key_list:
+                return
+            password = self.password_dialog() if any(map(lambda x: Wallet.is_seed(x) or Wallet.is_xprv(x), key_list)) else None
+            wallet = Wallet.from_multisig(key_list, password, self.storage, t)
+        else:
+            self.storage.put('wallet_type', t, False)
+            # call the constructor to load the plugin (side effect)
+            Wallet(self.storage)
+            wallet = always_hook('installwizard_restore', self, self.storage)
+            if not wallet:
+                util.print_error("no wallet")
+                return
+        # create first keys offline
+        self.waiting_dialog(wallet.synchronize)
+        return wallet

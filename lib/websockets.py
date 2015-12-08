@@ -21,8 +21,8 @@ from collections import defaultdict
 try:
     from SimpleWebSocketServer import WebSocket, SimpleSSLWebSocketServer
 except ImportError:
-    print "install SimpleWebSocketServer"
-    sys.exit()
+    import sys
+    sys.exit("install SimpleWebSocketServer")
 
 import util
 
@@ -93,7 +93,7 @@ class WsClientThread(util.DaemonThread):
             except Queue.Empty:
                 continue
             id = r.get('id')
-            if id is None: 
+            if id is None:
                 method = r.get('method')
                 params = r.get('params')
             else:

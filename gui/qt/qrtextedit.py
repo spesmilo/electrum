@@ -12,6 +12,7 @@ class ShowQRTextEdit(ButtonsTextEdit):
         ButtonsTextEdit.__init__(self, text)
         self.setReadOnly(1)
         self.addButton(":icons/qrcode.png", self.qr_show, _("Show as QR code"))
+
         run_hook('show_text_edit', self)
 
     def qr_show(self):
