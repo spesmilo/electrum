@@ -79,7 +79,7 @@ class ElectrumWindow(App):
 
     context = StringProperty('')
     context_action = lambda x: None
-    status = StringProperty(_('Not Connected'))
+    status = StringProperty('')
     fiat_unit = StringProperty('')
 
     def decimal_point(self):
@@ -224,6 +224,7 @@ class ElectrumWindow(App):
     def show_plugins(self, plugins_list):
         def on_active(sw, value):
             self.plugins.toggle_enabled(self.electrum_config, sw.name)
+            run_hook('init_kivy', self)
         for item in self.plugins.descriptions:
             if 'kivy' not in item.get('available_for', []):
                 continue
@@ -424,13 +425,8 @@ class ElectrumWindow(App):
     def update_status(self, *dt):
         if not self.wallet:
             return
-
-        unconfirmed = ''
-        quote_text = ''
-
         if self.network is None or not self.network.is_running():
-            text = _("Offline")
-
+            self.status = _("Offline")
         elif self.network.is_connected():
             server_height = self.network.get_server_height()
             server_lag = self.network.get_local_height() - server_height
@@ -440,28 +436,10 @@ class ElectrumWindow(App):
                 self.status = _("Server lagging (%d blocks)"%server_lag)
             else:
                 c, u, x = self.wallet.get_account_balance(self.current_account)
-                text = self.format_amount(c)
-                if u:
-                    unconfirmed =  " [%s unconfirmed]" %( self.format_amount(u, True).strip())
-                if x:
-                    unmatured =  " [%s unmatured]"%(self.format_amount(x, True).strip())
-                #quote_text = self.create_quote_text(Decimal(c+u+x)/100000000, mode='symbol') or ''
+                text = self.format_amount(c+x+u)
                 self.status = text.strip() + ' ' + self.base_unit
         else:
             self.status = _("Not connected")
-
-        return
-
-        print self.root.manager.ids
-
-        #try:
-        status_card = self.root.main_screen.ids.tabs.ids.\
-                      screen_dashboard.ids.status_card
-        #except AttributeError:
-        #    return
-
-        status_card.quote_text = quote_text.strip()
-        status_card.uncomfirmed = unconfirmed.strip()
 
 
     def get_max_amount(self):

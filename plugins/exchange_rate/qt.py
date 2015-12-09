@@ -49,9 +49,7 @@ class Plugin(FxPlugin):
     def do_clear(self, window):
         window.fiat_send_e.setText('')
 
-    def close(self):
-        # Get rid of hooks before updating status bars.
-        FxPlugin.close(self)
+    def on_close(self):
         self.app.emit(SIGNAL('close_fx_plugin'))
 
     def restore_window(self, window):

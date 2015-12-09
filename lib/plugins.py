@@ -187,6 +187,10 @@ class BasePlugin(PrintError):
                 l.remove((self, getattr(self, k)))
                 hooks[k] = l
         self.parent.close_plugin(self)
+        self.on_close()
+
+    def on_close(self):
+        pass
 
     def requires_settings(self):
         return False
