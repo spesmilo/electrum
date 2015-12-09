@@ -220,7 +220,6 @@ class FxPlugin(BasePlugin, ThreadJob):
     def show_history(self):
         return self.config_history() and self.exchange.history_ccys()
 
-
     def set_exchange(self, name):
         class_ = self.exchanges.get(name) or self.exchanges.values()[0]
         name = class_.__name__

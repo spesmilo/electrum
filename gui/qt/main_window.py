@@ -43,7 +43,7 @@ from electrum_ltc.util import PrintError, NotEnoughFunds, StoreDict
 from electrum_ltc import Transaction
 from electrum_ltc import mnemonic
 from electrum_ltc import util, bitcoin, commands, Wallet
-from electrum_ltc import SimpleConfig, Wallet, WalletStorage
+from electrum_ltc import SimpleConfig, COIN_CHOOSERS, WalletStorage
 from electrum_ltc import Imported_Wallet
 from electrum_ltc import paymentrequest
 
@@ -2592,6 +2592,21 @@ class ElectrumWindow(QMainWindow, PrintError):
                 self.address_list.update()
         nz.valueChanged.connect(on_nz)
         gui_widgets.append((nz_label, nz))
+
+        choosers = sorted(COIN_CHOOSERS.keys())
+        chooser_name = self.wallet.coin_chooser_name(self.config)
+        msg = _('Choose coin (UTXO) selection method.  The following are available:\n\n')
+        msg += '\n\n'.join(key + ": " + klass.__doc__
+                         for key, klass in COIN_CHOOSERS.items())
+        chooser_label = HelpLabel(_('Coin selection') + ':', msg)
+        chooser_combo = QComboBox()
+        chooser_combo.addItems(choosers)
+        chooser_combo.setCurrentIndex(choosers.index(chooser_name))
+        def on_chooser(x):
+            chooser_name = choosers[chooser_combo.currentIndex()]
+            self.config.set_key('coin_chooser', chooser_name)
+        chooser_combo.currentIndexChanged.connect(on_chooser)
+        tx_widgets.append((chooser_label, chooser_combo))
 
         msg = _('Fee per kilobyte of transaction.') + '\n' \
               + _('If you enable dynamic fees, this parameter will be used as upper bound.')
