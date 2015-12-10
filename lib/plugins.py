@@ -39,7 +39,6 @@ class Plugins(DaemonThread):
             plugins = __import__('electrum_plugins')
         self.pkgpath = os.path.dirname(plugins.__file__)
         self.plugins = {}
-        self.network = None
         self.gui_name = gui_name
         self.descriptions = []
         for loader, name, ispkg in pkgutil.iter_modules([self.pkgpath]):
@@ -65,8 +64,7 @@ class Plugins(DaemonThread):
         try:
             p = pkgutil.find_loader(full_name).load_module(full_name)
             plugin = p.Plugin(self, config, name)
-            if self.network:
-                self.network.add_jobs(plugin.thread_jobs())
+            self.add_jobs(plugin.thread_jobs())
             self.plugins[name] = plugin
             self.print_error("loaded", name)
             return plugin
@@ -75,10 +73,8 @@ class Plugins(DaemonThread):
             traceback.print_exc(file=sys.stdout)
             return None
 
-
     def close_plugin(self, plugin):
-        if self.network:
-            self.network.remove_jobs(plugin.thread_jobs())
+        self.remove_jobs(plugin.thread_jobs())
 
     def toggle_enabled(self, config, name):
         p = self.get(name)
