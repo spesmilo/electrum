@@ -212,9 +212,14 @@ class CoinDesk(ExchangeBase):
         
 class Coinsecure(ExchangeBase):
     def get_rates(self, ccy):
-        json = self.get_json('api.coinsecure.in', '/v0/noauth/lasttrade')
-        return {'INR': Decimal(json['result'][0]['lasttrade'][0][bid][0][rate] / 100.0 )}
-        
+        json = self.get_json('api.coinsecure.in', '/v0/noauth/newticker')
+        return {'INR': Decimal(json['lastprice'] / 100.0 )}
+
+class Unocoin(ExchangeBase):
+    def get_rates(self, ccy):
+        json = self.get_json('www.unocoin.com', 'trade?buy')
+        return {'INR': Decimal(json)}
+
 class itBit(ExchangeBase):
     def get_rates(self, ccy):
         ccys = ['USD', 'EUR', 'SGD']
