@@ -18,7 +18,7 @@ Popup:
                     id: a
                     btc_text: (kb.amount + ' ' + app.base_unit) if kb.amount else ''
                     fiat_text: (kb.fiat_amount + ' ' + app.fiat_unit) if kb.fiat_amount else ''
-                    text: (self.fiat_text + ' / ' + self.btc_text if kb.is_fiat else self.btc_text + ' / ' + self.fiat_text) if self.btc_text else ''
+                    text: ((self.fiat_text + ' / ' + self.btc_text if kb.is_fiat else self.btc_text + ' / ' + self.fiat_text) if app.fiat_unit else self.btc_text) if self.btc_text else ''
                     size_hint: 1, 1
                     font_size: '22dp'
             Widget:
@@ -70,7 +70,7 @@ Popup:
                     id: button_fiat
                     size_hint: 1, None
                     height: '48dp'
-                    text: app.fiat_unit if kb.is_fiat else app.base_unit
+                    text: (app.fiat_unit if kb.is_fiat else app.base_unit) if app.fiat_unit else ''
                     on_release:
                         app.toggle_fiat(kb)
                 Button:
