@@ -17,7 +17,7 @@ from kivy.lang import Builder
 from kivy.factory import Factory
 
 from electrum_ltc.i18n import _
-from electrum_ltc.util import profiler, parse_URI
+from electrum_ltc.util import profiler, parse_URI, format_time
 from electrum_ltc import bitcoin
 from electrum_ltc.util import timestamp_to_datetime
 from electrum_ltc.plugins import run_hook
@@ -311,6 +311,46 @@ class ContactsScreen(CScreen):
             contact_list.add_widget(ci)
 
 
+class InvoicesScreen(CScreen):
+    kvname = 'invoices'
+
+    def update(self):
+        invoices_list = self.screen.ids.invoices_container
+        invoices_list.clear_widgets()
+        for pr in self.app.invoices.sorted_list():
+            ci = Factory.InvoiceItem()
+            ci.key = pr.get_id()
+            ci.requestor = pr.get_requestor()
+            ci.memo = pr.memo
+            ci.amount = self.app.format_amount(pr.get_amount())
+            #ci.status = self.invoices.get_status(key)
+            exp = pr.get_expiration_date()
+            ci.date = format_time(exp) if exp else _('Never')
+            invoices_list.add_widget(ci)
+
+class RequestsScreen(CScreen):
+    kvname = 'requests'
+
+    def update(self):
+        requests_list = self.screen.ids.requests_container
+        requests_list.clear_widgets()
+        for req in self.app.wallet.get_sorted_requests(self.app.electrum_config):
+            address = req['address']
+            timestamp = req.get('time', 0)
+            amount = req.get('amount')
+            expiration = req.get('exp', None)
+            status = req.get('status')
+            signature = req.get('sig')
+
+            ci = Factory.RequestItem()
+            ci.address = req['address']
+            ci.memo = req.get('memo', '')
+            #ci.status = req.get('status')
+            ci.amount = self.app.format_amount(amount) if amount else ''
+            ci.date = format_time(timestamp)
+            requests_list.add_widget(ci)
+
+
 
 class CSpinner(Factory.Spinner):
     '''CustomDropDown that allows fading out the dropdown
@@ -340,20 +380,9 @@ class TabbedCarousel(Factory.TabbedPanel):
         scrlv = self._tab_strip.parent
         if not scrlv:
             return
-
         idx = self.tab_list.index(value)
-        if  idx == 0:
-            scroll_x = 1
-        elif idx == len(self.tab_list) - 1:
-            scroll_x = 0
-        else:
-            self_center_x = scrlv.center_x
-            vcenter_x = value.center_x
-            diff_x = (self_center_x - vcenter_x)
-            try:
-                scroll_x = scrlv.scroll_x - (diff_x / scrlv.width)
-            except ZeroDivisionError:
-                pass
+        n = len(self.tab_list)
+        scroll_x = 1. * (n - idx - 1) / (n - 1)
         mation = Factory.Animation(scroll_x=scroll_x, d=.25)
         mation.cancel_all(scrlv)
         mation.start(scrlv)

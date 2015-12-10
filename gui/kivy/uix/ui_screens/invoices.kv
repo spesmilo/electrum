@@ -1,0 +1,50 @@
+<InvoicesLabel@Label>
+    #color: .305, .309, .309, 1
+    text_size: self.size
+    halign: 'left'
+    valign: 'middle'
+
+<InvoiceItem@BoxLayout>
+    requestor: ''
+    memo: ''
+    amount: ''
+    status: ''
+    date: ''
+    size_hint_y: None
+    height: '65dp'
+    padding: dp(12)
+    spacing: dp(5)
+    canvas.before:
+        Color:
+            rgba: 0.3, 0.3, 0.3, 1
+        Rectangle:
+            size: self.size
+            pos: self.pos
+    InvoicesLabel:
+        text: root.requestor
+    InvoicesLabel:
+        text: root.memo
+    InvoicesLabel:
+        text: root.amount
+
+InvoicesScreen:
+    name: 'invoices'
+    on_activate:
+        if not self.action_view:\
+        self.action_view = app.root.main_screen.ids.tabs.ids.screen_dashboard.action_view
+    BoxLayout:
+        orientation: 'vertical'
+        spacing: '1dp'
+        ScrollView:
+            canvas.before:
+                Color:
+                    rgba: .8901, .8901, .8901, 0
+                Rectangle:
+                    size: self.size
+                    pos: self.pos
+            GridLayout:
+                cols: 1
+                id: invoices_container
+                size_hint_y: None
+                height: self.minimum_height
+                spacing: '1dp'
