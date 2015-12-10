@@ -380,20 +380,9 @@ class TabbedCarousel(Factory.TabbedPanel):
         scrlv = self._tab_strip.parent
         if not scrlv:
             return
-
         idx = self.tab_list.index(value)
-        if  idx == 0:
-            scroll_x = 1
-        elif idx == len(self.tab_list) - 1:
-            scroll_x = 0
-        else:
-            self_center_x = scrlv.center_x
-            vcenter_x = value.center_x
-            diff_x = (self_center_x - vcenter_x)
-            try:
-                scroll_x = scrlv.scroll_x - (diff_x / scrlv.width)
-            except ZeroDivisionError:
-                pass
+        n = len(self.tab_list)
+        scroll_x = 1. * (n - idx - 1) / (n - 1)
         mation = Factory.Animation(scroll_x=scroll_x, d=.25)
         mation.cancel_all(scrlv)
         mation.start(scrlv)
