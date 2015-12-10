@@ -17,7 +17,7 @@ from kivy.lang import Builder
 from kivy.factory import Factory
 
 from electrum.i18n import _
-from electrum.util import profiler, parse_URI
+from electrum.util import profiler, parse_URI, format_time
 from electrum import bitcoin
 from electrum.util import timestamp_to_datetime
 from electrum.plugins import run_hook
@@ -309,6 +309,46 @@ class ContactsScreen(CScreen):
             ci.address = key
             ci.label = value
             contact_list.add_widget(ci)
+
+
+class InvoicesScreen(CScreen):
+    kvname = 'invoices'
+
+    def update(self):
+        invoices_list = self.screen.ids.invoices_container
+        invoices_list.clear_widgets()
+        for pr in self.app.invoices.sorted_list():
+            ci = Factory.InvoiceItem()
+            ci.key = pr.get_id()
+            ci.requestor = pr.get_requestor()
+            ci.memo = pr.memo
+            ci.amount = self.app.format_amount(pr.get_amount())
+            #ci.status = self.invoices.get_status(key)
+            exp = pr.get_expiration_date()
+            ci.date = format_time(exp) if exp else _('Never')
+            invoices_list.add_widget(ci)
+
+class RequestsScreen(CScreen):
+    kvname = 'requests'
+
+    def update(self):
+        requests_list = self.screen.ids.requests_container
+        requests_list.clear_widgets()
+        for req in self.app.wallet.get_sorted_requests(self.app.electrum_config):
+            address = req['address']
+            timestamp = req.get('time', 0)
+            amount = req.get('amount')
+            expiration = req.get('exp', None)
+            status = req.get('status')
+            signature = req.get('sig')
+
+            ci = Factory.RequestItem()
+            ci.address = req['address']
+            ci.memo = req.get('memo', '')
+            #ci.status = req.get('status')
+            ci.amount = self.app.format_amount(amount) if amount else ''
+            ci.date = format_time(timestamp)
+            requests_list.add_widget(ci)
 
 
 

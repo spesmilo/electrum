@@ -9,6 +9,7 @@ import electrum
 from electrum import WalletStorage, Wallet
 from electrum.i18n import _, set_language
 from electrum.contacts import Contacts
+from electrum.paymentrequest import InvoiceStore
 from electrum.util import profiler, InvalidPassword
 from electrum.plugins import run_hook
 from electrum.util import format_satoshis, format_satoshis_plain
@@ -176,6 +177,7 @@ class ElectrumWindow(App):
 
         #self.config = self.gui_object.config
         self.contacts = Contacts(self.electrum_config)
+        self.invoices = InvoiceStore(self.electrum_config)
 
         self.bind(url=self.set_URI)
         # were we sent a url?
