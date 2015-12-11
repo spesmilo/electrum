@@ -83,7 +83,6 @@ class StatusBarButton(QPushButton):
 
 
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
-from electrum.paymentrequest import PaymentRequest, get_payment_request
 
 pr_icons = {
     PR_UNPAID:":icons/unpaid.png",
@@ -1346,37 +1345,28 @@ class ElectrumWindow(QMainWindow, PrintError):
         self.payment_request = None
         self.do_clear()
 
+    def on_pr(self, request):
+        self.payment_request = request
+        if self.payment_request.verify(self.contacts):
+            self.emit(SIGNAL('payment_request_ok'))
+        else:
+            self.emit(SIGNAL('payment_request_error'))
+
     def pay_to_URI(self, URI):
         if not URI:
             return
         try:
-            out = util.parse_URI(unicode(URI))
-        except Exception as e:
+            out = util.parse_URI(unicode(URI), self.on_pr)
+        except BaseException as e:
             QMessageBox.warning(self, _('Error'), _('Invalid bitcoin URI:') + '\n' + str(e), _('OK'))
             return
         self.tabs.setCurrentIndex(1)
-
         r = out.get('r')
         sig = out.get('sig')
         name = out.get('name')
         if r or (name and sig):
-            def get_payment_request_thread():
-                if name and sig:
-                    from electrum import paymentrequest
-                    pr = paymentrequest.serialize_request(out).SerializeToString()
-                    self.payment_request = paymentrequest.PaymentRequest(pr)
-                else:
-                    self.payment_request = get_payment_request(r)
-                if self.payment_request.verify(self.contacts):
-                    self.emit(SIGNAL('payment_request_ok'))
-                else:
-                    self.emit(SIGNAL('payment_request_error'))
-            t = threading.Thread(target=get_payment_request_thread)
-            t.setDaemon(True)
-            t.start()
             self.prepare_for_payment_request()
             return
-
         address = out.get('address')
         amount = out.get('amount')
         label = out.get('label')
