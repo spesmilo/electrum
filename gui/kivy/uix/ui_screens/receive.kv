@@ -93,5 +93,10 @@ ReceiveScreen:
                 size_hint: 1, None
                 height: '48dp'
                 on_release: s.parent.do_clear()
+            Button:
+                text: _('Save')
+                size_hint: 1, None
+                height: '48dp'
+                on_release: s.parent.do_save()
         Widget:
             size_hint: 1, 0.3

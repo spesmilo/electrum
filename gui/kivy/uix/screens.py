@@ -293,9 +293,22 @@ class ReceiveScreen(CScreen):
         uri = self.get_URI()
         self.app._clipboard.put(uri, 'text/plain')
 
+    def do_save(self):
+        addr = str(self.screen.address)
+        amount = str(self.screen.amount)
+        message = unicode(self.screen.message)
+        if not message and not amount:
+            self.app.show_error(_('No message or amount'))
+            return False
+        amount = self.app.get_amount(amount)
+        req = self.app.wallet.make_payment_request(addr, amount, message, None)
+        self.app.wallet.add_payment_request(req, self.app.electrum_config)
+        self.app.show_error(_('Request saved'))
+
     def do_clear(self):
         self.screen.amount = ''
         self.screen.message = ''
+        self.update()
 
 
 
