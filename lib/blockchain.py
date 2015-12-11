@@ -199,7 +199,7 @@ class Blockchain(util.PrintError):
         bitsN = (bits >> 24) & 0xff
         assert bitsN >= 0x03 and bitsN <= 0x1d, "First part of bits should be in [0x03, 0x1d]"
         bitsBase = bits & 0xffffff
-        assert bitsN >= 0x8000 and bitsN <= 0x7fffff, "Second part of bits should be in [0x8000, 0x7fffff]"
+        assert bitsBase >= 0x8000 and bitsBase <= 0x7fffff, "Second part of bits should be in [0x8000, 0x7fffff]"
         target = bitsBase << (8*(bitsN-3))
 
         # new target
