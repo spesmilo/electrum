@@ -281,20 +281,20 @@
     TabbedCarousel:
         id: panel
         tab_height: '48dp'
-        #default_tab: send_tab
+        default_tab: history_tab
         strip_border: 0, 0, 0, 0
-        HistoryScreen:
-            id: history_screen
-            tab: history_tab
-        SendScreen:
-            id: send_screen
-            tab: send_tab
-        ReceiveScreen:
-            id: receive_screen
-            tab: receive_tab
         InvoicesScreen:
             id: invoices_screen
             tab: invoices_tab
+        SendScreen:
+            id: send_screen
+            tab: send_tab
+        HistoryScreen:
+            id: history_screen
+            tab: history_tab
+        ReceiveScreen:
+            id: receive_screen
+            tab: receive_tab
         RequestsScreen:
             id: requests_screen
             tab: requests_tab
@@ -302,20 +302,20 @@
         #    id: contacts_screen
         #    tab: contacts_tab
         CleanHeader:
-            id: history_tab
-            text: _('History')
+            id: invoices_tab
+            text: _('Invoices')
             slide: 0
         CleanHeader:
             id: send_tab
             text: _('Send')
             slide: 1
         CleanHeader:
-            id: receive_tab
-            text: _('Receive')
+            id: history_tab
+            text: _('History')
             slide: 2
         CleanHeader:
-            id: invoices_tab
-            text: _('Invoices')
+            id: receive_tab
+            text: _('Receive')
             slide: 3
         CleanHeader:
             id: requests_tab

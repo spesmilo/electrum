@@ -2,6 +2,9 @@
  * separation between plugins and GUIs
  * the daemon supports jsonrpc commands
  * new command: 'notify <address> <url>'
+ * improved coin selection to help preserve user privacy.  This is an
+   experimental feature.  Enable it by setting the Coin Selection
+   preference to Privacy.
 
 # Release 2.5.4
  * increase MIN_RELAY_TX_FEE to avoid dust transactions

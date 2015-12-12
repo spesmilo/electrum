@@ -181,6 +181,7 @@ class ScreenPassword(Factory.Screen):
 class SendScreen(CScreen):
 
     kvname = 'send'
+    payment_request = None
 
     def set_URI(self, uri):
         print "set uri", uri
@@ -195,6 +196,16 @@ class SendScreen(CScreen):
         self.screen.amount = ''
         self.screen.message = ''
         self.screen.address = ''
+        self.payment_request = None
+
+    def set_request(self, pr):
+        if pr.has_expired():
+            self.app.show_error(_('Payment request has expired'))
+            return
+        self.payment_request = pr
+        self.screen.address = pr.get_requestor()
+        self.screen.amount = self.app.format_amount(pr.get_amount())
+        self.screen.message = pr.get_memo()
 
     def do_paste(self):
         contents = unicode(self.app._clipboard.get())
@@ -206,18 +217,24 @@ class SendScreen(CScreen):
         self.set_URI(uri)
 
     def do_send(self):
-        address = str(self.screen.address)
-        if not bitcoin.is_address(address):
-            self.app.show_error(_('Invalid Litecoin Address') + ':\n' + address)
-            return
-        try:
-            amount = self.app.get_amount(self.screen.amount)
-        except:
-            self.app.show_error(_('Invalid amount') + ':\n' + self.screen.amount)
-            return
+        if self.payment_request:
+            if self.payment_request.has_expired():
+                self.app.show_error(_('Payment request has expired'))
+                return
+            outputs = self.payment_request.get_outputs()
+        else:
+            address = str(self.screen.address)
+            if not bitcoin.is_address(address):
+                self.app.show_error(_('Invalid Litecoin Address') + ':\n' + address)
+                return
+            try:
+                amount = self.app.get_amount(self.screen.amount)
+            except:
+                self.app.show_error(_('Invalid amount') + ':\n' + self.screen.amount)
+                return
+            outputs = [('address', address, amount)]
         message = unicode(self.screen.message)
         fee = None
-        outputs = [('address', address, amount)]
         self.app.protected(self.send_tx, (outputs, fee, message))
 
     def send_tx(self, *args):
@@ -276,9 +293,22 @@ class ReceiveScreen(CScreen):
         uri = self.get_URI()
         self.app._clipboard.put(uri, 'text/plain')
 
+    def do_save(self):
+        addr = str(self.screen.address)
+        amount = str(self.screen.amount)
+        message = unicode(self.screen.message)
+        if not message and not amount:
+            self.app.show_error(_('No message or amount'))
+            return False
+        amount = self.app.get_amount(amount)
+        req = self.app.wallet.make_payment_request(addr, amount, message, None)
+        self.app.wallet.add_payment_request(req, self.app.electrum_config)
+        self.app.show_error(_('Request saved'))
+
     def do_clear(self):
         self.screen.amount = ''
         self.screen.message = ''
+        self.update()
 
 
 

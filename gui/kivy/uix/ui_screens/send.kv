@@ -78,7 +78,7 @@ SendScreen:
                 id: qr
                 text: _('QR Code')
                 on_release:
-                    app.scan_qr(on_complete=s.parent.set_URI)
+                    app.scan_qr(on_complete=app.set_URI)
             Button:
                 id: paste_button
                 text: _('Paste')

@@ -307,7 +307,7 @@ def block_explorer_URL(config, kind, item):
 #_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
 #urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
-def parse_URI(uri):
+def parse_URI(uri, on_pr=None):
     import bitcoin
     from bitcoin import COIN
 
@@ -353,6 +353,22 @@ def parse_URI(uri):
         out['exp'] = int(out['exp'])
     if 'sig' in out:
         out['sig'] = bitcoin.base_decode(out['sig'], None, base=58).encode('hex')
+
+    r = out.get('r')
+    sig = out.get('sig')
+    name = out.get('name')
+    if r or (name and sig):
+        def get_payment_request_thread():
+            import paymentrequest as pr
+            if name and sig:
+                s = pr.serialize_request(out).SerializeToString()
+                request = pr.PaymentRequest(s)
+            else:
+                request = pr.get_payment_request(r)
+            on_pr(request)
+        t = threading.Thread(target=get_payment_request_thread)
+        t.setDaemon(True)
+        t.start()
 
     return out
 

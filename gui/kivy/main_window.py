@@ -193,9 +193,24 @@ class ElectrumWindow(App):
         self._trigger_notify_transactions = \
             Clock.create_trigger(self.notify_transactions, 5)
 
+    def on_pr(self, pr):
+        from electrum_ltc.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+        if pr.verify(self.contacts):
+            key = self.invoices.add(pr)
+            status = self.invoices.get_status(key)
+            #self.invoices_screen.update()
+            if status == PR_PAID:
+                self.show_message("invoice already paid")
+                self.send_screen.do_clear()
+            else:
+                self.send_screen.set_request(pr)
+        else:
+            self.show_message("invoice error:" + pr.error)
+            self.send_screen.do_clear()
+
     def set_URI(self, url):
         try:
-            url = electrum.util.parse_URI(url)
+            url = electrum.util.parse_URI(url, self.on_pr)
         except:
             self.show_info("Invalid URI", url)
             return
@@ -214,12 +229,7 @@ class ElectrumWindow(App):
                 if resultCode == -1: # RESULT_OK:
                     contents = intent.getStringExtra("SCAN_RESULT")
                     if intent.getStringExtra("SCAN_RESULT_FORMAT") == 'QR_CODE':
-                        try:
-                            uri = electrum.util.parse_URI(contents)
-                        except:
-                            self.show_info("Invalid URI", url)
-                            return
-                        on_complete(uri)
+                        on_complete(contents)
         activity.bind(on_activity_result=on_qr_result)
         PythonActivity.mActivity.startActivityForResult(intent, 0)
 
