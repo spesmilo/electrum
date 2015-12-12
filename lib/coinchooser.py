@@ -17,7 +17,8 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 from collections import defaultdict, namedtuple
-from random import shuffle
+from random import choice, randint, shuffle
+from math import floor, log10
 
 from bitcoin import COIN
 from transaction import Transaction
@@ -58,17 +59,23 @@ class CoinChooserBase(PrintError):
             return 0
         return penalty
 
-    def add_change(self, tx, change_addrs, fee_estimator, dust_threshold):
-        # How much is left if we add 1 change output?
-        change_amount = tx.get_fee() - fee_estimator(1)
+    def change_amounts(self, tx, count, fee_estimator, dust_threshold):
+        # The amount left after adding 1 change output
+        return [tx.get_fee() - fee_estimator(1)]
 
+    def change_outputs(self, tx, change_addrs, fee_estimator, dust_threshold):
+        amounts = self.change_amounts(tx, len(change_addrs), fee_estimator,
+                                      dust_threshold)
         # If change is above dust threshold after accounting for the
         # size of the change output, add it to the transaction.
-        if change_amount > dust_threshold:
-            tx.outputs.append(('address', change_addrs[0], change_amount))
-            self.print_error('change', change_amount)
-        elif change_amount:
-            self.print_error('not keeping dust', change_amount)
+        dust = sum(amount for amount in amounts if amount < dust_threshold)
+        amounts = [amount for amount in amounts if amount >= dust_threshold]
+        change = [('address', addr, amount)
+                  for addr, amount in zip(change_addrs, amounts)]
+        self.print_error('change:', change)
+        if dust:
+            self.print_error('not keeping dust', dust)
+        return change
 
     def make_tx(self, coins, outputs, change_addrs, fee_estimator,
                 dust_threshold):
@@ -101,7 +108,8 @@ class CoinChooserBase(PrintError):
         # This takes a count of change outputs and returns a tx fee;
         # each pay-to-bitcoin-address output serializes as 34 bytes
         fee = lambda count: fee_estimator(tx_size + count * 34)
-        self.add_change(tx, change_addrs, fee, dust_threshold)
+        change = self.change_outputs(tx, change_addrs, fee, dust_threshold)
+        tx.outputs.extend(change)
 
         self.print_error("using %d inputs" % len(tx.inputs))
         self.print_error("using buckets:", [bucket.desc for bucket in buckets])
@@ -179,7 +187,11 @@ class CoinChooserPrivacy(CoinChooserRandom):
     reduce blockchain UTXO bloat, and reduce future privacy loss
     that would come from reusing that address' remaining UTXOs.
     Second, it penalizes change that is quite different to the sent
-    amount.  Third, it penalizes change that is too big.'''
+    amount.  Third, it penalizes change that is too big. Fourth, it
+    breaks large change up into amounts comparable to the spent
+    amount.  Finally, change is rounded to similar precision to
+    sent amounts.  Extra change outputs and rounding might raise
+    the transaction fee slightly'''
 
     def keys(self, coins):
         return [coin['address'] for coin in coins]
@@ -207,6 +219,58 @@ class CoinChooserPrivacy(CoinChooserRandom):
             return badness
 
         return penalty
+
+    def change_amounts(self, tx, count, fee_estimator, dust_threshold):
+
+        # Break change up if bigger than max_change
+        output_amounts = [o[2] for o in tx.outputs]
+        max_change = max(max(output_amounts) * 1.25, dust_threshold * 10)
+
+        # Use N change outputs
+        for n in range(1, count + 1):
+            # How much is left if we add this many change outputs?
+            change_amount = tx.get_fee() - fee_estimator(n)
+            if change_amount // n < max_change:
+                break
+
+        # Get a handle on the precision of the output amounts; round our
+        # change to look similar
+        def trailing_zeroes(val):
+            s = str(val)
+            return len(s) - len(s.rstrip('0'))
+
+        zeroes = map(trailing_zeroes, output_amounts)
+        min_zeroes = min(zeroes)
+        max_zeroes = max(zeroes)
+        zeroes = range(max(0, min_zeroes - 1), min(max_zeroes + 1, 8) + 1)
+
+        # Calculate change; randomize it a bit if using more than 1 output
+        remaining = change_amount
+        amounts = []
+        while n > 1:
+            average = remaining // n
+            amount = randint(int(average * 0.7), int(average * 1.3))
+            precision = min(choice(zeroes), int(floor(log10(amount))))
+            amount = int(round(amount, -precision))
+            amounts.append(amount)
+            remaining -= amount
+            n -= 1
+
+        # Last change output.  Round down to maximum precision but lose
+        # no more than 100 satoshis to fees (2dp)
+        amount = remaining
+        N = min(2, zeroes[0])
+        if N:
+            amount = int(round(amount, -N))
+            if amount > remaining:
+                amount -= pow(10, N)
+        amounts.append(amount)
+
+        assert sum(amounts) <= change_amount
+        assert min(amounts) >= 0
+
+        return amounts
+
 
 COIN_CHOOSERS = {'Classic': CoinChooserClassic,
                  'Privacy': CoinChooserPrivacy}
