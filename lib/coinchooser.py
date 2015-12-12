@@ -117,10 +117,9 @@ class CoinChooserBase(PrintError):
         return tx
 
 class CoinChooserClassic(CoinChooserBase):
-    '''
-    The classic electrum algorithm.  Chooses coins starting with
-    the oldest that are sufficient to cover the spent amount, and
-    then removes any unneeded starting with the smallest in value.'''
+    '''The classic electrum algorithm.  Chooses coins starting with the
+    oldest that are sufficient to cover the spent amount, and then
+    removes any unneeded starting with the smallest in value.'''
 
     def keys(self, coins):
         return [coin['prevout_hash'] + ':' + str(coin['prevout_n'])
@@ -179,19 +178,18 @@ class CoinChooserRandom(CoinChooserBase):
         return winner
 
 class CoinChooserPrivacy(CoinChooserRandom):
-    '''
-    Attempts to better preserve user privacy.  First, if any coin is
+    '''Attempts to better preserve user privacy.  First, if any coin is
     spent from a user address, all coins are.  Compared to spending
     from other addresses to make up an amount, this reduces
     information leakage about sender holdings.  It also helps to
-    reduce blockchain UTXO bloat, and reduce future privacy loss
-    that would come from reusing that address' remaining UTXOs.
-    Second, it penalizes change that is quite different to the sent
-    amount.  Third, it penalizes change that is too big. Fourth, it
-    breaks large change up into amounts comparable to the spent
-    amount.  Finally, change is rounded to similar precision to
-    sent amounts.  Extra change outputs and rounding might raise
-    the transaction fee slightly'''
+    reduce blockchain UTXO bloat, and reduce future privacy loss that
+    would come from reusing that address' remaining UTXOs.  Second, it
+    penalizes change that is quite different to the sent amount.
+    Third, it penalizes change that is too big. Fourth, it breaks
+    large change up into amounts comparable to the spent amount.
+    Finally, change is rounded to similar precision to sent amounts.
+    Extra change outputs and rounding might raise the transaction fee
+    slightly.'''
 
     def keys(self, coins):
         return [coin['address'] for coin in coins]
