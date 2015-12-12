@@ -116,7 +116,7 @@ class CoinChooserBase(PrintError):
 
         return tx
 
-class CoinChooserClassic(CoinChooserBase):
+class CoinChooserOldestFirst(CoinChooserBase):
     '''The classic electrum algorithm.  Chooses coins starting with the
     oldest that are sufficient to cover the spent amount, and then
     removes any unneeded starting with the smallest in value.'''
@@ -189,7 +189,8 @@ class CoinChooserPrivacy(CoinChooserRandom):
     large change up into amounts comparable to the spent amount.
     Finally, change is rounded to similar precision to sent amounts.
     Extra change outputs and rounding might raise the transaction fee
-    slightly.'''
+    slightly.  Transaction priority might be less than if older coins
+    were chosen.'''
 
     def keys(self, coins):
         return [coin['address'] for coin in coins]
@@ -270,5 +271,5 @@ class CoinChooserPrivacy(CoinChooserRandom):
         return amounts
 
 
-COIN_CHOOSERS = {'Classic': CoinChooserClassic,
+COIN_CHOOSERS = {'Oldest First': CoinChooserOldestFirst,
                  'Privacy': CoinChooserPrivacy}
