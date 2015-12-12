@@ -54,7 +54,7 @@ class TxDialog(QDialog):
         self.desc = desc
 
         QDialog.__init__(self)
-        self.setMinimumWidth(600)
+        self.setMinimumWidth(660)
         self.setWindowTitle(_("Transaction"))
 
         vbox = QVBoxLayout()
