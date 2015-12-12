@@ -25,6 +25,15 @@ from util import NotEnoughFunds, PrintError, profiler
 
 Bucket = namedtuple('Bucket', ['desc', 'size', 'value', 'coins'])
 
+def strip_unneeded(bkts, sufficient_funds):
+    '''Remove buckets that are unnecessary in achieving the spend amount'''
+    bkts = sorted(bkts, key = lambda bkt: bkt.value)
+    for i in range(len(bkts)):
+        if not sufficient_funds(bkts[i + 1:]):
+            return bkts[i:]
+    # Shouldn't get here
+    return bkts
+
 class CoinChooserBase(PrintError):
 
     def keys(self, coins):
@@ -72,12 +81,18 @@ class CoinChooserBase(PrintError):
         tx = Transaction.from_io([], outputs[:])
         # Size of the transaction with no inputs and no change
         base_size = tx.estimated_size()
-        # Returns fee given input size
-        fee = lambda input_size: fee_estimator(base_size + input_size)
+        spent_amount = tx.output_value()
+
+        def sufficient_funds(buckets):
+            '''Given a list of buckets, return True if it has enough
+            value to pay for the transaction'''
+            total_input = sum(bucket.value for bucket in buckets)
+            total_size = sum(bucket.size for bucket in buckets) + base_size
+            return total_input >= spent_amount + fee_estimator(total_size)
 
         # Collect the coins into buckets, choose a subset of the buckets
         buckets = self.bucketize_coins(coins)
-        buckets = self.choose_buckets(buckets, tx.output_value(), fee,
+        buckets = self.choose_buckets(buckets, sufficient_funds,
                                       self.penalty_func(tx))
 
         tx.inputs = [coin for b in buckets for coin in b.coins]
@@ -103,32 +118,19 @@ class CoinChooserClassic(CoinChooserBase):
         return [coin['prevout_hash'] + ':' + str(coin['prevout_n'])
                 for coin in coins]
 
-    def choose_buckets(self, buckets, spent_amount, fee, penalty_func):
+    def choose_buckets(self, buckets, sufficient_funds, penalty_func):
         '''Spend the oldest buckets first.'''
         # Unconfirmed coins are young, not old
         adj_height = lambda height: 99999999 if height == 0 else height
         buckets.sort(key = lambda b: max(adj_height(coin['height'])
                                          for coin in b.coins))
-        selected, value, size = [], 0, 0
+        selected = []
         for bucket in buckets:
             selected.append(bucket)
-            value += bucket.value
-            size += bucket.size
-            if value >= spent_amount + fee(size):
-                break
+            if sufficient_funds(selected):
+                return strip_unneeded(selected, sufficient_funds)
         else:
             raise NotEnoughFunds()
-
-        # Remove unneeded inputs starting with the smallest.
-        selected.sort(key = lambda b: b.value)
-        dropped = []
-        for bucket in selected:
-            if value - bucket.value >= spent_amount + fee(size - bucket.size):
-                value -= bucket.value
-                size -= bucket.size
-                dropped.append(bucket)
-
-        return [bucket for bucket in selected if bucket not in dropped]
 
 class CoinChooserRandom(CoinChooserBase):
 
@@ -157,18 +159,11 @@ class CoinChooserRandom(CoinChooserBase):
             else:
                 raise NotEnoughFunds()
 
-        return [[buckets[n] for n in candidate] for candidate in candidates]
+        candidates = [[buckets[n] for n in c] for c in candidates]
+        return [strip_unneeded(c, sufficient_funds) for c in candidates]
 
-    def choose_buckets(self, buckets, spent_amount, fee, penalty_func):
-
-        def sufficient(buckets):
-            '''Given a set of buckets, return True if it has enough
-            value to pay for the transaction'''
-            total_input = sum(bucket.value for bucket in buckets)
-            total_size = sum(bucket.size for bucket in buckets)
-            return total_input >= spent_amount + fee(total_size)
-
-        candidates = self.bucket_candidates(buckets, sufficient)
+    def choose_buckets(self, buckets, sufficient_funds, penalty_func):
+        candidates = self.bucket_candidates(buckets, sufficient_funds)
         penalties = [penalty_func(cand) for cand in candidates]
         winner = candidates[penalties.index(min(penalties))]
         self.print_error("Bucket sets:", len(buckets))
