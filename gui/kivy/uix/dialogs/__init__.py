@@ -144,6 +144,7 @@ class InfoBubble(Factory.Bubble):
             m.add_widget(self)
         else:
             Window.add_widget(self)
+
         # wait for the bubble to adjust it's size according to text then animate
         Clock.schedule_once(lambda dt: self._show(pos, duration))
 

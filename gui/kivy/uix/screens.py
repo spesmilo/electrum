@@ -22,12 +22,17 @@ from electrum import bitcoin
 from electrum.util import timestamp_to_datetime
 from electrum.plugins import run_hook
 
+from context_menu import ContextMenu
+
+
 class CScreen(Factory.Screen):
 
     __events__ = ('on_activate', 'on_deactivate', 'on_enter', 'on_leave')
     action_view = ObjectProperty(None)
     loaded = False
     kvname = None
+    context_menu = None
+    menu_actions = []
     app = App.get_running_app()
 
     def _change_action_view(self):
@@ -65,8 +70,19 @@ class CScreen(Factory.Screen):
         self.dispatch('on_deactivate')
 
     def on_deactivate(self):
-        pass
-        #Clock.schedule_once(lambda dt: self._change_action_view())
+        self.hide_menu()
+
+    def hide_menu(self):
+        if self.context_menu:
+            self.screen.remove_widget(self.context_menu)
+            self.context_menu = None
+
+    def show_menu(self, obj):
+        if self.context_menu is None:
+            self.context_menu = ContextMenu(obj, self.menu_actions)
+        self.screen.remove_widget(self.context_menu)
+        self.screen.add_widget(self.context_menu)
+
 
 
 class HistoryScreen(CScreen):
@@ -77,6 +93,7 @@ class HistoryScreen(CScreen):
     def __init__(self, **kwargs):
         self.ra_dialog = None
         super(HistoryScreen, self).__init__(**kwargs)
+        self.menu_actions = [(_('Details'), self.app.tx_dialog)]
 
     def get_history_rate(self, btc_balance, timestamp):
         date = timestamp_to_datetime(timestamp)
@@ -120,14 +137,12 @@ class HistoryScreen(CScreen):
         if self.app.wallet is None:
             return
 
-        history_card = self.screen.ids.recent_activity_card
+        history_card = self.screen.ids.history_container
         history = self.parse_history(reversed(
             self.app.wallet.get_history(self.app.current_account)))
         # repopulate History Card
-        last_widget = history_card.ids.content.children[-1]
-        history_card.ids.content.clear_widgets()
-        history_add = history_card.ids.content.add_widget
-        history_add(last_widget)
+        history_card.clear_widgets()
+        history_add = history_card.add_widget
         RecentActivityItem = Factory.RecentActivityItem
         count = 0
         for item in history:
@@ -141,6 +156,7 @@ class HistoryScreen(CScreen):
             ri.quote_text = quote_text
             ri.confirmations = conf
             ri.tx_hash = tx
+            ri.screen = self
             history_add(ri)
             if count == 8 and not see_all:
                 break
@@ -345,6 +361,7 @@ class InvoicesScreen(CScreen):
     kvname = 'invoices'
 
     def update(self):
+        self.menu_actions = [(_('Pay'), self.do_pay), (_('Delete'), self.do_delete)]
         invoices_list = self.screen.ids.invoices_container
         invoices_list.clear_widgets()
         for pr in self.app.invoices.sorted_list():
@@ -356,12 +373,22 @@ class InvoicesScreen(CScreen):
             #ci.status = self.invoices.get_status(key)
             exp = pr.get_expiration_date()
             ci.date = format_time(exp) if exp else _('Never')
+            ci.screen = self
             invoices_list.add_widget(ci)
+
+    def do_pay(self, x):
+        pass
+
+    def do_delete(self, x):
+        pass
 
 class RequestsScreen(CScreen):
     kvname = 'requests'
 
     def update(self):
+
+        self.menu_actions = [(_('View'), self.do_view), (_('Delete'), self.do_delete)]
+
         requests_list = self.screen.ids.requests_container
         requests_list.clear_widgets()
         for req in self.app.wallet.get_sorted_requests(self.app.electrum_config):
@@ -378,7 +405,15 @@ class RequestsScreen(CScreen):
             #ci.status = req.get('status')
             ci.amount = self.app.format_amount(amount) if amount else ''
             ci.date = format_time(timestamp)
+            ci.screen = self
             requests_list.add_widget(ci)
+
+
+    def do_view(self, o):
+        print o
+
+    def do_delete(self, o):
+        print o
 
 
 

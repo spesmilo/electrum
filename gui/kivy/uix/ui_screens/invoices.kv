@@ -4,22 +4,12 @@
     halign: 'left'
     valign: 'middle'
 
-<InvoiceItem@BoxLayout>
+<InvoiceItem@CardItem>
     requestor: ''
     memo: ''
     amount: ''
     status: ''
     date: ''
-    size_hint_y: None
-    height: '65dp'
-    padding: dp(12)
-    spacing: dp(5)
-    canvas.before:
-        Color:
-            rgba: 0.3, 0.3, 0.3, 1
-        Rectangle:
-            size: self.size
-            pos: self.pos
     InvoicesLabel:
         text: root.requestor
     InvoicesLabel:
@@ -45,6 +35,7 @@ InvoicesScreen:
             GridLayout:
                 cols: 1
                 id: invoices_container
-                size_hint_y: None
+                size_hint: 1, None
                 height: self.minimum_height
                 spacing: '1dp'
+                padding: '12dp'
