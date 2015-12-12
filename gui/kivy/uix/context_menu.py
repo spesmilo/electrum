@@ -39,5 +39,5 @@ class ContextMenu(Bubble):
         for k, v in action_list:
             l = MenuItem()
             l.text = k
-            l.on_release = lambda: v(obj)
+            l.on_release = lambda f=v: f(obj)
             self.ids.buttons.add_widget(l)

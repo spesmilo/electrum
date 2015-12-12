@@ -208,6 +208,10 @@ class SendScreen(CScreen):
             amount_str = str( Decimal(amount) / pow(10, self.app.decimal_point()))
             self.screen.amount = amount_str + ' ' + self.app.base_unit
 
+    def update(self):
+        if self.app.current_invoice:
+            self.set_request(self.app.current_invoice)
+
     def do_clear(self):
         self.screen.amount = ''
         self.screen.message = ''
@@ -215,9 +219,6 @@ class SendScreen(CScreen):
         self.payment_request = None
 
     def set_request(self, pr):
-        if pr.has_expired():
-            self.app.show_error(_('Payment request has expired'))
-            return
         self.payment_request = pr
         self.screen.address = pr.get_requestor()
         self.screen.amount = self.app.format_amount(pr.get_amount())
@@ -283,7 +284,13 @@ class ReceiveScreen(CScreen):
     kvname = 'receive'
     
     def update(self):
-        self.screen.address = self.app.wallet.get_unused_address(None)
+        addr = self.app.get_receive_address()
+        self.screen.address = addr
+        req = self.app.wallet.receive_requests.get(addr)
+        if req:
+            self.screen.message = req.get('memo')
+            self.screen.amount = self.app.format_amount(req.get('amount')) + ' ' + self.app.base_unit
+
 
     def amount_callback(self, popup):
         amount_label = self.screen.ids.get('amount')
@@ -320,8 +327,10 @@ class ReceiveScreen(CScreen):
         req = self.app.wallet.make_payment_request(addr, amount, message, None)
         self.app.wallet.add_payment_request(req, self.app.electrum_config)
         self.app.show_error(_('Request saved'))
+        self.app.update_screen('requests')
 
     def do_clear(self):
+        self.app.receive_address = None
         self.screen.amount = ''
         self.screen.message = ''
         self.update()
@@ -376,18 +385,19 @@ class InvoicesScreen(CScreen):
             ci.screen = self
             invoices_list.add_widget(ci)
 
-    def do_pay(self, x):
-        pass
+    def do_pay(self, obj):
+        self.app.do_pay(obj)
 
-    def do_delete(self, x):
-        pass
+    def do_delete(self, obj):
+        self.app.invoices.remove(obj.key)
+        self.app.update_screen('invoices')
 
 class RequestsScreen(CScreen):
     kvname = 'requests'
 
     def update(self):
 
-        self.menu_actions = [(_('View'), self.do_view), (_('Delete'), self.do_delete)]
+        self.menu_actions = [(_('Show'), self.do_show), (_('Delete'), self.do_delete)]
 
         requests_list = self.screen.ids.requests_container
         requests_list.clear_widgets()
@@ -408,13 +418,12 @@ class RequestsScreen(CScreen):
             ci.screen = self
             requests_list.add_widget(ci)
 
+    def do_show(self, obj):
+        self.app.show_request(obj.address)
 
-    def do_view(self, o):
-        print o
-
-    def do_delete(self, o):
-        print o
-
+    def do_delete(self, obj):
+        self.app.wallet.remove_payment_request(obj.address, self.app.electrum_config)
+        self.update()
 
 
 class CSpinner(Factory.Spinner):

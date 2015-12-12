@@ -13,6 +13,7 @@ from electrum.paymentrequest import InvoiceStore
 from electrum.util import profiler, InvalidPassword
 from electrum.plugins import run_hook
 from electrum.util import format_satoshis, format_satoshis_plain
+from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 
 from kivy.app import App
 from kivy.core.window import Window
@@ -164,6 +165,9 @@ class ElectrumWindow(App):
         self.nfcscanner = None
         self.tabs = None
 
+        self.receive_address = None
+        self.current_invoice = None
+
         super(ElectrumWindow, self).__init__(**kwargs)
 
         title = _('Electrum App')
@@ -191,19 +195,31 @@ class ElectrumWindow(App):
         self._trigger_notify_transactions = \
             Clock.create_trigger(self.notify_transactions, 5)
 
+    def get_receive_address(self):
+        return self.receive_address if self.receive_address else self.wallet.get_unused_address(None)
+
+    def do_pay(self, obj):
+        pr = self.invoices.get(obj.key)
+        self.on_pr(pr)
+
     def on_pr(self, pr):
-        from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
         if pr.verify(self.contacts):
             key = self.invoices.add(pr)
             status = self.invoices.get_status(key)
             #self.invoices_screen.update()
             if status == PR_PAID:
-                self.show_message("invoice already paid")
+                self.show_error("invoice already paid")
                 self.send_screen.do_clear()
             else:
-                self.send_screen.set_request(pr)
+                if pr.has_expired():
+                    self.show_error(_('Payment request has expired'))
+                else:
+                    self.current_pr = pr
+                    self.update_screen('send')
+                    send_tab = self.tabs.ids.send_tab
+                    self.tabs.ids.panel.switch_to(send_tab)
         else:
-            self.show_message("invoice error:" + pr.error)
+            self.show_error("invoice error:" + pr.error)
             self.send_screen.do_clear()
 
     def set_URI(self, url):
@@ -214,6 +230,17 @@ class ElectrumWindow(App):
             return
         self.send_screen.set_URI(url)
 
+    def update_screen(self, name):
+        s = getattr(self, name + '_screen', None)
+        if s:
+            s.update()
+
+    def show_request(self, addr):
+        self.receive_address = addr
+        self.update_screen('receive')
+        receive_tab = self.tabs.ids.receive_tab
+        self.tabs.ids.panel.switch_to(receive_tab)
+        req = self.wallet.receive_requests.get(addr)
 
     def scan_qr(self, on_complete):
         from jnius import autoclass
@@ -412,6 +439,7 @@ class ElectrumWindow(App):
             self.network.register_callback(self.on_network, interests)
 
         self.wallet = None
+        self.tabs = self.root.ids['tabs']
 
     def on_network(self, event, *args):
         if event == 'updated':
@@ -603,64 +631,10 @@ class ElectrumWindow(App):
         else:
             self.show_error(_('Invalid Address'))
 
-    def send_payment(self, address, amount=0, label='', message=''):
-        tabs = self.tabs
-        screen_send = tabs.ids.screen_send
-
-        if label and self.wallet.labels.get(address) != label:
-            #if self.question('Give label "%s" to address %s ?'%(label,address)):
-            if address not in self.wallet.addressbook and not self.wallet.  is_mine(address):
-                self.wallet.addressbook.append(address)
-            self.wallet.set_label(address, label)
-
-        # switch_to the send screen
-        tabs.ids.panel.switch_to(tabs.ids.tab_send)
-
-        label = self.wallet.labels.get(address)
-        m_addr = label + '  <'+ address +'>' if label else address
-
-        # populate
-        def set_address(*l):
-            content = screen_send.ids
-            content.payto_e.text = m_addr
-            content.message_e.text = message
-            if amount:
-                content.amount_e.text = amount
-
-        # wait for screen to load
-        Clock.schedule_once(set_address, .5)
 
     def set_send(self, address, amount, label, message):
         self.send_payment(address, amount=amount, label=label, message=message)
 
-    def prepare_for_payment_request(self):
-        tabs = self.tabs
-        screen_send = tabs.ids.screen_send
-
-        # switch_to the send screen
-        tabs.ids.panel.switch_to(tabs.ids.tab_send)
-
-        content = screen_send.ids
-        if content:
-            self.set_frozen(content, False)
-        screen_send.screen_label.text = _("please wait...")
-        return True
-
-    def payment_request_ok(self):
-        tabs = self.tabs
-        screen_send = tabs.ids.screen_send
-
-        # switch_to the send screen
-        tabs.ids.panel.switch_to(tabs.ids.tab_send)
-
-        self.set_frozen(content, True)
-
-        screen_send.ids.payto_e.text = self.gui_object.payment_request.domain
-        screen_send.ids.amount_e.text = self.format_amount(self.gui_object.payment_request.get_amount())
-        screen_send.ids.message_e.text = self.gui_object.payment_request.memo
-
-        # wait for screen to load
-        Clock.schedule_once(set_address, .5)
 
     def set_frozen(self, entry, frozen):
         if frozen:
@@ -670,15 +644,6 @@ class ElectrumWindow(App):
             entry.disabled = False
             Factory.Animation(opacity=1).start(content)
 
-    def payment_request_error(self):
-        tabs = self.tabs
-        screen_send = tabs.ids.screen_send
-
-        # switch_to the send screen
-        tabs.ids.panel.switch_to(tabs.ids.tab_send)
-
-        self.do_clear()
-        self.show_info(self.gui_object.payment_request.error)
 
     def show_error(self, error, width='200dp', pos=None, arrow_pos=None,
         exit=False, icon='atlas://gui/kivy/theming/light/error', duration=0,

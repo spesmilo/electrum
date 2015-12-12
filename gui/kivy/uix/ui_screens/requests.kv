@@ -23,9 +23,6 @@
 
 RequestsScreen:
     name: 'requests'
-    on_activate:
-        if not self.action_view:\
-        self.action_view = app.root.main_screen.ids.tabs.ids.screen_dashboard.action_view
     BoxLayout:
         orientation: 'vertical'
         spacing: '1dp'
@@ -41,5 +38,5 @@ RequestsScreen:
                 id: requests_container
                 size_hint_y: None
                 height: self.minimum_height
-                spacing: '1dp'
+                spacing: '2dp'
                 padding: '12dp'
