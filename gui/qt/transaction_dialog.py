@@ -249,6 +249,9 @@ class TxDialog(QDialog):
                 return chg if self.wallet.is_change(addr) else rec
             return ext
 
+        def format_amount(amt):
+            return self.parent.format_amount(amt, whitespaces = True)
+
         i_text = QTextEdit()
         i_text.setFont(QFont(MONOSPACE_FONT))
         i_text.setReadOnly(True)
@@ -270,6 +273,7 @@ class TxDialog(QDialog):
                 if addr is None:
                     addr = _('unknown')
                 cursor.insertText(addr, text_format(addr))
+                cursor.insertText(format_amount(x['value']), ext)
             cursor.insertBlock()
 
         vbox.addWidget(i_text)
@@ -283,7 +287,7 @@ class TxDialog(QDialog):
             cursor.insertText(addr, text_format(addr))
             if v is not None:
                 cursor.insertText('\t', ext)
-                cursor.insertText(self.parent.format_amount(v, whitespaces = True), ext)
+                cursor.insertText(format_amount(v), ext)
             cursor.insertBlock()
         vbox.addWidget(o_text)
 
