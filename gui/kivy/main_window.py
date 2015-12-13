@@ -240,7 +240,6 @@ class ElectrumWindow(App):
         self.update_screen('receive')
         receive_tab = self.tabs.ids.receive_tab
         self.tabs.ids.panel.switch_to(receive_tab)
-        req = self.wallet.receive_requests.get(addr)
 
     def scan_qr(self, on_complete):
         from jnius import autoclass
@@ -715,10 +714,13 @@ class ElectrumWindow(App):
             pos = (win.center[0], win.center[1] - (info_bubble.height/2))
         info_bubble.show(pos, duration, width, modal=modal, exit=exit)
 
-    def tx_dialog(self, obj):
+    def tx_details_dialog(self, obj):
         popup = Builder.load_file('gui/kivy/uix/ui_screens/transaction.kv')
         popup.tx_hash = obj.tx_hash
         popup.open()
+
+    def tx_label_dialog(self, obj):
+        pass
 
     def address_dialog(self, screen):
         pass

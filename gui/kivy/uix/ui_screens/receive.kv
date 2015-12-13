@@ -79,7 +79,6 @@ ReceiveScreen:
                     hint_text: 'Description'
                     text: s.message
                     on_text_validate: s.message = self.text
-
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
@@ -89,14 +88,14 @@ ReceiveScreen:
                 height: '48dp'
                 on_release: s.parent.do_copy()
             Button:
-                text: _('New')
-                size_hint: 1, None
-                height: '48dp'
-                on_release: s.parent.do_clear()
-            Button:
                 text: _('Save')
                 size_hint: 1, None
                 height: '48dp'
                 on_release: s.parent.do_save()
+            Button:
+                text: _('New')
+                size_hint: 1, None
+                height: '48dp'
+                on_release: s.parent.do_new()
         Widget:
             size_hint: 1, 0.3

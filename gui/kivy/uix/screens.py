@@ -95,7 +95,7 @@ class HistoryScreen(CScreen):
     def __init__(self, **kwargs):
         self.ra_dialog = None
         super(HistoryScreen, self).__init__(**kwargs)
-        self.menu_actions = [(_('Details'), self.app.tx_dialog)]
+        self.menu_actions = [ (_('Label'), self.app.tx_label_dialog), (_('Details'), self.app.tx_details_dialog)]
 
     def get_history_rate(self, btc_balance, timestamp):
         date = timestamp_to_datetime(timestamp)
@@ -288,8 +288,8 @@ class ReceiveScreen(CScreen):
         self.screen.address = addr
         req = self.app.wallet.receive_requests.get(addr)
         if req:
-            self.screen.message = req.get('memo')
             self.screen.amount = self.app.format_amount_and_units(req.get('amount'))
+            self.screen.message = unicode(req.get('memo', ''))
 
     def amount_callback(self, popup):
         amount_label = self.screen.ids.get('amount')
@@ -318,22 +318,25 @@ class ReceiveScreen(CScreen):
     def do_save(self):
         addr = str(self.screen.address)
         amount = str(self.screen.amount)
-        message = unicode(self.screen.message)
+        message = str(self.screen.message) #.ids.message_input.text)
         if not message and not amount:
             self.app.show_error(_('No message or amount'))
-            return False
-        amount = self.app.get_amount(amount)
+            return
+        if amount:
+            amount = self.app.get_amount(amount)
+        else:
+            amount = 0
+        print "saving", amount, message
         req = self.app.wallet.make_payment_request(addr, amount, message, None)
         self.app.wallet.add_payment_request(req, self.app.electrum_config)
         self.app.show_error(_('Request saved'))
         self.app.update_screen('requests')
 
-    def do_clear(self):
+    def do_new(self):
         self.app.receive_address = None
         self.screen.amount = ''
         self.screen.message = ''
         self.update()
-
 
 
 class ContactsScreen(CScreen):
@@ -380,12 +383,11 @@ class InvoicesScreen(CScreen):
             ci.amount = self.app.format_amount_and_units(pr.get_amount())
             status = self.app.invoices.get_status(ci.key)
             if status == PR_PAID:
-                icon = "atlas://gui/kivy/theming/light/confirmed"
+                ci.icon = "atlas://gui/kivy/theming/light/confirmed"
             elif status == PR_EXPIRED:
-                icon = "atlas://gui/kivy/theming/light/important"
+                ci.icon = "atlas://gui/kivy/theming/light/important"
             else:
-                icon = "atlas://gui/kivy/theming/light/important"
-
+                ci.icon = "atlas://gui/kivy/theming/light/important"
             exp = pr.get_expiration_date()
             ci.date = format_time(exp) if exp else _('Never')
             ci.screen = self
@@ -416,15 +418,16 @@ class RequestsScreen(CScreen):
             signature = req.get('sig')
             ci = Factory.RequestItem()
             ci.address = req['address']
-            ci.memo = req.get('memo', '')
+            label, is_default = self.app.wallet.get_label(address)
+            if label:
+                ci.memo = label 
             status = req.get('status')
             if status == PR_PAID:
-                icon = "atlas://gui/kivy/theming/light/confirmed"
+                ci.icon = "atlas://gui/kivy/theming/light/confirmed"
             elif status == PR_EXPIRED:
-                icon = "atlas://gui/kivy/theming/light/important"
+                ci.icon = "atlas://gui/kivy/theming/light/important"
             else:
-                icon = "atlas://gui/kivy/theming/light/important"
-
+                ci.icon = "atlas://gui/kivy/theming/light/important"
             ci.amount = self.app.format_amount_and_units(amount) if amount else ''
             ci.date = format_time(timestamp)
             ci.screen = self
