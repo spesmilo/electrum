@@ -471,14 +471,18 @@ class TabbedCarousel(Factory.TabbedPanel):
             return
         idx = self.tab_list.index(value)
         n = len(self.tab_list)
-        scroll_x = 1. * (n - idx - 1) / (n - 1)
+        if idx in [0, 1]:
+            scroll_x = 1
+        elif idx in [n-1, n-2]:
+            scroll_x = 0
+        else:
+            scroll_x = 1. * (n - idx - 1) / (n - 1)
+
         mation = Factory.Animation(scroll_x=scroll_x, d=.25)
         mation.cancel_all(scrlv)
         mation.start(scrlv)
 
     def on_current_tab(self, instance, value):
-        if value.text == 'default_tab':
-            return
         self.animate_tab_to_center(value)
 
     def on_index(self, instance, value):

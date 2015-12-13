@@ -244,6 +244,7 @@
 <TabbedPanelStrip>:
     on_parent:
         if self.parent: self.parent.bar_width = 0
+        if self.parent: self.parent.scroll_x = 0.5
 
 
 <TabbedCarousel>
@@ -297,6 +298,7 @@
     TabbedCarousel:
         id: panel
         tab_height: '48dp'
+        tab_width: panel.width/3
         default_tab: history_tab
         strip_border: 0, 0, 0, 0
         InvoicesScreen:
