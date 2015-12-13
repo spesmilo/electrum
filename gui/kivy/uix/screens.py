@@ -24,6 +24,8 @@ from electrum.plugins import run_hook
 
 from context_menu import ContextMenu
 
+from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+
 
 class CScreen(Factory.Screen):
 
@@ -74,14 +76,14 @@ class CScreen(Factory.Screen):
 
     def hide_menu(self):
         if self.context_menu:
-            self.screen.remove_widget(self.context_menu)
+            self.remove_widget(self.context_menu)
             self.context_menu = None
 
     def show_menu(self, obj):
         if self.context_menu is None:
             self.context_menu = ContextMenu(obj, self.menu_actions)
-        self.screen.remove_widget(self.context_menu)
-        self.screen.add_widget(self.context_menu)
+        self.remove_widget(self.context_menu)
+        self.add_widget(self.context_menu)
 
 
 
@@ -143,15 +145,14 @@ class HistoryScreen(CScreen):
         # repopulate History Card
         history_card.clear_widgets()
         history_add = history_card.add_widget
-        RecentActivityItem = Factory.RecentActivityItem
         count = 0
         for item in history:
             count += 1
-            conf, icon, date_time, address, value, tx, quote_text = item
-            ri = RecentActivityItem()
+            conf, icon, date_time, message, value, tx, quote_text = item
+            ri = Factory.HistoryItem()
             ri.icon = icon
             ri.date = date_time
-            ri.address = address
+            ri.message = message
             ri.value = value
             ri.quote_text = quote_text
             ri.confirmations = conf
@@ -377,7 +378,14 @@ class InvoicesScreen(CScreen):
             ci.requestor = pr.get_requestor()
             ci.memo = pr.memo
             ci.amount = self.app.format_amount_and_units(pr.get_amount())
-            #ci.status = self.invoices.get_status(key)
+            status = self.app.invoices.get_status(ci.key)
+            if status == PR_PAID:
+                icon = "atlas://gui/kivy/theming/light/confirmed"
+            elif status == PR_EXPIRED:
+                icon = "atlas://gui/kivy/theming/light/important"
+            else:
+                icon = "atlas://gui/kivy/theming/light/important"
+
             exp = pr.get_expiration_date()
             ci.date = format_time(exp) if exp else _('Never')
             ci.screen = self
@@ -406,11 +414,17 @@ class RequestsScreen(CScreen):
             expiration = req.get('exp', None)
             status = req.get('status')
             signature = req.get('sig')
-
             ci = Factory.RequestItem()
             ci.address = req['address']
             ci.memo = req.get('memo', '')
-            #ci.status = req.get('status')
+            status = req.get('status')
+            if status == PR_PAID:
+                icon = "atlas://gui/kivy/theming/light/confirmed"
+            elif status == PR_EXPIRED:
+                icon = "atlas://gui/kivy/theming/light/important"
+            else:
+                icon = "atlas://gui/kivy/theming/light/important"
+
             ci.amount = self.app.format_amount_and_units(amount) if amount else ''
             ci.date = format_time(timestamp)
             ci.screen = self

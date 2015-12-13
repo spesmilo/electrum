@@ -1,8 +1,8 @@
 <RequestLabel@Label>
     #color: .305, .309, .309, 1
-    text_size: self.size
+    text_size: self.width, None
     halign: 'left'
-    valign: 'middle'
+    valign: 'top'
 
 <RequestItem@CardItem>
     address: ''
@@ -10,15 +10,33 @@
     amount: ''
     status: ''
     date: ''
+    icon: 'atlas://gui/kivy/theming/light/important'
+    Image:
+        id: icon
+        source: root.icon
+        size_hint: None, 1
+        width: self.height *.54
+        mipmap: True
+    BoxLayout:
+        spacing: '8dp'
+        height: '32dp'
+        orientation: 'vertical'
+        Widget
+        RequestLabel:
+            text: root.address
+            shorten: True
+        RequestLabel:
+            text: root.memo
+            color: .699, .699, .699, 1
+            font_size: '13sp'
+            shorten: True
+        Widget
     RequestLabel:
-        text: root.address
-        font_size: '13dp'
-    RequestLabel:
-        text: root.memo
-    RequestLabel:
+        halign: 'right'
+        font_size: '15sp'
+        size_hint: None, 1
+        width: '80sp'
         text: root.amount
-    #InvoicesLabel:
-    #    text: root.status
 
 
 RequestsScreen:

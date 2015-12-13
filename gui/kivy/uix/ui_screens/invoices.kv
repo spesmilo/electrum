@@ -1,8 +1,8 @@
 <InvoicesLabel@Label>
     #color: .305, .309, .309, 1
-    text_size: self.size
+    text_size: self.width, None
     halign: 'left'
-    valign: 'middle'
+    valign: 'top'
 
 <InvoiceItem@CardItem>
     requestor: ''
@@ -10,11 +10,32 @@
     amount: ''
     status: ''
     date: ''
+    icon: 'atlas://gui/kivy/theming/light/important'
+    Image:
+        id: icon
+        source: root.icon
+        size_hint: None, 1
+        width: self.height *.54
+        mipmap: True
+    BoxLayout:
+        spacing: '8dp'
+        height: '32dp'
+        orientation: 'vertical'
+        Widget
+        InvoicesLabel:
+            text: root.requestor
+            shorten: True
+        InvoicesLabel:
+            text: root.memo
+            color: .699, .699, .699, 1
+            font_size: '13sp'
+            shorten: True
+        Widget
     InvoicesLabel:
-        text: root.requestor
-    InvoicesLabel:
-        text: root.memo
-    InvoicesLabel:
+        halign: 'right'
+        font_size: '15sp'
+        size_hint: None, 1
+        width: '80sp'
         text: root.amount
 
 InvoicesScreen:

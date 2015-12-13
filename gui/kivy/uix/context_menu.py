@@ -10,20 +10,20 @@ from kivy.factory import Factory
 Builder.load_string('''
 <MenuItem@Button>
     background_color: .2, .9, 1, 1
-    height: '40dp'
+    height: '48dp'
     size_hint: 1, None
 
 <ContextMenu>
     size_hint: 1, None
-    height: '32dp'
-    #size: 120, 250
+    height: '48dp'
     pos: (0, 0)
     show_arrow: False
+    arrow_pos: 'top_mid'
     padding: 0
     orientation: 'horizontal'
     BoxLayout:
         size_hint: 1, 1
-        height: '40dp'
+        height: '48dp'
         orientation: 'horizontal'
         id: buttons
 ''')
