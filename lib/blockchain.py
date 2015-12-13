@@ -56,8 +56,7 @@ class Blockchain(util.PrintError):
             self.verify_header(header, prev_header, bits, target)
             prev_header = header
 
-    def verify_chunk(self, index, hexdata):
-        data = hexdata.decode('hex')
+    def verify_chunk(self, index, data):
         num = len(data) / 80
         prev_header = None
         if index != 0:
@@ -212,11 +211,12 @@ class Blockchain(util.PrintError):
             self.print_error(str(e))
             return False
 
-    def connect_chunk(self, idx, chunk):
+    def connect_chunk(self, idx, hexdata):
         try:
-            self.verify_chunk(idx, chunk)
-            self.print_error("validated chunk %d" % index)
-            self.save_chunk(index, data)
+            data = hexdata.decode('hex')
+            self.verify_chunk(idx, data)
+            self.print_error("validated chunk %d" % idx)
+            self.save_chunk(idx, data)
             return idx + 1
         except BaseException as e:
             self.print_error('verify_chunk failed', str(e))
