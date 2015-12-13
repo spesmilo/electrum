@@ -187,18 +187,6 @@
             size: self.size
             pos: self.pos
 
-<xxCardItem@ToggleButtonBehavior+GridLayout>
-    canvas.before:
-        Color:
-            rgba: 0.192, .498, 0.745, 1 if self.state == 'down' else 0
-        Rectangle
-            size: self.size
-            pos: self.x, self.y + dp(5)
-    padding: '2dp', '2dp'
-    spacing: '2dp'
-    height: self.minimum_height
-
-
 <CardItem@ToggleButtonBehavior+BoxLayout>
     size_hint: 1, None
     height: '65dp'

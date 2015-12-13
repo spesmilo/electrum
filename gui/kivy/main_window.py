@@ -205,8 +205,8 @@ class ElectrumWindow(App):
     def on_pr(self, pr):
         if pr.verify(self.contacts):
             key = self.invoices.add(pr)
+            self.invoices_screen.update()
             status = self.invoices.get_status(key)
-            #self.invoices_screen.update()
             if status == PR_PAID:
                 self.show_error("invoice already paid")
                 self.send_screen.do_clear()
@@ -214,7 +214,7 @@ class ElectrumWindow(App):
                 if pr.has_expired():
                     self.show_error(_('Payment request has expired'))
                 else:
-                    self.current_pr = pr
+                    self.current_invoice = pr
                     self.update_screen('send')
                     send_tab = self.tabs.ids.send_tab
                     self.tabs.ids.panel.switch_to(send_tab)
@@ -521,6 +521,9 @@ class ElectrumWindow(App):
     def format_amount(self, x, is_diff=False, whitespaces=False):
         return format_satoshis(x, is_diff, 0, self.decimal_point(), whitespaces)
 
+    def format_amount_and_units(self, x):
+        return format_satoshis_plain(x, self.decimal_point()) + ' ' + self.base_unit
+
     @profiler
     def update_wallet(self, *dt):
         self._trigger_update_status()
@@ -716,6 +719,9 @@ class ElectrumWindow(App):
         popup = Builder.load_file('gui/kivy/uix/ui_screens/transaction.kv')
         popup.tx_hash = obj.tx_hash
         popup.open()
+
+    def address_dialog(self, screen):
+        pass
 
     def amount_dialog(self, screen, show_max):
         popup = Builder.load_file('gui/kivy/uix/ui_screens/amount.kv')

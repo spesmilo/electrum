@@ -205,8 +205,7 @@ class SendScreen(CScreen):
         self.screen.message = uri.get('message', '')
         amount = uri.get('amount')
         if amount:
-            amount_str = str( Decimal(amount) / pow(10, self.app.decimal_point()))
-            self.screen.amount = amount_str + ' ' + self.app.base_unit
+            self.screen.amount = self.format_amount_and_units(amount)
 
     def update(self):
         if self.app.current_invoice:
@@ -221,7 +220,7 @@ class SendScreen(CScreen):
     def set_request(self, pr):
         self.payment_request = pr
         self.screen.address = pr.get_requestor()
-        self.screen.amount = self.app.format_amount(pr.get_amount())
+        self.screen.amount = self.app.format_amount_and_units(pr.get_amount())
         self.screen.message = pr.get_memo()
 
     def do_paste(self):
@@ -289,8 +288,7 @@ class ReceiveScreen(CScreen):
         req = self.app.wallet.receive_requests.get(addr)
         if req:
             self.screen.message = req.get('memo')
-            self.screen.amount = self.app.format_amount(req.get('amount')) + ' ' + self.app.base_unit
-
+            self.screen.amount = self.app.format_amount_and_units(req.get('amount'))
 
     def amount_callback(self, popup):
         amount_label = self.screen.ids.get('amount')
@@ -378,7 +376,7 @@ class InvoicesScreen(CScreen):
             ci.key = pr.get_id()
             ci.requestor = pr.get_requestor()
             ci.memo = pr.memo
-            ci.amount = self.app.format_amount(pr.get_amount())
+            ci.amount = self.app.format_amount_and_units(pr.get_amount())
             #ci.status = self.invoices.get_status(key)
             exp = pr.get_expiration_date()
             ci.date = format_time(exp) if exp else _('Never')
@@ -413,7 +411,7 @@ class RequestsScreen(CScreen):
             ci.address = req['address']
             ci.memo = req.get('memo', '')
             #ci.status = req.get('status')
-            ci.amount = self.app.format_amount(amount) if amount else ''
+            ci.amount = self.app.format_amount_and_units(amount) if amount else ''
             ci.date = format_time(timestamp)
             ci.screen = self
             requests_list.add_widget(ci)

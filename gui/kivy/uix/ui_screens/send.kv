@@ -32,10 +32,10 @@ SendScreen:
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
-                TextInputBlue:
+                AmountButton:
                     id: payto_e
-                    text: s.address
-                    hint_text: "Recipient"
+                    text: s.address if s.address else _('Recipient')
+                    on_release: app.address_dialog(s)
             CardSeparator:
                 opacity: message_selection.opacity
                 color: blue_bottom.foreground_color
@@ -49,7 +49,7 @@ SendScreen:
                     pos_hint: {'center_y': .5}
                 AmountButton:
                     id: amount_e
-                    text: s.amount if s.amount else 'Amount'
+                    text: s.amount if s.amount else _('Amount')
                     on_release: app.amount_dialog(s, True)
 
             CardSeparator:
@@ -68,7 +68,7 @@ SendScreen:
                     pos_hint: {'center_y': .5}
                 TextInputBlue:
                     id: message_e
-                    hint_text: 'Description'
+                    hint_text: _('Description')
                     text: s.message
                     on_text_validate: s.message = self.text
         BoxLayout:
