@@ -1,4 +1,23 @@
+#!/usr/bin/env python
+#
+# Electrum - Lightweight Bitcoin Client
+# Copyright (C) 2015 Thomas Voegtlin
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from functools import partial
+from threading import Thread
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -10,7 +29,19 @@ from electrum_gui.qt.main_window import StatusBarButton
 from electrum.i18n import _
 from electrum.plugins import hook
 
-from trustedcoin import TrustedCoinPlugin
+from trustedcoin import TrustedCoinPlugin, Wallet_2fa
+
+def need_server(wallet, tx):
+    from electrum.account import BIP32_Account
+    # Detect if the server is needed
+    long_id, short_id = wallet.get_user_id()
+    xpub3 = wallet.master_public_keys['x3/']
+    for x in tx.inputs_to_sign():
+        if x[0:2] == 'ff':
+            xpub, sequence = BIP32_Account.parse_xpubkey(x)
+            if xpub == xpub3:
+                return True
+    return False
 
 class Plugin(TrustedCoinPlugin):
 
@@ -240,5 +271,3 @@ class Plugin(TrustedCoinPlugin):
             except:
                 QMessageBox.information(window, _('Message'), _('Incorrect password'), _('OK'))
                 pw.setText('')
-
-
