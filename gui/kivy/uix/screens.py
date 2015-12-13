@@ -201,12 +201,11 @@ class SendScreen(CScreen):
     payment_request = None
 
     def set_URI(self, uri):
-        print "set uri", uri
         self.screen.address = uri.get('address', '')
         self.screen.message = uri.get('message', '')
         amount = uri.get('amount')
         if amount:
-            self.screen.amount = self.format_amount_and_units(amount)
+            self.screen.amount = self.app.format_amount_and_units(amount)
 
     def update(self):
         if self.app.current_invoice:
@@ -221,7 +220,9 @@ class SendScreen(CScreen):
     def set_request(self, pr):
         self.payment_request = pr
         self.screen.address = pr.get_requestor()
-        self.screen.amount = self.app.format_amount_and_units(pr.get_amount())
+        amount = pr.get_amount()
+        if amount:
+            self.screen.amount = self.app.format_amount_and_units(amount)
         self.screen.message = pr.get_memo()
 
     def do_paste(self):
@@ -288,8 +289,10 @@ class ReceiveScreen(CScreen):
         self.screen.address = addr
         req = self.app.wallet.receive_requests.get(addr)
         if req:
-            self.screen.amount = self.app.format_amount_and_units(req.get('amount'))
             self.screen.message = unicode(req.get('memo', ''))
+            amount = req.get('amount')
+            if amount:
+                self.screen.amount = self.app.format_amount_and_units(amount)
 
     def amount_callback(self, popup):
         amount_label = self.screen.ids.get('amount')
