@@ -308,7 +308,7 @@ class ReceiveScreen(CScreen):
     @profiler
     def update_qr(self):
         uri = self.get_URI()
-        qr = self.screen.ids.get('qr')
+        qr = self.screen.ids.qr
         qr.set_data(uri)
 
     def do_copy(self):
