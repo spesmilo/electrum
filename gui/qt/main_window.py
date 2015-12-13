@@ -2583,21 +2583,6 @@ class ElectrumWindow(QMainWindow, PrintError):
         nz.valueChanged.connect(on_nz)
         gui_widgets.append((nz_label, nz))
 
-        choosers = sorted(COIN_CHOOSERS.keys())
-        chooser_name = self.wallet.coin_chooser_name(self.config)
-        msg = _('Choose coin (UTXO) selection method.  The following are available:\n\n')
-        msg += '\n\n'.join(key + ": " + klass.__doc__
-                         for key, klass in COIN_CHOOSERS.items())
-        chooser_label = HelpLabel(_('Coin selection') + ':', msg)
-        chooser_combo = QComboBox()
-        chooser_combo.addItems(choosers)
-        chooser_combo.setCurrentIndex(choosers.index(chooser_name))
-        def on_chooser(x):
-            chooser_name = choosers[chooser_combo.currentIndex()]
-            self.config.set_key('coin_chooser', chooser_name)
-        chooser_combo.currentIndexChanged.connect(on_chooser)
-        tx_widgets.append((chooser_label, chooser_combo))
-
         msg = _('Fee per kilobyte of transaction.') + '\n' \
               + _('If you enable dynamic fees, this parameter will be used as upper bound.')
         fee_label = HelpLabel(_('Transaction fee per kb') + ':', msg)
@@ -2773,6 +2758,24 @@ class ElectrumWindow(QMainWindow, PrintError):
         can_edit_fees_cb.stateChanged.connect(on_editfees)
         can_edit_fees_cb.setToolTip(_('This option lets you edit fees in the send tab.'))
         tx_widgets.append((can_edit_fees_cb, None))
+
+        def fmt_docs(key, klass):
+            lines = [ln.lstrip(" ") for ln in klass.__doc__.split("\n")]
+            return '\n'.join([key, "", " ".join(lines)])
+
+        choosers = sorted(COIN_CHOOSERS.keys())
+        chooser_name = self.wallet.coin_chooser_name(self.config)
+        msg = _('Choose coin (UTXO) selection method.  The following are available:\n\n')
+        msg += '\n\n'.join(fmt_docs(*item) for item in COIN_CHOOSERS.items())
+        chooser_label = HelpLabel(_('Coin selection') + ':', msg)
+        chooser_combo = QComboBox()
+        chooser_combo.addItems(choosers)
+        chooser_combo.setCurrentIndex(choosers.index(chooser_name))
+        def on_chooser(x):
+            chooser_name = choosers[chooser_combo.currentIndex()]
+            self.config.set_key('coin_chooser', chooser_name)
+        chooser_combo.currentIndexChanged.connect(on_chooser)
+        tx_widgets.append((chooser_label, chooser_combo))
 
         tabs_info = [
             (tx_widgets, _('Transactions')),

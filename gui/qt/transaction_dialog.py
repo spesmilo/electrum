@@ -54,7 +54,7 @@ class TxDialog(QDialog):
         self.desc = desc
 
         QDialog.__init__(self)
-        self.setMinimumWidth(600)
+        self.setMinimumWidth(660)
         self.setWindowTitle(_("Transaction"))
 
         vbox = QVBoxLayout()
@@ -273,7 +273,8 @@ class TxDialog(QDialog):
                 if addr is None:
                     addr = _('unknown')
                 cursor.insertText(addr, text_format(addr))
-                cursor.insertText(format_amount(x['value']), ext)
+                if x.get('value'):
+                    cursor.insertText(format_amount(x['value']), ext)
             cursor.insertBlock()
 
         vbox.addWidget(i_text)

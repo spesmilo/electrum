@@ -187,6 +187,22 @@
             size: self.size
             pos: self.pos
 
+<CardItem@ToggleButtonBehavior+BoxLayout>
+    size_hint: 1, None
+    height: '65dp'
+    group: 'requests'
+    padding: dp(12)
+    spacing: dp(5)
+    screen: None
+    on_release:
+        self.screen.show_menu(args[0]) if self.state == 'down' else self.screen.hide_menu()
+    canvas.before:
+        Color:
+            rgba: (0.192, .498, 0.745, 1) if self.state == 'down' else (0.3, 0.3, 0.3, 1)
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
 <AddressSelector@BlueSpinner>
     icon: 'atlas://gui/kivy/theming/light/globe'
     values: [] #app.wallet.addresses() if app.wallet else []
@@ -387,14 +403,6 @@ BoxLayout:
                     .format(app.status)
                 font_size: '22dp'
                 minimum_width: '1dp'
-
-            ActionButton:
-                id: context_button
-                text: app.context
-                width: 0
-                on_text:
-                    self.width = 20 if self.text else 0
-                on_release: app.context_action()
 
             ActionOverflow:
                 id: ao

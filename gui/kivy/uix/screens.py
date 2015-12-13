@@ -22,12 +22,17 @@ from electrum_ltc import bitcoin
 from electrum_ltc.util import timestamp_to_datetime
 from electrum_ltc.plugins import run_hook
 
+from context_menu import ContextMenu
+
+
 class CScreen(Factory.Screen):
 
     __events__ = ('on_activate', 'on_deactivate', 'on_enter', 'on_leave')
     action_view = ObjectProperty(None)
     loaded = False
     kvname = None
+    context_menu = None
+    menu_actions = []
     app = App.get_running_app()
 
     def _change_action_view(self):
@@ -65,8 +70,19 @@ class CScreen(Factory.Screen):
         self.dispatch('on_deactivate')
 
     def on_deactivate(self):
-        pass
-        #Clock.schedule_once(lambda dt: self._change_action_view())
+        self.hide_menu()
+
+    def hide_menu(self):
+        if self.context_menu:
+            self.screen.remove_widget(self.context_menu)
+            self.context_menu = None
+
+    def show_menu(self, obj):
+        if self.context_menu is None:
+            self.context_menu = ContextMenu(obj, self.menu_actions)
+        self.screen.remove_widget(self.context_menu)
+        self.screen.add_widget(self.context_menu)
+
 
 
 class HistoryScreen(CScreen):
@@ -77,6 +93,7 @@ class HistoryScreen(CScreen):
     def __init__(self, **kwargs):
         self.ra_dialog = None
         super(HistoryScreen, self).__init__(**kwargs)
+        self.menu_actions = [(_('Details'), self.app.tx_dialog)]
 
     def get_history_rate(self, btc_balance, timestamp):
         date = timestamp_to_datetime(timestamp)
@@ -120,14 +137,12 @@ class HistoryScreen(CScreen):
         if self.app.wallet is None:
             return
 
-        history_card = self.screen.ids.recent_activity_card
+        history_card = self.screen.ids.history_container
         history = self.parse_history(reversed(
             self.app.wallet.get_history(self.app.current_account)))
         # repopulate History Card
-        last_widget = history_card.ids.content.children[-1]
-        history_card.ids.content.clear_widgets()
-        history_add = history_card.ids.content.add_widget
-        history_add(last_widget)
+        history_card.clear_widgets()
+        history_add = history_card.add_widget
         RecentActivityItem = Factory.RecentActivityItem
         count = 0
         for item in history:
@@ -141,6 +156,7 @@ class HistoryScreen(CScreen):
             ri.quote_text = quote_text
             ri.confirmations = conf
             ri.tx_hash = tx
+            ri.screen = self
             history_add(ri)
             if count == 8 and not see_all:
                 break
@@ -189,8 +205,11 @@ class SendScreen(CScreen):
         self.screen.message = uri.get('message', '')
         amount = uri.get('amount')
         if amount:
-            amount_str = str( Decimal(amount) / pow(10, self.app.decimal_point()))
-            self.screen.amount = amount_str + ' ' + self.app.base_unit
+            self.screen.amount = self.format_amount_and_units(amount)
+
+    def update(self):
+        if self.app.current_invoice:
+            self.set_request(self.app.current_invoice)
 
     def do_clear(self):
         self.screen.amount = ''
@@ -199,12 +218,9 @@ class SendScreen(CScreen):
         self.payment_request = None
 
     def set_request(self, pr):
-        if pr.has_expired():
-            self.app.show_error(_('Payment request has expired'))
-            return
         self.payment_request = pr
         self.screen.address = pr.get_requestor()
-        self.screen.amount = self.app.format_amount(pr.get_amount())
+        self.screen.amount = self.app.format_amount_and_units(pr.get_amount())
         self.screen.message = pr.get_memo()
 
     def do_paste(self):
@@ -267,7 +283,12 @@ class ReceiveScreen(CScreen):
     kvname = 'receive'
     
     def update(self):
-        self.screen.address = self.app.wallet.get_unused_address(None)
+        addr = self.app.get_receive_address()
+        self.screen.address = addr
+        req = self.app.wallet.receive_requests.get(addr)
+        if req:
+            self.screen.message = req.get('memo')
+            self.screen.amount = self.app.format_amount_and_units(req.get('amount'))
 
     def amount_callback(self, popup):
         amount_label = self.screen.ids.get('amount')
@@ -304,8 +325,10 @@ class ReceiveScreen(CScreen):
         req = self.app.wallet.make_payment_request(addr, amount, message, None)
         self.app.wallet.add_payment_request(req, self.app.electrum_config)
         self.app.show_error(_('Request saved'))
+        self.app.update_screen('requests')
 
     def do_clear(self):
+        self.app.receive_address = None
         self.screen.amount = ''
         self.screen.message = ''
         self.update()
@@ -345,6 +368,7 @@ class InvoicesScreen(CScreen):
     kvname = 'invoices'
 
     def update(self):
+        self.menu_actions = [(_('Pay'), self.do_pay), (_('Delete'), self.do_delete)]
         invoices_list = self.screen.ids.invoices_container
         invoices_list.clear_widgets()
         for pr in self.app.invoices.sorted_list():
@@ -352,16 +376,27 @@ class InvoicesScreen(CScreen):
             ci.key = pr.get_id()
             ci.requestor = pr.get_requestor()
             ci.memo = pr.memo
-            ci.amount = self.app.format_amount(pr.get_amount())
+            ci.amount = self.app.format_amount_and_units(pr.get_amount())
             #ci.status = self.invoices.get_status(key)
             exp = pr.get_expiration_date()
             ci.date = format_time(exp) if exp else _('Never')
+            ci.screen = self
             invoices_list.add_widget(ci)
+
+    def do_pay(self, obj):
+        self.app.do_pay(obj)
+
+    def do_delete(self, obj):
+        self.app.invoices.remove(obj.key)
+        self.app.update_screen('invoices')
 
 class RequestsScreen(CScreen):
     kvname = 'requests'
 
     def update(self):
+
+        self.menu_actions = [(_('Show'), self.do_show), (_('Delete'), self.do_delete)]
+
         requests_list = self.screen.ids.requests_container
         requests_list.clear_widgets()
         for req in self.app.wallet.get_sorted_requests(self.app.electrum_config):
@@ -376,10 +411,17 @@ class RequestsScreen(CScreen):
             ci.address = req['address']
             ci.memo = req.get('memo', '')
             #ci.status = req.get('status')
-            ci.amount = self.app.format_amount(amount) if amount else ''
+            ci.amount = self.app.format_amount_and_units(amount) if amount else ''
             ci.date = format_time(timestamp)
+            ci.screen = self
             requests_list.add_widget(ci)
 
+    def do_show(self, obj):
+        self.app.show_request(obj.address)
+
+    def do_delete(self, obj):
+        self.app.wallet.remove_payment_request(obj.address, self.app.electrum_config)
+        self.update()
 
 
 class CSpinner(Factory.Spinner):

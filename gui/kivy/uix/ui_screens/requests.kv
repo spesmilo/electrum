@@ -1,40 +1,28 @@
-<InvoicesLabel@Label>
+<RequestLabel@Label>
     #color: .305, .309, .309, 1
     text_size: self.size
     halign: 'left'
     valign: 'middle'
 
-<RequestItem@BoxLayout>
+<RequestItem@CardItem>
     address: ''
     memo: ''
     amount: ''
     status: ''
     date: ''
-    size_hint_y: None
-    height: '65dp'
-    padding: dp(12)
-    spacing: dp(5)
-    canvas.before:
-        Color:
-            rgba: 0.3, 0.3, 0.3, 1
-        Rectangle:
-            size: self.size
-            pos: self.pos
-    InvoicesLabel:
+    RequestLabel:
         text: root.address
         font_size: '13dp'
-    InvoicesLabel:
+    RequestLabel:
         text: root.memo
-    InvoicesLabel:
+    RequestLabel:
         text: root.amount
     #InvoicesLabel:
     #    text: root.status
 
+
 RequestsScreen:
     name: 'requests'
-    on_activate:
-        if not self.action_view:\
-        self.action_view = app.root.main_screen.ids.tabs.ids.screen_dashboard.action_view
     BoxLayout:
         orientation: 'vertical'
         spacing: '1dp'
@@ -50,4 +38,5 @@ RequestsScreen:
                 id: requests_container
                 size_hint_y: None
                 height: self.minimum_height
-                spacing: '1dp'
+                spacing: '2dp'
+                padding: '12dp'

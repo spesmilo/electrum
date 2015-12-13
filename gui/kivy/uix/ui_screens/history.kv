@@ -38,20 +38,6 @@
     size: self.texture_size[0] + dp(32), self.texture_size[1] + dp(7)
 
 
-<CardItem@ToggleButtonBehavior+GridLayout>
-    canvas.before:
-        Color:
-            rgba: 0.192, .498, 0.745, 1 if self.state == 'down' else 0
-        Rectangle
-            size: self.size
-            pos: self.x, self.y + dp(5)
-    cols: 1
-    padding: '2dp', '2dp'
-    spacing: '2dp'
-    size_hint: 1, None
-    height: self.minimum_height
-    group: 'history'
-
 <RecentActivityItem@CardItem>
     icon: 'atlas://gui/kivy/theming/light/important'
     address: 'no address set'
@@ -62,8 +48,7 @@
     date: '0/0/0'
     quote_text: '.'
     spacing: '9dp'
-    on_release:
-        app.tx_selected(root.tx_hash, self.state)
+    cols: 1
     BoxLayout:
         size_hint: 1, None
         spacing: '8dp'
@@ -100,16 +85,6 @@
                 u'[/color]'.format(amount_color=root.amount_color,\
                 amount=root.amount[1:], qt=root.quote_text, sign=root.amount[0],\
                 unit=app.base_unit)
-    CardSeparator
-
-<CardRecentActivity@Card>
-    GridLayout:
-        id: content
-        spacing: '7dp'
-        cols: 1
-        size_hint: 1, None
-        height: self.minimum_height
-        CardSeparator
 
 
 HistoryScreen:
@@ -119,12 +94,9 @@ HistoryScreen:
         id: content
         do_scroll_x: False
         GridLayout
-            id: grid
-            cols: 1 #if root.width < root.height else 2
+            id: history_container
+            cols: 1
             size_hint: 1, None
             height: self.minimum_height
             padding: '12dp'
-            spacing: '12dp'
-            CardRecentActivity:
-                id: recent_activity_card
-
+            spacing: '2dp'
