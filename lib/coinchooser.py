@@ -241,7 +241,7 @@ class CoinChooserPrivacy(CoinChooserRandom):
         zeroes = map(trailing_zeroes, output_amounts)
         min_zeroes = min(zeroes)
         max_zeroes = max(zeroes)
-        zeroes = range(max(0, min_zeroes - 1), min(max_zeroes + 1, 8) + 1)
+        zeroes = range(max(0, min_zeroes - 1), (max_zeroes + 1) + 1)
 
         # Calculate change; randomize it a bit if using more than 1 output
         remaining = change_amount

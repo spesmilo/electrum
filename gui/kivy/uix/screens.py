@@ -24,6 +24,8 @@ from electrum_ltc.plugins import run_hook
 
 from context_menu import ContextMenu
 
+from electrum_ltc.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+
 
 class CScreen(Factory.Screen):
 
@@ -74,14 +76,14 @@ class CScreen(Factory.Screen):
 
     def hide_menu(self):
         if self.context_menu:
-            self.screen.remove_widget(self.context_menu)
+            self.remove_widget(self.context_menu)
             self.context_menu = None
 
     def show_menu(self, obj):
         if self.context_menu is None:
             self.context_menu = ContextMenu(obj, self.menu_actions)
-        self.screen.remove_widget(self.context_menu)
-        self.screen.add_widget(self.context_menu)
+        self.remove_widget(self.context_menu)
+        self.add_widget(self.context_menu)
 
 
 
@@ -93,7 +95,7 @@ class HistoryScreen(CScreen):
     def __init__(self, **kwargs):
         self.ra_dialog = None
         super(HistoryScreen, self).__init__(**kwargs)
-        self.menu_actions = [(_('Details'), self.app.tx_dialog)]
+        self.menu_actions = [ (_('Label'), self.app.tx_label_dialog), (_('Details'), self.app.tx_details_dialog)]
 
     def get_history_rate(self, btc_balance, timestamp):
         date = timestamp_to_datetime(timestamp)
@@ -143,15 +145,14 @@ class HistoryScreen(CScreen):
         # repopulate History Card
         history_card.clear_widgets()
         history_add = history_card.add_widget
-        RecentActivityItem = Factory.RecentActivityItem
         count = 0
         for item in history:
             count += 1
-            conf, icon, date_time, address, value, tx, quote_text = item
-            ri = RecentActivityItem()
+            conf, icon, date_time, message, value, tx, quote_text = item
+            ri = Factory.HistoryItem()
             ri.icon = icon
             ri.date = date_time
-            ri.address = address
+            ri.message = message
             ri.value = value
             ri.quote_text = quote_text
             ri.confirmations = conf
@@ -200,12 +201,11 @@ class SendScreen(CScreen):
     payment_request = None
 
     def set_URI(self, uri):
-        print "set uri", uri
         self.screen.address = uri.get('address', '')
         self.screen.message = uri.get('message', '')
         amount = uri.get('amount')
         if amount:
-            self.screen.amount = self.format_amount_and_units(amount)
+            self.screen.amount = self.app.format_amount_and_units(amount)
 
     def update(self):
         if self.app.current_invoice:
@@ -220,7 +220,9 @@ class SendScreen(CScreen):
     def set_request(self, pr):
         self.payment_request = pr
         self.screen.address = pr.get_requestor()
-        self.screen.amount = self.app.format_amount_and_units(pr.get_amount())
+        amount = pr.get_amount()
+        if amount:
+            self.screen.amount = self.app.format_amount_and_units(amount)
         self.screen.message = pr.get_memo()
 
     def do_paste(self):
@@ -287,8 +289,10 @@ class ReceiveScreen(CScreen):
         self.screen.address = addr
         req = self.app.wallet.receive_requests.get(addr)
         if req:
-            self.screen.message = req.get('memo')
-            self.screen.amount = self.app.format_amount_and_units(req.get('amount'))
+            self.screen.message = unicode(req.get('memo', ''))
+            amount = req.get('amount')
+            if amount:
+                self.screen.amount = self.app.format_amount_and_units(amount)
 
     def amount_callback(self, popup):
         amount_label = self.screen.ids.get('amount')
@@ -307,7 +311,7 @@ class ReceiveScreen(CScreen):
     @profiler
     def update_qr(self):
         uri = self.get_URI()
-        qr = self.screen.ids.get('qr')
+        qr = self.screen.ids.qr
         qr.set_data(uri)
 
     def do_copy(self):
@@ -317,22 +321,25 @@ class ReceiveScreen(CScreen):
     def do_save(self):
         addr = str(self.screen.address)
         amount = str(self.screen.amount)
-        message = unicode(self.screen.message)
+        message = str(self.screen.message) #.ids.message_input.text)
         if not message and not amount:
             self.app.show_error(_('No message or amount'))
-            return False
-        amount = self.app.get_amount(amount)
+            return
+        if amount:
+            amount = self.app.get_amount(amount)
+        else:
+            amount = 0
+        print "saving", amount, message
         req = self.app.wallet.make_payment_request(addr, amount, message, None)
         self.app.wallet.add_payment_request(req, self.app.electrum_config)
         self.app.show_error(_('Request saved'))
         self.app.update_screen('requests')
 
-    def do_clear(self):
+    def do_new(self):
         self.app.receive_address = None
         self.screen.amount = ''
         self.screen.message = ''
         self.update()
-
 
 
 class ContactsScreen(CScreen):
@@ -377,7 +384,13 @@ class InvoicesScreen(CScreen):
             ci.requestor = pr.get_requestor()
             ci.memo = pr.memo
             ci.amount = self.app.format_amount_and_units(pr.get_amount())
-            #ci.status = self.invoices.get_status(key)
+            status = self.app.invoices.get_status(ci.key)
+            if status == PR_PAID:
+                ci.icon = "atlas://gui/kivy/theming/light/confirmed"
+            elif status == PR_EXPIRED:
+                ci.icon = "atlas://gui/kivy/theming/light/important"
+            else:
+                ci.icon = "atlas://gui/kivy/theming/light/important"
             exp = pr.get_expiration_date()
             ci.date = format_time(exp) if exp else _('Never')
             ci.screen = self
@@ -406,11 +419,18 @@ class RequestsScreen(CScreen):
             expiration = req.get('exp', None)
             status = req.get('status')
             signature = req.get('sig')
-
             ci = Factory.RequestItem()
             ci.address = req['address']
-            ci.memo = req.get('memo', '')
-            #ci.status = req.get('status')
+            label, is_default = self.app.wallet.get_label(address)
+            if label:
+                ci.memo = label 
+            status = req.get('status')
+            if status == PR_PAID:
+                ci.icon = "atlas://gui/kivy/theming/light/confirmed"
+            elif status == PR_EXPIRED:
+                ci.icon = "atlas://gui/kivy/theming/light/important"
+            else:
+                ci.icon = "atlas://gui/kivy/theming/light/important"
             ci.amount = self.app.format_amount_and_units(amount) if amount else ''
             ci.date = format_time(timestamp)
             ci.screen = self
@@ -454,14 +474,18 @@ class TabbedCarousel(Factory.TabbedPanel):
             return
         idx = self.tab_list.index(value)
         n = len(self.tab_list)
-        scroll_x = 1. * (n - idx - 1) / (n - 1)
+        if idx in [0, 1]:
+            scroll_x = 1
+        elif idx in [n-1, n-2]:
+            scroll_x = 0
+        else:
+            scroll_x = 1. * (n - idx - 1) / (n - 1)
+
         mation = Factory.Animation(scroll_x=scroll_x, d=.25)
         mation.cancel_all(scrlv)
         mation.start(scrlv)
 
     def on_current_tab(self, instance, value):
-        if value.text == 'default_tab':
-            return
         self.animate_tab_to_center(value)
 
     def on_index(self, instance, value):
