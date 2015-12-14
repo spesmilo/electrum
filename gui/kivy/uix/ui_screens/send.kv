@@ -53,7 +53,7 @@ SendScreen:
                     id: amount_e
                     default_text: _('Amount')
                     text: s.amount if s.amount else _('Amount')
-                    on_release: app.amount_dialog(s, True)
+                    on_release: s.amount_dialog()
             CardSeparator:
                 opacity: message_selection.opacity
                 color: blue_bottom.foreground_color

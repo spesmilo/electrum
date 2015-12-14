@@ -731,16 +731,13 @@ class ElectrumWindow(App):
         d = LabelDialog(_('Enter description'), text, callback)
         d.open()
 
-
+    @profiler
     def amount_dialog(self, screen, show_max):
         from uix.dialogs.amount_dialog import AmountDialog
         amount = screen.amount
         if amount:
             amount, u = str(amount).split()
             assert u == self.base_unit
-        else:
-            amount = None
-
         def cb(amount):
             screen.amount = amount
         popup = AmountDialog(show_max, amount, cb)

@@ -225,6 +225,9 @@ class SendScreen(CScreen):
         self.screen.address = ''
         self.payment_request = None
 
+    def amount_dialog(self):
+        Clock.schedule_once(lambda dt: self.app.amount_dialog(self, True), .25)
+
     def set_request(self, pr):
         self.payment_request = pr
         self.screen.address = pr.get_requestor()
