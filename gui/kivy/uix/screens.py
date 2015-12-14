@@ -75,16 +75,14 @@ class CScreen(Factory.Screen):
         self.hide_menu()
 
     def hide_menu(self):
-        if self.context_menu:
+        if self.context_menu is not None:
             self.remove_widget(self.context_menu)
             self.context_menu = None
 
     def show_menu(self, obj):
-        if self.context_menu is None:
-            self.context_menu = ContextMenu(obj, self.menu_actions)
-        self.remove_widget(self.context_menu)
+        self.hide_menu()
+        self.context_menu = ContextMenu(obj, self.menu_actions)
         self.add_widget(self.context_menu)
-
 
 
 class HistoryScreen(CScreen):
@@ -95,7 +93,17 @@ class HistoryScreen(CScreen):
     def __init__(self, **kwargs):
         self.ra_dialog = None
         super(HistoryScreen, self).__init__(**kwargs)
-        self.menu_actions = [ (_('Label'), self.app.tx_label_dialog), (_('Details'), self.app.tx_details_dialog)]
+        self.menu_actions = [ (_('Label'), self.label_dialog), (_('Details'), self.app.tx_details_dialog)]
+
+    def label_dialog(self, obj):
+        from dialogs.label_dialog import LabelDialog
+        key = obj.tx_hash
+        text = self.app.wallet.get_label(key)[0]
+        def callback(text):
+            self.app.wallet.set_label(key, text)
+            self.update()
+        d = LabelDialog(_('Enter Transaction Label'), text, callback)
+        d.open()
 
     def get_history_rate(self, btc_balance, timestamp):
         date = timestamp_to_datetime(timestamp)
@@ -216,6 +224,9 @@ class SendScreen(CScreen):
         self.screen.message = ''
         self.screen.address = ''
         self.payment_request = None
+
+    def amount_dialog(self):
+        Clock.schedule_once(lambda dt: self.app.amount_dialog(self, True), .25)
 
     def set_request(self, pr):
         self.payment_request = pr

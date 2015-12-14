@@ -3,6 +3,8 @@
 #:import _ electrum_ltc.i18n._
 
 # Custom Global Widgets
+<Button>
+    on_parent: self.MIN_STATE_TIME = 0.1
 
 <VGridLayout@GridLayout>:
     rows: 1
@@ -208,17 +210,23 @@
     values: [] #app.wallet.addresses() if app.wallet else []
     text: _("Select Your address")
 
-<AmountButton@Button>:
+<BlueButton@Button>:
     background_color: .238, .585, .878, 0
     halign: 'left'
     text_size: (self.width-10, None)
     size_hint: 0.5, None
-    default_text: 'Amount'
+    default_text: ''
     text: self.default_text
     padding: '5dp', '5db'
     height: '40dp'
     text_color: self.foreground_color
     foreground_color: 1, 0, 0, 1
+    canvas.before:
+        Color:
+            rgba: (0.9, .498, 0.745, 1) if self.state == 'down' else self.background_color
+        Rectangle:
+            size: self.size
+            pos: self.pos
 
 
 <TextInputBlue@TextInput>
@@ -251,12 +259,12 @@
     carousel: carousel
     do_default_tab: False
     Carousel:
-        scroll_timeout: 190
+        scroll_timeout: 250
+        scroll_distance: '20dp'
         anim_type: 'out_quart'
         min_move: .05
         anim_move_duration: .1
         anim_cancel_duration: .54
-        scroll_distance: '10dp'
         on_index: root.on_index(*args)
         id: carousel
 

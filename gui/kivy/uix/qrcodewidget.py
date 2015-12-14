@@ -102,7 +102,7 @@ class QRCodeWidget(FloatLayout):
         cr, cg, cb = cr*255, cg*255, cb*255
         for r in range(k):
             for c in range(k):
-                bext([0, 0, 0] if matrix[r][c] else [cr, cg, cb])
+                bext([0, 0, 0] if matrix[k-1-r][c] else [cr, cg, cb])
         # then blit the buffer
         buff = ''.join(map(chr, buff))
         # update texture

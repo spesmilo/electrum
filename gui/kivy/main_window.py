@@ -33,6 +33,7 @@ Factory.register('InstallWizard',
 Factory.register('InfoBubble', module='electrum_ltc_gui.kivy.uix.dialogs')
 Factory.register('ELTextInput', module='electrum_ltc_gui.kivy.uix.screens')
 
+
 #from kivy.core.window import Window
 #Window.softinput_mode = 'below_target'
 
@@ -719,33 +720,27 @@ class ElectrumWindow(App):
         popup.tx_hash = obj.tx_hash
         popup.open()
 
-    def tx_label_dialog(self, obj):
-        pass
-
     def address_dialog(self, screen):
         pass
 
-    def amount_dialog(self, screen, show_max):
-        popup = Builder.load_file('gui/kivy/uix/ui_screens/amount.kv')
-        but_max = popup.ids.but_max
-        if not show_max:
-            but_max.disabled = True
-            but_max.opacity = 0
-        else:
-            but_max.disabled = False
-            but_max.opacity = 1
+    def description_dialog(self, screen):
+        from uix.dialogs.label_dialog import LabelDialog
+        text = screen.message
+        def callback(text):
+            screen.message = text
+        d = LabelDialog(_('Enter description'), text, callback)
+        d.open()
 
+    @profiler
+    def amount_dialog(self, screen, show_max):
+        from uix.dialogs.amount_dialog import AmountDialog
         amount = screen.amount
         if amount:
-            a, u = str(amount).split()
+            amount, u = str(amount).split()
             assert u == self.base_unit
-            popup.ids.kb.amount = a
-
-        def cb():
-            o = popup.ids.a.btc_text
-            screen.amount = o
-
-        popup.on_dismiss = cb
+        def cb(amount):
+            screen.amount = amount
+        popup = AmountDialog(show_max, amount, cb)
         popup.open()
 
     def protected(self, f, args):
