@@ -75,16 +75,14 @@ class CScreen(Factory.Screen):
         self.hide_menu()
 
     def hide_menu(self):
-        if self.context_menu:
+        if self.context_menu is not None:
             self.remove_widget(self.context_menu)
             self.context_menu = None
 
     def show_menu(self, obj):
-        if self.context_menu is None:
-            self.context_menu = ContextMenu(obj, self.menu_actions)
-        self.remove_widget(self.context_menu)
+        self.hide_menu()
+        self.context_menu = ContextMenu(obj, self.menu_actions)
         self.add_widget(self.context_menu)
-
 
 
 class HistoryScreen(CScreen):
