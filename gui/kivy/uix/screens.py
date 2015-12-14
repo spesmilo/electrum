@@ -95,7 +95,17 @@ class HistoryScreen(CScreen):
     def __init__(self, **kwargs):
         self.ra_dialog = None
         super(HistoryScreen, self).__init__(**kwargs)
-        self.menu_actions = [ (_('Label'), self.app.tx_label_dialog), (_('Details'), self.app.tx_details_dialog)]
+        self.menu_actions = [ (_('Label'), self.label_dialog), (_('Details'), self.app.tx_details_dialog)]
+
+    def label_dialog(self, obj):
+        from dialogs.label_dialog import LabelDialog
+        key = obj.tx_hash
+        text = self.app.wallet.get_label(key)[0]
+        def callback(text):
+            self.app.wallet.set_label(key, text)
+            self.update()
+        d = LabelDialog(_('Enter Transaction Label'), text, callback)
+        d.open()
 
     def get_history_rate(self, btc_balance, timestamp):
         date = timestamp_to_datetime(timestamp)

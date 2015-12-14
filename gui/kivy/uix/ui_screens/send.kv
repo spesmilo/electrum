@@ -32,7 +32,7 @@ SendScreen:
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
-                AmountButton:
+                BlueButton:
                     id: payto_e
                     text: s.address if s.address else _('Recipient')
                     on_release: app.address_dialog(s)
@@ -47,8 +47,9 @@ SendScreen:
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
-                AmountButton:
+                BlueButton:
                     id: amount_e
+                    default_text: _('Amount')
                     text: s.amount if s.amount else _('Amount')
                     on_release: app.amount_dialog(s, True)
 
@@ -66,11 +67,10 @@ SendScreen:
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
-                TextInputBlue:
-                    id: message_e
-                    hint_text: _('Description')
-                    text: s.message
-                    on_text_validate: s.message = self.text
+                BlueButton:
+                    id: description
+                    text: s.message if s.message else _('Description')
+                    on_release: app.description_dialog(s)
         BoxLayout:
             size_hint: 1, None
             height: '48dp'

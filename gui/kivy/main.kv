@@ -208,12 +208,12 @@
     values: [] #app.wallet.addresses() if app.wallet else []
     text: _("Select Your address")
 
-<AmountButton@Button>:
+<BlueButton@Button>:
     background_color: .238, .585, .878, 0
     halign: 'left'
     text_size: (self.width-10, None)
     size_hint: 0.5, None
-    default_text: 'Amount'
+    default_text: ''
     text: self.default_text
     padding: '5dp', '5db'
     height: '40dp'

@@ -39,5 +39,8 @@ class ContextMenu(Bubble):
         for k, v in action_list:
             l = MenuItem()
             l.text = k
-            l.on_release = lambda f=v: f(obj)
+            def func(f=v):
+                f(obj)
+                if self.parent: self.parent.hide_menu()
+            l.on_release = func
             self.ids.buttons.add_widget(l)
