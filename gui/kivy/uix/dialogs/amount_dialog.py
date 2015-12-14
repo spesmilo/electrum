@@ -1,13 +1,15 @@
-#:import Decimal decimal.Decimal
+from kivy.app import App
+from kivy.factory import Factory
+from kivy.properties import ObjectProperty
+from kivy.lang import Builder
 
 
-Popup:
+Builder.load_string('''
+<AmountDialog@Popup>
     id: popup
     title: _('Amount')
-
     AnchorLayout:
         anchor_x: 'center'
-
         BoxLayout:
             orientation: 'vertical'
             size_hint: 0.8, 1
@@ -60,6 +62,8 @@ Popup:
                     text: '<'
                 Button:
                     id: but_max
+                    opacity: 1 if root.show_max else 0
+                    disabled: not root.show_max
                     size_hint: 1, None
                     height: '48dp'
                     text: 'Max'
@@ -80,10 +84,8 @@ Popup:
                     on_release:
                         kb.amount = ''
                         kb.fiat_amount = ''
-
             Widget:
                 size_hint: 1, None
-
             BoxLayout:
                 size_hint: 1, None
                 height: '48dp'
@@ -94,4 +96,19 @@ Popup:
                     size_hint: 1, None
                     height: '48dp'
                     text: _('OK')
-                    on_release: popup.dismiss()
+                    on_release:
+                        root.callback(a.btc_text)
+                        popup.dismiss()
+''')
+
+from kivy.properties import BooleanProperty
+
+class AmountDialog(Factory.Popup):
+    show_max = BooleanProperty(False)
+    def __init__(self, show_max, amount, cb):
+        Factory.Popup.__init__(self)
+        self.show_max = show_max
+        self.callback = cb
+        if amount:
+            self.ids.kb.amount = amount
+

@@ -733,26 +733,17 @@ class ElectrumWindow(App):
 
 
     def amount_dialog(self, screen, show_max):
-        popup = Builder.load_file('gui/kivy/uix/ui_screens/amount.kv')
-        but_max = popup.ids.but_max
-        if not show_max:
-            but_max.disabled = True
-            but_max.opacity = 0
-        else:
-            but_max.disabled = False
-            but_max.opacity = 1
-
+        from uix.dialogs.amount_dialog import AmountDialog
         amount = screen.amount
         if amount:
-            a, u = str(amount).split()
+            amount, u = str(amount).split()
             assert u == self.base_unit
-            popup.ids.kb.amount = a
+        else:
+            amount = None
 
-        def cb():
-            o = popup.ids.a.btc_text
-            screen.amount = o
-
-        popup.on_dismiss = cb
+        def cb(amount):
+            screen.amount = amount
+        popup = AmountDialog(show_max, amount, cb)
         popup.open()
 
     def protected(self, f, args):
