@@ -23,6 +23,7 @@ SendScreen:
             id: blue_bottom
             size_hint: 1, None
             height: self.minimum_height
+            spacing: '5dp'
             BoxLayout:
                 size_hint: 1, None
                 height: blue_bottom.item_height
@@ -42,6 +43,7 @@ SendScreen:
             BoxLayout:
                 size_hint: 1, None
                 height: blue_bottom.item_height
+                spacing: '5dp'
                 Image:
                     source: 'atlas://gui/kivy/theming/light/globe'
                     size_hint: None, None
@@ -52,13 +54,11 @@ SendScreen:
                     default_text: _('Amount')
                     text: s.amount if s.amount else _('Amount')
                     on_release: app.amount_dialog(s, True)
-
             CardSeparator:
                 opacity: message_selection.opacity
                 color: blue_bottom.foreground_color
             BoxLayout:
                 id: message_selection
-                opacity: 1
                 size_hint: 1, None
                 height: blue_bottom.item_height
                 spacing: '5dp'

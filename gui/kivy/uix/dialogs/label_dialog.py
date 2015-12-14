@@ -8,6 +8,7 @@ Builder.load_string('''
     id: popup
     title: ''
     size_hint: 0.8, 0.3
+    pos_hint: {'top':0.9}
     BoxLayout:
         orientation: 'vertical'
         Widget:
