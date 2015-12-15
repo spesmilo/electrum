@@ -565,7 +565,7 @@ class Commands:
         return map(self._format_request, out)
 
     @command('w')
-    def addrequest(self, requested_amount, memo='', expiration=60*60, force=False):
+    def addrequest(self, amount, memo='', expiration=60*60, force=False):
         """Create a payment request."""
         addr = self.wallet.get_unused_address(None)
         if addr is None:
@@ -573,7 +573,7 @@ class Commands:
                 addr = self.wallet.create_new_address(None, False)
             else:
                 return False
-        amount = int(Decimal(requested_amount)*COIN)
+        amount = int(COIN*Decimal(amount))
         expiration = int(expiration)
         req = self.wallet.make_payment_request(addr, amount, memo, expiration)
         self.wallet.add_payment_request(req, self.config)
@@ -664,6 +664,7 @@ command_options = {
 }
 
 
+# don't use floats because of rounding errors
 arg_types = {
     'num':int,
     'nbits':int,
@@ -671,8 +672,8 @@ arg_types = {
     'pubkeys': json.loads,
     'inputs': json.loads,
     'outputs': json.loads,
-    'tx_fee': lambda x: float(x) if x is not None else None,
-    'amount': lambda x: float(x) if x!='!' else '!',
+    'tx_fee': lambda x: str(Decimal(x)) if x is not None else None,
+    'amount': lambda x: str(Decimal(x)) if x!='!' else '!',
 }
 
 config_variables = {
