@@ -273,13 +273,18 @@ class FxPlugin(BasePlugin, ThreadJob):
         return _("No data")
 
     @hook
-    def historical_value_str(self, satoshis, d_t):
+    def history_rate(self, d_t):
         rate = self.exchange.historical_rate(self.ccy, d_t)
         # Frequently there is no rate for today, until tomorrow :)
         # Use spot quotes in that case
         if rate is None and (datetime.today().date() - d_t.date()).days <= 2:
             rate = self.exchange.quotes.get(self.ccy)
             self.history_used_spot = True
+        return rate
+
+    @hook
+    def historical_value_str(self, satoshis, d_t):
+        rate = self.history_rate(d_t)
         return self.value_str(satoshis, rate)
 
     @hook

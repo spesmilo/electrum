@@ -98,16 +98,13 @@ class HistoryScreen(CScreen):
     def label_dialog(self, obj):
         from dialogs.label_dialog import LabelDialog
         key = obj.tx_hash
-        text = self.app.wallet.get_label(key)[0]
+        text = self.app.wallet.get_label(key)
         def callback(text):
             self.app.wallet.set_label(key, text)
             self.update()
         d = LabelDialog(_('Enter Transaction Label'), text, callback)
         d.open()
 
-    def get_history_rate(self, btc_balance, timestamp):
-        date = timestamp_to_datetime(timestamp)
-        return run_hook('historical_value_str', btc_balance, date)
 
     def parse_history(self, items):
         for item in items:
@@ -125,22 +122,18 @@ class HistoryScreen(CScreen):
                 time_str = _('pending')
                 icon = "atlas://gui/kivy/theming/light/unconfirmed"
             elif conf < 6:
-                time_str = ''  # add new to fix error when conf < 0
                 conf = max(1, conf)
                 icon = "atlas://gui/kivy/theming/light/clock{}".format(conf)
             else:
                 icon = "atlas://gui/kivy/theming/light/confirmed"
 
-            if tx_hash:
-                label, is_default_label = self.app.wallet.get_label(tx_hash)
+            label = self.app.wallet.get_label(tx_hash) if tx_hash else _('Pruned transaction outputs')
+            date = timestamp_to_datetime(timestamp)
+            rate = run_hook('history_rate', date)
+            if self.app.fiat_unit:
+                quote_text = "..." if rate is None else "{0:.3} {1}".format(Decimal(value) / 100000000 * Decimal(rate), self.app.fiat_unit)
             else:
-                label = _('Pruned transaction outputs')
-                is_default_label = False
-
-            quote_currency = 'USD'
-            rate = self.get_history_rate(value, timestamp)
-            quote_text = "..." if rate is None else "{0:.3} {1}".format(rate, quote_currency)
-
+                quote_text = ''
             yield (conf, icon, time_str, label, value, tx_hash, quote_text)
 
     def update(self, see_all=False):
@@ -432,9 +425,7 @@ class RequestsScreen(CScreen):
             signature = req.get('sig')
             ci = Factory.RequestItem()
             ci.address = req['address']
-            label, is_default = self.app.wallet.get_label(address)
-            if label:
-                ci.memo = label 
+            ci.memo = self.app.wallet.get_label(address)
             status = req.get('status')
             if status == PR_PAID:
                 ci.icon = "atlas://gui/kivy/theming/light/confirmed"

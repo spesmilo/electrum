@@ -383,12 +383,6 @@ class MyTreeWidget(QTreeWidget):
         key = str(item.data(0, Qt.UserRole).toString())
         text = unicode(item.text(column))
         self.parent.wallet.set_label(key, text)
-        if text:
-            item.setForeground(column, QBrush(QColor('black')))
-        else:
-            text = self.parent.wallet.get_default_label(key)
-            item.setText(column, text)
-            item.setForeground(column, QBrush(QColor('gray')))
         self.parent.history_list.update()
         self.parent.update_completions()
 

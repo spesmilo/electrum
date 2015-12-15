@@ -317,7 +317,7 @@ if __name__ == '__main__':
     # run command offline
     if cmd_name not in ['gui', 'daemon']:
         cmd, password, wallet = init_cmdline(config)
-        if not cmd.requires_network or config.get('offline'):
+        if not (cmd.requires_network or cmd.requires_wallet) or config.get('offline'):
             result = run_offline_command(config, cmd, wallet, password)
             print_msg(json_encode(result))
             sys.exit(0)

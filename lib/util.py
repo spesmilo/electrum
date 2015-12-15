@@ -147,7 +147,7 @@ def json_encode(obj):
 
 def json_decode(x):
     try:
-        return json.loads(x)
+        return json.loads(x, parse_float=decimal.Decimal)
     except:
         return x
 
@@ -567,13 +567,14 @@ class StoreDict(dict):
 
 
 def check_www_dir(rdir):
-    # rewrite index.html every time
     import urllib, urlparse, shutil, os
     if not os.path.exists(rdir):
         os.mkdir(rdir)
     index = os.path.join(rdir, 'index.html')
-    src = os.path.join(os.path.dirname(__file__), 'www', 'index.html')
-    shutil.copy(src, index)
+    if not os.path.exists(index):
+        print_error("copying index.html")
+        src = os.path.join(os.path.dirname(__file__), 'www', 'index.html')
+        shutil.copy(src, index)
     files = [
         "https://code.jquery.com/jquery-1.9.1.min.js",
         "https://raw.githubusercontent.com/davidshimjs/qrcodejs/master/qrcode.js",

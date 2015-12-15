@@ -173,7 +173,7 @@ class TxDialog(QDialog):
             status = _("Signed")
 
             if tx_hash in self.wallet.transactions.keys():
-                desc, is_default = self.wallet.get_label(tx_hash)
+                desc = self.wallet.get_label(tx_hash)
                 conf, timestamp = self.wallet.get_confirmations(tx_hash)
                 if timestamp:
                     time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]

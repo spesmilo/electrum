@@ -74,7 +74,7 @@ class HistoryWidget(MyTreeWidget):
             icon, time_str = self.get_icon(conf, timestamp)
             v_str = self.parent.format_amount(value, True, whitespaces=True)
             balance_str = self.parent.format_amount(balance, whitespaces=True)
-            label, is_default_label = self.wallet.get_label(tx_hash)
+            label = self.wallet.get_label(tx_hash)
             entry = ['', tx_hash, time_str, label, v_str, balance_str]
             run_hook('history_tab_update', tx, entry)
             item = QTreeWidgetItem(entry)
@@ -88,8 +88,6 @@ class HistoryWidget(MyTreeWidget):
                 item.setForeground(4, QBrush(QColor("#BC1E1E")))
             if tx_hash:
                 item.setData(0, Qt.UserRole, tx_hash)
-            if is_default_label:
-                item.setForeground(3, QBrush(QColor('grey')))
             self.insertTopLevelItem(0, item)
             if current_tx == tx_hash:
                 self.setCurrentItem(item)
