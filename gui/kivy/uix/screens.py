@@ -105,9 +105,6 @@ class HistoryScreen(CScreen):
         d = LabelDialog(_('Enter Transaction Label'), text, callback)
         d.open()
 
-    def get_history_rate(self, btc_balance, timestamp):
-        date = timestamp_to_datetime(timestamp)
-        return run_hook('historical_value_str', btc_balance, date)
 
     def parse_history(self, items):
         for item in items:
@@ -125,7 +122,6 @@ class HistoryScreen(CScreen):
                 time_str = _('pending')
                 icon = "atlas://gui/kivy/theming/light/unconfirmed"
             elif conf < 6:
-                time_str = ''  # add new to fix error when conf < 0
                 conf = max(1, conf)
                 icon = "atlas://gui/kivy/theming/light/clock{}".format(conf)
             else:
@@ -137,9 +133,10 @@ class HistoryScreen(CScreen):
                 label = _('Pruned transaction outputs')
                 is_default_label = False
 
-            quote_currency = 'USD'
-            rate = self.get_history_rate(value, timestamp)
-            quote_text = "..." if rate is None else "{0:.3} {1}".format(rate, quote_currency)
+            date = timestamp_to_datetime(timestamp)
+            rate = run_hook('history_rate', date)
+            if self.app.fiat_unit:
+                quote_text = "..." if rate is None else "{0:.3} {1}".format(Decimal(value) / 100000000 * Decimal(rate), self.app.fiat_unit)
 
             yield (conf, icon, time_str, label, value, tx_hash, quote_text)
 
