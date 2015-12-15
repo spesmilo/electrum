@@ -98,7 +98,7 @@ class HistoryScreen(CScreen):
     def label_dialog(self, obj):
         from dialogs.label_dialog import LabelDialog
         key = obj.tx_hash
-        text = self.app.wallet.get_label(key)[0]
+        text = self.app.wallet.get_label(key)
         def callback(text):
             self.app.wallet.set_label(key, text)
             self.update()
@@ -127,12 +127,7 @@ class HistoryScreen(CScreen):
             else:
                 icon = "atlas://gui/kivy/theming/light/confirmed"
 
-            if tx_hash:
-                label, is_default_label = self.app.wallet.get_label(tx_hash)
-            else:
-                label = _('Pruned transaction outputs')
-                is_default_label = False
-
+            label = self.app.wallet.get_label(tx_hash) if tx_hash else _('Pruned transaction outputs')
             date = timestamp_to_datetime(timestamp)
             rate = run_hook('history_rate', date)
             if self.app.fiat_unit:
@@ -430,9 +425,7 @@ class RequestsScreen(CScreen):
             signature = req.get('sig')
             ci = Factory.RequestItem()
             ci.address = req['address']
-            label, is_default = self.app.wallet.get_label(address)
-            if label:
-                ci.memo = label 
+            ci.memo = self.app.wallet.get_label(address)
             status = req.get('status')
             if status == PR_PAID:
                 ci.icon = "atlas://gui/kivy/theming/light/confirmed"

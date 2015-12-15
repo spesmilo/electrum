@@ -867,24 +867,9 @@ class Abstract_Wallet(PrintError):
 
         return h2
 
-
     def get_label(self, tx_hash):
-        label = self.labels.get(tx_hash)
-        is_default = (label == '') or (label is None)
-        if is_default:
-            label = self.get_default_label(tx_hash)
-        return label, is_default
-
-    def get_default_label(self, tx_hash):
-        if self.txi.get(tx_hash) == {}:
-            d = self.txo.get(tx_hash, {})
-            labels = []
-            for addr in d.keys():
-                label = self.labels.get(addr)
-                if label:
-                    labels.append(label)
-            return ', '.join(labels)
-        return ''
+        label = self.labels.get(tx_hash, '')
+        return label
 
     def fee_per_kb(self, config):
         b = config.get('dynamic_fees')
