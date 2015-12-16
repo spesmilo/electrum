@@ -665,13 +665,15 @@ command_options = {
 
 
 # don't use floats because of rounding errors
+json_loads = lambda x: json.loads(x, parse_float=lambda x: str(Decimal(x)))
 arg_types = {
-    'num':int,
-    'nbits':int,
-    'entropy':long,
-    'pubkeys': json.loads,
-    'inputs': json.loads,
-    'outputs': json.loads,
+    'num': int,
+    'nbits': int,
+    'entropy': long,
+    'tx': json_loads,
+    'pubkeys': json_loads,
+    'inputs': json_loads,
+    'outputs': json_loads,
     'tx_fee': lambda x: str(Decimal(x)) if x is not None else None,
     'amount': lambda x: str(Decimal(x)) if x!='!' else '!',
 }
