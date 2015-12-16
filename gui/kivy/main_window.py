@@ -57,8 +57,8 @@ from kivy.core.clipboard import Clipboard
 Factory.register('TabbedCarousel', module='electrum_ltc_gui.kivy.uix.screens')
 
 
+from electrum_ltc.util import base_units
 
-base_units = {'LTC':8, 'mLTC':5, 'uLTC':2}
 
 class ElectrumWindow(App):
 
@@ -75,11 +75,6 @@ class ElectrumWindow(App):
             self.history_screen.update()
 
     base_unit = AliasProperty(_get_bu, _set_bu)
-
-    def _rotate_bu(self):
-        keys = sorted(base_units.keys())
-        self.base_unit = keys[ (keys.index(self.base_unit) + 1) % len(keys)]
-
     status = StringProperty('')
     fiat_unit = StringProperty('')
 
@@ -310,17 +305,21 @@ class ElectrumWindow(App):
             win.bind(keyboard_height=self.on_keyboard_height)
 
         self.on_size(win, win.size)
+        self.load_wallet_by_name(self.electrum_config.get_wallet_path())
+
+    def load_wallet_by_name(self, wallet_path):
+        if not wallet_path:
+            return
+        self.stop_wallet()
+
         config = self.electrum_config
-        storage = WalletStorage(config.get_wallet_path())
-
+        storage = WalletStorage(wallet_path)
         Logger.info('Electrum: Check for existing wallet')
-
         if storage.file_exists:
             wallet = Wallet(storage)
             action = wallet.get_action()
         else:
             action = 'new'
-
         if action is not None:
             # start installation wizard
             Logger.debug('Electrum: Wallet not found. Launching install wizard')
@@ -330,10 +329,22 @@ class ElectrumWindow(App):
         else:
             wallet.start_threads(self.network)
             self.on_wizard_complete(None, wallet)
-
         self.on_resume()
 
+    def create_wallet_dialog(self):
+        from uix.dialogs.label_dialog import LabelDialog
+        d = LabelDialog(_('Enter wallet name'), '', self.load_wallet_by_name)
+        d.open()
+
+    def settings_dialog(self):
+        from uix.dialogs.settings import SettingsDialog
+        d = SettingsDialog(self)
+        d.open()
+
     def on_stop(self):
+        self.stop_wallet()
+
+    def stop_wallet(self):
         if self.wallet:
             self.wallet.stop_threads()
 
@@ -398,8 +409,11 @@ class ElectrumWindow(App):
         self.load_wallet(wallet)
 
     def popup_dialog(self, name):
-        popup = Builder.load_file('gui/kivy/uix/ui_screens/'+name+'.kv')
-        popup.open()
+        if name == 'settings':
+            self.settings_dialog()
+        else:
+            popup = Builder.load_file('gui/kivy/uix/ui_screens/'+name+'.kv')
+            popup.open()
 
 
 
@@ -438,7 +452,7 @@ class ElectrumWindow(App):
             interests = ['updated', 'status', 'new_transaction']
             self.network.register_callback(self.on_network, interests)
 
-        self.wallet = None
+        #self.wallet = None
         self.tabs = self.root.ids['tabs']
 
     def on_network(self, event, *args):

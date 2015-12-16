@@ -5,31 +5,41 @@ Popup:
     id: popup
     BoxLayout:
         orientation: 'vertical'
-        GridLayout:
+        Label:
+            id: text_input
+            height: '32dp'
             size_hint_y: None
-            cols: 2
-            Label:
-                height: '32dp'
-                size_hint_y: None
-                text: _('Wallet file') + ':'
-            TextInput:
-                id: text_input
-                height: '32dp'
-                size_hint_y: None
-                text: os.path.basename(app.wallet.storage.path)
+            text: os.path.basename(app.wallet.storage.path)
+        Widget
+            size_hint_y: None
 
-        FileChooserIconView:
+        FileChooserListView:
             id: wallet_selector
             path: os.path.dirname(app.wallet.storage.path)
-            on_selection: text_input.text = os.path.basename(self.selection[0]) if self.selection else ''
+            on_selection:
+                text_input.text = os.path.basename(self.selection[0]) if self.selection else ''
             size_hint: 1, 1
 
-        BoxLayout:
-            Widget:
-                size_hint: 0.5, None
+        GridLayout:
+            cols: 3
+            size_hint_y: None
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
-                text: _('OK')
+                text: _('Create')
+                on_release:
+                    popup.dismiss()
+                    app.create_wallet_dialog()
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Open')
+                on_release:
+                    popup.dismiss()
+                    app.open_wallet(text_input.text)
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Cancel')
                 on_release:
                     popup.dismiss()
