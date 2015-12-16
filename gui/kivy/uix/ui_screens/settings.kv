@@ -1,7 +1,6 @@
 Popup:
     id: settings
     title: _('Settings')
-
     BoxLayout:
         orientation: 'vertical'
         SettingsItem:
@@ -12,19 +11,17 @@ Popup:
                 self.title = _('PIN Code') + ' (%s)'%('ON' if app.wallet.use_encryption else 'OFF')
         CardSeparator
         SettingsItem:
-            title: _('Denomination') + ' (' + app.base_unit + ')'
+            bu: app.base_unit
+            title: _('Denomination') + ' (' + self.bu + ')'
             description: _("Base unit for Bitcoin amounts.")
             on_release:
-                app._rotate_bu()
-                self.title = _('Denomination') + ' (' + app.base_unit + ')'
+                app.unit_dialog(self)
         CardSeparator
         SettingsItem:
             title: _('OpenAlias')
             description: "Email-like address."
-
         Widget:
             size_hint: 1, 1
-
         BoxLayout:
             Widget:
                 size_hint: 0.5, None

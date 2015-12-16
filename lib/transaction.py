@@ -761,6 +761,7 @@ class Transaction:
         return out
 
     def sign(self, keypairs):
+        print "sign"
         for i, txin in enumerate(self.inputs):
             num = txin['num_sig']
             for x_pubkey in txin['x_pubkeys']:
