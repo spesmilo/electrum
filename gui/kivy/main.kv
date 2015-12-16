@@ -355,7 +355,6 @@
 <ActionOvrButton@ActionButton>
     on_release:
         if self.parent: self.parent.parent.dismiss()
-        app.popup_dialog(self.name)
 
 
 <SettingsItem@ButtonBehavior+BoxLayout>
@@ -417,21 +416,25 @@ BoxLayout:
             ActionOverflow:
                 id: ao
                 ActionOvrButton:
-                    text: _('Network')
                     name: 'network'
+                    text: _('Network')
                     on_parent:
                         # when widget overflow drop down is shown, adjust the width
                         parent = args[1]
                         if parent: ao._dropdown.width = sp(200)
+                    on_release: app.popup_dialog(self.name)
                 ActionOvrButton:
                     name: 'settings'
                     text: _('Settings')
+                    on_release: app.settings_dialog()
                 ActionOvrButton:
                     name: 'wallets'
                     text: _('Wallets')
+                    on_release: app.popup_dialog(self.name)
                 ActionOvrButton:
                     name: 'plugins'
                     text: _('Plugins')
+                    on_release: app.popup_dialog(self.name)
 
     ScreenManager:
         id: manager

@@ -57,8 +57,8 @@ from kivy.core.clipboard import Clipboard
 Factory.register('TabbedCarousel', module='electrum_gui.kivy.uix.screens')
 
 
+from electrum.util import base_units
 
-base_units = {'BTC':8, 'mBTC':5, 'uBTC':2}
 
 class ElectrumWindow(App):
 
@@ -75,11 +75,6 @@ class ElectrumWindow(App):
             self.history_screen.update()
 
     base_unit = AliasProperty(_get_bu, _set_bu)
-
-    def _rotate_bu(self):
-        keys = sorted(base_units.keys())
-        self.base_unit = keys[ (keys.index(self.base_unit) + 1) % len(keys)]
-
     status = StringProperty('')
     fiat_unit = StringProperty('')
 
@@ -341,12 +336,9 @@ class ElectrumWindow(App):
         d = LabelDialog(_('Enter wallet name'), '', self.load_wallet_by_name)
         d.open()
 
-    def unit_dialog(self, item):
-        from uix.dialogs.choice_dialog import ChoiceDialog
-        def cb(text):
-            self._set_bu(text)
-            item.bu = self.base_unit
-        d = ChoiceDialog(_('Denomination'), sorted(base_units.keys()), self.base_unit, cb)
+    def settings_dialog(self):
+        from uix.dialogs.settings import SettingsDialog
+        d = SettingsDialog(self)
         d.open()
 
     def on_stop(self):
