@@ -1,3 +1,4 @@
+#:import Clock kivy.clock.Clock
 #:import Window kivy.core.window.Window
 #:import Factory kivy.factory.Factory
 #:import _ electrum.i18n._
@@ -354,8 +355,8 @@
 
 <ActionOvrButton@ActionButton>
     on_release:
-        if self.parent: self.parent.parent.dismiss()
-
+        Clock.schedule_once(lambda dt: self.parent.parent.dismiss() if self.parent else None, 0.05)
+        Clock.schedule_once(lambda dt: app.popup_dialog(self.name), 0.05)
 
 <SettingsItem@ButtonBehavior+BoxLayout>
     orientation: 'vertical'
@@ -422,20 +423,15 @@ BoxLayout:
                         # when widget overflow drop down is shown, adjust the width
                         parent = args[1]
                         if parent: ao._dropdown.width = sp(200)
-                    on_release: app.popup_dialog(self.name)
                 ActionOvrButton:
                     name: 'settings'
                     text: _('Settings')
-                    on_release: app.settings_dialog()
                 ActionOvrButton:
                     name: 'wallets'
                     text: _('Wallets')
-                    on_release: app.popup_dialog(self.name)
                 ActionOvrButton:
                     name: 'plugins'
                     text: _('Plugins')
-                    on_release: app.popup_dialog(self.name)
-
     ScreenManager:
         id: manager
         ScreenTabs:

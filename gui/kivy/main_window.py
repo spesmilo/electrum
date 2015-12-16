@@ -409,8 +409,11 @@ class ElectrumWindow(App):
         self.load_wallet(wallet)
 
     def popup_dialog(self, name):
-        popup = Builder.load_file('gui/kivy/uix/ui_screens/'+name+'.kv')
-        popup.open()
+        if name == 'settings':
+            self.settings_dialog()
+        else:
+            popup = Builder.load_file('gui/kivy/uix/ui_screens/'+name+'.kv')
+            popup.open()
 
 
 
