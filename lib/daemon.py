@@ -103,7 +103,7 @@ class Daemon(DaemonThread):
                 'nodes': self.network.get_interfaces(),
                 'connected': self.network.is_connected(),
                 'auto_connect': p[4],
-                'wallets': self.wallets.keys(),
+                'wallets': dict([ (k, w.is_up_to_date()) for k, w in self.wallets.items()]),
             }
         elif sub == 'stop':
             self.stop()
@@ -140,8 +140,6 @@ class Daemon(DaemonThread):
         cmdname = config.get('cmd')
         cmd = known_commands[cmdname]
         wallet = self.load_wallet(config) if cmd.requires_wallet else None
-        if wallet:
-            wallet.wait_until_synchronized()
         # arguments passed to function
         args = map(lambda x: config.get(x), cmd.params)
         # decode json arguments

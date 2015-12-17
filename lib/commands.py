@@ -443,7 +443,7 @@ class Commands:
                 time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
             except Exception:
                 time_str = "----"
-            label, is_default_label = self.wallet.get_label(tx_hash)
+            label = self.wallet.get_label(tx_hash)
             out.append({
                 'txid':tx_hash,
                 'timestamp':timestamp,
