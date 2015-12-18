@@ -322,7 +322,6 @@ class ElectrumWindow(App):
         else:
             wallet.start_threads(self.network)
             self.load_wallet(wallet)
-
         self.on_resume()
 
     def create_wallet_dialog(self, l):

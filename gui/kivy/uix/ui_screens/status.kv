@@ -1,0 +1,25 @@
+Popup:
+    title: "Balance"
+    confirmed: 0
+    unconfirmed: 0
+    unmatured: 0
+    on_parent:
+        self.confirmed, self.unconfirmed, self.x = app.wallet.get_balance()
+    BoxLayout:
+        orientation: 'vertical'
+        spacing: '1dp'
+        GridLayout:
+            cols:2
+            Label:
+                text: _("Confirmed:")
+            Label: 
+                text: app.format_amount_and_units(root.confirmed)
+            Label:
+                text: _("Unconfirmed:")
+            Label:
+                text: app.format_amount_and_units(root.unconfirmed)
+            Label:
+                text: "Unmatured:"
+            Label:
+                text: app.format_amount_and_units(root.unmatured)
+        Widget
