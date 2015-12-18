@@ -332,10 +332,6 @@ class ElectrumWindow(App):
         d = LabelDialog(_('Enter wallet name'), '', f)
         d.open()
 
-    def settings_dialog(self):
-        from uix.dialogs.settings import SettingsDialog
-        d = SettingsDialog(self)
-        d.open()
 
     def on_stop(self):
         self.stop_wallet()
@@ -395,7 +391,13 @@ class ElectrumWindow(App):
 
     def popup_dialog(self, name):
         if name == 'settings':
-            self.settings_dialog()
+            from uix.dialogs.settings import SettingsDialog
+            d = SettingsDialog(self)
+            d.open()
+        elif name == 'wallets':
+            from uix.dialogs.wallets import WalletDialog
+            d = WalletDialog()
+            d.open()
         else:
             popup = Builder.load_file('gui/kivy/uix/ui_screens/'+name+'.kv')
             popup.open()

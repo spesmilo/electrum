@@ -337,7 +337,7 @@ class ReceiveScreen(CScreen):
         req = self.app.wallet.make_payment_request(addr, amount, message, None)
         self.app.wallet.add_payment_request(req, self.app.electrum_config)
         self.app.show_error(_('Request saved'))
-        self.app.update_screen('requests')
+        self.app.update_tab('requests')
 
     def do_new(self):
         self.app.receive_address = None
@@ -405,7 +405,7 @@ class InvoicesScreen(CScreen):
 
     def do_delete(self, obj):
         self.app.invoices.remove(obj.key)
-        self.app.update_screen('invoices')
+        self.app.update_tab('invoices')
 
 class RequestsScreen(CScreen):
     kvname = 'requests'

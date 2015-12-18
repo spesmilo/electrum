@@ -1,6 +1,17 @@
-#:import os os
+from kivy.app import App
+from kivy.factory import Factory
+from kivy.properties import ObjectProperty
+from kivy.lang import Builder
 
-Popup:
+from electrum.i18n import _
+from electrum.util import base_units
+
+import os
+from label_dialog import LabelDialog
+
+Builder.load_string('''
+#:import os os
+<WalletDialog@Popup>:
     title: _('Wallets')
     id: popup
     path: app.wallet.storage.path
@@ -22,7 +33,7 @@ Popup:
                 size_hint_y: None
                 text: os.path.basename(app.wallet.storage.path)
                 on_release:
-                    app.create_wallet_dialog(self)
+                    root.name_dialog()
                 on_text:
                     popup.path = os.path.join(wallet_selector.path, self.text)
         Widget
@@ -35,6 +46,7 @@ Popup:
             size_hint_y: 0.5
         Widget
             size_hint_y: 0.1
+
         GridLayout:
             cols: 2
             size_hint_y: None
@@ -52,3 +64,13 @@ Popup:
                 on_release:
                     popup.dismiss()
                     app.load_wallet_by_name(popup.path)
+''')
+
+class WalletDialog(Factory.Popup):
+    def name_dialog(self):
+        def cb(text):
+            if text:
+                self.ids.wallet_name.text = text
+        d = LabelDialog(_('Enter wallet name'), '', cb)
+        d.open()
+

@@ -1,3 +1,5 @@
+#:import os os
+
 Popup:
     title: "Balance"
     confirmed: 0
@@ -10,6 +12,10 @@ Popup:
         spacing: '1dp'
         GridLayout:
             cols:2
+            Label:
+                text: _("Wallet:")
+            Label:
+                text: os.path.basename(app.wallet.storage.path)
             Label:
                 text: _("Confirmed:")
             Label: 
