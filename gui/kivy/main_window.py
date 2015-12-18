@@ -211,9 +211,8 @@ class ElectrumWindow(App):
                     self.show_error(_('Payment request has expired'))
                 else:
                     self.current_invoice = pr
-                    self.update_screen('send')
-                    send_tab = self.tabs.ids.send_tab
-                    self.tabs.ids.panel.switch_to(send_tab)
+                    self.update_tab('send')
+                    self.switch_to('send')
         else:
             self.show_error("invoice error:" + pr.error)
             self.send_screen.do_clear()
@@ -226,16 +225,25 @@ class ElectrumWindow(App):
             return
         self.send_screen.set_URI(url)
 
-    def update_screen(self, name):
+
+    def update_tab(self, name):
         s = getattr(self, name + '_screen', None)
         if s:
             s.update()
 
+    @profiler
+    def update_tabs(self):
+        for tab in ['invoices', 'send', 'history', 'receive', 'requests']:
+            self.update_tab(tab)
+
+    def switch_to(self, name):
+        tab = self.tabs.ids[name + '_tab']
+        self.tabs.ids.panel.switch_to(tab)
+
     def show_request(self, addr):
         self.receive_address = addr
-        self.update_screen('receive')
-        receive_tab = self.tabs.ids.receive_tab
-        self.tabs.ids.panel.switch_to(receive_tab)
+        self.update_tab('receive')
+        self.switch_to('receive')
 
     def scan_qr(self, on_complete):
         from jnius import autoclass
@@ -445,7 +453,7 @@ class ElectrumWindow(App):
         self.update_wallet()
         # Once GUI has been initialized check if we want to announce something
         # since the callback has been called before the GUI was initialized
-        self.update_history_tab()
+        self.update_tabs()
         self.notify_transactions()
         run_hook('load_wallet', wallet, self)
 
@@ -515,22 +523,9 @@ class ElectrumWindow(App):
 
     @profiler
     def update_wallet(self, *dt):
-        print "update wallet"
         self._trigger_update_status()
         if self.wallet.up_to_date or not self.network or not self.network.is_connected():
-            self.update_history_tab()
-            self.update_contacts_tab()
-
-
-    @profiler
-    def update_history_tab(self, see_all=False):
-        if self.history_screen:
-            print "blah"
-            self.history_screen.update(see_all)
-
-    def update_contacts_tab(self):
-        if self.contacts_screen:
-            self.contacts_screen.update()
+            self.update_tabs()
 
 
     @profiler
