@@ -7,7 +7,7 @@ from decimal import Decimal
 
 import electrum
 from electrum import WalletStorage, Wallet
-from electrum.i18n import _, set_language
+from electrum.i18n import _
 from electrum.contacts import Contacts
 from electrum.paymentrequest import InvoiceStore
 from electrum.util import profiler, InvalidPassword
@@ -253,22 +253,6 @@ class ElectrumWindow(App):
         activity.bind(on_activity_result=on_qr_result)
         PythonActivity.mActivity.startActivityForResult(intent, 0)
 
-    def show_plugins(self, plugins_list):
-        def on_active(sw, value):
-            self.plugins.toggle_enabled(self.electrum_config, sw.name)
-            run_hook('init_kivy', self)
-        for item in self.plugins.descriptions:
-            if 'kivy' not in item.get('available_for', []):
-                continue
-            name = item.get('__name__')
-            label = Label(text=item.get('fullname'), height='48db', size_hint=(1, None))
-            plugins_list.add_widget(label)
-            sw = Switch()
-            sw.name = name
-            p = self.plugins.get(name)
-            sw.active = (p is not None) and p.is_enabled()
-            sw.bind(active=on_active)
-            plugins_list.add_widget(sw)
 
     def build(self):
         return Builder.load_file('gui/kivy/main.kv')
@@ -305,6 +289,7 @@ class ElectrumWindow(App):
             win.bind(keyboard_height=self.on_keyboard_height)
 
         self.on_size(win, win.size)
+        self.init_ui()
         self.load_wallet_by_name(self.electrum_config.get_wallet_path())
 
     def load_wallet_by_name(self, wallet_path):
@@ -324,16 +309,20 @@ class ElectrumWindow(App):
             # start installation wizard
             Logger.debug('Electrum: Wallet not found. Launching install wizard')
             wizard = Factory.InstallWizard(config, self.network, storage)
-            wizard.bind(on_wizard_complete=self.on_wizard_complete)
+            wizard.bind(on_wizard_complete=lambda instance, wallet: self.load_wallet(wallet))
             wizard.run(action)
         else:
             wallet.start_threads(self.network)
-            self.on_wizard_complete(None, wallet)
+            self.load_wallet(wallet)
+
         self.on_resume()
 
-    def create_wallet_dialog(self):
+    def create_wallet_dialog(self, l):
         from uix.dialogs.label_dialog import LabelDialog
-        d = LabelDialog(_('Enter wallet name'), '', self.load_wallet_by_name)
+        def f(text):
+            if text:
+                l.text = text
+        d = LabelDialog(_('Enter wallet name'), '', f)
         d.open()
 
     def settings_dialog(self):
@@ -364,7 +353,6 @@ class ElectrumWindow(App):
                 active_widg = self.root.children[0]
             except IndexError:
                 return
-
         try:
             fw = self._focused_widget
         except AttributeError:
@@ -398,16 +386,6 @@ class ElectrumWindow(App):
             self.gui.main_gui.toggle_settings(self)
             return True
 
-    def on_wizard_complete(self, instance, wallet):
-        if not wallet:
-            Logger.debug('Electrum: No Wallet set/found. Exiting...')
-            app = App.get_running_app()
-            app.show_error('Electrum: No Wallet set/found. Exiting...',
-                           exit=True)
-
-        self.init_ui()
-        self.load_wallet(wallet)
-
     def popup_dialog(self, name):
         if name == 'settings':
             self.settings_dialog()
@@ -415,15 +393,12 @@ class ElectrumWindow(App):
             popup = Builder.load_file('gui/kivy/uix/ui_screens/'+name+'.kv')
             popup.open()
 
-
-
     @profiler
     def init_ui(self):
         ''' Initialize The Ux part of electrum. This function performs the basic
         tasks of setting up the ui.
         '''
         from weakref import ref
-        set_language(self.electrum_config.get('language'))
 
         self.funds_error = False
         # setup UX
@@ -540,6 +515,7 @@ class ElectrumWindow(App):
 
     @profiler
     def update_wallet(self, *dt):
+        print "update wallet"
         self._trigger_update_status()
         if self.wallet.up_to_date or not self.network or not self.network.is_connected():
             self.update_history_tab()
@@ -549,6 +525,7 @@ class ElectrumWindow(App):
     @profiler
     def update_history_tab(self, see_all=False):
         if self.history_screen:
+            print "blah"
             self.history_screen.update(see_all)
 
     def update_contacts_tab(self):

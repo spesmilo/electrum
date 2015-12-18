@@ -3,43 +3,52 @@
 Popup:
     title: _('Wallets')
     id: popup
+    path: app.wallet.storage.path
+    on_path:
+        button.text = _('Open') if os.path.exists(popup.path) else _('Create')
     BoxLayout:
         orientation: 'vertical'
-        Label:
-            id: text_input
-            height: '32dp'
+        BoxLayout:
+            height: '48dp'
             size_hint_y: None
-            text: os.path.basename(app.wallet.storage.path)
+            orientation: 'horizontal'
+            Label:
+                text: _('Wallet') + ': '
+                height: '48dp'
+                size_hint_y: None
+            Button:
+                id: wallet_name
+                height: '48dp'
+                size_hint_y: None
+                text: os.path.basename(app.wallet.storage.path)
+                on_release:
+                    app.create_wallet_dialog(self)
+                on_text:
+                    popup.path = os.path.join(wallet_selector.path, self.text)
         Widget
             size_hint_y: None
-
         FileChooserListView:
             id: wallet_selector
             path: os.path.dirname(app.wallet.storage.path)
             on_selection:
-                text_input.text = os.path.basename(self.selection[0]) if self.selection else ''
-            size_hint: 1, 1
-
+                wallet_name.text = os.path.basename(self.selection[0]) if self.selection else ''
+            size_hint_y: 0.5
+        Widget
+            size_hint_y: 0.1
         GridLayout:
-            cols: 3
+            cols: 2
             size_hint_y: None
-            Button:
-                size_hint: 0.5, None
-                height: '48dp'
-                text: _('Create')
-                on_release:
-                    popup.dismiss()
-                    app.create_wallet_dialog()
-            Button:
-                size_hint: 0.5, None
-                height: '48dp'
-                text: _('Open')
-                on_release:
-                    popup.dismiss()
-                    app.open_wallet(text_input.text)
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
                 text: _('Cancel')
                 on_release:
                     popup.dismiss()
+            Button:
+                id: button
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Open') if os.path.exists(popup.path) else _('Create')
+                on_release:
+                    popup.dismiss()
+                    app.load_wallet_by_name(popup.path)

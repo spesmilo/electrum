@@ -140,11 +140,11 @@ Builder.load_string('''
         height: self.minimum_height
         CreateAccountButton:
             id: create
-            text: _('Create a Wallet')
+            text: _('Create a new seed')
             root: root
         CreateAccountButton:
             id: restore
-            text: _('I already have a wallet')
+            text: _('I already have a seed')
             root: root
 
 

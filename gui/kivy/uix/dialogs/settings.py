@@ -8,6 +8,49 @@ from electrum.util import base_units
 from electrum.i18n import languages, set_language
 
 Builder.load_string('''
+<SettingsItem@ButtonBehavior+BoxLayout>
+    orientation: 'vertical'
+    title: ''
+    description: ''
+    size_hint: 1, 1
+    Label:
+        id: title
+        text: self.parent.title
+        size_hint: 1, 1
+        bold: True
+        text_size: self.size
+        halign: 'left'
+    Label:
+        text: self.parent.description
+        size_hint: 1, 1
+        text_size: self.width, None
+        color: 0.8, 0.8, 0.8, 1
+        halign: 'left'
+
+<PluginItem@ButtonBehavior+BoxLayout>
+    orientation: 'vertical'
+    title: ''
+    description: ''
+    size_hint: 1, 1
+    BoxLayout:
+        orientation: 'horizontal'
+        Label:
+            id: title
+            text: self.parent.title
+            size_hint: 1, 1
+            bold: True
+            text_size: self.size
+            halign: 'left'
+        Switch:
+            id: sw
+            name: ''
+    Label:
+        text: self.parent.description
+        size_hint: 1, 1
+        text_size: self.width, None
+        color: 0.8, 0.8, 0.8, 1
+        halign: 'left'
+
 <SettingsDialog@Popup>
     id: settings
     title: _('Settings')
@@ -15,13 +58,13 @@ Builder.load_string('''
         orientation: 'vertical'
         SettingsItem:
             lang: settings.get_language_name()
-            title: _('Language') + ' (%s)'%self.lang
+            title: _('Language') + ': %s'%self.lang
             description: _("Language")
             on_release:
                 settings.language_dialog(self)
         CardSeparator
         SettingsItem:
-            title: _('PIN Code') + ' (%s)'%('ON' if app.wallet.use_encryption else 'OFF')
+            title: _('PIN Code') + ': %s'%('ON' if app.wallet.use_encryption else 'OFF')
             description: _("Your PIN code will be required in order to spend bitcoins.")
             on_release:
                 app.change_password()
@@ -29,13 +72,13 @@ Builder.load_string('''
         CardSeparator
         SettingsItem:
             bu: app.base_unit
-            title: _('Denomination') + ' (' + self.bu + ')'
+            title: _('Denomination') + ': ' + self.bu
             description: _("Base unit for Bitcoin amounts.")
             on_release:
                 settings.unit_dialog(self)
         CardSeparator
         SettingsItem:
-            title: _('Fiat Currency')
+            title: _('Fiat Currency') + ': ' + app.fiat_unit
             description: "Select the local fiat currency."
             on_release:
                 settings.fiat_dialog(self)
@@ -71,9 +114,9 @@ class SettingsDialog(Factory.Popup):
         from choice_dialog import ChoiceDialog
         l = self.app.electrum_config.get('language', 'en_UK')
         def cb(key):
-            set_language(key)
             self.app.electrum_config.set_key("language", key, True)
             item.lang = self.get_language_name()
+            set_language(key)
         d = ChoiceDialog(_('Language'), languages, l, cb)
         d.open()
 
@@ -98,3 +141,31 @@ class SettingsDialog(Factory.Popup):
             pass
         d = LabelDialog(_('OpenAlias'), '', callback)
         d.open()
+
+
+    def show_plugins(self, plugins_list):
+
+        def on_active(sw, value):
+            self.plugins.toggle_enabled(self.electrum_config, sw.name)
+            run_hook('init_kivy', self)
+
+        for item in self.plugins.descriptions:
+            if 'kivy' not in item.get('available_for', []):
+                continue
+            name = item.get('__name__')
+            label = Label(text=item.get('fullname'), height='48db', size_hint=(1, None))
+            plugins_list.add_widget(label)
+            sw = Switch()
+            sw.name = name
+            p = self.plugins.get(name)
+            sw.active = (p is not None) and p.is_enabled()
+            sw.bind(active=on_active)
+            plugins_list.add_widget(sw)
+
+class PluginItem():
+    def __init__(self, name):
+        p = self.plugins.get(name)
+        sw.active = (p is not None) and p.is_enabled()
+        sw.bind(active=on_active)
+        plugins_list.add_widget(sw)
+        

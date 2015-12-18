@@ -358,28 +358,8 @@
         Clock.schedule_once(lambda dt: self.parent.parent.dismiss() if self.parent else None, 0.05)
         Clock.schedule_once(lambda dt: app.popup_dialog(self.name), 0.05)
 
-<SettingsItem@ButtonBehavior+BoxLayout>
-    orientation: 'vertical'
-    title: ''
-    description: ''
-    size_hint: 1, 1
-    Label:
-        id: title
-        text: self.parent.title
-        size_hint: 1, 1
-        bold: True
-        text_size: self.size
-        halign: 'left'
-    Label:
-        text: self.parent.description
-        size_hint: 1, 1
-        text_size: self.width, None
-        color: 0.8, 0.8, 0.8, 1
-        halign: 'left'
-
 
 BoxLayout:
-
     orientation: 'vertical'
 
     canvas.before:
@@ -417,6 +397,9 @@ BoxLayout:
             ActionOverflow:
                 id: ao
                 ActionOvrButton:
+                    name: 'about'
+                    text: _('About')
+                ActionOvrButton:
                     name: 'network'
                     text: _('Network')
                     on_parent:
@@ -424,14 +407,11 @@ BoxLayout:
                         parent = args[1]
                         if parent: ao._dropdown.width = sp(200)
                 ActionOvrButton:
-                    name: 'settings'
-                    text: _('Settings')
-                ActionOvrButton:
                     name: 'wallets'
                     text: _('Wallets')
                 ActionOvrButton:
-                    name: 'plugins'
-                    text: _('Plugins')
+                    name: 'settings'
+                    text: _('Settings')
     ScreenManager:
         id: manager
         ScreenTabs:
