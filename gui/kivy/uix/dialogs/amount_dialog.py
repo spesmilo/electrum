@@ -2,9 +2,15 @@ from kivy.app import App
 from kivy.factory import Factory
 from kivy.properties import ObjectProperty
 from kivy.lang import Builder
-
+from decimal import Decimal
 
 Builder.load_string('''
+<KButton@Button>:
+    size_hint: 1, None
+    height: '48dp'
+    on_release:
+        self.parent.update_amount(self.text)
+
 <AmountDialog@Popup>
     id: popup
     title: _('Amount')
@@ -32,8 +38,8 @@ Builder.load_string('''
                 is_fiat: False
                 on_fiat_amount: if self.is_fiat: self.amount = app.fiat_to_btc(self.fiat_amount)
                 on_amount: if not self.is_fiat: self.fiat_amount = app.btc_to_fiat(self.amount)
-                update_text: app.update_amount
                 size_hint: 1, None
+                update_amount: popup.update_amount
                 height: '300dp'
                 cols: 3
                 KButton:
@@ -76,7 +82,7 @@ Builder.load_string('''
                     height: '48dp'
                     text: (app.fiat_unit if kb.is_fiat else app.base_unit) if app.fiat_unit else ''
                     on_release:
-                        app.toggle_fiat(kb)
+                        popup.toggle_fiat(kb)
                 Button:
                     size_hint: 1, None
                     height: '48dp'
@@ -90,7 +96,7 @@ Builder.load_string('''
                 size_hint: 1, None
                 height: '48dp'
                 Widget:
-                    size_hint: 2, None
+                    size_hint: 1, None
                     height: '48dp'
                 Button:
                     size_hint: 1, None
@@ -112,3 +118,25 @@ class AmountDialog(Factory.Popup):
         if amount:
             self.ids.kb.amount = amount
 
+    def toggle_fiat(self, a):
+        a.is_fiat = not a.is_fiat
+
+    def update_amount(self, c):
+        kb = self.ids.kb
+        amount = kb.fiat_amount if kb.is_fiat else kb.amount
+        if c == '<':
+            amount = amount[:-1]
+        elif c == '.' and amount in ['0', '']:
+            amount = '0.'
+        elif amount == '0':
+            amount = c
+        else:
+            try:
+                Decimal(amount+c)
+                amount += c
+            except:
+                pass
+        if kb.is_fiat:
+            kb.fiat_amount = amount
+        else:
+            kb.amount = amount

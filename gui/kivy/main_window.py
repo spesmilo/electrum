@@ -491,28 +491,6 @@ class ElectrumWindow(App):
             text += c
         label.password = text
 
-    def toggle_fiat(self, a):
-        a.is_fiat = not a.is_fiat
-
-    def update_amount(self, label, c):
-        amount = label.fiat_amount if label.is_fiat else label.amount
-        if c == '<':
-            amount = amount[:-1]
-        elif c == '.' and amount == '':
-            amount = '0.'
-        elif c == '0' and amount == '0':
-            amount = '0'
-        else:
-            try:
-                Decimal(amount+c)
-                amount += c
-            except:
-                pass
-
-        if label.is_fiat:
-            label.fiat_amount = amount
-        else:
-            label.amount = amount
 
     def format_amount(self, x, is_diff=False, whitespaces=False):
         return format_satoshis(x, is_diff, 0, self.decimal_point(), whitespaces)
