@@ -42,7 +42,8 @@ ReceiveScreen:
             size_hint: 1, None
             height: '48dp'
             opacity: 0.5 if qr.shaded else 1
-            text: s.address
+            text: _('Litecoin Address') + ': ' + s.address
+            text_size: self.width, None
 
         SendReceiveBlueBottom:
             id: blue_bottom
@@ -98,5 +99,5 @@ ReceiveScreen:
                 size_hint: 1, None
                 height: '48dp'
                 on_release: s.parent.do_new()
-        Widget:
-            size_hint: 1, 0.3
+        #Widget:
+        #    size_hint: 1, 0.3

@@ -29,6 +29,7 @@ except ImportError:
 
 # minimum required version for kivy
 kivy.require('1.8.0')
+from electrum_ltc.i18n import set_language
 from kivy.logger import Logger
 from main_window import ElectrumWindow
 
@@ -39,6 +40,7 @@ class ElectrumGui:
         self.network = network
         self.config = config
         self.plugins = plugins
+        set_language(config.get('language'))
 
     def main(self):
         w = ElectrumWindow(config=self.config,
