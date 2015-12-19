@@ -61,11 +61,12 @@ class CoinChooserBase(PrintError):
 
     def change_amounts(self, tx, count, fee_estimator, dust_threshold):
         # The amount left after adding 1 change output
-        return [tx.get_fee() - fee_estimator(1)]
+        return [max(0, tx.get_fee() - fee_estimator(1))]
 
     def change_outputs(self, tx, change_addrs, fee_estimator, dust_threshold):
         amounts = self.change_amounts(tx, len(change_addrs), fee_estimator,
                                       dust_threshold)
+        assert min(amounts) >= 0
         # If change is above dust threshold after accounting for the
         # size of the change output, add it to the transaction.
         dust = sum(amount for amount in amounts if amount < dust_threshold)
@@ -228,8 +229,8 @@ class CoinChooserPrivacy(CoinChooserRandom):
         # Use N change outputs
         for n in range(1, count + 1):
             # How much is left if we add this many change outputs?
-            change_amount = tx.get_fee() - fee_estimator(n)
-            if change_amount // n < max_change:
+            change_amount = max(0, tx.get_fee() - fee_estimator(n))
+            if change_amount // n <= max_change:
                 break
 
         # Get a handle on the precision of the output amounts; round our
@@ -257,16 +258,11 @@ class CoinChooserPrivacy(CoinChooserRandom):
 
         # Last change output.  Round down to maximum precision but lose
         # no more than 100 satoshis to fees (2dp)
-        amount = remaining
-        N = min(2, zeroes[0])
-        if N:
-            amount = int(round(amount, -N))
-            if amount > remaining:
-                amount -= pow(10, N)
+        N = pow(10, min(2, zeroes[0]))
+        amount = (remaining // N) * N
         amounts.append(amount)
 
         assert sum(amounts) <= change_amount
-        assert min(amounts) >= 0
 
         return amounts
 
