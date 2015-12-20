@@ -155,14 +155,14 @@ def json_decode(x):
 
 # decorator that prints execution time
 def profiler(func):
-    def do_profile(func, args):
+    def do_profile(func, args, kw_args):
         n = func.func_name
         t0 = time.time()
-        o = apply(func, args)
+        o = func(*args, **kw_args)
         t = time.time() - t0
         print_error("[profiler]", n, "%.4f"%t)
         return o
-    return lambda *args: do_profile(func, args)
+    return lambda *args, **kw_args: do_profile(func, args, kw_args)
 
 
 

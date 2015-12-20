@@ -1300,7 +1300,7 @@ class ElectrumGui():
             gap = self.config.get('gap_limit', 5)
             if gap != 5:
                 wallet.gap_limit = gap
-                wallet.storage.put('gap_limit', gap, True)
+                wallet.storage.put('gap_limit', gap)
 
             if action == 'create':
                 seed = wallet.make_seed()

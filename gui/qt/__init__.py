@@ -245,6 +245,9 @@ class ElectrumGui:
         # main loop
         self.app.exec_()
 
+        # Shut down the timer cleanly
+        self.timer.stop()
+
         # clipboard persistence. see http://www.mail-archive.com/pyqt@riverbankcomputing.com/msg17328.html
         event = QtCore.QEvent(QtCore.QEvent.Clipboard)
         self.app.sendEvent(self.app.clipboard(), event)

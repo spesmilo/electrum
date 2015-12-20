@@ -167,6 +167,7 @@ def init_cmdline(config):
             print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
             print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
 
+        wallet.storage.write()
         print_msg("Wallet saved in '%s'" % wallet.storage.path)
         sys.exit(0)
 
@@ -215,20 +216,22 @@ def init_cmdline(config):
             if raw_input("Are you sure you want to continue? (y/n) ") in ['y', 'Y', 'yes']:
                 wallet.storage.path = ns
                 wallet.seed = ''
-                wallet.storage.put('seed', '', True)
+                wallet.storage.put('seed', '')
                 wallet.use_encryption = False
-                wallet.storage.put('use_encryption', wallet.use_encryption, True)
+                wallet.storage.put('use_encryption', wallet.use_encryption)
                 for k in wallet.imported_keys.keys():
                     wallet.imported_keys[k] = ''
-                wallet.storage.put('imported_keys', wallet.imported_keys, True)
+                wallet.storage.put('imported_keys', wallet.imported_keys)
                 print_msg("Done.")
             else:
                 print_msg("Action canceled.")
+        wallet.storage.write()
         sys.exit(0)
 
     elif cmd.name == 'password':
         new_password = prompt_password('New password:')
         wallet.update_password(password, new_password)
+        wallet.storage.write()
         sys.exit(0)
 
     return cmd, password, wallet
@@ -320,6 +323,7 @@ if __name__ == '__main__':
         if not (cmd.requires_network or cmd.requires_wallet) or config.get('offline'):
             result = run_offline_command(config, cmd, wallet, password)
             print_msg(json_encode(result))
+            wallet.storage.write()
             sys.exit(0)
         else:
             config_options['password'] = password

@@ -42,9 +42,9 @@ class LabelsPlugin(BasePlugin):
             self.set_nonce(wallet, nonce)
         return nonce
 
-    def set_nonce(self, wallet, nonce, force_write=True):
+    def set_nonce(self, wallet, nonce):
         self.print_error("set", wallet.basename(), "nonce to", nonce)
-        wallet.storage.put("wallet_nonce", nonce, force_write)
+        wallet.storage.put("wallet_nonce", nonce)
 
     @hook
     def set_label(self, wallet, item, label):
@@ -61,7 +61,7 @@ class LabelsPlugin(BasePlugin):
         t.setDaemon(True)
         t.start()
         # Caller will write the wallet
-        self.set_nonce(wallet, nonce + 1, force_write=False)
+        self.set_nonce(wallet, nonce + 1)
 
     def do_request(self, method, url = "/labels", is_batch=False, data=None):
         url = 'https://' + self.target_host + url
@@ -125,8 +125,8 @@ class LabelsPlugin(BasePlugin):
 
             self.print_error("received %d labels" % len(response))
             # do not write to disk because we're in a daemon thread
-            wallet.storage.put('labels', wallet.labels, False)
-            self.set_nonce(wallet, response["nonce"] + 1, False)
+            wallet.storage.put('labels', wallet.labels)
+            self.set_nonce(wallet, response["nonce"] + 1)
             self.on_pulled(wallet)
 
         except Exception as e:

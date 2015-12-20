@@ -26,7 +26,7 @@ import json
 import copy
 from functools import partial
 
-from util import PrintError, profiler
+from util import NotEnoughFunds, PrintError, profiler
 
 from bitcoin import *
 from account import *
@@ -98,7 +98,7 @@ class WalletStorage(PrintError):
                 v = copy.deepcopy(v)
         return v
 
-    def put(self, key, value, save = True):
+    def put(self, key, value):
         try:
             json.dumps(key)
             json.dumps(value)
@@ -113,8 +113,6 @@ class WalletStorage(PrintError):
             elif key in self.data:
                 self.modified = True
                 self.data.pop(key)
-            if save:
-                self.write()
 
     def write(self):
         if threading.currentThread().isDaemon():
@@ -142,7 +140,7 @@ class WalletStorage(PrintError):
             import stat
             os.chmod(self.path, mode)
         self.print_error("saved", self.path)
-
+        self.modified = False
 
 
 class Abstract_Wallet(PrintError):
@@ -199,7 +197,7 @@ class Abstract_Wallet(PrintError):
 
         # save wallet type the first time
         if self.storage.get('wallet_type') is None:
-            self.storage.put('wallet_type', self.wallet_type, True)
+            self.storage.put('wallet_type', self.wallet_type)
 
     def diagnostic_name(self):
         return self.basename()
@@ -220,17 +218,18 @@ class Abstract_Wallet(PrintError):
                 self.transactions.pop(tx_hash)
 
     @profiler
-    def save_transactions(self):
+    def save_transactions(self, write=False):
         with self.transaction_lock:
             tx = {}
             for k,v in self.transactions.items():
                 tx[k] = str(v)
-            # Flush storage only with the last put
-            self.storage.put('transactions', tx, False)
-            self.storage.put('txi', self.txi, False)
-            self.storage.put('txo', self.txo, False)
-            self.storage.put('pruned_txo', self.pruned_txo, False)
-            self.storage.put('addr_history', self.history, True)
+            self.storage.put('transactions', tx)
+            self.storage.put('txi', self.txi)
+            self.storage.put('txo', self.txo)
+            self.storage.put('pruned_txo', self.pruned_txo)
+            self.storage.put('addr_history', self.history)
+            if write:
+                self.storage.write()
 
     def clear_history(self):
         with self.transaction_lock:
@@ -376,7 +375,7 @@ class Abstract_Wallet(PrintError):
 
         if changed:
             run_hook('set_label', self, name, text)
-            self.storage.put('labels', self.labels, True)
+            self.storage.put('labels', self.labels)
 
         return changed
 
@@ -436,7 +435,7 @@ class Abstract_Wallet(PrintError):
         self.unverified_tx.pop(tx_hash, None)
         with self.lock:
             self.verified_tx[tx_hash] = info  # (tx_height, timestamp, pos)
-        self.storage.put('verified_tx3', self.verified_tx, True)
+        self.storage.put('verified_tx3', self.verified_tx)
 
         conf, timestamp = self.get_confirmations(tx_hash)
         self.network.trigger_callback('verified', tx_hash, conf, timestamp)
@@ -897,6 +896,10 @@ class Abstract_Wallet(PrintError):
             if type == 'address':
                 assert is_address(data), "Address " + data + " is invalid!"
 
+        # Avoid index-out-of-range with coins[0] below
+        if not coins:
+            raise NotEnoughFunds()
+
         for item in coins:
             self.add_input_info(item)
 
@@ -1029,7 +1032,7 @@ class Abstract_Wallet(PrintError):
         if self.has_seed():
             decoded = self.get_seed(old_password)
             self.seed = pw_encode( decoded, new_password)
-            self.storage.put('seed', self.seed, True)
+            self.storage.put('seed', self.seed)
 
         imported_account = self.accounts.get(IMPORTED_ACCOUNT)
         if imported_account:
@@ -1041,10 +1044,10 @@ class Abstract_Wallet(PrintError):
                 b = pw_decode(v, old_password)
                 c = pw_encode(b, new_password)
                 self.master_private_keys[k] = c
-            self.storage.put('master_private_keys', self.master_private_keys, True)
+            self.storage.put('master_private_keys', self.master_private_keys)
 
         self.use_encryption = (new_password != None)
-        self.storage.put('use_encryption', self.use_encryption,True)
+        self.storage.put('use_encryption', self.use_encryption)
 
     def is_frozen(self, addr):
         return addr in self.frozen_addresses
@@ -1056,7 +1059,7 @@ class Abstract_Wallet(PrintError):
                 self.frozen_addresses |= set(addrs)
             else:
                 self.frozen_addresses -= set(addrs)
-            self.storage.put('frozen_addresses', list(self.frozen_addresses), True)
+            self.storage.put('frozen_addresses', list(self.frozen_addresses))
             return True
         return False
 
@@ -1094,7 +1097,8 @@ class Abstract_Wallet(PrintError):
             self.verifier = None
             # Now no references to the syncronizer or verifier
             # remain so they will be GC-ed
-            self.storage.put('stored_height', self.get_local_height(), True)
+            self.storage.put('stored_height', self.get_local_height())
+        self.storage.write()
 
     def wait_until_synchronized(self, callback=None):
         from i18n import _
@@ -1132,7 +1136,7 @@ class Abstract_Wallet(PrintError):
         d = {}
         for k, v in self.accounts.items():
             d[k] = v.dump()
-        self.storage.put('accounts', d, True)
+        self.storage.put('accounts', d)
 
     def can_import(self):
         return not self.is_watching_only()
@@ -1416,9 +1420,9 @@ class Deterministic_Wallet(Abstract_Wallet):
         else:
             self.use_encryption = False
 
-        self.storage.put('seed', self.seed, False)
-        self.storage.put('seed_version', self.seed_version, False)
-        self.storage.put('use_encryption', self.use_encryption,True)
+        self.storage.put('seed', self.seed)
+        self.storage.put('seed_version', self.seed_version)
+        self.storage.put('use_encryption', self.use_encryption)
 
     def get_seed(self, password):
         return pw_decode(self.seed, password)
@@ -1430,7 +1434,7 @@ class Deterministic_Wallet(Abstract_Wallet):
         assert isinstance(value, int), 'gap limit must be of type int, not of %s'%type(value)
         if value >= self.gap_limit:
             self.gap_limit = value
-            self.storage.put('gap_limit', self.gap_limit, True)
+            self.storage.put('gap_limit', self.gap_limit)
             return True
 
         elif value >= self.min_acceptable_gap():
@@ -1441,7 +1445,7 @@ class Deterministic_Wallet(Abstract_Wallet):
                 account.receiving_pubkeys = account.receiving_pubkeys[0:n]
                 account.receiving_addresses = account.receiving_addresses[0:n]
             self.gap_limit = value
-            self.storage.put('gap_limit', self.gap_limit, True)
+            self.storage.put('gap_limit', self.gap_limit)
             self.save_accounts()
             return True
         else:
@@ -1564,11 +1568,11 @@ class BIP32_Wallet(Deterministic_Wallet):
         if xpub in self.master_public_keys.values():
             raise BaseException('Duplicate master public key')
         self.master_public_keys[name] = xpub
-        self.storage.put('master_public_keys', self.master_public_keys, True)
+        self.storage.put('master_public_keys', self.master_public_keys)
 
     def add_master_private_key(self, name, xpriv, password):
         self.master_private_keys[name] = pw_encode(xpriv, password)
-        self.storage.put('master_private_keys', self.master_private_keys, True)
+        self.storage.put('master_private_keys', self.master_private_keys)
 
     def derive_xkeys(self, root, derivation, password):
         x = self.master_private_keys[root]
@@ -1611,16 +1615,16 @@ class BIP32_Simple_Wallet(BIP32_Wallet):
     def create_xprv_wallet(self, xprv, password):
         xpub = bitcoin.xpub_from_xprv(xprv)
         account = BIP32_Account({'xpub':xpub})
-        self.storage.put('seed_version', self.seed_version, True)
+        self.storage.put('seed_version', self.seed_version)
         self.add_master_private_key(self.root_name, xprv, password)
         self.add_master_public_key(self.root_name, xpub)
         self.add_account('0', account)
         self.use_encryption = (password != None)
-        self.storage.put('use_encryption', self.use_encryption,True)
+        self.storage.put('use_encryption', self.use_encryption)
 
     def create_xpub_wallet(self, xpub):
         account = BIP32_Account({'xpub':xpub})
-        self.storage.put('seed_version', self.seed_version, True)
+        self.storage.put('seed_version', self.seed_version)
         self.add_master_public_key(self.root_name, xpub)
         self.add_account('0', account)
 
@@ -1819,7 +1823,7 @@ class OldWallet(Deterministic_Wallet):
     def create_master_keys(self, password):
         seed = self.get_seed(password)
         mpk = OldAccount.mpk_from_seed(seed)
-        self.storage.put('master_public_key', mpk, True)
+        self.storage.put('master_public_key', mpk)
 
     def get_master_public_key(self):
         return self.storage.get("master_public_key")
@@ -1837,8 +1841,8 @@ class OldWallet(Deterministic_Wallet):
 
     def create_watching_only_wallet(self, mpk):
         self.seed_version = OLD_SEED_VERSION
-        self.storage.put('seed_version', self.seed_version, False)
-        self.storage.put('master_public_key', mpk, True)
+        self.storage.put('seed_version', self.seed_version)
+        self.storage.put('master_public_key', mpk)
         self.create_account(mpk)
 
     def get_seed(self, password):
@@ -2022,7 +2026,7 @@ class Wallet(object):
 
     @classmethod
     def from_multisig(klass, key_list, password, storage, wallet_type):
-        storage.put('wallet_type', wallet_type, True)
+        storage.put('wallet_type', wallet_type)
         self = Multisig_Wallet(storage)
         key_list = sorted(key_list, key = lambda x: klass.is_xpub(x))
         for i, text in enumerate(key_list):
@@ -2041,7 +2045,7 @@ class Wallet(object):
                 else:
                     self.add_cosigner_seed(text, name, password)
         self.use_encryption = (password != None)
-        self.storage.put('use_encryption', self.use_encryption, True)
+        self.storage.put('use_encryption', self.use_encryption)
         self.create_main_account(password)
         return self
 

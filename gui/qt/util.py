@@ -61,11 +61,16 @@ class WaitingDialog(QThread):
 
 
 class Timer(QThread):
+    stopped = False
+
     def run(self):
-        while True:
+        while not self.stopped:
             self.emit(SIGNAL('timersignal'))
             time.sleep(0.5)
 
+    def stop(self):
+        self.stopped = True
+        self.wait()
 
 class EnterButton(QPushButton):
     def __init__(self, text, func):
