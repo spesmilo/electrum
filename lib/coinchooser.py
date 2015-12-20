@@ -67,6 +67,7 @@ class CoinChooserBase(PrintError):
         amounts = self.change_amounts(tx, len(change_addrs), fee_estimator,
                                       dust_threshold)
         assert min(amounts) >= 0
+        assert len(change_addrs) >= len(amounts)
         # If change is above dust threshold after accounting for the
         # size of the change output, add it to the transaction.
         dust = sum(amount for amount in amounts if amount < dust_threshold)

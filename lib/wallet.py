@@ -26,7 +26,7 @@ import json
 import copy
 from functools import partial
 
-from util import PrintError, profiler
+from util import NotEnoughFunds, PrintError, profiler
 
 from bitcoin import *
 from account import *
@@ -896,6 +896,10 @@ class Abstract_Wallet(PrintError):
         for type, data, value in outputs:
             if type == 'address':
                 assert is_address(data), "Address " + data + " is invalid!"
+
+        # Avoid index-out-of-range with coins[0] below
+        if not coins:
+            raise NotEnoughFunds()
 
         for item in coins:
             self.add_input_info(item)
