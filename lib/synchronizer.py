@@ -179,5 +179,5 @@ class Synchronizer(ThreadJob):
         if up_to_date != self.wallet.is_up_to_date():
             self.wallet.set_up_to_date(up_to_date)
             if up_to_date:
-                self.wallet.save_transactions()
+                self.wallet.save_transactions(write=True)
             self.network.trigger_callback('updated')

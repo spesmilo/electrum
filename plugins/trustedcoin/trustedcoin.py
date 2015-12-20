@@ -305,8 +305,8 @@ class TrustedCoinPlugin(BasePlugin):
             return
 
         password = window.password_dialog()
-        wallet.storage.put('seed_version', wallet.seed_version, True)
-        wallet.storage.put('use_encryption', password is not None, True)
+        wallet.storage.put('seed_version', wallet.seed_version)
+        wallet.storage.put('use_encryption', password is not None)
 
         words = seed.split()
         n = len(words)/2
