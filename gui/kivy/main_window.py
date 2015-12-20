@@ -483,17 +483,6 @@ class ElectrumWindow(App):
         amount, fee = self.wallet.get_max_amount(self.electrum_config, inputs, None)
         return format_satoshis_plain(amount, self.decimal_point())
 
-    def update_password(self, label, c):
-        text = label.password
-        if c == '<':
-            text = text[:-1]
-        elif c == 'Clear':
-            text = ''
-        else:
-            text += c
-        label.password = text
-
-
     def format_amount(self, x, is_diff=False, whitespaces=False):
         return format_satoshis(x, is_diff, 0, self.decimal_point(), whitespaces)
 
@@ -503,8 +492,8 @@ class ElectrumWindow(App):
     @profiler
     def update_wallet(self, *dt):
         self._trigger_update_status()
-        if self.wallet.up_to_date or not self.network or not self.network.is_connected():
-            self.update_tabs()
+        #if self.wallet.up_to_date or not self.network or not self.network.is_connected():
+        self.update_tabs()
 
 
     @profiler
@@ -736,12 +725,9 @@ class ElectrumWindow(App):
             self.show_error("PIN numbers do not match")
 
     def password_dialog(self, title, f, args):
-        popup = Builder.load_file('gui/kivy/uix/ui_screens/password.kv')
-        popup.title = title
-        def callback():
-            pw = popup.ids.kb.password
+        from uix.dialogs.password_dialog import PasswordDialog
+        def callback(pw):
             Clock.schedule_once(lambda x: apply(f, args + (pw,)), 0.1)
-        popup.on_dismiss = callback
+        popup = PasswordDialog(title, callback)
         popup.open()
-
 

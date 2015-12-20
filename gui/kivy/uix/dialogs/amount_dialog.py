@@ -5,11 +5,6 @@ from kivy.lang import Builder
 from decimal import Decimal
 
 Builder.load_string('''
-<KButton@Button>:
-    size_hint: 1, None
-    height: '48dp'
-    on_release:
-        self.parent.update_amount(self.text)
 
 <AmountDialog@Popup>
     id: popup
