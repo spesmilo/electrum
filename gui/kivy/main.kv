@@ -243,6 +243,13 @@
     background_active: 'atlas://gui/kivy/theming/light/textinput_active'
 
 
+<KButton@Button>:
+    size_hint: 1, None
+    height: '48dp'
+    on_release:
+        self.parent.update_amount(self.text)
+
+
 
 <TabbedPanelStrip>:
     on_parent:

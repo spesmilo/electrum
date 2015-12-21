@@ -40,10 +40,13 @@ Builder.load_string('''
             size_hint_y: None
         FileChooserListView:
             id: wallet_selector
+            dirselect: False
+            filter_dirs: True
+            filter: '*.*'
             path: os.path.dirname(app.wallet.storage.path)
             on_selection:
                 wallet_name.text = os.path.basename(self.selection[0]) if self.selection else ''
-            size_hint_y: 0.5
+            size_hint_y: 0.4
         Widget
             size_hint_y: 0.1
 

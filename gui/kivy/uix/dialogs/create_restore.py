@@ -43,7 +43,6 @@ Builder.load_string('''
     on_release: if self.root: self.root.dispatch('on_release', self)
 
 
-
 <-CreateAccountDialog>
     text_color: .854, .925, .984, 1
     auto_dismiss: False
@@ -457,8 +456,7 @@ class RestoreSeedDialog(CreateAccountDialog):
         self._trigger_check_seed = Clock.create_trigger(self.check_seed)
 
     def check_seed(self, dt):
-        self.ids.next.disabled = not bool(self._wizard.is_any(
-                                                    self.ids.text_input_seed))
+        self.ids.next.disabled = not bool(self._wizard.is_any(self.ids.text_input_seed))
 
     def on_parent(self, instance, value):
         if value:
