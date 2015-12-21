@@ -269,7 +269,7 @@ class ElectrumWindow(QMainWindow, PrintError):
         self.update_account_selector()
         # update menus
         self.new_account_menu.setVisible(self.wallet.can_create_accounts())
-        self.private_keys_menu.setEnabled(not self.wallet.is_watching_only())
+        self.export_menu.setEnabled(not self.wallet.is_watching_only())
         self.password_menu.setEnabled(self.wallet.can_change_password())
         self.seed_menu.setEnabled(self.wallet.has_seed())
         self.mpk_menu.setEnabled(self.wallet.is_deterministic())
@@ -2009,10 +2009,8 @@ class ElectrumWindow(QMainWindow, PrintError):
             self.show_message(str(e))
             return
 
-        d = QDialog(self)
+        d = WindowModalDialog(self, _("Private key"))
         d.setMinimumSize(600, 200)
-        d.setModal(1)
-        d.setWindowTitle(_("Private key"))
         vbox = QVBoxLayout()
         vbox.addWidget( QLabel(_("Address") + ': ' + address))
         vbox.addWidget( QLabel(_("Private key") + ':'))
@@ -2457,12 +2455,11 @@ class ElectrumWindow(QMainWindow, PrintError):
 
 
     def sweep_key_dialog(self):
-        d = QDialog(self)
-        d.setWindowTitle(_('Sweep private keys'))
+        d = WindowModalDialog(self, title=_('Sweep private keys'))
         d.setMinimumSize(600, 300)
 
         vbox = QVBoxLayout(d)
-        vbox.addWidget(QLabel(_("Enter private keys")))
+        vbox.addWidget(QLabel(_("Enter private keys:")))
 
         keys_e = QTextEdit()
         keys_e.setTabChangesFocus(True)
@@ -2492,6 +2489,10 @@ class ElectrumWindow(QMainWindow, PrintError):
         address_e.textChanged.connect(f)
         if not d.exec_():
             return
+
+        if self.wallet.is_watching_only():
+            if not self.question(_("Warning: this wallet is watching only.  You will be UNABLE to spend the swept funds directly.  Continue only if you have access to the private keys in another way.\n\nAre you SURE you want to sweep?")):
+                return
 
         fee = self.wallet.fee_per_kb(self.config)
         tx = Transaction.sweep(get_pk(), self.network, get_address(), fee)
