@@ -174,7 +174,6 @@ class ElectrumWindow(QMainWindow, PrintError):
         self.qr_window = None
         self.not_enough_funds = False
         self.pluginsdialog = None
-        self.fetch_alias()
         self.require_fee_update = False
         self.tx_notifications = []
 
@@ -199,19 +198,6 @@ class ElectrumWindow(QMainWindow, PrintError):
         """ run callback in the qt thread """
         self.connect(self, QtCore.SIGNAL(name), method)
         self.network.register_callback(name, lambda *params: self.emit(QtCore.SIGNAL(name), *params))
-
-
-    def fetch_alias(self):
-        self.alias_info = None
-        alias = self.config.get('alias')
-        if alias:
-            alias = str(alias)
-            def f():
-                self.alias_info = self.contacts.resolve_openalias(alias)
-                self.emit(SIGNAL('alias_received'))
-            t = threading.Thread(target=f)
-            t.setDaemon(True)
-            t.start()
 
     def update_account_selector(self):
         # account selector
@@ -401,7 +387,7 @@ class ElectrumWindow(QMainWindow, PrintError):
         help_menu.addAction(_("&About"), self.show_about)
         help_menu.addAction(_("&Official website"), lambda: webbrowser.open("http://groestlcoin.org"))
         help_menu.addSeparator()
-        help_menu.addAction(_("&Documentation"), lambda: webbrowser.open("http://docs.electrum.org/")).setShortcut(QKeySequence.HelpContents)
+        help_menu.addAction(_("&Documentation"), lambda: webbrowser.open("http://groestlcoin.org/forum/")).setShortcut(QKeySequence.HelpContents)
         help_menu.addAction(_("&Report Bug"), self.show_report_bug)
 
         self.setMenuBar(menubar)
@@ -2620,33 +2606,6 @@ class ElectrumWindow(QMainWindow, PrintError):
         dynfee_sl.valueChanged[int].connect(fee_factor_changed)
         update_feeperkb()
 
-        msg = _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n'\
-              + _('The following alias providers are available:') + '\n'\
-              + '\n'.join(['https://cryptoname.co/', 'http://xmr.link']) + '\n\n'\
-              + 'For more information, see http://openalias.org'
-        alias_label = HelpLabel(_('OpenAlias') + ':', msg)
-        alias = self.config.get('alias','')
-        alias_e = QLineEdit(alias)
-        def set_alias_color():
-            if not self.config.get('alias'):
-                alias_e.setStyleSheet("")
-                return
-            if self.alias_info:
-                alias_addr, alias_name, validated = self.alias_info
-                alias_e.setStyleSheet(GREEN_BG if validated else RED_BG)
-            else:
-                alias_e.setStyleSheet(RED_BG)
-        def on_alias_edit():
-            alias_e.setStyleSheet("")
-            alias = str(alias_e.text())
-            self.config.set_key('alias', alias, True)
-            if alias:
-                self.fetch_alias()
-        set_alias_color()
-        self.connect(self, SIGNAL('alias_received'), set_alias_color)
-        alias_e.editingFinished.connect(on_alias_edit)
-        id_widgets.append((alias_label, alias_e))
-
         # SSL certificate
         msg = ' '.join([
             _('SSL certificate used to sign payment requests.'),
@@ -2714,22 +2673,6 @@ class ElectrumWindow(QMainWindow, PrintError):
         block_ex_combo.currentIndexChanged.connect(on_be)
         gui_widgets.append((block_ex_label, block_ex_combo))
 
-        from electrum_grs import qrscanner
-        system_cameras = qrscanner._find_system_cameras()
-        qr_combo = QComboBox()
-        qr_combo.addItem("Default","default")
-        for camera, device in system_cameras.items():
-            qr_combo.addItem(camera, device)
-        #combo.addItem("Manually specify a device", config.get("video_device"))
-        index = qr_combo.findData(self.config.get("video_device"))
-        qr_combo.setCurrentIndex(index)
-        msg = _("Install the zbar package to enable this.\nOn linux, type: 'apt-get install python-zbar'")
-        qr_label = HelpLabel(_('Video Device') + ':', msg)
-        qr_combo.setEnabled(qrscanner.zbar is not None)
-        on_video_device = lambda x: self.config.set_key("video_device", str(qr_combo.itemData(x).toString()), True)
-        qr_combo.currentIndexChanged.connect(on_video_device)
-        gui_widgets.append((qr_label, qr_combo))
-
         usechange_cb = QCheckBox(_('Use change addresses'))
         usechange_cb.setChecked(self.wallet.use_change)
         if not self.config.is_modifiable('use_change'): usechange_cb.setEnabled(False)
@@ -2782,7 +2725,6 @@ class ElectrumWindow(QMainWindow, PrintError):
 
         # run the dialog
         d.exec_()
-        self.disconnect(self, SIGNAL('alias_received'), set_alias_color)
 
         run_hook('close_settings_dialog')
         if self.need_restart:

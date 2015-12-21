@@ -73,8 +73,8 @@ class NetworkDialog(QDialog):
         hbox.addWidget(l)
         hbox.addWidget(QLabel(status))
         hbox.addStretch(50)
-        msg = _("Electrum sends your wallet addresses to a single server, in order to receive your transaction history.") + "\n\n" \
-            + _("In addition, Electrum connects to several nodes in order to download block headers and find out the longest blockchain.") + " " \
+        msg = _("Electrum-GRS sends your wallet addresses to a single server, in order to receive your transaction history.") + "\n\n" \
+            + _("In addition, Electrum-GRS connects to several nodes in order to download block headers and find out the longest blockchain.") + " " \
             + _("This blockchain is used to verify the transactions sent by the address server.")
         hbox.addWidget(HelpButton(msg))
         vbox.addLayout(hbox)
@@ -102,8 +102,8 @@ class NetworkDialog(QDialog):
         self.autoconnect_cb.setChecked(auto_connect)
         grid.addWidget(self.autoconnect_cb, 0, 1)
         self.autoconnect_cb.setEnabled(self.config.is_modifiable('auto_connect'))
-        msg = _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain.") + " " \
-            + _("If it is disabled, Electrum will warn you if your server is lagging.")
+        msg = _("If auto-connect is enabled, Electrum-GRS will always use a server that is on the longest blockchain.") + " " \
+            + _("If it is disabled, Electrum-GRS will warn you if your server is lagging.")
         grid.addWidget(HelpButton(msg), 0, 4)
         grid.addWidget(self.server_host, 0, 2, 1, 2)
         grid.addWidget(self.server_port, 0, 3)
