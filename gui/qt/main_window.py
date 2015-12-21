@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import sys, time, threading
-import os.path, json, traceback
+import os, json, traceback
 import shutil
 import socket
 import weakref
@@ -360,13 +360,39 @@ class ElectrumWindow(QMainWindow, PrintError):
             self.recently_visited_menu.addAction(b, loader(k)).setShortcut(QKeySequence("Ctrl+%d"%(i+1)))
         self.recently_visited_menu.setEnabled(len(recent))
 
+    def get_wallet_folder(self):
+        return os.path.dirname(os.path.abspath(self.config.get_wallet_path()))
+
+    def new_wallet(self):
+        wallet_folder = self.get_wallet_folder()
+        i = 1
+        while True:
+            filename = "wallet_%d" % i
+            if filename in os.listdir(wallet_folder):
+                i += 1
+            else:
+                break
+        filename = line_dialog(self, _('New Wallet'), _('Enter file name')
+                               + ':', _('OK'), filename)
+        if not filename:
+            return
+        full_path = os.path.join(wallet_folder, filename)
+        storage = WalletStorage(full_path)
+        if storage.file_exists:
+            QMessageBox.critical(self, "Error", _("File exists"))
+            return
+        wizard = InstallWizard(self.app, self.config, self.network, storage)
+        wallet = wizard.run('new')
+        if wallet:
+            self.new_window(full_path)
+
     def init_menubar(self):
         menubar = QMenuBar()
 
         file_menu = menubar.addMenu(_("&File"))
         self.recently_visited_menu = file_menu.addMenu(_("&Recently open"))
         file_menu.addAction(_("&Open"), self.open_wallet).setShortcut(QKeySequence.Open)
-        file_menu.addAction(_("&New/Restore"), self.gui_object.new_wallet).setShortcut(QKeySequence.New)
+        file_menu.addAction(_("&New/Restore"), self.new_wallet).setShortcut(QKeySequence.New)
         file_menu.addAction(_("&Save Copy"), self.backup_wallet).setShortcut(QKeySequence.SaveAs)
         file_menu.addSeparator()
         file_menu.addAction(_("&Quit"), self.close)

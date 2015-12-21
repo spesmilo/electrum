@@ -42,7 +42,7 @@ from electrum.plugins import BasePlugin, hook
 from electrum import util
 from electrum.paymentrequest import PaymentRequest
 from electrum.i18n import _
-from electrum_gui.qt.util import text_dialog, EnterButton
+from electrum_gui.qt.util import EnterButton
 
 
 

@@ -202,10 +202,8 @@ class WindowModalDialog(QDialog):
             self.setWindowTitle(title)
 
 def line_dialog(parent, title, label, ok_label, default=None):
-    dialog = QDialog(parent)
+    dialog = WindowModalDialog(parent, title)
     dialog.setMinimumWidth(500)
-    dialog.setWindowTitle(title)
-    dialog.setModal(1)
     l = QVBoxLayout()
     dialog.setLayout(l)
     l.addWidget(QLabel(label))
@@ -219,10 +217,8 @@ def line_dialog(parent, title, label, ok_label, default=None):
 
 def text_dialog(parent, title, label, ok_label, default=None):
     from qrtextedit import ScanQRTextEdit
-    dialog = QDialog(parent)
+    dialog = WindowModalDialog(parent, title)
     dialog.setMinimumWidth(500)
-    dialog.setWindowTitle(title)
-    dialog.setModal(1)
     l = QVBoxLayout()
     dialog.setLayout(l)
     l.addWidget(QLabel(label))

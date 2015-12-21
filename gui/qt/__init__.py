@@ -162,32 +162,6 @@ class ElectrumGui:
 
         return wallet
 
-    def get_wallet_folder(self):
-        #return os.path.dirname(os.path.abspath(self.wallet.storage.path if self.wallet else self.wallet.storage.path))
-        return os.path.dirname(os.path.abspath(self.config.get_wallet_path()))
-
-    def new_wallet(self):
-        wallet_folder = self.get_wallet_folder()
-        i = 1
-        while True:
-            filename = "wallet_%d"%i
-            if filename in os.listdir(wallet_folder):
-                i += 1
-            else:
-                break
-        filename = line_dialog(None, _('New Wallet'), _('Enter file name') + ':', _('OK'), filename)
-        if not filename:
-            return
-        full_path = os.path.join(wallet_folder, filename)
-        storage = WalletStorage(full_path)
-        if storage.file_exists:
-            QMessageBox.critical(None, "Error", _("File exists"))
-            return
-        wizard = InstallWizard(self.app, self.config, self.network, storage)
-        wallet = wizard.run('new')
-        if wallet:
-            self.new_window(full_path)
-
     def new_window(self, path, uri=None):
         # Use a signal as can be called from daemon thread
         self.app.emit(SIGNAL('new_window'), path, uri)
