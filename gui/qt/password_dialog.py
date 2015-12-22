@@ -136,14 +136,12 @@ def update_password_strength(pw_strength_label,password):
 
 
 
-class PasswordDialog(QDialog):
+class PasswordDialog(WindowModalDialog):
 
     def __init__(self, wallet, parent):
-        QDialog.__init__(self, parent)
-        self.setModal(1)
+        WindowModalDialog.__init__(self, parent,_("Set Password"))
         self.wallet = wallet
         self.parent = parent
-        self.setWindowTitle(_("Set Password"))
         msg = (_('Your wallet is encrypted. Use this dialog to change your password.') + ' '\
                +_('To disable wallet encryption, enter an empty new password.')) \
                if wallet.use_encryption else _('Your wallet keys are not encrypted')
