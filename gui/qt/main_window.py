@@ -40,20 +40,17 @@ from electrum.i18n import _
 from electrum.util import block_explorer, block_explorer_info, block_explorer_URL
 from electrum.util import format_satoshis, format_satoshis_plain, format_time
 from electrum.util import PrintError, NotEnoughFunds, StoreDict
-from electrum import Transaction
-from electrum import mnemonic
+from electrum import Transaction, mnemonic
 from electrum import util, bitcoin, commands, Wallet
 from electrum import SimpleConfig, COIN_CHOOSERS, WalletStorage
-from electrum import Imported_Wallet
-from electrum import paymentrequest
+from electrum import Imported_Wallet, paymentrequest
 
 from amountedit import BTCAmountEdit, MyLineEdit, BTCkBEdit
 from network_dialog import NetworkDialog
 from qrcodewidget import QRCodeWidget, QRDialog
 from qrtextedit import ScanQRTextEdit, ShowQRTextEdit
 from transaction_dialog import show_transaction
-
-
+from installwizard import InstallWizard
 
 
 

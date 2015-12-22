@@ -62,17 +62,17 @@ class CosignWidget(QWidget):
 
 
 
-class InstallWizard(QDialog):
+class InstallWizard(WindowModalDialog):
 
     def __init__(self, app, config, network, storage):
-        QDialog.__init__(self)
+        title = 'Electrum' + '  -  ' + _('Install Wizard')
+        WindowModalDialog.__init__(self, None, title=title)
         self.app = app
         self.config = config
         self.network = network
         self.storage = storage
         self.setMinimumSize(575, 400)
         self.setMaximumSize(575, 400)
-        self.setWindowTitle('Electrum' + '  -  ' + _('Install Wizard'))
         self.connect(self, QtCore.SIGNAL('accept'), self.accept)
         self.stack = QStackedLayout()
         self.setLayout(self.stack)
