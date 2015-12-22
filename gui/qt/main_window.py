@@ -794,8 +794,7 @@ class ElectrumWindow(QMainWindow, PrintError):
         self.save_request_button.setEnabled(False)
 
     def view_and_paste(self, title, msg, data):
-        dialog = QDialog(self)
-        dialog.setWindowTitle(title)
+        dialog = WindowModalDialog(self, title)
         vbox = QVBoxLayout()
         label = QLabel(msg)
         label.setWordWrap(True)
@@ -1907,9 +1906,7 @@ class ElectrumWindow(QMainWindow, PrintError):
 
     @protected
     def new_account_dialog(self, password):
-        dialog = QDialog(self)
-        dialog.setModal(1)
-        dialog.setWindowTitle(_("New Account"))
+        dialog = WindowModalDialog(self, _("New Account"))
         vbox = QVBoxLayout()
         vbox.addWidget(QLabel(_('Account name')+':'))
         e = QLineEdit()
@@ -1932,11 +1929,7 @@ class ElectrumWindow(QMainWindow, PrintError):
 
 
     def show_master_public_keys(self):
-
-        dialog = QDialog(self)
-        dialog.setModal(1)
-        dialog.setWindowTitle(_("Master Public Keys"))
-
+        dialog = WindowModalDialog(self, "Master Public Keys")
         mpk_dict = self.wallet.get_master_public_keys()
         vbox = QVBoxLayout()
         # only show the combobox in case multiple accounts are available
@@ -2069,9 +2062,7 @@ class ElectrumWindow(QMainWindow, PrintError):
 
 
     def sign_verify_message(self, address=''):
-        d = QDialog(self)
-        d.setModal(1)
-        d.setWindowTitle(_('Sign/verify Message'))
+        d = WindowModalDialog(self, _('Sign/verify Message'))
         d.setMinimumSize(410, 290)
 
         layout = QGridLayout(d)
@@ -2130,9 +2121,7 @@ class ElectrumWindow(QMainWindow, PrintError):
 
 
     def encrypt_message(self, address = ''):
-        d = QDialog(self)
-        d.setModal(1)
-        d.setWindowTitle(_('Encrypt/decrypt Message'))
+        d = WindowModalDialog(self, _('Encrypt/decrypt Message'))
         d.setMinimumSize(610, 490)
 
         layout = QGridLayout(d)
@@ -2410,8 +2399,7 @@ class ElectrumWindow(QMainWindow, PrintError):
 
 
     def export_history_dialog(self):
-        d = QDialog(self)
-        d.setWindowTitle(_('Export History'))
+        d = WindowModalDialog(self, _('Export History'))
         d.setMinimumSize(400, 200)
         vbox = QVBoxLayout(d)
         defaultname = os.path.expanduser('~/electrum-history.csv')
