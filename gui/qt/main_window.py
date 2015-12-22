@@ -607,7 +607,7 @@ class ElectrumWindow(QMainWindow, PrintError):
 
     def show_address(self, addr):
         import address_dialog
-        d = address_dialog.AddressDialog(addr, self)
+        d = address_dialog.AddressDialog(self, addr)
         d.exec_()
 
     def show_transaction(self, tx, tx_desc = None):
