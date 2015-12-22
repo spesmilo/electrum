@@ -192,12 +192,18 @@ class CancelButton(QPushButton):
         QPushButton.__init__(self, label or _("Cancel"))
         self.clicked.connect(dialog.reject)
 
+class WindowModalDialog(QDialog):
+    '''Handy wrapper; window modal dialogs are better for our multi-window
+    daemon model as other wallet windows can still be accessed.'''
+    def __init__(self, parent, title=None):
+        QDialog.__init__(self, parent)
+        self.setWindowModality(Qt.WindowModal)
+        if title:
+            self.setWindowTitle(title)
 
 def line_dialog(parent, title, label, ok_label, default=None):
-    dialog = QDialog(parent)
+    dialog = WindowModalDialog(parent, title)
     dialog.setMinimumWidth(500)
-    dialog.setWindowTitle(title)
-    dialog.setModal(1)
     l = QVBoxLayout()
     dialog.setLayout(l)
     l.addWidget(QLabel(label))
@@ -211,10 +217,8 @@ def line_dialog(parent, title, label, ok_label, default=None):
 
 def text_dialog(parent, title, label, ok_label, default=None):
     from qrtextedit import ScanQRTextEdit
-    dialog = QDialog(parent)
+    dialog = WindowModalDialog(parent, title)
     dialog.setMinimumWidth(500)
-    dialog.setWindowTitle(title)
-    dialog.setModal(1)
     l = QVBoxLayout()
     dialog.setLayout(l)
     l.addWidget(QLabel(label))

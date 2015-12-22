@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import sys, time, threading
-import os.path, json, traceback
+import os, json, traceback
 import shutil
 import socket
 import weakref
@@ -269,7 +269,7 @@ class ElectrumWindow(QMainWindow, PrintError):
         self.update_account_selector()
         # update menus
         self.new_account_menu.setVisible(self.wallet.can_create_accounts())
-        self.private_keys_menu.setEnabled(not self.wallet.is_watching_only())
+        self.export_menu.setEnabled(not self.wallet.is_watching_only())
         self.password_menu.setEnabled(self.wallet.can_change_password())
         self.seed_menu.setEnabled(self.wallet.has_seed())
         self.mpk_menu.setEnabled(self.wallet.is_deterministic())
@@ -360,13 +360,39 @@ class ElectrumWindow(QMainWindow, PrintError):
             self.recently_visited_menu.addAction(b, loader(k)).setShortcut(QKeySequence("Ctrl+%d"%(i+1)))
         self.recently_visited_menu.setEnabled(len(recent))
 
+    def get_wallet_folder(self):
+        return os.path.dirname(os.path.abspath(self.config.get_wallet_path()))
+
+    def new_wallet(self):
+        wallet_folder = self.get_wallet_folder()
+        i = 1
+        while True:
+            filename = "wallet_%d" % i
+            if filename in os.listdir(wallet_folder):
+                i += 1
+            else:
+                break
+        filename = line_dialog(self, _('New Wallet'), _('Enter file name')
+                               + ':', _('OK'), filename)
+        if not filename:
+            return
+        full_path = os.path.join(wallet_folder, filename)
+        storage = WalletStorage(full_path)
+        if storage.file_exists:
+            QMessageBox.critical(self, "Error", _("File exists"))
+            return
+        wizard = InstallWizard(self.app, self.config, self.network, storage)
+        wallet = wizard.run('new')
+        if wallet:
+            self.new_window(full_path)
+
     def init_menubar(self):
         menubar = QMenuBar()
 
         file_menu = menubar.addMenu(_("&File"))
         self.recently_visited_menu = file_menu.addMenu(_("&Recently open"))
         file_menu.addAction(_("&Open"), self.open_wallet).setShortcut(QKeySequence.Open)
-        file_menu.addAction(_("&New/Restore"), self.gui_object.new_wallet).setShortcut(QKeySequence.New)
+        file_menu.addAction(_("&New/Restore"), self.new_wallet).setShortcut(QKeySequence.New)
         file_menu.addAction(_("&Save Copy"), self.backup_wallet).setShortcut(QKeySequence.SaveAs)
         file_menu.addSeparator()
         file_menu.addAction(_("&Quit"), self.close)
@@ -1856,8 +1882,7 @@ class ElectrumWindow(QMainWindow, PrintError):
 
 
     def new_contact_dialog(self):
-        d = QDialog(self)
-        d.setWindowTitle(_("New Contact"))
+        d = WindowModalDialog(self, _("New Contact"))
         vbox = QVBoxLayout(d)
         vbox.addWidget(QLabel(_('New Contact') + ':'))
         grid = QGridLayout()
@@ -2009,10 +2034,8 @@ class ElectrumWindow(QMainWindow, PrintError):
             self.show_message(str(e))
             return
 
-        d = QDialog(self)
+        d = WindowModalDialog(self, _("Private key"))
         d.setMinimumSize(600, 200)
-        d.setModal(1)
-        d.setWindowTitle(_("Private key"))
         vbox = QVBoxLayout()
         vbox.addWidget( QLabel(_("Address") + ': ' + address))
         vbox.addWidget( QLabel(_("Private key") + ':'))
@@ -2160,9 +2183,7 @@ class ElectrumWindow(QMainWindow, PrintError):
     def password_dialog(self, msg=None, parent=None):
         if parent == None:
             parent = self
-        d = QDialog(parent)
-        d.setModal(1)
-        d.setWindowTitle(_("Enter Password"))
+        d = WindowModalDialog(parent, _("Enter Password"))
         pw = QLineEdit()
         pw.setEchoMode(2)
         vbox = QVBoxLayout()
@@ -2457,12 +2478,11 @@ class ElectrumWindow(QMainWindow, PrintError):
 
 
     def sweep_key_dialog(self):
-        d = QDialog(self)
-        d.setWindowTitle(_('Sweep private keys'))
+        d = WindowModalDialog(self, title=_('Sweep private keys'))
         d.setMinimumSize(600, 300)
 
         vbox = QVBoxLayout(d)
-        vbox.addWidget(QLabel(_("Enter private keys")))
+        vbox.addWidget(QLabel(_("Enter private keys:")))
 
         keys_e = QTextEdit()
         keys_e.setTabChangesFocus(True)
@@ -2492,6 +2512,10 @@ class ElectrumWindow(QMainWindow, PrintError):
         address_e.textChanged.connect(f)
         if not d.exec_():
             return
+
+        if self.wallet.is_watching_only():
+            if not self.question(_("Warning: this wallet is watching only.  You will be UNABLE to spend the swept funds directly.  Continue only if you have access to the private keys in another way.\n\nAre you SURE you want to sweep?")):
+                return
 
         fee = self.wallet.fee_per_kb(self.config)
         tx = Transaction.sweep(get_pk(), self.network, get_address(), fee)
