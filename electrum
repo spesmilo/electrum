@@ -256,7 +256,8 @@ def run_offline_command(config, config_options):
     func = getattr(cmd_runner, cmd.name)
     result = func(*args)
     # save wallet
-    wallet.storage.write()
+    if wallet:
+        wallet.storage.write()
     return result
 
 
