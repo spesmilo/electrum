@@ -1852,8 +1852,39 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def change_password_dialog(self):
         from password_dialog import PasswordDialog
-        d = PasswordDialog(self.wallet, self)
-        d.run()
+
+        if self.wallet and self.wallet.is_watching_only():
+            self.show_error(_('This is a watching-only wallet'))
+            return
+
+        msg = (_('Your wallet is encrypted. Use this dialog to change your '
+                 'password. To disable wallet encryption, enter an empty new '
+                 'password.') if self.wallet.use_encryption
+               else _('Your wallet keys are not encrypted'))
+        d = PasswordDialog(self, self.wallet, _("Set Password"), msg, True)
+        ok, password, new_password = d.run()
+        if not ok:
+            return
+
+        try:
+            self.wallet.check_password(password)
+        except BaseException as e:
+            self.show_error(str(e))
+            return
+
+        try:
+            self.wallet.update_password(password, new_password)
+        except:
+            traceback.print_exc(file=sys.stdout)
+            self.show_error(_('Failed to update password'))
+            return
+
+        if new_password:
+            msg = _('Password was updated successfully')
+        else:
+            msg = _('This wallet is not encrypted')
+        self.show_message(msg, title=_("Success"))
+
         self.update_lock_icon()
 
     def toggle_search(self):
