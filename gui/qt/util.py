@@ -193,18 +193,26 @@ class CancelButton(QPushButton):
         self.clicked.connect(dialog.reject)
 
 class MessageBoxMixin:
+    def question(self, msg, parent=None, title=None):
+        Yes, No = QMessageBox.Yes, QMessageBox.No
+        return WindowModalDialog.question(parent or self, title, msg,
+                                          buttons=Yes|No,
+                                          defaultButton=No) == Yes
+
     def show_warning(self, msg, parent=None, title=None):
-        WindowModalDialog.warning(parent or self, title or _('Warning'), msg)
+        return WindowModalDialog.warning(parent or self,
+                                         title or _('Warning'), msg)
 
     def show_error(self, msg, parent=None):
-        self.show_warning(msg, parent=parent, title=_('Error'))
+        return self.show_warning(msg, parent=parent, title=_('Error'))
 
     def show_critical(self, msg, parent=None, title=None):
-        WindowModalDialog.critical(parent or self,
-                                   title or _('Critical Error'), msg)
+        return WindowModalDialog.critical(parent or self,
+                                          title or _('Critical Error'), msg)
 
     def show_message(self, msg, parent=None, title=None):
-        WindowModalDialog.information(self, title or _('Information'), msg)
+        return WindowModalDialog.information(self, title or _('Information'),
+                                             msg)
 
 class WindowModalDialog(QDialog):
     '''Handy wrapper; window modal dialogs are better for our multi-window
@@ -214,6 +222,10 @@ class WindowModalDialog(QDialog):
         self.setWindowModality(Qt.WindowModal)
         if title:
             self.setWindowTitle(title)
+
+    @staticmethod
+    def question(*args, **kwargs):
+        return WindowModalDialog.msg_box(QMessageBox.Question, *args, **kwargs)
 
     @staticmethod
     def critical(*args, **kwargs):

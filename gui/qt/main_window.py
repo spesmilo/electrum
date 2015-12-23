@@ -48,7 +48,7 @@ from electrum import Imported_Wallet, paymentrequest
 from amountedit import BTCAmountEdit, MyLineEdit, BTCkBEdit
 from network_dialog import NetworkDialog
 from qrcodewidget import QRCodeWidget, QRDialog
-from qrtextedit import ScanQRTextEdit, ShowQRTextEdit
+from qrtextedit import ShowQRTextEdit
 from transaction_dialog import show_transaction
 from installwizard import InstallWizard
 
@@ -1568,6 +1568,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def paytomany(self):
         self.tabs.setCurrentIndex(1)
         self.payto_e.paytomany()
+        msg = '\n'.join([
+            _('Enter a list of outputs in the \'Pay to\' field.'),
+            _('One output per line.'),
+            _('Format: address, amount'),
+            _('You may load a CSV file using the file icon.')
+        ])
+        self.show_warning(msg, title=_('Pay to many'))
 
     def payto_contacts(self, labels):
         paytos = [self.get_contact_payto(label) for label in labels]
@@ -2185,10 +2192,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         layout.addLayout(hbox, 4, 1)
         d.exec_()
 
-
-    def question(self, msg):
-        return QMessageBox.question(self, _('Message'), msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes
-
     def password_dialog(self, msg=None, parent=None):
         if parent == None:
             parent = self
@@ -2236,7 +2239,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         from electrum import qrscanner
         try:
             data = qrscanner.scan_qr(self.config)
-        except BaseException as e:
+        except e:
             self.show_error(str(e))
             return
         if not data:
@@ -2526,10 +2529,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     @protected
     def do_import_privkey(self, password):
         if not self.wallet.has_imported_keys():
-            r = QMessageBox.question(None, _('Warning'), '<b>'+_('Warning') +':\n</b><br/>'+ _('Imported keys are not recoverable from seed.') + ' ' \
-                                         + _('If you ever need to restore your wallet from its seed, these keys will be lost.') + '<p>' \
-                                         + _('Are you sure you understand what you are doing?'), 3, 4)
-            if r == 4: return
+            if not self.question('<b>'+_('Warning') +':\n</b><br/>'+ _('Imported keys are not recoverable from seed.') + ' ' \
+                                 + _('If you ever need to restore your wallet from its seed, these keys will be lost.') + '<p>' \
+                                 + _('Are you sure you understand what you are doing?'), title=_('Warning')):
+                return
 
         text = text_dialog(self, _('Import private keys'), _("Enter private keys")+':', _("Import"))
         if not text: return

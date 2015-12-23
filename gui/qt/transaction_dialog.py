@@ -38,7 +38,7 @@ def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
     dialogs.append(d)
     d.show()
 
-class TxDialog(QDialog):
+class TxDialog(QDialog, MessageBoxMixin):
 
     def __init__(self, tx, parent, desc, prompt_if_unsaved):
         '''Transactions in the wallet will show their description.
@@ -122,10 +122,7 @@ class TxDialog(QDialog):
 
     def closeEvent(self, event):
         if (self.prompt_if_unsaved and not self.saved and not self.broadcast
-            and QMessageBox.question(
-                self, _('Warning'),
-                _('This transaction is not saved. Close anyway?'),
-                QMessageBox.Yes | QMessageBox.No) == QMessageBox.No):
+            and not self.question(_('This transaction is not saved. Close anyway?'), title=_("Warning"))):
             event.ignore()
         else:
             event.accept()
@@ -291,8 +288,3 @@ class TxDialog(QDialog):
                 cursor.insertText(format_amount(v), ext)
             cursor.insertBlock()
         vbox.addWidget(o_text)
-
-
-
-    def show_message(self, msg):
-        QMessageBox.information(self, _('Message'), msg, _('OK'))
