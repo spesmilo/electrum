@@ -201,6 +201,18 @@ class WindowModalDialog(QDialog):
         if title:
             self.setWindowTitle(title)
 
+    @staticmethod
+    def warning(*args, **kwargs):
+        return WindowModalDialog.msg_box(QMessageBox.Warning, *args, **kwargs)
+
+    @staticmethod
+    def msg_box(icon, parent, title, text, buttons=QMessageBox.Ok,
+                defaultButton=QMessageBox.NoButton):
+        d = QMessageBox(icon, title, text, buttons, parent)
+        d.setWindowModality(Qt.WindowModal)
+        d.setDefaultButton(defaultButton)
+        return d.exec_()
+
 def line_dialog(parent, title, label, ok_label, default=None):
     dialog = WindowModalDialog(parent, title)
     dialog.setMinimumWidth(500)
