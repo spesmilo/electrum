@@ -160,7 +160,7 @@ class Commands:
         """
         return self.network.synchronous_get(('blockchain.address.get_history', [address]))
 
-    @command('nw')
+    @command('w')
     def listunspent(self):
         """List unspent outputs. Returns the list of unspent transaction
         outputs in your wallet."""
@@ -276,10 +276,9 @@ class Commands:
         """Return the public keys for a wallet address. """
         return self.wallet.get_public_keys(address)
 
-    @command('nw')
+    @command('w')
     def getbalance(self, account=None):
-        """Return the balance of your wallet. If run with the --offline flag,
-        returns the last known balance."""
+        """Return the balance of your wallet. """
         if account is None:
             c, u, x = self.wallet.get_balance()
         else:
@@ -421,21 +420,21 @@ class Commands:
             self.wallet.sign_transaction(tx, self._password)
         return tx
 
-    @command('wpn')
+    @command('wp')
     def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False):
         """Create a transaction. """
         domain = [from_addr] if from_addr else None
         tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned)
         return tx.as_dict()
 
-    @command('wpn')
+    @command('wp')
     def paytomany(self, outputs, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False):
         """Create a multi-output transaction. """
         domain = [from_addr] if from_addr else None
         tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned)
         return tx.as_dict()
 
-    @command('wn')
+    @command('w')
     def history(self):
         """Wallet history. Returns the transaction history of your wallet."""
         balance = 0
@@ -505,7 +504,7 @@ class Commands:
             out.append(item)
         return out
 
-    @command('nw')
+    @command('w')
     def gettransaction(self, txid):
         """Retrieve a transaction. """
         tx = self.wallet.transactions.get(txid) if self.wallet else None
@@ -538,7 +537,7 @@ class Commands:
         out['status'] = pr_str[out.get('status', PR_UNKNOWN)]
         return out
 
-    @command('wn')
+    @command('w')
     def getrequest(self, key):
         """Return a payment request"""
         r = self.wallet.get_payment_request(key, self.config)
@@ -551,7 +550,7 @@ class Commands:
     #    """<Not implemented>"""
     #    pass
 
-    @command('wn')
+    @command('w')
     def listrequests(self, pending=False, expired=False, paid=False):
         """List the payment requests you made."""
         out = self.wallet.get_sorted_requests(self.config)
@@ -734,7 +733,6 @@ def get_parser():
     group.add_argument("-v", "--verbose", action="store_true", dest="verbose", default=False, help="Show debugging information")
     group.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum_data' directory")
     group.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
-    group.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
     # create main parser
     parser = argparse.ArgumentParser(
         parents=[parent_parser],
@@ -745,6 +743,7 @@ def get_parser():
     parser_gui.add_argument("url", nargs='?', default=None, help="bitcoin URI (or bip70 file)")
     #parser_gui.set_defaults(func=run_gui)
     parser_gui.add_argument("-g", "--gui", dest="gui", help="select graphical user interface", choices=['qt', 'lite', 'gtk', 'kivy', 'text', 'stdio', 'jsonrpc'])
+    parser_gui.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
     parser_gui.add_argument("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")
     parser_gui.add_argument("-L", "--lang", dest="language", default=None, help="default language used in GUI")
     add_network_options(parser_gui)

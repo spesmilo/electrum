@@ -321,84 +321,84 @@ if __name__ == '__main__':
         config_options['url'] = uri
 
     config = SimpleConfig(config_options)
-    cmd_name = config.get('cmd')
+    cmdname = config.get('cmd')
 
     # initialize plugins.
-    gui_name = config.get('gui', 'qt') if cmd_name == 'gui' else 'cmdline'
+    gui_name = config.get('gui', 'qt') if cmdname == 'gui' else 'cmdline'
     plugins = Plugins(config, is_bundle or is_local or is_android, gui_name)
 
     # run non-RPC commands separately
-    if cmd_name in ['create', 'restore', 'deseed']:
+    if cmdname in ['create', 'restore', 'deseed']:
         run_non_RPC(config)
         sys.exit(0)
 
     # check if a daemon is running
     server = get_daemon(config)
 
-    # if no daemon is running, run the command offline
-    if cmd_name not in ['gui', 'daemon']:
-        init_cmdline(config_options)
-        if server is None: #not (cmd.requires_network or cmd.requires_wallet) or config.get('offline'):
-            result = run_offline_command(config, config_options)
-            print_msg(json_encode(result))
-            sys.exit(0)
-
-    # daemon is running
-    if server is not None:
-        cmdname = config_options.get('cmd')
-        if cmdname == 'daemon':
-            result = server.daemon(config_options)
-        elif cmdname == 'gui':
+    if cmdname == 'gui':
+        if server is not None:
             result = server.gui(config_options)
         else:
-            result = server.run_cmdline(config_options)
-        if type(result) in [str, unicode]:
-            print_msg(result)
-        elif type(result) is dict and result.get('error'):
-            print_stderr(result.get('error'))
-        elif result is not None:
-            print_msg(json_encode(result))
-        sys.exit(0)
-
-    # daemon is not running
-    if cmd_name == 'gui':
-        if not config.get('offline'):
-            network = Network(config)
-            network.start()
-            plugins.start()
-        else:
-            network = None
-        gui = init_gui(config, network, plugins)
-        daemon = Daemon(config, network, gui)
-        daemon.start()
-        gui.main()
-        sys.exit(0)
-
-    elif cmd_name == 'daemon':
-        subcommand = config.get('subcommand')
-        if subcommand in ['status', 'stop']:
-            print_msg("Daemon not running")
-            sys.exit(1)
-        elif subcommand == 'start':
-            p = os.fork()
-            if p == 0:
+            if not config.get('offline'):
                 network = Network(config)
                 network.start()
                 plugins.start()
-                daemon = Daemon(config, network)
-                if config.get('websocket_server'):
-                    from electrum import websockets
-                    websockets.WebSocketServer(config, network).start()
-                if config.get('requests_dir'):
-                    util.check_www_dir(config.get('requests_dir'))
-                daemon.start()
-                daemon.join()
             else:
-                print_stderr("starting daemon (PID %d)"%p)
-                sys.exit(0)
+                network = None
+            gui = init_gui(config, network, plugins)
+            daemon = Daemon(config, network, gui)
+            daemon.start()
+            gui.main()
+            sys.exit(0)
+
+    elif cmdname == 'daemon':
+        if server is not None:
+            result = server.daemon(config_options)
         else:
-            print_msg("syntax: electrum daemon <start|status|stop>")
-            sys.exit(1)
+            subcommand = config.get('subcommand')
+            if subcommand in ['status', 'stop']:
+                print_msg("Daemon not running")
+                sys.exit(1)
+            elif subcommand == 'start':
+                p = os.fork()
+                if p == 0:
+                    network = Network(config)
+                    network.start()
+                    plugins.start()
+                    daemon = Daemon(config, network)
+                    if config.get('websocket_server'):
+                        from electrum import websockets
+                        websockets.WebSocketServer(config, network).start()
+                    if config.get('requests_dir'):
+                        util.check_www_dir(config.get('requests_dir'))
+                    daemon.start()
+                    daemon.join()
+                    sys.exit(0)
+                else:
+                    print_stderr("starting daemon (PID %d)"%p)
+                    sys.exit(0)
+            else:
+                print_msg("syntax: electrum daemon <start|status|stop>")
+                sys.exit(1)
+
     else:
-        print_msg("Network daemon is not running. Try 'electrum daemon start'\nIf you want to run this command offline, use the -o flag.")
-        sys.exit(1)
+        # command line
+        init_cmdline(config_options)
+        if server is not None:
+            result = server.run_cmdline(config_options)
+        else:
+            cmd = known_commands[cmdname]
+            if cmd.requires_network:
+                print_msg("Network daemon is not running. Try 'electrum daemon start'")
+                sys.exit(1)
+            else:
+                result = run_offline_command(config, config_options)
+
+    # print result
+    if type(result) in [str, unicode]:
+        print_msg(result)
+    elif type(result) is dict and result.get('error'):
+        print_stderr(result.get('error'))
+    elif result is not None:
+        print_msg(json_encode(result))
+    sys.exit(0)
