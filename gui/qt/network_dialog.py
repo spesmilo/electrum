@@ -16,28 +16,21 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import sys, time, datetime, re, threading
-from electrum.i18n import _
-from electrum.util import print_error, print_msg
-import os.path, json, ast, traceback
-
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-from electrum import DEFAULT_SERVERS, DEFAULT_PORTS
+
+from electrum.i18n import _
+from electrum import DEFAULT_PORTS
+from electrum.network import serialize_server, deserialize_server
 
 from util import *
 
-#protocol_names = ['TCP', 'HTTP', 'SSL', 'HTTPS']
-#protocol_letters = 'thsg'
 protocol_names = ['TCP', 'SSL']
 protocol_letters = 'ts'
 
-class NetworkDialog(QDialog):
+class NetworkDialog(WindowModalDialog):
     def __init__(self, network, config, parent):
-
-        QDialog.__init__(self,parent)
-        self.setModal(1)
-        self.setWindowTitle(_('Network'))
+        WindowModalDialog.__init__(self, parent, _('Network'))
         self.setMinimumSize(375, 20)
 
         self.network = network
@@ -96,10 +89,10 @@ class NetworkDialog(QDialog):
         self.ssl_cb.stateChanged.connect(self.change_protocol)
 
         # auto connect
-        self.autocycle_cb = QCheckBox(_('Auto-connect'))
-        self.autocycle_cb.setChecked(auto_connect)
-        grid.addWidget(self.autocycle_cb, 0, 1)
-        if not self.config.is_modifiable('auto_cycle'): self.autocycle_cb.setEnabled(False)
+        self.autoconnect_cb = QCheckBox(_('Auto-connect'))
+        self.autoconnect_cb.setChecked(auto_connect)
+        grid.addWidget(self.autoconnect_cb, 0, 1)
+        self.autoconnect_cb.setEnabled(self.config.is_modifiable('auto_connect'))
         msg = _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain.") + " " \
             + _("If it is disabled, Electrum will warn you if your server is lagging.")
         grid.addWidget(HelpButton(msg), 0, 4)
@@ -122,15 +115,15 @@ class NetworkDialog(QDialog):
 
         def enable_set_server():
             if config.is_modifiable('server'):
-                enabled = not self.autocycle_cb.isChecked()
+                enabled = not self.autoconnect_cb.isChecked()
                 self.server_host.setEnabled(enabled)
                 self.server_port.setEnabled(enabled)
                 self.servers_list_widget.setEnabled(enabled)
             else:
-                for w in [self.autocycle_cb, self.server_host, self.server_port, self.ssl_cb, self.servers_list_widget]:
+                for w in [self.autoconnect_cb, self.server_host, self.server_port, self.ssl_cb, self.servers_list_widget]:
                     w.setEnabled(False)
 
-        self.autocycle_cb.clicked.connect(enable_set_server)
+        self.autoconnect_cb.clicked.connect(enable_set_server)
         enable_set_server()
 
         # proxy setting
@@ -224,9 +217,14 @@ class NetworkDialog(QDialog):
         if not self.exec_():
             return
 
-        host = str( self.server_host.text() )
-        port = str( self.server_port.text() )
+        host = str(self.server_host.text())
+        port = str(self.server_port.text())
         protocol = 's' if self.ssl_cb.isChecked() else 't'
+        # sanitize
+        try:
+            deserialize_server(serialize_server(host, port, protocol))
+        except:
+            return
 
         if self.proxy_mode.currentText() != 'NONE':
             proxy = { 'mode':str(self.proxy_mode.currentText()).lower(),
@@ -235,7 +233,7 @@ class NetworkDialog(QDialog):
         else:
             proxy = None
 
-        auto_connect = self.autocycle_cb.isChecked()
+        auto_connect = self.autoconnect_cb.isChecked()
 
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
         return True

@@ -19,47 +19,43 @@
 
 from decimal import Decimal
 import json
-import optparse
 import os
 import re
-import ast
 import sys
 import time
 import traceback
 
+import threading
+import socket
+import Queue
+from collections import defaultdict
+
+
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
-is_local = not is_bundle and script_dir == os.getcwd()
+is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "setup-release.py"))
 is_android = 'ANDROID_DATA' in os.environ
+is_kivy = os.environ.get('PYTHONHOME','').find('kivy') != -1
 
 if is_local or is_android:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
 elif is_bundle and sys.platform=='darwin':
     sys.path.insert(0, os.getcwd() + "/lib/python2.7/packages")
 
-import __builtin__
-__builtin__.use_local_modules = is_local or is_android
-
 # pure-python dependencies need to be imported here for pyinstaller
 try:
+    import dns
     import aes
     import ecdsa
     import requests
     import six
     import qrcode
-    import pyasn1
-    import pyasn1_modules
-    import tlslite
     import pbkdf2
     import google.protobuf
 except ImportError as e:
     sys.exit("Error: %s. Try 'sudo pip install <module-name>'"%e.message)
 
 # the following imports are for pyinstaller
-import pyasn1.codec
-import pyasn1.codec.der
-from pyasn1.codec.der import encoder, decoder
-from pyasn1_modules import rfc2459
 from google.protobuf import descriptor
 from google.protobuf import message
 from google.protobuf import reflection
@@ -81,390 +77,77 @@ if is_bundle or is_local or is_android:
 
 
 from electrum import util
-from electrum import SimpleConfig, Network, Wallet, WalletStorage, NetworkProxy, Commands, known_commands, pick_random_server
-from electrum.util import print_msg, print_error, print_stderr, print_json, set_verbosity, InvalidPassword
-from electrum.daemon import get_daemon
-from electrum.plugins import init_plugins
+from electrum import SimpleConfig, Network, Wallet, WalletStorage
+from electrum.util import print_msg, print_error, print_stderr, json_encode, json_decode, set_verbosity, InvalidPassword
+from electrum.plugins import Plugins, run_hook, always_hook
+from electrum.commands import get_parser, known_commands, Commands, config_variables
+from electrum.daemon import Daemon, get_daemon
 
 
 # get password routine
 def prompt_password(prompt, confirm=True):
     import getpass
-    if sys.stdin.isatty():
-        password = getpass.getpass(prompt)
-        if password and confirm:
-            password2 = getpass.getpass("Confirm: ")
-            if password != password2:
-                sys.exit("Error: Passwords do not match.")
-    else:
-        password = raw_input(prompt)
+    password = getpass.getpass(prompt, stream=None)
+    if password and confirm:
+        password2 = getpass.getpass("Confirm: ")
+        if password != password2:
+            sys.exit("Error: Passwords do not match.")
     if not password:
         password = None
     return password
 
 
-def arg_parser():
-    usage = "%prog [options] command"
-    parser = optparse.OptionParser(usage=usage, add_help_option=False)
-    parser.add_option("-h", "--help", action="callback", callback=print_help_cb, help="show this help text")
-    parser.add_option("-g", "--gui", dest="gui", help="User interface: qt, lite, gtk, text or stdio")
-    parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path")
-    parser.add_option("-o", "--offline", action="store_true", dest="offline", default=False, help="remain offline")
-    parser.add_option("-C", "--concealed", action="store_true", dest="concealed", default=False, help="don't echo seed to console when restoring")
-    parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
-    parser.add_option("-l", "--labels", action="store_true", dest="show_labels", default=False, help="show the labels of listed addresses")
-    parser.add_option("-f", "--fee", dest="tx_fee", default=None, help="set tx fee")
-    parser.add_option("-F", "--fromaddr", dest="from_addr", default=None, help="set source address for payto/mktx. if it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet.")
-    parser.add_option("-c", "--changeaddr", dest="change_addr", default=None, help="set the change address for payto/mktx. default is a spare address, or the source address if it's not in the wallet")
-    parser.add_option("-s", "--server", dest="server", default=None, help="set server host:port:protocol, where protocol is either t (tcp), h (http), s (tcp+ssl), or g (https)")
-    parser.add_option("-p", "--proxy", dest="proxy", default=None, help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
-    parser.add_option("-v", "--verbose", action="store_true", dest="verbose", default=False, help="show debugging information")
-    parser.add_option("-P", "--portable", action="store_true", dest="portable", default=False, help="portable wallet")
-    parser.add_option("-L", "--lang", dest="language", default=None, help="default language used in GUI")
-    parser.add_option("-G", "--gap", dest="gap_limit", default=None, help="gap limit")
-    parser.add_option("-W", "--password", dest="password", default=None, help="set password for usage with commands (currently only implemented for create command, do not use it for longrunning gui session since the password is visible in /proc)")
-    parser.add_option("-1", "--oneserver", action="store_true", dest="oneserver", default=False, help="connect to one server only")
-    parser.add_option("--mpk", dest="mpk", default=False, help="restore from master public key")
-    parser.add_option("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")
-    parser.add_option("--nbits", dest="nbits", default="128", help="number of bits for make_seed")
-    parser.add_option("--entropy", dest="entropy", default="1", help="custom entropy for make_seed")
-    return parser
+
+def init_gui(config, network, plugins):
+    gui_name = config.get('gui', 'qt')
+    if gui_name in ['lite', 'classic']:
+        gui_name = 'qt'
+    gui = __import__('electrum_gui.' + gui_name, fromlist=['electrum_gui'])
+    gui = gui.ElectrumGui(config, network, plugins)
+    return gui
 
 
-def print_help(parser):
-    parser.print_help()
-    print_msg("Type 'electrum help <command>' to see the help for a specific command")
-    print_msg("Type 'electrum --help' to see the list of options")
-    run_command(known_commands['help'])
+def run_non_RPC(config):
+    cmdname = config.get('cmd')
 
+    storage = WalletStorage(config.get_wallet_path())
+    if storage.file_exists:
+        sys.exit("Error: Remove the existing wallet first!")
 
-def print_help_cb(self, opt, value, parser):
-    print_help(parser)
-    sys.exit(1)
+    def password_dialog():
+        return prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
 
-
-def run_command(cmd, password=None, args=None):
-    if args is None:
-        args = []  # Do not use mutables as default values!
-    if cmd.requires_network and not options.offline:
-        s = get_daemon(config, False)
-        if not s:
-            print_msg("Network daemon is not running. Try 'electrum daemon start'")
-            sys.exit(1)
-        network = NetworkProxy(s, config)
-        network.start()
-        while network.is_connecting():
-            time.sleep(0.1)
-        if not network.is_connected():
-            print_msg("daemon is not connected")
-            sys.exit(1)
-        if wallet:
-            wallet.start_threads(network)
-            wallet.update()
-    else:
-        network = None
-
-    cmd_runner = Commands(wallet, network)
-    func = getattr(cmd_runner, cmd.name)
-    cmd_runner.password = password
-    try:
-        result = func(*args[1:])
-    except Exception:
-        traceback.print_exc(file=sys.stdout)
-        sys.exit(1)
-
-
-    if cmd.requires_network and not options.offline:
-        if wallet:
-            wallet.stop_threads()
-        network.stop()
-
-
-    if type(result) == str:
-        print_msg(result)
-    elif result is not None:
-        print_json(result)
-
-
-
-if __name__ == '__main__':
-
-    wallet = None
-    parser = arg_parser()
-    options, args = parser.parse_args()
-    if options.portable and options.wallet_path is None:
-        options.electrum_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
-
-    # config is an object passed to the various constructors (wallet, interface, gui)
-    if is_android:
-        config_options = {
-            'portable': True,
-            'verbose': True,
-            'gui': 'android',
-            'auto_cycle': True,
-        }
-    else:
-        config_options = eval(str(options))
-        for k, v in config_options.items():
-            if v is None:
-                config_options.pop(k)
-        if config_options.get('server'):
-            config_options['auto_cycle'] = False
-
-    set_verbosity(config_options.get('verbose'))
-    config = SimpleConfig(config_options)
-    assert os.path.exists(requests.utils.DEFAULT_CA_BUNDLE_PATH)
-
-    if len(args) == 0:
-        url = None
-        cmd = 'gui'
-    elif len(args) == 1 and re.match('^bitcoin:', args[0]):
-        url = args[0]
-        cmd = 'gui'
-    else:
-        cmd = args[0]
-
-    if cmd == 'gui':
-        gui_name = config.get('gui', 'classic')
-        if gui_name in ['lite', 'classic']:
-            gui_name = 'qt'
+    if cmdname == 'restore':
+        text = config.get('text')
+        password = password_dialog() if Wallet.is_seed(text) or Wallet.is_xprv(text) or Wallet.is_private_key(text) else None
         try:
-            gui = __import__('electrum_gui.' + gui_name, fromlist=['electrum_gui'])
-        except ImportError:
-            traceback.print_exc(file=sys.stdout)
-            sys.exit()
-            #sys.exit("Error: Unknown GUI: " + gui_name )
-
-        if gui_name=='qt':
-            init_plugins(config, is_bundle or is_local or is_android)
-
-        # network interface
-        if not options.offline:
-            s = get_daemon(config, False)
-            if s:
-                print_msg("Connected to daemon")
-            network = NetworkProxy(s, config)
+            wallet = Wallet.from_text(text, password, storage)
+        except BaseException as e:
+            sys.exit(str(e))
+        if not config.get('offline'):
+            network = Network(config)
             network.start()
-        else:
-            network = None
-
-        gui = gui.ElectrumGui(config, network)
-        gui.main(url)
-
-        if network:
-            network.stop()
-
-        sys.exit(0)
-
-    if cmd == 'daemon':
-        arg = args[1] if len(args)>1 else None
-        if arg not in ['start', 'stop', 'status']:
-            print_msg("syntax: electrum daemon <start|status|stop>")
-            sys.exit(1)
-        s = get_daemon(config, False)
-        if arg == 'start':
-            if s:
-                print_msg("Daemon already running")
-                sys.exit(1) 
-            get_daemon(config, True)
-            sys.exit(0)
-        elif arg in ['status','stop']:
-            if not s:
-                print_msg("Daemon not running")
-                sys.exit(1)
-            network = NetworkProxy(s, config)
-            network.start()
-            if arg == 'status':
-                print_json({
-                    'path': network.config.path,
-                    'server': network.get_parameters()[0],
-                    'blockchain_height': network.get_local_height(),
-                    'server_height': network.get_server_height(),
-                    'nodes': network.get_interfaces(),
-                    'connected': network.is_connected()
-                })
-            elif arg == 'stop':
-                network.stop_daemon()
-                print_msg("Daemon stopped")
-            network.stop()
-        else:
-            print "unknown command \"%s\""% arg
-        sys.exit(0)
-
-
-    if cmd not in known_commands:
-        cmd = 'help'
-
-    cmd = known_commands[cmd]
-
-    # instanciate wallet for command-line
-    storage = WalletStorage(config)
-
-    if cmd.name in ['create', 'restore']:
-        if storage.file_exists:
-            sys.exit("Error: Remove the existing wallet first!")
-        if options.password is not None:
-            password = options.password
-        elif cmd.name == 'restore' and options.mpk:
-            password = None
-        else:
-            password = prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
-
-        # if config.server is set, the user either passed the server on command line
-        # or chose it previously already. if he didn't pass a server on the command line,
-        # we just pick up a random one.
-        if not config.get('server'):
-            config.set_key('server', pick_random_server())
-
-        #fee = options.tx_fee if options.tx_fee else raw_input("fee (default:%s):" % (str(Decimal(wallet.fee)/100000000)))
-        #gap = options.gap_limit if options.gap_limit else raw_input("gap limit (default 5):")
-        #if fee:
-        #    wallet.set_fee(float(fee)*100000000)
-        #if gap:
-        #    wallet.change_gap_limit(int(gap))
-
-        if cmd.name == 'restore':
-            if options.mpk:
-                if Wallet.is_old_mpk(options.mpk):
-                    wallet = Wallet.from_old_mpk(options.mpk, storage)
-                if Wallet.is_xpub(options.mpk):
-                    wallet = Wallet.from_xpub(options.mpk, storage)
-            else:
-                import getpass
-                seed = getpass.getpass(prompt="seed:", stream=None) if options.concealed else raw_input("seed:")
-                if not Wallet.is_seed(seed):
-                    sys.exit("Error: Invalid seed")
-                wallet = Wallet.from_seed(seed, password, storage)
-
-            if not options.offline:
-                s = get_daemon(config, False)
-                network = NetworkProxy(s, config)
-                network.start()
-                wallet.start_threads(network)
-                print_msg("Recovering wallet...")
-                wallet.restore(lambda x: x)
-                if wallet.is_found():
-                    print_msg("Recovery successful")
-                else:
-                    print_msg("Warning: Found no history for this wallet")
-            else:
-                wallet.synchronize()
-                print_msg("Warning: This wallet was restored offline. It may contain more addresses than displayed.")
-
-        else:
-            wallet = Wallet(storage)
-            seed = wallet.make_seed()
-            wallet.add_seed(seed, password)
-            wallet.create_master_keys(password)
-            wallet.create_main_account(password)
+            wallet.start_threads(network)
+            print_msg("Recovering wallet...")
             wallet.synchronize()
-            print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
-            print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
-
-
-        print_msg("Wallet saved in '%s'" % wallet.storage.path)
-
-        # terminate
-        sys.exit(0)
-
-
-    if cmd.name not in ['create', 'restore'] and cmd.requires_wallet and not storage.file_exists:
-        print_msg("Error: Wallet file not found.")
-        print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
-        sys.exit(0)
-
-
-    if cmd.requires_wallet:
-        wallet = Wallet(storage)
-    else:
-        wallet = None
-
-
-    # important warning
-    if cmd.name in ['dumpprivkey', 'dumpprivkeys']:
-        print_stderr("WARNING: ALL your private keys are secret.")
-        print_stderr("Exposing a single private key can compromise your entire wallet!")
-        print_stderr("In particular, DO NOT use 'redeem private key' services proposed by third parties.")
-
-    # commands needing password
-    if cmd.requires_password:
-        if wallet.use_encryption:
-            password = prompt_password('Password:', False)
-            if not password:
-                print_msg("Error: Password required")
-                sys.exit(1)
-            # check password
-            try:
-                seed = wallet.check_password(password)
-            except InvalidPassword:
-                print_msg("Error: This password does not decode this wallet.")
-                sys.exit(1)
+            wallet.wait_until_synchronized()
+            msg = "Recovery successful" if wallet.is_found() else "Found no history for this wallet"
         else:
-            password = None
-    else:
-        password = None
+            msg = "This wallet was restored offline. It may contain more addresses than displayed."
+        print_msg(msg)
 
-    # add missing arguments, do type conversions
-    if (cmd.name == 'importprivkey' and len(args)==1)\
-       or (cmd.name == 'signtxwithkey' and len(args)==2):
-        # See if they specificed a key on the cmd line, if not prompt
-        args.append(prompt_password('Enter PrivateKey (will not echo):', False))
+    elif cmdname == 'create':
+        password = password_dialog()
+        wallet = Wallet(storage)
+        seed = wallet.make_seed()
+        wallet.add_seed(seed, password)
+        wallet.create_master_keys(password)
+        wallet.create_main_account(password)
+        wallet.synchronize()
+        print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
+        print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
 
-    elif cmd.name == 'createmultisig':
-        args = [cmd, int(args[1]), json.loads(args[2])]
-
-    elif cmd.name == 'createrawtransaction':
-        args = [cmd, json.loads(args[1]), json.loads(args[2])]
-
-    elif cmd.name == 'listaddresses':
-        args = [cmd, options.show_all, options.show_labels]
-
-    elif cmd.name == 'make_seed':
-        args = [cmd, int(options.nbits), long(options.entropy), options.language]
-
-    elif cmd.name in ['payto', 'mktx']:
-        domain = [options.from_addr] if options.from_addr else None
-        args = ['mktx', args[1], Decimal(args[2]), Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, domain]
-
-    elif cmd.name in ['paytomany', 'mksendmanytx']:
-        domain = [options.from_addr] if options.from_addr else None
-        outputs = []
-        for i in range(1, len(args), 2):
-            if len(args) < i+2:
-                print_msg("Error: Mismatched arguments.")
-                sys.exit(1)
-            outputs.append((args[i], Decimal(args[i+1])))
-        args = ['mksendmanytx', outputs, Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, domain]
-
-    elif cmd.name == 'help':
-        if len(args) < 2:
-            print_help(parser)
-            sys.exit(1)
-
-    # check the number of arguments
-    if len(args) - 1 < cmd.min_args:
-        print_msg("Not enough arguments")
-        print_msg("Syntax:", cmd.syntax)
-        sys.exit(1)
-
-    if cmd.max_args >= 0 and len(args) - 1 > cmd.max_args:
-        print_msg("too many arguments", args)
-        print_msg("Syntax:", cmd.syntax)
-        sys.exit(1)
-
-    if cmd.max_args < 0:
-        if len(args) > cmd.min_args + 1:
-            message = ' '.join(args[cmd.min_args:])
-            print_msg("Warning: Final argument was reconstructed from several arguments:", repr(message))
-            args = args[0:cmd.min_args] + [message]
-
-    if cmd.name == 'check_seed':
-        args.append(long(options.entropy))
-        args.append(options.language)
-
-
-    # run the command
-    if cmd.name == 'deseed':
+    elif cmdname == 'deseed':
         if not wallet.seed:
             print_msg("Error: This wallet has no seed")
         else:
@@ -473,35 +156,249 @@ if __name__ == '__main__':
             if raw_input("Are you sure you want to continue? (y/n) ") in ['y', 'Y', 'yes']:
                 wallet.storage.path = ns
                 wallet.seed = ''
-                wallet.storage.put('seed', '', True)
+                wallet.storage.put('seed', '')
                 wallet.use_encryption = False
-                wallet.storage.put('use_encryption', wallet.use_encryption, True)
+                wallet.storage.put('use_encryption', wallet.use_encryption)
                 for k in wallet.imported_keys.keys():
                     wallet.imported_keys[k] = ''
-                wallet.storage.put('imported_keys', wallet.imported_keys, True)
+                wallet.storage.put('imported_keys', wallet.imported_keys)
                 print_msg("Done.")
             else:
                 print_msg("Action canceled.")
+        wallet.storage.write()
+        sys.exit(0)
 
-    elif cmd.name == 'getconfig':
-        key = args[1]
-        out = config.get(key)
-        print_msg(out)
+    wallet.storage.write()
+    print_msg("Wallet saved in '%s'" % wallet.storage.path)
+    sys.exit(0)
 
-    elif cmd.name == 'setconfig':
-        key, value = args[1:3]
-        try:
-            value = ast.literal_eval(value)
-        except:
-            pass
-        config.set_key(key, value, True)
-        print_msg(True)
 
-    elif cmd.name == 'password':
+def init_cmdline(config_options):
+    config = SimpleConfig(config_options)
+    cmdname = config.get('cmd')
+    cmd = known_commands[cmdname]
+
+    if cmdname == 'signtransaction' and config.get('privkey'):
+        cmd.requires_wallet = False
+        cmd.requires_password = False
+
+    if cmdname in ['payto', 'paytomany'] and config.get('unsigned'):
+        cmd.requires_password = False
+
+    if cmdname in ['payto', 'paytomany'] and config.get('broadcast'):
+        cmd.requires_network = True
+
+    if cmdname in ['createrawtx'] and config.get('unsigned'):
+        cmd.requires_password = False
+        cmd.requires_wallet = False
+
+    # instanciate wallet for command-line
+    storage = WalletStorage(config.get_wallet_path())
+
+    if cmd.requires_wallet and not storage.file_exists:
+        print_msg("Error: Wallet file not found.")
+        print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
+        sys.exit(0)
+
+    # important warning
+    if cmd.name in ['getprivatekeys']:
+        print_stderr("WARNING: ALL your private keys are secret.")
+        print_stderr("Exposing a single private key can compromise your entire wallet!")
+        print_stderr("In particular, DO NOT use 'redeem private key' services proposed by third parties.")
+
+    # commands needing password
+    if cmd.requires_password and storage.get('use_encryption'):
+        if config.get('password'):
+            password = config.get('password')
+        else:
+            password = prompt_password('Password:', False)
+            if not password:
+                print_msg("Error: Password required")
+                sys.exit(1)
+    else:
+        password = None
+
+    config_options['password'] = password
+
+    if cmd.name == 'password':
         new_password = prompt_password('New password:')
-        wallet.update_password(password, new_password)
+        config_options['new_password'] = new_password
+
+    return cmd, password
+
+
+def run_offline_command(config, config_options):
+    cmdname = config.get('cmd')
+    cmd = known_commands[cmdname]
+    storage = WalletStorage(config.get_wallet_path())
+    wallet = Wallet(storage) if cmd.requires_wallet else None
+    # check password
+    if cmd.requires_password and storage.get('use_encryption'):
+        password = config_options.get('password')
+        try:
+            seed = wallet.check_password(password)
+        except InvalidPassword:
+            print_msg("Error: This password does not decode this wallet.")
+            sys.exit(1)
+    if cmd.requires_network:
+        print_stderr("Warning: running command offline")
+    # notify plugins
+    always_hook('cmdline_load_wallet', wallet)
+    # arguments passed to function
+    args = map(lambda x: config.get(x), cmd.params)
+    # decode json arguments
+    args = map(json_decode, args)
+    # options
+    args += map(lambda x: config.get(x), cmd.options)
+    cmd_runner = Commands(config, wallet, None,
+                          password=config_options.get('password'),
+                          new_password=config_options.get('new_password'))
+    func = getattr(cmd_runner, cmd.name)
+    result = func(*args)
+    # save wallet
+    if wallet:
+        wallet.storage.write()
+    return result
+
+
+if __name__ == '__main__':
+
+    # make sure that certificates are here
+    assert os.path.exists(requests.utils.DEFAULT_CA_BUNDLE_PATH)
+
+    # on osx, delete Process Serial Number arg generated for apps launched in Finder
+    sys.argv = filter(lambda x: not x.startswith('-psn'), sys.argv)
+
+    # old 'help' syntax
+    if len(sys.argv)>1 and sys.argv[1] == 'help':
+        sys.argv.remove('help')
+        sys.argv.append('-h')
+
+    # read arguments from stdin pipe and prompt
+    for i, arg in enumerate(sys.argv):
+        if arg == '-':
+            if not sys.stdin.isatty():
+                sys.argv[i] = sys.stdin.read()
+                break
+            else:
+                raise BaseException('Cannot get argument from stdin')
+        elif arg == '?':
+            sys.argv[i] = raw_input("Enter argument:")
+        elif arg == ':':
+            sys.argv[i] = prompt_password('Enter argument (will not echo):', False)
+
+    # parse command line
+    parser = get_parser()
+    args = parser.parse_args()
+
+    # config is an object passed to the various constructors (wallet, interface, gui)
+    if is_android:
+        config_options = {
+            'verbose': True,
+            'cmd': 'gui',
+            'gui': 'kivy' if is_kivy else 'android',
+            #'auto_connect': True,
+        }
+    else:
+        config_options = args.__dict__
+        for k, v in config_options.items():
+            if v is None or (k in config_variables.get(args.cmd, {}).keys()):
+                config_options.pop(k)
+        if config_options.get('server'):
+            config_options['auto_connect'] = False
+
+    if config_options.get('portable'):
+        config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
+
+    set_verbosity(config_options.get('verbose'))
+
+    # check uri
+    uri = config_options.get('url')
+    if uri:
+        if not re.match('^bitcoin:', uri):
+            print_stderr('unknown command:', uri)
+            sys.exit(1)
+        config_options['url'] = uri
+
+    config = SimpleConfig(config_options)
+    cmdname = config.get('cmd')
+
+    # initialize plugins.
+    gui_name = config.get('gui', 'qt') if cmdname == 'gui' else 'cmdline'
+    plugins = Plugins(config, is_bundle or is_local or is_android, gui_name)
+
+    # run non-RPC commands separately
+    if cmdname in ['create', 'restore', 'deseed']:
+        run_non_RPC(config)
+        sys.exit(0)
+
+    # check if a daemon is running
+    server = get_daemon(config)
+
+    if cmdname == 'gui':
+        if server is not None:
+            result = server.gui(config_options)
+        else:
+            if not config.get('offline'):
+                network = Network(config)
+                network.start()
+                plugins.start()
+            else:
+                network = None
+            gui = init_gui(config, network, plugins)
+            daemon = Daemon(config, network, gui)
+            daemon.start()
+            gui.main()
+            sys.exit(0)
+
+    elif cmdname == 'daemon':
+        if server is not None:
+            result = server.daemon(config_options)
+        else:
+            subcommand = config.get('subcommand')
+            if subcommand in ['status', 'stop']:
+                print_msg("Daemon not running")
+                sys.exit(1)
+            elif subcommand == 'start':
+                p = os.fork()
+                if p == 0:
+                    network = Network(config)
+                    network.start()
+                    plugins.start()
+                    daemon = Daemon(config, network)
+                    if config.get('websocket_server'):
+                        from electrum import websockets
+                        websockets.WebSocketServer(config, network).start()
+                    if config.get('requests_dir'):
+                        util.check_www_dir(config.get('requests_dir'))
+                    daemon.start()
+                    daemon.join()
+                    sys.exit(0)
+                else:
+                    print_stderr("starting daemon (PID %d)"%p)
+                    sys.exit(0)
+            else:
+                print_msg("syntax: electrum daemon <start|status|stop>")
+                sys.exit(1)
 
     else:
-        run_command(cmd, password, args)
+        # command line
+        init_cmdline(config_options)
+        if server is not None:
+            result = server.run_cmdline(config_options)
+        else:
+            cmd = known_commands[cmdname]
+            if cmd.requires_network:
+                print_msg("Network daemon is not running. Try 'electrum daemon start'")
+                sys.exit(1)
+            else:
+                result = run_offline_command(config, config_options)
 
+    # print result
+    if type(result) in [str, unicode]:
+        print_msg(result)
+    elif type(result) is dict and result.get('error'):
+        print_stderr(result.get('error'))
+    elif result is not None:
+        print_msg(json_encode(result))
     sys.exit(0)

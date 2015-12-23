@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-from electrum import Interface, SimpleConfig, set_verbosity
-from electrum.network import DEFAULT_SERVERS, filter_protocol
+from electrum import SimpleConfig, set_verbosity
+from electrum.network import filter_protocol
 import time, Queue
 from collections import defaultdict
 
@@ -9,8 +9,8 @@ import util, json
 set_verbosity(False)
 
 config = SimpleConfig()
-servers = filter_protocol(DEFAULT_SERVERS,'t')
-results = util.send_request(servers, {'method':'blockchain.headers.subscribe', 'params':[]})
+servers = filter_protocol(protocol = 't')
+results = util.send_request(servers, 'blockchain.headers.subscribe', [])
 
 d = defaultdict(int)
 

@@ -15,51 +15,25 @@ elif platform.system() == 'Darwin':
 else:
     MONOSPACE_FONT = 'monospace'
 
+GREEN_BG = "QWidget {background-color:#80ff80;}"
+RED_BG = "QWidget {background-color:#ffcccc;}"
+RED_FG = "QWidget {color:red;}"
+BLUE_FG = "QWidget {color:blue;}"
+BLACK_FG = "QWidget {color:black;}"
 
-class WaitingDialog(QThread):
-    def __init__(self, parent, message, run_task, on_success=None, on_complete=None):
-        QThread.__init__(self)
-        self.parent = parent
-        self.d = QDialog(parent)
-        self.d.setWindowTitle('Please wait')
-        l = QLabel(message)
-        vbox = QVBoxLayout(self.d)
-        vbox.addWidget(l)
-        self.run_task = run_task
-        self.on_success = on_success
-        self.on_complete = on_complete
-        self.d.connect(self.d, SIGNAL('done'), self.close)
-        self.d.show()
-
-    def run(self):
-        self.error = None
-        try:
-            self.result = self.run_task()
-        except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
-            self.error = str(e)
-        self.d.emit(SIGNAL('done'))
-
-    def close(self):
-        self.d.accept()
-        if self.error:
-            QMessageBox.warning(self.parent, _('Error'), self.error, _('OK'))
-        else:
-            if self.on_success:
-                if type(self.result) is not tuple:
-                    self.result = (self.result,)
-                self.on_success(*self.result)
-
-        if self.on_complete:
-            self.on_complete()
-
+dialogs = []
 
 class Timer(QThread):
+    stopped = False
+
     def run(self):
-        while True:
+        while not self.stopped:
             self.emit(SIGNAL('timersignal'))
             time.sleep(0.5)
 
+    def stop(self):
+        self.stopped = True
+        self.wait()
 
 class EnterButton(QPushButton):
     def __init__(self, text, func):
@@ -73,8 +47,9 @@ class EnterButton(QPushButton):
 
 
 class ThreadedButton(QPushButton):
-    def __init__(self, text, func, on_success=None):
+    def __init__(self, text, func, on_success=None, before=None):
         QPushButton.__init__(self, text)
+        self.before = before
         self.run_task = func
         self.on_success = on_success
         self.clicked.connect(self.do_exec)
@@ -95,15 +70,42 @@ class ThreadedButton(QPushButton):
         try:
             self.result = self.run_task()
         except BaseException as e:
+            traceback.print_exc(file=sys.stdout)
             self.error = str(e.message)
             self.emit(SIGNAL('error'))
             return
         self.emit(SIGNAL('done'))
 
     def do_exec(self):
+        if self.before:
+            self.before()
         t = threading.Thread(target=self.do_func)
         t.setDaemon(True)
         t.start()
+
+
+class HelpLabel(QLabel):
+
+    def __init__(self, text, help_text):
+        QLabel.__init__(self, text)
+        self.help_text = help_text
+        self.app = QCoreApplication.instance()
+        self.font = QFont()
+
+    def mouseReleaseEvent(self, x):
+        QMessageBox.information(self, 'Help', self.help_text, 'OK')
+
+    def enterEvent(self, event):
+        self.font.setUnderline(True)
+        self.setFont(self.font)
+        self.app.setOverrideCursor(QCursor(Qt.PointingHandCursor))
+        return QLabel.enterEvent(self, event)
+
+    def leaveEvent(self, event):
+        self.font.setUnderline(False)
+        self.setFont(self.font)
+        self.app.setOverrideCursor(QCursor(Qt.ArrowCursor))
+        return QLabel.leaveEvent(self, event)
 
 
 class HelpButton(QPushButton):
@@ -112,17 +114,10 @@ class HelpButton(QPushButton):
         self.help_text = text
         self.setFocusPolicy(Qt.NoFocus)
         self.setFixedWidth(20)
-        self.alt = None
         self.clicked.connect(self.onclick)
 
-    def set_alt(self, func):
-        self.alt = func
-
     def onclick(self):
-        if self.alt:
-            apply(self.alt)
-        else:
-            QMessageBox.information(self, 'Help', self.help_text, 'OK')
+        QMessageBox.information(self, 'Help', self.help_text, 'OK')
 
 class Buttons(QHBoxLayout):
     def __init__(self, *buttons):
@@ -138,9 +133,16 @@ class CloseButton(QPushButton):
         self.setDefault(True)
 
 class CopyButton(QPushButton):
-    def __init__(self, text, app):
+    def __init__(self, text_getter, app):
         QPushButton.__init__(self, _("Copy"))
-        self.clicked.connect(lambda: app.clipboard().setText(str(text.toPlainText())))
+        self.clicked.connect(lambda: app.clipboard().setText(text_getter()))
+
+class CopyCloseButton(QPushButton):
+    def __init__(self, text_getter, app, dialog):
+        QPushButton.__init__(self, _("Copy and Close"))
+        self.clicked.connect(lambda: app.clipboard().setText(text_getter()))
+        self.clicked.connect(dialog.close)
+        self.setDefault(True)
 
 class OkButton(QPushButton):
     def __init__(self, dialog, label=None):
@@ -153,12 +155,91 @@ class CancelButton(QPushButton):
         QPushButton.__init__(self, label or _("Cancel"))
         self.clicked.connect(dialog.reject)
 
+class MessageBoxMixin:
+    def question(self, msg, parent=None, title=None):
+        Yes, No = QMessageBox.Yes, QMessageBox.No
+        return self.msg_box(QMessageBox.Question, parent or self, title or '',
+                            msg, buttons=Yes|No, defaultButton=No) == Yes
+
+    def show_warning(self, msg, parent=None, title=None):
+        return self.msg_box(QMessageBox.Warning, parent or self,
+                            title or _('Warning'), msg)
+
+    def show_error(self, msg, parent=None):
+        return self.msg_box(QMessageBox.Warning, parent or self,
+                            _('Error'), msg)
+
+    def show_critical(self, msg, parent=None, title=None):
+        return self.msg_box(QMessageBox.Critical, parent or self,
+                            title or _('Critical Error'), msg)
+
+    def show_message(self, msg, parent=None, title=None):
+        return self.msg_box(QMessageBox.Information, parent or self,
+                            title or _('Information'), msg)
+
+    @staticmethod
+    def msg_box(icon, parent, title, text, buttons=QMessageBox.Ok,
+                defaultButton=QMessageBox.NoButton):
+        # handle e.g. ElectrumGui
+        if not isinstance(parent, QWidget):
+            parent = None
+        d = QMessageBox(icon, title, text, buttons, parent)
+        d.setWindowModality(Qt.WindowModal)
+        d.setDefaultButton(defaultButton)
+        return d.exec_()
+
+class WindowModalDialog(QDialog):
+    '''Handy wrapper; window modal dialogs are better for our multi-window
+    daemon model as other wallet windows can still be accessed.'''
+    def __init__(self, parent, title=None):
+        QDialog.__init__(self, parent)
+        self.setWindowModality(Qt.WindowModal)
+        if title:
+            self.setWindowTitle(title)
+
+class WaitingDialog(QThread, MessageBoxMixin):
+    '''Shows a please wait dialog whilst runnning a task.  It is not
+    necessary to maintain a reference to this dialog.'''
+    def __init__(self, parent, message, task, on_success=None,
+                 on_finished=None):
+        global dialogs
+        dialogs.append(self) # Prevent GC
+        QThread.__init__(self)
+        self.task = task
+        self.on_success = on_success
+        self.on_finished = on_finished
+        self.dialog = WindowModalDialog(parent, _("Please wait"))
+        vbox = QVBoxLayout(self.dialog)
+        vbox.addWidget(QLabel(message))
+        self.dialog.show()
+        self.dialog.connect(self, SIGNAL("finished()"), self.finished)
+        self.start()
+
+    def run(self):
+        self.error = None
+        try:
+            self.result = self.task()
+        except BaseException as e:
+            traceback.print_exc(file=sys.stdout)
+            self.error = str(e)
+
+    def finished(self):
+        global dialogs
+        dialogs.remove(self)
+        if self.error:
+            self.show_error(self.error, parent=self.dialog.parent())
+        elif self.on_success:
+            result = self.result
+            if type(result) is not tuple:
+                result = (result,)
+            self.on_success(*result)
+        if self.on_finished:
+            self.on_finished()
+        self.dialog.accept()
 
 def line_dialog(parent, title, label, ok_label, default=None):
-    dialog = QDialog(parent)
+    dialog = WindowModalDialog(parent, title)
     dialog.setMinimumWidth(500)
-    dialog.setWindowTitle(title)
-    dialog.setModal(1)
     l = QVBoxLayout()
     dialog.setLayout(l)
     l.addWidget(QLabel(label))
@@ -172,23 +253,18 @@ def line_dialog(parent, title, label, ok_label, default=None):
 
 def text_dialog(parent, title, label, ok_label, default=None):
     from qrtextedit import ScanQRTextEdit
-    dialog = QDialog(parent)
+    dialog = WindowModalDialog(parent, title)
     dialog.setMinimumWidth(500)
-    dialog.setWindowTitle(title)
-    dialog.setModal(1)
     l = QVBoxLayout()
     dialog.setLayout(l)
     l.addWidget(QLabel(label))
-    txt = ScanQRTextEdit(parent)
+    txt = ScanQRTextEdit()
     if default:
         txt.setText(default)
     l.addWidget(txt)
     l.addLayout(Buttons(CancelButton(dialog), OkButton(dialog, ok_label)))
     if dialog.exec_():
         return unicode(txt.toPlainText())
-
-def question(msg):
-    return QMessageBox.question(None, _('Message'), msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes
 
 def address_field(addresses):
     hbox = QHBoxLayout()
@@ -249,79 +325,186 @@ def filename_field(parent, config, defaultname, select_msg):
 
     return vbox, filename_e, b1
 
-
+class ElectrumItemDelegate(QStyledItemDelegate):
+    def createEditor(self, parent, option, index):
+        return self.parent().createEditor(parent, option, index)
 
 class MyTreeWidget(QTreeWidget):
 
-    def __init__(self, parent, create_menu, headers, column_width):
+    def __init__(self, parent, create_menu, headers, stretch_column=None,
+                 editable_columns=None):
         QTreeWidget.__init__(self, parent)
         self.parent = parent
-        self.setColumnCount(len(headers))
-        self.setHeaderLabels(headers)
-        self.header().setStretchLastSection(False)
+        self.stretch_column = stretch_column
         self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.itemActivated.connect(self.on_activated)
         self.customContextMenuRequested.connect(create_menu)
+        self.setUniformRowHeights(True)
         # extend the syntax for consistency
         self.addChild = self.addTopLevelItem
         self.insertChild = self.insertTopLevelItem
-        # editable column
-        self.is_edit = False
-        self.edit_column = None
-        self.itemDoubleClicked.connect(self.edit_label)
-        self.itemChanged.connect(self.label_changed)
-        # set column width
-        for i, width in enumerate(column_width):
-            if width is None:
-                self.header().setResizeMode(i, QHeaderView.Stretch)
-                self.edit_column = i
-            else:
-                self.setColumnWidth(i, width)
 
-    def on_activated(self, item):
-        if not item:
-            return
-        for i in range(0,self.viewport().height()/5):
-            if self.itemAt(QPoint(0,i*5)) == item:
-                break
+        # Control which columns are editable
+        self.editor = None
+        self.pending_update = False
+        if editable_columns is None:
+            editable_columns = [stretch_column]
+        self.editable_columns = editable_columns
+        self.setItemDelegate(ElectrumItemDelegate(self))
+        self.itemActivated.connect(self.on_activated)
+        self.update_headers(headers)
+
+    def update_headers(self, headers):
+        self.setColumnCount(len(headers))
+        self.setHeaderLabels(headers)
+        self.header().setStretchLastSection(False)
+        for col in range(len(headers)):
+            sm = QHeaderView.Stretch if col == self.stretch_column else QHeaderView.ResizeToContents
+            self.header().setResizeMode(col, sm)
+
+    def editItem(self, item, column):
+        if column in self.editable_columns:
+            self.editing_itemcol = (item, column, unicode(item.text(column)))
+            # Calling setFlags causes on_changed events for some reason
+            item.setFlags(item.flags() | Qt.ItemIsEditable)
+            QTreeWidget.editItem(self, item, column)
+            item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_F2:
+            self.on_activated(self.currentItem(), self.currentColumn())
         else:
-            return
-        for j in range(0,30):
-            if self.itemAt(QPoint(0,i*5 + j)) != item:
-                break
-        self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), QPoint(50, i*5 + j - 1))
+            QTreeWidget.keyPressEvent(self, event)
 
-    def edit_label(self, item, column=None):
-        if column is None:
-            column = self.edit_column
-        if column==self.edit_column and item.isSelected():
-            text = unicode(item.text(column))
-            key = str(item.data(0, Qt.UserRole).toString())
-            self.is_edit = True
-            if text == self.parent.wallet.get_default_label(key):
-                item.setText(column, '')
-            item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
+    def permit_edit(self, item, column):
+        return (column in self.editable_columns
+                and self.on_permit_edit(item, column))
+
+    def on_permit_edit(self, item, column):
+        return True
+
+    def on_activated(self, item, column):
+        if self.permit_edit(item, column):
             self.editItem(item, column)
-            item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
-            self.is_edit = False
-
-    def label_changed(self, item, column):
-        if self.is_edit:
-            return
-        self.is_edit = True
-        key = str(item.data(0, Qt.UserRole).toString())
-        text = unicode(item.text(self.edit_column))
-        changed = self.parent.wallet.set_label(key, text)
-        if text:
-            item.setForeground(self.edit_column, QBrush(QColor('black')))
         else:
-            text = self.wallet.get_default_label(key)
-            item.setText(self.edit_column, text)
-            item.setForeground(self.edit_column, QBrush(QColor('gray')))
-        self.is_edit = False
-        if changed:
-            self.parent.update_history_tab()
-            self.parent.update_completions()
+            pt = self.visualItemRect(item).bottomLeft()
+            pt.setX(50)
+            self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), pt)
+
+    def createEditor(self, parent, option, index):
+        self.editor = QStyledItemDelegate.createEditor(self.itemDelegate(),
+                                                       parent, option, index)
+        self.editor.connect(self.editor, SIGNAL("editingFinished()"),
+                            self.editing_finished)
+        return self.editor
+
+    def editing_finished(self):
+        # Long-time QT bug - pressing Enter to finish editing signals
+        # editingFinished twice.  If the item changed the sequence is
+        # Enter key:  editingFinished, on_change, editingFinished
+        # Mouse: on_change, editingFinished
+        # This mess is the cleanest way to ensure we make the
+        # on_edited callback with the updated item
+        if self.editor:
+            (item, column, prior_text) = self.editing_itemcol
+            if self.editor.text() == prior_text:
+                self.editor = None  # Unchanged - ignore any 2nd call
+            elif item.text(column) == prior_text:
+                pass # Buggy first call on Enter key, item not yet updated
+            else:
+                # What we want - the updated item
+                self.on_edited(*self.editing_itemcol)
+                self.editor = None
+
+            # Now do any pending updates
+            if self.editor is None and self.pending_update:
+                self.pending_update = False
+                self.on_update()
+
+    def on_edited(self, item, column, prior):
+        '''Called only when the text actually changes'''
+        key = str(item.data(0, Qt.UserRole).toString())
+        text = unicode(item.text(column))
+        self.parent.wallet.set_label(key, text)
+        self.parent.history_list.update()
+        self.parent.update_completions()
+
+    def update(self):
+        # Defer updates if editing
+        if self.editor:
+            self.pending_update = True
+        else:
+            self.on_update()
+
+    def on_update(self):
+        pass
+
+    def get_leaves(self, root):
+        child_count = root.childCount()
+        if child_count == 0:
+            yield root
+        for i in range(child_count):
+            item = root.child(i)
+            for x in self.get_leaves(item):
+                yield x
+
+    def filter(self, p, columns):
+        p = unicode(p).lower()
+        for item in self.get_leaves(self.invisibleRootItem()):
+            item.setHidden(all([unicode(item.text(column)).lower().find(p) == -1
+                                for column in columns]))
+
+
+class ButtonsWidget(QWidget):
+
+    def __init__(self):
+        super(QWidget, self).__init__()
+        self.buttons = []
+
+    def resizeButtons(self):
+        frameWidth = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)
+        x = self.rect().right() - frameWidth
+        y = self.rect().bottom() - frameWidth
+        for button in self.buttons:
+            sz = button.sizeHint()
+            x -= sz.width()
+            button.move(x, y - sz.height())
+
+    def addButton(self, icon_name, on_click, tooltip):
+        button = QToolButton(self)
+        button.setIcon(QIcon(icon_name))
+        button.setStyleSheet("QToolButton { border: none; hover {border: 1px} pressed {border: 1px} padding: 0px; }")
+        button.setVisible(True)
+        button.setToolTip(tooltip)
+        button.clicked.connect(on_click)
+        self.buttons.append(button)
+        return button
+
+    def addCopyButton(self, app):
+        self.app = app
+        f = lambda: self.app.clipboard().setText(str(self.text()))
+        self.addButton(":icons/copy.png", f, _("Copy to Clipboard"))
+
+class ButtonsLineEdit(QLineEdit, ButtonsWidget):
+    def __init__(self, text=None):
+        QLineEdit.__init__(self, text)
+        self.buttons = []
+
+    def resizeEvent(self, e):
+        o = QLineEdit.resizeEvent(self, e)
+        self.resizeButtons()
+        return o
+
+class ButtonsTextEdit(QPlainTextEdit, ButtonsWidget):
+    def __init__(self, text=None):
+        QPlainTextEdit.__init__(self, text)
+        self.setText = self.setPlainText
+        self.text = self.toPlainText
+        self.buttons = []
+
+    def resizeEvent(self, e):
+        o = QPlainTextEdit.resizeEvent(self, e)
+        self.resizeButtons()
+        return o
 
 
 if __name__ == "__main__":

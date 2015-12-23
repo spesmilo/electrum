@@ -174,7 +174,7 @@ class Authenticator:
     def __init__(self):
         global wallet
         self.qr_data = None
-        storage = WalletStorage({'wallet_path':'/sdcard/electrum/authenticator'})
+        storage = WalletStorage('/sdcard/electrum/authenticator')
         if not storage.file_exists:
 
             action = self.restore_or_create()
@@ -198,7 +198,7 @@ class Authenticator:
                     exit()
                 if not Wallet.is_seed(seed):
                     exit()
-                wallet = Wallet.from_seed(seed, storage)
+                wallet = Wallet.from_seed(seed, password, storage)
             else:
                 exit()
 
@@ -290,6 +290,8 @@ class Authenticator:
                 mpk = wallet.get_master_public_key()
                 self.show_qr(mpk)
                 self.show_title('master public key')
+                droid.setClipboard(mpk)
+                droid.makeToast("Master public key copied to clipboard")
 
             elif event["name"] == "scan":
                 r = droid.scanBarcode()

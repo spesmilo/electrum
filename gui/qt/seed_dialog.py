@@ -20,18 +20,14 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 from electrum.i18n import _
-from electrum import mnemonic
 
 from util import *
-from qrcodewidget import QRCodeWidget, QRDialog
 from qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 
-class SeedDialog(QDialog):
+class SeedDialog(WindowModalDialog):
     def __init__(self, parent, seed, imported_keys):
-        QDialog.__init__(self, parent)
-        self.setModal(1)
+        WindowModalDialog.__init__(self, parent, ('Electrum - ' + _('Seed')))
         self.setMinimumWidth(400)
-        self.setWindowTitle('Electrum' + ' - ' + _('Seed'))
         vbox = show_seed_box_msg(seed)
         if imported_keys:
             vbox.addWidget(QLabel("<b>"+_("WARNING")+":</b> " + _("Your wallet contains imported keys. These keys cannot be recovered from seed.") + "</b><p>"))
@@ -51,11 +47,19 @@ def icon_filename(sid):
 def show_seed_box_msg(seedphrase, sid=None):
     msg =  _("Your wallet generation seed is") + ":"
     vbox = show_seed_box(msg, seedphrase, sid)
-    save_msg = _("Please save these %d words on paper (order is important).")%len(seedphrase.split()) + " "
-    msg2 = save_msg + " " \
-           + _("This seed will allow you to recover your wallet in case of computer failure.") + "<br/>" \
-           + "<b>"+_("WARNING")+":</b> " + _("Never disclose your seed. Never type it on a website.") + "</b><p>"
-    label2 = QLabel(msg2)
+    msg = ''.join([
+        "<p>",
+        _("Please save these %d words on paper (order is important).")%len(seedphrase.split()) + " ",
+        _("This seed will allow you to recover your wallet in case of computer failure.") + "<br/>",
+        "</p>",
+        "<b>" + _("WARNING") + ":</b> ",
+        "<ul>",
+        "<li>" + _("Never disclose your seed.") + "</li>",
+        "<li>" + _("Never type it on a website.") + "</li>",
+        "<li>" + _("Do not send your seed to a printer.") + "</li>",
+        "</ul>"
+    ])
+    label2 = QLabel(msg)
     label2.setWordWrap(True)
     vbox.addWidget(label2)
     vbox.addStretch(1)
@@ -73,7 +77,7 @@ def enter_seed_box(msg, window, sid=None, text=None):
     label = QLabel(msg)
     label.setWordWrap(True)
     if not text:
-        seed_e = ScanQRTextEdit(win=window)
+        seed_e = ScanQRTextEdit()
         seed_e.setTabChangesFocus(True)
     else:
         seed_e = ShowQRTextEdit(text=text)

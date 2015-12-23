@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # Electrum - lightweight Bitcoin client
-# Copyright (C) 2014 Thomas Voegtlin
+# Copyright (C) 2015 Thomas Voegtlin
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,208 +16,148 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import socket
-import time
-import sys
-import os
-import threading
-import traceback
-import json
-import Queue
+import ast, os
 
-import util
-from network import Network
-from util import print_error, print_stderr, parse_json
+import jsonrpclib
+from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCRequestHandler
+
+from util import json_decode, DaemonThread
+from wallet import WalletStorage, Wallet
+from commands import known_commands, Commands
 from simple_config import SimpleConfig
 
-DAEMON_SOCKET = 'daemon.sock'
 
+def lockfile(config):
+    return os.path.join(config.path, 'daemon')
 
-def do_start_daemon(config):
-    import subprocess
-    args = [sys.executable, __file__, config.path]
-    logfile = open(os.path.join(config.path, 'daemon.log'),'w')
-    p = subprocess.Popen(args, stderr=logfile, stdout=logfile, close_fds=(os.name=="posix"))
-    print_stderr("starting daemon (PID %d)"%p.pid)
-
-
-
-def get_daemon(config, start_daemon):
-    import socket
-    daemon_socket = os.path.join(config.path, DAEMON_SOCKET)
-    daemon_started = False
-    while True:
-        try:
-            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            s.connect(daemon_socket)
-            return s
-        except socket.error:
-            if not start_daemon:
-                return False
-            elif not daemon_started:
-                do_start_daemon(config)
-                daemon_started = True
-            else:
-                time.sleep(0.1)
-        except:
-            # do not use daemon if AF_UNIX is not available (windows)
-            return False
-
-
-
-class ClientThread(util.DaemonThread):
-
-    def __init__(self, server, s):
-        util.DaemonThread.__init__(self)
-        self.server = server
-        self.client_pipe = util.SocketPipe(s)
-        self.response_queue = Queue.Queue()
-        self.server.add_client(self)
-
-    def reading_thread(self):
-        while self.is_running():
-            try:
-                request = self.client_pipe.get()
-            except util.timeout:
-                continue
-            if request is None:
-                self.running = False
-                break
-            if request.get('method') == 'daemon.stop':
-                self.server.stop()
-                continue
-            self.server.send_request(self, request)
-
-    def run(self):
-        threading.Thread(target=self.reading_thread).start()
-        while self.is_running():
-            try:
-                response = self.response_queue.get(timeout=0.1)
-            except Queue.Empty:
-                continue
-            try:
-                self.client_pipe.send(response)
-            except socket.error:
-                self.running = False
-                break
-        self.server.remove_client(self)
-
-
-
-
-
-class NetworkServer(util.DaemonThread):
-
-    def __init__(self, config):
-        util.DaemonThread.__init__(self)
-        self.debug = False
-        self.config = config
-        self.network = Network(config)
-        # network sends responses on that queue
-        self.network_queue = Queue.Queue()
-
-        self.running = False
-        self.lock = threading.RLock()
-
-        # each GUI is a client of the daemon
-        self.clients = []
-        self.request_id = 0
-        self.requests = {}
-
-    def add_client(self, client):
-        for key in ['status','banner','updated','servers','interfaces']:
-            value = self.network.get_status_value(key)
-            client.response_queue.put({'method':'network.status', 'params':[key, value]})
-        with self.lock:
-            self.clients.append(client)
-            print_error("new client:", len(self.clients))
-
-    def remove_client(self, client):
-        with self.lock:
-            self.clients.remove(client)
-            print_error("client quit:", len(self.clients))
-
-    def send_request(self, client, request):
-        with self.lock:
-            self.request_id += 1
-            self.requests[self.request_id] = (request['id'], client)
-            request['id'] = self.request_id
-
-        if self.debug:
-            print_error("-->", request)
-        self.network.requests_queue.put(request)
-
-
-    def run(self):
-        self.network.start(self.network_queue)
-        while self.is_running():
-            try:
-                response = self.network_queue.get(timeout=0.1)
-            except Queue.Empty:
-                continue
-            if self.debug:
-                print_error("<--", response)
-            response_id = response.get('id')
-            if response_id:
-                with self.lock:
-                    client_id, client = self.requests.pop(response_id)
-                response['id'] = client_id
-                client.response_queue.put(response)
-            else:
-                # notification
-                for client in self.clients:
-                    client.response_queue.put(response)
-
-        self.network.stop()
-        print_error("server exiting")
-
-
-
-def daemon_loop(server):
-    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    daemon_socket = os.path.join(server.config.path, DAEMON_SOCKET)
-    if os.path.exists(daemon_socket):
-        os.remove(daemon_socket)
-    daemon_timeout = server.config.get('daemon_timeout', None)
-    s.bind(daemon_socket)
-    s.listen(5)
-    s.settimeout(1)
-    t = time.time()
-    while server.running:
-        try:
-            connection, address = s.accept()
-        except socket.timeout:
-            if daemon_timeout is None:
-                continue
-            if not server.clients:
-                if time.time() - t > daemon_timeout:
-                    print_error("Daemon timeout")
-                    break
-            else:
-                t = time.time()
-            continue
-        t = time.time()
-        client = ClientThread(server, connection)
-        client.start()
-    server.stop()
-    # sleep so that other threads can terminate cleanly
-    time.sleep(0.5)
-    print_error("Daemon exiting")
-
-
-if __name__ == '__main__':
-    import simple_config, util
-    _config = {}
-    if len(sys.argv) > 1:
-        _config['electrum_path'] = sys.argv[1]
-    config = simple_config.SimpleConfig(_config)
-    util.set_verbosity(True)
-    server = NetworkServer(config)
-    server.start()
+def get_daemon(config):
     try:
-        daemon_loop(server)
-    except KeyboardInterrupt:
-        print "Ctrl C - Stopping daemon"
-        server.stop()
-        sys.exit(1)
+        with open(lockfile(config)) as f:
+            host, port = ast.literal_eval(f.read())
+    except:
+        return
+    server = jsonrpclib.Server('http://%s:%d' % (host, port))
+    # check if daemon is running
+    try:
+        server.ping()
+        return server
+    except:
+        pass
+
+
+class RequestHandler(SimpleJSONRPCRequestHandler):
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.end_headers()
+
+    def end_headers(self):
+        self.send_header("Access-Control-Allow-Headers",
+                         "Origin, X-Requested-With, Content-Type, Accept")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        SimpleJSONRPCRequestHandler.end_headers(self)
+
+
+
+class Daemon(DaemonThread):
+
+    def __init__(self, config, network, gui=None):
+        DaemonThread.__init__(self)
+        self.config = config
+        self.network = network
+        self.gui = gui
+        self.wallets = {}
+        if gui is None:
+            self.wallet = self.load_wallet(config)
+        else:
+            self.wallet = None
+        self.cmd_runner = Commands(self.config, self.wallet, self.network)
+        host = config.get('rpchost', 'localhost')
+        port = config.get('rpcport', 0)
+        self.server = SimpleJSONRPCServer((host, port), requestHandler=RequestHandler, logRequests=False)
+        with open(lockfile(config), 'w') as f:
+            f.write(repr(self.server.socket.getsockname()))
+        self.server.timeout = 0.1
+        for cmdname in known_commands:
+            self.server.register_function(getattr(self.cmd_runner, cmdname), cmdname)
+        self.server.register_function(self.run_cmdline, 'run_cmdline')
+        self.server.register_function(self.ping, 'ping')
+        self.server.register_function(self.run_daemon, 'daemon')
+        self.server.register_function(self.run_gui, 'gui')
+
+    def ping(self):
+        return True
+
+    def run_daemon(self, config):
+        sub = config.get('subcommand')
+        assert sub in ['start', 'stop', 'status']
+        if sub == 'start':
+            response = "Daemon already running"
+        elif sub == 'status':
+            p = self.network.get_parameters()
+            response = {
+                'path': self.network.config.path,
+                'server': p[0],
+                'blockchain_height': self.network.get_local_height(),
+                'server_height': self.network.get_server_height(),
+                'nodes': self.network.get_interfaces(),
+                'connected': self.network.is_connected(),
+                'auto_connect': p[4],
+                'wallets': dict([ (k, w.is_up_to_date()) for k, w in self.wallets.items()]),
+            }
+        elif sub == 'stop':
+            self.stop()
+            response = "Daemon stopped"
+        return response
+
+    def run_gui(self, config_options):
+        config = SimpleConfig(config_options)
+        if self.gui:
+            if hasattr(self.gui, 'new_window'):
+                path = config.get_wallet_path()
+                self.gui.new_window(path, config.get('url'))
+                response = "ok"
+            else:
+                response = "error: current GUI does not support multiple windows"
+        else:
+            response = "Error: Electrum is running in daemon mode. Please stop the daemon first."
+        return response
+
+    def load_wallet(self, config):
+        path = config.get_wallet_path()
+        if path in self.wallets:
+            wallet = self.wallets[path]
+        else:
+            storage = WalletStorage(path)
+            wallet = Wallet(storage)
+            wallet.start_threads(self.network)
+            self.wallets[path] = wallet
+        return wallet
+
+    def run_cmdline(self, config_options):
+        config = SimpleConfig(config_options)
+        cmdname = config.get('cmd')
+        cmd = known_commands[cmdname]
+        wallet = self.load_wallet(config) if cmd.requires_wallet else None
+        # arguments passed to function
+        args = map(lambda x: config.get(x), cmd.params)
+        # decode json arguments
+        args = map(json_decode, args)
+        # options
+        args += map(lambda x: config.get(x), cmd.options)
+        cmd_runner = Commands(config, wallet, self.network,
+                              password=config_options.get('password'),
+                              new_password=config_options.get('new_password'))
+        func = getattr(cmd_runner, cmd.name)
+        result = func(*args)
+        return result
+
+    def run(self):
+        while self.is_running():
+            self.server.handle_request()
+        os.unlink(lockfile(self.config))
+
+    def stop(self):
+        for k, wallet in self.wallets.items():
+            wallet.stop_threads()
+        DaemonThread.stop(self)

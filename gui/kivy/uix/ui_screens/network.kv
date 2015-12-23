@@ -1,0 +1,39 @@
+Popup:
+    id: nd
+    title: _('Network')
+
+    on_open:
+        host.text, nd.port, nd.protocol, nd.proxy, auto_connect.active = app.network.get_parameters()
+
+    BoxLayout:
+
+        orientation: 'vertical'
+
+        GridLayout:
+            cols: 2
+            Label:
+                text: _('Auto-connect')
+            CheckBox:
+                id: auto_connect
+                size_hint_y: None
+            Label:
+                text: _('Server')
+            Spinner:
+                id: host
+                text: ''
+                values: app.network.get_servers()
+
+        Widget:
+            size_hint: 1, 1
+
+        BoxLayout:
+            Widget:
+                size_hint: 0.5, None
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('OK')
+                on_release:
+                    app.network.set_parameters(host.text, nd.port, nd.protocol, nd.proxy, auto_connect.active)
+                    nd.dismiss()
+

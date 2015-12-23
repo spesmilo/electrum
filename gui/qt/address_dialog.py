@@ -16,30 +16,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import sys, time, datetime, re, threading
-from electrum.i18n import _, set_language
-from electrum.util import print_error, print_msg
-import os.path, json, ast, traceback
-import shutil
-import StringIO
+from electrum.i18n import _
 
-
-try:
-    import PyQt4
-except Exception:
-    sys.exit("Error: Could not import PyQt4 on Linux systems, you may try 'sudo apt-get install python-qt4'")
-
+import PyQt4
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-import PyQt4.QtCore as QtCore
-
 
 from util import *
 from history_widget import HistoryWidget
 
-class AddressDialog(QDialog):
+class AddressDialog(WindowModalDialog):
 
-    def __init__(self, address, parent):
+    def __init__(self, parent, address):
+        WindowModalDialog.__init__(self, parent, _("Address"))
         self.address = address
         self.parent = parent
         self.config = parent.config
@@ -47,41 +36,29 @@ class AddressDialog(QDialog):
         self.app = parent.app
         self.saved = True
 
-        QDialog.__init__(self)
         self.setMinimumWidth(700)
-        self.setWindowTitle(_("Address"))
-        self.setModal(1)
         vbox = QVBoxLayout()
         self.setLayout(vbox)
 
         vbox.addWidget(QLabel(_("Address:")))
-        self.addr_e = QLineEdit()
-        self.addr_e.setText(self.address)
+        self.addr_e = ButtonsLineEdit(self.address)
+        self.addr_e.addCopyButton(self.app)
+        self.addr_e.addButton(":icons/qrcode.png", self.show_qr, _("Show QR Code"))
         self.addr_e.setReadOnly(True)
         vbox.addWidget(self.addr_e)
 
         vbox.addWidget(QLabel(_("History")))
         self.hw = HistoryWidget(self.parent)
+        self.hw.get_domain = self.get_domain
         vbox.addWidget(self.hw)
 
         vbox.addStretch(1)
-
-        self.close_button = b = QPushButton(_("Close"))
-        b.clicked.connect(self.close)
-        b.setDefault(True)
-
-        self.qr_button = b = QPushButton()
-        b.setIcon(QIcon(":icons/qrcode.png"))
-        b.clicked.connect(self.show_qr)
-
-        self.buttons = [self.qr_button, self.close_button]
-        vbox.addLayout(Buttons(*self.buttons))
+        vbox.addLayout(Buttons(CloseButton(self)))
         self.format_amount = self.parent.format_amount
+        self.hw.update()
 
-        h = self.wallet.get_history([self.address])
-        self.hw.update(h)
-
-
+    def get_domain(self):
+        return [self.address]
 
     def show_qr(self):
         text = self.address
@@ -89,6 +66,3 @@ class AddressDialog(QDialog):
             self.parent.show_qrcode(text, 'Address')
         except Exception as e:
             self.show_message(str(e))
-
-
-

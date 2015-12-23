@@ -187,7 +187,6 @@ class OldAccount(Account):
 
     @classmethod
     def mpk_from_seed(klass, seed):
-        curve = SECP256k1
         secexp = klass.stretch_key(seed)
         master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
         master_public_key = master_private_key.get_verifying_key().to_string().encode('hex')
@@ -211,11 +210,10 @@ class OldAccount(Account):
 
     @classmethod
     def get_pubkey_from_mpk(self, mpk, for_change, n):
-        curve = SECP256k1
         z = self.get_sequence(mpk, for_change, n)
-        master_public_key = ecdsa.VerifyingKey.from_string( mpk, curve = SECP256k1 )
-        pubkey_point = master_public_key.pubkey.point + z*curve.generator
-        public_key2 = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = SECP256k1 )
+        master_public_key = ecdsa.VerifyingKey.from_string(mpk, curve = SECP256k1)
+        pubkey_point = master_public_key.pubkey.point + z*SECP256k1.generator
+        public_key2 = ecdsa.VerifyingKey.from_public_point(pubkey_point, curve = SECP256k1)
         return '04' + public_key2.to_string().encode('hex')
 
     def derive_pubkeys(self, for_change, n):
@@ -239,7 +237,6 @@ class OldAccount(Account):
 
 
     def check_seed(self, seed):
-        curve = SECP256k1
         secexp = self.stretch_key(seed)
         master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
         master_public_key = master_private_key.get_verifying_key().to_string()
@@ -366,15 +363,17 @@ class BIP32_Account(Account):
 
 
 
-class BIP32_Account_2of2(BIP32_Account):
+class Multisig_Account(BIP32_Account):
 
     def __init__(self, v):
-        BIP32_Account.__init__(self, v)
-        self.xpub2 = v['xpub2']
+        self.m = v.get('m', 2)
+        Account.__init__(self, v)
+        self.xpub_list = v['xpubs']
 
     def dump(self):
-        d = BIP32_Account.dump(self)
-        d['xpub2'] = self.xpub2
+        d = Account.dump(self)
+        d['xpubs'] = self.xpub_list
+        d['m'] = self.m
         return d
 
     def get_pubkeys(self, for_change, n):
@@ -385,10 +384,10 @@ class BIP32_Account_2of2(BIP32_Account):
 
     def redeem_script(self, for_change, n):
         pubkeys = self.get_pubkeys(for_change, n)
-        return Transaction.multisig_script(sorted(pubkeys), 2)
+        return Transaction.multisig_script(sorted(pubkeys), self.m)
 
     def pubkeys_to_address(self, pubkeys):
-        redeem_script = Transaction.multisig_script(sorted(pubkeys), 2)
+        redeem_script = Transaction.multisig_script(sorted(pubkeys), self.m)
         address = hash_160_to_bc_address(hash_160(redeem_script.decode('hex')), 5)
         return address
 
@@ -396,25 +395,9 @@ class BIP32_Account_2of2(BIP32_Account):
         return self.pubkeys_to_address(self.get_pubkeys(for_change, n))
 
     def get_master_pubkeys(self):
-        return [self.xpub, self.xpub2]
+        return self.xpub_list
 
     def get_type(self):
-        return _('Multisig 2 of 2')
+        return _('Multisig %d of %d'%(self.m, len(self.xpub_list)))
 
 
-class BIP32_Account_2of3(BIP32_Account_2of2):
-
-    def __init__(self, v):
-        BIP32_Account_2of2.__init__(self, v)
-        self.xpub3 = v['xpub3']
-
-    def dump(self):
-        d = BIP32_Account_2of2.dump(self)
-        d['xpub3'] = self.xpub3
-        return d
-
-    def get_master_pubkeys(self):
-        return [self.xpub, self.xpub2, self.xpub3]
-
-    def get_type(self):
-        return _('Multisig 2 of 3')

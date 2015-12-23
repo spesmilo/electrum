@@ -1,0 +1,59 @@
+<InvoicesLabel@Label>
+    #color: .305, .309, .309, 1
+    text_size: self.width, None
+    halign: 'left'
+    valign: 'top'
+
+<InvoiceItem@CardItem>
+    requestor: ''
+    memo: ''
+    amount: ''
+    status: ''
+    date: ''
+    icon: 'atlas://gui/kivy/theming/light/important'
+    Image:
+        id: icon
+        source: root.icon
+        size_hint: None, 1
+        width: self.height *.54
+        mipmap: True
+    BoxLayout:
+        spacing: '8dp'
+        height: '32dp'
+        orientation: 'vertical'
+        Widget
+        InvoicesLabel:
+            text: root.requestor
+            shorten: True
+        InvoicesLabel:
+            text: root.memo
+            color: .699, .699, .699, 1
+            font_size: '13sp'
+            shorten: True
+        Widget
+    InvoicesLabel:
+        halign: 'right'
+        font_size: '15sp'
+        size_hint: None, 1
+        width: '110sp'
+        text: root.amount
+
+InvoicesScreen:
+    name: 'invoices'
+    BoxLayout:
+        orientation: 'vertical'
+        spacing: '1dp'
+        ScrollView:
+            canvas.before:
+                Color:
+                    rgba: .8901, .8901, .8901, 0
+                Rectangle:
+                    size: self.size
+                    pos: self.pos
+            GridLayout:
+                cols: 1
+                id: invoices_container
+                size_hint: 1, None
+                height: self.minimum_height
+                spacing: '2dp'
+                padding: '12dp'
