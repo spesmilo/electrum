@@ -64,7 +64,7 @@ class OpenFileEventFilter(QObject):
 
 
 
-class ElectrumGui:
+class ElectrumGui(MessageBoxMixin):
 
     def __init__(self, config, network, plugins):
         set_language(config.get('language'))
@@ -134,7 +134,7 @@ class ElectrumGui:
         try:
             storage = WalletStorage(filename)
         except Exception as e:
-            WindowModalDialog.warning(None, _('Error'), str(e))
+            self.show_error(str(e))
             return
         if not storage.file_exists:
             recent = self.config.get('recently_open', [])
@@ -147,7 +147,7 @@ class ElectrumGui:
                 wallet = Wallet(storage)
             except BaseException as e:
                 traceback.print_exc(file=sys.stdout)
-                WindowModalDialog.warning(None, _('Warning'), str(e))
+                self.show_warning(str(e))
                 return
             action = wallet.get_action()
         # run wizard

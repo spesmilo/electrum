@@ -195,24 +195,35 @@ class CancelButton(QPushButton):
 class MessageBoxMixin:
     def question(self, msg, parent=None, title=None):
         Yes, No = QMessageBox.Yes, QMessageBox.No
-        return WindowModalDialog.question(parent or self, title, msg,
-                                          buttons=Yes|No,
-                                          defaultButton=No) == Yes
+        return self.msg_box(QMessageBox.Question, parent or self, title or '',
+                            msg, buttons=Yes|No, defaultButton=No) == Yes
 
     def show_warning(self, msg, parent=None, title=None):
-        return WindowModalDialog.warning(parent or self,
-                                         title or _('Warning'), msg)
+        return self.msg_box(QMessageBox.Warning, parent or self,
+                            title or _('Warning'), msg)
 
     def show_error(self, msg, parent=None):
-        return self.show_warning(msg, parent=parent, title=_('Error'))
+        return self.msg_box(QMessageBox.Warning, parent or self,
+                            _('Error'), msg)
 
     def show_critical(self, msg, parent=None, title=None):
-        return WindowModalDialog.critical(parent or self,
-                                          title or _('Critical Error'), msg)
+        return self.msg_box(QMessageBox.Critical, parent or self,
+                            title or _('Critical Error'), msg)
 
     def show_message(self, msg, parent=None, title=None):
-        return WindowModalDialog.information(self, title or _('Information'),
-                                             msg)
+        return self.msg_box(QMessageBox.Information, parent or self,
+                            title or _('Information'), msg)
+
+    @staticmethod
+    def msg_box(icon, parent, title, text, buttons=QMessageBox.Ok,
+                defaultButton=QMessageBox.NoButton):
+        # handle e.g. ElectrumGui
+        if not isinstance(parent, QWidget):
+            parent = None
+        d = QMessageBox(icon, title, text, buttons, parent)
+        d.setWindowModality(Qt.WindowModal)
+        d.setDefaultButton(defaultButton)
+        return d.exec_()
 
 class WindowModalDialog(QDialog):
     '''Handy wrapper; window modal dialogs are better for our multi-window
@@ -222,30 +233,6 @@ class WindowModalDialog(QDialog):
         self.setWindowModality(Qt.WindowModal)
         if title:
             self.setWindowTitle(title)
-
-    @staticmethod
-    def question(*args, **kwargs):
-        return WindowModalDialog.msg_box(QMessageBox.Question, *args, **kwargs)
-
-    @staticmethod
-    def critical(*args, **kwargs):
-        return WindowModalDialog.msg_box(QMessageBox.Critical, *args, **kwargs)
-
-    @staticmethod
-    def warning(*args, **kwargs):
-        return WindowModalDialog.msg_box(QMessageBox.Warning, *args, **kwargs)
-
-    @staticmethod
-    def information(*args, **kwargs):
-        return WindowModalDialog.msg_box(QMessageBox.Information, *args, **kwargs)
-
-    @staticmethod
-    def msg_box(icon, parent, title, text, buttons=QMessageBox.Ok,
-                defaultButton=QMessageBox.NoButton):
-        d = QMessageBox(icon, title, text, buttons, parent)
-        d.setWindowModality(Qt.WindowModal)
-        d.setDefaultButton(defaultButton)
-        return d.exec_()
 
 def line_dialog(parent, title, label, ok_label, default=None):
     dialog = WindowModalDialog(parent, title)
@@ -275,9 +262,6 @@ def text_dialog(parent, title, label, ok_label, default=None):
     l.addLayout(Buttons(CancelButton(dialog), OkButton(dialog, ok_label)))
     if dialog.exec_():
         return unicode(txt.toPlainText())
-
-def question(msg):
-    return QMessageBox.question(None, _('Message'), msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes
 
 def address_field(addresses):
     hbox = QHBoxLayout()
