@@ -134,7 +134,7 @@ class ElectrumGui:
         try:
             storage = WalletStorage(filename)
         except Exception as e:
-            QMessageBox.information(None, _('Error'), str(e), _('OK'))
+            WindowModalDialog.warning(None, _('Error'), str(e))
             return
         if not storage.file_exists:
             recent = self.config.get('recently_open', [])
@@ -147,7 +147,7 @@ class ElectrumGui:
                 wallet = Wallet(storage)
             except BaseException as e:
                 traceback.print_exc(file=sys.stdout)
-                QMessageBox.warning(None, _('Warning'), str(e), _('OK'))
+                WindowModalDialog.warning(None, _('Warning'), str(e))
                 return
             action = wallet.get_action()
         # run wizard
