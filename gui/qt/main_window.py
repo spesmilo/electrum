@@ -48,7 +48,7 @@ from electrum import Imported_Wallet, paymentrequest
 from amountedit import BTCAmountEdit, MyLineEdit, BTCkBEdit
 from network_dialog import NetworkDialog
 from qrcodewidget import QRCodeWidget, QRDialog
-from qrtextedit import ScanQRTextEdit, ShowQRTextEdit
+from qrtextedit import ShowQRTextEdit
 from transaction_dialog import show_transaction
 from installwizard import InstallWizard
 
@@ -1568,6 +1568,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def paytomany(self):
         self.tabs.setCurrentIndex(1)
         self.payto_e.paytomany()
+        msg = '\n'.join([
+            _('Enter a list of outputs in the \'Pay to\' field.'),
+            _('One output per line.'),
+            _('Format: address, amount'),
+            _('You may load a CSV file using the file icon.')
+        ])
+        self.show_warning(msg, title=_('Pay to many'))
 
     def payto_contacts(self, labels):
         paytos = [self.get_contact_payto(label) for label in labels]
@@ -1852,8 +1859,39 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def change_password_dialog(self):
         from password_dialog import PasswordDialog
-        d = PasswordDialog(self.wallet, self)
-        d.run()
+
+        if self.wallet and self.wallet.is_watching_only():
+            self.show_error(_('This is a watching-only wallet'))
+            return
+
+        msg = (_('Your wallet is encrypted. Use this dialog to change your '
+                 'password. To disable wallet encryption, enter an empty new '
+                 'password.') if self.wallet.use_encryption
+               else _('Your wallet keys are not encrypted'))
+        d = PasswordDialog(self, self.wallet, _("Set Password"), msg, True)
+        ok, password, new_password = d.run()
+        if not ok:
+            return
+
+        try:
+            self.wallet.check_password(password)
+        except BaseException as e:
+            self.show_error(str(e))
+            return
+
+        try:
+            self.wallet.update_password(password, new_password)
+        except:
+            traceback.print_exc(file=sys.stdout)
+            self.show_error(_('Failed to update password'))
+            return
+
+        if new_password:
+            msg = _('Password was updated successfully')
+        else:
+            msg = _('This wallet is not encrypted')
+        self.show_message(msg, title=_("Success"))
+
         self.update_lock_icon()
 
     def toggle_search(self):
@@ -1985,10 +2023,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
 
-    def show_qrcode(self, data, title = _("QR code")):
+    def show_qrcode(self, data, title = _("QR code"), parent=None):
         if not data:
             return
-        d = QRDialog(data, self, title)
+        d = QRDialog(data, parent or self, title)
         d.exec_()
 
     def show_public_keys(self, address):
@@ -2154,10 +2192,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         layout.addLayout(hbox, 4, 1)
         d.exec_()
 
-
-    def question(self, msg):
-        return QMessageBox.question(self, _('Message'), msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes
-
     def password_dialog(self, msg=None, parent=None):
         if parent == None:
             parent = self
@@ -2205,7 +2239,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         from electrum import qrscanner
         try:
             data = qrscanner.scan_qr(self.config)
-        except BaseException as e:
+        except e:
             self.show_error(str(e))
             return
         if not data:
@@ -2495,10 +2529,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     @protected
     def do_import_privkey(self, password):
         if not self.wallet.has_imported_keys():
-            r = QMessageBox.question(None, _('Warning'), '<b>'+_('Warning') +':\n</b><br/>'+ _('Imported keys are not recoverable from seed.') + ' ' \
-                                         + _('If you ever need to restore your wallet from its seed, these keys will be lost.') + '<p>' \
-                                         + _('Are you sure you understand what you are doing?'), 3, 4)
-            if r == 4: return
+            if not self.question('<b>'+_('Warning') +':\n</b><br/>'+ _('Imported keys are not recoverable from seed.') + ' ' \
+                                 + _('If you ever need to restore your wallet from its seed, these keys will be lost.') + '<p>' \
+                                 + _('Are you sure you understand what you are doing?'), title=_('Warning')):
+                return
 
         text = text_dialog(self, _('Import private keys'), _("Enter private keys")+':', _("Import"))
         if not text: return

@@ -407,11 +407,11 @@ class InstallWizard(WindowModalDialog, MessageBoxMixin):
         return self.exec_()
 
     def password_dialog(self):
-        msg = _("Please choose a password to encrypt your wallet keys.")+'\n'\
-              +_("Leave these fields empty if you want to disable encryption.")
-        from password_dialog import make_password_dialog, run_password_dialog
-        self.set_layout( make_password_dialog(self, None, msg) )
-        return run_password_dialog(self, None, self)[2]
+        from password_dialog import PasswordDialog
+        msg = _("Please choose a password to encrypt your wallet keys.\n"
+                "Leave these fields empty if you want to disable encryption.")
+        dialog = PasswordDialog(self, None, _("Choose a password"), msg, True)
+        return dialog.run()[2]
 
     def run(self, action):
         if self.storage.file_exists and action != 'new':
