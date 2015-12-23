@@ -202,6 +202,10 @@ class WindowModalDialog(QDialog):
             self.setWindowTitle(title)
 
     @staticmethod
+    def critical(*args, **kwargs):
+        return WindowModalDialog.msg_box(QMessageBox.Critical, *args, **kwargs)
+
+    @staticmethod
     def warning(*args, **kwargs):
         return WindowModalDialog.msg_box(QMessageBox.Warning, *args, **kwargs)
 

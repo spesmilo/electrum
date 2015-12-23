@@ -340,9 +340,7 @@ class ElectrumWindow(QMainWindow, PrintError):
                 shutil.copy2(path, new_path)
                 QMessageBox.information(None,"Wallet backup created", _("A copy of your wallet file was created in")+" '%s'" % str(new_path))
             except (IOError, os.error), reason:
-                QMessageBox.critical(None,"Unable to create backup", _("Electrum was unable to copy your wallet file to the specified location.")+"\n" + str(reason))
-
-
+                self.show_critical(_("Electrum was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
 
     def update_recently_visited(self, filename=None):
         recent = self.config.get('recently_open', [])
@@ -379,7 +377,7 @@ class ElectrumWindow(QMainWindow, PrintError):
         full_path = os.path.join(wallet_folder, filename)
         storage = WalletStorage(full_path)
         if storage.file_exists:
-            QMessageBox.critical(self, "Error", _("File exists"))
+            self.show_critical(_("File exists"))
             return
         wizard = InstallWizard(self.app, self.config, self.network, storage)
         wallet = wizard.run('new')
@@ -2169,6 +2167,10 @@ class ElectrumWindow(QMainWindow, PrintError):
     def show_error(self, msg, parent=None):
         self.show_warning(msg, parent=parent, title=_('Error'))
 
+    def show_critical(self, msg, parent=None, title=None):
+        WindowModalDialog.critical(parent or self,
+                                   title or _('Critical Error'), msg)
+
     def password_dialog(self, msg=None, parent=None):
         if parent == None:
             parent = self
@@ -2200,26 +2202,17 @@ class ElectrumWindow(QMainWindow, PrintError):
         except:
             is_hex = False
 
-        if is_hex:
-            try:
-                return Transaction(txt)
-            except:
-                traceback.print_exc(file=sys.stdout)
-                QMessageBox.critical(None, _("Unable to parse transaction"), _("Electrum was unable to parse your transaction"))
-                return
-
         try:
+            if is_hex:
+                return Transaction(txt)
             tx_dict = json.loads(str(txt))
             assert "hex" in tx_dict.keys()
             tx = Transaction(tx_dict["hex"])
-            #if tx_dict.has_key("input_info"):
-            #    input_info = json.loads(tx_dict['input_info'])
-            #    tx.add_input_info(input_info)
             return tx
-        except Exception:
+        except:
             traceback.print_exc(file=sys.stdout)
-            QMessageBox.critical(None, _("Unable to parse transaction"), _("Electrum was unable to parse your transaction"))
-
+            self.show_critical(_("Electrum was unable to parse your transaction"))
+            return
 
     def read_tx_from_qrcode(self):
         from electrum import qrscanner
@@ -2252,8 +2245,8 @@ class ElectrumWindow(QMainWindow, PrintError):
         try:
             with open(fileName, "r") as f:
                 file_content = f.read()
-        except (ValueError, IOError, os.error), reason:
-            QMessageBox.critical(None, _("Unable to read file or no transaction found"), _("Electrum was unable to open your transaction file") + "\n" + str(reason))
+        except (ValueError, IOError, os.error) as reason:
+            self.show_critical(_("Electrum was unable to open your transaction file") + "\n" + str(reason), title=_("Unable to read file or no transaction found"))
         return self.tx_from_text(file_content)
 
     def do_process_from_text(self):
@@ -2348,9 +2341,12 @@ class ElectrumWindow(QMainWindow, PrintError):
 
         try:
             self.do_export_privkeys(filename, private_keys, csv_button.isChecked())
-        except (IOError, os.error), reason:
-            export_error_label = _("Electrum was unable to produce a private key-export.")
-            QMessageBox.critical(None, _("Unable to create csv"), export_error_label + "\n" + str(reason))
+        except (IOError, os.error) as reason:
+            txt = "\n".join([
+                _("Electrum was unable to produce a private key-export."),
+                str(reason)
+            ])
+            self.show_critical(txt, title=_("Unable to create csv"))
 
         except Exception as e:
             self.show_message(str(e))
@@ -2381,8 +2377,8 @@ class ElectrumWindow(QMainWindow, PrintError):
             for key, value in json.loads(data).items():
                 self.wallet.set_label(key, value)
             QMessageBox.information(None, _("Labels imported"), _("Your labels were imported from")+" '%s'" % str(labelsFile))
-        except (IOError, os.error), reason:
-            QMessageBox.critical(None, _("Unable to import labels"), _("Electrum was unable to import your labels.")+"\n" + str(reason))
+        except (IOError, os.error) as reason:
+            self.show_critical(_("Electrum was unable to import your labels.") + "\n" + str(reason))
 
 
     def do_export_labels(self):
@@ -2394,7 +2390,7 @@ class ElectrumWindow(QMainWindow, PrintError):
                     json.dump(labels, f)
                 QMessageBox.information(None, _("Labels exported"), _("Your labels where exported to")+" '%s'" % str(fileName))
         except (IOError, os.error), reason:
-            QMessageBox.critical(None, _("Unable to export labels"), _("Electrum was unable to export your labels.")+"\n" + str(reason))
+            self.show_critical(_("Electrum was unable to export your labels.") + "\n" + str(reason))
 
 
     def export_history_dialog(self):
@@ -2419,7 +2415,7 @@ class ElectrumWindow(QMainWindow, PrintError):
             self.do_export_history(self.wallet, filename, csv_button.isChecked())
         except (IOError, os.error), reason:
             export_error_label = _("Electrum was unable to produce a transaction export.")
-            QMessageBox.critical(self, _("Unable to export history"), export_error_label + "\n" + str(reason))
+            self.show_critical(export_error_label + "\n" + str(reason), title=_("Unable to export history"))
             return
         QMessageBox.information(self,_("History exported"), _("Your wallet history has been successfully exported."))
 
@@ -2536,7 +2532,7 @@ class ElectrumWindow(QMainWindow, PrintError):
         if addrlist:
             QMessageBox.information(self, _('Information'), _("The following addresses were added") + ':\n' + '\n'.join(addrlist))
         if badkeys:
-            QMessageBox.critical(self, _('Error'), _("The following inputs could not be imported") + ':\n'+ '\n'.join(badkeys))
+            self.show_critical(_("The following inputs could not be imported") + ':\n'+ '\n'.join(badkeys))
         self.address_list.update()
         self.history_list.update()
 
