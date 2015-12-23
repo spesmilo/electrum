@@ -85,15 +85,18 @@ class Plugin(TrustedCoinPlugin):
                 self.print_error("twofactor: xpub3 not needed")
             window.wallet.auth_code = auth_code
 
+    def waiting_dialog(self, window, on_success=None):
+        task = partial(self.request_billing_info, window.wallet)
+        return WaitingDialog(window, 'Getting billing information...', task,
+                             on_success=on_success)
+
     @hook
     def abort_send(self, window):
         wallet = window.wallet
         if type(wallet) is Wallet_2fa and not wallet.can_sign_without_server():
             if wallet.billing_info is None:
                 # request billing info before forming the transaction
-                task = partial(self.request_billing_info, wallet)
-                dialog = WaitingDialog(window, 'please wait...', task)
-                dialog.wait()
+                waiting_dialog(self, window).wait()
                 if wallet.billing_info is None:
                     window.show_message('Could not contact server')
                     return True
@@ -101,9 +104,8 @@ class Plugin(TrustedCoinPlugin):
 
 
     def settings_dialog(self, window):
-        task = partial(self.request_billing_info, window.wallet)
-        WaitingDialog(window, 'please wait...', task,
-                      on_success=partial(self.show_settings_dialog, window))
+        on_success = partial(self.show_settings_dialog, window)
+        self.waiting_dialog(window, on_success)
 
     def show_settings_dialog(self, window, success):
         if not success:
