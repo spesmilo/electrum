@@ -1,17 +1,18 @@
-from electrum.plugins import BasePlugin, hook
-from electrum_gui.qt.util import WaitingDialog, EnterButton
-from electrum.util import print_msg, print_error
-from electrum.i18n import _
-
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
-
+from functools import partial
 import traceback
 import zlib
 import json
 from io import BytesIO
 import sys
 import platform
+
+from electrum.plugins import BasePlugin, hook
+from electrum_gui.qt.util import WaitingDialog, EnterButton, WindowModalDialog
+from electrum.util import print_msg, print_error
+from electrum.i18n import _
+
+from PyQt4.QtGui import *
+from PyQt4.QtCore import *
 
 try:
     import amodem.audio
@@ -42,11 +43,10 @@ class Plugin(BasePlugin):
         return True
 
     def settings_widget(self, window):
-        return EnterButton(_('Settings'), self.settings_dialog)
+        return EnterButton(_('Settings'), partial(self.settings_dialog, window))
 
-    def settings_dialog(self):
-        d = QDialog()
-        d.setWindowTitle("Settings")
+    def settings_dialog(self, window):
+        d = WindowModalDialog(window, _("Audio Modem Settings"))
 
         layout = QGridLayout(d)
         layout.addWidget(QLabel(_('Bit rate [kbps]: ')), 0, 0)

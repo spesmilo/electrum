@@ -128,11 +128,10 @@ class Plugin(FxPlugin):
         window.connect(window.app, SIGNAL('refresh_headers'), window.history_list.refresh_headers)
 
     def settings_widget(self, window):
-        return EnterButton(_('Settings'), self.settings_dialog)
+        return EnterButton(_('Settings'), partial(self.settings_dialog, window))
 
-    def settings_dialog(self):
-        d = QDialog()
-        d.setWindowTitle("Settings")
+    def settings_dialog(self, window):
+        d = WindowModalDialog(window, _("Exchange Rate Settings"))
         layout = QGridLayout(d)
         layout.addWidget(QLabel(_('Exchange rate API: ')), 0, 0)
         layout.addWidget(QLabel(_('Currency: ')), 1, 0)

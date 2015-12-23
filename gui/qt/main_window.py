@@ -2861,7 +2861,7 @@ class ElectrumWindow(QMainWindow, PrintError):
         def enable_settings_widget(p, name, i):
             widget = settings_widgets.get(name)
             if not widget and p and p.requires_settings():
-                widget = settings_widgets[name] = p.settings_widget(self)
+                widget = settings_widgets[name] = p.settings_widget(d)
                 grid.addWidget(widget, i, 1)
             if widget:
                 widget.setEnabled(bool(p and p.is_enabled()))

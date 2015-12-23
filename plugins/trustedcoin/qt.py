@@ -58,8 +58,7 @@ class Plugin(TrustedCoinPlugin):
             t.start()
 
     def auth_dialog(self, window):
-        d = QDialog(window)
-        d.setModal(1)
+        d = WindowModalDialog(window, _("Authorization"))
         vbox = QVBoxLayout(d)
         pw = AmountEdit(None, is_int = True)
         msg = _('Please enter your Google Authenticator code')
@@ -113,8 +112,7 @@ class Plugin(TrustedCoinPlugin):
             return
 
         wallet = window.wallet
-        d = QDialog(window)
-        d.setWindowTitle("TrustedCoin Information")
+        d = WindowModalDialog(window, _("TrustedCoin Information"))
         d.setMinimumSize(500, 200)
         vbox = QVBoxLayout(d)
         hbox = QHBoxLayout()
