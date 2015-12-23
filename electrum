@@ -107,107 +107,47 @@ def init_gui(config, network, plugins):
     return gui
 
 
-
-def init_cmdline(config):
-
+def run_non_RPC(config):
     cmdname = config.get('cmd')
-    cmd = known_commands[cmdname]
 
-    if cmdname == 'signtransaction' and config.get('privkey'):
-        cmd.requires_wallet = False
-        cmd.requires_password = False
-
-    if cmdname in ['payto', 'paytomany'] and config.get('unsigned'):
-        cmd.requires_password = False
-
-    if cmdname in ['payto', 'paytomany'] and config.get('broadcast'):
-        cmd.requires_network = True
-
-    if cmdname in ['createrawtx'] and config.get('unsigned'):
-        cmd.requires_password = False
-        cmd.requires_wallet = False
-
-    # instanciate wallet for command-line
     storage = WalletStorage(config.get_wallet_path())
+    if storage.file_exists:
+        sys.exit("Error: Remove the existing wallet first!")
 
-    if cmd.name in ['create', 'restore']:
-        if storage.file_exists:
-            sys.exit("Error: Remove the existing wallet first!")
+    def password_dialog():
+        return prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
 
-        def password_dialog():
-            return prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
-
-        if cmd.name == 'restore':
-            text = config.get('text')
-            password = password_dialog() if Wallet.is_seed(text) or Wallet.is_xprv(text) or Wallet.is_private_key(text) else None
-            try:
-                wallet = Wallet.from_text(text, password, storage)
-            except BaseException as e:
-                sys.exit(str(e))
-            if not config.get('offline'):
-                network = Network(config)
-                network.start()
-                wallet.start_threads(network)
-                print_msg("Recovering wallet...")
-                wallet.synchronize()
-                wallet.wait_until_synchronized()
-                msg = "Recovery successful" if wallet.is_found() else "Found no history for this wallet"
-            else:
-                msg = "This wallet was restored offline. It may contain more addresses than displayed."
-            print_msg(msg)
-
-        else:
-            password = password_dialog()
-            wallet = Wallet(storage)
-            seed = wallet.make_seed()
-            wallet.add_seed(seed, password)
-            wallet.create_master_keys(password)
-            wallet.create_main_account(password)
+    if cmdname == 'restore':
+        text = config.get('text')
+        password = password_dialog() if Wallet.is_seed(text) or Wallet.is_xprv(text) or Wallet.is_private_key(text) else None
+        try:
+            wallet = Wallet.from_text(text, password, storage)
+        except BaseException as e:
+            sys.exit(str(e))
+        if not config.get('offline'):
+            network = Network(config)
+            network.start()
+            wallet.start_threads(network)
+            print_msg("Recovering wallet...")
             wallet.synchronize()
-            print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
-            print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
-
-        wallet.storage.write()
-        print_msg("Wallet saved in '%s'" % wallet.storage.path)
-        sys.exit(0)
-
-    if cmd.requires_wallet and not storage.file_exists:
-        print_msg("Error: Wallet file not found.")
-        print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
-        sys.exit(0)
-
-    # create wallet instance
-    wallet = Wallet(storage) if cmd.requires_wallet else None
-
-    # notify plugins
-    always_hook('cmdline_load_wallet', wallet)
-
-    # important warning
-    if cmd.name in ['getprivatekeys']:
-        print_stderr("WARNING: ALL your private keys are secret.")
-        print_stderr("Exposing a single private key can compromise your entire wallet!")
-        print_stderr("In particular, DO NOT use 'redeem private key' services proposed by third parties.")
-
-    # commands needing password
-    if cmd.requires_password and wallet.use_encryption:
-        if config.get('password'):
-            password = config.get('password')
+            wallet.wait_until_synchronized()
+            msg = "Recovery successful" if wallet.is_found() else "Found no history for this wallet"
         else:
-            password = prompt_password('Password:', False)
-            if not password:
-                print_msg("Error: Password required")
-                sys.exit(1)
-            # check password
-            try:
-                seed = wallet.check_password(password)
-            except InvalidPassword:
-                print_msg("Error: This password does not decode this wallet.")
-                sys.exit(1)
-    else:
-        password = None
+            msg = "This wallet was restored offline. It may contain more addresses than displayed."
+        print_msg(msg)
 
-    # run the command
-    if cmd.name == 'deseed':
+    elif cmdname == 'create':
+        password = password_dialog()
+        wallet = Wallet(storage)
+        seed = wallet.make_seed()
+        wallet.add_seed(seed, password)
+        wallet.create_master_keys(password)
+        wallet.create_main_account(password)
+        wallet.synchronize()
+        print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
+        print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
+
+    elif cmdname == 'deseed':
         if not wallet.seed:
             print_msg("Error: This wallet has no seed")
         else:
@@ -228,26 +168,95 @@ def init_cmdline(config):
         wallet.storage.write()
         sys.exit(0)
 
-    elif cmd.name == 'password':
-        new_password = prompt_password('New password:')
-        wallet.update_password(password, new_password)
-        wallet.storage.write()
+    wallet.storage.write()
+    print_msg("Wallet saved in '%s'" % wallet.storage.path)
+    sys.exit(0)
+
+
+def init_cmdline(config_options):
+    config = SimpleConfig(config_options)
+    cmdname = config.get('cmd')
+    cmd = known_commands[cmdname]
+
+    if cmdname == 'signtransaction' and config.get('privkey'):
+        cmd.requires_wallet = False
+        cmd.requires_password = False
+
+    if cmdname in ['payto', 'paytomany'] and config.get('unsigned'):
+        cmd.requires_password = False
+
+    if cmdname in ['payto', 'paytomany'] and config.get('broadcast'):
+        cmd.requires_network = True
+
+    if cmdname in ['createrawtx'] and config.get('unsigned'):
+        cmd.requires_password = False
+        cmd.requires_wallet = False
+
+    # instanciate wallet for command-line
+    storage = WalletStorage(config.get_wallet_path())
+
+    if cmd.requires_wallet and not storage.file_exists:
+        print_msg("Error: Wallet file not found.")
+        print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
         sys.exit(0)
 
-    return cmd, password, wallet
+    # important warning
+    if cmd.name in ['getprivatekeys']:
+        print_stderr("WARNING: ALL your private keys are secret.")
+        print_stderr("Exposing a single private key can compromise your entire wallet!")
+        print_stderr("In particular, DO NOT use 'redeem private key' services proposed by third parties.")
+
+    # commands needing password
+    if cmd.requires_password and storage.get('use_encryption'):
+        if config.get('password'):
+            password = config.get('password')
+        else:
+            password = prompt_password('Password:', False)
+            if not password:
+                print_msg("Error: Password required")
+                sys.exit(1)
+    else:
+        password = None
+
+    config_options['password'] = password
+
+    if cmd.name == 'password':
+        new_password = prompt_password('New password:')
+        config_options['new_password'] = new_password
+
+    return cmd, password
 
 
-def run_offline_command(config, cmd, wallet, password):
+def run_offline_command(config, config_options):
+    cmdname = config.get('cmd')
+    cmd = known_commands[cmdname]
+    storage = WalletStorage(config.get_wallet_path())
+    wallet = Wallet(storage) if cmd.requires_wallet else None
+    # check password
+    if cmd.requires_password and storage.get('use_encryption'):
+        password = config_options.get('password')
+        try:
+            seed = wallet.check_password(password)
+        except InvalidPassword:
+            print_msg("Error: This password does not decode this wallet.")
+            sys.exit(1)
+    if cmd.requires_network:
+        print_stderr("Warning: running command offline")
+    # notify plugins
+    always_hook('cmdline_load_wallet', wallet)
     # arguments passed to function
     args = map(lambda x: config.get(x), cmd.params)
     # decode json arguments
     args = map(json_decode, args)
     # options
     args += map(lambda x: config.get(x), cmd.options)
-    cmd_runner = Commands(config, wallet, None)
-    cmd_runner.password = password
+    cmd_runner = Commands(config, wallet, None,
+                          password=config_options.get('password'),
+                          new_password=config_options.get('new_password'))
     func = getattr(cmd_runner, cmd.name)
     result = func(*args)
+    # save wallet
+    wallet.storage.write()
     return result
 
 
@@ -317,18 +326,21 @@ if __name__ == '__main__':
     gui_name = config.get('gui', 'qt') if cmd_name == 'gui' else 'cmdline'
     plugins = Plugins(config, is_bundle or is_local or is_android, gui_name)
 
-    # run command offline
-    if cmd_name not in ['gui', 'daemon']:
-        cmd, password, wallet = init_cmdline(config)
-        if not (cmd.requires_network or cmd.requires_wallet) or config.get('offline'):
-            result = run_offline_command(config, cmd, wallet, password)
-            print_msg(json_encode(result))
-            wallet.storage.write()
-            sys.exit(0)
-        else:
-            config_options['password'] = password
+    # run non-RPC commands separately
+    if cmd_name in ['create', 'restore', 'deseed']:
+        run_non_RPC(config)
+        sys.exit(0)
 
+    # check if a daemon is running
     server = get_daemon(config)
+
+    # if no daemon is running, run the command offline
+    if cmd_name not in ['gui', 'daemon']:
+        init_cmdline(config_options)
+        if server is None: #not (cmd.requires_network or cmd.requires_wallet) or config.get('offline'):
+            result = run_offline_command(config, config_options)
+            print_msg(json_encode(result))
+            sys.exit(0)
 
     # daemon is running
     if server is not None:

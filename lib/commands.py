@@ -74,21 +74,22 @@ def command(s):
 
 class Commands:
 
-    def __init__(self, config, wallet, network, callback = None):
+    def __init__(self, config, wallet, network, callback = None, password=None, new_password=None):
         self.config = config
         self.wallet = wallet
         self.network = network
         self._callback = callback
-        self.password = None
+        self._password = password
+        self.new_password = new_password
         self.contacts = contacts.Contacts(self.config)
 
     def _run(self, method, args, password_getter):
         cmd = known_commands[method]
         if cmd.requires_password and self.wallet.use_encryption:
-            self.password = apply(password_getter,())
+            self._password = apply(password_getter,())
         f = getattr(self, method)
         result = f(*args)
-        self.password = None
+        self._password = None
         if self._callback:
             apply(self._callback, ())
         return result
@@ -120,7 +121,9 @@ class Commands:
     @command('wp')
     def password(self):
         """Change wallet password. """
-        raise BaseException('Not a JSON-RPC command')
+        self.wallet.update_password(self._password, self.new_password)
+        self.wallet.storage.write()
+        return {'password':self.wallet.use_encryption}
 
     @command('')
     def getconfig(self, key):
@@ -200,7 +203,7 @@ class Commands:
         outputs = map(lambda x: ('address', x[0], int(COIN*x[1])), outputs.items())
         tx = Transaction.from_io(tx_inputs, outputs)
         if not unsigned:
-            self.wallet.sign_transaction(tx, self.password)
+            self.wallet.sign_transaction(tx, self._password)
         return tx.as_dict()
 
     @command('wp')
@@ -212,7 +215,7 @@ class Commands:
             pubkey = bitcoin.public_key_from_private_key(privkey)
             t.sign({pubkey:privkey})
         else:
-            self.wallet.sign_transaction(t, self.password)
+            self.wallet.sign_transaction(t, self._password)
         return t.as_dict()
 
     @command('')
@@ -250,7 +253,7 @@ class Commands:
         """Get private keys of addresses. You may pass a single wallet address, or a list of wallet addresses."""
         is_list = type(address) is list
         domain = address if is_list else [address]
-        out = [self.wallet.get_private_key(address, self.password) for address in domain]
+        out = [self.wallet.get_private_key(address, self._password) for address in domain]
         return out if is_list else out[0]
 
     @command('w')
@@ -334,19 +337,19 @@ class Commands:
     @command('wp')
     def getmasterprivate(self):
         """Get master private key. Return your wallet\'s master private key"""
-        return str(self.wallet.get_master_private_key(self.wallet.root_name, self.password))
+        return str(self.wallet.get_master_private_key(self.wallet.root_name, self._password))
 
     @command('wp')
     def getseed(self):
         """Get seed phrase. Print the generation seed of your wallet."""
-        s = self.wallet.get_mnemonic(self.password)
+        s = self.wallet.get_mnemonic(self._password)
         return s.encode('utf8')
 
     @command('wp')
     def importprivkey(self, privkey):
         """Import a private key. """
         try:
-            addr = self.wallet.import_key(privkey, self.password)
+            addr = self.wallet.import_key(privkey, self._password)
             out = "Keypair imported: " + addr
         except Exception as e:
             out = "Error: " + str(e)
@@ -377,7 +380,7 @@ class Commands:
     def signmessage(self, address, message):
         """Sign a message with a key. Use quotes if your message contains
         whitespaces"""
-        sig = self.wallet.sign_message(address, message, self.password)
+        sig = self.wallet.sign_message(address, message, self._password)
         return base64.b64encode(sig)
 
     @command('')
@@ -415,7 +418,7 @@ class Commands:
         tx = self.wallet.make_unsigned_transaction(coins, final_outputs, self.config, fee, change_addr)
         str(tx) #this serializes
         if not unsigned:
-            self.wallet.sign_transaction(tx, self.password)
+            self.wallet.sign_transaction(tx, self._password)
         return tx
 
     @command('wpn')
@@ -522,7 +525,7 @@ class Commands:
     @command('wp')
     def decrypt(self, pubkey, encrypted):
         """Decrypt a message encrypted with a public key."""
-        return self.wallet.decrypt_message(pubkey, encrypted, self.password)
+        return self.wallet.decrypt_message(pubkey, encrypted, self._password)
 
     def _format_request(self, out):
         pr_str = {
@@ -587,7 +590,7 @@ class Commands:
         if not alias:
             raise BaseException('No alias in your configuration')
         alias_addr = self.contacts.resolve(alias)['address']
-        self.wallet.sign_payment_request(address, alias, alias_addr, self.password)
+        self.wallet.sign_payment_request(address, alias, alias_addr, self._password)
 
     @command('w')
     def rmrequest(self, address):
