@@ -320,7 +320,7 @@ class ElectrumWindow(QMainWindow, PrintError):
             self.wallet.synchronize()
 
     def open_wallet(self):
-        wallet_folder = self.gui_object.get_wallet_folder()
+        wallet_folder = self.get_wallet_folder()
         filename = unicode(QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder))
         if not filename:
             return
