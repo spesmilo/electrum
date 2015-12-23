@@ -21,7 +21,7 @@ import urllib
 import sys
 import requests
 
-from PyQt4.QtGui import QMessageBox, QApplication, QPushButton
+from PyQt4.QtGui import QApplication, QPushButton
 
 from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
@@ -65,7 +65,7 @@ class Plugin(BasePlugin):
                     'to verify that transaction is instant.\n'
                     'Please enter your password to sign a\n'
                     'verification request.')
-            password = window.password_dialog(msg)
+            password = window.password_dialog(msg, parent=d)
             if not password:
                 return
         try:
@@ -84,14 +84,12 @@ class Plugin(BasePlugin):
 
             # 3. display the result
             if response.get('verified'):
-                QMessageBox.information(None, _('Verification successful!'),
-                    _('%s is covered by GreenAddress instant confirmation') % (tx.hash()), _('OK'))
+                d.show_message(_('%s is covered by GreenAddress instant confirmation') % (tx.hash()), title=_('Verification successful!'))
             else:
-                QMessageBox.critical(None, _('Verification failed!'),
-                    _('%s is not covered by GreenAddress instant confirmation') % (tx.hash()), _('OK'))
+                d.show_critical(_('%s is not covered by GreenAddress instant confirmation') % (tx.hash()), title=_('Verification failed!'))
         except BaseException as e:
             import traceback
             traceback.print_exc(file=sys.stdout)
-            QMessageBox.information(None, _('Error'), str(e), _('OK'))
+            d.show_error(str(e))
         finally:
             d.verify_button.setText(self.button_label)

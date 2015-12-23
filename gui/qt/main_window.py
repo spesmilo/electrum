@@ -2193,8 +2193,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d.exec_()
 
     def password_dialog(self, msg=None, parent=None):
-        if parent == None:
-            parent = self
+        parent = parent or self
         d = WindowModalDialog(parent, _("Enter Password"))
         pw = QLineEdit()
         pw.setEchoMode(2)
