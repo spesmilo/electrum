@@ -92,9 +92,8 @@ class Plugin(TrustedCoinPlugin):
             if wallet.billing_info is None:
                 # request billing info before forming the transaction
                 task = partial(self.request_billing_info, wallet)
-                waiting_dialog = WaitingDialog(window, 'please wait...', task)
-                waiting_dialog.start()
-                waiting_dialog.wait()
+                dialog = WaitingDialog(window, 'please wait...', task)
+                dialog.wait()
                 if wallet.billing_info is None:
                     window.show_message('Could not contact server')
                     return True
@@ -103,8 +102,8 @@ class Plugin(TrustedCoinPlugin):
 
     def settings_dialog(self, window):
         task = partial(self.request_billing_info, window.wallet)
-        self.waiting_dialog = WaitingDialog(window, 'please wait...', task, partial(self.show_settings_dialog, window))
-        self.waiting_dialog.start()
+        WaitingDialog(window, 'please wait...', task,
+                      on_success=partial(self.show_settings_dialog, window))
 
     def show_settings_dialog(self, window, success):
         if not success:

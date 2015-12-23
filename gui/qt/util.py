@@ -21,44 +21,7 @@ RED_FG = "QWidget {color:red;}"
 BLUE_FG = "QWidget {color:blue;}"
 BLACK_FG = "QWidget {color:black;}"
 
-
-class WaitingDialog(QThread):
-    def __init__(self, parent, message, run_task, on_success=None, on_complete=None):
-        QThread.__init__(self)
-        self.parent = parent
-        self.d = QDialog(parent)
-        self.d.setWindowTitle('Please wait')
-        l = QLabel(message)
-        vbox = QVBoxLayout(self.d)
-        vbox.addWidget(l)
-        self.run_task = run_task
-        self.on_success = on_success
-        self.on_complete = on_complete
-        self.d.connect(self.d, SIGNAL('done'), self.close)
-        self.d.show()
-
-    def run(self):
-        self.error = None
-        try:
-            self.result = self.run_task()
-        except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
-            self.error = str(e)
-        self.d.emit(SIGNAL('done'))
-
-    def close(self):
-        self.d.accept()
-        if self.error:
-            QMessageBox.warning(self.parent, _('Error'), self.error, _('OK'))
-        else:
-            if self.on_success:
-                if type(self.result) is not tuple:
-                    self.result = (self.result,)
-                self.on_success(*self.result)
-
-        if self.on_complete:
-            self.on_complete()
-
+dialogs = []
 
 class Timer(QThread):
     stopped = False
@@ -233,6 +196,46 @@ class WindowModalDialog(QDialog):
         self.setWindowModality(Qt.WindowModal)
         if title:
             self.setWindowTitle(title)
+
+class WaitingDialog(QThread, MessageBoxMixin):
+    '''Shows a please wait dialog whilst runnning a task.  It is not
+    necessary to maintain a reference to this dialog.'''
+    def __init__(self, parent, message, task, on_success=None,
+                 on_finished=None):
+        global dialogs
+        dialogs.append(self) # Prevent GC
+        QThread.__init__(self)
+        self.task = task
+        self.on_success = on_success
+        self.on_finished = on_finished
+        self.dialog = WindowModalDialog(parent, _("Please wait"))
+        vbox = QVBoxLayout(self.dialog)
+        vbox.addWidget(QLabel(message))
+        self.dialog.show()
+        self.dialog.connect(self, SIGNAL("finished()"), self.finished)
+        self.start()
+
+    def run(self):
+        self.error = None
+        try:
+            self.result = self.task()
+        except BaseException as e:
+            traceback.print_exc(file=sys.stdout)
+            self.error = str(e)
+
+    def finished(self):
+        global dialogs
+        dialogs.remove(self)
+        if self.error:
+            self.show_error(self.error, parent=self.dialog.parent())
+        elif self.on_success:
+            result = self.result
+            if type(result) is not tuple:
+                result = (result,)
+            self.on_success(*result)
+        if self.on_finished:
+            self.on_finished()
+        self.dialog.accept()
 
 def line_dialog(parent, title, label, ok_label, default=None):
     dialog = WindowModalDialog(parent, title)

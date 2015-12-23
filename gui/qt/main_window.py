@@ -1280,16 +1280,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def sign_thread():
             if not self.wallet.is_watching_only():
                 self.wallet.sign_transaction(tx, password)
-        def on_sign_successful(ret):
+        def on_signed(ret):
             success[0] = True
-        def on_dialog_close():
+        def on_finished():
             self.send_button.setDisabled(False)
             callback(success[0])
 
-        # keep a reference to WaitingDialog or the gui might crash
-        self.waiting_dialog = WaitingDialog(parent, 'Signing transaction...', sign_thread, on_sign_successful, on_dialog_close)
-        self.waiting_dialog.start()
-
+        WaitingDialog(parent, _('Signing transaction...'), sign_thread,
+                      on_success=on_signed, on_finished=on_finished)
 
     def broadcast_transaction(self, tx, tx_desc, parent=None):
 
@@ -1325,12 +1323,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.show_error(msg, parent=parent)
             self.send_button.setDisabled(False)
 
-        if parent == None:
-            parent = self
-        self.waiting_dialog = WaitingDialog(parent, 'Broadcasting transaction...', broadcast_thread, broadcast_done)
-        self.waiting_dialog.start()
-
-
+        parent = parent or self
+        WaitingDialog(parent, _('Broadcasting transaction...'),
+                      broadcast_thread, broadcast_done)
 
     def prepare_for_payment_request(self):
         self.tabs.setCurrentIndex(1)
@@ -2238,7 +2233,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         from electrum import qrscanner
         try:
             data = qrscanner.scan_qr(self.config)
-        except e:
+        except BaseException as e:
             self.show_error(str(e))
             return
         if not data:
