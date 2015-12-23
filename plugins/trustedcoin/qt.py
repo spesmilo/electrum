@@ -267,5 +267,5 @@ class Plugin(TrustedCoinPlugin):
                 server.auth(_id, otp)
                 return True
             except:
-                QMessageBox.information(window, _('Message'), _('Incorrect password'), _('OK'))
+                window.show_message(_('Incorrect password'))
                 pw.setText('')

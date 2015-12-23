@@ -1,4 +1,4 @@
-from PyQt4.Qt import QApplication, QMessageBox, QDialog, QInputDialog, QLineEdit, QVBoxLayout, QLabel, QThread, SIGNAL
+from PyQt4.Qt import QDialog, QInputDialog, QLineEdit, QVBoxLayout, QLabel, SIGNAL
 import PyQt4.QtCore as QtCore
 import threading
 
@@ -16,10 +16,10 @@ class Plugin(LedgerPlugin):
             self.handler = BTChipQTHandler(window)
         if self.btchip_is_connected():
             if not self.wallet.check_proper_device():
-                QMessageBox.information(window, _('Error'), _("This wallet does not match your Ledger device"), _('OK'))
+                window.show_error(_("This wallet does not match your Ledger device"))
                 self.wallet.force_watching_only = True
         else:
-            QMessageBox.information(window, _('Error'), _("Ledger device not detected.\nContinuing in watching-only mode."), _('OK'))
+            window.show_error(_("Ledger device not detected.\nContinuing in watching-only mode."))
             self.wallet.force_watching_only = True
 
 

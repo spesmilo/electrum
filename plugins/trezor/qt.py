@@ -1,4 +1,4 @@
-from PyQt4.Qt import QMessageBox, QVBoxLayout, QLabel, QThread, SIGNAL, QGridLayout, QInputDialog, QPushButton
+from PyQt4.Qt import QVBoxLayout, QLabel, SIGNAL, QGridLayout, QInputDialog, QPushButton
 import PyQt4.QtCore as QtCore
 from electrum_gui.qt.util import *
 from electrum_gui.qt.main_window import StatusBarButton, ElectrumWindow
@@ -100,11 +100,11 @@ class Plugin(TrezorPlugin):
         try:
             self.get_client().ping('t')
         except BaseException as e:
-            QMessageBox.information(window, _('Error'), _("Trezor device not detected.\nContinuing in watching-only mode." + '\n\nReason:\n' + str(e)), _('OK'))
+            window.show_error(_('Trezor device not detected.\nContinuing in watching-only mode.\nReason:\n' + str(e)))
             self.wallet.force_watching_only = True
             return
         if self.wallet.addresses() and not self.wallet.check_proper_device():
-            QMessageBox.information(window, _('Error'), _("This wallet does not match your Trezor device"), _('OK'))
+            window.show_error(_("This wallet does not match your Trezor device"))
             self.wallet.force_watching_only = True
 
     @hook
