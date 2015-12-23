@@ -135,7 +135,6 @@ class Daemon(DaemonThread):
         return wallet
 
     def run_cmdline(self, config_options):
-        password = config_options.get('password')
         config = SimpleConfig(config_options)
         cmdname = config.get('cmd')
         cmd = known_commands[cmdname]
@@ -146,8 +145,9 @@ class Daemon(DaemonThread):
         args = map(json_decode, args)
         # options
         args += map(lambda x: config.get(x), cmd.options)
-        cmd_runner = Commands(config, wallet, self.network)
-        cmd_runner.password = password
+        cmd_runner = Commands(config, wallet, self.network,
+                              password=config_options.get('password'),
+                              new_password=config_options.get('new_password'))
         func = getattr(cmd_runner, cmd.name)
         result = func(*args)
         return result

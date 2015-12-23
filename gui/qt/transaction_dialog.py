@@ -38,7 +38,7 @@ def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
     dialogs.append(d)
     d.show()
 
-class TxDialog(QDialog):
+class TxDialog(QDialog, MessageBoxMixin):
 
     def __init__(self, tx, parent, desc, prompt_if_unsaved):
         '''Transactions in the wallet will show their description.
@@ -62,7 +62,7 @@ class TxDialog(QDialog):
 
         vbox.addWidget(QLabel(_("Transaction ID:")))
         self.tx_hash_e  = ButtonsLineEdit()
-        qr_show = lambda: self.parent.show_qrcode(str(self.tx_hash_e.text()), 'Transaction ID')
+        qr_show = lambda: self.parent.show_qrcode(str(self.tx_hash_e.text()), 'Transaction ID', parent=self)
         self.tx_hash_e.addButton(":icons/qrcode.png", qr_show, _("Show as QR code"))
         self.tx_hash_e.setReadOnly(True)
         vbox.addWidget(self.tx_hash_e)
@@ -122,10 +122,7 @@ class TxDialog(QDialog):
 
     def closeEvent(self, event):
         if (self.prompt_if_unsaved and not self.saved and not self.broadcast
-            and QMessageBox.question(
-                self, _('Warning'),
-                _('This transaction is not saved. Close anyway?'),
-                QMessageBox.Yes | QMessageBox.No) == QMessageBox.No):
+            and not self.question(_('This transaction is not saved. Close anyway?'), title=_("Warning"))):
             event.ignore()
         else:
             event.accept()
@@ -135,7 +132,7 @@ class TxDialog(QDialog):
         text = self.tx.raw.decode('hex')
         text = base_encode(text, base=43)
         try:
-            self.parent.show_qrcode(text, 'Transaction')
+            self.parent.show_qrcode(text, 'Transaction', parent=self)
         except Exception as e:
             self.show_message(str(e))
 
@@ -291,8 +288,3 @@ class TxDialog(QDialog):
                 cursor.insertText(format_amount(v), ext)
             cursor.insertBlock()
         vbox.addWidget(o_text)
-
-
-
-    def show_message(self, msg):
-        QMessageBox.information(self, _('Message'), msg, _('OK'))

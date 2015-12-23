@@ -1,4 +1,4 @@
-from PyQt4.Qt import QMessageBox, QDialog, QVBoxLayout, QLabel, QThread, SIGNAL, QGridLayout, QInputDialog, QPushButton
+from PyQt4.Qt import QVBoxLayout, QLabel, SIGNAL, QGridLayout, QInputDialog, QPushButton
 import PyQt4.QtCore as QtCore
 from electrum_ltc_gui.qt.util import *
 from electrum_ltc_gui.qt.main_window import StatusBarButton, ElectrumWindow
@@ -46,10 +46,7 @@ class TrezorQtHandler:
         return self.passphrase
 
     def pin_dialog(self):
-        d = QDialog(None)
-        d.setModal(1)
-        d.setWindowTitle(_("Enter PIN"))
-        d.setWindowFlags(d.windowFlags() | QtCore.Qt.WindowStaysOnTopHint)
+        d = WindowModalDialog(self.win, _("Enter PIN"))
         matrix = PinMatrixWidget()
         vbox = QVBoxLayout()
         vbox.addWidget(QLabel(self.message))
@@ -67,23 +64,18 @@ class TrezorQtHandler:
             self.passphrase = unicodedata.normalize('NFKD', unicode(passphrase)) if passphrase else ''
         else:
             assert type(self.win) is InstallWizard
-            from electrum_ltc_gui.qt.password_dialog import make_password_dialog, run_password_dialog
-            d = QDialog()
-            d.setModal(1)
-            d.setLayout(make_password_dialog(d, None, self.message, False))
-            confirmed, p, passphrase = run_password_dialog(d, None, None)
+            from electrum_ltc_gui.qt.password_dialog import PasswordDialog
+            d = PasswordDialog(self.win, None, None, self.message, False)
+            confirmed, p, passphrase = d.run()
             if not confirmed:
-                QMessageBox.critical(None, _('Error'), _("Password request canceled"), _('OK'))
+                self.win.show_critical(_("Password request canceled"))
                 self.passphrase = None
             else:
                 self.passphrase = unicodedata.normalize('NFKD', unicode(passphrase)) if passphrase else ''
         self.done.set()
 
     def message_dialog(self):
-        self.d = QDialog()
-        self.d.setModal(1)
-        self.d.setWindowTitle('Please Check Trezor Device')
-        self.d.setWindowFlags(self.d.windowFlags() | QtCore.Qt.WindowStaysOnTopHint)
+        self.d = WindowModalDialog(self.win, _('Please Check Trezor Device'))
         l = QLabel(self.message)
         vbox = QVBoxLayout(self.d)
         vbox.addWidget(l)
@@ -108,11 +100,11 @@ class Plugin(TrezorPlugin):
         try:
             self.get_client().ping('t')
         except BaseException as e:
-            QMessageBox.information(window, _('Error'), _("Trezor device not detected.\nContinuing in watching-only mode." + '\n\nReason:\n' + str(e)), _('OK'))
+            window.show_error(_('Trezor device not detected.\nContinuing in watching-only mode.\nReason:\n' + str(e)))
             self.wallet.force_watching_only = True
             return
         if self.wallet.addresses() and not self.wallet.check_proper_device():
-            QMessageBox.information(window, _('Error'), _("This wallet does not match your Trezor device"), _('OK'))
+            window.show_error(_("This wallet does not match your Trezor device"))
             self.wallet.force_watching_only = True
 
     @hook
@@ -171,7 +163,7 @@ class Plugin(TrezorPlugin):
             return
         get_label = lambda: self.get_client().features.label
         update_label = lambda: current_label_label.setText("Label: %s" % get_label())
-        d = QDialog()
+        d = WindowModalDialog(window, _("Trezor Settings"))
         layout = QGridLayout(d)
         layout.addWidget(QLabel("Trezor Options"),0,0)
         layout.addWidget(QLabel("ID:"),1,0)
@@ -194,7 +186,3 @@ class Plugin(TrezorPlugin):
         layout.addWidget(current_label_label,3,0)
         layout.addWidget(change_label_button,3,1)
         d.exec_()
-
-
-
-

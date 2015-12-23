@@ -1,17 +1,17 @@
-from electrum_ltc.plugins import BasePlugin, hook
-from electrum_ltc_gui.qt.util import WaitingDialog, EnterButton
-from electrum_ltc.util import print_msg, print_error
-from electrum_ltc.i18n import _
-
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
-
-import traceback
+from functools import partial
 import zlib
 import json
 from io import BytesIO
 import sys
 import platform
+
+from electrum_ltc.plugins import BasePlugin, hook
+from electrum_ltc_gui.qt.util import WaitingDialog, EnterButton, WindowModalDialog
+from electrum_ltc.util import print_msg, print_error
+from electrum_ltc.i18n import _
+
+from PyQt4.QtGui import *
+from PyQt4.QtCore import *
 
 try:
     import amodem.audio
@@ -42,11 +42,10 @@ class Plugin(BasePlugin):
         return True
 
     def settings_widget(self, window):
-        return EnterButton(_('Settings'), self.settings_dialog)
+        return EnterButton(_('Settings'), partial(self.settings_dialog, window))
 
-    def settings_dialog(self):
-        d = QDialog()
-        d.setWindowTitle("Settings")
+    def settings_dialog(self, window):
+        d = WindowModalDialog(window, _("Audio Modem Settings"))
 
         layout = QGridLayout(d)
         layout.addWidget(QLabel(_('Bit rate [kbps]: ')), 0, 0)
@@ -75,24 +74,20 @@ class Plugin(BasePlugin):
 
         def handler():
             blob = json.dumps(dialog.tx.as_dict())
-            self.sender = self._send(parent=dialog, blob=blob)
-            self.sender.start()
+            self._send(parent=dialog, blob=blob)
         b.clicked.connect(handler)
         dialog.sharing_buttons.insert(-1, b)
 
     @hook
     def scan_text_edit(self, parent):
-        def handler():
-            self.receiver = self._recv(parent=parent)
-            self.receiver.start()
-        parent.addButton(':icons/microphone.png', handler, _("Read from microphone"))
+        parent.addButton(':icons/microphone.png', partial(self._recv, parent),
+                         _("Read from microphone"))
 
     @hook
     def show_text_edit(self, parent):
         def handler():
             blob = str(parent.toPlainText())
-            self.sender = self._send(parent=parent, blob=blob)
-            self.sender.start()
+            self._send(parent=parent, blob=blob)
         parent.addButton(':icons/speaker.png', handler, _("Send to speaker"))
 
     def _audio_interface(self):
@@ -101,31 +96,25 @@ class Plugin(BasePlugin):
 
     def _send(self, parent, blob):
         def sender_thread():
-            try:
-                with self._audio_interface() as interface:
-                    src = BytesIO(blob)
-                    dst = interface.player()
-                    amodem.main.send(config=self.modem_config, src=src, dst=dst)
-            except Exception:
-                traceback.print_exc()
+            with self._audio_interface() as interface:
+                src = BytesIO(blob)
+                dst = interface.player()
+                amodem.main.send(config=self.modem_config, src=src, dst=dst)
 
         print_msg('Sending:', repr(blob))
         blob = zlib.compress(blob)
 
         kbps = self.modem_config.modem_bps / 1e3
         msg = 'Sending to Audio MODEM ({0:.1f} kbps)...'.format(kbps)
-        return WaitingDialog(parent=parent, message=msg, run_task=sender_thread)
+        WaitingDialog(parent, msg, sender_thread)
 
     def _recv(self, parent):
         def receiver_thread():
-            try:
-                with self._audio_interface() as interface:
-                    src = interface.recorder()
-                    dst = BytesIO()
-                    amodem.main.recv(config=self.modem_config, src=src, dst=dst)
-                    return dst.getvalue()
-            except Exception:
-                traceback.print_exc()
+            with self._audio_interface() as interface:
+                src = interface.recorder()
+                dst = BytesIO()
+                amodem.main.recv(config=self.modem_config, src=src, dst=dst)
+                return dst.getvalue()
 
         def on_success(blob):
             if blob:
@@ -135,5 +124,4 @@ class Plugin(BasePlugin):
 
         kbps = self.modem_config.modem_bps / 1e3
         msg = 'Receiving from Audio MODEM ({0:.1f} kbps)...'.format(kbps)
-        return WaitingDialog(parent=parent, message=msg,
-                             run_task=receiver_thread, on_success=on_success)
+        WaitingDialog(parent, msg, receiver_thread, on_success=on_success)
