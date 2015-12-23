@@ -2023,10 +2023,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
 
-    def show_qrcode(self, data, title = _("QR code")):
+    def show_qrcode(self, data, title = _("QR code"), parent=None):
         if not data:
             return
-        d = QRDialog(data, self, title)
+        d = QRDialog(data, parent or self, title)
         d.exec_()
 
     def show_public_keys(self, address):

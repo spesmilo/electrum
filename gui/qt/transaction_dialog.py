@@ -62,7 +62,7 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         vbox.addWidget(QLabel(_("Transaction ID:")))
         self.tx_hash_e  = ButtonsLineEdit()
-        qr_show = lambda: self.parent.show_qrcode(str(self.tx_hash_e.text()), 'Transaction ID')
+        qr_show = lambda: self.parent.show_qrcode(str(self.tx_hash_e.text()), 'Transaction ID', parent=self)
         self.tx_hash_e.addButton(":icons/qrcode.png", qr_show, _("Show as QR code"))
         self.tx_hash_e.setReadOnly(True)
         vbox.addWidget(self.tx_hash_e)
@@ -132,7 +132,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         text = self.tx.raw.decode('hex')
         text = base_encode(text, base=43)
         try:
-            self.parent.show_qrcode(text, 'Transaction')
+            self.parent.show_qrcode(text, 'Transaction', parent=self)
         except Exception as e:
             self.show_message(str(e))
 
