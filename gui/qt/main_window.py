@@ -1640,8 +1640,7 @@ class ElectrumWindow(QMainWindow, PrintError):
         self.show_pr_details(pr)
 
     def show_pr_details(self, pr):
-        d = QDialog(self)
-        d.setWindowTitle(_("Invoice"))
+        d = WindowModalDialog(self, _("Invoice"))
         vbox = QVBoxLayout(d)
         grid = QGridLayout()
         grid.addWidget(QLabel(_("Requestor") + ':'), 0, 0)
@@ -2000,10 +1999,8 @@ class ElectrumWindow(QMainWindow, PrintError):
             self.show_message(str(e))
             return
 
-        d = QDialog(self)
+        d = WindowModalDialog(self, _("Public key"))
         d.setMinimumSize(600, 200)
-        d.setModal(1)
-        d.setWindowTitle(_("Public key"))
         vbox = QVBoxLayout()
         vbox.addWidget( QLabel(_("Address") + ': ' + address))
         vbox.addWidget( QLabel(_("Public key") + ':'))
@@ -2292,8 +2289,7 @@ class ElectrumWindow(QMainWindow, PrintError):
             QMessageBox.warning(self, _('Error'), str(e), _('OK'))
             return
 
-        d = QDialog(self)
-        d.setWindowTitle(_('Private keys'))
+        d = WindowModalDialog(self, _('Private keys'))
         d.setMinimumSize(850, 300)
         vbox = QVBoxLayout(d)
 
@@ -2544,9 +2540,7 @@ class ElectrumWindow(QMainWindow, PrintError):
 
     def settings_dialog(self):
         self.need_restart = False
-        d = QDialog(self)
-        d.setWindowTitle(_('Preferences'))
-        d.setModal(1)
+        d = WindowModalDialog(self, _('Preferences'))
         vbox = QVBoxLayout()
         tabs = QTabWidget()
         gui_widgets = []
@@ -2841,9 +2835,7 @@ class ElectrumWindow(QMainWindow, PrintError):
 
 
     def plugins_dialog(self):
-        self.pluginsdialog = d = QDialog(self)
-        d.setWindowTitle(_('Electrum Plugins'))
-        d.setModal(1)
+        self.pluginsdialog = d = WindowModalDialog(self, _('Electrum Plugins'))
 
         plugins = self.gui_object.plugins
 
@@ -2906,9 +2898,7 @@ class ElectrumWindow(QMainWindow, PrintError):
     def show_account_details(self, k):
         account = self.wallet.accounts[k]
 
-        d = QDialog(self)
-        d.setWindowTitle(_('Account Details'))
-        d.setModal(1)
+        d = WindowModalDialog(self, _('Account Details'))
 
         vbox = QVBoxLayout(d)
         name = self.wallet.get_account_name(k)
