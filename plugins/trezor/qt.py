@@ -194,7 +194,3 @@ class Plugin(TrezorPlugin):
         layout.addWidget(current_label_label,3,0)
         layout.addWidget(change_label_button,3,1)
         d.exec_()
-
-
-
-

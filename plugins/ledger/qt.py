@@ -2,7 +2,6 @@ from PyQt4.Qt import QApplication, QMessageBox, QDialog, QInputDialog, QLineEdit
 import PyQt4.QtCore as QtCore
 import threading
 
-from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
 from electrum.plugins import BasePlugin, hook
 
 from ledger import LedgerPlugin

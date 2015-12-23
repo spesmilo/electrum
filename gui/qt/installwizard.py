@@ -62,7 +62,7 @@ class CosignWidget(QWidget):
 
 
 
-class InstallWizard(WindowModalDialog):
+class InstallWizard(WindowModalDialog, MessageBoxMixin):
 
     def __init__(self, app, config, network, storage):
         title = 'Electrum' + '  -  ' + _('Install Wizard')
@@ -157,7 +157,7 @@ class InstallWizard(WindowModalDialog):
         if not r:
             return
         if prepare_seed(r) != prepare_seed(seed):
-            QMessageBox.warning(None, _('Error'), _('Incorrect seed'), _('OK'))
+            self.show_error(_('Incorrect seed'))
             return False
         else:
             return True
@@ -421,8 +421,7 @@ class InstallWizard(WindowModalDialog):
             if not question(msg):
                 if question(_("Do you want to delete '%s'?") % path):
                     os.remove(path)
-                    QMessageBox.information(self, _('Warning'),
-                                            _('The file was removed'), _('OK'))
+                    self.show_warning(_('The file was removed'))
                     return
                 return
         self.show()
@@ -434,7 +433,7 @@ class InstallWizard(WindowModalDialog):
             wallet = self.run_wallet_type(action, wallet_type)
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
-            QMessageBox.information(None, _('Error'), str(e), _('OK'))
+            self.show_error(str(e))
             return
         return wallet
 
@@ -527,7 +526,7 @@ class InstallWizard(WindowModalDialog):
             if self.config.get('server') is None:
                 self.network_dialog()
         else:
-            QMessageBox.information(None, _('Warning'), _('You are offline'), _('OK'))
+            self.show_warning(_('You are offline'))
 
 
         # start wallet threads
@@ -539,7 +538,7 @@ class InstallWizard(WindowModalDialog):
                 msg = _("Recovery successful") if wallet.is_found() else _("No transactions found for this seed")
             else:
                 msg = _("This wallet was restored offline. It may contain more addresses than displayed.")
-            QMessageBox.information(None, _('Information'), msg, _('OK'))
+            self.show_message(msg)
 
         return wallet
 

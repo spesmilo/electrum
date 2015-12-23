@@ -192,6 +192,20 @@ class CancelButton(QPushButton):
         QPushButton.__init__(self, label or _("Cancel"))
         self.clicked.connect(dialog.reject)
 
+class MessageBoxMixin:
+    def show_warning(self, msg, parent=None, title=None):
+        WindowModalDialog.warning(parent or self, title or _('Warning'), msg)
+
+    def show_error(self, msg, parent=None):
+        self.show_warning(msg, parent=parent, title=_('Error'))
+
+    def show_critical(self, msg, parent=None, title=None):
+        WindowModalDialog.critical(parent or self,
+                                   title or _('Critical Error'), msg)
+
+    def show_message(self, msg, parent=None, title=None):
+        WindowModalDialog.information(self, title or _('Information'), msg)
+
 class WindowModalDialog(QDialog):
     '''Handy wrapper; window modal dialogs are better for our multi-window
     daemon model as other wallet windows can still be accessed.'''
@@ -208,6 +222,10 @@ class WindowModalDialog(QDialog):
     @staticmethod
     def warning(*args, **kwargs):
         return WindowModalDialog.msg_box(QMessageBox.Warning, *args, **kwargs)
+
+    @staticmethod
+    def information(*args, **kwargs):
+        return WindowModalDialog.msg_box(QMessageBox.Information, *args, **kwargs)
 
     @staticmethod
     def msg_box(icon, parent, title, text, buttons=QMessageBox.Ok,
