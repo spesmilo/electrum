@@ -1,8 +1,11 @@
+#:import Clock kivy.clock.Clock
 #:import Window kivy.core.window.Window
 #:import Factory kivy.factory.Factory
 #:import _ electrum.i18n._
 
 # Custom Global Widgets
+<Button>
+    on_parent: self.MIN_STATE_TIME = 0.1
 
 <VGridLayout@GridLayout>:
     rows: 1
@@ -187,22 +190,44 @@
             size: self.size
             pos: self.pos
 
+<CardItem@ToggleButtonBehavior+BoxLayout>
+    size_hint: 1, None
+    height: '65dp'
+    group: 'requests'
+    padding: dp(12)
+    spacing: dp(5)
+    screen: None
+    on_release:
+        self.screen.show_menu(args[0]) if self.state == 'down' else self.screen.hide_menu()
+    canvas.before:
+        Color:
+            rgba: (0.192, .498, 0.745, 1) if self.state == 'down' else (0.3, 0.3, 0.3, 1)
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
 <AddressSelector@BlueSpinner>
     icon: 'atlas://gui/kivy/theming/light/globe'
     values: [] #app.wallet.addresses() if app.wallet else []
     text: _("Select Your address")
 
-<AmountButton@Button>:
+<BlueButton@Button>:
     background_color: .238, .585, .878, 0
     halign: 'left'
     text_size: (self.width-10, None)
     size_hint: 0.5, None
-    default_text: 'Amount'
+    default_text: ''
     text: self.default_text
     padding: '5dp', '5db'
     height: '40dp'
     text_color: self.foreground_color
     foreground_color: 1, 0, 0, 1
+    canvas.before:
+        Color:
+            rgba: (0.9, .498, 0.745, 1) if self.state == 'down' else self.background_color
+        Rectangle:
+            size: self.size
+            pos: self.pos
 
 
 <TextInputBlue@TextInput>
@@ -222,24 +247,26 @@
     size_hint: 1, None
     height: '48dp'
     on_release:
-        self.parent.update_text(self.parent, self.text)
+        self.parent.update_amount(self.text)
+
 
 
 <TabbedPanelStrip>:
     on_parent:
         if self.parent: self.parent.bar_width = 0
+        if self.parent: self.parent.scroll_x = 0.5
 
 
 <TabbedCarousel>
     carousel: carousel
     do_default_tab: False
     Carousel:
-        scroll_timeout: 190
+        scroll_timeout: 250
+        scroll_distance: '20dp'
         anim_type: 'out_quart'
         min_move: .05
         anim_move_duration: .1
         anim_cancel_duration: .54
-        scroll_distance: '10dp'
         on_index: root.on_index(*args)
         id: carousel
 
@@ -281,65 +308,59 @@
     TabbedCarousel:
         id: panel
         tab_height: '48dp'
-        #default_tab: send_tab
+        tab_width: panel.width/3
+        default_tab: history_tab
         strip_border: 0, 0, 0, 0
-        HistoryScreen:
-            id: history_screen
-            tab: history_tab
+        InvoicesScreen:
+            id: invoices_screen
+            tab: invoices_tab
         SendScreen:
             id: send_screen
             tab: send_tab
+        HistoryScreen:
+            id: history_screen
+            tab: history_tab
         ReceiveScreen:
             id: receive_screen
             tab: receive_tab
-        ContactsScreen:
-            id: contacts_screen
-            tab: contacts_tab
+        RequestsScreen:
+            id: requests_screen
+            tab: requests_tab
+        #ContactsScreen:
+        #    id: contacts_screen
+        #    tab: contacts_tab
         CleanHeader:
-            id: history_tab
-            text: _('History')
+            id: invoices_tab
+            text: _('Invoices')
             slide: 0
         CleanHeader:
             id: send_tab
             text: _('Send')
             slide: 1
         CleanHeader:
-            id: receive_tab
-            text: _('Receive')
+            id: history_tab
+            text: _('History')
             slide: 2
         CleanHeader:
-            id: contacts_tab
-            text: _('Contacts')
+            id: receive_tab
+            text: _('Receive')
             slide: 3
+        CleanHeader:
+            id: requests_tab
+            text: _('Requests')
+            slide: 4
+        #CleanHeader:
+        #    id: contacts_tab
+        #    text: _('Contacts')
+        #    slide: 4
 
 <ActionOvrButton@ActionButton>
     on_release:
-        if self.parent: self.parent.parent.dismiss()
-        app.popup_dialog(self.name)
-
-
-<SettingsItem@ButtonBehavior+BoxLayout>
-    orientation: 'vertical'
-    title: ''
-    description: ''
-    size_hint: 1, 1
-    Label:
-        id: title
-        text: self.parent.title
-        size_hint: 1, 1
-        bold: True
-        text_size: self.size
-        halign: 'left'
-    Label:
-        text: self.parent.description
-        size_hint: 1, 1
-        text_size: self.width, None
-        color: 0.8, 0.8, 0.8, 1
-        halign: 'left'
+        Clock.schedule_once(lambda dt: self.parent.parent.dismiss() if self.parent else None, 0.05)
+        Clock.schedule_once(lambda dt: app.popup_dialog(self.name), 0.05)
 
 
 BoxLayout:
-
     orientation: 'vertical'
 
     canvas.before:
@@ -373,34 +394,26 @@ BoxLayout:
                     .format(app.status)
                 font_size: '22dp'
                 minimum_width: '1dp'
-
-            ActionButton:
-                id: context_button
-                text: app.context
-                width: 0
-                on_text:
-                    self.width = 20 if self.text else 0
-                on_release: app.context_action()
+                on_release: app.popup_dialog('status')
 
             ActionOverflow:
                 id: ao
                 ActionOvrButton:
-                    text: _('Network')
+                    name: 'about'
+                    text: _('About')
+                ActionOvrButton:
                     name: 'network'
+                    text: _('Network')
                     on_parent:
                         # when widget overflow drop down is shown, adjust the width
                         parent = args[1]
                         if parent: ao._dropdown.width = sp(200)
                 ActionOvrButton:
-                    name: 'settings'
-                    text: _('Settings')
-                ActionOvrButton:
                     name: 'wallets'
                     text: _('Wallets')
                 ActionOvrButton:
-                    name: 'plugins'
-                    text: _('Plugins')
-
+                    name: 'settings'
+                    text: _('Settings')
     ScreenManager:
         id: manager
         ScreenTabs:

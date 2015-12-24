@@ -25,9 +25,10 @@ from PyQt4.QtCore import *
 from util import *
 from history_widget import HistoryWidget
 
-class AddressDialog(QDialog):
+class AddressDialog(WindowModalDialog):
 
-    def __init__(self, address, parent):
+    def __init__(self, parent, address):
+        WindowModalDialog.__init__(self, parent, _("Address"))
         self.address = address
         self.parent = parent
         self.config = parent.config
@@ -35,10 +36,7 @@ class AddressDialog(QDialog):
         self.app = parent.app
         self.saved = True
 
-        QDialog.__init__(self)
         self.setMinimumWidth(700)
-        self.setWindowTitle(_("Address"))
-        self.setModal(1)
         vbox = QVBoxLayout()
         self.setLayout(vbox)
 

@@ -103,7 +103,7 @@ class Daemon(DaemonThread):
                 'nodes': self.network.get_interfaces(),
                 'connected': self.network.is_connected(),
                 'auto_connect': p[4],
-                'wallets': self.wallets.keys(),
+                'wallets': dict([ (k, w.is_up_to_date()) for k, w in self.wallets.items()]),
             }
         elif sub == 'stop':
             self.stop()
@@ -135,21 +135,19 @@ class Daemon(DaemonThread):
         return wallet
 
     def run_cmdline(self, config_options):
-        password = config_options.get('password')
         config = SimpleConfig(config_options)
         cmdname = config.get('cmd')
         cmd = known_commands[cmdname]
         wallet = self.load_wallet(config) if cmd.requires_wallet else None
-        if wallet:
-            wallet.wait_until_synchronized()
         # arguments passed to function
         args = map(lambda x: config.get(x), cmd.params)
         # decode json arguments
         args = map(json_decode, args)
         # options
         args += map(lambda x: config.get(x), cmd.options)
-        cmd_runner = Commands(config, wallet, self.network)
-        cmd_runner.password = password
+        cmd_runner = Commands(config, wallet, self.network,
+                              password=config_options.get('password'),
+                              new_password=config_options.get('new_password'))
         func = getattr(cmd_runner, cmd.name)
         result = func(*args)
         return result

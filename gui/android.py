@@ -332,7 +332,7 @@ def get_history_values(n):
         except Exception:
             time_str = 'pending'
         conf_str = 'v' if conf else 'o'
-        label, is_default_label = wallet.get_label(tx_hash)
+        label = wallet.get_label(tx_hash)
         label = label.replace('<','').replace('>','')
         values.append((conf_str, '  ' + time_str, '  ' + format_satoshis(value, True), '  ' + label))
 

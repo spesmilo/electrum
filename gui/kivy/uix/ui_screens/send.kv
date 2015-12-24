@@ -23,6 +23,7 @@ SendScreen:
             id: blue_bottom
             size_hint: 1, None
             height: self.minimum_height
+            spacing: '5dp'
             BoxLayout:
                 size_hint: 1, None
                 height: blue_bottom.item_height
@@ -32,32 +33,32 @@ SendScreen:
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
-                TextInputBlue:
+                BlueButton:
                     id: payto_e
-                    text: s.address
-                    hint_text: "Recipient"
+                    text: s.address if s.address else _('Recipient')
+                    on_release: app.address_dialog(s)
             CardSeparator:
                 opacity: message_selection.opacity
                 color: blue_bottom.foreground_color
             BoxLayout:
                 size_hint: 1, None
                 height: blue_bottom.item_height
+                spacing: '5dp'
                 Image:
                     source: 'atlas://gui/kivy/theming/light/globe'
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
-                AmountButton:
+                BlueButton:
                     id: amount_e
-                    text: s.amount if s.amount else 'Amount'
-                    on_release: app.amount_dialog(s, True)
-
+                    default_text: _('Amount')
+                    text: s.amount if s.amount else _('Amount')
+                    on_release: s.amount_dialog()
             CardSeparator:
                 opacity: message_selection.opacity
                 color: blue_bottom.foreground_color
             BoxLayout:
                 id: message_selection
-                opacity: 1
                 size_hint: 1, None
                 height: blue_bottom.item_height
                 spacing: '5dp'
@@ -66,11 +67,10 @@ SendScreen:
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
-                TextInputBlue:
-                    id: message_e
-                    hint_text: 'Description'
-                    text: s.message
-                    on_text_validate: s.message = self.text
+                BlueButton:
+                    id: description
+                    text: s.message if s.message else _('Description')
+                    on_release: app.description_dialog(s)
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
@@ -78,7 +78,7 @@ SendScreen:
                 id: qr
                 text: _('QR Code')
                 on_release:
-                    app.scan_qr(on_complete=s.parent.set_URI)
+                    app.scan_qr(on_complete=app.set_URI)
             Button:
                 id: paste_button
                 text: _('Paste')

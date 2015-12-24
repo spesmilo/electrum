@@ -62,17 +62,17 @@ class CosignWidget(QWidget):
 
 
 
-class InstallWizard(QDialog):
+class InstallWizard(WindowModalDialog, MessageBoxMixin):
 
     def __init__(self, app, config, network, storage):
-        QDialog.__init__(self)
+        title = 'Electrum' + '  -  ' + _('Install Wizard')
+        WindowModalDialog.__init__(self, None, title=title)
         self.app = app
         self.config = config
         self.network = network
         self.storage = storage
         self.setMinimumSize(575, 400)
         self.setMaximumSize(575, 400)
-        self.setWindowTitle('Electrum' + '  -  ' + _('Install Wizard'))
         self.connect(self, QtCore.SIGNAL('accept'), self.accept)
         self.stack = QStackedLayout()
         self.setLayout(self.stack)
@@ -139,8 +139,8 @@ class InstallWizard(QDialog):
                 button.setChecked(True)
 
         vbox.addStretch(1)
-        self.set_layout(vbox)
         vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _('Next'))))
+        self.set_layout(vbox)
         self.show()
         self.raise_()
 
@@ -157,7 +157,7 @@ class InstallWizard(QDialog):
         if not r:
             return
         if prepare_seed(r) != prepare_seed(seed):
-            QMessageBox.warning(None, _('Error'), _('Incorrect seed'), _('OK'))
+            self.show_error(_('Incorrect seed'))
             return False
         else:
             return True
@@ -384,22 +384,6 @@ class InstallWizard(QDialog):
         wallet_type = '%dof%d'%(m,n)
         return wallet_type
 
-    def question(self, msg, yes_label=_('OK'), no_label=_('Cancel'), icon=None):
-        vbox = QVBoxLayout()
-        self.set_layout(vbox)
-        if icon:
-            logo = QLabel()
-            logo.setPixmap(icon)
-            vbox.addWidget(logo)
-        label = QLabel(msg)
-        label.setWordWrap(True)
-        vbox.addWidget(label)
-        vbox.addStretch(1)
-        vbox.addLayout(Buttons(CancelButton(self, no_label), OkButton(self, yes_label)))
-        if not self.exec_():
-            return None
-        return True
-
     def show_seed(self, seed, sid):
         vbox = seed_dialog.show_seed_box_msg(seed, sid)
         vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _("Next"))))
@@ -407,22 +391,21 @@ class InstallWizard(QDialog):
         return self.exec_()
 
     def password_dialog(self):
-        msg = _("Please choose a password to encrypt your wallet keys.")+'\n'\
-              +_("Leave these fields empty if you want to disable encryption.")
-        from password_dialog import make_password_dialog, run_password_dialog
-        self.set_layout( make_password_dialog(self, None, msg) )
-        return run_password_dialog(self, None, self)[2]
+        from password_dialog import PasswordDialog
+        msg = _("Please choose a password to encrypt your wallet keys.\n"
+                "Leave these fields empty if you want to disable encryption.")
+        dialog = PasswordDialog(self, None, _("Choose a password"), msg, True)
+        return dialog.run()[2]
 
     def run(self, action):
         if self.storage.file_exists and action != 'new':
             path = self.storage.path
             msg = _("The file '%s' contains an incompletely created wallet.\n"
                     "Do you want to complete its creation now?") % path
-            if not question(msg):
-                if question(_("Do you want to delete '%s'?") % path):
+            if not self.question(msg):
+                if self.question(_("Do you want to delete '%s'?") % path):
                     os.remove(path)
-                    QMessageBox.information(self, _('Warning'),
-                                            _('The file was removed'), _('OK'))
+                    self.show_warning(_('The file was removed'))
                     return
                 return
         self.show()
@@ -434,7 +417,7 @@ class InstallWizard(QDialog):
             wallet = self.run_wallet_type(action, wallet_type)
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
-            QMessageBox.information(None, _('Error'), str(e), _('OK'))
+            self.show_error(str(e))
             return
         return wallet
 
@@ -463,7 +446,7 @@ class InstallWizard(QDialog):
             elif wallet_type == 'twofactor':
                 wallet_type = '2fa'
             if action == 'create':
-                self.storage.put('wallet_type', wallet_type, False)
+                self.storage.put('wallet_type', wallet_type)
 
         if action is None:
             return
@@ -527,7 +510,7 @@ class InstallWizard(QDialog):
             if self.config.get('server') is None:
                 self.network_dialog()
         else:
-            QMessageBox.information(None, _('Warning'), _('You are offline'), _('OK'))
+            self.show_warning(_('You are offline'))
 
 
         # start wallet threads
@@ -539,7 +522,7 @@ class InstallWizard(QDialog):
                 msg = _("Recovery successful") if wallet.is_found() else _("No transactions found for this seed")
             else:
                 msg = _("This wallet was restored offline. It may contain more addresses than displayed.")
-            QMessageBox.information(None, _('Information'), msg, _('OK'))
+            self.show_message(msg)
 
         return wallet
 
@@ -560,7 +543,7 @@ class InstallWizard(QDialog):
             password = self.password_dialog() if any(map(lambda x: Wallet.is_seed(x) or Wallet.is_xprv(x), key_list)) else None
             wallet = Wallet.from_multisig(key_list, password, self.storage, t)
         else:
-            self.storage.put('wallet_type', t, False)
+            self.storage.put('wallet_type', t)
             # call the constructor to load the plugin (side effect)
             Wallet(self.storage)
             wallet = always_hook('installwizard_restore', self, self.storage)

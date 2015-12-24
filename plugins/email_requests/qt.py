@@ -18,12 +18,10 @@
 
 from __future__ import absolute_import
 
-import socket
 import time
 import threading
 import base64
-from decimal import Decimal
-from Queue import Queue
+from functools import partial
 
 import smtplib
 import imaplib
@@ -37,12 +35,11 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 
-from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_EXPIRED
 from electrum.plugins import BasePlugin, hook
-from electrum import util
 from electrum.paymentrequest import PaymentRequest
 from electrum.i18n import _
-from electrum_gui.qt.util import text_dialog, EnterButton
+from electrum_gui.qt.util import EnterButton, Buttons, CloseButton
+from electrum_gui.qt.util import OkButton, WindowModalDialog
 
 
 
@@ -166,14 +163,10 @@ class Plugin(BasePlugin):
         return True
 
     def settings_widget(self, window):
-        self.settings_window = window
-        return EnterButton(_('Settings'), self.settings_dialog)
+        return EnterButton(_('Settings'), partial(self.settings_dialog, window))
 
-    def settings_dialog(self, x):
-        from electrum_gui.qt.util import Buttons, CloseButton, OkButton
-
-        d = QDialog(self.settings_window)
-        d.setWindowTitle("Email settings")
+    def settings_dialog(self, window):
+        d = WindowModalDialog(window, _("Email settings"))
         d.setMinimumSize(500, 200)
 
         vbox = QVBoxLayout(d)

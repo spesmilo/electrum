@@ -6,7 +6,8 @@ from PyQt4.QtCore import *
 from electrum.plugins import hook
 from electrum.i18n import _
 from electrum_gui.qt import EnterButton
-from electrum_gui.qt.util import ThreadedButton, Buttons, CancelButton, OkButton
+from electrum_gui.qt.util import ThreadedButton, Buttons, CancelButton
+from electrum_gui.qt.util import WindowModalDialog, OkButton
 
 from labels import LabelsPlugin
 
@@ -25,25 +26,23 @@ class Plugin(LabelsPlugin):
                            partial(self.settings_dialog, window))
 
     def settings_dialog(self, window):
-        d = QDialog(window)
+        wallet = window.parent().wallet
+        d = WindowModalDialog(window, _("Label Settings"))
         vbox = QVBoxLayout(d)
         layout = QGridLayout()
         vbox.addLayout(layout)
         layout.addWidget(QLabel("Label sync options: "), 2, 0)
         self.upload = ThreadedButton("Force upload",
-                                     partial(self.push_thread, window.wallet),
+                                     partial(self.push_thread, wallet),
                                      self.done_processing)
         layout.addWidget(self.upload, 2, 1)
         self.download = ThreadedButton("Force download",
-                                       partial(self.pull_thread, window.wallet, True),
+                                       partial(self.pull_thread, wallet, True),
                                        self.done_processing)
         layout.addWidget(self.download, 2, 2)
         self.accept = OkButton(d, _("Done"))
         vbox.addLayout(Buttons(CancelButton(d), self.accept))
-        if d.exec_():
-            return True
-        else:
-            return False
+        return bool(d.exec_())
 
     def on_pulled(self, wallet):
         self.obj.emit(SIGNAL('labels_changed'), wallet)

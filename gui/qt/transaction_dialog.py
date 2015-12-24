@@ -38,7 +38,7 @@ def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
     dialogs.append(d)
     d.show()
 
-class TxDialog(QDialog):
+class TxDialog(QDialog, MessageBoxMixin):
 
     def __init__(self, tx, parent, desc, prompt_if_unsaved):
         '''Transactions in the wallet will show their description.
@@ -54,7 +54,7 @@ class TxDialog(QDialog):
         self.desc = desc
 
         QDialog.__init__(self)
-        self.setMinimumWidth(600)
+        self.setMinimumWidth(660)
         self.setWindowTitle(_("Transaction"))
 
         vbox = QVBoxLayout()
@@ -62,7 +62,7 @@ class TxDialog(QDialog):
 
         vbox.addWidget(QLabel(_("Transaction ID:")))
         self.tx_hash_e  = ButtonsLineEdit()
-        qr_show = lambda: self.parent.show_qrcode(str(self.tx_hash_e.text()), 'Transaction ID')
+        qr_show = lambda: self.parent.show_qrcode(str(self.tx_hash_e.text()), 'Transaction ID', parent=self)
         self.tx_hash_e.addButton(":icons/qrcode.png", qr_show, _("Show as QR code"))
         self.tx_hash_e.setReadOnly(True)
         vbox.addWidget(self.tx_hash_e)
@@ -122,10 +122,7 @@ class TxDialog(QDialog):
 
     def closeEvent(self, event):
         if (self.prompt_if_unsaved and not self.saved and not self.broadcast
-            and QMessageBox.question(
-                self, _('Warning'),
-                _('This transaction is not saved. Close anyway?'),
-                QMessageBox.Yes | QMessageBox.No) == QMessageBox.No):
+            and not self.question(_('This transaction is not saved. Close anyway?'), title=_("Warning"))):
             event.ignore()
         else:
             event.accept()
@@ -135,7 +132,7 @@ class TxDialog(QDialog):
         text = self.tx.raw.decode('hex')
         text = base_encode(text, base=43)
         try:
-            self.parent.show_qrcode(text, 'Transaction')
+            self.parent.show_qrcode(text, 'Transaction', parent=self)
         except Exception as e:
             self.show_message(str(e))
 
@@ -173,7 +170,7 @@ class TxDialog(QDialog):
             status = _("Signed")
 
             if tx_hash in self.wallet.transactions.keys():
-                desc, is_default = self.wallet.get_label(tx_hash)
+                desc = self.wallet.get_label(tx_hash)
                 conf, timestamp = self.wallet.get_confirmations(tx_hash)
                 if timestamp:
                     time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
@@ -249,6 +246,9 @@ class TxDialog(QDialog):
                 return chg if self.wallet.is_change(addr) else rec
             return ext
 
+        def format_amount(amt):
+            return self.parent.format_amount(amt, whitespaces = True)
+
         i_text = QTextEdit()
         i_text.setFont(QFont(MONOSPACE_FONT))
         i_text.setReadOnly(True)
@@ -270,6 +270,8 @@ class TxDialog(QDialog):
                 if addr is None:
                     addr = _('unknown')
                 cursor.insertText(addr, text_format(addr))
+                if x.get('value'):
+                    cursor.insertText(format_amount(x['value']), ext)
             cursor.insertBlock()
 
         vbox.addWidget(i_text)
@@ -283,11 +285,6 @@ class TxDialog(QDialog):
             cursor.insertText(addr, text_format(addr))
             if v is not None:
                 cursor.insertText('\t', ext)
-                cursor.insertText(self.parent.format_amount(v, whitespaces = True), ext)
+                cursor.insertText(format_amount(v), ext)
             cursor.insertBlock()
         vbox.addWidget(o_text)
-
-
-
-    def show_message(self, msg):
-        QMessageBox.information(self, _('Message'), msg, _('OK'))

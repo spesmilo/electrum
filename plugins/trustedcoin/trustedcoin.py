@@ -16,7 +16,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-from threading import Thread
 import socket
 import os
 import re
@@ -270,18 +269,6 @@ def make_billing_address(wallet, num):
     address = public_key_to_bc_address( cK )
     return address
 
-def need_server(wallet, tx):
-    from electrum.account import BIP32_Account
-    # Detect if the server is needed
-    long_id, short_id = wallet.get_user_id()
-    xpub3 = wallet.master_public_keys['x3/']
-    for x in tx.inputs_to_sign():
-        if x[0:2] == 'ff':
-            xpub, sequence = BIP32_Account.parse_xpubkey(x)
-            if xpub == xpub3:
-                return True
-    return False
-
 
 class TrustedCoinPlugin(BasePlugin):
 
@@ -318,8 +305,8 @@ class TrustedCoinPlugin(BasePlugin):
             return
 
         password = window.password_dialog()
-        wallet.storage.put('seed_version', wallet.seed_version, True)
-        wallet.storage.put('use_encryption', password is not None, True)
+        wallet.storage.put('seed_version', wallet.seed_version)
+        wallet.storage.put('use_encryption', password is not None)
 
         words = seed.split()
         n = len(words)/2

@@ -73,7 +73,9 @@ class InstallWizard(Widget):
     def is_any(self, seed_e):
         text = self.get_seed_text(seed_e)
         return (Wallet.is_seed(text) or
-                Wallet.is_mpk(text) or
+                Wallet.is_old_mpk(text) or
+                Wallet.is_xpub(text) or
+                Wallet.is_xprv(text) or
                 Wallet.is_address(text) or
                 Wallet.is_private_key(text))
 
@@ -129,8 +131,8 @@ class InstallWizard(Widget):
         if Wallet.is_seed(seed):
             return self.password_dialog(wallet=wallet, mode='restore',
                                         seed=seed)
-        elif Wallet.is_mpk(seed):
-            wallet = Wallet.from_mpk(seed, self.storage)
+        elif Wallet.is_xpub(seed):
+            wallet = Wallet.from_xpub(seed, self.storage)
         elif Wallet.is_address(seed):
             wallet = Wallet.from_address(seed, self.storage)
         elif Wallet.is_private_key(seed):
@@ -257,18 +259,19 @@ class InstallWizard(Widget):
                 new_password = None
 
             if mode == 'restore':
-                wallet = Wallet.from_seed(seed, self.storage)
-                password = (unicode(ti_password.text)
-                            if wallet and wallet.use_encryption else
-                            None)
+                password = unicode(ti_password.text)
+                           # if wallet and wallet.use_encryption else
+                           # None)
+                if not password:
+                    password = None
+                wallet = Wallet.from_text(seed, password, self.storage)
 
                 def on_complete(*l):
-                    wallet.create_accounts(new_password)
                     self.load_network(wallet, mode='restore')
                     _dlg.close()
 
-                self.waiting_dialog(lambda: wallet.add_seed(seed, new_password),
-                                    msg=_("saving seed"),
+                self.waiting_dialog(wallet.synchronize,
+                                    msg=_("generating addresses"),
                                     on_complete=on_complete)
                 return
 

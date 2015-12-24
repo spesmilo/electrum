@@ -1,4 +1,23 @@
+#!/usr/bin/env python
+#
+# Electrum - Lightweight Bitcoin Client
+# Copyright (C) 2015 Thomas Voegtlin
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from functools import partial
+from threading import Thread
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -10,7 +29,19 @@ from electrum_gui.qt.main_window import StatusBarButton
 from electrum.i18n import _
 from electrum.plugins import hook
 
-from trustedcoin import TrustedCoinPlugin
+from trustedcoin import TrustedCoinPlugin, Wallet_2fa
+
+def need_server(wallet, tx):
+    from electrum.account import BIP32_Account
+    # Detect if the server is needed
+    long_id, short_id = wallet.get_user_id()
+    xpub3 = wallet.master_public_keys['x3/']
+    for x in tx.inputs_to_sign():
+        if x[0:2] == 'ff':
+            xpub, sequence = BIP32_Account.parse_xpubkey(x)
+            if xpub == xpub3:
+                return True
+    return False
 
 class Plugin(TrustedCoinPlugin):
 
@@ -27,8 +58,7 @@ class Plugin(TrustedCoinPlugin):
             t.start()
 
     def auth_dialog(self, window):
-        d = QDialog(window)
-        d.setModal(1)
+        d = WindowModalDialog(window, _("Authorization"))
         vbox = QVBoxLayout(d)
         pw = AmountEdit(None, is_int = True)
         msg = _('Please enter your Google Authenticator code')
@@ -55,16 +85,18 @@ class Plugin(TrustedCoinPlugin):
                 self.print_error("twofactor: xpub3 not needed")
             window.wallet.auth_code = auth_code
 
+    def waiting_dialog(self, window, on_success=None):
+        task = partial(self.request_billing_info, window.wallet)
+        return WaitingDialog(window, 'Getting billing information...', task,
+                             on_success=on_success)
+
     @hook
     def abort_send(self, window):
         wallet = window.wallet
         if type(wallet) is Wallet_2fa and not wallet.can_sign_without_server():
             if wallet.billing_info is None:
                 # request billing info before forming the transaction
-                task = partial(self.request_billing_info, wallet)
-                waiting_dialog = WaitingDialog(window, 'please wait...', task)
-                waiting_dialog.start()
-                waiting_dialog.wait()
+                waiting_dialog(self, window).wait()
                 if wallet.billing_info is None:
                     window.show_message('Could not contact server')
                     return True
@@ -72,9 +104,8 @@ class Plugin(TrustedCoinPlugin):
 
 
     def settings_dialog(self, window):
-        task = partial(self.request_billing_info, window.wallet)
-        self.waiting_dialog = WaitingDialog(window, 'please wait...', task, partial(self.show_settings_dialog, window))
-        self.waiting_dialog.start()
+        on_success = partial(self.show_settings_dialog, window)
+        self.waiting_dialog(window, on_success)
 
     def show_settings_dialog(self, window, success):
         if not success:
@@ -82,8 +113,7 @@ class Plugin(TrustedCoinPlugin):
             return
 
         wallet = window.wallet
-        d = QDialog(window)
-        d.setWindowTitle("TrustedCoin Information")
+        d = WindowModalDialog(window, _("TrustedCoin Information"))
         d.setMinimumSize(500, 200)
         vbox = QVBoxLayout(d)
         hbox = QHBoxLayout()
@@ -238,7 +268,5 @@ class Plugin(TrustedCoinPlugin):
                 server.auth(_id, otp)
                 return True
             except:
-                QMessageBox.information(window, _('Message'), _('Incorrect password'), _('OK'))
+                window.show_message(_('Incorrect password'))
                 pw.setText('')
-
-

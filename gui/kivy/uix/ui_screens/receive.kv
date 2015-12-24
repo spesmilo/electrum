@@ -42,7 +42,8 @@ ReceiveScreen:
             size_hint: 1, None
             height: '48dp'
             opacity: 0.5 if qr.shaded else 1
-            text: s.address
+            text: _('Bitcoin Address') + ': ' + s.address
+            text_size: self.width, None
 
         SendReceiveBlueBottom:
             id: blue_bottom
@@ -51,13 +52,15 @@ ReceiveScreen:
             BoxLayout:
                 size_hint: 1, None
                 height: blue_bottom.item_height
+                spacing: '5dp'
                 Image:
                     source: 'atlas://gui/kivy/theming/light/globe'
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
-                AmountButton:
+                BlueButton:
                     id: amount_label
+                    default_text: 'Amount'
                     text: s.amount if s.amount else 'Amount'
                     on_release: app.amount_dialog(s, False)
             CardSeparator:
@@ -74,12 +77,10 @@ ReceiveScreen:
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
-                TextInputBlue:
-                    id: message_input
-                    hint_text: 'Description'
-                    text: s.message
-                    on_text_validate: s.message = self.text
-
+                BlueButton:
+                    id: description
+                    text: s.message if s.message else _('Description')
+                    on_release: app.description_dialog(s)
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
@@ -89,9 +90,14 @@ ReceiveScreen:
                 height: '48dp'
                 on_release: s.parent.do_copy()
             Button:
-                text: _('Clear')
+                text: _('Save')
                 size_hint: 1, None
                 height: '48dp'
-                on_release: s.parent.do_clear()
-        Widget:
-            size_hint: 1, 0.3
+                on_release: s.parent.do_save()
+            Button:
+                text: _('New')
+                size_hint: 1, None
+                height: '48dp'
+                on_release: s.parent.do_new()
+        #Widget:
+        #    size_hint: 1, 0.3

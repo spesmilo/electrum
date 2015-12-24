@@ -64,7 +64,7 @@ class OpenFileEventFilter(QObject):
 
 
 
-class ElectrumGui:
+class ElectrumGui(MessageBoxMixin):
 
     def __init__(self, config, network, plugins):
         set_language(config.get('language'))
@@ -134,7 +134,7 @@ class ElectrumGui:
         try:
             storage = WalletStorage(filename)
         except Exception as e:
-            QMessageBox.information(None, _('Error'), str(e), _('OK'))
+            self.show_error(str(e))
             return
         if not storage.file_exists:
             recent = self.config.get('recently_open', [])
@@ -147,7 +147,7 @@ class ElectrumGui:
                 wallet = Wallet(storage)
             except BaseException as e:
                 traceback.print_exc(file=sys.stdout)
-                QMessageBox.warning(None, _('Warning'), str(e), _('OK'))
+                self.show_warning(str(e))
                 return
             action = wallet.get_action()
         # run wizard
@@ -161,32 +161,6 @@ class ElectrumGui:
             wallet.start_threads(self.network)
 
         return wallet
-
-    def get_wallet_folder(self):
-        #return os.path.dirname(os.path.abspath(self.wallet.storage.path if self.wallet else self.wallet.storage.path))
-        return os.path.dirname(os.path.abspath(self.config.get_wallet_path()))
-
-    def new_wallet(self):
-        wallet_folder = self.get_wallet_folder()
-        i = 1
-        while True:
-            filename = "wallet_%d"%i
-            if filename in os.listdir(wallet_folder):
-                i += 1
-            else:
-                break
-        filename = line_dialog(None, _('New Wallet'), _('Enter file name') + ':', _('OK'), filename)
-        if not filename:
-            return
-        full_path = os.path.join(wallet_folder, filename)
-        storage = WalletStorage(full_path)
-        if storage.file_exists:
-            QMessageBox.critical(None, "Error", _("File exists"))
-            return
-        wizard = InstallWizard(self.app, self.config, self.network, storage)
-        wallet = wizard.run('new')
-        if wallet:
-            self.new_window(full_path)
 
     def new_window(self, path, uri=None):
         # Use a signal as can be called from daemon thread
@@ -244,6 +218,9 @@ class ElectrumGui:
 
         # main loop
         self.app.exec_()
+
+        # Shut down the timer cleanly
+        self.timer.stop()
 
         # clipboard persistence. see http://www.mail-archive.com/pyqt@riverbankcomputing.com/msg17328.html
         event = QtCore.QEvent(QtCore.QEvent.Clipboard)

@@ -16,30 +16,21 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import sys, time, datetime, re, threading
-import os.path, json, ast, traceback
-
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 from electrum.i18n import _
-from electrum.util import print_error, print_msg
 from electrum import DEFAULT_PORTS
 from electrum.network import serialize_server, deserialize_server
 
 from util import *
 
-#protocol_names = ['TCP', 'HTTP', 'SSL', 'HTTPS']
-#protocol_letters = 'thsg'
 protocol_names = ['TCP', 'SSL']
 protocol_letters = 'ts'
 
-class NetworkDialog(QDialog):
+class NetworkDialog(WindowModalDialog):
     def __init__(self, network, config, parent):
-
-        QDialog.__init__(self,parent)
-        self.setModal(1)
-        self.setWindowTitle(_('Network'))
+        WindowModalDialog.__init__(self, parent, _('Network'))
         self.setMinimumSize(375, 20)
 
         self.network = network

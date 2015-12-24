@@ -107,9 +107,74 @@ def init_gui(config, network, plugins):
     return gui
 
 
+def run_non_RPC(config):
+    cmdname = config.get('cmd')
 
-def init_cmdline(config):
+    storage = WalletStorage(config.get_wallet_path())
+    if storage.file_exists:
+        sys.exit("Error: Remove the existing wallet first!")
 
+    def password_dialog():
+        return prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
+
+    if cmdname == 'restore':
+        text = config.get('text')
+        password = password_dialog() if Wallet.is_seed(text) or Wallet.is_xprv(text) or Wallet.is_private_key(text) else None
+        try:
+            wallet = Wallet.from_text(text, password, storage)
+        except BaseException as e:
+            sys.exit(str(e))
+        if not config.get('offline'):
+            network = Network(config)
+            network.start()
+            wallet.start_threads(network)
+            print_msg("Recovering wallet...")
+            wallet.synchronize()
+            wallet.wait_until_synchronized()
+            msg = "Recovery successful" if wallet.is_found() else "Found no history for this wallet"
+        else:
+            msg = "This wallet was restored offline. It may contain more addresses than displayed."
+        print_msg(msg)
+
+    elif cmdname == 'create':
+        password = password_dialog()
+        wallet = Wallet(storage)
+        seed = wallet.make_seed()
+        wallet.add_seed(seed, password)
+        wallet.create_master_keys(password)
+        wallet.create_main_account(password)
+        wallet.synchronize()
+        print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
+        print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
+
+    elif cmdname == 'deseed':
+        if not wallet.seed:
+            print_msg("Error: This wallet has no seed")
+        else:
+            ns = wallet.storage.path + '.seedless'
+            print_msg("Warning: you are going to create a seedless wallet'\nIt will be saved in '%s'" % ns)
+            if raw_input("Are you sure you want to continue? (y/n) ") in ['y', 'Y', 'yes']:
+                wallet.storage.path = ns
+                wallet.seed = ''
+                wallet.storage.put('seed', '')
+                wallet.use_encryption = False
+                wallet.storage.put('use_encryption', wallet.use_encryption)
+                for k in wallet.imported_keys.keys():
+                    wallet.imported_keys[k] = ''
+                wallet.storage.put('imported_keys', wallet.imported_keys)
+                print_msg("Done.")
+            else:
+                print_msg("Action canceled.")
+        wallet.storage.write()
+        sys.exit(0)
+
+    wallet.storage.write()
+    print_msg("Wallet saved in '%s'" % wallet.storage.path)
+    sys.exit(0)
+
+
+def init_cmdline(config_options):
+    config = SimpleConfig(config_options)
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
 
@@ -130,56 +195,10 @@ def init_cmdline(config):
     # instanciate wallet for command-line
     storage = WalletStorage(config.get_wallet_path())
 
-    if cmd.name in ['create', 'restore']:
-        if storage.file_exists:
-            sys.exit("Error: Remove the existing wallet first!")
-
-        def password_dialog():
-            return prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
-
-        if cmd.name == 'restore':
-            text = config.get('text')
-            password = password_dialog() if Wallet.is_seed(text) or Wallet.is_xprv(text) or Wallet.is_private_key(text) else None
-            try:
-                wallet = Wallet.from_text(text, password, storage)
-            except BaseException as e:
-                sys.exit(str(e))
-            if not config.get('offline'):
-                network = Network(config)
-                network.start()
-                wallet.start_threads(network)
-                print_msg("Recovering wallet...")
-                wallet.synchronize()
-                wallet.wait_until_synchronized()
-                msg = "Recovery successful" if wallet.is_found() else "Found no history for this wallet"
-            else:
-                msg = "This wallet was restored offline. It may contain more addresses than displayed."
-            print_msg(msg)
-
-        else:
-            password = password_dialog()
-            wallet = Wallet(storage)
-            seed = wallet.make_seed()
-            wallet.add_seed(seed, password)
-            wallet.create_master_keys(password)
-            wallet.create_main_account(password)
-            wallet.synchronize()
-            print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
-            print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
-
-        print_msg("Wallet saved in '%s'" % wallet.storage.path)
-        sys.exit(0)
-
     if cmd.requires_wallet and not storage.file_exists:
         print_msg("Error: Wallet file not found.")
         print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
         sys.exit(0)
-
-    # create wallet instance
-    wallet = Wallet(storage) if cmd.requires_wallet else None
-
-    # notify plugins
-    always_hook('cmdline_load_wallet', wallet)
 
     # important warning
     if cmd.name in ['getprivatekeys']:
@@ -188,7 +207,7 @@ def init_cmdline(config):
         print_stderr("In particular, DO NOT use 'redeem private key' services proposed by third parties.")
 
     # commands needing password
-    if cmd.requires_password and wallet.use_encryption:
+    if cmd.requires_password and storage.get('use_encryption'):
         if config.get('password'):
             password = config.get('password')
         else:
@@ -196,55 +215,49 @@ def init_cmdline(config):
             if not password:
                 print_msg("Error: Password required")
                 sys.exit(1)
-            # check password
-            try:
-                seed = wallet.check_password(password)
-            except InvalidPassword:
-                print_msg("Error: This password does not decode this wallet.")
-                sys.exit(1)
     else:
         password = None
 
-    # run the command
-    if cmd.name == 'deseed':
-        if not wallet.seed:
-            print_msg("Error: This wallet has no seed")
-        else:
-            ns = wallet.storage.path + '.seedless'
-            print_msg("Warning: you are going to create a seedless wallet'\nIt will be saved in '%s'" % ns)
-            if raw_input("Are you sure you want to continue? (y/n) ") in ['y', 'Y', 'yes']:
-                wallet.storage.path = ns
-                wallet.seed = ''
-                wallet.storage.put('seed', '', True)
-                wallet.use_encryption = False
-                wallet.storage.put('use_encryption', wallet.use_encryption, True)
-                for k in wallet.imported_keys.keys():
-                    wallet.imported_keys[k] = ''
-                wallet.storage.put('imported_keys', wallet.imported_keys, True)
-                print_msg("Done.")
-            else:
-                print_msg("Action canceled.")
-        sys.exit(0)
+    config_options['password'] = password
 
-    elif cmd.name == 'password':
+    if cmd.name == 'password':
         new_password = prompt_password('New password:')
-        wallet.update_password(password, new_password)
-        sys.exit(0)
+        config_options['new_password'] = new_password
 
-    return cmd, password, wallet
+    return cmd, password
 
 
-def run_offline_command(config, cmd, wallet, password):
+def run_offline_command(config, config_options):
+    cmdname = config.get('cmd')
+    cmd = known_commands[cmdname]
+    storage = WalletStorage(config.get_wallet_path())
+    wallet = Wallet(storage) if cmd.requires_wallet else None
+    # check password
+    if cmd.requires_password and storage.get('use_encryption'):
+        password = config_options.get('password')
+        try:
+            seed = wallet.check_password(password)
+        except InvalidPassword:
+            print_msg("Error: This password does not decode this wallet.")
+            sys.exit(1)
+    if cmd.requires_network:
+        print_stderr("Warning: running command offline")
+    # notify plugins
+    always_hook('cmdline_load_wallet', wallet)
     # arguments passed to function
     args = map(lambda x: config.get(x), cmd.params)
     # decode json arguments
     args = map(json_decode, args)
     # options
     args += map(lambda x: config.get(x), cmd.options)
-    cmd_runner = Commands(config, wallet, None)
-    cmd_runner.password = password
+    cmd_runner = Commands(config, wallet, None,
+                          password=config_options.get('password'),
+                          new_password=config_options.get('new_password'))
     func = getattr(cmd_runner, cmd.name)
     result = func(*args)
+    # save wallet
+    if wallet:
+        wallet.storage.write()
     return result
 
 
@@ -308,80 +321,84 @@ if __name__ == '__main__':
         config_options['url'] = uri
 
     config = SimpleConfig(config_options)
-    cmd_name = config.get('cmd')
+    cmdname = config.get('cmd')
 
     # initialize plugins.
-    gui_name = config.get('gui', 'qt') if cmd_name == 'gui' else 'cmdline'
+    gui_name = config.get('gui', 'qt') if cmdname == 'gui' else 'cmdline'
     plugins = Plugins(config, is_bundle or is_local or is_android, gui_name)
 
-    # run command offline
-    if cmd_name not in ['gui', 'daemon']:
-        cmd, password, wallet = init_cmdline(config)
-        if not cmd.requires_network or config.get('offline'):
-            result = run_offline_command(config, cmd, wallet, password)
-            print_msg(json_encode(result))
-            sys.exit(0)
-        else:
-            config_options['password'] = password
+    # run non-RPC commands separately
+    if cmdname in ['create', 'restore', 'deseed']:
+        run_non_RPC(config)
+        sys.exit(0)
 
+    # check if a daemon is running
     server = get_daemon(config)
 
-    # daemon is running
-    if server is not None:
-        cmdname = config_options.get('cmd')
-        if cmdname == 'daemon':
-            result = server.daemon(config_options)
-        elif cmdname == 'gui':
+    if cmdname == 'gui':
+        if server is not None:
             result = server.gui(config_options)
         else:
-            result = server.run_cmdline(config_options)
-        if type(result) in [str, unicode]:
-            print_msg(result)
-        elif type(result) is dict and result.get('error'):
-            print_stderr(result.get('error'))
-        elif result is not None:
-            print_msg(json_encode(result))
-        sys.exit(0)
-
-    # daemon is not running
-    if cmd_name == 'gui':
-        if not config.get('offline'):
-            network = Network(config)
-            network.start()
-            plugins.start()
-        else:
-            network = None
-        gui = init_gui(config, network, plugins)
-        daemon = Daemon(config, network, gui)
-        daemon.start()
-        gui.main()
-        sys.exit(0)
-
-    elif cmd_name == 'daemon':
-        subcommand = config.get('subcommand')
-        if subcommand in ['status', 'stop']:
-            print_msg("Daemon not running")
-            sys.exit(1)
-        elif subcommand == 'start':
-            p = os.fork()
-            if p == 0:
+            if not config.get('offline'):
                 network = Network(config)
                 network.start()
                 plugins.start()
-                daemon = Daemon(config, network)
-                if config.get('websocket_server'):
-                    from electrum import websockets
-                    websockets.WebSocketServer(config, network).start()
-                if config.get('requests_dir'):
-                    util.check_www_dir(config.get('requests_dir'))
-                daemon.start()
-                daemon.join()
             else:
-                print_stderr("starting daemon (PID %d)"%p)
-                sys.exit(0)
+                network = None
+            gui = init_gui(config, network, plugins)
+            daemon = Daemon(config, network, gui)
+            daemon.start()
+            gui.main()
+            sys.exit(0)
+
+    elif cmdname == 'daemon':
+        if server is not None:
+            result = server.daemon(config_options)
         else:
-            print_msg("syntax: electrum daemon <start|status|stop>")
-            sys.exit(1)
+            subcommand = config.get('subcommand')
+            if subcommand in ['status', 'stop']:
+                print_msg("Daemon not running")
+                sys.exit(1)
+            elif subcommand == 'start':
+                p = os.fork()
+                if p == 0:
+                    network = Network(config)
+                    network.start()
+                    plugins.start()
+                    daemon = Daemon(config, network)
+                    if config.get('websocket_server'):
+                        from electrum import websockets
+                        websockets.WebSocketServer(config, network).start()
+                    if config.get('requests_dir'):
+                        util.check_www_dir(config.get('requests_dir'))
+                    daemon.start()
+                    daemon.join()
+                    sys.exit(0)
+                else:
+                    print_stderr("starting daemon (PID %d)"%p)
+                    sys.exit(0)
+            else:
+                print_msg("syntax: electrum daemon <start|status|stop>")
+                sys.exit(1)
+
     else:
-        print_msg("Network daemon is not running. Try 'electrum daemon start'\nIf you want to run this command offline, use the -o flag.")
-        sys.exit(1)
+        # command line
+        init_cmdline(config_options)
+        if server is not None:
+            result = server.run_cmdline(config_options)
+        else:
+            cmd = known_commands[cmdname]
+            if cmd.requires_network:
+                print_msg("Network daemon is not running. Try 'electrum daemon start'")
+                sys.exit(1)
+            else:
+                result = run_offline_command(config, config_options)
+
+    # print result
+    if type(result) in [str, unicode]:
+        print_msg(result)
+    elif type(result) is dict and result.get('error'):
+        print_stderr(result.get('error'))
+    elif result is not None:
+        print_msg(json_encode(result))
+    sys.exit(0)

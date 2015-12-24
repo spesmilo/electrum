@@ -1185,7 +1185,7 @@ class ElectrumWindow:
                 time_str = 'pending'
                 conf_icon = Gtk.STOCK_EXECUTE
 
-            label, is_default_label = self.wallet.get_label(tx_hash)
+            label = self.wallet.get_label(tx_hash)
             tooltip = tx_hash + "\n%d confirmations"%conf if tx_hash else ''
             details = self.get_tx_details(tx_hash)
 
@@ -1300,7 +1300,7 @@ class ElectrumGui():
             gap = self.config.get('gap_limit', 5)
             if gap != 5:
                 wallet.gap_limit = gap
-                wallet.storage.put('gap_limit', gap, True)
+                wallet.storage.put('gap_limit', gap)
 
             if action == 'create':
                 seed = wallet.make_seed()

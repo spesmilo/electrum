@@ -10,6 +10,8 @@ import urllib
 import threading
 from i18n import _
 
+base_units = {'BTC':8, 'mBTC':5, 'uBTC':2}
+
 def normalize_version(v):
     return [int(x) for x in re.sub(r'(\.0+)*$','', v).split(".")]
 
@@ -147,20 +149,20 @@ def json_encode(obj):
 
 def json_decode(x):
     try:
-        return json.loads(x)
+        return json.loads(x, parse_float=decimal.Decimal)
     except:
         return x
 
 # decorator that prints execution time
 def profiler(func):
-    def do_profile(func, args):
+    def do_profile(func, args, kw_args):
         n = func.func_name
         t0 = time.time()
-        o = apply(func, args)
+        o = func(*args, **kw_args)
         t = time.time() - t0
         print_error("[profiler]", n, "%.4f"%t)
         return o
-    return lambda *args: do_profile(func, args)
+    return lambda *args, **kw_args: do_profile(func, args, kw_args)
 
 
 
@@ -317,7 +319,7 @@ def block_explorer_URL(config, kind, item):
 #_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
 #urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
-def parse_URI(uri):
+def parse_URI(uri, on_pr=None):
     import bitcoin
     from bitcoin import COIN
 
@@ -363,6 +365,22 @@ def parse_URI(uri):
         out['exp'] = int(out['exp'])
     if 'sig' in out:
         out['sig'] = bitcoin.base_decode(out['sig'], None, base=58).encode('hex')
+
+    r = out.get('r')
+    sig = out.get('sig')
+    name = out.get('name')
+    if r or (name and sig):
+        def get_payment_request_thread():
+            import paymentrequest as pr
+            if name and sig:
+                s = pr.serialize_request(out).SerializeToString()
+                request = pr.PaymentRequest(s)
+            else:
+                request = pr.get_payment_request(r)
+            on_pr(request)
+        t = threading.Thread(target=get_payment_request_thread)
+        t.setDaemon(True)
+        t.start()
 
     return out
 
@@ -561,13 +579,14 @@ class StoreDict(dict):
 
 
 def check_www_dir(rdir):
-    # rewrite index.html every time
     import urllib, urlparse, shutil, os
     if not os.path.exists(rdir):
         os.mkdir(rdir)
     index = os.path.join(rdir, 'index.html')
-    src = os.path.join(os.path.dirname(__file__), 'www', 'index.html')
-    shutil.copy(src, index)
+    if not os.path.exists(index):
+        print_error("copying index.html")
+        src = os.path.join(os.path.dirname(__file__), 'www', 'index.html')
+        shutil.copy(src, index)
     files = [
         "https://code.jquery.com/jquery-1.9.1.min.js",
         "https://raw.githubusercontent.com/davidshimjs/qrcodejs/master/qrcode.js",
