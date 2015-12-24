@@ -42,7 +42,7 @@ from electrum_grs.plugins import BasePlugin, hook
 from electrum_grs import util
 from electrum_grs.paymentrequest import PaymentRequest
 from electrum_grs.i18n import _
-from electrum_gui.qt.util import text_dialog, EnterButton
+from electrum_grs_gui.qt.util import text_dialog, EnterButton
 
 
 
@@ -172,7 +172,7 @@ class Plugin(BasePlugin):
         return EnterButton(_('Settings'), self.settings_dialog)
 
     def settings_dialog(self, x):
-        from electrum_gui.qt.util import Buttons, CloseButton, OkButton
+        from electrum_grs_gui.qt.util import Buttons, CloseButton, OkButton
 
         d = QDialog(self.settings_window)
         d.setWindowTitle("Email settings")
