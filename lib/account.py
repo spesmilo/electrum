@@ -75,6 +75,10 @@ class Account(object):
     def redeem_script(self, for_change, n):
         return None
 
+    def is_used(self, wallet):
+        addresses = self.get_addresses(False)
+        return any(wallet.address_is_old(a, -1) for a in addresses)
+
     def synchronize_sequence(self, wallet, for_change):
         limit = wallet.gap_limit_for_change if for_change else wallet.gap_limit
         while True:
@@ -93,36 +97,6 @@ class Account(object):
         self.synchronize_sequence(wallet, False)
         self.synchronize_sequence(wallet, True)
 
-
-class PendingAccount(Account):
-    def __init__(self, v):
-        self.pending_address = v['address']
-        self.change_pubkeys = []
-        self.receiving_pubkeys = [ v['pubkey'] ]
-
-    def synchronize(self, wallet):
-        return
-
-    def get_addresses(self, is_change):
-        return [] if is_change else [self.pending_address]
-
-    def has_change(self):
-        return False
-
-    def dump(self):
-        return {'pending':True, 'address':self.pending_address, 'pubkey':self.receiving_pubkeys[0] }
-
-    def get_name(self, k):
-        return _('Pending account')
-
-    def get_master_pubkeys(self):
-        return []
-
-    def get_type(self):
-        return _('pending')
-
-    def get_xpubkeys(self, for_change, n):
-        return self.get_pubkeys(for_change, n)
 
 class ImportedAccount(Account):
     def __init__(self, d):
@@ -399,5 +373,3 @@ class Multisig_Account(BIP32_Account):
 
     def get_type(self):
         return _('Multisig %d of %d'%(self.m, len(self.xpub_list)))
-
-

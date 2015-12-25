@@ -167,6 +167,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.console.showMessage(self.network.banner)
 
         self.payment_request = None
+        self.checking_accounts = False
         self.qr_window = None
         self.not_enough_funds = False
         self.pluginsdialog = None
@@ -263,9 +264,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.need_update.set()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         self.notify_transactions()
-        self.update_account_selector()
         # update menus
-        self.new_account_menu.setVisible(self.wallet.can_create_accounts())
+        self.update_new_account_menu()
         self.export_menu.setEnabled(not self.wallet.is_watching_only())
         self.password_menu.setEnabled(self.wallet.can_change_password())
         self.seed_menu.setEnabled(self.wallet.has_seed())
@@ -511,8 +511,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def timer_actions(self):
         if self.need_update.is_set():
-            self.update_wallet()
             self.need_update.clear()
+            self.update_wallet()
         # resolve aliases
         self.payto_e.resolve()
         # update fee
@@ -589,6 +589,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.update_status()
         if self.wallet.up_to_date or not self.network or not self.network.is_connected():
             self.update_tabs()
+        if self.wallet.up_to_date:
+            self.check_next_account()
 
     def update_tabs(self):
         self.history_list.update()
@@ -1489,14 +1491,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         menu.addAction(_("Rename"), lambda: self.edit_account_label(k))
         if self.wallet.seed_version > 4:
             menu.addAction(_("View details"), lambda: self.show_account_details(k))
-        if self.wallet.account_is_pending(k):
-            menu.addAction(_("Delete"), lambda: self.delete_pending_account(k))
         menu.exec_(self.address_list.viewport().mapToGlobal(position))
-
-    def delete_pending_account(self, k):
-        self.wallet.delete_pending_account(k)
-        self.address_list.update()
-        self.update_account_selector()
 
     def create_receive_menu(self, position):
         selected = self.address_list.selectedItems()
@@ -1933,30 +1928,47 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.set_contact(unicode(line2.text()), str(line1.text())):
             self.tabs.setCurrentIndex(4)
 
+    def update_new_account_menu(self):
+        self.new_account_menu.setVisible(self.wallet.can_create_accounts())
+        self.new_account_menu.setEnabled(self.wallet.permit_account_naming())
+        self.update_account_selector()
 
-    @protected
-    def new_account_dialog(self, password):
-        dialog = WindowModalDialog(self, _("New Account"))
+    def new_account_dialog(self):
+        dialog = WindowModalDialog(self, _("New Account Name"))
         vbox = QVBoxLayout()
-        vbox.addWidget(QLabel(_('Account name')+':'))
+        msg = _("Enter a name to give the account.  You will not be "
+                "permitted to create further accounts until the new account "
+                "receives at least one transaction.") + "\n"
+        label = QLabel(msg)
+        label.setWordWrap(True)
+        vbox.addWidget(label)
         e = QLineEdit()
         vbox.addWidget(e)
-        msg = _("Note: Newly created accounts are 'pending' until they receive bitcoins.") + " " \
-            + _("You will need to wait for 2 confirmations until the correct balance is displayed and more addresses are created for that account.")
-        l = QLabel(msg)
-        l.setWordWrap(True)
-        vbox.addWidget(l)
         vbox.addLayout(Buttons(CancelButton(dialog), OkButton(dialog)))
         dialog.setLayout(vbox)
-        r = dialog.exec_()
-        if not r:
-            return
-        name = str(e.text())
-        self.wallet.create_pending_account(name, password)
-        self.address_list.update()
-        self.update_account_selector()
-        self.tabs.setCurrentIndex(3)
+        if dialog.exec_():
+            self.wallet.set_label(self.wallet.last_account_id(), str(e.text()))
+            self.address_list.update()
+            self.tabs.setCurrentIndex(3)
+            self.update_new_account_menu()
 
+    def check_next_account(self):
+        if self.wallet.needs_next_account() and not self.checking_accounts:
+            try:
+                self.checking_accounts = True
+                msg = _("All the accounts in your wallet have received "
+                        "transactions.  Electrum must check whether more "
+                        "accounts exist; one will only be shown if "
+                        "it has been used or you give it a name.")
+                self.show_message(msg, title=_("Check Accounts"))
+                self.create_next_account()
+                self.update_new_account_menu()
+            finally:
+                self.checking_accounts = False
+
+    @protected
+    def create_next_account(self, password):
+        self.wallet.create_next_account(password)
 
     def show_master_public_keys(self):
         dialog = WindowModalDialog(self, "Master Public Keys")
