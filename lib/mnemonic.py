@@ -17,6 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import sys
 import hmac
 import math
 import hashlib
@@ -104,7 +105,10 @@ class Mnemonic(object):
             lang = i18n.language.info().get('language', 'en')
         print_error('language', lang)
         filename = filenames.get(lang[0:2], 'english.txt')
-        path = os.path.join(os.path.dirname(__file__), 'wordlist', filename)
+	if getattr( sys, 'frozen' , None):
+	     path = os.path.join(sys._MEIPASS + "/lib/wordlist", filename)
+	else: 
+             path = os.path.join(os.path.dirname(__file__), 'wordlist', filename)
         s = open(path,'r').read().strip()
         s = unicodedata.normalize('NFKD', s.decode('utf8'))
         lines = s.split('\n')
