@@ -1,0 +1,40 @@
+#:import Decimal decimal.Decimal
+
+
+Popup:
+    id: popup
+    title: _('Transaction')
+    tx_hash: ''
+
+    AnchorLayout:
+        anchor_x: 'center'
+
+        BoxLayout:
+            orientation: 'vertical'
+
+            GridLayout:
+                size_hint: 1, None
+                height: '300dp'
+                cols: 2
+
+                Label:
+                    text: "txid"
+                Label:
+                    text: popup.tx_hash
+                    size_hint_y: None
+                    text_size: self.width, None
+
+            BoxLayout:
+                size_hint: 1, None
+                height: '48dp'
+                Widget:
+                    size_hint: 0.7, None
+                    height: '48dp'
+                Button:
+                    size_hint: 0.3, None
+                    height: '48dp'
+                    text: _('OK')
+                    on_release: popup.dismiss()
+                    
+            Widget:
+                size_hint: 1, None

@@ -174,12 +174,13 @@ class BitMap(object):
 
     # write pixels
     self.bitarray.reverse()
+    rows = []
     for row in self.bitarray:
       for pixel in row:
         c = self.palette[pixel]
-        _bitmap += long24ToString(c)
-      for i in range(line_padding):
-        _bitmap += chr( 0 )
+        rows.append(long24ToString(c))
+      rows.append(chr(0) * line_padding)
+    _bitmap += ''.join(rows)
 
     return _bitmap
 

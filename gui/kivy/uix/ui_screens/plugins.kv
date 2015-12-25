@@ -1,0 +1,21 @@
+Popup:
+    title: _('Plugins')
+    id: popup
+    BoxLayout:
+        orientation: 'vertical'
+
+        GridLayout:
+            size_hint: 1, None
+            cols: 2
+            id: plugins_list
+            on_parent:
+                app.show_plugins(plugins_list)
+        Button:
+            size_hint: 1, None
+            height: '48dp'
+            text: _('Close')
+            on_release: popup.dismiss()
+
+        Widget:
+            size_hint: 1, 0.8
+

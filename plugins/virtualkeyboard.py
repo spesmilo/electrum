@@ -5,17 +5,8 @@ import random
 
 class Plugin(BasePlugin):
 
-    def fullname(self):
-        return 'Virtual Keyboard'
-
-    def description(self):
-        return '%s\n%s' % (_("Add an optional virtual keyboard to the password dialog."), _("Warning: do not use this if it makes you pick a weaker password."))
-
-    @hook
-    def init_qt(self, gui):
-        self.gui = gui
-        self.vkb = None
-        self.vkb_index = 0
+    vkb = None
+    vkb_index = 0
 
     @hook
     def password_dialog(self, pw, grid, pos):
@@ -41,7 +32,7 @@ class Plugin(BasePlugin):
             chars = 'ABCDEFGHIJKLMNOPQRTSUVWXYZ '
         elif i == 2:
             chars = '1234567890!?.,;:/%&()[]{}+-'
-            
+
         n = len(chars)
         s = []
         for i in xrange(n):
@@ -53,7 +44,7 @@ class Plugin(BasePlugin):
 
         def add_target(t):
             return lambda: pw.setText(str(pw.text()) + t)
-            
+
         vbox = QVBoxLayout()
         grid = QGridLayout()
         grid.setSpacing(2)
@@ -67,4 +58,3 @@ class Plugin(BasePlugin):
         vbox.addLayout(grid)
 
         return vbox
-

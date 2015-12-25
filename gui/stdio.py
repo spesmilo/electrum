@@ -2,8 +2,8 @@ from decimal import Decimal
 _ = lambda x:x
 #from i18n import _
 from electrum_grs.wallet import WalletStorage, Wallet
-from electrum_grs.util import format_satoshis, set_verbosity
-from electrum_grs.bitcoin import is_valid
+from electrum_grs.util import format_satoshis, set_verbosity, StoreDict
+from electrum_grs.bitcoin import is_valid, COIN
 from electrum_grs.network import filter_protocol
 import sys, getpass, datetime
 
@@ -12,10 +12,10 @@ import sys, getpass, datetime
 
 class ElectrumGui:
 
-    def __init__(self, config, network):
+    def __init__(self, config, network, plugins):
         self.network = network
         self.config = config
-        storage = WalletStorage(config)
+        storage = WalletStorage(config.get_wallet_path())
         if not storage.file_exists:
             print "Wallet not found. try 'electrum create'"
             exit()
@@ -32,11 +32,10 @@ class ElectrumGui:
 
         self.wallet = Wallet(storage)
         self.wallet.start_threads(network)
-        
+        self.contacts = StoreDict(self.config, 'contacts')
+
         self.wallet.network.register_callback('updated', self.updated)
-        self.wallet.network.register_callback('connected', self.connected)
-        self.wallet.network.register_callback('disconnected', self.disconnected)
-        self.wallet.network.register_callback('disconnecting', self.disconnecting)
+
         self.wallet.network.register_callback('peers', self.peers)
         self.wallet.network.register_callback('banner', self.print_banner)
         self.commands = [_("[h] - displays this help text"), \
@@ -72,15 +71,6 @@ class ElectrumGui:
         for s in l:
             print (s)
 
-    def connected(self):
-        print ("connected")
-
-    def disconnected(self):
-        print ("disconnected")
-
-    def disconnecting(self):
-        print ("disconnecting")
-
     def updated(self):
         s = self.get_balance()
         if s != self.last_balance:
@@ -96,14 +86,14 @@ class ElectrumGui:
         delta = (80 - sum(width) - 4)/3
         format_str = "%"+"%d"%width[0]+"s"+"%"+"%d"%(width[1]+delta)+"s"+"%" \
         + "%d"%(width[2]+delta)+"s"+"%"+"%d"%(width[3]+delta)+"s"
-        b = 0 
+        b = 0
         messages = []
 
-        for item in self.wallet.get_tx_history():
-            tx_hash, confirmations, is_mine, value, fee, balance, timestamp = item
+        for item in self.wallet.get_history():
+            tx_hash, confirmations, value, timestamp, balance = item
             if confirmations:
                 try:
-                    time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
+                    time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
                 except Exception:
                     time_str = "unknown"
             else:
@@ -119,22 +109,25 @@ class ElectrumGui:
         print(self.get_balance())
 
     def get_balance(self):
-        if self.wallet.network.interface and self.wallet.network.interface.is_connected:
+        if self.wallet.network.is_connected():
             if not self.wallet.up_to_date:
                 msg = _( "Synchronizing..." )
-            else: 
-                c, u =  self.wallet.get_balance()
-                msg = _("Balance")+": %f  "%(Decimal( c ) / 100000000)
-                if u: msg += "  [%f unconfirmed]"%(Decimal( u ) / 100000000)
+            else:
+                c, u, x =  self.wallet.get_balance()
+                msg = _("Balance")+": %f  "%(Decimal(c) / COIN)
+                if u:
+                    msg += "  [%f unconfirmed]"%(Decimal(u) / COIN)
+                if x:
+                    msg += "  [%f unmatured]"%(Decimal(x) / COIN)
         else:
                 msg = _( "Not connected" )
-            
+
         return(msg)
 
 
     def print_contacts(self):
-        messages = map(lambda addr: "%30s    %30s       "%(addr, self.wallet.labels.get(addr,"")), self.wallet.addressbook)
-        self.print_list(messages, "%19s  %25s "%("Address", "Label"))
+        messages = map(lambda x: "%20s   %45s "%(x[0], x[1][1]), self.contacts.items())
+        self.print_list(messages, "%19s  %25s "%("Key", "Value"))
 
     def print_addresses(self):
         messages = map(lambda addr: "%30s    %30s       "%(addr, self.wallet.labels.get(addr,"")), self.wallet.addresses())
@@ -165,8 +158,8 @@ class ElectrumGui:
             msg = list[i] if i < len(list) else ""
             print(msg)
 
-           
-    def main(self,url):
+
+    def main(self):
         while self.done == 0: self.main_command()
 
     def do_send(self):
@@ -174,12 +167,12 @@ class ElectrumGui:
             print(_('Invalid Bitcoin address'))
             return
         try:
-            amount = int( Decimal( self.str_amount) * 100000000 )
+            amount = int(Decimal(self.str_amount) * COIN)
         except Exception:
             print(_('Invalid Amount'))
             return
         try:
-            fee = int( Decimal( self.str_fee) * 100000000 )
+            fee = int(Decimal(self.str_fee) * COIN)
         except Exception:
             print(_('Invalid Fee'))
             return
@@ -197,12 +190,12 @@ class ElectrumGui:
             if c == "n": return
 
         try:
-            tx = self.wallet.mktx( [(self.str_recipient, amount)], password, fee)
+            tx = self.wallet.mktx( [("address", self.str_recipient, amount)], password, self.config, fee)
         except Exception as e:
             print(str(e))
             return
-            
-        if self.str_description: 
+
+        if self.str_description:
             self.wallet.labels[tx.hash()] = self.str_description
 
         h = self.wallet.send_tx(tx)
@@ -228,7 +221,7 @@ class ElectrumGui:
 
     def password_dialog(self):
         return getpass.getpass()
-        
+
 
 #   XXX unused
 
@@ -236,17 +229,6 @@ class ElectrumGui:
         #if c == 10:
         #    out = self.run_popup('Address', ["Edit label", "Freeze", "Prioritize"])
         return
-            
+
     def run_contacts_tab(self, c):
         pass
-#        if c == 10 and self.wallet.addressbook:
-#            out = self.run_popup('Adress', ["Copy", "Pay to", "Edit label", "Delete"]).get('button')
-#            address = self.wallet.addressbook[self.pos%len(self.wallet.addressbook)]
-#            if out == "Pay to":
-#                self.tab = 1
-#                self.str_recipient = address 
-#                self.pos = 2
-#            elif out == "Edit label":
-#                s = self.get_string(6 + self.pos, 18)
-#                if s:
-#                    self.wallet.labels[address] = s

@@ -2,15 +2,20 @@ import os, sys, re, json
 import platform
 import shutil
 from datetime import datetime
+from decimal import Decimal
+import traceback
 import urlparse
 import urllib
 import threading
+from i18n import _
+
+def normalize_version(v):
+    return [int(x) for x in re.sub(r'(\.0+)*$','', v).split(".")]
 
 class NotEnoughFunds(Exception): pass
 
 class InvalidPassword(Exception):
     def __str__(self):
-        from i18n import _
         return _("Incorrect password")
 
 class MyEncoder(json.JSONEncoder):
@@ -20,8 +25,27 @@ class MyEncoder(json.JSONEncoder):
             return obj.as_dict()
         return super(MyEncoder, self).default(obj)
 
+class PrintError(object):
+    '''A handy base class'''
+    def diagnostic_name(self):
+        return self.__class__.__name__
 
-class DaemonThread(threading.Thread):
+    def print_error(self, *msg):
+        print_error("[%s]" % self.diagnostic_name(), *msg)
+
+    def print_msg(self, *msg):
+        print_msg("[%s]" % self.diagnostic_name(), *msg)
+
+class ThreadJob(PrintError):
+    """A job that is run periodically from a thread's main loop.  run() is
+    called from that thread's context.
+    """
+
+    def run(self):
+        """Called periodically from the thread"""
+        pass
+
+class DaemonThread(threading.Thread, PrintError):
     """ daemon thread that terminates cleanly """
 
     def __init__(self):
@@ -29,6 +53,28 @@ class DaemonThread(threading.Thread):
         self.parent_thread = threading.currentThread()
         self.running = False
         self.running_lock = threading.Lock()
+        self.job_lock = threading.Lock()
+        self.jobs = []
+
+    def add_jobs(self, jobs):
+        with self.job_lock:
+            self.jobs.extend(jobs)
+
+    def run_jobs(self):
+        # Don't let a throwing job disrupt the thread, future runs of
+        # itself, or other jobs.  This is useful protection against
+        # malformed or malicious server responses
+        with self.job_lock:
+            for job in self.jobs:
+                try:
+                    job.run()
+                except:
+                    traceback.print_exc(file=sys.stderr)
+
+    def remove_jobs(self, jobs):
+        with self.job_lock:
+            for job in jobs:
+                self.jobs.remove(job)
 
     def start(self):
         with self.running_lock:
@@ -42,9 +88,6 @@ class DaemonThread(threading.Thread):
     def stop(self):
         with self.running_lock:
             self.running = False
-
-    def print_error(self, *msg):
-        print_error("[%s]"%self.__class__.__name__, *msg)
 
 
 
@@ -69,13 +112,31 @@ def print_msg(*args):
     sys.stdout.write(" ".join(args) + "\n")
     sys.stdout.flush()
 
-def print_json(obj):
+def json_encode(obj):
     try:
         s = json.dumps(obj, sort_keys = True, indent = 4, cls=MyEncoder)
     except TypeError:
         s = repr(obj)
-    sys.stdout.write(s + "\n")
-    sys.stdout.flush()
+    return s
+
+def json_decode(x):
+    try:
+        return json.loads(x)
+    except:
+        return x
+
+# decorator that prints execution time
+def profiler(func):
+    def do_profile(func, args):
+        n = func.func_name
+        t0 = time.time()
+        o = apply(func, args)
+        t = time.time() - t0
+        print_error("[profiler]", n, "%.4f"%t)
+        return o
+    return lambda *args: do_profile(func, args)
+
+
 
 def user_dir():
     if "HOME" in os.environ:
@@ -85,34 +146,55 @@ def user_dir():
     elif "LOCALAPPDATA" in os.environ:
         return os.path.join(os.environ["LOCALAPPDATA"], "Electrum-grs")
     elif 'ANDROID_DATA' in os.environ:
+        try:
+            import jnius
+            env  = jnius.autoclass('android.os.Environment')
+            _dir =  env.getExternalStorageDirectory().getPath()
+            return _dir + '/electrum-grs/'
+        except ImportError:
+            pass
         return "/sdcard/electrum-grs/"
     else:
         #raise Exception("No home directory found in environment variables.")
         return
 
-
-
+def format_satoshis_plain(x, decimal_point = 8):
+    '''Display a satoshi amount scaled.  Always uses a '.' as a decimal
+    point and has no thousands separator'''
+    scale_factor = pow(10, decimal_point)
+    return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
 
 def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespaces=False):
-    from decimal import Decimal
-    s = Decimal(x)
-    sign, digits, exp = s.as_tuple()
-    digits = map(str, digits)
-    while len(digits) < decimal_point + 1:
-        digits.insert(0,'0')
-    digits.insert(-decimal_point,'.')
-    s = ''.join(digits).rstrip('0')
-    if sign:
-        s = '-' + s
+    from locale import localeconv
+    if x is None:
+        return 'unknown'
+    x = int(x)  # Some callers pass Decimal
+    scale_factor = pow (10, decimal_point)
+    integer_part = "{:n}".format(int(abs(x) / scale_factor))
+    if x < 0:
+        integer_part = '-' + integer_part
     elif is_diff:
-        s = "+" + s
-
-    p = s.find('.')
-    s += "0"*( 1 + num_zeros - ( len(s) - p ))
+        integer_part = '+' + integer_part
+    dp = localeconv()['decimal_point']
+    fract_part = ("{:0" + str(decimal_point) + "}").format(abs(x) % scale_factor)
+    fract_part = fract_part.rstrip('0')
+    if len(fract_part) < num_zeros:
+        fract_part += "0" * (num_zeros - len(fract_part))
+    result = integer_part + dp + fract_part
     if whitespaces:
-        s += " "*( 1 + decimal_point - ( len(s) - p ))
-        s = " "*( 13 - decimal_point - ( p )) + s
-    return s
+        result += " " * (decimal_point - len(fract_part))
+        result = " " * (15 - len(result)) + result
+    return result.decode('utf8')
+
+def timestamp_to_datetime(timestamp):
+    try:
+        return datetime.fromtimestamp(timestamp)
+    except:
+        return None
+
+def format_time(timestamp):
+    date = timestamp_to_datetime(timestamp)
+    return date.isoformat(' ')[:-3] if date else _("Unknown")
 
 
 # Takes a timestamp and returns a string with the approximation of the age
@@ -124,7 +206,12 @@ def age(from_date, since_date = None, target_tz=None, include_seconds=False):
     if since_date is None:
         since_date = datetime.now(target_tz)
 
-    distance_in_time = since_date - from_date
+    td = time_difference(from_date - since_date, include_seconds)
+    return td + " ago" if from_date < since_date else "in " + td
+
+
+def time_difference(distance_in_time, include_seconds):
+    #distance_in_time = since_date - from_date
     distance_in_seconds = int(round(abs(distance_in_time.days * 86400 + distance_in_time.seconds)))
     distance_in_minutes = int(round(distance_in_seconds/60))
 
@@ -132,37 +219,57 @@ def age(from_date, since_date = None, target_tz=None, include_seconds=False):
         if include_seconds:
             for remainder in [5, 10, 20]:
                 if distance_in_seconds < remainder:
-                    return "less than %s seconds ago" % remainder
+                    return "less than %s seconds" % remainder
             if distance_in_seconds < 40:
-                return "half a minute ago"
+                return "half a minute"
             elif distance_in_seconds < 60:
-                return "less than a minute ago"
+                return "less than a minute"
             else:
-                return "1 minute ago"
+                return "1 minute"
         else:
             if distance_in_minutes == 0:
-                return "less than a minute ago"
+                return "less than a minute"
             else:
-                return "1 minute ago"
+                return "1 minute"
     elif distance_in_minutes < 45:
-        return "%s minutes ago" % distance_in_minutes
+        return "%s minutes" % distance_in_minutes
     elif distance_in_minutes < 90:
-        return "about 1 hour ago"
+        return "about 1 hour"
     elif distance_in_minutes < 1440:
-        return "about %d hours ago" % (round(distance_in_minutes / 60.0))
+        return "about %d hours" % (round(distance_in_minutes / 60.0))
     elif distance_in_minutes < 2880:
-        return "1 day ago"
+        return "1 day"
     elif distance_in_minutes < 43220:
-        return "%d days ago" % (round(distance_in_minutes / 1440))
+        return "%d days" % (round(distance_in_minutes / 1440))
     elif distance_in_minutes < 86400:
-        return "about 1 month ago"
+        return "about 1 month"
     elif distance_in_minutes < 525600:
-        return "%d months ago" % (round(distance_in_minutes / 43200))
+        return "%d months" % (round(distance_in_minutes / 43200))
     elif distance_in_minutes < 1051200:
-        return "about 1 year ago"
+        return "about 1 year"
     else:
-        return "over %d years ago" % (round(distance_in_minutes / 525600))
+        return "over %d years" % (round(distance_in_minutes / 525600))
 
+block_explorer_info = {
+    'cryptoID.info': ('https://chainz.cryptoid.info/grs/',
+                        {'tx': 'tx.dws?', 'addr': 'address.dws?'}),
+}
+
+def block_explorer(config):
+    return config.get('block_explorer', 'cryptoID.info')
+
+def block_explorer_tuple(config):
+    return block_explorer_info.get(block_explorer(config))
+
+def block_explorer_URL(config, kind, item):
+    be_tuple = block_explorer_tuple(config)
+    if not be_tuple:
+        return
+    kind_str = be_tuple[1].get(kind)
+    if not kind_str:
+        return
+    url_parts = [be_tuple[0], kind_str, item]
+    return "".join(url_parts)
 
 # URL decode
 #_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
@@ -170,11 +277,11 @@ def age(from_date, since_date = None, target_tz=None, include_seconds=False):
 
 def parse_URI(uri):
     import bitcoin
-    from decimal import Decimal
+    from bitcoin import COIN
 
     if ':' not in uri:
         assert bitcoin.is_address(uri)
-        return uri, None, None, None, None
+        return {'address': uri}
 
     u = urlparse.urlparse(uri)
     assert u.scheme == 'groestlcoin'
@@ -192,28 +299,30 @@ def parse_URI(uri):
         if len(v)!=1:
             raise Exception('Duplicate Key', k)
 
-    amount = label = message = request_url = ''
-    if 'amount' in pq:
-        am = pq['amount'][0]
+    out = {k: v[0] for k, v in pq.items()}
+    if address:
+        assert bitcoin.is_address(address)
+        out['address'] = address
+    if 'amount' in out:
+        am = out['amount']
         m = re.match('([0-9\.]+)X([0-9])', am)
         if m:
             k = int(m.group(2)) - 8
             amount = Decimal(m.group(1)) * pow(  Decimal(10) , k)
         else:
-            amount = Decimal(am) * 100000000
-    if 'message' in pq:
-        message = pq['message'][0].decode('utf8')
-    if 'label' in pq:
-        label = pq['label'][0]
-    if 'r' in pq:
-        request_url = pq['r'][0]
+            amount = Decimal(am) * COIN
+        out['amount'] = int(amount)
+    if 'message' in out:
+        out['message'] = out['message'].decode('utf8')
+        out['memo'] = out['message']
+    if 'time' in out:
+        out['time'] = int(out['time'])
+    if 'exp' in out:
+        out['exp'] = int(out['exp'])
+    if 'sig' in out:
+        out['sig'] = bitcoin.base_decode(out['sig'], None, base=58).encode('hex')
 
-    if request_url != '':
-        return address, amount, label, message, request_url
-
-    assert bitcoin.is_address(address)
-
-    return address, amount, label, message, request_url
+    return out
 
 
 def create_URI(addr, amount, message):
@@ -222,7 +331,7 @@ def create_URI(addr, amount, message):
         return ""
     query = []
     if amount:
-        query.append('amount=%s'%format_satoshis(amount))
+        query.append('amount=%s'%format_satoshis_plain(amount))
     if message:
         if type(message) == unicode:
             message = message.encode('utf8')
@@ -263,7 +372,6 @@ import socket
 import errno
 import json
 import ssl
-import traceback
 import time
 
 class SocketPipe:
@@ -272,14 +380,18 @@ class SocketPipe:
         self.socket = socket
         self.message = ''
         self.set_timeout(0.1)
+        self.recv_time = time.time()
 
     def set_timeout(self, t):
         self.socket.settimeout(t)
 
+    def idle_time(self):
+        return time.time() - self.recv_time
+
     def get(self):
         while True:
             response, self.message = parse_json(self.message)
-            if response:
+            if response is not None:
                 return response
             try:
                 data = self.socket.recv(1024)
@@ -290,10 +402,10 @@ class SocketPipe:
             except socket.error, err:
                 if err.errno == 60:
                     raise timeout
-                elif err.errno in [11, 10035]:
-                    print_error("socket errno", err.errno)
-                    time.sleep(0.1)
-                    continue
+                elif err.errno in [11, 35, 10035]:
+                    print_error("socket errno %d (resource temporarily unavailable)"% err.errno)
+                    time.sleep(0.2)
+                    raise timeout
                 else:
                     print_error("pipe: socket error", err)
                     data = ''
@@ -301,10 +413,10 @@ class SocketPipe:
                 traceback.print_exc(file=sys.stderr)
                 data = ''
 
-            if not data:
-                self.socket.close()
+            if not data:  # Connection closed remotely
                 return None
             self.message += data
+            self.recv_time = time.time()
 
     def send(self, request):
         out = json.dumps(request) + '\n'
@@ -372,3 +484,59 @@ class QueuePipe:
     def send_all(self, requests):
         for request in requests:
             self.send(request)
+
+
+
+class StoreDict(dict):
+
+    def __init__(self, config, name):
+        self.config = config
+        self.path = os.path.join(self.config.path, name)
+        self.load()
+
+    def load(self):
+        try:
+            with open(self.path, 'r') as f:
+                self.update(json.loads(f.read()))
+        except:
+            pass
+
+    def save(self):
+        with open(self.path, 'w') as f:
+            s = json.dumps(self, indent=4, sort_keys=True)
+            r = f.write(s)
+
+    def __setitem__(self, key, value):
+        dict.__setitem__(self, key, value)
+        self.save()
+
+    def pop(self, key):
+        if key in self.keys():
+            dict.pop(self, key)
+            self.save()
+
+
+
+
+def check_www_dir(rdir):
+    # rewrite index.html every time
+    import urllib, urlparse, shutil, os
+    if not os.path.exists(rdir):
+        os.mkdir(rdir)
+    index = os.path.join(rdir, 'index.html')
+    src = os.path.join(os.path.dirname(__file__), 'www', 'index.html')
+    shutil.copy(src, index)
+    files = [
+        "https://code.jquery.com/jquery-1.9.1.min.js",
+        "https://raw.githubusercontent.com/davidshimjs/qrcodejs/master/qrcode.js",
+        "https://code.jquery.com/ui/1.10.3/jquery-ui.js",
+        "https://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css"
+    ]
+    for URL in files:
+        path = urlparse.urlsplit(URL).path
+        filename = os.path.basename(path)
+        path = os.path.join(rdir, filename)
+        if not os.path.exists(path):
+            print_error("downloading ", URL)
+            urllib.urlretrieve(URL, path)
+
