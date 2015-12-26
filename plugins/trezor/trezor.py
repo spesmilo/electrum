@@ -1,23 +1,16 @@
 from binascii import unhexlify
-from struct import pack
 from sys import stderr
-from time import sleep
-import unicodedata
-import threading
-import re
-
 
 import electrum
 from electrum import bitcoin
 
 from electrum.account import BIP32_Account
-from electrum.bitcoin import EncodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160, xpub_from_pubkey
+from electrum.bitcoin import bc_address_to_hash_160, xpub_from_pubkey
 from electrum.i18n import _
-from electrum.plugins import BasePlugin, hook, always_hook, run_hook
-from electrum.transaction import Transaction, deserialize, is_extended_pubkey, x_to_xpub
-from electrum.wallet import BIP32_HD_Wallet
-from electrum.util import print_error, print_msg
-from electrum.wallet import pw_decode, bip32_private_derivation, bip32_root
+from electrum.plugins import BasePlugin, hook
+from electrum.transaction import deserialize, is_extended_pubkey
+from electrum.wallet import BIP32_Hardware_Wallet
+from electrum.util import print_error
 
 try:
     from trezorlib.client import types
@@ -30,9 +23,6 @@ except ImportError:
 
 import trezorlib.ckd_public as ckd_public
 
-
-
-
 def log(msg):
     stderr.write("%s\n" % msg)
     stderr.flush()
@@ -42,161 +32,10 @@ def give_error(message):
     raise Exception(message)
 
 
-class TrezorWallet(BIP32_HD_Wallet):
+class TrezorWallet(BIP32_Hardware_Wallet):
     wallet_type = 'trezor'
     root_derivation = "m/44'/0'"
-
-    def __init__(self, storage):
-        BIP32_HD_Wallet.__init__(self, storage)
-        self.mpk = None
-        self.device_checked = False
-        self.proper_device = False
-        self.force_watching_only = False
-
-    def get_action(self):
-        if not self.accounts:
-            return 'create_accounts'
-
-    def can_import(self):
-        return False
-
-    def can_sign_xpubkey(self, x_pubkey):
-        xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
-        return xpub in self.master_public_keys.values()
-
-    def can_export(self):
-        return False
-
-    def can_create_accounts(self):
-        return True
-
-    def can_change_password(self):
-        return False
-
-    def is_watching_only(self):
-        return self.force_watching_only
-
-    def get_client(self):
-        return self.plugin.get_client()
-
-    def address_id(self, address):
-        account_id, (change, address_index) = self.get_address_index(address)
-        return "44'/0'/%s'/%d/%d" % (account_id, change, address_index)
-
-    def mnemonic_to_seed(self, mnemonic, passphrase):
-        # trezor uses bip39
-        import pbkdf2, hashlib, hmac
-        PBKDF2_ROUNDS = 2048
-        mnemonic = unicodedata.normalize('NFKD', ' '.join(mnemonic.split()))
-        passphrase = unicodedata.normalize('NFKD', passphrase)
-        return pbkdf2.PBKDF2(mnemonic, 'mnemonic' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
-
-    def derive_xkeys(self, root, derivation, password):
-        x = self.master_private_keys.get(root)
-        if x:
-            root_xprv = pw_decode(x, password)
-            xprv, xpub = bip32_private_derivation(root_xprv, root, derivation)
-            return xpub, xprv
-        else:
-            derivation = derivation.replace(self.root_name,"44'/0'/")
-            xpub = self.get_public_key(derivation)
-            return xpub, None
-
-    def get_public_key(self, bip32_path):
-        address_n = self.plugin.get_client().expand_path(bip32_path)
-        node = self.plugin.get_client().get_public_node(address_n).node
-        xpub = "0488B21E".decode('hex') + chr(node.depth) + self.i4b(node.fingerprint) + self.i4b(node.child_num) + node.chain_code + node.public_key
-        return EncodeBase58Check(xpub)
-
-    def get_master_public_key(self):
-        if not self.mpk:
-            self.mpk = self.get_public_key("44'/0'")
-        return self.mpk
-
-    def i4b(self, x):
-        return pack('>I', x)
-
-    def add_keypairs(self, tx, keypairs, password):
-        #do nothing - no priv keys available
-        pass
-
-    def decrypt_message(self, pubkey, message, password):
-        raise BaseException( _('Decrypt method is not implemented in Trezor') )
-        #address = public_key_to_bc_address(pubkey.decode('hex'))
-        #address_path = self.address_id(address)
-        #address_n = self.get_client().expand_path(address_path)
-        #try:
-        #    decrypted_msg = self.get_client().decrypt_message(address_n, b64decode(message))
-        #except Exception, e:
-        #    give_error(e)
-        #finally:
-        #    twd.stop()
-        #return str(decrypted_msg)
-
-    def sign_message(self, address, message, password):
-        if self.has_seed():
-            return BIP32_HD_Wallet.sign_message(self, address, message, password)
-        if not self.check_proper_device():
-            give_error('Wrong device or password')
-        try:
-            address_path = self.address_id(address)
-            address_n = self.plugin.get_client().expand_path(address_path)
-        except Exception, e:
-            give_error(e)
-        try:
-            msg_sig = self.plugin.get_client().sign_message('Bitcoin', address_n, message)
-        except Exception, e:
-            give_error(e)
-        finally:
-            self.plugin.handler.stop()
-        return msg_sig.signature
-
-    def sign_transaction(self, tx, password):
-        if self.has_seed():
-            return BIP32_HD_Wallet.sign_transaction(self, tx, password)
-        if tx.is_complete():
-            return
-        if not self.check_proper_device():
-            give_error('Wrong device or password')
-        # previous transactions used as inputs
-        prev_tx = {}
-        # path of the xpubs that are involved
-        xpub_path = {}
-        for txin in tx.inputs:
-            tx_hash = txin['prevout_hash']
-
-            ptx = self.transactions.get(tx_hash)
-            if ptx is None:
-                ptx = self.network.synchronous_get(('blockchain.transaction.get', [tx_hash]))
-                ptx = Transaction(ptx)
-            prev_tx[tx_hash] = ptx
-
-            for x_pubkey in txin['x_pubkeys']:
-                account_derivation = None
-                if not is_extended_pubkey(x_pubkey):
-                    continue
-                xpub = x_to_xpub(x_pubkey)
-                for k, v in self.master_public_keys.items():
-                    if v == xpub:
-                        account_id = re.match("x/(\d+)'", k).group(1)
-                        account_derivation = "44'/0'/%s'"%account_id
-                if account_derivation is not None:
-                    xpub_path[xpub] = account_derivation
-
-        self.plugin.sign_transaction(tx, prev_tx, xpub_path)
-
-    def check_proper_device(self):
-        self.get_client().ping('t')
-        if not self.device_checked:
-            address = self.addresses(False)[0]
-            address_id = self.address_id(address)
-            n = self.get_client().expand_path(address_id)
-            device_address = self.get_client().get_address('Bitcoin', n)
-            self.device_checked = True
-            self.proper_device = (device_address == address)
-
-        return self.proper_device
-
+    device = 'Trezor'
 
 
 class TrezorPlugin(BasePlugin):

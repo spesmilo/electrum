@@ -23,6 +23,7 @@ class TrezorQtHandler:
         self.win.connect(win, SIGNAL('pin_dialog'), self.pin_dialog)
         self.win.connect(win, SIGNAL('passphrase_dialog'), self.passphrase_dialog)
         self.done = threading.Event()
+        self.d = None
 
     def stop(self):
         self.win.emit(SIGNAL('trezor_done'))
@@ -75,6 +76,8 @@ class TrezorQtHandler:
         self.done.set()
 
     def message_dialog(self):
+        # Called more than once during signing, to confirm output and fee
+        self.dialog_stop()
         self.d = WindowModalDialog(self.win, _('Please Check Trezor Device'))
         l = QLabel(self.message)
         vbox = QVBoxLayout(self.d)
@@ -82,8 +85,9 @@ class TrezorQtHandler:
         self.d.show()
 
     def dialog_stop(self):
-        self.d.hide()
-
+        if self.d:
+            self.d.hide()
+            self.d = None
 
 class Plugin(TrezorPlugin):
 
@@ -97,15 +101,9 @@ class Plugin(TrezorPlugin):
             window.statusBar().addPermanentWidget(self.trezor_button)
         if self.handler is None:
             self.handler = TrezorQtHandler(window)
-        try:
-            self.get_client().ping('t')
-        except BaseException as e:
-            window.show_error(_('Trezor device not detected.\nContinuing in watching-only mode.\nReason:\n' + str(e)))
-            self.wallet.force_watching_only = True
-            return
-        if self.wallet.addresses() and not self.wallet.check_proper_device():
-            window.show_error(_("This wallet does not match your Trezor device"))
-            self.wallet.force_watching_only = True
+        msg = self.wallet.sanity_check()
+        if msg:
+            window.show_error(msg)
 
     @hook
     def installwizard_load_wallet(self, wallet, window):

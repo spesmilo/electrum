@@ -23,15 +23,9 @@ class Plugin(KeepKeyPlugin):
             window.statusBar().addPermanentWidget(self.keepkey_button)
         if self.handler is None:
             self.handler = KeepKeyQtHandler(window)
-        try:
-            self.get_client().ping('t')
-        except BaseException as e:
-            window.show_error(_('KeepKey device not detected.\nContinuing in watching-only mode.\nReason:\n' + str(e)))
-            self.wallet.force_watching_only = True
-            return
-        if self.wallet.addresses() and not self.wallet.check_proper_device():
-            window.show_error(_("This wallet does not match your KeepKey device"))
-            self.wallet.force_watching_only = True
+        msg = self.wallet.sanity_check()
+        if msg:
+            window.show_error(msg)
 
     @hook
     def installwizard_load_wallet(self, wallet, window):
@@ -161,6 +155,8 @@ class KeepKeyQtHandler:
         self.done.set()
 
     def message_dialog(self):
+        # Called more than once during signing, to confirm output and fee
+        self.dialog_stop()
         self.d = WindowModalDialog(self.win, _('Please Check KeepKey Device'))
         l = QLabel(self.message)
         vbox = QVBoxLayout(self.d)
@@ -173,4 +169,6 @@ class KeepKeyQtHandler:
         self.d.show()
 
     def dialog_stop(self):
-        self.d.hide()
+        if self.d:
+            self.d.hide()
+            self.d = None
