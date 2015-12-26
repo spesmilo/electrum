@@ -1,23 +1,16 @@
-### Electrum-GRS - lightweight multi-coin client
+### Electrum-GRS - lightweight groestlcoin client
 
-Electrum-GRS provides a basic SPV wallet for GRSpay. It is a BIP-0044-compliant wallet based on the original Electrum for Bitcoin. This Electrum-GRS client uses Electrum servers to retrieve necessary blockchain headaer & transaction data, so no "Electrum-GRS server" is necessary.
+Electrum-GRS provides a basic SPV wallet for Groestlcoin. It is a BIP-0044-compliant wallet based on the original Electrum for Bitcoin. This Electrum-GRS client uses Electrum-GRS servers to retrieve necessary blockchain headaer & transaction data, so no "Electrum-GRS server" is necessary.
 
-Because of the Simplified Payment Verification nature of the wallet, services requiring Masternode communications, such as DarkSend and InstantX are not available.
+Homepage: http://www.groestlcoin.org
 
-Homepage: https://GRSpay.io/electrum-GRS
-
-1. Download the .dmg from https://GRSpay.io/electrum-GRS
-2. Open .dmg in Finder
-3. Double Click Electrum-GRS.pkg
+1. Download the .pkg from http://www.groestlcoin.org
+2. Double click Electrum-GRS.pkg
 4. Follow instructions to install Electrum-GRS
 
 Electrum-GRS will be installed by default to /Applications
 
-Your Wallets will be stored in /Users/YOUR_LOGIN_NAME/.electrum-GRS/wallets
-
-### KNOWN ISSUES
-
-
+Your wallets will be stored in /users/YOUR_LOGIN_NAME/.electrum-GRS/wallets
 
 2. HOW OFFICIAL PACKAGES ARE CREATED
 ------------------------------------
