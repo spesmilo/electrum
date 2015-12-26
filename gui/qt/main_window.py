@@ -1144,22 +1144,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         '''
         def request_password(self, *args, **kwargs):
             parent = kwargs.get('parent', self)
-            if self.wallet.use_encryption:
-                while True:
-                    password = self.password_dialog(parent=parent)
-                    if not password:
-                        return True, None
-                    try:
+            password = None
+            while self.wallet.use_encryption:
+                password = self.password_dialog(parent=parent)
+                try:
+                    if password:
                         self.wallet.check_password(password)
-                        break
-                    except Exception as e:
-                        self.show_error(str(e), parent=parent)
-                        continue
-            else:
-                password = None
+                    break
+                except Exception as e:
+                    self.show_error(str(e), parent=parent)
+                    continue
 
             kwargs['password'] = password
-            return False, func(self, *args, **kwargs)
+            return func(self, *args, **kwargs)
         return request_password
 
     def read_send_tab(self):
@@ -1259,39 +1256,32 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     self.show_transaction(tx)
                     self.do_clear()
                 else:
-                    self.broadcast_transaction(tx, tx_desc)
-        self.sign_tx_with_password(tx, sign_done, password)
+                    self.broadcast_transaction(tx, tx_desc, self)
+        self.sign_tx_with_password(tx, sign_done, password, self)
 
     @protected
-    def sign_tx(self, tx, callback, password, parent=None):
+    def sign_tx(self, tx, callback, password, parent):
         self.sign_tx_with_password(tx, callback, password, parent)
 
-    def sign_tx_with_password(self, tx, callback, password, parent=None):
+    def sign_tx_with_password(self, tx, callback, password, parent):
         '''Sign the transaction in a separate thread.  When done, calls
         the callback with a success code of True or False.
         '''
-        if parent == None:
-            parent = self
-        self.send_button.setDisabled(True)
+        if self.wallet.use_encryption and not password:
+            callback(False) # User cancelled password input
+            return
 
         # call hook to see if plugin needs gui interaction
         run_hook('sign_tx', parent, tx)
 
-        # sign the tx
-        success = [False]  # Array to work around python scoping
         def sign_thread():
-            if not self.wallet.is_watching_only():
-                self.wallet.sign_transaction(tx, password)
-        def on_signed(ret):
-            success[0] = True
-        def on_finished():
-            self.send_button.setDisabled(False)
-            callback(success[0])
+            self.wallet.sign_transaction(tx, password)
+            return True
 
         WaitingDialog(parent, _('Signing transaction...'), sign_thread,
-                      on_success=on_signed, on_finished=on_finished)
+                      callback)
 
-    def broadcast_transaction(self, tx, tx_desc, parent=None):
+    def broadcast_transaction(self, tx, tx_desc, parent):
 
         def broadcast_thread():
             # non-GUI thread
@@ -1313,19 +1303,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 msg = ack_msg
             return status, msg
 
-        def broadcast_done(status, msg):
+        def broadcast_done(result):
             # GUI thread
-            if status:
-                if tx_desc is not None and tx.is_complete():
-                    self.wallet.set_label(tx.hash(), tx_desc)
-                self.show_message(_('Payment sent.') + '\n' + msg, parent=parent)
-                self.invoices_list.update()
-                self.do_clear()
-            else:
-                self.show_error(msg, parent=parent)
-            self.send_button.setDisabled(False)
+            if result:
+                status, msg = result
+                if status:
+                    if tx_desc is not None and tx.is_complete():
+                        self.wallet.set_label(tx.hash(), tx_desc)
+                        self.show_message(_('Payment sent.') + '\n' + msg,
+                                          parent=parent)
+                        self.invoices_list.update()
+                        self.do_clear()
+                else:
+                    self.show_error(msg, parent=parent)
 
-        parent = parent or self
         WaitingDialog(parent, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done)
 

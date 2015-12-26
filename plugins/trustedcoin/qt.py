@@ -85,10 +85,10 @@ class Plugin(TrustedCoinPlugin):
                 self.print_error("twofactor: xpub3 not needed")
             window.wallet.auth_code = auth_code
 
-    def waiting_dialog(self, window, on_success=None):
+    def waiting_dialog(self, window, on_finished=None):
         task = partial(self.request_billing_info, window.wallet)
         return WaitingDialog(window, 'Getting billing information...', task,
-                             on_success=on_success)
+                             on_finished)
 
     @hook
     def abort_send(self, window):
@@ -104,8 +104,7 @@ class Plugin(TrustedCoinPlugin):
 
 
     def settings_dialog(self, window):
-        on_success = partial(self.show_settings_dialog, window)
-        self.waiting_dialog(window, on_success)
+        self.waiting_dialog(window, partial(self.show_settings_dialog, window))
 
     def show_settings_dialog(self, window, success):
         if not success:

@@ -116,7 +116,7 @@ class Plugin(BasePlugin):
                 amodem.main.recv(config=self.modem_config, src=src, dst=dst)
                 return dst.getvalue()
 
-        def on_success(blob):
+        def on_finished(blob):
             if blob:
                 blob = zlib.decompress(blob)
                 print_msg('Received:', repr(blob))
@@ -124,4 +124,4 @@ class Plugin(BasePlugin):
 
         kbps = self.modem_config.modem_bps / 1e3
         msg = 'Receiving from Audio MODEM ({0:.1f} kbps)...'.format(kbps)
-        WaitingDialog(parent, msg, receiver_thread, on_success=on_success)
+        WaitingDialog(parent, msg, receiver_thread, on_finished)
