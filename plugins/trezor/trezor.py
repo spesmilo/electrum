@@ -92,9 +92,15 @@ class TrezorWallet(BIP32_HD_Wallet):
         return pbkdf2.PBKDF2(mnemonic, 'mnemonic' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
 
     def derive_xkeys(self, root, derivation, password):
-        derivation = derivation.replace(self.root_name,"44'/0'/")
-        xpub = self.get_public_key(derivation)
-        return xpub, None
+        x = self.master_private_keys.get(root)
+        if x:
+            root_xprv = pw_decode(x, password)
+            xprv, xpub = bip32_private_derivation(root_xprv, root, derivation)
+            return xpub, xprv
+        else:
+            derivation = derivation.replace(self.root_name,"44'/0'/")
+            xpub = self.get_public_key(derivation)
+            return xpub, None
 
     def get_public_key(self, bip32_path):
         address_n = self.plugin.get_client().expand_path(bip32_path)
