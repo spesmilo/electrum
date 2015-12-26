@@ -1,5 +1,4 @@
 from binascii import unhexlify
-from sys import stderr
 
 import electrum
 from electrum import bitcoin
@@ -11,6 +10,7 @@ from electrum.plugins import BasePlugin, hook
 from electrum.transaction import deserialize, is_extended_pubkey
 from electrum.wallet import BIP32_Hardware_Wallet
 from electrum.util import print_error
+from plugins.trezor.gui_mixin import GuiMixin
 
 try:
     from trezorlib.client import types
@@ -22,10 +22,6 @@ except ImportError:
     TREZOR = False
 
 import trezorlib.ckd_public as ckd_public
-
-def log(msg):
-    stderr.write("%s\n" % msg)
-    stderr.flush()
 
 def give_error(message):
     print_error(message)
@@ -229,61 +225,11 @@ class TrezorPlugin(BasePlugin):
         tx.deserialize()
         return self.electrum_tx_to_txtype(tx)
 
-
-
-
-
-class TrezorGuiMixin(object):
-
-    def __init__(self, *args, **kwargs):
-        super(TrezorGuiMixin, self).__init__(*args, **kwargs)
-
-    def callback_ButtonRequest(self, msg):
-        if msg.code == 3:
-            message = "Confirm transaction outputs on Trezor device to continue"
-        elif msg.code == 8:
-            message = "Confirm transaction fee on Trezor device to continue"
-        elif msg.code == 7:
-            message = "Confirm message to sign on Trezor device to continue"
-        elif msg.code == 10:
-            message = "Confirm address on Trezor device to continue"
-        else:
-            message = "Check Trezor device to continue"
-        self.handler.show_message(message)
-        return proto.ButtonAck()
-
-    def callback_PinMatrixRequest(self, msg):
-        if msg.type == 1:
-            desc = 'current PIN'
-        elif msg.type == 2:
-            desc = 'new PIN'
-        elif msg.type == 3:
-            desc = 'new PIN again'
-        else:
-            desc = 'PIN'
-        pin = self.handler.get_pin("Please enter Trezor %s" % desc)
-        if not pin:
-            return proto.Cancel()
-        return proto.PinMatrixAck(pin=pin)
-
-    def callback_PassphraseRequest(self, req):
-        msg = _("Please enter your Trezor passphrase.")
-        passphrase = self.handler.get_passphrase(msg)
-        if passphrase is None:
-            return proto.Cancel()
-        return proto.PassphraseAck(passphrase=passphrase)
-
-    def callback_WordRequest(self, msg):
-        #TODO
-        log("Enter one word of mnemonic: ")
-        word = raw_input()
-        return proto.WordAck(word=word)
-
-
-
-
 if TREZOR:
-    class QtGuiTrezorClient(ProtocolMixin, TrezorGuiMixin, BaseClient):
+    class QtGuiTrezorClient(ProtocolMixin, GuiMixin, BaseClient):
+        protocol = proto
+        device = 'Trezor'
+
         def call_raw(self, msg):
             try:
                 resp = BaseClient.call_raw(self, msg)

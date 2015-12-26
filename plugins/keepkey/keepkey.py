@@ -1,5 +1,4 @@
 from binascii import unhexlify
-from sys import stderr
 
 import electrum
 from electrum import bitcoin
@@ -11,6 +10,7 @@ from electrum.plugins import BasePlugin, hook
 from electrum.transaction import deserialize, is_extended_pubkey
 from electrum.wallet import BIP32_Hardware_Wallet
 from electrum.util import print_error
+from plugins.trezor.gui_mixin import GuiMixin
 
 try:
     from keepkeylib.client import types
@@ -22,10 +22,6 @@ except ImportError:
     KEEPKEY = False
 
 import keepkeylib.ckd_public as ckd_public
-
-def log(msg):
-    stderr.write("%s\n" % msg)
-    stderr.flush()
 
 def give_error(message):
     print_error(message)
@@ -246,63 +242,11 @@ class KeepKeyPlugin(BasePlugin):
         tx.deserialize()
         return self.electrum_tx_to_txtype(tx)
 
-
-
-
-
-
-
-class KeepKeyGuiMixin(object):
-
-    def __init__(self, *args, **kwargs):
-        super(KeepKeyGuiMixin, self).__init__(*args, **kwargs)
-
-    def callback_ButtonRequest(self, msg):
-        if msg.code == 3:
-            message = "Confirm transaction outputs on KeepKey device to continue"
-        elif msg.code == 8:
-            message = "Confirm transaction fee on KeepKey device to continue"
-        elif msg.code == 7:
-            message = "Confirm message to sign on KeepKey device to continue"
-        elif msg.code == 10:
-            message = "Confirm address on KeepKey device to continue"
-        else:
-            message = "Check KeepKey device to continue"
-        cancel_callback=self.cancel if msg.code in [3, 8] else None
-        self.handler.show_message(message, cancel_callback)
-        return proto.ButtonAck()
-
-    def callback_PinMatrixRequest(self, msg):
-        if msg.type == 1:
-            desc = 'current PIN'
-        elif msg.type == 2:
-            desc = 'new PIN'
-        elif msg.type == 3:
-            desc = 'new PIN again'
-        else:
-            desc = 'PIN'
-        pin = self.handler.get_pin("Please enter KeepKey %s" % desc)
-        if not pin:
-            return proto.Cancel()
-        return proto.PinMatrixAck(pin=pin)
-
-    def callback_PassphraseRequest(self, req):
-        msg = _("Please enter your KeepKey passphrase.")
-        passphrase = self.handler.get_passphrase(msg)
-        if passphrase is None:
-            return proto.Cancel()
-        return proto.PassphraseAck(passphrase=passphrase)
-
-    def callback_WordRequest(self, msg):
-        #TODO
-        log("Enter one word of mnemonic: ")
-        word = raw_input()
-        return proto.WordAck(word=word)
-
-
-
 if KEEPKEY:
-    class QtGuiKeepKeyClient(ProtocolMixin, KeepKeyGuiMixin, BaseClient):
+    class QtGuiKeepKeyClient(ProtocolMixin, GuiMixin, BaseClient):
+        protocol = proto
+        device = 'KeepKey'
+
         def call_raw(self, msg):
             try:
                 resp = BaseClient.call_raw(self, msg)
