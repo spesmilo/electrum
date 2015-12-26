@@ -1,32 +1,25 @@
-### Electrum-GRS - lightweight multi-coin client
-Electrum-GRS provides a basic SPV wallet for GRSpay. It is a BIP-0044-compliant wallet based on the original Electrum for Bitcoin. This Electrum-GRS client uses Electrum servers to retrieve necessary blockchain headaer & transaction data, so no "Electrum-GRS server" is necessary.
+### Electrum-GRS - lightweight groestlcoin client
+Electrum-GRS provides a basic SPV wallet for Groestlcoin. It is a BIP-0044-compliant wallet based on the original Electrum for Bitcoin. This Electrum-GRS client uses Electrum-GRS servers to retrieve necessary blockchain headers & transaction data, so no "Electrum-GRS server" is necessary.
 
-Because of the Simplified Payment Verification nature of the wallet, services requiring Masternode communications, such as DarkSend and InstantX are not available.
-
-Homepage: https://GRSpay.io/electrum-GRS
-
-
-
+Homepage: http://www.groestlcoin.org
 
 1. ELECTRUM_GRS ON LINUX
 ----------------------
 
- - Installer package is provided at https://GRSpay.io/electrum-GRS
+ - Installer package is provided at http://www.groestlcoin
  - To download and use:
     ```
     cd ~
-    wget https://GRSpay.io/electrum-GRS/releases/v2.4.1/Electrum-GRS-2.4.1-Linux_x86_64.tgz
-    tar -xpzvf Electrum-GRS-2.4.1-Linux_x86_64.tgz
-    cd Electrum-GRS-2.4.1
-    ./electrum-GRS_x86_64.bin
+    wget https://github.com/GroestlCoin/electrum-grs/releases/download/v2.5.4/Electrum-GRS-2.5.4_Linux_x86_64-Installer.bin
+    ./Electrum-GRS-2.5.4_Linux_x86_64-Installer.bin
     ```
 
 
 Once successfully installed simply type
    ```
-   electrum-GRS
+   Electrum-GRS
    ```
-   Your wallets will be located in /home/YOUR_LOGIN_NAME/.electrum-GRS/wallets
+   Your wallets will be located in /home/YOUR_LOGIN_NAME/.Electrum-GRS/wallets
 
 Installation on 32bit machines is best achieved via github master or TAGGED branches
 
