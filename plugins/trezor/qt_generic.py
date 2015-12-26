@@ -31,8 +31,8 @@ class QtHandler:
     def stop(self):
         self.win.emit(SIGNAL('message_done'))
 
-    def show_message(self, msg):
-        self.win.emit(SIGNAL('message_dialog'), msg)
+    def show_message(self, msg, cancel_callback=None):
+        self.win.emit(SIGNAL('message_dialog'), msg, cancel_callback)
 
     def get_pin(self, msg):
         self.done.clear()
@@ -75,15 +75,18 @@ class QtHandler:
         self.passphrase = passphrase
         self.done.set()
 
-    def message_dialog(self, msg):
+    def message_dialog(self, msg, cancel_callback):
         # Called more than once during signing, to confirm output and fee
         self.dialog_stop()
         msg = _('Please check your %s Device') % self.device
-        self.dialog = WindowModalDialog(self.win, msg)
+        dialog = self.dialog = WindowModalDialog(self.win, msg)
         l = QLabel(msg)
-        vbox = QVBoxLayout(self.dialog)
+        vbox = QVBoxLayout(dialog)
+        if cancel_callback:
+            vbox.addLayout(Buttons(CancelButton(dialog)))
+            dialog.connect(dialog, SIGNAL('rejected()'), cancel_callback)
         vbox.addWidget(l)
-        self.dialog.show()
+        dialog.show()
 
     def dialog_stop(self):
         if self.dialog:

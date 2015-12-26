@@ -268,7 +268,8 @@ class KeepKeyGuiMixin(object):
             message = "Confirm address on KeepKey device to continue"
         else:
             message = "Check KeepKey device to continue"
-        self.handler.show_message(msg.code, message, self)
+        cancel_callback=self.cancel if msg.code in [3, 8] else None
+        self.handler.show_message(message, cancel_callback)
         return proto.ButtonAck()
 
     def callback_PinMatrixRequest(self, msg):
