@@ -1,12 +1,12 @@
-Electrum - lightweight Bitcoin client
+Electrum-GRS - lightweight Groestlcoin client
 =====================================
 
 ::
 
   Licence: GNU GPL v3
-  Author: Thomas Voegtlin
+  Author: Groestlcoin Developers
   Language: Python
-  Homepage: https://electrum.org/
+  Homepage: https://groestlcoin.org/
 
 
 .. image:: https://travis-ci.org/spesmilo/electrum.svg?branch=master
@@ -17,30 +17,15 @@ Electrum - lightweight Bitcoin client
 1. GETTING STARTED
 ------------------
 
-To run Electrum from this directory, just do::
+To run Electrum-grs from this directory, just do::
 
-    ./electrum
+    ./electrum-grs
 
 If you install Electrum on your system, you can run it from any
 directory.
 
-If you have pip, you can do::
-
-    python setup.py sdist
-    sudo pip install --pre dist/Electrum-2.0.tar.gz
-
-
-If you don't have pip, install with::
-
     python setup.py sdist
     sudo python setup.py install
-
-
-
-To start Electrum from your web browser, see
-http://electrum.org/bitcoin_URIs.html
-
-
 
 2. HOW OFFICIAL PACKAGES ARE CREATED
 ------------------------------------
@@ -58,4 +43,4 @@ On Mac OS X::
     # On brew installs
     ARCHFLAGS="-arch i386 -arch x86_64" sudo python setup-release.py py2app --includes sip
 
-    sudo hdiutil create -fs HFS+ -volname "Electrum" -srcfolder dist/Electrum.app dist/electrum-VERSION-macosx.dmg
+    sudo hdiutil create -fs HFS+ -volname "Electrum-GRS" -srcfolder dist/Electrum.-grsapp dist/electrum-VERSION-macosx.dmg
