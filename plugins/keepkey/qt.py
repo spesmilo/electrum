@@ -101,6 +101,7 @@ class KeepKeyQtHandler:
         self.win.connect(win, SIGNAL('pin_dialog'), self.pin_dialog)
         self.win.connect(win, SIGNAL('passphrase_dialog'), self.passphrase_dialog)
         self.done = threading.Event()
+        self.d = None
 
     def stop(self):
         self.win.emit(SIGNAL('keepkey_done'))
