@@ -200,13 +200,11 @@ class WindowModalDialog(QDialog):
 class WaitingDialog(QThread, MessageBoxMixin):
     '''Shows a please wait dialog whilst runnning a task.  It is not
     necessary to maintain a reference to this dialog.'''
-    def __init__(self, parent, message, task, on_success=None,
-                 on_finished=None):
+    def __init__(self, parent, message, task, on_finished=None):
         global dialogs
         dialogs.append(self) # Prevent GC
         QThread.__init__(self)
         self.task = task
-        self.on_success = on_success
         self.on_finished = on_finished
         self.dialog = WindowModalDialog(parent, _("Please wait"))
         vbox = QVBoxLayout(self.dialog)
@@ -216,26 +214,22 @@ class WaitingDialog(QThread, MessageBoxMixin):
         self.start()
 
     def run(self):
-        self.error = None
         try:
             self.result = self.task()
+            self.error = None
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
             self.error = str(e)
+            self.result = None
 
     def finished(self):
         global dialogs
         dialogs.remove(self)
+        self.dialog.accept()
         if self.error:
             self.show_error(self.error, parent=self.dialog.parent())
-        elif self.on_success:
-            result = self.result
-            if type(result) is not tuple:
-                result = (result,)
-            self.on_success(*result)
         if self.on_finished:
-            self.on_finished()
-        self.dialog.accept()
+            self.on_finished(self.result)
 
 def line_dialog(parent, title, label, ok_label, default=None):
     dialog = WindowModalDialog(parent, title)

@@ -70,11 +70,6 @@ class BTChipWallet(BIP32_HD_Wallet):
     def can_create_accounts(self):
         return False
 
-    def synchronize(self):
-        # synchronize existing accounts
-        BIP32_Wallet.synchronize(self)
-        # no further accounts for the moment
-
     def can_change_password(self):
         return False
 
@@ -161,9 +156,6 @@ class BTChipWallet(BIP32_HD_Wallet):
     def address_id(self, address):
         account_id, (change, address_index) = self.get_address_index(address)
         return "44'/2'/%s'/%d/%d" % (account_id, change, address_index)
-
-    def create_main_account(self, password):
-        self.create_account('Main account', None) #name, empty password
 
     def derive_xkeys(self, root, derivation, password):
         derivation = derivation.replace(self.root_name,"44'/2'/")
@@ -508,5 +500,3 @@ class LedgerPlugin(BasePlugin):
             self.wallet.sign_transaction(tx, None)
         except Exception as e:
             tx.error = str(e)
-
-
