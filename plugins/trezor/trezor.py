@@ -83,9 +83,6 @@ class TrezorWallet(BIP32_HD_Wallet):
         account_id, (change, address_index) = self.get_address_index(address)
         return "44'/0'/%s'/%d/%d" % (account_id, change, address_index)
 
-    def create_main_account(self, password):
-        self.create_account('Main account', None) #name, empty password
-
     def mnemonic_to_seed(self, mnemonic, passphrase):
         # trezor uses bip39
         import pbkdf2, hashlib, hmac
@@ -95,15 +92,9 @@ class TrezorWallet(BIP32_HD_Wallet):
         return pbkdf2.PBKDF2(mnemonic, 'mnemonic' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
 
     def derive_xkeys(self, root, derivation, password):
-        x = self.master_private_keys.get(root)
-        if x:
-            root_xprv = pw_decode(x, password)
-            xprv, xpub = bip32_private_derivation(root_xprv, root, derivation)
-            return xpub, xprv
-        else:
-            derivation = derivation.replace(self.root_name,"44'/0'/")
-            xpub = self.get_public_key(derivation)
-            return xpub, None
+        derivation = derivation.replace(self.root_name,"44'/0'/")
+        xpub = self.get_public_key(derivation)
+        return xpub, None
 
     def get_public_key(self, bip32_path):
         address_n = self.plugin.get_client().expand_path(bip32_path)

@@ -1681,7 +1681,8 @@ class BIP32_HD_Wallet(BIP32_Wallet):
 
     def create_main_account(self, password):
         # First check the password is valid (this raises if it isn't).
-        self.check_password(password)
+        if self.can_change_password():
+            self.check_password(password)
         assert self.next_account_number() == 0
         self.create_next_account(password, _('Main account'))
         self.create_next_account(password)
