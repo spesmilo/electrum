@@ -6,7 +6,7 @@ Homepage: http://www.groestlcoin.org
 1. ELECTRUM_GRS ON LINUX
 ----------------------
 
- - Installer package is provided at http://www.groestlcoin
+ - Installer package is provided at http://www.groestlcoin.org
  - To download and use:
     ```
     cd ~
