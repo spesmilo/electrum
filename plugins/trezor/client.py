@@ -7,20 +7,20 @@ from electrum.util import PrintError
 class GuiMixin(object):
     # Requires: self.proto, self.device
 
+    messages = {
+        3: _("Confirm transaction outputs on %s device to continue"),
+        8: _("Confirm transaction fee on %s device to continue"),
+        7: _("Confirm message to sign on %s device to continue"),
+        10: _("Confirm address on %s device to continue"),
+        'change pin': _("Confirm PIN change on %s device to continue"),
+        'default': _("Check %s device to continue"),
+        'label': _("Confirm label change on %s device to continue"),
+        'remove pin': _("Confirm removal of PIN on %s device to continue"),
+    }
+
     def callback_ButtonRequest(self, msg):
-        if msg.code == 3:
-            message = _("Confirm transaction outputs on %s device to continue")
-        elif msg.code == 8:
-            message = _("Confirm transaction fee on %s device to continue")
-        elif msg.code == 7:
-            if self.changing_label:
-                message = _("Confirm label change on %s device to continue")
-            else:
-                message = _("Confirm message to sign on %s device to continue")
-        elif msg.code == 10:
-            message = _("Confirm address on %s device to continue")
-        else:
-            message = _("Check %s device to continue")
+        msg_code = self.msg_code_override or msg.code
+        message = self.messages.get(msg_code, self.messages['default'])
 
         if msg.code in [3, 8] and hasattr(self, 'cancel'):
             cancel_callback = self.cancel
@@ -32,11 +32,12 @@ class GuiMixin(object):
 
     def callback_PinMatrixRequest(self, msg):
         if msg.type == 1:
-            msg = _("Please enter %s current PIN")
+            msg = _("Enter your current %s PIN:")
         elif msg.type == 2:
-            msg = _("Please enter %s new PIN")
+            msg = _("Enter a new %s PIN:")
         elif msg.type == 3:
-            msg = _("Please enter %s new PIN again")
+            msg = (_("Please re-enter your new %s PIN.\n"
+                     "Note the numbers have been shuffled!"))
         else:
             msg = _("Please enter %s PIN")
         pin = self.handler.get_pin(msg % self.device)
@@ -72,14 +73,21 @@ def trezor_client_class(protocol_mixin, base_client, proto):
             self.handler = plugin.handler
             self.tx_api = plugin
             self.bad = False
-            self.changing_label = False
+            self.msg_code_override = None
 
         def change_label(self, label):
-            self.changing_label = True
+            self.msg_code_override = 'label'
             try:
                 self.apply_settings(label=label)
             finally:
-                self.changing_label = False
+                self.msg_code_override = None
+
+        def set_pin(self, remove):
+            self.msg_code_override = 'remove pin' if remove else 'change pin'
+            try:
+                self.change_pin(remove)
+            finally:
+                self.msg_code_override = None
 
         def firmware_version(self):
             f = self.features

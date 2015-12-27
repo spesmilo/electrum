@@ -187,8 +187,23 @@ class QtPlugin(TrezorPlugin):
                 self.handler.stop()
             device_label.setText(new_label)
 
+        def update_pin_info():
+            features = client.features
+            pin_label.setText(noyes[features.pin_protection])
+            pin_button.setText(_("Change") if features.pin_protection
+                               else _("Set"))
+            clear_pin_button.setVisible(features.pin_protection)
+
+        def set_pin(remove):
+            try:
+                client.set_pin(remove=remove)
+            finally:
+                self.handler.stop()
+            update_pin_info()
+
         client = self.get_client()
         features = client.features
+        noyes = [_("No"), _("Yes")]
         bl_hash = features.bootloader_hash.encode('hex').upper()
         bl_hash = "%s...%s" % (bl_hash[:10], bl_hash[-10:])
         info_tab = QWidget()
@@ -196,8 +211,13 @@ class QtPlugin(TrezorPlugin):
         device_label = QLabel(features.label)
         rename_button = QPushButton(_("Rename"))
         rename_button.clicked.connect(rename)
+        pin_label = QLabel()
+        pin_button = QPushButton()
+        pin_button.clicked.connect(partial(set_pin, False))
+        clear_pin_button = QPushButton(_("Clear"))
+        clear_pin_button.clicked.connect(partial(set_pin, True))
+        update_pin_info()
 
-        noyes = [_("No"), _("Yes")]
         version = "%d.%d.%d" % (features.major_version,
                                 features.minor_version,
                                 features.patch_version)
@@ -208,7 +228,7 @@ class QtPlugin(TrezorPlugin):
             (_("Firmware Version"), version),
             (_("Language"), features.language),
             (_("Has Passphrase"), noyes[features.passphrase_protection]),
-            (_("Has PIN"), noyes[features.pin_protection])
+            (_("Has PIN"), pin_label, pin_button, clear_pin_button)
         ]
 
         for row_num, items in enumerate(rows):
