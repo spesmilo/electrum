@@ -26,6 +26,7 @@ import json
 import copy
 from functools import partial
 from struct import pack
+from unicodedata import normalize
 from i18n import _
 
 from util import NotEnoughFunds, PrintError, profiler
@@ -1764,8 +1765,8 @@ class BIP32_Hardware_Wallet(BIP32_HD_Wallet):
         # trezor uses bip39
         import pbkdf2, hashlib, hmac
         PBKDF2_ROUNDS = 2048
-        mnemonic = unicodedata.normalize('NFKD', ' '.join(mnemonic.split()))
-        passphrase = unicodedata.normalize('NFKD', passphrase)
+        mnemonic = normalize('NFKD', ' '.join(mnemonic.split()))
+        passphrase = normalize('NFKD', passphrase)
         return pbkdf2.PBKDF2(mnemonic, 'mnemonic' + passphrase,
                              iterations = PBKDF2_ROUNDS, macmodule = hmac,
                              digestmodule = hashlib.sha512).read(64)

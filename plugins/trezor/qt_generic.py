@@ -6,7 +6,6 @@ from PyQt4.Qt import QGridLayout, QInputDialog, QPushButton
 from PyQt4.Qt import QVBoxLayout, QLabel, SIGNAL
 from trezor import TrezorPlugin
 from electrum_gui.qt.main_window import ElectrumWindow, StatusBarButton
-from electrum_gui.qt.installwizard import InstallWizard
 from electrum_gui.qt.password_dialog import PasswordDialog
 from electrum_gui.qt.util import *
 
@@ -62,19 +61,11 @@ class QtHandler:
         self.done.set()
 
     def passphrase_dialog(self, msg):
-        if type(self.win) is ElectrumWindow:
-            msg = _("Please enter your %s passphrase") % self.device
-            passphrase = self.win.password_dialog(msg)
-        else:
-            assert type(self.win) is InstallWizard
-            d = PasswordDialog(self.win, None, None, msg, False)
-            confirmed, p, passphrase = d.run()
-
-        if passphrase is None:
-            self.win.show_critical(_("Passphrase request canceled"))
-        else:
-            passphrase = normalize('NFKD', unicode(passphrase))
-        self.passphrase = passphrase
+        d = PasswordDialog(self.win, None, None, msg, False)
+        confirmed, p, phrase = d.run()
+        if confirmed:
+            phrase = normalize('NFKD', unicode(phrase or ''))
+        self.passphrase = phrase
         self.done.set()
 
     def message_dialog(self, msg, cancel_callback):
