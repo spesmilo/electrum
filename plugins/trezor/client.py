@@ -2,6 +2,7 @@ from sys import stderr
 
 from electrum.i18n import _
 
+
 class GuiMixin(object):
     # Requires: self.proto, self.device
 
@@ -47,11 +48,12 @@ class GuiMixin(object):
         return self.proto.PassphraseAck(passphrase=passphrase)
 
     def callback_WordRequest(self, msg):
-        #TODO
+        # TODO
         stderr.write("Enter one word of mnemonic:\n")
         stderr.flush()
         word = raw_input()
         return self.proto.WordAck(word=word)
+
 
 def trezor_client_class(protocol_mixin, base_client, proto):
     '''Returns a class dynamically.'''

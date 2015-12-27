@@ -6,6 +6,7 @@ from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from electrum.transaction import deserialize, is_extended_pubkey
 
+
 class TrezorCompatiblePlugin(BasePlugin):
     # Derived classes provide:
     #
@@ -123,7 +124,7 @@ class TrezorCompatiblePlugin(BasePlugin):
             txinputtype = self.types.TxInputType()
             if txin.get('is_coinbase'):
                 prev_hash = "\0"*32
-                prev_index = 0xffffffff # signed int -1
+                prev_index = 0xffffffff  # signed int -1
             else:
                 if for_sig:
                     x_pubkeys = txin['x_pubkeys']
@@ -149,7 +150,7 @@ class TrezorCompatiblePlugin(BasePlugin):
                         )
                         txinputtype = self.types.TxInputType(
                             script_type=self.types.SPENDMULTISIG,
-                            multisig= multisig
+                            multisig=multisig
                         )
                         # find which key is mine
                         for x_pubkey in x_pubkeys:

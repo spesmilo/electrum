@@ -13,6 +13,7 @@ from electrum_gui.qt.util import *
 from electrum.i18n import _
 from electrum.plugins import hook
 
+
 class QtHandler:
     '''An interface between the GUI (here, QT) and the device handling
     logic for handling I/O.  This is a generic implementation of the
@@ -129,7 +130,7 @@ class QtPlugin(TrezorPlugin):
         if storage.get('wallet_type') != self.wallet_class.wallet_type:
             return
         seed = wizard.enter_seed_dialog(_("Enter your %s seed") % self.device,
-                                        None, func=lambda x:True)
+                                        None, func=lambda x: True)
         if not seed:
             return
         wallet = self.wallet_class(storage)
@@ -150,8 +151,8 @@ class QtPlugin(TrezorPlugin):
 
     @hook
     def receive_menu(self, menu, addrs):
-        if (not self.wallet.is_watching_only() and self.atleast_version(1, 3)
-            and len(addrs) == 1):
+        if (not self.wallet.is_watching_only() and
+                self.atleast_version(1, 3) and len(addrs) == 1):
             menu.addAction(_("Show on %s") % self.device,
                            lambda: self.show_address(addrs[0]))
 
@@ -175,8 +176,11 @@ class QtPlugin(TrezorPlugin):
         except BaseException as e:
             window.show_error(str(e))
             return
-        get_label = lambda: self.get_client().features.label
-        update_label = lambda: current_label.setText("Label: %s" % get_label())
+
+        def update_label():
+            label = self.get_client().features.label
+            current_label.setText("Label: %s" % label)
+
         d = WindowModalDialog(window, _("%s Settings") % self.device)
         layout = QGridLayout(d)
         layout.addWidget(QLabel(_("%s Options") % self.device), 0, 0)
@@ -200,6 +204,6 @@ class QtPlugin(TrezorPlugin):
         update_label()
         change_label_button = QPushButton("Modify")
         change_label_button.clicked.connect(modify_label)
-        layout.addWidget(current_label,3,0)
-        layout.addWidget(change_label_button,3,1)
+        layout.addWidget(current_label, 3, 0)
+        layout.addWidget(change_label_button, 3, 1)
         d.exec_()
