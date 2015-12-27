@@ -55,7 +55,7 @@ class CosignWidget(QWidget):
 
 
 
-class InstallWizard(WindowModalDialog, MessageBoxMixin, WizardBase):
+class InstallWizard(WindowModalDialog, WizardBase):
 
     def __init__(self, config, app, plugins):
         title = 'Electrum  -  ' + _('Install Wizard')

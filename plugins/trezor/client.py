@@ -154,7 +154,8 @@ def trezor_client_class(protocol_mixin, base_client, proto):
 
     cls = TrezorClient
     for method in ['apply_settings', 'change_pin', 'get_address',
-                   'get_public_node', 'sign_message', 'sign_tx']:
+                   'get_public_node', 'sign_message', 'sign_tx',
+                   'wipe_device']:
         setattr(cls, method, wrapper(getattr(cls, method)))
 
     return cls

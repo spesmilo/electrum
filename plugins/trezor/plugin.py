@@ -42,6 +42,14 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         self.print_error("connected")
         self.handler.watching_only_changed()
 
+    def wiped(self):
+        self.print_error("wiped")
+        self.handler.watching_only_changed()
+
+    def initialized(self):
+        self.print_error("initialized")
+        self.handler.watching_only_changed()
+
     def get_action(self):
         pass
 
@@ -316,14 +324,15 @@ class TrezorCompatiblePlugin(BasePlugin):
 
     @hook
     def close_wallet(self, wallet):
-        # Don't retain references to a closed wallet
-        self.paired_wallets.discard(wallet)
-        client = self.lookup_client(wallet)
-        if client:
-            self.clear_session(client)
-            # Release the device
-            self.clients.discard(client)
-            client.transport.close()
+        if isinstance(wallet, self.wallet_class):
+            # Don't retain references to a closed wallet
+            self.paired_wallets.discard(wallet)
+            client = self.lookup_client(wallet)
+            if client:
+                self.clear_session(client)
+                # Release the device
+                self.clients.discard(client)
+                client.transport.close()
 
     def sign_transaction(self, wallet, tx, prev_tx, xpub_path):
         self.prev_tx = prev_tx
