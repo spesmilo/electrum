@@ -9,7 +9,7 @@ from electrum.transaction import deserialize, is_extended_pubkey
 class TrezorCompatiblePlugin(BasePlugin):
     # Derived classes provide:
     #
-    #  class-static variables: client_class, firmware_URL,
+    #  class-static variables: client_class, firmware_URL, handler_class,
     #     libraries_available, libraries_URL, minimum_firmware,
     #     wallet_class, ckd_public, types, HidTransport
 
