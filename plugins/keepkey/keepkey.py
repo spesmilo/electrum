@@ -1,7 +1,5 @@
-from electrum.wallet import BIP32_Hardware_Wallet
-
 from plugins.trezor.client import trezor_client_class
-from plugins.trezor.plugin import TrezorCompatiblePlugin
+from plugins.trezor.plugin import TrezorCompatiblePlugin, TrezorCompatibleWallet
 
 try:
     from keepkeylib.client import proto, BaseClient, ProtocolMixin
@@ -10,9 +8,8 @@ except ImportError:
     KEEPKEY = False
 
 
-class KeepKeyWallet(BIP32_Hardware_Wallet):
+class KeepKeyWallet(TrezorCompatibleWallet):
     wallet_type = 'keepkey'
-    root_derivation = "m/44'/0'"
     device = 'KeepKey'
 
 
