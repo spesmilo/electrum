@@ -13,7 +13,10 @@ class GuiMixin(object):
         elif msg.code == 8:
             message = _("Confirm transaction fee on %s device to continue")
         elif msg.code == 7:
-            message = _("Confirm message to sign on %s device to continue")
+            if self.changing_label:
+                message = _("Confirm label change on %s device to continue")
+            else:
+                message = _("Confirm message to sign on %s device to continue")
         elif msg.code == 10:
             message = _("Confirm address on %s device to continue")
         else:
@@ -69,12 +72,18 @@ def trezor_client_class(protocol_mixin, base_client, proto):
             self.handler = plugin.handler
             self.tx_api = plugin
             self.bad = False
+            self.changing_label = False
+
+        def change_label(self, label):
+            self.changing_label = True
+            try:
+                self.apply_settings(label=label)
+            finally:
+                self.changing_label = False
 
         def firmware_version(self):
             f = self.features
-            v = (f.major_version, f.minor_version, f.patch_version)
-            self.print_error('firmware version', v)
-            return v
+            return (f.major_version, f.minor_version, f.patch_version)
 
         def atleast_version(self, major, minor=0, patch=0):
             return cmp(self.firmware_version(), (major, minor, patch))

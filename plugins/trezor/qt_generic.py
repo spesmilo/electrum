@@ -11,9 +11,10 @@ from electrum_gui.qt.util import *
 
 from electrum.i18n import _
 from electrum.plugins import hook
+from electrum.util import PrintError
 
 
-class QtHandler:
+class QtHandler(PrintError):
     '''An interface between the GUI (here, QT) and the device handling
     logic for handling I/O.  This is a generic implementation of the
     Trezor protocol; derived classes can customize it.'''
@@ -24,6 +25,7 @@ class QtHandler:
         win.connect(win, SIGNAL('pin_dialog'), self.pin_dialog)
         win.connect(win, SIGNAL('passphrase_dialog'), self.passphrase_dialog)
         self.win = win
+        self.windows = [win]
         self.pin_matrix_widget_class = pin_matrix_widget_class
         self.device = device
         self.done = threading.Event()
@@ -48,7 +50,9 @@ class QtHandler:
         return self.passphrase
 
     def pin_dialog(self, msg):
-        d = WindowModalDialog(self.win, _("Enter PIN"))
+        # Needed e.g. when renaming label and haven't entered PIN
+        self.dialog_stop()
+        d = WindowModalDialog(self.windows[-1], _("Enter PIN"))
         matrix = self.pin_matrix_widget_class()
         vbox = QVBoxLayout()
         vbox.addWidget(QLabel(msg))
@@ -61,7 +65,8 @@ class QtHandler:
         self.done.set()
 
     def passphrase_dialog(self, msg):
-        d = PasswordDialog(self.win, None, None, msg, False)
+        self.dialog_stop()
+        d = PasswordDialog(self.windows[-1], None, None, msg, False)
         confirmed, p, phrase = d.run()
         if confirmed:
             phrase = normalize('NFKD', unicode(phrase or ''))
@@ -71,8 +76,8 @@ class QtHandler:
     def message_dialog(self, msg, cancel_callback):
         # Called more than once during signing, to confirm output and fee
         self.dialog_stop()
-        msg = _('Please check your %s Device') % self.device
-        dialog = self.dialog = WindowModalDialog(self.win, msg)
+        title = _('Please check your %s device') % self.device
+        dialog = self.dialog = WindowModalDialog(self.windows[-1], title)
         l = QLabel(msg)
         vbox = QVBoxLayout(dialog)
         if cancel_callback:
@@ -85,6 +90,12 @@ class QtHandler:
         if self.dialog:
             self.dialog.hide()
             self.dialog = None
+
+    def pop_window(self):
+        self.windows.pop()
+
+    def push_window(self, window):
+        self.windows.append(window)
 
 
 class QtPlugin(TrezorPlugin):
@@ -162,39 +173,61 @@ class QtPlugin(TrezorPlugin):
             self.handler.stop()
 
     def settings_dialog(self, window):
-        try:
-            device_id = self.get_client().get_device_id()
-        except BaseException as e:
-            window.show_error(str(e))
-            return
 
-        def update_label():
-            label = self.get_client().features.label
-            current_label.setText("Label: %s" % label)
-
-        d = WindowModalDialog(window, _("%s Settings") % self.device)
-        layout = QGridLayout(d)
-        layout.addWidget(QLabel(_("%s Options") % self.device), 0, 0)
-        layout.addWidget(QLabel("ID:"), 1, 0)
-        layout.addWidget(QLabel(" %s" % device_id), 1, 1)
-
-        def modify_label():
-            title = _("Set New %s Label") % self.device
-            msg = _("New Label: (upon submission confirm on %s)") % self.device
-            response = QInputDialog().getText(None, title, msg)
+        def rename():
+            title = _("Set Device Label")
+            msg = _("Enter new label:")
+            response = QInputDialog().getText(dialog, title, msg)
             if not response[1]:
                 return
             new_label = str(response[0])
-            msg = _("Please confirm label change on %s") % self.device
-            self.handler.show_message(msg)
-            status = self.get_client().apply_settings(label=new_label)
-            self.handler.stop()
-            update_label()
+            try:
+                client.change_label(new_label)
+            finally:
+                self.handler.stop()
+            device_label.setText(new_label)
 
-        current_label = QLabel()
-        update_label()
-        change_label_button = QPushButton("Modify")
-        change_label_button.clicked.connect(modify_label)
-        layout.addWidget(current_label, 3, 0)
-        layout.addWidget(change_label_button, 3, 1)
-        d.exec_()
+        client = self.get_client()
+        features = client.features
+        bl_hash = features.bootloader_hash.encode('hex').upper()
+        bl_hash = "%s...%s" % (bl_hash[:10], bl_hash[-10:])
+        info_tab = QWidget()
+        layout = QGridLayout(info_tab)
+        device_label = QLabel(features.label)
+        rename_button = QPushButton(_("Rename"))
+        rename_button.clicked.connect(rename)
+
+        noyes = [_("No"), _("Yes")]
+        version = "%d.%d.%d" % (features.major_version,
+                                features.minor_version,
+                                features.patch_version)
+        rows = [
+            (_("Bootloader Hash"), bl_hash),
+            (_("Device ID"), features.device_id),
+            (_("Device Label"), device_label, rename_button),
+            (_("Firmware Version"), version),
+            (_("Language"), features.language),
+            (_("Has Passphrase"), noyes[features.passphrase_protection]),
+            (_("Has PIN"), noyes[features.pin_protection])
+        ]
+
+        for row_num, items in enumerate(rows):
+            for col_num, item in enumerate(items):
+                widget = item if isinstance(item, QWidget) else QLabel(item)
+                layout.addWidget(widget, row_num, col_num)
+
+        dialog = WindowModalDialog(None, _("%s Settings") % self.device)
+        vbox = QVBoxLayout()
+        tabs = QTabWidget()
+        tabs.addTab(info_tab, _("Information"))
+        tabs.addTab(QWidget(), _("Advanced"))
+        vbox.addWidget(tabs)
+        vbox.addStretch(1)
+        vbox.addLayout(Buttons(CloseButton(dialog)))
+
+        dialog.setLayout(vbox)
+        self.handler.push_window(dialog)
+        try:
+            dialog.exec_()
+        finally:
+            self.handler.pop_window()
