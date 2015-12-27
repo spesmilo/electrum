@@ -1,7 +1,7 @@
 from electrum.wallet import BIP32_Hardware_Wallet
 
-from plugins.trezor.gui_mixin import GuiMixin
-from plugins.trezor.plugin_generic import TrezorCompatiblePlugin
+from plugins.trezor.client import trezor_client_class
+from plugins.trezor.plugin import TrezorCompatiblePlugin
 
 try:
     from keepkeylib.client import proto, BaseClient, ProtocolMixin
