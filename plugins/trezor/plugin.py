@@ -8,39 +8,32 @@ from electrum.transaction import deserialize, is_extended_pubkey
 
 class TrezorCompatiblePlugin(BasePlugin):
     # Derived classes provide:
-
-    #  libraries_available()
-    #  constructor()
-    #  ckd_public
-    #  types
-    #  wallet_type
+    #
+    #  class-static variables: client_class, firmware_URL,
+    #     libraries_available, libraries_URL, minimum_firmware,
+    #     wallet_class, ckd_public, types, HidTransport
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
+        self.device = self.wallet_class.device
         self.wallet = None
         self.handler = None
         self.client = None
-        self.transport = None
 
     def constructor(self, s):
-        raise NotImplementedError
-
-    @staticmethod
-    def libraries_available():
-        raise NotImplementedError
+        return self.wallet_class(s)
 
     def give_error(self, message):
         self.print_error(message)
         raise Exception(message)
 
     def is_available(self):
-        if not self.libraries_available():
+        if not self.libraries_available:
             return False
         if not self.wallet:
             return False
-        if self.wallet.storage.get('wallet_type') != self.wallet_type:
-            return False
-        return True
+        wallet_type = self.wallet.storage.get('wallet_type')
+        return wallet_type == self.wallet_class.wallet_type
 
     def set_enabled(self, enabled):
         self.wallet.storage.put('use_' + self.name, enabled)
@@ -52,9 +45,32 @@ class TrezorCompatiblePlugin(BasePlugin):
             return False
         return True
 
+    def get_client(self):
+        if not self.libraries_available:
+            self.give_error(_('please install the %s libraries from %s')
+                            % (self.device, self.libraries_URL))
+
+        if not self.client or self.client.bad:
+            d = self.HidTransport.enumerate()
+            if not d:
+                self.give_error(_('Could not connect to your %s. Please '
+                                  'verify the cable is connected and that no '
+                                  'other app is using it.' % self.device))
+            transport = self.HidTransport(d[0])
+            self.client = self.client_class(transport, self.device)
+            self.client.handler = self.handler
+            self.client.set_tx_api(self)
+            self.client.bad = False
+            if not self.atleast_version(*self.minimum_firmware):
+                self.client = None
+                self.give_error(_('Outdated %s firmware. Please update the '
+                                  'firmware from %s') % (self.device,
+                                                         self.firmware_URL))
+        return self.client
+
     def compare_version(self, major, minor=0, patch=0):
-        features = self.get_client().features
-        v = [features.major_version, features.minor_version, features.patch_version]
+        f = self.get_client().features
+        v = [f.major_version, f.minor_version, f.patch_version]
         self.print_error('firmware version', v)
         return cmp(v, [major, minor, patch])
 

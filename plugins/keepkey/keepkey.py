@@ -5,8 +5,6 @@ from plugins.trezor.plugin_generic import TrezorCompatiblePlugin
 
 try:
     from keepkeylib.client import proto, BaseClient, ProtocolMixin
-    from keepkeylib.transport import ConnectionError
-    from keepkeylib.transport_hid import HidTransport
     KEEPKEY = True
 except ImportError:
     KEEPKEY = False
@@ -19,46 +17,12 @@ class KeepKeyWallet(BIP32_Hardware_Wallet):
 
 
 class KeepKeyPlugin(TrezorCompatiblePlugin):
-    wallet_type = 'keepkey'
+    client_class = trezor_client_class(ProtocolMixin, BaseClient, proto)
+    firmware_URL = 'https://www.keepkey.com'
+    libraries_URL = 'https://github.com/keepkey/python-keepkey'
+    libraries_available = KEEPKEY
+    minimum_firmware = (1, 0, 0)
+    wallet_class = KeepKeyWallet
     import keepkeylib.ckd_public as ckd_public
     from keepkeylib.client import types
-
-    @staticmethod
-    def libraries_available():
-        return KEEPKEY
-
-    def constructor(self, s):
-        return KeepKeyWallet(s)
-
-    def get_client(self):
-        if not KEEPKEY:
-            give_error('please install github.com/keepkey/python-keepkey')
-
-        if not self.client or self.client.bad:
-            d = HidTransport.enumerate()
-            if not d:
-                give_error('Could not connect to your KeepKey. Please verify the cable is connected and that no other app is using it.')
-            self.transport = HidTransport(d[0])
-            self.client = QtGuiKeepKeyClient(self.transport)
-            self.client.handler = self.handler
-            self.client.set_tx_api(self)
-            self.client.bad = False
-            if not self.atleast_version(1, 0, 0):
-                self.client = None
-                give_error('Outdated KeepKey firmware. Please update the firmware from https://www.keepkey.com')
-        return self.client
-
-
-if KEEPKEY:
-    class QtGuiKeepKeyClient(ProtocolMixin, GuiMixin, BaseClient):
-        protocol = proto
-        device = 'KeepKey'
-
-        def call_raw(self, msg):
-            try:
-                resp = BaseClient.call_raw(self, msg)
-            except ConnectionError:
-                self.bad = True
-                raise
-
-            return resp
+    from keepkeylib.transport_hid import HidTransport

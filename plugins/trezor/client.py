@@ -3,10 +3,7 @@ from sys import stderr
 from electrum.i18n import _
 
 class GuiMixin(object):
-    # Requires: self.protcol, self.device
-
-    def __init__(self, *args, **kwargs):
-        super(GuiMixin, self).__init__(*args, **kwargs)
+    # Requires: self.proto, self.device
 
     def callback_ButtonRequest(self, msg):
         if msg.code == 3:
@@ -26,7 +23,7 @@ class GuiMixin(object):
             cancel_callback = None
 
         self.handler.show_message(message % self.device, cancel_callback)
-        return self.protocol.ButtonAck()
+        return self.proto.ButtonAck()
 
     def callback_PinMatrixRequest(self, msg):
         if msg.type == 1:
@@ -39,19 +36,39 @@ class GuiMixin(object):
             msg = _("Please enter %s PIN")
         pin = self.handler.get_pin(msg % self.device)
         if not pin:
-            return self.protocol.Cancel()
-        return self.protocol.PinMatrixAck(pin=pin)
+            return self.proto.Cancel()
+        return self.proto.PinMatrixAck(pin=pin)
 
     def callback_PassphraseRequest(self, req):
         msg = _("Please enter your %s passphrase")
         passphrase = self.handler.get_passphrase(msg % self.device)
         if passphrase is None:
-            return self.protocol.Cancel()
-        return self.protocol.PassphraseAck(passphrase=passphrase)
+            return self.proto.Cancel()
+        return self.proto.PassphraseAck(passphrase=passphrase)
 
     def callback_WordRequest(self, msg):
         #TODO
         stderr.write("Enter one word of mnemonic:\n")
         stderr.flush()
         word = raw_input()
-        return self.protocol.WordAck(word=word)
+        return self.proto.WordAck(word=word)
+
+def trezor_client_class(protocol_mixin, base_client, proto):
+    '''Returns a class dynamically.'''
+
+    class TrezorClient(protocol_mixin, GuiMixin, base_client):
+
+        def __init__(self, transport, device):
+            base_client.__init__(self, transport)
+            protocol_mixin.__init__(self, transport)
+            self.proto = proto
+            self.device = device
+
+        def call_raw(self, msg):
+            try:
+                return base_client.call_raw(self, msg)
+            except:
+                self.bad = True
+                raise
+
+    return TrezorClient
