@@ -1,6 +1,7 @@
 from sys import stderr
 
 from electrum.i18n import _
+from electrum.util import PrintError
 
 
 class GuiMixin(object):
@@ -58,18 +59,31 @@ class GuiMixin(object):
 def trezor_client_class(protocol_mixin, base_client, proto):
     '''Returns a class dynamically.'''
 
-    class TrezorClient(protocol_mixin, GuiMixin, base_client):
+    class TrezorClient(protocol_mixin, GuiMixin, base_client, PrintError):
 
-        def __init__(self, transport, device):
+        def __init__(self, transport, plugin):
             base_client.__init__(self, transport)
             protocol_mixin.__init__(self, transport)
             self.proto = proto
-            self.device = device
+            self.device = plugin.device
+            self.handler = plugin.handler
+            self.tx_api = plugin
+            self.bad = False
+
+        def firmware_version(self):
+            f = self.features
+            v = (f.major_version, f.minor_version, f.patch_version)
+            self.print_error('firmware version', v)
+            return v
+
+        def atleast_version(self, major, minor=0, patch=0):
+            return cmp(self.firmware_version(), (major, minor, patch))
 
         def call_raw(self, msg):
             try:
                 return base_client.call_raw(self, msg)
             except:
+                self.print_error("Marking %s client bad" % self.device)
                 self.bad = True
                 raise
 

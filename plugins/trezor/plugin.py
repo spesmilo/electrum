@@ -224,37 +224,33 @@ class TrezorCompatiblePlugin(BasePlugin):
             return False
         return True
 
-    def get_client(self):
+    def create_client(self):
         if not self.libraries_available:
             self.give_error(_('please install the %s libraries from %s')
                             % (self.device, self.libraries_URL))
 
+        devices = self.HidTransport.enumerate()
+        if not devices:
+            self.give_error(_('Could not connect to your %s. Please '
+                              'verify the cable is connected and that no '
+                              'other app is using it.' % self.device))
+
+        transport = self.HidTransport(devices[0])
+        client = self.client_class(transport, self)
+        if not client.atleast_version(*self.minimum_firmware):
+            self.give_error(_('Outdated %s firmware. Please update the '
+                              'firmware from %s')
+                            % (self.device, self.firmware_URL))
+        return client
+
+    def get_client(self):
         if not self.client or self.client.bad:
-            d = self.HidTransport.enumerate()
-            if not d:
-                self.give_error(_('Could not connect to your %s. Please '
-                                  'verify the cable is connected and that no '
-                                  'other app is using it.' % self.device))
-            transport = self.HidTransport(d[0])
-            self.client = self.client_class(transport, self.device)
-            self.client.handler = self.handler
-            self.client.set_tx_api(self)
-            self.client.bad = False
-            if not self.atleast_version(*self.minimum_firmware):
-                self.client = None
-                self.give_error(_('Outdated %s firmware. Please update the '
-                                  'firmware from %s') % (self.device,
-                                                         self.firmware_URL))
+            self.client = self.create_client()
+
         return self.client
 
-    def compare_version(self, major, minor=0, patch=0):
-        f = self.get_client().features
-        v = [f.major_version, f.minor_version, f.patch_version]
-        self.print_error('firmware version', v)
-        return cmp(v, [major, minor, patch])
-
     def atleast_version(self, major, minor=0, patch=0):
-        return self.compare_version(major, minor, patch) >= 0
+        return self.get_client().atleast_version(major, minor, patch)
 
     @hook
     def close_wallet(self):
@@ -395,6 +391,7 @@ class TrezorCompatiblePlugin(BasePlugin):
             o.script_pubkey = vout['scriptPubKey'].decode('hex')
         return t
 
+    # This function is called from the trezor libraries (via tx_api)
     def get_tx(self, tx_hash):
         tx = self.prev_tx[tx_hash]
         tx.deserialize()
