@@ -4,7 +4,7 @@ from struct import pack
 
 from electrum.account import BIP32_Account
 from electrum.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
-                              bip32_private_derivation, EncodeBase58Check)
+                              EncodeBase58Check)
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from electrum.transaction import (deserialize, is_extended_pubkey,
@@ -21,7 +21,6 @@ class TrezorCompatibleWallet(BIP44_Wallet):
 
     def __init__(self, storage):
         BIP44_Wallet.__init__(self, storage)
-        self.mpk = None
         self.checked_device = False
         self.proper_device = False
 
@@ -46,15 +45,13 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         return self.plugin.get_client()
 
     def derive_xkeys(self, root, derivation, password):
-        x = self.master_private_keys.get(root)
-        if x:
-            root_xprv = pw_decode(x, password)
-            xprv, xpub = bip32_private_derivation(root_xprv, root, derivation)
-            return xpub, xprv
-        else:
-            derivation = derivation.replace(self.root_name, self.prefix()+"/")
-            xpub = self.get_public_key(derivation)
-            return xpub, None
+        if self.master_public_keys.get(root):
+            return BIP44_wallet.derive_xkeys(self, root, derivation, password)
+
+        # Happens when creating a wallet
+        derivation = derivation.replace(self.root_name, self.prefix() + "/")
+        xpub = self.get_public_key(derivation)
+        return xpub, None
 
     def get_public_key(self, bip32_path):
         address_n = self.get_client().expand_path(bip32_path)
@@ -63,11 +60,6 @@ class TrezorCompatibleWallet(BIP44_Wallet):
                 + self.i4b(node.fingerprint) + self.i4b(node.child_num)
                 + node.chain_code + node.public_key)
         return EncodeBase58Check(xpub)
-
-    def get_master_public_key(self):
-        if not self.mpk:
-            self.mpk = self.get_public_key(self.prefix())
-        return self.mpk
 
     def i4b(self, x):
         return pack('>I', x)
