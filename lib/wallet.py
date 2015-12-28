@@ -26,6 +26,7 @@ import json
 import copy
 import re
 from functools import partial
+from unicodedata import normalize
 from i18n import _
 
 from util import NotEnoughFunds, PrintError, profiler
@@ -1642,6 +1643,7 @@ class BIP32_Simple_Wallet(BIP32_Wallet):
 
 
 class BIP32_HD_Wallet(BIP32_Wallet):
+
     # wallet that can create accounts
     def __init__(self, storage):
         BIP32_Wallet.__init__(self, storage)
@@ -1705,6 +1707,49 @@ class BIP32_HD_Wallet(BIP32_Wallet):
 
     def accounts_all_used(self):
         return all(self.account_is_used(acc_id) for acc_id in self.accounts)
+
+class BIP44_Wallet(BIP32_HD_Wallet):
+    root_derivation = "m/44'/0'"
+    wallet_type = 'bip44'
+
+    def can_sign_xpubkey(self, x_pubkey):
+        xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
+        return xpub in self.master_public_keys.values()
+
+    def can_create_accounts(self):
+        return not self.is_watching_only()
+
+    def prefix(self):
+        return "/".join(self.root_derivation.split("/")[1:])
+
+    def account_derivation(self, account_id):
+        return self.prefix() + "/" + account_id + "'"
+
+    def address_id(self, address):
+        acc_id, (change, address_index) = self.get_address_index(address)
+        account_derivation = self.account_derivation(acc_id)
+        return "%s/%d/%d" % (account_derivation, change, address_index)
+
+    def mnemonic_to_seed(self, mnemonic, passphrase):
+        # See BIP39
+        import pbkdf2, hashlib, hmac
+        PBKDF2_ROUNDS = 2048
+        mnemonic = normalize('NFKD', ' '.join(mnemonic.split()))
+        passphrase = normalize('NFKD', passphrase)
+        return pbkdf2.PBKDF2(mnemonic, 'mnemonic' + passphrase,
+                             iterations = PBKDF2_ROUNDS, macmodule = hmac,
+                             digestmodule = hashlib.sha512).read(64)
+
+    def derive_xkeys(self, root, derivation, password):
+        x = self.master_private_keys.get(root)
+        if x:
+            root_xprv = pw_decode(x, password)
+            xprv, xpub = bip32_private_derivation(root_xprv, root, derivation)
+            return xpub, xprv
+        else:
+            root_xpub = self.master_public_keys.get(root)
+            xpub = bip32_public_derivation(root_xub, root, derivation)
+            return xpub, None
 
 
 class NewWallet(BIP32_Wallet, Mnemonic):
@@ -1836,7 +1881,8 @@ wallet_types = [
     ('standard', 'standard', ("Standard wallet"),          NewWallet),
     ('standard', 'imported', ("Imported wallet"),          Imported_Wallet),
     ('multisig', '2of2',     ("Multisig wallet (2 of 2)"), Multisig_Wallet),
-    ('multisig', '2of3',     ("Multisig wallet (2 of 3)"), Multisig_Wallet)
+    ('multisig', '2of3',     ("Multisig wallet (2 of 3)"), Multisig_Wallet),
+    ('bip44',    'bip44',    ("Restored hardware wallet"), BIP44_Wallet),
 ]
 
 # former WalletFactory
@@ -1846,7 +1892,6 @@ class Wallet(object):
     type when passed a WalletStorage instance."""
 
     def __new__(self, storage):
-
         seed_version = storage.get('seed_version')
         if not seed_version:
             seed_version = OLD_SEED_VERSION if len(storage.get('master_public_key','')) == 128 else NEW_SEED_VERSION
@@ -1880,7 +1925,7 @@ class Wallet(object):
                 if re.match('(\d+)of(\d+)', wallet_type):
                     WalletClass = Multisig_Wallet
                 else:
-                    raise BaseException('unknown wallet type', wallet_type)
+                    raise RuntimeError("Unknown wallet type: " + wallet_type)
         else:
             if seed_version == OLD_SEED_VERSION:
                 WalletClass = OldWallet

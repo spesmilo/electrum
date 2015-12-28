@@ -1,29 +1,23 @@
 import re
 from binascii import unhexlify
-from struct import pack
-from unicodedata import normalize
 
 from electrum.account import BIP32_Account
-from electrum.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
-                              bip32_private_derivation, EncodeBase58Check)
+from electrum.bitcoin import bc_address_to_hash_160, xpub_from_pubkey
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from electrum.transaction import (deserialize, is_extended_pubkey,
                                   Transaction, x_to_xpub)
-from electrum.wallet import BIP32_HD_Wallet
+from electrum.wallet import BIP44_Wallet
 
-class TrezorCompatibleWallet(BIP32_HD_Wallet):
-    # A BIP32 hierarchical deterministic wallet
-    #
+class TrezorCompatibleWallet(BIP44_Wallet):
+    # Extend BIP44 Wallet as required by hardware implementation.
     # Derived classes must set:
     #   - device
     #   - wallet_type
-
-    root_derivation = "m/44'/0'"
+    restore_wallet_class = BIP44_Wallet
 
     def __init__(self, storage):
-        BIP32_HD_Wallet.__init__(self, storage)
-        self.mpk = None
+        BIP44_Wallet.__init__(self, storage)
         self.checked_device = False
         self.proper_device = False
 
@@ -31,79 +25,17 @@ class TrezorCompatibleWallet(BIP32_HD_Wallet):
         self.print_error(message)
         raise Exception(message)
 
-    def get_action(self):
-        if not self.accounts:
-            return 'create_accounts'
-
-    def can_import(self):
-        return False
-
-    def can_sign_xpubkey(self, x_pubkey):
-        xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
-        return xpub in self.master_public_keys.values()
-
     def can_export(self):
         return False
 
     def is_watching_only(self):
         return self.checked_device and not self.proper_device
 
-    def can_create_accounts(self):
-        return True
-
     def can_change_password(self):
         return False
 
     def get_client(self):
         return self.plugin.get_client()
-
-    def prefix(self):
-        return "/".join(self.root_derivation.split("/")[1:])
-
-    def account_derivation(self, account_id):
-        return self.prefix() + "/" + account_id + "'"
-
-    def address_id(self, address):
-        acc_id, (change, address_index) = self.get_address_index(address)
-        account_derivation = self.account_derivation(acc_id)
-        return "%s/%d/%d" % (account_derivation, change, address_index)
-
-    def mnemonic_to_seed(self, mnemonic, passphrase):
-        # trezor uses bip39
-        import pbkdf2, hashlib, hmac
-        PBKDF2_ROUNDS = 2048
-        mnemonic = normalize('NFKD', ' '.join(mnemonic.split()))
-        passphrase = normalize('NFKD', passphrase)
-        return pbkdf2.PBKDF2(mnemonic, 'mnemonic' + passphrase,
-                             iterations = PBKDF2_ROUNDS, macmodule = hmac,
-                             digestmodule = hashlib.sha512).read(64)
-
-    def derive_xkeys(self, root, derivation, password):
-        x = self.master_private_keys.get(root)
-        if x:
-            root_xprv = pw_decode(x, password)
-            xprv, xpub = bip32_private_derivation(root_xprv, root, derivation)
-            return xpub, xprv
-        else:
-            derivation = derivation.replace(self.root_name, self.prefix()+"/")
-            xpub = self.get_public_key(derivation)
-            return xpub, None
-
-    def get_public_key(self, bip32_path):
-        address_n = self.get_client().expand_path(bip32_path)
-        node = self.get_client().get_public_node(address_n).node
-        xpub = ("0488B21E".decode('hex') + chr(node.depth)
-                + self.i4b(node.fingerprint) + self.i4b(node.child_num)
-                + node.chain_code + node.public_key)
-        return EncodeBase58Check(xpub)
-
-    def get_master_public_key(self):
-        if not self.mpk:
-            self.mpk = self.get_public_key(self.prefix())
-        return self.mpk
-
-    def i4b(self, x):
-        return pack('>I', x)
 
     def decrypt_message(self, pubkey, message, password):
         raise RuntimeError(_('Decrypt method is not implemented'))

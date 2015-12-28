@@ -135,8 +135,11 @@ class QtPlugin(TrezorPlugin):
                                         None, func=lambda x: True)
         if not seed:
             return
-        wallet = self.wallet_class(storage)
-        self.wallet = wallet
+        # Restored wallets are not hardware wallets
+        wallet_class = self.wallet_class.restore_wallet_class
+        storage.put('wallet_type', wallet_class.wallet_type)
+        self.wallet = wallet = wallet_class(storage)
+
         handler = self.create_handler(wizard)
         msg = "\n".join([_("Please enter your %s passphrase.") % self.device,
                          _("Press OK if you do not use one.")])
@@ -147,8 +150,6 @@ class QtPlugin(TrezorPlugin):
         wallet.add_seed(seed, password)
         wallet.add_cosigner_seed(seed, 'x/', password, passphrase)
         wallet.create_main_account(password)
-        # disable plugin as this is a free-standing wallet
-        self.set_enabled(False)
         return wallet
 
     @hook
