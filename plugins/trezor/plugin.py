@@ -36,7 +36,7 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         return False
 
     def is_watching_only(self):
-        return self.checked_device and not self.proper_device
+        return not self.proper_device
 
     def can_change_password(self):
         return False
