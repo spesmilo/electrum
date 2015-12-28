@@ -256,36 +256,42 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.dummy_address = a[0] if a else None
         self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
         self.current_account = self.wallet.storage.get("current_account", None)
-        title = 'Electrum-LTC %s  -  %s' % (self.wallet.electrum_version, self.wallet.basename())
-        if self.wallet.is_watching_only():
-            title += ' [%s]' % (_('watching only'))
-        self.setWindowTitle( title )
         self.history_list.update()
         self.need_update.set()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         self.notify_transactions()
         # update menus
         self.update_new_account_menu()
-        self.export_menu.setEnabled(not self.wallet.is_watching_only())
-        self.password_menu.setEnabled(self.wallet.can_change_password())
         self.seed_menu.setEnabled(self.wallet.has_seed())
         self.mpk_menu.setEnabled(self.wallet.is_deterministic())
-        self.import_menu.setVisible(self.wallet.can_import())
-        self.export_menu.setEnabled(self.wallet.can_export())
         self.update_lock_icon()
         self.update_buttons_on_seed()
         self.update_console()
         self.clear_receive_tab()
         self.receive_list.update()
         self.tabs.show()
+
         # set geometry
         try:
             self.setGeometry(*self.wallet.storage.get("winpos-qt"))
         except:
             self.setGeometry(100, 100, 840, 400)
+        self.watching_only_changed()
         self.show()
-        self.warn_if_watching_only()
         run_hook('load_wallet', wallet, self)
+        self.warn_if_watching_only()
+
+    def watching_only_changed(self):
+        self.saved_wwo = self.wallet.is_watching_only()
+        title = 'Electrum-LTC %s  -  %s' % (self.wallet.electrum_version,
+                                            self.wallet.basename())
+        if self.wallet.is_watching_only():
+            title += ' [%s]' % (_('watching only'))
+        self.setWindowTitle(title)
+        self.export_menu.setEnabled(not self.wallet.is_watching_only())
+        self.password_menu.setEnabled(self.wallet.can_change_password())
+        self.import_menu.setVisible(self.wallet.can_import())
+        self.export_menu.setEnabled(self.wallet.can_export())
 
     def warn_if_watching_only(self):
         if self.wallet.is_watching_only():
@@ -519,6 +525,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.require_fee_update:
             self.do_update_fee()
             self.require_fee_update = False
+        if self.saved_wwo != self.wallet.is_watching_only():
+            self.watching_only_changed()
         run_hook('timer_actions')
 
     def format_amount(self, x, is_diff=False, whitespaces=False):

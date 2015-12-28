@@ -125,6 +125,7 @@ class QtPlugin(TrezorPlugin):
     def installwizard_load_wallet(self, wallet, window):
         if type(wallet) != self.wallet_class:
             return
+        wallet.plugin = self
         self.load_wallet(wallet, window)
 
     @hook
@@ -135,8 +136,11 @@ class QtPlugin(TrezorPlugin):
                                         None, func=lambda x: True)
         if not seed:
             return
-        wallet = self.wallet_class(storage)
-        self.wallet = wallet
+        # Restored wallets are not hardware wallets
+        wallet_class = self.wallet_class.restore_wallet_class
+        storage.put('wallet_type', wallet_class.wallet_type)
+        self.wallet = wallet = wallet_class(storage)
+
         handler = self.create_handler(wizard)
         msg = "\n".join([_("Please enter your %s passphrase.") % self.device,
                          _("Press OK if you do not use one.")])
@@ -147,8 +151,6 @@ class QtPlugin(TrezorPlugin):
         wallet.add_seed(seed, password)
         wallet.add_cosigner_seed(seed, 'x/', password, passphrase)
         wallet.create_main_account(password)
-        # disable plugin as this is a free-standing wallet
-        self.set_enabled(False)
         return wallet
 
     @hook
@@ -157,20 +159,6 @@ class QtPlugin(TrezorPlugin):
                 self.atleast_version(1, 3) and len(addrs) == 1):
             menu.addAction(_("Show on %s") % self.device,
                            lambda: self.show_address(addrs[0]))
-
-    def show_address(self, address):
-        self.wallet.check_proper_device()
-        try:
-            address_path = self.wallet.address_id(address)
-            address_n = self.get_client().expand_path(address_path)
-        except Exception, e:
-            self.give_error(e)
-        try:
-            self.get_client().get_address('Litecoin', address_n, True)
-        except Exception, e:
-            self.give_error(e)
-        finally:
-            self.handler.stop()
 
     def settings_dialog(self, window):
 
