@@ -125,6 +125,7 @@ class QtPlugin(TrezorPlugin):
     def installwizard_load_wallet(self, wallet, window):
         if type(wallet) != self.wallet_class:
             return
+        wallet.plugin = self
         self.load_wallet(wallet, window)
 
     @hook
@@ -158,20 +159,6 @@ class QtPlugin(TrezorPlugin):
                 self.atleast_version(1, 3) and len(addrs) == 1):
             menu.addAction(_("Show on %s") % self.device,
                            lambda: self.show_address(addrs[0]))
-
-    def show_address(self, address):
-        self.wallet.check_proper_device()
-        try:
-            address_path = self.wallet.address_id(address)
-            address_n = self.get_client().expand_path(address_path)
-        except Exception, e:
-            self.give_error(e)
-        try:
-            self.get_client().get_address('Bitcoin', address_n, True)
-        except Exception, e:
-            self.give_error(e)
-        finally:
-            self.handler.stop()
 
     def settings_dialog(self, window):
 
