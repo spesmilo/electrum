@@ -1,29 +1,37 @@
 import re
 from binascii import unhexlify
+from struct import pack
 
 from electrum.account import BIP32_Account
-from electrum.bitcoin import bc_address_to_hash_160, xpub_from_pubkey
+from electrum.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
+                              bip32_private_derivation, EncodeBase58Check)
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from electrum.transaction import (deserialize, is_extended_pubkey,
                                   Transaction, x_to_xpub)
-from electrum.wallet import BIP44_Wallet
+from electrum.wallet import BIP32_HD_Wallet, BIP44_Wallet
 
 class TrezorCompatibleWallet(BIP44_Wallet):
     # Extend BIP44 Wallet as required by hardware implementation.
     # Derived classes must set:
     #   - device
     #   - wallet_type
+
     restore_wallet_class = BIP44_Wallet
 
     def __init__(self, storage):
         BIP44_Wallet.__init__(self, storage)
+        self.mpk = None
         self.checked_device = False
         self.proper_device = False
 
     def give_error(self, message):
         self.print_error(message)
         raise Exception(message)
+
+    def get_action(self):
+        if not self.accounts:
+            return 'create_accounts'
 
     def can_export(self):
         return False
@@ -36,6 +44,33 @@ class TrezorCompatibleWallet(BIP44_Wallet):
 
     def get_client(self):
         return self.plugin.get_client()
+
+    def derive_xkeys(self, root, derivation, password):
+        x = self.master_private_keys.get(root)
+        if x:
+            root_xprv = pw_decode(x, password)
+            xprv, xpub = bip32_private_derivation(root_xprv, root, derivation)
+            return xpub, xprv
+        else:
+            derivation = derivation.replace(self.root_name, self.prefix()+"/")
+            xpub = self.get_public_key(derivation)
+            return xpub, None
+
+    def get_public_key(self, bip32_path):
+        address_n = self.get_client().expand_path(bip32_path)
+        node = self.get_client().get_public_node(address_n).node
+        xpub = ("0488B21E".decode('hex') + chr(node.depth)
+                + self.i4b(node.fingerprint) + self.i4b(node.child_num)
+                + node.chain_code + node.public_key)
+        return EncodeBase58Check(xpub)
+
+    def get_master_public_key(self):
+        if not self.mpk:
+            self.mpk = self.get_public_key(self.prefix())
+        return self.mpk
+
+    def i4b(self, x):
+        return pack('>I', x)
 
     def decrypt_message(self, pubkey, message, password):
         raise RuntimeError(_('Decrypt method is not implemented'))
