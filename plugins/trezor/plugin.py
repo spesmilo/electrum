@@ -165,19 +165,13 @@ class TrezorCompatiblePlugin(BasePlugin):
         self.print_error(message)
         raise Exception(message)
 
-    def is_available(self):
+    def is_enabled(self):
         if not self.libraries_available:
             return False
         if not self.wallet:
             return False
-        wallet_type = self.wallet.storage.get('wallet_type')
-        return wallet_type == self.wallet_class.wallet_type
-
-    def set_enabled(self, enabled):
-        self.wallet.storage.put('use_' + self.name, enabled)
-
-    def is_enabled(self):
-        if not self.is_available():
+        wallet_type = self.wallet_class.wallet_type
+        if self.wallet.storage.get('wallet_type') != wallet_type:
             return False
         if self.wallet.has_seed():
             return False

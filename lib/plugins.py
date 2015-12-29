@@ -98,11 +98,7 @@ class Plugins(DaemonThread):
                 __import__(dep)
             except ImportError:
                 return False
-        wallet_types = d.get('requires_wallet_type')
-        if wallet_types:
-            if w.wallet_type not in wallet_types:
-                return False
-        return True
+        return w.wallet_type in d.get('requires_wallet_type', [])
 
     def wallet_plugin_loader(self, config, name):
         if self.plugins.get(name) is None:
@@ -202,4 +198,3 @@ class BasePlugin(PrintError):
 
     def settings_dialog(self):
         pass
-
