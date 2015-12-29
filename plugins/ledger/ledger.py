@@ -421,30 +421,21 @@ class LedgerPlugin(BasePlugin):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
-        self._is_available = self._init()
         self.wallet = None
         self.handler = None
 
     def constructor(self, s):
         return BTChipWallet(s)
 
-    def _init(self):
-        return BTCHIP
-
-    def is_available(self):
-        if not self._is_available:
-            return False
-        if not self.wallet:
-            return False
-        if self.wallet.storage.get('wallet_type') != 'btchip':
-            return False
-        return True
-
     def set_enabled(self, enabled):
         self.wallet.storage.put('use_' + self.name, enabled)
 
     def is_enabled(self):
-        if not self.is_available():
+        if not BTCHIP:
+            return False
+        if not self.wallet:
+            return False
+        if self.wallet.storage.get('wallet_type') != 'btchip':
             return False
         if self.wallet.has_seed():
             return False
