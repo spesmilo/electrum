@@ -165,9 +165,6 @@ class TrezorCompatiblePlugin(BasePlugin):
         self.print_error(message)
         raise Exception(message)
 
-    def set_enabled(self, enabled):
-        self.wallet.storage.put('use_' + self.name, enabled)
-
     def is_enabled(self):
         if not self.libraries_available:
             return False

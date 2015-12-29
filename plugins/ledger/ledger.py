@@ -427,9 +427,6 @@ class LedgerPlugin(BasePlugin):
     def constructor(self, s):
         return BTChipWallet(s)
 
-    def set_enabled(self, enabled):
-        self.wallet.storage.put('use_' + self.name, enabled)
-
     def is_enabled(self):
         if not BTCHIP:
             return False
