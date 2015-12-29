@@ -276,6 +276,9 @@ class TrustedCoinPlugin(BasePlugin):
         BasePlugin.__init__(self, parent, config, name)
         self.seed_func = lambda x: bitcoin.is_new_seed(x, SEED_PREFIX)
 
+    def constructor(self, s):
+        return Wallet_2fa(s)
+
     def is_available(self):
         return True
 

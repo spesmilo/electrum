@@ -424,6 +424,9 @@ class LedgerPlugin(BasePlugin):
         self.wallet = None
         self.handler = None
 
+    def constructor(self, s):
+        return BTChipWallet(s)
+
     def is_enabled(self):
         if not BTCHIP:
             return False
