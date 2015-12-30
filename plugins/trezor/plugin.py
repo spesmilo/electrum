@@ -113,7 +113,7 @@ class TrezorCompatibleWallet(BIP44_Wallet):
                         acc_id = re.match("x/(\d+)'", k).group(1)
                         xpub_path[xpub] = self.account_derivation(acc_id)
 
-        self.plugin.sign_transaction(tx, prev_tx, xpub_path)
+        self.plugin.sign_transaction(self, tx, prev_tx, xpub_path)
 
     def is_proper_device(self):
         self.get_client().ping('t')
@@ -154,7 +154,6 @@ class TrezorCompatiblePlugin(BasePlugin):
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
         self.device = self.wallet_class.device
-        self.wallet = None
         self.handler = None
         self.client = None
 
@@ -166,16 +165,7 @@ class TrezorCompatiblePlugin(BasePlugin):
         raise Exception(message)
 
     def is_enabled(self):
-        if not self.libraries_available:
-            return False
-        if not self.wallet:
-            return False
-        wallet_type = self.wallet_class.wallet_type
-        if self.wallet.storage.get('wallet_type') != wallet_type:
-            return False
-        if self.wallet.has_seed():
-            return False
-        return True
+        return self.libraries_available
 
     def create_client(self):
         if not self.libraries_available:
@@ -212,14 +202,13 @@ class TrezorCompatiblePlugin(BasePlugin):
             self.client.clear_session()
             self.client.transport.close()
             self.client = None
-        self.wallet = None
 
-    def sign_transaction(self, tx, prev_tx, xpub_path):
+    def sign_transaction(self, wallet, tx, prev_tx, xpub_path):
         self.prev_tx = prev_tx
         self.xpub_path = xpub_path
         client = self.get_client()
         inputs = self.tx_inputs(tx, True)
-        outputs = self.tx_outputs(tx)
+        outputs = self.tx_outputs(wallet, tx)
         try:
             signed_tx = client.sign_tx('Litecoin', inputs, outputs)[1]
         except Exception as e:
@@ -229,11 +218,11 @@ class TrezorCompatiblePlugin(BasePlugin):
         raw = signed_tx.encode('hex')
         tx.update_signatures(raw)
 
-    def show_address(self, address):
+    def show_address(self, wallet, address):
         client = self.get_client()
-        self.wallet.check_proper_device()
+        wallet.check_proper_device()
         try:
-            address_path = self.wallet.address_id(address)
+            address_path = wallet.address_id(address)
             address_n = client.expand_path(address_path)
         except Exception as e:
             self.give_error(e)
@@ -306,15 +295,15 @@ class TrezorCompatiblePlugin(BasePlugin):
 
         return inputs
 
-    def tx_outputs(self, tx):
+    def tx_outputs(self, wallet, tx):
         client = self.get_client()
         outputs = []
 
         for type, address, amount in tx.outputs:
             assert type == 'address'
             txoutputtype = self.types.TxOutputType()
-            if self.wallet.is_change(address):
-                address_path = self.wallet.address_id(address)
+            if wallet.is_change(address):
+                address_path = wallet.address_id(address)
                 address_n = client.expand_path(address_path)
                 txoutputtype.address_n.extend(address_n)
             else:

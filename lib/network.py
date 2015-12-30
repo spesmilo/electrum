@@ -21,9 +21,11 @@ from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 
 DEFAULT_SERVERS = {
+    'einfachmalnettsein.de': {'t':'40001', 's':'40002'},
     'electrum.cryptomachine.com': DEFAULT_PORTS,
     'electrum-ltc.bysh.me': DEFAULT_PORTS,
     'electrum-ltc.koddos.com': DEFAULT_PORTS,
+    'electrum-ltc.neocrypto.io': {'t':'50003', 's':'50004'},
     'electrum-ltc.thwg.org': DEFAULT_PORTS,
     'electrum.dragonzone.net': {'t':'50003', 's':'50004'},
     'electrum.litecoiners.nl': DEFAULT_PORTS,
@@ -31,7 +33,7 @@ DEFAULT_SERVERS = {
     'electrum.ltc.xurious.com': DEFAULT_PORTS,
     'electrum.lurkmore.com': DEFAULT_PORTS,
     'electrum.snicter.com': DEFAULT_PORTS,
-    'electrum.petrkr.net': {'t':'60001', 's':'60002'},
+    'electrum-ltc.petrkr.net': {'t':'60001', 's':'60002'},
     'eltc.osl2.i2p.io': DEFAULT_PORTS,
     'glacialsoftware.net': DEFAULT_PORTS,
     'ltc2.electrum-servers.us': DEFAULT_PORTS,

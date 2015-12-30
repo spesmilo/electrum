@@ -271,8 +271,6 @@ class BTChipWallet(BIP32_HD_Wallet):
             return BIP32_HD_Wallet.sign_transaction(self, tx, password)
         if tx.is_complete():
             return
-        #if tx.error:
-        #    raise BaseException(tx.error)
         self.signing = True
         inputs = []
         inputsPaths = []
@@ -435,33 +433,24 @@ class LedgerPlugin(BasePlugin):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
-        self.wallet = None
         self.handler = None
 
     def constructor(self, s):
         return BTChipWallet(s)
 
     def is_enabled(self):
-        if not BTCHIP:
-            return False
-        if not self.wallet:
-            return False
-        if self.wallet.storage.get('wallet_type') != 'btchip':
-            return False
-        if self.wallet.has_seed():
-            return False
-        return True
+        return BTCHIP
 
-    def btchip_is_connected(self):
+    def btchip_is_connected(self, wallet):
         try:
-            self.wallet.get_client().getFirmwareVersion()
+            wallet.get_client().getFirmwareVersion()
         except:
             return False
         return True
 
     @hook
     def close_wallet(self):
-        self.wallet = None
+        pass
 
     @hook
     def installwizard_load_wallet(self, wallet, window):
@@ -480,11 +469,3 @@ class LedgerPlugin(BasePlugin):
             QMessageBox.information(None, _('Error'), str(e), _('OK'))
             return
         return wallet
-
-    @hook
-    def sign_tx(self, window, tx):
-        tx.error = None
-        try:
-            self.wallet.sign_transaction(tx, None)
-        except Exception as e:
-            tx.error = str(e)
