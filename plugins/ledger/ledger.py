@@ -425,7 +425,7 @@ class LedgerPlugin(BasePlugin):
         return BTChipWallet(s)
 
     def is_enabled(self):
-        return BTCHIP:
+        return BTCHIP
 
     def btchip_is_connected(self, wallet):
         try:
