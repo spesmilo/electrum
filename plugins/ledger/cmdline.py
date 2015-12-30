@@ -20,9 +20,6 @@ class BTChipCmdLineHandler:
 class Plugin(LedgerPlugin):
     @hook
     def cmdline_load_wallet(self, wallet):
-        self.wallet = wallet
-        self.wallet.plugin = self
+        wallet.plugin = self
         if self.handler is None:
             self.handler = BTChipCmdLineHandler()
-
-

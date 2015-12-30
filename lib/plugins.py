@@ -137,8 +137,6 @@ def _run_hook(name, always, *args):
     results = []
     f_list = hooks.get(name, [])
     for p, f in f_list:
-        if name == 'load_wallet':
-            p.wallet = args[0] # For for p.is_enabled() below
         if always or p.is_enabled():
             try:
                 r = f(*args)

@@ -108,16 +108,17 @@ class QtPlugin(TrezorPlugin):
 
     @hook
     def load_wallet(self, wallet, window):
+        if type(wallet) != self.wallet_class:
+            return
         self.print_error("load_wallet")
-        self.wallet = wallet
-        self.wallet.plugin = self
+        wallet.plugin = self
         self.button = StatusBarButton(QIcon(self.icon_file), self.device,
                                       partial(self.settings_dialog, window))
         if type(window) is ElectrumWindow:
             window.statusBar().addPermanentWidget(self.button)
         if self.handler is None:
             self.handler = self.create_handler(window)
-        msg = self.wallet.sanity_check()
+        msg = wallet.sanity_check()
         if msg:
             window.show_error(msg)
 
@@ -139,7 +140,7 @@ class QtPlugin(TrezorPlugin):
         # Restored wallets are not hardware wallets
         wallet_class = self.wallet_class.restore_wallet_class
         storage.put('wallet_type', wallet_class.wallet_type)
-        self.wallet = wallet = wallet_class(storage)
+        wallet = wallet_class(storage)
 
         handler = self.create_handler(wizard)
         msg = "\n".join([_("Please enter your %s passphrase.") % self.device,
@@ -154,11 +155,13 @@ class QtPlugin(TrezorPlugin):
         return wallet
 
     @hook
-    def receive_menu(self, menu, addrs):
-        if (not self.wallet.is_watching_only() and
+    def receive_menu(self, menu, addrs, wallet):
+        if type(wallet) != self.wallet_class:
+            return
+        if (not wallet.is_watching_only() and
                 self.atleast_version(1, 3) and len(addrs) == 1):
             menu.addAction(_("Show on %s") % self.device,
-                           lambda: self.show_address(addrs[0]))
+                           lambda: self.show_address(wallet, addrs[0]))
 
     def settings_dialog(self, window):
 

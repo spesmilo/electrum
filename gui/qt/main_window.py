@@ -1537,7 +1537,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if any(can_send(addr) for addr in addrs):
             menu.addAction(_("Send From"), lambda: self.send_from_addresses(addrs))
 
-        run_hook('receive_menu', menu, addrs)
+        run_hook('receive_menu', menu, addrs, self.wallet)
         menu.exec_(self.address_list.viewport().mapToGlobal(position))
 
 

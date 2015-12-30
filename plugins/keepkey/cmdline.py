@@ -25,8 +25,6 @@ class KeepKeyCmdLineHandler:
 class Plugin(KeepKeyPlugin):
     @hook
     def cmdline_load_wallet(self, wallet):
-        self.wallet = wallet
-        self.wallet.plugin = self
+        wallet.plugin = self
         if self.handler is None:
             self.handler = KeepKeyCmdLineHandler()
-

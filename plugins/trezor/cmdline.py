@@ -27,8 +27,8 @@ class Plugin(TrezorPlugin):
 
     @hook
     def cmdline_load_wallet(self, wallet):
-        self.wallet = wallet
-        self.wallet.plugin = self
+        if type(wallet) != self.wallet_class:
+            return
+        wallet.plugin = self
         if self.handler is None:
             self.handler = TrezorCmdLineHandler()
-

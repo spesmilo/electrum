@@ -4,23 +4,24 @@ import threading
 
 from electrum.plugins import BasePlugin, hook
 
-from ledger import LedgerPlugin
+from ledger import LedgerPlugin, BTChipWallet
 
 class Plugin(LedgerPlugin):
 
     @hook
     def load_wallet(self, wallet, window):
-        self.wallet = wallet
-        self.wallet.plugin = self
+        if type(wallet) != BTChipWallet:
+            return
+        wallet.plugin = self
         if self.handler is None:
             self.handler = BTChipQTHandler(window)
-        if self.btchip_is_connected():
-            if not self.wallet.check_proper_device():
+        if self.btchip_is_connected(wallet):
+            if not wallet.check_proper_device():
                 window.show_error(_("This wallet does not match your Ledger device"))
-                self.wallet.force_watching_only = True
+                wallet.force_watching_only = True
         else:
             window.show_error(_("Ledger device not detected.\nContinuing in watching-only mode."))
-            self.wallet.force_watching_only = True
+            wallet.force_watching_only = True
 
 
 class BTChipQTHandler:
