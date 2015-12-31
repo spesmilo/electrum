@@ -1,11 +1,10 @@
 from functools import partial
-from unicodedata import normalize
 import threading
 
 from PyQt4.Qt import QGridLayout, QInputDialog, QPushButton
 from PyQt4.Qt import QVBoxLayout, QLabel, SIGNAL
 from trezor import TrezorPlugin
-from electrum_gui.qt.main_window import ElectrumWindow, StatusBarButton
+from electrum_gui.qt.main_window import StatusBarButton
 from electrum_gui.qt.password_dialog import PasswordDialog
 from electrum_gui.qt.util import *
 
@@ -66,11 +65,12 @@ class QtHandler(PrintError):
 
     def passphrase_dialog(self, msg):
         self.dialog_stop()
-        d = PasswordDialog(self.windows[-1], None, None, msg, False)
-        confirmed, p, phrase = d.run()
+        d = PasswordDialog(self.windows[-1], None, msg,
+                           PasswordDialog.PW_PASSHPRASE)
+        confirmed, p, passphrase = d.run()
         if confirmed:
-            phrase = normalize('NFKD', unicode(phrase or ''))
-        self.passphrase = phrase
+            passphrase = TrezorPlugin.normalize_passphrase(passphrase)
+        self.passphrase = passphrase
         self.done.set()
 
     def message_dialog(self, msg, cancel_callback):
@@ -104,52 +104,30 @@ class QtPlugin(TrezorPlugin):
     #   pin_matrix_widget_class
 
     def create_handler(self, window):
-        return QtHandler(window, self.pin_matrix_widget_class, self.device)
+        return QtHandler(window, self.pin_matrix_widget_class(), self.device)
 
     @hook
     def load_wallet(self, wallet, window):
         if type(wallet) != self.wallet_class:
             return
-        self.print_error("load_wallet")
-        wallet.plugin = self
-        self.button = StatusBarButton(QIcon(self.icon_file), self.device,
-                                      partial(self.settings_dialog, window))
-        if type(window) is ElectrumWindow:
+        try:
+            client = self.get_client(wallet)
+            client.handler = self.create_handler(window)
+            client.check_proper_device(wallet)
+            self.button = StatusBarButton(QIcon(self.icon_file), self.device,
+                                          partial(self.settings_dialog, window))
             window.statusBar().addPermanentWidget(self.button)
-        if self.handler is None:
-            self.handler = self.create_handler(window)
-        msg = wallet.sanity_check()
-        if msg:
-            window.show_error(msg)
+        except Exception as e:
+            window.show_error(str(e))
 
-    @hook
-    def installwizard_load_wallet(self, wallet, window):
-        self.load_wallet(wallet, window)
+    def on_create_wallet(self, wallet, wizard):
+        client = self.get_client(wallet)
+        client.handler = self.create_handler(wizard)
+        wallet.create_main_account(None)
 
-    @hook
-    def installwizard_restore(self, wizard, storage):
-        if storage.get('wallet_type') != self.wallet_class.wallet_type:
-            return
-        seed = wizard.enter_seed_dialog(_("Enter your %s seed") % self.device,
-                                        None, func=lambda x: True)
-        if not seed:
-            return
-        # Restored wallets are not hardware wallets
-        wallet_class = self.wallet_class.restore_wallet_class
-        storage.put('wallet_type', wallet_class.wallet_type)
-        wallet = wallet_class(storage)
-
-        handler = self.create_handler(wizard)
-        msg = "\n".join([_("Please enter your %s passphrase.") % self.device,
-                         _("Press OK if you do not use one.")])
-        passphrase = handler.get_passphrase(msg)
-        if passphrase is None:
-            return
-        password = wizard.password_dialog()
-        wallet.add_seed(seed, password)
-        wallet.add_cosigner_seed(seed, 'x/', password, passphrase)
-        wallet.create_main_account(password)
-        return wallet
+    @staticmethod
+    def is_valid_seed(seed):
+        return True
 
     @hook
     def receive_menu(self, menu, addrs, wallet):
@@ -162,6 +140,8 @@ class QtPlugin(TrezorPlugin):
 
     def settings_dialog(self, window):
 
+        handler = self.get_client(window.wallet).handler
+
         def rename():
             title = _("Set Device Label")
             msg = _("Enter new label:")
@@ -172,7 +152,7 @@ class QtPlugin(TrezorPlugin):
             try:
                 client.change_label(new_label)
             finally:
-                self.handler.stop()
+                handler.stop()
             device_label.setText(new_label)
 
         def update_pin_info():
@@ -186,7 +166,7 @@ class QtPlugin(TrezorPlugin):
             try:
                 client.set_pin(remove=remove)
             finally:
-                self.handler.stop()
+                handler.stop()
             update_pin_info()
 
         client = self.get_client()
@@ -234,8 +214,8 @@ class QtPlugin(TrezorPlugin):
         vbox.addLayout(Buttons(CloseButton(dialog)))
 
         dialog.setLayout(vbox)
-        self.handler.push_window(dialog)
+        handler.push_window(dialog)
         try:
             dialog.exec_()
         finally:
-            self.handler.pop_window()
+            handler.pop_window()

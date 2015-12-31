@@ -18,6 +18,7 @@
 
 from functools import partial
 from threading import Thread
+import re
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -28,8 +29,9 @@ from electrum_gui.qt.amountedit import AmountEdit
 from electrum_gui.qt.main_window import StatusBarButton
 from electrum.i18n import _
 from electrum.plugins import hook
+from electrum import wizard
 
-from trustedcoin import TrustedCoinPlugin, Wallet_2fa
+from trustedcoin import TrustedCoinPlugin, Wallet_2fa, DISCLAIMER, server
 
 def need_server(wallet, tx):
     from electrum.account import BIP32_Account
@@ -89,6 +91,11 @@ class Plugin(TrustedCoinPlugin):
         task = partial(self.request_billing_info, window.wallet)
         return WaitingDialog(window, 'Getting billing information...', task,
                              on_finished)
+
+    def show_disclaimer(self, wallet, window):
+        icon = QPixmap(':icons/trustedcoin.png')
+        window.confirm('\n\n'.join(DISCLAIMER), icon=icon)
+        self.set_enabled(wallet, True)
 
     @hook
     def abort_send(self, window):
@@ -225,10 +232,9 @@ class Plugin(TrustedCoinPlugin):
         email_e.setFocus(True)
 
         if not window.exec_():
-            return
+            raise wizard.UserCancelled
 
-        email = str(email_e.text())
-        return email
+        return str(email_e.text())
 
 
     def setup_google_auth(self, window, _id, otp_secret):

@@ -1,6 +1,7 @@
 import re
 from binascii import unhexlify
 from struct import pack
+from unicodedata import normalize
 
 from electrum.account import BIP32_Account
 from electrum.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
@@ -21,7 +22,6 @@ class TrezorCompatibleWallet(BIP44_Wallet):
 
     def __init__(self, storage):
         BIP44_Wallet.__init__(self, storage)
-        self.checked_device = False
         self.proper_device = False
 
     def give_error(self, message):
@@ -29,8 +29,7 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         raise Exception(message)
 
     def get_action(self):
-        if not self.accounts:
-            return 'create_accounts'
+        pass
 
     def can_export(self):
         return False
@@ -43,7 +42,10 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         return False
 
     def get_client(self):
-        return self.plugin.get_client()
+        return self.plugin.get_client(self)
+
+    def check_proper_device(self):
+        return self.get_client().check_proper_device(self)
 
     def derive_xkeys(self, root, derivation, password):
         if self.master_public_keys.get(root):
@@ -81,7 +83,7 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         except Exception as e:
             self.give_error(e)
         finally:
-            self.plugin.handler.stop()
+            self.plugin.get_handler(self).stop()
         return msg_sig.signature
 
     def sign_transaction(self, tx, password):
@@ -112,34 +114,6 @@ class TrezorCompatibleWallet(BIP44_Wallet):
 
         self.plugin.sign_transaction(self, tx, prev_tx, xpub_path)
 
-    def is_proper_device(self):
-        self.get_client().ping('t')
-
-        if not self.checked_device:
-            address = self.addresses(False)[0]
-            address_id = self.address_id(address)
-            n = self.get_client().expand_path(address_id)
-            device_address = self.get_client().get_address('Bitcoin', n)
-            self.checked_device = True
-            self.proper_device = (device_address == address)
-
-        return self.proper_device
-
-    def check_proper_device(self):
-        if not self.is_proper_device():
-            self.give_error(_('Wrong device or password'))
-
-    def sanity_check(self):
-        try:
-            self.get_client().ping('t')
-        except BaseException as e:
-            return _("%s device not detected.  Continuing in watching-only "
-                     "mode.") % self.device + "\n\n" + str(e)
-
-        if self.addresses() and not self.is_proper_device():
-            return _("This wallet does not match your %s device") % self.device
-
-        return None
 
 class TrezorCompatiblePlugin(BasePlugin):
     # Derived classes provide:
@@ -151,8 +125,8 @@ class TrezorCompatiblePlugin(BasePlugin):
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
         self.device = self.wallet_class.device
-        self.handler = None
         self.client = None
+        self.wallet_class.plugin = self
 
     def constructor(self, s):
         return self.wallet_class(s)
@@ -171,9 +145,10 @@ class TrezorCompatiblePlugin(BasePlugin):
 
         devices = self.HidTransport.enumerate()
         if not devices:
-            self.give_error(_('Could not connect to your %s. Please '
-                              'verify the cable is connected and that no '
-                              'other app is using it.' % self.device))
+            self.give_error(_('Could not connect to your %s.  Verify the '
+                              'cable is connected and that no other app is '
+                              'using it.\nContinuing in watching-only mode.'
+                              % self.device))
 
         transport = self.HidTransport(devices[0])
         client = self.client_class(transport, self)
@@ -183,7 +158,10 @@ class TrezorCompatiblePlugin(BasePlugin):
                             % (self.device, self.firmware_URL))
         return client
 
-    def get_client(self):
+    def get_handler(self, wallet):
+        return self.get_client(wallet).handler
+
+    def get_client(self, wallet=None):
         if not self.client or self.client.bad:
             self.client = self.create_client()
 
@@ -191,6 +169,28 @@ class TrezorCompatiblePlugin(BasePlugin):
 
     def atleast_version(self, major, minor=0, patch=0):
         return self.get_client().atleast_version(major, minor, patch)
+
+    @staticmethod
+    def normalize_passphrase(self, passphrase):
+        return normalize('NFKD', unicode(passphrase or ''))
+
+    def on_restore_wallet(self, wallet, wizard):
+        assert isinstance(wallet, self.wallet_class)
+
+        msg = _("Enter the seed for your %s wallet:" % self.device)
+        seed = wizard.request_seed(msg, is_valid = self.is_valid_seed)
+
+        # Restored wallets are not hardware wallets
+        wallet_class = self.wallet_class.restore_wallet_class
+        wallet.storage.put('wallet_type', wallet_class.wallet_type)
+        wallet = wallet_class(wallet.storage)
+
+        passphrase = wizard.request_passphrase(self.device, restore=True)
+        password = wizard.request_password()
+        wallet.add_seed(seed, password)
+        wallet.add_cosigner_seed(seed, 'x/', password, passphrase)
+        wallet.create_main_account(password)
+        return wallet
 
     @hook
     def close_wallet(self, wallet):
@@ -211,7 +211,7 @@ class TrezorCompatiblePlugin(BasePlugin):
         except Exception as e:
             self.give_error(e)
         finally:
-            self.handler.stop()
+            self.get_handler(wallet).stop()
         raw = signed_tx.encode('hex')
         tx.update_signatures(raw)
 
@@ -228,7 +228,7 @@ class TrezorCompatiblePlugin(BasePlugin):
         except Exception as e:
             self.give_error(e)
         finally:
-            self.handler.stop()
+            self.get_handler(wallet).stop()
 
     def tx_inputs(self, tx, for_sig=False):
         client = self.get_client()

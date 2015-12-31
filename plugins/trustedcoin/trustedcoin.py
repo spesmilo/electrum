@@ -43,6 +43,24 @@ billing_xpub = "xpub6DTBdtBB8qUmH5c77v8qVGVoYk7WjJNpGvutqjLasNG1mbux6KsojaLrYf2s
 
 SEED_PREFIX = version.SEED_PREFIX_2FA
 
+DISCLAIMER = [
+    _("Two-factor authentication is a service provided by TrustedCoin.  "
+      "It uses a multi-signature wallet, where you own 2 of 3 keys.  "
+      "The third key is stored on a remote server that signs transactions on "
+      "your behalf.  To use this service, you will need a smartphone with "
+      "Google Authenticator installed."),
+    _("A small fee will be charged on each transaction that uses the "
+      "remote server.  You may check and modify your billing preferences "
+      "once the installation is complete."),
+    _("Note that your coins are not locked in this service.  You may withdraw "
+      "your funds at any time and at no cost, without the remote server, by "
+      "using the 'restore wallet' option with your wallet seed."),
+    _("The next step will generate the seed of your wallet.  This seed will "
+      "NOT be saved in your computer, and it must be stored on paper.  "
+      "To be safe from malware, you may want to do this on an offline "
+      "computer, and move your wallet later to an online computer."),
+]
+RESTORE_MSG = _("Enter the seed for your 2-factor wallet:")
 
 class TrustedCoinException(Exception):
     def __init__(self, message, status_code=0):
@@ -274,10 +292,14 @@ class TrustedCoinPlugin(BasePlugin):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
-        self.seed_func = lambda x: bitcoin.is_new_seed(x, SEED_PREFIX)
+        Wallet_2fa.plugin = self
 
     def constructor(self, s):
         return Wallet_2fa(s)
+
+    @staticmethod
+    def is_valid_seed(seed):
+        return bitcoin.is_new_seed(seed, SEED_PREFIX)
 
     def is_available(self):
         return True
@@ -298,13 +320,9 @@ class TrustedCoinPlugin(BasePlugin):
 
     def create_extended_seed(self, wallet, window):
         seed = wallet.make_seed()
-        if not window.show_seed(seed, None):
-            return
+        window.show_and_verify_seed(seed, is_valid=self.is_valid_seed)
 
-        if not window.verify_seed(seed, None, self.seed_func):
-            return
-
-        password = window.password_dialog()
+        password = window.request_password()
         wallet.storage.put('seed_version', wallet.seed_version)
         wallet.storage.put('use_encryption', password is not None)
 
@@ -313,57 +331,29 @@ class TrustedCoinPlugin(BasePlugin):
         wallet.add_cosigner_seed(' '.join(words[0:n]), 'x1/', password)
         wallet.add_cosigner_xpub(' '.join(words[n:]), 'x2/')
 
+        wallet.storage.write()
+
         msg = [
-            _('Your wallet file is:') + " %s"%os.path.abspath(wallet.storage.path),
-            _('You need to be online in order to complete the creation of your wallet.'),
-            _('If you generated your seed on an offline computer, click on "%s" to close this window, move your wallet file to an online computer and reopen it with Electrum.') % _('Close'),
+            _("Your wallet file is: %s.")%os.path.abspath(wallet.storage.path),
+            _("You need to be online in order to complete the creation of "
+              "your wallet.  If you generated your seed on an offline "
+              'computer, click on "%s" to close this window, move your '
+              "wallet file to an online computer, and reopen it with "
+              "Electrum.") % _('Cancel'),
             _('If you are online, click on "%s" to continue.') % _('Next')
         ]
-        return window.question('\n\n'.join(msg), no_label=_('Close'), yes_label=_('Next'))
-
-
-    def show_disclaimer(self, wallet, window):
-        msg = [
-            _("Two-factor authentication is a service provided by TrustedCoin.") + ' ',
-            _("It uses a multi-signature wallet, where you own 2 of 3 keys.") + ' ',
-            _("The third key is stored on a remote server that signs transactions on your behalf.") + ' ',
-            _("To use this service, you will need a smartphone with Google Authenticator.") + '\n\n',
-
-            _("A small fee will be charged on each transaction that uses the remote server.") + ' ',
-            _("You may check and modify your billing preferences once the installation is complete.") + '\n\n',
-
-            _("Note that your coins are not locked in this service.") + ' ',
-            _("You may withdraw your funds at any time and at no cost, without the remote server, by using the 'restore wallet' option with your wallet seed.") + '\n\n',
-
-            _('The next step will generate the seed of your wallet.') + ' ',
-            _('This seed will NOT be saved in your computer, and it must be stored on paper.') + ' ',
-            _('To be safe from malware, you may want to do this on an offline computer, and move your wallet later to an online computer.')
-        ]
-        icon = QPixmap(':icons/trustedcoin.png')
-        if not window.question(''.join(msg), icon=icon):
-            return False
-        self.set_enabled(wallet, True)
-        return True
+        msg = '\n\n'.join(msg)
+        window.confirm(msg)
 
     @hook
     def do_clear(self, window):
         window.wallet.is_billing = False
 
-    @hook
-    def get_wizard_action(self, window, wallet, action):
-        if hasattr(self, action):
-            return getattr(self, action)
+    def on_restore_wallet(self, wallet, wizard):
+        assert isinstance(wallet, Wallet_2fa)
 
-    @hook
-    def installwizard_restore(self, window, storage):
-        if storage.get('wallet_type') != '2fa':
-            return
-
-        seed = window.enter_seed_dialog("Enter your seed", None, func=self.seed_func)
-        if not seed:
-            return
-        wallet = Wallet_2fa(storage)
-        password = window.password_dialog()
+        seed = wizard.request_seed(RESTORE_MSG, is_valid=self.is_valid_seed)
+        password = wizard.request_password()
 
         wallet.add_seed(seed, password)
         words = seed.split()
@@ -373,20 +363,10 @@ class TrustedCoinPlugin(BasePlugin):
 
         restore_third_key(wallet)
         wallet.create_main_account(password)
-        # disable plugin
-        self.set_enabled(wallet, False)
         return wallet
 
-
     def create_remote_key(self, wallet, window):
-        if wallet.storage.get('wallet_type') != '2fa':
-            raise
-            return
-
         email = self.accept_terms_of_use(window)
-        if not email:
-            return
-
         xpub_hot = wallet.master_public_keys["x1/"]
         xpub_cold = wallet.master_public_keys["x2/"]
 
@@ -422,8 +402,5 @@ class TrustedCoinPlugin(BasePlugin):
                 window.show_message(str(e))
                 return
 
-        if not self.setup_google_auth(window, short_id, otp_secret):
-            return
-
-        wallet.add_master_public_key('x3/', xpub3)
-        return True
+        if self.setup_google_auth(window, short_id, otp_secret):
+            wallet.add_master_public_key('x3/', xpub3)

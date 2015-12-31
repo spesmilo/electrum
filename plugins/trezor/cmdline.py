@@ -1,6 +1,5 @@
 from trezor import TrezorPlugin
 from electrum.util import print_msg
-from electrum.plugins import hook
 
 class TrezorCmdLineHandler:
 
@@ -24,11 +23,4 @@ class TrezorCmdLineHandler:
 
 
 class Plugin(TrezorPlugin):
-
-    @hook
-    def cmdline_load_wallet(self, wallet):
-        if type(wallet) != self.wallet_class:
-            return
-        wallet.plugin = self
-        if self.handler is None:
-            self.handler = TrezorCmdLineHandler()
+    handler = TrezorCmdLineHandler()

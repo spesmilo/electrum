@@ -130,70 +130,35 @@ class ElectrumGui(MessageBoxMixin):
         for window in self.windows:
             window.close()
 
-    def remove_from_recently_open(self, filename):
-        recent = self.config.get('recently_open', [])
-        if filename in recent:
-            recent.remove(filename)
-            self.config.set_key('recently_open', recent)
-
-    def load_wallet_file(self, filename):
-        try:
-            storage = WalletStorage(filename)
-        except Exception as e:
-            self.show_error(str(e))
-            return
-        if not storage.file_exists:
-            self.remove_from_recently_open(filename)
-            action = 'new'
-        else:
-            try:
-                wallet = Wallet(storage)
-            except BaseException as e:
-                traceback.print_exc(file=sys.stdout)
-                self.show_warning(str(e))
-                return
-            action = wallet.get_action()
-
-        if action is not None:
-            return self.install_wizard(storage, action)
-
-        wallet.start_threads(self.network)
-        return self.create_window_for_wallet(wallet)
-
-    def install_wizard(self, storage, action):
-        wizard = InstallWizard(self, storage)
-        wallet = wizard.run(action)
-        return self.create_window_for_wallet(wallet)
-
     def new_window(self, path, uri=None):
         # Use a signal as can be called from daemon thread
         self.app.emit(SIGNAL('new_window'), path, uri)
 
-    def create_window_for_wallet(self, wallet):
-        if not wallet:
-            return
+    def create_window_for_wallet(self, wallet, task):
         w = ElectrumWindow(self, wallet)
-        w.connect_slots(self.timer)
-        w.update_recently_visited(wallet.storage.path)
-        # initial configuration
-        if self.config.get('hide_gui') is True and self.tray.isVisible():
-            w.hide()
-        else:
-            w.show()
         self.windows.append(w)
         self.build_tray_menu()
+        if task:
+            WaitingDialog(w, task[0], task[1])
+        # FIXME: Remove in favour of the load_wallet hook
         run_hook('on_new_window', w)
         return w
 
     def start_new_window(self, path, uri):
+        '''Raises the window for the wallet if it is open.  Otherwise
+        opens the wallet and creates a new window for it.'''
         for w in self.windows:
             if w.wallet.storage.path == path:
                 w.bring_to_top()
                 break
         else:
-            w = self.load_wallet_file(path)
+            wizard = InstallWizard(self.config, self.app, self.plugins)
+            result = wizard.open_wallet(self.network, path)
+            if not result:
+                return
+            w = self.create_window_for_wallet(*result)
 
-        if uri and w:
+        if uri:
             w.pay_to_URI(uri)
 
         return w

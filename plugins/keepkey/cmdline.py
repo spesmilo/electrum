@@ -1,6 +1,5 @@
 from keepkey import KeepKeyPlugin
 from electrum.util import print_msg
-from electrum.plugins import hook
 
 class KeepKeyCmdLineHandler:
 
@@ -23,8 +22,4 @@ class KeepKeyCmdLineHandler:
         print_msg(msg)
 
 class Plugin(KeepKeyPlugin):
-    @hook
-    def cmdline_load_wallet(self, wallet):
-        wallet.plugin = self
-        if self.handler is None:
-            self.handler = KeepKeyCmdLineHandler()
+    handler = KeepKeyCmdLineHandler()

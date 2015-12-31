@@ -205,6 +205,9 @@ class Abstract_Wallet(PrintError):
     def diagnostic_name(self):
         return self.basename()
 
+    def set_use_encryption(self, use_encryption):
+        self.use_encryption = use_encryption
+        self.storage.put('use_encryption', use_encryption)
 
     @profiler
     def load_transactions(self):
@@ -309,6 +312,9 @@ class Abstract_Wallet(PrintError):
                 self.print_error("cannot load account", v)
         if removed:
             self.save_accounts()
+
+    def create_main_account(self, password):
+        pass
 
     def synchronize(self):
         pass
@@ -1049,8 +1055,7 @@ class Abstract_Wallet(PrintError):
                 self.master_private_keys[k] = c
             self.storage.put('master_private_keys', self.master_private_keys)
 
-        self.use_encryption = (new_password != None)
-        self.storage.put('use_encryption', self.use_encryption)
+        self.set_use_encryption(new_password is not None)
 
     def is_frozen(self, addr):
         return addr in self.frozen_addresses
@@ -1112,15 +1117,16 @@ class Abstract_Wallet(PrintError):
                         _("Please wait..."),
                         _("Addresses generated:"),
                         len(self.addresses(True)))
-                    apply(callback, (msg,))
+                    callback(msg)
                 time.sleep(0.1)
         def wait_for_network():
             while not self.network.is_connected():
                 if callback:
                     msg = "%s \n" % (_("Connecting..."))
-                    apply(callback, (msg,))
+                    callback(msg)
                 time.sleep(0.1)
-        # wait until we are connected, because the user might have selected another server
+        # wait until we are connected, because the user
+        # might have selected another server
         if self.network:
             wait_for_network()
             wait_for_wallet()
@@ -1428,14 +1434,10 @@ class Deterministic_Wallet(Abstract_Wallet):
 
         self.seed_version, self.seed = self.format_seed(seed)
         if password:
-            self.seed = pw_encode( self.seed, password)
-            self.use_encryption = True
-        else:
-            self.use_encryption = False
-
+            self.seed = pw_encode(self.seed, password)
         self.storage.put('seed', self.seed)
         self.storage.put('seed_version', self.seed_version)
-        self.storage.put('use_encryption', self.use_encryption)
+        self.set_use_encryption(password is not None)
 
     def get_seed(self, password):
         return pw_decode(self.seed, password)
@@ -1527,8 +1529,6 @@ class Deterministic_Wallet(Abstract_Wallet):
     def get_action(self):
         if not self.get_master_public_key():
             return 'create_seed'
-        if not self.accounts:
-            return 'create_accounts'
 
     def get_master_public_keys(self):
         out = {}
@@ -1632,8 +1632,7 @@ class BIP32_Simple_Wallet(BIP32_Wallet):
         self.add_master_private_key(self.root_name, xprv, password)
         self.add_master_public_key(self.root_name, xpub)
         self.add_account('0', account)
-        self.use_encryption = (password != None)
-        self.storage.put('use_encryption', self.use_encryption)
+        self.set_use_encryption(password is not None)
 
     def create_xpub_wallet(self, xpub):
         account = BIP32_Account({'xpub':xpub})
@@ -1797,10 +1796,6 @@ class Multisig_Wallet(BIP32_Wallet, Mnemonic):
         for i in range(self.n):
             if self.master_public_keys.get("x%d/"%(i+1)) is None:
                 return 'create_seed' if i == 0 else 'add_cosigners'
-        if not self.accounts:
-            return 'create_accounts'
-
-
 
 
 class OldWallet(Deterministic_Wallet):
@@ -1998,6 +1993,15 @@ class Wallet(object):
                 or Wallet.is_private_key(text))
 
     @staticmethod
+    def multisig_type(wallet_type):
+        '''If wallet_type is mofn multi-sig, return [m, n],
+        otherwise return None.'''
+        match = re.match('(\d+)of(\d+)', wallet_type)
+        if match:
+            match = [int(x) for x in match.group(1, 2)]
+        return match
+
+    @staticmethod
     def from_seed(seed, password, storage):
         if is_old_seed(seed):
             klass = OldWallet
@@ -2048,10 +2052,9 @@ class Wallet(object):
     def from_multisig(key_list, password, storage, wallet_type):
         storage.put('wallet_type', wallet_type)
         wallet = Multisig_Wallet(storage)
-        key_list = sorted(key_list, key = lambda x: Wallet.is_xpub(x))
+        key_list = sorted(key_list, key = Wallet.is_xpub)
         for i, text in enumerate(key_list):
-            assert Wallet.is_seed(text) or Wallet.is_xprv(text) or Wallet.is_xpub(text)
-            name = "x%d/"%(i+1)
+            name = "x%d/" % (i+1)
             if Wallet.is_xprv(text):
                 xpub = bitcoin.xpub_from_xprv(text)
                 wallet.add_master_public_key(name, xpub)
@@ -2064,8 +2067,9 @@ class Wallet(object):
                     wallet.create_master_keys(password)
                 else:
                     wallet.add_cosigner_seed(text, name, password)
-        wallet.use_encryption = (password != None)
-        wallet.storage.put('use_encryption', wallet.use_encryption)
+            else:
+                raise RunTimeError("Cannot handle text for multisig")
+        wallet.set_use_encryption(password is not None)
         wallet.create_main_account(password)
         return wallet
 

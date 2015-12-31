@@ -41,8 +41,11 @@ def check_password_strength(password):
 
 class PasswordDialog(WindowModalDialog):
 
-    def __init__(self, parent, wallet, title, msg, new_pass):
-        WindowModalDialog.__init__(self, parent, title)
+    PW_NEW, PW_CHANGE, PW_PASSPHRASE = range(0, 3)
+    titles = [_("Enter Password"), _("Change Password"), _("Enter Passphrase")]
+
+    def __init__(self, parent, wallet, msg, kind):
+        WindowModalDialog.__init__(self, parent, self.titles[kind])
         self.wallet = wallet
 
         self.pw = QLineEdit()
@@ -51,41 +54,48 @@ class PasswordDialog(WindowModalDialog):
         self.new_pw.setEchoMode(2)
         self.conf_pw = QLineEdit()
         self.conf_pw.setEchoMode(2)
+        self.kind = kind
 
         vbox = QVBoxLayout()
-        label = QLabel(msg)
+        label = QLabel(msg + "\n")
         label.setWordWrap(True)
 
         grid = QGridLayout()
         grid.setSpacing(8)
-        grid.setColumnMinimumWidth(0, 70)
+        grid.setColumnMinimumWidth(0, 150)
+        grid.setColumnMinimumWidth(1, 100)
         grid.setColumnStretch(1,1)
 
-        logo = QLabel()
-        logo.setAlignment(Qt.AlignCenter)
-
-        grid.addWidget(logo,  0, 0)
-        grid.addWidget(label, 0, 1, 1, 2)
-        vbox.addLayout(grid)
-
-        grid = QGridLayout()
-        grid.setSpacing(8)
-        grid.setColumnMinimumWidth(0, 250)
-        grid.setColumnStretch(1,1)
-
-        if wallet and wallet.use_encryption:
-            grid.addWidget(QLabel(_('Password')), 0, 0)
-            grid.addWidget(self.pw, 0, 1)
-            lockfile = ":icons/lock.png"
+        if kind == self.PW_PASSPHRASE:
+            vbox.addWidget(label)
+            msgs = [_('Passphrase:'), _('Confirm Passphrase:')]
         else:
-            self.pw = None
-            lockfile = ":icons/unlock.png"
-        logo.setPixmap(QPixmap(lockfile).scaledToWidth(36))
+            logo_grid = QGridLayout()
+            logo_grid.setSpacing(8)
+            logo_grid.setColumnMinimumWidth(0, 70)
+            logo_grid.setColumnStretch(1,1)
 
-        grid.addWidget(QLabel(_('New Password') if new_pass else _('Password')), 1, 0)
+            logo = QLabel()
+            logo.setAlignment(Qt.AlignCenter)
+
+            logo_grid.addWidget(logo,  0, 0)
+            logo_grid.addWidget(label, 0, 1, 1, 2)
+            vbox.addLayout(logo_grid)
+
+            m1 = _('New Password:') if kind == self.PW_NEW else _('Password:')
+            msgs = [m1, _('Confirm Password:')]
+            if wallet and wallet.use_encryption:
+                grid.addWidget(QLabel(_('Current Password:')), 0, 0)
+                grid.addWidget(self.pw, 0, 1)
+                lockfile = ":icons/lock.png"
+            else:
+                lockfile = ":icons/unlock.png"
+                logo.setPixmap(QPixmap(lockfile).scaledToWidth(36))
+
+        grid.addWidget(QLabel(msgs[0]), 1, 0)
         grid.addWidget(self.new_pw, 1, 1)
 
-        grid.addWidget(QLabel(_('Confirm Password')), 2, 0)
+        grid.addWidget(QLabel(msgs[1]), 2, 0)
         grid.addWidget(self.conf_pw, 2, 1)
         vbox.addLayout(grid)
 
@@ -120,8 +130,10 @@ class PasswordDialog(WindowModalDialog):
         if not self.exec_():
             return False, None, None
 
-        password = unicode(self.pw.text()) if self.pw else None
-        new_password = unicode(self.new_pw.text())
-        new_password2 = unicode(self.conf_pw.text())
+        if self.kind == self.PW_CHANGE:
+            old_password = unicode(self.pw.text()) or None
+        else:
+            old_password = None
+        new_password = unicode(self.new_pw.text()) or None
 
-        return True, password or None, new_password or None
+        return True, old_password, new_password

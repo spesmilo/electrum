@@ -26,6 +26,7 @@ import time
 from util import *
 from i18n import _
 from util import profiler, PrintError, DaemonThread
+import wallet
 
 class Plugins(DaemonThread):
 
@@ -38,18 +39,21 @@ class Plugins(DaemonThread):
         else:
             plugins = __import__('electrum_plugins')
         self.pkgpath = os.path.dirname(plugins.__file__)
+        self.config = config
+        self.hw_wallets = {}
         self.plugins = {}
         self.gui_name = gui_name
         self.descriptions = []
         for loader, name, ispkg in pkgutil.iter_modules([self.pkgpath]):
             m = loader.find_module(name).load_module(name)
             d = m.__dict__
-            if gui_name not in d.get('available_for', []):
+            gui_good = gui_name in d.get('available_for', [])
+            details = d.get('registers_wallet_type')
+            if details:
+                self.register_plugin_wallet(name, gui_good, details)
+            if not gui_good:
                 continue
             self.descriptions.append(d)
-            x = d.get('registers_wallet_type')
-            if x:
-                self.register_wallet_type(config, name, x)
             if not d.get('requires_wallet_type') and config.get('use_' + name):
                 self.load_plugin(config, name)
 
@@ -100,15 +104,28 @@ class Plugins(DaemonThread):
                 return False
         return w.wallet_type in d.get('requires_wallet_type', [])
 
-    def wallet_plugin_loader(self, config, name):
-        if self.plugins.get(name) is None:
-            self.load_plugin(config, name)
-        return self.plugins[name]
+    def hardware_wallets(self, action):
+        result = []
+        for name, (gui_good, details) in self.hw_wallets.items():
+            if gui_good:
+                try:
+                    p = self.wallet_plugin_loader(name)
+                    if action == 'restore' or p.is_enabled():
+                        result.append((details[1], details[2]))
+                except:
+                    self.print_error("cannot load plugin for:", name)
+        return result
 
-    def register_wallet_type(self, config, name, x):
-        import wallet
-        x += (lambda: self.wallet_plugin_loader(config, name),)
-        wallet.wallet_types.append(x)
+    def register_plugin_wallet(self, name, gui_good, details):
+        if details[0] == 'hardware':
+            self.hw_wallets[name] = (gui_good, details)
+        register = details + (lambda: self.wallet_plugin_loader(name),)
+        wallet.wallet_types.append(register)
+
+    def wallet_plugin_loader(self, name):
+        if not name in self.plugins:
+            self.load_plugin(self.config, name)
+        return self.plugins[name]
 
     def run(self):
         jobs = [job for plugin in self.plugins.values()

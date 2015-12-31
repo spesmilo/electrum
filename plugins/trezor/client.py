@@ -70,10 +70,42 @@ def trezor_client_class(protocol_mixin, base_client, proto):
             protocol_mixin.__init__(self, transport)
             self.proto = proto
             self.device = plugin.device
-            self.handler = plugin.handler
+            self.handler = None
+            self.plugin = plugin
             self.tx_api = plugin
             self.bad = False
             self.msg_code_override = None
+            self.proper_device = False
+            self.checked_device = False
+
+        def check_proper_device(self, wallet):
+            try:
+                self.ping('t')
+            except BaseException as e:
+                self.plugin.give_error(
+                    __("%s device not detected.  Continuing in watching-only "
+                       "mode.") % self.device + "\n\n" + str(e))
+            if not self.is_proper_device(wallet):
+                self.plugin.give_error(_('Wrong device or password'))
+
+        def is_proper_device(self, wallet):
+            if not self.checked_device:
+                addresses = wallet.addresses(False)
+                if not addresses:   # Wallet being created?
+                    return True
+
+                address = addresses[0]
+                address_id = wallet.address_id(address)
+                path = self.expand_path(address_id)
+                self.checked_device = True
+                try:
+                    device_address = self.get_address('Bitcoin', path)
+                    self.proper_device = (device_address == address)
+                except:
+                    self.proper_device = False
+                wallet.proper_device = self.proper_device
+
+            return self.proper_device
 
         def change_label(self, label):
             self.msg_code_override = 'label'
