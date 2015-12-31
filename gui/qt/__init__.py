@@ -150,21 +150,37 @@ class ElectrumGui(MessageBoxMixin):
                 self.show_warning(str(e))
                 return
             action = wallet.get_action()
-        # run wizard
-        if action is not None:
-            wizard = InstallWizard(self.app, self.config, self.network, storage)
-            wallet = wizard.run(action)
-            # keep current wallet
-            if not wallet:
-                return
-        else:
-            wallet.start_threads(self.network)
 
-        return wallet
+        if action is not None:
+            return self.install_wizard(storage, action)
+
+        wallet.start_threads(self.network)
+        return self.create_window_for_wallet(wallet)
+
+    def install_wizard(self, storage, action):
+        wizard = InstallWizard(self.app, self.config, self.network, storage)
+        wallet = wizard.run(action)
+        return self.create_window_for_wallet(wallet)
 
     def new_window(self, path, uri=None):
         # Use a signal as can be called from daemon thread
         self.app.emit(SIGNAL('new_window'), path, uri)
+
+    def create_window_for_wallet(self, wallet):
+        if not wallet:
+            return
+        w = ElectrumWindow(self, wallet)
+        w.connect_slots(self.timer)
+        w.update_recently_visited(wallet.storage.path)
+        # initial configuration
+        if self.config.get('hide_gui') is True and self.tray.isVisible():
+            w.hide()
+        else:
+            w.show()
+        self.windows.append(w)
+        self.build_tray_menu()
+        run_hook('on_new_window', w)
+        return w
 
     def start_new_window(self, path, uri):
         for w in self.windows:
@@ -172,23 +188,9 @@ class ElectrumGui(MessageBoxMixin):
                 w.bring_to_top()
                 break
         else:
-            wallet = self.load_wallet_file(path)
-            if not wallet:
-                return
-            w = ElectrumWindow(self, wallet)
-            w.connect_slots(self.timer)
-            # add to recently visited
-            w.update_recently_visited(path)
-            # initial configuration
-            if self.config.get('hide_gui') is True and self.tray.isVisible():
-                w.hide()
-            else:
-                w.show()
-            self.windows.append(w)
-            self.build_tray_menu()
-            run_hook('on_new_window', w)
+            w = self.load_wallet_file(path)
 
-        if uri:
+        if uri and w:
             w.pay_to_URI(uri)
 
         return w

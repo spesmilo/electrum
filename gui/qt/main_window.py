@@ -50,7 +50,6 @@ from network_dialog import NetworkDialog
 from qrcodewidget import QRCodeWidget, QRDialog
 from qrtextedit import ShowQRTextEdit
 from transaction_dialog import show_transaction
-from installwizard import InstallWizard
 
 
 
@@ -385,10 +384,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if storage.file_exists:
             self.show_critical(_("File exists"))
             return
-        wizard = InstallWizard(self.app, self.config, self.network, storage)
-        wallet = wizard.run('new')
-        if wallet:
-            self.new_window(full_path)
+        self.gui_object.install_wizard(storage, 'new')
 
     def init_menubar(self):
         menubar = QMenuBar()
