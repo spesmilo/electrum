@@ -434,13 +434,11 @@ class LedgerPlugin(BasePlugin):
         return True
 
     @hook
-    def close_wallet(self):
-        pass
+    def close_wallet(self, wallet):
+        self.client = None
 
     @hook
     def installwizard_load_wallet(self, wallet, window):
-        if type(wallet) != BTChipWallet:
-            return
         self.load_wallet(wallet, window)
 
     @hook

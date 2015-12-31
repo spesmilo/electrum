@@ -124,9 +124,6 @@ class QtPlugin(TrezorPlugin):
 
     @hook
     def installwizard_load_wallet(self, wallet, window):
-        if type(wallet) != self.wallet_class:
-            return
-        wallet.plugin = self
         self.load_wallet(wallet, window)
 
     @hook

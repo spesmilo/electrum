@@ -193,9 +193,9 @@ class TrezorCompatiblePlugin(BasePlugin):
         return self.get_client().atleast_version(major, minor, patch)
 
     @hook
-    def close_wallet(self):
-        self.print_error("clear session")
+    def close_wallet(self, wallet):
         if self.client:
+            self.print_error("clear session")
             self.client.clear_session()
             self.client.transport.close()
             self.client = None
