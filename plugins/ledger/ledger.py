@@ -10,7 +10,7 @@ from electrum.bitcoin import EncodeBase58Check, DecodeBase58Check, public_key_to
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from electrum.transaction import deserialize
-from electrum.wallet import BIP32_HD_Wallet, BIP32_Wallet
+from electrum.wallet import BIP44_Wallet, BIP32_HD_Wallet, BIP32_Wallet
 
 from electrum.util import format_satoshis_plain, print_error, print_msg
 import hashlib
@@ -33,6 +33,7 @@ except ImportError:
 class BTChipWallet(BIP32_HD_Wallet):
     wallet_type = 'btchip'
     root_derivation = "m/44'/0'"
+    restore_wallet_class = BIP44_Wallet
 
     def __init__(self, storage):
         BIP32_HD_Wallet.__init__(self, storage)
@@ -416,6 +417,7 @@ class BTChipWallet(BIP32_HD_Wallet):
 
 
 class LedgerPlugin(BasePlugin):
+    wallet_class = BTChipWallet
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
