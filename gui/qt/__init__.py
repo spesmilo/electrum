@@ -130,6 +130,12 @@ class ElectrumGui(MessageBoxMixin):
         for window in self.windows:
             window.close()
 
+    def remove_from_recently_open(self, filename):
+        recent = self.config.get('recently_open', [])
+        if filename in recent:
+            recent.remove(filename)
+            self.config.set_key('recently_open', recent)
+
     def load_wallet_file(self, filename):
         try:
             storage = WalletStorage(filename)
@@ -137,10 +143,7 @@ class ElectrumGui(MessageBoxMixin):
             self.show_error(str(e))
             return
         if not storage.file_exists:
-            recent = self.config.get('recently_open', [])
-            if filename in recent:
-                recent.remove(filename)
-                self.config.set_key('recently_open', recent)
+            self.remove_from_recently_open(filename)
             action = 'new'
         else:
             try:
