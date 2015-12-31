@@ -36,6 +36,7 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         return False
 
     def is_watching_only(self):
+        assert not self.has_seed()
         return not self.proper_device
 
     def can_change_password(self):
@@ -68,8 +69,6 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         raise RuntimeError(_('Decrypt method is not implemented'))
 
     def sign_message(self, address, message, password):
-        if self.has_seed():
-            return BIP32_HD_Wallet.sign_message(self, address, message, password)
         self.check_proper_device()
         try:
             address_path = self.address_id(address)
@@ -88,8 +87,6 @@ class TrezorCompatibleWallet(BIP44_Wallet):
     def sign_transaction(self, tx, password):
         if tx.is_complete() or self.is_watching_only():
             return
-        if self.has_seed():
-            return BIP32_HD_Wallet.sign_transaction(self, tx, password)
         self.check_proper_device()
         # previous transactions used as inputs
         prev_tx = {}

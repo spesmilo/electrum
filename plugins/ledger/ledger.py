@@ -70,6 +70,7 @@ class BTChipWallet(BIP32_HD_Wallet):
         return False
 
     def is_watching_only(self):
+        assert not self.has_seed()
         return self.force_watching_only
 
     def get_client(self, noPin=False):
@@ -206,8 +207,6 @@ class BTChipWallet(BIP32_HD_Wallet):
         self.give_error("Not supported")
 
     def sign_message(self, address, message, password):
-        if self.has_seed():
-            return BIP32_HD_Wallet.sign_message(self, address, message, password)
         use2FA = False
         self.signing = True
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
@@ -258,8 +257,6 @@ class BTChipWallet(BIP32_HD_Wallet):
         return chr(27 + 4 + (signature[0] & 0x01)) + r + s
 
     def sign_transaction(self, tx, password):
-        if self.has_seed():
-            return BIP32_HD_Wallet.sign_transaction(self, tx, password)
         if tx.is_complete():
             return
         self.signing = True
