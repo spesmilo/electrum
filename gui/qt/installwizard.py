@@ -64,12 +64,13 @@ class CosignWidget(QWidget):
 
 class InstallWizard(WindowModalDialog, MessageBoxMixin):
 
-    def __init__(self, app, config, network, storage):
+    def __init__(self, gui_object, storage):
         title = 'Electrum' + '  -  ' + _('Install Wizard')
         WindowModalDialog.__init__(self, None, title=title)
-        self.app = app
-        self.config = config
-        self.network = network
+        self.gui_object = gui_object
+        self.app = gui_object.app
+        self.config = gui_object.config
+        self.network = gui_object.network
         self.storage = storage
         self.setMinimumSize(575, 400)
         self.setMaximumSize(575, 400)

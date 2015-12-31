@@ -158,7 +158,7 @@ class ElectrumGui(MessageBoxMixin):
         return self.create_window_for_wallet(wallet)
 
     def install_wizard(self, storage, action):
-        wizard = InstallWizard(self.app, self.config, self.network, storage)
+        wizard = InstallWizard(self, storage)
         wallet = wizard.run(action)
         return self.create_window_for_wallet(wallet)
 
