@@ -1770,9 +1770,7 @@ class Multisig_Wallet(BIP32_Wallet, Mnemonic):
     def __init__(self, storage):
         BIP32_Wallet.__init__(self, storage)
         self.wallet_type = storage.get('wallet_type')
-        m = re.match('(\d+)of(\d+)', self.wallet_type)
-        self.m = int(m.group(1))
-        self.n = int(m.group(2))
+        self.m, self.n = Wallet.multisig_type(self.wallet_type)
 
     def load_accounts(self):
         self.accounts = {}
