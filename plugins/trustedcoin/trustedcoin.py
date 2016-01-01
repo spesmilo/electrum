@@ -199,8 +199,6 @@ class Wallet_2fa(Multisig_Wallet):
             return 'create_extended_seed'
         if xpub3 is None:
             return 'create_remote_key'
-        if not self.accounts:
-            return 'create_accounts'
 
     def make_seed(self):
         return Mnemonic('english').make_seed(num_bits=256, prefix=SEED_PREFIX)
@@ -404,3 +402,4 @@ class TrustedCoinPlugin(BasePlugin):
 
         if self.setup_google_auth(window, short_id, otp_secret):
             wallet.add_master_public_key('x3/', xpub3)
+            wallet.create_main_account(None)
