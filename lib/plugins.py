@@ -102,7 +102,8 @@ class Plugins(DaemonThread):
                 __import__(dep)
             except ImportError:
                 return False
-        return w.wallet_type in d.get('requires_wallet_type', [])
+        requires = d.get('requires_wallet_type', [])
+        return not requires or w.wallet_type in requires
 
     def hardware_wallets(self, action):
         result = []
