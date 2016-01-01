@@ -1,6 +1,5 @@
 from legder import LedgerPlugin
 from electrum.util import print_msg
-from electrum.plugins import hook
 
 class BTChipCmdLineHandler:
     def stop(self):
@@ -18,8 +17,4 @@ class BTChipCmdLineHandler:
         return response
 
 class Plugin(LedgerPlugin):
-    @hook
-    def cmdline_load_wallet(self, wallet):
-        wallet.plugin = self
-        if self.handler is None:
-            self.handler = BTChipCmdLineHandler()
+    handler = BTChipCmdLineHandler()

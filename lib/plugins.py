@@ -145,16 +145,10 @@ def hook(func):
     return func
 
 def run_hook(name, *args):
-    return _run_hook(name, False, *args)
-
-def always_hook(name, *args):
-    return _run_hook(name, True, *args)
-
-def _run_hook(name, always, *args):
     results = []
     f_list = hooks.get(name, [])
     for p, f in f_list:
-        if always or p.is_enabled():
+        if p.is_enabled():
             try:
                 r = f(*args)
             except Exception:
