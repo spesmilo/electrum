@@ -1,14 +1,11 @@
 gui/gtk.py
 gui/qt/main_window.py
-gui/qt/lite_window.py
 gui/qt/history_widget.py
 gui/qt/installwizard.py
 gui/qt/network_dialog.py
 gui/qt/password_dialog.py
 gui/qt/util.py
-gui/qt/receiving_widget.py
 gui/qt/seed_dialog.py
 gui/qt/transaction_dialog.py
-gui/qt/version_getter.py
 plugins/labels.py
 plugins/virtualkeyboard.py

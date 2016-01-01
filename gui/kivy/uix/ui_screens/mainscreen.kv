@@ -1,0 +1,1774 @@
+#:import _ electrum.i18n._
+#:import Cache kivy.cache.Cache
+#:import Factory kivy.factory.Factory
+#:import Decimal decimal.Decimal
+#:set font_light 'data/fonts/Roboto-Condensed.ttf'
+#:set btc_symbol unichr(171)
+#:set mbtc_symbol unichr(187)
+
+<WalletActionPrevious@ActionPrevious>
+    app_icon: 'atlas://gui/kivy/theming/light/' + ('wallets' if app.ui_mode[0] != 't' else 'tab_btn')
+    with_previous: False
+    size_hint: None, 1
+    mipmap: True
+    on_release: app.root.children[0].toggle_drawer()
+
+<CloseButton@IconButton>
+    source: 'atlas://gui/kivy/theming/light/closebutton'
+    opacity: 1 if self.state == 'normal' else .75
+    size_hint: None, None
+    size: '27dp', '27dp'
+
+#######################
+# Screen Contacts
+#######################
+<ContactImage@Widget>:
+    source: 'atlas://gui/kivy/theming/light/contact_avatar'
+    size_hint_x: None
+    width: self.height
+    canvas:
+        Color:
+            rgba: 1, 1, 1, 1
+        Ellipse:
+            source: root.source
+            size: self.width + dp(6), self.height + dp(6)
+            pos: self.x - dp(3), self.y - dp(3)
+        Ellipse:
+            source: 'atlas://gui/kivy/theming/light/contact_overlay'
+            size: self.width + dp(11), self.height + dp(11)
+            pos: self.x - dp(5.5), self.y - dp(5.5)
+
+<ContactLabel@Label>
+    color: .305, .309, .309, 1
+    text_size: self.size
+    halign: 'left'
+    valign: 'middle'
+
+<ContactSeperator@Widget>
+    canvas.before:
+        Color:
+            rgba: .890, .890, .890, 1
+        Rectangle:
+            size: self.size
+            pos: self.x, self.y + dp(9)
+    size_hint: None, None
+    size: '1dp', '22dp'
+    pos_hint_y: .5
+
+<ContactTextInput@TextInput>
+    background_normal: self.background_down
+    background_down: 'atlas://gui/kivy/theming/light/tab_btn'
+    size_hint_y: None
+    height: '22dp'
+
+<ContactBitLogo@Image>
+    source: 'atlas://gui/kivy/theming/light/bit_logo'
+    size_hint_x: None
+    width: '32dp'
+
+<ContactItem@BoxLayout>
+    address: ''
+    label: ''
+    tx_amt: 0
+    size_hint_y: None
+    height: '65dp'
+    padding: dp(12)
+    spacing: dp(5)
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 1
+        Rectangle:
+            size: self.size
+            pos: self.pos
+    ContactImage:
+        id: contact_image
+    Widget:
+        size_hint_x: None
+        width: '9dp'
+    ContactLabel:
+        id: contact_label
+        text: root.label
+    ContactSeperator:
+    ContactBitLogo:
+
+<ScreenContacts>
+    name: 'contacts'
+    on_activate:
+        if not self.action_view:\
+        self.action_view = app.root.main_screen.ids.tabs.ids.screen_dashboard.action_view
+    BoxLayout:
+        orientation: 'vertical'
+        spacing: '1dp'
+        ContactTextInput:
+        ScrollView:
+            canvas.before:
+                Color:
+                    rgba: .8901, .8901, .8901, 1
+                Rectangle:
+                    size: self.size
+                    pos: self.pos
+            GridLayout:
+                cols: 1
+                id: contact_container
+                size_hint_y: None
+                height: self.minimum_height
+                spacing: '1dp'
+
+<SendActionView@ActionView>
+    foreground_color: (.466, .466, .466, 1)
+    color_active: (0.235, .588, .89, 1)
+    WalletActionPrevious:
+        id: action_previous
+        width: but_star.width
+    ActionButton:
+        id: action_logo
+        important: True
+        size_hint: 1, 1
+        markup: True
+        mipmap: True
+        bold: True
+        markup: True
+        color: 1, 1, 1, 1
+        text:
+            "[color=#777777][sub] [sup][size=9dp]{}[/size][/sup][/sub]{}[/color]"\
+            .format(app.base_unit, app.status)
+        font_size: '22dp'
+        minimum_width: '1dp'
+    Butt_star:
+        id: but_star
+        on_release:
+            if self.state == 'down':\
+            app.show_info_bubble(\
+            text='[b]Expert mode on[/b]\n you can now select your address',\
+            icon='atlas://gui/kivy/theming/light/star_big_inactive',\
+            duration=1, arrow_pos='', width='250dp')
+
+
+<TextInputSendBlue@TextInput>
+    padding: '5dp'
+    size_hint: 1, None
+    height: '27dp'
+    pos_hint: {'center_y':.5}
+    multiline: False
+    hint_text_color: self.foreground_color
+    foreground_color: .843, .914, .972, 1
+    background_color: 1, 1, 1, 1
+    background_normal: 'atlas://gui/kivy/theming/light/tab_btn'
+    background_active: 'atlas://gui/kivy/theming/light/textinput_active'
+
+
+<TransactionFeeDialog@SelectionDialog>
+    return_obj: None
+    min_fee: app.format_amount(app.wallet.fee)
+    title:
+        '[size=9dp] \n[/size]Transaction Fee[size=9dp]\n'\
+        '[color=#ADAEAE]Minimum is BTC {}[/color][/size]'.format(self.min_fee)
+    title_size: '24sp'
+    on_activate:
+        ti_fee.focus = True
+        if self.return_obj:\
+        ti_fee.text =  "BTC " + self.return_obj.amt
+    on_deactivate: ti_fee.focus = False
+    on_release:
+        if self.return_obj and ti_fee.text:\
+        txt = ti_fee.text;\
+        spc = txt.rfind(' ') + 1;\
+        txt = '' if spc == 0 else txt[spc:];\
+        num = 0 if not txt else float(txt);\
+        self.return_obj.amt = max(self.min_fee, txt)
+        root.dismiss()
+    ELTextInput
+        id: ti_fee
+        size_hint: 1, None
+        height: '34dp'
+        multiline: False
+        on_text_validate: root.dispatch('on_release', self)
+        pos_hint: {'center_y': .7}
+        text: "BTC " + root.min_fee
+        input_type: 'number'
+
+
+<ScreenSend>
+    mode: 'address'
+    name: 'send'
+    action_view: Factory.SendActionView()
+    on_deactivate:
+        self.ids.amount_e.focus = False
+        self.ids.payto_e.focus = False
+        self.ids.message_e.focus = False
+    BoxLayout
+        padding: '12dp', '12dp', '12dp', '12dp'
+        spacing: '12dp'
+        orientation: 'vertical'
+        mode: 'address'
+        SendReceiveToggle:
+            SendToggle:
+                id: toggle_address
+                text: 'ADDRESS'
+                group: 'send_type'
+                state: 'down' if root.mode == 'address' else 'normal'
+                source: 'atlas://gui/kivy/theming/light/globe'
+                background_down: 'atlas://gui/kivy/theming/light/btn_send_address'
+                on_release:
+                    if root.mode == 'address': root.mode = 'fc'
+                    root.mode = 'address'
+            SendToggle:
+                id: toggle_nfc
+                text: 'NFC'
+                group: 'send_type'
+                state: 'down' if root.mode == 'nfc' else 'normal'
+                source: 'atlas://gui/kivy/theming/light/nfc'
+                background_down: 'atlas://gui/kivy/theming/light/btn_send_nfc'
+                on_release:
+                    if root.mode == 'nfc': root.mode = 'str'
+                    root.mode = 'nfc'
+        GridLayout:
+            id: grid
+            cols: 1
+            size_hint: 1, None
+            height: self.minimum_height
+            SendReceiveCardTop
+                id: card_address
+                BoxLayout
+                    size_hint: 1, None
+                    height: '42dp'
+                    rows: 1
+                    Label
+                        id: lbl_symbl
+                        bold: True
+                        color: amount_e.foreground_color
+                        text_size: self.size
+                        valign: 'bottom'
+                        halign: 'left'
+                        font_size: '22sp'
+                        text:
+                            u'[font={fnt}]{smbl}[/font]'.\
+                            format(smbl=btc_symbol if app.base_unit == 'BTC' else mbtc_symbol, fnt=font_light)
+                        size_hint_x: .25
+                    ELTextInput:
+                        id: amount_e
+                        input_type: 'number'
+                        multiline: False
+                        bold: True
+                        font_size: '50sp'
+                        foreground_color: .308, .308, .308, 1
+                        background_normal: 'atlas://gui/kivy/theming/light/tab_btn'
+                        pos_hint: {'top': 1.5}
+                        size_hint: .7, None
+                        height: '67dp'
+                        hint_text: 'Amount'
+                        text: '0.0'
+                        on_text_validate: payto_e.focus = True
+                CardSeparator
+                BoxLayout:
+                    size_hint: 1, None
+                    height: '42dp'
+                    spacing: '5dp'
+                    Label:
+                        id: fee_e
+                        color: .761, .761, .761, 1
+                        font_size: '12dp'
+                        amt: app.format_amount(app.wallet.fee_per_kb(app.gui_object.config)) if app.wallet else 0
+                        text:
+                            u'[b]{sign}{symbl}{amt}[/b] of fee'.\
+                            format(symbl=lbl_symbl.text,\
+                            sign='+' if self.amt > 0 else '-', amt=self.amt)
+                        size_hint_x: None
+                        width: self.texture_size[0]
+                        halign: 'left'
+                        valign: 'middle'
+                    IconButton:
+                        color: 0.694, 0.694, 0.694, 1
+                        source: 'atlas://gui/kivy/theming/light/gear'
+                        pos_hint: {'center_y': .5}
+                        size_hint: None, None
+                        size: '22dp', '22dp'
+                        on_release:
+                            dlg = Cache.get('electrum_widgets', 'TransactionFeeDialog')
+
+                            if not dlg:\
+                            Factory.register('SelectionDialog', module='electrum_gui.kivy.uix.dialogs');\
+                            dlg = Factory.TransactionFeeDialog();\
+                            Cache.append('electrum_widgets', 'TransactionDialog', dlg)
+
+                            dlg.return_obj = fee_e
+                            dlg.open()
+                    Label:
+                        font_size: '12dp'
+                        color: fee_e.color
+                        text: u'= {}'.format(app.create_quote_text(Decimal(float(amount_e.text)), mode='symbol')) if amount_e.text else u'0'
+                        text_size: self.size
+                        halign: 'right'
+                        valign: 'middle'
+            SendReceiveBlueBottom:
+                id: blue_bottom
+                size_hint: 1, None
+                height: self.minimum_height
+                BoxLayout
+                    size_hint: 1, None
+                    height: blue_bottom.item_height
+                    spacing: '5dp'
+                    Image:
+                        source: 'atlas://gui/kivy/theming/light/contact'
+                        size_hint: None, None
+                        size: '22dp', '22dp'
+                        pos_hint: {'center_y': .5}
+                    TextInputSendBlue:
+                        id: payto_e
+                        hint_text: "Enter Contact or adress"
+                        on_text_validate:
+                            Factory.Animation(opacity=1,\
+                            height=blue_bottom.item_height)\
+                            .start(message_selection)
+                            message_e.focus = True
+                    Widget:
+                        size_hint: None, None
+                        width: dp(2)
+                        height: qr.height
+                        pos_hint: {'center_y':.5}
+                        canvas.after:
+                            Rectangle:
+                                size: self.size
+                                pos: self.pos
+                    IconButton:
+                        id: qr
+                        source: 'atlas://gui/kivy/theming/light/qrcode'
+                        pos_hint: {'center_y': .5}
+                        size_hint: None, None
+                        size: '22dp', '22dp'
+                        on_release: app.scan_qr(on_complete=root.set_qr_data)
+                CardSeparator
+                    opacity: message_selection.opacity
+                    color: blue_bottom.foreground_color
+                BoxLayout:
+                    id: message_selection
+                    opacity: 1 if app.expert_mode else 0
+                    size_hint: 1, None
+                    height: blue_bottom.item_height if app.expert_mode else 0
+                    spacing: '5dp'
+                    Image:
+                        source: 'atlas://gui/kivy/theming/light/pen'
+                        size_hint: None, None
+                        size: '22dp', '22dp'
+                        pos_hint: {'center_y': .5}
+                    TextInputSendBlue:
+                        id: message_e
+                        hint_text: 'Enter description here'
+                        on_text_validate:
+                            anim = Factory.Animation(opacity=1, height=blue_bottom.item_height)
+                            anim.start(wallet_selection)
+                #anim.start(address_selection)
+                CardSeparator
+                    opacity: wallet_selection.opacity
+                    color: blue_bottom.foreground_color
+                WalletSelector:
+                    id: wallet_selection
+                    foreground_color: blue_bottom.foreground_color
+                    opacity: 1 if app.expert_mode else 0
+                    size_hint: 1, None
+                    height: blue_bottom.item_height if app.expert_mode else 0
+                CardSeparator
+                    opacity: address_selection.opacity
+                    color: blue_bottom.foreground_color
+                AddressSelector:
+                    id: address_selection
+                    foreground_color: blue_bottom.foreground_color
+                    opacity: 1 if app.expert_mode else 0
+                    size_hint: 1, None
+                    height: blue_bottom.item_height if app.expert_mode else 0
+        CreateAccountButtonGreen:
+            background_color: (1, 1, 1, 1) if self.disabled else ((.258, .80, .388, 1) if self.state == 'normal' else (.203, .490, .741, 1))
+            text: _('Send')
+            size_hint_y: None
+            height: '38dp'
+            disabled: False
+            on_release: app.do_send()
+        Widget
+
+
+<SendToggle@ToggleButton>
+    source: ''
+    group: 'transfer_type'
+    markup: False
+    bold: True
+    border: 4, 4, 4, 4
+    background_normal: self.background_down
+    color:
+        (.140, .140, .140, 1) if self.state == 'down' else (.796, .796, .796, 1)
+    canvas.after:
+        Color:
+            rgba: 1, 1, 1, 1
+    Image:
+        source: root.source
+        color: root.color
+        size: '30dp', '30dp'
+        center_x: root.center_x - ((root.texture_size[0]/2)+(self.width/1.5))
+        center_y: root.center_y
+
+<BlueSpinner@BoxLayout>
+    foreground_color: 1, 1, 1, 1
+    spacing: '9dp'
+    text: ''
+    values: ('', )
+    icon: ''
+    Image:
+        source: root.icon
+        size_hint: None, None
+        size: '22dp', '22dp'
+        pos_hint: {'center_y': .5}
+    OppositeSpinner:
+        color: root.foreground_color
+        background_normal: 'atlas://gui/kivy/theming/light/action_group_light'
+        markup: False
+        shorten: True
+        font_size: '16dp'
+        size_hint: 1, .7
+        pos_hint: {'center_y': .5}
+        text: root.text
+        text_size: self.size
+        halign: 'left'
+        valign: 'middle'
+        on_text:
+            root.text = args[1]
+        values: root.values
+
+<AddressSelector@BlueSpinner>
+    icon: 'atlas://gui/kivy/theming/light/globe'
+    values: app.wallet.addresses() if app.wallet else []
+    text: _("Select Your address")
+
+<WalletSelector@BlueSpinner>
+    icon: 'atlas://gui/kivy/theming/light/wallet'
+    values: ('default Wallet',)
+    text: _('Select your wallet')
+
+<SendReceiveToggle@BoxLayout>
+    padding: '5dp', '5dp'
+    size_hint: 1, None
+    height: '45dp'
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 1
+        BorderImage:
+            border: 12, 12, 12, 12
+            source: 'atlas://gui/kivy/theming/light/card'
+            size: self.width + dp(3), self.height
+            pos: self.x - dp(1.5), self.y
+
+<SendReceiveCardTop@GridLayout>
+    canvas.before:
+        BorderImage:
+            border: 9, 9, 9, 9
+            source: 'atlas://gui/kivy/theming/light/card_top'
+            size: self.size
+            pos:self.pos
+    padding: '12dp', '22dp', '12dp', 0
+    cols: 1
+    size_hint: 1, None
+    height: '120dp'
+    spacing: '4dp'
+
+<SendReceiveBlueBottom@GridLayout>
+    canvas.before:
+        Color:
+            rgba: .238, .585, .878, 1
+        BorderImage:
+            border: 9, 9, 9, 9
+            source: 'atlas://gui/kivy/theming/light/card_bottom'
+            size: self.size
+            pos: self.pos
+        Color:
+            rgba: 1, 1, 1, 1
+
+    item_height: dp(42)
+    foreground_color: .843, .914, .972, 1
+    cols: 1
+    padding: '12dp', 0
+
+
+<ScreenReceive>
+    mode: 'qr'
+    name: 'receive'
+    on_mode: if args[1] == 'nfc': from electrum_gui.kivy.nfc_scanner import NFCScanner
+    action_view: Factory.ReceiveActionView()
+    on_activate:
+        self.ids.toggle_qr.state = 'down'
+        first_address = app.wallet.addresses()[0]
+        qr.data = app.encode_uri(first_address,
+        amount=amount_e.text,
+        label=app.wallet.labels.get(first_address, first_address),
+        message='') if app.wallet and app.wallet.addresses() else ''
+    on_deactivate:
+        self.ids.amount_e.focus = False
+    BoxLayout
+        padding: '12dp', '12dp', '12dp', '12dp'
+        spacing: '12dp'
+        mode: 'qr'
+        orientation: 'vertical'
+        SendReceiveToggle
+            SendToggle:
+                id: toggle_qr
+                text: 'QR'
+                state: 'down' if root.mode == 'qr' else 'normal'
+                source: 'atlas://gui/kivy/theming/light/qrcode'
+                background_down: 'atlas://gui/kivy/theming/light/btn_send_address'
+                on_release:
+                    if root.mode == 'qr': root.mode = 'nr'
+                    root.mode = 'qr'
+            SendToggle:
+                id: toggle_nfc
+                text: 'NFC'
+                state: 'down' if root.mode == 'nfc' else 'normal'
+                source: 'atlas://gui/kivy/theming/light/nfc'
+                background_down: 'atlas://gui/kivy/theming/light/btn_send_nfc'
+                on_release:
+                    if root.mode == 'nfc': root.mode = 'nr'
+                    root.mode = 'nfc'
+        GridLayout:
+            id: grid
+            cols: 1
+            #size_hint: 1, None
+            #height: self.minimum_height
+            SendReceiveCardTop
+                height: '110dp'
+                BoxLayout:
+                    size_hint: 1, None
+                    height: '42dp'
+                    rows: 1
+                    Label:
+                        color: amount_e.foreground_color
+                        bold: True
+                        text_size: self.size
+                        valign: 'bottom'
+                        font_size: '22sp'
+                        text:
+                            u'[font={fnt}]{smbl}[/font]'.\
+                            format(smbl=btc_symbol if app.base_unit == 'BTC' else mbtc_symbol, fnt=font_light)
+                        size_hint_x: .25
+                    ELTextInput:
+                        id: amount_e
+                        input_type: 'number'
+                        multiline: False
+                        bold: True
+                        font_size: '50sp'
+                        foreground_color: .308, .308, .308, 1
+                        background_normal: 'atlas://gui/kivy/theming/light/tab_btn'
+                        pos_hint: {'top': 1.5}
+                        size_hint: .7, None
+                        height: '67dp'
+                        hint_text: 'Amount'
+                        text: '0.0'
+                CardSeparator
+                BoxLayout:
+                    size_hint: 1, None
+                    height: '32dp'
+                    spacing: '5dp'
+                    Label:
+                        color: lbl_quote.color
+                        font_size: '12dp'
+                        text: 'Ask to scan the QR below'
+                        text_size: self.size
+                        halign: 'left'
+                        valign: 'middle'
+                    Label:
+                        id: lbl_quote
+                        font_size: '12dp'
+                        size_hint: .5, 1
+                        color: .761, .761, .761, 1
+                        text: u'= {}'.format(app.create_quote_text(Decimal(float(amount_e.text)), mode='symbol')) if amount_e.text else u'0'
+                        text_size: self.size
+                        halign: 'right'
+                        valign: 'middle'
+            SendReceiveBlueBottom
+                id: blue_bottom
+                padding: '12dp', 0, '12dp', '12dp'
+                WalletSelector:
+                    id: wallet_selection
+                    foreground_color: blue_bottom.foreground_color
+                    size_hint: 1, None
+                    height: blue_bottom.item_height
+                CardSeparator
+                    opacity: wallet_selection.opacity
+                    color: blue_bottom.foreground_color
+                AddressSelector:
+                    id: address_selection
+                    foreground_color: blue_bottom.foreground_color
+                    opacity: 1 if app.expert_mode else 0
+                    size_hint: 1, None
+                    height: blue_bottom.item_height if app.expert_mode else 0
+                    on_text:
+                        if not args[1].startswith('Select'):\
+                        qr.data = app.encode_uri(args[1],\
+                        amount=amount_e.text,\
+                        label=app.wallet.labels.get(args[1], args[1]),\
+                        message='')
+                CardSeparator
+                    opacity: address_selection.opacity
+                    color: blue_bottom.foreground_color
+                Widget:
+                    size_hint_y: None
+                    height: dp(10)
+                FloatLayout
+                    id: bl
+                    QRCodeWidget:
+                        id: qr
+                        size_hint: None, 1
+                        width: min(self.height, bl.width)
+                        pos_hint: {'center': (.5, .5)}
+                        on_touch_down:
+                            if self.collide_point(*args[1].pos):\
+                            app.show_info_bubble(icon=self.ids.qrimage.texture, text='texture')
+        CreateAccountButtonGreen:
+            background_color: (1, 1, 1, 1) if self.disabled else ((.258, .80, .388, 1) if self.state == 'normal' else (.203, .490, .741, 1))
+            text: _('Goto next step') if app.wallet and app.wallet.seed else _('Create unsigned transaction')
+            size_hint_y: None
+            height: '38dp'
+            disabled: True if wallet_selection.opacity == 0 else False
+            on_release:
+                message = 'sending {} {} to {}'.format(\
+                app.base_unit, amount_e.text, payto_e.text)
+                app.gui.main_gui.do_send(self, message=message)
+
+<ReceiveActionView@ActionView>
+    WalletActionPrevious:
+        id: action_previous
+        width: '32dp'
+    ActionButton:
+        id: action_logo
+        important: True
+        size_hint: 1, 1
+        markup: True
+        mipmap: True
+        bold: True
+        markup: True
+        color: 1, 1, 1, 1
+        text:
+            "[color=#777777][sub] [sup][size=9dp]{}[/size][/sup][/sub]{}[/color]"\
+            .format(app.base_unit, app.status)
+        font_size: '22dp'
+        minimum_width: '1dp'
+    Butt_star:
+        id: but_star
+        on_release:
+            if self.state == 'down':\
+            app.show_info_bubble(\
+            text='[b]Expert mode on[/b]\n you can now select your address',\
+            icon='atlas://gui/kivy/theming/light/star_big_inactive',\
+            duration=1, arrow_pos='', width='250dp')
+
+###############################################
+##              Wallet Management
+###############################################
+
+<WalletManagement@ScrollView>
+    canvas.before:
+        Color:
+            rgba: .145, .145, .145, 1
+        Rectangle:
+            size: root.size
+            pos: root.pos
+    VGridLayout:
+        Wallets:
+            id: wallets_section
+        Plugins:
+            id: plugins_section
+        Commands:
+            id: commands_section
+
+<WalletManagementItem@BoxLayout>
+
+<Header@WalletManagementItem>
+
+<Wallets@VGridLayout>
+    Header
+
+<Plugins@VGridLayout>
+    Header
+
+<Commands@VGridLayout>
+    Header
+
+<StripLayout>
+    padding: 0, 0, 0, 0
+
+<TabbedCarousel>
+    carousel: carousel
+    do_default_tab: False
+    Carousel:
+        scroll_timeout: 190
+        anim_type: 'out_quart'
+        min_move: .05
+        anim_move_duration: .1
+        anim_cancel_duration: .54
+        scroll_distance: '10dp'
+        on_index: root.on_index(*args)
+        id: carousel
+
+<CScreen>
+    content: None
+    state: 'deactivated'
+    on_enter: self.state = 'loading'
+    on_activate:
+        self.state = 'activated'
+    on_leave: self.state = 'unloading'
+    on_deactivate: self.state = 'deactivated'
+    color: 1, 1, 1, 1
+    Image:
+        source: 'atlas://gui/kivy/theming/light/logo_atom_dull'
+        size_hint: (None, None)
+        pos_hint: {'center_x': .5, 'y': .02}
+        allow_stretch: True
+        size: ('32dp', '32dp')
+        #Label:
+        #id: screen_label
+        #size: root.size
+        #font_size: '45sp'
+        #color: root.color
+        #text: '' if root.state == 'activated' or root.content else 'Loading...'
+
+<EScreen>
+    background_color: .929, .929, .929 ,1
+    effects: [self.scrollflex]
+
+<OppositeDropDown@DropDown>
+    #auto_width: False
+    size_hint: None, None
+    size: self.container.minimum_size if self.container else (0, 0)
+    on_container: if args[1]: self.container.padding = '4dp', '4dp', '4dp', '4dp'
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 1
+        BorderImage:
+            pos:self.pos
+            border: 20, 20, 20, 20
+            source: 'atlas://gui/kivy/theming/light/dropdown_background'
+            size: self.size
+
+<LightOptions@SpinnerOption>
+    font_size: '14sp'
+    border: 4, 4, 4, 4
+    color: 0.439, 0.439, 0.439, .8
+    background_normal: 'atlas://gui/kivy/theming/light/action_button_group'
+    background_down: 'atlas://gui/kivy/theming/light/overflow_btn_dn'
+    size_hint_y: None
+    height: '48dp'
+    text_size: self.size[0] - dp(20), self.size[1]
+    halign: 'left'
+    valign: 'middle'
+    shorten: True
+    on_press:
+        ddn = self.parent.parent
+        Factory.Animation(opacity=0, d=.25).start(ddn)
+
+
+<OppositeSpinner@CSpinner>
+    dropdown_cls: Factory.OppositeDropDown
+    option_cls: Factory.LightOptions
+    border: 20, 20, 9, 9
+    background_normal: 'atlas://gui/kivy/theming/light/action_group_dark'
+    background_down: self.background_normal
+    values: ('Copy to clipboard', 'Send Payment')
+    size_hint: None, 1
+    width: '12dp'
+    on_release:
+        ddn = self._dropdown
+        ddn.opacity = 0
+        Factory.Animation(opacity=1, d=.25).start(ddn)
+
+<NewContactDialog>
+    title: _('[size=7dp] \n[/size]   Add a Contact[size=7dp]\n[/size]')
+    title_size: '24sp'
+    border: 7, 7, 7, 7
+    size_hint: None, None
+    size: '320dp', '235dp'
+    pos_hint: {'center_y': .53}
+    separator_color: .89, .89, .89, 1
+    separator_height: '1.2dp'
+    title_color: .437, .437, .437, 1
+    background: 'atlas://gui/kivy/theming/light/dialog'
+    padding: 0, 0
+    on_parent:
+        self.content.padding =  0, 0, 0, 0
+        self.content.parent.parent.padding = 2, 12, 2, 2
+        self.content.parent.parent.spacing = 0, -2
+    BoxLayout:
+        id: bl
+        spacing: '1.2dp'
+        canvas:
+            Color:
+                rgba: .901, .901, .901, 1
+            Rectangle:
+                size: self.size
+                pos: self.pos
+        ContactButton:
+            source: 'atlas://gui/kivy/theming/light/qrcode'
+            text: _('QR Scan')
+            on_release: root.load_qr_scanner()
+        ContactButton:
+            id: but_contact
+            source: 'atlas://gui/kivy/theming/light/manualentry'
+            text: 'Manual Enrty'
+            on_release:
+                root.new_contact()
+            FloatLayout:
+                size_hint: None, None
+                size: 0, 0
+                CloseButton:
+                    id: but_close
+                    top: root.top - dp(5)
+                    right: root.right - dp(5)
+                    on_release: root.dismiss()
+
+
+<DialogButton@Button>
+    border: 12, 12, 12, 12
+    background_normal: 'atlas://gui/kivy/theming/light/dialog'
+    background_down: ''
+    background_color: (.94, .94, .94, 1) if self.state == 'normal' else (.191, .496, .742, 1)
+
+
+<ContactButton@DialogButton>
+    source: ''
+    color: 0, 0, 0, 0
+    item_color: (.211, .211, .211, 1) if root.state == 'normal' else (1, 1, 1, 1)
+    Image:
+        id: img
+        allow_stretch: True
+        color: root.item_color
+        mipmap: True
+        source: root.source
+        center: (root.center, self.size)[0]
+        size: root.width/2., root.height/2.
+    Label:
+        text: root.text
+        color: root.item_color
+        size: img.width, self.texture_size[1]
+        center: root.center_x, img.y - (self.height/2)
+
+
+<CarouselHeader>
+    border: 0, 0, 0, 0
+    text: repr(self)
+    color: 0, 0, 0, 0
+    background_normal: 'atlas://gui/kivy/theming/light/carousel_selected'
+    background_down: 'atlas://gui/kivy/theming/light/carousel_deselected'
+    on_state:
+        o = .5 if args[1] == 'down' else 1
+        anim=Factory.Animation(opacity=o, d=.2).start(self)
+
+<CarouselIndicator@TabbedCarousel>
+    tab_pos: 'bottom_mid'
+    tab_height: '32dp'
+    tab_width: self.tab_height
+    background_image: 'atlas://data/images/defaulttheme/action_item'
+    strip_border: 0, 0, 0, 0
+
+<-CarouselDialog>
+    header_color: '#707070ff'
+    text_color: 0.701, 0.701, 0.701, 1
+    title_size: '13sp'
+    title: ''
+    separator_color: 0.89, 0.89, 0.89, 1
+    background: 'atlas://gui/kivy/theming/light/tab_btn'
+    carousel_content: carousel_content
+    canvas.before:
+        Color:
+            rgba: 0, 0, 0, .9
+        Rectangle:
+            size: Window.size
+            pos: 0, 0
+        Color:
+            rgba: 1, 1, 1, 1
+        BorderImage:
+            border: 12, 12, 12, 12
+            source: 'atlas://gui/kivy/theming/light/dialog'
+            size: root.width, root.height - self.carousel_content.tab_height if self.carousel_content else 0
+            pos: root.x, self.y + self.carousel_content.tab_height if self.carousel_content else 10
+    BoxLayout:
+        orientation: 'vertical'
+        GridLayout:
+            cols: 1
+            size_hint: 1, None
+            height: self.minimum_height
+            padding: 0, '7sp'
+            Label:
+                font_size: root.title_size
+                text: u'[color={}]{}[/color]'.format(root.header_color, root.title)
+                text_size: self.width, None
+                halign: 'left'
+                size_hint: 1, None
+                height: self.texture_size[1]
+            CardSeparator:
+                color: root.separator_color
+                height: root.separator_height
+        FloatLayout:
+            size_hint: None, None
+            size: 0, 0
+            CloseButton:
+                id: but_close
+                top: root.top - dp(10)
+                right: root.right - dp(10)
+                on_release: root.dismiss()
+        CarouselIndicator:
+            id: carousel_content
+
+<WalletAddressesDialog>
+    wallet_name: 'Default Wallet'
+    on_parent: if args[1]: self.children[0].padding = '15dp', '6dp', '15dp', 0
+    title_color: .437, .437, .437
+    title_size: '23sp'
+    separator_height: '1dp'
+    size_hint: None, None
+    width: min(Window.width - dp(27), dp(360))
+    height: min(Window.height - dp(70), self.width * 1.5)
+    title: '[size=5sp] \n[/size]{}[size=9sp]\n'.format(self.wallet_name)
+
+<ScreenAddress>
+    name: 'addresses'
+    BoxLayout:
+        size_hint: 1, .95
+        pos_hint: {'top':1}
+        orientation: 'vertical'
+        padding: 0, '2.2dp'
+        Label:
+            markup: False
+            color: 0, 0, 0, .3
+            text: 'Your bitcoin address:'
+            font_size: '15sp'
+            text_size: self.width, None
+            halign: 'left'
+            size_hint: 1, None
+            height: self.texture_size[1]
+            shorten: True
+        BoxLayout:
+            orientation: 'vertical'
+            spacing: dp(5)
+            BoxLayout:
+                size_hint: 1, None
+                spacing: dp(5)
+                height: '27dp'
+                OppositeSpinner:
+                    id: btn_address
+                    markup: False
+                    color: 0.439, 0.439, 0.439, 1
+                    font_size: '14sp'
+                    text_size: self.width - dp(22), self.height
+                    shorten: True
+                    halign: 'left'
+                    valign: 'middle'
+                    size_hint: .8, .8
+                    pos_hint: {'center_y': .5}
+                    on_text:
+                        if args[1]: qr.data = app.encode_uri(root.labels[args[1]])
+                FloatLayout
+                    id: fl_paste
+                    size_hint: None, 1
+                    width: '37dp'
+                    Button:
+                        right: fl_paste.right
+                        y: fl_paste.y
+                        size_hint: None, None
+                        height: '37dp'
+                        width: self.height
+                        border: 2, 2, 2, 2
+                        background_color: .705, .705, .705, 1.5 if self.state == 'normal' else 2
+                        background_normal: 'atlas://gui/kivy/theming/light/paste_icon'
+                        background_down: self.background_normal
+                        on_release:
+                            app.copy(root.labels[btn_address.text])
+                            app.show_info_bubble(\
+                            text='Copied', width='50dp', arrow_pos='', duration=3,\
+                            pos=(Window.width/2, root.parent.top + dp(18)))
+            QRCodeWidget:
+                id: qr
+                show_border: False
+
+<CurrencyLabel@Label>
+    color: .698, .701, .701, 1
+    font_size: '14sp'
+    text_size: self.width, None
+    halign: 'left'
+
+<CurrencySpinner@OppositeSpinner>
+    size_hint_x: None
+    width: '60dp'
+    text_size: self.width, None
+    font_size: '18sp'
+    halign: 'left'
+    color: .698, .701, .701, 1
+
+<SelectionDialog>
+    border: 7, 7, 7, 7
+    size_hint: None, None
+    size: '320dp', '200dp'
+    pos_hint: {'center_y': .53}
+    separator_color: .89, .89, .89, 1
+    separator_height: '1.1dp'
+    title_color: .437, .437, .437, 1
+    background: 'atlas://gui/kivy/theming/light/dialog'
+    on_parent: self.content.parent.parent.padding = '12dp', 0, '12dp', '12dp'
+    RelativeLayout:
+        orientation: 'vertical'
+        padding: 0, '6dp', 0, 0
+        RelativeLayout:
+            id: container
+        BoxLayout
+            size_hint_y: None
+            height: '48dp'
+            pos_hint: {'y':0}
+            DialogButton:
+                id: btn_cancel
+                text: _('Cancel')
+                markup: False
+                color:  .439, .439, .439, 1
+                background_color:
+                    (.235, .588, .882, 1) if self.state[0] == 'd'\
+                    else (.890, .890, .890, 1)
+                on_release:
+                    root.dismiss()
+            Widget:
+                size_hint_x: None
+                width: '24dp'
+            DialogButton:
+                id: btn_ok
+                text: _('Ok')
+                background_color:
+                    (.235, .588, .882, 1) if self.state[0] == 'n'\
+                    else (.890, .890, .890, 1)
+                on_release:
+                    root.dispatch('on_release', self)
+            FloatLayout:
+                size_hint: None, None
+                size: 0, 0
+                CloseButton:
+                    id: but_close
+                    top: root.height - dp(18)
+                    right: root.width - dp(18)
+                    on_release: root.dismiss()
+
+
+<CurrencySelectionDialog@SelectionDialog>
+    title: '[size=9dp] \n[/size]Currency Selection[size=7dp]\n[/size]'
+    title_size: '24sp'
+    on_activate:
+        spinner_exchanges.text = app.exchanger.use_exchange
+        spinner_currencies.text = app.exchanger.currency
+    on_release:
+        app.exchanger.currency = spinner_currencies.text
+        app.exchanger.use_exchange = spinner_exchanges.text
+        root.dismiss()
+    BoxLayout
+        size_hint_y: None
+        height: '24dp'
+        spacing: '24dp'
+        pos_hint: {'top': .95, 'x': 0}
+        CurrencyLabel:
+            text: _('Currency')
+            size_hint_x: .4
+        CurrencyLabel:
+            id: lbl_source
+            text: _('Exchange Source')
+    BoxLayout:
+        spacing: '24dp'
+        size_hint_y: None
+        height: '32dp'
+        pos_hint: {'x': 0, 'top': .8}
+        CurrencySpinner:
+            id: spinner_currencies
+            text: app.exchanger.currency
+            values: app.currencies
+        Widget:
+            CurrencySpinner:
+                id: spinner_exchanges
+                text: app.exchanger.use_exchange
+                pos: lbl_source.x, spinner_currencies.y
+                width: '140dp'
+                height: spinner_currencies.height
+                values: app.exchanger.exchanges
+
+<RecentActivityDialog>
+    on_parent:
+        if args[1]:\
+        self.children[0].padding = '15dp', '6dp', '15dp', 0
+    is_mine: True
+    amount: '0.00'
+    amount_color: '#000000ff'
+    quote_text: '0'
+    address: u''
+    address_known: unicode(self.address or self.address[1:]) in app.contacts.keys() + self.labels.keys()
+    confirmations: 0
+    date: '0/0/0'
+    fee: _('unknown')
+    labels: {}
+    status: 'unknown'
+    separator_height: '1dp'
+    time: _('00:00')
+    tx_hash: None
+    title:
+        u'[size=9] \n[/size]'\
+        u'[size={sz}sp][color={clr}]'.format(sz=25.7 if self.width > dp(300) else 22, clr=root.header_color) + \
+        _(u'You ') + (_(u'sent') if self.is_mine else _(u'received')) + u'[/color]'\
+        '[color={clr}] [font={fnt}]{smbl}[/font]{amt}[/color][/size]\n'.format(\
+        clr=root.amount_color, smbl=btc_symbol if app.base_unit == 'BTC' else mbtc_symbol, fnt=font_light, amt=root.amount[:9]) + \
+        _(u'About ') + root.quote_text + _(u' at transaction time') + \
+        u'[size={}dp] \n[/size]'.format(5 if self.width > dp(300) else 1)
+    size_hint: None, None
+    width: min(Window.width - dp(27), dp(320))
+    height: max(grid.height + dp(120), dp(320))
+    font_size: '13sp'
+    CScreen:
+        tab: screen_details
+        GridLayout
+            id: grid
+            padding: 0, 0, 0, '12dp'
+            spacing: '18dp'
+            cols: 1
+            size_hint: 1, None
+            height: self.minimum_height
+            pos_hint: {'top':1}
+            GridLayout:
+                cols: 1
+                size_hint_y: None
+                height: '39sp'
+                spacing: '5dp'
+                CardLabel:
+                    color: root.text_color
+                    font_size: root.font_size
+                    text: _('To') if root.is_mine else _('From')
+                BoxLayout:
+                    id: bl_address
+                    spacing: '4dp'
+                    size_hint_y: None
+                    height: '32dp'
+                    padding: 0, 0, 0, '9dp'
+                    OppositeSpinner:
+                        id: btn_address
+                        markup: False
+                        color: 0.45, 0.45, 0.45, 1
+                        font_name: font_light
+                        font_size: '15sp'
+                        text: root.address
+                        shorten: True
+                        size_hint: None, 1
+                        text_size: self.width - dp(30), self.height
+                        halign: 'left'
+                        width: min(self._label.get_extents(self.text)[0] + dp(32), bl_address.width)
+                        on_release:
+                            self._dropdown.auto_width = False
+                            self._dropdown.width = max(self.width, dp(140))
+                        on_text:
+                            if args[1] != root.address[1:]:\
+                            root.dropdown_selected(args[1]);\
+                            self.text = root.address
+            GridLayout:
+                cols: 2
+                spacing: '18dp'
+                size_hint: 1, None
+                height: self.minimum_height
+                CardLabel:
+                    color: root.text_color
+                    font_size: root.font_size
+                    text:
+                        _('Date') + '[color={}][size=4dp]\n\n[/size]'\
+                        '[size=18dp]{}[/size][/color]'.format(\
+                        root.header_color, root.date)
+                CardLabel:
+                    color: root.text_color
+                    font_size: root.font_size
+                    text:
+                        _('Status') +\
+                        '[size=4dp]\n\n[/size]'\
+                        '[color={}][size=18dp]{}[/size][/color]'.format(\
+                        '#009900' if root.status == 'Validated' else root.header_color,\
+                        root.status)
+                CardLabel:
+                    color: root.text_color
+                    font_size: root.font_size
+                    text:
+                        _('Time') +\
+                        '[size=4dp]\n\n[/size]'\
+                        '[color={}][size=18dp]{}[/size][/color]'.format(\
+                        root.header_color, root.time)
+                CardLabel:
+                    color: root.text_color
+                    font_size: root.font_size
+                    text:
+                        _('Confirmations') +\
+                        '[size=4dp]\n\n[/size]'\
+                        '[color={}][size=18dp]{}'\
+                        '[/size][/color]'.format(root.header_color, root.confirmations)
+            GridLayout:
+                id: fl
+                size_hint: 1, None
+                height: self.minimum_height
+                cols: 1
+                BoxLayout:
+                    size_hint: 1, None
+                    height: '48sp' if self.opacity else 0
+                    opacity: 1 if root.is_mine else 0
+                    CardLabel
+                        size_hint: 1, 1
+                        text_size: self.size
+                        valign: 'top'
+                        font_size: root.font_size
+                        color: root.text_color
+                        markup: True
+                        text:
+                            _('Transaction Fees') +\
+                            '[size=4dp]\n\n[/size]'\
+                            '[color={}][size=18dp]{}'\
+                            '[/size][/color]'.format(root.header_color, root.fee)
+                    CardLabel:
+                        size_hint: 1, 1
+                        text_size: self.size
+                        valign: 'top'
+                        font_size: root.font_size
+                        color: root.text_color
+                        text: _('Wallet')
+                        markup: True
+                DialogButton:
+                    id: btn_dialog
+                    size_hint: 1, None
+                    height: '48sp' if self.opacity else 0
+                    opacity: 0 if root.is_mine or root.address_known else 1
+                    background_color:
+                        (.191, .496, .742, 1) if self.state == 'normal'\
+                        else (.933, .933, .933, 1)
+                    color:
+                        (1, 1, 1, 1) if self.state == 'normal'\
+                        else (.218, .218, .218, 1)
+                    disabled: False if self.opacity else True
+                    text: _('Add address to contacts')
+                    on_release:
+                        root.dismiss()
+                        app.save_new_contact(root.address[1:], '')
+    CScreen:
+        tab: transaction_id
+        color: .5, .5, .5, .5
+        on_activate: root.activate_screen_transactionid(self)
+    CScreen:
+        id: list_inputs
+        color: .5, .5, .5, .5
+        data: ''
+        tab: inputs
+        on_enter: root.activate_screen_inputs(self)
+    CScreen:
+        id: list_outputs
+        color: .5, .5, .5, .5
+        data: ''
+        tab: outputs
+        on_enter: root.activate_screen_outputs(self)
+
+    # define the tab headers here
+    CarouselHeader:
+        id: screen_details
+        slide: 0
+    CarouselHeader:
+        id: transaction_id
+        slide: 1
+    CarouselHeader:
+        id: inputs
+        slide: 2
+    CarouselHeader:
+        id: outputs
+        slide: 3
+
+<RecentActivityScrOutputs@GridView>
+    pos_hint:{'top': 1}
+    size_hint_y: .9
+    headers: [_('Address'), _('Amount')]
+    widths:[root.width*.63, root.width*.36]
+
+<RecentActivityScrInputs@GridView>
+    pos_hint:{'top': 1}
+    size_hint_y: .9
+    headers: [_('Address'), _('Previous output')]
+    widths:[root.width*.63, root.width*.36]
+
+<RecentActivityScrTransID@GridLayout>
+    cols: 1
+    padding: '5dp'
+    spacing: '2dp'
+    text_color: 1, 1, 1
+    tx_hash: None
+    carousel_content: None
+    CardLabel:
+        color: root.text_color
+        font_size: '13dp'
+        text: _('Transaction ID :')
+    ELTextInput:
+        readonly: True
+        text: root.tx_hash if root.tx_hash else ''
+        size_hint_y: None
+        height: '30dp'
+    BoxLayout:
+        padding: 0, '9pt', 0, 0
+        orientation: 'vertical'
+        spacing: '5dp'
+        DialogButton:
+            background_color:
+                (.191, .496, .742, 1) if self.state == 'normal'\
+                else (.933, .933, .933, 1)
+            color:
+                (1, 1, 1, 1) if self.state == 'normal'\
+                else (.218, .218, .218, 1)
+            text: 'Inputs >>'
+            size_hint_y: None
+            height: '38dp'
+            on_release:
+                root.carousel_content.carousel.load_next()
+        DialogButton:
+            text: 'Outputs >>>'
+            background_color:
+                (.191, .496, .742, 1) if self.state == 'normal'\
+                else (.933, .933, .933, 1)
+            color:
+                (1, 1, 1, 1) if self.state == 'normal'\
+                else (.218, .218, .218, 1)
+            size_hint_y: None
+            height: '38dp'
+            on_release:
+                carousel = root.carousel_content.carousel
+                carousel.load_slide(carousel.slides[3])
+        Widget
+
+
+################################
+##  Cards (under Dashboard)
+################################
+
+<Card@GridLayout>
+    cols: 1
+    padding: '12dp' , '22dp', '12dp' , '12dp'
+    spacing: '12dp'
+    size_hint: 1, None
+    height: max(100, self.minimum_height)
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 1
+        BorderImage:
+            border: 18, 18, 18, 18
+            source: 'atlas://gui/kivy/theming/light/card'
+            size: self.size
+            pos: self.pos
+
+<CardLabel@Label>
+    color: 0.45, 0.45, 0.45, 1
+    size_hint: 1, None
+    text: ''
+    text_size: self.width, None
+    height: self.texture_size[1]
+    halign: 'left'
+    valign: 'top'
+
+<CardButton@Button>
+    background_normal: 'atlas://gui/kivy/theming/light/card_btn'
+    bold: True
+    font_size: '10sp'
+    color: 0.699, 0.699, 0.699, 1
+    size_hint: None, None
+    size: self.texture_size[0] + dp(32), self.texture_size[1] + dp(7)
+
+<CardSeparator@Widget>
+    size_hint: 1, None
+    height: dp(1)
+    color: .909, .909, .909, 1
+    canvas:
+        Color:
+            rgba: root.color if root.color else (0, 0, 0, 0)
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
+<CardItem@ButtonBehavior+GridLayout>
+    canvas.before:
+        Color:
+            rgba: 0.192, .498, 0.745, 1 if self.state == 'down' else 0
+        Rectangle
+            size: self.size
+            pos: self.x, self.y + dp(5)
+    cols: 1
+    padding: '2dp', '2dp'
+    spacing: '2dp'
+    size_hint: 1, None
+    height: self.minimum_height
+
+<RecentActivityItem@CardItem>
+    icon: 'atlas://gui/kivy/theming/light/important'
+    address:'no address set'
+    amount: '+0.00'
+    balance: 'xyz'# balance_after 
+    amount_color: '#DB3627' if float(self.amount) < 0 else '#2EA442'
+    confirmations: 0
+    date: '0/0/0'
+    quote_text: '.'
+
+    spacing: '9dp'
+    on_release:
+        dash = app.root.main_screen.ids.tabs.ids.screen_dashboard
+        dash.show_tx_details(root)
+    BoxLayout:
+        size_hint: 1, None
+        spacing: '8dp'
+        height: '32dp'
+        Image:
+            id: icon
+            source: root.icon
+            size_hint: None, 1
+            width: self.height *.54
+            mipmap: True
+        BoxLayout:
+            orientation: 'vertical'
+            Widget
+            CardLabel:
+                shorten: True
+                text: root.address
+                markup: False
+                text_size: self.size
+            CardLabel:
+                color: .699, .699, .699, 1
+                text: root.date
+                font_size: '12sp'
+            Widget
+        CardLabel:
+            halign: 'right'
+            font_size: '13sp'
+            size_hint: None, 1
+            width: '90sp'
+            markup: True
+            font_name: font_light
+            text:
+                u'[color={amount_color}]{sign}{symbol}{amount}[/color]\n'\
+                u'[color=#B2B3B3][size=12sp]{qt}[/size]'\
+                u'[/color]'.format(amount_color=root.amount_color,\
+                amount=root.amount[1:], qt=root.quote_text, sign=root.amount[0],\
+                symbol=btc_symbol if app.base_unit == 'BTC' else mbtc_symbol)
+    CardSeparator
+
+<CardRecentActivity@Card>
+    BoxLayout:
+        size_hint: 1, None
+        height: lbl.height
+        CardLabel:
+            id: lbl
+            text: _('RECENT ACTIVITY')
+        CardButton:
+            id: btn_see_all
+            disabled: True if not self.opacity else False
+            text: _('SEE ALL')
+            font_size: '12sp'
+            on_release: app.update_history_tab(see_all=True)
+    GridLayout:
+        id: content
+        spacing: '7dp'
+        cols: 1
+        size_hint: 1, None
+        height: self.minimum_height
+        CardSeparator
+
+<CardPaymentRequest@Card>
+    CardLabel:
+        text: _('PAYMENT REQUEST')
+    CardSeparator:
+
+<CardStatusInfo@Card>
+    padding: '12dp' , '12dp'
+    status: app.status
+    quote_text: ''
+    unconfirmed: ''
+    cols: 2
+    FloatLayout
+        anchor_x: 'left'
+        size_hint: 1, None
+        height: '82dp'
+        IconButton:
+            mipmap: True
+            pos_hint: {'x': 0, 'center_y': .45}
+            color: .90, .90, .90, 1
+            source: 'atlas://gui/kivy/theming/light/qrcode'
+            size_hint: None, .85
+            width: self.height
+            on_release:
+                dlg = Cache.get('electrum_widgets', 'WalletAddressesDialog')
+
+                if not dlg:\
+                Factory.register('WalletAddressesDialog', module='electrum_gui.kivy.uix.dialogs.carousel_dialog');\
+                dlg = Factory.WalletAddressesDialog();\
+                Cache.append('electrum_widgets', 'WalletAddressesDialog', dlg)
+
+                dlg.open()
+        CardLabel:
+            id: top_label
+            halign: 'right'
+            valign: 'top'
+            bold: True
+            pos_hint: {'top': 1, 'right': 1}
+            font_name: font_light
+            balance_in_numbers:  bool(ord(root.status[0]) not in range(ord('A'), ord('z')))
+            font_size: '50sp' if self.balance_in_numbers else '30sp'
+            text_size: self.width, root.height/2
+            text:
+                u'[color=#4E4F4F]{}{}[/color]'\
+                .format('' if not self.balance_in_numbers else\
+                (btc_symbol if app.base_unit == 'BTC' else mbtc_symbol), root.status)
+        BoxLayout
+            pos_hint: {'y': 0, 'right': 1}
+            spacing: '5dp'
+            CardLabel
+                halign: 'right'
+                markup: True
+                font_size: '22dp'
+                font_name: font_light
+                text: u'[color=#c3c3c3]{}[/color]'.format(root.quote_text)
+            IconButton
+                color: .698, .698, .698, 1
+                source: 'atlas://gui/kivy/theming/light/gear'
+                size_hint_y: None
+                height: '28dp'
+                opacity: .5 if self.state == 'down' else 1
+                on_release:
+                    dlg = Cache.get('electrum_widgets', 'CurrencySelectionDialog')
+
+                    if not dlg:\
+                    Factory.register('SelectionDialog', module='electrum_gui.kivy.uix.dialogs');\
+                    dlg = Factory.CurrencySelectionDialog();\
+                    Cache.append('electrum_widgets', 'CurrencySelectionDialog', dlg)
+
+                    dlg.open()
+
+<ActionDropDown>
+    auto_width: False
+    on_size: if not self.auto_width: self.width = dp(190)
+    on_container: self.container.padding = '4dp', '4dp', '4dp', '4dp'
+    on_parent:
+        if args[1]:\
+        self.opacity = 0;\
+        anim = Factory.Animation(opacity=1, d=.25);\
+        anim.start(self)
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 1
+        BorderImage:
+            pos:self.pos
+            border: 20, 20, 20, 20
+            source: 'atlas://gui/kivy/theming/light/overflow_background'
+            size: self.size
+
+<ActionItem>
+    color: 0.235, 0.239, 0.239, 1
+
+<ActionButton>:
+    border: 4, 0, 0, 0
+    background_down: 'atlas://gui/kivy/theming/light/overflow_btn_dn'
+
+<OverflowButton@ActionButton>
+    text_size: dp(172), None
+    last: False
+    halign: 'left'
+    valign: 'middle'
+    overflow: None
+    background_normal:
+        'atlas://gui/kivy/theming/light/' +\
+        ('action_button_group'\
+        if (self.inside_group and not self.last) else 'tab_btn')
+    on_press:
+        ddn = self.overflow._dropdown
+        Factory.Animation.cancel_all(ddn)
+        anim = Factory.Animation(opacity=0, d=.25)
+        anim.bind(on_complete=ddn.dismiss)
+        anim.start(ddn)
+
+<DashboardActionView@ActionView>
+    WalletActionPrevious:
+        id: action_previous
+        size_hint_x: None
+        width: action_preferences.width + action_contact.width
+    ActionButton:
+        id: action_logo
+        important: True
+        pos_hint: {'center_y': .5}
+        size_hint: 1, .93
+        bold: True
+        icon: 'atlas://gui/kivy/theming/light/logo'
+        background_down: self.background_normal
+        minimum_width: '1dp'
+    ActionButton:
+        id: action_contact
+        important: True
+        width: '25dp'
+        icon: 'atlas://gui/kivy/theming/light/add_contact'
+        text: 'Add Contact'
+        on_release:
+            Factory.register('NewContactDialog', module='electrum_gui.kivy.uix.dialogs.new_contact')
+            dlg = Factory.NewContactDialog().open()
+
+    ActionOverflow:
+        id: action_preferences
+        background_down: 'atlas://gui/kivy/theming/light/overflow_btn_dn'
+        border: 0, 0, 0, 0
+        overflow_image: 'atlas://gui/kivy/theming/light/settings'
+        width: '40dp'
+        size_hint_x: None
+        canvas.after:
+            Color:
+                rgba: 1, 1, 1, 1
+        OverflowButton:
+            text: _('Settings')
+            overflow: action_preferences
+        OverflowButton:
+            text: _('Help')
+            last: True
+            overflow: action_preferences
+
+<ScreenDashboard>
+    name: 'dashboard'
+    action_view: Factory.DashboardActionView()
+    content: content
+    ScrollView:
+        id: content
+        do_scroll_x: False
+        GridLayout
+            id: grid
+            cols: 1 #if root.width < root.height else 2
+            size_hint: 1, None
+            height: self.minimum_height
+            padding: '12dp'
+            spacing: '12dp'
+            GridLayout:
+                cols: 1
+                size_hint: 1, None
+                height: self.minimum_height
+                spacing: '12dp'
+                orientation: 'vertical'
+                CardStatusInfo:
+                    id: status_card
+                CardPaymentRequest:
+                    id: payment_card
+            CardRecentActivity:
+                id: recent_activity_card
+
+
+<CleanHeader@TabbedPanelHeader>
+    border: 0, 0, 4, 0
+    markup: False
+    color: (.188, 0.505, 0.854, 1) if self.state == 'down' else (0.636, 0.636, 0.636, 1)
+    text_size: self.size
+    halign: 'center'
+    valign: 'middle'
+    bold: True
+    font_size: '12.5sp'
+    background_normal: 'atlas://gui/kivy/theming/light/tab_btn'
+    background_disabled_normal: 'atlas://gui/kivy/theming/light/tab_btn_disabled'
+    background_down: 'atlas://gui/kivy/theming/light/tab_btn_pressed'
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, .7
+        Rectangle:
+            size: self.size
+            pos: self.x + 1, self.y - 1
+            texture: self.texture
+
+<ScreenTabs@Screen>
+    TabbedCarousel:
+        id: panel
+        tab_height: '48dp'
+        background_image: 'atlas://gui/kivy/theming/light/tab'
+        strip_image: 'atlas://gui/kivy/theming/light/tab_strip'
+        strip_border: dp(4), 0, dp(2), 0
+        ScreenDashboard:
+            id: screen_dashboard
+            tab: tab_dashboard
+        ScreenSend:
+            id: screen_send
+            tab: tab_send
+        ScreenReceive:
+            id: screen_receive
+            tab: tab_receive
+        ScreenContacts:
+            id: screen_contacts
+            tab: tab_contacts
+        CleanHeader:
+            id: tab_dashboard
+            text: _('DASHBOARD')
+            slide: 0
+        CleanHeader:
+            id: tab_send
+            text: _('SEND')
+            slide: 1
+        CleanHeader:
+            id: tab_receive
+            text: _('RECEIVE')
+            slide: 2
+        CleanHeader:
+            id: tab_contacts
+            text: _('CONTACTS')
+            slide: 3
+
+<MainScreen>
+    name: 'main_screen'
+    canvas.before:
+        Color:
+            rgba: 0.917, 0.917, 0.917, 1
+        Rectangle:
+            size: self.size
+            pos: self.pos
+    BoxLayout:
+        orientation: 'vertical'
+        ActionBar:
+            id: action_bar
+            size_hint: 1, None
+            height: '48dp'
+            border: 4, 4, 4, 4
+            background_image: 'atlas://gui/kivy/theming/light/action_bar'
+        ScreenManager:
+            id: manager
+            ScreenTabs:
+                id: tabs
+                name: "tabs"
+            #ScreenPassword:
+            #    id: password
+            #    name: 'password
+
+<Drawer>
+    #overlay_widget: overlay_widget
+    RelativeLayout:
+        id: hidden_widget
+        size_hint: None, None
+        width:
+            (root.width * .877) if app.ui_mode[0] == 'p'\
+            else root.width * .35 if app.orientation[0] == 'l'\
+            else root.width * .10
+        height: root.height
+        canvas.before:
+            Color:
+                rgba: .176, .176, .176, 1
+            Rectangle:
+                size: self.size
+                pos: self.pos
+            Color
+                rgba: 1, 1, 1, 1
+            BorderImage
+                border: 0, 32, 0, 0
+                source: 'atlas://gui/kivy/theming/light/shadow_right'
+                size: root.overlay_widget.x if root.overlay_widget else self.width, self.height
+    RelativeLayout:
+        id: overlay_widget
+        size_hint: None, None
+        x: hidden_widget.width if app.ui_mode[0] == 't' else 0
+        size_hint: None, None
+        width: (root.width - self.x) if app.ui_mode[0] == 't' else root.width
+        height: root.height
+
+#######################################################
+##      This is our child of the root widget of the app
+#######################################################
+Drawer
+    size_hint: None, None
+    size: Window.size
+    WalletManagement
+        id: wallet_management
+    ScreenManager:
+        # Screen manager for screens meant to change everything including
+        # ActionBar, currently we only have the main screen here.
+        id: manager
+        MainScreen

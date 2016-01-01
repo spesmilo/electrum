@@ -1,5 +1,5 @@
-ELECTRUM_VERSION = "2.0.3"  # version of the client package
-PROTOCOL_VERSION = '0.9'    # protocol version requested
+ELECTRUM_VERSION = '2.5.4rc2'  # version of the client package
+PROTOCOL_VERSION = '0.10'   # protocol version requested
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 

@@ -1,0 +1,40 @@
+Popup:
+    id: settings
+    title: _('Settings')
+
+    BoxLayout:
+
+        orientation: 'vertical'
+
+        GridLayout:
+            cols: 2
+            size_hint: 1, None
+            height: '100dp'
+            Label:
+                text: _('Base unit')
+                size_hint: 1, None
+                height: '48dp'
+            Button:
+                text: app.base_unit
+                size_hint: 1, None
+                height: '48dp'
+                on_release:
+                    app._rotate_bu()
+                    self.text = app.base_unit
+            Label:
+                size_hint: 1, None
+                text: 'OpenAlias'
+                height: '48dp'
+            TextInput:
+                size_hint: 1, None
+                height: '48dp'
+                multiline: False
+        Button:
+            size_hint: 1, None
+            height: '48dp'
+            text: _('Close')
+            on_release: settings.dismiss()
+
+        Widget:
+            size_hint: 1, 1
+

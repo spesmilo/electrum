@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python2
 
 # python setup.py sdist --format=zip,gztar
 
@@ -8,41 +8,36 @@ import sys
 import platform
 import imp
 
-
 version = imp.load_source('version', 'lib/version.py')
 
 if sys.version_info[:3] < (2, 7, 0):
     sys.exit("Error: Electrum requires Python version >= 2.7.0...")
 
-
-
 data_files = []
-if platform.system() == 'Linux' or platform.system() == 'FreeBSD':
+
+if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
     usr_share = os.path.join(sys.prefix, "share")
     data_files += [
         (os.path.join(usr_share, 'applications/'), ['electrum-grs.desktop']),
-        (os.path.join(usr_share, 'app-install', 'icons/'), ['icons/electrum-grs.png'])
+        (os.path.join(usr_share, 'pixmaps/'), ['icons/electrum-grs.png'])
     ]
-
 
 setup(
     name="Electrum-grs",
     version=version.ELECTRUM_VERSION,
     install_requires=[
-        'slowaes>=0.1a1',
-        'ecdsa>=0.9',
-        'pbkdf2',
-        'requests',
-        'pyasn1-modules',
-        'pyasn1',
-        'qrcode',
-        'protobuf',
-        'tlslite',
-        'dnspython',
-        'groestlcoin_hash'
+        'slowaes==0.1a1',
+	'ecdsa>=0.9',
+	'pbkdf2',
+	'requests',
+	'qrcode',
+	'protobuf',
+	'dnspython',
+        'coinhash==1.1.5'
     ],
     dependency_links=[
-        'git+https://github.com/groestlcoin/groestlcoin-hash-python#egg=groestlcoin_hash'
+        "git+https://github.com/mazaclub/python-trezor#egg=trezor"
+	'coinhash==1.1.5'
     ],
     package_dir={
         'electrum_grs': 'lib',
@@ -52,16 +47,9 @@ setup(
     packages=['electrum_grs','electrum_grs_gui','electrum_grs_gui.qt','electrum_grs_plugins'],
     package_data={
         'electrum_grs': [
+            'www/index.html',
             'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electrum.mo',
-        ],
-        'electrum_grs_gui': [
-            "qt/themes/cleanlook/name.cfg",
-            "qt/themes/cleanlook/style.css",
-            "qt/themes/sahara/name.cfg",
-            "qt/themes/sahara/style.css",
-            "qt/themes/dark/name.cfg",
-            "qt/themes/dark/style.css",
         ]
     },
     scripts=['electrum-grs'],

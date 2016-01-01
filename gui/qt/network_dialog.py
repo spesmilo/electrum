@@ -17,13 +17,15 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import sys, time, datetime, re, threading
-from electrum_grs.i18n import _
-from electrum_grs.util import print_error, print_msg
 import os.path, json, ast, traceback
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-from electrum_grs import DEFAULT_SERVERS, DEFAULT_PORTS
+
+from electrum_grs.i18n import _
+from electrum_grs.util import print_error, print_msg
+from electrum_grs import DEFAULT_PORTS
+from electrum_grs.network import serialize_server, deserialize_server
 
 from util import *
 
@@ -71,8 +73,8 @@ class NetworkDialog(QDialog):
         hbox.addWidget(l)
         hbox.addWidget(QLabel(status))
         hbox.addStretch(50)
-        msg = _("Electrum sends your wallet addresses to a single server, in order to receive your transaction history.") + "\n\n" \
-            + _("In addition, Electrum connects to several nodes in order to download block headers and find out the longest blockchain.") + " " \
+        msg = _("Electrum-GRS sends your wallet addresses to a single server, in order to receive your transaction history.") + "\n\n" \
+            + _("In addition, Electrum-GRS connects to several nodes in order to download block headers and find out the longest blockchain.") + " " \
             + _("This blockchain is used to verify the transactions sent by the address server.")
         hbox.addWidget(HelpButton(msg))
         vbox.addLayout(hbox)
@@ -82,28 +84,26 @@ class NetworkDialog(QDialog):
         grid.setSpacing(8)
         vbox.addLayout(grid)
 
-        # protocol
-        self.server_protocol = QComboBox()
+        # server
         self.server_host = QLineEdit()
         self.server_host.setFixedWidth(200)
         self.server_port = QLineEdit()
         self.server_port.setFixedWidth(60)
-        self.server_protocol.addItems(protocol_names)
-        self.server_protocol.connect(self.server_protocol, SIGNAL('currentIndexChanged(int)'), self.change_protocol)
-
-        grid.addWidget(QLabel(_('Protocol') + ':'), 3, 0)
-        grid.addWidget(self.server_protocol, 3, 1)
-
-        # server
         grid.addWidget(QLabel(_('Server') + ':'), 0, 0)
 
+        # use SSL
+        self.ssl_cb = QCheckBox(_('Use SSL'))
+        self.ssl_cb.setChecked(auto_connect)
+        grid.addWidget(self.ssl_cb, 3, 1)
+        self.ssl_cb.stateChanged.connect(self.change_protocol)
+
         # auto connect
-        self.autocycle_cb = QCheckBox(_('Auto-connect'))
-        self.autocycle_cb.setChecked(auto_connect)
-        grid.addWidget(self.autocycle_cb, 0, 1)
-        if not self.config.is_modifiable('auto_cycle'): self.autocycle_cb.setEnabled(False)
-        msg = _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain.") + " " \
-            + _("If it is disabled, Electrum will warn you if your server is lagging.")
+        self.autoconnect_cb = QCheckBox(_('Auto-connect'))
+        self.autoconnect_cb.setChecked(auto_connect)
+        grid.addWidget(self.autoconnect_cb, 0, 1)
+        self.autoconnect_cb.setEnabled(self.config.is_modifiable('auto_connect'))
+        msg = _("If auto-connect is enabled, Electrum-GRS will always use a server that is on the longest blockchain.") + " " \
+            + _("If it is disabled, Electrum-GRS will warn you if your server is lagging.")
         grid.addWidget(HelpButton(msg), 0, 4)
         grid.addWidget(self.server_host, 0, 2, 1, 2)
         grid.addWidget(self.server_port, 0, 3)
@@ -124,15 +124,15 @@ class NetworkDialog(QDialog):
 
         def enable_set_server():
             if config.is_modifiable('server'):
-                enabled = not self.autocycle_cb.isChecked()
+                enabled = not self.autoconnect_cb.isChecked()
                 self.server_host.setEnabled(enabled)
                 self.server_port.setEnabled(enabled)
                 self.servers_list_widget.setEnabled(enabled)
             else:
-                for w in [self.autocycle_cb, self.server_host, self.server_port, self.server_protocol, self.servers_list_widget]:
+                for w in [self.autoconnect_cb, self.server_host, self.server_port, self.ssl_cb, self.servers_list_widget]:
                     w.setEnabled(False)
 
-        self.autocycle_cb.clicked.connect(enable_set_server)
+        self.autoconnect_cb.clicked.connect(enable_set_server)
         enable_set_server()
 
         # proxy setting
@@ -183,8 +183,8 @@ class NetworkDialog(QDialog):
             self.protocol = protocol
             self.init_servers_list()
 
-    def change_protocol(self, index):
-        p = protocol_letters[index]
+    def change_protocol(self, use_ssl):
+        p = 's' if use_ssl else 't'
         host = unicode(self.server_host.text())
         pp = self.servers.get(host, DEFAULT_PORTS)
         if p not in pp.keys():
@@ -218,7 +218,7 @@ class NetworkDialog(QDialog):
 
         self.server_host.setText( host )
         self.server_port.setText( port )
-        self.server_protocol.setCurrentIndex(protocol_letters.index(protocol))
+        self.ssl_cb.setChecked(protocol=='s')
 
 
     def do_exec(self):
@@ -226,9 +226,14 @@ class NetworkDialog(QDialog):
         if not self.exec_():
             return
 
-        host = str( self.server_host.text() )
-        port = str( self.server_port.text() )
-        protocol = protocol_letters[self.server_protocol.currentIndex()]
+        host = str(self.server_host.text())
+        port = str(self.server_port.text())
+        protocol = 's' if self.ssl_cb.isChecked() else 't'
+        # sanitize
+        try:
+            deserialize_server(serialize_server(host, port, protocol))
+        except:
+            return
 
         if self.proxy_mode.currentText() != 'NONE':
             proxy = { 'mode':str(self.proxy_mode.currentText()).lower(),
@@ -237,7 +242,7 @@ class NetworkDialog(QDialog):
         else:
             proxy = None
 
-        auto_connect = self.autocycle_cb.isChecked()
+        auto_connect = self.autoconnect_cb.isChecked()
 
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
         return True

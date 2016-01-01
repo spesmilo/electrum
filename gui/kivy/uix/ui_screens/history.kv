@@ -1,0 +1,142 @@
+#:import _ electrum.i18n._
+#:import Factory kivy.factory.Factory
+#:set font_light 'data/fonts/Roboto-Condensed.ttf'
+#:set btc_symbol unichr(171)
+#:set mbtc_symbol unichr(187)
+
+
+<Card@GridLayout>
+    cols: 1
+    padding: '12dp' , '22dp', '12dp' , '12dp'
+    spacing: '12dp'
+    size_hint: 1, None
+    height: max(100, self.minimum_height)
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 1
+        BorderImage:
+            border: 18, 18, 18, 18
+            source: 'atlas://gui/kivy/theming/light/card'
+            size: self.size
+            pos: self.pos
+
+<CardLabel@Label>
+    color: 0.45, 0.45, 0.45, 1
+    size_hint: 1, None
+    text: ''
+    text_size: self.width, None
+    height: self.texture_size[1]
+    halign: 'left'
+    valign: 'top'
+
+<CardButton@Button>
+    background_normal: 'atlas://gui/kivy/theming/light/card_btn'
+    bold: True
+    font_size: '10sp'
+    color: 0.699, 0.699, 0.699, 1
+    size_hint: None, None
+    size: self.texture_size[0] + dp(32), self.texture_size[1] + dp(7)
+
+
+<CardItem@ButtonBehavior+GridLayout>
+    canvas.before:
+        Color:
+            rgba: 0.192, .498, 0.745, 1 if self.state == 'down' else 0
+        Rectangle
+            size: self.size
+            pos: self.x, self.y + dp(5)
+    cols: 1
+    padding: '2dp', '2dp'
+    spacing: '2dp'
+    size_hint: 1, None
+    height: self.minimum_height
+
+<RecentActivityItem@CardItem>
+    icon: 'atlas://gui/kivy/theming/light/important'
+    address: 'no address set'
+    value: 0
+    amount: app.format_amount(self.value, True) if self.value is not None else '--'
+    amount_color: '#DB3627' if self.value < 0 else '#2EA442'
+    confirmations: 0
+    date: '0/0/0'
+    quote_text: '.'
+
+    spacing: '9dp'
+    on_release:
+        app.tx_dialog(root.tx_hash)
+    BoxLayout:
+        size_hint: 1, None
+        spacing: '8dp'
+        height: '32dp'
+        Image:
+            id: icon
+            source: root.icon
+            size_hint: None, 1
+            width: self.height *.54
+            mipmap: True
+        BoxLayout:
+            orientation: 'vertical'
+            Widget
+            CardLabel:
+                shorten: True
+                text: root.address
+                markup: False
+                text_size: self.size
+            CardLabel:
+                color: .699, .699, .699, 1
+                text: root.date
+                font_size: '12sp'
+            Widget
+        CardLabel:
+            halign: 'right'
+            font_size: '13sp'
+            size_hint: None, 1
+            width: '110sp'
+            markup: True
+            font_name: font_light
+            text:
+                u'[color={amount_color}]{sign}{amount} {unit}[/color]\n'\
+                u'[color=#B2B3B3][size=12sp]{qt}[/size]'\
+                u'[/color]'.format(amount_color=root.amount_color,\
+                amount=root.amount[1:], qt=root.quote_text, sign=root.amount[0],\
+                unit=app.base_unit)
+    CardSeparator
+
+<CardRecentActivity@Card>
+    BoxLayout:
+        size_hint: 1, None
+        height: lbl.height
+        CardLabel:
+            id: lbl
+            text: _('RECENT ACTIVITY')
+        CardButton:
+            id: btn_see_all
+            disabled: True if not self.opacity else False
+            text: _('SEE ALL')
+            font_size: '12sp'
+            on_release: app.update_history_tab(see_all=True)
+    GridLayout:
+        id: content
+        spacing: '7dp'
+        cols: 1
+        size_hint: 1, None
+        height: self.minimum_height
+        CardSeparator
+
+
+HistoryScreen:
+    name: 'history'
+    content: content
+    ScrollView:
+        id: content
+        do_scroll_x: False
+        GridLayout
+            id: grid
+            cols: 1 #if root.width < root.height else 2
+            size_hint: 1, None
+            height: self.minimum_height
+            padding: '12dp'
+            spacing: '12dp'
+            CardRecentActivity:
+                id: recent_activity_card
+

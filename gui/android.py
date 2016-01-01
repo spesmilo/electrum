@@ -23,7 +23,7 @@ from __future__ import absolute_import
 import android
 
 from electrum_grs import SimpleConfig, Wallet, WalletStorage, format_satoshis
-from electrum_grs.bitcoin import is_address
+from electrum_grs.bitcoin import is_address, COIN
 from electrum_grs import util
 from decimal import Decimal
 import datetime, re
@@ -76,11 +76,7 @@ def edit_label(addr):
 def select_from_contacts():
     title = 'Contacts:'
     droid.dialogCreateAlert(title)
-    l = []
-    for i in range(len(wallet.addressbook)):
-        addr = wallet.addressbook[i]
-        label = wallet.labels.get(addr,addr)
-        l.append( label )
+    l = contacts.keys()
     droid.dialogSetItems(l)
     droid.dialogSetPositiveButtonText('New contact')
     droid.dialogShow()
@@ -92,8 +88,8 @@ def select_from_contacts():
 
     result = response.get('item')
     if result is not None:
-        addr = wallet.addressbook[result]
-        return addr
+        t, v = contacts.get(result)
+        return v
 
 
 
@@ -130,10 +126,10 @@ def protocol_dialog(host, protocol, z):
 def make_layout(s, scrollable = False):
     content = """
 
-      <LinearLayout 
+      <LinearLayout
         android:id="@+id/zz"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" 
+        android:layout_height="wrap_content"
         android:background="#ff222222">
 
         <TextView
@@ -151,13 +147,13 @@ def make_layout(s, scrollable = False):
 
     if scrollable:
         content = """
-      <ScrollView 
+      <ScrollView
         android:id="@+id/scrollview"
         android:layout_width="match_parent"
         android:layout_height="match_parent" >
 
       <LinearLayout
-        android:orientation="vertical" 
+        android:orientation="vertical"
         android:layout_width="match_parent"
         android:layout_height="wrap_content" >
 
@@ -171,12 +167,12 @@ def make_layout(s, scrollable = False):
     return """<?xml version="1.0" encoding="utf-8"?>
       <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
         android:id="@+id/background"
-        android:orientation="vertical" 
+        android:orientation="vertical"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" 
+        android:layout_height="match_parent"
         android:background="#ff000022">
 
-      %s 
+      %s
       </LinearLayout>"""%content
 
 
@@ -185,21 +181,21 @@ def make_layout(s, scrollable = False):
 def main_layout():
     h = get_history_layout(15)
     l = make_layout("""
-        <TextView android:id="@+id/balanceTextView" 
+        <TextView android:id="@+id/balanceTextView"
                 android:layout_width="match_parent"
                 android:text=""
                 android:textColor="#ffffffff"
-                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:textAppearance="?android:attr/textAppearanceLarge"
                 android:padding="7dip"
                 android:textSize="8pt"
                 android:gravity="center_vertical|center_horizontal|left">
         </TextView>
 
-        <TextView android:id="@+id/historyTextView" 
+        <TextView android:id="@+id/historyTextView"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
+                android:layout_height="wrap_content"
                 android:text="Recent transactions"
-                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:textAppearance="?android:attr/textAppearanceLarge"
                 android:gravity="center_vertical|center_horizontal|center">
         </TextView>
         %s """%h,True)
@@ -254,18 +250,18 @@ def qr_layout(addr, amount, message):
 
 payto_layout = make_layout("""
 
-        <TextView android:id="@+id/recipientTextView" 
+        <TextView android:id="@+id/recipientTextView"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
+                android:layout_height="wrap_content"
                 android:text="Pay to:"
-                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:textAppearance="?android:attr/textAppearanceLarge"
                 android:gravity="left">
         </TextView>
 
 
         <EditText android:id="@+id/recipient"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
+                android:layout_height="wrap_content"
                 android:tag="Tag Me" android:inputType="text">
         </EditText>
 
@@ -279,31 +275,31 @@ payto_layout = make_layout("""
         </LinearLayout>
 
 
-        <TextView android:id="@+id/labelTextView" 
+        <TextView android:id="@+id/labelTextView"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
+                android:layout_height="wrap_content"
                 android:text="Message:"
-                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:textAppearance="?android:attr/textAppearanceLarge"
                 android:gravity="left">
         </TextView>
 
         <EditText android:id="@+id/message"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
+                android:layout_height="wrap_content"
                 android:tag="Tag Me" android:inputType="text">
         </EditText>
 
-        <TextView android:id="@+id/amountLabelTextView" 
+        <TextView android:id="@+id/amountLabelTextView"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
+                android:layout_height="wrap_content"
                 android:text="Amount:"
-                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:textAppearance="?android:attr/textAppearanceLarge"
                 android:gravity="left">
         </TextView>
 
         <EditText android:id="@+id/amount"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
+                android:layout_height="wrap_content"
                 android:tag="Tag Me" android:inputType="numberDecimal">
         </EditText>
 
@@ -316,17 +312,17 @@ payto_layout = make_layout("""
 
 
 settings_layout = make_layout(""" <ListView
-           android:id="@+id/myListView" 
+           android:id="@+id/myListView"
            android:layout_width="match_parent"
            android:layout_height="wrap_content" />""")
 
 
 def get_history_values(n):
     values = []
-    h = wallet.get_tx_history()
+    h = wallet.get_history()
     length = min(n, len(h))
     for i in range(length):
-        tx_hash, conf, is_mine, value, fee, balance, timestamp = h[-i-1]
+        tx_hash, conf, value, timestamp, balance = h[-i-1]
         try:
             dt = datetime.datetime.fromtimestamp( timestamp )
             if dt.date() == dt.today().date():
@@ -338,7 +334,7 @@ def get_history_values(n):
         conf_str = 'v' if conf else 'o'
         label, is_default_label = wallet.get_label(tx_hash)
         label = label.replace('<','').replace('>','')
-        values.append((conf_str, '  ' + time_str, '  ' + format_satoshis(value,True), '  ' + label))
+        values.append((conf_str, '  ' + time_str, '  ' + format_satoshis(value, True), '  ' + label))
 
     return values
 
@@ -353,23 +349,23 @@ def get_history_layout(n):
         rows += """
         <TableRow>
           <TextView
-            android:id="@+id/hl_%d_col1" 
+            android:id="@+id/hl_%d_col1"
             android:layout_column="0"
             android:text="%s"
             android:textColor="%s"
             android:padding="3" />
           <TextView
-            android:id="@+id/hl_%d_col2" 
+            android:id="@+id/hl_%d_col2"
             android:layout_column="1"
             android:text="%s"
             android:padding="3" />
           <TextView
-            android:id="@+id/hl_%d_col3" 
+            android:id="@+id/hl_%d_col3"
             android:layout_column="2"
             android:text="%s"
             android:padding="3" />
           <TextView
-            android:id="@+id/hl_%d_col4" 
+            android:id="@+id/hl_%d_col4"
             android:layout_column="3"
             android:text="%s"
             android:padding="4" />
@@ -414,9 +410,12 @@ def update_layout():
     elif not wallet.up_to_date:
         text = "Synchronizing..."
     else:
-        c, u = wallet.get_balance()
-        text = "Balance:"+format_satoshis(c) 
-        if u : text += '   [' + format_satoshis(u,True).strip() + ']'
+        c, u, x = wallet.get_balance()
+        text = "Balance:"+format_satoshis(c)
+        if u:
+            text += '   [' + format_satoshis(u,True).strip() + ']'
+        if x:
+            text += '   [' + format_satoshis(x,True).strip() + ']'
 
 
     # vibrate if status changed
@@ -445,7 +444,7 @@ def pay_to(recipient, amount, label):
     droid.dialogShow()
 
     try:
-        tx = wallet.mktx([('address', recipient, amount)], password)
+        tx = wallet.mktx([('address', recipient, amount)], password, config)
     except Exception as e:
         modal_dialog('error', e.message)
         droid.dialogDismiss()
@@ -476,14 +475,16 @@ def make_new_contact():
         data = str(r['extras']['SCAN_RESULT']).strip()
         if data:
             if re.match('^groestlcoin:', data):
-                address, _, _, _, _ = util.parse_URI(data)
+                out = util.parse_URI(data)
+                address = out.get('address')
             elif is_address(data):
                 address = data
             else:
                 address = None
             if address:
                 if modal_question('Add to contacts?', address):
-                    wallet.add_contact(address)
+                    # fixme: ask for key
+                    contacts[address] = ('address', address)
         else:
             modal_dialog('Invalid address', data)
 
@@ -506,7 +507,7 @@ def main_loop():
 
         event = droid.eventWait(1000).result
         if event is None:
-            if do_refresh: 
+            if do_refresh:
                 update_layout()
                 do_refresh = False
             continue
@@ -521,7 +522,7 @@ def main_loop():
             if event["data"]["key"] == '4':
                 if quitting:
                     out = 'quit'
-                else: 
+                else:
                     quitting = True
         else: quitting = False
 
@@ -554,7 +555,7 @@ def main_loop():
                     out = None
 
     return out
-                    
+
 
 def payto_loop():
     global recipient
@@ -585,7 +586,7 @@ def payto_loop():
                     continue
 
                 try:
-                    amount = int( 100000000 * Decimal(amount) )
+                    amount = int(COIN * Decimal(amount))
                 except Exception:
                     modal_dialog('Error','Invalid amount')
                     continue
@@ -606,10 +607,13 @@ def payto_loop():
                     if data:
                         print "data", data
                         if re.match('^groestlcoin:', data):
-                            payto, amount, label, message, _ = util.parse_URI(data)
+                            rr = util.parse_URI(data)
+                            amount = rr.get('amount')
+                            address = rr.get('address')
+                            message = rr.get('message', '')
                             if amount:
-                                amount = str(amount/100000000)
-                            droid.fullSetProperty("recipient", "text", payto)
+                                amount = str(Decimal(amount)/COIN)
+                            droid.fullSetProperty("recipient", "text", address)
                             droid.fullSetProperty("amount", "text", amount)
                             droid.fullSetProperty("message", "text", message)
                         elif is_address(data):
@@ -617,7 +621,7 @@ def payto_loop():
                         else:
                             modal_dialog('Error','cannot parse QR code\n'+data)
 
-                    
+
         elif event["name"] in menu_commands:
             out = event["name"]
 
@@ -662,7 +666,7 @@ def receive_loop():
         elif event["name"]=="amount":
             amount = modal_input('Amount', 'Amount you want to receive (in BTC). ', format_satoshis(receive_amount) if receive_amount else None, "numberDecimal")
             if amount is not None:
-                receive_amount = int(100000000 * Decimal(amount)) if amount else None
+                receive_amount = int(COIN * Decimal(amount)) if amount else None
                 out = 'receive'
 
         elif event["name"]=="message":
@@ -725,7 +729,7 @@ def show_seed():
         if not password: return
     else:
         password = None
-    
+
     try:
         seed = wallet.get_mnemonic(password)
     except Exception:
@@ -770,7 +774,7 @@ def settings_loop():
 
     def set_listview():
         host, port, p, proxy_config, auto_connect = network.get_parameters()
-        fee = str( Decimal( wallet.fee_per_kb)/100000000 )
+        fee = str(Decimal(wallet.fee_per_kb(config)) / COIN)
         is_encrypted = 'yes' if wallet.use_encryption else 'no'
         protocol = protocol_name(p)
         droid.fullShow(settings_layout)
@@ -817,14 +821,16 @@ def settings_loop():
                     network_changed = True
 
             elif pos == "3": #fee
-                fee = modal_input('Transaction fee', 'The fee will be this amount multiplied by the number of inputs in your transaction. ',
-                                  str(Decimal(wallet.fee_per_kb)/100000000 ), "numberDecimal")
+                fee = modal_input(
+                    'Transaction fee',
+                    'The fee will be this amount multiplied by the number of inputs in your transaction. ',
+                    str(Decimal(wallet.fee_per_kb(config)) / COIN), "numberDecimal")
                 if fee:
                     try:
-                        fee = int( 100000000 * Decimal(fee) )
+                        fee = int(COIN * Decimal(fee))
                     except Exception:
                         modal_dialog('error','invalid fee value')
-                    wallet.set_fee(fee)
+                    config.set_key('fee_per_kb', fee)
                     set_listview()
 
             elif pos == "4":
@@ -886,25 +892,27 @@ def make_bitmap(data):
     finally:
         droid.dialogDismiss()
 
-        
+
 
 
 droid = android.Android()
 menu_commands = ["send", "receive", "settings", "contacts", "main"]
 wallet = None
 network = None
+contacts = None
+config = None
 
 class ElectrumGui:
 
-    def __init__(self, config, _network):
-        global wallet, network
+    def __init__(self, _config, _network, plugins):
+        global wallet, network, contacts, config
         network = _network
+        config = _config
         network.register_callback('updated', update_callback)
-        network.register_callback('connected', update_callback)
-        network.register_callback('disconnected', update_callback)
-        network.register_callback('disconnecting', update_callback)
-        
-        storage = WalletStorage(config)
+
+        contacts = util.StoreDict(config, 'contacts')
+
+        storage = WalletStorage(config.get_wallet_path())
         if not storage.file_exists:
             action = self.restore_or_create()
             if not action:
@@ -924,25 +932,25 @@ class ElectrumGui:
                 wallet = Wallet(storage)
                 seed = wallet.make_seed()
                 modal_dialog('Your seed is:', seed)
+                wallet.add_seed(seed, password)
+                wallet.create_master_keys(password)
+                wallet.create_main_account(password)
             elif action == 'restore':
                 seed = self.seed_dialog()
                 if not seed:
                     exit()
                 if not Wallet.is_seed(seed):
                     exit()
-                wallet = Wallet.from_seed(seed, storage)
+                wallet = Wallet.from_seed(seed, password, storage)
             else:
                 exit()
 
             msg = "Creating wallet" if action == 'create' else "Restoring wallet"
             droid.dialogCreateSpinnerProgress("Electrum", msg)
             droid.dialogShow()
-            wallet.add_seed(seed, password)
-            wallet.create_master_keys(password)
-            wallet.create_main_account(password)
             wallet.start_threads(network)
             if action == 'restore':
-                wallet.restore(lambda x: None)
+                wallet.wait_until_synchronized()
             else:
                 wallet.synchronize()
             droid.dialogDismiss()
@@ -953,7 +961,7 @@ class ElectrumGui:
             wallet.start_threads(network)
 
 
-    def main(self, url):
+    def main(self):
         s = 'main'
         while True:
             add_menu(s)
@@ -1007,5 +1015,3 @@ class ElectrumGui:
         else:
             seed = modal_input('Mnemonic', 'please enter your code')
         return str(seed)
-
-

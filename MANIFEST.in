@@ -1,8 +1,9 @@
 include README LICENCE RELEASE-NOTES AUTHORS
-include electrum.conf.sample
-include electrum.desktop
+include README.rst
+include electrum-grs.conf.sample
+include electrum-grs.desktop
 include *.py
-include electrum
+include electrum-grs
 recursive-include lib *.py
 recursive-include gui *.py
 recursive-include plugins *.py
@@ -12,4 +13,4 @@ include app.fil
 include icons.qrc
 recursive-include icons *
 recursive-include scripts *
-recursive-include docs *
+

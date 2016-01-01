@@ -1,0 +1,3 @@
+[submodule "contrib/mazaclub-release"]
+	path = contrib/mazaclub-release
+	url = https://github.com/guruvan/mazaclub-release

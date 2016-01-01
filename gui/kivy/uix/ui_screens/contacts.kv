@@ -1,0 +1,93 @@
+<ContactImage@Widget>:
+    source: 'atlas://gui/kivy/theming/light/contact_avatar'
+    size_hint_x: None
+    width: self.height
+    canvas:
+        Color:
+            rgba: 1, 1, 1, 1
+        Ellipse:
+            source: root.source
+            size: self.width + dp(6), self.height + dp(6)
+            pos: self.x - dp(3), self.y - dp(3)
+        Ellipse:
+            source: 'atlas://gui/kivy/theming/light/contact_overlay'
+            size: self.width + dp(11), self.height + dp(11)
+            pos: self.x - dp(5.5), self.y - dp(5.5)
+
+<ContactLabel@Label>
+    color: .305, .309, .309, 1
+    text_size: self.size
+    halign: 'left'
+    valign: 'middle'
+
+<ContactSeperator@Widget>
+    canvas.before:
+        Color:
+            rgba: .890, .890, .890, 1
+        Rectangle:
+            size: self.size
+            pos: self.x, self.y + dp(9)
+    size_hint: None, None
+    size: '1dp', '22dp'
+    pos_hint_y: .5
+
+<ContactTextInput@TextInput>
+    background_normal: self.background_down
+    background_down: 'atlas://gui/kivy/theming/light/tab_btn'
+    size_hint_y: None
+    height: '22dp'
+
+<ContactBitLogo@Image>
+    source: 'atlas://gui/kivy/theming/light/bit_logo'
+    size_hint_x: None
+    width: '32dp'
+
+<ContactItem@BoxLayout>
+    address: ''
+    label: ''
+    tx_amt: 0
+    size_hint_y: None
+    height: '65dp'
+    padding: dp(12)
+    spacing: dp(5)
+    canvas.before:
+        #Color:
+        #    rgba: 1, 1, 1, 1
+        Rectangle:
+            size: self.size
+            pos: self.pos
+    ContactImage:
+        id: contact_image
+    Widget:
+        size_hint_x: None
+        width: '9dp'
+    ContactLabel:
+        id: contact_address
+        text: root.address
+    ContactSeperator:
+    ContactLabel:
+        text: root.label
+    #ContactBitLogo:
+
+ContactsScreen:
+    name: 'contacts'
+    on_activate:
+        if not self.action_view:\
+        self.action_view = app.root.main_screen.ids.tabs.ids.screen_dashboard.action_view
+    BoxLayout:
+        orientation: 'vertical'
+        spacing: '1dp'
+        ContactTextInput:
+        ScrollView:
+            canvas.before:
+                #Color:
+                #    rgba: .8901, .8901, .8901, 1
+                Rectangle:
+                    size: self.size
+                    pos: self.pos
+            GridLayout:
+                cols: 1
+                id: contact_container
+                size_hint_y: None
+                height: self.minimum_height
+                spacing: '1dp'
