@@ -57,8 +57,9 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         return xpub, None
 
     def get_public_key(self, bip32_path):
-        address_n = self.get_client().expand_path(bip32_path)
-        node = self.get_client().get_public_node(address_n).node
+        client = self.get_client()
+        address_n = client.expand_path(bip32_path)
+        node = client.get_public_node(address_n).node
         xpub = ("0488B21E".decode('hex') + chr(node.depth)
                 + self.i4b(node.fingerprint) + self.i4b(node.child_num)
                 + node.chain_code + node.public_key)
@@ -71,15 +72,15 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         raise RuntimeError(_('Decrypt method is not implemented'))
 
     def sign_message(self, address, message, password):
+        client = self.get_client()
         self.check_proper_device()
         try:
             address_path = self.address_id(address)
-            address_n = self.get_client().expand_path(address_path)
+            address_n = client.expand_path(address_path)
         except Exception as e:
             self.give_error(e)
         try:
-            msg_sig = self.get_client().sign_message('Bitcoin', address_n,
-                                                     message)
+            msg_sig = client.sign_message('Bitcoin', address_n, message)
         except Exception as e:
             self.give_error(e)
         finally:
@@ -216,11 +217,10 @@ class TrezorCompatiblePlugin(BasePlugin):
         tx.update_signatures(raw)
 
     def show_address(self, wallet, address):
-        client = self.get_client()
         wallet.check_proper_device()
         try:
             address_path = wallet.address_id(address)
-            address_n = client.expand_path(address_path)
+            address_n = self.client_class.expand_path(address_path)
         except Exception as e:
             self.give_error(e)
         try:
@@ -231,7 +231,6 @@ class TrezorCompatiblePlugin(BasePlugin):
             self.get_handler(wallet).stop()
 
     def tx_inputs(self, tx, for_sig=False):
-        client = self.get_client()
         inputs = []
         for txin in tx.inputs:
             txinputtype = self.types.TxInputType()
@@ -244,7 +243,7 @@ class TrezorCompatiblePlugin(BasePlugin):
                     if len(x_pubkeys) == 1:
                         x_pubkey = x_pubkeys[0]
                         xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
-                        xpub_n = client.expand_path(self.xpub_path[xpub])
+                        xpub_n = self.client_class.expand_path(self.xpub_path[xpub])
                         txinputtype.address_n.extend(xpub_n + s)
                     else:
                         def f(x_pubkey):
@@ -270,7 +269,7 @@ class TrezorCompatiblePlugin(BasePlugin):
                             if is_extended_pubkey(x_pubkey):
                                 xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
                                 if xpub in self.xpub_path:
-                                    xpub_n = client.expand_path(self.xpub_path[xpub])
+                                    xpub_n = self.client_class.expand_path(self.xpub_path[xpub])
                                     txinputtype.address_n.extend(xpub_n + s)
                                     break
 
@@ -293,7 +292,6 @@ class TrezorCompatiblePlugin(BasePlugin):
         return inputs
 
     def tx_outputs(self, wallet, tx):
-        client = self.get_client()
         outputs = []
 
         for type, address, amount in tx.outputs:
@@ -301,7 +299,7 @@ class TrezorCompatiblePlugin(BasePlugin):
             txoutputtype = self.types.TxOutputType()
             if wallet.is_change(address):
                 address_path = wallet.address_id(address)
-                address_n = client.expand_path(address_path)
+                address_n = self.client_class.expand_path(address_path)
                 txoutputtype.address_n.extend(address_n)
             else:
                 txoutputtype.address = address

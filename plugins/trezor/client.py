@@ -78,6 +78,22 @@ def trezor_client_class(protocol_mixin, base_client, proto):
             self.proper_device = False
             self.checked_device = False
 
+        # Copied from trezorlib/client.py as there it is not static, sigh
+        @staticmethod
+        def expand_path(n):
+            '''Convert bip32 path to list of uint32 integers with prime flags
+            0/-1/1' -> [0, 0x80000001, 0x80000001]'''
+            path = []
+            for x in n.split('/'):
+                prime = 0
+                if x.endswith("'"):
+                    x = x.replace('\'', '')
+                    prime = TrezorClient.PRIME_DERIVATION_FLAG
+                if x.startswith('-'):
+                    prime = TrezorClient.PRIME_DERIVATION_FLAG
+                path.append(abs(int(x)) | prime)
+            return path
+
         def check_proper_device(self, wallet):
             try:
                 self.ping('t')
