@@ -335,3 +335,25 @@ class TrezorCompatiblePlugin(BasePlugin):
         tx = self.prev_tx[tx_hash]
         tx.deserialize()
         return self.electrum_tx_to_txtype(tx)
+
+    @staticmethod
+    def is_valid_seed(seed):
+        return True
+
+    def on_restore_wallet(self, wallet, wizard):
+        assert isinstance(wallet, self.wallet_class)
+
+        msg = _("Enter the seed for your %s wallet:" % self.device)
+        seed = wizard.request_seed(msg, is_valid = self.is_valid_seed)
+
+        # Restored wallets are not hardware wallets
+        wallet_class = self.wallet_class.restore_wallet_class
+        wallet.storage.put('wallet_type', wallet_class.wallet_type)
+        wallet = wallet_class(wallet.storage)
+
+        passphrase = wizard.request_passphrase(self.device, restore=True)
+        password = wizard.request_password()
+        wallet.add_seed(seed, password)
+        wallet.add_cosigner_seed(seed, 'x/', password, passphrase)
+        wallet.create_main_account(password)
+        return wallet

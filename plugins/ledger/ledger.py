@@ -32,6 +32,7 @@ except ImportError:
 
 class BTChipWallet(BIP32_HD_Wallet):
     wallet_type = 'btchip'
+    device = 'Ledger'
     root_derivation = "m/44'/0'"
     restore_wallet_class = BIP44_Wallet
 
@@ -54,10 +55,6 @@ class BTChipWallet(BIP32_HD_Wallet):
             self.client.bad = True
             self.device_checked = False
         raise Exception(message)
-
-    def get_action(self):
-        if not self.accounts:
-            return 'create_accounts'
 
     def can_sign_xpubkey(self, x_pubkey):
         xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
@@ -418,6 +415,8 @@ class LedgerPlugin(BasePlugin):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
+        self.wallet_class.plugin = self
+        self.device = self.wallet_class.device
         self.handler = None
 
     def constructor(self, s):
@@ -433,22 +432,29 @@ class LedgerPlugin(BasePlugin):
             return False
         return True
 
+    @staticmethod
+    def is_valid_seed(seed):
+        return True
+
+    def on_restore_wallet(self, wallet, wizard):
+        assert isinstance(wallet, self.wallet_class)
+
+        msg = _("Enter the seed for your %s wallet:" % self.device)
+        seed = wizard.request_seed(msg, is_valid = self.is_valid_seed)
+
+        # Restored wallets are not hardware wallets
+        wallet_class = self.wallet_class.restore_wallet_class
+        wallet.storage.put('wallet_type', wallet_class.wallet_type)
+        wallet = wallet_class(wallet.storage)
+
+        # Ledger wallets don't use passphrases
+        passphrase = unicode()
+        password = wizard.request_password()
+        wallet.add_seed(seed, password)
+        wallet.add_cosigner_seed(seed, 'x/', password, passphrase)
+        wallet.create_main_account(password)
+        return wallet
+
     @hook
     def close_wallet(self, wallet):
         self.client = None
-
-    @hook
-    def installwizard_load_wallet(self, wallet, window):
-        self.load_wallet(wallet, window)
-
-    @hook
-    def installwizard_restore(self, wizard, storage):
-        if storage.get('wallet_type') != 'btchip':
-            return
-        wallet = BTChipWallet(storage)
-        try:
-            wallet.create_main_account(None)
-        except BaseException as e:
-            QMessageBox.information(None, _('Error'), str(e), _('OK'))
-            return
-        return wallet

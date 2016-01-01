@@ -125,10 +125,6 @@ class QtPlugin(TrezorPlugin):
         client.handler = self.create_handler(wizard)
         wallet.create_main_account(None)
 
-    @staticmethod
-    def is_valid_seed(seed):
-        return True
-
     @hook
     def receive_menu(self, menu, addrs, wallet):
         if type(wallet) != self.wallet_class:
