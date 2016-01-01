@@ -41,8 +41,8 @@ from electrum_ltc.util import block_explorer, block_explorer_info, block_explore
 from electrum_ltc.util import format_satoshis, format_satoshis_plain, format_time
 from electrum_ltc.util import PrintError, NotEnoughFunds, StoreDict
 from electrum_ltc import Transaction, mnemonic
-from electrum_ltc import util, bitcoin, commands, Wallet
-from electrum_ltc import SimpleConfig, COIN_CHOOSERS, WalletStorage
+from electrum_ltc import util, bitcoin, commands
+from electrum_ltc import SimpleConfig, COIN_CHOOSERS
 from electrum_ltc import Imported_Wallet, paymentrequest
 
 from amountedit import BTCAmountEdit, MyLineEdit, BTCkBEdit
@@ -50,7 +50,6 @@ from network_dialog import NetworkDialog
 from qrcodewidget import QRCodeWidget, QRDialog
 from qrtextedit import ShowQRTextEdit
 from transaction_dialog import show_transaction
-from installwizard import InstallWizard
 
 
 
@@ -174,8 +173,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fetch_alias()
         self.require_fee_update = False
         self.tx_notifications = []
-        # load wallet
         self.load_wallet(wallet)
+        self.connect_slots(gui_object.timer)
 
     def diagnostic_name(self):
         return "%s/%s" % (PrintError.diagnostic_name(self),
@@ -244,16 +243,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.print_error('close_wallet', self.wallet.storage.path)
             self.wallet.storage.put('accounts_expanded', self.accounts_expanded)
             self.wallet.stop_threads()
-        run_hook('close_wallet')
+        run_hook('close_wallet', self.wallet)
 
     def load_wallet(self, wallet):
         self.wallet = wallet
-        # backward compatibility
-        self.update_wallet_format()
+        self.update_recently_visited(wallet.storage.path)
         self.import_old_contacts()
-        # address used to create a dummy transaction and estimate transaction fee
-        a = self.wallet.addresses(False)
-        self.dummy_address = a[0] if a else None
         self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
         self.current_account = self.wallet.storage.get("current_account", None)
         self.history_list.update()
@@ -270,14 +265,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.clear_receive_tab()
         self.receive_list.update()
         self.tabs.show()
+        self.watching_only_changed()
 
-        # set geometry
         try:
             self.setGeometry(*self.wallet.storage.get("winpos-qt"))
         except:
             self.setGeometry(100, 100, 840, 400)
-        self.watching_only_changed()
-        self.show()
+
+        if self.config.get('hide_gui') and self.gui_object.tray.isVisible():
+            self.hide()
+        else:
+            self.show()
         run_hook('load_wallet', wallet, self)
         self.warn_if_watching_only()
 
@@ -312,19 +310,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     self.contacts[l] = ('address', k)
             self.wallet.storage.put('contacts', None)
 
-    def update_wallet_format(self):
-        # convert old-format imported keys
-        if self.wallet.imported_keys:
-            password = self.password_dialog(_("Please enter your password in order to update imported keys")) if self.wallet.use_encryption else None
-            try:
-                self.wallet.convert_imported_keys(password)
-            except Exception as e:
-                traceback.print_exc(file=sys.stdout)
-                self.show_message(str(e))
-        # call synchronize to regenerate addresses in case we are offline
-        if self.wallet.get_master_public_keys() and self.wallet.addresses() == []:
-            self.wallet.synchronize()
-
     def open_wallet(self):
         wallet_folder = self.get_wallet_folder()
         filename = unicode(QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder))
@@ -348,14 +333,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             except (IOError, os.error), reason:
                 self.show_critical(_("Electrum was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
 
-    def update_recently_visited(self, filename=None):
+    def update_recently_visited(self, filename):
         recent = self.config.get('recently_open', [])
-        if filename:
-            if filename in recent:
-                recent.remove(filename)
-            recent.insert(0, filename)
-            recent = recent[:5]
-            self.config.set_key('recently_open', recent)
+        if filename in recent:
+            recent.remove(filename)
+        recent.insert(0, filename)
+        recent = recent[:5]
+        self.config.set_key('recently_open', recent)
         self.recently_visited_menu.clear()
         for i, k in enumerate(sorted(recent)):
             b = os.path.basename(k)
@@ -381,14 +365,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not filename:
             return
         full_path = os.path.join(wallet_folder, filename)
-        storage = WalletStorage(full_path)
-        if storage.file_exists:
+        if os.path.exists(full_path):
             self.show_critical(_("File exists"))
             return
-        wizard = InstallWizard(self.app, self.config, self.network, storage)
-        wallet = wizard.run('new')
-        if wallet:
-            self.new_window(full_path)
+        self.gui_object.start_new_window(full_path, None)
 
     def init_menubar(self):
         menubar = QMenuBar()
@@ -400,7 +380,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         file_menu.addAction(_("&Save Copy"), self.backup_wallet).setShortcut(QKeySequence.SaveAs)
         file_menu.addSeparator()
         file_menu.addAction(_("&Quit"), self.close)
-        self.update_recently_visited()
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
         wallet_menu.addAction(_("&New contact"), self.new_contact_dialog)
@@ -1092,7 +1071,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         else:
             fee = self.fee_e.get_amount() if freeze_fee else None
             if not outputs:
-                addr = self.payto_e.payto_address if self.payto_e.payto_address else self.dummy_address
+                addr = self.payto_e.payto_address if self.payto_e.payto_address else None
                 outputs = [('address', addr, amount)]
             try:
                 tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, self.config, fee)
@@ -1857,7 +1836,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                  'password. To disable wallet encryption, enter an empty new '
                  'password.') if self.wallet.use_encryption
                else _('Your wallet keys are not encrypted'))
-        d = PasswordDialog(self, self.wallet, _("Set Password"), msg, True)
+        d = PasswordDialog(self, self.wallet, msg, PasswordDialog.PW_CHANGE)
         ok, password, new_password = d.run()
         if not ok:
             return

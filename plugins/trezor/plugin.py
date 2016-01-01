@@ -1,6 +1,7 @@
 import re
 from binascii import unhexlify
 from struct import pack
+from unicodedata import normalize
 
 from electrum_ltc.account import BIP32_Account
 from electrum_ltc.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
@@ -21,7 +22,6 @@ class TrezorCompatibleWallet(BIP44_Wallet):
 
     def __init__(self, storage):
         BIP44_Wallet.__init__(self, storage)
-        self.checked_device = False
         self.proper_device = False
 
     def give_error(self, message):
@@ -29,20 +29,23 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         raise Exception(message)
 
     def get_action(self):
-        if not self.accounts:
-            return 'create_accounts'
+        pass
 
     def can_export(self):
         return False
 
     def is_watching_only(self):
+        assert not self.has_seed()
         return not self.proper_device
 
     def can_change_password(self):
         return False
 
     def get_client(self):
-        return self.plugin.get_client()
+        return self.plugin.get_client(self)
+
+    def check_proper_device(self):
+        return self.get_client().check_proper_device(self)
 
     def derive_xkeys(self, root, derivation, password):
         if self.master_public_keys.get(root):
@@ -54,8 +57,9 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         return xpub, None
 
     def get_public_key(self, bip32_path):
-        address_n = self.get_client().expand_path(bip32_path)
-        node = self.get_client().get_public_node(address_n).node
+        client = self.get_client()
+        address_n = client.expand_path(bip32_path)
+        node = client.get_public_node(address_n).node
         xpub = ("0488B21E".decode('hex') + chr(node.depth)
                 + self.i4b(node.fingerprint) + self.i4b(node.child_num)
                 + node.chain_code + node.public_key)
@@ -68,28 +72,24 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         raise RuntimeError(_('Decrypt method is not implemented'))
 
     def sign_message(self, address, message, password):
-        if self.has_seed():
-            return BIP32_HD_Wallet.sign_message(self, address, message, password)
+        client = self.get_client()
         self.check_proper_device()
         try:
             address_path = self.address_id(address)
-            address_n = self.get_client().expand_path(address_path)
+            address_n = client.expand_path(address_path)
         except Exception as e:
             self.give_error(e)
         try:
-            msg_sig = self.get_client().sign_message('Litecoin', address_n,
-                                                     message)
+            msg_sig = client.sign_message('Litecoin', address_n, message)
         except Exception as e:
             self.give_error(e)
         finally:
-            self.plugin.handler.stop()
+            self.plugin.get_handler(self).stop()
         return msg_sig.signature
 
     def sign_transaction(self, tx, password):
         if tx.is_complete() or self.is_watching_only():
             return
-        if self.has_seed():
-            return BIP32_HD_Wallet.sign_transaction(self, tx, password)
         self.check_proper_device()
         # previous transactions used as inputs
         prev_tx = {}
@@ -115,34 +115,6 @@ class TrezorCompatibleWallet(BIP44_Wallet):
 
         self.plugin.sign_transaction(self, tx, prev_tx, xpub_path)
 
-    def is_proper_device(self):
-        self.get_client().ping('t')
-
-        if not self.checked_device:
-            address = self.addresses(False)[0]
-            address_id = self.address_id(address)
-            n = self.get_client().expand_path(address_id)
-            device_address = self.get_client().get_address('Litecoin', n)
-            self.checked_device = True
-            self.proper_device = (device_address == address)
-
-        return self.proper_device
-
-    def check_proper_device(self):
-        if not self.is_proper_device():
-            self.give_error(_('Wrong device or password'))
-
-    def sanity_check(self):
-        try:
-            self.get_client().ping('t')
-        except BaseException as e:
-            return _("%s device not detected.  Continuing in watching-only "
-                     "mode.") % self.device + "\n\n" + str(e)
-
-        if self.addresses() and not self.is_proper_device():
-            return _("This wallet does not match your %s device") % self.device
-
-        return None
 
 class TrezorCompatiblePlugin(BasePlugin):
     # Derived classes provide:
@@ -154,11 +126,8 @@ class TrezorCompatiblePlugin(BasePlugin):
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
         self.device = self.wallet_class.device
-        self.handler = None
         self.client = None
-
-    def constructor(self, s):
-        return self.wallet_class(s)
+        self.wallet_class.plugin = self
 
     def give_error(self, message):
         self.print_error(message)
@@ -174,9 +143,10 @@ class TrezorCompatiblePlugin(BasePlugin):
 
         devices = self.HidTransport.enumerate()
         if not devices:
-            self.give_error(_('Could not connect to your %s. Please '
-                              'verify the cable is connected and that no '
-                              'other app is using it.' % self.device))
+            self.give_error(_('Could not connect to your %s.  Verify the '
+                              'cable is connected and that no other app is '
+                              'using it.\nContinuing in watching-only mode.'
+                              % self.device))
 
         transport = self.HidTransport(devices[0])
         client = self.client_class(transport, self)
@@ -186,7 +156,10 @@ class TrezorCompatiblePlugin(BasePlugin):
                             % (self.device, self.firmware_URL))
         return client
 
-    def get_client(self):
+    def get_handler(self, wallet):
+        return self.get_client(wallet).handler
+
+    def get_client(self, wallet=None):
         if not self.client or self.client.bad:
             self.client = self.create_client()
 
@@ -195,10 +168,32 @@ class TrezorCompatiblePlugin(BasePlugin):
     def atleast_version(self, major, minor=0, patch=0):
         return self.get_client().atleast_version(major, minor, patch)
 
+    @staticmethod
+    def normalize_passphrase(self, passphrase):
+        return normalize('NFKD', unicode(passphrase or ''))
+
+    def on_restore_wallet(self, wallet, wizard):
+        assert isinstance(wallet, self.wallet_class)
+
+        msg = _("Enter the seed for your %s wallet:" % self.device)
+        seed = wizard.request_seed(msg, is_valid = self.is_valid_seed)
+
+        # Restored wallets are not hardware wallets
+        wallet_class = self.wallet_class.restore_wallet_class
+        wallet.storage.put('wallet_type', wallet_class.wallet_type)
+        wallet = wallet_class(wallet.storage)
+
+        passphrase = wizard.request_passphrase(self.device, restore=True)
+        password = wizard.request_password()
+        wallet.add_seed(seed, password)
+        wallet.add_cosigner_seed(seed, 'x/', password, passphrase)
+        wallet.create_main_account(password)
+        return wallet
+
     @hook
-    def close_wallet(self):
-        self.print_error("clear session")
+    def close_wallet(self, wallet):
         if self.client:
+            self.print_error("clear session")
             self.client.clear_session()
             self.client.transport.close()
             self.client = None
@@ -214,16 +209,15 @@ class TrezorCompatiblePlugin(BasePlugin):
         except Exception as e:
             self.give_error(e)
         finally:
-            self.handler.stop()
+            self.get_handler(wallet).stop()
         raw = signed_tx.encode('hex')
         tx.update_signatures(raw)
 
     def show_address(self, wallet, address):
-        client = self.get_client()
         wallet.check_proper_device()
         try:
             address_path = wallet.address_id(address)
-            address_n = client.expand_path(address_path)
+            address_n = self.client_class.expand_path(address_path)
         except Exception as e:
             self.give_error(e)
         try:
@@ -231,10 +225,9 @@ class TrezorCompatiblePlugin(BasePlugin):
         except Exception as e:
             self.give_error(e)
         finally:
-            self.handler.stop()
+            self.get_handler(wallet).stop()
 
     def tx_inputs(self, tx, for_sig=False):
-        client = self.get_client()
         inputs = []
         for txin in tx.inputs:
             txinputtype = self.types.TxInputType()
@@ -247,7 +240,7 @@ class TrezorCompatiblePlugin(BasePlugin):
                     if len(x_pubkeys) == 1:
                         x_pubkey = x_pubkeys[0]
                         xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
-                        xpub_n = client.expand_path(self.xpub_path[xpub])
+                        xpub_n = self.client_class.expand_path(self.xpub_path[xpub])
                         txinputtype.address_n.extend(xpub_n + s)
                     else:
                         def f(x_pubkey):
@@ -273,7 +266,7 @@ class TrezorCompatiblePlugin(BasePlugin):
                             if is_extended_pubkey(x_pubkey):
                                 xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
                                 if xpub in self.xpub_path:
-                                    xpub_n = client.expand_path(self.xpub_path[xpub])
+                                    xpub_n = self.client_class.expand_path(self.xpub_path[xpub])
                                     txinputtype.address_n.extend(xpub_n + s)
                                     break
 
@@ -296,7 +289,6 @@ class TrezorCompatiblePlugin(BasePlugin):
         return inputs
 
     def tx_outputs(self, wallet, tx):
-        client = self.get_client()
         outputs = []
 
         for type, address, amount in tx.outputs:
@@ -304,7 +296,7 @@ class TrezorCompatiblePlugin(BasePlugin):
             txoutputtype = self.types.TxOutputType()
             if wallet.is_change(address):
                 address_path = wallet.address_id(address)
-                address_n = client.expand_path(address_path)
+                address_n = self.client_class.expand_path(address_path)
                 txoutputtype.address_n.extend(address_n)
             else:
                 txoutputtype.address = address
@@ -338,3 +330,7 @@ class TrezorCompatiblePlugin(BasePlugin):
         tx = self.prev_tx[tx_hash]
         tx.deserialize()
         return self.electrum_tx_to_txtype(tx)
+
+    @staticmethod
+    def is_valid_seed(seed):
+        return True

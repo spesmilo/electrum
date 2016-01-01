@@ -12,7 +12,6 @@ class Plugin(LedgerPlugin):
     def load_wallet(self, wallet, window):
         if type(wallet) != BTChipWallet:
             return
-        wallet.plugin = self
         if self.handler is None:
             self.handler = BTChipQTHandler(window)
         if self.btchip_is_connected(wallet):
@@ -23,6 +22,9 @@ class Plugin(LedgerPlugin):
             window.show_error(_("Ledger device not detected.\nContinuing in watching-only mode."))
             wallet.force_watching_only = True
 
+    def on_create_wallet(self, wallet, wizard):
+        self.handler = BTChipQTHandler(wizard)
+        wallet.create_main_account(None)
 
 class BTChipQTHandler:
 

@@ -162,6 +162,11 @@ class SimpleConfig(object):
 
         return new_path
 
+    def remove_from_recently_open(self, filename):
+        recent = self.get('recently_open', [])
+        if filename in recent:
+            recent.remove(filename)
+            self.set_key('recently_open', recent)
 
 
 def read_system_config(path=SYSTEM_CONFIG_PATH):

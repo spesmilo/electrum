@@ -79,7 +79,7 @@ if is_bundle or is_local or is_android:
 from electrum_ltc import util
 from electrum_ltc import SimpleConfig, Network, Wallet, WalletStorage
 from electrum_ltc.util import print_msg, print_error, print_stderr, json_encode, json_decode, set_verbosity, InvalidPassword
-from electrum_ltc.plugins import Plugins, run_hook, always_hook
+from electrum_ltc.plugins import Plugins, run_hook
 from electrum_ltc.commands import get_parser, known_commands, Commands, config_variables
 from electrum_ltc.daemon import Daemon, get_daemon
 
@@ -242,8 +242,6 @@ def run_offline_command(config, config_options):
             sys.exit(1)
     if cmd.requires_network:
         print_stderr("Warning: running command offline")
-    # notify plugins
-    always_hook('cmdline_load_wallet', wallet)
     # arguments passed to function
     args = map(lambda x: config.get(x), cmd.params)
     # decode json arguments

@@ -10,7 +10,7 @@ from electrum_ltc.bitcoin import EncodeBase58Check, DecodeBase58Check, public_ke
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.transaction import deserialize
-from electrum_ltc.wallet import BIP32_HD_Wallet, BIP32_Wallet
+from electrum_ltc.wallet import BIP44_Wallet, BIP32_HD_Wallet, BIP32_Wallet
 
 from electrum_ltc.util import format_satoshis_plain, print_error, print_msg
 import hashlib
@@ -37,7 +37,9 @@ except ImportError:
 
 class BTChipWallet(BIP32_HD_Wallet):
     wallet_type = 'btchip'
+    device = 'Ledger'
     root_derivation = "m/44'/2'"
+    restore_wallet_class = BIP44_Wallet
 
     def __init__(self, storage):
         BIP32_HD_Wallet.__init__(self, storage)
@@ -59,10 +61,6 @@ class BTChipWallet(BIP32_HD_Wallet):
             self.device_checked = False
         raise Exception(message)
 
-    def get_action(self):
-        if not self.accounts:
-            return 'create_accounts'
-
     def can_sign_xpubkey(self, x_pubkey):
         xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
         return xpub in self.master_public_keys.values()
@@ -74,6 +72,7 @@ class BTChipWallet(BIP32_HD_Wallet):
         return False
 
     def is_watching_only(self):
+        assert not self.has_seed()
         return self.force_watching_only
 
     def get_client(self, noPin=False):
@@ -215,8 +214,6 @@ class BTChipWallet(BIP32_HD_Wallet):
         self.give_error("Not supported")
 
     def sign_message(self, address, message, password):
-        if self.has_seed():
-            return BIP32_HD_Wallet.sign_message(self, address, message, password)
         use2FA = False
         self.signing = True
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
@@ -267,8 +264,6 @@ class BTChipWallet(BIP32_HD_Wallet):
         return chr(27 + 4 + (signature[0] & 0x01)) + r + s
 
     def sign_transaction(self, tx, password):
-        if self.has_seed():
-            return BIP32_HD_Wallet.sign_transaction(self, tx, password)
         if tx.is_complete():
             return
         self.signing = True
@@ -430,13 +425,13 @@ class BTChipWallet(BIP32_HD_Wallet):
 
 
 class LedgerPlugin(BasePlugin):
+    wallet_class = BTChipWallet
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
+        self.wallet_class.plugin = self
+        self.device = self.wallet_class.device
         self.handler = None
-
-    def constructor(self, s):
-        return BTChipWallet(s)
 
     def is_enabled(self):
         return BTCHIP
@@ -448,24 +443,29 @@ class LedgerPlugin(BasePlugin):
             return False
         return True
 
-    @hook
-    def close_wallet(self):
-        pass
+    @staticmethod
+    def is_valid_seed(seed):
+        return True
 
-    @hook
-    def installwizard_load_wallet(self, wallet, window):
-        if type(wallet) != BTChipWallet:
-            return
-        self.load_wallet(wallet, window)
+    def on_restore_wallet(self, wallet, wizard):
+        assert isinstance(wallet, self.wallet_class)
 
-    @hook
-    def installwizard_restore(self, wizard, storage):
-        if storage.get('wallet_type') != 'btchip':
-            return
-        wallet = BTChipWallet(storage)
-        try:
-            wallet.create_main_account(None)
-        except BaseException as e:
-            QMessageBox.information(None, _('Error'), str(e), _('OK'))
-            return
+        msg = _("Enter the seed for your %s wallet:" % self.device)
+        seed = wizard.request_seed(msg, is_valid = self.is_valid_seed)
+
+        # Restored wallets are not hardware wallets
+        wallet_class = self.wallet_class.restore_wallet_class
+        wallet.storage.put('wallet_type', wallet_class.wallet_type)
+        wallet = wallet_class(wallet.storage)
+
+        # Ledger wallets don't use passphrases
+        passphrase = unicode()
+        password = wizard.request_password()
+        wallet.add_seed(seed, password)
+        wallet.add_cosigner_seed(seed, 'x/', password, passphrase)
+        wallet.create_main_account(password)
         return wallet
+
+    @hook
+    def close_wallet(self, wallet):
+        self.client = None

@@ -205,6 +205,9 @@ class Abstract_Wallet(PrintError):
     def diagnostic_name(self):
         return self.basename()
 
+    def set_use_encryption(self, use_encryption):
+        self.use_encryption = use_encryption
+        self.storage.put('use_encryption', use_encryption)
 
     @profiler
     def load_transactions(self):
@@ -309,6 +312,9 @@ class Abstract_Wallet(PrintError):
                 self.print_error("cannot load account", v)
         if removed:
             self.save_accounts()
+
+    def create_main_account(self, password):
+        pass
 
     def synchronize(self):
         pass
@@ -1049,8 +1055,7 @@ class Abstract_Wallet(PrintError):
                 self.master_private_keys[k] = c
             self.storage.put('master_private_keys', self.master_private_keys)
 
-        self.use_encryption = (new_password != None)
-        self.storage.put('use_encryption', self.use_encryption)
+        self.set_use_encryption(new_password is not None)
 
     def is_frozen(self, addr):
         return addr in self.frozen_addresses
@@ -1112,15 +1117,16 @@ class Abstract_Wallet(PrintError):
                         _("Please wait..."),
                         _("Addresses generated:"),
                         len(self.addresses(True)))
-                    apply(callback, (msg,))
+                    callback(msg)
                 time.sleep(0.1)
         def wait_for_network():
             while not self.network.is_connected():
                 if callback:
                     msg = "%s \n" % (_("Connecting..."))
-                    apply(callback, (msg,))
+                    callback(msg)
                 time.sleep(0.1)
-        # wait until we are connected, because the user might have selected another server
+        # wait until we are connected, because the user
+        # might have selected another server
         if self.network:
             wait_for_network()
             wait_for_wallet()
@@ -1428,14 +1434,10 @@ class Deterministic_Wallet(Abstract_Wallet):
 
         self.seed_version, self.seed = self.format_seed(seed)
         if password:
-            self.seed = pw_encode( self.seed, password)
-            self.use_encryption = True
-        else:
-            self.use_encryption = False
-
+            self.seed = pw_encode(self.seed, password)
         self.storage.put('seed', self.seed)
         self.storage.put('seed_version', self.seed_version)
-        self.storage.put('use_encryption', self.use_encryption)
+        self.set_use_encryption(password is not None)
 
     def get_seed(self, password):
         return pw_decode(self.seed, password)
@@ -1527,8 +1529,6 @@ class Deterministic_Wallet(Abstract_Wallet):
     def get_action(self):
         if not self.get_master_public_key():
             return 'create_seed'
-        if not self.accounts:
-            return 'create_accounts'
 
     def get_master_public_keys(self):
         out = {}
@@ -1632,8 +1632,7 @@ class BIP32_Simple_Wallet(BIP32_Wallet):
         self.add_master_private_key(self.root_name, xprv, password)
         self.add_master_public_key(self.root_name, xpub)
         self.add_account('0', account)
-        self.use_encryption = (password != None)
-        self.storage.put('use_encryption', self.use_encryption)
+        self.set_use_encryption(password is not None)
 
     def create_xpub_wallet(self, xpub):
         account = BIP32_Account({'xpub':xpub})
@@ -1771,9 +1770,7 @@ class Multisig_Wallet(BIP32_Wallet, Mnemonic):
     def __init__(self, storage):
         BIP32_Wallet.__init__(self, storage)
         self.wallet_type = storage.get('wallet_type')
-        m = re.match('(\d+)of(\d+)', self.wallet_type)
-        self.m = int(m.group(1))
-        self.n = int(m.group(2))
+        self.m, self.n = Wallet.multisig_type(self.wallet_type)
 
     def load_accounts(self):
         self.accounts = {}
@@ -1797,10 +1794,6 @@ class Multisig_Wallet(BIP32_Wallet, Mnemonic):
         for i in range(self.n):
             if self.master_public_keys.get("x%d/"%(i+1)) is None:
                 return 'create_seed' if i == 0 else 'add_cosigners'
-        if not self.accounts:
-            return 'create_accounts'
-
-
 
 
 class OldWallet(Deterministic_Wallet):
@@ -1913,40 +1906,40 @@ class Wallet(object):
             raise BaseException(msg)
 
         wallet_type = storage.get('wallet_type')
+        WalletClass = Wallet.wallet_class(wallet_type, seed_version)
+        wallet = WalletClass(storage)
+
+        # Convert hardware wallets restored with older versions of
+        # Electrum to BIP44 wallets.  A hardware wallet does not have
+        # a seed and plugins do not need to handle having one.
+        rwc = getattr(wallet, 'restore_wallet_class', None)
+        if rwc and storage.get('seed', ''):
+            storage.print_error("converting wallet type to " + rwc.wallet_type)
+            storage.put('wallet_type', rwc.wallet_type)
+            wallet = rwc(storage)
+
+        return wallet
+
+    @staticmethod
+    def wallet_class(wallet_type, seed_version):
         if wallet_type:
-            for cat, t, name, loader in wallet_types:
-                if t == wallet_type:
-                    if cat in ['hardware', 'twofactor']:
-                        WalletClass = lambda storage: apply(loader().constructor, (storage,))
-                    else:
-                        WalletClass = loader
-                    break
-            else:
-                if re.match('(\d+)of(\d+)', wallet_type):
-                    WalletClass = Multisig_Wallet
-                else:
-                    raise RuntimeError("Unknown wallet type: " + wallet_type)
-        else:
-            if seed_version == OLD_SEED_VERSION:
-                WalletClass = OldWallet
-            else:
-                WalletClass = NewWallet
+            if Wallet.multisig_type(wallet_type):
+                return Multisig_Wallet
 
-        return WalletClass(storage)
+            for info in wallet_types:
+                if wallet_type == info[1]:
+                    return info[3]
 
-    @classmethod
-    def is_seed(self, seed):
-        if not seed:
-            return False
-        elif is_old_seed(seed):
-            return True
-        elif is_new_seed(seed):
-            return True
-        else:
-            return False
+            raise RuntimeError("Unknown wallet type: " + wallet_type)
 
-    @classmethod
-    def is_old_mpk(self, mpk):
+        return OldWallet if seed_version == OLD_SEED_VERSION else NewWallet
+
+    @staticmethod
+    def is_seed(seed):
+        return is_old_seed(seed) or is_new_seed(seed)
+
+    @staticmethod
+    def is_old_mpk(mpk):
         try:
             int(mpk, 16)
             assert len(mpk) == 128
@@ -1954,8 +1947,8 @@ class Wallet(object):
         except:
             return False
 
-    @classmethod
-    def is_xpub(self, text):
+    @staticmethod
+    def is_xpub(text):
         try:
             assert text[0:4] in ('xpub', 'Ltub')
             deserialize_xkey(text)
@@ -1963,8 +1956,8 @@ class Wallet(object):
         except:
             return False
 
-    @classmethod
-    def is_xprv(self, text):
+    @staticmethod
+    def is_xprv(text):
         try:
             assert text[0:4] in ('xprv', 'Ltpv')
             deserialize_xkey(text)
@@ -1972,26 +1965,38 @@ class Wallet(object):
         except:
             return False
 
-    @classmethod
-    def is_address(self, text):
-        if not text:
-            return False
-        for x in text.split():
-            if not bitcoin.is_address(x):
-                return False
-        return True
+    @staticmethod
+    def is_address(text):
+        parts = text.split()
+        return bool(parts) and all(bitcoin.is_address(x) for x in parts)
 
-    @classmethod
-    def is_private_key(self, text):
-        if not text:
-            return False
-        for x in text.split():
-            if not bitcoin.is_private_key(x):
-                return False
-        return True
+    @staticmethod
+    def is_private_key(text):
+        parts = text.split()
+        return bool(parts) and all(bitcoin.is_private_key(x) for x in parts)
 
-    @classmethod
-    def from_seed(self, seed, password, storage):
+    @staticmethod
+    def is_any(text):
+        return (Wallet.is_seed(text) or Wallet.is_old_mpk(text)
+                or Wallet.is_xprv(text) or Wallet.is_xpub(text)
+                or Wallet.is_address(text) or Wallet.is_private_key(text))
+
+    @staticmethod
+    def should_encrypt(text):
+        return (Wallet.is_seed(text) or Wallet.is_xprv(text)
+                or Wallet.is_private_key(text))
+
+    @staticmethod
+    def multisig_type(wallet_type):
+        '''If wallet_type is mofn multi-sig, return [m, n],
+        otherwise return None.'''
+        match = re.match('(\d+)of(\d+)', wallet_type)
+        if match:
+            match = [int(x) for x in match.group(1, 2)]
+        return match
+
+    @staticmethod
+    def from_seed(seed, password, storage):
         if is_old_seed(seed):
             klass = OldWallet
         elif is_new_seed(seed):
@@ -2002,80 +2007,80 @@ class Wallet(object):
         w.create_main_account(password)
         return w
 
-    @classmethod
-    def from_address(self, text, storage):
+    @staticmethod
+    def from_address(text, storage):
         w = Imported_Wallet(storage)
         for x in text.split():
             w.accounts[IMPORTED_ACCOUNT].add(x, None, None, None)
         w.save_accounts()
         return w
 
-    @classmethod
-    def from_private_key(self, text, password, storage):
+    @staticmethod
+    def from_private_key(text, password, storage):
         w = Imported_Wallet(storage)
         w.update_password(None, password)
         for x in text.split():
             w.import_key(x, password)
         return w
 
-    @classmethod
-    def from_old_mpk(self, mpk, storage):
+    @staticmethod
+    def from_old_mpk(mpk, storage):
         w = OldWallet(storage)
         w.seed = ''
         w.create_watching_only_wallet(mpk)
         return w
 
-    @classmethod
-    def from_xpub(self, xpub, storage):
+    @staticmethod
+    def from_xpub(xpub, storage):
         w = BIP32_Simple_Wallet(storage)
         w.create_xpub_wallet(xpub)
         return w
 
-    @classmethod
-    def from_xprv(self, xprv, password, storage):
+    @staticmethod
+    def from_xprv(xprv, password, storage):
         w = BIP32_Simple_Wallet(storage)
         w.create_xprv_wallet(xprv, password)
         return w
 
-    @classmethod
-    def from_multisig(klass, key_list, password, storage, wallet_type):
+    @staticmethod
+    def from_multisig(key_list, password, storage, wallet_type):
         storage.put('wallet_type', wallet_type)
-        self = Multisig_Wallet(storage)
-        key_list = sorted(key_list, key = lambda x: klass.is_xpub(x))
+        wallet = Multisig_Wallet(storage)
+        key_list = sorted(key_list, key = Wallet.is_xpub)
         for i, text in enumerate(key_list):
-            assert klass.is_seed(text) or klass.is_xprv(text) or klass.is_xpub(text)
-            name = "x%d/"%(i+1)
-            if klass.is_xprv(text):
+            name = "x%d/" % (i+1)
+            if Wallet.is_xprv(text):
                 xpub = bitcoin.xpub_from_xprv(text)
-                self.add_master_public_key(name, xpub)
-                self.add_master_private_key(name, text, password)
-            elif klass.is_xpub(text):
-                self.add_master_public_key(name, text)
-            elif klass.is_seed(text):
+                wallet.add_master_public_key(name, xpub)
+                wallet.add_master_private_key(name, text, password)
+            elif Wallet.is_xpub(text):
+                wallet.add_master_public_key(name, text)
+            elif Wallet.is_seed(text):
                 if name == 'x1/':
-                    self.add_seed(text, password)
-                    self.create_master_keys(password)
+                    wallet.add_seed(text, password)
+                    wallet.create_master_keys(password)
                 else:
-                    self.add_cosigner_seed(text, name, password)
-        self.use_encryption = (password != None)
-        self.storage.put('use_encryption', self.use_encryption)
-        self.create_main_account(password)
-        return self
+                    wallet.add_cosigner_seed(text, name, password)
+            else:
+                raise RunTimeError("Cannot handle text for multisig")
+        wallet.set_use_encryption(password is not None)
+        wallet.create_main_account(password)
+        return wallet
 
-    @classmethod
-    def from_text(klass, text, password, storage):
+    @staticmethod
+    def from_text(text, password, storage):
         if Wallet.is_xprv(text):
-            wallet = klass.from_xprv(text, password, storage)
+            wallet = Wallet.from_xprv(text, password, storage)
         elif Wallet.is_old_mpk(text):
-            wallet = klass.from_old_mpk(text, storage)
+            wallet = Wallet.from_old_mpk(text, storage)
         elif Wallet.is_xpub(text):
-            wallet = klass.from_xpub(text, storage)
+            wallet = Wallet.from_xpub(text, storage)
         elif Wallet.is_address(text):
-            wallet = klass.from_address(text, storage)
+            wallet = Wallet.from_address(text, storage)
         elif Wallet.is_private_key(text):
-            wallet = klass.from_private_key(text, password, storage)
+            wallet = Wallet.from_private_key(text, password, storage)
         elif Wallet.is_seed(text):
-            wallet = klass.from_seed(text, password, storage)
+            wallet = Wallet.from_seed(text, password, storage)
         else:
             raise BaseException('Invalid seedphrase or key')
         return wallet
