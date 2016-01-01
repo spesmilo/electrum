@@ -129,9 +129,6 @@ class TrezorCompatiblePlugin(BasePlugin):
         self.client = None
         self.wallet_class.plugin = self
 
-    def constructor(self, s):
-        return self.wallet_class(s)
-
     def give_error(self, message):
         self.print_error(message)
         raise Exception(message)

@@ -1908,25 +1908,7 @@ class Wallet(object):
             raise BaseException(msg)
 
         wallet_type = storage.get('wallet_type')
-        if wallet_type:
-            for cat, t, name, loader in wallet_types:
-                if t == wallet_type:
-                    if cat in ['hardware', 'twofactor']:
-                        WalletClass = lambda storage: apply(loader().constructor, (storage,))
-                    else:
-                        WalletClass = loader
-                    break
-            else:
-                if re.match('(\d+)of(\d+)', wallet_type):
-                    WalletClass = Multisig_Wallet
-                else:
-                    raise RuntimeError("Unknown wallet type: " + wallet_type)
-        else:
-            if seed_version == OLD_SEED_VERSION:
-                WalletClass = OldWallet
-            else:
-                WalletClass = NewWallet
-
+        WalletClass = Wallet.wallet_class(wallet_type, seed_version)
         wallet = WalletClass(storage)
 
         # Convert hardware wallets restored with older versions of
@@ -1939,6 +1921,20 @@ class Wallet(object):
             wallet = rwc(storage)
 
         return wallet
+
+    @staticmethod
+    def wallet_class(wallet_type, seed_version):
+        if wallet_type:
+            if Wallet.multisig_type(wallet_type):
+                return Multisig_Wallet
+
+            for info in wallet_types:
+                if wallet_type == info[1]:
+                    return info[3]
+
+            raise RuntimeError("Unknown wallet type: " + wallet_type)
+
+        return OldWallet if seed_version == OLD_SEED_VERSION else NewWallet
 
     @staticmethod
     def is_seed(seed):

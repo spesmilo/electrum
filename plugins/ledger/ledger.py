@@ -419,9 +419,6 @@ class LedgerPlugin(BasePlugin):
         self.device = self.wallet_class.device
         self.handler = None
 
-    def constructor(self, s):
-        return BTChipWallet(s)
-
     def is_enabled(self):
         return BTCHIP
 

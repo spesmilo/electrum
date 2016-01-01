@@ -287,13 +287,11 @@ def make_billing_address(wallet, num):
 
 
 class TrustedCoinPlugin(BasePlugin):
+    wallet_class = Wallet_2fa
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
-        Wallet_2fa.plugin = self
-
-    def constructor(self, s):
-        return Wallet_2fa(s)
+        self.wallet_class.plugin = self
 
     @staticmethod
     def is_valid_seed(seed):
@@ -348,7 +346,7 @@ class TrustedCoinPlugin(BasePlugin):
         window.wallet.is_billing = False
 
     def on_restore_wallet(self, wallet, wizard):
-        assert isinstance(wallet, Wallet_2fa)
+        assert isinstance(wallet, self.wallet_class)
 
         seed = wizard.request_seed(RESTORE_MSG, is_valid=self.is_valid_seed)
         password = wizard.request_password()

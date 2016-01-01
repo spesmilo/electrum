@@ -118,10 +118,13 @@ class Plugins(DaemonThread):
         return result
 
     def register_plugin_wallet(self, name, gui_good, details):
+        def dynamic_constructor(storage):
+            return self.wallet_plugin_loader(name).wallet_class(storage)
+
         if details[0] == 'hardware':
             self.hw_wallets[name] = (gui_good, details)
-        register = details + (lambda: self.wallet_plugin_loader(name),)
-        wallet.wallet_types.append(register)
+        self.print_error("registering wallet %s: %s" %(name, details))
+        wallet.wallet_types.append(details + (dynamic_constructor,))
 
     def wallet_plugin_loader(self, name):
         if not name in self.plugins:

@@ -31,7 +31,7 @@ from electrum.i18n import _
 from electrum.plugins import hook
 from electrum import wizard
 
-from trustedcoin import TrustedCoinPlugin, Wallet_2fa, DISCLAIMER, server
+from trustedcoin import TrustedCoinPlugin, DISCLAIMER, server
 
 def need_server(wallet, tx):
     from electrum.account import BIP32_Account
@@ -79,7 +79,8 @@ class Plugin(TrustedCoinPlugin):
     def sign_tx(self, window, tx):
         self.print_error("twofactor:sign_tx")
         wallet = window.wallet
-        if type(wallet) is Wallet_2fa and not wallet.can_sign_without_server():
+        assert isinstace(wallet, self.wallet_class)
+        if not wallet.can_sign_without_server():
             auth_code = None
             if need_server(wallet, tx):
                 auth_code = self.auth_dialog(window)
@@ -100,7 +101,8 @@ class Plugin(TrustedCoinPlugin):
     @hook
     def abort_send(self, window):
         wallet = window.wallet
-        if type(wallet) is Wallet_2fa and not wallet.can_sign_without_server():
+        assert isinstace(wallet, self.wallet_class)
+        if not wallet.can_sign_without_server():
             if wallet.billing_info is None:
                 # request billing info before forming the transaction
                 waiting_dialog(self, window).wait()
