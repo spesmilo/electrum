@@ -42,7 +42,13 @@ class UserCancelled(Exception):
 class WizardBase(PrintError):
     '''Base class for gui-specific install wizards.'''
     user_actions = ('create', 'restore')
-    wallet_kinds = ('standard', 'hardware', 'multisig', 'twofactor')
+    wallet_kinds = [
+        ('standard',  _("Standard wallet")),
+        ('twofactor', _("Wallet with two-factor authentication")),
+        ('multisig',  _("Multi-signature wallet")),
+        ('hardware',  _("Hardware wallet")),
+    ]
+
 
     # Derived classes must set:
     #   self.language_for_seed
@@ -58,9 +64,11 @@ class WizardBase(PrintError):
         """Remove filename from the recently used list."""
         raise NotImplementedError
 
-    def query_create_or_restore(self):
-        """Returns a tuple (action, kind).  Action is one of user_actions,
-        kind is one of wallet_kinds."""
+    def query_create_or_restore(self, wallet_kinds):
+        """Ask the user what they want to do, and to what wallet kind.
+        wallet_kinds is an array of tuples (kind, description).
+        Return a tuple (action, kind).  Action is 'create' or 'restore',
+        and kind is one of the wallet kinds passed."""
         raise NotImplementedError
 
     def query_multisig(self, action):
@@ -189,10 +197,10 @@ class WizardBase(PrintError):
         a wallet and return it.'''
         self.remove_from_recently_open(storage.path)
 
-        action, kind = self.query_create_or_restore()
+        action, kind = self.query_create_or_restore(WizardBase.wallet_kinds)
 
-        assert action in self.user_actions
-        assert kind in self.wallet_kinds
+        assert action in WizardBase.user_actions
+        assert kind in [k for k, desc in WizardBase.wallet_kinds]
 
         if kind == 'multisig':
             wallet_type = self.query_multisig(action)
@@ -225,7 +233,6 @@ class WizardBase(PrintError):
         if wallet_type == 'standard':
             return self.restore_standard_wallet(storage)
 
-        # Multisig?
         if kind == 'multisig':
             return self.restore_multisig_wallet(storage, wallet_type)
 

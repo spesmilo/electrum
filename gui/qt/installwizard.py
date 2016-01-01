@@ -151,9 +151,11 @@ class InstallWizard(WindowModalDialog, MessageBoxMixin, WizardBase):
         self.stack.setCurrentWidget(w)
         self.show()
 
-    def query_create_or_restore(self):
-        """Returns a tuple (action, kind).  Action is one of user_actions,
-        or None if cancelled.  kind is one of wallet_kinds."""
+    def query_create_or_restore(self, wallet_kinds):
+        """Ask the user what they want to do, and to what wallet kind.
+        wallet_kinds is an array of tuples (kind, description).
+        Return a tuple (action, kind).  Action is 'create' or 'restore',
+        and kind is one of the wallet kinds passed."""
         vbox = QVBoxLayout()
 
         main_label = QLabel(_("Electrum could not find an existing wallet."))
@@ -188,14 +190,7 @@ class InstallWizard(WindowModalDialog, MessageBoxMixin, WizardBase):
 
         group2 = QButtonGroup()
 
-        wallet_types = [
-            ('standard',  _("Standard wallet")),
-            ('twofactor', _("Wallet with two-factor authentication")),
-            ('multisig',  _("Multi-signature wallet")),
-            ('hardware',  _("Hardware wallet")),
-        ]
-
-        for i, (wtype,name) in enumerate(wallet_types):
+        for i, (wtype,name) in enumerate(wallet_kinds):
             if not filter(lambda x:x[0]==wtype, electrum.wallet.wallet_types):
                 continue
             button = QRadioButton(gb2)
@@ -217,7 +212,7 @@ class InstallWizard(WindowModalDialog, MessageBoxMixin, WizardBase):
             raise UserCancelled
 
         action = 'create' if b1.isChecked() else 'restore'
-        wallet_type = wallet_types[group2.checkedId()][0]
+        wallet_type = wallet_kinds[group2.checkedId()][0]
         return action, wallet_type
 
     def verify_seed(self, seed, is_valid=None):
