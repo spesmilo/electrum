@@ -79,9 +79,6 @@ class InstallWizard(WindowModalDialog, MessageBoxMixin, WizardBase):
             wallet = super(InstallWizard, self).open_wallet(*args)
         except UserCancelled:
             self.print_error("wallet creation cancelled by user")
-        except Exception as e:
-            traceback.print_exc(file=stdout)
-            self.show_error(str(e))
         return wallet
 
     def remove_from_recently_open(self, filename):

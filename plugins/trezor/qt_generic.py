@@ -6,6 +6,7 @@ from PyQt4.Qt import QVBoxLayout, QLabel, SIGNAL
 from electrum_gui.qt.main_window import StatusBarButton
 from electrum_gui.qt.password_dialog import PasswordDialog
 from electrum_gui.qt.util import *
+from plugin import TrezorCompatiblePlugin
 
 from electrum.i18n import _
 from electrum.plugins import hook
@@ -69,10 +70,10 @@ class QtHandler(PrintError):
 
     def passphrase_dialog(self, msg):
         d = PasswordDialog(self.window_stack[-1], None, msg,
-                           PasswordDialog.PW_PASSHPRASE)
+                           PasswordDialog.PW_PASSPHRASE)
         confirmed, p, passphrase = d.run()
         if confirmed:
-            passphrase = TrezorPlugin.normalize_passphrase(passphrase)
+            passphrase = TrezorCompatiblePlugin.normalize_passphrase(passphrase)
         self.passphrase = passphrase
         self.done.set()
 
