@@ -1,4 +1,4 @@
-from plugins.trezor.qt_generic import qt_plugin_class
+from ..trezor.qt_generic import qt_plugin_class
 from trezor import TrezorPlugin
 
 

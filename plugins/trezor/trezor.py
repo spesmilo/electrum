@@ -1,5 +1,5 @@
-from plugins.trezor.client import trezor_client_class
-from plugins.trezor.plugin import TrezorCompatiblePlugin, TrezorCompatibleWallet
+from ..trezor.client import trezor_client_class
+from ..trezor.plugin import TrezorCompatiblePlugin, TrezorCompatibleWallet
 
 
 class TrezorWallet(TrezorCompatibleWallet):
