@@ -214,6 +214,7 @@ class TrezorCompatiblePlugin(BasePlugin):
         tx.update_signatures(raw)
 
     def show_address(self, wallet, address):
+        client = self.get_client()
         wallet.check_proper_device()
         try:
             address_path = wallet.address_id(address)
