@@ -166,6 +166,8 @@ class TrezorCompatiblePlugin(BasePlugin):
         connected = set([c for c in self.clients if c.path in paths])
         disconnected = self.clients - connected
 
+        self.clients = connected
+
         # Inform clients and wallets they were disconnected
         for client in disconnected:
             self.print_error("device disconnected:", client)
@@ -191,7 +193,7 @@ class TrezorCompatiblePlugin(BasePlugin):
             except BaseException as e:
                 self.print_error("cannot create client for", path, str(e))
             else:
-                connected.add(client)
+                self.clients.add(client)
                 self.print_error("new device:", client)
 
             # Inform reconnected wallets
@@ -199,8 +201,6 @@ class TrezorCompatiblePlugin(BasePlugin):
                 if wallet.device_id == client.features.device_id:
                     client.wallet = wallet
                     wallet.connected()
-
-        self.clients = connected
 
     def clear_session(self, client):
         # Clearing the session forces pin re-entry
