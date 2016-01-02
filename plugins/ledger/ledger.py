@@ -4,6 +4,9 @@ from struct import pack,unpack
 from sys import stderr
 from time import sleep
 
+from PyQt4.QtGui import *
+from PyQt4.QtCore import *
+
 import electrum
 from electrum.account import BIP32_Account
 from electrum.bitcoin import EncodeBase58Check, DecodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
