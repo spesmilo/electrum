@@ -13,6 +13,8 @@ from electrum.plugins import hook
 from electrum.util import PrintError
 
 
+# By far the trickiest thing about this handler is the window stack;
+# MacOSX is very fussy the modal dialogs are perfectly parented
 class QtHandler(PrintError):
     '''An interface between the GUI (here, QT) and the device handling
     logic for handling I/O.  This is a generic implementation of the
@@ -82,6 +84,7 @@ class QtHandler(PrintError):
         self.clear_dialog()
         title = _('Please check your %s device') % self.device
         self.dialog = dialog = WindowModalDialog(self.window_stack[-1], title)
+        self.window_stack.append(dialog)
         l = QLabel(msg)
         vbox = QVBoxLayout(dialog)
         if cancel_callback:
@@ -96,6 +99,7 @@ class QtHandler(PrintError):
     def clear_dialog(self):
         if self.dialog:
             self.dialog.accept()
+            self.window_stack.remove(self.dialog)
             self.dialog = None
 
     def exec_dialog(self, dialog):
