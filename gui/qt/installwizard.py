@@ -132,13 +132,6 @@ class InstallWizard(WindowModalDialog, MessageBoxMixin, WizardBase):
         the password or None for no password."""
         return self.pw_dialog(msg or MSG_ENTER_PASSWORD, PasswordDialog.PW_NEW)
 
-    def query_hardware(self, choices, action):
-        if action == 'create':
-            msg = _('Select the hardware wallet to create')
-        else:
-            msg = _('Select the hardware wallet to restore')
-        return self.choice(msg, choices)
-
     def choose_server(self, network):
         # Show network dialog if config does not exist
         if self.config.get('server') is None:
@@ -323,7 +316,7 @@ class InstallWizard(WindowModalDialog, MessageBoxMixin, WizardBase):
             self.config.set_key('auto_connect', True, True)
             network.auto_connect = True
 
-    def choice(self, msg, choices):
+    def query_choice(self, msg, choices):
         vbox = QVBoxLayout()
         self.set_layout(vbox)
         gb2 = QGroupBox(msg)
@@ -335,7 +328,7 @@ class InstallWizard(WindowModalDialog, MessageBoxMixin, WizardBase):
         group2 = QButtonGroup()
         for i,c in enumerate(choices):
             button = QRadioButton(gb2)
-            button.setText(c[1])
+            button.setText(c)
             vbox2.addWidget(button)
             group2.addButton(button)
             group2.setId(button, i)
@@ -347,8 +340,7 @@ class InstallWizard(WindowModalDialog, MessageBoxMixin, WizardBase):
         vbox.addLayout(Buttons(CancelButton(self), next_button))
         if not self.exec_():
             raise UserCancelled
-        wallet_type = choices[group2.checkedId()][0]
-        return wallet_type
+        return group2.checkedId()
 
     def query_multisig(self, action):
         vbox = QVBoxLayout()

@@ -205,6 +205,9 @@ class Abstract_Wallet(PrintError):
     def diagnostic_name(self):
         return self.basename()
 
+    def __str__(self):
+        return self.basename()
+
     def set_use_encryption(self, use_encryption):
         self.use_encryption = use_encryption
         self.storage.put('use_encryption', use_encryption)
@@ -1718,18 +1721,25 @@ class BIP44_Wallet(BIP32_HD_Wallet):
     def can_create_accounts(self):
         return not self.is_watching_only()
 
+    @classmethod
     def prefix(self):
         return "/".join(self.root_derivation.split("/")[1:])
 
+    @classmethod
     def account_derivation(self, account_id):
         return self.prefix() + "/" + account_id + "'"
 
-    def address_id(self, address):
-        acc_id, (change, address_index) = self.get_address_index(address)
-        account_derivation = self.account_derivation(acc_id)
+    @classmethod
+    def address_derivation(self, account_id, change, address_index):
+        account_derivation = self.account_derivation(account_id)
         return "%s/%d/%d" % (account_derivation, change, address_index)
 
-    def mnemonic_to_seed(self, mnemonic, passphrase):
+    def address_id(self, address):
+        acc_id, (change, address_index) = self.get_address_index(address)
+        return self.address_derivation(acc_id, change, address_index)
+
+    @staticmethod
+    def mnemonic_to_seed(mnemonic, passphrase):
         # See BIP39
         import pbkdf2, hashlib, hmac
         PBKDF2_ROUNDS = 2048

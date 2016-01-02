@@ -152,6 +152,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.connect(self, QtCore.SIGNAL('payment_request_error'), self.payment_request_error)
         self.history_list.setFocus(True)
 
+        self.connect(self, QtCore.SIGNAL('watching_only_changed'),
+                     self.watching_only_changed)
+
         # network callbacks
         if self.network:
             self.connect(self, QtCore.SIGNAL('network'), self.on_network_qt)
@@ -280,7 +283,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.warn_if_watching_only()
 
     def watching_only_changed(self):
-        self.saved_wwo = self.wallet.is_watching_only()
         title = 'Electrum %s  -  %s' % (self.wallet.electrum_version,
                                         self.wallet.basename())
         if self.wallet.is_watching_only():
@@ -495,6 +497,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.connect(sender, QtCore.SIGNAL('timersignal'), self.timer_actions)
 
     def timer_actions(self):
+        # Note this runs in the GUI thread
         if self.need_update.is_set():
             self.need_update.clear()
             self.update_wallet()
@@ -504,8 +507,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.require_fee_update:
             self.do_update_fee()
             self.require_fee_update = False
-        if self.saved_wwo != self.wallet.is_watching_only():
-            self.watching_only_changed()
         run_hook('timer_actions')
 
     def format_amount(self, x, is_diff=False, whitespaces=False):

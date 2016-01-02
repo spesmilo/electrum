@@ -73,7 +73,7 @@ class Plugins(DaemonThread):
             self.print_error("loaded", name)
             return plugin
         except Exception:
-            print_msg(_("Error: cannot initialize plugin"), name)
+            self.print_error("cannot initialize plugin", name)
             traceback.print_exc(file=sys.stdout)
             return None
 
@@ -106,16 +106,17 @@ class Plugins(DaemonThread):
         return not requires or w.wallet_type in requires
 
     def hardware_wallets(self, action):
-        result = []
+        wallet_types, descs = [], []
         for name, (gui_good, details) in self.hw_wallets.items():
             if gui_good:
                 try:
                     p = self.wallet_plugin_loader(name)
                     if action == 'restore' or p.is_enabled():
-                        result.append((details[1], details[2]))
+                        wallet_types.append(details[1])
+                        descs.append(details[2])
                 except:
                     self.print_error("cannot load plugin for:", name)
-        return result
+        return wallet_types, descs
 
     def register_plugin_wallet(self, name, gui_good, details):
         def dynamic_constructor(storage):

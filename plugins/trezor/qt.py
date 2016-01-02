@@ -1,10 +1,11 @@
-from plugins.trezor.qt_generic import QtPlugin
+from plugins.trezor.qt_generic import qt_plugin_class
+from trezor import TrezorPlugin
 
 
-class Plugin(QtPlugin):
+class Plugin(qt_plugin_class(TrezorPlugin)):
     icon_file = ":icons/trezor.png"
 
-    @staticmethod
-    def pin_matrix_widget_class():
+    @classmethod
+    def pin_matrix_widget_class(self):
         from trezorlib.qt.pinmatrix import PinMatrixWidget
         return PinMatrixWidget
