@@ -76,11 +76,9 @@ class WizardBase(PrintError):
         string like "2of3".  Action is 'create' or 'restore'."""
         raise NotImplementedError
 
-    def query_hardware(self, choices, action):
-        """Asks the user what kind of hardware wallet they want from the given
-        choices.  choices is a list of (wallet_type, translated
-        description) tuples.  Action is 'create' or 'restore'.  Return
-        the wallet type chosen."""
+    def query_choice(self, msg, choices):
+        """Asks the user which of several choices they would like.
+        Return the index of the choice."""
         raise NotImplementedError
 
     def show_and_verify_seed(self, seed):
@@ -182,9 +180,10 @@ class WizardBase(PrintError):
         self.print_error("action %s on %s" % (action, wallet.basename()))
         # Run the action on the wallet plugin, if any, then the
         # wallet and finally ourselves
-        calls = [(wallet.plugin, (wallet, self)),
-                 (wallet, (wallet, )),
+        calls = [(wallet, (wallet, )),
                  (self, (wallet, ))]
+        if hasattr(wallet, 'plugin'):
+            calls.insert(0, (wallet.plugin, (wallet, self)))
         calls = [(getattr(actor, action), args) for (actor, args) in calls
                  if hasattr(actor, action)]
         if not calls:
@@ -205,8 +204,13 @@ class WizardBase(PrintError):
         if kind == 'multisig':
             wallet_type = self.query_multisig(action)
         elif kind == 'hardware':
-            choices = self.plugins.hardware_wallets(action)
-            wallet_type = self.query_hardware(choices, action)
+            wallet_types, choices = self.plugins.hardware_wallets(action)
+            if action == 'create':
+                msg = _('Select the hardware wallet to create')
+            else:
+                msg = _('Select the hardware wallet to restore')
+            choice = self.query_choice(msg, choices)
+            wallet_type = wallet_types[choice]
         elif kind == 'twofactor':
             wallet_type = '2fa'
         else:
