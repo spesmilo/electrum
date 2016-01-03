@@ -220,19 +220,32 @@ class TrezorCompatiblePlugin(BasePlugin):
         self.print_error("clear session:", client)
         client.clear_session()
 
+    def initialize_device(self, wallet, wizard):
+        (strength, label, pin_protection, passphrase_protection) \
+            = wizard.request_trezor_reset_settings(self.device)
+
+        assert strength in range(0, 3)
+        strength = 64 * (strength + 2)    # 128, 192 or 256
+        language = ''
+
+        client = self.client(wallet)
+        client.reset_device(True, strength, passphrase_protection,
+                            pin_protection, label, language)
+
+
     def select_device(self, wallet, wizard):
-        '''Called when creating a new wallet.  Select the device
-        to use.'''
+        '''Called when creating a new wallet.  Select the device to use.  If
+        the device is uninitialized, go through the intialization
+        process.'''
         clients = list(self.clients)
-        if not len(clients):
-            return
-        if len(clients) > 1:
-            labels = [client.label() for client in clients]
-            msg = _("Please select which %s device to use:") % self.device
-            client = clients[wizard.query_choice(msg, labels)]
-        else:
-            client = clients[0]
+        suffixes = [_("An unnamed device (wiped)"), _(" (initialized)")]
+        labels = [client.label() + suffixes[client.is_initialized()]
+                  for client in clients]
+        msg = _("Please select which %s device to use:") % self.device
+        client = clients[wizard.query_choice(msg, labels)]
         self.pair_wallet(wallet, client)
+        if not client.is_initialized():
+            self.initialize_device(wallet, wizard)
 
     def pair_wallet(self, wallet, client):
         self.print_error("pairing wallet %s to device %s" % (wallet, client))

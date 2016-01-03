@@ -103,6 +103,16 @@ class WizardBase(PrintError):
         dynamic feedback.  If not provided, Wallet.is_any is used."""
         raise NotImplementedError
 
+    def request_trezor_reset_settings(self, device):
+        """Ask the user how they want to initialize a trezor compatible
+        device.  device is the device kind, e.g. "Keepkey", to be used
+        in dialog messages.  Returns a 4-tuple: (strength, label,
+        pinprotection, passphraseprotection).  Strength is 0, 1 or 2
+        for a 12, 18 or 24 word seed, respectively.  Label is a name
+        to give the device.  PIN protection and passphrase protection
+        are booleans and should default to True and False respectively."""
+        raise NotImplementedError
+
     def request_many(self, n, xpub_hot=None):
         """If xpub_hot is provided, a new wallet is being created.  Request N
         master public keys for cosigners; xpub_hot is the master xpub

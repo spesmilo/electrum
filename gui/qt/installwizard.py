@@ -384,3 +384,55 @@ class InstallWizard(WindowModalDialog, WizardBase):
         self.set_layout(vbox)
         if not self.exec_():
             raise UserCancelled
+
+    def request_trezor_reset_settings(self, device):
+        vbox = QVBoxLayout()
+
+        main_label = QLabel(_("Choose how to initialize your %s device:")
+                            % device)
+        vbox.addWidget(main_label)
+
+        msg = _("Select your seed length and strength:")
+        choices = [
+            _("12 words (low)"),
+            _("18 words (medium)"),
+            _("24 words (high)"),
+        ]
+        gb = QGroupBox(msg)
+        vbox1 = QVBoxLayout()
+        gb.setLayout(vbox1)
+        bg = QButtonGroup()
+        for i, choice in enumerate(choices):
+            rb = QRadioButton(gb)
+            rb.setText(choice)
+            bg.addButton(rb)
+            bg.setId(rb, i)
+            vbox1.addWidget(rb)
+        rb.setChecked(True)
+        vbox.addWidget(gb)
+
+        label = QLabel(_("Enter a label to name your device:"))
+        name = QLineEdit()
+        hl = QHBoxLayout()
+        hl.addWidget(label)
+        hl.addWidget(name)
+        hl.addStretch(2)
+        vbox.addLayout(hl)
+
+        cb_pin = QCheckBox(_('Enable PIN protection'))
+        cb_pin.setChecked(True)
+        vbox.addWidget(cb_pin)
+
+        cb_phrase = QCheckBox(_('Enable Passphrase protection'))
+        cb_phrase.setChecked(False)
+        vbox.addWidget(cb_phrase)
+
+        vbox.addStretch(1)
+        vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _('Next'))))
+        self.set_layout(vbox)
+
+        if not self.exec_():
+            raise UserCancelled
+
+        return (bg.checkedId(), unicode(name.text()),
+                cb_pin.isChecked(), cb_phrase.isChecked())

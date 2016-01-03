@@ -59,7 +59,8 @@ class QtHandler(PrintError):
         return self.passphrase
 
     def pin_dialog(self, msg):
-        # Needed e.g. when renaming label and haven't entered PIN
+        # Needed e.g. when resetting a device
+        self.clear_dialog()
         dialog = WindowModalDialog(self.window_stack[-1], _("Enter PIN"))
         matrix = self.pin_matrix_widget_class()
         vbox = QVBoxLayout()
