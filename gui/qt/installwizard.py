@@ -192,9 +192,9 @@ class InstallWizard(WindowModalDialog, MessageBoxMixin, WizardBase):
             if i==0:
                 button.setChecked(True)
 
+        self.set_layout(vbox)
         vbox.addStretch(1)
         vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _('Next'))))
-        self.set_layout(vbox)
         self.show()
         self.raise_()
 
