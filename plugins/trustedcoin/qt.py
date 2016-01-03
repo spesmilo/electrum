@@ -50,14 +50,22 @@ class Plugin(TrustedCoinPlugin):
     @hook
     def on_new_window(self, window):
         wallet = window.wallet
-        if wallet.storage.get('wallet_type') == '2fa':
-            button = StatusBarButton(QIcon(":icons/trustedcoin.png"),
-                                     _("TrustedCoin"),
-                                     partial(self.settings_dialog, window))
-            window.statusBar().addPermanentWidget(button)
-            t = Thread(target=self.request_billing_info, args=(wallet,))
-            t.setDaemon(True)
-            t.start()
+        if not isinstance(wallet, self.wallet_class):
+            return
+        if wallet.can_sign_without_server():
+            msg = ' '.join([
+                _('This wallet is was restored from seed, and it contains two master private keys.'),
+                _('Therefore, two-factor authentication is disabled.')
+            ])
+            action = lambda: window.show_message(msg)
+        else:
+            action = partial(self.settings_dialog, window)
+        button = StatusBarButton(QIcon(":icons/trustedcoin.png"),
+                                 _("TrustedCoin"), action)
+        window.statusBar().addPermanentWidget(button)
+        t = Thread(target=self.request_billing_info, args=(wallet,))
+        t.setDaemon(True)
+        t.start()
 
     def auth_dialog(self, window):
         d = WindowModalDialog(window, _("Authorization"))
@@ -77,10 +85,11 @@ class Plugin(TrustedCoinPlugin):
 
     @hook
     def sign_tx(self, window, tx):
-        self.print_error("twofactor:sign_tx")
         wallet = window.wallet
-        assert isinstance(wallet, self.wallet_class)
+        if not isinstance(wallet, self.wallet_class):
+            return
         if not wallet.can_sign_without_server():
+            self.print_error("twofactor:sign_tx")
             auth_code = None
             if need_server(wallet, tx):
                 auth_code = self.auth_dialog(window)
@@ -101,7 +110,8 @@ class Plugin(TrustedCoinPlugin):
     @hook
     def abort_send(self, window):
         wallet = window.wallet
-        assert isinstance(wallet, self.wallet_class)
+        if not isinstance(wallet, self.wallet_class):
+            return
         if not wallet.can_sign_without_server():
             if wallet.billing_info is None:
                 # request billing info before forming the transaction
