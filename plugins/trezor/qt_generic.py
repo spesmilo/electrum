@@ -1,6 +1,7 @@
 from functools import partial
 import threading
 
+from PyQt4.Qt import Qt
 from PyQt4.Qt import QGridLayout, QInputDialog, QPushButton
 from PyQt4.Qt import QVBoxLayout, QLabel, SIGNAL
 from electrum_gui.qt.main_window import StatusBarButton
@@ -217,12 +218,17 @@ def qt_plugin_class(base_plugin_class):
             client().wipe_device()
             refresh()
 
+        def slider_moved():
+            mins = timeout_slider.sliderPosition()
+            timeout_label.setText(_("%2d minutes") % mins)
+
         wallet = window.wallet
         handler = wallet.handler
         device = self.device
 
         info_tab = QWidget()
-        info_layout = QGridLayout(info_tab)
+        tab_layout = QVBoxLayout(info_tab)
+        info_layout = QGridLayout()
         noyes = [_("No"), _("Yes")]
         bl_hash_label = QLabel()
         device_label = QLabel()
@@ -249,6 +255,22 @@ def qt_plugin_class(base_plugin_class):
             (_("Firmware Version"), version_label),
             (_("Language"), language_label),
         ])
+        tab_layout.addLayout(info_layout)
+
+        timeout_layout = QHBoxLayout()
+        timeout_label = QLabel()
+        timeout_slider = QSlider(Qt.Horizontal)
+        timeout_slider.setRange(1, 60)
+        timeout_slider.setSingleStep(1)
+        timeout_slider.setSliderPosition(wallet.session_timeout // 60)
+        timeout_slider.setTickInterval(5)
+        timeout_slider.setTickPosition(QSlider.TicksBelow)
+        timeout_slider.setTracking(True)
+        timeout_slider.valueChanged.connect(slider_moved)
+        timeout_layout.addWidget(QLabel(_("Session Timeout")))
+        timeout_layout.addWidget(timeout_slider)
+        timeout_layout.addWidget(timeout_label)
+        tab_layout.addLayout(timeout_layout)
 
         advanced_tab = QWidget()
         advanced_layout = QGridLayout(advanced_tab)
@@ -267,8 +289,11 @@ def qt_plugin_class(base_plugin_class):
         vbox.addStretch(1)
         vbox.addLayout(Buttons(CloseButton(dialog)))
 
+        # Show values
+        slider_moved()
         refresh()
         dialog.setLayout(vbox)
         handler.exec_dialog(dialog)
+        wallet.set_session_timeout(timeout_slider.sliderPosition() * 60)
 
   return QtPlugin

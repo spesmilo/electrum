@@ -29,10 +29,17 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         # This is set when paired with a device, and used to re-pair
         # a device that is disconnected and re-connected
         self.device_id = None
+        # After timeout seconds we clear the device session
+        self.session_timeout = storage.get('session_timeout', 180)
         # Errors and other user interaction is done through the wallet's
         # handler.  The handler is per-window and preserved across
         # device reconnects
         self.handler = None
+
+    def set_session_timeout(self, seconds):
+        self.print_error("setting session timeout to %d seconds" % seconds)
+        self.session_timeout = seconds
+        self.storage.put('session_timeout', seconds)
 
     def disconnected(self):
         self.print_error("disconnected")
@@ -46,9 +53,8 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         self.print_error("wiped")
         self.handler.watching_only_changed()
 
-    def initialized(self):
-        self.print_error("initialized")
-        self.handler.watching_only_changed()
+    def timeout(self):
+        self.print_error("timed out")
 
     def get_action(self):
         pass
@@ -155,6 +161,7 @@ class TrezorCompatiblePlugin(BasePlugin):
         BasePlugin.__init__(self, parent, config, name)
         self.device = self.wallet_class.device
         self.wallet_class.plugin = self
+        self.prevent_timeout = time.time() + 3600 * 24 * 365
         # A set of client instances to USB paths
         self.clients = set()
         # The device wallets we have seen to inform on reconnection
@@ -173,6 +180,13 @@ class TrezorCompatiblePlugin(BasePlugin):
             if now > self.last_scan + 1:
                 self.last_scan = now
                 self.scan_devices()
+            for wallet in self.paired_wallets:
+                if now > wallet.last_operation + wallet.session_timeout:
+                    client = self.lookup_client(wallet)
+                    if client:
+                        wallet.last_operation = self.prevent_timeout
+                        self.clear_session(client)
+                        wallet.timeout()
 
     def scan_devices(self):
         paths = self.HidTransport.enumerate()
@@ -221,6 +235,9 @@ class TrezorCompatiblePlugin(BasePlugin):
         client.clear_session()
 
     def initialize_device(self, wallet, wizard):
+        # Prevent timeouts during initialization
+        wallet.last_operation = self.prevent_timeout
+
         (strength, label, pin_protection, passphrase_protection) \
             = wizard.request_trezor_reset_settings(self.device)
 
@@ -247,10 +264,16 @@ class TrezorCompatiblePlugin(BasePlugin):
         if not client.is_initialized():
             self.initialize_device(wallet, wizard)
 
+    def operated_on(self, wallet):
+        self.print_error("set last_operation")
+        wallet.last_operation = time.time()
+
     def pair_wallet(self, wallet, client):
         self.print_error("pairing wallet %s to device %s" % (wallet, client))
+        self.operated_on(wallet)
         self.paired_wallets.add(wallet)
         wallet.device_id = client.features.device_id
+        wallet.last_operation = time.time()
         client.wallet = wallet
         wallet.connected()
 
@@ -301,6 +324,7 @@ class TrezorCompatiblePlugin(BasePlugin):
         assert isinstance(wallet, self.wallet_class)
         assert wallet.handler != None
 
+        self.operated_on(wallet)
         if wallet.device_id is None:
             client = self.try_to_pair_wallet(wallet)
         else:
