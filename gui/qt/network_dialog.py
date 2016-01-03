@@ -80,24 +80,25 @@ class NetworkDialog(WindowModalDialog):
         self.server_host.setFixedWidth(200)
         self.server_port = QLineEdit()
         self.server_port.setFixedWidth(60)
+
         grid.addWidget(QLabel(_('Server') + ':'), 0, 0)
+        grid.addWidget(self.server_host, 0, 1, 1, 2)
+        grid.addWidget(self.server_port, 0, 3)
 
         # use SSL
         self.ssl_cb = QCheckBox(_('Use SSL'))
         self.ssl_cb.setChecked(auto_connect)
-        grid.addWidget(self.ssl_cb, 3, 1)
+        grid.addWidget(self.ssl_cb, 3, 1, 1, 3)
         self.ssl_cb.stateChanged.connect(self.change_protocol)
 
         # auto connect
-        self.autoconnect_cb = QCheckBox(_('Auto-connect'))
+        self.autoconnect_cb = QCheckBox(_('Select server automatically'))
         self.autoconnect_cb.setChecked(auto_connect)
-        grid.addWidget(self.autoconnect_cb, 0, 1)
+        grid.addWidget(self.autoconnect_cb, 1, 1, 1, 3)
         self.autoconnect_cb.setEnabled(self.config.is_modifiable('auto_connect'))
-        msg = _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain.") + " " \
+        msg = _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain.") + "\n" \
             + _("If it is disabled, Electrum will warn you if your server is lagging.")
-        grid.addWidget(HelpButton(msg), 0, 4)
-        grid.addWidget(self.server_host, 0, 2, 1, 2)
-        grid.addWidget(self.server_port, 0, 3)
+        self.autoconnect_cb.setToolTip(msg)
 
         label = _('Active Servers') if network.is_connected() else _('Default Servers')
         self.servers_list_widget = QTreeWidget(parent)
@@ -107,11 +108,10 @@ class NetworkDialog(WindowModalDialog):
 
         self.change_server(host, protocol)
         self.set_protocol(protocol)
-
         self.servers_list_widget.connect(self.servers_list_widget,
                                          SIGNAL('currentItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)'),
                                          lambda x,y: self.server_changed(x))
-        grid.addWidget(self.servers_list_widget, 1, 1, 1, 3)
+        grid.addWidget(self.servers_list_widget, 2, 1, 1, 3)
 
         def enable_set_server():
             if config.is_modifiable('server'):
