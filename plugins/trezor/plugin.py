@@ -43,10 +43,14 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         self.storage.put('session_timeout', seconds)
 
     def disconnected(self):
+        '''A device paired with the wallet was diconnected.  Note this is
+        called in the context of the Plugins thread.'''
         self.print_error("disconnected")
         self.handler.watching_only_changed()
 
     def connected(self):
+        '''A device paired with the wallet was (re-)connected.  Note this
+        is called in the context of the Plugins thread.'''
         self.print_error("connected")
         self.handler.watching_only_changed()
 
@@ -55,6 +59,8 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         self.handler.watching_only_changed()
 
     def timeout(self):
+        '''Informs the wallet it timed out.  Note this is called from
+        the Plugins thread.'''
         self.print_error("timed out")
 
     def get_action(self):
@@ -176,6 +182,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         return [self] if self.libraries_available else []
 
     def run(self):
+        '''Runs in the context of the Plugins thread.'''
         now = time.time()
         if now > self.last_scan + 1:
             self.last_scan = now
@@ -190,6 +197,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
                         wallet.timeout()
 
     def scan_devices(self):
+        '''Scan devices.  Runs in the context of the Plugins thread.'''
         paths = self.HidTransport.enumerate()
         connected = set([c for c in self.clients if c.path in paths])
         disconnected = self.clients - connected
