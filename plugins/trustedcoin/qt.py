@@ -79,7 +79,7 @@ class Plugin(TrustedCoinPlugin):
     def sign_tx(self, window, tx):
         self.print_error("twofactor:sign_tx")
         wallet = window.wallet
-        assert isinstace(wallet, self.wallet_class)
+        assert isinstance(wallet, self.wallet_class)
         if not wallet.can_sign_without_server():
             auth_code = None
             if need_server(wallet, tx):
@@ -101,7 +101,7 @@ class Plugin(TrustedCoinPlugin):
     @hook
     def abort_send(self, window):
         wallet = window.wallet
-        assert isinstace(wallet, self.wallet_class)
+        assert isinstance(wallet, self.wallet_class)
         if not wallet.can_sign_without_server():
             if wallet.billing_info is None:
                 # request billing info before forming the transaction
