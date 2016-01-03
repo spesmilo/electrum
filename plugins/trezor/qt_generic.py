@@ -28,6 +28,7 @@ class QtHandler(PrintError):
         win.connect(win, SIGNAL('message_dialog'), self.message_dialog)
         win.connect(win, SIGNAL('pin_dialog'), self.pin_dialog)
         win.connect(win, SIGNAL('passphrase_dialog'), self.passphrase_dialog)
+        win.connect(win, SIGNAL('word_dialog'), self.word_dialog)
         self.window_stack = [win]
         self.win = win
         self.pin_matrix_widget_class = pin_matrix_widget_class
@@ -52,6 +53,12 @@ class QtHandler(PrintError):
         self.win.emit(SIGNAL('pin_dialog'), msg)
         self.done.wait()
         return self.response
+
+    def get_word(self, msg):
+        self.done.clear()
+        self.win.emit(SIGNAL('word_dialog'), msg)
+        self.done.wait()
+        return self.word
 
     def get_passphrase(self, msg):
         self.done.clear()
@@ -82,6 +89,20 @@ class QtHandler(PrintError):
         self.passphrase = passphrase
         self.done.set()
 
+    def word_dialog(self, msg):
+        dialog = WindowModalDialog(self.window_stack[-1], "")
+        hbox = QHBoxLayout(dialog)
+        hbox.addWidget(QLabel(msg))
+        text = QLineEdit()
+        text.setMaximumWidth(100)
+        text.returnPressed.connect(dialog.accept)
+        hbox.addWidget(text)
+        hbox.addStretch(1)
+        if not self.exec_dialog(dialog):
+            return None
+        self.word = unicode(text.text())
+        self.done.set()
+
     def message_dialog(self, msg, cancel_callback):
         # Called more than once during signing, to confirm output and fee
         self.clear_dialog()
@@ -108,7 +129,7 @@ class QtHandler(PrintError):
     def exec_dialog(self, dialog):
         self.window_stack.append(dialog)
         try:
-            dialog.exec_()
+            return dialog.exec_()
         finally:
             assert dialog == self.window_stack.pop()
 

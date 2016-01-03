@@ -53,10 +53,10 @@ class GuiMixin(object):
         return self.proto.PassphraseAck(passphrase=passphrase)
 
     def callback_WordRequest(self, msg):
-        # TODO
-        stderr.write("Enter one word of mnemonic:\n")
-        stderr.flush()
-        word = raw_input()
+        msg = _("Enter seed word as explained on your %s") % self.device
+        word = self.handler().get_word(msg)
+        if word is None:
+            return self.proto.Cancel()
         return self.proto.WordAck(word=word)
 
 
@@ -184,8 +184,9 @@ def trezor_client_class(protocol_mixin, base_client, proto):
 
     cls = TrezorClient
     for method in ['apply_settings', 'change_pin', 'get_address',
-                   'get_public_node', 'reset_device', 'sign_message',
-                   'sign_tx', 'wipe_device']:
+                   'get_public_node', 'load_device_by_mnemonic',
+                   'load_device_by_xprv', 'recovery_device',
+                   'reset_device', 'sign_message', 'sign_tx', 'wipe_device']:
         setattr(cls, method, wrapper(getattr(cls, method)))
 
     return cls
