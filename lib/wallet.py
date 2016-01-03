@@ -1739,12 +1739,16 @@ class BIP44_Wallet(BIP32_HD_Wallet):
         return self.address_derivation(acc_id, change, address_index)
 
     @staticmethod
+    def normalize_passphrase(passphrase):
+        return normalize('NFKD', unicode(passphrase or ''))
+
+    @staticmethod
     def mnemonic_to_seed(mnemonic, passphrase):
         # See BIP39
         import pbkdf2, hashlib, hmac
         PBKDF2_ROUNDS = 2048
         mnemonic = normalize('NFKD', ' '.join(mnemonic.split()))
-        passphrase = normalize('NFKD', passphrase)
+        passphrase = BIP44_Wallet.normalize_passphrase(passphrase)
         return pbkdf2.PBKDF2(mnemonic, 'mnemonic' + passphrase,
                              iterations = PBKDF2_ROUNDS, macmodule = hmac,
                              digestmodule = hashlib.sha512).read(64)

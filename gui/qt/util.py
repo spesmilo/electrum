@@ -155,10 +155,11 @@ class CancelButton(QPushButton):
         QPushButton.__init__(self, label or _("Cancel"))
         self.clicked.connect(dialog.reject)
 
-class MessageBoxMixin:
-    def question(self, msg, parent=None, title=None):
+class MessageBoxMixin(object):
+    def question(self, msg, parent=None, title=None, icon=None):
         Yes, No = QMessageBox.Yes, QMessageBox.No
-        return self.msg_box(QMessageBox.Question, parent or self, title or '',
+        return self.msg_box(icon or QMessageBox.Question,
+                            parent or self, title or '',
                             msg, buttons=Yes|No, defaultButton=No) == Yes
 
     def show_warning(self, msg, parent=None, title=None):
@@ -188,7 +189,7 @@ class MessageBoxMixin:
         d.setDefaultButton(defaultButton)
         return d.exec_()
 
-class WindowModalDialog(QDialog):
+class WindowModalDialog(QDialog, MessageBoxMixin):
     '''Handy wrapper; window modal dialogs are better for our multi-window
     daemon model as other wallet windows can still be accessed.'''
     def __init__(self, parent, title=None):

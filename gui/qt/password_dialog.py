@@ -100,9 +100,12 @@ class PasswordDialog(WindowModalDialog):
         vbox.addLayout(grid)
 
         # Password Strength Label
-        self.pw_strength = QLabel()
-        grid.addWidget(self.pw_strength, 3, 0, 1, 2)
-        self.new_pw.textChanged.connect(self.pw_changed)
+        if kind != self.PW_PASSPHRASE:
+            self.pw_strength = QLabel()
+            grid.addWidget(self.pw_strength, 3, 0, 1, 2)
+            self.new_pw.textChanged.connect(self.pw_changed)
+
+        self.new_pw.textChanged.connect(self.check_OKButton)
         self.conf_pw.textChanged.connect(self.check_OKButton)
 
         self.OKButton = OkButton(self)
@@ -121,7 +124,6 @@ class PasswordDialog(WindowModalDialog):
         else:
             label = ""
         self.pw_strength.setText(label)
-        self.check_OKButton()
 
     def check_OKButton(self):
         self.OKButton.setEnabled(self.new_pw.text() == self.conf_pw.text())

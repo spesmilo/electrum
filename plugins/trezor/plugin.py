@@ -3,7 +3,6 @@ import time
 
 from binascii import unhexlify
 from struct import pack
-from unicodedata import normalize
 
 from electrum_ltc.account import BIP32_Account
 from electrum_ltc.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
@@ -13,6 +12,7 @@ from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.transaction import (deserialize, is_extended_pubkey,
                                   Transaction, x_to_xpub)
 from electrum_ltc.wallet import BIP32_HD_Wallet, BIP44_Wallet
+from electrum_ltc.util import ThreadJob
 
 class DeviceDisconnectedError(Exception):
     pass
@@ -30,30 +30,54 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         # This is set when paired with a device, and used to re-pair
         # a device that is disconnected and re-connected
         self.device_id = None
+        # After timeout seconds we clear the device session
+        self.session_timeout = storage.get('session_timeout', 180)
         # Errors and other user interaction is done through the wallet's
         # handler.  The handler is per-window and preserved across
         # device reconnects
         self.handler = None
 
+    def set_session_timeout(self, seconds):
+        self.print_error("setting session timeout to %d seconds" % seconds)
+        self.session_timeout = seconds
+        self.storage.put('session_timeout', seconds)
+
     def disconnected(self):
+        '''A device paired with the wallet was diconnected.  Note this is
+        called in the context of the Plugins thread.'''
         self.print_error("disconnected")
         self.handler.watching_only_changed()
 
     def connected(self):
+        '''A device paired with the wallet was (re-)connected.  Note this
+        is called in the context of the Plugins thread.'''
         self.print_error("connected")
         self.handler.watching_only_changed()
 
+    def wiped(self):
+        self.print_error("wiped")
+        self.handler.watching_only_changed()
+
+    def timeout(self):
+        '''Informs the wallet it timed out.  Note this is called from
+        the Plugins thread.'''
+        self.print_error("timed out")
+
     def get_action(self):
         pass
+
+    def can_create_accounts(self):
+        return True
 
     def can_export(self):
         return False
 
     def is_watching_only(self):
-        '''The wallet is watching-only if its trezor device is not
-        connected.  This result is dynamic and changes over time.'''
+        '''The wallet is watching-only if its trezor device is not connected,
+        or if it is connected but uninitialized.'''
         assert not self.has_seed()
-        return self.plugin.lookup_client(self) is None
+        client = self.plugin.lookup_client(self)
+        return not (client and client.is_initialized())
 
     def can_change_password(self):
         return False
@@ -121,7 +145,7 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         self.plugin.sign_transaction(self, tx, prev_tx, xpub_path)
 
 
-class TrezorCompatiblePlugin(BasePlugin):
+class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
     # Derived classes provide:
     #
     #  class-static variables: client_class, firmware_URL, handler_class,
@@ -144,24 +168,36 @@ class TrezorCompatiblePlugin(BasePlugin):
         BasePlugin.__init__(self, parent, config, name)
         self.device = self.wallet_class.device
         self.wallet_class.plugin = self
+        self.prevent_timeout = time.time() + 3600 * 24 * 365
         # A set of client instances to USB paths
         self.clients = set()
         # The device wallets we have seen to inform on reconnection
         self.paired_wallets = set()
-        # Do an initial scan
         self.last_scan = 0
-        self.timer_actions()
 
-    @hook
-    def timer_actions(self):
-        if self.libraries_available:
-            # Scan connected devices every second
-            now = time.time()
-            if now > self.last_scan + 1:
-                self.last_scan = now
-                self.scan_devices()
+    def thread_jobs(self):
+        # Scan connected devices every second.  The test for libraries
+        # available is necessary to recover wallets on machines without
+        # libraries
+        return [self] if self.libraries_available else []
+
+    def run(self):
+        '''Runs in the context of the Plugins thread.'''
+        now = time.time()
+        if now > self.last_scan + 1:
+            self.last_scan = now
+            self.scan_devices()
+
+            for wallet in self.paired_wallets:
+                if now > wallet.last_operation + wallet.session_timeout:
+                    client = self.lookup_client(wallet)
+                    if client:
+                        wallet.last_operation = self.prevent_timeout
+                        self.clear_session(client)
+                        wallet.timeout()
 
     def scan_devices(self):
+        '''Scan devices.  Runs in the context of the Plugins thread.'''
         paths = self.HidTransport.enumerate()
         connected = set([c for c in self.clients if c.path in paths])
         disconnected = self.clients - connected
@@ -207,24 +243,46 @@ class TrezorCompatiblePlugin(BasePlugin):
         self.print_error("clear session:", client)
         client.clear_session()
 
+    def initialize_device(self, wallet, wizard):
+        # Prevent timeouts during initialization
+        wallet.last_operation = self.prevent_timeout
+
+        (strength, label, pin_protection, passphrase_protection) \
+            = wizard.request_trezor_reset_settings(self.device)
+
+        assert strength in range(0, 3)
+        strength = 64 * (strength + 2)    # 128, 192 or 256
+        language = ''
+
+        client = self.client(wallet)
+        client.reset_device(True, strength, passphrase_protection,
+                            pin_protection, label, language)
+
+
     def select_device(self, wallet, wizard):
-        '''Called when creating a new wallet.  Select the device
-        to use.'''
+        '''Called when creating a new wallet.  Select the device to use.  If
+        the device is uninitialized, go through the intialization
+        process.'''
         clients = list(self.clients)
-        if not len(clients):
-            return
-        if len(clients) > 1:
-            labels = [client.label() for client in clients]
-            msg = _("Please select which %s device to use:") % self.device
-            client = clients[wizard.query_choice(msg, labels)]
-        else:
-            client = clients[0]
+        suffixes = [_("An unnamed device (wiped)"), _(" (initialized)")]
+        labels = [client.label() + suffixes[client.is_initialized()]
+                  for client in clients]
+        msg = _("Please select which %s device to use:") % self.device
+        client = clients[wizard.query_choice(msg, labels)]
         self.pair_wallet(wallet, client)
+        if not client.is_initialized():
+            self.initialize_device(wallet, wizard)
+
+    def operated_on(self, wallet):
+        self.print_error("set last_operation")
+        wallet.last_operation = time.time()
 
     def pair_wallet(self, wallet, client):
         self.print_error("pairing wallet %s to device %s" % (wallet, client))
+        self.operated_on(wallet)
         self.paired_wallets.add(wallet)
         wallet.device_id = client.features.device_id
+        wallet.last_operation = time.time()
         client.wallet = wallet
         wallet.connected()
 
@@ -275,6 +333,7 @@ class TrezorCompatiblePlugin(BasePlugin):
         assert isinstance(wallet, self.wallet_class)
         assert wallet.handler != None
 
+        self.operated_on(wallet)
         if wallet.device_id is None:
             client = self.try_to_pair_wallet(wallet)
         else:
@@ -293,10 +352,6 @@ class TrezorCompatiblePlugin(BasePlugin):
 
     def is_enabled(self):
         return self.libraries_available
-
-    @staticmethod
-    def normalize_passphrase(self, passphrase):
-        return normalize('NFKD', unicode(passphrase or ''))
 
     def on_restore_wallet(self, wallet, wizard):
         assert isinstance(wallet, self.wallet_class)
@@ -318,14 +373,15 @@ class TrezorCompatiblePlugin(BasePlugin):
 
     @hook
     def close_wallet(self, wallet):
-        # Don't retain references to a closed wallet
-        self.paired_wallets.discard(wallet)
-        client = self.lookup_client(wallet)
-        if client:
-            self.clear_session(client)
-            # Release the device
-            self.clients.discard(client)
-            client.transport.close()
+        if isinstance(wallet, self.wallet_class):
+            # Don't retain references to a closed wallet
+            self.paired_wallets.discard(wallet)
+            client = self.lookup_client(wallet)
+            if client:
+                self.clear_session(client)
+                # Release the device
+                self.clients.discard(client)
+                client.transport.close()
 
     def sign_transaction(self, wallet, tx, prev_tx, xpub_path):
         self.prev_tx = prev_tx

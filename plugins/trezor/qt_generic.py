@@ -1,6 +1,7 @@
 from functools import partial
 import threading
 
+from PyQt4.Qt import Qt
 from PyQt4.Qt import QGridLayout, QInputDialog, QPushButton
 from PyQt4.Qt import QVBoxLayout, QLabel, SIGNAL
 from electrum_ltc_gui.qt.main_window import StatusBarButton
@@ -11,6 +12,7 @@ from plugin import TrezorCompatiblePlugin
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import hook
 from electrum_ltc.util import PrintError
+from electrum_ltc.wallet import BIP44_Wallet
 
 
 # By far the trickiest thing about this handler is the window stack;
@@ -58,7 +60,8 @@ class QtHandler(PrintError):
         return self.passphrase
 
     def pin_dialog(self, msg):
-        # Needed e.g. when renaming label and haven't entered PIN
+        # Needed e.g. when resetting a device
+        self.clear_dialog()
         dialog = WindowModalDialog(self.window_stack[-1], _("Enter PIN"))
         matrix = self.pin_matrix_widget_class()
         vbox = QVBoxLayout()
@@ -75,7 +78,7 @@ class QtHandler(PrintError):
                            PasswordDialog.PW_PASSPHRASE)
         confirmed, p, passphrase = d.run()
         if confirmed:
-            passphrase = TrezorCompatiblePlugin.normalize_passphrase(passphrase)
+            passphrase = BIP44_Wallet.normalize_passphrase(passphrase)
         self.passphrase = passphrase
         self.done.set()
 
@@ -144,8 +147,36 @@ def qt_plugin_class(base_plugin_class):
                            lambda: self.show_address(wallet, addrs[0]))
 
     def settings_dialog(self, window):
-        handler = window.wallet.handler
-        client = self.client(window.wallet)
+
+        def client():
+            return self.client(wallet)
+
+        def add_rows_to_layout(layout, rows):
+            for row_num, items in enumerate(rows):
+                for col_num, txt in enumerate(items):
+                    widget = txt if isinstance(txt, QWidget) else QLabel(txt)
+                    layout.addWidget(widget, row_num, col_num)
+
+        def refresh():
+            features = client().features
+            bl_hash = features.bootloader_hash.encode('hex').upper()
+            bl_hash = "%s...%s" % (bl_hash[:10], bl_hash[-10:])
+            version = "%d.%d.%d" % (features.major_version,
+                                    features.minor_version,
+                                    features.patch_version)
+
+            bl_hash_label.setText(bl_hash)
+            device_label.setText(features.label)
+            device_id_label.setText(features.device_id)
+            initialized_label.setText(noyes[features.initialized])
+            version_label.setText(version)
+            pin_label.setText(noyes[features.pin_protection])
+            passphrase_label.setText(noyes[features.passphrase_protection])
+            language_label.setText(features.language)
+
+            pin_button.setText(_("Change") if features.pin_protection
+                               else _("Set"))
+            clear_pin_button.setVisible(features.pin_protection)
 
         def rename():
             title = _("Set Device Label")
@@ -153,65 +184,116 @@ def qt_plugin_class(base_plugin_class):
             response = QInputDialog().getText(dialog, title, msg)
             if not response[1]:
                 return
-            new_label = str(response[0])
-            client.change_label(new_label)
-            device_label.setText(new_label)
+            client().change_label(str(response[0]))
+            refresh()
 
-        def update_pin_info():
-            features = client.features
-            pin_label.setText(noyes[features.pin_protection])
-            pin_button.setText(_("Change") if features.pin_protection
-                               else _("Set"))
-            clear_pin_button.setVisible(features.pin_protection)
+        def set_pin():
+            client().set_pin(remove=False)
+            refresh()
 
-        def set_pin(remove):
-            client.set_pin(remove=remove)
-            update_pin_info()
+        def clear_pin():
+            title = _("Confirm Clear PIN")
+            msg = _("WARNING: if your clear your PIN, anyone with physical "
+                    "access to your %s device can spend your litecoins.\n\n"
+                    "Are you certain you want to remove your PIN?") % device
+            if not dialog.question(msg, title=title):
+                return
+            client().set_pin(remove=True)
+            refresh()
 
-        features = client.features
-        noyes = [_("No"), _("Yes")]
-        bl_hash = features.bootloader_hash.encode('hex').upper()
-        bl_hash = "%s...%s" % (bl_hash[:10], bl_hash[-10:])
+        def wipe_device():
+            title = _("Confirm Device Wipe")
+            msg = _("Are you sure you want to wipe the device?  "
+                    "You should make sure you have a copy of your recovery "
+                    "seed and that your wallet holds no litecoins.")
+            if not dialog.question(msg, title=title):
+                return
+            if sum(wallet.get_balance()):
+                title = _("Confirm Device Wipe")
+                msg = _("Are you SURE you want to wipe the device?\n"
+                        "Your wallet still has litecoins in it!")
+                if not dialog.question(msg, title=title,
+                                       icon=QMessageBox.Critical):
+                    return
+            client().wipe_device()
+            refresh()
+
+        def slider_moved():
+            mins = timeout_slider.sliderPosition()
+            timeout_label.setText(_("%2d minutes") % mins)
+
+        wallet = window.wallet
+        handler = wallet.handler
+        device = self.device
+
         info_tab = QWidget()
-        layout = QGridLayout(info_tab)
-        device_label = QLabel(features.label)
+        tab_layout = QVBoxLayout(info_tab)
+        info_layout = QGridLayout()
+        noyes = [_("No"), _("Yes")]
+        bl_hash_label = QLabel()
+        device_label = QLabel()
+        passphrase_label = QLabel()
+        initialized_label = QLabel()
+        device_id_label = QLabel()
+        version_label = QLabel()
+        pin_label = QLabel()
+        language_label = QLabel()
         rename_button = QPushButton(_("Rename"))
         rename_button.clicked.connect(rename)
-        pin_label = QLabel()
         pin_button = QPushButton()
-        pin_button.clicked.connect(partial(set_pin, False))
+        pin_button.clicked.connect(set_pin)
         clear_pin_button = QPushButton(_("Clear"))
-        clear_pin_button.clicked.connect(partial(set_pin, True))
-        update_pin_info()
+        clear_pin_button.clicked.connect(clear_pin)
 
-        version = "%d.%d.%d" % (features.major_version,
-                                features.minor_version,
-                                features.patch_version)
-        rows = [
-            (_("Bootloader Hash"), bl_hash),
-            (_("Device ID"), features.device_id),
+        add_rows_to_layout(info_layout, [
             (_("Device Label"), device_label, rename_button),
-            (_("Firmware Version"), version),
-            (_("Language"), features.language),
-            (_("Has Passphrase"), noyes[features.passphrase_protection]),
-            (_("Has PIN"), pin_label, pin_button, clear_pin_button)
-        ]
+            (_("Has Passphrase"), passphrase_label),
+            (_("Has PIN"), pin_label, pin_button, clear_pin_button),
+            (_("Initialized"), initialized_label),
+            (_("Device ID"), device_id_label),
+            (_("Bootloader Hash"), bl_hash_label),
+            (_("Firmware Version"), version_label),
+            (_("Language"), language_label),
+        ])
+        tab_layout.addLayout(info_layout)
 
-        for row_num, items in enumerate(rows):
-            for col_num, item in enumerate(items):
-                widget = item if isinstance(item, QWidget) else QLabel(item)
-                layout.addWidget(widget, row_num, col_num)
+        timeout_layout = QHBoxLayout()
+        timeout_label = QLabel()
+        timeout_slider = QSlider(Qt.Horizontal)
+        timeout_slider.setRange(1, 60)
+        timeout_slider.setSingleStep(1)
+        timeout_slider.setSliderPosition(wallet.session_timeout // 60)
+        timeout_slider.setTickInterval(5)
+        timeout_slider.setTickPosition(QSlider.TicksBelow)
+        timeout_slider.setTracking(True)
+        timeout_slider.valueChanged.connect(slider_moved)
+        timeout_layout.addWidget(QLabel(_("Session Timeout")))
+        timeout_layout.addWidget(timeout_slider)
+        timeout_layout.addWidget(timeout_label)
+        tab_layout.addLayout(timeout_layout)
 
-        dialog = WindowModalDialog(window, _("%s Settings") % self.device)
+        advanced_tab = QWidget()
+        advanced_layout = QGridLayout(advanced_tab)
+        wipe_device_button = QPushButton(_("Wipe Device"))
+        wipe_device_button.clicked.connect(wipe_device)
+        add_rows_to_layout(advanced_layout, [
+            (wipe_device_button, ),
+        ])
+
+        dialog = WindowModalDialog(window, _("%s Settings") % device)
         vbox = QVBoxLayout()
         tabs = QTabWidget()
         tabs.addTab(info_tab, _("Information"))
-        tabs.addTab(QWidget(), _("Advanced"))
+        tabs.addTab(advanced_tab, _("Advanced"))
         vbox.addWidget(tabs)
         vbox.addStretch(1)
         vbox.addLayout(Buttons(CloseButton(dialog)))
 
+        # Show values
+        slider_moved()
+        refresh()
         dialog.setLayout(vbox)
         handler.exec_dialog(dialog)
+        wallet.set_session_timeout(timeout_slider.sliderPosition() * 60)
 
   return QtPlugin

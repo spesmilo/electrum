@@ -8,7 +8,7 @@ import qrcode
 import electrum_ltc
 from electrum_ltc import bmp
 from electrum_ltc.i18n import _
-from util import WindowModalDialog, MessageBoxMixin
+from util import WindowModalDialog
 
 
 class QRCodeWidget(QWidget):
@@ -83,7 +83,7 @@ class QRCodeWidget(QWidget):
 
 
 
-class QRDialog(WindowModalDialog, MessageBoxMixin):
+class QRDialog(WindowModalDialog):
 
     def __init__(self, data, parent=None, title = "", show_text=False):
         WindowModalDialog.__init__(self, parent, title)
