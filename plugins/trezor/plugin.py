@@ -12,6 +12,7 @@ from electrum.plugins import BasePlugin, hook
 from electrum.transaction import (deserialize, is_extended_pubkey,
                                   Transaction, x_to_xpub)
 from electrum.wallet import BIP32_HD_Wallet, BIP44_Wallet
+from electrum.util import ThreadJob
 
 class DeviceDisconnectedError(Exception):
     pass
@@ -138,7 +139,7 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         self.plugin.sign_transaction(self, tx, prev_tx, xpub_path)
 
 
-class TrezorCompatiblePlugin(BasePlugin):
+class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
     # Derived classes provide:
     #
     #  class-static variables: client_class, firmware_URL, handler_class,
@@ -166,20 +167,20 @@ class TrezorCompatiblePlugin(BasePlugin):
         self.clients = set()
         # The device wallets we have seen to inform on reconnection
         self.paired_wallets = set()
-        # Do an initial scan
         self.last_scan = 0
-        self.timer_actions()
 
-    @hook
-    def timer_actions(self):
+    def thread_jobs(self):
         # Scan connected devices every second.  The test for libraries
         # available is necessary to recover wallets on machines without
         # libraries
-        if self.libraries_available:
-            now = time.time()
-            if now > self.last_scan + 1:
-                self.last_scan = now
-                self.scan_devices()
+        return [self] if self.libraries_available else []
+
+    def run(self):
+        now = time.time()
+        if now > self.last_scan + 1:
+            self.last_scan = now
+            self.scan_devices()
+
             for wallet in self.paired_wallets:
                 if now > wallet.last_operation + wallet.session_timeout:
                     client = self.lookup_client(wallet)
