@@ -53,6 +53,9 @@ class TrezorCompatibleWallet(BIP44_Wallet):
     def get_action(self):
         pass
 
+    def can_create_accounts(self):
+        return True
+
     def can_export(self):
         return False
 
