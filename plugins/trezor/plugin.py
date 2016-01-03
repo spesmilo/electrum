@@ -3,7 +3,6 @@ import time
 
 from binascii import unhexlify
 from struct import pack
-from unicodedata import normalize
 
 from electrum.account import BIP32_Account
 from electrum.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
@@ -154,8 +153,10 @@ class TrezorCompatiblePlugin(BasePlugin):
 
     @hook
     def timer_actions(self):
+        # Scan connected devices every second.  The test for libraries
+        # available is necessary to recover wallets on machines without
+        # libraries
         if self.libraries_available:
-            # Scan connected devices every second
             now = time.time()
             if now > self.last_scan + 1:
                 self.last_scan = now
@@ -293,10 +294,6 @@ class TrezorCompatiblePlugin(BasePlugin):
 
     def is_enabled(self):
         return self.libraries_available
-
-    @staticmethod
-    def normalize_passphrase(self, passphrase):
-        return normalize('NFKD', unicode(passphrase or ''))
 
     def on_restore_wallet(self, wallet, wizard):
         assert isinstance(wallet, self.wallet_class)

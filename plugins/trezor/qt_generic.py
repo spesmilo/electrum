@@ -11,6 +11,7 @@ from plugin import TrezorCompatiblePlugin
 from electrum.i18n import _
 from electrum.plugins import hook
 from electrum.util import PrintError
+from electrum.wallet import BIP44_Wallet
 
 
 # By far the trickiest thing about this handler is the window stack;
@@ -75,7 +76,7 @@ class QtHandler(PrintError):
                            PasswordDialog.PW_PASSPHRASE)
         confirmed, p, passphrase = d.run()
         if confirmed:
-            passphrase = TrezorCompatiblePlugin.normalize_passphrase(passphrase)
+            passphrase = BIP44_Wallet.normalize_passphrase(passphrase)
         self.passphrase = passphrase
         self.done.set()
 
