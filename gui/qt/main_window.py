@@ -43,7 +43,7 @@ from electrum.util import PrintError, NotEnoughFunds, StoreDict
 from electrum import Transaction, mnemonic
 from electrum import util, bitcoin, commands
 from electrum import SimpleConfig, COIN_CHOOSERS
-from electrum import Imported_Wallet, paymentrequest
+from electrum import Wallet, paymentrequest
 
 from amountedit import BTCAmountEdit, MyLineEdit, BTCkBEdit
 from network_dialog import NetworkDialog
