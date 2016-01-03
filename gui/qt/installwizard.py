@@ -54,8 +54,8 @@ class CosignWidget(QWidget):
         qp.end()
 
 
-# WizardBase must come first as we override show_error
-class InstallWizard(WizardBase, WindowModalDialog):
+# WindowModalDialog must come first as it overrides show_error
+class InstallWizard(WindowModalDialog, WizardBase):
 
     def __init__(self, config, app, plugins):
         title = 'Electrum  -  ' + _('Install Wizard')
