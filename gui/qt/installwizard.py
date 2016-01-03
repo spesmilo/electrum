@@ -54,8 +54,8 @@ class CosignWidget(QWidget):
         qp.end()
 
 
-
-class InstallWizard(WindowModalDialog, WizardBase):
+# WizardBase must come first as we override show_error
+class InstallWizard(WizardBase, WindowModalDialog):
 
     def __init__(self, config, app, plugins):
         title = 'Electrum  -  ' + _('Install Wizard')
@@ -192,10 +192,9 @@ class InstallWizard(WindowModalDialog, WizardBase):
             if i==0:
                 button.setChecked(True)
 
-        self.set_layout(vbox)
         vbox.addStretch(1)
         vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _('Next'))))
-        self.show()
+        self.set_layout(vbox)
         self.raise_()
 
         if not self.exec_():
