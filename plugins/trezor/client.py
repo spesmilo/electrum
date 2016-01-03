@@ -80,10 +80,16 @@ def trezor_client_class(protocol_mixin, base_client, proto):
             return "%s/%s/%s" % (self.label(), self.device_id(), self.path[0])
 
         def label(self):
+            '''The name given by the user to the device.'''
             return self.features.label
 
         def device_id(self):
+            '''The device serial number.'''
             return self.features.device_id
+
+        def is_initialized(self):
+            '''True if initialized, False if wiped.'''
+            return self.features.initialized
 
         def handler(self):
             assert self.wallet and self.wallet.handler

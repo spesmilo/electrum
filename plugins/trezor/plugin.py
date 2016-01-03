@@ -49,10 +49,11 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         return False
 
     def is_watching_only(self):
-        '''The wallet is watching-only if its trezor device is not
-        connected.  This result is dynamic and changes over time.'''
+        '''The wallet is watching-only if its trezor device is not connected,
+        or if it is connected but uninitialized.'''
         assert not self.has_seed()
-        return self.plugin.lookup_client(self) is None
+        client = self.plugin.lookup_client(self)
+        return not (client and client.is_initialized())
 
     def can_change_password(self):
         return False
