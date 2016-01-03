@@ -193,8 +193,10 @@ class InstallWizard(WindowModalDialog, WizardBase):
                 button.setChecked(True)
 
         vbox.addStretch(1)
-        vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _('Next'))))
+        OK = OkButton(self, _('Next'))
+        vbox.addLayout(Buttons(CancelButton(self), OK))
         self.set_layout(vbox)
+        OK.setDefault(True)
         self.raise_()
 
         if not self.exec_():
