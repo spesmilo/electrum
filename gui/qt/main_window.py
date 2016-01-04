@@ -1071,8 +1071,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         else:
             fee = self.fee_e.get_amount() if freeze_fee else None
             if not outputs:
-                addr = self.payto_e.payto_address if self.payto_e.payto_address else None
-                outputs = [('address', addr, amount)]
+                # Any address - Genesis coinbase
+                outputs = [('address', 'Ler4HNAEfwYhBmGXcFP2Po1NpRUEiK8km2',
+                            amount)]
             try:
                 tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, self.config, fee)
                 self.not_enough_funds = False
