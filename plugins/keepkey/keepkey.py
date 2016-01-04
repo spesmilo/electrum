@@ -17,7 +17,7 @@ class KeepKeyPlugin(TrezorCompatiblePlugin):
         client_class = trezor_client_class(ProtocolMixin, BaseClient, proto)
         import keepkeylib.ckd_public as ckd_public
         from keepkeylib.client import types
-        from keepkeylib.transport_hid import HidTransport
+        from keepkeylib.transport_hid import HidTransport, DEVICE_IDS
         libraries_available = True
-    except:
+    except ImportError:
         libraries_available = False

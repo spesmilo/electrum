@@ -10,7 +10,7 @@ from electrum_gui.qt.util import *
 from plugin import TrezorCompatiblePlugin
 
 from electrum.i18n import _
-from electrum.plugins import hook
+from electrum.plugins import hook, DeviceMgr
 from electrum.util import PrintError
 from electrum.wallet import BIP44_Wallet
 
@@ -132,7 +132,7 @@ def qt_plugin_class(base_plugin_class):
         window.statusBar().addPermanentWidget(window.tzb)
         wallet.handler = self.create_handler(window)
         # Trigger a pairing
-        self.client(wallet)
+        self.get_client(wallet)
 
     def on_create_wallet(self, wallet, wizard):
         assert type(wallet) == self.wallet_class
@@ -148,8 +148,8 @@ def qt_plugin_class(base_plugin_class):
 
     def settings_dialog(self, window):
 
-        def client():
-            return self.client(wallet)
+        def get_client(lookup=DeviceMgr.PAIRED):
+            return self.get_client(wallet, lookup)
 
         def add_rows_to_layout(layout, rows):
             for row_num, items in enumerate(rows):
@@ -158,7 +158,7 @@ def qt_plugin_class(base_plugin_class):
                     layout.addWidget(widget, row_num, col_num)
 
         def refresh():
-            features = client().features
+            features = get_client(DeviceMgr.PAIRED).features
             bl_hash = features.bootloader_hash.encode('hex').upper()
             bl_hash = "%s...%s" % (bl_hash[:10], bl_hash[-10:])
             version = "%d.%d.%d" % (features.major_version,
@@ -184,11 +184,11 @@ def qt_plugin_class(base_plugin_class):
             response = QInputDialog().getText(dialog, title, msg)
             if not response[1]:
                 return
-            client().change_label(str(response[0]))
+            get_client().change_label(str(response[0]))
             refresh()
 
         def set_pin():
-            client().set_pin(remove=False)
+            get_client().set_pin(remove=False)
             refresh()
 
         def clear_pin():
@@ -198,10 +198,11 @@ def qt_plugin_class(base_plugin_class):
                     "Are you certain you want to remove your PIN?") % device
             if not dialog.question(msg, title=title):
                 return
-            client().set_pin(remove=True)
+            get_client().set_pin(remove=True)
             refresh()
 
         def wipe_device():
+            # FIXME: cannot yet wipe a device that is only plugged in
             title = _("Confirm Device Wipe")
             msg = _("Are you sure you want to wipe the device?  "
                     "You should make sure you have a copy of your recovery "
@@ -215,7 +216,11 @@ def qt_plugin_class(base_plugin_class):
                 if not dialog.question(msg, title=title,
                                        icon=QMessageBox.Critical):
                     return
-            client().wipe_device()
+            # Note: we use PRESENT so that a user who has forgotten
+            # their PIN is not prevented from wiping their device
+            get_client(DeviceMgr.PRESENT).wipe_device()
+            wallet.wiped()
+            self.device_manager().close_wallet(wallet)
             refresh()
 
         def slider_moved():

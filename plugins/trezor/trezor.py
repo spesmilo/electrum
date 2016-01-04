@@ -17,7 +17,7 @@ class TrezorPlugin(TrezorCompatiblePlugin):
         client_class = trezor_client_class(ProtocolMixin, BaseClient, proto)
         import trezorlib.ckd_public as ckd_public
         from trezorlib.client import types
-        from trezorlib.transport_hid import HidTransport
+        from trezorlib.transport_hid import HidTransport, DEVICE_IDS
         libraries_available = True
     except ImportError:
         libraries_available = False
