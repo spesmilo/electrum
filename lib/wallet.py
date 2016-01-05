@@ -1817,11 +1817,6 @@ class Multisig_Wallet(BIP32_Wallet, Mnemonic):
     def get_master_public_keys(self):
         return self.master_public_keys
 
-    def get_action(self):
-        for i in range(self.n):
-            if self.master_public_keys.get("x%d/"%(i+1)) is None:
-                return 'create_seed' if i == 0 else 'add_cosigners'
-
 
 class OldWallet(Deterministic_Wallet):
     wallet_type = 'old'

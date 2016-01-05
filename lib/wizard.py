@@ -19,7 +19,7 @@
 from electrum import WalletStorage
 from electrum.plugins import run_hook
 from util import PrintError
-from wallet import Wallet
+from wallet import Wallet, Multisig_Wallet
 from i18n import _
 
 MSG_GENERATING_WAIT = _("Electrum is generating your addresses, please wait...")
@@ -270,12 +270,14 @@ class WizardBase(PrintError):
 
     def create_seed(self, wallet):
         '''The create_seed action creates a seed and then generates
-        wallet account(s).'''
+        wallet account(s) whilst we still have the password.'''
         seed = wallet.make_seed(self.language_for_seed)
         self.show_and_verify_seed(seed)
         password = self.request_password()
         wallet.add_seed(seed, password)
         wallet.create_master_keys(password)
+        if isinstance(wallet, Multisig_Wallet):
+            self.add_cosigners(wallet)
         wallet.create_main_account(password)
 
     def add_cosigners(self, wallet):
