@@ -33,7 +33,7 @@ from electrum import version
 from electrum.wallet import Multisig_Wallet, BIP32_Wallet
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, run_hook, hook
-
+from electrum.util import NotEnoughFunds
 
 from decimal import Decimal
 
@@ -206,7 +206,7 @@ class Wallet_2fa(Multisig_Wallet):
     def can_sign_without_server(self):
         return self.master_private_keys.get('x2/') is not None
 
-    def extra_fee(self, tx):
+    def extra_fee(self, tx=None):
         if self.can_sign_without_server():
             return 0
         if self.billing_info.get('tx_remaining'):
@@ -216,7 +216,7 @@ class Wallet_2fa(Multisig_Wallet):
         # trustedcoin won't charge if the total inputs is lower than their fee
         price = int(self.price_per_tx.get(1))
         assert price <= 100000
-        if tx.input_value() < price:
+        if tx and tx.input_value() < price:
             self.print_error("not charging for this tx")
             return 0
         return price
@@ -226,17 +226,23 @@ class Wallet_2fa(Multisig_Wallet):
         fee += self.extra_fee(tx)
         return fee
 
-    def get_tx_fee(self, tx):
-        fee = Multisig_Wallet.get_tx_fee(self, tx)
-        fee += self.extra_fee(tx)
-        return fee
-
-    def make_unsigned_transaction(self, *args):
-        tx = BIP32_Wallet.make_unsigned_transaction(self, *args)
-        fee = self.extra_fee(tx)
+    def make_unsigned_transaction(self, coins, outputs, config,
+                                  fixed_fee=None, change_addr=None):
+        tx = BIP32_Wallet.make_unsigned_transaction(
+            self, coins, outputs, config, fixed_fee, change_addr)
+        # Plain TX was good.  Now add trustedcoin fee.
+        fee = self.extra_fee()
         if fee:
             address = self.billing_info['billing_address']
-            tx.outputs.append(('address', address, fee))
+            outputs = outputs + [('address', address, fee)]
+            try:
+                return BIP32_Wallet.make_unsigned_transaction(
+                    self, coins, outputs, config, fixed_fee, change_addr)
+            except NotEnoughFunds:
+                # trustedcoin won't charge if the total inputs is
+                # lower than their fee
+                if tx.input_value() >= tcoin_fee:
+                    raise
         return tx
 
     def sign_transaction(self, tx, password):
