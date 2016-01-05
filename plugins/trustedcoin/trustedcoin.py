@@ -241,7 +241,7 @@ class Wallet_2fa(Multisig_Wallet):
             except NotEnoughFunds:
                 # trustedcoin won't charge if the total inputs is
                 # lower than their fee
-                if tx.input_value() >= tcoin_fee:
+                if tx.input_value() >= fee:
                     raise
         return tx
 
