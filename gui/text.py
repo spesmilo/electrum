@@ -12,7 +12,7 @@ import tty, sys
 
 class ElectrumGui:
 
-    def __init__(self, config, network, plugins):
+    def __init__(self, config, network, daemon, plugins):
 
         self.config = config
         self.network = network

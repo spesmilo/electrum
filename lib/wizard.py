@@ -126,43 +126,9 @@ class WizardBase(PrintError):
         """Choose a server if one is not set in the config anyway."""
         raise NotImplementedError
 
-    def open_existing_wallet(self, storage, network):
-        wallet = Wallet(storage)
-        self.update_wallet_format(wallet)
-        self.run_wallet_actions(wallet)
-        wallet.start_threads(network)
-        return wallet, None
-
-    def create_new_wallet(self, storage, network):
-        action, wallet = self.create_or_restore(storage)
-        self.run_wallet_actions(wallet)
-
-        if network:
-            self.choose_server(network)
-        else:
-            self.show_warning(_('You are offline'))
-
-        def task():
-            # Synchronize before starting the threads
-            wallet.synchronize()
-            wallet.start_threads(network)
-# FIXME
-#            if action == 'create':
-#                msg = _('Wallet addresses generated.')
-#            else:
-#                wallet.wait_until_synchronized()
-#                if network:
-#                    if wallet.is_found():
-#                        msg = _("Recovery successful")
-#                    else:
-#                        msg = _("No transactions found for this seed")
-#                else:
-#                    msg = _("This wallet was restored offline. It may "
-#                            "contain more addresses than displayed.")
-#            self.show_message(msg)
-
-        return wallet, (MSG_GENERATING_WAIT, task)
-
+    def show_restore(self, wallet, network, action):
+        """Show restore result"""
+        pass
 
     def open_wallet(self, network, filename):
         '''The main entry point of the wizard.  Open a wallet from the given
@@ -170,21 +136,42 @@ class WizardBase(PrintError):
         install wizard proper.'''
         storage = WalletStorage(filename)
         if storage.file_exists:
-            return self.open_existing_wallet(storage, network)
+            wallet = Wallet(storage)
+            self.update_wallet_format(wallet)
+            task = None
         else:
-            return self.create_new_wallet(storage, network)
+            cr, wallet = self.create_or_restore(storage)
+            if not wallet:
+                return
+            task = lambda: self.show_restore(wallet, network, cr)
 
-    def run_wallet_actions(self, wallet):
-        if not wallet:
-            return
-        action = orig_action = wallet.get_action()
+        action = wallet.get_action()
+        requires_action = action is not None
         while action:
             self.run_wallet_action(wallet, action)
             action = wallet.get_action()
+
         # Save the wallet after successful completion of actions.
         # It will be saved again once synchronized.
-        if orig_action:
+        if requires_action:
             wallet.storage.write()
+
+        if network:
+            self.choose_server(network)
+        else:
+            self.show_warning(_('You are offline'))
+
+        # start wallet threads
+        if network:
+            wallet.start_threads(network)
+        else:
+            wallet.synchronize()
+
+        if task:
+            task()
+
+        return wallet
+
 
     def run_wallet_action(self, wallet, action):
         self.print_error("action %s on %s" % (action, wallet.basename()))

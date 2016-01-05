@@ -61,16 +61,13 @@ class RequestHandler(SimpleJSONRPCRequestHandler):
 
 class Daemon(DaemonThread):
 
-    def __init__(self, config, network, gui=None):
+    def __init__(self, config, network):
         DaemonThread.__init__(self)
         self.config = config
         self.network = network
-        self.gui = gui
+        self.gui = None
         self.wallets = {}
-        if gui is None:
-            self.wallet = self.load_wallet(config)
-        else:
-            self.wallet = None
+        self.wallet = None
         self.cmd_runner = Commands(self.config, self.wallet, self.network)
         host = config.get('rpchost', 'localhost')
         port = config.get('rpcport', 0)
@@ -123,22 +120,26 @@ class Daemon(DaemonThread):
             response = "Error: Electrum is running in daemon mode. Please stop the daemon first."
         return response
 
-    def load_wallet(self, config):
-        path = config.get_wallet_path()
+    def load_wallet(self, path, wizard=None):
         if path in self.wallets:
             wallet = self.wallets[path]
         else:
-            storage = WalletStorage(path)
-            wallet = Wallet(storage)
-            wallet.start_threads(self.network)
-            self.wallets[path] = wallet
+            if wizard:
+                wallet = wizard.open_wallet(self.network, path)
+            else:
+                storage = WalletStorage(path)
+                wallet = Wallet(storage)
+                wallet.start_threads(self.network)
+            if wallet:
+                self.wallets[path] = wallet
         return wallet
 
     def run_cmdline(self, config_options):
         config = SimpleConfig(config_options)
         cmdname = config.get('cmd')
         cmd = known_commands[cmdname]
-        wallet = self.load_wallet(config) if cmd.requires_wallet else None
+        path = config.get_wallet_path()
+        wallet = self.load_wallet(path) if cmd.requires_wallet else None
         # arguments passed to function
         args = map(lambda x: config.get(x), cmd.params)
         # decode json arguments

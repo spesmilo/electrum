@@ -66,7 +66,7 @@ class OpenFileEventFilter(QObject):
 
 class ElectrumGui(MessageBoxMixin):
 
-    def __init__(self, config, network, plugins):
+    def __init__(self, config, network, daemon, plugins):
         set_language(config.get('language'))
         # Uncomment this call to verify objects are being properly
         # GC-ed when windows are closed
@@ -74,6 +74,7 @@ class ElectrumGui(MessageBoxMixin):
         #                            ElectrumWindow], interval=5)])
         self.network = network
         self.config = config
+        self.daemon = daemon
         self.plugins = plugins
         self.windows = []
         self.efilter = OpenFileEventFilter(self.windows)
@@ -134,12 +135,10 @@ class ElectrumGui(MessageBoxMixin):
         # Use a signal as can be called from daemon thread
         self.app.emit(SIGNAL('new_window'), path, uri)
 
-    def create_window_for_wallet(self, wallet, task):
+    def create_window_for_wallet(self, wallet):
         w = ElectrumWindow(self, wallet)
         self.windows.append(w)
         self.build_tray_menu()
-        if task:
-            WaitingDialog(w, task[0], task[1])
         # FIXME: Remove in favour of the load_wallet hook
         run_hook('on_new_window', w)
         return w
@@ -153,10 +152,10 @@ class ElectrumGui(MessageBoxMixin):
                 break
         else:
             wizard = InstallWizard(self.config, self.app, self.plugins)
-            result = wizard.open_wallet(self.network, path)
-            if not result:
+            wallet = self.daemon.load_wallet(path, wizard)
+            if not wallet:
                 return
-            w = self.create_window_for_wallet(*result)
+            w = self.create_window_for_wallet(wallet)
 
         if uri:
             w.pay_to_URI(uri)

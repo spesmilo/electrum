@@ -17,7 +17,8 @@ from electrum.mnemonic import prepare_seed
 from electrum.wizard import (WizardBase, UserCancelled,
                              MSG_ENTER_PASSWORD, MSG_RESTORE_PASSPHRASE,
                              MSG_COSIGNER, MSG_ENTER_SEED_OR_MPK,
-                             MSG_SHOW_MPK, MSG_VERIFY_SEED)
+                             MSG_SHOW_MPK, MSG_VERIFY_SEED,
+                             MSG_GENERATING_WAIT)
 
 class CosignWidget(QWidget):
     size = 120
@@ -133,6 +134,20 @@ class InstallWizard(WindowModalDialog, WizardBase):
         # Show network dialog if config does not exist
         if self.config.get('server') is None:
             self.network_dialog(network)
+
+    def show_restore(self, wallet, network, action):
+        def on_finished(b):
+            if action == 'restore':
+                if network:
+                    if wallet.is_found():
+                        msg = _("Recovery successful")
+                    else:
+                        msg = _("No transactions found for this seed")
+                else:
+                    msg = _("This wallet was restored offline. It may "
+                            "contain more addresses than displayed.")
+                self.show_message(msg)
+        WaitingDialog(self, MSG_GENERATING_WAIT, wallet.wait_until_synchronized, on_finished)
 
     def set_layout(self, layout):
         w = QWidget()
