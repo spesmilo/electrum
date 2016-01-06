@@ -64,7 +64,7 @@ class Plugin(BasePlugin):
 
             value_val.append(1000.*value/COIN)
             if tx_hash:
-                label, is_default_label = wallet.get_label(tx_hash)
+                label = wallet.get_label(tx_hash)
                 label = label.encode('utf-8')
             else:
                 label = ""
