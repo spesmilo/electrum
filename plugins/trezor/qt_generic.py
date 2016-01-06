@@ -208,6 +208,22 @@ def qt_plugin_class(base_plugin_class):
             get_client().change_label(str(response[0]))
             refresh()
 
+        def toggle_passphrase():
+            title = _("Confirm Toggle Passphrase Protection")
+            msg = _("This will cause your Electrum wallet to be unpaired "
+                    "unless your passphrase was or will be empty.\n\n"
+                    "This is because addresses will no "
+                    "longer correspond to those used by your %s.\n\n"
+                    "If your passphrase is not or was not empty you will "
+                    "need to create a new Electrum wallet with the install "
+                    "wizard so that they match.\n\n"
+                    "Are you sure you want to proceed?") % device
+            if not dialog.question(msg, title=title):
+                return
+            get_client().toggle_passphrase()
+            self.device_manager().close_wallet(wallet)  # Unpair
+            refresh()
+
         def set_pin():
             get_client().set_pin(remove=False)
             refresh()
@@ -266,6 +282,8 @@ def qt_plugin_class(base_plugin_class):
         language_label = QLabel()
         rename_button = QPushButton(_("Rename"))
         rename_button.clicked.connect(rename)
+        toggle_passphrase_button = QPushButton(_("Toggle"))
+        toggle_passphrase_button.clicked.connect(toggle_passphrase)
         pin_button = QPushButton()
         pin_button.clicked.connect(set_pin)
         clear_pin_button = QPushButton(_("Clear"))
@@ -273,7 +291,7 @@ def qt_plugin_class(base_plugin_class):
 
         add_rows_to_layout(info_layout, [
             (_("Device Label"), device_label, rename_button),
-            (_("Has Passphrase"), passphrase_label),
+            (_("Has Passphrase"), passphrase_label, toggle_passphrase_button),
             (_("Has PIN"), pin_label, pin_button, clear_pin_button),
             (_("Initialized"), initialized_label),
             (_("Device ID"), device_id_label),

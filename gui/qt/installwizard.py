@@ -439,7 +439,6 @@ class InstallWizard(WindowModalDialog, WizardBase):
         else:
             text = QTextEdit()
             text.setMaximumHeight(60)
-            vbox.addWidget(text)
             if method == self.TIM_MNEMONIC:
                 msg = _("Enter your BIP39 mnemonic:")
             else:
@@ -451,6 +450,7 @@ class InstallWizard(WindowModalDialog, WizardBase):
                 OK_button.setEnabled(False)
 
             vbox.addWidget(QLabel(msg))
+            vbox.addWidget(text)
             pin = QLineEdit()
             pin.setValidator(QRegExpValidator(QRegExp('[1-9]{0,10}')))
             pin.setMaximumWidth(100)

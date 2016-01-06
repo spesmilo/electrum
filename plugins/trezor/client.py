@@ -16,6 +16,7 @@ class GuiMixin(object):
         'default': _("Check %s device to continue"),
         'label': _("Confirm label change on %s device to continue"),
         'remove pin': _("Confirm removal of PIN on %s device to continue"),
+        'passphrase': _("Confirm on %s device to continue"),
     }
 
     def callback_ButtonRequest(self, msg):
@@ -125,6 +126,14 @@ def trezor_client_class(protocol_mixin, base_client, proto):
 
         def address_from_derivation(self, derivation):
             return self.get_address('Bitcoin', self.expand_path(derivation))
+
+        def toggle_passphrase(self):
+            self.msg_code_override = 'passphrase'
+            try:
+                enabled = not self.features.passphrase_protection
+                self.apply_settings(use_passphrase=enabled)
+            finally:
+                self.msg_code_override = None
 
         def change_label(self, label):
             self.msg_code_override = 'label'

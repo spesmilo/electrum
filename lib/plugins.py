@@ -238,14 +238,12 @@ class DeviceMgr(PrintError):
     a device is plugged into a different port the wallet is
     automatically re-paired.
 
-    Wallets are informed on connect / disconnect / unpairing events.
-    It must implement connected(), disconnected() and unpaired()
-    callbacks.  Being connected implies a pairing.  Being disconnected
-    doesn't.  Callbacks can happen in any thread context, and we do
-    them without holding the lock.
+    Wallets are informed on connect / disconnect events.  It must
+    implement connected(), disconnected() callbacks.  Being connected
+    implies a pairing.  Callbacks can happen in any thread context,
+    and we do them without holding the lock.
 
-    This plugin is thread-safe.  Currently only USB is implemented.
-    '''
+    This plugin is thread-safe.  Currently only USB is implemented.'''
 
     # Client lookup types.  CACHED will look up in our client cache
     # only.  PRESENT will do a scan if there is no client in the cache.
