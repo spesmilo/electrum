@@ -252,6 +252,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.wallet = wallet
         self.update_recently_visited(wallet.storage.path)
         self.import_old_contacts()
+        # address used to create a dummy transaction and estimate transaction fee
+        a = self.wallet.addresses(False)
+        self.dummy_address = a[0] if a else None
         self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
         self.current_account = self.wallet.storage.get("current_account", None)
         self.history_list.update()
@@ -1071,7 +1074,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         else:
             fee = self.fee_e.get_amount() if freeze_fee else None
             if not outputs:
-                addr = self.payto_e.payto_address if self.payto_e.payto_address else None
+                addr = self.payto_e.payto_address if self.payto_e.payto_address else self.dummy_address
                 outputs = [('address', addr, amount)]
             try:
                 tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, self.config, fee)
