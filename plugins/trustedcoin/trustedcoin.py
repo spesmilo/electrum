@@ -364,7 +364,7 @@ class TrustedCoinPlugin(BasePlugin):
         wallet.add_cosigner_seed(' '.join(words[n:]), 'x2/', password)
 
         restore_third_key(wallet)
-        wallet.create_main_account(password)
+        wallet.create_main_account()
         return wallet
 
     def create_remote_key(self, wallet, window):
@@ -406,4 +406,4 @@ class TrustedCoinPlugin(BasePlugin):
 
         if self.setup_google_auth(window, short_id, otp_secret):
             wallet.add_master_public_key('x3/', xpub3)
-            wallet.create_main_account(None)
+            wallet.create_main_account()

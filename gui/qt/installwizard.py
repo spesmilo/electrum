@@ -147,7 +147,19 @@ class InstallWizard(WindowModalDialog, WizardBase):
                     msg = _("This wallet was restored offline. It may "
                             "contain more addresses than displayed.")
                 self.show_message(msg)
-        WaitingDialog(self, MSG_GENERATING_WAIT, wallet.wait_until_synchronized, on_finished)
+
+    def create_addresses(self, wallet):
+        def task():
+            wallet.synchronize()
+            self.emit(QtCore.SIGNAL('accept'))
+        t = threading.Thread(target = task)
+        t.start()
+        vbox = QVBoxLayout()
+        self.waiting_label = QLabel(MSG_GENERATING_WAIT)
+        vbox.addWidget(self.waiting_label)
+        self.set_layout(vbox)
+        self.raise_()
+        self.exec_()
 
     def set_layout(self, layout):
         w = QWidget()

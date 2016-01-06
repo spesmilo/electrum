@@ -327,7 +327,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         password = wizard.request_password()
         wallet.add_seed(seed, password)
         wallet.add_cosigner_seed(seed, 'x/', password, passphrase)
-        wallet.create_main_account(password)
+        wallet.create_hd_account(password)
         return wallet
 
     def sign_transaction(self, wallet, tx, prev_tx, xpub_path):

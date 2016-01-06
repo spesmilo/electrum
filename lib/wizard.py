@@ -152,15 +152,12 @@ class WizardBase(PrintError):
                 return
             task = lambda: self.show_restore(wallet, network, cr)
 
-        action = wallet.get_action()
-        requires_action = action is not None
-        while action:
-            self.run_wallet_action(wallet, action)
+        while True:
             action = wallet.get_action()
-
-        # Save the wallet after successful completion of actions.
-        # It will be saved again once synchronized.
-        if requires_action:
+            if not action:
+                break
+            self.run_wallet_action(wallet, action)
+            # Save the wallet after each action
             wallet.storage.write()
 
         if network:
@@ -168,11 +165,10 @@ class WizardBase(PrintError):
         else:
             self.show_warning(_('You are offline'))
 
+        self.create_addresses(wallet)
         # start wallet threads
         if network:
             wallet.start_threads(network)
-        else:
-            wallet.synchronize()
 
         if task:
             task()
@@ -263,14 +259,20 @@ class WizardBase(PrintError):
         return Wallet.from_multisig(key_list, password, storage, wallet_type)
 
     def create_seed(self, wallet):
-        '''The create_seed action creates a seed and then generates
-        wallet account(s).'''
+        '''The create_seed action creates a seed and generates
+        master keys.'''
         seed = wallet.make_seed(self.language_for_seed)
         self.show_and_verify_seed(seed)
         password = self.request_password()
         wallet.add_seed(seed, password)
         wallet.create_master_keys(password)
-        wallet.create_main_account(password)
+
+    def create_main_account(self, wallet):
+        # FIXME: BIP44 restore requires password
+        wallet.create_main_account()
+
+    def create_addresses(self, wallet):
+        wallet.synchronize()
 
     def add_cosigners(self, wallet):
         # FIXME: better handling of duplicate keys

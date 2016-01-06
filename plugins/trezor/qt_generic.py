@@ -159,7 +159,7 @@ def qt_plugin_class(base_plugin_class):
         assert type(wallet) == self.wallet_class
         wallet.handler = self.create_handler(wizard)
         self.select_device(wallet, wizard)
-        wallet.create_main_account(None)
+        wallet.create_main_account()
 
     @hook
     def receive_menu(self, menu, addrs, wallet):
