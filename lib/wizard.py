@@ -19,7 +19,7 @@
 from electrum import WalletStorage
 from electrum.plugins import run_hook
 from util import PrintError
-from wallet import Wallet
+from wallet import Wallet, Multisig_Wallet
 from i18n import _
 
 MSG_GENERATING_WAIT = _("Electrum is generating your addresses, please wait...")
@@ -255,26 +255,25 @@ class WizardBase(PrintError):
         password = self.request_password() if need_password else None
         return Wallet.from_multisig(key_list, password, storage, wallet_type)
 
-    def create_seed(self, wallet, create_account=True):
-        '''Create a seed and generate wallet accounts.'''
+    def create_seed(self, wallet):
+        '''The create_seed action creates a seed and then generates
+        wallet account(s) whilst we still have the password.'''
         seed = wallet.make_seed(self.language_for_seed)
         self.show_and_verify_seed(seed)
         password = self.request_password()
         wallet.add_seed(seed, password)
         wallet.create_master_keys(password)
-        if create_account:
-            wallet.create_main_account(password)
+        if isinstance(wallet, Multisig_Wallet):
+            self.add_cosigners(wallet)
+        wallet.create_main_account(password)
 
-    def create_seed_and_cosigners(self, wallet):
-        '''Create a seed, add cosigners, then generate wallet accounts.'''
-        self.create_seed(wallet, create_account=False)
+    def add_cosigners(self, wallet):
         # FIXME: better handling of duplicate keys
         m, n = Wallet.multisig_type(wallet.wallet_type)
         xpub1 = wallet.master_public_keys.get("x1/")
         xpubs = self.request_many(n - 1, xpub1)
         for i, xpub in enumerate(xpubs):
             wallet.add_master_public_key("x%d/" % (i + 2), xpub)
-        wallet.create_main_account(None)
 
     def update_wallet_format(self, wallet):
         # Backwards compatibility: convert old-format imported keys
