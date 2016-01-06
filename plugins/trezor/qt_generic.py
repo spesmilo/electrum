@@ -185,12 +185,14 @@ def qt_plugin_class(base_plugin_class):
             version = "%d.%d.%d" % (features.major_version,
                                     features.minor_version,
                                     features.patch_version)
+            coins = ", ".join(coin.coin_name for coin in features.coins)
 
             bl_hash_label.setText(bl_hash)
             device_label.setText(features.label)
             device_id_label.setText(features.device_id)
             initialized_label.setText(noyes[features.initialized])
             version_label.setText(version)
+            coins_label.setText(coins)
             pin_label.setText(noyes[features.pin_protection])
             passphrase_label.setText(noyes[features.passphrase_protection])
             language_label.setText(features.language)
@@ -273,6 +275,8 @@ def qt_plugin_class(base_plugin_class):
         info_layout = QGridLayout()
         noyes = [_("No"), _("Yes")]
         bl_hash_label = QLabel()
+        coins_label = QLabel()
+        coins_label.setWordWrap(True)
         device_label = QLabel()
         passphrase_label = QLabel()
         initialized_label = QLabel()
@@ -297,9 +301,9 @@ def qt_plugin_class(base_plugin_class):
             (_("Device ID"), device_id_label),
             (_("Bootloader Hash"), bl_hash_label),
             (_("Firmware Version"), version_label),
+            (_("Supported Coins"), coins_label),
             (_("Language"), language_label),
         ])
-        tab_layout.addLayout(info_layout)
 
         timeout_layout = QHBoxLayout()
         timeout_label = QLabel()
@@ -314,7 +318,6 @@ def qt_plugin_class(base_plugin_class):
         timeout_layout.addWidget(QLabel(_("Session Timeout")))
         timeout_layout.addWidget(timeout_slider)
         timeout_layout.addWidget(timeout_label)
-        tab_layout.addLayout(timeout_layout)
 
         advanced_tab = QWidget()
         advanced_layout = QGridLayout(advanced_tab)
@@ -331,12 +334,17 @@ def qt_plugin_class(base_plugin_class):
         tabs.addTab(advanced_tab, _("Advanced"))
         vbox.addWidget(tabs)
         vbox.addStretch(1)
-        vbox.addLayout(Buttons(CloseButton(dialog)))
 
         # Show values
         slider_moved()
         refresh()
+
+        # QT on MacOSX is sensitive to layout ordering so these are last
+        tab_layout.addLayout(info_layout)
+        tab_layout.addLayout(timeout_layout)
+        vbox.addLayout(Buttons(CloseButton(dialog)))
         dialog.setLayout(vbox)
+
         handler.exec_dialog(dialog)
         wallet.set_session_timeout(timeout_slider.sliderPosition() * 60)
 
