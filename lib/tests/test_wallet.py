@@ -84,7 +84,7 @@ class TestNewWallet(WalletTestCase):
         # from eventual collisions.
         self.wallet.add_seed(self.seed_text, self.password)
         self.wallet.create_master_keys(self.password)
-        self.wallet.create_main_account(self.password)
+        self.wallet.create_main_account()
 
     def test_wallet_with_seed_is_not_watching_only(self):
         self.assertFalse(self.wallet.is_watching_only())
