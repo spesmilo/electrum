@@ -24,7 +24,7 @@ class Plugin(LedgerPlugin):
 
     def on_create_wallet(self, wallet, wizard):
         self.handler = BTChipQTHandler(wizard)
-        wallet.create_main_account(None)
+        wallet.create_main_account()
 
 class BTChipQTHandler:
 

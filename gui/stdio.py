@@ -12,7 +12,7 @@ import sys, getpass, datetime
 
 class ElectrumGui:
 
-    def __init__(self, config, network, plugins):
+    def __init__(self, config, network, daemon, plugins):
         self.network = network
         self.config = config
         storage = WalletStorage(config.get_wallet_path())

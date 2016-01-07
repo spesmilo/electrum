@@ -1189,7 +1189,7 @@ class ElectrumWindow:
             tooltip = tx_hash + "\n%d confirmations"%conf if tx_hash else ''
             details = self.get_tx_details(tx_hash)
 
-            self.history_list.prepend( [tx_hash, conf_icon, time_str, label, is_default_label,
+            self.history_list.prepend( [tx_hash, conf_icon, time_str, label, False,
                                         format_satoshis(value,True,self.num_zeros, whitespaces=True),
                                         format_satoshis(balance,False,self.num_zeros, whitespaces=True), tooltip, details] )
         if cursor: self.history_treeview.set_cursor( cursor )
@@ -1284,7 +1284,7 @@ class ElectrumWindow:
 
 class ElectrumGui():
 
-    def __init__(self, config, network, plugins):
+    def __init__(self, config, network, daemon, plugins):
         self.network = network
         self.config = config
 

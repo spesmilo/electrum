@@ -16,6 +16,7 @@ class GuiMixin(object):
         'default': _("Check %s device to continue"),
         'label': _("Confirm label change on %s device to continue"),
         'remove pin': _("Confirm removal of PIN on %s device to continue"),
+        'passphrase': _("Confirm on %s device to continue"),
     }
 
     def callback_ButtonRequest(self, msg):
@@ -53,10 +54,10 @@ class GuiMixin(object):
         return self.proto.PassphraseAck(passphrase=passphrase)
 
     def callback_WordRequest(self, msg):
-        # TODO
-        stderr.write("Enter one word of mnemonic:\n")
-        stderr.flush()
-        word = raw_input()
+        msg = _("Enter seed word as explained on your %s") % self.device
+        word = self.handler().get_word(msg)
+        if word is None:
+            return self.proto.Cancel()
         return self.proto.WordAck(word=word)
 
 
@@ -77,7 +78,7 @@ def trezor_client_class(protocol_mixin, base_client, proto):
             self.msg_code_override = None
 
         def __str__(self):
-            return "%s/%s/%s" % (self.label(), self.device_id(), self.path[0])
+            return "%s/%s/%s" % (self.label(), self.device_id(), self.path)
 
         def label(self):
             '''The name given by the user to the device.'''
@@ -90,6 +91,9 @@ def trezor_client_class(protocol_mixin, base_client, proto):
         def is_initialized(self):
             '''True if initialized, False if wiped.'''
             return self.features.initialized
+
+        def pair_wallet(self, wallet):
+            self.wallet = wallet
 
         def handler(self):
             assert self.wallet and self.wallet.handler
@@ -111,8 +115,25 @@ def trezor_client_class(protocol_mixin, base_client, proto):
                 path.append(abs(int(x)) | prime)
             return path
 
+        def first_address(self, wallet, derivation):
+            assert not self.wallet
+            # Assign the wallet so we have a handler
+            self.wallet = wallet
+            try:
+                return self.address_from_derivation(derivation)
+            finally:
+                self.wallet = None
+
         def address_from_derivation(self, derivation):
             return self.get_address('Litecoin', self.expand_path(derivation))
+
+        def toggle_passphrase(self):
+            self.msg_code_override = 'passphrase'
+            try:
+                enabled = not self.features.passphrase_protection
+                self.apply_settings(use_passphrase=enabled)
+            finally:
+                self.msg_code_override = None
 
         def change_label(self, label):
             self.msg_code_override = 'label'
@@ -127,6 +148,24 @@ def trezor_client_class(protocol_mixin, base_client, proto):
                 self.change_pin(remove)
             finally:
                 self.msg_code_override = None
+
+        def clear_session(self):
+            '''Clear the session to force pin (and passphrase if enabled)
+            re-entry.  Does not leak exceptions.'''
+            self.print_error("clear session:", self)
+            try:
+                super(TrezorClient, self).clear_session()
+            except BaseException as e:
+                # If the device was removed it has the same effect...
+                self.print_error("clear_session: ignoring error", str(e))
+                pass
+
+        def close(self):
+            '''Called when Our wallet was closed or the device removed.'''
+            self.print_error("disconnected")
+            self.clear_session()
+            # Release the device
+            self.transport.close()
 
         def firmware_version(self):
             f = self.features
@@ -154,8 +193,9 @@ def trezor_client_class(protocol_mixin, base_client, proto):
 
     cls = TrezorClient
     for method in ['apply_settings', 'change_pin', 'get_address',
-                   'get_public_node', 'reset_device', 'sign_message',
-                   'sign_tx', 'wipe_device']:
+                   'get_public_node', 'load_device_by_mnemonic',
+                   'load_device_by_xprv', 'recovery_device',
+                   'reset_device', 'sign_message', 'sign_tx', 'wipe_device']:
         setattr(cls, method, wrapper(getattr(cls, method)))
 
     return cls

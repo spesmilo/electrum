@@ -10,7 +10,7 @@ from electrum_ltc_gui.qt.util import *
 from plugin import TrezorCompatiblePlugin
 
 from electrum_ltc.i18n import _
-from electrum_ltc.plugins import hook
+from electrum_ltc.plugins import hook, DeviceMgr
 from electrum_ltc.util import PrintError
 from electrum_ltc.wallet import BIP44_Wallet
 
@@ -28,6 +28,7 @@ class QtHandler(PrintError):
         win.connect(win, SIGNAL('message_dialog'), self.message_dialog)
         win.connect(win, SIGNAL('pin_dialog'), self.pin_dialog)
         win.connect(win, SIGNAL('passphrase_dialog'), self.passphrase_dialog)
+        win.connect(win, SIGNAL('word_dialog'), self.word_dialog)
         self.window_stack = [win]
         self.win = win
         self.pin_matrix_widget_class = pin_matrix_widget_class
@@ -52,6 +53,12 @@ class QtHandler(PrintError):
         self.win.emit(SIGNAL('pin_dialog'), msg)
         self.done.wait()
         return self.response
+
+    def get_word(self, msg):
+        self.done.clear()
+        self.win.emit(SIGNAL('word_dialog'), msg)
+        self.done.wait()
+        return self.word
 
     def get_passphrase(self, msg):
         self.done.clear()
@@ -82,6 +89,20 @@ class QtHandler(PrintError):
         self.passphrase = passphrase
         self.done.set()
 
+    def word_dialog(self, msg):
+        dialog = WindowModalDialog(self.window_stack[-1], "")
+        hbox = QHBoxLayout(dialog)
+        hbox.addWidget(QLabel(msg))
+        text = QLineEdit()
+        text.setMaximumWidth(100)
+        text.returnPressed.connect(dialog.accept)
+        hbox.addWidget(text)
+        hbox.addStretch(1)
+        if not self.exec_dialog(dialog):
+            return None
+        self.word = unicode(text.text())
+        self.done.set()
+
     def message_dialog(self, msg, cancel_callback):
         # Called more than once during signing, to confirm output and fee
         self.clear_dialog()
@@ -108,7 +129,7 @@ class QtHandler(PrintError):
     def exec_dialog(self, dialog):
         self.window_stack.append(dialog)
         try:
-            dialog.exec_()
+            return dialog.exec_()
         finally:
             assert dialog == self.window_stack.pop()
 
@@ -132,13 +153,13 @@ def qt_plugin_class(base_plugin_class):
         window.statusBar().addPermanentWidget(window.tzb)
         wallet.handler = self.create_handler(window)
         # Trigger a pairing
-        self.client(wallet)
+        self.get_client(wallet)
 
     def on_create_wallet(self, wallet, wizard):
         assert type(wallet) == self.wallet_class
         wallet.handler = self.create_handler(wizard)
         self.select_device(wallet, wizard)
-        wallet.create_main_account(None)
+        wallet.create_hd_account(None)
 
     @hook
     def receive_menu(self, menu, addrs, wallet):
@@ -148,8 +169,8 @@ def qt_plugin_class(base_plugin_class):
 
     def settings_dialog(self, window):
 
-        def client():
-            return self.client(wallet)
+        def get_client(lookup=DeviceMgr.PAIRED):
+            return self.get_client(wallet, lookup)
 
         def add_rows_to_layout(layout, rows):
             for row_num, items in enumerate(rows):
@@ -158,18 +179,20 @@ def qt_plugin_class(base_plugin_class):
                     layout.addWidget(widget, row_num, col_num)
 
         def refresh():
-            features = client().features
+            features = get_client(DeviceMgr.PAIRED).features
             bl_hash = features.bootloader_hash.encode('hex').upper()
             bl_hash = "%s...%s" % (bl_hash[:10], bl_hash[-10:])
             version = "%d.%d.%d" % (features.major_version,
                                     features.minor_version,
                                     features.patch_version)
+            coins = ", ".join(coin.coin_name for coin in features.coins)
 
             bl_hash_label.setText(bl_hash)
             device_label.setText(features.label)
             device_id_label.setText(features.device_id)
             initialized_label.setText(noyes[features.initialized])
             version_label.setText(version)
+            coins_label.setText(coins)
             pin_label.setText(noyes[features.pin_protection])
             passphrase_label.setText(noyes[features.passphrase_protection])
             language_label.setText(features.language)
@@ -184,11 +207,27 @@ def qt_plugin_class(base_plugin_class):
             response = QInputDialog().getText(dialog, title, msg)
             if not response[1]:
                 return
-            client().change_label(str(response[0]))
+            get_client().change_label(str(response[0]))
+            refresh()
+
+        def toggle_passphrase():
+            title = _("Confirm Toggle Passphrase Protection")
+            msg = _("This will cause your Electrum wallet to be unpaired "
+                    "unless your passphrase was or will be empty.\n\n"
+                    "This is because addresses will no "
+                    "longer correspond to those used by your %s.\n\n"
+                    "If your passphrase is not or was not empty you will "
+                    "need to create a new Electrum wallet with the install "
+                    "wizard so that they match.\n\n"
+                    "Are you sure you want to proceed?") % device
+            if not dialog.question(msg, title=title):
+                return
+            get_client().toggle_passphrase()
+            self.device_manager().close_wallet(wallet)  # Unpair
             refresh()
 
         def set_pin():
-            client().set_pin(remove=False)
+            get_client().set_pin(remove=False)
             refresh()
 
         def clear_pin():
@@ -198,10 +237,11 @@ def qt_plugin_class(base_plugin_class):
                     "Are you certain you want to remove your PIN?") % device
             if not dialog.question(msg, title=title):
                 return
-            client().set_pin(remove=True)
+            get_client().set_pin(remove=True)
             refresh()
 
         def wipe_device():
+            # FIXME: cannot yet wipe a device that is only plugged in
             title = _("Confirm Device Wipe")
             msg = _("Are you sure you want to wipe the device?  "
                     "You should make sure you have a copy of your recovery "
@@ -215,7 +255,11 @@ def qt_plugin_class(base_plugin_class):
                 if not dialog.question(msg, title=title,
                                        icon=QMessageBox.Critical):
                     return
-            client().wipe_device()
+            # Note: we use PRESENT so that a user who has forgotten
+            # their PIN is not prevented from wiping their device
+            get_client(DeviceMgr.PRESENT).wipe_device()
+            wallet.wiped()
+            self.device_manager().close_wallet(wallet)
             refresh()
 
         def slider_moved():
@@ -231,6 +275,8 @@ def qt_plugin_class(base_plugin_class):
         info_layout = QGridLayout()
         noyes = [_("No"), _("Yes")]
         bl_hash_label = QLabel()
+        coins_label = QLabel()
+        coins_label.setWordWrap(True)
         device_label = QLabel()
         passphrase_label = QLabel()
         initialized_label = QLabel()
@@ -240,6 +286,8 @@ def qt_plugin_class(base_plugin_class):
         language_label = QLabel()
         rename_button = QPushButton(_("Rename"))
         rename_button.clicked.connect(rename)
+        toggle_passphrase_button = QPushButton(_("Toggle"))
+        toggle_passphrase_button.clicked.connect(toggle_passphrase)
         pin_button = QPushButton()
         pin_button.clicked.connect(set_pin)
         clear_pin_button = QPushButton(_("Clear"))
@@ -247,15 +295,15 @@ def qt_plugin_class(base_plugin_class):
 
         add_rows_to_layout(info_layout, [
             (_("Device Label"), device_label, rename_button),
-            (_("Has Passphrase"), passphrase_label),
+            (_("Has Passphrase"), passphrase_label, toggle_passphrase_button),
             (_("Has PIN"), pin_label, pin_button, clear_pin_button),
             (_("Initialized"), initialized_label),
             (_("Device ID"), device_id_label),
             (_("Bootloader Hash"), bl_hash_label),
             (_("Firmware Version"), version_label),
+            (_("Supported Coins"), coins_label),
             (_("Language"), language_label),
         ])
-        tab_layout.addLayout(info_layout)
 
         timeout_layout = QHBoxLayout()
         timeout_label = QLabel()
@@ -270,7 +318,6 @@ def qt_plugin_class(base_plugin_class):
         timeout_layout.addWidget(QLabel(_("Session Timeout")))
         timeout_layout.addWidget(timeout_slider)
         timeout_layout.addWidget(timeout_label)
-        tab_layout.addLayout(timeout_layout)
 
         advanced_tab = QWidget()
         advanced_layout = QGridLayout(advanced_tab)
@@ -287,12 +334,17 @@ def qt_plugin_class(base_plugin_class):
         tabs.addTab(advanced_tab, _("Advanced"))
         vbox.addWidget(tabs)
         vbox.addStretch(1)
-        vbox.addLayout(Buttons(CloseButton(dialog)))
 
         # Show values
         slider_moved()
         refresh()
+
+        # QT on MacOSX is sensitive to layout ordering so these are last
+        tab_layout.addLayout(info_layout)
+        tab_layout.addLayout(timeout_layout)
+        vbox.addLayout(Buttons(CloseButton(dialog)))
         dialog.setLayout(vbox)
+
         handler.exec_dialog(dialog)
         wallet.set_session_timeout(timeout_slider.sliderPosition() * 60)
 

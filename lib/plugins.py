@@ -44,6 +44,8 @@ class Plugins(DaemonThread):
         self.plugins = {}
         self.gui_name = gui_name
         self.descriptions = []
+        self.device_manager = DeviceMgr()
+
         for loader, name, ispkg in pkgutil.iter_modules([self.pkgpath]):
             m = loader.find_module(name).load_module(name)
             d = m.__dict__
@@ -212,3 +214,197 @@ class BasePlugin(PrintError):
 
     def settings_dialog(self):
         pass
+
+
+class DeviceMgr(PrintError):
+    '''Manages hardware clients.  A client communicates over a hardware
+    channel with the device.  A client is a pair: a device ID (serial
+    number) and hardware port.  If either change then a different
+    client is instantiated.
+
+    In addition to tracking device IDs, the device manager tracks
+    hardware wallets and manages wallet pairing.  A device ID may be
+    paired with a wallet when it is confirmed that the hardware device
+    matches the wallet, i.e. they have the same master public key.  A
+    device ID can be unpaired if e.g. it is wiped.
+
+    Because of hotplugging, a wallet must request its client
+    dynamically each time it is required, rather than caching it
+    itself.
+
+    The device manager is shared across plugins, so just one place
+    does hardware scans when needed.  By tracking device serial
+    numbers the number of necessary hardware scans is reduced, e.g. if
+    a device is plugged into a different port the wallet is
+    automatically re-paired.
+
+    Wallets are informed on connect / disconnect events.  It must
+    implement connected(), disconnected() callbacks.  Being connected
+    implies a pairing.  Callbacks can happen in any thread context,
+    and we do them without holding the lock.
+
+    This plugin is thread-safe.  Currently only USB is implemented.'''
+
+    # Client lookup types.  CACHED will look up in our client cache
+    # only.  PRESENT will do a scan if there is no client in the cache.
+    # PAIRED will try and pair the wallet, which will involve requesting
+    # a PIN and passphrase if they are enabled
+    (CACHED, PRESENT, PAIRED) = range(3)
+
+    def __init__(self):
+        super(DeviceMgr, self).__init__()
+        # Keyed by wallet.  The value is the device_id if the wallet
+        # has been paired, and None otherwise.
+        self.wallets = {}
+        # A list of clients.  We create a client for every device present
+        # that is of a registered hardware type
+        self.clients = []
+        # What we recognise.  Keyed by (vendor_id, product_id) pairs,
+        # the value is a handler for those devices.  The handler must
+        # implement
+        self.recognised_hardware = {}
+        # For synchronization
+        self.lock = threading.RLock()
+
+    def register_devices(self, handler, device_pairs):
+        for pair in device_pairs:
+            self.recognised_hardware[pair] = handler
+
+    def close_client(self, client):
+        with self.lock:
+            if client in self.clients:
+                self.clients.remove(client)
+                client.close()
+
+    def close_wallet(self, wallet):
+        # Remove the wallet from our list; close any client
+        with self.lock:
+            device_id = self.wallets.pop(wallet, None)
+            self.close_client(self.client_by_device_id(device_id))
+
+    def clients_of_type(self, classinfo):
+        with self.lock:
+            return [client for client in self.clients
+                    if isinstance(client, classinfo)]
+
+    def client_by_device_id(self, device_id):
+        with self.lock:
+            for client in self.clients:
+                if client.device_id() == device_id:
+                    return client
+            return None
+
+    def wallet_by_device_id(self, device_id):
+        with self.lock:
+            for wallet, wallet_device_id in self.wallets.items():
+                if wallet_device_id == device_id:
+                    return wallet
+            return None
+
+    def paired_wallets(self):
+        with self.lock:
+            return [wallet for (wallet, device_id) in self.wallets.items()
+                    if device_id is not None]
+
+    def pair_wallet(self, wallet, client):
+        assert client in self.clients
+        self.print_error("paired:", wallet, client)
+        self.wallets[wallet] = client.device_id()
+        client.pair_wallet(wallet)
+        wallet.connected()
+
+    def scan_devices(self):
+        # All currently supported hardware libraries use hid, so we
+        # assume it here.  This can be easily abstracted if necessary.
+        # Note this import must be local so those without hardware
+        # wallet libraries are not affected.
+        import hid
+
+        self.print_error("scanning devices...")
+
+        # First see what's connected that we know about
+        devices = {}
+        for d in hid.enumerate(0, 0):
+            product_key = (d['vendor_id'], d['product_id'])
+            device_id = d['serial_number']
+            path = d['path']
+
+            handler = self.recognised_hardware.get(product_key)
+            if handler:
+                devices[device_id] = (handler, path, product_key)
+
+        # Now find out what was disconnected
+        with self.lock:
+            disconnected = [client for client in self.clients
+                            if not client.device_id() in devices]
+
+        # Close disconnected clients after informing their wallets
+        for client in disconnected:
+            wallet = self.wallet_by_device_id(client.device_id())
+            if wallet:
+                wallet.disconnected()
+            self.close_client(client)
+
+        # Now see if any new devices are present.
+        for device_id, (handler, path, product_key) in devices.items():
+            try:
+                client = handler.create_client(path, product_key)
+            except BaseException as e:
+                self.print_error("could not create client", str(e))
+                client = None
+            if client:
+                self.print_error("client created for", path)
+                with self.lock:
+                    self.clients.append(client)
+                # Inform re-paired wallet
+                wallet = self.wallet_by_device_id(device_id)
+                if wallet:
+                    self.pair_wallet(wallet, client)
+
+    def get_client(self, wallet, lookup=PAIRED):
+        '''Returns a client for the wallet, or None if one could not be
+        found.'''
+        with self.lock:
+            device_id = self.wallets.get(wallet)
+            client = self.client_by_device_id(device_id)
+            if client:
+                return client
+
+        if lookup == DeviceMgr.CACHED:
+            return None
+
+        first_address, derivation = wallet.first_address()
+        # Wallets don't have a first address in the install wizard
+        # until account creation
+        if not first_address:
+            self.print_error("no first address for ", wallet)
+            return None
+
+        # We didn't find it, so scan for new devices.  We scan as
+        # little as possible: some people report a USB scan is slow on
+        # Linux when a Trezor is plugged in
+        self.scan_devices()
+
+        with self.lock:
+            # Maybe the scan found it?  If the wallet has a device_id
+            # from a prior pairing, we can determine success now.
+            if device_id:
+                return self.client_by_device_id(device_id)
+
+            # Stop here if no wake and we couldn't find it.
+            if lookup == DeviceMgr.PRESENT:
+                return None
+
+            # The wallet has not been previously paired, so get the
+            # first address of all unpaired clients and compare.
+            for client in self.clients:
+                # If already paired skip it
+                if self.wallet_by_device_id(client.device_id()):
+                    continue
+                # This will trigger a PIN/passphrase entry request
+                if client.first_address(wallet, derivation) == first_address:
+                    self.pair_wallet(wallet, client)
+                    return client
+
+            # Not found
+            return None

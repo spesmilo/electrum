@@ -48,7 +48,7 @@ class WizardBase(PrintError):
         ('multisig',  _("Multi-signature wallet")),
         ('hardware',  _("Hardware wallet")),
     ]
-
+    TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
 
     # Derived classes must set:
     #   self.language_for_seed
@@ -103,14 +103,21 @@ class WizardBase(PrintError):
         dynamic feedback.  If not provided, Wallet.is_any is used."""
         raise NotImplementedError
 
-    def request_trezor_reset_settings(self, device):
-        """Ask the user how they want to initialize a trezor compatible
-        device.  device is the device kind, e.g. "Keepkey", to be used
-        in dialog messages.  Returns a 4-tuple: (strength, label,
-        pinprotection, passphraseprotection).  Strength is 0, 1 or 2
-        for a 12, 18 or 24 word seed, respectively.  Label is a name
-        to give the device.  PIN protection and passphrase protection
-        are booleans and should default to True and False respectively."""
+    def request_trezor_init_settings(self, method, device):
+        """Ask the user for the information needed to initialize a trezor-
+        compatible device.  Method is one of the TIM_ trezor init
+        method constants.  TIM_NEW and TIM_RECOVER should ask how many
+        seed words to use, and return 0, 1 or 2 for a 12, 18 or 24
+        word seed respectively.  TIM_MNEMONIC should ask for a
+        mnemonic.  TIM_PRIVKEY should ask for a master private key.
+        All four methods should additionally ask for a name to label
+        the device, PIN information and whether passphrase protection is
+        to be enabled (True/False, default to False).  For TIM_NEW and
+        TIM_RECOVER, the pin information is whether pin protection
+        is required (True/False, default to True); for TIM_MNEMONIC and
+        TIM_PRIVKEY is is the pin as a string of digits 1-9.
+        The result is a 4-tuple: (TIM specific data, label, pininfo,
+        passphraseprotection)."""
         raise NotImplementedError
 
     def request_many(self, n, xpub_hot=None):
@@ -126,43 +133,9 @@ class WizardBase(PrintError):
         """Choose a server if one is not set in the config anyway."""
         raise NotImplementedError
 
-    def open_existing_wallet(self, storage, network):
-        wallet = Wallet(storage)
-        self.update_wallet_format(wallet)
-        self.run_wallet_actions(wallet)
-        wallet.start_threads(network)
-        return wallet, None
-
-    def create_new_wallet(self, storage, network):
-        action, wallet = self.create_or_restore(storage)
-        self.run_wallet_actions(wallet)
-
-        if network:
-            self.choose_server(network)
-        else:
-            self.show_warning(_('You are offline'))
-
-        def task():
-            # Synchronize before starting the threads
-            wallet.synchronize()
-            wallet.start_threads(network)
-# FIXME
-#            if action == 'create':
-#                msg = _('Wallet addresses generated.')
-#            else:
-#                wallet.wait_until_synchronized()
-#                if network:
-#                    if wallet.is_found():
-#                        msg = _("Recovery successful")
-#                    else:
-#                        msg = _("No transactions found for this seed")
-#                else:
-#                    msg = _("This wallet was restored offline. It may "
-#                            "contain more addresses than displayed.")
-#            self.show_message(msg)
-
-        return wallet, (MSG_GENERATING_WAIT, task)
-
+    def show_restore(self, wallet, network, action):
+        """Show restore result"""
+        pass
 
     def open_wallet(self, network, filename):
         '''The main entry point of the wizard.  Open a wallet from the given
@@ -170,21 +143,38 @@ class WizardBase(PrintError):
         install wizard proper.'''
         storage = WalletStorage(filename)
         if storage.file_exists:
-            return self.open_existing_wallet(storage, network)
+            wallet = Wallet(storage)
+            self.update_wallet_format(wallet)
+            task = None
         else:
-            return self.create_new_wallet(storage, network)
+            cr, wallet = self.create_or_restore(storage)
+            if not wallet:
+                return
+            task = lambda: self.show_restore(wallet, network, cr)
 
-    def run_wallet_actions(self, wallet):
-        if not wallet:
-            return
-        action = orig_action = wallet.get_action()
-        while action:
-            self.run_wallet_action(wallet, action)
+        while True:
             action = wallet.get_action()
-        # Save the wallet after successful completion of actions.
-        # It will be saved again once synchronized.
-        if orig_action:
+            if not action:
+                break
+            self.run_wallet_action(wallet, action)
+            # Save the wallet after each action
             wallet.storage.write()
+
+        if network:
+            self.choose_server(network)
+        else:
+            self.show_warning(_('You are offline'))
+
+        self.create_addresses(wallet)
+        # start wallet threads
+        if network:
+            wallet.start_threads(network)
+
+        if task:
+            task()
+
+        return wallet
+
 
     def run_wallet_action(self, wallet, action):
         self.print_error("action %s on %s" % (action, wallet.basename()))
@@ -269,14 +259,20 @@ class WizardBase(PrintError):
         return Wallet.from_multisig(key_list, password, storage, wallet_type)
 
     def create_seed(self, wallet):
-        '''The create_seed action creates a seed and then generates
-        wallet account(s).'''
+        '''The create_seed action creates a seed and generates
+        master keys.'''
         seed = wallet.make_seed(self.language_for_seed)
         self.show_and_verify_seed(seed)
         password = self.request_password()
         wallet.add_seed(seed, password)
         wallet.create_master_keys(password)
-        wallet.create_main_account(password)
+
+    def create_main_account(self, wallet):
+        # FIXME: BIP44 restore requires password
+        wallet.create_main_account()
+
+    def create_addresses(self, wallet):
+        wallet.synchronize()
 
     def add_cosigners(self, wallet):
         # FIXME: better handling of duplicate keys

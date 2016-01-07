@@ -316,7 +316,7 @@ class Abstract_Wallet(PrintError):
         if removed:
             self.save_accounts()
 
-    def create_main_account(self, password):
+    def create_main_account(self):
         pass
 
     def synchronize(self):
@@ -1545,6 +1545,8 @@ class Deterministic_Wallet(Abstract_Wallet):
     def get_action(self):
         if not self.get_master_public_key():
             return 'create_seed'
+        if not self.accounts:
+            return 'create_main_account'
 
     def get_master_public_keys(self):
         out = {}
@@ -1697,7 +1699,7 @@ class BIP32_HD_Wallet(BIP32_Wallet):
         return (self.can_create_accounts() and
                 not self.show_account(self.last_account_id()))
 
-    def create_main_account(self, password):
+    def create_hd_account(self, password):
         # First check the password is valid (this raises if it isn't).
         if self.can_change_password():
             self.check_password(password)
@@ -1783,7 +1785,7 @@ class NewWallet(BIP32_Wallet, Mnemonic):
     root_derivation = "m/"
     wallet_type = 'standard'
 
-    def create_main_account(self, password):
+    def create_main_account(self):
         xpub = self.master_public_keys.get("x/")
         account = BIP32_Account({'xpub':xpub})
         self.add_account('0', account)
@@ -1810,7 +1812,7 @@ class Multisig_Wallet(BIP32_Wallet, Mnemonic):
                 v['xpubs'] = [v['xpub'], v['xpub2']]
             self.accounts = {'0': Multisig_Account(v)}
 
-    def create_main_account(self, password):
+    def create_main_account(self):
         account = Multisig_Account({'xpubs': self.master_public_keys.values(), 'm': self.m})
         self.add_account('0', account)
 
@@ -1821,6 +1823,8 @@ class Multisig_Wallet(BIP32_Wallet, Mnemonic):
         for i in range(self.n):
             if self.master_public_keys.get("x%d/"%(i+1)) is None:
                 return 'create_seed' if i == 0 else 'add_cosigners'
+        if not self.accounts:
+            return 'create_main_account'
 
 
 class OldWallet(Deterministic_Wallet):
@@ -1864,7 +1868,7 @@ class OldWallet(Deterministic_Wallet):
     def get_master_public_keys(self):
         return {'Main Account':self.get_master_public_key()}
 
-    def create_main_account(self, password):
+    def create_main_account(self):
         mpk = self.storage.get("master_public_key")
         self.create_account(mpk)
 
@@ -2031,7 +2035,6 @@ class Wallet(object):
         w = klass(storage)
         w.add_seed(seed, password)
         w.create_master_keys(password)
-        w.create_main_account(password)
         return w
 
     @staticmethod
@@ -2091,7 +2094,6 @@ class Wallet(object):
             else:
                 raise RunTimeError("Cannot handle text for multisig")
         wallet.set_use_encryption(password is not None)
-        wallet.create_main_account(password)
         return wallet
 
     @staticmethod

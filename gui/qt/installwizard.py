@@ -17,7 +17,8 @@ from electrum_ltc.mnemonic import prepare_seed
 from electrum_ltc.wizard import (WizardBase, UserCancelled,
                                  MSG_ENTER_PASSWORD, MSG_RESTORE_PASSPHRASE,
                                  MSG_COSIGNER, MSG_ENTER_SEED_OR_MPK,
-                                 MSG_SHOW_MPK, MSG_VERIFY_SEED)
+                                 MSG_SHOW_MPK, MSG_VERIFY_SEED,
+                                 MSG_GENERATING_WAIT)
 
 class CosignWidget(QWidget):
     size = 120
@@ -133,6 +134,32 @@ class InstallWizard(WindowModalDialog, WizardBase):
         # Show network dialog if config does not exist
         if self.config.get('server') is None:
             self.network_dialog(network)
+
+    def show_restore(self, wallet, network, action):
+        def on_finished(b):
+            if action == 'restore':
+                if network:
+                    if wallet.is_found():
+                        msg = _("Recovery successful")
+                    else:
+                        msg = _("No transactions found for this seed")
+                else:
+                    msg = _("This wallet was restored offline. It may "
+                            "contain more addresses than displayed.")
+                self.show_message(msg)
+
+    def create_addresses(self, wallet):
+        def task():
+            wallet.synchronize()
+            self.emit(QtCore.SIGNAL('accept'))
+        t = threading.Thread(target = task)
+        t.start()
+        vbox = QVBoxLayout()
+        self.waiting_label = QLabel(MSG_GENERATING_WAIT)
+        vbox.addWidget(self.waiting_label)
+        self.set_layout(vbox)
+        self.raise_()
+        self.exec_()
 
     def set_layout(self, layout):
         w = QWidget()
@@ -317,6 +344,11 @@ class InstallWizard(WindowModalDialog, WizardBase):
     def query_choice(self, msg, choices):
         vbox = QVBoxLayout()
         self.set_layout(vbox)
+        if len(msg) > 50:
+            label = QLabel(msg)
+            label.setWordWrap(True)
+            vbox.addWidget(label)
+            msg = ""
         gb2 = QGroupBox(msg)
         vbox.addWidget(gb2)
 
@@ -387,54 +419,87 @@ class InstallWizard(WindowModalDialog, WizardBase):
         if not self.exec_():
             raise UserCancelled
 
-    def request_trezor_reset_settings(self, device):
+    def request_trezor_init_settings(self, method, device):
         vbox = QVBoxLayout()
 
-        main_label = QLabel(_("Choose how to initialize your %s device:")
-                            % device)
+        main_label = QLabel(_("Initialization settings for your %s:") % device)
         vbox.addWidget(main_label)
 
-        msg = _("Select your seed length and strength:")
-        choices = [
-            _("12 words (low)"),
-            _("18 words (medium)"),
-            _("24 words (high)"),
-        ]
-        gb = QGroupBox(msg)
-        vbox1 = QVBoxLayout()
-        gb.setLayout(vbox1)
-        bg = QButtonGroup()
-        for i, choice in enumerate(choices):
-            rb = QRadioButton(gb)
-            rb.setText(choice)
-            bg.addButton(rb)
-            bg.setId(rb, i)
-            vbox1.addWidget(rb)
-        rb.setChecked(True)
-        vbox.addWidget(gb)
+        OK_button = OkButton(self, _('Next'))
+
+        if method in [self.TIM_NEW, self.TIM_RECOVER]:
+            gb = QGroupBox()
+            vbox1 = QVBoxLayout()
+            gb.setLayout(vbox1)
+            vbox.addWidget(gb)
+            gb.setTitle(_("Select your seed length:"))
+            choices = [
+                _("12 words"),
+                _("18 words"),
+                _("24 words"),
+            ]
+            bg = QButtonGroup()
+            for i, choice in enumerate(choices):
+                rb = QRadioButton(gb)
+                rb.setText(choice)
+                bg.addButton(rb)
+                bg.setId(rb, i)
+                vbox1.addWidget(rb)
+                rb.setChecked(True)
+            cb_pin = QCheckBox(_('Enable PIN protection'))
+            cb_pin.setChecked(True)
+        else:
+            text = QTextEdit()
+            text.setMaximumHeight(60)
+            if method == self.TIM_MNEMONIC:
+                msg = _("Enter your BIP39 mnemonic:")
+            else:
+                msg = _("Enter the master private key beginning with xprv:")
+                def set_enabled():
+                    OK_button.setEnabled(Wallet.is_xprv(
+                        self.get_seed_text(text)))
+                text.textChanged.connect(set_enabled)
+                OK_button.setEnabled(False)
+
+            vbox.addWidget(QLabel(msg))
+            vbox.addWidget(text)
+            pin = QLineEdit()
+            pin.setValidator(QRegExpValidator(QRegExp('[1-9]{0,10}')))
+            pin.setMaximumWidth(100)
+            hbox_pin = QHBoxLayout()
+            hbox_pin.addWidget(QLabel(_("Enter your PIN (digits 1-9):")))
+            hbox_pin.addWidget(pin)
+            hbox_pin.addStretch(1)
 
         label = QLabel(_("Enter a label to name your device:"))
         name = QLineEdit()
         hl = QHBoxLayout()
         hl.addWidget(label)
         hl.addWidget(name)
-        hl.addStretch(2)
+        hl.addStretch(1)
         vbox.addLayout(hl)
 
-        cb_pin = QCheckBox(_('Enable PIN protection'))
-        cb_pin.setChecked(True)
-        vbox.addWidget(cb_pin)
+        if method in [self.TIM_NEW, self.TIM_RECOVER]:
+            vbox.addWidget(cb_pin)
+        else:
+            vbox.addLayout(hbox_pin)
 
         cb_phrase = QCheckBox(_('Enable Passphrase protection'))
         cb_phrase.setChecked(False)
         vbox.addWidget(cb_phrase)
 
         vbox.addStretch(1)
-        vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _('Next'))))
+        vbox.addLayout(Buttons(CancelButton(self), OK_button))
         self.set_layout(vbox)
 
         if not self.exec_():
             raise UserCancelled
 
-        return (bg.checkedId(), unicode(name.text()),
-                cb_pin.isChecked(), cb_phrase.isChecked())
+        if method in [self.TIM_NEW, self.TIM_RECOVER]:
+            item = bg.checkedId()
+            pin = cb_pin.isChecked()
+        else:
+            item = ' '.join(str(self.get_seed_text(text)).split())
+            pin = str(pin.text())
+
+        return (item, unicode(name.text()), pin, cb_phrase.isChecked())

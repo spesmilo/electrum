@@ -98,12 +98,12 @@ def prompt_password(prompt, confirm=True):
 
 
 
-def init_gui(config, network, plugins):
+def init_gui(config, network, daemon, plugins):
     gui_name = config.get('gui', 'qt')
     if gui_name in ['lite', 'classic']:
         gui_name = 'qt'
     gui = __import__('electrum_ltc_gui.' + gui_name, fromlist=['electrum_ltc_gui'])
-    gui = gui.ElectrumGui(config, network, plugins)
+    gui = gui.ElectrumGui(config, network, daemon, plugins)
     return gui
 
 
@@ -343,9 +343,10 @@ if __name__ == '__main__':
                 plugins.start()
             else:
                 network = None
-            gui = init_gui(config, network, plugins)
-            daemon = Daemon(config, network, gui)
+            daemon = Daemon(config, network)
             daemon.start()
+            gui = init_gui(config, network, daemon, plugins)
+            daemon.gui = gui
             gui.main()
             sys.exit(0)
 

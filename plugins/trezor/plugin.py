@@ -10,17 +10,23 @@ from electrum_ltc.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.transaction import (deserialize, is_extended_pubkey,
-                                  Transaction, x_to_xpub)
+              
 from electrum_ltc.wallet import BIP32_HD_Wallet, BIP44_Wallet
 from electrum_ltc.util import ThreadJob
+from electrum_ltc.plugins import DeviceMgr
+from electrum_ltc.wizard import WizardBase
 
 class DeviceDisconnectedError(Exception):
+    pass
+
+class OutdatedFirmwareError(Exception):
     pass
 
 class TrezorCompatibleWallet(BIP44_Wallet):
     # Extend BIP44 Wallet as required by hardware implementation.
     # Derived classes must set:
     #   - device
+    #   - DEVICE_IDS
     #   - wallet_type
 
     restore_wallet_class = BIP44_Wallet
@@ -76,14 +82,20 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         '''The wallet is watching-only if its trezor device is not connected,
         or if it is connected but uninitialized.'''
         assert not self.has_seed()
-        client = self.plugin.lookup_client(self)
+        client = self.get_client(DeviceMgr.CACHED)
         return not (client and client.is_initialized())
 
     def can_change_password(self):
         return False
 
-    def client(self):
-        return self.plugin.client(self)
+    def get_client(self, lookup=DeviceMgr.PAIRED):
+        return self.plugin.get_client(self, lookup)
+
+    def first_address(self):
+        '''Used to check a hardware wallet matches a software wallet'''
+        account = self.accounts.get('0')
+        derivation = self.address_derivation('0', 0, 0)
+        return (account.first_address()[0] if account else None, derivation)
 
     def derive_xkeys(self, root, derivation, password):
         if self.master_public_keys.get(root):
@@ -96,7 +108,7 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         return xpub, None
 
     def get_public_key(self, bip32_path):
-        client = self.client()
+        client = self.get_client()
         address_n = client.expand_path(bip32_path)
         node = client.get_public_node(address_n).node
         xpub = ("0488B21E".decode('hex') + chr(node.depth)
@@ -111,7 +123,7 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         raise RuntimeError(_('Decrypt method is not implemented'))
 
     def sign_message(self, address, message, password):
-        client = self.client()
+        client = self.get_client()
         address_path = self.address_id(address)
         address_n = client.expand_path(address_path)
         msg_sig = client.sign_message('Litecoin', address_n, message)
@@ -152,206 +164,153 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
     #     libraries_available, libraries_URL, minimum_firmware,
     #     wallet_class, ckd_public, types, HidTransport
 
-    # This plugin automatically keeps track of attached devices, and
-    # connects to anything attached creating a new Client instance.
-    # When disconnected, the client is informed via a callback.
-    # As a device can be disconnected and/or reconnected in a different
-    # USB port (giving it a new path), the wallet must be dynamic in
-    # asking for its client.
-    # If a wallet is successfully paired with a given device, the plugin
-    # stores its serial number in the wallet so it can be automatically
-    # re-paired if the same device is connected elsewhere.
-    # Approaching things this way permits several devices to be connected
-    # simultaneously and handled smoothly.
-
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
         self.device = self.wallet_class.device
         self.wallet_class.plugin = self
         self.prevent_timeout = time.time() + 3600 * 24 * 365
-        # A set of client instances to USB paths
-        self.clients = set()
-        # The device wallets we have seen to inform on reconnection
-        self.paired_wallets = set()
-        self.last_scan = 0
+        self.device_manager().register_devices(self, self.DEVICE_IDS)
+
+    def is_enabled(self):
+        return self.libraries_available
+
+    def device_manager(self):
+        return self.parent.device_manager
 
     def thread_jobs(self):
-        # Scan connected devices every second.  The test for libraries
-        # available is necessary to recover wallets on machines without
-        # libraries
+        # Thread job to handle device timeouts
         return [self] if self.libraries_available else []
 
     def run(self):
-        '''Runs in the context of the Plugins thread.'''
+        '''Handle device timeouts.  Runs in the context of the Plugins
+        thread.'''
         now = time.time()
-        if now > self.last_scan + 1:
-            self.last_scan = now
-            self.scan_devices()
+        for wallet in self.device_manager().paired_wallets():
+            if (isinstance(wallet, self.wallet_class)
+                and hasattr(wallet, 'last_operation')
+                and now > wallet.last_operation + wallet.session_timeout):
+                client = self.get_client(wallet, DeviceMgr.CACHED)
+                if client:
+                    wallet.last_operation = self.prevent_timeout
+                    client.clear_session()
+                    wallet.timeout()
 
-            for wallet in self.paired_wallets:
-                if now > wallet.last_operation + wallet.session_timeout:
-                    client = self.lookup_client(wallet)
-                    if client:
-                        wallet.last_operation = self.prevent_timeout
-                        self.clear_session(client)
-                        wallet.timeout()
+    def create_client(self, path, product_key):
+        pair = ((None, path) if self.HidTransport._detect_debuglink(path)
+                else (path, None))
+        try:
+            transport = self.HidTransport(pair)
+        except BaseException as e:
+            # We were probably just disconnected; never mind
+            self.print_error("cannot connect at", path, str(e))
+            return None
+        self.print_error("connected to device at", path)
+        return self.client_class(transport, path, self)
 
-    def scan_devices(self):
-        '''Scan devices.  Runs in the context of the Plugins thread.'''
-        paths = self.HidTransport.enumerate()
-        connected = set([c for c in self.clients if c.path in paths])
-        disconnected = self.clients - connected
+    def get_client(self, wallet, lookup=DeviceMgr.PAIRED, check_firmware=True):
+        '''check_firmware is ignored unless doing a PAIRED lookup.'''
+        client = self.device_manager().get_client(wallet, lookup)
 
-        self.clients = connected
-
-        # Inform clients and wallets they were disconnected
-        for client in disconnected:
-            self.print_error("device disconnected:", client)
-            if client.wallet:
-                client.wallet.disconnected()
-
-        for path in paths:
-            # Look for new paths
-            if any(c.path == path for c in connected):
-                continue
-
+        # Try a ping if doing at least a PRESENT lookup
+        if client and lookup != DeviceMgr.CACHED:
+            self.print_error("set last_operation")
+            wallet.last_operation = time.time()
             try:
-                transport = self.HidTransport(path)
+                client.ping('t')
             except BaseException as e:
-                # We were probably just disconnected; never mind
-                self.print_error("cannot connect at", path, str(e))
-                continue
+                self.print_error("ping failed", str(e))
+                # Remove it from the manager's cache
+                self.device_manager().close_client(client)
+                client = None
 
-            self.print_error("connected to device at", path[0])
+        if lookup == DeviceMgr.PAIRED:
+            assert wallet.handler
+            if not client:
+                msg = (_('Could not connect to your %s.  Verify the '
+                         'cable is connected and that no other app is '
+                         'using it.\nContinuing in watching-only mode '
+                         'until the device is re-connected.') % self.device)
+                wallet.handler.show_error(msg)
+                raise DeviceDisconnectedError(msg)
 
-            try:
-                client = self.client_class(transport, path, self)
-            except BaseException as e:
-                self.print_error("cannot create client for", path, str(e))
-            else:
-                self.clients.add(client)
-                self.print_error("new device:", client)
+            if (check_firmware and not
+                client.atleast_version(*self.minimum_firmware)):
+                msg = (_('Outdated %s firmware for device labelled %s. Please '
+                         'download the updated firmware from %s') %
+                       (self.device, client.label(), self.firmware_URL))
+                wallet.handler.show_error(msg)
+                raise OutdatedFirmwareError(msg)
 
-            # Inform reconnected wallets
-            for wallet in self.paired_wallets:
-                if wallet.device_id == client.features.device_id:
-                    client.wallet = wallet
-                    wallet.connected()
+        return client
 
-    def clear_session(self, client):
-        # Clearing the session forces pin re-entry
-        self.print_error("clear session:", client)
-        client.clear_session()
+    @hook
+    def close_wallet(self, wallet):
+        if isinstance(wallet, self.wallet_class):
+            self.device_manager().close_wallet(wallet)
 
     def initialize_device(self, wallet, wizard):
         # Prevent timeouts during initialization
         wallet.last_operation = self.prevent_timeout
 
-        (strength, label, pin_protection, passphrase_protection) \
-            = wizard.request_trezor_reset_settings(self.device)
+        # Initialization method
+        msg = _("Please select how you want to initialize your %s.\n"
+                "The first two are secure as no secret information is entered "
+                "onto your computer.\nFor the last two methods you enter "
+                "secrets into your computer and upload them to the device, "
+                "and so should only be done on a computer you know to be "
+                "trustworthy and free of malware."
+        ) % self.device
 
-        assert strength in range(0, 3)
-        strength = 64 * (strength + 2)    # 128, 192 or 256
-        language = ''
+        methods = [
+            _("Let the device generate a completely new seed randomly"),
+            _("Recover from an existing %s seed you have previously written "
+              "down" % self.device),
+            _("Upload a BIP39 mnemonic to generate the seed"),
+            _("Upload a master private key")
+        ]
 
-        client = self.client(wallet)
-        client.reset_device(True, strength, passphrase_protection,
-                            pin_protection, label, language)
+        method = wizard.query_choice(msg, methods)
+        (item, label, pin_protection, passphrase_protection) \
+            = wizard.request_trezor_init_settings(method, self.device)
 
+        client = self.get_client(wallet)
+        language = 'english'
+
+        if method == WizardBase.TIM_NEW:
+            strength = 64 * (item + 2)  # 128, 192 or 256
+            client.reset_device(True, strength, passphrase_protection,
+                                pin_protection, label, language)
+        elif method == WizardBase.TIM_RECOVER:
+            word_count = 6 * (item + 2)  # 12, 18 or 24
+            client.recovery_device(word_count, passphrase_protection,
+                                   pin_protection, label, language)
+        elif method == WizardBase.TIM_MNEMONIC:
+            pin = pin_protection  # It's the pin, not a boolean
+            client.load_device_by_mnemonic(str(item), pin,
+                                           passphrase_protection,
+                                           label, language)
+        else:
+            pin = pin_protection  # It's the pin, not a boolean
+            client.load_device_by_xprv(item, pin, passphrase_protection,
+                                       label, language)
 
     def select_device(self, wallet, wizard):
         '''Called when creating a new wallet.  Select the device to use.  If
         the device is uninitialized, go through the intialization
         process.'''
-        clients = list(self.clients)
-        suffixes = [_("An unnamed device (wiped)"), _(" (initialized)")]
-        labels = [client.label() + suffixes[client.is_initialized()]
-                  for client in clients]
+        self.device_manager().scan_devices()
+        clients = self.device_manager().clients_of_type(self.client_class)
+        suffixes = [_(" (wiped)"), _(" (initialized)")]
+        def client_desc(client):
+            label = client.label() or _("An unnamed device")
+            return label + suffixes[client.is_initialized()]
+        labels = list(map(client_desc, clients))
+
         msg = _("Please select which %s device to use:") % self.device
         client = clients[wizard.query_choice(msg, labels)]
-        self.pair_wallet(wallet, client)
+        self.device_manager().pair_wallet(wallet, client)
         if not client.is_initialized():
             self.initialize_device(wallet, wizard)
-
-    def operated_on(self, wallet):
-        self.print_error("set last_operation")
-        wallet.last_operation = time.time()
-
-    def pair_wallet(self, wallet, client):
-        self.print_error("pairing wallet %s to device %s" % (wallet, client))
-        self.operated_on(wallet)
-        self.paired_wallets.add(wallet)
-        wallet.device_id = client.features.device_id
-        wallet.last_operation = time.time()
-        client.wallet = wallet
-        wallet.connected()
-
-    def try_to_pair_wallet(self, wallet):
-        '''Call this when loading an existing wallet to find if the
-        associated device is connected.'''
-        account = '0'
-        if not account in wallet.accounts:
-            self.print_error("try pair_wallet: wallet has no accounts")
-            return None
-
-        first_address = wallet.accounts[account].first_address()[0]
-        derivation = wallet.address_derivation(account, 0, 0)
-        for client in self.clients:
-            if client.wallet:
-                continue
-
-            if not client.atleast_version(*self.minimum_firmware):
-                wallet.handler.show_error(
-                    _('Outdated %s firmware for device labelled %s. Please '
-                      'download the updated firmware from %s') %
-                    (self.device, client.label(), self.firmware_URL))
-                continue
-
-            # This gives us a handler
-            client.wallet = wallet
-            device_address = None
-            try:
-                device_address = client.address_from_derivation(derivation)
-            finally:
-                client.wallet = None
-
-            if first_address == device_address:
-                self.pair_wallet(wallet, client)
-                return client
-
-        return None
-
-    def lookup_client(self, wallet):
-        for client in self.clients:
-            if client.features.device_id == wallet.device_id:
-                return client
-        return None
-
-    def client(self, wallet):
-        '''Returns a wrapped client which handles cleanup in case of
-        thrown exceptions, etc.'''
-        assert isinstance(wallet, self.wallet_class)
-        assert wallet.handler != None
-
-        self.operated_on(wallet)
-        if wallet.device_id is None:
-            client = self.try_to_pair_wallet(wallet)
-        else:
-            client = self.lookup_client(wallet)
-
-        if not client:
-            msg = (_('Could not connect to your %s.  Verify the '
-                     'cable is connected and that no other app is '
-                     'using it.\nContinuing in watching-only mode '
-                     'until the device is re-connected.') % self.device)
-            if not self.clients:
-                wallet.handler.show_error(msg)
-            raise DeviceDisconnectedError(msg)
-
-        return client
-
-    def is_enabled(self):
-        return self.libraries_available
 
     def on_restore_wallet(self, wallet, wizard):
         assert isinstance(wallet, self.wallet_class)
@@ -368,25 +327,13 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         password = wizard.request_password()
         wallet.add_seed(seed, password)
         wallet.add_cosigner_seed(seed, 'x/', password, passphrase)
-        wallet.create_main_account(password)
+        wallet.create_hd_account(password)
         return wallet
-
-    @hook
-    def close_wallet(self, wallet):
-        if isinstance(wallet, self.wallet_class):
-            # Don't retain references to a closed wallet
-            self.paired_wallets.discard(wallet)
-            client = self.lookup_client(wallet)
-            if client:
-                self.clear_session(client)
-                # Release the device
-                self.clients.discard(client)
-                client.transport.close()
 
     def sign_transaction(self, wallet, tx, prev_tx, xpub_path):
         self.prev_tx = prev_tx
         self.xpub_path = xpub_path
-        client = self.client(wallet)
+        client = self.get_client(wallet)
         inputs = self.tx_inputs(tx, True)
         outputs = self.tx_outputs(wallet, tx)
         signed_tx = client.sign_tx('Litecoin', inputs, outputs)[1]
@@ -394,7 +341,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         tx.update_signatures(raw)
 
     def show_address(self, wallet, address):
-        client = self.client(wallet)
+        client = self.get_client(wallet)
         if not client.atleast_version(1, 3):
             wallet.handler.show_error(_("Your device firmware is too old"))
             return
