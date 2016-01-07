@@ -136,6 +136,11 @@ class CaVirtEx(ExchangeBase):
         json = self.get_json('www.cavirtex.com', '/api2/ticker.json?currencypair=LTCCAD')
         return {'CAD': Decimal(json['ticker']['LTCCAD']['last'])}
 
+class CoinSpot(ExchangeBase):
+    def get_rates(self, ccy):
+        json = self.get_json('www.coinspot.com.au', '/pubapi/latest')
+        return {'AUD': Decimal(json['prices']['ltc']['last'])}
+
 class GoCoin(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('x.g0cn.com', '/prices')
