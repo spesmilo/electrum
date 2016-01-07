@@ -60,10 +60,6 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         self.print_error("connected")
         self.handler.watching_only_changed()
 
-    def wiped(self):
-        self.print_error("wiped")
-        self.handler.watching_only_changed()
-
     def timeout(self):
         '''Informs the wallet it timed out.  Note this is called from
         the Plugins thread.'''
@@ -164,6 +160,8 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
     #     libraries_available, libraries_URL, minimum_firmware,
     #     wallet_class, ckd_public, types, HidTransport
 
+    MAX_LABEL_LEN = 32
+
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
         self.device = self.wallet_class.device
@@ -257,7 +255,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
                 "The first two are secure as no secret information is entered "
                 "onto your computer.\nFor the last two methods you enter "
                 "secrets into your computer and upload them to the device, "
-                "and so should only be done on a computer you know to be "
+                "and so you should do those on a computer you know to be "
                 "trustworthy and free of malware."
         ) % self.device
 

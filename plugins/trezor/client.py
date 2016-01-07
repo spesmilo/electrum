@@ -14,6 +14,7 @@ class GuiMixin(object):
         10: _("Confirm address on %s device to continue"),
         'change pin': _("Confirm PIN change on %s device to continue"),
         'default': _("Check %s device to continue"),
+        'homescreen': _("Confirm home screen change on %s device to continue"),
         'label': _("Confirm label change on %s device to continue"),
         'remove pin': _("Confirm removal of PIN on %s device to continue"),
         'passphrase': _("Confirm on %s device to continue"),
@@ -139,6 +140,13 @@ def trezor_client_class(protocol_mixin, base_client, proto):
             self.msg_code_override = 'label'
             try:
                 self.apply_settings(label=label)
+            finally:
+                self.msg_code_override = None
+
+        def change_homescreen(self, homescreen):
+            self.msg_code_override = 'homescreen'
+            try:
+                self.apply_settings(homescreen=homescreen)
             finally:
                 self.msg_code_override = None
 
