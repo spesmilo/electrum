@@ -236,7 +236,7 @@ class SettingsDialog(WindowModalDialog):
                     "You will need to create a new Electrum wallet "
                     "with the install wizard so that they match.\n\n"
                     "Are you sure you want to proceed?") % plugin.device
-            if not dialog.question(msg, title=title):
+            if not self.question(msg, title=title):
                 return
             get_client().toggle_passphrase()
             self.device_manager().close_wallet(wallet)  # Unpair
@@ -275,8 +275,8 @@ class SettingsDialog(WindowModalDialog):
                 title = _("Confirm Device Wipe")
                 msg = _("Are you SURE you want to wipe the device?\n"
                         "Your wallet still has bitcoins in it!")
-                if not dialog.question(msg, title=title,
-                                       icon=QMessageBox.Critical):
+                if not self.question(msg, title=title,
+                                     icon=QMessageBox.Critical):
                     return
             # Note: we use PRESENT so that a user who has forgotten
             # their PIN is not prevented from wiping their device
