@@ -1545,7 +1545,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             _('Format: address, amount'),
             _('You may load a CSV file using the file icon.')
         ])
-        self.show_warning(msg, title=_('Pay to many'))
+        self.show_message(msg, title=_('Pay to many'))
 
     def payto_contacts(self, labels):
         paytos = [self.get_contact_payto(label) for label in labels]
