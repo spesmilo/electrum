@@ -6,11 +6,11 @@ from struct import pack
 
 from electrum_ltc.account import BIP32_Account
 from electrum_ltc.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
-                              EncodeBase58Check)
+                                  EncodeBase58Check)
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.transaction import (deserialize, is_extended_pubkey,
-              
+                                      Transaction, x_to_xpub)
 from electrum_ltc.wallet import BIP32_HD_Wallet, BIP44_Wallet
 from electrum_ltc.util import ThreadJob
 from electrum_ltc.plugins import DeviceMgr
@@ -58,10 +58,6 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         '''A device paired with the wallet was (re-)connected.  Note this
         is called in the context of the Plugins thread.'''
         self.print_error("connected")
-        self.handler.watching_only_changed()
-
-    def wiped(self):
-        self.print_error("wiped")
         self.handler.watching_only_changed()
 
     def timeout(self):
@@ -164,12 +160,15 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
     #     libraries_available, libraries_URL, minimum_firmware,
     #     wallet_class, ckd_public, types, HidTransport
 
+    MAX_LABEL_LEN = 32
+
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
         self.device = self.wallet_class.device
         self.wallet_class.plugin = self
         self.prevent_timeout = time.time() + 3600 * 24 * 365
-        self.device_manager().register_devices(self, self.DEVICE_IDS)
+        if self.libraries_available:
+            self.device_manager().register_devices(self, self.DEVICE_IDS)
 
     def is_enabled(self):
         return self.libraries_available
@@ -257,7 +256,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
                 "The first two are secure as no secret information is entered "
                 "onto your computer.\nFor the last two methods you enter "
                 "secrets into your computer and upload them to the device, "
-                "and so should only be done on a computer you know to be "
+                "and so you should do those on a computer you know to be "
                 "trustworthy and free of malware."
         ) % self.device
 
