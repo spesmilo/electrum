@@ -167,7 +167,8 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         self.device = self.wallet_class.device
         self.wallet_class.plugin = self
         self.prevent_timeout = time.time() + 3600 * 24 * 365
-        self.device_manager().register_devices(self, self.DEVICE_IDS)
+        if self.libraries_available:
+            self.device_manager().register_devices(self, self.DEVICE_IDS)
 
     def is_enabled(self):
         return self.libraries_available
