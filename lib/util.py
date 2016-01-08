@@ -330,6 +330,8 @@ block_explorer_info = {
                         {'tx': 'tx', 'addr': 'address'}),
     'TradeBlock.com': ('https://tradeblock.com/blockchain',
                         {'tx': 'tx', 'addr': 'address'}),
+    'system default': ('blockchain:',
+                        {'tx': 'tx', 'addr': 'address'}),
 }
 
 def block_explorer(config):
