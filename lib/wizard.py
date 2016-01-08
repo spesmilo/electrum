@@ -152,10 +152,12 @@ class WizardBase(PrintError):
                 return
             task = lambda: self.show_restore(wallet, network, cr)
 
+        need_sync = False
         while True:
             action = wallet.get_action()
             if not action:
                 break
+            need_sync = True
             self.run_wallet_action(wallet, action)
             # Save the wallet after each action
             wallet.storage.write()
@@ -165,7 +167,9 @@ class WizardBase(PrintError):
         else:
             self.show_warning(_('You are offline'))
 
-        self.create_addresses(wallet)
+        if need_sync:
+            self.create_addresses(wallet)
+
         # start wallet threads
         if network:
             wallet.start_threads(network)
