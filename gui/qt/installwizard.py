@@ -342,35 +342,16 @@ class InstallWizard(WindowModalDialog, WizardBase):
             network.auto_connect = True
 
     def query_choice(self, msg, choices):
-        vbox = QVBoxLayout()
-        self.set_layout(vbox)
-        if len(msg) > 50:
-            label = QLabel(msg)
-            label.setWordWrap(True)
-            vbox.addWidget(label)
-            msg = ""
-        gb2 = QGroupBox(msg)
-        vbox.addWidget(gb2)
-
-        vbox2 = QVBoxLayout()
-        gb2.setLayout(vbox2)
-
-        group2 = QButtonGroup()
-        for i,c in enumerate(choices):
-            button = QRadioButton(gb2)
-            button.setText(c)
-            vbox2.addWidget(button)
-            group2.addButton(button)
-            group2.setId(button, i)
-            if i==0:
-                button.setChecked(True)
-        vbox.addStretch(1)
+        clayout = ChoicesLayout(msg, choices)
         next_button = OkButton(self, _('Next'))
         next_button.setEnabled(bool(choices))
-        vbox.addLayout(Buttons(CancelButton(self), next_button))
+        layout = clayout.layout()
+        layout.addStretch(1)
+        layout.addLayout(Buttons(CancelButton(self), next_button))
+        self.set_layout(layout)
         if not self.exec_():
             raise UserCancelled
-        return group2.checkedId()
+        return clayout.selected_index()
 
     def query_multisig(self, action):
         vbox = QVBoxLayout()
