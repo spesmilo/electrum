@@ -115,7 +115,7 @@ class WizardBase(PrintError):
         """Choose a server if one is not set in the config anyway."""
         raise NotImplementedError
 
-    def show_restore(self, wallet, network, action):
+    def show_restore(self, wallet, network):
         """Show restore result"""
         pass
 
@@ -124,17 +124,19 @@ class WizardBase(PrintError):
         filename.  If the file doesn't exist launch the GUI-specific
         install wizard proper.'''
         storage = WalletStorage(filename)
+        need_sync = False
+        is_restore = False
+
         if storage.file_exists:
             wallet = Wallet(storage)
             self.update_wallet_format(wallet)
-            task = None
         else:
             cr, wallet = self.create_or_restore(storage)
             if not wallet:
                 return
-            task = lambda: self.show_restore(wallet, network, cr)
+            need_sync = True
+            is_restore = (cr == 'restore')
 
-        need_sync = False
         while True:
             action = wallet.get_action()
             if not action:
@@ -145,7 +147,9 @@ class WizardBase(PrintError):
             wallet.storage.write()
 
         if network:
-            self.choose_server(network)
+            # Show network dialog if config does not exist
+            if self.config.get('server') is None:
+                self.choose_server(network)
         else:
             self.show_warning(_('You are offline'))
 
@@ -156,8 +160,8 @@ class WizardBase(PrintError):
         if network:
             wallet.start_threads(network)
 
-        if task:
-            task()
+        if is_restore:
+            self.show_restore(wallet, network)
 
         return wallet
 

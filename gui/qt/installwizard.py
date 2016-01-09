@@ -131,22 +131,24 @@ class InstallWizard(WindowModalDialog, WizardBase):
         return self.pw_dialog(msg or MSG_ENTER_PASSWORD, PasswordDialog.PW_NEW)
 
     def choose_server(self, network):
-        # Show network dialog if config does not exist
-        if self.config.get('server') is None:
-            self.network_dialog(network)
+        self.network_dialog(network)
 
-    def show_restore(self, wallet, network, action):
-        def on_finished(b):
-            if action == 'restore':
-                if network:
-                    if wallet.is_found():
-                        msg = _("Recovery successful")
-                    else:
-                        msg = _("No transactions found for this seed")
+    def show_restore(self, wallet, network):
+        if network:
+            def task():
+                wallet.wait_until_synchronized()
+                if wallet.is_found():
+                    msg = _("Recovery successful")
                 else:
-                    msg = _("This wallet was restored offline. It may "
-                            "contain more addresses than displayed.")
-                self.show_message(msg)
+                    msg = _("No transactions found for this seed")
+                self.emit(QtCore.SIGNAL('synchronized'), msg)
+            self.connect(self, QtCore.SIGNAL('synchronized'), self.show_message)
+            t = threading.Thread(target = task)
+            t.start()
+        else:
+            msg = _("This wallet was restored offline. It may "
+                    "contain more addresses than displayed.")
+            self.show_message(msg)
 
     def create_addresses(self, wallet):
         def task():
