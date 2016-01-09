@@ -8,12 +8,13 @@ from PyQt4.Qt import QVBoxLayout, QLabel, SIGNAL
 from electrum_gui.qt.main_window import StatusBarButton
 from electrum_gui.qt.password_dialog import PasswordDialog
 from electrum_gui.qt.util import *
-from plugin import TrezorCompatiblePlugin
+from .plugin import TrezorCompatiblePlugin, TIM_NEW, TIM_RECOVER, TIM_MNEMONIC
 
 from electrum.i18n import _
 from electrum.plugins import hook, DeviceMgr
 from electrum.util import PrintError
-from electrum.wallet import BIP44_Wallet
+from electrum.wallet import Wallet, BIP44_Wallet
+from electrum.wizard import UserCancelled
 
 
 # By far the trickiest thing about this handler is the window stack;
@@ -134,6 +135,97 @@ class QtHandler(PrintError):
         finally:
             assert dialog == self.window_stack.pop()
 
+    def query_choice(self, msg, labels):
+        return self.win.query_choice(msg, labels)
+
+    def request_trezor_init_settings(self, method, device):
+        wizard = self.win
+
+        vbox = QVBoxLayout()
+        main_label = QLabel(_("Initialization settings for your %s:") % device)
+        vbox.addWidget(main_label)
+        OK_button = OkButton(wizard, _('Next'))
+
+        def clean_text(widget):
+            text = unicode(widget.toPlainText()).strip()
+            return ' '.join(text.split())
+
+        if method in [TIM_NEW, TIM_RECOVER]:
+            gb = QGroupBox()
+            vbox1 = QVBoxLayout()
+            gb.setLayout(vbox1)
+            vbox.addWidget(gb)
+            gb.setTitle(_("Select your seed length:"))
+            choices = [
+                _("12 words"),
+                _("18 words"),
+                _("24 words"),
+            ]
+            bg = QButtonGroup()
+            for i, choice in enumerate(choices):
+                rb = QRadioButton(gb)
+                rb.setText(choice)
+                bg.addButton(rb)
+                bg.setId(rb, i)
+                vbox1.addWidget(rb)
+                rb.setChecked(True)
+            cb_pin = QCheckBox(_('Enable PIN protection'))
+            cb_pin.setChecked(True)
+        else:
+            text = QTextEdit()
+            text.setMaximumHeight(60)
+            if method == TIM_MNEMONIC:
+                msg = _("Enter your BIP39 mnemonic:")
+            else:
+                msg = _("Enter the master private key beginning with xprv:")
+                def set_enabled():
+                    OK_button.setEnabled(Wallet.is_xprv(clean_text(text)))
+                text.textChanged.connect(set_enabled)
+                OK_button.setEnabled(False)
+
+            vbox.addWidget(QLabel(msg))
+            vbox.addWidget(text)
+            pin = QLineEdit()
+            pin.setValidator(QRegExpValidator(QRegExp('[1-9]{0,10}')))
+            pin.setMaximumWidth(100)
+            hbox_pin = QHBoxLayout()
+            hbox_pin.addWidget(QLabel(_("Enter your PIN (digits 1-9):")))
+            hbox_pin.addWidget(pin)
+            hbox_pin.addStretch(1)
+
+        label = QLabel(_("Enter a label to name your device:"))
+        name = QLineEdit()
+        hl = QHBoxLayout()
+        hl.addWidget(label)
+        hl.addWidget(name)
+        hl.addStretch(1)
+        vbox.addLayout(hl)
+
+        if method in [TIM_NEW, TIM_RECOVER]:
+            vbox.addWidget(cb_pin)
+        else:
+            vbox.addLayout(hbox_pin)
+
+        cb_phrase = QCheckBox(_('Enable Passphrase protection'))
+        cb_phrase.setChecked(False)
+        vbox.addWidget(cb_phrase)
+
+        vbox.addStretch(1)
+        vbox.addLayout(Buttons(CancelButton(wizard), OK_button))
+
+        wizard.set_layout(vbox)
+        if not wizard.exec_():
+            raise UserCancelled
+
+        if method in [TIM_NEW, TIM_RECOVER]:
+            item = bg.checkedId()
+            pin = cb_pin.isChecked()
+        else:
+            item = ' '.join(str(clean_text(text)).split())
+            pin = str(pin.text())
+
+        return (item, unicode(name.text()), pin, cb_phrase.isChecked())
+
 
 def qt_plugin_class(base_plugin_class):
 
@@ -159,7 +251,7 @@ def qt_plugin_class(base_plugin_class):
     def on_create_wallet(self, wallet, wizard):
         assert type(wallet) == self.wallet_class
         wallet.handler = self.create_handler(wizard)
-        self.select_device(wallet, wizard)
+        self.select_device(wallet)
         wallet.create_hd_account(None)
 
     @hook

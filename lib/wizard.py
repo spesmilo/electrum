@@ -48,7 +48,6 @@ class WizardBase(PrintError):
         ('multisig',  _("Multi-signature wallet")),
         ('hardware',  _("Hardware wallet")),
     ]
-    TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
 
     # Derived classes must set:
     #   self.language_for_seed
@@ -101,23 +100,6 @@ class WizardBase(PrintError):
         """Request the user enter a seed.  Returns the seed the user entered.
         is_valid is a function that returns True if a seed is valid, for
         dynamic feedback.  If not provided, Wallet.is_any is used."""
-        raise NotImplementedError
-
-    def request_trezor_init_settings(self, method, device):
-        """Ask the user for the information needed to initialize a trezor-
-        compatible device.  Method is one of the TIM_ trezor init
-        method constants.  TIM_NEW and TIM_RECOVER should ask how many
-        seed words to use, and return 0, 1 or 2 for a 12, 18 or 24
-        word seed respectively.  TIM_MNEMONIC should ask for a
-        mnemonic.  TIM_PRIVKEY should ask for a master private key.
-        All four methods should additionally ask for a name to label
-        the device, PIN information and whether passphrase protection is
-        to be enabled (True/False, default to False).  For TIM_NEW and
-        TIM_RECOVER, the pin information is whether pin protection
-        is required (True/False, default to True); for TIM_MNEMONIC and
-        TIM_PRIVKEY is is the pin as a string of digits 1-9.
-        The result is a 4-tuple: (TIM specific data, label, pininfo,
-        passphraseprotection)."""
         raise NotImplementedError
 
     def request_many(self, n, xpub_hot=None):

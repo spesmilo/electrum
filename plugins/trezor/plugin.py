@@ -14,7 +14,9 @@ from electrum.transaction import (deserialize, is_extended_pubkey,
 from electrum.wallet import BIP32_HD_Wallet, BIP44_Wallet
 from electrum.util import ThreadJob
 from electrum.plugins import DeviceMgr
-from electrum.wizard import WizardBase
+
+# Trezor initialization methods
+TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
 
 class DeviceDisconnectedError(Exception):
     pass
@@ -247,7 +249,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         if isinstance(wallet, self.wallet_class):
             self.device_manager().close_wallet(wallet)
 
-    def initialize_device(self, wallet, wizard):
+    def initialize_device(self, wallet):
         # Prevent timeouts during initialization
         wallet.last_operation = self.prevent_timeout
 
@@ -268,22 +270,22 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
             _("Upload a master private key")
         ]
 
-        method = wizard.query_choice(msg, methods)
+        method = wallet.handler.query_choice(msg, methods)
         (item, label, pin_protection, passphrase_protection) \
-            = wizard.request_trezor_init_settings(method, self.device)
+            = wallet.handler.request_trezor_init_settings(method, self.device)
 
         client = self.get_client(wallet)
         language = 'english'
 
-        if method == WizardBase.TIM_NEW:
+        if method == TIM_NEW:
             strength = 64 * (item + 2)  # 128, 192 or 256
             client.reset_device(True, strength, passphrase_protection,
                                 pin_protection, label, language)
-        elif method == WizardBase.TIM_RECOVER:
+        elif method == TIM_RECOVER:
             word_count = 6 * (item + 2)  # 12, 18 or 24
             client.recovery_device(word_count, passphrase_protection,
                                    pin_protection, label, language)
-        elif method == WizardBase.TIM_MNEMONIC:
+        elif method == TIM_MNEMONIC:
             pin = pin_protection  # It's the pin, not a boolean
             client.load_device_by_mnemonic(str(item), pin,
                                            passphrase_protection,
@@ -293,7 +295,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
             client.load_device_by_xprv(item, pin, passphrase_protection,
                                        label, language)
 
-    def select_device(self, wallet, wizard):
+    def select_device(self, wallet):
         '''Called when creating a new wallet.  Select the device to use.  If
         the device is uninitialized, go through the intialization
         process.'''
@@ -306,10 +308,10 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         labels = list(map(client_desc, clients))
 
         msg = _("Please select which %s device to use:") % self.device
-        client = clients[wizard.query_choice(msg, labels)]
+        client = clients[wallet.handler.query_choice(msg, labels)]
         self.device_manager().pair_wallet(wallet, client)
         if not client.is_initialized():
-            self.initialize_device(wallet, wizard)
+            self.initialize_device(wallet)
 
     def on_restore_wallet(self, wallet, wizard):
         assert isinstance(wallet, self.wallet_class)
