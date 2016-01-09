@@ -261,6 +261,37 @@ def text_dialog(parent, title, label, ok_label, default=None):
     if dialog.exec_():
         return unicode(txt.toPlainText())
 
+class ChoicesLayout(object):
+    def __init__(self, msg, choices):
+        vbox = QVBoxLayout()
+        if len(msg) > 50:
+            label = QLabel(msg)
+            label.setWordWrap(True)
+            vbox.addWidget(label)
+            msg = ""
+        gb2 = QGroupBox(msg)
+        vbox.addWidget(gb2)
+
+        vbox2 = QVBoxLayout()
+        gb2.setLayout(vbox2)
+
+        self.group = group = QButtonGroup()
+        for i,c in enumerate(choices):
+            button = QRadioButton(gb2)
+            button.setText(c)
+            vbox2.addWidget(button)
+            group.addButton(button)
+            group.setId(button, i)
+            if i==0:
+                button.setChecked(True)
+        self.vbox = vbox
+
+    def layout(self):
+        return self.vbox
+
+    def selected_index(self):
+        return self.group.checkedId()
+
 def address_field(addresses):
     hbox = QHBoxLayout()
     address_e = QLineEdit()

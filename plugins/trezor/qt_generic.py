@@ -8,12 +8,13 @@ from PyQt4.Qt import QVBoxLayout, QLabel, SIGNAL
 from electrum_ltc_gui.qt.main_window import StatusBarButton
 from electrum_ltc_gui.qt.password_dialog import PasswordDialog
 from electrum_ltc_gui.qt.util import *
-from plugin import TrezorCompatiblePlugin
+from .plugin import TrezorCompatiblePlugin, TIM_NEW, TIM_RECOVER, TIM_MNEMONIC
 
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import hook, DeviceMgr
 from electrum_ltc.util import PrintError
-from electrum_ltc.wallet import BIP44_Wallet
+from electrum_ltc.wallet import Wallet, BIP44_Wallet
+from electrum_ltc.wizard import UserCancelled
 
 
 # By far the trickiest thing about this handler is the window stack;
@@ -134,6 +135,97 @@ class QtHandler(PrintError):
         finally:
             assert dialog == self.window_stack.pop()
 
+    def query_choice(self, msg, labels):
+        return self.win.query_choice(msg, labels)
+
+    def request_trezor_init_settings(self, method, device):
+        wizard = self.win
+
+        vbox = QVBoxLayout()
+        main_label = QLabel(_("Initialization settings for your %s:") % device)
+        vbox.addWidget(main_label)
+        OK_button = OkButton(wizard, _('Next'))
+
+        def clean_text(widget):
+            text = unicode(widget.toPlainText()).strip()
+            return ' '.join(text.split())
+
+        if method in [TIM_NEW, TIM_RECOVER]:
+            gb = QGroupBox()
+            vbox1 = QVBoxLayout()
+            gb.setLayout(vbox1)
+            vbox.addWidget(gb)
+            gb.setTitle(_("Select your seed length:"))
+            choices = [
+                _("12 words"),
+                _("18 words"),
+                _("24 words"),
+            ]
+            bg = QButtonGroup()
+            for i, choice in enumerate(choices):
+                rb = QRadioButton(gb)
+                rb.setText(choice)
+                bg.addButton(rb)
+                bg.setId(rb, i)
+                vbox1.addWidget(rb)
+                rb.setChecked(True)
+            cb_pin = QCheckBox(_('Enable PIN protection'))
+            cb_pin.setChecked(True)
+        else:
+            text = QTextEdit()
+            text.setMaximumHeight(60)
+            if method == TIM_MNEMONIC:
+                msg = _("Enter your BIP39 mnemonic:")
+            else:
+                msg = _("Enter the master private key beginning with xprv:")
+                def set_enabled():
+                    OK_button.setEnabled(Wallet.is_xprv(clean_text(text)))
+                text.textChanged.connect(set_enabled)
+                OK_button.setEnabled(False)
+
+            vbox.addWidget(QLabel(msg))
+            vbox.addWidget(text)
+            pin = QLineEdit()
+            pin.setValidator(QRegExpValidator(QRegExp('[1-9]{0,10}')))
+            pin.setMaximumWidth(100)
+            hbox_pin = QHBoxLayout()
+            hbox_pin.addWidget(QLabel(_("Enter your PIN (digits 1-9):")))
+            hbox_pin.addWidget(pin)
+            hbox_pin.addStretch(1)
+
+        label = QLabel(_("Enter a label to name your device:"))
+        name = QLineEdit()
+        hl = QHBoxLayout()
+        hl.addWidget(label)
+        hl.addWidget(name)
+        hl.addStretch(1)
+        vbox.addLayout(hl)
+
+        if method in [TIM_NEW, TIM_RECOVER]:
+            vbox.addWidget(cb_pin)
+        else:
+            vbox.addLayout(hbox_pin)
+
+        cb_phrase = QCheckBox(_('Enable Passphrase protection'))
+        cb_phrase.setChecked(False)
+        vbox.addWidget(cb_phrase)
+
+        vbox.addStretch(1)
+        vbox.addLayout(Buttons(CancelButton(wizard), OK_button))
+
+        wizard.set_layout(vbox)
+        if not wizard.exec_():
+            raise UserCancelled
+
+        if method in [TIM_NEW, TIM_RECOVER]:
+            item = bg.checkedId()
+            pin = cb_pin.isChecked()
+        else:
+            item = ' '.join(str(clean_text(text)).split())
+            pin = str(pin.text())
+
+        return (item, unicode(name.text()), pin, cb_phrase.isChecked())
+
 
 def qt_plugin_class(base_plugin_class):
 
@@ -159,7 +251,7 @@ def qt_plugin_class(base_plugin_class):
     def on_create_wallet(self, wallet, wizard):
         assert type(wallet) == self.wallet_class
         wallet.handler = self.create_handler(wizard)
-        self.select_device(wallet, wizard)
+        self.select_device(wallet)
         wallet.create_hd_account(None)
 
     @hook
@@ -169,29 +261,69 @@ def qt_plugin_class(base_plugin_class):
                            lambda: self.show_address(wallet, addrs[0]))
 
     def settings_dialog(self, window):
-        dialog = SettingsDialog(window, self)
-        window.wallet.handler.exec_dialog(dialog)
+        hid_id = self.choose_device(window)
+        if hid_id:
+            dialog = SettingsDialog(window, self, hid_id)
+            window.wallet.handler.exec_dialog(dialog)
+
+    def choose_device(self, window):
+        '''This dialog box should be usable even if the user has
+        forgotten their PIN or it is in bootloader mode.'''
+        handler = window.wallet.handler
+        hid_id = self.device_manager().wallet_hid_id(window.wallet)
+        if not hid_id:
+            clients, labels = self.unpaired_clients(handler)
+            if clients:
+                msg = _("Select a %s device:") % self.device
+                choice = self.query_choice(window, msg, labels)
+                if choice is not None:
+                    hid_id = clients[choice].hid_id()
+            else:
+                handler.show_error(_("No devices found"))
+        return hid_id
+
+    def query_choice(self, window, msg, choices):
+        dialog = WindowModalDialog(window)
+        clayout = ChoicesLayout(msg, choices)
+        layout = clayout.layout()
+        layout.addStretch(1)
+        layout.addLayout(Buttons(CancelButton(dialog), OkButton(dialog)))
+        dialog.setLayout(layout)
+        if not dialog.exec_():
+            return None
+        return clayout.selected_index()
+
 
   return QtPlugin
 
 
 class SettingsDialog(WindowModalDialog):
+    '''This dialog doesn't require a device be paired with a wallet.
+    We want users to be able to wipe a device even if they've forgotten
+    their PIN.'''
 
-    def __init__(self, window, plugin):
-        self.plugin = plugin
-        self.window = window  # The main electrum window
+    def __init__(self, window, plugin, hid_id):
         title = _("%s Settings") % plugin.device
         super(SettingsDialog, self).__init__(window, title)
         self.setMaximumWidth(540)
+
+        devmgr = plugin.device_manager()
+        handler = window.wallet.handler
+        # wallet can be None, needn't be window.wallet
+        wallet = devmgr.wallet_by_hid_id(hid_id)
         hs_rows, hs_cols = (64, 128)
 
-        def get_client(lookup=DeviceMgr.PAIRED):
-            return self.plugin.get_client(wallet, lookup)
+        def get_client():
+            client = devmgr.client_by_hid_id(hid_id, handler)
+            if not client:
+                self.show_error("Device not connected!")
+                raise RuntimeError("Device not connected")
+            return client
 
         def update():
-            features = get_client(DeviceMgr.PAIRED).features
-            self.features = features
-            # The above was for outer scopes.  Now the real logic.
+            # self.features for outer scopes
+            client = get_client()
+            features = self.features = client.features
             set_label_enabled()
             bl_hash = features.bootloader_hash.encode('hex')
             bl_hash = "\n".join([bl_hash[:32], bl_hash[32:]])
@@ -209,6 +341,7 @@ class SettingsDialog(WindowModalDialog):
             bl_hash_label.setText(bl_hash)
             label_edit.setText(features.label)
             device_id_label.setText(features.device_id)
+            serial_number_label.setText(client.hid_id())
             initialized_label.setText(noyes[features.initialized])
             version_label.setText(version)
             coins_label.setText(coins)
@@ -217,7 +350,6 @@ class SettingsDialog(WindowModalDialog):
             pin_button.setText(setchange[features.pin_protection])
             pin_msg.setVisible(not features.pin_protection)
             passphrase_button.setText(endis[features.passphrase_protection])
-
             language_label.setText(features.language)
 
         def set_label_enabled():
@@ -239,7 +371,7 @@ class SettingsDialog(WindowModalDialog):
             if not self.question(msg, title=title):
                 return
             get_client().toggle_passphrase()
-            self.device_manager().close_wallet(wallet)  # Unpair
+            devmgr.unpair(hid_id)
             update()
 
         def change_homescreen():
@@ -270,27 +402,25 @@ class SettingsDialog(WindowModalDialog):
             set_pin(remove=True)
 
         def wipe_device():
-            # FIXME: cannot yet wipe a device that is only plugged in
-            if sum(wallet.get_balance()):
+            if wallet and sum(wallet.get_balance()):
                 title = _("Confirm Device Wipe")
                 msg = _("Are you SURE you want to wipe the device?\n"
                         "Your wallet still has litecoins in it!")
                 if not self.question(msg, title=title,
                                      icon=QMessageBox.Critical):
                     return
-            # Note: we use PRESENT so that a user who has forgotten
-            # their PIN is not prevented from wiping their device
-            get_client(DeviceMgr.PRESENT).wipe_device()
-            self.device_manager().close_wallet(wallet)
+            get_client().wipe_device()
+            devmgr.unpair(hid_id)
             update()
 
         def slider_moved():
             mins = timeout_slider.sliderPosition()
             timeout_minutes.setText(_("%2d minutes") % mins)
 
-        wallet = window.wallet
-        handler = wallet.handler
-        device = plugin.device
+        def slider_released():
+            seconds = timeout_slider.sliderPosition() * 60
+            wallet.set_session_timeout(seconds)
+
         dialog_vbox = QVBoxLayout(self)
 
         # Information tab
@@ -302,6 +432,7 @@ class SettingsDialog(WindowModalDialog):
         pin_set_label = QLabel()
         version_label = QLabel()
         device_id_label = QLabel()
+        serial_number_label = QLabel()
         bl_hash_label = QLabel()
         bl_hash_label.setWordWrap(True)
         coins_label = QLabel()
@@ -312,7 +443,8 @@ class SettingsDialog(WindowModalDialog):
             (_("Device Label"), device_label),
             (_("PIN set"), pin_set_label),
             (_("Firmware Version"), version_label),
-            (_("Serial Number"), device_id_label),
+            (_("Device ID"), device_id_label),
+            (_("Serial Number"), serial_number_label),
             (_("Bootloader Hash"), bl_hash_label),
             (_("Supported Coins"), coins_label),
             (_("Language"), language_label),
@@ -327,7 +459,6 @@ class SettingsDialog(WindowModalDialog):
         settings_tab = QWidget()
         settings_layout = QVBoxLayout(settings_tab)
         settings_glayout = QGridLayout()
-        #settings_glayout.setColumnStretch(3, 1)
 
         # Settings tab - Label
         label_msg = QLabel(_("Name this %s.  If you have mutiple devices "
@@ -337,7 +468,7 @@ class SettingsDialog(WindowModalDialog):
         label_label = QLabel(_("Device Label"))
         label_edit = QLineEdit()
         label_edit.setMinimumWidth(150)
-        label_edit.setMaxLength(self.plugin.MAX_LABEL_LEN)
+        label_edit.setMaxLength(plugin.MAX_LABEL_LEN)
         label_apply = QPushButton(_("Apply"))
         label_apply.clicked.connect(rename)
         label_edit.textChanged.connect(set_label_enabled)
@@ -359,7 +490,6 @@ class SettingsDialog(WindowModalDialog):
         pin_msg.setWordWrap(True)
         pin_msg.setStyleSheet("color: red")
         settings_glayout.addWidget(pin_msg, 3, 1, 1, -1)
-        settings_layout.addLayout(settings_glayout)
 
         # Settings tab - Homescreen
         homescreen_layout = QHBoxLayout()
@@ -379,25 +509,31 @@ class SettingsDialog(WindowModalDialog):
         settings_glayout.addWidget(homescreen_msg, 5, 1, 1, -1)
 
         # Settings tab - Session Timeout
-        timeout_label = QLabel(_("Session Timeout"))
-        timeout_minutes = QLabel()
-        timeout_slider = self.slider = QSlider(Qt.Horizontal)
-        timeout_slider.setRange(1, 60)
-        timeout_slider.setSingleStep(1)
-        timeout_slider.setSliderPosition(wallet.session_timeout // 60)
-        timeout_slider.setTickInterval(5)
-        timeout_slider.setTickPosition(QSlider.TicksBelow)
-        timeout_slider.setTracking(True)
-        timeout_slider.valueChanged.connect(slider_moved)
-        timeout_msg = QLabel(_("Clear the session after the specified period "
-                               "of inactivity.  Once a session has timed out, "
-                               "your PIN and passphrase (if enabled) must be "
-                               "re-entered to use the device."))
-        timeout_msg.setWordWrap(True)
-        settings_glayout.addWidget(timeout_label, 6, 0)
-        settings_glayout.addWidget(timeout_slider, 6, 1, 1, 3)
-        settings_glayout.addWidget(timeout_minutes, 6, 4)
-        settings_glayout.addWidget(timeout_msg, 7, 1, 1, -1)
+        if wallet:
+            timeout_label = QLabel(_("Session Timeout"))
+            timeout_minutes = QLabel()
+            timeout_slider = QSlider(Qt.Horizontal)
+            timeout_slider.setRange(1, 60)
+            timeout_slider.setSingleStep(1)
+            timeout_slider.setTickInterval(5)
+            timeout_slider.setTickPosition(QSlider.TicksBelow)
+            timeout_slider.setTracking(True)
+            timeout_msg = QLabel(
+                _("Clear the session after the specified period "
+                  "of inactivity.  Once a session has timed out, "
+                  "your PIN and passphrase (if enabled) must be "
+                  "re-entered to use the device."))
+            timeout_msg.setWordWrap(True)
+            timeout_slider.setSliderPosition(wallet.session_timeout // 60)
+            slider_moved()
+            timeout_slider.valueChanged.connect(slider_moved)
+            timeout_slider.sliderReleased.connect(slider_released)
+            settings_glayout.addWidget(timeout_label, 6, 0)
+            settings_glayout.addWidget(timeout_slider, 6, 1, 1, 3)
+            settings_glayout.addWidget(timeout_minutes, 6, 4)
+            settings_glayout.addWidget(timeout_msg, 7, 1, 1, -1)
+        settings_layout.addLayout(settings_glayout)
+        settings_layout.addStretch(1)
 
         # Advanced tab
         advanced_tab = QWidget()
@@ -407,9 +543,9 @@ class SettingsDialog(WindowModalDialog):
         # Advanced tab - clear PIN
         clear_pin_button = QPushButton(_("Disable PIN"))
         clear_pin_button.clicked.connect(clear_pin)
-        clear_pin_warning = QLabel(_("If you disable your PIN, anyone with "
-                                     "physical access to your %s device can "
-                                     "spend your litecoins.") % plugin.device)
+        clear_pin_warning = QLabel(
+            _("If you disable your PIN, anyone with physical access to your "
+              "%s device can spend your litecoins.") % plugin.device)
         clear_pin_warning.setWordWrap(True)
         clear_pin_warning.setStyleSheet("color: red")
         advanced_glayout.addWidget(clear_pin_button, 0, 2)
@@ -460,14 +596,7 @@ class SettingsDialog(WindowModalDialog):
         tabs.addTab(settings_tab, _("Settings"))
         tabs.addTab(advanced_tab, _("Advanced"))
 
-        # Update information and then connect change slots
+        # Update information
         update()
-        slider_moved()
-
         dialog_vbox.addWidget(tabs)
         dialog_vbox.addLayout(Buttons(CloseButton(self)))
-
-    def closeEvent(self, event):
-        seconds = self.slider.sliderPosition() * 60
-        self.window.wallet.set_session_timeout(seconds)
-        event.accept()

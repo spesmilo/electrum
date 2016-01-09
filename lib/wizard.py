@@ -48,7 +48,6 @@ class WizardBase(PrintError):
         ('multisig',  _("Multi-signature wallet")),
         ('hardware',  _("Hardware wallet")),
     ]
-    TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
 
     # Derived classes must set:
     #   self.language_for_seed
@@ -103,23 +102,6 @@ class WizardBase(PrintError):
         dynamic feedback.  If not provided, Wallet.is_any is used."""
         raise NotImplementedError
 
-    def request_trezor_init_settings(self, method, device):
-        """Ask the user for the information needed to initialize a trezor-
-        compatible device.  Method is one of the TIM_ trezor init
-        method constants.  TIM_NEW and TIM_RECOVER should ask how many
-        seed words to use, and return 0, 1 or 2 for a 12, 18 or 24
-        word seed respectively.  TIM_MNEMONIC should ask for a
-        mnemonic.  TIM_PRIVKEY should ask for a master private key.
-        All four methods should additionally ask for a name to label
-        the device, PIN information and whether passphrase protection is
-        to be enabled (True/False, default to False).  For TIM_NEW and
-        TIM_RECOVER, the pin information is whether pin protection
-        is required (True/False, default to True); for TIM_MNEMONIC and
-        TIM_PRIVKEY is is the pin as a string of digits 1-9.
-        The result is a 4-tuple: (TIM specific data, label, pininfo,
-        passphraseprotection)."""
-        raise NotImplementedError
-
     def request_many(self, n, xpub_hot=None):
         """If xpub_hot is provided, a new wallet is being created.  Request N
         master public keys for cosigners; xpub_hot is the master xpub
@@ -133,7 +115,7 @@ class WizardBase(PrintError):
         """Choose a server if one is not set in the config anyway."""
         raise NotImplementedError
 
-    def show_restore(self, wallet, network, action):
+    def show_restore(self, wallet, network):
         """Show restore result"""
         pass
 
@@ -142,17 +124,19 @@ class WizardBase(PrintError):
         filename.  If the file doesn't exist launch the GUI-specific
         install wizard proper.'''
         storage = WalletStorage(filename)
+        need_sync = False
+        is_restore = False
+
         if storage.file_exists:
             wallet = Wallet(storage)
             self.update_wallet_format(wallet)
-            task = None
         else:
             cr, wallet = self.create_or_restore(storage)
             if not wallet:
                 return
-            task = lambda: self.show_restore(wallet, network, cr)
+            need_sync = True
+            is_restore = (cr == 'restore')
 
-        need_sync = False
         while True:
             action = wallet.get_action()
             if not action:
@@ -163,7 +147,9 @@ class WizardBase(PrintError):
             wallet.storage.write()
 
         if network:
-            self.choose_server(network)
+            # Show network dialog if config does not exist
+            if self.config.get('server') is None:
+                self.choose_server(network)
         else:
             self.show_warning(_('You are offline'))
 
@@ -174,8 +160,8 @@ class WizardBase(PrintError):
         if network:
             wallet.start_threads(network)
 
-        if task:
-            task()
+        if is_restore:
+            self.show_restore(wallet, network)
 
         return wallet
 
