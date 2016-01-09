@@ -29,7 +29,7 @@ class GuiMixin(object):
         else:
             cancel_callback = None
 
-        self.handler().show_message(message % self.device, cancel_callback)
+        self.handler.show_message(message % self.device, cancel_callback)
         return self.proto.ButtonAck()
 
     def callback_PinMatrixRequest(self, msg):
@@ -42,21 +42,21 @@ class GuiMixin(object):
                      "Note the numbers have been shuffled!"))
         else:
             msg = _("Please enter %s PIN")
-        pin = self.handler().get_pin(msg % self.device)
+        pin = self.handler.get_pin(msg % self.device)
         if not pin:
             return self.proto.Cancel()
         return self.proto.PinMatrixAck(pin=pin)
 
     def callback_PassphraseRequest(self, req):
         msg = _("Please enter your %s passphrase")
-        passphrase = self.handler().get_passphrase(msg % self.device)
+        passphrase = self.handler.get_passphrase(msg % self.device)
         if passphrase is None:
             return self.proto.Cancel()
         return self.proto.PassphraseAck(passphrase=passphrase)
 
     def callback_WordRequest(self, msg):
         msg = _("Enter seed word as explained on your %s") % self.device
-        word = self.handler().get_word(msg)
+        word = self.handler.get_word(msg)
         if word is None:
             return self.proto.Cancel()
         return self.proto.WordAck(word=word)
@@ -67,38 +67,30 @@ def trezor_client_class(protocol_mixin, base_client, proto):
 
     class TrezorClient(protocol_mixin, GuiMixin, base_client, PrintError):
 
-        def __init__(self, transport, path, plugin):
+        def __init__(self, transport, handler, plugin, hid_id):
             base_client.__init__(self, transport)
             protocol_mixin.__init__(self, transport)
             self.proto = proto
             self.device = plugin.device
-            self.path = path
-            self.wallet = None
-            self.plugin = plugin
+            self.handler = handler
+            self.hid_id_ = hid_id
             self.tx_api = plugin
             self.msg_code_override = None
 
         def __str__(self):
-            return "%s/%s/%s" % (self.label(), self.device_id(), self.path)
+            return "%s/%s" % (self.label(), self.hid_id())
 
         def label(self):
             '''The name given by the user to the device.'''
             return self.features.label
 
-        def device_id(self):
-            '''The device serial number.'''
-            return self.features.device_id
+        def hid_id(self):
+            '''The HID ID of the device.'''
+            return self.hid_id_
 
         def is_initialized(self):
             '''True if initialized, False if wiped.'''
             return self.features.initialized
-
-        def pair_wallet(self, wallet):
-            self.wallet = wallet
-
-        def handler(self):
-            assert self.wallet and self.wallet.handler
-            return self.wallet.handler
 
         # Copied from trezorlib/client.py as there it is not static, sigh
         @staticmethod
@@ -116,14 +108,8 @@ def trezor_client_class(protocol_mixin, base_client, proto):
                 path.append(abs(int(x)) | prime)
             return path
 
-        def first_address(self, wallet, derivation):
-            assert not self.wallet
-            # Assign the wallet so we have a handler
-            self.wallet = wallet
-            try:
-                return self.address_from_derivation(derivation)
-            finally:
-                self.wallet = None
+        def first_address(self, derivation):
+            return self.address_from_derivation(derivation)
 
         def address_from_derivation(self, derivation):
             return self.get_address('Bitcoin', self.expand_path(derivation))
@@ -188,14 +174,13 @@ def trezor_client_class(protocol_mixin, base_client, proto):
         any dialog box it opened.'''
 
         def wrapped(self, *args, **kwargs):
-            handler = self.handler()
             try:
                 return func(self, *args, **kwargs)
             except BaseException as e:
-                handler.show_error(str(e))
+                self.handler.show_error(str(e))
                 raise e
             finally:
-                handler.finished()
+                self.handler.finished()
 
         return wrapped
 
