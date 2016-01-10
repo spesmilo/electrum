@@ -183,6 +183,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return "%s/%s" % (PrintError.diagnostic_name(self),
                           self.wallet.basename() if self.wallet else "None")
 
+    def top_level_window(self, window=None):
+        window = window or self
+        for n, child in enumerate(window.children()):
+            if isinstance(child, WindowModalDialog):
+                return self.top_level_window(child)
+        return window
+
     def is_hidden(self):
         return self.isMinimized() or self.isHidden()
 
@@ -1133,7 +1140,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return value of the wrapped function, or None if cancelled.
         '''
         def request_password(self, *args, **kwargs):
-            parent = kwargs.get('parent', self)
+            parent = kwargs.get('parent', self.top_level_window())
             password = None
             while self.wallet.use_encryption:
                 password = self.password_dialog(parent=parent)
@@ -2065,21 +2072,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def do_sign(self, address, message, signature, password):
         message = unicode(message.toPlainText())
         message = message.encode('utf-8')
-        try:
-            sig = self.wallet.sign_message(str(address.text()), message, password)
-            sig = base64.b64encode(sig)
-            signature.setText(sig)
-        except Exception as e:
-            self.show_message(str(e))
+        sig = self.wallet.sign_message(str(address.text()), message, password)
+        sig = base64.b64encode(sig)
+        signature.setText(sig)
 
     def do_verify(self, address, message, signature):
         message = unicode(message.toPlainText())
         message = message.encode('utf-8')
-        sig = base64.b64decode(str(signature.toPlainText()))
-        if bitcoin.verify_message(address.text(), sig, message):
-            self.show_message(_("Signature verified"))
+        try:
+            # This can throw on invalid base64
+            sig = base64.b64decode(str(signature.toPlainText()))
+            verified = bitcoin.verify_message(address.text(), sig, message)
+        except:
+            verified = False
+        dialog = self.top_level_window()
+        if verified:
+            dialog.show_message(_("Signature verified"))
         else:
-            self.show_message(_("Error: wrong signature"))
+            dialog.show_error(_("Wrong signature"))
 
 
     def sign_verify_message(self, address=''):
