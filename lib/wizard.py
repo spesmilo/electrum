@@ -170,10 +170,10 @@ class WizardBase(PrintError):
         self.print_error("action %s on %s" % (action, wallet.basename()))
         # Run the action on the wallet plugin, if any, then the
         # wallet and finally ourselves
-        calls = [(wallet, (wallet, )),
-                 (self, (wallet, ))]
+        calls = []
         if hasattr(wallet, 'plugin'):
-            calls.insert(0, (wallet.plugin, (wallet, self)))
+            calls.append((wallet.plugin, (wallet, self)))
+        calls.extend([(wallet, ()), (self, (wallet, ))])
         calls = [(getattr(actor, action), args) for (actor, args) in calls
                  if hasattr(actor, action)]
         if not calls:
