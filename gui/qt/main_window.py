@@ -2137,7 +2137,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             message_e.setText(decrypted)
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
-            self.show_warning(str(e))
+            self.top_level_window().show_warning(str(e))
 
 
     def do_encrypt(self, message_e, pubkey_e, encrypted_e):
@@ -2148,7 +2148,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             encrypted_e.setText(encrypted)
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
-            self.show_warning(str(e))
+            self.top_level_window().show_warning(str(e))
 
 
     def encrypt_message(self, address = ''):
