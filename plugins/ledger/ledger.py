@@ -30,17 +30,14 @@ except ImportError:
     BTCHIP = False
 
 
-class BTChipWallet(BIP32_HD_Wallet):
+class BTChipWallet(BIP44_Wallet):
     wallet_type = 'btchip'
     device = 'Ledger'
-    root_derivation = "m/44'/0'"
-    restore_wallet_class = BIP44_Wallet
 
     def __init__(self, storage):
-        BIP32_HD_Wallet.__init__(self, storage)
+        BIP44_Wallet.__init__(self, storage)
         self.transport = None
         self.client = None
-        self.mpk = None
         self.device_checked = False
         self.signing = False
         self.force_watching_only = False
@@ -55,10 +52,6 @@ class BTChipWallet(BIP32_HD_Wallet):
             self.client.bad = True
             self.device_checked = False
         raise Exception(message)
-
-    def can_sign_xpubkey(self, x_pubkey):
-        xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
-        return xpub in self.master_public_keys.values()
 
     def can_create_accounts(self):
         return False
@@ -142,17 +135,10 @@ class BTChipWallet(BIP32_HD_Wallet):
             self.proper_device = False
         return self.client
 
-    def address_id(self, address):
-        account_id, (change, address_index) = self.get_address_index(address)
-        return "44'/0'/%s'/%d/%d" % (account_id, change, address_index)
-
     def derive_xkeys(self, root, derivation, password):
         derivation = derivation.replace(self.root_name,"44'/0'/")
         xpub = self.get_public_key(derivation)
         return xpub, None
-
-    def get_private_key(self, address, password):
-        return []
 
     def get_public_key(self, bip32_path):
         # S-L-O-W - we don't handle the fingerprint directly, so compute it manually from the previous node
@@ -185,20 +171,8 @@ class BTChipWallet(BIP32_HD_Wallet):
 
         return EncodeBase58Check(xpub)
 
-    def get_master_public_key(self):
-        try:
-            if not self.mpk:
-                self.mpk = self.get_public_key("44'/0'")
-            return self.mpk
-        except Exception, e:
-            self.give_error(e, True)
-
     def i4b(self, x):
         return pack('>I', x)
-
-    def add_keypairs(self, tx, keypairs, password):
-        #do nothing - no priv keys available
-        pass
 
     def decrypt_message(self, pubkey, message, password):
         self.give_error("Not supported")

@@ -1746,6 +1746,7 @@ class BIP32_HD_Wallet(BIP32_Wallet):
 class BIP44_Wallet(BIP32_HD_Wallet):
     root_derivation = "m/44'/0'"
     wallet_type = 'bip44'
+    restore_wallet_class = BIP44_Wallet
 
     def can_sign_xpubkey(self, x_pubkey):
         xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
