@@ -5,12 +5,11 @@ from sys import stderr
 from time import sleep
 
 import electrum
-from electrum.account import BIP32_Account
 from electrum.bitcoin import EncodeBase58Check, DecodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from electrum.transaction import deserialize
-from electrum.wallet import BIP44_Wallet, BIP32_HD_Wallet, BIP32_Wallet
+from electrum.wallet import BIP44_Wallet
 
 from electrum.util import format_satoshis_plain, print_error, print_msg
 import hashlib
