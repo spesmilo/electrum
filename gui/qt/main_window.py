@@ -43,7 +43,7 @@ from electrum.util import PrintError, NotEnoughFunds, StoreDict
 from electrum import Transaction, mnemonic
 from electrum import util, bitcoin, commands
 from electrum import SimpleConfig, COIN_CHOOSERS, paymentrequest
-from electrum.wallet import Wallet, BIP32_HD_Wallet
+from electrum.wallet import Wallet, BIP32_RD_Wallet
 
 from amountedit import BTCAmountEdit, MyLineEdit, BTCkBEdit
 from network_dialog import NetworkDialog
@@ -2030,7 +2030,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d.setMinimumSize(600, 200)
         vbox = QVBoxLayout()
         vbox.addWidget( QLabel(_("Address") + ': ' + address))
-        if isinstance(self.wallet, BIP32_HD_Wallet):
+        if isinstance(self.wallet, BIP32_RD_Wallet):
             derivation = self.wallet.address_id(address)
             vbox.addWidget(QLabel(_("Derivation") + ': ' + derivation))
         vbox.addWidget(QLabel(_("Public key") + ':'))

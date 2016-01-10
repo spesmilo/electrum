@@ -1658,10 +1658,26 @@ class BIP32_Simple_Wallet(BIP32_Wallet):
         self.add_master_public_key(self.root_name, xpub)
         self.add_account('0', account)
 
+class BIP32_RD_Wallet(BIP32_Wallet):
+    # Abstract base class for a BIP32 wallet with a self.root_derivation
 
-class BIP32_HD_Wallet(BIP32_Wallet):
+    @classmethod
+    def account_derivation(self, account_id):
+        return self.root_derivation + account_id
 
-    # wallet that can create accounts
+    @classmethod
+    def address_derivation(self, account_id, change, address_index):
+        account_derivation = self.account_derivation(account_id)
+        return "%s/%d/%d" % (account_derivation, change, address_index)
+
+    def address_id(self, address):
+        acc_id, (change, address_index) = self.get_address_index(address)
+        return self.address_derivation(acc_id, change, address_index)
+
+
+class BIP32_HD_Wallet(BIP32_RD_Wallet):
+    # Abstract base class for a BIP32 wallet that admits account creation
+
     def __init__(self, storage):
         BIP32_Wallet.__init__(self, storage)
         # Backwards-compatibility.  Remove legacy "next_account2" and
@@ -1726,23 +1742,14 @@ class BIP32_HD_Wallet(BIP32_Wallet):
     def accounts_all_used(self):
         return all(self.account_is_used(acc_id) for acc_id in self.accounts)
 
-    @classmethod
-    def account_derivation(self, account_id):
-        return self.root_derivation + "/" + account_id + "'"
-
-    @classmethod
-    def address_derivation(self, account_id, change, address_index):
-        account_derivation = self.account_derivation(account_id)
-        return "%s/%d/%d" % (account_derivation, change, address_index)
-
-    def address_id(self, address):
-        acc_id, (change, address_index) = self.get_address_index(address)
-        return self.address_derivation(acc_id, change, address_index)
-
 
 class BIP44_Wallet(BIP32_HD_Wallet):
-    root_derivation = "m/44'/0'"
+    root_derivation = "m/44'/0'/"
     wallet_type = 'bip44'
+
+    @classmethod
+    def account_derivation(self, account_id):
+        return self.root_derivation + account_id + "'"
 
     def can_sign_xpubkey(self, x_pubkey):
         xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
@@ -1778,7 +1785,7 @@ class BIP44_Wallet(BIP32_HD_Wallet):
             return xpub, None
 
 
-class NewWallet(BIP32_Wallet, Mnemonic):
+class NewWallet(BIP32_RD_Wallet, Mnemonic):
     # Standard wallet
     root_derivation = "m/"
     wallet_type = 'standard'
