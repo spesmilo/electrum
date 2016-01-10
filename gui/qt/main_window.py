@@ -1799,7 +1799,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.account_selector = QComboBox()
         self.account_selector.setSizeAdjustPolicy(QComboBox.AdjustToContents)
-        self.connect(self.account_selector,SIGNAL("activated(QString)"),self.change_account)
+        self.connect(self.account_selector, SIGNAL("activated(QString)"), self.change_account)
         sb.addPermanentWidget(self.account_selector)
 
         self.search_box = QLineEdit()
@@ -1808,20 +1808,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         sb.addPermanentWidget(self.search_box)
 
         self.lock_icon = QIcon()
-        self.password_button = StatusBarButton( self.lock_icon, _("Password"), self.change_password_dialog )
-        sb.addPermanentWidget( self.password_button )
+        self.password_button = StatusBarButton(self.lock_icon, _("Password"), self.change_password_dialog )
+        sb.addPermanentWidget(self.password_button)
 
-        sb.addPermanentWidget( StatusBarButton( QIcon(":icons/preferences.png"), _("Preferences"), self.settings_dialog ) )
-        self.seed_button = StatusBarButton( QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog )
-        sb.addPermanentWidget( self.seed_button )
-        self.status_button = StatusBarButton( QIcon(":icons/status_disconnected.png"), _("Network"), self.run_network_dialog )
-        sb.addPermanentWidget( self.status_button )
+        sb.addPermanentWidget(StatusBarButton(QIcon(":icons/preferences.png"), _("Preferences"), self.settings_dialog ) )
+        self.seed_button = StatusBarButton(QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog )
+        sb.addPermanentWidget(self.seed_button)
+        self.status_button = StatusBarButton(QIcon(":icons/status_disconnected.png"), _("Network"), self.run_network_dialog )
+        sb.addPermanentWidget(self.status_button)
         run_hook('create_status_bar', sb)
         self.setStatusBar(sb)
 
     def update_lock_icon(self):
         icon = QIcon(":icons/lock.png") if self.wallet.use_encryption else QIcon(":icons/unlock.png")
-        self.password_button.setIcon( icon )
+        self.password_button.setIcon(icon)
 
     def update_buttons_on_seed(self):
         self.seed_button.setVisible(self.wallet.has_seed())
