@@ -32,6 +32,7 @@ except ImportError:
 class BTChipWallet(BIP44_Wallet):
     wallet_type = 'btchip'
     device = 'Ledger'
+    restore_wallet_class = BIP44_Wallet
 
     def __init__(self, storage):
         BIP44_Wallet.__init__(self, storage)

@@ -32,6 +32,8 @@ class TrezorCompatibleWallet(BIP44_Wallet):
     #   - DEVICE_IDS
     #   - wallet_type
 
+    restore_wallet_class = BIP44_Wallet
+
     def __init__(self, storage):
         BIP44_Wallet.__init__(self, storage)
         # After timeout seconds we clear the device session
