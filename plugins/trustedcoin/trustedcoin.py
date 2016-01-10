@@ -330,8 +330,8 @@ class TrustedCoinPlugin(BasePlugin):
 
         words = seed.split()
         n = len(words)/2
-        wallet.add_cosigner_seed(' '.join(words[0:n]), 'x1/', password)
-        wallet.add_cosigner_xpub(' '.join(words[n:]), 'x2/')
+        wallet.add_xprv_from_seed(' '.join(words[0:n]), 'x1/', password)
+        wallet.add_xpub_from_seed(' '.join(words[n:]), 'x2/')
 
         wallet.storage.write()
 
@@ -360,8 +360,8 @@ class TrustedCoinPlugin(BasePlugin):
         wallet.add_seed(seed, password)
         words = seed.split()
         n = len(words)/2
-        wallet.add_cosigner_seed(' '.join(words[0:n]), 'x1/', password)
-        wallet.add_cosigner_seed(' '.join(words[n:]), 'x2/', password)
+        wallet.add_xprv_from_seed(' '.join(words[0:n]), 'x1/', password)
+        wallet.add_xpub_from_seed(' '.join(words[n:]), 'x2/', password)
 
         restore_third_key(wallet)
         wallet.create_main_account()

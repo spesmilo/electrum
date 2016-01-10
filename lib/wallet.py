@@ -1611,10 +1611,6 @@ class BIP32_Wallet(Deterministic_Wallet):
         xprv, xpub = bip32_private_derivation(root_xprv, root, derivation)
         return xpub, xprv
 
-    def create_master_keys(self, password):
-        seed = self.get_seed(password)
-        self.add_cosigner_seed(seed, self.root_name, password)
-
     def mnemonic_to_seed(self, seed, password):
         return Mnemonic.mnemonic_to_seed(seed, password)
 
@@ -1661,18 +1657,22 @@ class BIP32_RD_Wallet(BIP32_Wallet):
         acc_id, (change, address_index) = self.get_address_index(address)
         return self.address_derivation(acc_id, change, address_index)
 
-    def add_cosigner_seed(self, seed, name, password, passphrase=''):
+    def add_xprv_from_seed(self, seed, name, password, passphrase=''):
         # we don't store the seed, only the master xpriv
         xprv, xpub = bip32_root(self.mnemonic_to_seed(seed, passphrase))
         xprv, xpub = bip32_private_derivation(xprv, "m/", self.root_derivation)
         self.add_master_public_key(name, xpub)
         self.add_master_private_key(name, xprv, password)
 
-    def add_cosigner_xpub(self, seed, name):
+    def add_xpub_from_seed(self, seed, name):
         # store only master xpub
         xprv, xpub = bip32_root(self.mnemonic_to_seed(seed,''))
         xprv, xpub = bip32_private_derivation(xprv, "m/", self.root_derivation)
         self.add_master_public_key(name, xpub)
+
+    def create_master_keys(self, password):
+        seed = self.get_seed(password)
+        self.add_xprv_from_seed(seed, self.root_name, password)
 
 
 class BIP32_HD_Wallet(BIP32_RD_Wallet):
@@ -2095,7 +2095,7 @@ class Wallet(object):
                     wallet.add_seed(text, password)
                     wallet.create_master_keys(password)
                 else:
-                    wallet.add_cosigner_seed(text, name, password)
+                    wallet.add_xprv_from_seed(text, name, password)
             else:
                 raise RunTimeError("Cannot handle text for multisig")
         wallet.set_use_encryption(password is not None)

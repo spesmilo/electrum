@@ -426,7 +426,7 @@ class LedgerPlugin(BasePlugin):
         passphrase = unicode()
         password = wizard.request_password()
         wallet.add_seed(seed, password)
-        wallet.add_cosigner_seed(seed, 'x/', password, passphrase)
+        wallet.add_xprv_from_seed(seed, 'x/', password, passphrase)
         wallet.create_hd_account(password)
         return wallet
 
