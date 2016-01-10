@@ -31,12 +31,14 @@ class QtHandler(PrintError):
         win.connect(win, SIGNAL('pin_dialog'), self.pin_dialog)
         win.connect(win, SIGNAL('passphrase_dialog'), self.passphrase_dialog)
         win.connect(win, SIGNAL('word_dialog'), self.word_dialog)
-        self.window_stack = [win]
         self.win = win
         self.pin_matrix_widget_class = pin_matrix_widget_class
         self.device = device
         self.dialog = None
         self.done = threading.Event()
+
+    def top_level_window(self):
+        return self.win.top_level_window()
 
     def watching_only_changed(self):
         self.win.emit(SIGNAL('watching_only_changed'))
@@ -71,7 +73,7 @@ class QtHandler(PrintError):
     def pin_dialog(self, msg):
         # Needed e.g. when resetting a device
         self.clear_dialog()
-        dialog = WindowModalDialog(self.window_stack[-1], _("Enter PIN"))
+        dialog = WindowModalDialog(self.top_level_window(), _("Enter PIN"))
         matrix = self.pin_matrix_widget_class()
         vbox = QVBoxLayout()
         vbox.addWidget(QLabel(msg))
@@ -83,7 +85,7 @@ class QtHandler(PrintError):
         self.done.set()
 
     def passphrase_dialog(self, msg):
-        d = PasswordDialog(self.window_stack[-1], None, msg,
+        d = PasswordDialog(self.top_level_window(), None, msg,
                            PasswordDialog.PW_PASSPHRASE)
         confirmed, p, passphrase = d.run()
         if confirmed:
@@ -92,7 +94,7 @@ class QtHandler(PrintError):
         self.done.set()
 
     def word_dialog(self, msg):
-        dialog = WindowModalDialog(self.window_stack[-1], "")
+        dialog = WindowModalDialog(self.top_level_window(), "")
         hbox = QHBoxLayout(dialog)
         hbox.addWidget(QLabel(msg))
         text = QLineEdit()
@@ -100,7 +102,7 @@ class QtHandler(PrintError):
         text.returnPressed.connect(dialog.accept)
         hbox.addWidget(text)
         hbox.addStretch(1)
-        if not self.exec_dialog(dialog):
+        if not dialog.exec_():
             return None
         self.word = unicode(text.text())
         self.done.set()
@@ -109,8 +111,7 @@ class QtHandler(PrintError):
         # Called more than once during signing, to confirm output and fee
         self.clear_dialog()
         title = _('Please check your %s device') % self.device
-        self.dialog = dialog = WindowModalDialog(self.window_stack[-1], title)
-        self.window_stack.append(dialog)
+        self.dialog = dialog = WindowModalDialog(self.top_level_window(), title)
         l = QLabel(msg)
         vbox = QVBoxLayout(dialog)
         if cancel_callback:
@@ -120,20 +121,12 @@ class QtHandler(PrintError):
         dialog.show()
 
     def error_dialog(self, msg):
-        self.win.show_error(msg, parent=self.window_stack[-1])
+        self.win.show_error(msg, parent=self.top_level_window())
 
     def clear_dialog(self):
         if self.dialog:
             self.dialog.accept()
-            self.window_stack.remove(self.dialog)
             self.dialog = None
-
-    def exec_dialog(self, dialog):
-        self.window_stack.append(dialog)
-        try:
-            return dialog.exec_()
-        finally:
-            assert dialog == self.window_stack.pop()
 
     def query_choice(self, msg, labels):
         return self.win.query_choice(msg, labels)
@@ -263,8 +256,7 @@ def qt_plugin_class(base_plugin_class):
     def settings_dialog(self, window):
         hid_id = self.choose_device(window)
         if hid_id:
-            dialog = SettingsDialog(window, self, hid_id)
-            window.wallet.handler.exec_dialog(dialog)
+            SettingsDialog(window, self, hid_id).exec_()
 
     def choose_device(self, window):
         '''This dialog box should be usable even if the user has

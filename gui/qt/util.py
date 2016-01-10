@@ -159,7 +159,8 @@ class MessageBoxMixin(object):
     def top_level_window(self, window=None):
         window = window or self
         for n, child in enumerate(window.children()):
-            if isinstance(child, WindowModalDialog):
+            # Test for visibility as old closed dialogs may not be GC-ed
+            if isinstance(child, WindowModalDialog) and child.isVisible():
                 return self.top_level_window(child)
         return window
 
