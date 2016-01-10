@@ -142,7 +142,7 @@ def run_non_RPC(config):
         seed = wallet.make_seed()
         wallet.add_seed(seed, password)
         wallet.create_master_keys(password)
-        wallet.create_main_account(password)
+        wallet.create_main_account()
         wallet.synchronize()
         print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
         print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
