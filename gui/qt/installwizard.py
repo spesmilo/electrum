@@ -171,57 +171,24 @@ class InstallWizard(WindowModalDialog, WizardBase):
         self.show()
 
     def query_create_or_restore(self, wallet_kinds):
-        """Ask the user what they want to do, and to what wallet kind.
-        wallet_kinds is an array of tuples (kind, description).
-        Return a tuple (action, kind).  Action is 'create' or 'restore',
-        and kind is one of the wallet kinds passed."""
-        vbox = QVBoxLayout()
+        """Ask the user what they want to do, and which wallet kind.
+        wallet_kinds is an array of translated wallet descriptions.
+        Return a a tuple (action, kind_index).  Action is 'create' or
+        'restore', and kind the index of the wallet kind chosen."""
+
+        actions = [_("Create a new wallet"),
+                   _("Restore a wallet or import keys")]
 
         main_label = QLabel(_("Electrum could not find an existing wallet."))
+        actions_clayout = ChoicesLayout(_("What do you want to do?"), actions)
+        wallet_clayout = ChoicesLayout(_("Wallet kind:"), wallet_kinds)
+
+        vbox = QVBoxLayout()
         vbox.addWidget(main_label)
-
-        grid = QGridLayout()
-        grid.setSpacing(5)
-
-        gb1 = QGroupBox(_("What do you want to do?"))
-        vbox.addWidget(gb1)
-        vbox1 = QVBoxLayout()
-        gb1.setLayout(vbox1)
-
-        b1 = QRadioButton(gb1)
-        b1.setText(_("Create new wallet"))
-        b1.setChecked(True)
-
-        b2 = QRadioButton(gb1)
-        b2.setText(_("Restore a wallet or import keys"))
-
-        group1 = QButtonGroup()
-        group1.addButton(b1)
-        group1.addButton(b2)
-        vbox1.addWidget(b1)
-        vbox1.addWidget(b2)
-
-        gb2 = QGroupBox(_("Wallet type:"))
-        vbox.addWidget(gb2)
-
-        vbox2 = QVBoxLayout()
-        gb2.setLayout(vbox2)
-
-        group2 = QButtonGroup()
-
-        for i, (wtype,name) in enumerate(wallet_kinds):
-            if not filter(lambda x:x[0]==wtype, electrum.wallet.wallet_types):
-                continue
-            button = QRadioButton(gb2)
-            button.setText(name)
-            vbox2.addWidget(button)
-            group2.addButton(button)
-            group2.setId(button, i)
-
-            if i==0:
-                button.setChecked(True)
-
+        vbox.addLayout(actions_clayout.layout())
+        vbox.addLayout(wallet_clayout.layout())
         vbox.addStretch(1)
+
         OK = OkButton(self, _('Next'))
         vbox.addLayout(Buttons(CancelButton(self), OK))
         self.set_layout(vbox)
@@ -231,9 +198,8 @@ class InstallWizard(WindowModalDialog, WizardBase):
         if not self.exec_():
             raise UserCancelled
 
-        action = 'create' if b1.isChecked() else 'restore'
-        wallet_type = wallet_kinds[group2.checkedId()][0]
-        return action, wallet_type
+        action = ['create', 'restore'][actions_clayout.selected_index()]
+        return action, wallet_clayout.selected_index()
 
     def verify_seed(self, seed, is_valid=None):
         while True:
