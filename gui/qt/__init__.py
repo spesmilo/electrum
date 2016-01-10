@@ -64,7 +64,7 @@ class OpenFileEventFilter(QObject):
 
 
 
-class ElectrumGui(MessageBoxMixin):
+class ElectrumGui:
 
     def __init__(self, config, network, daemon, plugins):
         set_language(config.get('language'))

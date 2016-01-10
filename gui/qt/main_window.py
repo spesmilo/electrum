@@ -183,13 +183,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return "%s/%s" % (PrintError.diagnostic_name(self),
                           self.wallet.basename() if self.wallet else "None")
 
-    def top_level_window(self, window=None):
-        window = window or self
-        for n, child in enumerate(window.children()):
-            if isinstance(child, WindowModalDialog):
-                return self.top_level_window(child)
-        return window
-
     def is_hidden(self):
         return self.isMinimized() or self.isHidden()
 
@@ -2085,11 +2078,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             verified = bitcoin.verify_message(address.text(), sig, message)
         except:
             verified = False
-        dialog = self.top_level_window()
         if verified:
-            dialog.show_message(_("Signature verified"))
+            self.show_message(_("Signature verified"))
         else:
-            dialog.show_error(_("Wrong signature"))
+            self.show_error(_("Wrong signature"))
 
 
     def sign_verify_message(self, address=''):
@@ -2137,7 +2129,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             message_e.setText(decrypted)
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
-            self.top_level_window().show_warning(str(e))
+            self.show_warning(str(e))
 
 
     def do_encrypt(self, message_e, pubkey_e, encrypted_e):
@@ -2148,7 +2140,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             encrypted_e.setText(encrypted)
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
-            self.top_level_window().show_warning(str(e))
+            self.show_warning(str(e))
 
 
     def encrypt_message(self, address = ''):
