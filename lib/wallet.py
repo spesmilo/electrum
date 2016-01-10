@@ -1666,8 +1666,11 @@ class BIP32_HD_Wallet(BIP32_Wallet):
         BIP32_Wallet.__init__(self, storage)
         # Backwards-compatibility.  Remove legacy "next_account2" and
         # drop unused master public key to avoid duplicate errors
-        storage.put('next_account2', None)
-        self.master_public_keys.pop(self.next_derivation()[0], None)
+        acc2 = storage.get('next_account2', None)
+        if acc2:
+            storage.put('next_account2', None)
+            self.master_public_keys.pop(self.root_name + acc2[0] + "'", None)
+            self.storage.put('master_public_keys', self.master_public_keys)
 
     def next_account_number(self):
         assert (set(self.accounts.keys()) ==
