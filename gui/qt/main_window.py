@@ -42,8 +42,8 @@ from electrum.util import format_satoshis, format_satoshis_plain, format_time
 from electrum.util import PrintError, NotEnoughFunds, StoreDict
 from electrum import Transaction, mnemonic
 from electrum import util, bitcoin, commands
-from electrum import SimpleConfig, COIN_CHOOSERS
-from electrum import Wallet, paymentrequest
+from electrum import SimpleConfig, COIN_CHOOSERS, paymentrequest
+from electrum.wallet import Wallet, BIP32_HD_Wallet
 
 from amountedit import BTCAmountEdit, MyLineEdit, BTCkBEdit
 from network_dialog import NetworkDialog
@@ -2030,7 +2030,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d.setMinimumSize(600, 200)
         vbox = QVBoxLayout()
         vbox.addWidget( QLabel(_("Address") + ': ' + address))
-        vbox.addWidget( QLabel(_("Public key") + ':'))
+        if isinstance(self.wallet, BIP32_HD_Wallet):
+            derivation = self.wallet.address_id(address)
+            vbox.addWidget(QLabel(_("Derivation") + ': ' + derivation))
+        vbox.addWidget(QLabel(_("Public key") + ':'))
         keys_e = ShowQRTextEdit(text='\n'.join(pubkey_list))
         keys_e.addCopyButton(self.app)
         vbox.addWidget(keys_e)

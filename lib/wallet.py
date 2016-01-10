@@ -1725,17 +1725,6 @@ class BIP32_HD_Wallet(BIP32_Wallet):
     def accounts_all_used(self):
         return all(self.account_is_used(acc_id) for acc_id in self.accounts)
 
-class BIP44_Wallet(BIP32_HD_Wallet):
-    root_derivation = "m/44'/0'"
-    wallet_type = 'bip44'
-
-    def can_sign_xpubkey(self, x_pubkey):
-        xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
-        return xpub in self.master_public_keys.values()
-
-    def can_create_accounts(self):
-        return not self.is_watching_only()
-
     @classmethod
     def prefix(self):
         return "/".join(self.root_derivation.split("/")[1:])
@@ -1752,6 +1741,18 @@ class BIP44_Wallet(BIP32_HD_Wallet):
     def address_id(self, address):
         acc_id, (change, address_index) = self.get_address_index(address)
         return self.address_derivation(acc_id, change, address_index)
+
+
+class BIP44_Wallet(BIP32_HD_Wallet):
+    root_derivation = "m/44'/0'"
+    wallet_type = 'bip44'
+
+    def can_sign_xpubkey(self, x_pubkey):
+        xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
+        return xpub in self.master_public_keys.values()
+
+    def can_create_accounts(self):
+        return not self.is_watching_only()
 
     @staticmethod
     def normalize_passphrase(passphrase):
