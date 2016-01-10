@@ -1615,19 +1615,6 @@ class BIP32_Wallet(Deterministic_Wallet):
         seed = self.get_seed(password)
         self.add_cosigner_seed(seed, self.root_name, password)
 
-    def add_cosigner_seed(self, seed, name, password, passphrase=''):
-        # we don't store the seed, only the master xpriv
-        xprv, xpub = bip32_root(self.mnemonic_to_seed(seed, passphrase))
-        xprv, xpub = bip32_private_derivation(xprv, "m/", self.root_derivation)
-        self.add_master_public_key(name, xpub)
-        self.add_master_private_key(name, xprv, password)
-
-    def add_cosigner_xpub(self, seed, name):
-        # store only master xpub
-        xprv, xpub = bip32_root(self.mnemonic_to_seed(seed,''))
-        xprv, xpub = bip32_private_derivation(xprv, "m/", self.root_derivation)
-        self.add_master_public_key(name, xpub)
-
     def mnemonic_to_seed(self, seed, password):
         return Mnemonic.mnemonic_to_seed(seed, password)
 
@@ -1673,6 +1660,19 @@ class BIP32_RD_Wallet(BIP32_Wallet):
     def address_id(self, address):
         acc_id, (change, address_index) = self.get_address_index(address)
         return self.address_derivation(acc_id, change, address_index)
+
+    def add_cosigner_seed(self, seed, name, password, passphrase=''):
+        # we don't store the seed, only the master xpriv
+        xprv, xpub = bip32_root(self.mnemonic_to_seed(seed, passphrase))
+        xprv, xpub = bip32_private_derivation(xprv, "m/", self.root_derivation)
+        self.add_master_public_key(name, xpub)
+        self.add_master_private_key(name, xprv, password)
+
+    def add_cosigner_xpub(self, seed, name):
+        # store only master xpub
+        xprv, xpub = bip32_root(self.mnemonic_to_seed(seed,''))
+        xprv, xpub = bip32_private_derivation(xprv, "m/", self.root_derivation)
+        self.add_master_public_key(name, xpub)
 
 
 class BIP32_HD_Wallet(BIP32_RD_Wallet):
@@ -1796,7 +1796,7 @@ class NewWallet(BIP32_RD_Wallet, Mnemonic):
         self.add_account('0', account)
 
 
-class Multisig_Wallet(BIP32_Wallet, Mnemonic):
+class Multisig_Wallet(BIP32_RD_Wallet, Mnemonic):
     # generic m of n
     root_name = "x1/"
     root_derivation = "m/"
