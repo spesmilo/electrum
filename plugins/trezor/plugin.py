@@ -1,3 +1,4 @@
+import base64
 import re
 import time
 
@@ -6,7 +7,7 @@ from struct import pack
 
 from electrum.account import BIP32_Account
 from electrum.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
-                              EncodeBase58Check)
+                              public_key_to_bc_address, EncodeBase58Check)
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from electrum.transaction import (deserialize, is_extended_pubkey,
@@ -116,7 +117,14 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         return pack('>I', x)
 
     def decrypt_message(self, pubkey, message, password):
-        raise RuntimeError(_('Decrypt method is not implemented'))
+        address = public_key_to_bc_address(pubkey.decode('hex'))
+        client = self.get_client()
+        address_path = self.address_id(address)
+        address_n = client.expand_path(address_path)
+        payload = base64.b64decode(message)
+        nonce, message, msg_hmac = payload[:33], payload[33:-8], payload[-8:]
+        result = client.decrypt_message(address_n, nonce, message, msg_hmac)
+        return result.message
 
     def sign_message(self, address, message, password):
         client = self.get_client()
