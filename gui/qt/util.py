@@ -156,34 +156,39 @@ class CancelButton(QPushButton):
         self.clicked.connect(dialog.reject)
 
 class MessageBoxMixin(object):
+    def top_level_window(self, window=None):
+        window = window or self
+        for n, child in enumerate(window.children()):
+            # Test for visibility as old closed dialogs may not be GC-ed
+            if isinstance(child, WindowModalDialog) and child.isVisible():
+                return self.top_level_window(child)
+        return window
+
     def question(self, msg, parent=None, title=None, icon=None):
         Yes, No = QMessageBox.Yes, QMessageBox.No
         return self.msg_box(icon or QMessageBox.Question,
-                            parent or self, title or '',
+                            parent, title or '',
                             msg, buttons=Yes|No, defaultButton=No) == Yes
 
     def show_warning(self, msg, parent=None, title=None):
-        return self.msg_box(QMessageBox.Warning, parent or self,
+        return self.msg_box(QMessageBox.Warning, parent,
                             title or _('Warning'), msg)
 
     def show_error(self, msg, parent=None):
-        return self.msg_box(QMessageBox.Warning, parent or self,
+        return self.msg_box(QMessageBox.Warning, parent,
                             _('Error'), msg)
 
     def show_critical(self, msg, parent=None, title=None):
-        return self.msg_box(QMessageBox.Critical, parent or self,
+        return self.msg_box(QMessageBox.Critical, parent,
                             title or _('Critical Error'), msg)
 
     def show_message(self, msg, parent=None, title=None):
-        return self.msg_box(QMessageBox.Information, parent or self,
+        return self.msg_box(QMessageBox.Information, parent,
                             title or _('Information'), msg)
 
-    @staticmethod
-    def msg_box(icon, parent, title, text, buttons=QMessageBox.Ok,
+    def msg_box(self, icon, parent, title, text, buttons=QMessageBox.Ok,
                 defaultButton=QMessageBox.NoButton):
-        # handle e.g. ElectrumGui
-        if not isinstance(parent, QWidget):
-            parent = None
+        parent = parent or self.top_level_window()
         d = QMessageBox(icon, title, text, buttons, parent)
         d.setWindowModality(Qt.WindowModal)
         d.setDefaultButton(defaultButton)

@@ -1,3 +1,4 @@
+import base64
 import re
 import time
 
@@ -6,7 +7,7 @@ from struct import pack
 
 from electrum_ltc.account import BIP32_Account
 from electrum_ltc.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
-                                  EncodeBase58Check)
+                                  public_key_to_bc_address, EncodeBase58Check)
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.transaction import (deserialize, is_extended_pubkey,
@@ -99,7 +100,6 @@ class TrezorCompatibleWallet(BIP44_Wallet):
 
         # When creating a wallet we need to ask the device for the
         # master public key
-        derivation = derivation.replace(self.root_name, self.prefix() + "/")
         xpub = self.get_public_key(derivation)
         return xpub, None
 
@@ -116,7 +116,14 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         return pack('>I', x)
 
     def decrypt_message(self, pubkey, message, password):
-        raise RuntimeError(_('Decrypt method is not implemented'))
+        address = public_key_to_bc_address(pubkey.decode('hex'))
+        client = self.get_client()
+        address_path = self.address_id(address)
+        address_n = client.expand_path(address_path)
+        payload = base64.b64decode(message)
+        nonce, message, msg_hmac = payload[:33], payload[33:-8], payload[-8:]
+        result = client.decrypt_message(address_n, nonce, message, msg_hmac)
+        return result.message
 
     def sign_message(self, address, message, password):
         client = self.get_client()
@@ -332,7 +339,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         passphrase = wizard.request_passphrase(self.device, restore=True)
         password = wizard.request_password()
         wallet.add_seed(seed, password)
-        wallet.add_cosigner_seed(seed, 'x/', password, passphrase)
+        wallet.add_xprv_from_seed(seed, 'x/', password, passphrase)
         wallet.create_hd_account(password)
         return wallet
 

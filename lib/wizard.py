@@ -19,7 +19,7 @@
 from electrum_ltc import WalletStorage
 from electrum_ltc.plugins import run_hook
 from util import PrintError
-from wallet import Wallet
+from wallet import Wallet, wallet_types
 from i18n import _
 
 MSG_GENERATING_WAIT = _("Electrum is generating your addresses, please wait...")
@@ -64,10 +64,10 @@ class WizardBase(PrintError):
         raise NotImplementedError
 
     def query_create_or_restore(self, wallet_kinds):
-        """Ask the user what they want to do, and to what wallet kind.
-        wallet_kinds is an array of tuples (kind, description).
-        Return a tuple (action, kind).  Action is 'create' or 'restore',
-        and kind is one of the wallet kinds passed."""
+        """Ask the user what they want to do, and which wallet kind.
+        wallet_kinds is an array of translated wallet descriptions.
+        Return a a tuple (action, kind_index).  Action is 'create' or
+        'restore', and kind the index of the wallet kind chosen."""
         raise NotImplementedError
 
     def query_multisig(self, action):
@@ -170,10 +170,10 @@ class WizardBase(PrintError):
         self.print_error("action %s on %s" % (action, wallet.basename()))
         # Run the action on the wallet plugin, if any, then the
         # wallet and finally ourselves
-        calls = [(wallet, (wallet, )),
-                 (self, (wallet, ))]
+        calls = []
         if hasattr(wallet, 'plugin'):
-            calls.insert(0, (wallet.plugin, (wallet, self)))
+            calls.append((wallet.plugin, (wallet, self)))
+        calls.extend([(wallet, ()), (self, (wallet, ))])
         calls = [(getattr(actor, action), args) for (actor, args) in calls
                  if hasattr(actor, action)]
         if not calls:
@@ -186,21 +186,25 @@ class WizardBase(PrintError):
         a wallet and return it.'''
         self.remove_from_recently_open(storage.path)
 
-        action, kind = self.query_create_or_restore(WizardBase.wallet_kinds)
+        # Filter out any unregistered wallet kinds
+        registered_kinds = zip(*wallet_types)[0]
+        kinds, descriptions = zip(*[pair for pair in WizardBase.wallet_kinds
+                                    if pair[0] in registered_kinds])
+        action, kind_index = self.query_create_or_restore(descriptions)
 
         assert action in WizardBase.user_actions
-        assert kind in [k for k, desc in WizardBase.wallet_kinds]
 
+        kind = kinds[kind_index]
         if kind == 'multisig':
             wallet_type = self.query_multisig(action)
         elif kind == 'hardware':
-            wallet_types, choices = self.plugins.hardware_wallets(action)
+            hw_wallet_types, choices = self.plugins.hardware_wallets(action)
             if action == 'create':
                 msg = _('Select the hardware wallet to create')
             else:
                 msg = _('Select the hardware wallet to restore')
             choice = self.query_choice(msg, choices)
-            wallet_type = wallet_types[choice]
+            wallet_type = hw_wallet_types[choice]
         elif kind == 'twofactor':
             wallet_type = '2fa'
         else:

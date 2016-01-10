@@ -5,12 +5,11 @@ from sys import stderr
 from time import sleep
 
 import electrum_ltc as electrum
-from electrum_ltc.account import BIP32_Account
 from electrum_ltc.bitcoin import EncodeBase58Check, DecodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160, hash_160_to_bc_address
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.transaction import deserialize
-from electrum_ltc.wallet import BIP44_Wallet, BIP32_HD_Wallet, BIP32_Wallet
+from electrum_ltc.wallet import BIP44_Wallet
 
 from electrum_ltc.util import format_satoshis_plain, print_error, print_msg
 import hashlib
@@ -35,17 +34,15 @@ except ImportError:
     BTCHIP = False
 
 
-class BTChipWallet(BIP32_HD_Wallet):
+class BTChipWallet(BIP44_Wallet):
     wallet_type = 'btchip'
     device = 'Ledger'
-    root_derivation = "m/44'/2'"
     restore_wallet_class = BIP44_Wallet
 
     def __init__(self, storage):
-        BIP32_HD_Wallet.__init__(self, storage)
+        BIP44_Wallet.__init__(self, storage)
         self.transport = None
         self.client = None
-        self.mpk = None
         self.device_checked = False
         self.signing = False
         self.force_watching_only = False
@@ -61,10 +58,6 @@ class BTChipWallet(BIP32_HD_Wallet):
             self.device_checked = False
         raise Exception(message)
 
-    def can_sign_xpubkey(self, x_pubkey):
-        xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
-        return xpub in self.master_public_keys.values()
-
     def can_create_accounts(self):
         return False
 
@@ -74,6 +67,10 @@ class BTChipWallet(BIP32_HD_Wallet):
     def is_watching_only(self):
         assert not self.has_seed()
         return self.force_watching_only
+
+    def address_id(self, address):
+        # Strip the leading "m/"
+        return BIP44_Wallet.address_id(self, address)[2:]
 
     def get_client(self, noPin=False):
         if not BTCHIP:
@@ -152,17 +149,10 @@ class BTChipWallet(BIP32_HD_Wallet):
             self.proper_device = False
         return self.client
 
-    def address_id(self, address):
-        account_id, (change, address_index) = self.get_address_index(address)
-        return "44'/2'/%s'/%d/%d" % (account_id, change, address_index)
-
     def derive_xkeys(self, root, derivation, password):
         derivation = derivation.replace(self.root_name,"44'/2'/")
         xpub = self.get_public_key(derivation)
         return xpub, None
-
-    def get_private_key(self, address, password):
-        return []
 
     def get_public_key(self, bip32_path):
         # S-L-O-W - we don't handle the fingerprint directly, so compute it manually from the previous node
@@ -195,20 +185,8 @@ class BTChipWallet(BIP32_HD_Wallet):
 
         return EncodeBase58Check(xpub)
 
-    def get_master_public_key(self):
-        try:
-            if not self.mpk:
-                self.mpk = self.get_public_key("44'/2'")
-            return self.mpk
-        except Exception, e:
-            self.give_error(e, True)
-
     def i4b(self, x):
         return pack('>I', x)
-
-    def add_keypairs(self, tx, keypairs, password):
-        #do nothing - no priv keys available
-        pass
 
     def decrypt_message(self, pubkey, message, password):
         self.give_error("Not supported")
@@ -462,7 +440,7 @@ class LedgerPlugin(BasePlugin):
         passphrase = unicode()
         password = wizard.request_password()
         wallet.add_seed(seed, password)
-        wallet.add_cosigner_seed(seed, 'x/', password, passphrase)
+        wallet.add_xprv_from_seed(seed, 'x/', password, passphrase)
         wallet.create_hd_account(password)
         return wallet
 

@@ -27,7 +27,6 @@
     <file>icons/status_disconnected.png</file>
     <file>icons/status_waiting.png</file>
     <file>icons/status_lagging.png</file>
-    <file>icons/switchgui.png</file>
     <file>icons/seal.png</file>
     <file>icons/speaker.png</file>
     <file>icons/trezor.png</file>

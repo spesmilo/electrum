@@ -42,8 +42,8 @@ from electrum_ltc.util import format_satoshis, format_satoshis_plain, format_tim
 from electrum_ltc.util import PrintError, NotEnoughFunds, StoreDict
 from electrum_ltc import Transaction, mnemonic
 from electrum_ltc import util, bitcoin, commands
-from electrum_ltc import SimpleConfig, COIN_CHOOSERS
-from electrum_ltc import Wallet, paymentrequest
+from electrum_ltc import SimpleConfig, COIN_CHOOSERS, paymentrequest
+from electrum_ltc.wallet import Wallet, BIP32_RD_Wallet
 
 from amountedit import BTCAmountEdit, MyLineEdit, BTCkBEdit
 from network_dialog import NetworkDialog
@@ -1133,7 +1133,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return value of the wrapped function, or None if cancelled.
         '''
         def request_password(self, *args, **kwargs):
-            parent = kwargs.get('parent', self)
+            parent = kwargs.get('parent', self.top_level_window())
             password = None
             while self.wallet.use_encryption:
                 password = self.password_dialog(parent=parent)
@@ -1799,7 +1799,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.account_selector = QComboBox()
         self.account_selector.setSizeAdjustPolicy(QComboBox.AdjustToContents)
-        self.connect(self.account_selector,SIGNAL("activated(QString)"),self.change_account)
+        self.connect(self.account_selector, SIGNAL("activated(QString)"), self.change_account)
         sb.addPermanentWidget(self.account_selector)
 
         self.search_box = QLineEdit()
@@ -1808,20 +1808,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         sb.addPermanentWidget(self.search_box)
 
         self.lock_icon = QIcon()
-        self.password_button = StatusBarButton( self.lock_icon, _("Password"), self.change_password_dialog )
-        sb.addPermanentWidget( self.password_button )
+        self.password_button = StatusBarButton(self.lock_icon, _("Password"), self.change_password_dialog )
+        sb.addPermanentWidget(self.password_button)
 
-        sb.addPermanentWidget( StatusBarButton( QIcon(":icons/preferences.png"), _("Preferences"), self.settings_dialog ) )
-        self.seed_button = StatusBarButton( QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog )
-        sb.addPermanentWidget( self.seed_button )
-        self.status_button = StatusBarButton( QIcon(":icons/status_disconnected.png"), _("Network"), self.run_network_dialog )
-        sb.addPermanentWidget( self.status_button )
+        sb.addPermanentWidget(StatusBarButton(QIcon(":icons/preferences.png"), _("Preferences"), self.settings_dialog ) )
+        self.seed_button = StatusBarButton(QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog )
+        sb.addPermanentWidget(self.seed_button)
+        self.status_button = StatusBarButton(QIcon(":icons/status_disconnected.png"), _("Network"), self.run_network_dialog )
+        sb.addPermanentWidget(self.status_button)
         run_hook('create_status_bar', sb)
         self.setStatusBar(sb)
 
     def update_lock_icon(self):
         icon = QIcon(":icons/lock.png") if self.wallet.use_encryption else QIcon(":icons/unlock.png")
-        self.password_button.setIcon( icon )
+        self.password_button.setIcon(icon)
 
     def update_buttons_on_seed(self):
         self.seed_button.setVisible(self.wallet.has_seed())
@@ -2030,7 +2030,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d.setMinimumSize(600, 200)
         vbox = QVBoxLayout()
         vbox.addWidget( QLabel(_("Address") + ': ' + address))
-        vbox.addWidget( QLabel(_("Public key") + ':'))
+        if isinstance(self.wallet, BIP32_RD_Wallet):
+            derivation = self.wallet.address_id(address)
+            vbox.addWidget(QLabel(_("Derivation") + ': ' + derivation))
+        vbox.addWidget(QLabel(_("Public key") + ':'))
         keys_e = ShowQRTextEdit(text='\n'.join(pubkey_list))
         keys_e.addCopyButton(self.app)
         vbox.addWidget(keys_e)
@@ -2065,21 +2068,23 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def do_sign(self, address, message, signature, password):
         message = unicode(message.toPlainText())
         message = message.encode('utf-8')
-        try:
-            sig = self.wallet.sign_message(str(address.text()), message, password)
-            sig = base64.b64encode(sig)
-            signature.setText(sig)
-        except Exception as e:
-            self.show_message(str(e))
+        sig = self.wallet.sign_message(str(address.text()), message, password)
+        sig = base64.b64encode(sig)
+        signature.setText(sig)
 
     def do_verify(self, address, message, signature):
         message = unicode(message.toPlainText())
         message = message.encode('utf-8')
-        sig = base64.b64decode(str(signature.toPlainText()))
-        if bitcoin.verify_message(address.text(), sig, message):
+        try:
+            # This can throw on invalid base64
+            sig = base64.b64decode(str(signature.toPlainText()))
+            verified = bitcoin.verify_message(address.text(), sig, message)
+        except:
+            verified = False
+        if verified:
             self.show_message(_("Signature verified"))
         else:
-            self.show_message(_("Error: wrong signature"))
+            self.show_error(_("Wrong signature"))
 
 
     def sign_verify_message(self, address=''):
