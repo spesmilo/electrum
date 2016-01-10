@@ -100,7 +100,6 @@ class TrezorCompatibleWallet(BIP44_Wallet):
 
         # When creating a wallet we need to ask the device for the
         # master public key
-        derivation = derivation.replace(self.root_name, self.prefix() + "/")
         xpub = self.get_public_key(derivation)
         return xpub, None
 

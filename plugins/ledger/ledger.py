@@ -63,6 +63,10 @@ class BTChipWallet(BIP44_Wallet):
         assert not self.has_seed()
         return self.force_watching_only
 
+    def address_id(self, address):
+        # Strip the leading "m/"
+        return BIP44_Wallet.address_id(self, address)[2:]
+
     def get_client(self, noPin=False):
         if not BTCHIP:
             self.give_error('please install github.com/btchip/btchip-python')

@@ -1668,18 +1668,14 @@ class BIP32_HD_Wallet(BIP32_Wallet):
         # drop unused master public key to avoid duplicate errors
         acc2 = storage.get('next_account2', None)
         if acc2:
-            storage.put('next_account2', None)
             self.master_public_keys.pop(self.root_name + acc2[0] + "'", None)
-            self.storage.put('master_public_keys', self.master_public_keys)
+            storage.put('next_account2', None)
+            storage.put('master_public_keys', self.master_public_keys)
 
     def next_account_number(self):
         assert (set(self.accounts.keys()) ==
                 set(['%d' % n for n in range(len(self.accounts))]))
         return len(self.accounts)
-
-    def next_derivation(self):
-        account_id = '%d' % self.next_account_number()
-        return self.root_name + account_id + "'", account_id
 
     def show_account(self, account_id):
         return self.account_is_used(account_id) or account_id in self.labels
@@ -1711,8 +1707,10 @@ class BIP32_HD_Wallet(BIP32_Wallet):
         self.create_next_account(password)
 
     def create_next_account(self, password, label=None):
-        derivation, account_id = self.next_derivation()
-        xpub, xprv = self.derive_xkeys(self.root_name, derivation, password)
+        account_id = '%d' % self.next_account_number()
+        derivation = self.account_derivation(account_id)
+        root_name = self.root_derivation.split('/')[0]  # NOT self.root_name!
+        xpub, xprv = self.derive_xkeys(root_name, derivation, password)
         self.add_master_public_key(derivation, xpub)
         if xprv:
             self.add_master_private_key(derivation, xprv, password)
@@ -1729,12 +1727,8 @@ class BIP32_HD_Wallet(BIP32_Wallet):
         return all(self.account_is_used(acc_id) for acc_id in self.accounts)
 
     @classmethod
-    def prefix(self):
-        return "/".join(self.root_derivation.split("/")[1:])
-
-    @classmethod
     def account_derivation(self, account_id):
-        return self.prefix() + "/" + account_id + "'"
+        return self.root_derivation + "/" + account_id + "'"
 
     @classmethod
     def address_derivation(self, account_id, change, address_index):

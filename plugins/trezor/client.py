@@ -98,7 +98,7 @@ def trezor_client_class(protocol_mixin, base_client, proto):
             '''Convert bip32 path to list of uint32 integers with prime flags
             0/-1/1' -> [0, 0x80000001, 0x80000001]'''
             path = []
-            for x in n.split('/'):
+            for x in n.split('/')[1:]:
                 prime = 0
                 if x.endswith("'"):
                     x = x.replace('\'', '')
