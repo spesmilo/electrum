@@ -43,7 +43,7 @@ from electrum.util import PrintError, NotEnoughFunds, StoreDict
 from electrum import Transaction, mnemonic
 from electrum import util, bitcoin, commands
 from electrum import SimpleConfig, COIN_CHOOSERS, paymentrequest
-from electrum.wallet import Wallet, BIP32_RD_Wallet
+from electrum.wallet import Wallet, BIP32_RD_Wallet, Multisig_Wallet
 
 from amountedit import BTCAmountEdit, MyLineEdit, BTCkBEdit
 from network_dialog import NetworkDialog
@@ -1955,41 +1955,29 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         dialog = WindowModalDialog(self, "Master Public Keys")
         mpk_dict = self.wallet.get_master_public_keys()
         vbox = QVBoxLayout()
+        mpk_text = ShowQRTextEdit()
+        mpk_text.setMaximumHeight(100)
+        mpk_text.addCopyButton(self.app)
+        sorted_keys = sorted(mpk_dict.keys())
+        def show_mpk(index):
+            mpk_text.setText(mpk_dict[sorted_keys[index]])
+
         # only show the combobox in case multiple accounts are available
         if len(mpk_dict) > 1:
-            gb = QGroupBox(_("Master Public Keys"))
-            vbox.addWidget(gb)
-            group = QButtonGroup()
-            first_button = None
-            for key in sorted(mpk_dict.keys()):
-                is_mine = self.wallet.master_private_keys.has_key(key)
-                b = QRadioButton(gb)
-                name = 'Self' if is_mine else 'Cosigner'
-                b.setText(name + ' (%s)'%key)
-                b.key = key
-                group.addButton(b)
-                vbox.addWidget(b)
-                if not first_button:
-                    first_button = b
+            def label(key):
+                if isinstance(self.wallet, Multisig_Wallet):
+                    is_mine = self.wallet.master_private_keys.has_key(key)
+                    mine_text = [_("cosigner"), _("self")]
+                    return "%s (%s)" % (key, mine_text[is_mine])
+                return key
+            labels = list(map(label, sorted_keys))
+            on_click = lambda clayout: show_mpk(clayout.selected_index())
+            labels_clayout = ChoicesLayout(_("Master Public Keys"), labels,
+                                           on_click)
+            vbox.addLayout(labels_clayout.layout())
 
-            mpk_text = ShowQRTextEdit()
-            mpk_text.setMaximumHeight(170)
-            vbox.addWidget(mpk_text)
-
-            def show_mpk(b):
-                mpk = mpk_dict.get(b.key, "")
-                mpk_text.setText(mpk)
-
-            group.buttonReleased.connect(show_mpk)
-            first_button.setChecked(True)
-            show_mpk(first_button)
-        elif len(mpk_dict) == 1:
-            mpk = mpk_dict.values()[0]
-            mpk_text = ShowQRTextEdit(text=mpk)
-            mpk_text.setMaximumHeight(170)
-            vbox.addWidget(mpk_text)
-
-        mpk_text.addCopyButton(self.app)
+        show_mpk(0)
+        vbox.addWidget(mpk_text)
         vbox.addLayout(Buttons(CloseButton(dialog)))
         dialog.setLayout(vbox)
         dialog.exec_()
