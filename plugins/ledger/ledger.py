@@ -53,6 +53,9 @@ class BTChipWallet(BIP44_Wallet):
             self.device_checked = False
         raise Exception(message)
 
+    def get_action(self):
+        pass
+
     def can_create_accounts(self):
         return False
 
@@ -140,12 +143,14 @@ class BTChipWallet(BIP44_Wallet):
         return self.client
 
     def derive_xkeys(self, root, derivation, password):
-        derivation = derivation.replace(self.root_name,"44'/0'/")
+        derivation = '/'.join(derivation.split('/')[1:])
         xpub = self.get_public_key(derivation)
         return xpub, None
 
     def get_public_key(self, bip32_path):
-        # S-L-O-W - we don't handle the fingerprint directly, so compute it manually from the previous node
+        # bip32_path is of the form 44'/0'/1'
+        # S-L-O-W - we don't handle the fingerprint directly, so compute
+        # it manually from the previous node
         # This only happens once so it's bearable
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
         self.plugin.handler.show_message("Computing master public key")

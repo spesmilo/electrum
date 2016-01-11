@@ -23,8 +23,10 @@ class Plugin(LedgerPlugin):
             wallet.force_watching_only = True
 
     def on_create_wallet(self, wallet, wizard):
+        assert type(wallet) == self.wallet_class
         self.handler = BTChipQTHandler(wizard)
-        wallet.create_main_account()
+#        self.select_device(wallet)
+        wallet.create_hd_account(None)
 
 class BTChipQTHandler:
 
