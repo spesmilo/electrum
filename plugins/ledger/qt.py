@@ -1,4 +1,5 @@
-from PyQt4.Qt import QDialog, QInputDialog, QLineEdit, QVBoxLayout, QLabel, SIGNAL
+from PyQt4.Qt import (QDialog, QInputDialog, QLineEdit,
+                      QVBoxLayout, QLabel, SIGNAL)
 import PyQt4.QtCore as QtCore
 import threading
 
@@ -12,8 +13,7 @@ class Plugin(LedgerPlugin):
     def load_wallet(self, wallet, window):
         if type(wallet) != BTChipWallet:
             return
-        if self.handler is None:
-            self.handler = BTChipQTHandler(window)
+        wallet.handler = BTChipQTHandler(window)
         if self.btchip_is_connected(wallet):
             if not wallet.check_proper_device():
                 window.show_error(_("This wallet does not match your Ledger device"))
@@ -24,7 +24,7 @@ class Plugin(LedgerPlugin):
 
     def on_create_wallet(self, wallet, wizard):
         assert type(wallet) == self.wallet_class
-        self.handler = BTChipQTHandler(wizard)
+        wallet.handler = BTChipQTHandler(wizard)
 #        self.select_device(wallet)
         wallet.create_hd_account(None)
 

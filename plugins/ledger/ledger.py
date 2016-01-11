@@ -36,11 +36,16 @@ class BTChipWallet(BIP44_Wallet):
 
     def __init__(self, storage):
         BIP44_Wallet.__init__(self, storage)
+        # Errors and other user interaction is done through the wallet's
+        # handler.  The handler is per-window and preserved across
+        # device reconnects
+        self.handler = None
+        self.force_watching_only = False
+
         self.transport = None
         self.client = None
         self.device_checked = False
         self.signing = False
-        self.force_watching_only = False
 
     def give_error(self, message, clear_client = False):
         print_error(message)
@@ -79,7 +84,6 @@ class BTChipWallet(BIP44_Wallet):
             try:
                 d = getDongle(BTCHIP_DEBUG)
                 self.client = btchip(d)
-                self.client.handler = self.plugin.handler
                 firmware = self.client.getFirmwareVersion()['version'].split(".")
                 if not checkFirmware(firmware):
                     d.close()
@@ -153,7 +157,7 @@ class BTChipWallet(BIP44_Wallet):
         # it manually from the previous node
         # This only happens once so it's bearable
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
-        self.plugin.handler.show_message("Computing master public key")
+        self.handler.show_message("Computing master public key")
         try:
             splitPath = bip32_path.split('/')
             fingerprint = 0
@@ -176,7 +180,7 @@ class BTChipWallet(BIP44_Wallet):
         except Exception, e:
             self.give_error(e, True)
         finally:
-            self.plugin.handler.stop()
+            self.handler.stop()
 
         return EncodeBase58Check(xpub)
 
@@ -193,7 +197,7 @@ class BTChipWallet(BIP44_Wallet):
         if not self.check_proper_device():
             self.give_error('Wrong device or password')
         address_path = self.address_id(address)
-        self.plugin.handler.show_message("Signing message ...")
+        self.handler.show_message("Signing message ...")
         try:
             info = self.get_client().signMessagePrepare(address_path, message)
             pin = ""
@@ -216,7 +220,7 @@ class BTChipWallet(BIP44_Wallet):
         except Exception, e:
             self.give_error(e, True)
         finally:
-            self.plugin.handler.stop()
+            self.handler.stop()
         self.client.bad = use2FA
         self.signing = False
 
@@ -282,7 +286,7 @@ class BTChipWallet(BIP44_Wallet):
         if not self.check_proper_device():
             self.give_error('Wrong device or password')
 
-        self.plugin.handler.show_message("Signing Transaction ...")
+        self.handler.show_message("Signing Transaction ...")
         try:
             # Get trusted inputs from the original transactions
             for utxo in inputs:
@@ -302,7 +306,7 @@ class BTChipWallet(BIP44_Wallet):
                     transactionOutput = outputData['outputData']
                 if outputData['confirmationNeeded']:
                     # TODO : handle different confirmation types. For the time being only supports keyboard 2FA
-                    self.plugin.handler.stop()
+                    self.handler.stop()
                     if 'keycardData' in outputData:
                         pin2 = ""
                         for keycardIndex in range(len(outputData['keycardData'])):
@@ -333,7 +337,7 @@ class BTChipWallet(BIP44_Wallet):
                         self.client.bad = True
                         self.device_checked = False
                         self.get_client(True)
-                    self.plugin.handler.show_message("Signing ...")
+                    self.handler.show_message("Signing ...")
                 else:
                     # Sign input with the provided PIN
                     inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex],
@@ -345,7 +349,7 @@ class BTChipWallet(BIP44_Wallet):
         except Exception, e:
             self.give_error(e, True)
         finally:
-            self.plugin.handler.stop()
+            self.handler.stop()
 
         # Reformat transaction
         inputIndex = 0
@@ -363,13 +367,13 @@ class BTChipWallet(BIP44_Wallet):
     def check_proper_device(self):
         pubKey = DecodeBase58Check(self.master_public_keys["x/0'"])[45:]
         if not self.device_checked:
-            self.plugin.handler.show_message("Checking device")
+            self.handler.show_message("Checking device")
             try:
                 nodeData = self.get_client().getWalletPublicKey("44'/0'/0'")
             except Exception, e:
                 self.give_error(e, True)
             finally:
-                self.plugin.handler.stop()
+                self.handler.stop()
             pubKeyDevice = compress_public_key(nodeData['publicKey'])
             self.device_checked = True
             if pubKey != pubKeyDevice:
@@ -387,7 +391,7 @@ class BTChipWallet(BIP44_Wallet):
                     "It should show itself to your computer as a keyboard and output the second factor along with a summary of the transaction it is signing into the text-editor.\r\n\r\n" \
                     "Check that summary and then enter the second factor code here.\r\n" \
                     "Before clicking OK, re-plug the device once more (unplug it and plug it again if you read the second factor code on the same computer)")
-        response = self.plugin.handler.prompt_auth(msg)
+        response = self.handler.prompt_auth(msg)
         if response is None:
             return False, None, None
         return True, response, response
@@ -400,7 +404,6 @@ class LedgerPlugin(BasePlugin):
         BasePlugin.__init__(self, parent, config, name)
         self.wallet_class.plugin = self
         self.device = self.wallet_class.device
-        self.handler = None
 
     def is_enabled(self):
         return BTCHIP
