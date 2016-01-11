@@ -1,11 +1,12 @@
+import threading
+
 from PyQt4.Qt import (QDialog, QInputDialog, QLineEdit,
                       QVBoxLayout, QLabel, SIGNAL)
 import PyQt4.QtCore as QtCore
-import threading
 
-from electrum.plugins import BasePlugin, hook
-
-from ledger import LedgerPlugin, BTChipWallet
+from electrum.i18n import _
+from electrum.plugins import hook
+from .ledger import LedgerPlugin, BTChipWallet
 
 class Plugin(LedgerPlugin):
 

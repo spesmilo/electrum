@@ -42,8 +42,6 @@ class BTChipWallet(BIP44_Wallet):
         self.handler = None
         self.force_watching_only = False
 
-        self.transport = None
-        self.client = None
         self.device_checked = False
         self.signing = False
 
@@ -53,8 +51,8 @@ class BTChipWallet(BIP44_Wallet):
             QMessageBox.warning(QDialog(), _('Warning'), _(message), _('OK'))
         else:
             self.signing = False
-        if clear_client and self.client is not None:
-            self.client.bad = True
+        if clear_client:
+            self.plugin.client = None
             self.device_checked = False
         raise Exception(message)
 
@@ -76,75 +74,7 @@ class BTChipWallet(BIP44_Wallet):
         return BIP44_Wallet.address_id(self, address)[2:]
 
     def get_client(self, noPin=False):
-        if not BTCHIP:
-            self.give_error('please install github.com/btchip/btchip-python')
-
-        aborted = False
-        if not self.client or self.client.bad:
-            try:
-                d = getDongle(BTCHIP_DEBUG)
-                self.client = btchip(d)
-                firmware = self.client.getFirmwareVersion()['version'].split(".")
-                if not checkFirmware(firmware):
-                    d.close()
-                    try:
-                        updateFirmware()
-                    except Exception, e:
-                        aborted = True
-                        raise e
-                    d = getDongle(BTCHIP_DEBUG)
-                    self.client = btchip(d)
-                try:
-                    self.client.getOperationMode()
-                except BTChipException, e:
-                    if (e.sw == 0x6985):
-                        d.close()
-                        dialog = StartBTChipPersoDialog()
-                        dialog.exec_()
-                        # Then fetch the reference again  as it was invalidated
-                        d = getDongle(BTCHIP_DEBUG)
-                        self.client = btchip(d)
-                    else:
-                        raise e
-                if not noPin:
-                    # Immediately prompts for the PIN
-                    remaining_attempts = self.client.getVerifyPinRemainingAttempts()
-                    if remaining_attempts <> 1:
-                        msg = "Enter your Ledger PIN - remaining attempts : " + str(remaining_attempts)
-                    else:
-                        msg = "Enter your Ledger PIN - WARNING : LAST ATTEMPT. If the PIN is not correct, the dongle will be wiped."
-                    confirmed, p, pin = self.password_dialog(msg)
-                    if not confirmed:
-                        aborted = True
-                        raise Exception('Aborted by user - please unplug the dongle and plug it again before retrying')
-                    pin = pin.encode()
-                    self.client.verifyPin(pin)
-
-            except BTChipException, e:
-                try:
-                    self.client.dongle.close()
-                except:
-                    pass
-                self.client = None
-                if (e.sw == 0x6faa):
-                    raise Exception("Dongle is temporarily locked - please unplug it and replug it again")
-                if ((e.sw & 0xFFF0) == 0x63c0):
-                    raise Exception("Invalid PIN - please unplug the dongle and plug it again before retrying")
-                raise e
-            except Exception, e:
-                try:
-                    self.client.dongle.close()
-                except:
-                    pass
-                self.client = None
-                if not aborted:
-                    raise Exception("Could not connect to your Ledger wallet. Please verify access permissions, PIN, or unplug the dongle and plug it again")
-                else:
-                    raise e
-            self.client.bad = False
-            self.device_checked = False
-            self.proper_device = False
-        return self.client
+        return self.plugin.get_client(self, noPin=noPin)
 
     def derive_xkeys(self, root, derivation, password):
         derivation = '/'.join(derivation.split('/')[1:])
@@ -193,7 +123,8 @@ class BTChipWallet(BIP44_Wallet):
     def sign_message(self, address, message, password):
         use2FA = False
         self.signing = True
-        self.get_client() # prompt for the PIN before displaying the dialog if necessary
+        # prompt for the PIN before displaying the dialog if necessary
+        client = self.get_client()
         if not self.check_proper_device():
             self.give_error('Wrong device or password')
         address_path = self.address_id(address)
@@ -208,7 +139,7 @@ class BTChipWallet(BIP44_Wallet):
                 if not confirmed:
                     raise Exception('Aborted by user')
                 pin = pin.encode()
-                self.client.bad = True
+                client.bad = True
                 self.device_checked = False
                 self.get_client(True)
             signature = self.get_client().signMessageSign(pin)
@@ -221,7 +152,7 @@ class BTChipWallet(BIP44_Wallet):
             self.give_error(e, True)
         finally:
             self.handler.stop()
-        self.client.bad = use2FA
+        client.bad = use2FA
         self.signing = False
 
         # Parse the ASN.1 signature
@@ -334,7 +265,7 @@ class BTChipWallet(BIP44_Wallet):
                         if not confirmed:
                             raise Exception('Aborted by user')
                         pin = pin.encode()
-                        self.client.bad = True
+                        client.bad = True
                         self.device_checked = False
                         self.get_client(True)
                     self.handler.show_message("Signing ...")
@@ -361,7 +292,7 @@ class BTChipWallet(BIP44_Wallet):
         updatedTransaction = format_transaction(transactionOutput, preparedTrustedInputs)
         updatedTransaction = hexlify(updatedTransaction)
         tx.update(updatedTransaction)
-        self.client.bad = use2FA
+        client.bad = use2FA
         self.signing = False
 
     def check_proper_device(self):
@@ -404,6 +335,7 @@ class LedgerPlugin(BasePlugin):
         BasePlugin.__init__(self, parent, config, name)
         self.wallet_class.plugin = self
         self.device = self.wallet_class.device
+        self.client = None
 
     def is_enabled(self):
         return BTCHIP
@@ -441,3 +373,74 @@ class LedgerPlugin(BasePlugin):
     @hook
     def close_wallet(self, wallet):
         self.client = None
+
+    def get_client(self, wallet, noPin=False):
+        aborted = False
+        client = self.client
+        if not client or client.bad:
+            try:
+                d = getDongle(BTCHIP_DEBUG)
+                client = btchip(d)
+                firmware = client.getFirmwareVersion()['version'].split(".")
+                if not checkFirmware(firmware):
+                    d.close()
+                    try:
+                        updateFirmware()
+                    except Exception, e:
+                        aborted = True
+                        raise e
+                    d = getDongle(BTCHIP_DEBUG)
+                    client = btchip(d)
+                try:
+                    client.getOperationMode()
+                except BTChipException, e:
+                    if (e.sw == 0x6985):
+                        d.close()
+                        dialog = StartBTChipPersoDialog()
+                        dialog.exec_()
+                        # Then fetch the reference again  as it was invalidated
+                        d = getDongle(BTCHIP_DEBUG)
+                        client = btchip(d)
+                    else:
+                        raise e
+                if not noPin:
+                    # Immediately prompts for the PIN
+                    remaining_attempts = client.getVerifyPinRemainingAttempts()
+                    if remaining_attempts <> 1:
+                        msg = "Enter your Ledger PIN - remaining attempts : " + str(remaining_attempts)
+                    else:
+                        msg = "Enter your Ledger PIN - WARNING : LAST ATTEMPT. If the PIN is not correct, the dongle will be wiped."
+                    confirmed, p, pin = wallet.password_dialog(msg)
+                    if not confirmed:
+                        aborted = True
+                        raise Exception('Aborted by user - please unplug the dongle and plug it again before retrying')
+                    pin = pin.encode()
+                    client.verifyPin(pin)
+
+            except BTChipException, e:
+                try:
+                    client.dongle.close()
+                except:
+                    pass
+                client = None
+                if (e.sw == 0x6faa):
+                    raise Exception("Dongle is temporarily locked - please unplug it and replug it again")
+                if ((e.sw & 0xFFF0) == 0x63c0):
+                    raise Exception("Invalid PIN - please unplug the dongle and plug it again before retrying")
+                raise e
+            except Exception, e:
+                try:
+                    client.dongle.close()
+                except:
+                    pass
+                client = None
+                if not aborted:
+                    raise Exception("Could not connect to your Ledger wallet. Please verify access permissions, PIN, or unplug the dongle and plug it again")
+                else:
+                    raise e
+            client.bad = False
+            wallet.device_checked = False
+            wallet.proper_device = False
+            self.client = client
+
+        return self.client
