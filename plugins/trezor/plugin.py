@@ -95,7 +95,7 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         return (account.first_address()[0] if account else None, derivation)
 
     def derive_xkeys(self, root, derivation, password):
-        if self.master_public_keys.get(root):
+        if self.master_public_keys.get(self.root_name):
             return BIP44_wallet.derive_xkeys(self, root, derivation, password)
 
         # When creating a wallet we need to ask the device for the

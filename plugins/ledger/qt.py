@@ -1,10 +1,12 @@
-from PyQt4.Qt import QDialog, QInputDialog, QLineEdit, QVBoxLayout, QLabel, SIGNAL
-import PyQt4.QtCore as QtCore
 import threading
 
-from electrum_ltc.plugins import BasePlugin, hook
+from PyQt4.Qt import (QDialog, QInputDialog, QLineEdit,
+                      QVBoxLayout, QLabel, SIGNAL)
+import PyQt4.QtCore as QtCore
 
-from ledger import LedgerPlugin, BTChipWallet
+from electrum_ltc.i18n import _
+from electrum_ltc.plugins import hook
+from .ledger import LedgerPlugin, BTChipWallet
 
 class Plugin(LedgerPlugin):
 
@@ -12,8 +14,7 @@ class Plugin(LedgerPlugin):
     def load_wallet(self, wallet, window):
         if type(wallet) != BTChipWallet:
             return
-        if self.handler is None:
-            self.handler = BTChipQTHandler(window)
+        wallet.handler = BTChipQTHandler(window)
         if self.btchip_is_connected(wallet):
             if not wallet.check_proper_device():
                 window.show_error(_("This wallet does not match your Ledger device"))
@@ -23,8 +24,10 @@ class Plugin(LedgerPlugin):
             wallet.force_watching_only = True
 
     def on_create_wallet(self, wallet, wizard):
-        self.handler = BTChipQTHandler(wizard)
-        wallet.create_main_account()
+        assert type(wallet) == self.wallet_class
+        wallet.handler = BTChipQTHandler(wizard)
+#        self.select_device(wallet)
+        wallet.create_hd_account(None)
 
 class BTChipQTHandler:
 

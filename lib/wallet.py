@@ -1727,9 +1727,10 @@ class BIP32_HD_Wallet(BIP32_RD_Wallet):
         derivation = self.account_derivation(account_id)
         root_name = self.root_derivation.split('/')[0]  # NOT self.root_name!
         xpub, xprv = self.derive_xkeys(root_name, derivation, password)
-        self.add_master_public_key(derivation, xpub)
+        wallet_key = self.root_name + account_id + "'"
+        self.add_master_public_key(wallet_key, xpub)
         if xprv:
-            self.add_master_private_key(derivation, xprv, password)
+            self.add_master_private_key(wallet_key, xprv, password)
         account = BIP32_Account({'xpub':xpub})
         self.add_account(account_id, account)
         if label:
@@ -1774,6 +1775,8 @@ class BIP44_Wallet(BIP32_HD_Wallet):
                              digestmodule = hashlib.sha512).read(64)
 
     def derive_xkeys(self, root, derivation, password):
+        root = self.root_name
+        derivation = derivation.replace(self.root_derivation, root)
         x = self.master_private_keys.get(root)
         if x:
             root_xprv = pw_decode(x, password)
@@ -1781,7 +1784,7 @@ class BIP44_Wallet(BIP32_HD_Wallet):
             return xpub, xprv
         else:
             root_xpub = self.master_public_keys.get(root)
-            xpub = bip32_public_derivation(root_xub, root, derivation)
+            xpub = bip32_public_derivation(root_xpub, root, derivation)
             return xpub, None
 
 

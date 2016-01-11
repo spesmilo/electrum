@@ -1,12 +1,14 @@
-from electrum_ltc.i18n import _
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
 import os.path
 import time
 import traceback
 import sys
 import threading
 import platform
+from functools import partial
+
+from electrum_ltc.i18n import _
+from PyQt4.QtGui import *
+from PyQt4.QtCore import *
 
 if platform.system() == 'Windows':
     MONOSPACE_FONT = 'Lucida Console'
@@ -267,7 +269,7 @@ def text_dialog(parent, title, label, ok_label, default=None):
         return unicode(txt.toPlainText())
 
 class ChoicesLayout(object):
-    def __init__(self, msg, choices):
+    def __init__(self, msg, choices, on_clicked=None):
         vbox = QVBoxLayout()
         if len(msg) > 50:
             label = QLabel(msg)
@@ -289,6 +291,10 @@ class ChoicesLayout(object):
             group.setId(button, i)
             if i==0:
                 button.setChecked(True)
+
+        if on_clicked:
+            group.buttonClicked.connect(partial(on_clicked, self))
+
         self.vbox = vbox
 
     def layout(self):
