@@ -163,16 +163,13 @@ class ElectrumGui:
         return w
 
     def close_window(self, window):
-        # It seems that in some cases this can be called before the
-        # window is added to the windows list...
-        if window in self.windows:
-            self.windows.remove(window)
-            run_hook('on_close_window', window)
+        self.windows.remove(window)
         self.build_tray_menu()
         # save wallet path of last open window
         if self.config.get('wallet_path') is None and not self.windows:
             path = window.wallet.storage.path
             self.config.set_key('gui_last_wallet', path)
+        run_hook('on_close_window', window)
 
     def main(self):
         self.timer.start()
