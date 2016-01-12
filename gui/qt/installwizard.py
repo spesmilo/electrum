@@ -132,6 +132,9 @@ class InstallWizard(WindowModalDialog, WizardBase):
         self.next_button.setEnabled(False)
         self.main_widget.setVisible(False)
         self.please_wait.setVisible(True)
+        self.refresh_gui()
+
+    def refresh_gui(self):
         # For some reason, to refresh the GUI this needs to be called twice
         self.app.processEvents()
         self.app.processEvents()
@@ -228,12 +231,8 @@ class InstallWizard(WindowModalDialog, WizardBase):
             self.emit(QtCore.SIGNAL('accept'))
         t = threading.Thread(target = task)
         t.start()
-        vbox = QVBoxLayout()
-        self.waiting_label = QLabel(MSG_GENERATING_WAIT)
-        vbox.addWidget(self.waiting_label)
-        self.set_layout(vbox)
-        self.raise_()
-        self.exec_()
+        self.please_wait.setText(MSG_GENERATING_WAIT)
+        self.refresh_gui()
 
     def set_layout(self, layout):
         w = QWidget()
