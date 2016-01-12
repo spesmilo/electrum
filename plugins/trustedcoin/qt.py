@@ -103,9 +103,14 @@ class Plugin(TrustedCoinPlugin):
                              on_finished)
 
     def show_disclaimer(self, wallet, window):
-        icon = QPixmap(':icons/trustedcoin.png')
-        window.confirm('\n\n'.join(DISCLAIMER), icon=icon)
+        prior_icon = window.set_icon(':icons/trustedcoin.png')
+        label = QLabel('\n\n'.join(DISCLAIMER))
+        label.setWordWrap(True)
+        vbox = QVBoxLayout()
+        vbox.addWidget(label)
+        window.set_main_layout(vbox, _("Two-Factor Authentication"))
         self.set_enabled(wallet, True)
+        window.set_icon(prior_icon)
 
     @hook
     def abort_send(self, window):

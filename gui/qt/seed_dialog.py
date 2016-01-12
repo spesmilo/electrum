@@ -43,48 +43,52 @@ def icon_filename(sid):
     else:
         return ":icons/seed.png"
 
+class SeedLayout(object):
+    def __init__(self, seed, sid=None):
+        if seed:
+            self.vbox = self.seed_and_warning_layout(seed, sid)
+        else:
+            self.vbox = self.seed_layout(seed, sid)
 
-def show_seed_box_msg(seedphrase, sid=None):
-    msg =  _("Your wallet generation seed is") + ":"
-    vbox = show_seed_box(msg, seedphrase, sid)
-    msg = ''.join([
-        "<p>",
-        _("Please save these %d words on paper (order is important).")%len(seedphrase.split()) + " ",
-        _("This seed will allow you to recover your wallet in case of computer failure.") + "<br/>",
-        "</p>",
-        "<b>" + _("WARNING") + ":</b> ",
-        "<ul>",
-        "<li>" + _("Never disclose your seed.") + "</li>",
-        "<li>" + _("Never type it on a website.") + "</li>",
-        "<li>" + _("Do not send your seed to a printer.") + "</li>",
-        "</ul>"
-    ])
-    label2 = QLabel(msg)
-    label2.setWordWrap(True)
-    vbox.addWidget(label2)
-    vbox.addStretch(1)
-    return vbox
+    def layout(self):
+        return self.vbox
 
-def show_seed_box(msg, seed, sid):
-    vbox, seed_e = enter_seed_box(msg, None, sid=sid, text=seed)
-    return vbox
+    def seed_edit(self):
+        return self.seed_e
 
-def enter_seed_box(msg, window, sid=None, text=None):
-    vbox = QVBoxLayout()
-    logo = QLabel()
-    logo.setPixmap(QPixmap(icon_filename(sid)).scaledToWidth(56))
-    logo.setMaximumWidth(60)
-    label = QLabel(msg)
-    label.setWordWrap(True)
-    if not text:
-        seed_e = ScanQRTextEdit()
-        seed_e.setTabChangesFocus(True)
-    else:
-        seed_e = ShowQRTextEdit(text=text)
-    seed_e.setMaximumHeight(130)
-    vbox.addWidget(label)
-    grid = QGridLayout()
-    grid.addWidget(logo, 0, 0)
-    grid.addWidget(seed_e, 0, 1)
-    vbox.addLayout(grid)
-    return vbox, seed_e
+    def seed_and_warning_layout(self, seed, sid=None):
+        vbox = QVBoxLayout()
+        vbox.addLayout(self.seed_layout(seed, sid))
+        msg = ''.join([
+            "<p>",
+            _("Please save these %d words on paper (order is important). "),
+            _("This seed will allow you to recover your wallet in case "
+              "of computer failure.") + "<br/>",
+            "</p>",
+            "<b>" + _("WARNING") + ":</b> ",
+            "<ul>",
+            "<li>" + _("Never disclose your seed.") + "</li>",
+            "<li>" + _("Never type it on a website.") + "</li>",
+            "<li>" + _("Do not send your seed to a printer.") + "</li>",
+            "</ul>"
+        ]) % len(seed.split())
+        label2 = QLabel(msg)
+        label2.setWordWrap(True)
+        vbox.addWidget(label2)
+        return vbox
+
+    def seed_layout(self, seed, sid=None):
+        logo = QLabel()
+        logo.setPixmap(QPixmap(icon_filename(sid)).scaledToWidth(56))
+        logo.setMaximumWidth(60)
+        if not seed:
+            seed_e = ScanQRTextEdit()
+            seed_e.setTabChangesFocus(True)
+        else:
+            seed_e = ShowQRTextEdit(text=seed)
+        seed_e.setMaximumHeight(100)
+        self.seed_e = seed_e
+        hbox = QHBoxLayout()
+        hbox.addWidget(logo)
+        hbox.addWidget(seed_e)
+        return hbox

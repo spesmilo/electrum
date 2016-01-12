@@ -20,6 +20,11 @@ from electrum.wizard import (WizardBase, UserCancelled,
                              MSG_SHOW_MPK, MSG_VERIFY_SEED,
                              MSG_GENERATING_WAIT)
 
+def clean_text(seed_e):
+    text = unicode(seed_e.toPlainText()).strip()
+    text = ' '.join(text.split())
+    return text
+
 class CosignWidget(QWidget):
     size = 120
 
@@ -69,8 +74,64 @@ class InstallWizard(WindowModalDialog, WizardBase):
         self.setMinimumSize(575, 400)
         self.setMaximumSize(575, 400)
         self.connect(self, QtCore.SIGNAL('accept'), self.accept)
-        self.stack = QStackedLayout()
-        self.setLayout(self.stack)
+        self.title = QLabel()
+        self.main_widget = QWidget()
+        self.cancel_button = QPushButton(_("Cancel"), self)
+        self.next_button = QPushButton(_("Next"), self)
+        self.next_button.setDefault(True)
+        self.logo = QLabel()
+        self.please_wait = QLabel(_("Please wait..."))
+        self.please_wait.setAlignment(Qt.AlignCenter)
+        self.icon_filename = None
+        self.loop = QEventLoop()
+        self.cancel_button.clicked.connect(lambda: self.loop.exit(False))
+        self.next_button.clicked.connect(lambda: self.loop.exit(True))
+        outer_vbox = QVBoxLayout(self)
+        inner_vbox = QVBoxLayout()
+        inner_vbox = QVBoxLayout()
+        inner_vbox.addWidget(self.title)
+        inner_vbox.addWidget(self.main_widget)
+        inner_vbox.addStretch(1)
+        inner_vbox.addWidget(self.please_wait)
+        inner_vbox.addStretch(1)
+        icon_vbox = QVBoxLayout()
+        icon_vbox.addWidget(self.logo)
+        icon_vbox.addStretch(1)
+        hbox = QHBoxLayout()
+        hbox.addLayout(icon_vbox)
+        hbox.addLayout(inner_vbox)
+        hbox.setStretchFactor(inner_vbox, 1)
+        outer_vbox.addLayout(hbox)
+        outer_vbox.addLayout(Buttons(self.cancel_button, self.next_button))
+        self.set_icon(':icons/electrum.png')
+        self.show()
+        self.raise_()
+
+    def set_icon(self, filename):
+        prior_filename, self.icon_filename = self.icon_filename, filename
+        self.logo.setPixmap(QPixmap(filename).scaledToWidth(70))
+        return prior_filename
+
+    def set_main_layout(self, layout, title):
+        self.title.setText(title)
+        prior_layout = self.main_widget.layout()
+        if prior_layout:
+            QWidget().setLayout(prior_layout)
+        self.main_widget.setLayout(layout)
+        self.cancel_button.setEnabled(True)
+        self.next_button.setEnabled(True)
+        self.main_widget.setVisible(True)
+        self.please_wait.setVisible(False)
+        if not self.loop.exec_():
+            raise UserCancelled
+        self.title.setText("")
+        self.cancel_button.setEnabled(False)
+        self.next_button.setEnabled(False)
+        self.main_widget.setVisible(False)
+        self.please_wait.setVisible(True)
+        # For some reason, to refresh the GUI this needs to be called twice
+        self.app.processEvents()
+        self.app.processEvents()
 
     def open_wallet(self, *args):
         '''Wrap the base wizard implementation with try/except blocks
@@ -80,28 +141,35 @@ class InstallWizard(WindowModalDialog, WizardBase):
             wallet = super(InstallWizard, self).open_wallet(*args)
         except UserCancelled:
             self.print_error("wallet creation cancelled by user")
+            self.accept()
         return wallet
 
     def remove_from_recently_open(self, filename):
         self.config.remove_from_recently_open(filename)
 
-    # Called by plugins
-    def confirm(self, msg, icon=None):
-        '''Returns True or False'''
-        vbox = QVBoxLayout()
-        self.set_layout(vbox)
-        if icon:
-            logo = QLabel()
-            logo.setPixmap(icon)
-            vbox.addWidget(logo)
-        label = QLabel(msg)
-        label.setWordWrap(True)
-        vbox.addWidget(label)
-        vbox.addStretch(1)
-        vbox.addLayout(Buttons(CancelButton(self, _("Cancel")),
-                               OkButton(self, _("Next"))))
-        if not self.exec_():
-            raise UserCancelled
+    def request_seed(self, title, is_valid=None):
+        is_valid = is_valid or Wallet.is_any
+        slayout = seed_dialog.SeedLayout(None)
+        self.next_button.setEnabled(False)
+        def sanitized_seed():
+            return clean_text(slayout.seed_edit())
+        def set_enabled():
+            self.next_button.setEnabled(is_valid(sanitized_seed()))
+        slayout.seed_edit().textChanged.connect(set_enabled)
+        self.set_main_layout(slayout.layout(), title)
+        return sanitized_seed()
+
+    def show_seed(self, seed):
+        title =  _("Your wallet generation seed is:")
+        slayout = seed_dialog.SeedLayout(seed)
+        self.set_main_layout(slayout.layout(), title)
+
+    def verify_seed(self, seed, is_valid=None):
+        while True:
+            r = self.request_seed(MSG_VERIFY_SEED, is_valid)
+            if prepare_seed(r) == prepare_seed(seed):
+                return
+            self.show_error(_('Incorrect seed'))
 
     def show_and_verify_seed(self, seed, is_valid=None):
         """Show the user their seed.  Ask them to re-enter it.  Return
@@ -179,54 +247,16 @@ class InstallWizard(WindowModalDialog, WizardBase):
         actions = [_("Create a new wallet"),
                    _("Restore a wallet or import keys")]
 
-        main_label = QLabel(_("Electrum could not find an existing wallet."))
+        title = _("Electrum could not find an existing wallet.")
         actions_clayout = ChoicesLayout(_("What do you want to do?"), actions)
         wallet_clayout = ChoicesLayout(_("Wallet kind:"), wallet_kinds)
 
         vbox = QVBoxLayout()
-        vbox.addWidget(main_label)
         vbox.addLayout(actions_clayout.layout())
         vbox.addLayout(wallet_clayout.layout())
-        vbox.addStretch(1)
-
-        OK = OkButton(self, _('Next'))
-        vbox.addLayout(Buttons(CancelButton(self), OK))
-        self.set_layout(vbox)
-        OK.setDefault(True)
-        self.raise_()
-
-        if not self.exec_():
-            raise UserCancelled
-
+        self.set_main_layout(vbox, title)
         action = ['create', 'restore'][actions_clayout.selected_index()]
         return action, wallet_clayout.selected_index()
-
-    def verify_seed(self, seed, is_valid=None):
-        while True:
-            r = self.request_seed(MSG_VERIFY_SEED, is_valid)
-            if prepare_seed(r) == prepare_seed(seed):
-                return
-            self.show_error(_('Incorrect seed'))
-
-    def get_seed_text(self, seed_e):
-        text = unicode(seed_e.toPlainText()).strip()
-        text = ' '.join(text.split())
-        return text
-
-    def request_seed(self, msg, is_valid=None):
-        is_valid = is_valid or Wallet.is_any
-        vbox, seed_e = seed_dialog.enter_seed_box(msg, self)
-        vbox.addStretch(1)
-        button = OkButton(self, _('Next'))
-        vbox.addLayout(Buttons(CancelButton(self), button))
-        button.setEnabled(False)
-        def set_enabled():
-            button.setEnabled(is_valid(self.get_seed_text(seed_e)))
-        seed_e.textChanged.connect(set_enabled)
-        self.set_layout(vbox)
-        if not self.exec_():
-            raise UserCancelled
-        return self.get_seed_text(seed_e)
 
     def request_many(self, n, xpub_hot=None):
         vbox = QVBoxLayout()
@@ -263,7 +293,7 @@ class InstallWizard(WindowModalDialog, WizardBase):
         vbox.addLayout(Buttons(CancelButton(self), button))
         button.setEnabled(False)
         def get_texts():
-            return [self.get_seed_text(entry) for entry in entries]
+            return [clean_text(entry) for entry in entries]
         def set_enabled():
             texts = get_texts()
             is_valid = Wallet.is_xpub if xpub_hot else Wallet.is_any
@@ -360,10 +390,3 @@ class InstallWizard(WindowModalDialog, WizardBase):
         n = int(n_edit.value())
         wallet_type = '%dof%d'%(m,n)
         return wallet_type
-
-    def show_seed(self, seed):
-        vbox = seed_dialog.show_seed_box_msg(seed, None)
-        vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _("Next"))))
-        self.set_layout(vbox)
-        if not self.exec_():
-            raise UserCancelled
