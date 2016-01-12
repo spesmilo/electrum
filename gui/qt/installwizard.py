@@ -10,7 +10,7 @@ from electrum.i18n import _
 import seed_dialog
 from network_dialog import NetworkDialog
 from util import *
-from password_dialog import PasswordDialog
+from password_dialog import PasswordLayout, PW_NEW, PW_PASSPHRASE
 
 from electrum.wallet import Wallet
 from electrum.mnemonic import prepare_seed
@@ -71,10 +71,11 @@ class InstallWizard(WindowModalDialog, WizardBase):
         # Set for base base class
         self.plugins = plugins
         self.language_for_seed = config.get('language')
-        self.setMinimumSize(575, 400)
-        self.setMaximumSize(575, 400)
+        self.setMinimumSize(518, 360)
+        self.setMaximumSize(518, 360)
         self.connect(self, QtCore.SIGNAL('accept'), self.accept)
         self.title = QLabel()
+        self.title.setWordWrap(True)
         self.main_widget = QWidget()
         self.cancel_button = QPushButton(_("Cancel"), self)
         self.next_button = QPushButton(_("Next"), self)
@@ -112,8 +113,10 @@ class InstallWizard(WindowModalDialog, WizardBase):
         self.logo.setPixmap(QPixmap(filename).scaledToWidth(70))
         return prior_filename
 
-    def set_main_layout(self, layout, title):
-        self.title.setText(title)
+    def set_main_layout(self, layout, title=None):
+        self.title.setText(title or "")
+        self.title.setVisible(bool(title))
+        # Get rid of any prior layout
         prior_layout = self.main_widget.layout()
         if prior_layout:
             QWidget().setLayout(prior_layout)
@@ -124,7 +127,7 @@ class InstallWizard(WindowModalDialog, WizardBase):
         self.please_wait.setVisible(False)
         if not self.loop.exec_():
             raise UserCancelled
-        self.title.setText("")
+        self.title.setVisible(False)
         self.cancel_button.setEnabled(False)
         self.next_button.setEnabled(False)
         self.main_widget.setVisible(False)
@@ -178,12 +181,13 @@ class InstallWizard(WindowModalDialog, WizardBase):
         self.app.clipboard().clear()
         self.verify_seed(seed, is_valid)
 
-    def pw_dialog(self, msg, kind):
-        dialog = PasswordDialog(self, None, msg, kind)
-        accepted, p, pass_text = dialog.run()
-        if not accepted:
-            raise UserCancelled
-        return pass_text
+    def pw_layout(self, msg, kind):
+        hbox = QHBoxLayout()
+        playout = PasswordLayout(None, msg, kind, self.next_button)
+        hbox.addLayout(playout.layout())
+        #hbox.addStretch(1)
+        self.set_main_layout(hbox)
+        return playout.new_password()
 
     def request_passphrase(self, device_text, restore=True):
         """Request a passphrase for a wallet from the given device and
@@ -191,12 +195,12 @@ class InstallWizard(WindowModalDialog, WizardBase):
         a unicode string."""
         if restore:
             msg = MSG_RESTORE_PASSPHRASE % device_text
-        return unicode(self.pw_dialog(msg, PasswordDialog.PW_PASSPHRASE) or '')
+        return unicode(self.pw_layout(msg, PW_PASSPHRASE) or '')
 
     def request_password(self, msg=None):
         """Request the user enter a new password and confirm it.  Return
         the password or None for no password."""
-        return self.pw_dialog(msg or MSG_ENTER_PASSWORD, PasswordDialog.PW_NEW)
+        return self.pw_layout(msg or MSG_ENTER_PASSWORD, PW_NEW)
 
     def choose_server(self, network):
         self.network_dialog(network)
@@ -246,7 +250,6 @@ class InstallWizard(WindowModalDialog, WizardBase):
 
         actions = [_("Create a new wallet"),
                    _("Restore a wallet or import keys")]
-
         title = _("Electrum could not find an existing wallet.")
         actions_clayout = ChoicesLayout(_("What do you want to do?"), actions)
         wallet_clayout = ChoicesLayout(_("Wallet kind:"), wallet_kinds)
@@ -255,6 +258,7 @@ class InstallWizard(WindowModalDialog, WizardBase):
         vbox.addLayout(actions_clayout.layout())
         vbox.addLayout(wallet_clayout.layout())
         self.set_main_layout(vbox, title)
+
         action = ['create', 'restore'][actions_clayout.selected_index()]
         return action, wallet_clayout.selected_index()
 

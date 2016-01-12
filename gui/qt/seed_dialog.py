@@ -63,7 +63,7 @@ class SeedLayout(object):
             "<p>",
             _("Please save these %d words on paper (order is important). "),
             _("This seed will allow you to recover your wallet in case "
-              "of computer failure.") + "<br/>",
+              "of computer failure."),
             "</p>",
             "<b>" + _("WARNING") + ":</b> ",
             "<ul>",
