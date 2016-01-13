@@ -158,6 +158,7 @@ class InstallWizard(WindowModalDialog, WizardBase):
             wallet = WizardBase.run(self, *args)
         except UserCancelled:
             self.print_error("wallet creation cancelled by user")
+            self.accept()  # For when called from menu
         return wallet
 
     def remove_from_recently_open(self, filename):
