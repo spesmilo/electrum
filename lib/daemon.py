@@ -135,6 +135,8 @@ class Daemon(DaemonThread):
                 if action:
                     wizard = get_wizard()
                     wallet = wizard.run(self.network, storage)
+                else:
+                    wallet.start_threads(self.network)
             else:
                 wallet = Wallet(storage)
                 wallet.start_threads(self.network)
