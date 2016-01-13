@@ -123,27 +123,19 @@ class WizardBase(PrintError):
         """Called when the wizard is done."""
         pass
 
-    @classmethod
-    def open_wallet(self, network, filename, config, create_wizard):
+    def run(self, network, storage):
         '''The main entry point of the wizard.  Open a wallet from the given
         filename.  If the file doesn't exist launch the GUI-specific
         install wizard proper, created by calling create_wizard().'''
-        storage = WalletStorage(filename)
         need_sync = False
         is_restore = False
-        self.my_wizard = None
-
-        def wizard():
-            if self.my_wizard is None:
-                self.my_wizard = create_wizard()
-            return self.my_wizard
 
         if storage.file_exists:
             wallet = Wallet(storage)
             if wallet.imported_keys:
-                wizard().update_wallet_format(wallet)
+                self.update_wallet_format(wallet)
         else:
-            cr, wallet = wizard().create_or_restore(storage)
+            cr, wallet = self.create_or_restore(storage)
             if not wallet:
                 return
             need_sync = True
@@ -154,30 +146,26 @@ class WizardBase(PrintError):
             if not action:
                 break
             need_sync = True
-            wizard().run_wallet_action(wallet, action)
+            self.run_wallet_action(wallet, action)
             # Save the wallet after each action
             wallet.storage.write()
 
         if network:
             # Show network dialog if config does not exist
-            if config.get('auto_connect') is None:
-                wizard().choose_server(network)
+            if self.config.get('auto_connect') is None:
+                self.choose_server(network)
         else:
-            wizard().show_warning(_('You are offline'))
+            self.show_warning(_('You are offline'))
 
         if need_sync:
-            wizard().create_addresses(wallet)
+            self.create_addresses(wallet)
 
         # start wallet threads
         if network:
             wallet.start_threads(network)
 
         if is_restore:
-            wizard().show_restore(wallet, network)
-
-        if self.my_wizard:
-            self.my_wizard.finished()
-            self.my_wizard = None
+            self.show_restore(wallet, network)
 
         return wallet
 

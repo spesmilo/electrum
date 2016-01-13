@@ -125,11 +125,17 @@ class Daemon(DaemonThread):
         if path in self.wallets:
             wallet = self.wallets[path]
         else:
+            storage = WalletStorage(path)
             if get_wizard:
-                wallet = WizardBase.open_wallet(self.network, path,
-                                                self.config, get_wizard)
+                if storage.file_exists:
+                    wallet = Wallet(storage)
+                    action = wallet.get_action()
+                else:
+                    action = 'new'
+                if action:
+                    wizard = get_wizard()
+                    wallet = wizard.run(self.network, storage)
             else:
-                storage = WalletStorage(path)
                 wallet = Wallet(storage)
                 wallet.start_threads(self.network)
             if wallet:
