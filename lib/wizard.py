@@ -119,6 +119,10 @@ class WizardBase(PrintError):
         """Show restore result"""
         pass
 
+    def finished(self):
+        """Called when the wizard is done."""
+        pass
+
     @classmethod
     def open_wallet(self, network, filename, config, create_wizard):
         '''The main entry point of the wizard.  Open a wallet from the given
@@ -156,7 +160,7 @@ class WizardBase(PrintError):
 
         if network:
             # Show network dialog if config does not exist
-            if config.get('server') is None:
+            if config.get('auto_connect') is None:
                 wizard().choose_server(network)
         else:
             wizard().show_warning(_('You are offline'))
@@ -171,7 +175,9 @@ class WizardBase(PrintError):
         if is_restore:
             wizard().show_restore(wallet, network)
 
-        self.my_wizard = None
+        if self.my_wizard:
+            self.my_wizard.finished()
+            self.my_wizard = None
 
         return wallet
 

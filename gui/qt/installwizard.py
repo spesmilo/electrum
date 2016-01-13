@@ -8,7 +8,7 @@ import electrum
 from electrum.i18n import _
 
 from seed_dialog import SeedDisplayLayout, SeedWarningLayout, SeedInputLayout
-from network_dialog import NetworkDialog
+from network_dialog import NetworkChoiceLayout
 from util import *
 from password_dialog import PasswordLayout, PW_NEW, PW_PASSPHRASE
 
@@ -110,12 +110,17 @@ class InstallWizard(WindowModalDialog, WizardBase):
         self.show()
         self.raise_()
 
+    def finished(self):
+        '''Ensure the dialog is closed.'''
+        self.accept()
+        self.refresh_gui()
+
     def set_icon(self, filename):
         prior_filename, self.icon_filename = self.icon_filename, filename
         self.logo.setPixmap(QPixmap(filename).scaledToWidth(70))
         return prior_filename
 
-    def set_main_layout(self, layout, title=None):
+    def set_main_layout(self, layout, title=None, raise_on_cancel=True):
         self.title.setText(title or "")
         self.title.setVisible(bool(title))
         # Get rid of any prior layout
@@ -127,7 +132,8 @@ class InstallWizard(WindowModalDialog, WizardBase):
         self.next_button.setEnabled(True)
         self.main_widget.setVisible(True)
         self.please_wait.setVisible(False)
-        if not self.loop.exec_():
+        result = self.loop.exec_()
+        if not result and raise_on_cancel:
             raise UserCancelled
         self.title.setVisible(False)
         self.cancel_button.setEnabled(False)
@@ -135,6 +141,7 @@ class InstallWizard(WindowModalDialog, WizardBase):
         self.main_widget.setVisible(False)
         self.please_wait.setVisible(True)
         self.refresh_gui()
+        return result
 
     def refresh_gui(self):
         # For some reason, to refresh the GUI this needs to be called twice
@@ -203,9 +210,6 @@ class InstallWizard(WindowModalDialog, WizardBase):
         """Request the user enter a new password and confirm it.  Return
         the password or None for no password."""
         return self.pw_layout(msg or MSG_ENTER_PASSWORD, PW_NEW)
-
-    def choose_server(self, network):
-        self.network_dialog(network)
 
     def show_restore(self, wallet, network):
         if network:
@@ -295,35 +299,26 @@ class InstallWizard(WindowModalDialog, WizardBase):
         self.set_main_layout(vbox)
         return get_texts()
 
-    def network_dialog(self, network):
-        grid = QGridLayout()
-        grid.setSpacing(5)
-        label = QLabel(_("Electrum communicates with remote servers to get information about your transactions and addresses. The servers all fulfil the same purpose only differing in hardware. In most cases you simply want to let Electrum pick one at random if you have a preference though feel free to select a server manually.") + "\n\n" \
-                      + _("How do you want to connect to a server:")+" ")
-        label.setWordWrap(True)
-        grid.addWidget(label, 0, 0)
-        gb = QGroupBox()
-        b1 = QRadioButton(gb)
-        b1.setText(_("Auto connect"))
-        b1.setChecked(True)
-        b2 = QRadioButton(gb)
-        b2.setText(_("Select server manually"))
-        grid.addWidget(b1,1,0)
-        grid.addWidget(b2,2,0)
-        vbox = QVBoxLayout()
-        vbox.addLayout(grid)
-        vbox.addStretch(1)
-        vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _('Next'))))
+    def choose_server(self, network):
+        title = _("Electrum communicates with remote servers to get "
+                  "information about your transactions and addresses. The "
+                  "servers all fulfil the same purpose only differing in "
+                  "hardware. In most cases you simply want to let Electrum "
+                  "pick one at random.  However if you prefer feel free to "
+                  "select a server manually.")
+        choices = [_("Auto connect"), _("Select server manually")]
+        choices_title = _("How do you want to connect to a server? ")
+        clayout = ChoicesLayout(choices_title, choices)
+        self.set_main_layout(clayout.layout(), title)
 
-        self.set_layout(vbox)
-        if not self.exec_():
-            return
-
-        if b2.isChecked():
-            NetworkDialog(network, self.config, None).do_exec()
-        else:
-            self.config.set_key('auto_connect', True, True)
-            network.auto_connect = True
+        auto_connect = True
+        if clayout.selected_index() == 1:
+            nlayout = NetworkChoiceLayout(network, self.config, wizard=True)
+            if self.set_main_layout(nlayout.layout(), raise_on_cancel=False):
+                nlayout.accept()
+                auto_connect = False
+        self.config.set_key('auto_connect', auto_connect, True)
+        network.auto_connect = auto_connect
 
     def query_choice(self, msg, choices):
         clayout = ChoicesLayout(msg, choices)

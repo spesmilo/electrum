@@ -32,7 +32,20 @@ class NetworkDialog(WindowModalDialog):
     def __init__(self, network, config, parent):
         WindowModalDialog.__init__(self, parent, _('Network'))
         self.setMinimumSize(375, 20)
+        self.nlayout = NetworkChoiceLayout(network, config)
+        vbox = QVBoxLayout(self)
+        vbox.addLayout(nlayout.layout())
+        vbox.addLayout(Buttons(CancelButton(self), OkButton(self)))
 
+    def do_exec(self):
+        result = self.exec_()
+        if result:
+            self.nlayout.accept()
+        return result
+
+
+class NetworkChoiceLayout(object):
+    def __init__(self, network, config, wizard=False):
         self.network = network
         self.config = config
         self.protocol = None
@@ -42,7 +55,7 @@ class NetworkDialog(WindowModalDialog):
         if not proxy_config:
             proxy_config = { "mode":"none", "host":"localhost", "port":"9050"}
 
-        if parent:
+        if not wizard:
             n = len(network.get_interfaces())
             if n:
                 status = _("Blockchain") + ": " + "%d "%(network.get_local_height()) + _("blocks") +  ".\n" + _("Getting block headers from %d nodes.")%n
@@ -56,7 +69,6 @@ class NetworkDialog(WindowModalDialog):
             status = _("Please choose a server.") + "\n" + _("Select 'Cancel' if you are offline.")
 
         vbox = QVBoxLayout()
-        vbox.setSpacing(30)
         hbox = QHBoxLayout()
         l = QLabel()
         l.setPixmap(QPixmap(":icons/network.png"))
@@ -69,6 +81,7 @@ class NetworkDialog(WindowModalDialog):
             + _("This blockchain is used to verify the transactions sent by the address server.")
         hbox.addWidget(HelpButton(msg))
         vbox.addLayout(hbox)
+        vbox.addSpacing(15)
 
         # grid layout
         grid = QGridLayout()
@@ -101,7 +114,7 @@ class NetworkDialog(WindowModalDialog):
         self.autoconnect_cb.setToolTip(msg)
 
         label = _('Active Servers') if network.is_connected() else _('Default Servers')
-        self.servers_list_widget = QTreeWidget(parent)
+        self.servers_list_widget = QTreeWidget()
         self.servers_list_widget.setHeaderLabels( [ label, _('Limit') ] )
         self.servers_list_widget.setMaximumHeight(150)
         self.servers_list_widget.setColumnWidth(0, 240)
@@ -155,11 +168,10 @@ class NetworkDialog(WindowModalDialog):
         grid.addWidget(self.proxy_mode, 4, 1)
         grid.addWidget(self.proxy_host, 4, 2)
         grid.addWidget(self.proxy_port, 4, 3)
+        self.layout_ = vbox
 
-        # buttons
-        vbox.addLayout(Buttons(CancelButton(self), OkButton(self)))
-        self.setLayout(vbox)
-
+    def layout(self):
+        return self.layout_
 
     def init_servers_list(self):
         self.servers_list_widget.clear()
@@ -211,12 +223,7 @@ class NetworkDialog(WindowModalDialog):
         self.server_port.setText( port )
         self.ssl_cb.setChecked(protocol=='s')
 
-
-    def do_exec(self):
-
-        if not self.exec_():
-            return
-
+    def accept(self):
         host = str(self.server_host.text())
         port = str(self.server_port.text())
         protocol = 's' if self.ssl_cb.isChecked() else 't'
@@ -236,4 +243,3 @@ class NetworkDialog(WindowModalDialog):
         auto_connect = self.autoconnect_cb.isChecked()
 
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
-        return True
