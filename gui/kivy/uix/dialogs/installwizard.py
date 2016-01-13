@@ -185,7 +185,7 @@ class InstallWizard(Widget):
                 def create(password):
                     wallet.add_seed(seed, password)
                     wallet.create_master_keys(password)
-                    wallet.create_main_account(password)
+                    wallet.create_main_account()
                     wallet.synchronize()  # generate first addresses offline
 
                 self.waiting_dialog(partial(create, password),
