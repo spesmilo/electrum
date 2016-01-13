@@ -18,22 +18,10 @@
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-import PyQt4.QtCore as QtCore
 from electrum_ltc.i18n import _
 
 from util import *
 from qrtextedit import ShowQRTextEdit, ScanQRTextEdit
-
-class SeedDialog(WindowModalDialog):
-    def __init__(self, parent, seed, imported_keys):
-        WindowModalDialog.__init__(self, parent, ('Electrum - ' + _('Seed')))
-        self.setMinimumWidth(400)
-        vbox = show_seed_box_msg(seed)
-        if imported_keys:
-            vbox.addWidget(QLabel("<b>"+_("WARNING")+":</b> " + _("Your wallet contains imported keys. These keys cannot be recovered from seed.") + "</b><p>"))
-        vbox.addLayout(Buttons(CloseButton(self)))
-        self.setLayout(vbox)
-
 
 def icon_filename(sid):
     if sid == 'cold':
@@ -43,48 +31,77 @@ def icon_filename(sid):
     else:
         return ":icons/seed.png"
 
+class SeedDialog(WindowModalDialog):
+    def __init__(self, parent, seed, imported_keys):
+        WindowModalDialog.__init__(self, parent, ('Electrum - ' + _('Seed')))
+        self.setMinimumWidth(400)
+        vbox = QVBoxLayout(self)
+        vbox.addLayout(SeedWarningLayout(seed).layout())
+        if imported_keys:
+            warning = ("<b>" + _("WARNING") + ":</b> " +
+                       _("Your wallet contains imported keys. These keys "
+                         "cannot be recovered from your seed.") + "</b><p>")
+            vbox.addWidget(WWLabel(warning))
+        vbox.addLayout(Buttons(CloseButton(self)))
 
-def show_seed_box_msg(seedphrase, sid=None):
-    msg =  _("Your wallet generation seed is") + ":"
-    vbox = show_seed_box(msg, seedphrase, sid)
-    msg = ''.join([
-        "<p>",
-        _("Please save these %d words on paper (order is important).")%len(seedphrase.split()) + " ",
-        _("This seed will allow you to recover your wallet in case of computer failure.") + "<br/>",
-        "</p>",
-        "<b>" + _("WARNING") + ":</b> ",
-        "<ul>",
-        "<li>" + _("Never disclose your seed.") + "</li>",
-        "<li>" + _("Never type it on a website.") + "</li>",
-        "<li>" + _("Do not send your seed to a printer.") + "</li>",
-        "</ul>"
-    ])
-    label2 = QLabel(msg)
-    label2.setWordWrap(True)
-    vbox.addWidget(label2)
-    vbox.addStretch(1)
-    return vbox
 
-def show_seed_box(msg, seed, sid):
-    vbox, seed_e = enter_seed_box(msg, None, sid=sid, text=seed)
-    return vbox
+class SeedLayoutBase(object):
+    def _seed_layout(self, seed=None, title=None, sid=None):
+        logo = QLabel()
+        logo.setPixmap(QPixmap(icon_filename(sid)).scaledToWidth(56))
+        logo.setMaximumWidth(60)
+        if seed:
+            self.seed_e = ShowQRTextEdit()
+            self.seed_e.setText(seed)
+        else:
+            self.seed_e = ScanQRTextEdit()
+            self.seed_e.setTabChangesFocus(True)
+        self.seed_e.setMaximumHeight(75)
+        hbox = QHBoxLayout()
+        hbox.addWidget(logo)
+        hbox.addWidget(self.seed_e)
+        if not title:
+            return hbox
+        vbox = QVBoxLayout()
+        vbox.addWidget(WWLabel(title))
+        vbox.addLayout(hbox)
+        return vbox
 
-def enter_seed_box(msg, window, sid=None, text=None):
-    vbox = QVBoxLayout()
-    logo = QLabel()
-    logo.setPixmap(QPixmap(icon_filename(sid)).scaledToWidth(56))
-    logo.setMaximumWidth(60)
-    label = QLabel(msg)
-    label.setWordWrap(True)
-    if not text:
-        seed_e = ScanQRTextEdit()
-        seed_e.setTabChangesFocus(True)
-    else:
-        seed_e = ShowQRTextEdit(text=text)
-    seed_e.setMaximumHeight(130)
-    vbox.addWidget(label)
-    grid = QGridLayout()
-    grid.addWidget(logo, 0, 0)
-    grid.addWidget(seed_e, 0, 1)
-    vbox.addLayout(grid)
-    return vbox, seed_e
+    def layout(self):
+        return self.layout_
+
+    def seed_edit(self):
+        return self.seed_e
+
+
+class SeedInputLayout(SeedLayoutBase):
+    def __init__(self, title=None, sid=None):
+        self.layout_ = self._seed_layout(title=title, sid=sid)
+
+
+class SeedDisplayLayout(SeedLayoutBase):
+    def __init__(self, seed, title=None, sid=None):
+        self.layout_ = self._seed_layout(seed=seed, title=title, sid=sid)
+
+
+class SeedWarningLayout(SeedLayoutBase):
+    def __init__(self, seed, title=None):
+        if title is None:
+            title =  _("Your wallet generation seed is:")
+        msg = ''.join([
+            "<p>",
+            _("Please save these %d words on paper (order is important). "),
+            _("This seed will allow you to recover your wallet in case "
+              "of computer failure."),
+            "</p>",
+            "<b>" + _("WARNING") + ":</b> ",
+            "<ul>",
+            "<li>" + _("Never disclose your seed.") + "</li>",
+            "<li>" + _("Never type it on a website.") + "</li>",
+            "<li>" + _("Do not send your seed to a printer.") + "</li>",
+            "</ul>"
+        ]) % len(seed.split())
+        vbox = QVBoxLayout()
+        vbox.addLayout(self._seed_layout(seed=seed, title=title))
+        vbox.addWidget(WWLabel(msg))
+        self.layout_ = vbox

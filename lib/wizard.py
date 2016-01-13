@@ -119,17 +119,21 @@ class WizardBase(PrintError):
         """Show restore result"""
         pass
 
-    def open_wallet(self, network, filename):
+    def finished(self):
+        """Called when the wizard is done."""
+        pass
+
+    def run(self, network, storage):
         '''The main entry point of the wizard.  Open a wallet from the given
         filename.  If the file doesn't exist launch the GUI-specific
-        install wizard proper.'''
-        storage = WalletStorage(filename)
+        install wizard proper, created by calling create_wizard().'''
         need_sync = False
         is_restore = False
 
         if storage.file_exists:
             wallet = Wallet(storage)
-            self.update_wallet_format(wallet)
+            if wallet.imported_keys:
+                self.update_wallet_format(wallet)
         else:
             cr, wallet = self.create_or_restore(storage)
             if not wallet:
@@ -148,7 +152,7 @@ class WizardBase(PrintError):
 
         if network:
             # Show network dialog if config does not exist
-            if self.config.get('server') is None:
+            if self.config.get('auto_connect') is None:
                 self.choose_server(network)
         else:
             self.show_warning(_('You are offline'))
@@ -163,8 +167,9 @@ class WizardBase(PrintError):
         if is_restore:
             self.show_restore(wallet, network)
 
-        return wallet
+        self.finished()
 
+        return wallet
 
     def run_wallet_action(self, wallet, action):
         self.print_error("action %s on %s" % (action, wallet.basename()))
@@ -278,18 +283,17 @@ class WizardBase(PrintError):
 
     def update_wallet_format(self, wallet):
         # Backwards compatibility: convert old-format imported keys
-        if wallet.imported_keys:
-            msg = _("Please enter your password in order to update "
-                    "imported keys")
-            if wallet.use_encryption:
-                password = self.request_password(msg)
-            else:
-                password = None
+        msg = _("Please enter your password in order to update "
+                "imported keys")
+        if wallet.use_encryption:
+            password = self.request_password(msg)
+        else:
+            password = None
 
-            try:
-                wallet.convert_imported_keys(password)
-            except Exception as e:
-                self.show_error(str(e))
+        try:
+            wallet.convert_imported_keys(password)
+        except Exception as e:
+            self.show_error(str(e))
 
         # Call synchronize to regenerate addresses in case we're offline
         if wallet.get_master_public_keys() and not wallet.addresses():

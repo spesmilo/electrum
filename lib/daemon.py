@@ -23,6 +23,7 @@ from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCReq
 
 from util import json_decode, DaemonThread
 from wallet import WalletStorage, Wallet
+from wizard import WizardBase
 from commands import known_commands, Commands
 from simple_config import SimpleConfig
 
@@ -120,14 +121,23 @@ class Daemon(DaemonThread):
             response = "Error: Electrum is running in daemon mode. Please stop the daemon first."
         return response
 
-    def load_wallet(self, path, wizard=None):
+    def load_wallet(self, path, get_wizard=None):
         if path in self.wallets:
             wallet = self.wallets[path]
         else:
-            if wizard:
-                wallet = wizard.open_wallet(self.network, path)
+            storage = WalletStorage(path)
+            if get_wizard:
+                if storage.file_exists:
+                    wallet = Wallet(storage)
+                    action = wallet.get_action()
+                else:
+                    action = 'new'
+                if action:
+                    wizard = get_wizard()
+                    wallet = wizard.run(self.network, storage)
+                else:
+                    wallet.start_threads(self.network)
             else:
-                storage = WalletStorage(path)
                 wallet = Wallet(storage)
                 wallet.start_threads(self.network)
             if wallet:

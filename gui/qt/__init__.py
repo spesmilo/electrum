@@ -143,6 +143,9 @@ class ElectrumGui:
         run_hook('on_new_window', w)
         return w
 
+    def get_wizard(self):
+        return InstallWizard(self.config, self.app, self.plugins)
+
     def start_new_window(self, path, uri):
         '''Raises the window for the wallet if it is open.  Otherwise
         opens the wallet and creates a new window for it.'''
@@ -151,8 +154,7 @@ class ElectrumGui:
                 w.bring_to_top()
                 break
         else:
-            wizard = InstallWizard(self.config, self.app, self.plugins)
-            wallet = self.daemon.load_wallet(path, wizard)
+            wallet = self.daemon.load_wallet(path, self.get_wizard)
             if not wallet:
                 return
             w = self.create_window_for_wallet(wallet)
@@ -163,16 +165,13 @@ class ElectrumGui:
         return w
 
     def close_window(self, window):
-        # It seems that in some cases this can be called before the
-        # window is added to the windows list...
-        if window in self.windows:
-            self.windows.remove(window)
-            run_hook('on_close_window', window)
+        self.windows.remove(window)
         self.build_tray_menu()
         # save wallet path of last open window
         if self.config.get('wallet_path') is None and not self.windows:
             path = window.wallet.storage.path
             self.config.set_key('gui_last_wallet', path)
+        run_hook('on_close_window', window)
 
     def main(self):
         self.timer.start()

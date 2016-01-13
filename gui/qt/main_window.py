@@ -113,6 +113,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.contacts = gui_object.contacts
         self.tray = gui_object.tray
         self.app = gui_object.app
+        self.cleaned_up = False
 
         self.create_status_bar()
         self.need_update = threading.Event()
@@ -1829,7 +1830,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.set_send_button_text()
 
     def change_password_dialog(self):
-        from password_dialog import PasswordDialog
+        from password_dialog import PasswordDialog, PW_CHANGE
 
         if self.wallet and self.wallet.is_watching_only():
             self.show_error(_('This is a watching-only wallet'))
@@ -1839,7 +1840,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                  'password. To disable wallet encryption, enter an empty new '
                  'password.') if self.wallet.use_encryption
                else _('Your wallet keys are not encrypted'))
-        d = PasswordDialog(self, self.wallet, msg, PasswordDialog.PW_CHANGE)
+        d = PasswordDialog(self, self.wallet, msg, PW_CHANGE)
         ok, password, new_password = d.run()
         if not ok:
             return
@@ -2818,19 +2819,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         NetworkDialog(self.wallet.network, self.config, self).do_exec()
 
     def closeEvent(self, event):
+        # It seems in some rare cases this closeEvent() is called twice
+        if not self.cleaned_up:
+            self.cleaned_up = True
+            self.clean_up()
+        event.accept()
+
+    def clean_up(self):
         if self.network:
             self.network.unregister_callback(self.on_network)
         self.config.set_key("is_maximized", self.isMaximized())
         if not self.isMaximized():
             g = self.geometry()
-            self.wallet.storage.put("winpos-qt", [g.left(),g.top(),g.width(),g.height()])
-        self.config.set_key("console-history", self.console.history[-50:], True)
+            self.wallet.storage.put("winpos-qt", [g.left(),g.top(),
+                                                  g.width(),g.height()])
+        self.config.set_key("console-history", self.console.history[-50:],
+                            True)
         if self.qr_window:
             self.qr_window.close()
         self.close_wallet()
         self.gui_object.close_window(self)
-        event.accept()
-
 
     def plugins_dialog(self):
         self.pluginsdialog = d = WindowModalDialog(self, _('Electrum Plugins'))

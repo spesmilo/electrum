@@ -5,6 +5,7 @@
  * improved coin selection to help preserve user privacy.  This is an
    experimental feature.  Enable it by setting the Coin Selection
    preference to Privacy.
+ * the install wizard has been rewritten and improved
 
 # Release 2.5.4
  * increase MIN_RELAY_TX_FEE to avoid dust transactions

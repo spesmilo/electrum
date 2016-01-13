@@ -39,13 +39,15 @@ def check_password_strength(password):
     password_strength = {0:"Weak",1:"Medium",2:"Strong",3:"Very Strong"}
     return password_strength[min(3, int(score))]
 
-class PasswordDialog(WindowModalDialog):
 
-    PW_NEW, PW_CHANGE, PW_PASSPHRASE = range(0, 3)
+PW_NEW, PW_CHANGE, PW_PASSPHRASE = range(0, 3)
+
+
+class PasswordLayout(object):
+
     titles = [_("Enter Password"), _("Change Password"), _("Enter Passphrase")]
 
-    def __init__(self, parent, wallet, msg, kind):
-        WindowModalDialog.__init__(self, parent, self.titles[kind])
+    def __init__(self, wallet, msg, kind, OK_button):
         self.wallet = wallet
 
         self.pw = QLineEdit()
@@ -55,6 +57,7 @@ class PasswordDialog(WindowModalDialog):
         self.conf_pw = QLineEdit()
         self.conf_pw.setEchoMode(2)
         self.kind = kind
+        self.OK_button = OK_button
 
         vbox = QVBoxLayout()
         label = QLabel(msg + "\n")
@@ -66,7 +69,7 @@ class PasswordDialog(WindowModalDialog):
         grid.setColumnMinimumWidth(1, 100)
         grid.setColumnStretch(1,1)
 
-        if kind == self.PW_PASSPHRASE:
+        if kind == PW_PASSPHRASE:
             vbox.addWidget(label)
             msgs = [_('Passphrase:'), _('Confirm Passphrase:')]
         else:
@@ -82,7 +85,7 @@ class PasswordDialog(WindowModalDialog):
             logo_grid.addWidget(label, 0, 1, 1, 2)
             vbox.addLayout(logo_grid)
 
-            m1 = _('New Password:') if kind == self.PW_NEW else _('Password:')
+            m1 = _('New Password:') if kind == PW_NEW else _('Password:')
             msgs = [m1, _('Confirm Password:')]
             if wallet and wallet.use_encryption:
                 grid.addWidget(QLabel(_('Current Password:')), 0, 0)
@@ -90,7 +93,7 @@ class PasswordDialog(WindowModalDialog):
                 lockfile = ":icons/lock.png"
             else:
                 lockfile = ":icons/unlock.png"
-                logo.setPixmap(QPixmap(lockfile).scaledToWidth(36))
+            logo.setPixmap(QPixmap(lockfile).scaledToWidth(36))
 
         grid.addWidget(QLabel(msgs[0]), 1, 0)
         grid.addWidget(self.new_pw, 1, 1)
@@ -100,18 +103,23 @@ class PasswordDialog(WindowModalDialog):
         vbox.addLayout(grid)
 
         # Password Strength Label
-        if kind != self.PW_PASSPHRASE:
+        if kind != PW_PASSPHRASE:
             self.pw_strength = QLabel()
             grid.addWidget(self.pw_strength, 3, 0, 1, 2)
             self.new_pw.textChanged.connect(self.pw_changed)
 
-        self.new_pw.textChanged.connect(self.check_OKButton)
-        self.conf_pw.textChanged.connect(self.check_OKButton)
+        def enable_OK():
+            OK_button.setEnabled(self.new_pw.text() == self.conf_pw.text())
+        self.new_pw.textChanged.connect(enable_OK)
+        self.conf_pw.textChanged.connect(enable_OK)
 
-        self.OKButton = OkButton(self)
-        vbox.addStretch(1)
-        vbox.addLayout(Buttons(CancelButton(self), self.OKButton))
-        self.setLayout(vbox)
+        self.vbox = vbox
+
+    def title(self):
+        return self.titles[self.kind]
+
+    def layout(self):
+        return self.vbox
 
     def pw_changed(self):
         password = self.new_pw.text()
@@ -125,17 +133,29 @@ class PasswordDialog(WindowModalDialog):
             label = ""
         self.pw_strength.setText(label)
 
-    def check_OKButton(self):
-        self.OKButton.setEnabled(self.new_pw.text() == self.conf_pw.text())
+    def old_password(self):
+        if self.kind == PW_CHANGE:
+            return unicode(self.pw.text()) or None
+        return None
+
+    def new_password(self):
+        return unicode(self.new_pw.text()) or None
+
+
+class PasswordDialog(WindowModalDialog):
+
+    def __init__(self, parent, wallet, msg, kind):
+        WindowModalDialog.__init__(self, parent)
+        OK_button = OkButton(self)
+        self.playout = PasswordLayout(wallet, msg, kind, OK_button)
+        self.setWindowTitle(self.playout.title())
+        vbox = QVBoxLayout(self)
+        vbox.addLayout(self.playout.layout())
+        vbox.addStretch(1)
+        vbox.addLayout(Buttons(CancelButton(self), OK_button))
 
     def run(self):
         if not self.exec_():
             return False, None, None
 
-        if self.kind == self.PW_CHANGE:
-            old_password = unicode(self.pw.text()) or None
-        else:
-            old_password = None
-        new_password = unicode(self.new_pw.text()) or None
-
-        return True, old_password, new_password
+        return True, self.playout.old_password(), self.playout.new_password()

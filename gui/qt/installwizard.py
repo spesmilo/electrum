@@ -7,10 +7,10 @@ import PyQt4.QtCore as QtCore
 import electrum_ltc as electrum
 from electrum_ltc.i18n import _
 
-import seed_dialog
-from network_dialog import NetworkDialog
+from seed_dialog import SeedDisplayLayout, SeedWarningLayout, SeedInputLayout
+from network_dialog import NetworkChoiceLayout
 from util import *
-from password_dialog import PasswordDialog
+from password_dialog import PasswordLayout, PW_NEW, PW_PASSPHRASE
 
 from electrum_ltc.wallet import Wallet
 from electrum_ltc.mnemonic import prepare_seed
@@ -20,6 +20,11 @@ from electrum_ltc.wizard import (WizardBase, UserCancelled,
                                  MSG_SHOW_MPK, MSG_VERIFY_SEED,
                                  MSG_GENERATING_WAIT)
 
+def clean_text(seed_e):
+    text = unicode(seed_e.toPlainText()).strip()
+    text = ' '.join(text.split())
+    return text
+
 class CosignWidget(QWidget):
     size = 120
 
@@ -27,6 +32,8 @@ class CosignWidget(QWidget):
         QWidget.__init__(self)
         self.R = QRect(0, 0, self.size, self.size)
         self.setGeometry(self.R)
+        self.setMinimumHeight(self.size)
+        self.setMaximumHeight(self.size)
         self.m = m
         self.n = n
 
@@ -66,42 +73,118 @@ class InstallWizard(WindowModalDialog, WizardBase):
         # Set for base base class
         self.plugins = plugins
         self.language_for_seed = config.get('language')
-        self.setMinimumSize(575, 400)
-        self.setMaximumSize(575, 400)
+        self.setMinimumSize(530, 370)
+        self.setMaximumSize(530, 370)
         self.connect(self, QtCore.SIGNAL('accept'), self.accept)
-        self.stack = QStackedLayout()
-        self.setLayout(self.stack)
+        self.title = WWLabel()
+        self.main_widget = QWidget()
+        self.cancel_button = QPushButton(_("Cancel"), self)
+        self.next_button = QPushButton(_("Next"), self)
+        self.next_button.setDefault(True)
+        self.logo = QLabel()
+        self.please_wait = QLabel(_("Please wait..."))
+        self.please_wait.setAlignment(Qt.AlignCenter)
+        self.icon_filename = None
+        self.loop = QEventLoop()
+        self.cancel_button.clicked.connect(lambda: self.loop.exit(False))
+        self.next_button.clicked.connect(lambda: self.loop.exit(True))
+        outer_vbox = QVBoxLayout(self)
+        inner_vbox = QVBoxLayout()
+        inner_vbox = QVBoxLayout()
+        inner_vbox.addWidget(self.title)
+        inner_vbox.addWidget(self.main_widget)
+        inner_vbox.addStretch(1)
+        inner_vbox.addWidget(self.please_wait)
+        inner_vbox.addStretch(1)
+        icon_vbox = QVBoxLayout()
+        icon_vbox.addWidget(self.logo)
+        icon_vbox.addStretch(1)
+        hbox = QHBoxLayout()
+        hbox.addLayout(icon_vbox)
+        hbox.addSpacing(5)
+        hbox.addLayout(inner_vbox)
+        hbox.setStretchFactor(inner_vbox, 1)
+        outer_vbox.addLayout(hbox)
+        outer_vbox.addLayout(Buttons(self.cancel_button, self.next_button))
+        self.set_icon(':icons/electrum-ltc.png')
+        self.show()
+        self.raise_()
+        self.refresh_gui()  # Need for QT on MacOSX.  Lame.
 
-    def open_wallet(self, *args):
+    def finished(self):
+        '''Ensure the dialog is closed.'''
+        self.accept()
+        self.refresh_gui()
+
+    def set_icon(self, filename):
+        prior_filename, self.icon_filename = self.icon_filename, filename
+        self.logo.setPixmap(QPixmap(filename).scaledToWidth(60))
+        return prior_filename
+
+    def set_main_layout(self, layout, title=None, raise_on_cancel=True,
+                        next_enabled=True):
+        self.title.setText(title or "")
+        self.title.setVisible(bool(title))
+        # Get rid of any prior layout by assigning it to a temporary widget
+        prior_layout = self.main_widget.layout()
+        if prior_layout:
+            QWidget().setLayout(prior_layout)
+        self.main_widget.setLayout(layout)
+        self.cancel_button.setEnabled(True)
+        self.next_button.setEnabled(next_enabled)
+        self.main_widget.setVisible(True)
+        self.please_wait.setVisible(False)
+        result = self.loop.exec_()
+        if not result and raise_on_cancel:
+            raise UserCancelled
+        self.title.setVisible(False)
+        self.cancel_button.setEnabled(False)
+        self.next_button.setEnabled(False)
+        self.main_widget.setVisible(False)
+        self.please_wait.setVisible(True)
+        self.refresh_gui()
+        return result
+
+    def refresh_gui(self):
+        # For some reason, to refresh the GUI this needs to be called twice
+        self.app.processEvents()
+        self.app.processEvents()
+
+    def run(self, *args):
         '''Wrap the base wizard implementation with try/except blocks
         to give a sensible error message to the user.'''
         wallet = None
         try:
-            wallet = super(InstallWizard, self).open_wallet(*args)
+            wallet = WizardBase.run(self, *args)
         except UserCancelled:
             self.print_error("wallet creation cancelled by user")
+            self.accept()  # For when called from menu
         return wallet
 
     def remove_from_recently_open(self, filename):
         self.config.remove_from_recently_open(filename)
 
-    # Called by plugins
-    def confirm(self, msg, icon=None):
-        '''Returns True or False'''
-        vbox = QVBoxLayout()
-        self.set_layout(vbox)
-        if icon:
-            logo = QLabel()
-            logo.setPixmap(icon)
-            vbox.addWidget(logo)
-        label = QLabel(msg)
-        label.setWordWrap(True)
-        vbox.addWidget(label)
-        vbox.addStretch(1)
-        vbox.addLayout(Buttons(CancelButton(self, _("Cancel")),
-                               OkButton(self, _("Next"))))
-        if not self.exec_():
-            raise UserCancelled
+    def request_seed(self, title, is_valid=None):
+        is_valid = is_valid or Wallet.is_any
+        slayout = SeedInputLayout()
+        def sanitized_seed():
+            return clean_text(slayout.seed_edit())
+        def set_enabled():
+            self.next_button.setEnabled(is_valid(sanitized_seed()))
+        slayout.seed_edit().textChanged.connect(set_enabled)
+        self.set_main_layout(slayout.layout(), title, next_enabled=False)
+        return sanitized_seed()
+
+    def show_seed(self, seed):
+        slayout = SeedWarningLayout(seed)
+        self.set_main_layout(slayout.layout())
+
+    def verify_seed(self, seed, is_valid=None):
+        while True:
+            r = self.request_seed(MSG_VERIFY_SEED, is_valid)
+            if prepare_seed(r) == prepare_seed(seed):
+                return
+            self.show_error(_('Incorrect seed'))
 
     def show_and_verify_seed(self, seed, is_valid=None):
         """Show the user their seed.  Ask them to re-enter it.  Return
@@ -110,12 +193,10 @@ class InstallWizard(WindowModalDialog, WizardBase):
         self.app.clipboard().clear()
         self.verify_seed(seed, is_valid)
 
-    def pw_dialog(self, msg, kind):
-        dialog = PasswordDialog(self, None, msg, kind)
-        accepted, p, pass_text = dialog.run()
-        if not accepted:
-            raise UserCancelled
-        return pass_text
+    def pw_layout(self, msg, kind):
+        playout = PasswordLayout(None, msg, kind, self.next_button)
+        self.set_main_layout(playout.layout())
+        return playout.new_password()
 
     def request_passphrase(self, device_text, restore=True):
         """Request a passphrase for a wallet from the given device and
@@ -123,17 +204,17 @@ class InstallWizard(WindowModalDialog, WizardBase):
         a unicode string."""
         if restore:
             msg = MSG_RESTORE_PASSPHRASE % device_text
-        return unicode(self.pw_dialog(msg, PasswordDialog.PW_PASSPHRASE) or '')
+        return unicode(self.pw_layout(msg, PW_PASSPHRASE) or '')
 
     def request_password(self, msg=None):
         """Request the user enter a new password and confirm it.  Return
         the password or None for no password."""
-        return self.pw_dialog(msg or MSG_ENTER_PASSWORD, PasswordDialog.PW_NEW)
-
-    def choose_server(self, network):
-        self.network_dialog(network)
+        return self.pw_layout(msg or MSG_ENTER_PASSWORD, PW_NEW)
 
     def show_restore(self, wallet, network):
+        # FIXME: these messages are shown after the install wizard is
+        # finished and the window closed.  On MacOSX they appear parented
+        # with a re-appeared ghost install wizard window...
         if network:
             def task():
                 wallet.wait_until_synchronized()
@@ -156,19 +237,8 @@ class InstallWizard(WindowModalDialog, WizardBase):
             self.emit(QtCore.SIGNAL('accept'))
         t = threading.Thread(target = task)
         t.start()
-        vbox = QVBoxLayout()
-        self.waiting_label = QLabel(MSG_GENERATING_WAIT)
-        vbox.addWidget(self.waiting_label)
-        self.set_layout(vbox)
-        self.raise_()
-        self.exec_()
-
-    def set_layout(self, layout):
-        w = QWidget()
-        w.setLayout(layout)
-        self.stack.addWidget(w)
-        self.stack.setCurrentWidget(w)
-        self.show()
+        self.please_wait.setText(MSG_GENERATING_WAIT)
+        self.refresh_gui()
 
     def query_create_or_restore(self, wallet_kinds):
         """Ask the user what they want to do, and which wallet kind.
@@ -178,92 +248,46 @@ class InstallWizard(WindowModalDialog, WizardBase):
 
         actions = [_("Create a new wallet"),
                    _("Restore a wallet or import keys")]
-
-        main_label = QLabel(_("Electrum could not find an existing wallet."))
+        title = _("Electrum could not find an existing wallet.")
         actions_clayout = ChoicesLayout(_("What do you want to do?"), actions)
         wallet_clayout = ChoicesLayout(_("Wallet kind:"), wallet_kinds)
 
         vbox = QVBoxLayout()
-        vbox.addWidget(main_label)
         vbox.addLayout(actions_clayout.layout())
         vbox.addLayout(wallet_clayout.layout())
-        vbox.addStretch(1)
-
-        OK = OkButton(self, _('Next'))
-        vbox.addLayout(Buttons(CancelButton(self), OK))
-        self.set_layout(vbox)
-        OK.setDefault(True)
-        self.raise_()
-
-        if not self.exec_():
-            raise UserCancelled
+        self.set_main_layout(vbox, title)
 
         action = ['create', 'restore'][actions_clayout.selected_index()]
         return action, wallet_clayout.selected_index()
 
-    def verify_seed(self, seed, is_valid=None):
-        while True:
-            r = self.request_seed(MSG_VERIFY_SEED, is_valid)
-            if prepare_seed(r) == prepare_seed(seed):
-                return
-            self.show_error(_('Incorrect seed'))
-
-    def get_seed_text(self, seed_e):
-        text = unicode(seed_e.toPlainText()).strip()
-        text = ' '.join(text.split())
-        return text
-
-    def request_seed(self, msg, is_valid=None):
-        is_valid = is_valid or Wallet.is_any
-        vbox, seed_e = seed_dialog.enter_seed_box(msg, self)
-        vbox.addStretch(1)
-        button = OkButton(self, _('Next'))
-        vbox.addLayout(Buttons(CancelButton(self), button))
-        button.setEnabled(False)
-        def set_enabled():
-            button.setEnabled(is_valid(self.get_seed_text(seed_e)))
-        seed_e.textChanged.connect(set_enabled)
-        self.set_layout(vbox)
-        if not self.exec_():
-            raise UserCancelled
-        return self.get_seed_text(seed_e)
-
     def request_many(self, n, xpub_hot=None):
         vbox = QVBoxLayout()
         scroll = QScrollArea()
-        scroll.setEnabled(True)
         scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
         vbox.addWidget(scroll)
 
         w = QWidget()
+        innerVbox = QVBoxLayout(w)
         scroll.setWidget(w)
 
-        innerVbox = QVBoxLayout()
-        w.setLayout(innerVbox)
-
         entries = []
+
         if xpub_hot:
-            vbox0 = seed_dialog.show_seed_box(MSG_SHOW_MPK, xpub_hot, 'hot')
+            layout = SeedDisplayLayout(xpub_hot, title=MSG_SHOW_MPK, sid='hot')
         else:
-            vbox0, seed_e1 = seed_dialog.enter_seed_box(MSG_ENTER_SEED_OR_MPK, self, 'hot')
-            entries.append(seed_e1)
-        innerVbox.addLayout(vbox0)
+            layout = SeedInputLayout(title=MSG_ENTER_SEED_OR_MPK, sid='hot')
+            entries.append(layout.seed_edit())
+        innerVbox.addLayout(layout.layout())
 
         for i in range(n):
-            if xpub_hot:
-                msg = MSG_COSIGNER % (i + 1)
-            else:
-                msg = MSG_ENTER_SEED_OR_MPK
-            vbox2, seed_e2 = seed_dialog.enter_seed_box(msg, self, 'cold')
-            innerVbox.addLayout(vbox2)
-            entries.append(seed_e2)
+            msg = MSG_COSIGNER % (i + 1) if xpub_hot else MSG_ENTER_SEED_OR_MPK
+            layout = SeedInputLayout(title=msg, sid='cold')
+            innerVbox.addLayout(layout.layout())
+            entries.append(layout.seed_edit())
 
-        vbox.addStretch(1)
-        button = OkButton(self, _('Next'))
-        vbox.addLayout(Buttons(CancelButton(self), button))
-        button.setEnabled(False)
         def get_texts():
-            return [self.get_seed_text(entry) for entry in entries]
+            return [clean_text(entry) for entry in entries]
         def set_enabled():
             texts = get_texts()
             is_valid = Wallet.is_xpub if xpub_hot else Wallet.is_any
@@ -271,65 +295,40 @@ class InstallWizard(WindowModalDialog, WizardBase):
             if xpub_hot:
                 texts.append(xpub_hot)
             has_dups = len(set(texts)) < len(texts)
-            button.setEnabled(all_valid and not has_dups)
+            self.next_button.setEnabled(all_valid and not has_dups)
         for e in entries:
             e.textChanged.connect(set_enabled)
-        self.set_layout(vbox)
-        if not self.exec_():
-            raise UserCancelled
+        self.set_main_layout(vbox, next_enabled=False)
         return get_texts()
 
-    def network_dialog(self, network):
-        grid = QGridLayout()
-        grid.setSpacing(5)
-        label = QLabel(_("Electrum communicates with remote servers to get information about your transactions and addresses. The servers all fulfil the same purpose only differing in hardware. In most cases you simply want to let Electrum pick one at random if you have a preference though feel free to select a server manually.") + "\n\n" \
-                      + _("How do you want to connect to a server:")+" ")
-        label.setWordWrap(True)
-        grid.addWidget(label, 0, 0)
-        gb = QGroupBox()
-        b1 = QRadioButton(gb)
-        b1.setText(_("Auto connect"))
-        b1.setChecked(True)
-        b2 = QRadioButton(gb)
-        b2.setText(_("Select server manually"))
-        grid.addWidget(b1,1,0)
-        grid.addWidget(b2,2,0)
-        vbox = QVBoxLayout()
-        vbox.addLayout(grid)
-        vbox.addStretch(1)
-        vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _('Next'))))
+    def choose_server(self, network):
+        title = _("Electrum communicates with remote servers to get "
+                  "information about your transactions and addresses. The "
+                  "servers all fulfil the same purpose only differing in "
+                  "hardware. In most cases you simply want to let Electrum "
+                  "pick one at random.  However if you prefer feel free to "
+                  "select a server manually.")
+        choices = [_("Auto connect"), _("Select server manually")]
+        choices_title = _("How do you want to connect to a server? ")
+        clayout = ChoicesLayout(choices_title, choices)
+        self.set_main_layout(clayout.layout(), title)
 
-        self.set_layout(vbox)
-        if not self.exec_():
-            return
-
-        if b2.isChecked():
-            NetworkDialog(network, self.config, None).do_exec()
-        else:
-            self.config.set_key('auto_connect', True, True)
-            network.auto_connect = True
+        auto_connect = True
+        if clayout.selected_index() == 1:
+            nlayout = NetworkChoiceLayout(network, self.config, wizard=True)
+            if self.set_main_layout(nlayout.layout(), raise_on_cancel=False):
+                nlayout.accept()
+                auto_connect = False
+        self.config.set_key('auto_connect', auto_connect, True)
+        network.auto_connect = auto_connect
 
     def query_choice(self, msg, choices):
         clayout = ChoicesLayout(msg, choices)
-        next_button = OkButton(self, _('Next'))
-        next_button.setEnabled(bool(choices))
-        layout = clayout.layout()
-        layout.addStretch(1)
-        layout.addLayout(Buttons(CancelButton(self), next_button))
-        self.set_layout(layout)
-        if not self.exec_():
-            raise UserCancelled
+        self.set_main_layout(clayout.layout(), next_enabled=bool(choices))
         return clayout.selected_index()
 
     def query_multisig(self, action):
-        vbox = QVBoxLayout()
-        self.set_layout(vbox)
-        vbox.addWidget(QLabel(_("Multi Signature Wallet")))
-
         cw = CosignWidget(2, 2)
-        vbox.addWidget(cw, 1)
-        vbox.addWidget(QLabel(_("Please choose the number of signatures needed to unlock funds in your wallet") + ':'))
-
         m_edit = QSpinBox()
         n_edit = QSpinBox()
         m_edit.setValue(2)
@@ -351,19 +350,13 @@ class InstallWizard(WindowModalDialog, WizardBase):
         hbox.addWidget(QLabel(_('signatures')))
         hbox.addStretch(1)
 
+        vbox = QVBoxLayout()
+        vbox.addWidget(cw)
+        vbox.addWidget(WWLabel(_("Choose the number of signatures needed "
+                          "to unlock funds in your wallet:")))
         vbox.addLayout(hbox)
-        vbox.addStretch(1)
-        vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _('Next'))))
-        if not self.exec_():
-            raise UserCancelled
+        self.set_main_layout(vbox, _("Multi-Signature Wallet"))
         m = int(m_edit.value())
         n = int(n_edit.value())
         wallet_type = '%dof%d'%(m,n)
         return wallet_type
-
-    def show_seed(self, seed):
-        vbox = seed_dialog.show_seed_box_msg(seed, None)
-        vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _("Next"))))
-        self.set_layout(vbox)
-        if not self.exec_():
-            raise UserCancelled
