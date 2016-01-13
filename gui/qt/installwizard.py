@@ -141,15 +141,15 @@ class InstallWizard(WindowModalDialog, WizardBase):
         self.app.processEvents()
         self.app.processEvents()
 
+    @classmethod
     def open_wallet(self, *args):
         '''Wrap the base wizard implementation with try/except blocks
         to give a sensible error message to the user.'''
         wallet = None
         try:
-            wallet = super(InstallWizard, self).open_wallet(*args)
+            wallet = InstallWizard.open_wallet(self, *args)
         except UserCancelled:
             self.print_error("wallet creation cancelled by user")
-            self.accept()
         return wallet
 
     def remove_from_recently_open(self, filename):

@@ -119,7 +119,61 @@ class WizardBase(PrintError):
         """Show restore result"""
         pass
 
+    @classmethod
+    def open_wallet(self, network, filename, config, create_wizard):
+        '''The main entry point of the wizard.  Open a wallet from the given
+        filename.  If the file doesn't exist launch the GUI-specific
+        install wizard proper, created by calling create_wizard().'''
+        storage = WalletStorage(filename)
+        need_sync = False
+        is_restore = False
+        self.my_wizard = None
 
+        def wizard():
+            if self.my_wizard is None:
+                self.my_wizard = create_wizard()
+            return self.my_wizard
+
+        if storage.file_exists:
+            wallet = Wallet(storage)
+            if wallet.imported_keys:
+                wizard().update_wallet_format(wallet)
+        else:
+            cr, wallet = wizard().create_or_restore(storage)
+            if not wallet:
+                return
+            need_sync = True
+            is_restore = (cr == 'restore')
+
+        while True:
+            action = wallet.get_action()
+            if not action:
+                break
+            need_sync = True
+            wizard().run_wallet_action(wallet, action)
+            # Save the wallet after each action
+            wallet.storage.write()
+
+        if network:
+            # Show network dialog if config does not exist
+            if config.get('server') is None:
+                wizard().choose_server(network)
+        else:
+            wizard().show_warning(_('You are offline'))
+
+        if need_sync:
+            wizard().create_addresses(wallet)
+
+        # start wallet threads
+        if network:
+            wallet.start_threads(network)
+
+        if is_restore:
+            wizard().show_restore(wallet, network)
+
+        self.my_wizard = None
+
+        return wallet
 
     def run_wallet_action(self, wallet, action):
         self.print_error("action %s on %s" % (action, wallet.basename()))
@@ -233,18 +287,17 @@ class WizardBase(PrintError):
 
     def update_wallet_format(self, wallet):
         # Backwards compatibility: convert old-format imported keys
-        if wallet.imported_keys:
-            msg = _("Please enter your password in order to update "
-                    "imported keys")
-            if wallet.use_encryption:
-                password = self.request_password(msg)
-            else:
-                password = None
+        msg = _("Please enter your password in order to update "
+                "imported keys")
+        if wallet.use_encryption:
+            password = self.request_password(msg)
+        else:
+            password = None
 
-            try:
-                wallet.convert_imported_keys(password)
-            except Exception as e:
-                self.show_error(str(e))
+        try:
+            wallet.convert_imported_keys(password)
+        except Exception as e:
+            self.show_error(str(e))
 
         # Call synchronize to regenerate addresses in case we're offline
         if wallet.get_master_public_keys() and not wallet.addresses():
