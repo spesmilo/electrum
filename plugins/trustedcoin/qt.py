@@ -108,7 +108,7 @@ class Plugin(TrustedCoinPlugin):
         label.setWordWrap(True)
         vbox = QVBoxLayout()
         vbox.addWidget(label)
-        window.set_main_layout(vbox, _("Two-Factor Authentication"))
+        window.set_main_layout(vbox)
         self.set_enabled(wallet, True)
         window.set_icon(prior_icon)
 

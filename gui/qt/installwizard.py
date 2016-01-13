@@ -7,7 +7,7 @@ import PyQt4.QtCore as QtCore
 import electrum
 from electrum.i18n import _
 
-import seed_dialog
+from seed_dialog import SeedDisplayLayout, SeedWarningLayout, SeedInputLayout
 from network_dialog import NetworkDialog
 from util import *
 from password_dialog import PasswordLayout, PW_NEW, PW_PASSPHRASE
@@ -32,6 +32,8 @@ class CosignWidget(QWidget):
         QWidget.__init__(self)
         self.R = QRect(0, 0, self.size, self.size)
         self.setGeometry(self.R)
+        self.setMinimumHeight(self.size)
+        self.setMaximumHeight(self.size)
         self.m = m
         self.n = n
 
@@ -74,8 +76,7 @@ class InstallWizard(WindowModalDialog, WizardBase):
         self.setMinimumSize(518, 360)
         self.setMaximumSize(518, 360)
         self.connect(self, QtCore.SIGNAL('accept'), self.accept)
-        self.title = QLabel()
-        self.title.setWordWrap(True)
+        self.title = WWLabel()
         self.main_widget = QWidget()
         self.cancel_button = QPushButton(_("Cancel"), self)
         self.next_button = QPushButton(_("Next"), self)
@@ -100,13 +101,12 @@ class InstallWizard(WindowModalDialog, WizardBase):
         icon_vbox.addStretch(1)
         hbox = QHBoxLayout()
         hbox.addLayout(icon_vbox)
+        hbox.addSpacing(5)
         hbox.addLayout(inner_vbox)
         hbox.setStretchFactor(inner_vbox, 1)
         outer_vbox.addLayout(hbox)
         outer_vbox.addLayout(Buttons(self.cancel_button, self.next_button))
         self.set_icon(':icons/electrum.png')
-        self.show()
-        self.raise_()
 
     def set_icon(self, filename):
         prior_filename, self.icon_filename = self.icon_filename, filename
@@ -120,6 +120,9 @@ class InstallWizard(WindowModalDialog, WizardBase):
         prior_layout = self.main_widget.layout()
         if prior_layout:
             QWidget().setLayout(prior_layout)
+        else:
+            self.show()
+            self.raise_()
         self.main_widget.setLayout(layout)
         self.cancel_button.setEnabled(True)
         self.next_button.setEnabled(True)
@@ -155,7 +158,7 @@ class InstallWizard(WindowModalDialog, WizardBase):
 
     def request_seed(self, title, is_valid=None):
         is_valid = is_valid or Wallet.is_any
-        slayout = seed_dialog.SeedLayout(None)
+        slayout = SeedInputLayout()
         self.next_button.setEnabled(False)
         def sanitized_seed():
             return clean_text(slayout.seed_edit())
@@ -167,7 +170,7 @@ class InstallWizard(WindowModalDialog, WizardBase):
 
     def show_seed(self, seed):
         title =  _("Your wallet generation seed is:")
-        slayout = seed_dialog.SeedLayout(seed)
+        slayout = SeedWarningLayout(seed)
         self.set_main_layout(slayout.layout(), title)
 
     def verify_seed(self, seed, is_valid=None):
@@ -185,11 +188,8 @@ class InstallWizard(WindowModalDialog, WizardBase):
         self.verify_seed(seed, is_valid)
 
     def pw_layout(self, msg, kind):
-        hbox = QHBoxLayout()
         playout = PasswordLayout(None, msg, kind, self.next_button)
-        hbox.addLayout(playout.layout())
-        #hbox.addStretch(1)
-        self.set_main_layout(hbox)
+        self.set_main_layout(playout.layout())
         return playout.new_password()
 
     def request_passphrase(self, device_text, restore=True):
@@ -234,13 +234,6 @@ class InstallWizard(WindowModalDialog, WizardBase):
         self.please_wait.setText(MSG_GENERATING_WAIT)
         self.refresh_gui()
 
-    def set_layout(self, layout):
-        w = QWidget()
-        w.setLayout(layout)
-        self.stack.addWidget(w)
-        self.stack.setCurrentWidget(w)
-        self.show()
-
     def query_create_or_restore(self, wallet_kinds):
         """Ask the user what they want to do, and which wallet kind.
         wallet_kinds is an array of translated wallet descriptions.
@@ -264,37 +257,30 @@ class InstallWizard(WindowModalDialog, WizardBase):
     def request_many(self, n, xpub_hot=None):
         vbox = QVBoxLayout()
         scroll = QScrollArea()
-        scroll.setEnabled(True)
         scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
         vbox.addWidget(scroll)
 
         w = QWidget()
+        innerVbox = QVBoxLayout(w)
         scroll.setWidget(w)
 
-        innerVbox = QVBoxLayout()
-        w.setLayout(innerVbox)
-
         entries = []
+
         if xpub_hot:
-            vbox0 = seed_dialog.show_seed_box(MSG_SHOW_MPK, xpub_hot, 'hot')
+            layout = SeedDisplayLayout(xpub_hot, title=MSG_SHOW_MPK, sid='hot')
         else:
-            vbox0, seed_e1 = seed_dialog.enter_seed_box(MSG_ENTER_SEED_OR_MPK, self, 'hot')
-            entries.append(seed_e1)
-        innerVbox.addLayout(vbox0)
+            layout = SeedInputLayout(title=MSG_ENTER_SEED_OR_MPK, sid='hot')
+            entries.append(slayout.seed_edit())
+        innerVbox.addLayout(layout.layout())
 
         for i in range(n):
-            if xpub_hot:
-                msg = MSG_COSIGNER % (i + 1)
-            else:
-                msg = MSG_ENTER_SEED_OR_MPK
-            vbox2, seed_e2 = seed_dialog.enter_seed_box(msg, self, 'cold')
-            innerVbox.addLayout(vbox2)
-            entries.append(seed_e2)
+            msg = MSG_COSIGNER % (i + 1) if xpub_hot else MSG_ENTER_SEED_OR_MPK
+            layout = SeedInputLayout(title=msg, sid='cold')
+            innerVbox.addLayout(layout.layout())
+            entries.append(layout.seed_edit())
 
-        vbox.addStretch(1)
-        button = OkButton(self, _('Next'))
-        vbox.addLayout(Buttons(CancelButton(self), button))
-        button.setEnabled(False)
+        self.next_button.setEnabled(False)
         def get_texts():
             return [clean_text(entry) for entry in entries]
         def set_enabled():
@@ -304,12 +290,10 @@ class InstallWizard(WindowModalDialog, WizardBase):
             if xpub_hot:
                 texts.append(xpub_hot)
             has_dups = len(set(texts)) < len(texts)
-            button.setEnabled(all_valid and not has_dups)
+            self.next_button.setEnabled(all_valid and not has_dups)
         for e in entries:
             e.textChanged.connect(set_enabled)
-        self.set_layout(vbox)
-        if not self.exec_():
-            raise UserCancelled
+        self.set_main_layout(vbox)
         return get_texts()
 
     def network_dialog(self, network):
@@ -355,14 +339,7 @@ class InstallWizard(WindowModalDialog, WizardBase):
         return clayout.selected_index()
 
     def query_multisig(self, action):
-        vbox = QVBoxLayout()
-        self.set_layout(vbox)
-        vbox.addWidget(QLabel(_("Multi Signature Wallet")))
-
         cw = CosignWidget(2, 2)
-        vbox.addWidget(cw, 1)
-        vbox.addWidget(QLabel(_("Please choose the number of signatures needed to unlock funds in your wallet") + ':'))
-
         m_edit = QSpinBox()
         n_edit = QSpinBox()
         m_edit.setValue(2)
@@ -384,11 +361,12 @@ class InstallWizard(WindowModalDialog, WizardBase):
         hbox.addWidget(QLabel(_('signatures')))
         hbox.addStretch(1)
 
+        vbox = QVBoxLayout()
+        vbox.addWidget(cw)
+        vbox.addWidget(WWLabel(_("Choose the number of signatures needed "
+                          "to unlock funds in your wallet:")))
         vbox.addLayout(hbox)
-        vbox.addStretch(1)
-        vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _('Next'))))
-        if not self.exec_():
-            raise UserCancelled
+        self.set_main_layout(vbox, _("Multi-Signature Wallet"))
         m = int(m_edit.value())
         n = int(n_edit.value())
         wallet_type = '%dof%d'%(m,n)

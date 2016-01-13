@@ -86,6 +86,12 @@ class ThreadedButton(QPushButton):
         t.start()
 
 
+class WWLabel(QLabel):
+    def __init__ (self, text="", parent=None):
+        QLabel.__init__(self, text, parent)
+        self.setWordWrap(True)
+
+
 class HelpLabel(QLabel):
 
     def __init__(self, text, help_text):
@@ -272,9 +278,7 @@ class ChoicesLayout(object):
     def __init__(self, msg, choices, on_clicked=None):
         vbox = QVBoxLayout()
         if len(msg) > 50:
-            label = QLabel(msg)
-            label.setWordWrap(True)
-            vbox.addWidget(label)
+            vbox.addWidget(WWLabel(msg))
             msg = ""
         gb2 = QGroupBox(msg)
         vbox.addWidget(gb2)

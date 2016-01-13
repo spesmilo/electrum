@@ -18,22 +18,10 @@
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-import PyQt4.QtCore as QtCore
 from electrum.i18n import _
 
 from util import *
 from qrtextedit import ShowQRTextEdit, ScanQRTextEdit
-
-class SeedDialog(WindowModalDialog):
-    def __init__(self, parent, seed, imported_keys):
-        WindowModalDialog.__init__(self, parent, ('Electrum - ' + _('Seed')))
-        self.setMinimumWidth(400)
-        vbox = show_seed_box_msg(seed)
-        if imported_keys:
-            vbox.addWidget(QLabel("<b>"+_("WARNING")+":</b> " + _("Your wallet contains imported keys. These keys cannot be recovered from seed.") + "</b><p>"))
-        vbox.addLayout(Buttons(CloseButton(self)))
-        self.setLayout(vbox)
-
 
 def icon_filename(sid):
     if sid == 'cold':
@@ -43,22 +31,61 @@ def icon_filename(sid):
     else:
         return ":icons/seed.png"
 
-class SeedLayout(object):
-    def __init__(self, seed, sid=None):
+class SeedDialog(WindowModalDialog):
+    def __init__(self, parent, seed, imported_keys):
+        WindowModalDialog.__init__(self, parent, ('Electrum - ' + _('Seed')))
+        self.setMinimumWidth(400)
+        vbox = QVBoxLayout(self)
+        vbox.addLayout(SeedDisplayLayout(seed))
+        if imported_keys:
+            warning = ("<b>" + _("WARNING") + ":</b> " +
+                       _("Your wallet contains imported keys. These keys "
+                         "cannot be recovered from your seed.") + "</b><p>")
+            vbox.addWidget(WWLabel(warning))
+        vbox.addLayout(Buttons(CloseButton(self)))
+
+
+class SeedLayoutBase(object):
+    def _seed_layout(self, seed=None, title=None, sid=None):
+        logo = QLabel()
+        logo.setPixmap(QPixmap(icon_filename(sid)).scaledToWidth(56))
+        logo.setMaximumWidth(60)
         if seed:
-            self.vbox = self.seed_and_warning_layout(seed, sid)
+            self.seed_e = ShowQRTextEdit()
+            self.seed_e.setText(seed)
         else:
-            self.vbox = self.seed_layout(seed, sid)
+            self.seed_e = ScanQRTextEdit()
+            self.seed_e.setTabChangesFocus(True)
+        self.seed_e.setMaximumHeight(75)
+        hbox = QHBoxLayout()
+        hbox.addWidget(logo)
+        hbox.addWidget(self.seed_e)
+        if not title:
+            return hbox
+        vbox = QVBoxLayout()
+        vbox.addWidget(WWLabel(title))
+        vbox.addLayout(hbox)
+        return vbox
 
     def layout(self):
-        return self.vbox
+        return self.layout_
 
     def seed_edit(self):
         return self.seed_e
 
-    def seed_and_warning_layout(self, seed, sid=None):
-        vbox = QVBoxLayout()
-        vbox.addLayout(self.seed_layout(seed, sid))
+
+class SeedInputLayout(SeedLayoutBase):
+    def __init__(self, title=None, sid=None):
+        self.layout_ = self._seed_layout(title=title, sid=sid)
+
+
+class SeedDisplayLayout(SeedLayoutBase):
+    def __init__(self, seed, title=None, sid=None):
+        self.layout_ = self._seed_layout(seed=seed, title=title, sid=sid)
+
+
+class SeedWarningLayout(SeedLayoutBase):
+    def __init__(self, seed, title=None):
         msg = ''.join([
             "<p>",
             _("Please save these %d words on paper (order is important). "),
@@ -72,23 +99,7 @@ class SeedLayout(object):
             "<li>" + _("Do not send your seed to a printer.") + "</li>",
             "</ul>"
         ]) % len(seed.split())
-        label2 = QLabel(msg)
-        label2.setWordWrap(True)
-        vbox.addWidget(label2)
-        return vbox
-
-    def seed_layout(self, seed, sid=None):
-        logo = QLabel()
-        logo.setPixmap(QPixmap(icon_filename(sid)).scaledToWidth(56))
-        logo.setMaximumWidth(60)
-        if not seed:
-            seed_e = ScanQRTextEdit()
-            seed_e.setTabChangesFocus(True)
-        else:
-            seed_e = ShowQRTextEdit(text=seed)
-        seed_e.setMaximumHeight(100)
-        self.seed_e = seed_e
-        hbox = QHBoxLayout()
-        hbox.addWidget(logo)
-        hbox.addWidget(seed_e)
-        return hbox
+        vbox = QVBoxLayout()
+        vbox.addLayout(self._seed_layout(seed=seed, title=title))
+        vbox.addWidget(WWLabel(msg))
+        self.layout_ = vbox
