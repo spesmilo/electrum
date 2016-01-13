@@ -119,51 +119,6 @@ class WizardBase(PrintError):
         """Show restore result"""
         pass
 
-    def open_wallet(self, network, filename):
-        '''The main entry point of the wizard.  Open a wallet from the given
-        filename.  If the file doesn't exist launch the GUI-specific
-        install wizard proper.'''
-        storage = WalletStorage(filename)
-        need_sync = False
-        is_restore = False
-
-        if storage.file_exists:
-            wallet = Wallet(storage)
-            self.update_wallet_format(wallet)
-        else:
-            cr, wallet = self.create_or_restore(storage)
-            if not wallet:
-                return
-            need_sync = True
-            is_restore = (cr == 'restore')
-
-        while True:
-            action = wallet.get_action()
-            if not action:
-                break
-            need_sync = True
-            self.run_wallet_action(wallet, action)
-            # Save the wallet after each action
-            wallet.storage.write()
-
-        if network:
-            # Show network dialog if config does not exist
-            if self.config.get('server') is None:
-                self.choose_server(network)
-        else:
-            self.show_warning(_('You are offline'))
-
-        if need_sync:
-            self.create_addresses(wallet)
-
-        # start wallet threads
-        if network:
-            wallet.start_threads(network)
-
-        if is_restore:
-            self.show_restore(wallet, network)
-
-        return wallet
 
 
     def run_wallet_action(self, wallet, action):

@@ -120,12 +120,12 @@ class Daemon(DaemonThread):
             response = "Error: Electrum is running in daemon mode. Please stop the daemon first."
         return response
 
-    def load_wallet(self, path, wizard=None):
+    def load_wallet(self, path, get_wizard):
         if path in self.wallets:
             wallet = self.wallets[path]
         else:
-            if wizard:
-                wallet = wizard.open_wallet(self.network, path)
+            if get_wizard:
+                wallet = self.open_wallet_with_wizard(self.network, path, get_wizard)
             else:
                 storage = WalletStorage(path)
                 wallet = Wallet(storage)
@@ -133,6 +133,57 @@ class Daemon(DaemonThread):
             if wallet:
                 self.wallets[path] = wallet
         return wallet
+
+    def open_wallet_with_wizard(self, network, filename, get_wizard):
+        '''Instantiate wizard only if needed'''
+        storage = WalletStorage(filename)
+        need_sync = False
+        is_restore = False
+        self.wizard = None
+
+        def wizard():
+            if self.wizard is None:
+                self.wizard = get_wizard()
+            return self.wizard
+
+        if storage.file_exists:
+            wallet = Wallet(storage)
+            #self.update_wallet_format(wallet)
+        else:
+            cr, wallet = wizard().create_or_restore(storage)
+            if not wallet:
+                return
+            need_sync = True
+            is_restore = (cr == 'restore')
+
+        while True:
+            action = wallet.get_action()
+            if not action:
+                break
+            need_sync = True
+            wizard().run_wallet_action(wallet, action)
+            # Save the wallet after each action
+            wallet.storage.write()
+
+        if network:
+            # Show network dialog if config does not exist
+            if self.config.get('server') is None:
+                wizard().choose_server(network)
+        else:
+            wizard().show_warning(_('You are offline'))
+
+        if need_sync:
+            wizard().create_addresses(wallet)
+
+        # start wallet threads
+        if network:
+            wallet.start_threads(network)
+
+        if is_restore:
+            wizard().show_restore(wallet, network)
+
+        return wallet
+
 
     def run_cmdline(self, config_options):
         config = SimpleConfig(config_options)
