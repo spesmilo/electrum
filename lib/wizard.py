@@ -167,6 +167,8 @@ class WizardBase(PrintError):
         if is_restore:
             self.show_restore(wallet, network)
 
+        self.finished()
+
         return wallet
 
     def run_wallet_action(self, wallet, action):

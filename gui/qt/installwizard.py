@@ -150,13 +150,12 @@ class InstallWizard(WindowModalDialog, WizardBase):
         self.app.processEvents()
         self.app.processEvents()
 
-    @classmethod
-    def open_wallet(self, *args):
+    def run(self, *args):
         '''Wrap the base wizard implementation with try/except blocks
         to give a sensible error message to the user.'''
         wallet = None
         try:
-            wallet = InstallWizard.open_wallet(self, *args)
+            wallet = WizardBase.run(self, *args)
         except UserCancelled:
             self.print_error("wallet creation cancelled by user")
         return wallet
@@ -277,7 +276,7 @@ class InstallWizard(WindowModalDialog, WizardBase):
             layout = SeedDisplayLayout(xpub_hot, title=MSG_SHOW_MPK, sid='hot')
         else:
             layout = SeedInputLayout(title=MSG_ENTER_SEED_OR_MPK, sid='hot')
-            entries.append(slayout.seed_edit())
+            entries.append(layout.seed_edit())
         innerVbox.addLayout(layout.layout())
 
         for i in range(n):
