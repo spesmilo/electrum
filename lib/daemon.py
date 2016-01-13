@@ -120,7 +120,7 @@ class Daemon(DaemonThread):
             response = "Error: Electrum is running in daemon mode. Please stop the daemon first."
         return response
 
-    def load_wallet(self, path, get_wizard):
+    def load_wallet(self, path, get_wizard=None):
         if path in self.wallets:
             wallet = self.wallets[path]
         else:
