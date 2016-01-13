@@ -107,6 +107,8 @@ class InstallWizard(WindowModalDialog, WizardBase):
         outer_vbox.addLayout(hbox)
         outer_vbox.addLayout(Buttons(self.cancel_button, self.next_button))
         self.set_icon(':icons/electrum.png')
+        self.show()
+        self.raise_()
 
     def set_icon(self, filename):
         prior_filename, self.icon_filename = self.icon_filename, filename
@@ -120,9 +122,6 @@ class InstallWizard(WindowModalDialog, WizardBase):
         prior_layout = self.main_widget.layout()
         if prior_layout:
             QWidget().setLayout(prior_layout)
-        else:
-            self.show()
-            self.raise_()
         self.main_widget.setLayout(layout)
         self.cancel_button.setEnabled(True)
         self.next_button.setEnabled(True)
@@ -328,14 +327,8 @@ class InstallWizard(WindowModalDialog, WizardBase):
 
     def query_choice(self, msg, choices):
         clayout = ChoicesLayout(msg, choices)
-        next_button = OkButton(self, _('Next'))
-        next_button.setEnabled(bool(choices))
-        layout = clayout.layout()
-        layout.addStretch(1)
-        layout.addLayout(Buttons(CancelButton(self), next_button))
-        self.set_layout(layout)
-        if not self.exec_():
-            raise UserCancelled
+        self.next_button.setEnabled(bool(choices))
+        self.set_main_layout(clayout.layout())
         return clayout.selected_index()
 
     def query_multisig(self, action):
