@@ -175,9 +175,8 @@ class InstallWizard(WindowModalDialog, WizardBase):
         return sanitized_seed()
 
     def show_seed(self, seed):
-        title =  _("Your wallet generation seed is:")
         slayout = SeedWarningLayout(seed)
-        self.set_main_layout(slayout.layout(), title)
+        self.set_main_layout(slayout.layout())
 
     def verify_seed(self, seed, is_valid=None):
         while True:

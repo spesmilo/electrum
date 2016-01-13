@@ -34,7 +34,7 @@ class NetworkDialog(WindowModalDialog):
         self.setMinimumSize(375, 20)
         self.nlayout = NetworkChoiceLayout(network, config)
         vbox = QVBoxLayout(self)
-        vbox.addLayout(nlayout.layout())
+        vbox.addLayout(self.nlayout.layout())
         vbox.addLayout(Buttons(CancelButton(self), OkButton(self)))
 
     def do_exec(self):

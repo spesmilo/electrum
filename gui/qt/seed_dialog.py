@@ -36,7 +36,7 @@ class SeedDialog(WindowModalDialog):
         WindowModalDialog.__init__(self, parent, ('Electrum - ' + _('Seed')))
         self.setMinimumWidth(400)
         vbox = QVBoxLayout(self)
-        vbox.addLayout(SeedDisplayLayout(seed))
+        vbox.addLayout(SeedWarningLayout(seed).layout())
         if imported_keys:
             warning = ("<b>" + _("WARNING") + ":</b> " +
                        _("Your wallet contains imported keys. These keys "
@@ -86,6 +86,8 @@ class SeedDisplayLayout(SeedLayoutBase):
 
 class SeedWarningLayout(SeedLayoutBase):
     def __init__(self, seed, title=None):
+        if title is None:
+            title =  _("Your wallet generation seed is:")
         msg = ''.join([
             "<p>",
             _("Please save these %d words on paper (order is important). "),

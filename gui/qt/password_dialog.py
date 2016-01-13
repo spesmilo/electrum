@@ -93,7 +93,7 @@ class PasswordLayout(object):
                 lockfile = ":icons/lock.png"
             else:
                 lockfile = ":icons/unlock.png"
-                logo.setPixmap(QPixmap(lockfile).scaledToWidth(36))
+            logo.setPixmap(QPixmap(lockfile).scaledToWidth(36))
 
         grid.addWidget(QLabel(msgs[0]), 1, 0)
         grid.addWidget(self.new_pw, 1, 1)
@@ -145,10 +145,10 @@ class PasswordLayout(object):
 class PasswordDialog(WindowModalDialog):
 
     def __init__(self, parent, wallet, msg, kind):
-        WindowModalDialog.__init__(self)
+        WindowModalDialog.__init__(self, parent)
         OK_button = OkButton(self)
         self.playout = PasswordLayout(wallet, msg, kind, OK_button)
-        self.setTitle(slef.playout.title())
+        self.setWindowTitle(self.playout.title())
         vbox = QVBoxLayout(self)
         vbox.addLayout(self.playout.layout())
         vbox.addStretch(1)
