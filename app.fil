@@ -1,4 +1,3 @@
-gui/gtk.py
 gui/qt/main_window.py
 gui/qt/history_widget.py
 gui/qt/installwizard.py
