@@ -345,7 +345,7 @@ class TrustedCoinPlugin(BasePlugin):
             _('If you are online, click on "%s" to continue.') % _('Next')
         ]
         msg = '\n\n'.join(msg)
-        window.confirm(msg)
+        self.confirm(window, msg)
 
     @hook
     def do_clear(self, window):
@@ -361,7 +361,7 @@ class TrustedCoinPlugin(BasePlugin):
         words = seed.split()
         n = len(words)/2
         wallet.add_xprv_from_seed(' '.join(words[0:n]), 'x1/', password)
-        wallet.add_xpub_from_seed(' '.join(words[n:]), 'x2/', password)
+        wallet.add_xpub_from_seed(' '.join(words[n:]), 'x2/')
 
         restore_third_key(wallet)
         wallet.create_main_account()

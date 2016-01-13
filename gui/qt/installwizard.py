@@ -73,8 +73,8 @@ class InstallWizard(WindowModalDialog, WizardBase):
         # Set for base base class
         self.plugins = plugins
         self.language_for_seed = config.get('language')
-        self.setMinimumSize(518, 360)
-        self.setMaximumSize(518, 360)
+        self.setMinimumSize(530, 370)
+        self.setMaximumSize(530, 370)
         self.connect(self, QtCore.SIGNAL('accept'), self.accept)
         self.title = WWLabel()
         self.main_widget = QWidget()
@@ -109,6 +109,7 @@ class InstallWizard(WindowModalDialog, WizardBase):
         self.set_icon(':icons/electrum.png')
         self.show()
         self.raise_()
+        self.refresh_gui()  # Need for QT on MacOSX.  Lame.
 
     def finished(self):
         '''Ensure the dialog is closed.'''
@@ -117,19 +118,20 @@ class InstallWizard(WindowModalDialog, WizardBase):
 
     def set_icon(self, filename):
         prior_filename, self.icon_filename = self.icon_filename, filename
-        self.logo.setPixmap(QPixmap(filename).scaledToWidth(70))
+        self.logo.setPixmap(QPixmap(filename).scaledToWidth(60))
         return prior_filename
 
-    def set_main_layout(self, layout, title=None, raise_on_cancel=True):
+    def set_main_layout(self, layout, title=None, raise_on_cancel=True,
+                        next_enabled=True):
         self.title.setText(title or "")
         self.title.setVisible(bool(title))
-        # Get rid of any prior layout
+        # Get rid of any prior layout by assigning it to a temporary widget
         prior_layout = self.main_widget.layout()
         if prior_layout:
             QWidget().setLayout(prior_layout)
         self.main_widget.setLayout(layout)
         self.cancel_button.setEnabled(True)
-        self.next_button.setEnabled(True)
+        self.next_button.setEnabled(next_enabled)
         self.main_widget.setVisible(True)
         self.please_wait.setVisible(False)
         result = self.loop.exec_()
@@ -165,13 +167,12 @@ class InstallWizard(WindowModalDialog, WizardBase):
     def request_seed(self, title, is_valid=None):
         is_valid = is_valid or Wallet.is_any
         slayout = SeedInputLayout()
-        self.next_button.setEnabled(False)
         def sanitized_seed():
             return clean_text(slayout.seed_edit())
         def set_enabled():
             self.next_button.setEnabled(is_valid(sanitized_seed()))
         slayout.seed_edit().textChanged.connect(set_enabled)
-        self.set_main_layout(slayout.layout(), title)
+        self.set_main_layout(slayout.layout(), title, next_enabled=False)
         return sanitized_seed()
 
     def show_seed(self, seed):
@@ -211,6 +212,9 @@ class InstallWizard(WindowModalDialog, WizardBase):
         return self.pw_layout(msg or MSG_ENTER_PASSWORD, PW_NEW)
 
     def show_restore(self, wallet, network):
+        # FIXME: these messages are shown after the install wizard is
+        # finished and the window closed.  On MacOSX they appear parented
+        # with a re-appeared ghost install wizard window...
         if network:
             def task():
                 wallet.wait_until_synchronized()
@@ -282,7 +286,6 @@ class InstallWizard(WindowModalDialog, WizardBase):
             innerVbox.addLayout(layout.layout())
             entries.append(layout.seed_edit())
 
-        self.next_button.setEnabled(False)
         def get_texts():
             return [clean_text(entry) for entry in entries]
         def set_enabled():
@@ -295,7 +298,7 @@ class InstallWizard(WindowModalDialog, WizardBase):
             self.next_button.setEnabled(all_valid and not has_dups)
         for e in entries:
             e.textChanged.connect(set_enabled)
-        self.set_main_layout(vbox)
+        self.set_main_layout(vbox, next_enabled=False)
         return get_texts()
 
     def choose_server(self, network):
@@ -321,8 +324,7 @@ class InstallWizard(WindowModalDialog, WizardBase):
 
     def query_choice(self, msg, choices):
         clayout = ChoicesLayout(msg, choices)
-        self.next_button.setEnabled(bool(choices))
-        self.set_main_layout(clayout.layout())
+        self.set_main_layout(clayout.layout(), next_enabled=bool(choices))
         return clayout.selected_index()
 
     def query_multisig(self, action):

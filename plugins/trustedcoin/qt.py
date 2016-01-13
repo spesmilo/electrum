@@ -102,15 +102,15 @@ class Plugin(TrustedCoinPlugin):
         return WaitingDialog(window, 'Getting billing information...', task,
                              on_finished)
 
-    def show_disclaimer(self, wallet, window):
-        prior_icon = window.set_icon(':icons/trustedcoin.png')
-        label = QLabel('\n\n'.join(DISCLAIMER))
-        label.setWordWrap(True)
+    def confirm(self, window, msg):
         vbox = QVBoxLayout()
-        vbox.addWidget(label)
+        vbox.addWidget(WWLabel(msg))
         window.set_main_layout(vbox)
+
+    def show_disclaimer(self, wallet, window):
+        window.set_icon(':icons/trustedcoin.png')
+        self.confirm(window, '\n\n'.join(DISCLAIMER))
         self.set_enabled(wallet, True)
-        window.set_icon(prior_icon)
 
     @hook
     def abort_send(self, window):
@@ -216,7 +216,6 @@ class Plugin(TrustedCoinPlugin):
 
     def accept_terms_of_use(self, window):
         vbox = QVBoxLayout()
-        window.set_layout(vbox)
         vbox.addWidget(QLabel(_("Terms of Service")))
 
         tos_e = QTextEdit()
@@ -226,10 +225,10 @@ class Plugin(TrustedCoinPlugin):
         vbox.addWidget(QLabel(_("Please enter your e-mail address")))
         email_e = QLineEdit()
         vbox.addWidget(email_e)
-        vbox.addStretch()
-        accept_button = OkButton(window, _('Accept'))
-        accept_button.setEnabled(False)
-        vbox.addLayout(Buttons(CancelButton(window), accept_button))
+
+        next_button = window.next_button
+        prior_button_text = next_button.text()
+        next_button.setText(_('Accept'))
 
         def request_TOS():
             tos = server.get_terms_of_service()
@@ -239,24 +238,26 @@ class Plugin(TrustedCoinPlugin):
         def on_result():
             tos_e.setText(self.TOS)
 
+        def set_enabled():
+            next_button.setEnabled(re.match(regexp,email_e.text()) is not None)
+
         window.connect(window, SIGNAL('twofactor:TOS'), on_result)
         t = Thread(target=request_TOS)
         t.setDaemon(True)
         t.start()
 
         regexp = r"[^@]+@[^@]+\.[^@]+"
-        email_e.textChanged.connect(lambda: accept_button.setEnabled(re.match(regexp,email_e.text()) is not None))
+        email_e.textChanged.connect(set_enabled)
         email_e.setFocus(True)
 
-        if not window.exec_():
-            raise wizard.UserCancelled
+        window.set_main_layout(vbox, next_enabled=False)
+        next_button.setText(prior_button_text)
 
         return str(email_e.text())
 
 
     def setup_google_auth(self, window, _id, otp_secret):
         vbox = QVBoxLayout()
-        window.set_layout(vbox)
         if otp_secret is not None:
             uri = "otpauth://totp/%s?secret=%s"%('trustedcoin.com', otp_secret)
             vbox.addWidget(QLabel("Please scan this QR code in Google Authenticator."))
@@ -270,20 +271,20 @@ class Plugin(TrustedCoinPlugin):
             msg = _('Google Authenticator code:')
 
         hbox = QHBoxLayout()
-        hbox.addWidget(QLabel(msg))
+        hbox.addWidget(WWLabel(msg))
         pw = AmountEdit(None, is_int = True)
         pw.setFocus(True)
+        pw.setMaximumWidth(50)
         hbox.addWidget(pw)
-        hbox.addStretch(1)
         vbox.addLayout(hbox)
 
-        b = OkButton(window, _('Next'))
-        b.setEnabled(False)
-        vbox.addLayout(Buttons(CancelButton(window), b))
-        pw.textChanged.connect(lambda: b.setEnabled(len(pw.text())==6))
+        def set_enabled():
+            window.next_button.setEnabled(len(pw.text()) == 6)
+        pw.textChanged.connect(set_enabled)
 
         while True:
-            if not window.exec_():
+            if not window.set_main_layout(vbox, next_enabled=False,
+                                          raise_on_cancel=False):
                 return False
             otp = pw.get_amount()
             try:
