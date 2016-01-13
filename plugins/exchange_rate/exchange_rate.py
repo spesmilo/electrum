@@ -229,6 +229,15 @@ class itBit(ExchangeBase):
             result[ccy] = Decimal(json['lastPrice'])
         return result
 
+class Kraken(ExchangeBase):
+    def get_rates(self, ccy):
+        ccys = ['EUR', 'USD', 'CAD', 'GBP', 'JPY']
+        pairs = ['XBT%s' % c for c in ccys]
+        json = self.get_json('api.kraken.com',
+                             '/0/public/Ticker?pair=%s' % ','.join(pairs))
+        return dict((k[-3:], Decimal(float(v['c'][0])))
+                     for k, v in json['result'].items())
+
 class LocalBitcoins(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('localbitcoins.com',
