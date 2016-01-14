@@ -34,7 +34,7 @@ import PyQt4.QtCore as QtCore
 
 import icons_rc
 
-from electrum.bitcoin import MIN_RELAY_TX_FEE, COIN, is_valid
+from electrum.bitcoin import COIN, is_valid
 from electrum.plugins import run_hook
 from electrum.i18n import _
 from electrum.util import block_explorer, block_explorer_info, block_explorer_URL
@@ -1214,7 +1214,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message(str(e))
             return
 
-        if tx.get_fee() < MIN_RELAY_TX_FEE and tx.requires_fee(self.wallet):
+        if tx.get_fee() < self.wallet.relayfee() and tx.requires_fee(self.wallet):
             self.show_error(_("This transaction requires a higher fee, or it will not be propagated by the network"))
             return
 
