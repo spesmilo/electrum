@@ -6,7 +6,7 @@ from PyQt4.Qt import Qt
 from PyQt4.Qt import QGridLayout, QInputDialog, QPushButton
 from PyQt4.Qt import QVBoxLayout, QLabel, SIGNAL
 from electrum_ltc_gui.qt.main_window import StatusBarButton
-from electrum_ltc_gui.qt.password_dialog import PasswordDialog
+from electrum_ltc_gui.qt.password_dialog import PasswordDialog, PW_PASSPHRASE
 from electrum_ltc_gui.qt.util import *
 from .plugin import TrezorCompatiblePlugin, TIM_NEW, TIM_RECOVER, TIM_MNEMONIC
 
@@ -85,8 +85,7 @@ class QtHandler(PrintError):
         self.done.set()
 
     def passphrase_dialog(self, msg):
-        d = PasswordDialog(self.top_level_window(), None, msg,
-                           PasswordDialog.PW_PASSPHRASE)
+        d = PasswordDialog(self.top_level_window(), None, msg, PW_PASSPHRASE)
         confirmed, p, passphrase = d.run()
         if confirmed:
             passphrase = BIP44_Wallet.normalize_passphrase(passphrase)
@@ -135,9 +134,7 @@ class QtHandler(PrintError):
         wizard = self.win
 
         vbox = QVBoxLayout()
-        main_label = QLabel(_("Initialization settings for your %s:") % device)
-        vbox.addWidget(main_label)
-        OK_button = OkButton(wizard, _('Next'))
+        next_enabled=True
 
         def clean_text(widget):
             text = unicode(widget.toPlainText()).strip()
@@ -172,9 +169,9 @@ class QtHandler(PrintError):
             else:
                 msg = _("Enter the master private key beginning with xprv:")
                 def set_enabled():
-                    OK_button.setEnabled(Wallet.is_xprv(clean_text(text)))
+                    wizard.next_button.setEnabled(Wallet.is_xprv(clean_text(text)))
                 text.textChanged.connect(set_enabled)
-                OK_button.setEnabled(False)
+                next_enabled = False
 
             vbox.addWidget(QLabel(msg))
             vbox.addWidget(text)
@@ -203,12 +200,8 @@ class QtHandler(PrintError):
         cb_phrase.setChecked(False)
         vbox.addWidget(cb_phrase)
 
-        vbox.addStretch(1)
-        vbox.addLayout(Buttons(CancelButton(wizard), OK_button))
-
-        wizard.set_layout(vbox)
-        if not wizard.exec_():
-            raise UserCancelled
+        title = _("Initialization settings for your %s:") % device
+        wizard.set_main_layout(vbox, next_enabled=next_enabled, title=title)
 
         if method in [TIM_NEW, TIM_RECOVER]:
             item = bg.checkedId()
