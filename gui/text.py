@@ -1,13 +1,14 @@
+import tty, sys
 import curses, datetime, locale
 from decimal import Decimal
-_ = lambda x:x
+
 from electrum.util import format_satoshis, set_verbosity
 from electrum.util import StoreDict
-from electrum.bitcoin import is_valid, COIN
-
+from electrum.bitcoin import is_valid, COIN, TYPE_ADDRESS
 from electrum import Wallet, WalletStorage
 
-import tty, sys
+_ = lambda x:x
+
 
 
 class ElectrumGui:
@@ -327,9 +328,8 @@ class ElectrumGui:
                 return
         else:
             password = None
-
         try:
-            tx = self.wallet.mktx( [(self.str_recipient, amount)], password, self.config, fee)
+            tx = self.wallet.mktx([(TYPE_ADDRESS, self.str_recipient, amount)], password, self.config, fee)
         except Exception as e:
             self.show_message(str(e))
             return

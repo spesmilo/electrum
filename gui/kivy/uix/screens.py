@@ -26,7 +26,6 @@ from context_menu import ContextMenu
 
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 
-
 class CScreen(Factory.Screen):
 
     __events__ = ('on_activate', 'on_deactivate', 'on_enter', 'on_leave')
@@ -254,7 +253,7 @@ class SendScreen(CScreen):
             except:
                 self.app.show_error(_('Invalid amount') + ':\n' + self.screen.amount)
                 return
-            outputs = [('address', address, amount)]
+            outputs = [(bitcoin.TYPE_ADDRESS, address, amount)]
         message = unicode(self.screen.message)
         fee = None
         self.app.protected(self.send_tx, (outputs, fee, message))

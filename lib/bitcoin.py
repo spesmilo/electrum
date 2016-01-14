@@ -34,6 +34,12 @@ RECOMMENDED_FEE = 50000
 COINBASE_MATURITY = 100
 COIN = 100000000
 
+# supported types of transction outputs
+TYPE_ADDRESS = 0
+TYPE_PUBKEY  = 1
+TYPE_SCRIPT  = 2
+
+
 # AES encryption
 EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))
 DecodeAES = lambda secret, e: aes.decryptData(secret, base64.b64decode(e))

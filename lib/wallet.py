@@ -658,7 +658,7 @@ class Abstract_Wallet(PrintError):
         for i in inputs:
             self.add_input_info(i)
         addr = self.addresses(False)[0]
-        output = ('address', addr, sendable)
+        output = (TYPE_ADDRESS, addr, sendable)
         dummy_tx = Transaction.from_io(inputs, [output])
         if fee is None:
             fee_per_kb = self.fee_per_kb(config)
@@ -750,9 +750,9 @@ class Abstract_Wallet(PrintError):
             for n, txo in enumerate(tx.outputs):
                 ser = tx_hash + ':%d'%n
                 _type, x, v = txo
-                if _type == 'address':
+                if _type == TYPE_ADDRESS:
                     addr = x
-                elif _type == 'pubkey':
+                elif _type == TYPE_PUBKEY:
                     addr = public_key_to_bc_address(x.decode('hex'))
                 else:
                     addr = None
@@ -924,7 +924,7 @@ class Abstract_Wallet(PrintError):
     def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None, change_addr=None):
         # check outputs
         for type, data, value in outputs:
-            if type == 'address':
+            if type == TYPE_ADDRESS:
                 assert is_address(data), "Address " + data + " is invalid!"
 
         # Avoid index-out-of-range with coins[0] below

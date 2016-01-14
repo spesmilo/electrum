@@ -5,7 +5,7 @@ from sys import stderr
 from time import sleep
 
 import electrum
-from electrum.bitcoin import EncodeBase58Check, DecodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
+from electrum.bitcoin import EncodeBase58Check, DecodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160, TYPE_ADDRESS
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from electrum.transaction import deserialize
@@ -203,7 +203,7 @@ class BTChipWallet(BIP44_Wallet):
         if len(tx.outputs) > 2: # should never happen
             self.give_error("Transaction with more than 2 outputs not supported")
         for type, address, amount in tx.outputs:
-            assert type == 'address'
+            assert type == TYPE_ADDRESS
             if self.is_change(address):
                 changePath = self.address_id(address)
                 changeAmount = amount

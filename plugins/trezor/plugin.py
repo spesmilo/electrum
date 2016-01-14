@@ -7,7 +7,8 @@ from struct import pack
 
 from electrum.account import BIP32_Account
 from electrum.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
-                              public_key_to_bc_address, EncodeBase58Check)
+                              public_key_to_bc_address, EncodeBase58Check,
+                              TYPE_ADDRESS)
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from electrum.transaction import (deserialize, is_extended_pubkey,
@@ -427,7 +428,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         outputs = []
 
         for type, address, amount in tx.outputs:
-            assert type == 'address'
+            assert type == TYPE_ADDRESS
             txoutputtype = self.types.TxOutputType()
             if wallet.is_change(address):
                 address_path = wallet.address_id(address)

@@ -34,7 +34,7 @@ import PyQt4.QtCore as QtCore
 
 import icons_rc
 
-from electrum.bitcoin import COIN, is_valid
+from electrum.bitcoin import COIN, is_valid, TYPE_ADDRESS
 from electrum.plugins import run_hook
 from electrum.i18n import _
 from electrum.util import block_explorer, block_explorer_info, block_explorer_URL
@@ -1076,7 +1076,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             fee = self.fee_e.get_amount() if freeze_fee else None
             if not outputs:
                 addr = self.payto_e.payto_address if self.payto_e.payto_address else self.dummy_address
-                outputs = [('address', addr, amount)]
+                outputs = [(TYPE_ADDRESS, addr, amount)]
             try:
                 tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, self.config, fee)
                 self.not_enough_funds = False
@@ -1180,7 +1180,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if addr is None:
                 self.show_error(_('Bitcoin Address is None'))
                 return
-            if _type == 'address' and not bitcoin.is_address(addr):
+            if _type == TYPE_ADDRESS and not bitcoin.is_address(addr):
                 self.show_error(_('Invalid Bitcoin Address'))
                 return
             if amount is None:

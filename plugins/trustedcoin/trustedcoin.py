@@ -234,7 +234,7 @@ class Wallet_2fa(Multisig_Wallet):
         fee = self.extra_fee()
         if fee:
             address = self.billing_info['billing_address']
-            outputs = outputs + [('address', address, fee)]
+            outputs = outputs + [(TYPE_ADDRESS, address, fee)]
             try:
                 return BIP32_Wallet.make_unsigned_transaction(
                     self, coins, outputs, config, fixed_fee, change_addr)

@@ -31,7 +31,7 @@ from decimal import Decimal
 import util
 from util import print_msg, format_satoshis, print_stderr
 import bitcoin
-from bitcoin import is_address, hash_160_to_bc_address, hash_160, COIN
+from bitcoin import is_address, hash_160_to_bc_address, hash_160, COIN, TYPE_ADDRESS
 from transaction import Transaction
 import paymentrequest
 from paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
@@ -200,7 +200,7 @@ class Commands:
                     break
             else:
                 raise BaseException('Transaction output not in wallet', prevout_hash+":%d"%prevout_n)
-        outputs = map(lambda x: ('address', x[0], int(COIN*x[1])), outputs.items())
+        outputs = map(lambda x: (TYPE_ADDRESS, x[0], int(COIN*x[1])), outputs.items())
         tx = Transaction.from_io(tx_inputs, outputs)
         if not unsigned:
             self.wallet.sign_transaction(tx, self._password)
@@ -404,14 +404,14 @@ class Commands:
                 if fee is None:
                     for i in inputs:
                         self.wallet.add_input_info(i)
-                    output = ('address', address, amount)
+                    output = (TYPE_ADDRESS, address, amount)
                     dummy_tx = Transaction.from_io(inputs, [output])
                     fee_per_kb = self.wallet.fee_per_kb(self.config)
                     fee = dummy_tx.estimated_fee(fee_per_kb)
                 amount -= fee
             else:
                 amount = int(COIN*Decimal(amount))
-            final_outputs.append(('address', address, amount))
+            final_outputs.append((TYPE_ADDRESS, address, amount))
 
         coins = self.wallet.get_spendable_coins(domain)
         tx = self.wallet.make_unsigned_transaction(coins, final_outputs, self.config, fee, change_addr)
