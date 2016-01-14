@@ -167,6 +167,7 @@ class Network(util.DaemonThread):
 
         self.banner = ''
         self.fee = None
+        self.relay_fee = None
         self.heights = {}
         self.merkle_roots = {}
         self.utxo_roots = {}
@@ -289,6 +290,7 @@ class Network(util.DaemonThread):
         self.queue_request('server.banner', [])
         self.queue_request('server.peers.subscribe', [])
         self.queue_request('blockchain.estimatefee', [2])
+        self.queue_request('blockchain.relayfee', [])
 
     def get_status_value(self, key):
         if key == 'status':
@@ -487,6 +489,10 @@ class Network(util.DaemonThread):
                 self.fee = int(result * COIN)
                 self.print_error("recommended fee", self.fee)
                 self.notify('fee')
+        elif method == 'blockchain.relayfee':
+            if error is None:
+                self.relay_fee = int(result * COIN)
+                self.print_error("relayfee", self.relay_fee)
         elif method == 'blockchain.block.get_chunk':
             self.on_get_chunk(interface, response)
         elif method == 'blockchain.block.get_header':

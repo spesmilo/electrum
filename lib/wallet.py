@@ -662,7 +662,7 @@ class Abstract_Wallet(PrintError):
         dummy_tx = Transaction.from_io(inputs, [output])
         if fee is None:
             fee_per_kb = self.fee_per_kb(config)
-            fee = dummy_tx.estimated_fee(fee_per_kb)
+            fee = dummy_tx.estimated_fee(self.relayfee(), fee_per_kb)
         amount = max(0, sendable - fee)
         return amount, fee
 
@@ -901,6 +901,12 @@ class Abstract_Wallet(PrintError):
         F = config.get('fee_per_kb', bitcoin.RECOMMENDED_FEE)
         return min(F, self.network.fee*(50 + f)/100) if b and self.network and self.network.fee else F
 
+    def relayfee(self):
+        RELAY_FEE = 5000
+        MAX_RELAY_FEE = 50000
+        f = self.network.relay_fee if self.network and self.network.relay_fee else RELAY_FEE
+        return min(f, MAX_RELAY_FEE)
+
     def get_tx_fee(self, tx):
         # this method can be overloaded
         return tx.get_fee()
@@ -950,12 +956,13 @@ class Abstract_Wallet(PrintError):
         # Fee estimator
         if fixed_fee is None:
             fee_estimator = partial(Transaction.fee_for_size,
+                                    self.relayfee(),
                                     self.fee_per_kb(config))
         else:
             fee_estimator = lambda size: fixed_fee
 
         # Change <= dust threshold is added to the tx fee
-        dust_threshold = 182 * 3 * MIN_RELAY_TX_FEE / 1000
+        dust_threshold = 182 * 3 * self.relayfee() / 1000
 
         # Check cache to see if we just calculated this.  If prior
         # calculated a fee and this fixes it to the same, return same

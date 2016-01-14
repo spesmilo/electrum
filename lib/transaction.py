@@ -698,12 +698,12 @@ class Transaction:
         return self.input_value() - self.output_value()
 
     @classmethod
-    def fee_for_size(self, fee_per_kb, size):
+    def fee_for_size(self, relay_fee, fee_per_kb, size):
         '''Given a fee per kB in satoshis, and a tx size in bytes,
         returns the transaction fee.'''
         fee = int(fee_per_kb * size / 1000.)
-        if fee < MIN_RELAY_TX_FEE:
-            fee = MIN_RELAY_TX_FEE
+        if fee < relay_fee:
+            fee = relay_fee
         return fee
 
     @profiler
@@ -716,9 +716,9 @@ class Transaction:
         '''Return an estimated of serialized input size in bytes.'''
         return len(self.serialize_input(txin, -1, -1)) / 2
 
-    def estimated_fee(self, fee_per_kb):
+    def estimated_fee(self, relay_fee, fee_per_kb):
         '''Return an estimated fee given a fee per kB in satoshis.'''
-        return self.fee_for_size(fee_per_kb, self.estimated_size())
+        return self.fee_for_size(relay_fee, fee_per_kb, self.estimated_size())
 
     def signature_count(self):
         r = 0

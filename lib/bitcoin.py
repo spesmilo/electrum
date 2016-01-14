@@ -30,7 +30,6 @@ import aes
 
 ################################## transactions
 
-MIN_RELAY_TX_FEE = 5000
 RECOMMENDED_FEE = 50000
 COINBASE_MATURITY = 100
 COIN = 100000000
