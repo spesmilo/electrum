@@ -250,6 +250,23 @@ class Winkdex(ExchangeBase):
         return dict([(h['timestamp'][:10], h['price'] / 100.0)
                      for h in history])
 
+class MercadoBitcoin(ExchangeBase):
+    def get_rates(self,ccy):
+        json = self.get_json('mercadobitcoin.net',
+                                "/api/ticker/ticker_bitcoin")
+        return {'BRL': Decimal(json['ticker']['last'])}
+    
+    def history_ccys(self):
+        return ['BRL']
+
+class Bitcointoyou(ExchangeBase):
+    def get_rates(self,ccy):
+        json = self.get_json('bitcointoyou.com',
+                                "/API/ticker.aspx")
+        return {'BRL': Decimal(json['ticker']['last'])}
+
+    def history_ccys(self):
+        return ['BRL']
 
 class FxPlugin(BasePlugin, ThreadJob):
 
