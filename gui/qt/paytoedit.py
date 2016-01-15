@@ -77,11 +77,11 @@ class PayToEdit(ScanQRTextEdit):
         if n:
             script = str(n.group(1)).decode('hex')
             amount = self.parse_amount(y)
-            return 'script', script, amount
+            return bitcoin.TYPE_SCRIPT, script, amount
         else:
             address = self.parse_address(x)
             amount = self.parse_amount(y)
-            return 'address', address, amount
+            return bitcoin.TYPE_ADDRESS, address, amount
 
     def parse_amount(self, x):
         p = pow(10, self.amount_edit.decimal_point())
@@ -149,7 +149,7 @@ class PayToEdit(ScanQRTextEdit):
                 amount = self.amount_edit.get_amount()
             except:
                 amount = None
-            self.outputs = [('address', self.payto_address, amount)]
+            self.outputs = [(bitcoin.TYPE_ADDRESS, self.payto_address, amount)]
 
         return self.outputs[:]
 

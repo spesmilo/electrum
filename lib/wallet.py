@@ -658,11 +658,11 @@ class Abstract_Wallet(PrintError):
         for i in inputs:
             self.add_input_info(i)
         addr = self.addresses(False)[0]
-        output = ('address', addr, sendable)
+        output = (TYPE_ADDRESS, addr, sendable)
         dummy_tx = Transaction.from_io(inputs, [output])
         if fee is None:
             fee_per_kb = self.fee_per_kb(config)
-            fee = dummy_tx.estimated_fee(fee_per_kb)
+            fee = dummy_tx.estimated_fee(self.relayfee(), fee_per_kb)
         amount = max(0, sendable - fee)
         return amount, fee
 
@@ -750,9 +750,9 @@ class Abstract_Wallet(PrintError):
             for n, txo in enumerate(tx.outputs):
                 ser = tx_hash + ':%d'%n
                 _type, x, v = txo
-                if _type == 'address':
+                if _type == TYPE_ADDRESS:
                     addr = x
-                elif _type == 'pubkey':
+                elif _type == TYPE_PUBKEY:
                     addr = public_key_to_bc_address(x.decode('hex'))
                 else:
                     addr = None
@@ -901,6 +901,12 @@ class Abstract_Wallet(PrintError):
         F = config.get('fee_per_kb', bitcoin.RECOMMENDED_FEE)
         return min(F, self.network.fee*(50 + f)/100) if b and self.network and self.network.fee else F
 
+    def relayfee(self):
+        RELAY_FEE = bitcoin.MIN_RELAY_TX_FEE
+        MAX_RELAY_FEE = 10 * RELAY_FEE
+        f = self.network.relay_fee if self.network and self.network.relay_fee else RELAY_FEE
+        return min(f, MAX_RELAY_FEE)
+
     def get_tx_fee(self, tx):
         # this method can be overloaded
         return tx.get_fee()
@@ -918,7 +924,7 @@ class Abstract_Wallet(PrintError):
     def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None, change_addr=None):
         # check outputs
         for type, data, value in outputs:
-            if type == 'address':
+            if type == TYPE_ADDRESS:
                 assert is_address(data), "Address " + data + " is invalid!"
 
         # Avoid index-out-of-range with coins[0] below
@@ -950,6 +956,7 @@ class Abstract_Wallet(PrintError):
         # Fee estimator
         if fixed_fee is None:
             fee_estimator = partial(Transaction.fee_for_size,
+                                    self.relayfee(),
                                     self.fee_per_kb(config), outputs=outputs)
         else:
             fee_estimator = lambda size: fixed_fee

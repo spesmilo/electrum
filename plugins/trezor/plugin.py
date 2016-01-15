@@ -7,11 +7,12 @@ from struct import pack
 
 from electrum_ltc.account import BIP32_Account
 from electrum_ltc.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
-                                  public_key_to_bc_address, EncodeBase58Check)
+                                  public_key_to_bc_address, EncodeBase58Check,
+                                  TYPE_ADDRESS)
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.transaction import (deserialize, is_extended_pubkey,
-                                      Transaction, x_to_xpub)
+                                  Transaction, x_to_xpub)
 from electrum_ltc.wallet import BIP32_HD_Wallet, BIP44_Wallet
 from electrum_ltc.util import ThreadJob
 from electrum_ltc.plugins import DeviceMgr
@@ -427,7 +428,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         outputs = []
 
         for type, address, amount in tx.outputs:
-            assert type == 'address'
+            assert type == TYPE_ADDRESS
             txoutputtype = self.types.TxOutputType()
             if wallet.is_change(address):
                 address_path = wallet.address_id(address)

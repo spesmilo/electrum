@@ -3,7 +3,7 @@ _ = lambda x:x
 #from i18n import _
 from electrum_ltc.wallet import WalletStorage, Wallet
 from electrum_ltc.util import format_satoshis, set_verbosity, StoreDict
-from electrum_ltc.bitcoin import is_valid, COIN
+from electrum_ltc.bitcoin import is_valid, COIN, TYPE_ADDRESS
 from electrum_ltc.network import filter_protocol
 import sys, getpass, datetime
 
@@ -187,7 +187,7 @@ class ElectrumGui:
             if c == "n": return
 
         try:
-            tx = self.wallet.mktx( [("address", self.str_recipient, amount)], password, self.config, fee)
+            tx = self.wallet.mktx([(TYPE_ADDRESS, self.str_recipient, amount)], password, self.config, fee)
         except Exception as e:
             print(str(e))
             return

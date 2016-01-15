@@ -21,12 +21,12 @@
 
 from __future__ import absolute_import
 import android
-
-from electrum_ltc import SimpleConfig, Wallet, WalletStorage, format_satoshis
-from electrum_ltc.bitcoin import is_address, COIN
-from electrum_ltc import util
 from decimal import Decimal
 import datetime, re
+
+from electrum_ltc import SimpleConfig, Wallet, WalletStorage, format_satoshis
+from electrum_ltc.bitcoin import is_address, COIN, TYPE_ADDRESS
+from electrum_ltc import util
 
 
 def modal_dialog(title, msg = None):
@@ -442,9 +442,8 @@ def pay_to(recipient, amount, label):
 
     droid.dialogCreateSpinnerProgress("Electrum-LTC", "signing transaction...")
     droid.dialogShow()
-
     try:
-        tx = wallet.mktx([('address', recipient, amount)], password, config)
+        tx = wallet.mktx([(TYPE_ADDRESS, recipient, amount)], password, config)
     except Exception as e:
         modal_dialog('error', e.message)
         droid.dialogDismiss()

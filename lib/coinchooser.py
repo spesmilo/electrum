@@ -20,7 +20,7 @@ from collections import defaultdict, namedtuple
 from random import choice, randint, shuffle
 from math import floor, log10
 
-from bitcoin import COIN
+from bitcoin import COIN, TYPE_ADDRESS
 from transaction import Transaction
 from util import NotEnoughFunds, PrintError, profiler
 
@@ -72,7 +72,7 @@ class CoinChooserBase(PrintError):
         # size of the change output, add it to the transaction.
         dust = sum(amount for amount in amounts if amount < dust_threshold)
         amounts = [amount for amount in amounts if amount >= dust_threshold]
-        change = [('address', addr, amount)
+        change = [(TYPE_ADDRESS, addr, amount)
                   for addr, amount in zip(change_addrs, amounts)]
         self.print_error('change:', change)
         if dust:

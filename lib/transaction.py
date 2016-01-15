@@ -36,6 +36,7 @@ import random
 
 NO_SIGNATURE = 'ff'
 
+
 class SerializationError(Exception):
     """ Thrown when there's a problem deserializing or serializing """
 
@@ -393,20 +394,20 @@ def get_address_from_output_script(bytes):
     # 65 BYTES:... CHECKSIG
     match = [ opcodes.OP_PUSHDATA4, opcodes.OP_CHECKSIG ]
     if match_decoded(decoded, match):
-        return 'pubkey', decoded[0][1].encode('hex')
+        return TYPE_PUBKEY, decoded[0][1].encode('hex')
 
     # Pay-by-Bitcoin-address TxOuts look like:
     # DUP HASH160 20 BYTES:... EQUALVERIFY CHECKSIG
     match = [ opcodes.OP_DUP, opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG ]
     if match_decoded(decoded, match):
-        return 'address', hash_160_to_bc_address(decoded[2][1])
+        return TYPE_ADDRESS, hash_160_to_bc_address(decoded[2][1])
 
     # p2sh
     match = [ opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUAL ]
     if match_decoded(decoded, match):
-        return 'address', hash_160_to_bc_address(decoded[1][1],5)
+        return TYPE_ADDRESS, hash_160_to_bc_address(decoded[1][1],5)
 
-    return 'script', bytes
+    return TYPE_SCRIPT, bytes
 
 
 
@@ -542,7 +543,7 @@ class Transaction:
             pubkey = public_key_from_private_key(privkey)
             address = address_from_private_key(privkey)
             u = network.synchronous_get(('blockchain.address.listunspent',[address]))
-            pay_script = klass.pay_script('address', address)
+            pay_script = klass.pay_script(TYPE_ADDRESS, address)
             for item in u:
                 item['scriptPubKey'] = pay_script
                 item['redeemPubkey'] = pubkey
@@ -560,7 +561,7 @@ class Transaction:
             return
 
         total = sum(i.get('value') for i in inputs) - fee
-        outputs = [('address', to_address, total)]
+        outputs = [(TYPE_ADDRESS, to_address, total)]
         self = klass.from_io(inputs, outputs)
         self.sign(keypairs)
         return self
@@ -577,9 +578,9 @@ class Transaction:
 
     @classmethod
     def pay_script(self, output_type, addr):
-        if output_type == 'script':
+        if output_type == TYPE_SCRIPT:
             return addr.encode('hex')
-        elif output_type == 'address':
+        elif output_type == TYPE_ADDRESS:
             addrtype, hash_160 = bc_address_to_hash_160(addr)
             if addrtype == 48:
                 script = '76a9'                                      # op_dup, op_hash_160
@@ -636,7 +637,7 @@ class Transaction:
                 script += push_script(redeem_script)
 
         elif for_sig==i:
-            script = txin['redeemScript'] if p2sh else self.pay_script('address', address)
+            script = txin['redeemScript'] if p2sh else self.pay_script(TYPE_ADDRESS, address)
         else:
             script = ''
 
@@ -698,14 +699,14 @@ class Transaction:
         return self.input_value() - self.output_value()
 
     @classmethod
-    def fee_for_size(self, fee_per_kb, size, outputs=[]):
+    def fee_for_size(self, relay_fee, fee_per_kb, size, outputs=[]):
         '''Given a fee per kB in satoshis, and a tx size in bytes,
         returns the transaction fee.'''
         fee = int(fee_per_kb * size / 1000.)
-        fee = max(fee, (1 + size / 1000) * MIN_RELAY_TX_FEE)
+        fee = max(fee, (1 + size / 1000) * relay_fee)
         for _, _, value in outputs:
             if value < DUST_SOFT_LIMIT:
-                fee += MIN_RELAY_TX_FEE
+                fee += DUST_SOFT_LIMIT
         return fee
 
     @profiler
@@ -718,9 +719,9 @@ class Transaction:
         '''Return an estimated of serialized input size in bytes.'''
         return len(self.serialize_input(txin, -1, -1)) / 2
 
-    def estimated_fee(self, fee_per_kb, outputs=[]):
+    def estimated_fee(self, relay_fee, fee_per_kb, outputs=[]):
         '''Return an estimated fee given a fee per kB in satoshis.'''
-        return self.fee_for_size(fee_per_kb, self.estimated_size(), outputs)
+        return self.fee_for_size(relay_fee, fee_per_kb, self.estimated_size(), outputs)
 
     def signature_count(self):
         r = 0
@@ -799,9 +800,9 @@ class Transaction:
         """convert pubkeys to addresses"""
         o = []
         for type, x, v in self.outputs:
-            if type == 'address':
+            if type == TYPE_ADDRESS:
                 addr = x
-            elif type == 'pubkey':
+            elif type == TYPE_PUBKEY:
                 addr = public_key_to_bc_address(x.decode('hex'))
             else:
                 addr = 'SCRIPT ' + x.encode('hex')
@@ -832,7 +833,7 @@ class Transaction:
         fee = 0
         for addr, value in self.get_outputs():
             if value < DUST_SOFT_LIMIT:
-                fee += MIN_RELAY_TX_FEE
+                fee += DUST_SOFT_LIMIT
         threshold = 57600000*4
         weight = 0
         for txin in self.inputs:
