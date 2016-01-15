@@ -228,12 +228,8 @@ class CoinChooserPrivacy(CoinChooserRandom):
     reduce blockchain UTXO bloat, and reduce future privacy loss that
     would come from reusing that address' remaining UTXOs.  Second, it
     penalizes change that is quite different to the sent amount.
-    Third, it penalizes change that is too big. Fourth, it breaks
-    large change up into amounts comparable to the spent amount.
-    Finally, change is rounded to similar precision to sent amounts.
-    Extra change outputs and rounding might raise the transaction fee
-    slightly.  Transaction priority might be less than if older coins
-    were chosen.'''
+    Third, it penalizes change that is too big.  Transaction priority
+    might be less than if older coins were chosen.'''
 
     def keys(self, coins):
         return [coin['address'] for coin in coins]
