@@ -2756,7 +2756,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         multiple_change = self.wallet.multiple_change
         multiple_cb = QCheckBox(_('Multiple'))
         multiple_cb.setEnabled(self.wallet.use_change)
-        multiple_cb.setToolTip(_('If appropriate, and the "privacy" coin chooser is selected, use up to 3 change addresses.'))
+        multiple_cb.setToolTip(_('If appropriate use up to 3 change addresses.'))
         multiple_cb.setChecked(multiple_change)
         multiple_cb.stateChanged.connect(on_multiple)
         tx_widgets.append((usechange_cb, multiple_cb))

@@ -60,8 +60,49 @@ class CoinChooserBase(PrintError):
         return penalty
 
     def change_amounts(self, tx, count, fee_estimator, dust_threshold):
-        # The amount left after adding 1 change output
-        return [max(0, tx.get_fee() - fee_estimator(1))]
+        # Break change up if bigger than max_change
+        output_amounts = [o[2] for o in tx.outputs]
+        max_change = max(max(output_amounts) * 1.25, dust_threshold * 10)
+
+        # Use N change outputs
+        for n in range(1, count + 1):
+            # How much is left if we add this many change outputs?
+            change_amount = max(0, tx.get_fee() - fee_estimator(n))
+            if change_amount // n <= max_change:
+                break
+
+        # Get a handle on the precision of the output amounts; round our
+        # change to look similar
+        def trailing_zeroes(val):
+            s = str(val)
+            return len(s) - len(s.rstrip('0'))
+
+        zeroes = map(trailing_zeroes, output_amounts)
+        min_zeroes = min(zeroes)
+        max_zeroes = max(zeroes)
+        zeroes = range(max(0, min_zeroes - 1), (max_zeroes + 1) + 1)
+
+        # Calculate change; randomize it a bit if using more than 1 output
+        remaining = change_amount
+        amounts = []
+        while n > 1:
+            average = remaining // n
+            amount = randint(int(average * 0.7), int(average * 1.3))
+            precision = min(choice(zeroes), int(floor(log10(amount))))
+            amount = int(round(amount, -precision))
+            amounts.append(amount)
+            remaining -= amount
+            n -= 1
+
+        # Last change output.  Round down to maximum precision but lose
+        # no more than 100 satoshis to fees (2dp)
+        N = pow(10, min(2, zeroes[0]))
+        amount = (remaining // N) * N
+        amounts.append(amount)
+
+        assert sum(amounts) <= change_amount
+
+        return amounts
 
     def change_outputs(self, tx, change_addrs, fee_estimator, dust_threshold):
         amounts = self.change_amounts(tx, len(change_addrs), fee_estimator,
@@ -220,52 +261,6 @@ class CoinChooserPrivacy(CoinChooserRandom):
             return badness
 
         return penalty
-
-    def change_amounts(self, tx, count, fee_estimator, dust_threshold):
-
-        # Break change up if bigger than max_change
-        output_amounts = [o[2] for o in tx.outputs]
-        max_change = max(max(output_amounts) * 1.25, dust_threshold * 10)
-
-        # Use N change outputs
-        for n in range(1, count + 1):
-            # How much is left if we add this many change outputs?
-            change_amount = max(0, tx.get_fee() - fee_estimator(n))
-            if change_amount // n <= max_change:
-                break
-
-        # Get a handle on the precision of the output amounts; round our
-        # change to look similar
-        def trailing_zeroes(val):
-            s = str(val)
-            return len(s) - len(s.rstrip('0'))
-
-        zeroes = map(trailing_zeroes, output_amounts)
-        min_zeroes = min(zeroes)
-        max_zeroes = max(zeroes)
-        zeroes = range(max(0, min_zeroes - 1), (max_zeroes + 1) + 1)
-
-        # Calculate change; randomize it a bit if using more than 1 output
-        remaining = change_amount
-        amounts = []
-        while n > 1:
-            average = remaining // n
-            amount = randint(int(average * 0.7), int(average * 1.3))
-            precision = min(choice(zeroes), int(floor(log10(amount))))
-            amount = int(round(amount, -precision))
-            amounts.append(amount)
-            remaining -= amount
-            n -= 1
-
-        # Last change output.  Round down to maximum precision but lose
-        # no more than 100 satoshis to fees (2dp)
-        N = pow(10, min(2, zeroes[0]))
-        amount = (remaining // N) * N
-        amounts.append(amount)
-
-        assert sum(amounts) <= change_amount
-
-        return amounts
 
 
 COIN_CHOOSERS = {'Oldest First': CoinChooserOldestFirst,
