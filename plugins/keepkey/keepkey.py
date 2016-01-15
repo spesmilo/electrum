@@ -1,4 +1,3 @@
-from ..trezor.client import trezor_client_class
 from ..trezor.plugin import TrezorCompatiblePlugin, TrezorCompatibleWallet
 
 
@@ -13,8 +12,7 @@ class KeepKeyPlugin(TrezorCompatiblePlugin):
     minimum_firmware = (1, 0, 0)
     wallet_class = KeepKeyWallet
     try:
-        from keepkeylib.client import proto, BaseClient, ProtocolMixin
-        client_class = trezor_client_class(ProtocolMixin, BaseClient, proto)
+        from .client import KeepKeyClient as client_class
         import keepkeylib.ckd_public as ckd_public
         from keepkeylib.client import types
         from keepkeylib.transport_hid import HidTransport, DEVICE_IDS
