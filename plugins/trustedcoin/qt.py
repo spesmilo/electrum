@@ -260,7 +260,9 @@ class Plugin(TrustedCoinPlugin):
         vbox = QVBoxLayout()
         if otp_secret is not None:
             uri = "otpauth://totp/%s?secret=%s"%('trustedcoin.com', otp_secret)
-            vbox.addWidget(QLabel("Please scan this QR code in Google Authenticator."))
+            l = QLabel("Please scan the following QR code in Google Authenticator. You may as well use the following key: %s"%otp_secret)
+            l.setWordWrap(True)
+            vbox.addWidget(l)
             qrw = QRCodeWidget(uri)
             vbox.addWidget(qrw, 1)
             msg = _('Then, enter your Google Authenticator code:')
