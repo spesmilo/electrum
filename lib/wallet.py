@@ -159,6 +159,8 @@ class Abstract_Wallet(PrintError):
         # saved fields
         self.seed_version          = storage.get('seed_version', NEW_SEED_VERSION)
         self.use_change            = storage.get('use_change',True)
+        self.multiple_change       = storage.get('multiple_change', False)
+
         self.use_encryption        = storage.get('use_encryption', False)
         self.seed                  = storage.get('seed', '')               # encrypted
         self.labels                = storage.get('labels', {})
@@ -973,8 +975,9 @@ class Abstract_Wallet(PrintError):
                 return tx
 
         # Let the coin chooser select the coins to spend
+        max_change = 3 if self.multiple_change else 1
         coin_chooser = self.coin_chooser(config)
-        tx = coin_chooser.make_tx(coins, outputs, change_addrs,
+        tx = coin_chooser.make_tx(coins, outputs, change_addrs[:max_change],
                                   fee_estimator, dust_threshold)
 
         # Sort the inputs and outputs deterministically

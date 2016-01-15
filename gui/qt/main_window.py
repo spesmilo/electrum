@@ -2744,9 +2744,23 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if self.wallet.use_change != usechange_result:
                 self.wallet.use_change = usechange_result
                 self.wallet.storage.put('use_change', self.wallet.use_change)
+                multiple_cb.setEnabled(self.wallet.use_change)
         usechange_cb.stateChanged.connect(on_usechange)
         usechange_cb.setToolTip(_('Using change addresses makes it more difficult for other people to track your transactions.'))
-        tx_widgets.append((usechange_cb, None))
+
+        def on_multiple(x):
+            multiple = x == Qt.Checked
+            if self.wallet.multiple_change != multiple:
+                self.wallet.multiple_change = multiple
+                self.wallet.storage.put('multiple_change', multiple)
+        multiple_change = self.wallet.multiple_change
+        multiple_cb = QCheckBox(_('Multiple'))
+        multiple_cb.setEnabled(self.wallet.use_change)
+        multiple_cb.setToolTip(_('If appropriate, and the "privacy" coin chooser is selected, use up to 3 change addresses.'))
+        multiple_cb.setChecked(multiple_change)
+        multiple_cb.stateChanged.connect(on_multiple)
+        tx_widgets.append((usechange_cb, multiple_cb))
+
 
         showtx_cb = QCheckBox(_('View transaction before signing'))
         showtx_cb.setChecked(self.show_before_broadcast())
