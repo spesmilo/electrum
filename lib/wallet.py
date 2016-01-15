@@ -916,7 +916,7 @@ class Abstract_Wallet(PrintError):
     def coin_chooser_name(self, config):
         kind = config.get('coin_chooser')
         if not kind in COIN_CHOOSERS:
-            kind = 'Oldest First'
+            kind = 'Priority'
         return kind
 
     def coin_chooser(self, config):
