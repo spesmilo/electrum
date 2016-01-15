@@ -2587,8 +2587,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         nz.valueChanged.connect(on_nz)
         gui_widgets.append((nz_label, nz))
 
-        msg = _('Fee per kilobyte of transaction.') + '\n' \
-              + _('If you enable dynamic fees, this parameter will be used as upper bound.')
+        msg = '\n'.join([
+            _('Fee per kilobyte of transaction.'),
+            _('If you enable dynamic fees, this parameter will be used as upper bound.')
+        ])
         fee_label = HelpLabel(_('Transaction fee per kb') + ':', msg)
         fee_e = BTCkBEdit(self.get_decimal_point)
         fee_e.setAmount(self.config.get('fee_per_kb', bitcoin.RECOMMENDED_FEE))
@@ -2607,13 +2609,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         dynfee_cb.setToolTip(_("Use a fee per kB value recommended by the server."))
         dynfee_sl = QSlider(Qt.Horizontal, self)
         dynfee_sl.setValue(self.config.get('fee_factor', 50))
-        dynfee_sl.setToolTip("Fee Multiplier. Min = 50%, Max = 150%")
-        tx_widgets.append((dynfee_cb, dynfee_sl))
+        dynfee_sl.setToolTip("Min = 50%, Max = 150%")
+        tx_widgets.append((dynfee_cb, None))
+        multiplier_label = HelpLabel(_('Fee multiplier'), _("Multiply the recommended fee/kb value by a constant factor. Min = 50%, Max = 150%"))
+        tx_widgets.append((multiplier_label, dynfee_sl))
 
         def update_feeperkb():
             fee_e.setAmount(self.wallet.fee_per_kb(self.config))
             b = self.config.get('dynamic_fees')
-            dynfee_sl.setHidden(not b)
+            dynfee_sl.setEnabled(b)
+            multiplier_label.setEnabled(b)
             fee_e.setEnabled(not b)
         def fee_factor_changed(b):
             self.config.set_key('fee_factor', b, False)
@@ -2754,13 +2759,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.wallet.multiple_change = multiple
                 self.wallet.storage.put('multiple_change', multiple)
         multiple_change = self.wallet.multiple_change
-        multiple_cb = QCheckBox(_('Multiple'))
+        multiple_cb = QCheckBox(_('Use multiple change addresses'))
         multiple_cb.setEnabled(self.wallet.use_change)
-        multiple_cb.setToolTip(_('If appropriate use up to 3 change addresses.\nThis might raise the transaction fee slightly.'))
+        multiple_cb.setToolTip('\n'.join([
+            _('In some cases, use up to 3 change addresses in order to obfuscate the recipient address.'),
+            _('This may result in higher transactions fees.')
+        ]))
         multiple_cb.setChecked(multiple_change)
         multiple_cb.stateChanged.connect(on_multiple)
-        tx_widgets.append((usechange_cb, multiple_cb))
-
+        tx_widgets.append((usechange_cb, None))
+        tx_widgets.append((multiple_cb, None))
 
         showtx_cb = QCheckBox(_('View transaction before signing'))
         showtx_cb.setChecked(self.show_before_broadcast())
@@ -2788,7 +2796,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         chooser_label = HelpLabel(_('Coin selection') + ':', msg)
         chooser_combo = QComboBox()
         chooser_combo.addItems(choosers)
-        chooser_combo.setCurrentIndex(choosers.index(chooser_name))
+        i = choosers.index(chooser_name) if chooser_name in choosers else 0
+        chooser_combo.setCurrentIndex(i)
         def on_chooser(x):
             chooser_name = choosers[chooser_combo.currentIndex()]
             self.config.set_key('coin_chooser', chooser_name)

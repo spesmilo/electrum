@@ -160,9 +160,11 @@ class CoinChooserBase(PrintError):
         return tx
 
 class CoinChooserOldestFirst(CoinChooserBase):
-    '''The classic electrum algorithm.  Chooses coins starting with the
-    oldest that are sufficient to cover the spent amount, and then
-    removes any unneeded starting with the smallest in value.'''
+    '''Maximize transaction priority. Select the oldest unspent
+    transaction outputs in your wallet, that are sufficient to cover
+    the spent amount. Then, remove any unneeded inputs, starting with
+    the smallest in value.
+    '''
 
     def keys(self, coins):
         return [coin['prevout_hash'] + ':' + str(coin['prevout_n'])
@@ -228,8 +230,7 @@ class CoinChooserPrivacy(CoinChooserRandom):
     reduce blockchain UTXO bloat, and reduce future privacy loss that
     would come from reusing that address' remaining UTXOs.  Second, it
     penalizes change that is quite different to the sent amount.
-    Third, it penalizes change that is too big.  Transaction priority
-    might be less than if older coins were chosen.'''
+    Third, it penalizes change that is too big.'''
 
     def keys(self, coins):
         return [coin['address'] for coin in coins]
@@ -259,5 +260,5 @@ class CoinChooserPrivacy(CoinChooserRandom):
         return penalty
 
 
-COIN_CHOOSERS = {'Oldest First': CoinChooserOldestFirst,
+COIN_CHOOSERS = {'Priority': CoinChooserOldestFirst,
                  'Privacy': CoinChooserPrivacy}
