@@ -17,12 +17,51 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 from collections import defaultdict, namedtuple
-from random import choice, randint, shuffle
 from math import floor, log10
+import hashlib
+import struct
 
-from bitcoin import COIN, TYPE_ADDRESS
+from bitcoin import sha256, COIN, TYPE_ADDRESS
 from transaction import Transaction
 from util import NotEnoughFunds, PrintError, profiler
+
+# A simple deterministic PRNG.  Used to deterministically shuffle a
+# set of coins - the same set of coins should produce the same output.
+# Although choosing UTXOs "randomly" we want it to be deterministic,
+# so if sending twice from the same UTXO set we choose the same UTXOs
+# to spend.  This prevents attacks on users by malicious or stale
+# servers.
+
+class PRNG:
+    def __init__(self, seed):
+        self.sha = sha256(seed)
+        self.pool = bytearray()
+
+    def get_bytes(self, n):
+        while len(self.pool) < n:
+            self.pool.extend(self.sha)
+            self.sha = sha256(self.sha)
+        result, self.pool = self.pool[:n], self.pool[n:]
+        return result
+
+    def random(self):
+        # Returns random double in [0, 1)
+        four = self.get_bytes(4)
+        return struct.unpack("I", four)[0] / 4294967296.0
+
+    def randint(self, start, end):
+        # Returns random integer in [start, end)
+        return start + int(self.random() * (end - start))
+
+    def choice(self, seq):
+        return seq[int(self.random() * len(seq))]
+
+    def shuffle(self, x):
+        for i in reversed(xrange(1, len(x))):
+            # pick an element in x[:i+1] with which to exchange x[i]
+            j = int(self.random() * (i+1))
+            x[i], x[j] = x[j], x[i]
+
 
 Bucket = namedtuple('Bucket', ['desc', 'size', 'value', 'coins'])
 
@@ -87,8 +126,8 @@ class CoinChooserBase(PrintError):
         amounts = []
         while n > 1:
             average = remaining // n
-            amount = randint(int(average * 0.7), int(average * 1.3))
-            precision = min(choice(zeroes), int(floor(log10(amount))))
+            amount = self.p.randint(int(average * 0.7), int(average * 1.3))
+            precision = min(self.p.choice(zeroes), int(floor(log10(amount))))
             amount = int(round(amount, -precision))
             amounts.append(amount)
             remaining -= amount
@@ -126,6 +165,10 @@ class CoinChooserBase(PrintError):
         greater than dust_threshold (after adding the change output to
         the transaction) it is kept, otherwise none is sent and it is
         added to the transaction fee.'''
+
+        # Deterministic randomness from coins
+        utxos = [c['prevout_hash'] + str(c['prevout_n']) for c in coins]
+        self.p = PRNG(''.join(sorted(utxos)))
 
         # Copy the ouputs so when adding change we don't modify "outputs"
         tx = Transaction.from_io([], outputs[:])
@@ -201,7 +244,7 @@ class CoinChooserRandom(CoinChooserBase):
         for i in range(attempts):
             # Get a random permutation of the buckets, and
             # incrementally combine buckets until sufficient
-            shuffle(permutation)
+            self.p.shuffle(permutation)
             bkts = []
             for count, index in enumerate(permutation):
                 bkts.append(buckets[index])
