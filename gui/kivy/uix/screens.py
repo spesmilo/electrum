@@ -12,6 +12,7 @@ from kivy.compat import string_types
 from kivy.properties import (ObjectProperty, DictProperty, NumericProperty,
                              ListProperty, StringProperty)
 
+from kivy.uix.label import Label
 
 from kivy.lang import Builder
 from kivy.factory import Factory
@@ -84,6 +85,14 @@ class CScreen(Factory.Screen):
         self.add_widget(self.context_menu)
 
 
+class EmptyLabel(Label):
+    def __init__(self, **kwargs):
+        super(EmptyLabel, self).__init__(**kwargs)
+        self.color=(0.8, 0.8, 0.8, 1)
+        self.size_hint=(1, None)
+        self.text_size=(400, None)
+
+
 class HistoryScreen(CScreen):
 
     tab = ObjectProperty(None)
@@ -139,12 +148,11 @@ class HistoryScreen(CScreen):
         if self.app.wallet is None:
             return
 
-        history_card = self.screen.ids.history_container
         history = self.parse_history(reversed(
             self.app.wallet.get_history(self.app.current_account)))
         # repopulate History Card
+        history_card = self.screen.ids.history_container
         history_card.clear_widgets()
-        history_add = history_card.add_widget
         count = 0
         for item in history:
             count += 1
@@ -158,9 +166,14 @@ class HistoryScreen(CScreen):
             ri.confirmations = conf
             ri.tx_hash = tx
             ri.screen = self
-            history_add(ri)
+            history_card.add_widget(ri)
             if count == 8 and not see_all:
                 break
+
+        if count == 0:
+            msg = _('This screen shows your list of transactions. It is currently empty.')
+            history_card.add_widget(EmptyLabel(text=msg))
+
 
 
 
@@ -381,7 +394,9 @@ class InvoicesScreen(CScreen):
         self.menu_actions = [(_('Pay'), self.do_pay), (_('Delete'), self.do_delete)]
         invoices_list = self.screen.ids.invoices_container
         invoices_list.clear_widgets()
-        for pr in self.app.invoices.sorted_list():
+
+        _list = self.app.invoices.sorted_list()
+        for pr in _list:
             ci = Factory.InvoiceItem()
             ci.key = pr.get_id()
             ci.requestor = pr.get_requestor()
@@ -399,6 +414,11 @@ class InvoicesScreen(CScreen):
             ci.screen = self
             invoices_list.add_widget(ci)
 
+        if not _list:
+            msg = _('This screen shows the list of payment requests that have been sent to you.')
+            invoices_list.add_widget(EmptyLabel(text=msg))
+
+
     def do_pay(self, obj):
         self.app.do_pay(obj)
 
@@ -412,10 +432,10 @@ class RequestsScreen(CScreen):
     def update(self):
 
         self.menu_actions = [(_('Show'), self.do_show), (_('Delete'), self.do_delete)]
-
         requests_list = self.screen.ids.requests_container
         requests_list.clear_widgets()
-        for req in self.app.wallet.get_sorted_requests(self.app.electrum_config):
+        _list = self.app.wallet.get_sorted_requests(self.app.electrum_config)
+        for req in _list:
             address = req['address']
             timestamp = req.get('time', 0)
             amount = req.get('amount')
@@ -436,6 +456,10 @@ class RequestsScreen(CScreen):
             ci.date = format_time(timestamp)
             ci.screen = self
             requests_list.add_widget(ci)
+
+        if not _list:
+            msg = _('This screen shows the list of payment requests you saved.')
+            requests_list.add_widget(EmptyLabel(text=msg))
 
     def do_show(self, obj):
         self.app.show_request(obj.address)
