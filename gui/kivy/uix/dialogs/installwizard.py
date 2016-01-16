@@ -130,7 +130,7 @@ class InstallWizard(Widget):
         self.waiting_dialog(task, msg)
 
     def create(self):
-        from create_restore import InitSeedDialog
+        from create_restore import ShowSeedDialog
         seed = self.wallet.make_seed()
         msg = _("[color=#414141]"+\
                 "[b]PLEASE WRITE DOWN YOUR SEED PASS[/b][/color]"+\
@@ -146,7 +146,7 @@ class InstallWizard(Widget):
                 self.run('enter_pin', seed)
             else:
                 self.run('new')
-        InitSeedDialog(message=msg, seed_msg=seed, on_release=on_ok, mode='create').open()
+        ShowSeedDialog(message=msg, seed_msg=seed, on_release=on_ok).open()
 
     def enter_pin(self, seed):
         from password_dialog import PasswordDialog

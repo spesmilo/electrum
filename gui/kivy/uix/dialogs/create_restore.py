@@ -58,18 +58,6 @@ Builder.load_string('''
 
     crcontent: crcontent
     # add electrum icon
-    FloatLayout:
-        size_hint: None, None
-        size: 0, 0
-        IconButton:
-            id: but_close
-            size_hint: None, None
-            size: '27dp', '27dp'
-            top: Window.height - dp(10)
-            right: Window.width - dp(10)
-            source: 'atlas://gui/kivy/theming/light/closebutton'
-            on_release: root.dispatch('on_press', self)
-            on_release: root.dispatch('on_release', self)
     BoxLayout:
         orientation: 'vertical' if self.width < self.height else 'horizontal'
         padding:
@@ -190,7 +178,7 @@ Builder.load_string('''
             root: root
 
 
-<InitSeedDialog>
+<ShowSeedDialog>
     spacing: '12dp'
     GridLayout:
         id: grid
@@ -293,8 +281,6 @@ class CreateRestoreDialog(CreateAccountDialog):
     def on_parent(self, instance, value):
         if value:
             app = App.get_running_app()
-            self.ids.but_close.disabled = True
-            self.ids.but_close.opacity = 0
             self._back = _back = partial(app.dispatch, 'on_back')
             #app.navigation_higherarchy.append(_back)
 
@@ -307,13 +293,7 @@ class CreateRestoreDialog(CreateAccountDialog):
 
 
 
-class InitSeedDialog(CreateAccountDialog):
-
-    mode = StringProperty('create')
-    ''' Defines the mode for which to optimize the UX. defaults to 'create'.
-        
-        Can be one of: 'create', 'restore', 'create_2of2', 'create_2fa'...
-    '''
+class ShowSeedDialog(CreateAccountDialog):
 
     seed_msg = StringProperty('')
     '''Text to be displayed in the TextInput'''
@@ -337,7 +317,7 @@ class InitSeedDialog(CreateAccountDialog):
         #if self._back in app.navigation_higherarchy:
         #    app.navigation_higherarchy.pop()
         #    self._back = None
-        super(InitSeedDialog, self).close()
+        super(ShowSeedDialog, self).close()
 
 
 class RestoreSeedDialog(CreateAccountDialog):
