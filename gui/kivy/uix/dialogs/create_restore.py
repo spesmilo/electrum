@@ -68,7 +68,7 @@ Builder.load_string('''
             id: grid_logo
             cols: 1
             pos_hint: {'center_y': .5}
-            size_hint: 1, .62
+            size_hint: 1, .42
             #height: self.minimum_height
             Image:
                 id: logo_img
@@ -180,6 +180,13 @@ Builder.load_string('''
 
 <ShowSeedDialog>
     spacing: '12dp'
+    Label:
+        color: root.text_color
+        size_hint: 1, None
+        text_size: self.width, None
+        height: self.texture_size[1]
+        text: "[b]PLEASE WRITE DOWN YOUR SEED PHRASE[/b]"
+
     GridLayout:
         id: grid
         cols: 1
@@ -191,39 +198,37 @@ Builder.load_string('''
             border: 4, 4, 4, 4
             halign: 'justify'
             valign: 'middle'
-            font_size: self.width/21
+            font_size: self.width/15
             text_size: self.width - dp(24), self.height - dp(12)
             #size_hint: 1, None
             #height: self.texture_size[1] + dp(24)
+            color: .1, .1, .1, 1
             background_normal: 'atlas://gui/kivy/theming/light/white_bg_round_top'
             background_down: self.background_normal
-            text: root.message
-        GridLayout:
+            text: root.seed_text
+        #GridLayout:
+        #    rows: 1
+        #    Button:
+        #        id: bt
+        #        size_hint_x: .15
+        #        background_normal: 'atlas://gui/kivy/theming/light/blue_bg_round_rb'
+        #        background_down: self.background_normal
+        #        Image:
+        #            mipmap: True
+        #            source: 'atlas://gui/kivy/theming/light/qrcode'
+        #            size: bt.size
+        #            center: bt.center
+        #         #on_release:
+        Label:
             rows: 1
             size_hint: 1, .7
-            #size_hint_y: None
-            #height: but_seed.texture_size[1] + dp(24)
-            Button:
-                id: but_seed
-                border: 4, 4, 4, 4
-                halign: 'justify'
-                valign: 'middle'
-                font_size: self.width/15
-                text: root.seed_msg
-                text_size: self.width - dp(24), self.height - dp(12)
-                background_normal: 'atlas://gui/kivy/theming/light/lightblue_bg_round_lb'
-                background_down: self.background_normal
-            Button:
-                id: bt
-                size_hint_x: .25
-                background_normal: 'atlas://gui/kivy/theming/light/blue_bg_round_rb'
-                background_down: self.background_normal
-                Image:
-                    mipmap: True
-                    source: 'atlas://gui/kivy/theming/light/qrcode'
-                    size: bt.size
-                    center: bt.center
-                 #on_release:
+            id: but_seed
+            border: 4, 4, 4, 4
+            halign: 'justify'
+            valign: 'middle'
+            font_size: self.width/21
+            text: root.message
+            text_size: self.width - dp(24), self.height - dp(12)
     GridLayout:
         rows: 1
         spacing: '12dp'
@@ -295,7 +300,7 @@ class CreateRestoreDialog(CreateAccountDialog):
 
 class ShowSeedDialog(CreateAccountDialog):
 
-    seed_msg = StringProperty('')
+    seed_text = StringProperty('')
     '''Text to be displayed in the TextInput'''
 
     message = StringProperty('')
@@ -323,12 +328,18 @@ class ShowSeedDialog(CreateAccountDialog):
 class RestoreSeedDialog(CreateAccountDialog):
 
     def __init__(self, **kwargs):
-        self._wizard = kwargs['wizard']
         super(RestoreSeedDialog, self).__init__(**kwargs)
+        self._test = kwargs['test']
         self._trigger_check_seed = Clock.create_trigger(self.check_seed)
 
     def check_seed(self, dt):
-        self.ids.next.disabled = not bool(self._wizard.is_any(self.ids.text_input_seed))
+        self.ids.next.disabled = not bool(self._test(self.get_seed_text()))
+
+    def get_seed_text(self):
+        ti = self.ids.text_input_seed
+        text = unicode(ti.text.lower()).strip()
+        text = ' '.join(text.split())
+        return text
 
     def on_parent(self, instance, value):
         if value:

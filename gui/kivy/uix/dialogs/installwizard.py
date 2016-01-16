@@ -36,8 +36,9 @@ class InstallWizard(Widget):
         self.network = network
         self.storage = storage
         self.wallet = Wallet(self.storage)
+        self.is_restore = False
 
-    def waiting_dialog(self, task, msg):
+    def waiting_dialog(self, task, msg, on_complete=None):
         '''Perform a blocking task in the background by running the passed
         method in a thread.
         '''
@@ -49,16 +50,14 @@ class InstallWizard(Widget):
                 Clock.schedule_once(lambda dt: app.show_error(str(err)))
             # on  completion hide message
             Clock.schedule_once(lambda dt: app.info_bubble.hide(now=True), -1)
+            if on_complete:
+                on_complete()
+
         app.show_info_bubble(
             text=msg, icon='atlas://gui/kivy/theming/light/important',
             pos=Window.center, width='200sp', arrow_pos=None, modal=True)
         t = threading.Thread(target = target)
         t.start()
-
-    def get_seed_text(self, ti_seed):
-        text = unicode(ti_seed.text.lower()).strip()
-        text = ' '.join(text.split())
-        return text
 
     def is_any(self, seed_e):
         text = self.get_seed_text(seed_e)
@@ -68,20 +67,9 @@ class InstallWizard(Widget):
         '''Entry point of our Installation wizard'''
         if not action:
             return
-        if action == 'new':
-            self.new()
-        elif action == 'create':
-            self.create()
-        elif action == 'restore':
-            self.restore()
-        elif action == 'enter_pin':
-            self.enter_pin(*args)
-        elif action == 'confirm_pin':
-            self.confirm_pin(*args)
-        elif action == 'add_seed':
-            self.add_seed(*args)
-        elif action == 'terminate':
-            self.terminate()
+        if hasattr(self, action):
+            f = getattr(self, action)
+            apply(f, *args)
         else:
             raise BaseException("unknown action", action)
 
@@ -102,22 +90,21 @@ class InstallWizard(Widget):
 
     def restore(self):
         from create_restore import RestoreSeedDialog
+        self.is_restore = True
         def on_seed(_dlg, btn):
             if btn is _dlg.ids.back:
                 _dlg.close()
                 self.run('new')
                 return
-            text = self.get_seed_text(_dlg.ids.text_input_seed)
+            text = _dlg.get_seed_text()
             need_password = Wallet.should_encrypt(text)
             _dlg.close()
             if need_password:
-                self.run('enter_pin', text)
+                self.run('enter_pin', (text,))
             else:
                 self.wallet = Wallet.from_text(text)
                 # fixme: sync
-        RestoreSeedDialog(
-            on_release=partial(on_seed),
-            wizard=weakref.proxy(self)).open()
+        RestoreSeedDialog(test=Wallet.is_any, on_release=partial(on_seed)).open()
 
     def add_seed(self, seed, password):
         def task():
@@ -125,55 +112,65 @@ class InstallWizard(Widget):
             self.wallet.create_master_keys(password)
             self.wallet.create_main_account()
             self.wallet.synchronize()
-            self.run('terminate')
         msg= _("Electrum is generating your addresses, please wait.")
-        self.waiting_dialog(task, msg)
+        self.waiting_dialog(task, msg, self.terminate)
 
     def create(self):
         from create_restore import ShowSeedDialog
+        self.is_restore = False
         seed = self.wallet.make_seed()
-        msg = _("[color=#414141]"+\
-                "[b]PLEASE WRITE DOWN YOUR SEED PASS[/b][/color]"+\
-                "[size=9]\n\n[/size]" +\
-                "[color=#929292]If you ever forget your pincode, your seed" +\
-                " phrase will be the [color=#EB984E]"+\
-                "[b]only way to recover[/b][/color] your wallet. Your " +\
-                " [color=#EB984E][b]Bitcoins[/b][/color] will otherwise be" +\
-                " [color=#EB984E][b]lost forever![/b][/color]")
+        msg = _("If you forget your PIN or lose your device, your seed phrase will be the "
+                "only way to recover your funds.")
         def on_ok(_dlg, _btn):
             _dlg.close()
             if _btn == _dlg.ids.confirm:
-                self.run('enter_pin', seed)
+                self.run('confirm_seed', (seed,))
             else:
                 self.run('new')
-        ShowSeedDialog(message=msg, seed_msg=seed, on_release=on_ok).open()
+        ShowSeedDialog(message=msg, seed_text=seed, on_release=on_ok).open()
+
+    def confirm_seed(self, seed):
+        from create_restore import RestoreSeedDialog
+        def on_seed(_dlg, btn):
+            if btn is _dlg.ids.back:
+                _dlg.close()
+                self.run('create')
+                return
+            _dlg.close()
+            if Wallet.should_encrypt(seed):
+                self.run('enter_pin', (seed,))
+            else:
+                self.wallet = Wallet.from_text(seed)
+                # fixme: sync
+        RestoreSeedDialog(test=lambda x: x==seed, on_release=partial(on_seed)).open()
 
     def enter_pin(self, seed):
         from password_dialog import PasswordDialog
         def callback(pin):
-            self.run('confirm_pin', seed, pin)
-        popup = PasswordDialog('Enter PIN', callback)
+            self.run('confirm_pin', (seed, pin))
+        popup = PasswordDialog('Choose a PIN code', callback)
         popup.open()
 
     def confirm_pin(self, seed, pin):
         from password_dialog import PasswordDialog
         def callback(conf):
             if conf == pin:
-                self.run('add_seed', seed, pin)
+                self.run('add_seed', (seed, pin))
             else:
                 app = App.get_running_app()
                 app.show_error(_('Passwords do not match'), duration=.5)
-        popup = PasswordDialog('Confirm PIN', callback)
+        popup = PasswordDialog('Confirm your PIN code', callback)
         popup.open()
 
     def terminate(self):
         self.wallet.start_threads(self.network)
-        app.load_wallet(self.wallet)
-        self.dispatch('on_wizard_complete', wallet)
+        #if self.is_restore:
+        #    if self.wallet.is_found():
+        #        app.show_info(_("Recovery successful"), duration=.5)
+        #    else:
+        #        app.show_info(_("No transactions found for this seed"), duration=.5)
+        self.dispatch('on_wizard_complete', self.wallet)
 
     def on_wizard_complete(self, wallet):
-        if wallet.is_found():
-            app.show_info(_("Recovery successful"), duration=.5)
-        else:
-            app.show_info(_("No transactions found for this seed"),
-                          duration=.5)
+        """overriden by main_window"""
+        pass
