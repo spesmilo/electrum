@@ -196,7 +196,6 @@ class Abstract_Wallet(PrintError):
         self.lock = threading.Lock()
         self.transaction_lock = threading.Lock()
         self.tx_event = threading.Event()
-        self.tx_cache = (None, None, None, None, None)
 
         self.check_history()
 
@@ -966,14 +965,6 @@ class Abstract_Wallet(PrintError):
         # Change <= dust threshold is added to the tx fee
         dust_threshold = 182 * 3 * self.relayfee() / 1000
 
-        # Check cache to see if we just calculated this.  If prior
-        # calculated a fee and this fixes it to the same, return same
-        # answer, to avoid random coin selection changing the answer
-        if self.tx_cache[:4] == (outputs, coins, change_addrs, dust_threshold):
-            tx = self.tx_cache[4]
-            if tx.get_fee() == fee_estimator(tx.estimated_size()):
-                return tx
-
         # Let the coin chooser select the coins to spend
         max_change = 3 if self.multiple_change else 1
         coin_chooser = self.coin_chooser(config)
@@ -982,8 +973,6 @@ class Abstract_Wallet(PrintError):
 
         # Sort the inputs and outputs deterministically
         tx.BIP_LI01_sort()
-
-        self.tx_cache = (outputs, coins, change_addrs, dust_threshold, tx)
 
         run_hook('make_unsigned_transaction', self, tx)
         return tx
