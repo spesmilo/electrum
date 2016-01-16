@@ -18,7 +18,6 @@
 
 from collections import defaultdict, namedtuple
 from math import floor, log10
-import hashlib
 import struct
 
 from bitcoin import sha256, COIN, TYPE_ADDRESS
