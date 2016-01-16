@@ -1,8 +1,7 @@
 ''' Dialogs and widgets Responsible for creation, restoration of accounts are
 defined here.
 
-Namely: CreateAccountDialog, CreateRestoreDialog, ChangePasswordDialog,
-RestoreSeedDialog
+Namely: CreateAccountDialog, CreateRestoreDialog, RestoreSeedDialog
 '''
 
 from functools import partial
@@ -252,66 +251,6 @@ Builder.load_string('''
             root: root
 
 
-<ChangePasswordDialog>
-    padding: '7dp'
-    GridLayout:
-        size_hint_y: None
-        height: self.minimum_height
-        cols: 1
-        CreateAccountTextInput:
-            id: ti_wallet_name
-            hint_text: 'Your Wallet Name'
-            multiline: False
-            on_text_validate:
-                next = ti_new_password if ti_password.disabled else ti_password
-                next.focus = True
-        Widget:
-            size_hint_y: None
-            height: '13dp'
-        CreateAccountTextInput:
-            id: ti_password
-            hint_text: 'Enter old pincode'
-            size_hint_y: None
-            height: 0 if self.disabled else '38sp'
-            password: True
-            disabled: True if root.mode in ('new', 'create', 'restore') else False
-            opacity: 0 if self.disabled else 1
-            multiline: False
-            on_text_validate:
-                ti_new_password.focus = True
-        Widget:
-            size_hint_y: None
-            height: 0 if ti_password.disabled else '13dp'
-        CreateAccountTextInput:
-            id: ti_new_password
-            hint_text: 'Enter new pincode'
-            multiline: False
-            password: True
-            on_text_validate: ti_confirm_password.focus = True
-        Widget:
-            size_hint_y: None
-            height: '13dp'
-        CreateAccountTextInput:
-            id: ti_confirm_password
-            hint_text: 'Confirm pincode'
-            password: True
-            multiline: False
-            on_text_validate: root.validate_new_password()
-    Widget
-    GridLayout:
-        rows: 1
-        spacing: '12dp'
-        size_hint: 1, None
-        height: self.minimum_height
-        CreateAccountButton:
-            id: back
-            text: _('Back')
-            root: root
-            disabled: True if root.mode[0] == 'r' else self.disabled
-        CreateAccountButton:
-            id: next
-            text: _('Confirm') if root.mode[0] == 'r' else _('Next')
-            root: root
 
 ''')
 
@@ -366,53 +305,6 @@ class CreateRestoreDialog(CreateAccountDialog):
         #    self._back = None
         super(CreateRestoreDialog, self).close()
 
-
-class ChangePasswordDialog(CreateAccountDialog):
-
-    message = StringProperty(_('Empty Message'))
-    '''Message to be displayed.'''
-
-    mode = OptionProperty('new',
-                          options=('new', 'confirm', 'create', 'restore'))
-    ''' Defines the mode of the password dialog.'''
-
-    def validate_new_password(self):
-        self.ids.next.dispatch('on_release')
-
-    def on_parent(self, instance, value):
-        if value:
-            # change the stepper image used to indicate the current state
-            stepper = self.ids.stepper
-            stepper.opacity = 1
-            t_wallet_name = self.ids.ti_wallet_name
-            if self.mode in ('create', 'restore'):
-                t_wallet_name.text = 'Default Wallet'
-                t_wallet_name.readonly = True
-                #self.ids.ti_new_password.focus = True
-            else:
-                t_wallet_name.text = ''
-                t_wallet_name.readonly = False
-                #t_wallet_name.focus = True
-            stepper.source = 'atlas://gui/kivy/theming/light/stepper_left'
-            self._back = _back = partial(self.ids.back.dispatch, 'on_release')
-            app = App.get_running_app()
-            #app.navigation_higherarchy.append(_back)
-
-    def close(self):
-        ids = self.ids
-        ids.ti_wallet_name.text = ""
-        ids.ti_wallet_name.focus = False
-        ids.ti_password.text = ""
-        ids.ti_password.focus = False
-        ids.ti_new_password.text = ""
-        ids.ti_new_password.focus = False
-        ids.ti_confirm_password.text = ""
-        ids.ti_confirm_password.focus = False
-        app = App.get_running_app()
-        #if self._back in app.navigation_higherarchy:
-        #    app.navigation_higherarchy.pop()
-        #    self._back = None
-        super(ChangePasswordDialog, self).close()
 
 
 class InitSeedDialog(CreateAccountDialog):
