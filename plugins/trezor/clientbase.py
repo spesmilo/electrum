@@ -65,6 +65,7 @@ class GuiMixin(object):
 class TrezorClientBase(GuiMixin, PrintError):
 
     def __init__(self, handler, plugin, hid_id, proto):
+        assert hasattr(self, 'tx_api')  # ProtocolMixin already constructed?
         self.proto = proto
         self.device = plugin.device
         self.handler = handler
