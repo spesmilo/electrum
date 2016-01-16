@@ -175,6 +175,10 @@ Builder.load_string('''
             id: back
             text: _('Back')
             root: root
+        Button:
+            id: scan
+            text: _('QR')
+            on_release: root.scan_seed()
         CreateAccountButton:
             id: next
             text: _('Next')
@@ -320,9 +324,15 @@ class RestoreSeedDialog(CreateAccountDialog):
 
     def get_seed_text(self):
         ti = self.ids.text_input_seed
-        text = unicode(ti.text.lower()).strip()
+        text = unicode(ti.text).strip()
         text = ' '.join(text.split())
         return text
+
+    def scan_seed(self):
+        def on_complete(text):
+            self.ids.text_input_seed.text = text
+        app = App.get_running_app()
+        app.scan_qr(on_complete)
 
     def on_parent(self, instance, value):
         if value:

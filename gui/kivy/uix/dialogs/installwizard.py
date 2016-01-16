@@ -7,13 +7,14 @@ from kivy.core.window import Window
 from kivy.clock import Clock
 from kivy.factory import Factory
 
-Factory.register('CreateRestoreDialog',
-                 module='electrum_gui.kivy.uix.dialogs.create_restore')
-
 import sys
 import threading
 from functools import partial
 import weakref
+
+from create_restore import CreateRestoreDialog, ShowSeedDialog, RestoreSeedDialog
+from password_dialog import PasswordDialog
+
 
 # global Variables
 app = App.get_running_app()
@@ -59,10 +60,6 @@ class InstallWizard(Widget):
         t = threading.Thread(target = target)
         t.start()
 
-    def is_any(self, seed_e):
-        text = self.get_seed_text(seed_e)
-        return Wallet.is_any(text)
-
     def run(self, action, *args):
         '''Entry point of our Installation wizard'''
         if not action:
@@ -86,38 +83,37 @@ class InstallWizard(Widget):
                 self.run('restore')
             else:
                 self.dispatch('on_wizard_complete', None)
-        Factory.CreateRestoreDialog(on_release=on_release).open()
+        CreateRestoreDialog(on_release=on_release).open()
 
     def restore(self):
-        from create_restore import RestoreSeedDialog
         self.is_restore = True
         def on_seed(_dlg, btn):
+            _dlg.close()
             if btn is _dlg.ids.back:
-                _dlg.close()
                 self.run('new')
                 return
             text = _dlg.get_seed_text()
-            need_password = Wallet.should_encrypt(text)
-            _dlg.close()
-            if need_password:
+            if Wallet.should_encrypt(text):
                 self.run('enter_pin', (text,))
             else:
-                self.wallet = Wallet.from_text(text)
+                self.run('add_seed', (text, None))
                 # fixme: sync
         msg = _('You may also enter an extended public key, to create a watching-only wallet')
-        RestoreSeedDialog(test=Wallet.is_any, message=msg, on_release=partial(on_seed)).open()
+        RestoreSeedDialog(test=Wallet.is_any, message=msg, on_release=on_seed).open()
 
-    def add_seed(self, seed, password):
+    def add_seed(self, text, password):
         def task():
-            self.wallet.add_seed(seed, password)
-            self.wallet.create_master_keys(password)
+            if Wallet.is_seed(text):
+                self.wallet.add_seed(text, password)
+                self.wallet.create_master_keys(password)
+            else:
+                self.wallet = Wallet.from_text(text, None, self.storage)
             self.wallet.create_main_account()
             self.wallet.synchronize()
         msg= _("Electrum is generating your addresses, please wait.")
         self.waiting_dialog(task, msg, self.terminate)
 
     def create(self):
-        from create_restore import ShowSeedDialog
         self.is_restore = False
         seed = self.wallet.make_seed()
         msg = _("If you forget your PIN or lose your device, your seed phrase will be the "
@@ -131,30 +127,24 @@ class InstallWizard(Widget):
         ShowSeedDialog(message=msg, seed_text=seed, on_release=on_ok).open()
 
     def confirm_seed(self, seed):
-        from create_restore import RestoreSeedDialog
+        assert Wallet.is_seed(seed)
         def on_seed(_dlg, btn):
             if btn is _dlg.ids.back:
                 _dlg.close()
                 self.run('create')
                 return
             _dlg.close()
-            if Wallet.should_encrypt(seed):
-                self.run('enter_pin', (seed,))
-            else:
-                self.wallet = Wallet.from_text(seed)
-                # fixme: sync
+            self.run('enter_pin', (seed,))
         msg = _('Please retype your seed phrase, to confirm that you properly saved it')
-        RestoreSeedDialog(test=lambda x: x==seed, message=msg, on_release=partial(on_seed)).open()
+        RestoreSeedDialog(test=lambda x: x==seed, message=msg, on_release=on_seed).open()
 
     def enter_pin(self, seed):
-        from password_dialog import PasswordDialog
         def callback(pin):
             self.run('confirm_pin', (seed, pin))
         popup = PasswordDialog('Choose a PIN code', callback)
         popup.open()
 
     def confirm_pin(self, seed, pin):
-        from password_dialog import PasswordDialog
         def callback(conf):
             if conf == pin:
                 self.run('add_seed', (seed, pin))
