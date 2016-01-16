@@ -1987,8 +1987,9 @@ class Wallet(object):
 
     @staticmethod
     def is_xpub(text):
+        if text[0:4] != 'xpub':
+            return False
         try:
-            assert text[0:4] == 'xpub'
             deserialize_xkey(text)
             return True
         except:
@@ -1996,8 +1997,9 @@ class Wallet(object):
 
     @staticmethod
     def is_xprv(text):
+        if text[0:4] != 'xprv':
+            return False
         try:
-            assert text[0:4] == 'xprv'
             deserialize_xkey(text)
             return True
         except:
