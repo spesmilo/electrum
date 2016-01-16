@@ -1,8 +1,7 @@
 ''' Dialogs and widgets Responsible for creation, restoration of accounts are
 defined here.
 
-Namely: CreateAccountDialog, CreateRestoreDialog, ChangePasswordDialog,
-RestoreSeedDialog
+Namely: CreateAccountDialog, CreateRestoreDialog, RestoreSeedDialog
 '''
 
 from functools import partial
@@ -59,18 +58,6 @@ Builder.load_string('''
 
     crcontent: crcontent
     # add electrum icon
-    FloatLayout:
-        size_hint: None, None
-        size: 0, 0
-        IconButton:
-            id: but_close
-            size_hint: None, None
-            size: '27dp', '27dp'
-            top: Window.height - dp(10)
-            right: Window.width - dp(10)
-            source: 'atlas://gui/kivy/theming/light/closebutton'
-            on_release: root.dispatch('on_press', self)
-            on_release: root.dispatch('on_release', self)
     BoxLayout:
         orientation: 'vertical' if self.width < self.height else 'horizontal'
         padding:
@@ -81,7 +68,7 @@ Builder.load_string('''
             id: grid_logo
             cols: 1
             pos_hint: {'center_y': .5}
-            size_hint: 1, .62
+            size_hint: 1, .42
             #height: self.minimum_height
             Image:
                 id: logo_img
@@ -148,6 +135,12 @@ Builder.load_string('''
 
 
 <RestoreSeedDialog>
+    Label:
+        color: root.text_color
+        size_hint: 1, None
+        text_size: self.width, None
+        height: self.texture_size[1]
+        text: "[b]ENTER YOUR SEED PHRASE[/b]"
     GridLayout
         cols: 1
         padding: 0, '12dp'
@@ -169,10 +162,7 @@ Builder.load_string('''
             height: self.texture_size[1]
             halign: 'justify'
             valign: 'middle'
-            text:
-                _('If you need additional information, please check '
-                '[color=#0000ff][ref=1]'
-                'https://electrum.org/faq.html#seed[/ref][/color]')
+            text: root.message
             on_ref_press:
                 import webbrowser
                 webbrowser.open('https://electrum.org/faq.html#seed')
@@ -185,14 +175,25 @@ Builder.load_string('''
             id: back
             text: _('Back')
             root: root
+        Button:
+            id: scan
+            text: _('QR')
+            on_release: root.scan_seed()
         CreateAccountButton:
             id: next
             text: _('Next')
             root: root
 
 
-<InitSeedDialog>
+<ShowSeedDialog>
     spacing: '12dp'
+    Label:
+        color: root.text_color
+        size_hint: 1, None
+        text_size: self.width, None
+        height: self.texture_size[1]
+        text: "[b]PLEASE WRITE DOWN YOUR SEED PHRASE[/b]"
+
     GridLayout:
         id: grid
         cols: 1
@@ -204,39 +205,37 @@ Builder.load_string('''
             border: 4, 4, 4, 4
             halign: 'justify'
             valign: 'middle'
-            font_size: self.width/21
+            font_size: self.width/15
             text_size: self.width - dp(24), self.height - dp(12)
             #size_hint: 1, None
             #height: self.texture_size[1] + dp(24)
+            color: .1, .1, .1, 1
             background_normal: 'atlas://gui/kivy/theming/light/white_bg_round_top'
             background_down: self.background_normal
-            text: root.message
-        GridLayout:
+            text: root.seed_text
+        #GridLayout:
+        #    rows: 1
+        #    Button:
+        #        id: bt
+        #        size_hint_x: .15
+        #        background_normal: 'atlas://gui/kivy/theming/light/blue_bg_round_rb'
+        #        background_down: self.background_normal
+        #        Image:
+        #            mipmap: True
+        #            source: 'atlas://gui/kivy/theming/light/qrcode'
+        #            size: bt.size
+        #            center: bt.center
+        #         #on_release:
+        Label:
             rows: 1
             size_hint: 1, .7
-            #size_hint_y: None
-            #height: but_seed.texture_size[1] + dp(24)
-            Button:
-                id: but_seed
-                border: 4, 4, 4, 4
-                halign: 'justify'
-                valign: 'middle'
-                font_size: self.width/15
-                text: root.seed_msg
-                text_size: self.width - dp(24), self.height - dp(12)
-                background_normal: 'atlas://gui/kivy/theming/light/lightblue_bg_round_lb'
-                background_down: self.background_normal
-            Button:
-                id: bt
-                size_hint_x: .25
-                background_normal: 'atlas://gui/kivy/theming/light/blue_bg_round_rb'
-                background_down: self.background_normal
-                Image:
-                    mipmap: True
-                    source: 'atlas://gui/kivy/theming/light/qrcode'
-                    size: bt.size
-                    center: bt.center
-                 #on_release:
+            id: but_seed
+            border: 4, 4, 4, 4
+            halign: 'justify'
+            valign: 'middle'
+            font_size: self.width/21
+            text: root.message
+            text_size: self.width - dp(24), self.height - dp(12)
     GridLayout:
         rows: 1
         spacing: '12dp'
@@ -252,66 +251,6 @@ Builder.load_string('''
             root: root
 
 
-<ChangePasswordDialog>
-    padding: '7dp'
-    GridLayout:
-        size_hint_y: None
-        height: self.minimum_height
-        cols: 1
-        CreateAccountTextInput:
-            id: ti_wallet_name
-            hint_text: 'Your Wallet Name'
-            multiline: False
-            on_text_validate:
-                next = ti_new_password if ti_password.disabled else ti_password
-                next.focus = True
-        Widget:
-            size_hint_y: None
-            height: '13dp'
-        CreateAccountTextInput:
-            id: ti_password
-            hint_text: 'Enter old pincode'
-            size_hint_y: None
-            height: 0 if self.disabled else '38sp'
-            password: True
-            disabled: True if root.mode in ('new', 'create', 'restore') else False
-            opacity: 0 if self.disabled else 1
-            multiline: False
-            on_text_validate:
-                ti_new_password.focus = True
-        Widget:
-            size_hint_y: None
-            height: 0 if ti_password.disabled else '13dp'
-        CreateAccountTextInput:
-            id: ti_new_password
-            hint_text: 'Enter new pincode'
-            multiline: False
-            password: True
-            on_text_validate: ti_confirm_password.focus = True
-        Widget:
-            size_hint_y: None
-            height: '13dp'
-        CreateAccountTextInput:
-            id: ti_confirm_password
-            hint_text: 'Confirm pincode'
-            password: True
-            multiline: False
-            on_text_validate: root.validate_new_password()
-    Widget
-    GridLayout:
-        rows: 1
-        spacing: '12dp'
-        size_hint: 1, None
-        height: self.minimum_height
-        CreateAccountButton:
-            id: back
-            text: _('Back')
-            root: root
-            disabled: True if root.mode[0] == 'r' else self.disabled
-        CreateAccountButton:
-            id: next
-            text: _('Confirm') if root.mode[0] == 'r' else _('Next')
-            root: root
 
 ''')
 
@@ -354,82 +293,13 @@ class CreateRestoreDialog(CreateAccountDialog):
     def on_parent(self, instance, value):
         if value:
             app = App.get_running_app()
-            self.ids.but_close.disabled = True
-            self.ids.but_close.opacity = 0
             self._back = _back = partial(app.dispatch, 'on_back')
-            #app.navigation_higherarchy.append(_back)
-
-    def close(self):
-        app = App.get_running_app()
-        #if self._back in app.navigation_higherarchy:
-        #    app.navigation_higherarchy.pop()
-        #    self._back = None
-        super(CreateRestoreDialog, self).close()
 
 
-class ChangePasswordDialog(CreateAccountDialog):
+class ShowSeedDialog(CreateAccountDialog):
 
-    message = StringProperty(_('Empty Message'))
-    '''Message to be displayed.'''
-
-    mode = OptionProperty('new',
-                          options=('new', 'confirm', 'create', 'restore'))
-    ''' Defines the mode of the password dialog.'''
-
-    def validate_new_password(self):
-        self.ids.next.dispatch('on_release')
-
-    def on_parent(self, instance, value):
-        if value:
-            # change the stepper image used to indicate the current state
-            stepper = self.ids.stepper
-            stepper.opacity = 1
-            t_wallet_name = self.ids.ti_wallet_name
-            if self.mode in ('create', 'restore'):
-                t_wallet_name.text = 'Default Wallet'
-                t_wallet_name.readonly = True
-                #self.ids.ti_new_password.focus = True
-            else:
-                t_wallet_name.text = ''
-                t_wallet_name.readonly = False
-                #t_wallet_name.focus = True
-            stepper.source = 'atlas://gui/kivy/theming/light/stepper_left'
-            self._back = _back = partial(self.ids.back.dispatch, 'on_release')
-            app = App.get_running_app()
-            #app.navigation_higherarchy.append(_back)
-
-    def close(self):
-        ids = self.ids
-        ids.ti_wallet_name.text = ""
-        ids.ti_wallet_name.focus = False
-        ids.ti_password.text = ""
-        ids.ti_password.focus = False
-        ids.ti_new_password.text = ""
-        ids.ti_new_password.focus = False
-        ids.ti_confirm_password.text = ""
-        ids.ti_confirm_password.focus = False
-        app = App.get_running_app()
-        #if self._back in app.navigation_higherarchy:
-        #    app.navigation_higherarchy.pop()
-        #    self._back = None
-        super(ChangePasswordDialog, self).close()
-
-
-class InitSeedDialog(CreateAccountDialog):
-
-    mode = StringProperty('create')
-    ''' Defines the mode for which to optimize the UX. defaults to 'create'.
-        
-        Can be one of: 'create', 'restore', 'create_2of2', 'create_2fa'...
-    '''
-
-    seed_msg = StringProperty('')
-    '''Text to be displayed in the TextInput'''
-
+    seed_text = StringProperty('')
     message = StringProperty('')
-    '''Message to be displayed under seed'''
-
-    seed = ObjectProperty(None)
 
     def on_parent(self, instance, value):
         if value:
@@ -438,25 +308,31 @@ class InitSeedDialog(CreateAccountDialog):
             stepper.opacity = 1
             stepper.source = 'atlas://gui/kivy/theming/light/stepper_full'
             self._back = _back = partial(self.ids.back.dispatch, 'on_release')
-            #app.navigation_higherarchy.append(_back)
-
-    def close(self):
-        app = App.get_running_app()
-        #if self._back in app.navigation_higherarchy:
-        #    app.navigation_higherarchy.pop()
-        #    self._back = None
-        super(InitSeedDialog, self).close()
 
 
 class RestoreSeedDialog(CreateAccountDialog):
 
+    message = StringProperty('')
+
     def __init__(self, **kwargs):
-        self._wizard = kwargs['wizard']
         super(RestoreSeedDialog, self).__init__(**kwargs)
+        self._test = kwargs['test']
         self._trigger_check_seed = Clock.create_trigger(self.check_seed)
 
     def check_seed(self, dt):
-        self.ids.next.disabled = not bool(self._wizard.is_any(self.ids.text_input_seed))
+        self.ids.next.disabled = not bool(self._test(self.get_seed_text()))
+
+    def get_seed_text(self):
+        ti = self.ids.text_input_seed
+        text = unicode(ti.text).strip()
+        text = ' '.join(text.split())
+        return text
+
+    def scan_seed(self):
+        def on_complete(text):
+            self.ids.text_input_seed.text = text
+        app = App.get_running_app()
+        app.scan_qr(on_complete)
 
     def on_parent(self, instance, value):
         if value:

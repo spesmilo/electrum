@@ -1,5 +1,6 @@
 import unittest
 from lib import transaction
+from lib.bitcoin import TYPE_ADDRESS
 
 import pprint
 
@@ -68,7 +69,7 @@ class TestTransaction(unittest.TestCase):
                 'address': 'LNREont24PYd5kkxTKoxVNhbugLowNb7H8',
                 'prevout_n': 0,
                 'scriptPubKey': '76a914230ac37834073a42146f11ef8414ae929feaafc388ac',
-                'type': 'address',
+                'type': TYPE_ADDRESS,
                 'value': 1000000}],
                 'version': 1
         }
@@ -113,7 +114,7 @@ class TestTransaction(unittest.TestCase):
                 'address': 'LNREont24PYd5kkxTKoxVNhbugLowNb7H8',
                 'prevout_n': 0,
                 'scriptPubKey': '76a914230ac37834073a42146f11ef8414ae929feaafc388ac',
-                'type': 'address',
+                'type': TYPE_ADDRESS,
                 'value': 1000000}],
             'version': 1
         }

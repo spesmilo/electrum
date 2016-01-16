@@ -1,6 +1,7 @@
 import time
 import Queue
 import os
+import errno
 import sys
 import random
 import select
@@ -748,7 +749,12 @@ class Network(util.DaemonThread):
             return
         rin = [i for i in self.interfaces.values()]
         win = [i for i in self.interfaces.values() if i.unsent_requests]
-        rout, wout, xout = select.select(rin, win, [], 0.1)
+        try:
+            rout, wout, xout = select.select(rin, win, [], 0.1)
+        except socket.error as (code, msg):
+            if code == errno.EINTR:
+                return
+            raise
         assert not xout
         for interface in wout:
             interface.send_requests()
