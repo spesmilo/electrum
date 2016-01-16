@@ -104,7 +104,8 @@ class InstallWizard(Widget):
             else:
                 self.wallet = Wallet.from_text(text)
                 # fixme: sync
-        RestoreSeedDialog(test=Wallet.is_any, on_release=partial(on_seed)).open()
+        msg = _('You may also enter an extended public key, to create a watching-only wallet')
+        RestoreSeedDialog(test=Wallet.is_any, message=msg, on_release=partial(on_seed)).open()
 
     def add_seed(self, seed, password):
         def task():
@@ -142,7 +143,8 @@ class InstallWizard(Widget):
             else:
                 self.wallet = Wallet.from_text(seed)
                 # fixme: sync
-        RestoreSeedDialog(test=lambda x: x==seed, on_release=partial(on_seed)).open()
+        msg = _('Please retype your seed phrase, to confirm that you properly saved it')
+        RestoreSeedDialog(test=lambda x: x==seed, message=msg, on_release=partial(on_seed)).open()
 
     def enter_pin(self, seed):
         from password_dialog import PasswordDialog
@@ -157,8 +159,8 @@ class InstallWizard(Widget):
             if conf == pin:
                 self.run('add_seed', (seed, pin))
             else:
-                app = App.get_running_app()
-                app.show_error(_('Passwords do not match'), duration=.5)
+                app.show_error(_('PIN mismatch'), duration=.5)
+                self.run('enter_pin', (seed,))
         popup = PasswordDialog('Confirm your PIN code', callback)
         popup.open()
 

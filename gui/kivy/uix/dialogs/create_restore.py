@@ -135,6 +135,12 @@ Builder.load_string('''
 
 
 <RestoreSeedDialog>
+    Label:
+        color: root.text_color
+        size_hint: 1, None
+        text_size: self.width, None
+        height: self.texture_size[1]
+        text: "[b]ENTER YOUR SEED PHRASE[/b]"
     GridLayout
         cols: 1
         padding: 0, '12dp'
@@ -156,10 +162,7 @@ Builder.load_string('''
             height: self.texture_size[1]
             halign: 'justify'
             valign: 'middle'
-            text:
-                _('If you need additional information, please check '
-                '[color=#0000ff][ref=1]'
-                'https://electrum.org/faq.html#seed[/ref][/color]')
+            text: root.message
             on_ref_press:
                 import webbrowser
                 webbrowser.open('https://electrum.org/faq.html#seed')
@@ -287,26 +290,12 @@ class CreateRestoreDialog(CreateAccountDialog):
         if value:
             app = App.get_running_app()
             self._back = _back = partial(app.dispatch, 'on_back')
-            #app.navigation_higherarchy.append(_back)
-
-    def close(self):
-        app = App.get_running_app()
-        #if self._back in app.navigation_higherarchy:
-        #    app.navigation_higherarchy.pop()
-        #    self._back = None
-        super(CreateRestoreDialog, self).close()
-
 
 
 class ShowSeedDialog(CreateAccountDialog):
 
     seed_text = StringProperty('')
-    '''Text to be displayed in the TextInput'''
-
     message = StringProperty('')
-    '''Message to be displayed under seed'''
-
-    seed = ObjectProperty(None)
 
     def on_parent(self, instance, value):
         if value:
@@ -315,17 +304,11 @@ class ShowSeedDialog(CreateAccountDialog):
             stepper.opacity = 1
             stepper.source = 'atlas://gui/kivy/theming/light/stepper_full'
             self._back = _back = partial(self.ids.back.dispatch, 'on_release')
-            #app.navigation_higherarchy.append(_back)
-
-    def close(self):
-        app = App.get_running_app()
-        #if self._back in app.navigation_higherarchy:
-        #    app.navigation_higherarchy.pop()
-        #    self._back = None
-        super(ShowSeedDialog, self).close()
 
 
 class RestoreSeedDialog(CreateAccountDialog):
+
+    message = StringProperty('')
 
     def __init__(self, **kwargs):
         super(RestoreSeedDialog, self).__init__(**kwargs)
