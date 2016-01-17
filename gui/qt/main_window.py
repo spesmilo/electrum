@@ -2616,7 +2616,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         def update_feeperkb():
             fee_e.setAmount(self.wallet.fee_per_kb(self.config))
-            b = self.config.get('dynamic_fees')
+            b = self.config.get('dynamic_fees', False)
             dynfee_sl.setEnabled(b)
             multiplier_label.setEnabled(b)
             fee_e.setEnabled(not b)
