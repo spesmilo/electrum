@@ -51,41 +51,21 @@ class EnterButton(QPushButton):
 
 
 class ThreadedButton(QPushButton):
-    def __init__(self, text, func, on_success=None, before=None):
+    def __init__(self, text, task, on_success=None, on_error=None):
         QPushButton.__init__(self, text)
-        self.before = before
-        self.run_task = func
+        self.task = task
         self.on_success = on_success
-        self.clicked.connect(self.do_exec)
-        self.connect(self, SIGNAL('done'), self.done)
-        self.connect(self, SIGNAL('error'), self.on_error)
+        self.on_error = on_error
+        self.clicked.connect(self.run_task)
+
+    def run_task(self):
+        self.setEnabled(False)
+        self.thread = TaskThread(self)
+        self.thread.add(self.task, self.on_success, self.done, self.on_error)
 
     def done(self):
-        if self.on_success:
-            self.on_success()
         self.setEnabled(True)
-
-    def on_error(self):
-        QMessageBox.information(None, _("Error"), self.error)
-        self.setEnabled(True)
-
-    def do_func(self):
-        self.setEnabled(False)
-        try:
-            self.result = self.run_task()
-        except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
-            self.error = str(e.message)
-            self.emit(SIGNAL('error'))
-            return
-        self.emit(SIGNAL('done'))
-
-    def do_exec(self):
-        if self.before:
-            self.before()
-        t = threading.Thread(target=self.do_func)
-        t.setDaemon(True)
-        t.start()
+        self.thread.stop()
 
 
 class WWLabel(QLabel):
