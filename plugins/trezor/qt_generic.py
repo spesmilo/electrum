@@ -232,7 +232,7 @@ def qt_plugin_class(base_plugin_class):
         window.statusBar().addPermanentWidget(window.tzb)
         wallet.handler = self.create_handler(window)
         # Trigger a pairing
-        self.get_client(wallet)
+        wallet.thread.add(partial(self.get_client, wallet))
 
     def on_create_wallet(self, wallet, wizard):
         assert type(wallet) == self.wallet_class
@@ -243,8 +243,9 @@ def qt_plugin_class(base_plugin_class):
     @hook
     def receive_menu(self, menu, addrs, wallet):
         if type(wallet) == self.wallet_class and len(addrs) == 1:
-            menu.addAction(_("Show on %s") % self.device,
-                           lambda: self.show_address(wallet, addrs[0]))
+            def show_address():
+                wallet.thread.add(partial(self.show_address, wallet, addrs[0]))
+            menu.addAction(_("Show on %s") % self.device, show_address)
 
     def settings_dialog(self, window):
         hid_id = self.choose_device(window)

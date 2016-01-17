@@ -37,9 +37,10 @@ import icons_rc
 from electrum.bitcoin import COIN, is_valid, TYPE_ADDRESS
 from electrum.plugins import run_hook
 from electrum.i18n import _
-from electrum.util import block_explorer, block_explorer_info, block_explorer_URL
-from electrum.util import format_satoshis, format_satoshis_plain, format_time
-from electrum.util import PrintError, NotEnoughFunds, StoreDict
+from electrum.util import (block_explorer, block_explorer_info, format_time,
+                           block_explorer_URL, format_satoshis, PrintError,
+                           format_satoshis_plain, NotEnoughFunds, StoreDict,
+                           SilentException)
 from electrum import Transaction, mnemonic
 from electrum import util, bitcoin, commands
 from electrum import SimpleConfig, COIN_CHOOSERS, paymentrequest
@@ -198,8 +199,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.raise_()
 
     def on_error(self, exc_info):
-        traceback.print_exception(*exc_info)
-        self.show_error(str(exc_info[1]))
+        if not isinstance(exc_info[1], SilentException):
+            traceback.print_exception(*exc_info)
+            self.show_error(str(exc_info[1]))
 
     def on_network(self, event, *args):
         if event == 'updated':
@@ -254,6 +256,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         run_hook('close_wallet', self.wallet)
 
     def load_wallet(self, wallet):
+        wallet.thread = TaskThread(self, self.on_error)
         self.wallet = wallet
         self.update_recently_visited(wallet.storage.path)
         self.import_old_contacts()
@@ -2856,6 +2859,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         event.accept()
 
     def clean_up(self):
+        self.wallet.thread.stop()
         if self.network:
             self.network.unregister_callback(self.on_network)
         self.config.set_key("is_maximized", self.isMaximized())
