@@ -285,26 +285,30 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         (item, label, pin_protection, passphrase_protection) \
             = wallet.handler.request_trezor_init_settings(method, self.device)
 
-        client = self.get_client(wallet)
         language = 'english'
 
-        if method == TIM_NEW:
-            strength = 64 * (item + 2)  # 128, 192 or 256
-            client.reset_device(True, strength, passphrase_protection,
-                                pin_protection, label, language)
-        elif method == TIM_RECOVER:
-            word_count = 6 * (item + 2)  # 12, 18 or 24
-            client.recovery_device(word_count, passphrase_protection,
-                                   pin_protection, label, language)
-        elif method == TIM_MNEMONIC:
-            pin = pin_protection  # It's the pin, not a boolean
-            client.load_device_by_mnemonic(str(item), pin,
-                                           passphrase_protection,
+        def initialize_device():
+            client = self.get_client(wallet)
+
+            if method == TIM_NEW:
+                strength = 64 * (item + 2)  # 128, 192 or 256
+                client.reset_device(True, strength, passphrase_protection,
+                                    pin_protection, label, language)
+            elif method == TIM_RECOVER:
+                word_count = 6 * (item + 2)  # 12, 18 or 24
+                client.recovery_device(word_count, passphrase_protection,
+                                       pin_protection, label, language)
+            elif method == TIM_MNEMONIC:
+                pin = pin_protection  # It's the pin, not a boolean
+                client.load_device_by_mnemonic(str(item), pin,
+                                               passphrase_protection,
+                                               label, language)
+            else:
+                pin = pin_protection  # It's the pin, not a boolean
+                client.load_device_by_xprv(item, pin, passphrase_protection,
                                            label, language)
-        else:
-            pin = pin_protection  # It's the pin, not a boolean
-            client.load_device_by_xprv(item, pin, passphrase_protection,
-                                       label, language)
+
+        wallet.thread.add(initialize_device)
 
     def unpaired_clients(self, handler):
         '''Returns all connected, unpaired devices as a list of clients and a
