@@ -698,6 +698,9 @@ class Transaction:
     def get_fee(self):
         return self.input_value() - self.output_value()
 
+    def is_final(self):
+        return not any([x.get('sequence') < 0xffffffff - 1 for x in self.inputs])
+
     @classmethod
     def fee_for_size(self, relay_fee, fee_per_kb, size):
         '''Given a fee per kB in satoshis, and a tx size in bytes,
