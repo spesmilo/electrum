@@ -1,5 +1,6 @@
 import base64
 import re
+import threading
 import time
 
 from binascii import unhexlify
@@ -172,6 +173,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
+        self.main_thread = threading.current_thread()
         self.device = self.wallet_class.device
         self.wallet_class.plugin = self
         self.prevent_timeout = time.time() + 3600 * 24 * 365
@@ -216,6 +218,8 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         return self.client_class(transport, handler, self, hid_id)
 
     def get_client(self, wallet, force_pair=True, check_firmware=True):
+        assert self.main_thread != threading.current_thread()
+
         '''check_firmware is ignored unless force_pair is True.'''
         client = self.device_manager().get_client(wallet, force_pair)
 

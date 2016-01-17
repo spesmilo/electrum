@@ -21,6 +21,10 @@ class InvalidPassword(Exception):
     def __str__(self):
         return _("Incorrect password")
 
+class SilentException(Exception):
+    '''An exception that should probably be suppressed from the user'''
+    pass
+
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
         from transaction import Transaction
