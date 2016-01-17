@@ -2126,13 +2126,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     @protected
     def do_decrypt(self, message_e, pubkey_e, encrypted_e, password):
-        try:
-            decrypted = self.wallet.decrypt_message(str(pubkey_e.text()), str(encrypted_e.toPlainText()), password)
-            message_e.setText(decrypted)
-        except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
-            self.show_warning(str(e))
-
+        cyphertext = str(encrypted_e.toPlainText())
+        task = partial(self.wallet.decrypt_message, str(pubkey_e.text()),
+                       cyphertext, password)
+        self.wallet.thread.add(task, on_success=message_e.setText)
 
     def do_encrypt(self, message_e, pubkey_e, encrypted_e):
         message = unicode(message_e.toPlainText())
