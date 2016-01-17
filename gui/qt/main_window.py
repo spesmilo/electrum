@@ -2062,14 +2062,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d.setLayout(vbox)
         d.exec_()
 
-
     @protected
     def do_sign(self, address, message, signature, password):
-        message = unicode(message.toPlainText())
-        message = message.encode('utf-8')
-        sig = self.wallet.sign_message(str(address.text()), message, password)
-        sig = base64.b64encode(sig)
-        signature.setText(sig)
+        message = unicode(message.toPlainText()).encode('utf-8')
+        task = partial(self.wallet.sign_message, str(address.text()),
+                       message, password)
+        def show_signed_message(sig):
+            signature.setText(base64.b64encode(sig))
+        self.wallet.thread.add(task, on_success=show_signed_message)
 
     def do_verify(self, address, message, signature):
         message = unicode(message.toPlainText())
