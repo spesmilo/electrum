@@ -44,7 +44,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''
-        QDialog.__init__(self, parent)
+        QDialog.__init__(self, parent=None)   # Top-level window
         self.tx = tx
         self.tx.deserialize()
         self.main_window = parent
