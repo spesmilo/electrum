@@ -99,7 +99,7 @@ class CoinChooserBase(PrintError):
 
     def change_amounts(self, tx, count, fee_estimator, dust_threshold):
         # Break change up if bigger than max_change
-        output_amounts = [o[2] for o in tx.outputs]
+        output_amounts = [o[2] for o in tx.outputs()]
         max_change = max(max(output_amounts) * 1.25, dust_threshold * 10)
 
         # Use N change outputs
@@ -187,16 +187,16 @@ class CoinChooserBase(PrintError):
         buckets = self.choose_buckets(buckets, sufficient_funds,
                                       self.penalty_func(tx))
 
-        tx.inputs = [coin for b in buckets for coin in b.coins]
+        tx.add_inputs([coin for b in buckets for coin in b.coins])
         tx_size = base_size + sum(bucket.size for bucket in buckets)
 
         # This takes a count of change outputs and returns a tx fee;
         # each pay-to-bitcoin-address output serializes as 34 bytes
         fee = lambda count: fee_estimator(tx_size + count * 34)
         change = self.change_outputs(tx, change_addrs, fee, dust_threshold)
-        tx.outputs.extend(change)
+        tx.add_outputs(change)
 
-        self.print_error("using %d inputs" % len(tx.inputs))
+        self.print_error("using %d inputs" % len(tx.inputs()))
         self.print_error("using buckets:", [bucket.desc for bucket in buckets])
 
         return tx
@@ -282,9 +282,9 @@ class CoinChooserPrivacy(CoinChooserRandom):
         raise NotImplementedError
 
     def penalty_func(self, tx):
-        min_change = min(o[2] for o in tx.outputs) * 0.75
-        max_change = max(o[2] for o in tx.outputs) * 1.33
-        spent_amount = sum(o[2] for o in tx.outputs)
+        min_change = min(o[2] for o in tx.outputs()) * 0.75
+        max_change = max(o[2] for o in tx.outputs()) * 1.33
+        spent_amount = sum(o[2] for o in tx.outputs())
 
         def penalty(buckets):
             badness = len(buckets) - 1

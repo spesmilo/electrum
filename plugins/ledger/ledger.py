@@ -205,9 +205,9 @@ class BTChipWallet(BIP44_Wallet):
             pubKeys.append(self.get_public_keys(address))
 
         # Recognize outputs - only one output and one change is authorized
-        if len(tx.outputs) > 2: # should never happen
+        if len(tx.outputs()) > 2: # should never happen
             self.give_error("Transaction with more than 2 outputs not supported")
-        for type, address, amount in tx.outputs:
+        for type, address, amount in tx.outputs():
             assert type == TYPE_ADDRESS
             if self.is_change(address):
                 changePath = self.address_id(address)

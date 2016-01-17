@@ -365,7 +365,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
 
     def tx_inputs(self, tx, for_sig=False):
         inputs = []
-        for txin in tx.inputs:
+        for txin in tx.inputs():
             txinputtype = self.types.TxInputType()
             if txin.get('is_coinbase'):
                 prev_hash = "\0"*32
@@ -426,8 +426,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
 
     def tx_outputs(self, wallet, tx):
         outputs = []
-
-        for type, address, amount in tx.outputs:
+        for type, address, amount in tx.outputs():
             assert type == TYPE_ADDRESS
             txoutputtype = self.types.TxOutputType()
             if wallet.is_change(address):
@@ -464,7 +463,6 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
     # This function is called from the trezor libraries (via tx_api)
     def get_tx(self, tx_hash):
         tx = self.prev_tx[tx_hash]
-        tx.deserialize()
         return self.electrum_tx_to_txtype(tx)
 
     @staticmethod

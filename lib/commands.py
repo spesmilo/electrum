@@ -210,7 +210,6 @@ class Commands:
     def signtransaction(self, tx, privkey=None):
         """Sign a transaction. The wallet keys will be used unless a private key is provided."""
         t = Transaction(tx)
-        t.deserialize()
         if privkey:
             pubkey = bitcoin.public_key_from_private_key(privkey)
             t.sign({pubkey:privkey})
@@ -221,8 +220,7 @@ class Commands:
     @command('')
     def deserialize(self, tx):
         """Deserialize a serialized transaction"""
-        t = Transaction(tx)
-        return t.deserialize()
+        return Transaction(tx).deserialize()
 
     @command('n')
     def broadcast(self, tx):

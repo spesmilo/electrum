@@ -197,6 +197,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.show()
         self.raise_()
 
+    def on_error(self, exc_info):
+        traceback.print_exception(*exc_info)
+        self.show_error(str(exc_info[1]))
+
     def on_network(self, event, *args):
         if event == 'updated':
             self.need_update.set()
@@ -1265,12 +1269,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # call hook to see if plugin needs gui interaction
         run_hook('sign_tx', parent, tx)
 
-        def sign_thread():
-            self.wallet.sign_transaction(tx, password)
-            return True
+        def on_signed(result):
+            callback(True)
+        def on_failed(exc_info):
+            self.on_error(exc_info)
+            callback(False)
 
-        WaitingDialog(parent, _('Signing transaction...'), sign_thread,
-                      callback)
+        task = partial(self.wallet.sign_transaction, tx, password)
+        WaitingDialog(parent, _('Signing transaction...'), task,
+                      on_signed, on_failed)
 
     def broadcast_transaction(self, tx, tx_desc, parent):
 
@@ -1309,7 +1316,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     self.show_error(msg, parent=parent)
 
         WaitingDialog(parent, _('Broadcasting transaction...'),
-                      broadcast_thread, broadcast_done)
+                      broadcast_thread, broadcast_done, self.on_error)
 
     def prepare_for_payment_request(self):
         self.tabs.setCurrentIndex(1)
@@ -2616,7 +2623,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         def update_feeperkb():
             fee_e.setAmount(self.wallet.fee_per_kb(self.config))
-            b = self.config.get('dynamic_fees')
+            b = self.config.get('dynamic_fees', False)
             dynfee_sl.setEnabled(b)
             multiplier_label.setEnabled(b)
             fee_e.setEnabled(not b)

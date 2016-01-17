@@ -44,16 +44,16 @@ class TxDialog(QDialog, MessageBoxMixin):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''
+        QDialog.__init__(self, parent=None)   # Top-level window
         self.tx = tx
         self.tx.deserialize()
-        self.parent = parent
+        self.main_window = parent
         self.wallet = parent.wallet
         self.prompt_if_unsaved = prompt_if_unsaved
         self.saved = False
         self.broadcast = False
         self.desc = desc
 
-        QDialog.__init__(self)
         self.setMinimumWidth(660)
         self.setWindowTitle(_("Transaction"))
 
@@ -62,7 +62,7 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         vbox.addWidget(QLabel(_("Transaction ID:")))
         self.tx_hash_e  = ButtonsLineEdit()
-        qr_show = lambda: self.parent.show_qrcode(str(self.tx_hash_e.text()), 'Transaction ID', parent=self)
+        qr_show = lambda: parent.show_qrcode(str(self.tx_hash_e.text()), 'Transaction ID', parent=self)
         self.tx_hash_e.addButton(":icons/qrcode.png", qr_show, _("Show as QR code"))
         self.tx_hash_e.setReadOnly(True)
         vbox.addWidget(self.tx_hash_e)
@@ -99,7 +99,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         b.setIcon(QIcon(":icons/qrcode.png"))
         b.clicked.connect(self.show_qr)
 
-        self.copy_button = CopyButton(lambda: str(self.tx), self.parent.app)
+        self.copy_button = CopyButton(lambda: str(self.tx), parent.app)
 
         # Action buttons
         self.buttons = [self.sign_button, self.broadcast_button, self.cancel_button]
@@ -116,7 +116,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.update()
 
     def do_broadcast(self):
-        self.parent.broadcast_transaction(self.tx, self.desc, self)
+        self.main_window.broadcast_transaction(self.tx, self.desc, self)
         self.broadcast = True
         self.update()
 
@@ -132,7 +132,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         text = self.tx.raw.decode('hex')
         text = base_encode(text, base=43)
         try:
-            self.parent.show_qrcode(text, 'Transaction', parent=self)
+            self.main_window.show_qrcode(text, 'Transaction', parent=self)
         except Exception as e:
             self.show_message(str(e))
 
@@ -148,11 +148,11 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.sign_button.setDisabled(True)
         # Note sign_tx is wrapped and parent= is actually passed
         # to the password input dialog box
-        self.parent.sign_tx(self.tx, sign_done, parent=self)
+        self.main_window.sign_tx(self.tx, sign_done, parent=self)
 
     def save(self):
         name = 'signed_%s.txn' % (self.tx.hash()[0:8]) if self.tx.is_complete() else 'unsigned.txn'
-        fileName = self.parent.getSaveFileName(_("Select where to save your signed transaction"), name, "*.txn")
+        fileName = self.main_window.getSaveFileName(_("Select where to save your signed transaction"), name, "*.txn")
         if fileName:
             with open(fileName, "w+") as f:
                 f.write(json.dumps(self.tx.as_dict(), indent=4) + '\n')
@@ -181,7 +181,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             else:
                 self.broadcast_button.show()
                 # cannot broadcast when offline
-                if self.parent.network is None:
+                if self.main_window.network is None:
                     self.broadcast_button.setEnabled(False)
         else:
             s, r = self.tx.signature_count()
@@ -211,16 +211,19 @@ class TxDialog(QDialog, MessageBoxMixin):
         if not self.wallet.up_to_date:
             return
 
+        base_unit = self.main_window.base_unit()
+        format_amount = self.main_window.format_amount
+
         if is_relevant:
             if is_mine:
                 if fee is not None:
-                    self.amount_label.setText(_("Amount sent:")+' %s'% self.parent.format_amount(-v+fee) + ' ' + self.parent.base_unit())
-                    self.fee_label.setText(_("Transaction fee")+': %s'% self.parent.format_amount(-fee) + ' ' + self.parent.base_unit())
+                    self.amount_label.setText(_("Amount sent:")+' %s'% format_amount(-v+fee) + ' ' + base_unit)
+                    self.fee_label.setText(_("Transaction fee")+': %s'% format_amount(-fee) + ' ' + base_unit)
                 else:
-                    self.amount_label.setText(_("Amount sent:")+' %s'% self.parent.format_amount(-v) + ' ' + self.parent.base_unit())
+                    self.amount_label.setText(_("Amount sent:")+' %s'% format_amount(-v) + ' ' + base_unit)
                     self.fee_label.setText(_("Transaction fee")+': '+ _("unknown"))
             else:
-                self.amount_label.setText(_("Amount received:")+' %s'% self.parent.format_amount(v) + ' ' + self.parent.base_unit())
+                self.amount_label.setText(_("Amount received:")+' %s'% format_amount(v) + ' ' + base_unit)
         else:
             self.amount_label.setText(_("Transaction unrelated to your wallet"))
 
@@ -232,7 +235,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         if self.tx.locktime > 0:
             vbox.addWidget(QLabel("LockTime: %d\n" % self.tx.locktime))
 
-        vbox.addWidget(QLabel(_("Inputs") + ' (%d)'%len(self.tx.inputs)))
+        vbox.addWidget(QLabel(_("Inputs") + ' (%d)'%len(self.tx.inputs())))
 
         ext = QTextCharFormat()
         rec = QTextCharFormat()
@@ -248,14 +251,14 @@ class TxDialog(QDialog, MessageBoxMixin):
             return ext
 
         def format_amount(amt):
-            return self.parent.format_amount(amt, whitespaces = True)
+            return self.main_window.format_amount(amt, whitespaces = True)
 
         i_text = QTextEdit()
         i_text.setFont(QFont(MONOSPACE_FONT))
         i_text.setReadOnly(True)
         i_text.setMaximumHeight(100)
         cursor = i_text.textCursor()
-        for x in self.tx.inputs:
+        for x in self.tx.inputs():
             if x.get('is_coinbase'):
                 cursor.insertText('coinbase')
             else:
@@ -276,7 +279,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             cursor.insertBlock()
 
         vbox.addWidget(i_text)
-        vbox.addWidget(QLabel(_("Outputs") + ' (%d)'%len(self.tx.outputs)))
+        vbox.addWidget(QLabel(_("Outputs") + ' (%d)'%len(self.tx.outputs())))
         o_text = QTextEdit()
         o_text.setFont(QFont(MONOSPACE_FONT))
         o_text.setReadOnly(True)

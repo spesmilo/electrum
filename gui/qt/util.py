@@ -4,6 +4,8 @@ import traceback
 import sys
 import threading
 import platform
+import Queue
+from collections import namedtuple
 from functools import partial
 
 from electrum_ltc.i18n import _
@@ -49,41 +51,21 @@ class EnterButton(QPushButton):
 
 
 class ThreadedButton(QPushButton):
-    def __init__(self, text, func, on_success=None, before=None):
+    def __init__(self, text, task, on_success=None, on_error=None):
         QPushButton.__init__(self, text)
-        self.before = before
-        self.run_task = func
+        self.task = task
         self.on_success = on_success
-        self.clicked.connect(self.do_exec)
-        self.connect(self, SIGNAL('done'), self.done)
-        self.connect(self, SIGNAL('error'), self.on_error)
+        self.on_error = on_error
+        self.clicked.connect(self.run_task)
+
+    def run_task(self):
+        self.setEnabled(False)
+        self.thread = TaskThread(self)
+        self.thread.add(self.task, self.on_success, self.done, self.on_error)
 
     def done(self):
-        if self.on_success:
-            self.on_success()
         self.setEnabled(True)
-
-    def on_error(self):
-        QMessageBox.information(None, _("Error"), self.error)
-        self.setEnabled(True)
-
-    def do_func(self):
-        self.setEnabled(False)
-        try:
-            self.result = self.run_task()
-        except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
-            self.error = str(e.message)
-            self.emit(SIGNAL('error'))
-            return
-        self.emit(SIGNAL('done'))
-
-    def do_exec(self):
-        if self.before:
-            self.before()
-        t = threading.Thread(target=self.do_func)
-        t.setDaemon(True)
-        t.start()
+        self.thread.stop()
 
 
 class WWLabel(QLabel):
@@ -166,9 +148,10 @@ class CancelButton(QPushButton):
 class MessageBoxMixin(object):
     def top_level_window(self, window=None):
         window = window or self
+        classes = (WindowModalDialog, QMessageBox)
         for n, child in enumerate(window.children()):
             # Test for visibility as old closed dialogs may not be GC-ed
-            if isinstance(child, WindowModalDialog) and child.isVisible():
+            if isinstance(child, classes) and child.isVisible():
                 return self.top_level_window(child)
         return window
 
@@ -211,39 +194,26 @@ class WindowModalDialog(QDialog, MessageBoxMixin):
         if title:
             self.setWindowTitle(title)
 
-class WaitingDialog(QThread, MessageBoxMixin):
+
+class WaitingDialog(WindowModalDialog):
     '''Shows a please wait dialog whilst runnning a task.  It is not
     necessary to maintain a reference to this dialog.'''
-    def __init__(self, parent, message, task, on_finished=None):
-        global dialogs
-        dialogs.append(self) # Prevent GC
-        QThread.__init__(self)
-        self.task = task
-        self.on_finished = on_finished
-        self.dialog = WindowModalDialog(parent, _("Please wait"))
-        vbox = QVBoxLayout(self.dialog)
+    def __init__(self, parent, message, task, on_success=None, on_error=None):
+        assert parent
+        WindowModalDialog.__init__(self, parent, _("Please wait"))
+        vbox = QVBoxLayout(self)
         vbox.addWidget(QLabel(message))
-        self.dialog.show()
-        self.dialog.connect(self, SIGNAL("finished()"), self.finished)
-        self.start()
+        self.accepted.connect(self.on_accepted)
+        self.show()
+        self.thread = TaskThread(self)
+        self.thread.add(task, on_success, self.accept, on_error)
 
-    def run(self):
-        try:
-            self.result = self.task()
-            self.error = None
-        except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
-            self.error = str(e)
-            self.result = None
+    def wait(self):
+        self.thread.wait()
 
-    def finished(self):
-        global dialogs
-        dialogs.remove(self)
-        self.dialog.accept()
-        if self.error:
-            self.show_error(self.error, parent=self.dialog.parent())
-        if self.on_finished:
-            self.on_finished(self.result)
+    def on_accepted(self):
+        self.thread.stop()
+
 
 def line_dialog(parent, title, label, ok_label, default=None):
     dialog = WindowModalDialog(parent, title)
@@ -546,6 +516,46 @@ class ButtonsTextEdit(QPlainTextEdit, ButtonsWidget):
         o = QPlainTextEdit.resizeEvent(self, e)
         self.resizeButtons()
         return o
+
+
+class TaskThread(QThread):
+    '''Thread that runs background tasks.  Callbacks are guaranteed
+    to happen in the context of its parent.'''
+
+    Task = namedtuple("Task", "task cb_success cb_done cb_error")
+    doneSig = pyqtSignal(object, object, object)
+
+    def __init__(self, parent, on_error=None):
+        super(TaskThread, self).__init__(parent)
+        self.on_error = on_error
+        self.tasks = Queue.Queue()
+        self.doneSig.connect(self.on_done)
+        self.start()
+
+    def add(self, task, on_success=None, on_done=None, on_error=None):
+        on_error = on_error or self.on_error
+        self.tasks.put(TaskThread.Task(task, on_success, on_done, on_error))
+
+    def run(self):
+        while True:
+            task = self.tasks.get()
+            if not task:
+                break
+            try:
+                result = task.task()
+                self.doneSig.emit(result, task.cb_done, task.cb_success)
+            except BaseException:
+                self.doneSig.emit(sys.exc_info(), task.cb_done, task.cb_error)
+
+    def on_done(self, result, cb_done, cb):
+        # This runs in the parent's thread.
+        if cb_done:
+            cb_done()
+        if cb:
+            cb(result)
+
+    def stop(self):
+        self.tasks.put(None)
 
 
 if __name__ == "__main__":

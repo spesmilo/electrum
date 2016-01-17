@@ -274,7 +274,6 @@ class Abstract_Wallet(PrintError):
                     continue
                 tx = self.transactions.get(tx_hash)
                 if tx is not None:
-                    tx.deserialize()
                     self.add_transaction(tx_hash, tx)
                     save = True
         if save:
@@ -541,7 +540,7 @@ class Abstract_Wallet(PrintError):
         is_pruned = False
         is_partial = False
         v_in = v_out = v_out_mine = 0
-        for item in tx.inputs:
+        for item in tx.inputs():
             addr = item.get('address')
             if addr in addresses:
                 is_send = True
@@ -722,11 +721,11 @@ class Abstract_Wallet(PrintError):
                     return addr
 
     def add_transaction(self, tx_hash, tx):
-        is_coinbase = tx.inputs[0].get('is_coinbase') == True
+        is_coinbase = tx.inputs()[0].get('is_coinbase') == True
         with self.transaction_lock:
             # add inputs
             self.txi[tx_hash] = d = {}
-            for txi in tx.inputs:
+            for txi in tx.inputs():
                 addr = txi.get('address')
                 if not txi.get('is_coinbase'):
                     prevout_hash = txi['prevout_hash']
@@ -748,7 +747,7 @@ class Abstract_Wallet(PrintError):
 
             # add outputs
             self.txo[tx_hash] = d = {}
-            for n, txo in enumerate(tx.outputs):
+            for n, txo in enumerate(tx.outputs()):
                 ser = tx_hash + ':%d'%n
                 _type, x, v = txo
                 if _type == TYPE_ADDRESS:
@@ -827,7 +826,6 @@ class Abstract_Wallet(PrintError):
             # if addr is new, we have to recompute txi and txo
             tx = self.transactions.get(tx_hash)
             if tx is not None and self.txi.get(tx_hash, {}).get(addr) is None and self.txo.get(tx_hash, {}).get(addr) is None:
-                tx.deserialize()
                 self.add_transaction(tx_hash, tx)
 
         # Write updated TXI, TXO etc.
@@ -1010,7 +1008,7 @@ class Abstract_Wallet(PrintError):
         self.check_password(password)
         # Add derivation for utxo in wallets
         for i, addr in self.utxo_can_sign(tx):
-            txin = tx.inputs[i]
+            txin = tx.inputs()[i]
             txin['address'] = addr
             self.add_input_info(txin)
         # Add private keys

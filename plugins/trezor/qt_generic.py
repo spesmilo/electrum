@@ -43,8 +43,8 @@ class QtHandler(PrintError):
     def watching_only_changed(self):
         self.win.emit(SIGNAL('watching_only_changed'))
 
-    def show_message(self, msg, cancel_callback=None):
-        self.win.emit(SIGNAL('message_dialog'), msg, cancel_callback)
+    def show_message(self, msg, on_cancel=None):
+        self.win.emit(SIGNAL('message_dialog'), msg, on_cancel)
 
     def show_error(self, msg):
         self.win.emit(SIGNAL('error_dialog'), msg)
@@ -106,17 +106,17 @@ class QtHandler(PrintError):
         self.word = unicode(text.text())
         self.done.set()
 
-    def message_dialog(self, msg, cancel_callback):
+    def message_dialog(self, msg, on_cancel):
         # Called more than once during signing, to confirm output and fee
         self.clear_dialog()
         title = _('Please check your %s device') % self.device
         self.dialog = dialog = WindowModalDialog(self.top_level_window(), title)
         l = QLabel(msg)
         vbox = QVBoxLayout(dialog)
-        if cancel_callback:
-            vbox.addLayout(Buttons(CancelButton(dialog)))
-            dialog.connect(dialog, SIGNAL('rejected()'), cancel_callback)
         vbox.addWidget(l)
+        if on_cancel:
+            dialog.rejected.connect(on_cancel)
+            vbox.addLayout(Buttons(CancelButton(dialog)))
         dialog.show()
 
     def error_dialog(self, msg):
