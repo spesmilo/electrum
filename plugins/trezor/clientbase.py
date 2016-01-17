@@ -23,13 +23,7 @@ class GuiMixin(object):
     def callback_ButtonRequest(self, msg):
         msg_code = self.msg_code_override or msg.code
         message = self.messages.get(msg_code, self.messages['default'])
-
-        if msg.code in [3, 8] and hasattr(self, 'cancel'):
-            cancel_callback = self.cancel
-        else:
-            cancel_callback = None
-
-        self.handler.show_message(message % self.device, cancel_callback)
+        self.handler.show_message(message % self.device, self.cancel)
         return self.proto.ButtonAck()
 
     def callback_PinMatrixRequest(self, msg):
@@ -105,6 +99,10 @@ class TrezorClientBase(GuiMixin, PrintError):
                 prime = PRIME_DERIVATION_FLAG
             path.append(abs(int(x)) | prime)
         return path
+
+    def cancel(self):
+        '''Provided here as in keepkeylib but not trezorlib.'''
+        self.transport.write(self.proto.Cancel())
 
     def first_address(self, derivation):
         return self.address_from_derivation(derivation)
