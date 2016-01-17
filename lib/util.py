@@ -246,7 +246,17 @@ def user_dir():
     if 'ANDROID_DATA' in os.environ:
         return android_check_data_dir()
     elif os.name == 'posix':
-        return os.path.join(os.environ["HOME"], ".electrum")
+        xdg_default = os.path.join(os.environ["HOME"], ".local", "share")
+        xdg_dir = os.path.join(os.getenv("XDG_DATA_HOME", xdg_default), "electrum")
+
+        # handle migration to XDG compliant location
+        old_default = os.path.join(os.environ["HOME"], ".electrum")
+        if os.path.isdir(old_default):
+            print_msg("Migrating Electrum config...")
+            shutil.move(old_default, xdg_dir)
+            print_msg("Completed, moved to", xdg_dir)
+
+        return xdg_dir
     elif "APPDATA" in os.environ:
         return os.path.join(os.environ["APPDATA"], "Electrum")
     elif "LOCALAPPDATA" in os.environ:
