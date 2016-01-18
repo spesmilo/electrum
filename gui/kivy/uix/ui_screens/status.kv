@@ -1,31 +1,71 @@
 #:import os os
 
 Popup:
-    title: "Balance"
+    title: "Electrum-LTC"
     confirmed: 0
     unconfirmed: 0
     unmatured: 0
     on_parent:
-        self.confirmed, self.unconfirmed, self.x = app.wallet.get_balance()
+        self.confirmed, self.unconfirmed, self.unmatured = app.wallet.get_balance()
     BoxLayout:
         orientation: 'vertical'
         spacing: '1dp'
         GridLayout:
             cols:2
             Label:
-                text: _("Wallet:")
+                text: _("Wallet Name:")
+                text_size: self.size
+                halign: 'left'
             Label:
                 text: os.path.basename(app.wallet.storage.path)
+                text_size: self.size
+                halign: 'left'
             Label:
-                text: _("Confirmed:")
-            Label: 
+                text: _("Wallet type:")
+                text_size: self.size
+                halign: 'left'
+            Label:
+                text: app.wallet.wallet_type
+                text_size: self.size
+                halign: 'left'
+            Label:
+                text: _("Balance") + ':'
+                text_size: self.size
+                halign: 'left'
+            Label:
+                text: app.format_amount_and_units(root.confirmed + root.unconfirmed + root.unmatured)
+                text_size: self.size
+                halign: 'left'
+
+            Label:
+                text: _("Confirmed") + ':'
+                opacity: 1 if root.confirmed else 0
+                text_size: self.size
+                halign: 'left'
+            Label:
                 text: app.format_amount_and_units(root.confirmed)
+                opacity: 1 if root.confirmed else 0
+                text_size: self.size
+                halign: 'left'
             Label:
-                text: _("Unconfirmed:")
+                text: _("Unconfirmed") + ':'
+                text_size: self.size
+                halign: 'left'
+                opacity: 1 if root.unconfirmed else 0
             Label:
                 text: app.format_amount_and_units(root.unconfirmed)
+                opacity: 1 if root.unconfirmed else 0
+                text_size: self.size
+                halign: 'left'
             Label:
-                text: "Unmatured:"
+                text: _("Unmatured") + ':'
+                text_size: self.size
+                halign: 'left'
+                opacity: 1 if root.unmatured else 0
             Label:
                 text: app.format_amount_and_units(root.unmatured)
-        Widget
+                opacity: 1 if root.unmatured else 0
+                text_size: self.size
+                halign: 'left'
+        Widget:
+            size_hint: None, 1

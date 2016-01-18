@@ -14,9 +14,7 @@ Builder.load_string('''
 <WalletDialog@Popup>:
     title: _('Wallets')
     id: popup
-    path: app.wallet.storage.path
-    on_path:
-        button.text = _('Open') if os.path.exists(popup.path) else _('Create')
+    path: ''
     BoxLayout:
         orientation: 'vertical'
         BoxLayout:
@@ -24,20 +22,22 @@ Builder.load_string('''
             size_hint_y: None
             orientation: 'horizontal'
             Label:
-                text: _('Wallet') + ': '
+                text: _('Current Wallet') + ': '
                 height: '48dp'
                 size_hint_y: None
-            Button:
+            Label:
                 id: wallet_name
                 height: '48dp'
                 size_hint_y: None
                 text: os.path.basename(app.wallet.storage.path)
-                on_release:
-                    root.name_dialog()
                 on_text:
                     popup.path = os.path.join(wallet_selector.path, self.text)
         Widget
             size_hint_y: None
+        Label:
+            height: '48dp'
+            size_hint_y: None
+            text: _('Wallets')
         FileChooserListView:
             id: wallet_selector
             dirselect: False
@@ -60,20 +60,23 @@ Builder.load_string('''
                 on_release:
                     popup.dismiss()
             Button:
-                id: button
+                id: open_button
                 size_hint: 0.5, None
                 height: '48dp'
-                text: _('Open') if os.path.exists(popup.path) else _('Create')
+                text: _('Open') if popup.path else _('New Wallet')
                 on_release:
                     popup.dismiss()
-                    app.load_wallet_by_name(popup.path)
+                    root.new_wallet(app, wallet_selector.path)
 ''')
 
 class WalletDialog(Factory.Popup):
-    def name_dialog(self):
+    def new_wallet(self, app, dirname):
         def cb(text):
             if text:
-                self.ids.wallet_name.text = text
-        d = LabelDialog(_('Enter wallet name'), '', cb)
-        d.open()
+                app.load_wallet_by_name(os.path.join(dirname, text))
+        if self.path:
+            app.load_wallet_by_name(self.path)
+        else:
+            d = LabelDialog(_('Enter wallet name'), '', cb)
+            d.open()
 
