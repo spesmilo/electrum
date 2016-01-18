@@ -5,8 +5,26 @@ Popup:
         spacing: '1dp'
         Label:
             text: "Lightweight Bitcoin Wallet"
-        Label:
-            text: "Author: Thomas Voegtlin"
-        Label:
-            text: "https://electrum.org"
-        Widget
+            size_hint_y: None
+        GridLayout:
+            cols: 2
+            Label:
+                text: 'Licence:'
+                text_size: self.size
+            Label:
+                text: "Gnu GPL v3"
+                text_size: self.size
+            Label:
+                text: 'Website:'
+                text_size: self.size
+            Label:
+                text: "https://electrum.org"
+                text_size: self.size
+            Label:
+                text: 'Developers:'
+                text_size: self.size
+            Label:
+                text_size: self.size
+                text: "Thomas Voegtlin\nNeil Booth"
+        Widget:
+            size_hint: None, 1
