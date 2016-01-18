@@ -303,8 +303,6 @@ class ElectrumWindow(App):
     def load_wallet_by_name(self, wallet_path):
         if not wallet_path:
             return
-        self.stop_wallet()
-
         config = self.electrum_config
         storage = WalletStorage(wallet_path)
         Logger.info('Electrum: Check for existing wallet')
@@ -320,7 +318,6 @@ class ElectrumWindow(App):
             wizard.bind(on_wizard_complete=lambda instance, wallet: self.load_wallet(wallet))
             wizard.run(action)
         else:
-            wallet.start_threads(self.network)
             self.load_wallet(wallet)
         self.on_resume()
 
@@ -331,7 +328,6 @@ class ElectrumWindow(App):
                 l.text = text
         d = LabelDialog(_('Enter wallet name'), '', f)
         d.open()
-
 
     def on_stop(self):
         self.stop_wallet()
@@ -449,7 +445,9 @@ class ElectrumWindow(App):
 
     @profiler
     def load_wallet(self, wallet):
+        self.stop_wallet()
         self.wallet = wallet
+        self.wallet.start_threads(self.network)
         self.current_account = self.wallet.storage.get('current_account', None)
         self.update_wallet()
         # Once GUI has been initialized check if we want to announce something
@@ -477,7 +475,6 @@ class ElectrumWindow(App):
         else:
             self.status = _("Not connected")
 
-
     def get_max_amount(self):
         inputs = self.wallet.get_spendable_coins(None)
         amount, fee = self.wallet.get_max_amount(self.electrum_config, inputs, None)
@@ -494,7 +491,6 @@ class ElectrumWindow(App):
         self._trigger_update_status()
         #if self.wallet.up_to_date or not self.network or not self.network.is_connected():
         self.update_tabs()
-
 
     @profiler
     def notify_transactions(self, *dt):

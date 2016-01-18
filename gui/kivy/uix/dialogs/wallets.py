@@ -66,14 +66,14 @@ Builder.load_string('''
                 text: _('Open') if popup.path else _('New Wallet')
                 on_release:
                     popup.dismiss()
-                    root.new_wallet(app)
+                    root.new_wallet(app, wallet_selector.path)
 ''')
 
 class WalletDialog(Factory.Popup):
-    def new_wallet(self, app):
+    def new_wallet(self, app, dirname):
         def cb(text):
             if text:
-                app.load_wallet_by_name(text)
+                app.load_wallet_by_name(os.path.join(dirname, text))
         if self.path:
             app.load_wallet_by_name(self.path)
         else:
