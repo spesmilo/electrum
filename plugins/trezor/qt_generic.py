@@ -1,6 +1,5 @@
 from functools import partial
 import threading
-from PIL import Image
 
 from PyQt4.Qt import Qt
 from PyQt4.Qt import QGridLayout, QInputDialog, QPushButton
@@ -360,6 +359,7 @@ class SettingsDialog(WindowModalDialog):
             update()
 
         def change_homescreen():
+            from PIL import Image  # FIXME
             dialog = QFileDialog(self, _("Choose Homescreen"))
             filename = dialog.getOpenFileName()
             if filename:
