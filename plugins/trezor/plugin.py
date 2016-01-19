@@ -51,23 +51,26 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         self.session_timeout = seconds
         self.storage.put('session_timeout', seconds)
 
-    def disconnected(self):
-        '''A device paired with the wallet was diconnected.  Note this is
-        called in the context of the Plugins thread.'''
-        self.print_error("disconnected")
+    def unpaired(self):
+        '''A device paired with the wallet was diconnected.  This can be
+        called in any thread context.'''
+        self.print_error("unpaired")
         self.force_watching_only = True
         self.handler.watching_only_changed()
 
-    def connected(self):
-        '''A device paired with the wallet was (re-)connected.  Note this
-        is called in the context of the Plugins thread.'''
-        self.print_error("connected")
+    def paired(self):
+        '''A device paired with the wallet was (re-)connected.  This can be
+        called in any thread context.'''
+        self.print_error("paired")
         self.force_watching_only = False
         self.handler.watching_only_changed()
 
     def timeout(self):
-        '''Informs the wallet it timed out.  Note this is called from
+        '''Called when the wallet session times out.  Note this is called from
         the Plugins thread.'''
+        client = self.get_client(force_pair=False)
+        if client:
+            client.clear_session()
         self.print_error("timed out")
 
     def get_action(self):
@@ -178,8 +181,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         self.wallet_class.plugin = self
         self.prevent_timeout = time.time() + 3600 * 24 * 365
         if self.libraries_available:
-            self.device_manager().register_devices(
-                self.DEVICE_IDS, self.create_client)
+            self.device_manager().register_devices(self.DEVICE_IDS)
 
     def is_enabled(self):
         return self.libraries_available
@@ -199,13 +201,11 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
             if (isinstance(wallet, self.wallet_class)
                     and hasattr(wallet, 'last_operation')
                     and now > wallet.last_operation + wallet.session_timeout):
-                client = self.get_client(wallet, force_pair=False)
-                if client:
-                    client.clear_session()
-                    wallet.last_operation = self.prevent_timeout
-                    wallet.timeout()
+                wallet.timeout()
+                wallet.last_operation = self.prevent_timeout
 
-    def create_client(self, path, handler, hid_id):
+    def create_client(self, device, handler):
+        path = device.path
         pair = ((None, path) if self.HidTransport._detect_debuglink(path)
                 else (path, None))
         try:
@@ -215,50 +215,48 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
             self.print_error("cannot connect at", path, str(e))
             return None
         self.print_error("connected to device at", path)
-        return self.client_class(transport, handler, self, hid_id)
 
-    def get_client(self, wallet, force_pair=True, check_firmware=True):
-        assert self.main_thread != threading.current_thread()
-
-        '''check_firmware is ignored unless force_pair is True.'''
-        client = self.device_manager().get_client(wallet, force_pair)
+        client = self.client_class(transport, handler, self)
 
         # Try a ping for device sanity
+        try:
+            client.ping('t')
+        except BaseException as e:
+            self.print_error("ping failed", str(e))
+            return None
+
+        if not client.atleast_version(*self.minimum_firmware):
+            msg = (_('Outdated %s firmware for device labelled %s. Please '
+                     'download the updated firmware from %s') %
+                   (self.device, client.label(), self.firmware_URL))
+            handler.show_error(msg)
+            return None
+
+        return client
+
+    def get_client(self, wallet, force_pair=True):
+        # All client interaction should not be in the main GUI thread
+        assert self.main_thread != threading.current_thread()
+
+        devmgr = self.device_manager()
+        client = devmgr.client_for_wallet(self, wallet, force_pair)
+
         if client:
             self.print_error("set last_operation")
             wallet.last_operation = time.time()
-            try:
-                client.ping('t')
-            except BaseException as e:
-                self.print_error("ping failed", str(e))
-                # Remove it from the manager's cache
-                self.device_manager().close_client(client)
-                client = None
-
-        if force_pair:
-            assert wallet.handler
-            if not client:
-                msg = (_('Could not connect to your %s.  Verify the '
-                         'cable is connected and that no other app is '
-                         'using it.\nContinuing in watching-only mode '
-                         'until the device is re-connected.') % self.device)
-                wallet.handler.show_error(msg)
-                raise DeviceDisconnectedError(msg)
-
-            if (check_firmware and not
-                client.atleast_version(*self.minimum_firmware)):
-                msg = (_('Outdated %s firmware for device labelled %s. Please '
-                         'download the updated firmware from %s') %
-                       (self.device, client.label(), self.firmware_URL))
-                wallet.handler.show_error(msg)
-                raise OutdatedFirmwareError(msg)
+        elif force_pair:
+            msg = (_('Could not connect to your %s.  Verify the '
+                     'cable is connected and that no other app is '
+                     'using it.\nContinuing in watching-only mode '
+                     'until the device is re-connected.') % self.device)
+            raise DeviceDisconnectedError(msg)
 
         return client
 
     @hook
     def close_wallet(self, wallet):
         if isinstance(wallet, self.wallet_class):
-            self.device_manager().close_wallet(wallet)
+            self.device_manager().unpair_wallet(wallet)
 
     def initialize_device(self, wallet):
         # Prevent timeouts during initialization
@@ -310,27 +308,32 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
 
         wallet.thread.add(initialize_device)
 
-    def unpaired_clients(self, handler):
+    def unpaired_devices(self, handler):
         '''Returns all connected, unpaired devices as a list of clients and a
         list of descriptions.'''
         devmgr = self.device_manager()
-        clients = devmgr.unpaired_clients(handler, self.client_class)
-        states = [_("wiped"), _("initialized")]
-        def client_desc(client):
-            label = client.label() or _("An unnamed device")
+        devices = devmgr.unpaired_devices(handler)
+
+        good_devices, descrs = [], []
+        for device in devices:
+            client = self.device_manager().create_client(device, handler, self)
+            if not client:
+                continue
             state = states[client.is_initialized()]
-            return ("%s: serial number %s (%s)"
-                    % (label, client.hid_id(), state))
-        return clients, list(map(client_desc, clients))
+            label = device.info['label'] or _("An unnamed device")
+            good_devices.append(device)
+            descrs.append("%s: device ID %s (%s)" % (label, device.id_, state))
+
+        return good_devices, descrs
 
     def select_device(self, wallet):
         '''Called when creating a new wallet.  Select the device to use.  If
         the device is uninitialized, go through the intialization
         process.'''
         msg = _("Please select which %s device to use:") % self.device
-        clients, labels = self.unpaired_clients(wallet.handler)
-        client = clients[wallet.handler.query_choice(msg, labels)]
-        self.device_manager().pair_wallet(wallet, client)
+        devices, labels = self.unpaired_devices(wallet.handler)
+        device = devices[wallet.handler.query_choice(msg, labels)]
+        self.device_manager().pair_wallet(wallet, device.id_)
         if not client.is_initialized():
             self.initialize_device(wallet)
 

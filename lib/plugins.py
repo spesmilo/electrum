@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+from collections import namedtuple
 import traceback
 import sys
 import os
@@ -226,6 +227,7 @@ class BasePlugin(PrintError):
     def settings_dialog(self):
         pass
 
+Device = namedtuple("Device", "path id_ product_key")
 
 class DeviceMgr(PrintError):
     '''Manages hardware clients.  A client communicates over a hardware
@@ -262,82 +264,115 @@ class DeviceMgr(PrintError):
 
     def __init__(self):
         super(DeviceMgr, self).__init__()
-        # Keyed by wallet.  The value is the hid_id if the wallet has
-        # been paired, and None otherwise.
+        # Keyed by wallet.  The value is the device id if the wallet
+        # has been paired, and None otherwise.
         self.wallets = {}
-        # A list of clients.  We create a client for every device present
-        # that is of a registered hardware type
-        self.clients = []
-        # What we recognise.  Keyed by (vendor_id, product_id) pairs,
-        # the value is a callback to create a client for those devices
-        self.recognised_hardware = {}
+        # A list of clients.  The key is the client, the value is
+        # a (path, id_) pair.
+        self.clients = {}
+        # What we recognise.  Each entry is a (vendor_id, product_id)
+        # pair.
+        self.recognised_hardware = set()
         # For synchronization
         self.lock = threading.RLock()
 
-    def register_devices(self, device_pairs, create_client):
+    def register_devices(self, device_pairs):
         for pair in device_pairs:
-            self.recognised_hardware[pair] = create_client
+            self.recognised_hardware.add(pair)
 
-    def unpair(self, hid_id):
-        with self.lock:
-            wallet = self.wallet_by_hid_id(hid_id)
-            if wallet:
-                self.wallets[wallet] = None
-
-    def close_client(self, client):
-        with self.lock:
-            if client in self.clients:
-                self.clients.remove(client)
+    def create_client(self, device, handler, plugin):
+        client = plugin.create_client(device, handler)
         if client:
-            client.close()
+            self.print_error("Registering", client)
+            with self.lock:
+                self.clients[client] = (device.path, device.id_)
+        return client
 
-    def close_wallet(self, wallet):
-        # Remove the wallet from our list; close any client
-        with self.lock:
-            hid_id = self.wallets.pop(wallet, None)
-            self.close_client(self.client_by_hid_id(hid_id))
-
-    def unpaired_clients(self, handler, classinfo):
-        '''Returns all unpaired clients of the given type.'''
-        self.scan_devices(handler)
-        with self.lock:
-            return [client for client in self.clients
-                    if isinstance(client, classinfo)
-                    and not self.wallet_by_hid_id(client.hid_id())]
-
-    def client_by_hid_id(self, hid_id, handler=None):
-        '''Like get_client() but when we don't care about wallet pairing.  If
-        a device is wiped or in bootloader mode pairing is impossible;
-        in such cases we communicate by device ID and not wallet.'''
-        if handler:
-            self.scan_devices(handler)
-        with self.lock:
-            for client in self.clients:
-                if client.hid_id() == hid_id:
-                    return client
-            return None
-
-    def wallet_hid_id(self, wallet):
+    def wallet_id(self, wallet):
         with self.lock:
             return self.wallets.get(wallet)
 
-    def wallet_by_hid_id(self, hid_id):
+    def wallet_by_id(self, id_):
         with self.lock:
-            for wallet, wallet_hid_id in self.wallets.items():
-                if wallet_hid_id == hid_id:
+            for wallet, wallet_id in self.wallets.items():
+                if wallet_id == id_:
                     return wallet
             return None
 
-    def paired_wallets(self):
+    def unpair_wallet(self, wallet):
         with self.lock:
-            return [wallet for (wallet, hid_id) in self.wallets.items()
-                    if hid_id is not None]
+            wallet_id = self.wallets.pop(wallet)
+            client = self.client_lookup(wallet_id)
+            self.clients.pop(client, None)
+        wallet.unpaired()
+        if client:
+            client.close()
 
-    def pair_wallet(self, wallet, client):
-        assert client in self.clients
-        self.print_error("paired:", wallet, client)
-        self.wallets[wallet] = client.hid_id()
-        wallet.connected()
+    def unpair_id(self, id_):
+        with self.lock:
+            wallet = self.wallet_by_id(id_)
+        if wallet:
+            self.unpair_wallet(wallet)
+
+    def pair_wallet(self, wallet, id_):
+        with self.lock:
+            self.wallets[wallet] = id_
+        wallet.paired()
+
+    def paired_wallets(self):
+        return list(self.wallets.keys())
+
+    def client_lookup(self, id_):
+        with self.lock:
+            for client, (path, client_id) in self.clients.items():
+                if client_id == id_:
+                    return client
+        return None
+
+    def client_by_id(self, id_, handler):
+        '''Returns a client for the device ID if one is registered.  If
+        a device is wiped or in bootloader mode pairing is impossible;
+        in such cases we communicate by device ID and not wallet.'''
+        self.scan_devices(handler)
+        return self.client_lookup(id_)
+
+    def client_for_wallet(self, plugin, wallet, force_pair):
+        assert wallet.handler
+
+        devices = self.scan_devices(wallet.handler)
+        wallet_id = self.wallet_id(wallet)
+
+        client = self.client_lookup(wallet_id)
+        if client:
+            return client
+
+        for device in devices:
+            if device.id_ == wallet_id:
+                return self.create_client(device, wallet.handler, plugin)
+
+        if force_pair:
+            first_address, derivation = wallet.first_address()
+            # Wallets don't have a first address in the install wizard
+            # until account creation
+            if not first_address:
+                self.print_error("no first address for ", wallet)
+                return None
+
+            # The wallet has not been previously paired, so get the
+            # first address of all unpaired clients and compare.
+            for device in devices:
+                # Skip already-paired devices
+                if self.wallet_by_id(device.id_):
+                    continue
+                client = self.create_client(device, wallet.handler, plugin)
+                if client and not client.features.bootloader_mode:
+                    # This will trigger a PIN/passphrase entry request
+                    client_first_address = client.first_address(derivation)
+                    if client_first_address == first_address:
+                        self.pair_wallet(wallet, device.id_)
+                        return client
+
+        return None
 
     def scan_devices(self, handler):
         # All currently supported hardware libraries use hid, so we
@@ -349,76 +384,27 @@ class DeviceMgr(PrintError):
         self.print_error("scanning devices...")
 
         # First see what's connected that we know about
-        devices = {}
+        devices = []
         for d in hid.enumerate(0, 0):
             product_key = (d['vendor_id'], d['product_id'])
-            create_client = self.recognised_hardware.get(product_key)
-            if create_client:
-                devices[d['serial_number']] = (create_client, d['path'])
+            if product_key in self.recognised_hardware:
+                devices.append(Device(d['path'], d['serial_number'],
+                                      product_key))
 
         # Now find out what was disconnected
+        pairs = [(dev.path, dev.id_) for dev in devices]
+        disconnected_ids = []
         with self.lock:
-            disconnected = [client for client in self.clients
-                            if not client.hid_id() in devices]
+            connected = {}
+            for client, pair in self.clients.items():
+                if pair in pairs:
+                    connected[client] = pair
+                else:
+                    disconnected_ids.append(pair[1])
+            self.clients = connected
 
-        # Close disconnected clients after informing their wallets
-        for client in disconnected:
-            wallet = self.wallet_by_hid_id(client.hid_id())
-            if wallet:
-                wallet.disconnected()
-            self.close_client(client)
+        # Unpair disconnected devices
+        for id_ in disconnected_ids:
+            self.unpair_id(id_)
 
-        # Now see if any new devices are present.
-        for hid_id, (create_client, path) in devices.items():
-            try:
-                client = create_client(path, handler, hid_id)
-            except BaseException as e:
-                self.print_error("could not create client", str(e))
-                client = None
-            if client:
-                self.print_error("client created for", path)
-                with self.lock:
-                    self.clients.append(client)
-                # Inform re-paired wallet
-                wallet = self.wallet_by_hid_id(hid_id)
-                if wallet:
-                    self.pair_wallet(wallet, client)
-
-    def get_client(self, wallet, force_pair=True):
-        '''Returns a client for the wallet, or None if one could not be found.
-        If force_pair is False then if an already paired client cannot
-        be found None is returned rather than requiring user
-        interaction.'''
-        # We must scan devices to get an up-to-date idea of which
-        # devices are present.  Operating on a client when its device
-        # has been removed can cause the process to hang.
-        # Unfortunately there is no plugged / unplugged notification
-        # system.
-        self.scan_devices(wallet.handler)
-
-        # Previously paired wallets only need look for matching HID IDs
-        hid_id = self.wallet_hid_id(wallet)
-        if hid_id:
-            return self.client_by_hid_id(hid_id)
-
-        first_address, derivation = wallet.first_address()
-        # Wallets don't have a first address in the install wizard
-        # until account creation
-        if not first_address:
-            self.print_error("no first address for ", wallet)
-            return None
-
-        with self.lock:
-            # The wallet has not been previously paired, so get the
-            # first address of all unpaired clients and compare.
-            for client in self.clients:
-                # If already paired skip it
-                if self.wallet_by_hid_id(client.hid_id()):
-                    continue
-                # This will trigger a PIN/passphrase entry request
-                if client.first_address(derivation) == first_address:
-                    self.pair_wallet(wallet, client)
-                    return client
-
-            # Not found
-            return None
+        return devices

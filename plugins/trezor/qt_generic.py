@@ -252,25 +252,25 @@ def qt_plugin_class(base_plugin_class):
             menu.addAction(_("Show on %s") % self.device, show_address)
 
     def settings_dialog(self, window):
-        hid_id = self.choose_device(window)
-        if hid_id:
-            SettingsDialog(window, self, hid_id).exec_()
+        device_id = self.choose_device(window)
+        if device_id:
+            SettingsDialog(window, self, device_id).exec_()
 
     def choose_device(self, window):
         '''This dialog box should be usable even if the user has
         forgotten their PIN or it is in bootloader mode.'''
         handler = window.wallet.handler
-        hid_id = self.device_manager().wallet_hid_id(window.wallet)
-        if not hid_id:
-            clients, labels = self.unpaired_clients(handler)
-            if clients:
+        device_id = self.device_manager().wallet_id(window.wallet)
+        if not device_id:
+            devices, labels = self.unpaired_devices(handler)
+            if devices:
                 msg = _("Select a %s device:") % self.device
                 choice = self.query_choice(window, msg, labels)
                 if choice is not None:
-                    hid_id = clients[choice].hid_id()
+                    device_id = devices[choice].id_
             else:
                 handler.show_error(_("No devices found"))
-        return hid_id
+        return device_id
 
     def query_choice(self, window, msg, choices):
         dialog = WindowModalDialog(window)
@@ -292,28 +292,29 @@ class SettingsDialog(WindowModalDialog):
     We want users to be able to wipe a device even if they've forgotten
     their PIN.'''
 
-    def __init__(self, window, plugin, hid_id):
+    def __init__(self, window, plugin, device_id):
         title = _("%s Settings") % plugin.device
         super(SettingsDialog, self).__init__(window, title)
         self.setMaximumWidth(540)
 
         devmgr = plugin.device_manager()
         handler = window.wallet.handler
+        thread = window.wallet.thread
         # wallet can be None, needn't be window.wallet
-        wallet = devmgr.wallet_by_hid_id(hid_id)
+        wallet = devmgr.wallet_by_id(device_id)
         hs_rows, hs_cols = (64, 128)
         self.current_label=None
 
         def invoke_client(method, *args, **kw_args):
             def task():
-                client = plugin.get_client(wallet, False)
+                client = devmgr.client_by_id(device_id, handler)
                 if not client:
                     raise RuntimeError("Device not connected")
                 if method:
                     getattr(client, method)(*args, **kw_args)
                 update(client.features)
 
-            wallet.thread.add(task)
+            thread.add(task)
 
         def update(features):
             self.current_label = features.label
@@ -364,7 +365,7 @@ class SettingsDialog(WindowModalDialog):
             if not self.question(msg, title=title):
                 return
             invoke_client('toggle_passphrase')
-            devmgr.unpair(hid_id)
+            devmgr.unpair(device_id)
 
         def change_homescreen():
             from PIL import Image  # FIXME
@@ -402,7 +403,7 @@ class SettingsDialog(WindowModalDialog):
                                      icon=QMessageBox.Critical):
                     return
             invoke_client('wipe_device')
-            devmgr.unpair(hid_id)
+            devmgr.unpair(device_id)
 
         def slider_moved():
             mins = timeout_slider.sliderPosition()
