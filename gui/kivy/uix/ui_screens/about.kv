@@ -1,30 +1,45 @@
+#:import VERSION electrum.version.ELECTRUM_VERSION
+
+<TopLabel@Label>
+    valign: 'top'
+    font_size: '6pt'
+    text_size: self.size
+
 Popup:
-    title: "About Electrum"
+    title: _("About Electrum")
     BoxLayout:
         orientation: 'vertical'
-        spacing: '1dp'
-        Label:
-            text: "Lightweight Bitcoin Wallet"
-            size_hint_y: None
+        spacing: '10dp'
+        padding: '10dp'
         GridLayout:
             cols: 2
+            TopLabel:
+                text: _('Version')
+            TopLabel:
+                text: VERSION
+            TopLabel:
+                text: _('Licence')
+            TopLabel:
+                text: "GNU GPL v3"
+            TopLabel:
+                text: _('Homepage')
+            TopLabel:
+                markup: True
+                text: '[color=6666ff][ref=x]https://electrum.org[/ref][/color]'
+                on_ref_press:
+                    import webbrowser
+                    webbrowser.open("https://electrum.org")
+            TopLabel:
+                text: _('Developers')
             Label:
-                text: 'Licence:'
-                text_size: self.size
-            Label:
-                text: "Gnu GPL v3"
-                text_size: self.size
-            Label:
-                text: 'Website:'
-                text_size: self.size
-            Label:
-                text: "https://electrum.org"
-                text_size: self.size
-            Label:
-                text: 'Developers:'
-                text_size: self.size
-            Label:
-                text_size: self.size
                 text: '\n'.join(['Thomas Voegtlin', 'Neil Booth', 'Akshay Arora'])
+                valign: 'top'
+                font_size: '6pt'
+                size_hint_y: None
+                text_size: self.width, None
+                height: self.texture_size[1]
+        TopLabel:
+            text: _('Distributed by Electrum Technologies GmbH')
+            padding: '0dp', '20dp'
         Widget:
-            size_hint: None, 1
+            size_hint: None, 0.5
