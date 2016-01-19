@@ -57,7 +57,7 @@ class Plugins(DaemonThread):
                 continue
             self.descriptions.append(d)
             if not d.get('requires_wallet_type') and config.get('use_' + name):
-                self.load_plugin(config, name)
+                self.load_plugin(name)
 
     def get(self, name):
         return self.plugins.get(name)
@@ -65,11 +65,11 @@ class Plugins(DaemonThread):
     def count(self):
         return len(self.plugins)
 
-    def load_plugin(self, config, name):
+    def load_plugin(self, name):
         full_name = 'electrum_plugins.' + name + '.' + self.gui_name
         try:
             p = pkgutil.find_loader(full_name).load_module(full_name)
-            plugin = p.Plugin(self, config, name)
+            plugin = p.Plugin(self, self.config, name)
             self.add_jobs(plugin.thread_jobs())
             self.plugins[name] = plugin
             self.print_error("loaded", name)
@@ -82,15 +82,25 @@ class Plugins(DaemonThread):
     def close_plugin(self, plugin):
         self.remove_jobs(plugin.thread_jobs())
 
-    def toggle_enabled(self, config, name):
+    def enable(self, name):
+        self.config.set_key('use_' + name, True, True)
         p = self.get(name)
-        config.set_key('use_' + name, p is None, True)
         if p:
-            self.plugins.pop(name)
-            p.close()
-            self.print_error("closed", name)
-            return None
-        return self.load_plugin(config, name)
+            return p
+        return self.load_plugin(name)
+
+    def disable(self, name):
+        self.config.set_key('use_' + name, False, True)
+        p = self.get(name)
+        if not p:
+            return
+        self.plugins.pop(name)
+        p.close()
+        self.print_error("closed", name)
+
+    def toggle(self, name):
+        p = self.get(name)
+        return self.disable(name) if p else self.enable(name)
 
     def is_available(self, name, w):
         for d in self.descriptions:
@@ -131,7 +141,7 @@ class Plugins(DaemonThread):
 
     def wallet_plugin_loader(self, name):
         if not name in self.plugins:
-            self.load_plugin(self.config, name)
+            self.load_plugin(name)
         return self.plugins[name]
 
     def run(self):

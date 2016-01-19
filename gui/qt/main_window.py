@@ -2903,7 +2903,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 widget.setEnabled(bool(p and p.is_enabled()))
 
         def do_toggle(cb, name, i):
-            p = plugins.toggle_enabled(self.config, name)
+            p = plugins.toggle(name)
             cb.setChecked(bool(p))
             enable_settings_widget(p, name, i)
             run_hook('init_qt', self.gui_object)
