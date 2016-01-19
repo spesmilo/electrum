@@ -317,14 +317,6 @@ class ElectrumWindow(App):
             self.load_wallet(wallet)
         self.on_resume()
 
-    def create_wallet_dialog(self, l):
-        from uix.dialogs.label_dialog import LabelDialog
-        def f(text):
-            if text:
-                l.text = text
-        d = LabelDialog(_('Enter wallet name'), '', f)
-        d.open()
-
     def on_stop(self):
         self.stop_wallet()
 
