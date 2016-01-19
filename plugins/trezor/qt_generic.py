@@ -302,23 +302,27 @@ class SettingsDialog(WindowModalDialog):
         # wallet can be None, needn't be window.wallet
         wallet = devmgr.wallet_by_hid_id(hid_id)
         hs_rows, hs_cols = (64, 128)
+        self.current_label=None
 
-        def get_client():
-            client = devmgr.client_by_hid_id(hid_id, handler)
-            if not client:
-                self.show_error("Device not connected!")
-                raise RuntimeError("Device not connected")
-            return client
+        def invoke_client(method, *args, **kw_args):
+            def task():
+                client = plugin.get_client(wallet, False)
+                if not client:
+                    raise RuntimeError("Device not connected")
+                if method:
+                    getattr(client, method)(*args, **kw_args)
+                update(client.features)
 
-        def update():
-            # self.features for outer scopes
-            client = get_client()
-            features = self.features = client.features
+            wallet.thread.add(task)
+
+        def update(features):
+            self.current_label = features.label
             set_label_enabled()
             bl_hash = features.bootloader_hash.encode('hex')
             bl_hash = "\n".join([bl_hash[:32], bl_hash[32:]])
             noyes = [_("No"), _("Yes")]
             endis = [_("Enable Passphrases"), _("Disable Passphrases")]
+            disen = [_("Disabled"), _("Enabled")]
             setchange = [_("Set a PIN"), _("Change PIN")]
 
             version = "%d.%d.%d" % (features.major_version,
@@ -328,10 +332,10 @@ class SettingsDialog(WindowModalDialog):
 
             device_label.setText(features.label)
             pin_set_label.setText(noyes[features.pin_protection])
+            passphrases_label.setText(disen[features.passphrase_protection])
             bl_hash_label.setText(bl_hash)
             label_edit.setText(features.label)
             device_id_label.setText(features.device_id)
-            serial_number_label.setText(client.hid_id())
             initialized_label.setText(noyes[features.initialized])
             version_label.setText(version)
             coins_label.setText(coins)
@@ -343,11 +347,10 @@ class SettingsDialog(WindowModalDialog):
             language_label.setText(features.language)
 
         def set_label_enabled():
-            label_apply.setEnabled(label_edit.text() != self.features.label)
+            label_apply.setEnabled(label_edit.text() != self.current_label)
 
         def rename():
-            get_client().change_label(unicode(label_edit.text()))
-            update()
+            invoke_client('change_label', unicode(label_edit.text()))
 
         def toggle_passphrase():
             title = _("Confirm Toggle Passphrase Protection")
@@ -360,9 +363,8 @@ class SettingsDialog(WindowModalDialog):
                     "Are you sure you want to proceed?") % plugin.device
             if not self.question(msg, title=title):
                 return
-            get_client().toggle_passphrase()
+            invoke_client('toggle_passphrase')
             devmgr.unpair(hid_id)
-            update()
 
         def change_homescreen():
             from PIL import Image  # FIXME
@@ -380,17 +382,16 @@ class SettingsDialog(WindowModalDialog):
                         img += '1' if pix[i, j] else '0'
                 img = ''.join(chr(int(img[i:i + 8], 2))
                               for i in range(0, len(img), 8))
-                get_client().change_homescreen(img)
+                invoke_client('change_homescreen', img)
 
         def clear_homescreen():
-            get_client().change_homescreen('\x00')
+            invoke_client('change_homescreen', '\x00')
 
-        def set_pin(remove=False):
-            get_client().set_pin(remove=remove)
-            update()
+        def set_pin():
+            invoke_client('set_pin', remove=False)
 
         def clear_pin():
-            set_pin(remove=True)
+            invoke_client('set_pin', remove=True)
 
         def wipe_device():
             if wallet and sum(wallet.get_balance()):
@@ -400,9 +401,8 @@ class SettingsDialog(WindowModalDialog):
                 if not self.question(msg, title=title,
                                      icon=QMessageBox.Critical):
                     return
-            get_client().wipe_device()
+            invoke_client('wipe_device')
             devmgr.unpair(hid_id)
-            update()
 
         def slider_moved():
             mins = timeout_slider.sliderPosition()
@@ -412,8 +412,6 @@ class SettingsDialog(WindowModalDialog):
             seconds = timeout_slider.sliderPosition() * 60
             wallet.set_session_timeout(seconds)
 
-        dialog_vbox = QVBoxLayout(self)
-
         # Information tab
         info_tab = QWidget()
         info_layout = QVBoxLayout(info_tab)
@@ -421,9 +419,9 @@ class SettingsDialog(WindowModalDialog):
         info_glayout.setColumnStretch(2, 1)
         device_label = QLabel()
         pin_set_label = QLabel()
+        passphrases_label = QLabel()
         version_label = QLabel()
         device_id_label = QLabel()
-        serial_number_label = QLabel()
         bl_hash_label = QLabel()
         bl_hash_label.setWordWrap(True)
         coins_label = QLabel()
@@ -433,9 +431,9 @@ class SettingsDialog(WindowModalDialog):
         rows = [
             (_("Device Label"), device_label),
             (_("PIN set"), pin_set_label),
+            (_("Passphrases"), passphrases_label),
             (_("Firmware Version"), version_label),
             (_("Device ID"), device_id_label),
-            (_("Serial Number"), serial_number_label),
             (_("Bootloader Hash"), bl_hash_label),
             (_("Supported Coins"), coins_label),
             (_("Language"), language_label),
@@ -586,8 +584,9 @@ class SettingsDialog(WindowModalDialog):
         tabs.addTab(info_tab, _("Information"))
         tabs.addTab(settings_tab, _("Settings"))
         tabs.addTab(advanced_tab, _("Advanced"))
-
-        # Update information
-        update()
+        dialog_vbox = QVBoxLayout(self)
         dialog_vbox.addWidget(tabs)
         dialog_vbox.addLayout(Buttons(CloseButton(self)))
+
+        # Update information
+        invoke_client(None)
