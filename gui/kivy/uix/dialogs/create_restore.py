@@ -22,7 +22,7 @@ Builder.load_string('''
 #:import _ electrum.i18n._
 
 
-<CreateAccountTextInput@TextInput>
+<WizardTextInput@TextInput>
     border: 4, 4, 4, 4
     font_size: '15sp'
     padding: '15dp', '15dp'
@@ -34,7 +34,7 @@ Builder.load_string('''
     size_hint_y: None
     height: '48sp'
 
-<CreateAccountButton@Button>:
+<WizardButton@Button>:
     root: None
     size_hint: 1, None
     height: '48sp'
@@ -42,9 +42,9 @@ Builder.load_string('''
     on_release: if self.root: self.root.dispatch('on_release', self)
 
 
-<-CreateAccountDialog>
+<-WizardDialog>
     text_color: .854, .925, .984, 1
-    auto_dismiss: False
+    #auto_dismiss: False
     size_hint: None, None
     canvas.before:
         Color:
@@ -124,11 +124,11 @@ Builder.load_string('''
         spacing: '14dp'
         size_hint: 1, None
         height: self.minimum_height
-        CreateAccountButton:
+        WizardButton:
             id: create
             text: _('Create a new seed')
             root: root
-        CreateAccountButton:
+        WizardButton:
             id: restore
             text: _('I already have a seed')
             root: root
@@ -148,7 +148,7 @@ Builder.load_string('''
         spacing: '12dp'
         size_hint: 1, None
         height: self.minimum_height
-        CreateAccountTextInput:
+        WizardTextInput:
             id: text_input_seed
             size_hint: 1, None
             height: '110dp'
@@ -171,7 +171,7 @@ Builder.load_string('''
         spacing: '12dp'
         size_hint: 1, None
         height: self.minimum_height
-        CreateAccountButton:
+        WizardButton:
             id: back
             text: _('Back')
             root: root
@@ -179,7 +179,7 @@ Builder.load_string('''
             id: scan
             text: _('QR')
             on_release: root.scan_seed()
-        CreateAccountButton:
+        WizardButton:
             id: next
             text: _('Next')
             root: root
@@ -213,19 +213,6 @@ Builder.load_string('''
             background_normal: 'atlas://gui/kivy/theming/light/white_bg_round_top'
             background_down: self.background_normal
             text: root.seed_text
-        #GridLayout:
-        #    rows: 1
-        #    Button:
-        #        id: bt
-        #        size_hint_x: .15
-        #        background_normal: 'atlas://gui/kivy/theming/light/blue_bg_round_rb'
-        #        background_down: self.background_normal
-        #        Image:
-        #            mipmap: True
-        #            source: 'atlas://gui/kivy/theming/light/qrcode'
-        #            size: bt.size
-        #            center: bt.center
-        #         #on_release:
         Label:
             rows: 1
             size_hint: 1, .7
@@ -241,27 +228,24 @@ Builder.load_string('''
         spacing: '12dp'
         size_hint: 1, None
         height: self.minimum_height
-        CreateAccountButton:
+        WizardButton:
             id: back
             text: _('Back')
             root: root
-        CreateAccountButton:
+        WizardButton:
             id: confirm
             text: _('Confirm')
             root: root
-
-
-
 ''')
 
 
-class CreateAccountDialog(EventsDialog):
+class WizardDialog(EventsDialog):
     ''' Abstract dialog to be used as the base for all Create Account Dialogs
     '''
     crcontent = ObjectProperty(None)
 
     def __init__(self, **kwargs):
-        super(CreateAccountDialog, self).__init__(**kwargs)
+        super(WizardDialog, self).__init__(**kwargs)
         self.action = kwargs.get('action')
         _trigger_size_dialog = Clock.create_trigger(self._size_dialog)
         Window.bind(size=_trigger_size_dialog,
@@ -282,12 +266,12 @@ class CreateAccountDialog(EventsDialog):
 
     def add_widget(self, widget, index=0):
         if not self.crcontent:
-            super(CreateAccountDialog, self).add_widget(widget)
+            super(WizardDialog, self).add_widget(widget)
         else:
             self.crcontent.add_widget(widget, index=index)
 
 
-class CreateRestoreDialog(CreateAccountDialog):
+class CreateRestoreDialog(WizardDialog):
     ''' Initial Dialog for creating or restoring seed'''
 
     def on_parent(self, instance, value):
@@ -296,7 +280,7 @@ class CreateRestoreDialog(CreateAccountDialog):
             self._back = _back = partial(app.dispatch, 'on_back')
 
 
-class ShowSeedDialog(CreateAccountDialog):
+class ShowSeedDialog(WizardDialog):
 
     seed_text = StringProperty('')
     message = StringProperty('')
@@ -310,7 +294,7 @@ class ShowSeedDialog(CreateAccountDialog):
             self._back = _back = partial(self.ids.back.dispatch, 'on_release')
 
 
-class RestoreSeedDialog(CreateAccountDialog):
+class RestoreSeedDialog(WizardDialog):
 
     message = StringProperty('')
 

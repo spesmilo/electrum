@@ -110,10 +110,6 @@ class ElectrumWindow(App):
         return int(p * x)
 
 
-    hierarchy = ListProperty([])
-    '''used to navigate with the back button.
-    '''
-
     _orientation = OptionProperty('landscape',
                                  options=('landscape', 'portrait'))
 
@@ -335,14 +331,6 @@ class ElectrumWindow(App):
     def stop_wallet(self):
         if self.wallet:
             self.wallet.stop_threads()
-
-    def on_back(self):
-        try:
-            self.hierarchy.pop()()
-        except IndexError:
-            # capture back button and pause app.
-            self._pause()
-
 
     def on_keyboard_height(self, window, height):
         win = window
