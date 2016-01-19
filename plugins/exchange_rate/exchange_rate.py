@@ -294,7 +294,7 @@ class FxPlugin(BasePlugin, ThreadJob):
         return self.config.get("currency", "EUR")
 
     def config_exchange(self):
-        return self.config.get('use_exchange', 'Blockchain')
+        return self.config.get('use_exchange', 'BitcoinAverage')
 
     def config_history(self):
         return self.config.get('history_rates', 'unchecked') != 'unchecked'

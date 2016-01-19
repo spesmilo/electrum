@@ -6,6 +6,7 @@ from kivy.lang import Builder
 from electrum.i18n import _
 from electrum.util import base_units
 from electrum.i18n import languages, set_language
+from electrum.plugins import run_hook
 
 Builder.load_string('''
 <SettingsItem@ButtonBehavior+BoxLayout>
@@ -16,16 +17,16 @@ Builder.load_string('''
     Label:
         id: title
         text: self.parent.title
-        size_hint: 1, 1
         bold: True
-        text_size: self.size
         halign: 'left'
-    Label:
-        text: self.parent.description
         size_hint: 1, 1
         text_size: self.width, None
+    Label:
+        text: self.parent.description
         color: 0.8, 0.8, 0.8, 1
+        size_hint: 1, 1
         halign: 'left'
+        text_size: self.width, None
 
 <PluginItem@ButtonBehavior+BoxLayout>
     orientation: 'vertical'
@@ -64,11 +65,12 @@ Builder.load_string('''
                 settings.language_dialog(self)
         CardSeparator
         SettingsItem:
-            title: _('PIN Code') + ': %s'%('ON' if app.wallet.use_encryption else 'OFF')
-            description: _("Your PIN code will be required in order to spend bitcoins.")
+            status: 'ON' if app.wallet.use_encryption else 'OFF'
+            title: _('PIN code') + ': ' + self.status
+            description: _("Change your PIN code.")
             on_release:
                 app.change_password()
-                self.title = _('PIN Code') + ' (%s)'%('ON' if app.wallet.use_encryption else 'OFF')
+                self.status = 'ON' if app.wallet.use_encryption else 'OFF'
         CardSeparator
         SettingsItem:
             bu: app.base_unit
@@ -84,8 +86,15 @@ Builder.load_string('''
                 settings.fiat_dialog(self)
         CardSeparator
         SettingsItem:
+            status: 'ON' if bool(app.plugins.get('labels')) else 'OFF'
+            title: _('Labels Sync') + ': ' + self.status
+            description: "Synchronize labels."
+            on_release:
+                settings.labelsync_dialog(self)
+        CardSeparator
+        SettingsItem:
             title: _('OpenAlias')
-            description: "Email-like address."
+            description: "DNS record that stores one of your Bitcoin addresses."
             on_release:
                 settings.openalias_dialog()
         Widget:
@@ -105,16 +114,18 @@ class SettingsDialog(Factory.Popup):
 
     def __init__(self, app):
         self.app = app
+        self.plugins = self.app.plugins
+        self.config = self.app.electrum_config
         Factory.Popup.__init__(self)
 
     def get_language_name(self):
-        return languages.get(self.app.electrum_config.get('language', 'en_UK'), '')
+        return languages.get(self.config.get('language', 'en_UK'), '')
 
     def language_dialog(self, item):
         from choice_dialog import ChoiceDialog
-        l = self.app.electrum_config.get('language', 'en_UK')
+        l = self.config.get('language', 'en_UK')
         def cb(key):
-            self.app.electrum_config.set_key("language", key, True)
+            self.config.set_key("language", key, True)
             item.lang = self.get_language_name()
             set_language(key)
         d = ChoiceDialog(_('Language'), languages, l, cb)
@@ -131,8 +142,14 @@ class SettingsDialog(Factory.Popup):
     def fiat_dialog(self, item):
         from choice_dialog import ChoiceDialog
         def cb(text):
-            pass
-        d = ChoiceDialog(_('Fiat Currency'), {}, '', cb)
+            if text == 'None':
+                self.plugins.disable('exchange_rate')
+            else:
+                self.config.set_key('currency', text, True)
+                p = self.app.plugins.enable('exchange_rate')
+                p.init_kivy(self.app)
+
+        d = ChoiceDialog(_('Fiat Currency'), { 'None': 'None', 'USD':'USD', 'EUR':'EUR'}, '', cb)
         d.open()
 
     def openalias_dialog(self):
@@ -142,25 +159,17 @@ class SettingsDialog(Factory.Popup):
         d = LabelDialog(_('OpenAlias'), '', callback)
         d.open()
 
+    def labelsync_dialog(self, label):
+        from checkbox_dialog import CheckBoxDialog
+        def callback(status):
+            self.plugins.enable('labels') if status else self.plugins.disable('labels')
+            status = bool(self.plugins.get('labels'))
+            label.status = 'ON' if status else 'OFF'
+        status = bool(self.plugins.get('labels'))
+        descr = _('Save your labels on a remote server, and synchronizes them between various instances of your wallet.')
+        d = CheckBoxDialog(_('Labels Sync'), descr, status, callback)
+        d.open()
 
-    def show_plugins(self, plugins_list):
-
-        def on_active(sw, value):
-            self.plugins.toggle_enabled(self.electrum_config, sw.name)
-            run_hook('init_kivy', self)
-
-        for item in self.plugins.descriptions:
-            if 'kivy' not in item.get('available_for', []):
-                continue
-            name = item.get('__name__')
-            label = Label(text=item.get('fullname'), height='48db', size_hint=(1, None))
-            plugins_list.add_widget(label)
-            sw = Switch()
-            sw.name = name
-            p = self.plugins.get(name)
-            sw.active = (p is not None) and p.is_enabled()
-            sw.bind(active=on_active)
-            plugins_list.add_widget(sw)
 
 class PluginItem():
     def __init__(self, name):
