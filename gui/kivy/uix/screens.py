@@ -27,8 +27,10 @@ from context_menu import ContextMenu
 
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 
-class CScreen(Factory.Screen):
+class EmptyLabel(Factory.Label):
+    pass
 
+class CScreen(Factory.Screen):
     __events__ = ('on_activate', 'on_deactivate', 'on_enter', 'on_leave')
     action_view = ObjectProperty(None)
     loaded = False
@@ -85,12 +87,7 @@ class CScreen(Factory.Screen):
         self.add_widget(self.context_menu)
 
 
-class EmptyLabel(Label):
-    def __init__(self, **kwargs):
-        super(EmptyLabel, self).__init__(**kwargs)
-        self.color=(0.8, 0.8, 0.8, 1)
-        self.size_hint=(1, None)
-        self.text_size=(400, None)
+
 
 
 class HistoryScreen(CScreen):
@@ -176,35 +173,6 @@ class HistoryScreen(CScreen):
 
 
 
-
-class ScreenAddress(CScreen):
-    '''This is the dialog that shows a carousel of the currently available
-    addresses.
-    '''
-
-    labels  = DictProperty({})
-    ''' A precached list of address labels.
-    '''
-
-    tab =  ObjectProperty(None)
-    ''' The tab associated With this Carousel
-    '''
-
-
-class ScreenPassword(Factory.Screen):
-
-    __events__ = ('on_release', 'on_deactivate', 'on_activate')
-
-    def on_activate(self):
-        app = App.get_running_app()
-        action_bar = app.root.main_screen.ids.action_bar
-        action_bar.add_widget(self._action_view)
-
-    def on_deactivate(self):
-        self.ids.password.text = ''
-
-    def on_release(self, *args):
-        pass
 
 
 
@@ -458,7 +426,7 @@ class RequestsScreen(CScreen):
             requests_list.add_widget(ci)
 
         if not _list:
-            msg = _('This screen shows the list of payment requests you saved.')
+            msg = _('This screen shows the list of payment requests made by you.')
             requests_list.add_widget(EmptyLabel(text=msg))
 
     def do_show(self, obj):

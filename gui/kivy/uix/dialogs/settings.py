@@ -54,7 +54,7 @@ Builder.load_string('''
 
 <SettingsDialog@Popup>
     id: settings
-    title: _('Settings')
+    title: _('Electrum Settings')
     BoxLayout:
         orientation: 'vertical'
         SettingsItem:
