@@ -274,9 +274,9 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         ) % self.device
 
         methods = [
+            # Must be short as QT doesn't word-wrap radio button text
             _("Let the device generate a completely new seed randomly"),
-            _("Recover from an existing %s seed you have previously written "
-              "down" % self.device),
+            _("Recover from a seed you have previously written down"),
             _("Upload a BIP39 mnemonic to generate the seed"),
             _("Upload a master private key")
         ]
