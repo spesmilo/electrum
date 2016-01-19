@@ -50,8 +50,8 @@ class WalletDialog(Factory.Popup):
         def cb(text):
             if text:
                 app.load_wallet_by_name(os.path.join(dirname, text))
-        if self.path:
-            app.load_wallet_by_name(self.path)
+        if self.ids.wallet_selector.selection:
+            app.load_wallet_by_name(self.ids.wallet_selector.selection[0])
         else:
             d = LabelDialog(_('Enter wallet name'), '', cb)
             d.open()
