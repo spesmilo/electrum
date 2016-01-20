@@ -24,8 +24,6 @@ if __name__ == '__main__':
         'six',
         'jsonrpclib',
     ]
-    # don't use /usr/lib
-    sys.path = ['/usr/local/lib/python2.7/dist-packages']
     for module in deps:
         f, pathname, descr = imp.find_module(module)
         target = 'packages/' + module + descr[0]
@@ -43,6 +41,17 @@ if __name__ == '__main__':
     n = 'packages/google/__init__.py'
     if not os.path.exists(n):
         os.system("echo \# do not remove>%s"%n)
+
+    # patch requests and add cacert.pem
+    import requests
+    crt = requests.certs.where()
+    n = 'packages/requests/certs.py'
+    with open(n, 'r') as f:
+        s = f.read()
+    s = s.replace("'%s'"%crt, "os.path.join(os.path.dirname(__file__), 'cacert.pem')")
+    with open(n, 'w') as f:
+	f.write(s)
+    shutil.copy(crt, 'packages/requests/cacert.pem')
 
     os.system("pyrcc4 icons.qrc -o gui/qt/icons_rc.py")
     os.system("python setup.py sdist --format=zip,gztar")
