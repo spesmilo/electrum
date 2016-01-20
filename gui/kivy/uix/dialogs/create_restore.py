@@ -270,6 +270,12 @@ class WizardDialog(EventsDialog):
         else:
             self.crcontent.add_widget(widget, index=index)
 
+    def on_dismiss(self):
+        app = App.get_running_app()
+        if app.wallet is None and self._on_release is not None:
+            print "on dismiss: stopping app"
+            app.stop()
+
 
 class CreateRestoreDialog(WizardDialog):
     ''' Initial Dialog for creating or restoring seed'''
