@@ -110,10 +110,6 @@ class ElectrumWindow(App):
         return int(p * x)
 
 
-    hierarchy = ListProperty([])
-    '''used to navigate with the back button.
-    '''
-
     _orientation = OptionProperty('landscape',
                                  options=('landscape', 'portrait'))
 
@@ -321,28 +317,12 @@ class ElectrumWindow(App):
             self.load_wallet(wallet)
         self.on_resume()
 
-    def create_wallet_dialog(self, l):
-        from uix.dialogs.label_dialog import LabelDialog
-        def f(text):
-            if text:
-                l.text = text
-        d = LabelDialog(_('Enter wallet name'), '', f)
-        d.open()
-
     def on_stop(self):
         self.stop_wallet()
 
     def stop_wallet(self):
         if self.wallet:
             self.wallet.stop_threads()
-
-    def on_back(self):
-        try:
-            self.hierarchy.pop()()
-        except IndexError:
-            # capture back button and pause app.
-            self._pause()
-
 
     def on_keyboard_height(self, window, height):
         win = window

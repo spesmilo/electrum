@@ -1,5 +1,6 @@
 import base64
 import re
+import threading
 import time
 
 from binascii import unhexlify
@@ -172,6 +173,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
+        self.main_thread = threading.current_thread()
         self.device = self.wallet_class.device
         self.wallet_class.plugin = self
         self.prevent_timeout = time.time() + 3600 * 24 * 365
@@ -216,6 +218,8 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         return self.client_class(transport, handler, self, hid_id)
 
     def get_client(self, wallet, force_pair=True, check_firmware=True):
+        assert self.main_thread != threading.current_thread()
+
         '''check_firmware is ignored unless force_pair is True.'''
         client = self.device_manager().get_client(wallet, force_pair)
 
@@ -270,9 +274,9 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         ) % self.device
 
         methods = [
+            # Must be short as QT doesn't word-wrap radio button text
             _("Let the device generate a completely new seed randomly"),
-            _("Recover from an existing %s seed you have previously written "
-              "down" % self.device),
+            _("Recover from a seed you have previously written down"),
             _("Upload a BIP39 mnemonic to generate the seed"),
             _("Upload a master private key")
         ]
@@ -281,26 +285,30 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         (item, label, pin_protection, passphrase_protection) \
             = wallet.handler.request_trezor_init_settings(method, self.device)
 
-        client = self.get_client(wallet)
         language = 'english'
 
-        if method == TIM_NEW:
-            strength = 64 * (item + 2)  # 128, 192 or 256
-            client.reset_device(True, strength, passphrase_protection,
-                                pin_protection, label, language)
-        elif method == TIM_RECOVER:
-            word_count = 6 * (item + 2)  # 12, 18 or 24
-            client.recovery_device(word_count, passphrase_protection,
-                                   pin_protection, label, language)
-        elif method == TIM_MNEMONIC:
-            pin = pin_protection  # It's the pin, not a boolean
-            client.load_device_by_mnemonic(str(item), pin,
-                                           passphrase_protection,
+        def initialize_device():
+            client = self.get_client(wallet)
+
+            if method == TIM_NEW:
+                strength = 64 * (item + 2)  # 128, 192 or 256
+                client.reset_device(True, strength, passphrase_protection,
+                                    pin_protection, label, language)
+            elif method == TIM_RECOVER:
+                word_count = 6 * (item + 2)  # 12, 18 or 24
+                client.recovery_device(word_count, passphrase_protection,
+                                       pin_protection, label, language)
+            elif method == TIM_MNEMONIC:
+                pin = pin_protection  # It's the pin, not a boolean
+                client.load_device_by_mnemonic(str(item), pin,
+                                               passphrase_protection,
+                                               label, language)
+            else:
+                pin = pin_protection  # It's the pin, not a boolean
+                client.load_device_by_xprv(item, pin, passphrase_protection,
                                            label, language)
-        else:
-            pin = pin_protection  # It's the pin, not a boolean
-            client.load_device_by_xprv(item, pin, passphrase_protection,
-                                       label, language)
+
+        wallet.thread.add(initialize_device)
 
     def unpaired_clients(self, handler):
         '''Returns all connected, unpaired devices as a list of clients and a

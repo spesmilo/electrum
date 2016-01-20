@@ -37,9 +37,10 @@ import icons_rc
 from electrum_ltc.bitcoin import COIN, is_valid, TYPE_ADDRESS
 from electrum_ltc.plugins import run_hook
 from electrum_ltc.i18n import _
-from electrum_ltc.util import block_explorer, block_explorer_info, block_explorer_URL
-from electrum_ltc.util import format_satoshis, format_satoshis_plain, format_time
-from electrum_ltc.util import PrintError, NotEnoughFunds, StoreDict
+from electrum_ltc.util import (block_explorer, block_explorer_info, format_time,
+                               block_explorer_URL, format_satoshis, PrintError,
+                               format_satoshis_plain, NotEnoughFunds, StoreDict,
+                               SilentException)
 from electrum_ltc import Transaction, mnemonic
 from electrum_ltc import util, bitcoin, commands
 from electrum_ltc import SimpleConfig, COIN_CHOOSERS, paymentrequest
@@ -198,8 +199,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.raise_()
 
     def on_error(self, exc_info):
-        traceback.print_exception(*exc_info)
-        self.show_error(str(exc_info[1]))
+        if not isinstance(exc_info[1], SilentException):
+            traceback.print_exception(*exc_info)
+            self.show_error(str(exc_info[1]))
 
     def on_network(self, event, *args):
         if event == 'updated':
@@ -254,6 +256,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         run_hook('close_wallet', self.wallet)
 
     def load_wallet(self, wallet):
+        wallet.thread = TaskThread(self, self.on_error)
         self.wallet = wallet
         self.update_recently_visited(wallet.storage.path)
         self.import_old_contacts()
@@ -2059,14 +2062,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d.setLayout(vbox)
         d.exec_()
 
-
     @protected
     def do_sign(self, address, message, signature, password):
-        message = unicode(message.toPlainText())
-        message = message.encode('utf-8')
-        sig = self.wallet.sign_message(str(address.text()), message, password)
-        sig = base64.b64encode(sig)
-        signature.setText(sig)
+        message = unicode(message.toPlainText()).encode('utf-8')
+        task = partial(self.wallet.sign_message, str(address.text()),
+                       message, password)
+        def show_signed_message(sig):
+            signature.setText(base64.b64encode(sig))
+        self.wallet.thread.add(task, on_success=show_signed_message)
 
     def do_verify(self, address, message, signature):
         message = unicode(message.toPlainText())
@@ -2123,13 +2126,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     @protected
     def do_decrypt(self, message_e, pubkey_e, encrypted_e, password):
-        try:
-            decrypted = self.wallet.decrypt_message(str(pubkey_e.text()), str(encrypted_e.toPlainText()), password)
-            message_e.setText(decrypted)
-        except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
-            self.show_warning(str(e))
-
+        cyphertext = str(encrypted_e.toPlainText())
+        task = partial(self.wallet.decrypt_message, str(pubkey_e.text()),
+                       cyphertext, password)
+        self.wallet.thread.add(task, on_success=message_e.setText)
 
     def do_encrypt(self, message_e, pubkey_e, encrypted_e):
         message = unicode(message_e.toPlainText())
@@ -2856,6 +2856,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         event.accept()
 
     def clean_up(self):
+        self.wallet.thread.stop()
         if self.network:
             self.network.unregister_callback(self.on_network)
         self.config.set_key("is_maximized", self.isMaximized())
@@ -2903,7 +2904,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 widget.setEnabled(bool(p and p.is_enabled()))
 
         def do_toggle(cb, name, i):
-            p = plugins.toggle_enabled(self.config, name)
+            p = plugins.toggle(name)
             cb.setChecked(bool(p))
             enable_settings_widget(p, name, i)
             run_hook('init_qt', self.gui_object)

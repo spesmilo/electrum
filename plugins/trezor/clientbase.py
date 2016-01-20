@@ -1,7 +1,7 @@
 from sys import stderr
 
 from electrum_ltc.i18n import _
-from electrum_ltc.util import PrintError
+from electrum_ltc.util import PrintError, SilentException
 
 
 class GuiMixin(object):
@@ -19,6 +19,16 @@ class GuiMixin(object):
         'remove pin': _("Confirm removal of PIN on %s device to continue"),
         'passphrase': _("Confirm on %s device to continue"),
     }
+
+    def callback_Failure(self, msg):
+        # BaseClient's unfortunate call() implementation forces us to
+        # raise exceptions on failure in order to unwind the stack.
+        # However, making the user acknowledge they cancelled
+        # gets old very quickly, so we suppress those.
+        if msg.code in (self.types.Failure_PinCancelled,
+                        self.types.Failure_ActionCancelled):
+            raise SilentException()
+        raise RuntimeError(msg.message)
 
     def callback_ButtonRequest(self, msg):
         msg_code = self.msg_code_override or msg.code
@@ -65,6 +75,7 @@ class TrezorClientBase(GuiMixin, PrintError):
         self.handler = handler
         self.hid_id_ = hid_id
         self.tx_api = plugin
+        self.types = plugin.types
         self.msg_code_override = None
 
     def __str__(self):
@@ -172,9 +183,6 @@ class TrezorClientBase(GuiMixin, PrintError):
         def wrapped(self, *args, **kwargs):
             try:
                 return func(self, *args, **kwargs)
-            except BaseException as e:
-                self.handler.show_error(str(e))
-                raise e
             finally:
                 self.handler.finished()
 

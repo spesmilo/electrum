@@ -314,6 +314,8 @@ def ASecretToSecret(key, addrtype=48):
     vch = DecodeBase58Check(key)
     if vch and vch[0] == chr((addrtype+128)&255):
         return vch[1:]
+    elif is_minikey(key):
+        return minikey_to_private_key(key)
     else:
         return False
 
@@ -379,6 +381,18 @@ def is_private_key(key):
 
 
 ########### end pywallet functions #######################
+
+def is_minikey(text):
+    # Minikeys are typically 22 or 30 characters, but this routine
+    # permits any length provided the minikey is valid.  A valid
+    # minikey must begin with an 'S', be in base58, and when suffixed
+    # with '?' have its SHA256 hash begin with a zero byte.  They are
+    # widely used in Casascius physical bitoins.
+    return (text and text[0] == 'S' and all(c in __b58chars for c in text)
+            and ord(sha256(text + '?')[0]) == 0)
+
+def minikey_to_private_key(text):
+    return sha256(text)
 
 from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
 from ecdsa.curves import SECP256k1

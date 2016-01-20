@@ -14,6 +14,7 @@ from password_dialog import PasswordLayout, PW_NEW, PW_PASSPHRASE
 
 from electrum_ltc.wallet import Wallet
 from electrum_ltc.mnemonic import prepare_seed
+from electrum_ltc.util import SilentException
 from electrum_ltc.wizard import (WizardBase, UserCancelled,
                                  MSG_ENTER_PASSWORD, MSG_RESTORE_PASSPHRASE,
                                  MSG_COSIGNER, MSG_ENTER_SEED_OR_MPK,
@@ -115,6 +116,11 @@ class InstallWizard(WindowModalDialog, WizardBase):
         '''Ensure the dialog is closed.'''
         self.accept()
         self.refresh_gui()
+
+    def on_error(self, exc_info):
+        if not isinstance(exc_info[1], SilentException):
+            traceback.print_exception(*exc_info)
+            self.show_error(str(exc_info[1]))
 
     def set_icon(self, filename):
         prior_filename, self.icon_filename = self.icon_filename, filename
