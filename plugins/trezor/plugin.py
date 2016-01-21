@@ -315,27 +315,28 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         devices = devmgr.unpaired_devices(handler)
 
         states = [_("wiped"), _("initialized")]
-        good_devices, descrs = [], []
+        infos = []
         for device in devices:
             client = self.device_manager().create_client(device, handler, self)
             if not client:
                 continue
             state = states[client.is_initialized()]
             label = client.label() or _("An unnamed device")
-            good_devices.append(device)
-            descrs.append("%s: device ID %s (%s)" % (label, device.id_, state))
+            descr = "%s: device ID %s (%s)" % (label, device.id_, state)
+            infos.append((device, descr, client.is_initialized()))
 
-        return good_devices, descrs
+        return infos
 
     def select_device(self, wallet):
         '''Called when creating a new wallet.  Select the device to use.  If
         the device is uninitialized, go through the intialization
         process.'''
         msg = _("Please select which %s device to use:") % self.device
-        devices, labels = self.unpaired_devices(wallet.handler)
-        device = devices[wallet.handler.query_choice(msg, labels)]
+        infos = self.unpaired_devices(wallet.handler)
+        labels = [info[1] for info in infos]
+        device, descr, init = infos[wallet.handler.query_choice(msg, labels)]
         self.device_manager().pair_wallet(wallet, device.id_)
-        if not client.is_initialized():
+        if not init:
             self.initialize_device(wallet)
 
     def on_restore_wallet(self, wallet, wizard):

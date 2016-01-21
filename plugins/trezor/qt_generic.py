@@ -15,6 +15,18 @@ from electrum.util import PrintError
 from electrum.wallet import Wallet, BIP44_Wallet
 from electrum.wizard import UserCancelled
 
+PASSPHRASE_HELP_SHORT =_(
+    "Passphrases allow you to access new wallets, each "
+    "hidden behind a particular case-sensitive passphrase.")
+PASSPHRASE_HELP = PASSPHRASE_HELP_SHORT + "  " + _(
+    "You need to create a separate Electrum wallet for each passphrase "
+    "you use as they each generate different addresses.  Changing "
+    "your passphrase does not lose other wallets, each is still "
+    "accessible behind its own passphrase.")
+PASSPHRASE_NOT_PIN = _(
+    "If you forget a passphrase you will be unable to access any "
+    "bitcoins in the wallet behind it.  A passphrase is not a PIN. "
+    "Only change this if you are sure you understand it.")
 
 # By far the trickiest thing about this handler is the window stack;
 # MacOSX is very fussy the modal dialogs are perfectly parented
@@ -195,12 +207,16 @@ class QtHandler(PrintError):
         else:
             vbox.addLayout(hbox_pin)
 
-        cb_phrase = QCheckBox(_('Enable Passphrase protection'))
+        passphrase_msg = WWLabel(PASSPHRASE_HELP_SHORT)
+        passphrase_warning = WWLabel(PASSPHRASE_NOT_PIN)
+        passphrase_warning.setStyleSheet("color: red")
+        cb_phrase = QCheckBox(_('Enable passphrases'))
         cb_phrase.setChecked(False)
+        vbox.addWidget(passphrase_msg)
+        vbox.addWidget(passphrase_warning)
         vbox.addWidget(cb_phrase)
 
-        title = _("Initialization settings for your %s:") % device
-        wizard.set_main_layout(vbox, next_enabled=next_enabled, title=title)
+        wizard.set_main_layout(vbox, next_enabled=next_enabled)
 
         if method in [TIM_NEW, TIM_RECOVER]:
             item = bg.checkedId()
@@ -262,12 +278,13 @@ def qt_plugin_class(base_plugin_class):
         handler = window.wallet.handler
         device_id = self.device_manager().wallet_id(window.wallet)
         if not device_id:
-            devices, labels = self.unpaired_devices(handler)
-            if devices:
+            infos = self.unpaired_devices(handler)
+            if infos:
+                labels = [info[1] for info in infos]
                 msg = _("Select a %s device:") % self.device
                 choice = self.query_choice(window, msg, labels)
                 if choice is not None:
-                    device_id = devices[choice].id_
+                    device_id = infos[choice][0].id_
             else:
                 handler.show_error(_("No devices found"))
         return device_id
@@ -365,7 +382,7 @@ class SettingsDialog(WindowModalDialog):
             if not self.question(msg, title=title):
                 return
             invoke_client('toggle_passphrase')
-            devmgr.unpair(device_id)
+            devmgr.unpair_id(device_id)
 
         def change_homescreen():
             from PIL import Image  # FIXME
@@ -403,7 +420,7 @@ class SettingsDialog(WindowModalDialog):
                                      icon=QMessageBox.Critical):
                     return
             invoke_client('wipe_device')
-            devmgr.unpair(device_id)
+            devmgr.unpair_id(device_id)
 
         def slider_moved():
             mins = timeout_slider.sliderPosition()
@@ -545,19 +562,8 @@ class SettingsDialog(WindowModalDialog):
         # Advanced tab - toggle passphrase protection
         passphrase_button = QPushButton()
         passphrase_button.clicked.connect(toggle_passphrase)
-        passphrase_msg = QLabel(
-            _("Passphrases allow you to access new wallets, each "
-              "hidden behind a particular case-sensitive passphrase.  You "
-              "need to create a separate Electrum wallet for each passphrase "
-              "you use as they each generate different addresses.  Changing "
-              "your passphrase does not lose other wallets, each is still "
-              "accessible behind its own passphrase."))
-        passphrase_msg.setWordWrap(True)
-        passphrase_warning = QLabel(
-            _("If you forget a passphrase you will be unable to access any "
-              "bitcoins in the wallet behind it.  A passphrase is not a PIN. "
-              "Only change this if you are sure you understand it."))
-        passphrase_warning.setWordWrap(True)
+        passphrase_msg = WWLabel(PASSPHRASE_MSG)
+        passphrase_warning = WWLabel(PASSPHRASE_NOT_PIN)
         passphrase_warning.setStyleSheet("color: red")
         advanced_glayout.addWidget(passphrase_button, 3, 2)
         advanced_glayout.addWidget(passphrase_msg, 4, 0, 1, 5)
