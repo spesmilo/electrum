@@ -19,34 +19,6 @@
     height: self.minimum_height
 
 
-<BlueSpinner@BoxLayout>
-    foreground_color: 1, 1, 1, 1
-    spacing: '9dp'
-    text: ''
-    values: ('', )
-    icon: ''
-    Image:
-        source: root.icon
-        size_hint: None, None
-        size: '22dp', '22dp'
-        pos_hint: {'center_y': .5}
-    OppositeSpinner:
-        color: root.foreground_color
-        background_normal: 'atlas://gui/kivy/theming/light/action_group_light'
-        markup: False
-        shorten: True
-        font_size: '16dp'
-        size_hint: 1, .7
-        pos_hint: {'center_y': .5}
-        text: root.text
-        text_size: self.size
-        halign: 'left'
-        valign: 'middle'
-        on_text:
-            root.text = args[1]
-        values: root.values
-
-
 <IconButton@ButtonBehavior+Image>
     allow_stretch: True
     size_hint_x: None
