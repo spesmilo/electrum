@@ -426,7 +426,7 @@ class RequestsScreen(CScreen):
             requests_list.add_widget(ci)
 
         if not _list:
-            msg = _('This screen shows the list of payment requests made by you.')
+            msg = _('This screen shows the list of payment requests you made.')
             requests_list.add_widget(EmptyLabel(text=msg))
 
     def do_show(self, obj):
