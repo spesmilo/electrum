@@ -172,7 +172,6 @@ class SettingsDialog(Factory.Popup):
     def plugin_dialog(self, name, label):
         from checkbox_dialog import CheckBoxDialog
         def callback(status):
-            print 'z', status
             self.plugins.enable(name) if status else self.plugins.disable(name)
             label.status = 'ON' if status else 'OFF'
         status = bool(self.plugins.get(name))
