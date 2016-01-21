@@ -264,7 +264,7 @@ class FxPlugin(BasePlugin, ThreadJob):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
-        self.ccy = self.config_ccy()
+        self.ccy = self.get_currency()
         self.history_used_spot = False
         self.ccy_combo = None
         self.hist_checkbox = None
@@ -289,7 +289,7 @@ class FxPlugin(BasePlugin, ThreadJob):
             self.timeout = time.time() + 150
             self.exchange.update(self.ccy)
 
-    def config_ccy(self):
+    def get_currency(self):
         '''Use when dynamic fetching is needed'''
         return self.config.get("currency", "EUR")
 
@@ -301,6 +301,11 @@ class FxPlugin(BasePlugin, ThreadJob):
 
     def show_history(self):
         return self.config_history() and self.exchange.history_ccys()
+
+    def set_currency(self, ccy):
+        self.ccy = ccy
+        self.config.set_key('currency', ccy, True)
+        self.get_historical_rates() # Because self.ccy changes
 
     def set_exchange(self, name):
         class_ = self.exchanges.get(name) or self.exchanges.values()[0]

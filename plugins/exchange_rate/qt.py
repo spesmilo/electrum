@@ -85,10 +85,8 @@ class Plugin(FxPlugin):
         '''Called when the chosen currency changes'''
         ccy = str(self.ccy_combo.currentText())
         if ccy and ccy != self.ccy:
-            self.ccy = ccy
-            self.config.set_key('currency', ccy, True)
+            self.set_currency(ccy)
             self.app.emit(SIGNAL('new_fx_quotes'))
-            self.get_historical_rates() # Because self.ccy changes
             self.hist_checkbox_update()
 
     def hist_checkbox_update(self):
@@ -110,11 +108,11 @@ class Plugin(FxPlugin):
     @hook
     def on_new_window(self, window):
         # Additional send and receive edit boxes
-        send_e = AmountEdit(self.config_ccy)
+        send_e = AmountEdit(self.get_currency)
         window.send_grid.addWidget(send_e, 4, 2, Qt.AlignLeft)
         window.amount_e.frozen.connect(
             lambda: send_e.setFrozen(window.amount_e.isReadOnly()))
-        receive_e = AmountEdit(self.config_ccy)
+        receive_e = AmountEdit(self.get_currency)
         window.receive_grid.addWidget(receive_e, 2, 2, Qt.AlignLeft)
         window.fiat_send_e = send_e
         window.fiat_receive_e = receive_e

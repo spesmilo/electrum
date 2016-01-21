@@ -78,6 +78,10 @@ class ElectrumWindow(App):
     status = StringProperty('')
     fiat_unit = StringProperty('')
 
+    def on_fiat_unit(self, a, b):
+        if self.history_screen:
+            self.history_screen.update()
+
     def decimal_point(self):
         return base_units[self.base_unit]
 
@@ -548,35 +552,8 @@ class ElectrumWindow(App):
         #Logger.info('orientation: {}'.format(self._orientation))
         #Logger.info('ui_mode: {}'.format(self._ui_mode))
 
-    def save_new_contact(self, address, label):
-        address = unicode(address)
-        label = unicode(label)
-        global is_valid
-        if not is_valid:
-            from electrum.bitcoin import is_valid
-
-        if is_valid(address):
-            if label:
-                self.set_label(address, text=label)
-            self.wallet.add_contact(address)
-            self.update_contacts_tab()
-            self.update_history_tab()
-        else:
-            self.show_error(_('Invalid Address'))
-
-
     def set_send(self, address, amount, label, message):
         self.send_payment(address, amount=amount, label=label, message=message)
-
-
-    def set_frozen(self, entry, frozen):
-        if frozen:
-            entry.disabled = True
-            Factory.Animation(opacity=0).start(content)
-        else:
-            entry.disabled = False
-            Factory.Animation(opacity=1).start(content)
-
 
     def show_error(self, error, width='200dp', pos=None, arrow_pos=None,
         exit=False, icon='atlas://gui/kivy/theming/light/error', duration=0,

@@ -131,7 +131,7 @@ class SettingsDialog(Factory.Popup):
         def cb(text):
             self.app._set_bu(text)
             item.bu = self.app.base_unit
-        d = ChoiceDialog(_('Denomination'), base_units, self.app.base_unit, cb)
+        d = ChoiceDialog(_('Denomination'), base_units.keys(), self.app.base_unit, cb)
         d.open()
 
     def fiat_currency_dialog(self, item):
@@ -140,10 +140,11 @@ class SettingsDialog(Factory.Popup):
         if not p:
             return
         def cb(text):
-            self.config.set_key('currency', text, True)
+            p.set_currency(text)
             item.status = text
+            self.app.fiat_unit = text
         l = sorted(p.exchange.quotes.keys()) if p else []
-        d = ChoiceDialog(_('Fiat Currency'), l, '', cb)
+        d = ChoiceDialog(_('Fiat Currency'), l, p.get_currency(), cb)
         d.open()
 
     def fiat_source(self):
