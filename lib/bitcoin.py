@@ -384,11 +384,12 @@ def is_private_key(key):
 
 def is_minikey(text):
     # Minikeys are typically 22 or 30 characters, but this routine
-    # permits any length provided the minikey is valid.  A valid
-    # minikey must begin with an 'S', be in base58, and when suffixed
-    # with '?' have its SHA256 hash begin with a zero byte.  They are
-    # widely used in Casascius physical bitoins.
-    return (text and text[0] == 'S' and all(c in __b58chars for c in text)
+    # permits any length of 20 or more provided the minikey is valid.
+    # A valid minikey must begin with an 'S', be in base58, and when
+    # suffixed with '?' have its SHA256 hash begin with a zero byte.
+    # They are widely used in Casascius physical bitoins.
+    return (len(text) >= 20 and text[0] == 'S'
+            and all(c in __b58chars for c in text)
             and ord(sha256(text + '?')[0]) == 0)
 
 def minikey_to_private_key(text):

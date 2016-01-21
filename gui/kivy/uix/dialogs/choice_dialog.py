@@ -24,7 +24,7 @@ Builder.load_string('''
                 orientation: 'vertical'
                 id: choices
                 cols: 2
-                size_hint: 1, 1
+                size_hint: 1, None
         BoxLayout:
             orientation: 'horizontal'
             size_hint: 1, 0.2
@@ -46,7 +46,11 @@ class ChoiceDialog(Factory.Popup):
 
     def __init__(self, title, choices, key, callback):
         Factory.Popup.__init__(self)
-        for k, v in choices.items():
+        if type(choices) is list:
+            choices = dict(map(lambda x: (x,x), choices))
+        layout = self.ids.choices
+        layout.bind(minimum_height=layout.setter('height'))
+        for k, v in sorted(choices.items()):
             l = Label(text=v)
             l.height = '48dp'
             cb = CheckBox(group='choices')
@@ -57,9 +61,9 @@ class ChoiceDialog(Factory.Popup):
             cb.bind(active=f)
             if k == key:
                 cb.active = True
-            self.ids.choices.add_widget(l)
-            self.ids.choices.add_widget(cb)
-        self.ids.choices.add_widget(Widget(size_hint_y=1))
+            layout.add_widget(l)
+            layout.add_widget(cb)
+        layout.add_widget(Widget(size_hint_y=1))
         self.callback = callback
         self.title = title
         self.value = key

@@ -18,78 +18,6 @@
     size_hint: 1, None
     height: self.minimum_height
 
-<LightOptions@SpinnerOption>
-    font_size: '14sp'
-    border: 4, 4, 4, 4
-    color: 0.439, 0.439, 0.439, .8
-    background_normal: 'atlas://gui/kivy/theming/light/action_button_group'
-    background_down: 'atlas://gui/kivy/theming/light/overflow_btn_dn'
-    size_hint_y: None
-    height: '48dp'
-    text_size: self.size[0] - dp(20), self.size[1]
-    halign: 'left'
-    valign: 'middle'
-    shorten: True
-    on_press:
-        ddn = self.parent.parent
-        Factory.Animation(opacity=0, d=.25).start(ddn)
-
-<OppositeDropDown@DropDown>
-    #auto_width: False
-    size_hint: None, None
-    size: self.container.minimum_size if self.container else (0, 0)
-    on_container: if args[1]: self.container.padding = '4dp', '4dp', '4dp', '4dp'
-    canvas.before:
-        Color:
-            rgba: 1, 1, 1, 1
-        BorderImage:
-            pos:self.pos
-            border: 20, 20, 20, 20
-            source: 'atlas://gui/kivy/theming/light/dropdown_background'
-            size: self.size
-
-<OppositeSpinner@CSpinner>
-    dropdown_cls: Factory.OppositeDropDown
-    option_cls: Factory.LightOptions
-    border: 20, 20, 9, 9
-    background_normal: 'atlas://gui/kivy/theming/light/action_group_dark'
-    background_down: self.background_normal
-    values: ('Copy to clipboard', 'Send Payment')
-    size_hint: None, 1
-    width: '12dp'
-    on_release:
-        ddn = self._dropdown
-        ddn.opacity = 0
-        Factory.Animation(opacity=1, d=.25).start(ddn)
-
-
-<BlueSpinner@BoxLayout>
-    foreground_color: 1, 1, 1, 1
-    spacing: '9dp'
-    text: ''
-    values: ('', )
-    icon: ''
-    Image:
-        source: root.icon
-        size_hint: None, None
-        size: '22dp', '22dp'
-        pos_hint: {'center_y': .5}
-    OppositeSpinner:
-        color: root.foreground_color
-        background_normal: 'atlas://gui/kivy/theming/light/action_group_light'
-        markup: False
-        shorten: True
-        font_size: '16dp'
-        size_hint: 1, .7
-        pos_hint: {'center_y': .5}
-        text: root.text
-        text_size: self.size
-        halign: 'left'
-        valign: 'middle'
-        on_text:
-            root.text = args[1]
-        values: root.values
-
 
 <IconButton@ButtonBehavior+Image>
     allow_stretch: True
@@ -160,15 +88,6 @@
             width: 0 if root.fs else (root.width - img.width)
 
 
-
-<WalletActionPrevious@ActionPrevious>
-    app_icon: 'atlas://gui/kivy/theming/light/' + ('wallets' if app.ui_mode[0] != 't' else 'tab_btn')
-    with_previous: False
-    size_hint: None, 1
-    mipmap: True
-    on_release: app.root.children[0].toggle_drawer()
-
-
 <SendReceiveBlueBottom@GridLayout>
     canvas.before:
         Color:
@@ -211,11 +130,6 @@
         Rectangle:
             size: self.size
             pos: self.pos
-
-<AddressSelector@BlueSpinner>
-    icon: 'atlas://gui/kivy/theming/light/globe'
-    values: [] #app.wallet.addresses() if app.wallet else []
-    text: _("Select Your address")
 
 <BlueButton@Button>:
     background_color: .238, .585, .878, 0

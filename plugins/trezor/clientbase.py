@@ -68,26 +68,21 @@ class GuiMixin(object):
 
 class TrezorClientBase(GuiMixin, PrintError):
 
-    def __init__(self, handler, plugin, hid_id, proto):
+    def __init__(self, handler, plugin, proto):
         assert hasattr(self, 'tx_api')  # ProtocolMixin already constructed?
         self.proto = proto
         self.device = plugin.device
         self.handler = handler
-        self.hid_id_ = hid_id
         self.tx_api = plugin
         self.types = plugin.types
         self.msg_code_override = None
 
     def __str__(self):
-        return "%s/%s" % (self.label(), self.hid_id())
+        return "%s/%s" % (self.label(), self.features.device_id)
 
     def label(self):
         '''The name given by the user to the device.'''
         return self.features.label
-
-    def hid_id(self):
-        '''The HID ID of the device.'''
-        return self.hid_id_
 
     def is_initialized(self):
         '''True if initialized, False if wiped.'''
@@ -163,7 +158,7 @@ class TrezorClientBase(GuiMixin, PrintError):
 
     def close(self):
         '''Called when Our wallet was closed or the device removed.'''
-        self.print_error("disconnected")
+        self.print_error("closing client")
         self.clear_session()
         # Release the device
         self.transport.close()

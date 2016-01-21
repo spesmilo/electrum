@@ -2909,7 +2909,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             enable_settings_widget(p, name, i)
             run_hook('init_qt', self.gui_object)
 
-        for i, descr in enumerate(plugins.descriptions):
+        for i, descr in enumerate(plugins.descriptions.values()):
             name = descr['__name__']
             p = plugins.get(name)
             if descr.get('registers_wallet_type'):

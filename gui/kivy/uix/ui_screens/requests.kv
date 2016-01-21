@@ -45,12 +45,6 @@ RequestsScreen:
         orientation: 'vertical'
         spacing: '1dp'
         ScrollView:
-            canvas.before:
-                Color:
-                    rgba: .8901, .8901, .8901, 0
-                Rectangle:
-                    size: self.size
-                    pos: self.pos
             GridLayout:
                 cols: 1
                 id: requests_container
