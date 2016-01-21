@@ -314,13 +314,14 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         devmgr = self.device_manager()
         devices = devmgr.unpaired_devices(handler)
 
+        states = [_("wiped"), _("initialized")]
         good_devices, descrs = [], []
         for device in devices:
             client = self.device_manager().create_client(device, handler, self)
             if not client:
                 continue
             state = states[client.is_initialized()]
-            label = device.info['label'] or _("An unnamed device")
+            label = client.label() or _("An unnamed device")
             good_devices.append(device)
             descrs.append("%s: device ID %s (%s)" % (label, device.id_, state))
 

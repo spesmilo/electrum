@@ -281,6 +281,10 @@ class DeviceMgr(PrintError):
             self.recognised_hardware.add(pair)
 
     def create_client(self, device, handler, plugin):
+        # Get from cache first
+        client = self.client_lookup(device.id_)
+        if client:
+            return client
         client = plugin.create_client(device, handler)
         if client:
             self.print_error("Registering", client)
@@ -301,6 +305,8 @@ class DeviceMgr(PrintError):
 
     def unpair_wallet(self, wallet):
         with self.lock:
+            if not wallet in self.wallets:
+                return
             wallet_id = self.wallets.pop(wallet)
             client = self.client_lookup(wallet_id)
             self.clients.pop(client, None)
@@ -321,6 +327,10 @@ class DeviceMgr(PrintError):
 
     def paired_wallets(self):
         return list(self.wallets.keys())
+
+    def unpaired_devices(self, handler):
+        devices = self.scan_devices(handler)
+        return [dev for dev in devices if not self.wallet_by_id(dev.id_)]
 
     def client_lookup(self, id_):
         with self.lock:

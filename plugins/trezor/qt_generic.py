@@ -312,9 +312,9 @@ class SettingsDialog(WindowModalDialog):
                     raise RuntimeError("Device not connected")
                 if method:
                     getattr(client, method)(*args, **kw_args)
-                update(client.features)
+                return client.features
 
-            thread.add(task)
+            thread.add(task, on_success=update)
 
         def update(features):
             self.current_label = features.label
