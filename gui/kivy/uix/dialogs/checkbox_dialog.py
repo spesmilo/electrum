@@ -7,25 +7,25 @@ Builder.load_string('''
 <CheckBoxDialog@Popup>
     id: popup
     title: ''
-    size_hint: 0.8, 0.5
+    size_hint: 0.8, 0.8
     pos_hint: {'top':0.9}
     BoxLayout:
         orientation: 'vertical'
-        Label:
-            id: description
-            text: ''
+        ScrollView:
             size_hint: 1, 1
-            halign: 'left'
-            text_size: self.width, None
+            Label:
+                id: description
+                text: ''
+                size_hint: 1, None
+                halign: 'left'
+                text_size: self.width, None
         BoxLayout:
             orientation: 'horizontal'
-            size_hint: 1, 1
+            size_hint: 1, 0.5
             Label:
                 text: _('Enable')
             CheckBox:
                 id:cb
-        Widget:
-            size_hint: 1, 1
         BoxLayout:
             orientation: 'horizontal'
             size_hint: 1, 0.5

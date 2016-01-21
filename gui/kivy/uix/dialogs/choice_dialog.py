@@ -46,9 +46,11 @@ class ChoiceDialog(Factory.Popup):
 
     def __init__(self, title, choices, key, callback):
         Factory.Popup.__init__(self)
+        if type(choices) is list:
+            choices = dict(map(lambda x: (x,x), choices))
         layout = self.ids.choices
         layout.bind(minimum_height=layout.setter('height'))
-        for k, v in choices.items():
+        for k, v in sorted(choices.items()):
             l = Label(text=v)
             l.height = '48dp'
             cb = CheckBox(group='choices')

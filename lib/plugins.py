@@ -43,7 +43,7 @@ class Plugins(DaemonThread):
         self.hw_wallets = {}
         self.plugins = {}
         self.gui_name = gui_name
-        self.descriptions = []
+        self.descriptions = {}
         self.device_manager = DeviceMgr()
 
         for loader, name, ispkg in pkgutil.iter_modules([self.pkgpath]):
@@ -55,7 +55,7 @@ class Plugins(DaemonThread):
                 self.register_plugin_wallet(name, gui_good, details)
             if not gui_good:
                 continue
-            self.descriptions.append(d)
+            self.descriptions[name] = d
             if not d.get('requires_wallet_type') and config.get('use_' + name):
                 self.load_plugin(name)
 
@@ -103,10 +103,8 @@ class Plugins(DaemonThread):
         return self.disable(name) if p else self.enable(name)
 
     def is_available(self, name, w):
-        for d in self.descriptions:
-            if d.get('__name__') == name:
-                break
-        else:
+        d = self.descriptions.get(name)
+        if not d:
             return False
         deps = d.get('requires', [])
         for dep, s in deps:

@@ -13,7 +13,7 @@ Builder.load_string('''
     orientation: 'vertical'
     title: ''
     description: ''
-    size_hint: 1, 1
+    size_hint: 1, None
     Label:
         id: title
         text: self.parent.title
@@ -27,79 +27,72 @@ Builder.load_string('''
         size_hint: 1, 1
         halign: 'left'
         text_size: self.width, None
+    CardSeparator
 
-<PluginItem@ButtonBehavior+BoxLayout>
-    orientation: 'vertical'
-    title: ''
-    description: ''
-    size_hint: 1, 1
-    BoxLayout:
-        orientation: 'horizontal'
-        Label:
-            id: title
-            text: self.parent.title
-            size_hint: 1, 1
-            bold: True
-            text_size: self.size
-            halign: 'left'
-        Switch:
-            id: sw
-            name: ''
-    Label:
-        text: self.parent.description
-        size_hint: 1, 1
-        text_size: self.width, None
-        color: 0.8, 0.8, 0.8, 1
-        halign: 'left'
 
 <SettingsDialog@Popup>
     id: settings
     title: _('Electrum Settings')
     BoxLayout:
         orientation: 'vertical'
-        SettingsItem:
-            lang: settings.get_language_name()
-            title: _('Language') + ': %s'%self.lang
-            description: _("Language")
-            on_release:
-                settings.language_dialog(self)
-        CardSeparator
-        SettingsItem:
-            status: 'ON' if app.wallet.use_encryption else 'OFF'
-            title: _('PIN code') + ': ' + self.status
-            description: _("Change your PIN code.")
-            on_release:
-                app.change_password()
-                self.status = 'ON' if app.wallet.use_encryption else 'OFF'
-        CardSeparator
-        SettingsItem:
-            bu: app.base_unit
-            title: _('Denomination') + ': ' + self.bu
-            description: _("Base unit for Bitcoin amounts.")
-            on_release:
-                settings.unit_dialog(self)
-        CardSeparator
-        SettingsItem:
-            title: _('Fiat Currency') + ': ' + app.fiat_unit
-            description: "Select the local fiat currency."
-            on_release:
-                settings.fiat_dialog(self)
-        CardSeparator
-        SettingsItem:
-            status: 'ON' if bool(app.plugins.get('labels')) else 'OFF'
-            title: _('Labels Sync') + ': ' + self.status
-            description: "Synchronize labels."
-            on_release:
-                settings.labelsync_dialog(self)
-        CardSeparator
-        SettingsItem:
-            title: _('OpenAlias')
-            description: "DNS record that stores one of your Bitcoin addresses."
-            on_release:
-                settings.openalias_dialog()
-        Widget:
-            size_hint: 1, 1
+        ScrollView:
+            size_hint: 1, 0.8
+            GridLayout:
+                row_default_height: '68dp'
+                cols:1
+                id: scrollviewlayout
+                size_hint: 1, None
+                SettingsItem:
+                    lang: settings.get_language_name()
+                    title: _('Language') + ': %s'%self.lang
+                    description: _("Language")
+                    on_release:
+                        settings.language_dialog(self)
+                    height: '48dp'
+                SettingsItem:
+                    status: 'ON' if app.wallet.use_encryption else 'OFF'
+                    title: _('PIN code') + ': ' + self.status
+                    description: _("Change your PIN code.")
+                    on_release:
+                        app.change_password()
+                        self.status = 'ON' if app.wallet.use_encryption else 'OFF'
+                SettingsItem:
+                    bu: app.base_unit
+                    title: _('Denomination') + ': ' + self.bu
+                    description: _("Base unit for Bitcoin amounts.")
+                    on_release:
+                        settings.unit_dialog(self)
+                SettingsItem:
+                    status: 'ON' if bool(app.plugins.get('exchange_rate')) else 'OFF'
+                    title: _('Fiat Exchange rates') + ': ' + self.status
+                    description: _("Display amounts in fiat currency.")
+                    on_release:
+                        settings.plugin_dialog('exchange_rate', self)
+                SettingsItem:
+                    status: app.fiat_unit
+                    title: _('Fiat Currency') + ': ' + self.status
+                    description: _("Select the local fiat currency.")
+                    on_release:
+                        settings.fiat_currency_dialog(self)
+                SettingsItem:
+                    status: root.fiat_source()
+                    title: _('Fiat source') + ': ' + self.status
+                    description: _("Source for fiat currency exchange rate.")
+                    on_release:
+                        settings.fiat_source_dialog(self)
+                SettingsItem:
+                    status: 'ON' if bool(app.plugins.get('labels')) else 'OFF'
+                    title: _('Labels Sync') + ': ' + self.status
+                    description: "Synchronize labels."
+                    on_release:
+                        settings.plugin_dialog('labels', self)
+                SettingsItem:
+                    title: _('OpenAlias')
+                    description: "DNS record that stores one of your Bitcoin addresses."
+                    on_release:
+                        settings.openalias_dialog()
         BoxLayout:
+            size_hint: 1, 0.1
             Widget:
                 size_hint: 0.5, None
             Button:
@@ -117,6 +110,8 @@ class SettingsDialog(Factory.Popup):
         self.plugins = self.app.plugins
         self.config = self.app.electrum_config
         Factory.Popup.__init__(self)
+        layout = self.ids.scrollviewlayout
+        layout.bind(minimum_height=layout.setter('height'))
 
     def get_language_name(self):
         return languages.get(self.config.get('language', 'en_UK'), '')
@@ -136,20 +131,35 @@ class SettingsDialog(Factory.Popup):
         def cb(text):
             self.app._set_bu(text)
             item.bu = self.app.base_unit
-        d = ChoiceDialog(_('Denomination'), dict(map(lambda x: (x,x), base_units)), self.app.base_unit, cb)
+        d = ChoiceDialog(_('Denomination'), base_units, self.app.base_unit, cb)
         d.open()
 
-    def fiat_dialog(self, item):
+    def fiat_currency_dialog(self, item):
         from choice_dialog import ChoiceDialog
+        p = self.app.plugins.get('exchange_rate')
+        if not p:
+            return
         def cb(text):
-            if text == 'None':
-                self.plugins.disable('exchange_rate')
-            else:
-                self.config.set_key('currency', text, True)
-                p = self.app.plugins.enable('exchange_rate')
-                p.init_kivy(self.app)
+            self.config.set_key('currency', text, True)
+            item.status = text
+        l = sorted(p.exchange.quotes.keys()) if p else []
+        d = ChoiceDialog(_('Fiat Currency'), l, '', cb)
+        d.open()
 
-        d = ChoiceDialog(_('Fiat Currency'), { 'None': 'None', 'USD':'USD', 'EUR':'EUR'}, '', cb)
+    def fiat_source(self):
+        p = self.app.plugins.get('exchange_rate')
+        return p.exchange.name() if p else 'None'
+
+    def fiat_source_dialog(self, item):
+        from choice_dialog import ChoiceDialog
+        p = self.plugins.get('exchange_rate')
+        if not p:
+            return
+        def cb(text):
+            p.set_exchange(text)
+            item.status = text
+        l = sorted(p.exchanges.keys())
+        d = ChoiceDialog(_('Exchange rate source'), l, self.fiat_source(), cb)
         d.open()
 
     def openalias_dialog(self):
@@ -159,22 +169,15 @@ class SettingsDialog(Factory.Popup):
         d = LabelDialog(_('OpenAlias'), '', callback)
         d.open()
 
-    def labelsync_dialog(self, label):
+    def plugin_dialog(self, name, label):
         from checkbox_dialog import CheckBoxDialog
         def callback(status):
-            self.plugins.enable('labels') if status else self.plugins.disable('labels')
-            status = bool(self.plugins.get('labels'))
+            print 'z', status
+            self.plugins.enable(name) if status else self.plugins.disable(name)
             label.status = 'ON' if status else 'OFF'
-        status = bool(self.plugins.get('labels'))
-        descr = _('Save your labels on a remote server, and synchronizes them between various instances of your wallet.')
-        d = CheckBoxDialog(_('Labels Sync'), descr, status, callback)
+        status = bool(self.plugins.get(name))
+        dd = self.plugins.descriptions.get(name)
+        descr = dd.get('description')
+        fullname = dd.get('fullname')
+        d = CheckBoxDialog(fullname, descr, status, callback)
         d.open()
-
-
-class PluginItem():
-    def __init__(self, name):
-        p = self.plugins.get(name)
-        sw.active = (p is not None) and p.is_enabled()
-        sw.bind(active=on_active)
-        plugins_list.add_widget(sw)
-        
