@@ -252,6 +252,14 @@ class InstallWizard(WindowModalDialog, WizardBase):
         Return a a tuple (action, kind_index).  Action is 'create' or
         'restore', and kind the index of the wallet kind chosen."""
 
+        hw_wallet_help = _(
+            "NOTE regarding hardware wallets:  If you want to set up a new "
+            "or wiped device, or if you want Electrum to manage a device "
+            "you have already set up, select \"create\".  If you wish to "
+            "recover a wallet from a device seed and no longer use the "
+            "device, select \"restore\"."
+            )
+
         actions = [_("Create a new wallet"),
                    _("Restore a wallet or import keys")]
         title = _("Electrum could not find an existing wallet.")
@@ -261,6 +269,8 @@ class InstallWizard(WindowModalDialog, WizardBase):
         vbox = QVBoxLayout()
         vbox.addLayout(actions_clayout.layout())
         vbox.addLayout(wallet_clayout.layout())
+        vbox.addSpacing(10)
+        vbox.addWidget(WWLabel(hw_wallet_help))
         self.set_main_layout(vbox, title)
 
         action = ['create', 'restore'][actions_clayout.selected_index()]
