@@ -339,6 +339,8 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         states = [_("wiped"), _("initialized")]
         infos = []
         for device in devices:
+            if not device.product_key in self.DEVICE_IDS:
+                continue
             client = self.device_manager().create_client(device, handler, self)
             if not client:
                 continue
