@@ -112,8 +112,7 @@ class QtHandler(PrintError):
         text.returnPressed.connect(dialog.accept)
         hbox.addWidget(text)
         hbox.addStretch(1)
-        if not dialog.exec_():
-            return None
+        dialog.exec_()  # Firmware cannot handle cancellation
         self.word = unicode(text.text())
         self.done.set()
 

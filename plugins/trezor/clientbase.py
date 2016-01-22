@@ -59,10 +59,11 @@ class GuiMixin(object):
         return self.proto.PassphraseAck(passphrase=passphrase)
 
     def callback_WordRequest(self, msg):
-        msg = _("Enter seed word as explained on your %s") % self.device
+        self.step += 1
+        msg = _("Step %d/24.  Enter seed word as explained on "
+                "your %s") % (self.step, self.device)
         word = self.handler.get_word(msg)
-        if word is None:
-            return self.proto.Cancel()
+        # Unfortunately the device can't handle self.proto.Cancel()
         return self.proto.WordAck(word=word)
 
 
@@ -172,8 +173,7 @@ class TrezorClientBase(GuiMixin, PrintError):
 
     @staticmethod
     def wrapper(func):
-        '''Wrap base class methods to show exceptions and clear
-        any dialog box it opened.'''
+        '''Wrap methods to clear any message box they opened.'''
 
         def wrapped(self, *args, **kwargs):
             try:

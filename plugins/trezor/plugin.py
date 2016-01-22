@@ -283,6 +283,15 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         (item, label, pin_protection, passphrase_protection) \
             = wallet.handler.request_trezor_init_settings(method, self.device)
 
+        if method == TIM_RECOVER:
+            # Warn user about firmware lameness
+            wallet.handler.show_error(_(
+                "You will be asked to enter 24 words regardless of your "
+                "seed's actual length.  If you enter a word incorrectly or "
+                "misspell it, you cannot change it or go back - you will need "
+                "to start again from the beginning.\n\nSo please enter "
+                "the words carefully!"))
+
         language = 'english'
 
         def initialize_device():
@@ -294,6 +303,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
                                     pin_protection, label, language)
             elif method == TIM_RECOVER:
                 word_count = 6 * (item + 2)  # 12, 18 or 24
+                client.step = 0
                 client.recovery_device(word_count, passphrase_protection,
                                        pin_protection, label, language)
             elif method == TIM_MNEMONIC:
