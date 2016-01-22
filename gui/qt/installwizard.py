@@ -87,6 +87,7 @@ class InstallWizard(WindowModalDialog, WizardBase):
         self.please_wait.setAlignment(Qt.AlignCenter)
         self.icon_filename = None
         self.loop = QEventLoop()
+        self.rejected.connect(lambda: self.loop.exit(False))
         self.cancel_button.clicked.connect(lambda: self.loop.exit(False))
         self.next_button.clicked.connect(lambda: self.loop.exit(True))
         outer_vbox = QVBoxLayout(self)
