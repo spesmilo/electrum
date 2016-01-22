@@ -21,6 +21,7 @@
      of the device requires your PIN and passhphrase to be re-entered
    - enable / disable passphrases
    - device wipe
+   - multiple device support
 
 # Release 2.5.4
  * increase MIN_RELAY_TX_FEE to avoid dust transactions
