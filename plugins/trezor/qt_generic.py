@@ -559,7 +559,7 @@ class SettingsDialog(WindowModalDialog):
         # Advanced tab - toggle passphrase protection
         passphrase_button = QPushButton()
         passphrase_button.clicked.connect(toggle_passphrase)
-        passphrase_msg = WWLabel(PASSPHRASE_MSG)
+        passphrase_msg = WWLabel(PASSPHRASE_HELP)
         passphrase_warning = WWLabel(PASSPHRASE_NOT_PIN)
         passphrase_warning.setStyleSheet("color: red")
         advanced_glayout.addWidget(passphrase_button, 3, 2)
