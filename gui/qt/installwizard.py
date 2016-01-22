@@ -253,14 +253,6 @@ class InstallWizard(WindowModalDialog, WizardBase):
         Return a a tuple (action, kind_index).  Action is 'create' or
         'restore', and kind the index of the wallet kind chosen."""
 
-        hw_wallet_help = _(
-            "NOTE regarding hardware wallets:  If you want to set up a new "
-            "or wiped device, or if you want Electrum to manage a device "
-            "you have already set up, select \"create\".  If you wish to "
-            "recover a wallet from a device seed and no longer use the "
-            "device, select \"restore\"."
-            )
-
         actions = [_("Create a new wallet"),
                    _("Restore a wallet or import keys")]
         title = _("Electrum could not find an existing wallet.")
@@ -270,11 +262,30 @@ class InstallWizard(WindowModalDialog, WizardBase):
         vbox = QVBoxLayout()
         vbox.addLayout(actions_clayout.layout())
         vbox.addLayout(wallet_clayout.layout())
-        vbox.addSpacing(10)
-        vbox.addWidget(WWLabel(hw_wallet_help))
         self.set_main_layout(vbox, title)
 
         action = ['create', 'restore'][actions_clayout.selected_index()]
+        return action, wallet_clayout.selected_index()
+
+    def query_hw_wallet_choice(self, msg, action, choices):
+        actions = [_("Initialize a new or wiped device"),
+                   _("Use a device you have already set up"),
+                   _("Restore Electrum wallet from device seed words")]
+        default_action = 1 if action == 'create' else 2
+        actions_clayout = ChoicesLayout(_("What do you want to do?"), actions,
+                                        checked_index=default_action)
+        wallet_clayout = ChoicesLayout(msg, choices)
+
+        vbox = QVBoxLayout()
+        vbox.addLayout(actions_clayout.layout())
+        vbox.addLayout(wallet_clayout.layout())
+        self.set_main_layout(vbox)
+        self.next_button.setEnabled(len(choices) != 0)
+
+        if actions_clayout.selected_index() == 2:
+            action = 'restore'
+        else:
+            action = 'create'
         return action, wallet_clayout.selected_index()
 
     def request_many(self, n, xpub_hot=None):
