@@ -252,11 +252,9 @@ def qt_plugin_class(base_plugin_class):
         assert type(wallet) == self.wallet_class
         wallet.handler = self.create_handler(wizard)
         wallet.thread = TaskThread(wizard, wizard.on_error)
-        self.select_device(wallet)
-        # Create accounts in separate thread; wait until done
+        # Setup device and create accounts in separate thread; wait until done
         loop = QEventLoop()
-        wallet.thread.add(partial(wallet.create_hd_account, None),
-                          on_done=loop.quit)
+        self.setup_device(wallet, loop.quit)
         loop.exec_()
 
     @hook

@@ -61,7 +61,7 @@ class GuiMixin(object):
     def callback_WordRequest(self, msg):
         self.step += 1
         msg = _("Step %d/24.  Enter seed word as explained on "
-                "your %s") % (self.step, self.device)
+                "your %s:") % (self.step, self.device)
         word = self.handler.get_word(msg)
         # Unfortunately the device can't handle self.proto.Cancel()
         return self.proto.WordAck(word=word)

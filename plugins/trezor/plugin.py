@@ -4,6 +4,7 @@ import threading
 import time
 
 from binascii import unhexlify
+from functools import partial
 from struct import pack
 
 from electrum.account import BIP32_Account
@@ -14,9 +15,9 @@ from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from electrum.transaction import (deserialize, is_extended_pubkey,
                                   Transaction, x_to_xpub)
-from electrum.wallet import BIP32_HD_Wallet, BIP44_Wallet
+from electrum.wallet import BIP44_Wallet
 from electrum.util import ThreadJob
-from electrum.plugins import DeviceMgr
+
 
 # Trezor initialization methods
 TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
@@ -263,13 +264,14 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         wallet.last_operation = self.prevent_timeout
 
         # Initialization method
-        msg = _("Please select how you want to initialize your %s.\n"
-                "The first two are secure as no secret information is entered "
-                "onto your computer.\nFor the last two methods you enter "
-                "secrets into your computer and upload them to the device, "
-                "and so you should do those on a computer you know to be "
-                "trustworthy and free of malware."
-        ) % self.device
+        msg = _("Choose how you want to initialize your %s.\n\n"
+                "The first two methods are secure as no secret information "
+                "is entered into your computer.\n\n"
+                "For the last two methods you input secrets on your keyboard "
+                "and upload them to your %s, and so you should "
+                "only do those on a computer you know to be trustworthy "
+                "and free of malware."
+        ) % (self.device, self.device)
 
         methods = [
             # Must be short as QT doesn't word-wrap radio button text
@@ -294,7 +296,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
 
         language = 'english'
 
-        def initialize_device():
+        def initialize_method():
             client = self.get_client(wallet)
 
             if method == TIM_NEW:
@@ -316,7 +318,17 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
                 client.load_device_by_xprv(item, pin, passphrase_protection,
                                            label, language)
 
-        wallet.thread.add(initialize_device)
+        return initialize_method
+
+    def setup_device(self, wallet, on_done):
+        '''Called when creating a new wallet.  Select the device to use.  If
+        the device is uninitialized, go through the intialization
+        process.  Then create the wallet accounts.'''
+        create_hd_task = partial(wallet.create_hd_account, None)
+        initialized = self.select_device(wallet)
+        if not initialized:
+            wallet.thread.add(self.initialize_device(wallet))
+        wallet.thread.add(create_hd_task, on_done=on_done)
 
     def unpaired_devices(self, handler):
         '''Returns all connected, unpaired devices as a list of clients and a
@@ -331,23 +343,19 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
             if not client:
                 continue
             state = states[client.is_initialized()]
-            label = client.label() or _("An unnamed device")
-            descr = "%s: device ID %s (%s)" % (label, device.id_, state)
+            label = client.label() or _("An unnamed %s") % self.device
+            descr = "%s (%s)" % (label, state)
             infos.append((device, descr, client.is_initialized()))
 
         return infos
 
     def select_device(self, wallet):
-        '''Called when creating a new wallet.  Select the device to use.  If
-        the device is uninitialized, go through the intialization
-        process.'''
         msg = _("Please select which %s device to use:") % self.device
         infos = self.unpaired_devices(wallet.handler)
         labels = [info[1] for info in infos]
         device, descr, init = infos[wallet.handler.query_choice(msg, labels)]
         self.device_manager().pair_wallet(wallet, device.id_)
-        if not init:
-            self.initialize_device(wallet)
+        return init
 
     def on_restore_wallet(self, wallet, wizard):
         assert isinstance(wallet, self.wallet_class)
