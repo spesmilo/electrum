@@ -100,7 +100,8 @@ class CoinChooserBase(PrintError):
     def change_amounts(self, tx, count, fee_estimator, dust_threshold):
         # Break change up if bigger than max_change
         output_amounts = [o[2] for o in tx.outputs()]
-        max_change = max(max(output_amounts) * 1.25, dust_threshold * 10)
+        # Don't split change of less than 0.02 BTC
+        max_change = max(max(output_amounts) * 1.25, 0.02 * COIN)
 
         # Use N change outputs
         for n in range(1, count + 1):
