@@ -166,6 +166,7 @@ class QtHandler(QObject, PrintError):
         data = self.character_dialog.data
         if not data or 'done' in data:
             self.character_dialog.accept()
+            self.character_dialog = None
         return data
 
     def get_pin(self, msg):
