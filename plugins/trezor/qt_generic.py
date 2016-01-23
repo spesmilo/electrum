@@ -320,12 +320,16 @@ class SettingsDialog(WindowModalDialog):
         self.current_label=None
 
         def invoke_client(method, *args, **kw_args):
+            unpair_after = kw_args.pop('unpair_after', False)
+
             def task():
                 client = devmgr.client_by_id(device_id, handler)
                 if not client:
                     raise RuntimeError("Device not connected")
                 if method:
                     getattr(client, method)(*args, **kw_args)
+                if unpair_after:
+                    devmgr.unpair_id(device_id)
                 return client.features
 
             thread.add(task, on_success=update)
@@ -378,8 +382,7 @@ class SettingsDialog(WindowModalDialog):
                     "Are you sure you want to proceed?") % plugin.device
             if not self.question(msg, title=title):
                 return
-            invoke_client('toggle_passphrase')
-            devmgr.unpair_id(device_id)
+            invoke_client('toggle_passphrase', unpair_after=True)
 
         def change_homescreen():
             from PIL import Image  # FIXME
@@ -416,8 +419,7 @@ class SettingsDialog(WindowModalDialog):
                 if not self.question(msg, title=title,
                                      icon=QMessageBox.Critical):
                     return
-            invoke_client('wipe_device')
-            devmgr.unpair_id(device_id)
+            invoke_client('wipe_device', unpair_after=True)
 
         def slider_moved():
             mins = timeout_slider.sliderPosition()
