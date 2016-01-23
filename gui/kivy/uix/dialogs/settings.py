@@ -15,6 +15,14 @@ Builder.load_string('''
     title: ''
     description: ''
     size_hint: 1, None
+
+    canvas.before:
+        Color:
+            rgba: (0.192, .498, 0.745, 1) if self.state == 'down' else (0.3, 0.3, 0.3, 0)
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
     Label:
         id: title
         text: self.parent.title
@@ -70,23 +78,11 @@ Builder.load_string('''
                     on_release:
                         root.fee_dialog(self)
                 SettingsItem:
-                    status: 'ON' if bool(app.plugins.get('exchange_rate')) else 'OFF'
-                    title: _('Exchange rates') + ': ' + self.status
+                    status: root.fx_status()
+                    title: _('Fiat Currency') + ': ' + self.status
                     description: _("Display amounts in fiat currency.")
                     on_release:
-                        settings.plugin_dialog('exchange_rate', self)
-                SettingsItem:
-                    status: app.fiat_unit
-                    title: _('Fiat Currency') + ': ' + self.status
-                    description: _("Select the local fiat currency.")
-                    on_release:
-                        settings.fiat_currency_dialog(self)
-                SettingsItem:
-                    status: root.fiat_source()
-                    title: _('Fiat source') + ': ' + self.status
-                    description: _("Source for fiat currency exchange rate.")
-                    on_release:
-                        settings.fiat_source_dialog(self)
+                        root.fx_dialog(self)
                 SettingsItem:
                     status: 'ON' if bool(app.plugins.get('labels')) else 'OFF'
                     title: _('Labels Sync') + ': ' + self.status
@@ -141,35 +137,6 @@ class SettingsDialog(Factory.Popup):
         d = ChoiceDialog(_('Denomination'), base_units.keys(), self.app.base_unit, cb)
         d.open()
 
-    def fiat_currency_dialog(self, item):
-        from choice_dialog import ChoiceDialog
-        p = self.app.plugins.get('exchange_rate')
-        if not p:
-            return
-        def cb(text):
-            p.set_currency(text)
-            item.status = text
-            self.app.fiat_unit = text
-        l = sorted(p.exchange.quotes.keys()) if p else []
-        d = ChoiceDialog(_('Fiat Currency'), l, p.get_currency(), cb)
-        d.open()
-
-    def fiat_source(self):
-        p = self.app.plugins.get('exchange_rate')
-        return p.exchange.name() if p else 'None'
-
-    def fiat_source_dialog(self, item):
-        from choice_dialog import ChoiceDialog
-        p = self.plugins.get('exchange_rate')
-        if not p:
-            return
-        def cb(text):
-            p.set_exchange(text)
-            item.status = text
-        l = sorted(p.exchanges.keys())
-        d = ChoiceDialog(_('Exchange rate source'), l, self.fiat_source(), cb)
-        d.open()
-
     def openalias_dialog(self):
         from label_dialog import LabelDialog
         def callback(text):
@@ -204,3 +171,20 @@ class SettingsDialog(Factory.Popup):
             label.status = self.fee_status()
         d = FeeDialog(self.config, cb)
         d.open()
+
+    def fx_status(self):
+        p = self.plugins.get('exchange_rate')
+        if p:
+            source = p.exchange.name()
+            ccy = p.get_currency()
+            return '%s [%s]' %(ccy, source)
+        else:
+            return 'Disabled'
+
+    def fx_dialog(self, label):
+        from fx_dialog import FxDialog
+        def cb():
+            label.status = self.fx_status()
+        d = FxDialog(self.app, self.plugins, self.config, cb)
+        d.open()
+

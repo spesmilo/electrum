@@ -41,7 +41,7 @@ class FeeDialog(Factory.Popup):
         Factory.Popup.__init__(self)
         self.config = config
         self.callback = callback
-        self.ids.dynfees.active = self.config.get('dynamic_fees')
+        self.ids.dynfees.active = bool(self.config.get('dynamic_fees'))
 
     def on_ok(self):
         self.config.set_key('dynamic_fees', self.ids.dynfees.active, True)
