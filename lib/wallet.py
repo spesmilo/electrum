@@ -151,6 +151,9 @@ class Abstract_Wallet(PrintError):
     Wallet classes are created to handle various address generation methods.
     Completion states (watching-only, single account, no seed, etc) are handled inside classes.
     """
+
+    max_change_outputs = 3
+
     def __init__(self, storage):
         self.storage = storage
         self.network = None
@@ -966,7 +969,7 @@ class Abstract_Wallet(PrintError):
         dust_threshold = 182 * 3 * self.relayfee() / 1000
 
         # Let the coin chooser select the coins to spend
-        max_change = 3 if self.multiple_change else 1
+        max_change = self.max_change_outputs if self.multiple_change else 1
         coin_chooser = self.coin_chooser(config)
         tx = coin_chooser.make_tx(coins, outputs, change_addrs[:max_change],
                                   fee_estimator, dust_threshold)

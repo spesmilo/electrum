@@ -36,6 +36,7 @@ class TrezorCompatibleWallet(BIP44_Wallet):
     #   - wallet_type
 
     restore_wallet_class = BIP44_Wallet
+    max_change_outputs = 1
 
     def __init__(self, storage):
         BIP44_Wallet.__init__(self, storage)
