@@ -151,8 +151,6 @@ class TxDialog(QDialog, MessageBoxMixin):
                 self.update()
 
         self.sign_button.setDisabled(True)
-        # Note sign_tx is wrapped and parent= is actually passed
-        # to the password input dialog box
         self.main_window.push_top_level_window(self)
         self.main_window.sign_tx(self.tx, sign_done)
 
