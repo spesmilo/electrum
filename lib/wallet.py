@@ -667,13 +667,15 @@ class Abstract_Wallet(PrintError):
         return amount, fee
 
     def get_account_addresses(self, acc_id, include_change=True):
-        if acc_id is None:
-            addr_list = self.addresses(include_change)
-        elif acc_id in self.accounts:
-            acc = self.accounts[acc_id]
-            addr_list = acc.get_addresses(0)
-            if include_change:
-                addr_list += acc.get_addresses(1)
+        '''acc_id of None means all user-visible accounts'''
+        addr_list = []
+        acc_ids = self.accounts_to_show() if acc_id is None else [acc_id]
+        for acc_id in acc_ids:
+            if acc_id in self.accounts:
+                acc = self.accounts[acc_id]
+                addr_list += acc.get_addresses(0)
+                if include_change:
+                    addr_list += acc.get_addresses(1)
         return addr_list
 
     def get_account_from_address(self, addr):
