@@ -87,6 +87,7 @@ class InstallWizard(WindowModalDialog, WizardBase):
         self.please_wait.setAlignment(Qt.AlignCenter)
         self.icon_filename = None
         self.loop = QEventLoop()
+        self.rejected.connect(lambda: self.loop.exit(False))
         self.cancel_button.clicked.connect(lambda: self.loop.exit(False))
         self.next_button.clicked.connect(lambda: self.loop.exit(True))
         outer_vbox = QVBoxLayout(self)
@@ -264,6 +265,27 @@ class InstallWizard(WindowModalDialog, WizardBase):
         self.set_main_layout(vbox, title)
 
         action = ['create', 'restore'][actions_clayout.selected_index()]
+        return action, wallet_clayout.selected_index()
+
+    def query_hw_wallet_choice(self, msg, action, choices):
+        actions = [_("Initialize a new or wiped device"),
+                   _("Use a device you have already set up"),
+                   _("Restore Electrum wallet from device seed words")]
+        default_action = 1 if action == 'create' else 2
+        actions_clayout = ChoicesLayout(_("What do you want to do?"), actions,
+                                        checked_index=default_action)
+        wallet_clayout = ChoicesLayout(msg, choices)
+
+        vbox = QVBoxLayout()
+        vbox.addLayout(actions_clayout.layout())
+        vbox.addLayout(wallet_clayout.layout())
+        self.set_main_layout(vbox)
+        self.next_button.setEnabled(len(choices) != 0)
+
+        if actions_clayout.selected_index() == 2:
+            action = 'restore'
+        else:
+            action = 'create'
         return action, wallet_clayout.selected_index()
 
     def request_many(self, n, xpub_hot=None):

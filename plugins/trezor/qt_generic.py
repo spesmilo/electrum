@@ -112,8 +112,7 @@ class QtHandler(PrintError):
         text.returnPressed.connect(dialog.accept)
         hbox.addWidget(text)
         hbox.addStretch(1)
-        if not dialog.exec_():
-            return None
+        dialog.exec_()  # Firmware cannot handle cancellation
         self.word = unicode(text.text())
         self.done.set()
 
@@ -253,11 +252,9 @@ def qt_plugin_class(base_plugin_class):
         assert type(wallet) == self.wallet_class
         wallet.handler = self.create_handler(wizard)
         wallet.thread = TaskThread(wizard, wizard.on_error)
-        self.select_device(wallet)
-        # Create accounts in separate thread; wait until done
+        # Setup device and create accounts in separate thread; wait until done
         loop = QEventLoop()
-        wallet.thread.add(partial(wallet.create_hd_account, None),
-                          on_done=loop.quit)
+        self.setup_device(wallet, loop.quit)
         loop.exec_()
 
     @hook
@@ -562,7 +559,7 @@ class SettingsDialog(WindowModalDialog):
         # Advanced tab - toggle passphrase protection
         passphrase_button = QPushButton()
         passphrase_button.clicked.connect(toggle_passphrase)
-        passphrase_msg = WWLabel(PASSPHRASE_MSG)
+        passphrase_msg = WWLabel(PASSPHRASE_HELP)
         passphrase_warning = WWLabel(PASSPHRASE_NOT_PIN)
         passphrase_warning.setStyleSheet("color: red")
         advanced_glayout.addWidget(passphrase_button, 3, 2)

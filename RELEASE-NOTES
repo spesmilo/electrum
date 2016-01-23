@@ -8,6 +8,20 @@
  * the install wizard has been rewritten and improved
  * support minikeys as used in Casascius coins for private key import
    and sweeping
+ * much improved support for Trezor and KeepKey devices:
+   - full device information display
+   - initialize a new or wiped device in 4 ways:
+     1) device generates a new wallet
+     2) you enter a seed
+     3) you enter a BIP39 mnemonic to generate the seed
+     4) you enter a master private key
+   - change / set / disable PIN
+   - set homescreen (Trezor only)
+   - set a session timeout.  Once a session has timed out, further use
+     of the device requires your PIN and passhphrase to be re-entered
+   - enable / disable passphrases
+   - device wipe
+   - multiple device support
 
 # Release 2.5.4
  * increase MIN_RELAY_TX_FEE to avoid dust transactions

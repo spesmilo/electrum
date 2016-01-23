@@ -245,7 +245,7 @@ def text_dialog(parent, title, label, ok_label, default=None):
         return unicode(txt.toPlainText())
 
 class ChoicesLayout(object):
-    def __init__(self, msg, choices, on_clicked=None):
+    def __init__(self, msg, choices, on_clicked=None, checked_index=0):
         vbox = QVBoxLayout()
         if len(msg) > 50:
             vbox.addWidget(WWLabel(msg))
@@ -263,7 +263,7 @@ class ChoicesLayout(object):
             vbox2.addWidget(button)
             group.addButton(button)
             group.setId(button, i)
-            if i==0:
+            if i==checked_index:
                 button.setChecked(True)
 
         if on_clicked:

@@ -7,6 +7,7 @@ from electrum_ltc.i18n import _
 from electrum_ltc.util import base_units
 from electrum_ltc.i18n import languages, set_language
 from electrum_ltc.plugins import run_hook
+from electrum_ltc.bitcoin import RECOMMENDED_FEE
 
 Builder.load_string('''
 <SettingsItem@ButtonBehavior+BoxLayout>
@@ -63,8 +64,14 @@ Builder.load_string('''
                     on_release:
                         settings.unit_dialog(self)
                 SettingsItem:
+                    status: root.fee_status()
+                    title: _('Fees') + ': ' + self.status
+                    description: _("Fees paid to the Litecoin miners.")
+                    on_release:
+                        root.fee_dialog(self)
+                SettingsItem:
                     status: 'ON' if bool(app.plugins.get('exchange_rate')) else 'OFF'
-                    title: _('Fiat Exchange rates') + ': ' + self.status
+                    title: _('Exchange rates') + ': ' + self.status
                     description: _("Display amounts in fiat currency.")
                     on_release:
                         settings.plugin_dialog('exchange_rate', self)
@@ -175,9 +182,25 @@ class SettingsDialog(Factory.Popup):
         def callback(status):
             self.plugins.enable(name) if status else self.plugins.disable(name)
             label.status = 'ON' if status else 'OFF'
+
         status = bool(self.plugins.get(name))
         dd = self.plugins.descriptions.get(name)
         descr = dd.get('description')
         fullname = dd.get('fullname')
         d = CheckBoxDialog(fullname, descr, status, callback)
+        d.open()
+
+    def fee_status(self):
+        if self.config.get('dynamic_fees'):
+            f = self.config.get('fee_factor', 50) + 50
+            return 'Dynamic, %d%%'%f
+        else:
+            F = self.config.get('fee_per_kb', RECOMMENDED_FEE)
+            return self.app.format_amount(F) + ' ' + self.app.base_unit + '/kB'
+
+    def fee_dialog(self, label):
+        from fee_dialog import FeeDialog
+        def cb():
+            label.status = self.fee_status()
+        d = FeeDialog(self.config, cb)
         d.open()
