@@ -138,6 +138,17 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         msg_sig = client.sign_message('Bitcoin', address_n, message)
         return msg_sig.signature
 
+    def get_input_tx(self, tx_hash):
+        # First look up an input transaction in the wallet where it
+        # will likely be.  If co-signing a transaction it may not have
+        # all the input txs, in which case we ask the network.
+        tx = self.transactions.get(tx_hash)
+        if not tx:
+            request = ('blockchain.transaction.get', [tx_hash])
+            # FIXME: what if offline?
+            tx = Transaction(self.network.synchronous_get(request))
+        return tx
+
     def sign_transaction(self, tx, password):
         if tx.is_complete():
             return
@@ -147,13 +158,7 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         xpub_path = {}
         for txin in tx.inputs():
             tx_hash = txin['prevout_hash']
-
-            ptx = self.transactions.get(tx_hash)
-            if ptx is None:
-                ptx = self.network.synchronous_get(('blockchain.transaction.get', [tx_hash]))
-                ptx = Transaction(ptx)
-            prev_tx[tx_hash] = ptx
-
+            prev_tx[tx_hash] = self.get_input_tx(tx_hash)
             for x_pubkey in txin['x_pubkeys']:
                 if not is_extended_pubkey(x_pubkey):
                     continue
