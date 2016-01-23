@@ -8,7 +8,7 @@ class KeepKeyClient(TrezorClientBase, ProtocolMixin, BaseClient):
         TrezorClientBase.__init__(self, handler, plugin, proto)
 
     def recovery_device(self, *args):
-        ProtocolMixin.recovery_device(self, True, *args)
+        ProtocolMixin.recovery_device(self, False, *args)
 
 
 TrezorClientBase.wrap_methods(KeepKeyClient)

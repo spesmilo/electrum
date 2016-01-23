@@ -15,6 +15,7 @@
      2) you enter a seed
      3) you enter a BIP39 mnemonic to generate the seed
      4) you enter a master private key
+   - KeepKey secure seed recovery (KeepKey only)
    - change / set / disable PIN
    - set homescreen (Trezor only)
    - set a session timeout.  Once a session has timed out, further use

@@ -285,7 +285,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         (item, label, pin_protection, passphrase_protection) \
             = wallet.handler.request_trezor_init_settings(method, self.device)
 
-        if method == TIM_RECOVER:
+        if method == TIM_RECOVER and self.device == 'Trezor':
             # Warn user about firmware lameness
             wallet.handler.show_error(_(
                 "You will be asked to enter 24 words regardless of your "
