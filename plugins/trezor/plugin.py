@@ -36,6 +36,7 @@ class TrezorCompatibleWallet(BIP44_Wallet):
     #   - wallet_type
 
     restore_wallet_class = BIP44_Wallet
+    max_change_outputs = 1
 
     def __init__(self, storage):
         BIP44_Wallet.__init__(self, storage)
@@ -138,22 +139,27 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         msg_sig = client.sign_message('Litecoin', address_n, message)
         return msg_sig.signature
 
+    def get_input_tx(self, tx_hash):
+        # First look up an input transaction in the wallet where it
+        # will likely be.  If co-signing a transaction it may not have
+        # all the input txs, in which case we ask the network.
+        tx = self.transactions.get(tx_hash)
+        if not tx:
+            request = ('blockchain.transaction.get', [tx_hash])
+            # FIXME: what if offline?
+            tx = Transaction(self.network.synchronous_get(request))
+        return tx
+
     def sign_transaction(self, tx, password):
-        if tx.is_complete() or self.is_watching_only():
+        if tx.is_complete():
             return
         # previous transactions used as inputs
         prev_tx = {}
         # path of the xpubs that are involved
         xpub_path = {}
-        for txin in tx.inputs:
+        for txin in tx.inputs():
             tx_hash = txin['prevout_hash']
-
-            ptx = self.transactions.get(tx_hash)
-            if ptx is None:
-                ptx = self.network.synchronous_get(('blockchain.transaction.get', [tx_hash]))
-                ptx = Transaction(ptx)
-            prev_tx[tx_hash] = ptx
-
+            prev_tx[tx_hash] = self.get_input_tx(tx_hash)
             for x_pubkey in txin['x_pubkeys']:
                 if not is_extended_pubkey(x_pubkey):
                     continue
@@ -285,7 +291,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         (item, label, pin_protection, passphrase_protection) \
             = wallet.handler.request_trezor_init_settings(method, self.device)
 
-        if method == TIM_RECOVER:
+        if method == TIM_RECOVER and self.device == 'Trezor':
             # Warn user about firmware lameness
             wallet.handler.show_error(_(
                 "You will be asked to enter 24 words regardless of your "

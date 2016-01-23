@@ -146,14 +146,17 @@ class CancelButton(QPushButton):
         self.clicked.connect(dialog.reject)
 
 class MessageBoxMixin(object):
-    def top_level_window(self, window=None):
+    def top_level_window_recurse(self, window=None):
         window = window or self
         classes = (WindowModalDialog, QMessageBox)
         for n, child in enumerate(window.children()):
             # Test for visibility as old closed dialogs may not be GC-ed
             if isinstance(child, classes) and child.isVisible():
-                return self.top_level_window(child)
+                return self.top_level_window_recurse(child)
         return window
+
+    def top_level_window(self):
+        return self.top_level_window_recurse()
 
     def question(self, msg, parent=None, title=None, icon=None):
         Yes, No = QMessageBox.Yes, QMessageBox.No
@@ -200,6 +203,8 @@ class WaitingDialog(WindowModalDialog):
     necessary to maintain a reference to this dialog.'''
     def __init__(self, parent, message, task, on_success=None, on_error=None):
         assert parent
+        if isinstance(parent, MessageBoxMixin):
+            parent = parent.top_level_window()
         WindowModalDialog.__init__(self, parent, _("Please wait"))
         vbox = QVBoxLayout(self)
         vbox.addWidget(QLabel(message))

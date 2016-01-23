@@ -151,6 +151,9 @@ class Abstract_Wallet(PrintError):
     Wallet classes are created to handle various address generation methods.
     Completion states (watching-only, single account, no seed, etc) are handled inside classes.
     """
+
+    max_change_outputs = 3
+
     def __init__(self, storage):
         self.storage = storage
         self.network = None
@@ -667,13 +670,15 @@ class Abstract_Wallet(PrintError):
         return amount, fee
 
     def get_account_addresses(self, acc_id, include_change=True):
-        if acc_id is None:
-            addr_list = self.addresses(include_change)
-        elif acc_id in self.accounts:
-            acc = self.accounts[acc_id]
-            addr_list = acc.get_addresses(0)
-            if include_change:
-                addr_list += acc.get_addresses(1)
+        '''acc_id of None means all user-visible accounts'''
+        addr_list = []
+        acc_ids = self.accounts_to_show() if acc_id is None else [acc_id]
+        for acc_id in acc_ids:
+            if acc_id in self.accounts:
+                acc = self.accounts[acc_id]
+                addr_list += acc.get_addresses(0)
+                if include_change:
+                    addr_list += acc.get_addresses(1)
         return addr_list
 
     def get_account_from_address(self, addr):
@@ -964,7 +969,7 @@ class Abstract_Wallet(PrintError):
         dust_threshold = DUST_SOFT_LIMIT
 
         # Let the coin chooser select the coins to spend
-        max_change = 3 if self.multiple_change else 1
+        max_change = self.max_change_outputs if self.multiple_change else 1
         coin_chooser = self.coin_chooser(config)
         tx = coin_chooser.make_tx(coins, outputs, change_addrs[:max_change],
                                   fee_estimator, dust_threshold)

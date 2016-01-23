@@ -27,26 +27,122 @@ PASSPHRASE_NOT_PIN = _(
     "If you forget a passphrase you will be unable to access any "
     "litecoins in the wallet behind it.  A passphrase is not a PIN. "
     "Only change this if you are sure you understand it.")
+CHARACTER_RECOVERY = (
+    "Use the recovery cipher shown on your device to input your seed words.  "
+    "The cipher updates with every letter.  After at most 4 letters the "
+    "device will auto-complete each word.\n"
+    "Press SPACE or the Accept Word button to accept the device's auto-"
+    "completed word and advance to the next one.\n"
+    "Press BACKSPACE to go back a character or word.\n"
+    "Press ENTER or the Seed Entered button once the last word in your "
+    "seed is auto-completed.")
+
+class CharacterButton(QPushButton):
+    def __init__(self, text=None):
+        QPushButton.__init__(self, text)
+
+    def keyPressEvent(self, event):
+        event.setAccepted(False)   # Pass through Enter and Space keys
+
+
+class CharacterDialog(WindowModalDialog):
+
+    def __init__(self, parent):
+        super(CharacterDialog, self).__init__(parent)
+        self.setWindowTitle(_("KeepKey Seed Recovery"))
+        self.character_pos = 0
+        self.word_pos = 0
+        self.loop = QEventLoop()
+        self.word_help = QLabel()
+        self.char_buttons = []
+
+        vbox = QVBoxLayout(self)
+        vbox.addWidget(WWLabel(CHARACTER_RECOVERY))
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.word_help)
+        for i in range(4):
+            char_button = CharacterButton('*')
+            char_button.setMaximumWidth(36)
+            self.char_buttons.append(char_button)
+            hbox.addWidget(char_button)
+        self.accept_button = CharacterButton(_("Accept Word"))
+        self.accept_button.clicked.connect(partial(self.process_key, 32))
+        self.rejected.connect(partial(self.loop.exit, 1))
+        hbox.addWidget(self.accept_button)
+        hbox.addStretch(1)
+        vbox.addLayout(hbox)
+
+        self.finished_button = QPushButton(_("Seed Entered"))
+        self.cancel_button = QPushButton(_("Cancel"))
+        self.finished_button.clicked.connect(partial(self.process_key,
+                                                     Qt.Key_Return))
+        self.cancel_button.clicked.connect(self.rejected)
+        buttons = Buttons(self.finished_button, self.cancel_button)
+        vbox.addSpacing(40)
+        vbox.addLayout(buttons)
+        self.refresh()
+        self.show()
+
+    def refresh(self):
+        self.word_help.setText("Enter seed word %2d:" % (self.word_pos + 1))
+        self.accept_button.setEnabled(self.character_pos >= 3)
+        self.finished_button.setEnabled((self.word_pos in (11, 17, 23)
+                                         and self.character_pos >= 3))
+        for n, button in enumerate(self.char_buttons):
+            button.setEnabled(n == self.character_pos)
+            if n == self.character_pos:
+                button.setFocus()
+
+    def process_key(self, key):
+        self.data = None
+        if key == Qt.Key_Return and self.finished_button.isEnabled():
+            self.data = {'done': True}
+        elif key == Qt.Key_Backspace and (self.word_pos or self.character_pos):
+            self.data = {'delete': True}
+        elif ((key >= ord('a') and key <= ord('z'))
+              or (key >= ord('A') and key <= ord('Z'))
+              or (key == ord(' ') and self.character_pos >= 3)):
+            char = chr(key).lower()
+            self.data = {'character': char}
+        if self.data:
+            self.loop.exit(0)
+
+    def keyPressEvent(self, event):
+        self.process_key(event.key())
+        if not self.data:
+            QDialog.keyPressEvent(self, event)
+
+    def get_char(self, word_pos, character_pos):
+        self.word_pos = word_pos
+        self.character_pos = character_pos
+        self.refresh()
+        if self.loop.exec_():
+            self.data = None  # User cancelled
 
 # By far the trickiest thing about this handler is the window stack;
 # MacOSX is very fussy the modal dialogs are perfectly parented
-class QtHandler(PrintError):
+class QtHandler(QObject, PrintError):
     '''An interface between the GUI (here, QT) and the device handling
     logic for handling I/O.  This is a generic implementation of the
     Trezor protocol; derived classes can customize it.'''
 
+    charSig = pyqtSignal(object)
+
     def __init__(self, win, pin_matrix_widget_class, device):
+        super(QtHandler, self).__init__()
         win.connect(win, SIGNAL('clear_dialog'), self.clear_dialog)
         win.connect(win, SIGNAL('error_dialog'), self.error_dialog)
         win.connect(win, SIGNAL('message_dialog'), self.message_dialog)
         win.connect(win, SIGNAL('pin_dialog'), self.pin_dialog)
         win.connect(win, SIGNAL('passphrase_dialog'), self.passphrase_dialog)
         win.connect(win, SIGNAL('word_dialog'), self.word_dialog)
+        self.charSig.connect(self.update_character_dialog)
         self.win = win
         self.pin_matrix_widget_class = pin_matrix_widget_class
         self.device = device
         self.dialog = None
         self.done = threading.Event()
+        self.character_dialog = None
 
     def top_level_window(self):
         return self.win.top_level_window()
@@ -62,6 +158,16 @@ class QtHandler(PrintError):
 
     def finished(self):
         self.win.emit(SIGNAL('clear_dialog'))
+
+    def get_char(self, msg):
+        self.done.clear()
+        self.charSig.emit(msg)
+        self.done.wait()
+        data = self.character_dialog.data
+        if not data or 'done' in data:
+            self.character_dialog.accept()
+            self.character_dialog = None
+        return data
 
     def get_pin(self, msg):
         self.done.clear()
@@ -116,6 +222,12 @@ class QtHandler(PrintError):
         self.word = unicode(text.text())
         self.done.set()
 
+    def update_character_dialog(self, msg):
+        if not self.character_dialog:
+            self.character_dialog = CharacterDialog(self.top_level_window())
+        self.character_dialog.get_char(msg.word_pos, msg.character_pos)
+        self.done.set()
+
     def message_dialog(self, msg, on_cancel):
         # Called more than once during signing, to confirm output and fee
         self.clear_dialog()
@@ -154,7 +266,9 @@ class QtHandler(PrintError):
             gb = QGroupBox()
             vbox1 = QVBoxLayout()
             gb.setLayout(vbox1)
-            vbox.addWidget(gb)
+            # KeepKey recovery doesn't need a word count
+            if method == TIM_NEW or self.device == 'Trezor':
+                vbox.addWidget(gb)
             gb.setTitle(_("Select your seed length:"))
             choices = [
                 _("12 words"),
@@ -320,12 +434,16 @@ class SettingsDialog(WindowModalDialog):
         self.current_label=None
 
         def invoke_client(method, *args, **kw_args):
+            unpair_after = kw_args.pop('unpair_after', False)
+
             def task():
                 client = devmgr.client_by_id(device_id, handler)
                 if not client:
                     raise RuntimeError("Device not connected")
                 if method:
                     getattr(client, method)(*args, **kw_args)
+                if unpair_after:
+                    devmgr.unpair_id(device_id)
                 return client.features
 
             thread.add(task, on_success=update)
@@ -378,8 +496,7 @@ class SettingsDialog(WindowModalDialog):
                     "Are you sure you want to proceed?") % plugin.device
             if not self.question(msg, title=title):
                 return
-            invoke_client('toggle_passphrase')
-            devmgr.unpair_id(device_id)
+            invoke_client('toggle_passphrase', unpair_after=True)
 
         def change_homescreen():
             from PIL import Image  # FIXME
@@ -416,8 +533,7 @@ class SettingsDialog(WindowModalDialog):
                 if not self.question(msg, title=title,
                                      icon=QMessageBox.Critical):
                     return
-            invoke_client('wipe_device')
-            devmgr.unpair_id(device_id)
+            invoke_client('wipe_device', unpair_after=True)
 
         def slider_moved():
             mins = timeout_slider.sliderPosition()

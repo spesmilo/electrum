@@ -10,11 +10,23 @@ from electrum_ltc.plugins import run_hook
 from electrum_ltc.bitcoin import RECOMMENDED_FEE
 
 Builder.load_string('''
+#:import partial functools.partial
+
 <SettingsItem@ButtonBehavior+BoxLayout>
     orientation: 'vertical'
     title: ''
     description: ''
     size_hint: 1, None
+
+    canvas.before:
+        Color:
+            rgba: (0.192, .498, 0.745, 1) if self.state == 'down' else (0.3, 0.3, 0.3, 0)
+        Rectangle:
+            size: self.size
+            pos: self.pos
+    on_release:
+        Clock.schedule_once(self.action)
+
     Label:
         id: title
         text: self.parent.title
@@ -47,57 +59,37 @@ Builder.load_string('''
                     lang: settings.get_language_name()
                     title: _('Language') + ': %s'%self.lang
                     description: _("Language")
-                    on_release:
-                        settings.language_dialog(self)
+                    action: partial(root.language_dialog, self)
                     height: '48dp'
                 SettingsItem:
                     status: 'ON' if app.wallet.use_encryption else 'OFF'
                     title: _('PIN code') + ': ' + self.status
                     description: _("Change your PIN code.")
-                    on_release:
-                        app.change_password()
-                        self.status = 'ON' if app.wallet.use_encryption else 'OFF'
+                    action: partial(root.change_password, self)
                 SettingsItem:
                     bu: app.base_unit
                     title: _('Denomination') + ': ' + self.bu
                     description: _("Base unit for Litecoin amounts.")
-                    on_release:
-                        settings.unit_dialog(self)
+                    action: partial(root.unit_dialog, self)
                 SettingsItem:
                     status: root.fee_status()
                     title: _('Fees') + ': ' + self.status
                     description: _("Fees paid to the Litecoin miners.")
-                    on_release:
-                        root.fee_dialog(self)
+                    action: partial(root.fee_dialog, self)
                 SettingsItem:
-                    status: 'ON' if bool(app.plugins.get('exchange_rate')) else 'OFF'
-                    title: _('Exchange rates') + ': ' + self.status
-                    description: _("Display amounts in fiat currency.")
-                    on_release:
-                        settings.plugin_dialog('exchange_rate', self)
-                SettingsItem:
-                    status: app.fiat_unit
+                    status: root.fx_status()
                     title: _('Fiat Currency') + ': ' + self.status
-                    description: _("Select the local fiat currency.")
-                    on_release:
-                        settings.fiat_currency_dialog(self)
-                SettingsItem:
-                    status: root.fiat_source()
-                    title: _('Fiat source') + ': ' + self.status
-                    description: _("Source for fiat currency exchange rate.")
-                    on_release:
-                        settings.fiat_source_dialog(self)
+                    description: _("Display amounts in fiat currency.")
+                    action: partial(root.fx_dialog, self)
                 SettingsItem:
                     status: 'ON' if bool(app.plugins.get('labels')) else 'OFF'
                     title: _('Labels Sync') + ': ' + self.status
                     description: "Synchronize labels."
-                    on_release:
-                        settings.plugin_dialog('labels', self)
+                    action: partial(root.plugin_dialog, 'labels', self)
                 SettingsItem:
                     title: _('OpenAlias')
                     description: "DNS record that stores one of your Litecoin addresses."
-                    on_release:
-                        settings.openalias_dialog()
+                    action: partial(root.openalias_dialog, self)
         BoxLayout:
             size_hint: 1, 0.1
             Widget:
@@ -123,7 +115,10 @@ class SettingsDialog(Factory.Popup):
     def get_language_name(self):
         return languages.get(self.config.get('language', 'en_UK'), '')
 
-    def language_dialog(self, item):
+    def change_password(self, label, dt):
+        self.app.change_password()
+
+    def language_dialog(self, item, dt):
         from choice_dialog import ChoiceDialog
         l = self.config.get('language', 'en_UK')
         def cb(key):
@@ -133,7 +128,7 @@ class SettingsDialog(Factory.Popup):
         d = ChoiceDialog(_('Language'), languages, l, cb)
         d.open()
 
-    def unit_dialog(self, item):
+    def unit_dialog(self, item, dt):
         from choice_dialog import ChoiceDialog
         def cb(text):
             self.app._set_bu(text)
@@ -141,43 +136,14 @@ class SettingsDialog(Factory.Popup):
         d = ChoiceDialog(_('Denomination'), base_units.keys(), self.app.base_unit, cb)
         d.open()
 
-    def fiat_currency_dialog(self, item):
-        from choice_dialog import ChoiceDialog
-        p = self.app.plugins.get('exchange_rate')
-        if not p:
-            return
-        def cb(text):
-            p.set_currency(text)
-            item.status = text
-            self.app.fiat_unit = text
-        l = sorted(p.exchange.quotes.keys()) if p else []
-        d = ChoiceDialog(_('Fiat Currency'), l, p.get_currency(), cb)
-        d.open()
-
-    def fiat_source(self):
-        p = self.app.plugins.get('exchange_rate')
-        return p.exchange.name() if p else 'None'
-
-    def fiat_source_dialog(self, item):
-        from choice_dialog import ChoiceDialog
-        p = self.plugins.get('exchange_rate')
-        if not p:
-            return
-        def cb(text):
-            p.set_exchange(text)
-            item.status = text
-        l = sorted(p.exchanges.keys())
-        d = ChoiceDialog(_('Exchange rate source'), l, self.fiat_source(), cb)
-        d.open()
-
-    def openalias_dialog(self):
+    def openalias_dialog(self, label, dt):
         from label_dialog import LabelDialog
         def callback(text):
-            pass
+            label.text = text
         d = LabelDialog(_('OpenAlias'), '', callback)
         d.open()
 
-    def plugin_dialog(self, name, label):
+    def plugin_dialog(self, name, label, dt):
         from checkbox_dialog import CheckBoxDialog
         def callback(status):
             self.plugins.enable(name) if status else self.plugins.disable(name)
@@ -198,9 +164,26 @@ class SettingsDialog(Factory.Popup):
             F = self.config.get('fee_per_kb', RECOMMENDED_FEE)
             return self.app.format_amount(F) + ' ' + self.app.base_unit + '/kB'
 
-    def fee_dialog(self, label):
+    def fee_dialog(self, label, dt):
         from fee_dialog import FeeDialog
         def cb():
             label.status = self.fee_status()
         d = FeeDialog(self.config, cb)
         d.open()
+
+    def fx_status(self):
+        p = self.plugins.get('exchange_rate')
+        if p:
+            source = p.exchange.name()
+            ccy = p.get_currency()
+            return '%s [%s]' %(ccy, source)
+        else:
+            return 'Disabled'
+
+    def fx_dialog(self, label, dt):
+        from fx_dialog import FxDialog
+        def cb():
+            label.status = self.fx_status()
+        d = FxDialog(self.app, self.plugins, self.config, cb)
+        d.open()
+

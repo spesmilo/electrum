@@ -66,6 +66,11 @@ class GuiMixin(object):
         # Unfortunately the device can't handle self.proto.Cancel()
         return self.proto.WordAck(word=word)
 
+    def callback_CharacterRequest(self, msg):
+        char_info = self.handler.get_char(msg)
+        if not char_info:
+            return self.proto.Cancel()
+        return self.proto.CharacterAck(**char_info)
 
 class TrezorClientBase(GuiMixin, PrintError):
 
