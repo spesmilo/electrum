@@ -145,7 +145,7 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         prev_tx = {}
         # path of the xpubs that are involved
         xpub_path = {}
-        for txin in tx.inputs:
+        for txin in tx.inputs():
             tx_hash = txin['prevout_hash']
 
             ptx = self.transactions.get(tx_hash)
