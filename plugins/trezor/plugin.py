@@ -139,7 +139,7 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         return msg_sig.signature
 
     def sign_transaction(self, tx, password):
-        if tx.is_complete() or self.is_watching_only():
+        if tx.is_complete():
             return
         # previous transactions used as inputs
         prev_tx = {}
