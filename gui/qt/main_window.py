@@ -178,8 +178,23 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fetch_alias()
         self.require_fee_update = False
         self.tx_notifications = []
+        self.tl_windows = []
         self.load_wallet(wallet)
         self.connect_slots(gui_object.timer)
+
+    def push_top_level_window(self, window):
+        '''Used for e.g. tx dialog box to ensure new dialogs are appropriately
+        parented.  This used to be done by explicitly providing the parent
+        window, but that isn't something hardware wallet prompts know.'''
+        self.tl_windows.append(window)
+
+    def pop_top_level_window(self, window):
+        self.tl_windows.remove(window)
+
+    def top_level_window(self):
+        '''Do the right thing in the presence of tx dialog windows'''
+        override = self.tl_windows[-1] if self.tl_windows else None
+        return self.top_level_window_recurse(override)
 
     def diagnostic_name(self):
         return "%s/%s" % (PrintError.diagnostic_name(self),
@@ -1141,7 +1156,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return value of the wrapped function, or None if cancelled.
         '''
         def request_password(self, *args, **kwargs):
-            parent = kwargs.get('parent', self.top_level_window())
+            parent = self.top_level_window()
             password = None
             while self.wallet.use_encryption:
                 password = self.password_dialog(parent=parent)
@@ -1254,14 +1269,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     self.show_transaction(tx)
                     self.do_clear()
                 else:
-                    self.broadcast_transaction(tx, tx_desc, self)
-        self.sign_tx_with_password(tx, sign_done, password, self)
+                    self.broadcast_transaction(tx, tx_desc)
+        self.sign_tx_with_password(tx, sign_done, password)
 
     @protected
-    def sign_tx(self, tx, callback, password, parent):
-        self.sign_tx_with_password(tx, callback, password, parent)
+    def sign_tx(self, tx, callback, password):
+        self.sign_tx_with_password(tx, callback, password)
 
-    def sign_tx_with_password(self, tx, callback, password, parent):
+    def sign_tx_with_password(self, tx, callback, password):
         '''Sign the transaction in a separate thread.  When done, calls
         the callback with a success code of True or False.
         '''
@@ -1270,7 +1285,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
 
         # call hook to see if plugin needs gui interaction
-        run_hook('sign_tx', parent, tx)
+        run_hook('sign_tx', self, tx)
 
         def on_signed(result):
             callback(True)
@@ -1279,10 +1294,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             callback(False)
 
         task = partial(self.wallet.sign_transaction, tx, password)
-        WaitingDialog(parent, _('Signing transaction...'), task,
+        WaitingDialog(self, _('Signing transaction...'), task,
                       on_signed, on_failed)
 
-    def broadcast_transaction(self, tx, tx_desc, parent):
+    def broadcast_transaction(self, tx, tx_desc):
 
         def broadcast_thread():
             # non-GUI thread
@@ -1304,6 +1319,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 msg = ack_msg
             return status, msg
 
+        # Capture current TL window; override might be removed on return
+        parent = self.top_level_window()
+
         def broadcast_done(result):
             # GUI thread
             if result:
@@ -1311,14 +1329,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 if status:
                     if tx_desc is not None and tx.is_complete():
                         self.wallet.set_label(tx.hash(), tx_desc)
-                        self.show_message(_('Payment sent.') + '\n' + msg,
-                                          parent=parent)
+                        parent.show_message(_('Payment sent.') + '\n' + msg)
                         self.invoices_list.update()
                         self.do_clear()
                 else:
-                    self.show_error(msg, parent=parent)
+                    parent.show_error(msg)
 
-        WaitingDialog(parent, _('Broadcasting transaction...'),
+        WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.on_error)
 
     def prepare_for_payment_request(self):

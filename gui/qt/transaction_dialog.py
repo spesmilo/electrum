@@ -116,7 +116,11 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.update()
 
     def do_broadcast(self):
-        self.main_window.broadcast_transaction(self.tx, self.desc, self)
+        self.main_window.push_top_level_window(self)
+        try:
+            self.main_window.broadcast_transaction(self.tx, self.desc)
+        finally:
+            self.main_window.pop_top_level_window(self)
         self.broadcast = True
         self.update()
 
@@ -140,6 +144,7 @@ class TxDialog(QDialog, MessageBoxMixin):
     def sign(self):
         def sign_done(success):
             self.sign_button.setDisabled(False)
+            self.main_window.pop_top_level_window(self)
             if success:
                 self.prompt_if_unsaved = False
                 self.saved = False
@@ -148,7 +153,8 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.sign_button.setDisabled(True)
         # Note sign_tx is wrapped and parent= is actually passed
         # to the password input dialog box
-        self.main_window.sign_tx(self.tx, sign_done, parent=self)
+        self.main_window.push_top_level_window(self)
+        self.main_window.sign_tx(self.tx, sign_done)
 
     def save(self):
         name = 'signed_%s.txn' % (self.tx.hash()[0:8]) if self.tx.is_complete() else 'unsigned.txn'
