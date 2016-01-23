@@ -666,10 +666,13 @@ class Abstract_Wallet(PrintError):
         amount = max(0, sendable - fee)
         return amount, fee
 
+    def default_account_id(self):
+        return self.accounts.keys()[0]
+
     def get_account_addresses(self, acc_id, include_change=True):
         if acc_id is None:
-            addr_list = self.addresses(include_change)
-        elif acc_id in self.accounts:
+            acc_id = self.default_account_id()
+        if acc_id in self.accounts:
             acc = self.accounts[acc_id]
             addr_list = acc.get_addresses(0)
             if include_change:
@@ -1689,6 +1692,11 @@ class BIP32_HD_Wallet(BIP32_RD_Wallet):
         assert (set(self.accounts.keys()) ==
                 set(['%d' % n for n in range(len(self.accounts))]))
         return len(self.accounts)
+
+    def default_account_id(self):
+        visible_acc_ids = [acc_id for acc_id in self.accounts.keys()
+                            if self.show_account(acc_id)]
+        return visible_acc_ids[0]
 
     def show_account(self, account_id):
         return self.account_is_used(account_id) or account_id in self.labels
