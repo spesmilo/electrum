@@ -29,8 +29,8 @@ PASSPHRASE_NOT_PIN = _(
     "Only change this if you are sure you understand it.")
 CHARACTER_RECOVERY = (
     "Use the recovery cipher shown on your device to input your seed words.  "
-    "The cipher updates with every letter.  After at most 4 letters the "
-    "device will auto-complete each word.\n"
+    "The cipher changes with every keypress.\n"
+    "After at most 4 letters the device will auto-complete a word.\n"
     "Press SPACE or the Accept Word button to accept the device's auto-"
     "completed word and advance to the next one.\n"
     "Press BACKSPACE to go back a character or word.\n"
@@ -93,17 +93,24 @@ class CharacterDialog(WindowModalDialog):
             if n == self.character_pos:
                 button.setFocus()
 
+    def is_valid_alpha_space(self, key):
+        # Auto-completion requires at least 3 characters
+        if key == ord(' ') and self.character_pos >= 3:
+            return True
+        # Firmware aborts protocol if the 5th character is non-space
+        if self.character_pos >= 4:
+            return False
+        return (key >= ord('a') and key <= ord('z')
+                or (key >= ord('A') and key <= ord('Z')))
+
     def process_key(self, key):
         self.data = None
         if key == Qt.Key_Return and self.finished_button.isEnabled():
             self.data = {'done': True}
         elif key == Qt.Key_Backspace and (self.word_pos or self.character_pos):
             self.data = {'delete': True}
-        elif ((key >= ord('a') and key <= ord('z'))
-              or (key >= ord('A') and key <= ord('Z'))
-              or (key == ord(' ') and self.character_pos >= 3)):
-            char = chr(key).lower()
-            self.data = {'character': char}
+        elif self.is_valid_alpha_space(key):
+            self.data = {'character': chr(key).lower()}
         if self.data:
             self.loop.exit(0)
 
@@ -368,8 +375,14 @@ def qt_plugin_class(base_plugin_class):
         wallet.thread = TaskThread(wizard, wizard.on_error)
         # Setup device and create accounts in separate thread; wait until done
         loop = QEventLoop()
-        self.setup_device(wallet, loop.quit)
+        exc_info = []
+        self.setup_device(wallet, on_done=loop.quit,
+                          on_error=lambda info: exc_info.extend(info))
         loop.exec_()
+        # If an exception was thrown, show to user and exit install wizard
+        if exc_info:
+            wizard.on_error(exc_info)
+            raise UserCancelled
 
     @hook
     def receive_menu(self, menu, addrs, wallet):

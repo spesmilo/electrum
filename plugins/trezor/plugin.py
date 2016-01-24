@@ -323,18 +323,21 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
                 pin = pin_protection  # It's the pin, not a boolean
                 client.load_device_by_xprv(item, pin, passphrase_protection,
                                            label, language)
+            # After successful initialization create accounts
+            wallet.create_hd_account(None)
 
         return initialize_method
 
-    def setup_device(self, wallet, on_done):
+    def setup_device(self, wallet, on_done, on_error):
         '''Called when creating a new wallet.  Select the device to use.  If
         the device is uninitialized, go through the intialization
         process.  Then create the wallet accounts.'''
-        create_hd_task = partial(wallet.create_hd_account, None)
         initialized = self.select_device(wallet)
-        if not initialized:
-            wallet.thread.add(self.initialize_device(wallet))
-        wallet.thread.add(create_hd_task, on_done=on_done)
+        if initialized:
+            task = partial(wallet.create_hd_account, None)
+        else:
+            task = self.initialize_device(wallet)
+        wallet.thread.add(task, on_done=on_done, on_error=on_error)
 
     def unpaired_devices(self, handler):
         '''Returns all connected, unpaired devices as a list of clients and a
