@@ -46,11 +46,14 @@ class Plugins(DaemonThread):
         self.gui_name = gui_name
         self.descriptions = {}
         self.device_manager = DeviceMgr()
+        self.load_plugins()
+        self.start()
 
+    def load_plugins(self):
         for loader, name, ispkg in pkgutil.iter_modules([self.pkgpath]):
             m = loader.find_module(name).load_module(name)
             d = m.__dict__
-            gui_good = gui_name in d.get('available_for', [])
+            gui_good = self.gui_name in d.get('available_for', [])
             # We register wallet types even if the GUI isn't provided
             # otherwise the user gets a misleading message like
             # "Unknown wallet type: 2fa"
@@ -60,7 +63,7 @@ class Plugins(DaemonThread):
             if not gui_good:
                 continue
             self.descriptions[name] = d
-            if not d.get('requires_wallet_type') and config.get('use_' + name):
+            if not d.get('requires_wallet_type') and self.config.get('use_' + name):
                 try:
                     self.load_plugin(name)
                 except BaseException as e:
@@ -151,9 +154,6 @@ class Plugins(DaemonThread):
         return self.plugins[name]
 
     def run(self):
-        jobs = [job for plugin in self.plugins.values()
-                for job in plugin.thread_jobs()]
-        self.add_jobs(jobs)
         while self.is_running():
             time.sleep(0.1)
             self.run_jobs()

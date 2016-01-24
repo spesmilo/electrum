@@ -330,7 +330,6 @@ if __name__ == '__main__':
             if not config.get('offline'):
                 network = Network(config)
                 network.start()
-                plugins.start()
             else:
                 network = None
             daemon = Daemon(config, network)
@@ -353,7 +352,6 @@ if __name__ == '__main__':
                 if p == 0:
                     network = Network(config)
                     network.start()
-                    plugins.start()
                     daemon = Daemon(config, network)
                     if config.get('websocket_server'):
                         from electrum import websockets
