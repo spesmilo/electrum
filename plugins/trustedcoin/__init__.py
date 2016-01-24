@@ -8,4 +8,4 @@ description = ''.join([
 ])
 requires_wallet_type = ['2fa']
 registers_wallet_type = ('twofactor', '2fa', _("Wallet with two-factor authentication"))
-available_for = ['qt', 'cmdline']
+available_for = ['qt']

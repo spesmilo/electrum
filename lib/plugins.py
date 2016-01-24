@@ -51,6 +51,8 @@ class Plugins(DaemonThread):
             m = loader.find_module(name).load_module(name)
             d = m.__dict__
             gui_good = gui_name in d.get('available_for', [])
+            # We register wallet types even if the GUI isn't provided
+            # so that they can be restored in the install wizard
             details = d.get('registers_wallet_type')
             if details:
                 self.register_plugin_wallet(name, gui_good, details)
@@ -58,7 +60,12 @@ class Plugins(DaemonThread):
                 continue
             self.descriptions[name] = d
             if not d.get('requires_wallet_type') and config.get('use_' + name):
-                self.load_plugin(name)
+                try:
+                    self.load_plugin(name)
+                except BaseException as e:
+                    traceback.print_exc(file=sys.stdout)
+                    self.print_error("cannot initialize plugin %s:" % name,
+                                     str(e))
 
     def get(self, name):
         return self.plugins.get(name)
@@ -68,17 +75,16 @@ class Plugins(DaemonThread):
 
     def load_plugin(self, name):
         full_name = 'electrum_plugins.' + name + '.' + self.gui_name
-        try:
-            p = pkgutil.find_loader(full_name).load_module(full_name)
-            plugin = p.Plugin(self, self.config, name)
-            self.add_jobs(plugin.thread_jobs())
-            self.plugins[name] = plugin
-            self.print_error("loaded", name)
-            return plugin
-        except Exception:
-            self.print_error("cannot initialize plugin", name)
-            traceback.print_exc(file=sys.stdout)
-            return None
+        loader = pkgutil.find_loader(full_name)
+        if not loader:
+            raise RuntimeError("%s implementation for %s plugin not found"
+                               % (self.gui_name, name))
+        p = loader.load_module(full_name)
+        plugin = p.Plugin(self, self.config, name)
+        self.add_jobs(plugin.thread_jobs())
+        self.plugins[name] = plugin
+        self.print_error("loaded", name)
+        return plugin
 
     def close_plugin(self, plugin):
         self.remove_jobs(plugin.thread_jobs())
