@@ -52,7 +52,8 @@ class Plugins(DaemonThread):
             d = m.__dict__
             gui_good = gui_name in d.get('available_for', [])
             # We register wallet types even if the GUI isn't provided
-            # so that they can be restored in the install wizard
+            # otherwise the user gets a misleading message like
+            # "Unknown wallet type: 2fa"
             details = d.get('registers_wallet_type')
             if details:
                 self.register_plugin_wallet(name, gui_good, details)
