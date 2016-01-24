@@ -29,8 +29,8 @@ PASSPHRASE_NOT_PIN = _(
     "Only change this if you are sure you understand it.")
 CHARACTER_RECOVERY = (
     "Use the recovery cipher shown on your device to input your seed words.  "
-    "The cipher updates with every letter.  After at most 4 letters the "
-    "device will auto-complete each word.\n"
+    "The cipher changes with every keypress.\n"
+    "After at most 4 letters the device will auto-complete a word.\n"
     "Press SPACE or the Accept Word button to accept the device's auto-"
     "completed word and advance to the next one.\n"
     "Press BACKSPACE to go back a character or word.\n"
@@ -93,17 +93,24 @@ class CharacterDialog(WindowModalDialog):
             if n == self.character_pos:
                 button.setFocus()
 
+    def is_valid_alpha_space(self, key):
+        # Auto-completion requires at least 3 characters
+        if key == ord(' ') and self.character_pos >= 3:
+            return True
+        # Firmware aborts protocol if the 5th character is non-space
+        if self.character_pos >= 4:
+            return False
+        return (key >= ord('a') and key <= ord('z')
+                or (key >= ord('A') and key <= ord('Z')))
+
     def process_key(self, key):
         self.data = None
         if key == Qt.Key_Return and self.finished_button.isEnabled():
             self.data = {'done': True}
         elif key == Qt.Key_Backspace and (self.word_pos or self.character_pos):
             self.data = {'delete': True}
-        elif ((key >= ord('a') and key <= ord('z'))
-              or (key >= ord('A') and key <= ord('Z'))
-              or (key == ord(' ') and self.character_pos >= 3)):
-            char = chr(key).lower()
-            self.data = {'character': char}
+        elif self.is_valid_alpha_space(key):
+            self.data = {'character': chr(key).lower()}
         if self.data:
             self.loop.exit(0)
 
@@ -127,6 +134,7 @@ class QtHandler(QObject, PrintError):
     Trezor protocol; derived classes can customize it.'''
 
     charSig = pyqtSignal(object)
+    qcSig = pyqtSignal(object, object)
 
     def __init__(self, win, pin_matrix_widget_class, device):
         super(QtHandler, self).__init__()
@@ -137,6 +145,7 @@ class QtHandler(QObject, PrintError):
         win.connect(win, SIGNAL('passphrase_dialog'), self.passphrase_dialog)
         win.connect(win, SIGNAL('word_dialog'), self.word_dialog)
         self.charSig.connect(self.update_character_dialog)
+        self.qcSig.connect(self.win_query_choice)
         self.win = win
         self.pin_matrix_widget_class = pin_matrix_widget_class
         self.device = device
@@ -149,6 +158,12 @@ class QtHandler(QObject, PrintError):
 
     def watching_only_changed(self):
         self.win.emit(SIGNAL('watching_only_changed'))
+
+    def query_choice(self, msg, labels):
+        self.done.clear()
+        self.qcSig.emit(msg, labels)
+        self.done.wait()
+        return self.choice
 
     def show_message(self, msg, on_cancel=None):
         self.win.emit(SIGNAL('message_dialog'), msg, on_cancel)
@@ -249,8 +264,9 @@ class QtHandler(QObject, PrintError):
             self.dialog.accept()
             self.dialog = None
 
-    def query_choice(self, msg, labels):
-        return self.win.query_choice(msg, labels)
+    def win_query_choice(self, msg, labels):
+        self.choice = self.win.query_choice(msg, labels)
+        self.done.set()
 
     def request_trezor_init_settings(self, method, device):
         wizard = self.win
@@ -368,8 +384,14 @@ def qt_plugin_class(base_plugin_class):
         wallet.thread = TaskThread(wizard, wizard.on_error)
         # Setup device and create accounts in separate thread; wait until done
         loop = QEventLoop()
-        self.setup_device(wallet, loop.quit)
+        exc_info = []
+        self.setup_device(wallet, on_done=loop.quit,
+                          on_error=lambda info: exc_info.extend(info))
         loop.exec_()
+        # If an exception was thrown, show to user and exit install wizard
+        if exc_info:
+            wizard.on_error(exc_info)
+            raise UserCancelled
 
     @hook
     def receive_menu(self, menu, addrs, wallet):
@@ -386,18 +408,13 @@ def qt_plugin_class(base_plugin_class):
     def choose_device(self, window):
         '''This dialog box should be usable even if the user has
         forgotten their PIN or it is in bootloader mode.'''
-        handler = window.wallet.handler
         device_id = self.device_manager().wallet_id(window.wallet)
         if not device_id:
-            infos = self.unpaired_devices(handler)
-            if infos:
-                labels = [info[1] for info in infos]
-                msg = _("Select a %s device:") % self.device
-                choice = self.query_choice(window, msg, labels)
-                if choice is not None:
-                    device_id = infos[choice][0].id_
+            info = self.device_manager().select_device(window.wallet, self)
+            if info:
+                device_id = info.device.id_
             else:
-                handler.show_error(_("No devices found"))
+                window.wallet.handler.show_error(_("No devices found"))
         return device_id
 
     def query_choice(self, window, msg, choices):

@@ -25,9 +25,6 @@ TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
 class DeviceDisconnectedError(Exception):
     pass
 
-class OutdatedFirmwareError(Exception):
-    pass
-
 class TrezorCompatibleWallet(BIP44_Wallet):
     # Extend BIP44 Wallet as required by hardware implementation.
     # Derived classes must set:
@@ -212,16 +209,18 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
                 wallet.last_operation = self.prevent_timeout
 
     def create_client(self, device, handler):
-        path = device.path
-        pair = ((None, path) if self.HidTransport._detect_debuglink(path)
-                else (path, None))
+        if device.interface_number == 1:
+            pair = [None, device.path]
+        else:
+            pair = [device.path, None]
+
         try:
             transport = self.HidTransport(pair)
         except BaseException as e:
             # We were probably just disconnected; never mind
-            self.print_error("cannot connect at", path, str(e))
+            self.print_error("cannot connect at", device.path, str(e))
             return None
-        self.print_error("connected to device at", path)
+        self.print_error("connected to device at", device.path)
 
         client = self.client_class(transport, handler, self)
 
@@ -323,47 +322,23 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
                 pin = pin_protection  # It's the pin, not a boolean
                 client.load_device_by_xprv(item, pin, passphrase_protection,
                                            label, language)
+            # After successful initialization create accounts
+            wallet.create_hd_account(None)
 
         return initialize_method
 
-    def setup_device(self, wallet, on_done):
+    def setup_device(self, wallet, on_done, on_error):
         '''Called when creating a new wallet.  Select the device to use.  If
         the device is uninitialized, go through the intialization
         process.  Then create the wallet accounts.'''
-        create_hd_task = partial(wallet.create_hd_account, None)
-        initialized = self.select_device(wallet)
-        if not initialized:
-            wallet.thread.add(self.initialize_device(wallet))
-        wallet.thread.add(create_hd_task, on_done=on_done)
-
-    def unpaired_devices(self, handler):
-        '''Returns all connected, unpaired devices as a list of clients and a
-        list of descriptions.'''
         devmgr = self.device_manager()
-        devices = devmgr.unpaired_devices(handler)
-
-        states = [_("wiped"), _("initialized")]
-        infos = []
-        for device in devices:
-            if not device.product_key in self.DEVICE_IDS:
-                continue
-            client = self.device_manager().create_client(device, handler, self)
-            if not client:
-                continue
-            state = states[client.is_initialized()]
-            label = client.label() or _("An unnamed %s") % self.device
-            descr = "%s (%s)" % (label, state)
-            infos.append((device, descr, client.is_initialized()))
-
-        return infos
-
-    def select_device(self, wallet):
-        msg = _("Please select which %s device to use:") % self.device
-        infos = self.unpaired_devices(wallet.handler)
-        labels = [info[1] for info in infos]
-        device, descr, init = infos[wallet.handler.query_choice(msg, labels)]
-        self.device_manager().pair_wallet(wallet, device.id_)
-        return init
+        device_info = devmgr.select_device(wallet, self)
+        devmgr.pair_wallet(wallet, device_info.device.id_)
+        if device_info.initialized:
+            task = partial(wallet.create_hd_account, None)
+        else:
+            task = self.initialize_device(wallet)
+        wallet.thread.add(task, on_done=on_done, on_error=on_error)
 
     def on_restore_wallet(self, wallet, wizard):
         assert isinstance(wallet, self.wallet_class)

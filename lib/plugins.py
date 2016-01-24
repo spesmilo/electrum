@@ -46,19 +46,30 @@ class Plugins(DaemonThread):
         self.gui_name = gui_name
         self.descriptions = {}
         self.device_manager = DeviceMgr()
+        self.load_plugins()
+        self.start()
 
+    def load_plugins(self):
         for loader, name, ispkg in pkgutil.iter_modules([self.pkgpath]):
             m = loader.find_module(name).load_module(name)
             d = m.__dict__
-            gui_good = gui_name in d.get('available_for', [])
+            gui_good = self.gui_name in d.get('available_for', [])
+            # We register wallet types even if the GUI isn't provided
+            # otherwise the user gets a misleading message like
+            # "Unknown wallet type: 2fa"
             details = d.get('registers_wallet_type')
             if details:
                 self.register_plugin_wallet(name, gui_good, details)
             if not gui_good:
                 continue
             self.descriptions[name] = d
-            if not d.get('requires_wallet_type') and config.get('use_' + name):
-                self.load_plugin(name)
+            if not d.get('requires_wallet_type') and self.config.get('use_' + name):
+                try:
+                    self.load_plugin(name)
+                except BaseException as e:
+                    traceback.print_exc(file=sys.stdout)
+                    self.print_error("cannot initialize plugin %s:" % name,
+                                     str(e))
 
     def get(self, name):
         return self.plugins.get(name)
@@ -68,17 +79,16 @@ class Plugins(DaemonThread):
 
     def load_plugin(self, name):
         full_name = 'electrum_ltc_plugins.' + name + '.' + self.gui_name
-        try:
-            p = pkgutil.find_loader(full_name).load_module(full_name)
-            plugin = p.Plugin(self, self.config, name)
-            self.add_jobs(plugin.thread_jobs())
-            self.plugins[name] = plugin
-            self.print_error("loaded", name)
-            return plugin
-        except Exception:
-            self.print_error("cannot initialize plugin", name)
-            traceback.print_exc(file=sys.stdout)
-            return None
+        loader = pkgutil.find_loader(full_name)
+        if not loader:
+            raise RuntimeError("%s implementation for %s plugin not found"
+                               % (self.gui_name, name))
+        p = loader.load_module(full_name)
+        plugin = p.Plugin(self, self.config, name)
+        self.add_jobs(plugin.thread_jobs())
+        self.plugins[name] = plugin
+        self.print_error("loaded", name)
+        return plugin
 
     def close_plugin(self, plugin):
         self.remove_jobs(plugin.thread_jobs())
@@ -144,9 +154,6 @@ class Plugins(DaemonThread):
         return self.plugins[name]
 
     def run(self):
-        jobs = [job for plugin in self.plugins.values()
-                for job in plugin.thread_jobs()]
-        self.add_jobs(jobs)
         while self.is_running():
             time.sleep(0.1)
             self.run_jobs()
@@ -227,7 +234,8 @@ class BasePlugin(PrintError):
     def settings_dialog(self):
         pass
 
-Device = namedtuple("Device", "path id_ product_key")
+Device = namedtuple("Device", "path interface_number id_ product_key")
+DeviceInfo = namedtuple("DeviceInfo", "device description initialized")
 
 class DeviceMgr(PrintError):
     '''Manages hardware clients.  A client communicates over a hardware
@@ -328,10 +336,6 @@ class DeviceMgr(PrintError):
     def paired_wallets(self):
         return list(self.wallets.keys())
 
-    def unpaired_devices(self, handler):
-        devices = self.scan_devices(handler)
-        return [dev for dev in devices if not self.wallet_by_id(dev.id_)]
-
     def client_lookup(self, id_):
         with self.lock:
             for client, (path, client_id) in self.clients.items():
@@ -362,27 +366,58 @@ class DeviceMgr(PrintError):
 
         if force_pair:
             first_address, derivation = wallet.first_address()
-            # Wallets don't have a first address in the install wizard
-            # until account creation
-            if not first_address:
-                self.print_error("no first address for ", wallet)
-                return None
+            assert first_address
 
-            # The wallet has not been previously paired, so get the
-            # first address of all unpaired clients and compare.
-            for device in devices:
-                # Skip already-paired devices
-                if self.wallet_by_id(device.id_):
-                    continue
-                client = self.create_client(device, wallet.handler, plugin)
+            # The wallet has not been previously paired, so let the user
+            # choose an unpaired device and compare its first address.
+            info = self.select_device(wallet, plugin, devices)
+            if info:
+                client = self.client_lookup(info.device.id_)
                 if client and not client.features.bootloader_mode:
+                    # An unpaired client might have another wallet's handler
+                    # from a prior scan.  Replace to fix dialog parenting.
+                    client.handler = wallet.handler
                     # This will trigger a PIN/passphrase entry request
                     client_first_address = client.first_address(derivation)
                     if client_first_address == first_address:
-                        self.pair_wallet(wallet, device.id_)
+                        self.pair_wallet(wallet, info.device.id_)
                         return client
 
         return None
+
+    def unpaired_device_infos(self, handler, plugin, devices=None):
+        '''Returns a list of DeviceInfo objects: one for each connected,
+        unpaired device accepted by the plugin.'''
+        if devices is None:
+            devices = self.scan_devices(handler)
+        devices = [dev for dev in devices if not self.wallet_by_id(dev.id_)]
+
+        states = [_("wiped"), _("initialized")]
+        infos = []
+        for device in devices:
+            if not device.product_key in plugin.DEVICE_IDS:
+                continue
+            client = self.create_client(device, handler, plugin)
+            if not client:
+                continue
+            state = states[client.is_initialized()]
+            label = client.label() or _("An unnamed %s") % plugin.device
+            descr = "%s (%s)" % (label, state)
+            infos.append(DeviceInfo(device, descr, client.is_initialized()))
+
+        return infos
+
+    def select_device(self, wallet, plugin, devices=None):
+        '''Ask the user to select a device to use if there is more than one,
+        and return the DeviceInfo for the device.'''
+        infos = self.unpaired_device_infos(wallet.handler, plugin, devices)
+        if not infos:
+            return None
+        if len(infos) == 1:
+            return infos[0]
+        msg = _("Please select which %s device to use:") % plugin.device
+        descriptions = [info.description for info in infos]
+        return infos[wallet.handler.query_choice(msg, descriptions)]
 
     def scan_devices(self, handler):
         # All currently supported hardware libraries use hid, so we
@@ -398,8 +433,8 @@ class DeviceMgr(PrintError):
         for d in hid.enumerate(0, 0):
             product_key = (d['vendor_id'], d['product_id'])
             if product_key in self.recognised_hardware:
-                devices.append(Device(d['path'], d['serial_number'],
-                                      product_key))
+                devices.append(Device(d['path'], d['interface_number'],
+                                      d['serial_number'], product_key))
 
         # Now find out what was disconnected
         pairs = [(dev.path, dev.id_) for dev in devices]

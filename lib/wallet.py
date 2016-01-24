@@ -951,7 +951,7 @@ class Abstract_Wallet(PrintError):
                 # gap limit; if none take one at random
                 addrs = self.accounts[account].get_addresses(1)[-self.gap_limit_for_change:]
                 change_addrs = [addr for addr in addrs if
-                                self.get_num_tx(change_addr) == 0]
+                                self.get_num_tx(addr) == 0]
                 if not change_addrs:
                     change_addrs = [random.choice(addrs)]
             else:

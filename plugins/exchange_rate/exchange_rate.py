@@ -56,7 +56,7 @@ class ExchangeBase(PrintError):
             self.quotes = self.get_rates(ccy)
             self.print_error("received fx quotes")
             self.on_quotes()
-        except Exception, e:
+        except BaseException as e:
             self.print_error("failed fx quotes:", e)
 
     def update(self, ccy):
@@ -70,7 +70,7 @@ class ExchangeBase(PrintError):
             self.history[ccy] = self.historical_rates(ccy)
             self.print_error("received fx history for", ccy)
             self.on_history()
-        except Exception, e:
+        except BaseException as e:
             self.print_error("failed fx history:", e)
 
     def get_historical_rates(self, ccy):

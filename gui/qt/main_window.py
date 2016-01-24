@@ -1337,6 +1337,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.on_error)
 
+    def query_choice(self, msg, choices):
+        # Needed by QtHandler for hardware wallets
+        dialog = WindowModalDialog(self.top_level_window())
+        clayout = ChoicesLayout(msg, choices)
+        vbox = QVBoxLayout(dialog)
+        vbox.addLayout(clayout.layout())
+        vbox.addLayout(Buttons(OkButton(dialog)))
+        dialog.exec_()
+        return clayout.selected_index()
+
     def prepare_for_payment_request(self):
         self.tabs.setCurrentIndex(1)
         self.payto_e.is_pr = True
@@ -2616,7 +2626,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         ])
         fee_label = HelpLabel(_('Transaction fee per kb') + ':', msg)
         fee_e = BTCkBEdit(self.get_decimal_point)
-        fee_e.setAmount(self.config.get('fee_per_kb', bitcoin.RECOMMENDED_FEE))
         def on_fee(is_done):
             if self.config.get('dynamic_fees'):
                 return
@@ -2631,11 +2640,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         dynfee_cb.setChecked(self.config.get('dynamic_fees', False))
         dynfee_cb.setToolTip(_("Use a fee per kB value recommended by the server."))
         dynfee_sl = QSlider(Qt.Horizontal, self)
+        # The pref is from 0 to 100; add 50 to get the factor from 50% to 150%
+        dynfee_sl.setRange(0, 100)
+        dynfee_sl.setTickInterval(10)
+        dynfee_sl.setTickPosition(QSlider.TicksBelow)
         dynfee_sl.setValue(self.config.get('fee_factor', 50))
         dynfee_sl.setToolTip("Min = 50%, Max = 150%")
-        tx_widgets.append((dynfee_cb, None))
-        multiplier_label = HelpLabel(_('Fee multiplier'), _("Multiply the recommended fee/kb value by a constant factor. Min = 50%, Max = 150%"))
-        tx_widgets.append((multiplier_label, dynfee_sl))
+        multiplier_label = HelpLabel("", _("Multiply the recommended fee/kb value by a constant factor. Min = 50%, Max = 150%"))
+        tx_widgets.append((dynfee_cb, dynfee_sl))
+        tx_widgets.append((None, multiplier_label))
 
         def update_feeperkb():
             fee_e.setAmount(self.wallet.fee_per_kb(self.config))
@@ -2643,16 +2656,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             dynfee_sl.setEnabled(b)
             multiplier_label.setEnabled(b)
             fee_e.setEnabled(not b)
-        def fee_factor_changed(b):
-            self.config.set_key('fee_factor', b, False)
+        def slider_moved():
+            multiplier_label.setText(_('Fee multiplier: %3d%%')
+                                     % (dynfee_sl.sliderPosition() + 50))
+        def slider_released():
+            self.config.set_key('fee_factor', dynfee_sl.sliderPosition(), False)
             update_feeperkb()
         def on_dynfee(x):
             dynfee = x == Qt.Checked
             self.config.set_key('dynamic_fees', dynfee)
             update_feeperkb()
         dynfee_cb.stateChanged.connect(on_dynfee)
-        dynfee_sl.valueChanged[int].connect(fee_factor_changed)
+        dynfee_sl.valueChanged.connect(slider_moved)
+        dynfee_sl.sliderReleased.connect(slider_released)
         update_feeperkb()
+        slider_moved()
 
         msg = _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n'\
               + _('The following alias providers are available:') + '\n'\
@@ -2839,7 +2857,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             for a,b in widgets:
                 i = grid.rowCount()
                 if b:
-                    grid.addWidget(a, i, 0)
+                    if a:
+                        grid.addWidget(a, i, 0)
                     grid.addWidget(b, i, 1)
                 else:
                     grid.addWidget(a, i, 0, 1, 2)
@@ -2923,7 +2942,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             p = plugins.toggle(name)
             cb.setChecked(bool(p))
             enable_settings_widget(p, name, i)
-            run_hook('init_qt', self.gui_object)
 
         for i, descr in enumerate(plugins.descriptions.values()):
             name = descr['__name__']
