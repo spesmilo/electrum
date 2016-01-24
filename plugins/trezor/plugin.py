@@ -209,16 +209,18 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
                 wallet.last_operation = self.prevent_timeout
 
     def create_client(self, device, handler):
-        path = device.path
-        pair = ((None, path) if self.HidTransport._detect_debuglink(path)
-                else (path, None))
+        if device.interface_number == 1:
+            pair = [None, device.path]
+        else:
+            pair = [device.path, None]
+
         try:
             transport = self.HidTransport(pair)
         except BaseException as e:
             # We were probably just disconnected; never mind
-            self.print_error("cannot connect at", path, str(e))
+            self.print_error("cannot connect at", device.path, str(e))
             return None
-        self.print_error("connected to device at", path)
+        self.print_error("connected to device at", device.path)
 
         client = self.client_class(transport, handler, self)
 

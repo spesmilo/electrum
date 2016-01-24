@@ -227,7 +227,7 @@ class BasePlugin(PrintError):
     def settings_dialog(self):
         pass
 
-Device = namedtuple("Device", "path id_ product_key")
+Device = namedtuple("Device", "path interface_number id_ product_key")
 DeviceInfo = namedtuple("DeviceInfo", "device description initialized")
 
 class DeviceMgr(PrintError):
@@ -423,8 +423,8 @@ class DeviceMgr(PrintError):
         for d in hid.enumerate(0, 0):
             product_key = (d['vendor_id'], d['product_id'])
             if product_key in self.recognised_hardware:
-                devices.append(Device(d['path'], d['serial_number'],
-                                      product_key))
+                devices.append(Device(d['path'], d['interface_number'],
+                                      d['serial_number'], product_key))
 
         # Now find out what was disconnected
         pairs = [(dev.path, dev.id_) for dev in devices]
