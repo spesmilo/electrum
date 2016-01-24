@@ -228,6 +228,7 @@ class BasePlugin(PrintError):
         pass
 
 Device = namedtuple("Device", "path id_ product_key")
+DeviceInfo = namedtuple("DeviceInfo", "device description initialized")
 
 class DeviceMgr(PrintError):
     '''Manages hardware clients.  A client communicates over a hardware
@@ -328,10 +329,6 @@ class DeviceMgr(PrintError):
     def paired_wallets(self):
         return list(self.wallets.keys())
 
-    def unpaired_devices(self, handler):
-        devices = self.scan_devices(handler)
-        return [dev for dev in devices if not self.wallet_by_id(dev.id_)]
-
     def client_lookup(self, id_):
         with self.lock:
             for client, (path, client_id) in self.clients.items():
@@ -362,27 +359,55 @@ class DeviceMgr(PrintError):
 
         if force_pair:
             first_address, derivation = wallet.first_address()
-            # Wallets don't have a first address in the install wizard
-            # until account creation
-            if not first_address:
-                self.print_error("no first address for ", wallet)
-                return None
+            assert first_address
 
-            # The wallet has not been previously paired, so get the
-            # first address of all unpaired clients and compare.
-            for device in devices:
-                # Skip already-paired devices
-                if self.wallet_by_id(device.id_):
-                    continue
-                client = self.create_client(device, wallet.handler, plugin)
+            # The wallet has not been previously paired, so let the user
+            # choose an unpaired device and compare its first address.
+            info = self.select_device(wallet, plugin, devices)
+            if info:
+                client = self.client_lookup(info.device.id_)
                 if client and not client.features.bootloader_mode:
                     # This will trigger a PIN/passphrase entry request
                     client_first_address = client.first_address(derivation)
                     if client_first_address == first_address:
-                        self.pair_wallet(wallet, device.id_)
+                        self.pair_wallet(wallet, info.device.id_)
                         return client
 
         return None
+
+    def unpaired_device_infos(self, handler, plugin, devices=None):
+        '''Returns a list of DeviceInfo objects: one for each connected,
+        unpaired device accepted by the plugin.'''
+        if devices is None:
+            devices = self.scan_devices(handler)
+        devices = [dev for dev in devices if not self.wallet_by_id(dev.id_)]
+
+        states = [_("wiped"), _("initialized")]
+        infos = []
+        for device in devices:
+            if not device.product_key in plugin.DEVICE_IDS:
+                continue
+            client = self.create_client(device, handler, plugin)
+            if not client:
+                continue
+            state = states[client.is_initialized()]
+            label = client.label() or _("An unnamed %s") % plugin.device
+            descr = "%s (%s)" % (label, state)
+            infos.append(DeviceInfo(device, descr, client.is_initialized()))
+
+        return infos
+
+    def select_device(self, wallet, plugin, devices=None):
+        '''Ask the user to select a device to use if there is more than one,
+        and return the DeviceInfo for the device.'''
+        infos = self.unpaired_device_infos(wallet.handler, plugin, devices)
+        if not infos:
+            return None
+        if len(infos) == 1:
+            return infos[0]
+        msg = _("Please select which %s device to use:") % plugin.device
+        descriptions = [info.description for info in infos]
+        return infos[wallet.handler.query_choice(msg, descriptions)]
 
     def scan_devices(self, handler):
         # All currently supported hardware libraries use hid, so we

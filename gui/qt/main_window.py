@@ -1337,6 +1337,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.on_error)
 
+    def query_choice(self, msg, choices):
+        # Needed by QtHandler for hardware wallets
+        dialog = WindowModalDialog(self.top_level_window())
+        clayout = ChoicesLayout(msg, choices)
+        vbox = QVBoxLayout(dialog)
+        vbox.addLayout(clayout.layout())
+        vbox.addLayout(Buttons(OkButton(dialog)))
+        dialog.exec_()
+        return clayout.selected_index()
+
     def prepare_for_payment_request(self):
         self.tabs.setCurrentIndex(1)
         self.payto_e.is_pr = True

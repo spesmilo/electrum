@@ -134,6 +134,7 @@ class QtHandler(QObject, PrintError):
     Trezor protocol; derived classes can customize it.'''
 
     charSig = pyqtSignal(object)
+    qcSig = pyqtSignal(object, object)
 
     def __init__(self, win, pin_matrix_widget_class, device):
         super(QtHandler, self).__init__()
@@ -144,6 +145,7 @@ class QtHandler(QObject, PrintError):
         win.connect(win, SIGNAL('passphrase_dialog'), self.passphrase_dialog)
         win.connect(win, SIGNAL('word_dialog'), self.word_dialog)
         self.charSig.connect(self.update_character_dialog)
+        self.qcSig.connect(self.win_query_choice)
         self.win = win
         self.pin_matrix_widget_class = pin_matrix_widget_class
         self.device = device
@@ -156,6 +158,12 @@ class QtHandler(QObject, PrintError):
 
     def watching_only_changed(self):
         self.win.emit(SIGNAL('watching_only_changed'))
+
+    def query_choice(self, msg, labels):
+        self.done.clear()
+        self.qcSig.emit(msg, labels)
+        self.done.wait()
+        return self.choice
 
     def show_message(self, msg, on_cancel=None):
         self.win.emit(SIGNAL('message_dialog'), msg, on_cancel)
@@ -256,8 +264,9 @@ class QtHandler(QObject, PrintError):
             self.dialog.accept()
             self.dialog = None
 
-    def query_choice(self, msg, labels):
-        return self.win.query_choice(msg, labels)
+    def win_query_choice(self, msg, labels):
+        self.choice = self.win.query_choice(msg, labels)
+        self.done.set()
 
     def request_trezor_init_settings(self, method, device):
         wizard = self.win
@@ -399,18 +408,13 @@ def qt_plugin_class(base_plugin_class):
     def choose_device(self, window):
         '''This dialog box should be usable even if the user has
         forgotten their PIN or it is in bootloader mode.'''
-        handler = window.wallet.handler
         device_id = self.device_manager().wallet_id(window.wallet)
         if not device_id:
-            infos = self.unpaired_devices(handler)
-            if infos:
-                labels = [info[1] for info in infos]
-                msg = _("Select a %s device:") % self.device
-                choice = self.query_choice(window, msg, labels)
-                if choice is not None:
-                    device_id = infos[choice][0].id_
+            info = self.device_manager().select_device(window.wallet, self)
+            if info:
+                device_id = info.device.id_
             else:
-                handler.show_error(_("No devices found"))
+                window.wallet.handler.show_error(_("No devices found"))
         return device_id
 
     def query_choice(self, window, msg, choices):
