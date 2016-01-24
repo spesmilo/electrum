@@ -2636,15 +2636,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fee_e.textEdited.connect(lambda: on_fee(False))
         tx_widgets.append((fee_label, fee_e))
 
-        def slider_moved():
-            mins = timeout_slider.sliderPosition()
-            timeout_minutes.setText(_("%2d minutes") % mins)
-
         dynfee_cb = QCheckBox(_('Dynamic fees'))
         dynfee_cb.setChecked(self.config.get('dynamic_fees', False))
         dynfee_cb.setToolTip(_("Use a fee per kB value recommended by the server."))
         dynfee_sl = QSlider(Qt.Horizontal, self)
-        dynfee_sl.setRange(50, 150)
+        # The pref is from 0 to 100; add 50 to get the factor from 50% to 150%
+        dynfee_sl.setRange(0, 100)
         dynfee_sl.setTickInterval(10)
         dynfee_sl.setTickPosition(QSlider.TicksBelow)
         dynfee_sl.setValue(self.config.get('fee_factor', 50))
@@ -2661,7 +2658,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             fee_e.setEnabled(not b)
         def slider_moved():
             multiplier_label.setText(_('Fee multiplier: %3d%%')
-                                     % dynfee_sl.sliderPosition())
+                                     % (dynfee_sl.sliderPosition() + 50))
         def slider_released():
             self.config.set_key('fee_factor', dynfee_sl.sliderPosition(), False)
             update_feeperkb()
