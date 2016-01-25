@@ -64,6 +64,15 @@ class ElectrumWindow(App):
 
     electrum_config = ObjectProperty(None)
 
+    def on_quotes(self, d):
+        print "main_window: on_quotes"
+        pass
+
+    def on_history(self, d):
+        print "main_window: on_history"
+        if self.history_screen:
+            self.history_screen.update()
+
     def _get_bu(self):
         return self.electrum_config.get('base_unit', 'mBTC')
 
@@ -299,6 +308,7 @@ class ElectrumWindow(App):
         self.on_size(win, win.size)
         self.init_ui()
         self.load_wallet_by_name(self.electrum_config.get_wallet_path())
+        run_hook('init_kivy', self)
 
     def load_wallet_by_name(self, wallet_path):
         if not wallet_path:

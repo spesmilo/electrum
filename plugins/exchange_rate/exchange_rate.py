@@ -55,9 +55,9 @@ class ExchangeBase(PrintError):
             self.print_error("getting fx quotes for", ccy)
             self.quotes = self.get_rates(ccy)
             self.print_error("received fx quotes")
-            self.on_quotes()
         except BaseException as e:
             self.print_error("failed fx quotes:", e)
+        self.on_quotes()
 
     def update(self, ccy):
         t = Thread(target=self.update_safe, args=(ccy,))
