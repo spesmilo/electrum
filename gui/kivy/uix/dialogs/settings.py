@@ -162,13 +162,13 @@ class SettingsDialog(Factory.Popup):
             return 'Dynamic, %d%%'%f
         else:
             F = self.config.get('fee_per_kb', RECOMMENDED_FEE)
-            return self.app.format_amount(F) + ' ' + self.app.base_unit + '/kB'
+            return self.app.format_amount_and_units(F) + '/kB'
 
     def fee_dialog(self, label, dt):
         from fee_dialog import FeeDialog
         def cb():
             label.status = self.fee_status()
-        d = FeeDialog(self.config, cb)
+        d = FeeDialog(self.app, self.config, cb)
         d.open()
 
     def fx_status(self):
