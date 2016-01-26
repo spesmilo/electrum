@@ -319,8 +319,12 @@ class BTChipWallet(BIP44_Wallet):
         if not msg:
             msg = _("Do not enter your device PIN here !\r\n\r\n" \
                     "Your Ledger Wallet wants to talk to you and tell you a unique second factor code.\r\n" \
-                    "For this to work, please open a text editor (on a different computer / device if you believe this computer is compromised) and put your cursor into it, unplug your Ledger Wallet and plug it back in.\r\n" \
-                    "It should show itself to your computer as a keyboard and output the second factor along with a summary of the transaction it is signing into the text-editor.\r\n\r\n" \
+                    "For this to work, please open a text editor " \
+                    "(on a different computer / device if you believe this computer is compromised) " \
+                    "and put your cursor into it, unplug your Ledger Wallet and plug it back in.\r\n" \
+                    "It should show itself to your computer as a keyboard " \
+                    "and output the second factor along with a summary of " \
+                    "the transaction being signed into the text-editor.\r\n\r\n" \
                     "Check that summary and then enter the second factor code here.\r\n" \
                     "Before clicking OK, re-plug the device once more (unplug it and plug it again if you read the second factor code on the same computer)")
         response = self.handler.prompt_auth(msg)

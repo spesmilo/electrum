@@ -155,24 +155,24 @@ class Abstract_Wallet(PrintError):
     max_change_outputs = 3
 
     def __init__(self, storage):
+        self.electrum_version = ELECTRUM_VERSION
         self.storage = storage
         self.network = None
-        self.electrum_version = ELECTRUM_VERSION
+        # verifier (SPV) and synchronizer are started in start_threads
+        self.synchronizer = None
+        self.verifier = None
+
         self.gap_limit_for_change = 6 # constant
         # saved fields
         self.seed_version          = storage.get('seed_version', NEW_SEED_VERSION)
         self.use_change            = storage.get('use_change',True)
         self.multiple_change       = storage.get('multiple_change', False)
-
         self.use_encryption        = storage.get('use_encryption', False)
         self.seed                  = storage.get('seed', '')               # encrypted
         self.labels                = storage.get('labels', {})
         self.frozen_addresses      = set(storage.get('frozen_addresses',[]))
         self.stored_height         = storage.get('stored_height', 0)       # last known height (for offline mode)
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
-
-        # This attribute is set when wallet.start_threads is called.
-        self.synchronizer = None
 
         # imported_keys is deprecated. The GUI should call convert_imported_keys
         self.imported_keys = self.storage.get('imported_keys',{})
@@ -184,8 +184,6 @@ class Abstract_Wallet(PrintError):
         # load requests
         self.receive_requests = self.storage.get('payment_requests', {})
 
-        # spv
-        self.verifier = None
         # Transactions pending verification.  A map from tx hash to transaction
         # height.  Access is not contended so no lock is needed.
         self.unverified_tx = {}
@@ -1564,13 +1562,13 @@ class Deterministic_Wallet(Abstract_Wallet):
 
 class BIP32_Wallet(Deterministic_Wallet):
     # abstract class, bip32 logic
-    root_name = 'x/'
 
     def __init__(self, storage):
         Deterministic_Wallet.__init__(self, storage)
         self.master_public_keys  = storage.get('master_public_keys', {})
         self.master_private_keys = storage.get('master_private_keys', {})
         self.gap_limit = storage.get('gap_limit', 20)
+        self.root_name = 'x/'
 
     def is_watching_only(self):
         return not bool(self.master_private_keys)
