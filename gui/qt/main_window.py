@@ -2621,8 +2621,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         gui_widgets.append((nz_label, nz))
 
         msg = '\n'.join([
-            _('Fee per kilobyte of transaction.'),
-            _('If you enable dynamic fees, this parameter will be used as upper bound.')
+            _('Fee per kilobyte of transaction.')
         ])
         fee_label = HelpLabel(_('Transaction fee per kb') + ':', msg)
         fee_e = BTCkBEdit(self.get_decimal_point)

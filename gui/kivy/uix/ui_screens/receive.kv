@@ -60,8 +60,8 @@ ReceiveScreen:
                     pos_hint: {'center_y': .5}
                 BlueButton:
                     id: amount_label
-                    default_text: 'Amount'
-                    text: s.amount if s.amount else 'Amount'
+                    default_text: _('Amount')
+                    text: s.amount if s.amount else _('Amount')
                     on_release: app.amount_dialog(s, False)
             CardSeparator:
                 opacity: message_selection.opacity

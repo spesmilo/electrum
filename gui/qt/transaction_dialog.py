@@ -51,7 +51,6 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.wallet = parent.wallet
         self.prompt_if_unsaved = prompt_if_unsaved
         self.saved = False
-        self.broadcast = False
         self.desc = desc
 
         self.setMinimumWidth(660)
@@ -121,11 +120,11 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.main_window.broadcast_transaction(self.tx, self.desc)
         finally:
             self.main_window.pop_top_level_window(self)
-        self.broadcast = True
+        self.saved = True
         self.update()
 
     def closeEvent(self, event):
-        if (self.prompt_if_unsaved and not self.saved and not self.broadcast
+        if (self.prompt_if_unsaved and not self.saved
             and not self.question(_('This transaction is not saved. Close anyway?'), title=_("Warning"))):
             event.ignore()
         else:
@@ -146,7 +145,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.sign_button.setDisabled(False)
             self.main_window.pop_top_level_window(self)
             if success:
-                self.prompt_if_unsaved = False
+                self.prompt_if_unsaved = True
                 self.saved = False
                 self.update()
 
