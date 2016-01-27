@@ -359,16 +359,15 @@ class ElectrumGui:
         w.refresh()
         if getchar: c = self.stdscr.getch()
 
-
     def run_popup(self, title, items):
         return self.run_dialog(title, map(lambda x: {'type':'button','label':x}, items), interval=1, y_pos = self.pos+3)
 
-
     def network_dialog(self):
-        if not self.network: return
-        host, port, protocol, proxy_config, auto_connect = self.network.get_parameters()
+        if not self.network:
+            return
+        params = self.network.get_parameters()
+        host, port, protocol, proxy_config, auto_connect = params
         srv = 'auto-connect' if auto_connect else self.network.default_server
-
         out = self.run_dialog('Network', [
             {'label':'server', 'type':'str', 'value':srv},
             {'label':'proxy', 'type':'str', 'value':self.config.get('proxy', '')},
@@ -383,15 +382,8 @@ class ElectrumGui:
                     except Exception:
                         self.show_message("Error:" + server + "\nIn doubt, type \"auto-connect\"")
                         return False
-
-                if out.get('proxy'):
-                    proxy = self.parse_proxy_options(out.get('proxy'))
-                else:
-                    proxy = None
-
+                proxy = self.parse_proxy_options(out.get('proxy')) if out.get('proxy') else None
                 self.network.set_parameters(host, port, protocol, proxy, auto_connect)
-
-
 
     def settings_dialog(self):
         fee = str(Decimal(self.wallet.fee_per_kb(self.config)) / COIN)

@@ -69,7 +69,7 @@ android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE, C
 #android.ndk = 9
 
 # (bool) Use --private data storage (True) or --dir public storage (False)
-android.private_storage = False
+android.private_storage = True
 
 # (str) Android NDK directory (if empty, it will be automatically downloaded.)
 #android.ndk_path =

@@ -123,7 +123,6 @@ class TcpConnection(threading.Thread, util.PrintError):
                 if s and self.check_host_name(s.getpeercert(), self.host):
                     self.print_error("SSL certificate signed by CA")
                     return s
-
                 # get server certificate.
                 # Do not use ssl.get_server_certificate because it does not work with proxy
                 s = self.get_simple_socket()
