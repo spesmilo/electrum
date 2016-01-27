@@ -191,7 +191,7 @@ class BTChipWallet(BIP44_Wallet):
         pin = ""
         rawTx = tx.serialize()
         # Fetch inputs of the transaction to sign
-        for txinput in tx.inputs:
+        for txinput in tx.inputs():
             if ('is_coinbase' in txinput and txinput['is_coinbase']):
                 self.give_error("Coinbase not supported")     # should never happen
             inputs.append([ self.transactions[txinput['prevout_hash']].raw,
