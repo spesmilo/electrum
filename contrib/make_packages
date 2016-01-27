@@ -8,8 +8,8 @@ if __name__ == '__main__':
 
     d = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
     os.chdir(d)
-    vi = imp.load_source('version', 'lib/version.py')
-    version = vi.ELECTRUM_VERSION
+    v = imp.load_source('version', 'lib/version.py')
+    version = v.ELECTRUM_VERSION
     print "version", version
 
     # copy dependencies into 'packages' directory
