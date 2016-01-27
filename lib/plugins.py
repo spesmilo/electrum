@@ -358,6 +358,9 @@ class DeviceMgr(PrintError):
 
         client = self.client_lookup(wallet_id)
         if client:
+            # An unpaired client might have another wallet's handler
+            # from a prior scan.  Replace to fix dialog parenting.
+            client.handler = wallet.handler
             return client
 
         for device in devices:
@@ -374,8 +377,7 @@ class DeviceMgr(PrintError):
             if info:
                 client = self.client_lookup(info.device.id_)
                 if client and not client.features.bootloader_mode:
-                    # An unpaired client might have another wallet's handler
-                    # from a prior scan.  Replace to fix dialog parenting.
+                    # See comment above for same code
                     client.handler = wallet.handler
                     # This will trigger a PIN/passphrase entry request
                     client_first_address = client.first_address(derivation)
