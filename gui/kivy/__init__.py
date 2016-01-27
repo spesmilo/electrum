@@ -19,6 +19,9 @@
 # Kivy GUI
 
 import sys
+import os
+os.environ['KIVY_DATA_DIR'] = os.path.abspath(os.path.dirname(__file__)) + '/data/'
+
 try:
     sys.argv = ['']
     import kivy

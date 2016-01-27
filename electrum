@@ -25,38 +25,38 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
 is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "setup-release.py"))
 is_android = 'ANDROID_DATA' in os.environ
-is_kivy = os.environ.get('PYTHONHOME','').find('kivy') != -1
 
 if is_local or is_android:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
 elif is_bundle and sys.platform=='darwin':
     sys.path.insert(0, os.getcwd() + "/lib/python2.7/packages")
 
-# pure-python dependencies need to be imported here for pyinstaller
-try:
-    import dns
-    import aes
-    import ecdsa
-    import requests
-    import six
-    import qrcode
-    import pbkdf2
-    import google.protobuf
-except ImportError as e:
-    sys.exit("Error: %s. Try 'sudo pip install <module-name>'"%e.message)
+if not is_android:
+    # pure-python dependencies need to be imported here for pyinstaller
+    try:
+        import dns
+        import aes
+        import ecdsa
+        import requests
+        import six
+        import qrcode
+        import pbkdf2
+        import google.protobuf
+    except ImportError as e:
+        sys.exit("Error: %s. Try 'sudo pip install <module-name>'"%e.message)
 
-# the following imports are for pyinstaller
-from google.protobuf import descriptor
-from google.protobuf import message
-from google.protobuf import reflection
-from google.protobuf import descriptor_pb2
+    # the following imports are for pyinstaller
+    from google.protobuf import descriptor
+    from google.protobuf import message
+    from google.protobuf import reflection
+    from google.protobuf import descriptor_pb2
 
 
-# check that we have the correct version of ecdsa
-try:
-    from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
-except Exception:
-    sys.exit("cannot import ecdsa.curve_secp256k1. You probably need to upgrade ecdsa.\nTry: sudo pip install --upgrade ecdsa")
+    # check that we have the correct version of ecdsa
+    try:
+        from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
+    except Exception:
+	sys.exit("cannot import ecdsa.curve_secp256k1. You probably need to upgrade ecdsa.\nTry: sudo pip install --upgrade ecdsa")
 
 
 # load local module as electrum
@@ -282,9 +282,10 @@ if __name__ == '__main__':
     # config is an object passed to the various constructors (wallet, interface, gui)
     if is_android:
         config_options = {
+            'offline': True,
             'verbose': True,
             'cmd': 'gui',
-            'gui': 'kivy' if is_kivy else 'android',
+            'gui': 'kivy',
             #'auto_connect': True,
         }
     else:

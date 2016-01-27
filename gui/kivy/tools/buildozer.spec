@@ -4,7 +4,7 @@
 title = Electrum
 
 # (str) Package name
-package.name = kivy
+package.name = Electrum
 
 # (str) Package domain (needed for android/ios packaging)
 package.domain = org.electrum
@@ -13,17 +13,15 @@ package.domain = org.electrum
 source.dir = .
 
 # (list) Source files to include (let empty to include all the files)
-source.include_exts = py,png,jpg,kv,atlas,ttf,txt, gif, pem, mo
+source.include_exts = py,png,jpg,kv,atlas,ttf,txt,gif,pem,mo,vs,fs
 
 # (list) Source files to exclude (let empty to not exclude anything)
 source.exclude_exts = spec
 
 # (list) List of directory to exclude (let empty to not exclude anything)
-source.exclude_dirs = bin, build, contrib, gui/android, gui/gtk, gui/qt, gui/kivy/tools
-
-
+source.exclude_dirs = bin, build, dist, contrib, gui/android, gui/qt, gui/kivy/tools
 # (list) List of exclusions using pattern matching
-#source.exclude_patterns = license,images/*/*.jpg
+source.exclude_patterns = Makefile,setup*
 
 # (str) Application versioning (method 1)
 version.regex = ELECTRUM_VERSION = '(.*)'
@@ -69,7 +67,7 @@ android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE, C
 #android.ndk = 9
 
 # (bool) Use --private data storage (True) or --dir public storage (False)
-android.private_storage = False
+android.private_storage = True
 
 # (str) Android NDK directory (if empty, it will be automatically downloaded.)
 #android.ndk_path =
@@ -85,7 +83,7 @@ android.private_storage = False
 # down the build process. Allows wildcards matching, for example:
 # OUYA-ODK/libs/*.jar
 #android.add_jars = foo.jar,bar.jar,path/to/more/*.jar
-android.add_jars = lib/android/zbar.jar
+#android.add_jars = lib/android/zbar.jar
 
 # (list) List of Java files to add to the android project (can be java or a
 # directory containing the files)
