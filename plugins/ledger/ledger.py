@@ -175,6 +175,7 @@ class BTChipWallet(BIP44_Wallet):
     def sign_transaction(self, tx, password):
         if tx.is_complete():
             return
+        client = self.get_client()
         self.signing = True
         inputs = []
         inputsPaths = []
