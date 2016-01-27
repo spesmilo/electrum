@@ -399,7 +399,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
                             else:
                                 xpub = xpub_from_pubkey(x_pubkey.decode('hex'))
                                 s = []
-                            node = ckd_public.deserialize(xpub)
+                            node = self.ckd_public.deserialize(xpub)
                             return self.types.HDNodePathType(node=node, address_n=s)
                         pubkeys = map(f, x_pubkeys)
                         multisig = self.types.MultisigRedeemScriptType(
