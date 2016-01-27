@@ -282,7 +282,6 @@ if __name__ == '__main__':
     # config is an object passed to the various constructors (wallet, interface, gui)
     if is_android:
         config_options = {
-            'offline': True,
             'verbose': True,
             'cmd': 'gui',
             'gui': 'kivy',
