@@ -2941,6 +2941,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             p = plugins.toggle(name)
             cb.setChecked(bool(p))
             enable_settings_widget(p, name, i)
+            run_hook('init_qt', self.gui_object)
 
         for i, descr in enumerate(plugins.descriptions.values()):
             name = descr['__name__']

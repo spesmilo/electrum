@@ -11,11 +11,7 @@ from functools import partial
 from electrum.plugins import hook
 from exchange_rate import FxPlugin
 
-class Plugin(FxPlugin, QObject):
-
-    def __init__(self, parent, config, name):
-        FxPlugin.__init__(self, parent, config, name)
-        QObject.__init__(self)
+class Plugin(FxPlugin):
 
     def connect_fields(self, window, btc_e, fiat_e, fee_e):
 
@@ -46,11 +42,15 @@ class Plugin(FxPlugin, QObject):
         fiat_e.is_last_edited = False
 
     @hook
+    def init_qt(self, gui):
+        self.app = gui.app
+
+    @hook
     def do_clear(self, window):
         window.fiat_send_e.setText('')
 
     def on_close(self):
-        self.emit(SIGNAL('close_fx_plugin'))
+        self.app.emit(SIGNAL('close_fx_plugin'))
 
     def restore_window(self, window):
         window.update_status()
@@ -59,10 +59,10 @@ class Plugin(FxPlugin, QObject):
         window.fiat_receive_e.hide()
 
     def on_quotes(self):
-        self.emit(SIGNAL('new_fx_quotes'))
+        self.app.emit(SIGNAL('new_fx_quotes'))
 
     def on_history(self):
-        self.emit(SIGNAL('new_fx_history'))
+        self.app.emit(SIGNAL('new_fx_history'))
 
     def on_fx_history(self, window):
         '''Called when historical fx quotes are updated'''
@@ -86,7 +86,7 @@ class Plugin(FxPlugin, QObject):
         ccy = str(self.ccy_combo.currentText())
         if ccy and ccy != self.ccy:
             self.set_currency(ccy)
-            self.emit(SIGNAL('new_fx_quotes'))
+            self.app.emit(SIGNAL('new_fx_quotes'))
             self.hist_checkbox_update()
 
     def hist_checkbox_update(self):
@@ -120,10 +120,10 @@ class Plugin(FxPlugin, QObject):
         self.connect_fields(window, window.receive_amount_e, receive_e, None)
         window.history_list.refresh_headers()
         window.update_status()
-        window.connect(self, SIGNAL('new_fx_quotes'), lambda: self.on_fx_quotes(window))
-        window.connect(self, SIGNAL('new_fx_history'), lambda: self.on_fx_history(window))
-        window.connect(self, SIGNAL('close_fx_plugin'), lambda: self.restore_window(window))
-        window.connect(self, SIGNAL('refresh_headers'), window.history_list.refresh_headers)
+        window.connect(window.app, SIGNAL('new_fx_quotes'), lambda: self.on_fx_quotes(window))
+        window.connect(window.app, SIGNAL('new_fx_history'), lambda: self.on_fx_history(window))
+        window.connect(window.app, SIGNAL('close_fx_plugin'), lambda: self.restore_window(window))
+        window.connect(window.app, SIGNAL('refresh_headers'), window.history_list.refresh_headers)
 
     def settings_widget(self, window):
         return EnterButton(_('Settings'), partial(self.settings_dialog, window))
@@ -152,7 +152,7 @@ class Plugin(FxPlugin, QObject):
                 self.get_historical_rates()
             else:
                 self.config.set_key('history_rates', 'unchecked')
-            self.emit(SIGNAL('refresh_headers'))
+            self.app.emit(SIGNAL('refresh_headers'))
 
         def ok_clicked():
             self.timeout = 0
