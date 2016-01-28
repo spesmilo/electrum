@@ -31,31 +31,32 @@ if is_local or is_android:
 elif is_bundle and sys.platform=='darwin':
     sys.path.insert(0, os.getcwd() + "/lib/python2.7/packages")
 
-# pure-python dependencies need to be imported here for pyinstaller
-try:
-    import dns
-    import aes
-    import ecdsa
-    import requests
-    import six
-    import qrcode
-    import pbkdf2
-    import google.protobuf
-except ImportError as e:
-    sys.exit("Error: %s. Try 'sudo pip install <module-name>'"%e.message)
+if not is_android:
+    # pure-python dependencies need to be imported here for pyinstaller
+    try:
+        import dns
+        import aes
+        import ecdsa
+        import requests
+        import six
+        import qrcode
+        import pbkdf2
+        import google.protobuf
+    except ImportError as e:
+        sys.exit("Error: %s. Try 'sudo pip install <module-name>'"%e.message)
 
-# the following imports are for pyinstaller
-from google.protobuf import descriptor
-from google.protobuf import message
-from google.protobuf import reflection
-from google.protobuf import descriptor_pb2
+    # the following imports are for pyinstaller
+    from google.protobuf import descriptor
+    from google.protobuf import message
+    from google.protobuf import reflection
+    from google.protobuf import descriptor_pb2
 
 
-# check that we have the correct version of ecdsa
-try:
-    from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
-except Exception:
-    sys.exit("cannot import ecdsa.curve_secp256k1. You probably need to upgrade ecdsa.\nTry: sudo pip install --upgrade ecdsa")
+    # check that we have the correct version of ecdsa
+    try:
+        from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
+    except Exception:
+	sys.exit("cannot import ecdsa.curve_secp256k1. You probably need to upgrade ecdsa.\nTry: sudo pip install --upgrade ecdsa")
 
 
 # load local module as electrum
