@@ -285,6 +285,7 @@ class ElectrumWindow(App):
     def on_start(self):
         ''' This is the start point of the kivy ui
         '''
+        import time; print 'python time to on_start:', time.clock(), '<<<<<<<<<' 
         Logger.info("dpi: {} {}".format(metrics.dpi, metrics.dpi_rounded))
         win = Window
         win.bind(size=self.on_size,
@@ -300,10 +301,7 @@ class ElectrumWindow(App):
                    'data/fonts/Roboto-Bold.ttf',
                    'data/fonts/Roboto-Bold.ttf')
 
-        if platform == 'android':
-            # bind to keyboard height so we can get the window contents to
-            # behave the way we want when the keyboard appears.
-            win.bind(keyboard_height=self.on_keyboard_height)
+        win.softinput_mode = 'below_target'
 
         self.on_size(win, win.size)
         self.init_ui()
@@ -337,22 +335,6 @@ class ElectrumWindow(App):
     def stop_wallet(self):
         if self.wallet:
             self.wallet.stop_threads()
-
-    def on_keyboard_height(self, window, height):
-        win = window
-        active_widg = win.children[0]
-        if not issubclass(active_widg.__class__, Factory.Popup):
-            try:
-                active_widg = self.root.children[0]
-            except IndexError:
-                return
-        try:
-            fw = self._focused_widget
-        except AttributeError:
-            return
-        if height > 0 and fw.to_window(*fw.pos)[1] > height:
-            return
-        Factory.Animation(y=win.keyboard_height, d=.1).start(active_widg)
 
     def on_key_down(self, instance, key, keycode, codepoint, modifiers):
         if 'ctrl' in modifiers:

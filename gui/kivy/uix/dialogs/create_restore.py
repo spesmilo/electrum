@@ -251,6 +251,7 @@ class WizardDialog(EventsDialog):
         Window.bind(size=_trigger_size_dialog,
                     rotation=_trigger_size_dialog)
         _trigger_size_dialog()
+        Window.softinput_mode = 'pan'
 
     def _size_dialog(self, dt):
         app = App.get_running_app()
@@ -275,6 +276,8 @@ class WizardDialog(EventsDialog):
         if app.wallet is None and self._on_release is not None:
             print "on dismiss: stopping app"
             app.stop()
+        else:
+            Window.softinput_mode = 'below_target'
 
 
 class CreateRestoreDialog(WizardDialog):

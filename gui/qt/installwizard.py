@@ -64,11 +64,11 @@ class CosignWidget(QWidget):
 
 
 # WindowModalDialog must come first as it overrides show_error
-class InstallWizard(WindowModalDialog, WizardBase):
+class InstallWizard(QDialog, MessageBoxMixin, WizardBase):
 
     def __init__(self, config, app, plugins):
-        title = 'Electrum  -  ' + _('Install Wizard')
-        WindowModalDialog.__init__(self, None, title=title)
+        QDialog.__init__(self, None)
+        self.setWindowTitle('Electrum  -  ' + _('Install Wizard'))
         self.app = app
         self.config = config
         # Set for base base class

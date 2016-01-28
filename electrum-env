@@ -10,11 +10,11 @@
 # your package manager.
 
 if [ -e ./env/bin/activate ]; then
-	source ./env/bin/activate
+    source ./env/bin/activate
 else
-	virtualenv env
-	source ./env/bin/activate
-	python setup.py install
+    virtualenv env
+    source ./env/bin/activate
+    python setup.py install
 fi
 
 export PYTHONPATH="/usr/local/lib/python2.7/site-packages:$PYTHONPATH"

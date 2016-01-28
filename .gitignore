@@ -14,3 +14,5 @@ locale/
 packages
 env/
 .tox/
+.buildozer/
+bin/
