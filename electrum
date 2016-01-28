@@ -31,7 +31,8 @@ if is_local or is_android:
 elif is_bundle and sys.platform=='darwin':
     sys.path.insert(0, os.getcwd() + "/lib/python2.7/packages")
 
-if not is_android:
+
+def check_imports():
     # pure-python dependencies need to be imported here for pyinstaller
     try:
         import dns
@@ -44,20 +45,22 @@ if not is_android:
         import google.protobuf
     except ImportError as e:
         sys.exit("Error: %s. Try 'sudo pip install <module-name>'"%e.message)
-
     # the following imports are for pyinstaller
     from google.protobuf import descriptor
     from google.protobuf import message
     from google.protobuf import reflection
     from google.protobuf import descriptor_pb2
-
-
     # check that we have the correct version of ecdsa
     try:
         from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
     except Exception:
 	sys.exit("cannot import ecdsa.curve_secp256k1. You probably need to upgrade ecdsa.\nTry: sudo pip install --upgrade ecdsa")
+    # make sure that certificates are here
+    assert os.path.exists(requests.utils.DEFAULT_CA_BUNDLE_PATH)
 
+
+if not is_android:
+    check_imports()
 
 # load local module as electrum
 if is_bundle or is_local or is_android:
@@ -250,9 +253,6 @@ def run_offline_command(config, config_options):
 
 
 if __name__ == '__main__':
-
-    # make sure that certificates are here
-    assert os.path.exists(requests.utils.DEFAULT_CA_BUNDLE_PATH)
 
     # on osx, delete Process Serial Number arg generated for apps launched in Finder
     sys.argv = filter(lambda x: not x.startswith('-psn'), sys.argv)
