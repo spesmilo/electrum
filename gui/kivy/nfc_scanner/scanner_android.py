@@ -115,7 +115,6 @@ class ScannerAndroid(NFCBase):
             #print 'length', length
             # will contain the NDEF record types
             recTypes = []
-            self.
             for record in ndefrecords:
                 recTypes.append({
                     'type': ''.join(map(unichr, record.getType())),
