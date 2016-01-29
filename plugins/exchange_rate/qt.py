@@ -10,6 +10,7 @@ from decimal import Decimal
 from functools import partial
 from electrum.plugins import hook
 from exchange_rate import FxPlugin
+from electrum.util import timestamp_to_datetime
 
 class Plugin(FxPlugin):
 
@@ -176,3 +177,32 @@ class Plugin(FxPlugin):
         layout.addWidget(ok_button,3,1)
 
         return d.exec_()
+
+
+    def config_history(self):
+        return self.config.get('history_rates', 'unchecked') != 'unchecked'
+
+    def show_history(self):
+        return self.config_history() and self.ccy in self.exchange.history_ccys()
+
+    @hook
+    def history_tab_headers(self, headers):
+        if self.show_history():
+            headers.extend(['%s '%self.ccy + _('Amount'), '%s '%self.ccy + _('Balance')])
+
+    @hook
+    def history_tab_update_begin(self):
+        self.history_used_spot = False
+
+    @hook
+    def history_tab_update(self, tx, entry):
+        if not self.show_history():
+            return
+        tx_hash, conf, value, timestamp, balance = tx
+        if conf <= 0:
+            date = datetime.today()
+        else:
+            date = timestamp_to_datetime(timestamp)
+        for amount in [value, balance]:
+            text = self.historical_value_str(amount, date)
+            entry.append(text)

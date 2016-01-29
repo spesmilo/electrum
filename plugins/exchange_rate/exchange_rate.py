@@ -11,7 +11,7 @@ from decimal import Decimal
 from electrum.bitcoin import COIN
 from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
-from electrum.util import PrintError, ThreadJob, timestamp_to_datetime
+from electrum.util import PrintError, ThreadJob
 from electrum.util import format_satoshis
 
 
@@ -296,11 +296,8 @@ class FxPlugin(BasePlugin, ThreadJob):
     def config_exchange(self):
         return self.config.get('use_exchange', 'BitcoinAverage')
 
-    def config_history(self):
-        return self.config.get('history_rates', 'unchecked') != 'unchecked'
-
     def show_history(self):
-        return self.config_history() and self.exchange.history_ccys()
+        return self.ccy in self.exchange.history_ccys()
 
     def set_currency(self, ccy):
         self.ccy = ccy
@@ -374,24 +371,3 @@ class FxPlugin(BasePlugin, ThreadJob):
         rate = self.history_rate(d_t)
         return self.value_str(satoshis, rate)
 
-    @hook
-    def history_tab_headers(self, headers):
-        if self.show_history():
-            headers.extend(['%s '%self.ccy + _('Amount'), '%s '%self.ccy + _('Balance')])
-
-    @hook
-    def history_tab_update_begin(self):
-        self.history_used_spot = False
-
-    @hook
-    def history_tab_update(self, tx, entry):
-        if not self.show_history():
-            return
-        tx_hash, conf, value, timestamp, balance = tx
-        if conf <= 0:
-            date = datetime.today()
-        else:
-            date = timestamp_to_datetime(timestamp)
-        for amount in [value, balance]:
-            text = self.historical_value_str(amount, date)
-            entry.append(text)
