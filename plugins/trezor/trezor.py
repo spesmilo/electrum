@@ -3,7 +3,7 @@ from .plugin import TrezorCompatiblePlugin, TrezorCompatibleWallet
 
 class TrezorWallet(TrezorCompatibleWallet):
     wallet_type = 'trezor'
-    device = 'Trezor'
+    device = 'TREZOR'
 
 
 class TrezorPlugin(TrezorCompatiblePlugin):

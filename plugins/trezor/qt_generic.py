@@ -131,7 +131,7 @@ class CharacterDialog(WindowModalDialog):
 class QtHandler(QObject, PrintError):
     '''An interface between the GUI (here, QT) and the device handling
     logic for handling I/O.  This is a generic implementation of the
-    Trezor protocol; derived classes can customize it.'''
+    TREZOR protocol; derived classes can customize it.'''
 
     charSig = pyqtSignal(object)
     qcSig = pyqtSignal(object, object)
@@ -283,7 +283,7 @@ class QtHandler(QObject, PrintError):
             vbox1 = QVBoxLayout()
             gb.setLayout(vbox1)
             # KeepKey recovery doesn't need a word count
-            if method == TIM_NEW or self.device == 'Trezor':
+            if method == TIM_NEW or self.device == 'TREZOR':
                 vbox.addWidget(gb)
             gb.setTitle(_("Select your seed length:"))
             choices = [
