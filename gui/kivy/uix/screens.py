@@ -294,6 +294,7 @@ class ReceiveScreen(CScreen):
     def do_copy(self):
         uri = self.get_URI()
         self.app._clipboard.copy(uri)
+        self.app.show_info(_('Request copied to clipboard'))
 
     def do_save(self):
         addr = str(self.screen.address)
@@ -309,7 +310,7 @@ class ReceiveScreen(CScreen):
         print "saving", amount, message
         req = self.app.wallet.make_payment_request(addr, amount, message, None)
         self.app.wallet.add_payment_request(req, self.app.electrum_config)
-        self.app.show_error(_('Request saved'))
+        self.app.show_info(_('Request saved'))
         self.app.update_tab('requests')
 
     def do_new(self):
