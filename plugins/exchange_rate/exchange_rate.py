@@ -306,6 +306,7 @@ class FxPlugin(BasePlugin, ThreadJob):
         self.ccy = ccy
         self.config.set_key('currency', ccy, True)
         self.get_historical_rates() # Because self.ccy changes
+        self.on_quotes()
 
     def set_exchange(self, name):
         class_ = self.exchanges.get(name) or self.exchanges.values()[0]
@@ -319,7 +320,6 @@ class FxPlugin(BasePlugin, ThreadJob):
         # a quote refresh
         self.timeout = 0
         self.get_historical_rates()
-        #self.on_fx_quotes()
 
     def on_quotes(self):
         pass

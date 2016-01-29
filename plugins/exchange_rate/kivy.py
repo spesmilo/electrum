@@ -27,11 +27,11 @@ class Plugin(FxPlugin):
         self.dispatcher = MyEventDispatcher()
 
     def on_quotes(self):
-        self.print_error("on_quotes")
+        self.print_error("on_quotes", self.ccy)
         self.dispatcher.dispatch('on_quotes')
 
     def on_history(self):
-        self.print_error("on_history")
+        self.print_error("on_history", self.ccy)
         self.dispatcher.dispatch('on_history')
 
     def on_close(self):

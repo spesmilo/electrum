@@ -86,7 +86,6 @@ class Plugin(FxPlugin):
         ccy = str(self.ccy_combo.currentText())
         if ccy and ccy != self.ccy:
             self.set_currency(ccy)
-            self.app.emit(SIGNAL('new_fx_quotes'))
             self.hist_checkbox_update()
 
     def hist_checkbox_update(self):
