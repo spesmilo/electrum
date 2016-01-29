@@ -87,9 +87,6 @@ class CScreen(Factory.Screen):
         self.add_widget(self.context_menu)
 
 
-
-
-
 class HistoryScreen(CScreen):
 
     tab = ObjectProperty(None)
@@ -172,10 +169,6 @@ class HistoryScreen(CScreen):
             history_card.add_widget(EmptyLabel(text=msg))
 
 
-
-
-
-
 class SendScreen(CScreen):
 
     kvname = 'send'
@@ -210,7 +203,7 @@ class SendScreen(CScreen):
         self.screen.message = pr.get_memo()
 
     def do_paste(self):
-        contents = unicode(self.app._clipboard.get())
+        contents = unicode(self.app._clipboard.paste())
         try:
             uri = parse_URI(contents)
         except:
@@ -300,7 +293,7 @@ class ReceiveScreen(CScreen):
 
     def do_copy(self):
         uri = self.get_URI()
-        self.app._clipboard.put(uri, 'text/plain')
+        self.app._clipboard.copy(uri)
 
     def do_save(self):
         addr = str(self.screen.address)
@@ -528,18 +521,3 @@ class TabbedCarousel(Factory.TabbedPanel):
             self.carousel.add_widget(widget)
             return
         super(TabbedCarousel, self).add_widget(widget, index=index)
-
-
-class ELTextInput(Factory.TextInput):
-    '''Custom TextInput used in main screens for numeric entry
-    '''
-
-    def insert_text(self, substring, from_undo=False):
-        if not from_undo:
-            if self.input_type == 'numbers':
-                numeric_list = map(str, range(10))
-                if '.' not in self.text:
-                    numeric_list.append('.')
-                if substring not in numeric_list:
-                    return
-        super(ELTextInput, self).insert_text(substring, from_undo=from_undo)

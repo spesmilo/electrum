@@ -19,7 +19,7 @@ source.include_exts = py,png,jpg,kv,atlas,ttf,txt,gif,pem,mo,vs,fs
 source.exclude_exts = spec
 
 # (list) List of directory to exclude (let empty to not exclude anything)
-source.exclude_dirs = bin, build, dist, contrib, gui/android, gui/qt, gui/kivy/tools
+source.exclude_dirs = bin, build, dist, contrib, gui/android, gui/qt, gui/kivy/tools, gui/kivy/theming/light
 # (list) List of exclusions using pattern matching
 source.exclude_patterns = Makefile,setup*
 
