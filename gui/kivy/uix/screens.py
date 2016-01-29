@@ -133,7 +133,8 @@ class HistoryScreen(CScreen):
             date = timestamp_to_datetime(timestamp)
             rate = run_hook('history_rate', date)
             if self.app.fiat_unit:
-                quote_text = "..." if rate is None else "{0:.3} {1}".format(Decimal(value) / 100000000 * Decimal(rate), self.app.fiat_unit)
+                s = run_hook('historical_value_str', value, date)
+                quote_text = "..." if s is None else s + ' ' + self.app.fiat_unit
             else:
                 quote_text = ''
             yield (conf, icon, time_str, label, value, tx_hash, quote_text)
