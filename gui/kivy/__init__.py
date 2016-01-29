@@ -38,9 +38,9 @@ from main_window import ElectrumWindow
 
 class ElectrumGui:
 
-    def __init__(self, config, network, daemon, plugins):
+    def __init__(self, config, daemon, plugins):
         Logger.debug('ElectrumGUI: initialising')
-        self.network = network
+        self.network = daemon.network
         self.config = config
         self.plugins = plugins
         set_language(config.get('language'))
