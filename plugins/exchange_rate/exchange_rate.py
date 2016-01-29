@@ -260,6 +260,32 @@ class Winkdex(ExchangeBase):
                      for h in history])
 
 
+
+def dictinvert(d):
+    inv = {}
+    for k, vlist in d.iteritems():
+        for v in vlist:
+            keys = inv.setdefault(v, [])
+            keys.append(k)
+    return inv
+
+def get_exchanges():
+    is_exchange = lambda obj: (inspect.isclass(obj)
+                               and issubclass(obj, ExchangeBase)
+                               and obj != ExchangeBase)
+    return dict(inspect.getmembers(sys.modules[__name__], is_exchange))
+
+def get_exchanges_by_ccy():
+    "return only the exchanges that have history rates (which is hardcoded)"
+    d = {}
+    exchanges = get_exchanges()
+    for name, klass in exchanges.items():
+        exchange = klass(None, None)
+        d[name] = exchange.history_ccys()
+    return dictinvert(d)
+
+
+
 class FxPlugin(BasePlugin, ThreadJob):
 
     def __init__(self, parent, config, name):
@@ -268,11 +294,8 @@ class FxPlugin(BasePlugin, ThreadJob):
         self.history_used_spot = False
         self.ccy_combo = None
         self.hist_checkbox = None
-        is_exchange = lambda obj: (inspect.isclass(obj)
-                                   and issubclass(obj, ExchangeBase)
-                                   and obj != ExchangeBase)
-        self.exchanges = dict(inspect.getmembers(sys.modules[__name__],
-                                                 is_exchange))
+        self.exchanges = get_exchanges()
+        self.exchanges_by_ccy = get_exchanges_by_ccy()
         self.set_exchange(self.config_exchange())
 
     def ccy_amount_str(self, amount, commas):
@@ -370,4 +393,3 @@ class FxPlugin(BasePlugin, ThreadJob):
     def historical_value_str(self, satoshis, d_t):
         rate = self.history_rate(d_t)
         return self.value_str(satoshis, rate)
-
