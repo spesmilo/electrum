@@ -29,12 +29,12 @@ Builder.load_string('''
             orientation: 'horizontal'
             size_hint: 1, 0.1
             Label:
-                text: _('Source')
+                text: _('Currency')
                 height: '48dp'
             Spinner:
                 height: '48dp'
-                id: exchanges
-                on_text: popup.on_exchange(self.text)
+                id: ccy
+                on_text: popup.on_currency(self.text)
 
         Widget:
             size_hint: 1, 0.1
@@ -43,12 +43,13 @@ Builder.load_string('''
             orientation: 'horizontal'
             size_hint: 1, 0.1
             Label:
-                text: _('Currency')
+                text: _('Source')
                 height: '48dp'
             Spinner:
                 height: '48dp'
-                id: ccy
-                on_text: popup.on_currency(self.text)
+                id: exchanges
+                on_text: popup.on_exchange(self.text)
+
         Widget:
             size_hint: 1, 0.2
 
@@ -80,8 +81,6 @@ from functools import partial
 
 class FxDialog(Factory.Popup):
 
-    __events__ = ('on_quotes', )
-
     def __init__(self, app, plugins, config, callback):
         Factory.Popup.__init__(self)
         self.app = app
@@ -90,11 +89,6 @@ class FxDialog(Factory.Popup):
         self.plugins = plugins
         p = self.plugins.get('exchange_rate')
         self.ids.enabled.active = bool(p)
-        if p:
-            p.dispatcher.bind(on_quotes=self.on_quotes)
-
-    def on_quotes(self, b):
-        self.add_currencies()
 
     def on_active(self, b):
         if b:
@@ -102,21 +96,17 @@ class FxDialog(Factory.Popup):
             if p is None:
                 p = self.plugins.enable('exchange_rate')
                 p.init_kivy(self.app)
-                p.dispatcher.bind(on_quotes=self.on_quotes)
-
-            values = sorted(p.exchanges.keys())
-            text = p.exchange.name()
         else:
             self.plugins.disable('exchange_rate')
-            values = []
-            text = ''
-        Clock.schedule_once(lambda dt: self.add_exchanges(values, text))
         Clock.schedule_once(lambda dt: self.add_currencies())
 
-    def add_exchanges(self, values, text):
+    def add_exchanges(self):
+        p = self.plugins.get('exchange_rate')
+        exchanges = sorted(p.exchanges_by_ccy.get(p.get_currency())) if p else []
+        mx = p.exchange.name() if p else ''
         ex = self.ids.exchanges
-        ex.values = values
-        ex.text = text
+        ex.values = exchanges
+        ex.text = (mx if mx in exchanges else exchanges[0]) if p else ''
 
     def on_exchange(self, text):
         if not text:
@@ -127,16 +117,15 @@ class FxDialog(Factory.Popup):
 
     def add_currencies(self):
         p = self.plugins.get('exchange_rate')
-        currencies = sorted(p.exchange.quotes.keys()) if p else []
+        currencies = sorted(p.exchanges_by_ccy.keys()) if p else []
+        my_ccy = p.get_currency() if p else ''
         self.ids.ccy.values = currencies
-        my_ccy = p.get_currency() if p else None
-        if currencies:
-            self.ids.ccy.text = my_ccy if my_ccy in currencies else currencies[0]
+        self.ids.ccy.text = my_ccy
 
     def on_currency(self, ccy):
-        if not ccy:
-            return
-        p = self.plugins.get('exchange_rate')
-        if p and ccy != p.get_currency():
-            p.set_currency(ccy)
-        self.app.fiat_unit = ccy
+        if ccy:
+            p = self.plugins.get('exchange_rate')
+            if p and ccy != p.get_currency():
+                p.set_currency(ccy)
+            self.app.fiat_unit = ccy
+        Clock.schedule_once(lambda dt: self.add_exchanges())

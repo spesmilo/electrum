@@ -296,10 +296,10 @@ class ElectrumWindow(App):
         # inside markup.
         from kivy.core.text import Label
         Label.register('Roboto',
-                   'data/fonts/Roboto.ttf',
-                   'data/fonts/Roboto.ttf',
-                   'data/fonts/Roboto-Bold.ttf',
-                   'data/fonts/Roboto-Bold.ttf')
+                   'gui/kivy/data/fonts/Roboto.ttf',
+                   'gui/kivy/data/fonts/Roboto.ttf',
+                   'gui/kivy/data/fonts/Roboto-Bold.ttf',
+                   'gui/kivy/data/fonts/Roboto-Bold.ttf')
 
         win.softinput_mode = 'below_target'
 

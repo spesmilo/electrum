@@ -94,6 +94,9 @@ class TrezorClientBase(GuiMixin, PrintError):
         '''True if initialized, False if wiped.'''
         return self.features.initialized
 
+    def is_pairable(self):
+        return not client.features.bootloader_mode
+
     @staticmethod
     def expand_path(n):
         '''Convert bip32 path to list of uint32 integers with prime flags

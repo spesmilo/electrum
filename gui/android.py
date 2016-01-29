@@ -903,9 +903,9 @@ config = None
 
 class ElectrumGui:
 
-    def __init__(self, _config, _network, daemon, plugins):
+    def __init__(self, _config, daemon, plugins):
         global wallet, network, contacts, config
-        network = _network
+        network = daemon.network
         config = _config
         network.register_callback(update_callback, ['updated'])
 

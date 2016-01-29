@@ -87,7 +87,7 @@ Builder.load_string('''
                 size_hint: 1, None
                 height: self.texture_size[1] if self.opacity else 0
                 font_size: '33sp'
-                font_name: 'data/fonts/tron/Tr2n.ttf'
+                font_name: 'gui/kivy/data/fonts/tron/Tr2n.ttf'
             Image:
                 id: stepper
                 allow_stretch: True

@@ -12,9 +12,9 @@ import sys, getpass, datetime
 
 class ElectrumGui:
 
-    def __init__(self, config, network, daemon, plugins):
-        self.network = network
+    def __init__(self, config, daemon, plugins):
         self.config = config
+        network = daemon.network
         storage = WalletStorage(config.get_wallet_path())
         if not storage.file_exists:
             print "Wallet not found. try 'electrum-ltc create'"

@@ -18,29 +18,6 @@
     size_hint: 1, None
     height: self.minimum_height
 
-
-<IconButton@ButtonBehavior+Image>
-    allow_stretch: True
-    size_hint_x: None
-    width: self.height
-    canvas:
-        BorderImage:
-            border: (10, 10, 10, 10)
-            source:
-                'atlas://gui/kivy/theming/light/' + ('tab_btn'\
-                if root.state == 'normal' else 'icon_border')
-            size: root.size
-            pos: root.pos
-
-
-<ELTextInput>
-    padding: '10dp', '4dp'
-    background_color: (0.238, 0.589, .996, 1) if self.focus else self.foreground_color
-    foreground_color: 0.531, 0.531, 0.531, 1
-    background_active: 'atlas://gui/kivy/theming/light/textinput_active'
-    background_normal: 'atlas://gui/kivy/theming/light/textinput_active'
-
-
 ###########################
 #     Global Defaults
 ###########################
@@ -148,19 +125,6 @@
         Rectangle:
             size: self.size
             pos: self.pos
-
-
-<TextInputBlue@TextInput>
-    padding: '5dp'
-    size_hint: 1, None
-    height: '27dp'
-    pos_hint: {'center_y':.5}
-    multiline: False
-    hint_text_color: self.foreground_color
-    foreground_color: 1, 1, 1, 1
-    font_size: '16dp'
-    background_normal: 'atlas://gui/kivy/theming/light/tab_btn'
-    background_active: 'atlas://gui/kivy/theming/light/textinput_active'
 
 
 <KButton@Button>:

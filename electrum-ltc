@@ -54,7 +54,7 @@ def check_imports():
     try:
         from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
     except Exception:
-	sys.exit("cannot import ecdsa.curve_secp256k1. You probably need to upgrade ecdsa.\nTry: sudo pip install --upgrade ecdsa")
+        sys.exit("cannot import ecdsa.curve_secp256k1. You probably need to upgrade ecdsa.\nTry: sudo pip install --upgrade ecdsa")
     # make sure that certificates are here
     assert os.path.exists(requests.utils.DEFAULT_CA_BUNDLE_PATH)
 
@@ -91,12 +91,12 @@ def prompt_password(prompt, confirm=True):
 
 
 
-def init_gui(config, network, daemon, plugins):
+def init_gui(config, daemon, plugins):
     gui_name = config.get('gui', 'qt')
     if gui_name in ['lite', 'classic']:
         gui_name = 'qt'
     gui = __import__('electrum_ltc_gui.' + gui_name, fromlist=['electrum_ltc_gui'])
-    gui = gui.ElectrumGui(config, network, daemon, plugins)
+    gui = gui.ElectrumGui(config, daemon, plugins)
     return gui
 
 
@@ -117,6 +117,7 @@ def run_non_RPC(config):
             wallet = Wallet.from_text(text, password, storage)
         except BaseException as e:
             sys.exit(str(e))
+        wallet.create_main_account()
         if not config.get('offline'):
             network = Network(config)
             network.start()
@@ -334,7 +335,7 @@ if __name__ == '__main__':
                 network = None
             daemon = Daemon(config, network)
             daemon.start()
-            gui = init_gui(config, network, daemon, plugins)
+            gui = init_gui(config, daemon, plugins)
             daemon.gui = gui
             gui.main()
             sys.exit(0)

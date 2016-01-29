@@ -376,7 +376,7 @@ class DeviceMgr(PrintError):
             info = self.select_device(wallet, plugin, devices)
             if info:
                 client = self.client_lookup(info.device.id_)
-                if client and not client.features.bootloader_mode:
+                if client and client.is_pairable():
                     # See comment above for same code
                     client.handler = wallet.handler
                     # This will trigger a PIN/passphrase entry request

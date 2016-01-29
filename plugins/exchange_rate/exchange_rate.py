@@ -11,7 +11,7 @@ from decimal import Decimal
 from electrum_ltc.bitcoin import COIN
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.i18n import _
-from electrum_ltc.util import PrintError, ThreadJob, timestamp_to_datetime
+from electrum_ltc.util import PrintError, ThreadJob
 from electrum_ltc.util import format_satoshis
 
 
@@ -183,6 +183,32 @@ class OKCoin(ExchangeBase):
         return {'CNY': Decimal(json['ticker']['last'])}
 
 
+
+def dictinvert(d):
+    inv = {}
+    for k, vlist in d.iteritems():
+        for v in vlist:
+            keys = inv.setdefault(v, [])
+            keys.append(k)
+    return inv
+
+def get_exchanges():
+    is_exchange = lambda obj: (inspect.isclass(obj)
+                               and issubclass(obj, ExchangeBase)
+                               and obj != ExchangeBase)
+    return dict(inspect.getmembers(sys.modules[__name__], is_exchange))
+
+def get_exchanges_by_ccy():
+    "return only the exchanges that have history rates (which is hardcoded)"
+    d = {}
+    exchanges = get_exchanges()
+    for name, klass in exchanges.items():
+        exchange = klass(None, None)
+        d[name] = exchange.history_ccys()
+    return dictinvert(d)
+
+
+
 class FxPlugin(BasePlugin, ThreadJob):
 
     def __init__(self, parent, config, name):
@@ -191,11 +217,8 @@ class FxPlugin(BasePlugin, ThreadJob):
         self.history_used_spot = False
         self.ccy_combo = None
         self.hist_checkbox = None
-        is_exchange = lambda obj: (inspect.isclass(obj)
-                                   and issubclass(obj, ExchangeBase)
-                                   and obj != ExchangeBase)
-        self.exchanges = dict(inspect.getmembers(sys.modules[__name__],
-                                                 is_exchange))
+        self.exchanges = get_exchanges()
+        self.exchanges_by_ccy = get_exchanges_by_ccy()
         self.set_exchange(self.config_exchange())
 
     def ccy_amount_str(self, amount, commas):
@@ -219,16 +242,14 @@ class FxPlugin(BasePlugin, ThreadJob):
     def config_exchange(self):
         return self.config.get('use_exchange', 'BTCe')
 
-    def config_history(self):
-        return self.config.get('history_rates', 'unchecked') != 'unchecked'
-
     def show_history(self):
-        return self.config_history() and self.exchange.history_ccys()
+        return self.ccy in self.exchange.history_ccys()
 
     def set_currency(self, ccy):
         self.ccy = ccy
         self.config.set_key('currency', ccy, True)
         self.get_historical_rates() # Because self.ccy changes
+        self.on_quotes()
 
     def set_exchange(self, name):
         class_ = self.exchanges.get(name) or self.exchanges.values()[0]
@@ -242,7 +263,6 @@ class FxPlugin(BasePlugin, ThreadJob):
         # a quote refresh
         self.timeout = 0
         self.get_historical_rates()
-        #self.on_fx_quotes()
 
     def on_quotes(self):
         pass
@@ -296,25 +316,3 @@ class FxPlugin(BasePlugin, ThreadJob):
     def historical_value_str(self, satoshis, d_t):
         rate = self.history_rate(d_t)
         return self.value_str(satoshis, rate)
-
-    @hook
-    def history_tab_headers(self, headers):
-        if self.show_history():
-            headers.extend(['%s '%self.ccy + _('Amount'), '%s '%self.ccy + _('Balance')])
-
-    @hook
-    def history_tab_update_begin(self):
-        self.history_used_spot = False
-
-    @hook
-    def history_tab_update(self, tx, entry):
-        if not self.show_history():
-            return
-        tx_hash, conf, value, timestamp, balance = tx
-        if conf <= 0:
-            date = datetime.today()
-        else:
-            date = timestamp_to_datetime(timestamp)
-        for amount in [value, balance]:
-            text = self.historical_value_str(amount, date)
-            entry.append(text)

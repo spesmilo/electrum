@@ -87,9 +87,6 @@ class CScreen(Factory.Screen):
         self.add_widget(self.context_menu)
 
 
-
-
-
 class HistoryScreen(CScreen):
 
     tab = ObjectProperty(None)
@@ -136,7 +133,8 @@ class HistoryScreen(CScreen):
             date = timestamp_to_datetime(timestamp)
             rate = run_hook('history_rate', date)
             if self.app.fiat_unit:
-                quote_text = "..." if rate is None else "{0:.3} {1}".format(Decimal(value) / 100000000 * Decimal(rate), self.app.fiat_unit)
+                s = run_hook('historical_value_str', value, date)
+                quote_text = "..." if s is None else s + ' ' + self.app.fiat_unit
             else:
                 quote_text = ''
             yield (conf, icon, time_str, label, value, tx_hash, quote_text)
@@ -170,10 +168,6 @@ class HistoryScreen(CScreen):
         if count == 0:
             msg = _('This screen shows your list of transactions. It is currently empty.')
             history_card.add_widget(EmptyLabel(text=msg))
-
-
-
-
 
 
 class SendScreen(CScreen):
@@ -210,7 +204,7 @@ class SendScreen(CScreen):
         self.screen.message = pr.get_memo()
 
     def do_paste(self):
-        contents = unicode(self.app._clipboard.get())
+        contents = unicode(self.app._clipboard.paste())
         try:
             uri = parse_URI(contents)
         except:
@@ -300,7 +294,8 @@ class ReceiveScreen(CScreen):
 
     def do_copy(self):
         uri = self.get_URI()
-        self.app._clipboard.put(uri, 'text/plain')
+        self.app._clipboard.copy(uri)
+        self.app.show_info(_('Request copied to clipboard'))
 
     def do_save(self):
         addr = str(self.screen.address)
@@ -316,7 +311,7 @@ class ReceiveScreen(CScreen):
         print "saving", amount, message
         req = self.app.wallet.make_payment_request(addr, amount, message, None)
         self.app.wallet.add_payment_request(req, self.app.electrum_config)
-        self.app.show_error(_('Request saved'))
+        self.app.show_info(_('Request saved'))
         self.app.update_tab('requests')
 
     def do_new(self):
@@ -528,18 +523,3 @@ class TabbedCarousel(Factory.TabbedPanel):
             self.carousel.add_widget(widget)
             return
         super(TabbedCarousel, self).add_widget(widget, index=index)
-
-
-class ELTextInput(Factory.TextInput):
-    '''Custom TextInput used in main screens for numeric entry
-    '''
-
-    def insert_text(self, substring, from_undo=False):
-        if not from_undo:
-            if self.input_type == 'numbers':
-                numeric_list = map(str, range(10))
-                if '.' not in self.text:
-                    numeric_list.append('.')
-                if substring not in numeric_list:
-                    return
-        super(ELTextInput, self).insert_text(substring, from_undo=from_undo)
