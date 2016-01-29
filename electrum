@@ -117,6 +117,7 @@ def run_non_RPC(config):
             wallet = Wallet.from_text(text, password, storage)
         except BaseException as e:
             sys.exit(str(e))
+        wallet.create_main_account()
         if not config.get('offline'):
             network = Network(config)
             network.start()
