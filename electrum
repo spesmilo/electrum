@@ -328,7 +328,13 @@ if __name__ == '__main__':
         if server is not None:
             result = server.gui(config_options)
         else:
-            daemon = Daemon(config)
+            if not config.get('offline'):
+                network = Network(config)
+                network.start()
+            else:
+                network = None
+            daemon = Daemon(config, network)
+            daemon.start()
             gui = init_gui(config, daemon, plugins)
             daemon.gui = gui
             gui.main()
@@ -345,12 +351,15 @@ if __name__ == '__main__':
             elif subcommand == 'start':
                 p = os.fork()
                 if p == 0:
-                    daemon = Daemon(config)
+                    network = Network(config)
+                    network.start()
+                    daemon = Daemon(config, network)
                     if config.get('websocket_server'):
                         from electrum import websockets
-                        websockets.WebSocketServer(config, daemon.network).start()
+                        websockets.WebSocketServer(config, network).start()
                     if config.get('requests_dir'):
                         util.check_www_dir(config.get('requests_dir'))
+                    daemon.start()
                     daemon.join()
                     sys.exit(0)
                 else:
