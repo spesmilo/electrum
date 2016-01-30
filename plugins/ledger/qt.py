@@ -7,7 +7,7 @@ import PyQt4.QtCore as QtCore
 from electrum.i18n import _
 from electrum.plugins import hook
 from .ledger import LedgerPlugin, BTChipWallet
-from ..hw_wallet import QtHandlerBase
+from ..hw_wallet.qt import QtHandlerBase
 
 class Plugin(LedgerPlugin):
 

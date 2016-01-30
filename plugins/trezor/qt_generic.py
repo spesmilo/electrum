@@ -7,7 +7,7 @@ from PyQt4.Qt import QVBoxLayout, QLabel, SIGNAL
 from electrum_gui.qt.main_window import StatusBarButton
 from electrum_gui.qt.util import *
 from .plugin import TIM_NEW, TIM_RECOVER, TIM_MNEMONIC
-from ..hw_wallet import QtHandlerBase
+from ..hw_wallet.qt import QtHandlerBase
 
 from electrum.i18n import _
 from electrum.plugins import hook, DeviceMgr
