@@ -33,8 +33,6 @@ except ImportError:
 class BTChipWallet(BIP44_HW_Wallet):
     wallet_type = 'btchip'
     device = 'Ledger'
-    restore_wallet_class = BIP44_HW_Wallet
-    max_change_outputs = 1
 
     def __init__(self, storage):
         BIP44_HW_Wallet.__init__(self, storage)
@@ -73,7 +71,7 @@ class BTChipWallet(BIP44_HW_Wallet):
             splitPath = bip32_path.split('/')
             if splitPath[0] == 'm':
                 splitPath = splitPath[1:]
-                bip32_path = bip32_path[2:]                        
+                bip32_path = bip32_path[2:]
             fingerprint = 0
             if len(splitPath) > 1:
                 prevPath = "/".join(splitPath[0:len(splitPath) - 1])
