@@ -12,7 +12,11 @@ from electrum.plugins import hook
 from exchange_rate import FxPlugin
 from electrum.util import timestamp_to_datetime
 
-class Plugin(FxPlugin):
+class Plugin(FxPlugin, QObject):
+
+    def __init__(self, parent, config, name):
+        FxPlugin.__init__(self, parent, config, name)
+        QObject.__init__(self)
 
     def connect_fields(self, window, btc_e, fiat_e, fee_e):
 
@@ -44,14 +48,15 @@ class Plugin(FxPlugin):
 
     @hook
     def init_qt(self, gui):
-        self.app = gui.app
+        for window in gui.windows:
+            self.on_new_window(window)
 
     @hook
     def do_clear(self, window):
         window.fiat_send_e.setText('')
 
     def on_close(self):
-        self.app.emit(SIGNAL('close_fx_plugin'))
+        self.emit(SIGNAL('close_fx_plugin'))
 
     def restore_window(self, window):
         window.update_status()
@@ -60,10 +65,10 @@ class Plugin(FxPlugin):
         window.fiat_receive_e.hide()
 
     def on_quotes(self):
-        self.app.emit(SIGNAL('new_fx_quotes'))
+        self.emit(SIGNAL('new_fx_quotes'))
 
     def on_history(self):
-        self.app.emit(SIGNAL('new_fx_history'))
+        self.emit(SIGNAL('new_fx_history'))
 
     def on_fx_history(self, window):
         '''Called when historical fx quotes are updated'''
@@ -108,22 +113,23 @@ class Plugin(FxPlugin):
     @hook
     def on_new_window(self, window):
         # Additional send and receive edit boxes
-        send_e = AmountEdit(self.get_currency)
-        window.send_grid.addWidget(send_e, 4, 2, Qt.AlignLeft)
-        window.amount_e.frozen.connect(
-            lambda: send_e.setFrozen(window.amount_e.isReadOnly()))
-        receive_e = AmountEdit(self.get_currency)
-        window.receive_grid.addWidget(receive_e, 2, 2, Qt.AlignLeft)
-        window.fiat_send_e = send_e
-        window.fiat_receive_e = receive_e
-        self.connect_fields(window, window.amount_e, send_e, window.fee_e)
-        self.connect_fields(window, window.receive_amount_e, receive_e, None)
+        if not hasattr(window, 'send_e'):
+            send_e = AmountEdit(self.get_currency)
+            window.send_grid.addWidget(send_e, 4, 2, Qt.AlignLeft)
+            window.amount_e.frozen.connect(
+                lambda: send_e.setFrozen(window.amount_e.isReadOnly()))
+            receive_e = AmountEdit(self.get_currency)
+            window.receive_grid.addWidget(receive_e, 2, 2, Qt.AlignLeft)
+            window.fiat_send_e = send_e
+            window.fiat_receive_e = receive_e
+            self.connect_fields(window, window.amount_e, send_e, window.fee_e)
+            self.connect_fields(window, window.receive_amount_e, receive_e, None)
         window.history_list.refresh_headers()
         window.update_status()
-        window.connect(window.app, SIGNAL('new_fx_quotes'), lambda: self.on_fx_quotes(window))
-        window.connect(window.app, SIGNAL('new_fx_history'), lambda: self.on_fx_history(window))
-        window.connect(window.app, SIGNAL('close_fx_plugin'), lambda: self.restore_window(window))
-        window.connect(window.app, SIGNAL('refresh_headers'), window.history_list.refresh_headers)
+        window.connect(self, SIGNAL('new_fx_quotes'), lambda: self.on_fx_quotes(window))
+        window.connect(self, SIGNAL('new_fx_history'), lambda: self.on_fx_history(window))
+        window.connect(self, SIGNAL('close_fx_plugin'), lambda: self.restore_window(window))
+        window.connect(self, SIGNAL('refresh_headers'), window.history_list.refresh_headers)
 
     def settings_widget(self, window):
         return EnterButton(_('Settings'), partial(self.settings_dialog, window))
@@ -152,7 +158,7 @@ class Plugin(FxPlugin):
                 self.get_historical_rates()
             else:
                 self.config.set_key('history_rates', 'unchecked')
-            self.app.emit(SIGNAL('refresh_headers'))
+            self.emit(SIGNAL('refresh_headers'))
 
         def ok_clicked():
             self.timeout = 0
