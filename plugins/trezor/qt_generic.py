@@ -5,9 +5,9 @@ from PyQt4.Qt import Qt
 from PyQt4.Qt import QGridLayout, QInputDialog, QPushButton
 from PyQt4.Qt import QVBoxLayout, QLabel, SIGNAL
 from electrum_ltc_gui.qt.main_window import StatusBarButton
-from electrum_ltc_gui.qt.password_dialog import PasswordDialog, PW_PASSPHRASE
 from electrum_ltc_gui.qt.util import *
-from .plugin import TrezorCompatiblePlugin, TIM_NEW, TIM_RECOVER, TIM_MNEMONIC
+from .plugin import TIM_NEW, TIM_RECOVER, TIM_MNEMONIC
+from ..hw_wallet.qt import QtHandlerBase
 
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import hook, DeviceMgr
@@ -126,53 +126,17 @@ class CharacterDialog(WindowModalDialog):
         if self.loop.exec_():
             self.data = None  # User cancelled
 
-# By far the trickiest thing about this handler is the window stack;
-# MacOSX is very fussy the modal dialogs are perfectly parented
-class QtHandler(QObject, PrintError):
-    '''An interface between the GUI (here, QT) and the device handling
-    logic for handling I/O.  This is a generic implementation of the
-    Trezor protocol; derived classes can customize it.'''
+
+class QtHandler(QtHandlerBase):
 
     charSig = pyqtSignal(object)
-    qcSig = pyqtSignal(object, object)
 
     def __init__(self, win, pin_matrix_widget_class, device):
-        super(QtHandler, self).__init__()
-        win.connect(win, SIGNAL('clear_dialog'), self.clear_dialog)
-        win.connect(win, SIGNAL('error_dialog'), self.error_dialog)
-        win.connect(win, SIGNAL('message_dialog'), self.message_dialog)
+        super(QtHandler, self).__init__(win, device)
         win.connect(win, SIGNAL('pin_dialog'), self.pin_dialog)
-        win.connect(win, SIGNAL('passphrase_dialog'), self.passphrase_dialog)
-        win.connect(win, SIGNAL('word_dialog'), self.word_dialog)
         self.charSig.connect(self.update_character_dialog)
-        self.qcSig.connect(self.win_query_choice)
-        self.win = win
         self.pin_matrix_widget_class = pin_matrix_widget_class
-        self.device = device
-        self.dialog = None
-        self.done = threading.Event()
         self.character_dialog = None
-
-    def top_level_window(self):
-        return self.win.top_level_window()
-
-    def watching_only_changed(self):
-        self.win.emit(SIGNAL('watching_only_changed'))
-
-    def query_choice(self, msg, labels):
-        self.done.clear()
-        self.qcSig.emit(msg, labels)
-        self.done.wait()
-        return self.choice
-
-    def show_message(self, msg, on_cancel=None):
-        self.win.emit(SIGNAL('message_dialog'), msg, on_cancel)
-
-    def show_error(self, msg):
-        self.win.emit(SIGNAL('error_dialog'), msg)
-
-    def finished(self):
-        self.win.emit(SIGNAL('clear_dialog'))
 
     def get_char(self, msg):
         self.done.clear()
@@ -190,18 +154,6 @@ class QtHandler(QObject, PrintError):
         self.done.wait()
         return self.response
 
-    def get_word(self, msg):
-        self.done.clear()
-        self.win.emit(SIGNAL('word_dialog'), msg)
-        self.done.wait()
-        return self.word
-
-    def get_passphrase(self, msg):
-        self.done.clear()
-        self.win.emit(SIGNAL('passphrase_dialog'), msg)
-        self.done.wait()
-        return self.passphrase
-
     def pin_dialog(self, msg):
         # Needed e.g. when resetting a device
         self.clear_dialog()
@@ -216,56 +168,10 @@ class QtHandler(QObject, PrintError):
         self.response = str(matrix.get_value())
         self.done.set()
 
-    def passphrase_dialog(self, msg):
-        d = PasswordDialog(self.top_level_window(), None, msg, PW_PASSPHRASE)
-        confirmed, p, passphrase = d.run()
-        if confirmed:
-            passphrase = BIP44_Wallet.normalize_passphrase(passphrase)
-        self.passphrase = passphrase
-        self.done.set()
-
-    def word_dialog(self, msg):
-        dialog = WindowModalDialog(self.top_level_window(), "")
-        hbox = QHBoxLayout(dialog)
-        hbox.addWidget(QLabel(msg))
-        text = QLineEdit()
-        text.setMaximumWidth(100)
-        text.returnPressed.connect(dialog.accept)
-        hbox.addWidget(text)
-        hbox.addStretch(1)
-        dialog.exec_()  # Firmware cannot handle cancellation
-        self.word = unicode(text.text())
-        self.done.set()
-
     def update_character_dialog(self, msg):
         if not self.character_dialog:
             self.character_dialog = CharacterDialog(self.top_level_window())
         self.character_dialog.get_char(msg.word_pos, msg.character_pos)
-        self.done.set()
-
-    def message_dialog(self, msg, on_cancel):
-        # Called more than once during signing, to confirm output and fee
-        self.clear_dialog()
-        title = _('Please check your %s device') % self.device
-        self.dialog = dialog = WindowModalDialog(self.top_level_window(), title)
-        l = QLabel(msg)
-        vbox = QVBoxLayout(dialog)
-        vbox.addWidget(l)
-        if on_cancel:
-            dialog.rejected.connect(on_cancel)
-            vbox.addLayout(Buttons(CancelButton(dialog)))
-        dialog.show()
-
-    def error_dialog(self, msg):
-        self.win.show_error(msg, parent=self.top_level_window())
-
-    def clear_dialog(self):
-        if self.dialog:
-            self.dialog.accept()
-            self.dialog = None
-
-    def win_query_choice(self, msg, labels):
-        self.choice = self.win.query_choice(msg, labels)
         self.done.set()
 
     def request_trezor_init_settings(self, method, device):
@@ -283,7 +189,7 @@ class QtHandler(QObject, PrintError):
             vbox1 = QVBoxLayout()
             gb.setLayout(vbox1)
             # KeepKey recovery doesn't need a word count
-            if method == TIM_NEW or self.device == 'Trezor':
+            if method == TIM_NEW or self.device == 'TREZOR':
                 vbox.addWidget(gb)
             gb.setTitle(_("Select your seed length:"))
             choices = [

@@ -8,7 +8,7 @@
  * the install wizard has been rewritten and improved
  * support minikeys as used in Casascius coins for private key import
    and sweeping
- * much improved support for Trezor and KeepKey devices:
+ * much improved support for TREZOR and KeepKey devices:
    - full device information display
    - initialize a new or wiped device in 4 ways:
      1) device generates a new wallet
@@ -17,7 +17,7 @@
      4) you enter a master private key
    - KeepKey secure seed recovery (KeepKey only)
    - change / set / disable PIN
-   - set homescreen (Trezor only)
+   - set homescreen (TREZOR only)
    - set a session timeout.  Once a session has timed out, further use
      of the device requires your PIN and passhphrase to be re-entered
    - enable / disable passphrases
@@ -91,8 +91,8 @@
    output). The BIP21 URI scheme is extended with 'name', 'sig',
    'time', 'exp'.
  * Arbitrary m-of-n multisig wallets are supported (n<=15).
- * Multisig transactions can be signed with Trezor. When you create
-   the multisig wallet, just enter the xpub of your existing Trezor
+ * Multisig transactions can be signed with TREZOR. When you create
+   the multisig wallet, just enter the xpub of your existing TREZOR
    wallet.
  * Transaction fees set manually in the GUI are retained, including
    when the user uses the '!' shortcut.
@@ -119,7 +119,7 @@
  * More efficient coin selection. Spend oldest coins first, and
    minimize the number of transaction inputs.
  * Plugins are loaded independently of the GUI. As a result, Openalias,
-   TrustedCoin and Trezor wallets can be used with the command
+   TrustedCoin and TREZOR wallets can be used with the command
    line. Example: 'electrum payto <openalias> <amount>'
  * The command line has been refactored:
   - Arguments are parsed with argparse.
@@ -198,8 +198,8 @@
  * Fix thread timing bug (#1054)
 
 # Release 2.0.1 - bugfixes
- * Fix critical bug in Trezor address derivation: passphrases were not
-   NFKD normalized. Trezor users who created a wallet protected by a
+ * Fix critical bug in TREZOR address derivation: passphrases were not
+   NFKD normalized. TREZOR users who created a wallet protected by a
    passphrase containing utf-8 characters with diacritics are
    affected. These users will have to open their wallet with version
    2.0 and to move their funds to a new wallet.
@@ -238,7 +238,7 @@
    - Verification of the chain of signatures uses tlslite.
    - In the GUI, payment requests are shown in the 'Invoices' tab.
 
- * Support for hardware wallets: Trezor (Satoshilabs) and Btchip (Ledger).
+ * Support for hardware wallets: TREZOR (SatoshiLabs) and Btchip (Ledger).
 
  * Two-factor authentication service by TrustedCoin. This service uses
    "2 of 3" multisig wallets and Google Authenticator. Note that

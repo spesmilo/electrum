@@ -182,6 +182,23 @@ class OKCoin(ExchangeBase):
         json = self.get_json('www.okcoin.cn', '/api/ticker.do?symbol=ltc_cny')
         return {'CNY': Decimal(json['ticker']['last'])}
 
+class MercadoBitcoin(ExchangeBase):
+    def get_rates(self,ccy):
+        json = self.get_json('mercadobitcoin.net',
+                                "/api/ticker/ticker_litecoin")
+        return {'BRL': Decimal(json['ticker']['last'])}
+    
+    def history_ccys(self):
+        return ['BRL']
+
+class Bitcointoyou(ExchangeBase):
+    def get_rates(self,ccy):
+        json = self.get_json('bitcointoyou.com',
+                                "/API/ticker_litecoin.aspx")
+        return {'BRL': Decimal(json['ticker']['last'])}
+
+    def history_ccys(self):
+        return ['BRL']
 
 
 def dictinvert(d):

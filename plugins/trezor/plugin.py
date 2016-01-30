@@ -5,7 +5,6 @@ import time
 
 from binascii import unhexlify
 from functools import partial
-from struct import pack
 
 from electrum_ltc.account import BIP32_Account
 from electrum_ltc.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
@@ -15,97 +14,16 @@ from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.transaction import (deserialize, is_extended_pubkey,
                                   Transaction, x_to_xpub)
-from electrum_ltc.wallet import BIP44_Wallet
-from electrum_ltc.util import ThreadJob
+from ..hw_wallet import BIP44_HW_Wallet, HW_PluginBase
 
 
-# Trezor initialization methods
+# TREZOR initialization methods
 TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
 
 class DeviceDisconnectedError(Exception):
     pass
 
-class TrezorCompatibleWallet(BIP44_Wallet):
-    # Extend BIP44 Wallet as required by hardware implementation.
-    # Derived classes must set:
-    #   - device
-    #   - DEVICE_IDS
-    #   - wallet_type
-
-    restore_wallet_class = BIP44_Wallet
-    max_change_outputs = 1
-
-    def __init__(self, storage):
-        BIP44_Wallet.__init__(self, storage)
-        # After timeout seconds we clear the device session
-        self.session_timeout = storage.get('session_timeout', 180)
-        # Errors and other user interaction is done through the wallet's
-        # handler.  The handler is per-window and preserved across
-        # device reconnects
-        self.handler = None
-        self.force_watching_only = True
-
-    def set_session_timeout(self, seconds):
-        self.print_error("setting session timeout to %d seconds" % seconds)
-        self.session_timeout = seconds
-        self.storage.put('session_timeout', seconds)
-
-    def unpaired(self):
-        '''A device paired with the wallet was diconnected.  This can be
-        called in any thread context.'''
-        self.print_error("unpaired")
-        self.force_watching_only = True
-        self.handler.watching_only_changed()
-
-    def paired(self):
-        '''A device paired with the wallet was (re-)connected.  This can be
-        called in any thread context.'''
-        self.print_error("paired")
-        self.force_watching_only = False
-        self.handler.watching_only_changed()
-
-    def timeout(self):
-        '''Called when the wallet session times out.  Note this is called from
-        the Plugins thread.'''
-        client = self.get_client(force_pair=False)
-        if client:
-            client.clear_session()
-        self.print_error("timed out")
-
-    def get_action(self):
-        pass
-
-    def can_create_accounts(self):
-        return True
-
-    def can_export(self):
-        return False
-
-    def is_watching_only(self):
-        '''The wallet is watching-only if its trezor device is unpaired.'''
-        assert not self.has_seed()
-        return self.force_watching_only
-
-    def can_change_password(self):
-        return False
-
-    def get_client(self, force_pair=True):
-        return self.plugin.get_client(self, force_pair)
-
-    def first_address(self):
-        '''Used to check a hardware wallet matches a software wallet'''
-        account = self.accounts.get('0')
-        derivation = self.address_derivation('0', 0, 0)
-        return (account.first_address()[0] if account else None, derivation)
-
-    def derive_xkeys(self, root, derivation, password):
-        if self.master_public_keys.get(self.root_name):
-            return BIP44_wallet.derive_xkeys(self, root, derivation, password)
-
-        # When creating a wallet we need to ask the device for the
-        # master public key
-        xpub = self.get_public_key(derivation)
-        return xpub, None
+class TrezorCompatibleWallet(BIP44_HW_Wallet):
 
     def get_public_key(self, bip32_path):
         client = self.get_client()
@@ -115,9 +33,6 @@ class TrezorCompatibleWallet(BIP44_Wallet):
                 + self.i4b(node.fingerprint) + self.i4b(node.child_num)
                 + node.chain_code + node.public_key)
         return EncodeBase58Check(xpub)
-
-    def i4b(self, x):
-        return pack('>I', x)
 
     def decrypt_message(self, pubkey, message, password):
         address = public_key_to_bc_address(pubkey.decode('hex'))
@@ -169,7 +84,7 @@ class TrezorCompatibleWallet(BIP44_Wallet):
         self.plugin.sign_transaction(self, tx, prev_tx, xpub_path)
 
 
-class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
+class TrezorCompatiblePlugin(HW_PluginBase):
     # Derived classes provide:
     #
     #  class-static variables: client_class, firmware_URL, handler_class,
@@ -179,34 +94,11 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
     MAX_LABEL_LEN = 32
 
     def __init__(self, parent, config, name):
-        BasePlugin.__init__(self, parent, config, name)
+        HW_PluginBase.__init__(self, parent, config, name)
         self.main_thread = threading.current_thread()
-        self.device = self.wallet_class.device
-        self.wallet_class.plugin = self
-        self.prevent_timeout = time.time() + 3600 * 24 * 365
+        # FIXME: move to base class when Ledger is fixed
         if self.libraries_available:
             self.device_manager().register_devices(self.DEVICE_IDS)
-
-    def is_enabled(self):
-        return self.libraries_available
-
-    def device_manager(self):
-        return self.parent.device_manager
-
-    def thread_jobs(self):
-        # Thread job to handle device timeouts
-        return [self] if self.libraries_available else []
-
-    def run(self):
-        '''Handle device timeouts.  Runs in the context of the Plugins
-        thread.'''
-        now = time.time()
-        for wallet in self.device_manager().paired_wallets():
-            if (isinstance(wallet, self.wallet_class)
-                    and hasattr(wallet, 'last_operation')
-                    and now > wallet.last_operation + wallet.session_timeout):
-                wallet.timeout()
-                wallet.last_operation = self.prevent_timeout
 
     def create_client(self, device, handler):
         if device.interface_number == 1:
@@ -290,7 +182,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         (item, label, pin_protection, passphrase_protection) \
             = wallet.handler.request_trezor_init_settings(method, self.device)
 
-        if method == TIM_RECOVER and self.device == 'Trezor':
+        if method == TIM_RECOVER and self.device == 'TREZOR':
             # Warn user about firmware lameness
             wallet.handler.show_error(_(
                 "You will be asked to enter 24 words regardless of your "
