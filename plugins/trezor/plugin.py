@@ -5,7 +5,6 @@ import time
 
 from binascii import unhexlify
 from functools import partial
-from struct import pack
 
 from electrum.account import BIP32_Account
 from electrum.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
@@ -15,7 +14,7 @@ from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from electrum.transaction import (deserialize, is_extended_pubkey,
                                   Transaction, x_to_xpub)
-from electrum.wallet import BIP44_Wallet
+from ..hw_wallet import BIP44_HW_Wallet
 from electrum.util import ThreadJob
 
 
@@ -25,87 +24,7 @@ TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
 class DeviceDisconnectedError(Exception):
     pass
 
-class TrezorCompatibleWallet(BIP44_Wallet):
-    # Extend BIP44 Wallet as required by hardware implementation.
-    # Derived classes must set:
-    #   - device
-    #   - DEVICE_IDS
-    #   - wallet_type
-
-    restore_wallet_class = BIP44_Wallet
-    max_change_outputs = 1
-
-    def __init__(self, storage):
-        BIP44_Wallet.__init__(self, storage)
-        # After timeout seconds we clear the device session
-        self.session_timeout = storage.get('session_timeout', 180)
-        # Errors and other user interaction is done through the wallet's
-        # handler.  The handler is per-window and preserved across
-        # device reconnects
-        self.handler = None
-        self.force_watching_only = True
-
-    def set_session_timeout(self, seconds):
-        self.print_error("setting session timeout to %d seconds" % seconds)
-        self.session_timeout = seconds
-        self.storage.put('session_timeout', seconds)
-
-    def unpaired(self):
-        '''A device paired with the wallet was diconnected.  This can be
-        called in any thread context.'''
-        self.print_error("unpaired")
-        self.force_watching_only = True
-        self.handler.watching_only_changed()
-
-    def paired(self):
-        '''A device paired with the wallet was (re-)connected.  This can be
-        called in any thread context.'''
-        self.print_error("paired")
-        self.force_watching_only = False
-        self.handler.watching_only_changed()
-
-    def timeout(self):
-        '''Called when the wallet session times out.  Note this is called from
-        the Plugins thread.'''
-        client = self.get_client(force_pair=False)
-        if client:
-            client.clear_session()
-        self.print_error("timed out")
-
-    def get_action(self):
-        pass
-
-    def can_create_accounts(self):
-        return True
-
-    def can_export(self):
-        return False
-
-    def is_watching_only(self):
-        '''The wallet is watching-only if its trezor device is unpaired.'''
-        assert not self.has_seed()
-        return self.force_watching_only
-
-    def can_change_password(self):
-        return False
-
-    def get_client(self, force_pair=True):
-        return self.plugin.get_client(self, force_pair)
-
-    def first_address(self):
-        '''Used to check a hardware wallet matches a software wallet'''
-        account = self.accounts.get('0')
-        derivation = self.address_derivation('0', 0, 0)
-        return (account.first_address()[0] if account else None, derivation)
-
-    def derive_xkeys(self, root, derivation, password):
-        if self.master_public_keys.get(self.root_name):
-            return BIP44_wallet.derive_xkeys(self, root, derivation, password)
-
-        # When creating a wallet we need to ask the device for the
-        # master public key
-        xpub = self.get_public_key(derivation)
-        return xpub, None
+class TrezorCompatibleWallet(BIP44_HW_Wallet):
 
     def get_public_key(self, bip32_path):
         client = self.get_client()
@@ -115,9 +34,6 @@ class TrezorCompatibleWallet(BIP44_Wallet):
                 + self.i4b(node.fingerprint) + self.i4b(node.child_num)
                 + node.chain_code + node.public_key)
         return EncodeBase58Check(xpub)
-
-    def i4b(self, x):
-        return pack('>I', x)
 
     def decrypt_message(self, pubkey, message, password):
         address = public_key_to_bc_address(pubkey.decode('hex'))
