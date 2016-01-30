@@ -24,7 +24,7 @@ Builder.load_string('''
                     text1: ((self.fiat_text if kb.is_fiat else self.btc_text) if app.fiat_unit else self.btc_text) if self.btc_text else ''
                     text2: ((self.btc_text if kb.is_fiat else self.fiat_text) if app.fiat_unit else '') if self.btc_text else ''
                     text: self.text1 + "\\n" + "[color=#8888ff]" + self.text2 + "[/color]"
-                    text_align: 'right'
+                    halign: 'right'
                     size_hint: 1, None
                     font_size: '22dp'
                     height: '80dp'
