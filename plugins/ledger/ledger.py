@@ -1,20 +1,14 @@
-from binascii import unhexlify
 from binascii import hexlify
-from struct import pack,unpack
-from sys import stderr
-from time import sleep
+from struct import unpack
+import hashlib
 
 import electrum
-from electrum.bitcoin import EncodeBase58Check, DecodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160, TYPE_ADDRESS
+from electrum.bitcoin import EncodeBase58Check, DecodeBase58Check, TYPE_ADDRESS
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
-from electrum.transaction import deserialize
 from ..hw_wallet import BIP44_HW_Wallet
+from electrum.util import format_satoshis_plain, print_error
 
-
-from electrum.util import format_satoshis_plain, print_error, print_msg
-import hashlib
-import threading
 
 try:
     from btchip.btchipComm import getDongle, DongleWait
