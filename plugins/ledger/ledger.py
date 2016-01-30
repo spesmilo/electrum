@@ -1,12 +1,14 @@
 from binascii import hexlify
 from struct import unpack
 import hashlib
+import time
 
 import electrum
 from electrum.bitcoin import EncodeBase58Check, DecodeBase58Check, TYPE_ADDRESS
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from ..hw_wallet import BIP44_HW_Wallet
+from ..hw_wallet import HW_PluginBase
 from electrum.util import format_satoshis_plain, print_error
 
 
@@ -306,17 +308,14 @@ class BTChipWallet(BIP44_HW_Wallet):
         return True, response, response
 
 
-class LedgerPlugin(BasePlugin):
+class LedgerPlugin(HW_PluginBase):
+    libraries_available = BTCHIP
     wallet_class = BTChipWallet
 
     def __init__(self, parent, config, name):
-        BasePlugin.__init__(self, parent, config, name)
-        self.wallet_class.plugin = self
-        self.device = self.wallet_class.device
+        HW_PluginBase.__init__(self, parent, config, name)
+        # FIXME shouldn't be a plugin member.  Then this constructor can go.
         self.client = None
-
-    def is_enabled(self):
-        return BTCHIP
 
     def btchip_is_connected(self, wallet):
         try:
@@ -324,33 +323,6 @@ class LedgerPlugin(BasePlugin):
         except:
             return False
         return True
-
-    @staticmethod
-    def is_valid_seed(seed):
-        return True
-
-    def on_restore_wallet(self, wallet, wizard):
-        assert isinstance(wallet, self.wallet_class)
-
-        msg = _("Enter the seed for your %s wallet:" % self.device)
-        seed = wizard.request_seed(msg, is_valid = self.is_valid_seed)
-
-        # Restored wallets are not hardware wallets
-        wallet_class = self.wallet_class.restore_wallet_class
-        wallet.storage.put('wallet_type', wallet_class.wallet_type)
-        wallet = wallet_class(wallet.storage)
-
-        # Ledger wallets don't use passphrases
-        passphrase = unicode()
-        password = wizard.request_password()
-        wallet.add_seed(seed, password)
-        wallet.add_xprv_from_seed(seed, 'x/', password, passphrase)
-        wallet.create_hd_account(password)
-        return wallet
-
-    @hook
-    def close_wallet(self, wallet):
-        self.client = None
 
     def get_client(self, wallet, force_pair=True, noPin=False):
         aborted = False
@@ -420,5 +392,9 @@ class LedgerPlugin(BasePlugin):
             wallet.device_checked = False
             wallet.proper_device = False
             self.client = client
+
+        if client:
+            self.print_error("set last_operation")
+            wallet.last_operation = time.time()
 
         return self.client

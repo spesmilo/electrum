@@ -14,8 +14,7 @@ from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from electrum.transaction import (deserialize, is_extended_pubkey,
                                   Transaction, x_to_xpub)
-from ..hw_wallet import BIP44_HW_Wallet
-from electrum.util import ThreadJob
+from ..hw_wallet import BIP44_HW_Wallet, HW_PluginBase
 
 
 # TREZOR initialization methods
@@ -85,7 +84,7 @@ class TrezorCompatibleWallet(BIP44_HW_Wallet):
         self.plugin.sign_transaction(self, tx, prev_tx, xpub_path)
 
 
-class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
+class TrezorCompatiblePlugin(HW_PluginBase):
     # Derived classes provide:
     #
     #  class-static variables: client_class, firmware_URL, handler_class,
@@ -95,34 +94,11 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
     MAX_LABEL_LEN = 32
 
     def __init__(self, parent, config, name):
-        BasePlugin.__init__(self, parent, config, name)
+        HW_PluginBase.__init__(self, parent, config, name)
         self.main_thread = threading.current_thread()
-        self.device = self.wallet_class.device
-        self.wallet_class.plugin = self
-        self.prevent_timeout = time.time() + 3600 * 24 * 365
+        # FIXME: move to base class when Ledger is fixed
         if self.libraries_available:
             self.device_manager().register_devices(self.DEVICE_IDS)
-
-    def is_enabled(self):
-        return self.libraries_available
-
-    def device_manager(self):
-        return self.parent.device_manager
-
-    def thread_jobs(self):
-        # Thread job to handle device timeouts
-        return [self] if self.libraries_available else []
-
-    def run(self):
-        '''Handle device timeouts.  Runs in the context of the Plugins
-        thread.'''
-        now = time.time()
-        for wallet in self.device_manager().paired_wallets():
-            if (isinstance(wallet, self.wallet_class)
-                    and hasattr(wallet, 'last_operation')
-                    and now > wallet.last_operation + wallet.session_timeout):
-                wallet.timeout()
-                wallet.last_operation = self.prevent_timeout
 
     def create_client(self, device, handler):
         if device.interface_number == 1:
