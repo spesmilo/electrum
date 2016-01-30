@@ -31,8 +31,7 @@ from electrum.wallet import BIP44_Wallet
 # parented on MacOSX.
 class QtHandlerBase(QObject, PrintError):
     '''An interface between the GUI (here, QT) and the device handling
-    logic for handling I/O.  This is a generic implementation of the
-    TREZOR protocol; derived classes can customize it.'''
+    logic for handling I/O.'''
 
     qcSig = pyqtSignal(object, object)
 
