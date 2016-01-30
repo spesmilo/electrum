@@ -9,7 +9,8 @@ from electrum.bitcoin import EncodeBase58Check, DecodeBase58Check, public_key_to
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from electrum.transaction import deserialize
-from electrum.wallet import BIP44_Wallet
+from ..hw_wallet import BIP44_HW_Wallet
+
 
 from electrum.util import format_satoshis_plain, print_error, print_msg
 import hashlib
@@ -29,14 +30,14 @@ except ImportError:
     BTCHIP = False
 
 
-class BTChipWallet(BIP44_Wallet):
+class BTChipWallet(BIP44_HW_Wallet):
     wallet_type = 'btchip'
     device = 'Ledger'
-    restore_wallet_class = BIP44_Wallet
+    restore_wallet_class = BIP44_HW_Wallet
     max_change_outputs = 1
 
     def __init__(self, storage):
-        BIP44_Wallet.__init__(self, storage)
+        BIP44_HW_Wallet.__init__(self, storage)
         # Errors and other user interaction is done through the wallet's
         # handler.  The handler is per-window and preserved across
         # device reconnects
@@ -49,7 +50,7 @@ class BTChipWallet(BIP44_Wallet):
     def give_error(self, message, clear_client = False):
         print_error(message)
         if not self.signing:
-            QMessageBox.warning(QDialog(), _('Warning'), _(message), _('OK'))
+            self.handler.show_error(message)
         else:
             self.signing = False
         if clear_client:
@@ -57,30 +58,9 @@ class BTChipWallet(BIP44_Wallet):
             self.device_checked = False
         raise Exception(message)
 
-    def get_action(self):
-        pass
-
-    def can_create_accounts(self):
-        return False
-
-    def can_change_password(self):
-        return False
-
-    def is_watching_only(self):
-        assert not self.has_seed()
-        return self.force_watching_only
-
     def address_id(self, address):
         # Strip the leading "m/"
-        return BIP44_Wallet.address_id(self, address)[2:]
-
-    def get_client(self, noPin=False):
-        return self.plugin.get_client(self, noPin=noPin)
-
-    def derive_xkeys(self, root, derivation, password):
-        derivation = '/'.join(derivation.split('/')[1:])
-        xpub = self.get_public_key(derivation)
-        return xpub, None
+        return BIP44_HW_Wallet.address_id(self, address)[2:]
 
     def get_public_key(self, bip32_path):
         # bip32_path is of the form 44'/0'/1'
@@ -91,6 +71,9 @@ class BTChipWallet(BIP44_Wallet):
         self.handler.show_message("Computing master public key")
         try:
             splitPath = bip32_path.split('/')
+            if splitPath[0] == 'm':
+                splitPath = splitPath[1:]
+                bip32_path = bip32_path[2:]                        
             fingerprint = 0
             if len(splitPath) > 1:
                 prevPath = "/".join(splitPath[0:len(splitPath) - 1])
@@ -111,12 +94,9 @@ class BTChipWallet(BIP44_Wallet):
         except Exception, e:
             self.give_error(e, True)
         finally:
-            self.handler.stop()
+            self.handler.clear_dialog()
 
         return EncodeBase58Check(xpub)
-
-    def i4b(self, x):
-        return pack('>I', x)
 
     def decrypt_message(self, pubkey, message, password):
         self.give_error("Not supported")
@@ -142,7 +122,7 @@ class BTChipWallet(BIP44_Wallet):
                 pin = pin.encode()
                 client.bad = True
                 self.device_checked = False
-                self.get_client(True)
+                self.plugin.get_client(self, True, True)
             signature = self.get_client().signMessageSign(pin)
         except BTChipException, e:
             if e.sw == 0x6a80:
@@ -152,7 +132,7 @@ class BTChipWallet(BIP44_Wallet):
         except Exception, e:
             self.give_error(e, True)
         finally:
-            self.handler.stop()
+            self.handler.clear_dialog()
         client.bad = use2FA
         self.signing = False
 
@@ -239,7 +219,7 @@ class BTChipWallet(BIP44_Wallet):
                     transactionOutput = outputData['outputData']
                 if outputData['confirmationNeeded']:
                     # TODO : handle different confirmation types. For the time being only supports keyboard 2FA
-                    self.handler.stop()
+                    self.handler.clear_dialog()
                     if 'keycardData' in outputData:
                         pin2 = ""
                         for keycardIndex in range(len(outputData['keycardData'])):
@@ -269,7 +249,7 @@ class BTChipWallet(BIP44_Wallet):
                         pin = pin.encode()
                         client.bad = True
                         self.device_checked = False
-                        self.get_client(True)
+                        self.plugin.get_client(self, True, True)
                     self.handler.show_message("Signing ...")
                 else:
                     # Sign input with the provided PIN
@@ -282,7 +262,7 @@ class BTChipWallet(BIP44_Wallet):
         except Exception, e:
             self.give_error(e, True)
         finally:
-            self.handler.stop()
+            self.handler.clear_dialog()
 
         # Reformat transaction
         inputIndex = 0
@@ -306,7 +286,7 @@ class BTChipWallet(BIP44_Wallet):
             except Exception, e:
                 self.give_error(e, True)
             finally:
-                self.handler.stop()
+                self.handler.clear_dialog()
             pubKeyDevice = compress_public_key(nodeData['publicKey'])
             self.device_checked = True
             if pubKey != pubKeyDevice:
@@ -328,7 +308,7 @@ class BTChipWallet(BIP44_Wallet):
                     "the transaction being signed into the text-editor.\r\n\r\n" \
                     "Check that summary and then enter the second factor code here.\r\n" \
                     "Before clicking OK, re-plug the device once more (unplug it and plug it again if you read the second factor code on the same computer)")
-        response = self.handler.prompt_auth(msg)
+        response = self.handler.get_word(msg)
         if response is None:
             return False, None, None
         return True, response, response
@@ -380,7 +360,7 @@ class LedgerPlugin(BasePlugin):
     def close_wallet(self, wallet):
         self.client = None
 
-    def get_client(self, wallet, noPin=False):
+    def get_client(self, wallet, force_pair=True, noPin=False):
         aborted = False
         client = self.client
         if not client or client.bad:
