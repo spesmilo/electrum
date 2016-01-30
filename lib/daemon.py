@@ -26,7 +26,7 @@ from wallet import WalletStorage, Wallet
 from wizard import WizardBase
 from commands import known_commands, Commands
 from simple_config import SimpleConfig
-
+from network import Network
 
 def lockfile(config):
     return os.path.join(config.path, 'daemon')
@@ -62,10 +62,16 @@ class RequestHandler(SimpleJSONRPCRequestHandler):
 
 class Daemon(DaemonThread):
 
-    def __init__(self, config, network):
+    def __init__(self, config):
         DaemonThread.__init__(self)
         self.config = config
-        self.network = network
+        if not config.get('offline'):
+            self.network = Network(config)
+            self.network.start()
+        else:
+            # FIXME: some of the daemon code assumes self.network is not None
+            # This is not something this change has introduced
+            self.network = None
         self.gui = None
         self.wallets = {}
         self.wallet = None
@@ -82,6 +88,7 @@ class Daemon(DaemonThread):
         self.server.register_function(self.ping, 'ping')
         self.server.register_function(self.run_daemon, 'daemon')
         self.server.register_function(self.run_gui, 'gui')
+        self.start()
 
     def ping(self):
         return True
