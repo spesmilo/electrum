@@ -15,17 +15,21 @@ Builder.load_string('''
             orientation: 'vertical'
             size_hint: 0.8, 1
             BoxLayout:
-                size_hint: 1, 1
-                height: '48dp'
+                size_hint: 1, None
+                height: '80dp'
                 Label:
                     id: a
                     btc_text: (kb.amount + ' ' + app.base_unit) if kb.amount else ''
                     fiat_text: (kb.fiat_amount + ' ' + app.fiat_unit) if kb.fiat_amount else ''
-                    text: ((self.fiat_text + ' / ' + self.btc_text if kb.is_fiat else self.btc_text + ' / ' + self.fiat_text) if app.fiat_unit else self.btc_text) if self.btc_text else ''
-                    size_hint: 1, 1
+                    text1: ((self.fiat_text if kb.is_fiat else self.btc_text) if app.fiat_unit else self.btc_text) if self.btc_text else ''
+                    text2: ((self.btc_text if kb.is_fiat else self.fiat_text) if app.fiat_unit else '') if self.btc_text else ''
+                    text: self.text1 + "\\n" + "[color=#8888ff]" + self.text2 + "[/color]"
+                    text_align: 'right'
+                    size_hint: 1, None
                     font_size: '22dp'
+                    height: '80dp'
             Widget:
-                size_hint: 1, 1
+                size_hint: 1, 0.2
             GridLayout:
                 id: kb
                 amount: ''
@@ -75,9 +79,9 @@ Builder.load_string('''
                     id: button_fiat
                     size_hint: 1, None
                     height: '48dp'
-                    text: (app.fiat_unit if kb.is_fiat else app.base_unit) if app.fiat_unit else ''
+                    text: (app.base_unit if kb.is_fiat else app.fiat_unit) if app.fiat_unit else ''
                     on_release:
-                        popup.toggle_fiat(kb)
+                        if app.fiat_unit: popup.toggle_fiat(kb)
                 Button:
                     size_hint: 1, None
                     height: '48dp'
@@ -86,7 +90,7 @@ Builder.load_string('''
                         kb.amount = ''
                         kb.fiat_amount = ''
             Widget:
-                size_hint: 1, None
+                size_hint: 1, 0.2
             BoxLayout:
                 size_hint: 1, None
                 height: '48dp'
