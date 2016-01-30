@@ -95,7 +95,7 @@ class TrezorClientBase(GuiMixin, PrintError):
         return self.features.initialized
 
     def is_pairable(self):
-        return not client.features.bootloader_mode
+        return not self.features.bootloader_mode
 
     @staticmethod
     def expand_path(n):
