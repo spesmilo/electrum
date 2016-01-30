@@ -19,7 +19,7 @@ from electrum.wallet import BIP44_Wallet
 from electrum.util import ThreadJob
 
 
-# Trezor initialization methods
+# TREZOR initialization methods
 TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
 
 class DeviceDisconnectedError(Exception):
@@ -290,7 +290,7 @@ class TrezorCompatiblePlugin(BasePlugin, ThreadJob):
         (item, label, pin_protection, passphrase_protection) \
             = wallet.handler.request_trezor_init_settings(method, self.device)
 
-        if method == TIM_RECOVER and self.device == 'Trezor':
+        if method == TIM_RECOVER and self.device == 'TREZOR':
             # Warn user about firmware lameness
             wallet.handler.show_error(_(
                 "You will be asked to enter 24 words regardless of your "
