@@ -7,6 +7,7 @@ import PyQt4.QtCore as QtCore
 from electrum.i18n import _
 from electrum.plugins import hook
 from .ledger import LedgerPlugin, BTChipWallet
+from ..hw_wallet import QtHandlerBase
 
 class Plugin(LedgerPlugin):
 
@@ -29,48 +30,16 @@ class Plugin(LedgerPlugin):
 #        self.select_device(wallet)
         wallet.create_hd_account(None)
 
-class BTChipQTHandler:
+class BTChipQTHandler(QtHandlerBase):
 
     def __init__(self, win):
-        self.win = win
-        self.win.connect(win, SIGNAL('btchip_done'), self.dialog_stop)
-        self.win.connect(win, SIGNAL('btchip_message_dialog'), self.message_dialog)
-        self.win.connect(win, SIGNAL('btchip_auth_dialog'), self.auth_dialog)
-        self.done = threading.Event()
+        super(BTChipQTHandler, self).__init__(win, 'Ledger')
 
-    def stop(self):
-        self.win.emit(SIGNAL('btchip_done'))
 
-    def show_message(self, msg):
-        self.message = msg
-        self.win.emit(SIGNAL('btchip_message_dialog'))
-
-    def prompt_auth(self, msg):
-        self.done.clear()
-        self.message = msg
-        self.win.emit(SIGNAL('btchip_auth_dialog'))
-        self.done.wait()
-        return self.response
-
-    def auth_dialog(self):
-        response = QInputDialog.getText(None, "Ledger Wallet Authentication", self.message, QLineEdit.Password)
+    def word_dialog(self, msg):
+        response = QInputDialog.getText(self.top_level_window(), "Ledger Wallet Authentication", msg, QLineEdit.Password)
         if not response[1]:
-            self.response = None
+            self.word = None
         else:
-            self.response = str(response[0])
-        self.done.set()
-
-    def message_dialog(self):
-        self.d = QDialog()
-        self.d.setModal(1)
-        self.d.setWindowTitle('Ledger')
-        self.d.setWindowFlags(self.d.windowFlags() | QtCore.Qt.WindowStaysOnTopHint)
-        l = QLabel(self.message)
-        vbox = QVBoxLayout(self.d)
-        vbox.addWidget(l)
-        self.d.show()
-
-    def dialog_stop(self):
-        if self.d is not None:
-            self.d.hide()
-            self.d = None
+            self.word = str(response[0])
+        self.done.set()                
