@@ -113,7 +113,7 @@ class Plugin(FxPlugin, QObject):
     @hook
     def on_new_window(self, window):
         # Additional send and receive edit boxes
-        if not hasattr(window, 'send_e'):
+        if not hasattr(window, 'fiat_send_e'):
             send_e = AmountEdit(self.get_currency)
             window.send_grid.addWidget(send_e, 4, 2, Qt.AlignLeft)
             window.amount_e.frozen.connect(
@@ -124,6 +124,9 @@ class Plugin(FxPlugin, QObject):
             window.fiat_receive_e = receive_e
             self.connect_fields(window, window.amount_e, send_e, window.fee_e)
             self.connect_fields(window, window.receive_amount_e, receive_e, None)
+        else:
+            window.fiat_send_e.show()
+            window.fiat_receive_e.show()
         window.history_list.refresh_headers()
         window.update_status()
         window.connect(self, SIGNAL('new_fx_quotes'), lambda: self.on_fx_quotes(window))
