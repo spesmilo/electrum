@@ -261,11 +261,9 @@ class Daemon(DaemonThread):
         fd = Daemon.get_fd_or_server(lockfile)
         if isinstance(fd, int):
             subcommand = config.get('subcommand')
+            assert subcommand in ['start', 'stop', 'status']
             if subcommand != 'start':
-                if subcommand in ['status', 'stop']:
-                    print_msg("Daemon not running")
-                else:
-                    print_msg("syntax: electrum daemon <start|status|stop>")
+                print_msg("Daemon not running")
                 os.close(fd)
                 Daemon.remove_lockfile(lockfile)
                 sys.exit(1)
