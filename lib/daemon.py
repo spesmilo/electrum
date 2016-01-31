@@ -58,13 +58,12 @@ class Daemon(DaemonThread):
             self.network.start()
         self.gui = None
         self.wallets = {}
-        self.wallet = None
-        self.cmd_runner = Commands(self.config, self.wallet, self.network)
         self.server = server
         # Setup server
+        cmd_runner = Commands(self.config, None, self.network)
         server.timeout = 0.1
         for cmdname in known_commands:
-            server.register_function(getattr(self.cmd_runner, cmdname), cmdname)
+            server.register_function(getattr(cmd_runner, cmdname), cmdname)
         server.register_function(self.run_cmdline, 'run_cmdline')
         server.register_function(self.ping, 'ping')
         server.register_function(self.run_daemon, 'daemon')
