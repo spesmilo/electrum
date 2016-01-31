@@ -100,17 +100,21 @@ class Daemon(DaemonThread):
         if sub == 'start':
             response = "Daemon already running"
         elif sub == 'status':
-            p = self.network.get_parameters()
-            response = {
-                'path': self.network.config.path,
-                'server': p[0],
-                'blockchain_height': self.network.get_local_height(),
-                'server_height': self.network.get_server_height(),
-                'nodes': self.network.get_interfaces(),
-                'connected': self.network.is_connected(),
-                'auto_connect': p[4],
-                'wallets': dict([ (k, w.is_up_to_date()) for k, w in self.wallets.items()]),
-            }
+            if self.network:
+                p = self.network.get_parameters()
+                response = {
+                    'path': self.network.config.path,
+                    'server': p[0],
+                    'blockchain_height': self.network.get_local_height(),
+                    'server_height': self.network.get_server_height(),
+                    'nodes': self.network.get_interfaces(),
+                    'connected': self.network.is_connected(),
+                    'auto_connect': p[4],
+                    'wallets': {k: w.is_up_to_date()
+                                for k, w in self.wallets.items()},
+                }
+            else:
+                response = "Daemon offline"
         elif sub == 'stop':
             self.stop()
             response = "Daemon stopped"
