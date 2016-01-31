@@ -267,7 +267,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.wallet:
             self.print_error('close_wallet', self.wallet.storage.path)
             self.wallet.storage.put('accounts_expanded', self.accounts_expanded)
-            self.wallet.stop_threads()
         run_hook('close_wallet', self.wallet)
 
     def load_wallet(self, wallet):
