@@ -21,6 +21,7 @@ import ast, os
 import jsonrpclib
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCRequestHandler
 
+from network import Network
 from util import json_decode, DaemonThread
 from wallet import WalletStorage, Wallet
 from wizard import WizardBase
@@ -62,10 +63,14 @@ class RequestHandler(SimpleJSONRPCRequestHandler):
 
 class Daemon(DaemonThread):
 
-    def __init__(self, config, network):
+    def __init__(self, config):
         DaemonThread.__init__(self)
         self.config = config
-        self.network = network
+        if config.get('offline'):
+            self.network = None
+        else:
+            self.network = Network(config)
+            self.network.start()
         self.gui = None
         self.wallets = {}
         self.wallet = None
