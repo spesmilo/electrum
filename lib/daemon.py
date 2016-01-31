@@ -16,34 +16,21 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import ast, os
+import ast
+import os
+import sys
+import time
 
 import jsonrpclib
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCRequestHandler
 
-from util import json_decode, DaemonThread
+from network import Network
+from util import check_www_dir, json_decode, DaemonThread
+from util import print_msg, print_error, print_stderr
 from wallet import WalletStorage, Wallet
 from wizard import WizardBase
 from commands import known_commands, Commands
 from simple_config import SimpleConfig
-
-
-def lockfile(config):
-    return os.path.join(config.path, 'daemon')
-
-def get_daemon(config):
-    try:
-        with open(lockfile(config)) as f:
-            host, port = ast.literal_eval(f.read())
-    except:
-        return
-    server = jsonrpclib.Server('http://%s:%d' % (host, port))
-    # check if daemon is running
-    try:
-        server.ping()
-        return server
-    except:
-        pass
 
 
 class RequestHandler(SimpleJSONRPCRequestHandler):
@@ -59,29 +46,28 @@ class RequestHandler(SimpleJSONRPCRequestHandler):
         SimpleJSONRPCRequestHandler.end_headers(self)
 
 
-
 class Daemon(DaemonThread):
 
-    def __init__(self, config, network):
+    def __init__(self, config, server):
         DaemonThread.__init__(self)
         self.config = config
-        self.network = network
+        if config.get('offline'):
+            self.network = None
+        else:
+            self.network = Network(config)
+            self.network.start()
         self.gui = None
         self.wallets = {}
-        self.wallet = None
-        self.cmd_runner = Commands(self.config, self.wallet, self.network)
-        host = config.get('rpchost', 'localhost')
-        port = config.get('rpcport', 0)
-        self.server = SimpleJSONRPCServer((host, port), requestHandler=RequestHandler, logRequests=False)
-        with open(lockfile(config), 'w') as f:
-            f.write(repr(self.server.socket.getsockname()))
-        self.server.timeout = 0.1
+        self.server = server
+        # Setup server
+        cmd_runner = Commands(self.config, None, self.network)
+        server.timeout = 0.1
         for cmdname in known_commands:
-            self.server.register_function(getattr(self.cmd_runner, cmdname), cmdname)
-        self.server.register_function(self.run_cmdline, 'run_cmdline')
-        self.server.register_function(self.ping, 'ping')
-        self.server.register_function(self.run_daemon, 'daemon')
-        self.server.register_function(self.run_gui, 'gui')
+            server.register_function(getattr(cmd_runner, cmdname), cmdname)
+        server.register_function(self.run_cmdline, 'run_cmdline')
+        server.register_function(self.ping, 'ping')
+        server.register_function(self.run_daemon, 'daemon')
+        server.register_function(self.run_gui, 'gui')
 
     def ping(self):
         return True
@@ -92,17 +78,21 @@ class Daemon(DaemonThread):
         if sub == 'start':
             response = "Daemon already running"
         elif sub == 'status':
-            p = self.network.get_parameters()
-            response = {
-                'path': self.network.config.path,
-                'server': p[0],
-                'blockchain_height': self.network.get_local_height(),
-                'server_height': self.network.get_server_height(),
-                'nodes': self.network.get_interfaces(),
-                'connected': self.network.is_connected(),
-                'auto_connect': p[4],
-                'wallets': dict([ (k, w.is_up_to_date()) for k, w in self.wallets.items()]),
-            }
+            if self.network:
+                p = self.network.get_parameters()
+                response = {
+                    'path': self.network.config.path,
+                    'server': p[0],
+                    'blockchain_height': self.network.get_local_height(),
+                    'server_height': self.network.get_server_height(),
+                    'nodes': self.network.get_interfaces(),
+                    'connected': self.network.is_connected(),
+                    'auto_connect': p[4],
+                    'wallets': {k: w.is_up_to_date()
+                                for k, w in self.wallets.items()},
+                }
+            else:
+                response = "Daemon offline"
         elif sub == 'stop':
             self.stop()
             response = "Daemon stopped"
@@ -166,9 +156,129 @@ class Daemon(DaemonThread):
     def run(self):
         while self.is_running():
             self.server.handle_request()
-        os.unlink(lockfile(self.config))
-
-    def stop(self):
         for k, wallet in self.wallets.items():
             wallet.stop_threads()
+        if self.network:
+            self.print_error("shutting down network")
+            self.network.stop()
+            self.network.join()
+
+    def stop(self):
+        self.print_error("stopping, removing lockfile")
+        Daemon.remove_lockfile(Daemon.lockfile(self.config))
         DaemonThread.stop(self)
+
+    def init_gui(self, config, plugins):
+        gui_name = config.get('gui', 'qt')
+        if gui_name in ['lite', 'classic']:
+            gui_name = 'qt'
+        gui = __import__('electrum_ltc_gui.' + gui_name, fromlist=['electrum_ltc_gui'])
+        self.gui = gui.ElectrumGui(config, self, plugins)
+        self.gui.main()
+
+    @staticmethod
+    def lockfile(config):
+        return os.path.join(config.path, 'daemon')
+
+    @staticmethod
+    def remove_lockfile(lockfile):
+        os.unlink(lockfile)
+
+    @staticmethod
+    def get_fd_or_server(lockfile):
+        '''If create is True, tries to create the lockfile, using O_EXCL to
+        prevent races.  If it succeeds it returns the FD.
+
+        Otherwise try and connect to the server specified in the lockfile.
+        If this succeeds, the server is returned.  Otherwise remove the
+        lockfile and try again.'''
+        while True:
+            try:
+                return os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            except OSError:
+                pass
+            server = Daemon.get_server(lockfile)
+            if server is not None:
+                return server
+            # Couldn't connect; remove lockfile and try again.
+            Daemon.remove_lockfile(lockfile)
+
+    @staticmethod
+    def get_server(lockfile):
+        while True:
+            create_time = None
+            try:
+                with open(lockfile) as f:
+                    (host, port), create_time = ast.literal_eval(f.read())
+                    server = jsonrpclib.Server('http://%s:%d' % (host, port))
+                # Test daemon is running
+                server.ping()
+                return server
+            except:
+                pass
+            if not create_time or create_time < time.time() - 1.0:
+                return None
+            # Sleep a bit and try again; it might have just been started
+            time.sleep(1.0)
+
+    @staticmethod
+    def create_daemon(config, fd):
+        '''Create a daemon and server when they don't exist.'''
+        host = config.get('rpchost', 'localhost')
+        port = config.get('rpcport', 0)
+        server = SimpleJSONRPCServer((host, port), logRequests=False,
+                                     requestHandler=RequestHandler)
+        os.write(fd, repr((server.socket.getsockname(), time.time())))
+        os.close(fd)
+
+        daemon = Daemon(config, server)
+        daemon.start()
+        return daemon
+
+    @staticmethod
+    def gui_command(config, config_options, plugins):
+        lockfile = Daemon.lockfile(config)
+        fd = Daemon.get_fd_or_server(lockfile)
+        if isinstance(fd, int):
+            daemon = Daemon.create_daemon(config, fd)
+            daemon.init_gui(config, plugins)
+            sys.exit(0)
+        server = fd
+        return server.gui(config_options)
+
+    @staticmethod
+    def cmdline_command(config, config_options):
+        server = get_server(Daemon.lockfile(config))
+        if server is not None:
+            return False, server.run_cmdline(config_options)
+
+        return True, None
+
+    @staticmethod
+    def daemon_command(config, config_options):
+        lockfile = Daemon.lockfile(config)
+        fd = Daemon.get_fd_or_server(lockfile)
+        if isinstance(fd, int):
+            subcommand = config.get('subcommand')
+            assert subcommand in ['start', 'stop', 'status']
+            if subcommand != 'start':
+                print_msg("Daemon not running")
+                os.close(fd)
+                Daemon.remove_lockfile(lockfile)
+                sys.exit(1)
+            pid = os.fork()
+            if pid:
+                print_stderr("starting daemon (PID %d)" % pid)
+                sys.exit(0)
+            daemon = Daemon.create_daemon(config, fd)
+            if config.get('websocket_server'):
+                from electrum_ltc import websockets
+                websockets.WebSocketServer(config, daemon.network).start()
+            if config.get('requests_dir'):
+                check_www_dir(config.get('requests_dir'))
+            daemon.join()
+            sys.exit(0)
+
+        server = fd
+        if server is not None:
+            return server.daemon(config_options)

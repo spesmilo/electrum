@@ -234,6 +234,13 @@ class BasePlugin(PrintError):
     def settings_dialog(self):
         pass
 
+
+class DeviceNotFoundError(Exception):
+    pass
+
+class DeviceUnpairableError(Exception):
+    pass
+
 Device = namedtuple("Device", "path interface_number id_ product_key")
 DeviceInfo = namedtuple("DeviceInfo", "device description initialized")
 
@@ -368,24 +375,37 @@ class DeviceMgr(PrintError):
                 return self.create_client(device, wallet.handler, plugin)
 
         if force_pair:
-            first_address, derivation = wallet.first_address()
-            assert first_address
-
-            # The wallet has not been previously paired, so let the user
-            # choose an unpaired device and compare its first address.
-            info = self.select_device(wallet, plugin, devices)
-            if info:
-                client = self.client_lookup(info.device.id_)
-                if client and client.is_pairable():
-                    # See comment above for same code
-                    client.handler = wallet.handler
-                    # This will trigger a PIN/passphrase entry request
-                    client_first_address = client.first_address(derivation)
-                    if client_first_address == first_address:
-                        self.pair_wallet(wallet, info.device.id_)
-                        return client
+            return self.force_pair_wallet(plugin, wallet, devices)
 
         return None
+
+    def force_pair_wallet(self, plugin, wallet, devices):
+        first_address, derivation = wallet.first_address()
+        assert first_address
+
+        # The wallet has not been previously paired, so let the user
+        # choose an unpaired device and compare its first address.
+        info = self.select_device(wallet, plugin, devices)
+        if info:
+            client = self.client_lookup(info.device.id_)
+            if client and client.is_pairable():
+                # See comment above for same code
+                client.handler = wallet.handler
+                # This will trigger a PIN/passphrase entry request
+                client_first_address = client.first_address(derivation)
+                if client_first_address == first_address:
+                    self.pair_wallet(wallet, info.device.id_)
+                    return client
+
+        if info and client:
+            # The user input has wrong PIN or passphrase
+            raise DeviceUnpairableError(
+                _('Unable to pair with your %s.') % plugin.device)
+
+        raise DeviceNotFoundError(
+            _('Could not connect to your %s.  Verify the cable is '
+              'connected and that no other application is using it.')
+            % plugin.device)
 
     def unpaired_device_infos(self, handler, plugin, devices=None):
         '''Returns a list of DeviceInfo objects: one for each connected,

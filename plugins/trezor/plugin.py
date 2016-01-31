@@ -20,9 +20,6 @@ from ..hw_wallet import BIP44_HW_Wallet, HW_PluginBase
 # TREZOR initialization methods
 TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
 
-class DeviceDisconnectedError(Exception):
-    pass
-
 class TrezorCompatibleWallet(BIP44_HW_Wallet):
 
     def get_public_key(self, bip32_path):
@@ -137,17 +134,15 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         assert self.main_thread != threading.current_thread()
 
         devmgr = self.device_manager()
-        client = devmgr.client_for_wallet(self, wallet, force_pair)
+        try:
+            client = devmgr.client_for_wallet(self, wallet, force_pair)
+        except:
+            wallet.set_force_watching_only(True)
+            raise
 
         if client:
             self.print_error("set last_operation")
             wallet.last_operation = time.time()
-        elif force_pair:
-            msg = (_('Could not connect to your %s.  Verify the '
-                     'cable is connected and that no other app is '
-                     'using it.\nContinuing in watching-only mode '
-                     'until the device is re-connected.') % self.device)
-            raise DeviceDisconnectedError(msg)
 
         return client
 

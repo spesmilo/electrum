@@ -69,12 +69,12 @@ if is_bundle or is_local or is_android:
     imp.load_module('electrum_ltc_gui', *imp.find_module('gui'))
 
 
-from electrum_ltc import util
 from electrum_ltc import SimpleConfig, Network, Wallet, WalletStorage
-from electrum_ltc.util import print_msg, print_error, print_stderr, json_encode, json_decode, set_verbosity, InvalidPassword
+from electrum_ltc.util import print_msg, print_stderr, json_encode, json_decode
+from electrum_ltc.util import set_verbosity, InvalidPassword
 from electrum_ltc.plugins import Plugins
 from electrum_ltc.commands import get_parser, known_commands, Commands, config_variables
-from electrum_ltc.daemon import Daemon, get_daemon
+from electrum_ltc.daemon import Daemon
 
 
 # get password routine
@@ -89,15 +89,6 @@ def prompt_password(prompt, confirm=True):
         password = None
     return password
 
-
-
-def init_gui(config, daemon, plugins):
-    gui_name = config.get('gui', 'qt')
-    if gui_name in ['lite', 'classic']:
-        gui_name = 'qt'
-    gui = __import__('electrum_ltc_gui.' + gui_name, fromlist=['electrum_ltc_gui'])
-    gui = gui.ElectrumGui(config, daemon, plugins)
-    return gui
 
 
 def run_non_RPC(config):
@@ -321,66 +312,20 @@ if __name__ == '__main__':
         run_non_RPC(config)
         sys.exit(0)
 
-    # check if a daemon is running
-    server = get_daemon(config)
-
     if cmdname == 'gui':
-        if server is not None:
-            result = server.gui(config_options)
-        else:
-            if not config.get('offline'):
-                network = Network(config)
-                network.start()
-            else:
-                network = None
-            daemon = Daemon(config, network)
-            daemon.start()
-            gui = init_gui(config, daemon, plugins)
-            daemon.gui = gui
-            gui.main()
-            sys.exit(0)
-
+        result = Daemon.gui_command(config, config_options, plugins)
     elif cmdname == 'daemon':
-        if server is not None:
-            result = server.daemon(config_options)
-        else:
-            subcommand = config.get('subcommand')
-            if subcommand in ['status', 'stop']:
-                print_msg("Daemon not running")
-                sys.exit(1)
-            elif subcommand == 'start':
-                p = os.fork()
-                if p == 0:
-                    network = Network(config)
-                    network.start()
-                    daemon = Daemon(config, network)
-                    if config.get('websocket_server'):
-                        from electrum_ltc import websockets
-                        websockets.WebSocketServer(config, network).start()
-                    if config.get('requests_dir'):
-                        util.check_www_dir(config.get('requests_dir'))
-                    daemon.start()
-                    daemon.join()
-                    sys.exit(0)
-                else:
-                    print_stderr("starting daemon (PID %d)"%p)
-                    sys.exit(0)
-            else:
-                print_msg("syntax: electrum-ltc daemon <start|status|stop>")
-                sys.exit(1)
-
+        result = Daemon.daemon_command(config, config_options)
     else:
         # command line
         init_cmdline(config_options)
-        if server is not None:
-            result = server.run_cmdline(config_options)
-        else:
+        run_offline, result = Daemon.cmdline_command(config, config_options)
+        if run_offline:
             cmd = known_commands[cmdname]
             if cmd.requires_network:
-                print_msg("Network daemon is not running. Try 'electrum-ltc daemon start'")
+                print_msg("Daemon not running; try 'electrum-ltc daemon start'")
                 sys.exit(1)
-            else:
-                result = run_offline_command(config, config_options)
+            result = run_offline_command(config, config_options)
 
     # print result
     if type(result) in [str, unicode]:
