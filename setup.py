@@ -50,6 +50,7 @@ setup(
         'electrum_plugins.email_requests',
         'electrum_plugins.exchange_rate',
         'electrum_plugins.greenaddress_instant',
+        'electrum_plugins.hw_wallet',
         'electrum_plugins.keepkey',
         'electrum_plugins.labels',
         'electrum_plugins.ledger',
