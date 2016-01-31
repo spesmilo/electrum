@@ -305,7 +305,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         else:
             self.show()
         run_hook('load_wallet', wallet, self)
-        self.warn_if_watching_only()
 
     def watching_only_changed(self):
         title = 'Electrum %s  -  %s' % (self.wallet.electrum_version,
