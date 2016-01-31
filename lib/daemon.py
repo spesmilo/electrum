@@ -33,23 +33,6 @@ from commands import known_commands, Commands
 from simple_config import SimpleConfig
 
 
-def lockfile(config):
-    return os.path.join(config.path, 'daemon')
-
-def get_daemon(config):
-    try:
-        with open(lockfile(config)) as f:
-            host, port = ast.literal_eval(f.read())
-    except:
-        return
-    server = jsonrpclib.Server('http://%s:%d' % (host, port))
-    # check if daemon is running
-    try:
-        server.ping()
-        return server
-    except:
-        pass
-
 class RequestHandler(SimpleJSONRPCRequestHandler):
 
     def do_OPTIONS(self):
@@ -61,7 +44,6 @@ class RequestHandler(SimpleJSONRPCRequestHandler):
                          "Origin, X-Requested-With, Content-Type, Accept")
         self.send_header("Access-Control-Allow-Origin", "*")
         SimpleJSONRPCRequestHandler.end_headers(self)
-
 
 
 class Daemon(DaemonThread):
