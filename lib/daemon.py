@@ -16,13 +16,16 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import ast, os
+import ast
+import os
+import sys
 
 import jsonrpclib
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCRequestHandler
 
 from network import Network
-from util import json_decode, DaemonThread
+from util import check_www_dir, json_decode, DaemonThread
+from util import print_msg, print_error, print_stderr
 from wallet import WalletStorage, Wallet
 from wizard import WizardBase
 from commands import known_commands, Commands
@@ -177,3 +180,59 @@ class Daemon(DaemonThread):
         for k, wallet in self.wallets.items():
             wallet.stop_threads()
         DaemonThread.stop(self)
+
+    def init_gui(self, config, plugins):
+        gui_name = config.get('gui', 'qt')
+        if gui_name in ['lite', 'classic']:
+            gui_name = 'qt'
+        gui = __import__('electrum_gui.' + gui_name, fromlist=['electrum_gui'])
+        self.gui = gui.ElectrumGui(config, self, plugins)
+        self.gui.main()
+
+    @staticmethod
+    def gui_command(config, config_options, plugins):
+        server = get_daemon(config)
+        if server is not None:
+            return server.gui(config_options)
+
+        daemon = Daemon(config)
+        daemon.start()
+        daemon.init_gui(config, plugins)
+        sys.exit(0)
+
+    @staticmethod
+    def cmdline_command(config, config_options):
+        server = get_daemon(config)
+        if server is not None:
+            return False, server.run_cmdline(config_options)
+
+        return True, None
+
+    @staticmethod
+    def daemon_command(config, config_options):
+        server = get_daemon(config)
+        if server is not None:
+            return server.daemon(config_options)
+
+        subcommand = config.get('subcommand')
+        if subcommand in ['status', 'stop']:
+            print_msg("Daemon not running")
+            sys.exit(1)
+        elif subcommand == 'start':
+            pid = os.fork()
+            if pid == 0:
+                daemon = Daemon(config)
+                if config.get('websocket_server'):
+                    from electrum import websockets
+                    websockets.WebSocketServer(config, daemon.network).start()
+                if config.get('requests_dir'):
+                    check_www_dir(config.get('requests_dir'))
+                daemon.start()
+                daemon.join()
+                sys.exit(0)
+            else:
+                print_stderr("starting daemon (PID %d)" % pid)
+                sys.exit(0)
+        else:
+            print_msg("syntax: electrum daemon <start|status|stop>")
+            sys.exit(1)
