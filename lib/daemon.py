@@ -48,7 +48,8 @@ class RequestHandler(SimpleJSONRPCRequestHandler):
 
 class Daemon(DaemonThread):
 
-    def __init__(self, config, server):
+    def __init__(self, config, fd):
+
         DaemonThread.__init__(self)
         self.config = config
         if config.get('offline'):
@@ -58,9 +59,14 @@ class Daemon(DaemonThread):
             self.network.start()
         self.gui = None
         self.wallets = {}
-        self.server = server
         # Setup server
         cmd_runner = Commands(self.config, None, self.network)
+        host = config.get('rpchost', 'localhost')
+        port = config.get('rpcport', 0)
+        server = SimpleJSONRPCServer((host, port), logRequests=False,
+                                     requestHandler=RequestHandler)
+        os.write(fd, repr((server.socket.getsockname(), time.time())))
+        os.close(fd)
         server.timeout = 0.1
         for cmdname in known_commands:
             server.register_function(getattr(cmd_runner, cmdname), cmdname)
@@ -68,6 +74,7 @@ class Daemon(DaemonThread):
         server.register_function(self.ping, 'ping')
         server.register_function(self.run_daemon, 'daemon')
         server.register_function(self.run_gui, 'gui')
+        self.server = server
 
     def ping(self):
         return True
@@ -221,16 +228,3 @@ class Daemon(DaemonThread):
             # Sleep a bit and try again; it might have just been started
             time.sleep(1.0)
 
-    @staticmethod
-    def create_daemon(config, fd):
-        '''Create a daemon and server when they don't exist.'''
-        host = config.get('rpchost', 'localhost')
-        port = config.get('rpcport', 0)
-        server = SimpleJSONRPCServer((host, port), logRequests=False,
-                                     requestHandler=RequestHandler)
-        os.write(fd, repr((server.socket.getsockname(), time.time())))
-        os.close(fd)
-
-        daemon = Daemon(config, server)
-        daemon.start()
-        return daemon

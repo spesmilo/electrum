@@ -316,11 +316,13 @@ if __name__ == '__main__':
         lockfile = Daemon.lockfile(config)
         fd = Daemon.get_fd_or_server(lockfile)
         if isinstance(fd, int):
-            daemon = Daemon.create_daemon(config, fd)
+            daemon = Daemon(config, fd)
+            daemon.start()
             daemon.init_gui(config, plugins)
             sys.exit(0)
-        server = fd
-        result = server.gui(config_options)
+        else:
+            server = fd
+            result = server.gui(config_options)
 
     elif cmdname == 'daemon':
         lockfile = Daemon.lockfile(config)
@@ -337,7 +339,8 @@ if __name__ == '__main__':
             if pid:
                 print_stderr("starting daemon (PID %d)" % pid)
                 sys.exit(0)
-            daemon = Daemon.create_daemon(config, fd)
+            daemon = Daemon(config, fd)
+            daemon.start()
             if config.get('websocket_server'):
                 from electrum import websockets
                 websockets.WebSocketServer(config, daemon.network).start()
