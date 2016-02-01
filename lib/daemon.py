@@ -248,7 +248,7 @@ class Daemon(DaemonThread):
 
     @staticmethod
     def cmdline_command(config, config_options):
-        server = get_server(Daemon.lockfile(config))
+        server = Daemon.get_server(Daemon.lockfile(config))
         if server is not None:
             return False, server.run_cmdline(config_options)
 
