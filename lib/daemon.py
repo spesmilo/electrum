@@ -33,6 +33,50 @@ from commands import known_commands, Commands
 from simple_config import SimpleConfig
 
 
+def get_lockfile(config):
+    return os.path.join(config.path, 'daemon')
+
+def remove_lockfile(lockfile):
+    os.unlink(lockfile)
+
+def get_fd_or_server(config):
+    '''Tries to create the lockfile, using O_EXCL to
+    prevent races.  If it succeeds it returns the FD.
+    Otherwise try and connect to the server specified in the lockfile.
+    If this succeeds, the server is returned.  Otherwise remove the
+    lockfile and try again.'''
+    lockfile = get_lockfile(config)
+    while True:
+        try:
+            return os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except OSError:
+            pass
+        server = get_server(config)
+        if server is not None:
+            return server
+        # Couldn't connect; remove lockfile and try again.
+        remove_lockfile(lockfile)
+
+def get_server(config):
+    lockfile = get_lockfile(config)
+    while True:
+        create_time = None
+        try:
+            with open(lockfile) as f:
+                (host, port), create_time = ast.literal_eval(f.read())
+                server = jsonrpclib.Server('http://%s:%d' % (host, port))
+            # Test daemon is running
+            server.ping()
+            return server
+        except:
+            pass
+        if not create_time or create_time < time.time() - 1.0:
+            return None
+        # Sleep a bit and try again; it might have just been started
+        time.sleep(1.0)
+
+
+
 class RequestHandler(SimpleJSONRPCRequestHandler):
 
     def do_OPTIONS(self):
@@ -172,7 +216,7 @@ class Daemon(DaemonThread):
 
     def stop(self):
         self.print_error("stopping, removing lockfile")
-        Daemon.remove_lockfile(Daemon.lockfile(self.config))
+        remove_lockfile(get_lockfile(self.config))
         DaemonThread.stop(self)
 
     def init_gui(self, config, plugins):
@@ -182,49 +226,3 @@ class Daemon(DaemonThread):
         gui = __import__('electrum_gui.' + gui_name, fromlist=['electrum_gui'])
         self.gui = gui.ElectrumGui(config, self, plugins)
         self.gui.main()
-
-    @staticmethod
-    def lockfile(config):
-        return os.path.join(config.path, 'daemon')
-
-    @staticmethod
-    def remove_lockfile(lockfile):
-        os.unlink(lockfile)
-
-    @staticmethod
-    def get_fd_or_server(lockfile):
-        '''If create is True, tries to create the lockfile, using O_EXCL to
-        prevent races.  If it succeeds it returns the FD.
-
-        Otherwise try and connect to the server specified in the lockfile.
-        If this succeeds, the server is returned.  Otherwise remove the
-        lockfile and try again.'''
-        while True:
-            try:
-                return os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            except OSError:
-                pass
-            server = Daemon.get_server(lockfile)
-            if server is not None:
-                return server
-            # Couldn't connect; remove lockfile and try again.
-            Daemon.remove_lockfile(lockfile)
-
-    @staticmethod
-    def get_server(lockfile):
-        while True:
-            create_time = None
-            try:
-                with open(lockfile) as f:
-                    (host, port), create_time = ast.literal_eval(f.read())
-                    server = jsonrpclib.Server('http://%s:%d' % (host, port))
-                # Test daemon is running
-                server.ping()
-                return server
-            except:
-                pass
-            if not create_time or create_time < time.time() - 1.0:
-                return None
-            # Sleep a bit and try again; it might have just been started
-            time.sleep(1.0)
-
