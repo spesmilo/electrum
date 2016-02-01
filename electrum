@@ -72,7 +72,6 @@ if is_bundle or is_local or is_android:
 from electrum import SimpleConfig, Network, Wallet, WalletStorage
 from electrum.util import print_msg, print_stderr, json_encode, json_decode
 from electrum.util import set_verbosity, InvalidPassword
-from electrum.plugins import Plugins
 from electrum.commands import get_parser, known_commands, Commands, config_variables
 from electrum import daemon
 
@@ -243,6 +242,9 @@ def run_offline_command(config, config_options):
         wallet.storage.write()
     return result
 
+def init_plugins(config, gui_name):
+    from electrum.plugins import Plugins
+    return Plugins(config, is_bundle or is_local or is_android, gui_name)
 
 if __name__ == '__main__':
 
@@ -303,10 +305,6 @@ if __name__ == '__main__':
     config = SimpleConfig(config_options)
     cmdname = config.get('cmd')
 
-    # initialize plugins.
-    gui_name = config.get('gui', 'qt') if cmdname == 'gui' else 'cmdline'
-    plugins = Plugins(config, is_bundle or is_local or is_android, gui_name)
-
     # run non-RPC commands separately
     if cmdname in ['create', 'restore', 'deseed']:
         run_non_RPC(config)
@@ -315,6 +313,7 @@ if __name__ == '__main__':
     if cmdname == 'gui':
         fd, server = daemon.get_fd_or_server(config)
         if fd is not None:
+            plugins = init_plugins(config, config.get('gui', 'qt'))
             d = daemon.Daemon(config, fd)
             d.start()
             d.init_gui(config, plugins)
@@ -332,6 +331,7 @@ if __name__ == '__main__':
                 if pid:
                     print_stderr("starting daemon (PID %d)" % pid)
                     sys.exit(0)
+                init_plugins(config, 'cmdline')
                 d = daemon.Daemon(config, fd)
                 d.start()
                 if config.get('websocket_server'):
@@ -362,6 +362,7 @@ if __name__ == '__main__':
                 print_msg("Daemon not running; try 'electrum daemon start'")
                 sys.exit(1)
             else:
+                init_plugins(config, 'cmdline')
                 result = run_offline_command(config, config_options)
 
     # print result
