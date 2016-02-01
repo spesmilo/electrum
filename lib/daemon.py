@@ -25,7 +25,7 @@ import jsonrpclib
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCRequestHandler
 
 from network import Network
-from util import check_www_dir, json_decode, DaemonThread
+from util import json_decode, DaemonThread
 from util import print_msg, print_error, print_stderr
 from wallet import WalletStorage, Wallet
 from wizard import WizardBase
@@ -234,51 +234,3 @@ class Daemon(DaemonThread):
         daemon = Daemon(config, server)
         daemon.start()
         return daemon
-
-    @staticmethod
-    def gui_command(config, config_options, plugins):
-        lockfile = Daemon.lockfile(config)
-        fd = Daemon.get_fd_or_server(lockfile)
-        if isinstance(fd, int):
-            daemon = Daemon.create_daemon(config, fd)
-            daemon.init_gui(config, plugins)
-            sys.exit(0)
-        server = fd
-        return server.gui(config_options)
-
-    @staticmethod
-    def cmdline_command(config, config_options):
-        server = Daemon.get_server(Daemon.lockfile(config))
-        if server is not None:
-            return False, server.run_cmdline(config_options)
-
-        return True, None
-
-    @staticmethod
-    def daemon_command(config, config_options):
-        lockfile = Daemon.lockfile(config)
-        fd = Daemon.get_fd_or_server(lockfile)
-        if isinstance(fd, int):
-            subcommand = config.get('subcommand')
-            assert subcommand in ['start', 'stop', 'status']
-            if subcommand != 'start':
-                print_msg("Daemon not running")
-                os.close(fd)
-                Daemon.remove_lockfile(lockfile)
-                sys.exit(1)
-            pid = os.fork()
-            if pid:
-                print_stderr("starting daemon (PID %d)" % pid)
-                sys.exit(0)
-            daemon = Daemon.create_daemon(config, fd)
-            if config.get('websocket_server'):
-                from electrum import websockets
-                websockets.WebSocketServer(config, daemon.network).start()
-            if config.get('requests_dir'):
-                check_www_dir(config.get('requests_dir'))
-            daemon.join()
-            sys.exit(0)
-
-        server = fd
-        if server is not None:
-            return server.daemon(config_options)

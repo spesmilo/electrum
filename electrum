@@ -313,19 +313,54 @@ if __name__ == '__main__':
         sys.exit(0)
 
     if cmdname == 'gui':
-        result = Daemon.gui_command(config, config_options, plugins)
+        lockfile = Daemon.lockfile(config)
+        fd = Daemon.get_fd_or_server(lockfile)
+        if isinstance(fd, int):
+            daemon = Daemon.create_daemon(config, fd)
+            daemon.init_gui(config, plugins)
+            sys.exit(0)
+        server = fd
+        result = server.gui(config_options)
+
     elif cmdname == 'daemon':
-        result = Daemon.daemon_command(config, config_options)
+        lockfile = Daemon.lockfile(config)
+        fd = Daemon.get_fd_or_server(lockfile)
+        if isinstance(fd, int):
+            subcommand = config.get('subcommand')
+            assert subcommand in ['start', 'stop', 'status']
+            if subcommand != 'start':
+                print_msg("Daemon not running")
+                os.close(fd)
+                Daemon.remove_lockfile(lockfile)
+                sys.exit(1)
+            pid = os.fork()
+            if pid:
+                print_stderr("starting daemon (PID %d)" % pid)
+                sys.exit(0)
+            daemon = Daemon.create_daemon(config, fd)
+            if config.get('websocket_server'):
+                from electrum import websockets
+                websockets.WebSocketServer(config, daemon.network).start()
+            if config.get('requests_dir'):
+                util.check_www_dir(config.get('requests_dir'))
+            daemon.join()
+            sys.exit(0)
+        else:
+            server = fd
+            result = server.daemon(config_options)
     else:
         # command line
         init_cmdline(config_options)
-        run_offline, result = Daemon.cmdline_command(config, config_options)
-        if run_offline:
+        server = Daemon.get_server(Daemon.lockfile(config))
+        if server is not None:
+            result = server.run_cmdline(config_options)
+        else:
             cmd = known_commands[cmdname]
             if cmd.requires_network:
                 print_msg("Daemon not running; try 'electrum daemon start'")
                 sys.exit(1)
-            result = run_offline_command(config, config_options)
+            else:
+                result = run_offline_command(config, config_options)
 
     # print result
     if type(result) in [str, unicode]:
