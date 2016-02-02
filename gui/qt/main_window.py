@@ -293,7 +293,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.clear_receive_tab()
         self.receive_list.update()
         self.tabs.show()
-        self.watching_only_changed()
 
         try:
             self.setGeometry(*self.wallet.storage.get("winpos-qt"))
@@ -304,8 +303,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.hide()
         else:
             self.show()
+        self.watching_only_changed()
         run_hook('load_wallet', wallet, self)
-        self.warn_if_watching_only()
 
     def watching_only_changed(self):
         title = 'Electrum-LTC %s  -  %s' % (self.wallet.electrum_version,

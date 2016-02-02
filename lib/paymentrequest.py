@@ -40,6 +40,7 @@ import transaction
 import x509
 import rsakey
 
+from bitcoin import TYPE_ADDRESS
 
 REQUEST_HEADERS = {'Accept': 'application/litecoin-paymentrequest', 'User-Agent': 'Electrum'}
 ACK_HEADERS = {'Content-Type':'application/litecoin-payment','Accept':'application/litecoin-paymentack','User-Agent':'Electrum'}
@@ -96,7 +97,7 @@ class PaymentRequest:
         self.outputs = []
         for o in self.details.outputs:
             addr = transaction.get_address_from_output_script(o.script)[1]
-            self.outputs.append(('address', addr, o.amount))
+            self.outputs.append((TYPE_ADDRESS, addr, o.amount))
         self.memo = self.details.memo
         self.payment_url = self.details.payment_url
 
@@ -211,7 +212,7 @@ class PaymentRequest:
         paymnt.transactions.append(raw_tx)
 
         ref_out = paymnt.refund_to.add()
-        ref_out.script = transaction.Transaction.pay_script('address', refund_addr)
+        ref_out.script = transaction.Transaction.pay_script(TYPE_ADDRESS, refund_addr)
         paymnt.memo = "Paid using Electrum"
         pm = paymnt.SerializeToString()
 
@@ -253,7 +254,7 @@ def make_unsigned_request(req):
     if amount is None:
         amount = 0
     memo = req['memo']
-    script = Transaction.pay_script('address', addr).decode('hex')
+    script = Transaction.pay_script(TYPE_ADDRESS, addr).decode('hex')
     outputs = [(script, amount)]
     pd = pb2.PaymentDetails()
     for script, amount in outputs:
