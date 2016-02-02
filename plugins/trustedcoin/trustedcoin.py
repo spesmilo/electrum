@@ -221,11 +221,6 @@ class Wallet_2fa(Multisig_Wallet):
             return 0
         return price
 
-    def estimated_fee(self, tx, fee_per_kb):
-        fee = tx.estimated_fee(fee_per_kb)
-        fee += self.extra_fee(tx)
-        return fee
-
     def make_unsigned_transaction(self, coins, outputs, config,
                                   fixed_fee=None, change_addr=None):
         tx = BIP32_Wallet.make_unsigned_transaction(

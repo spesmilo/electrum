@@ -662,8 +662,7 @@ class Abstract_Wallet(PrintError):
         output = (TYPE_ADDRESS, addr, sendable)
         dummy_tx = Transaction.from_io(inputs, [output])
         if fee is None:
-            fee_per_kb = self.fee_per_kb(config)
-            fee = dummy_tx.estimated_fee(self.relayfee(), fee_per_kb)
+            fee = self.estimate_fee(config, dummy_tx.estimated_size())
         amount = max(0, sendable - fee)
         return amount, fee
 
@@ -957,9 +956,7 @@ class Abstract_Wallet(PrintError):
 
         # Fee estimator
         if fixed_fee is None:
-            fee_estimator = partial(Transaction.fee_for_size,
-                                    self.relayfee(),
-                                    self.fee_per_kb(config))
+            fee_estimator = partial(self.estimate_fee, config)
         else:
             fee_estimator = lambda size: fixed_fee
 
@@ -977,6 +974,11 @@ class Abstract_Wallet(PrintError):
 
         run_hook('make_unsigned_transaction', self, tx)
         return tx
+
+    def estimate_fee(self, config, size):
+        fee = int(self.fee_per_kb(config) * size / 1000.)
+        fee = max(fee, self.relayfee())
+        return fee
 
     def mktx(self, outputs, password, config, fee=None, change_addr=None, domain=None):
         coins = self.get_spendable_coins(domain)
