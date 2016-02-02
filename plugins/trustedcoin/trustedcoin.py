@@ -211,7 +211,7 @@ class Wallet_2fa(Multisig_Wallet):
         sendable = sum(map(lambda x:x['value'], inputs))
         for i in inputs:
             self.add_input_info(i)
-        dummy_address = self.addresses(False)[0]
+        dummy_address = self.dummy_address()
         xf = self.extra_fee()
         if xf and sendable >= xf:
             billing_address = self.billing_info['billing_address']
@@ -219,7 +219,7 @@ class Wallet_2fa(Multisig_Wallet):
             outputs = [(TYPE_ADDRESS, dummy_address, sendable),
                        (TYPE_ADDRESS, billing_address, xf)]
         else:
-            outputs = [(TYPE_ADDRESS, dummy_addr, sendable)]
+            outputs = [(TYPE_ADDRESS, dummy_address, sendable)]
 
         dummy_tx = Transaction.from_io(inputs, outputs)
         if fee is None:

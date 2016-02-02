@@ -654,12 +654,14 @@ class Abstract_Wallet(PrintError):
                 continue
         return coins
 
+    def dummy_address(self):
+        return self.addresses(False)[0]
+
     def get_max_amount(self, config, inputs, fee):
         sendable = sum(map(lambda x:x['value'], inputs))
         for i in inputs:
             self.add_input_info(i)
-        addr = self.addresses(False)[0]
-        output = (TYPE_ADDRESS, addr, sendable)
+        output = (TYPE_ADDRESS, self.dummy_address(), sendable)
         dummy_tx = Transaction.from_io(inputs, [output])
         if fee is None:
             fee = self.estimate_fee(config, dummy_tx.estimated_size())
