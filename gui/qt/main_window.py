@@ -1245,12 +1245,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         confirm_amount = self.config.get('confirm_amount', COIN)
         msg = [
             _("Amount to be sent") + ": " + self.format_amount_and_units(amount),
-            _("Transaction fee") + ": " + self.format_amount_and_units(fee),
+            _("Mining fee") + ": " + self.format_amount_and_units(fee),
         ]
+
+        extra_fee = run_hook('get_additional_fee', self.wallet, tx)
+        if extra_fee:
+            msg.append( _("Additional fees") + ": " + self.format_amount_and_units(extra_fee) )
+
         if tx.get_fee() >= self.config.get('confirm_fee', 100000):
             msg.append(_('Warning')+ ': ' + _("The fee for this transaction seems unusually high."))
 
         if self.wallet.use_encryption:
+            msg.append("")
             msg.append(_("Enter your password to proceed"))
             password = self.password_dialog('\n'.join(msg))
             if not password:

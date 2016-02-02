@@ -307,6 +307,13 @@ class TrustedCoinPlugin(BasePlugin):
     def is_enabled(self):
         return True
 
+    @hook
+    def get_additional_fee(self, wallet, tx):
+        address = wallet.billing_info['billing_address']
+        for _type, addr, amount in tx.outputs():
+            if _type == TYPE_ADDRESS and addr == address:
+                return amount
+
     def request_billing_info(self, wallet):
         billing_info = server.get(wallet.get_user_id()[1])
         billing_address = make_billing_address(wallet, billing_info['billing_index'])
