@@ -206,38 +206,36 @@ class Wallet_2fa(Multisig_Wallet):
     def can_sign_without_server(self):
         return self.master_private_keys.get('x2/') is not None
 
-    def extra_fee(self, tx=None):
+    def extra_fee(self):
         if self.can_sign_without_server():
             return 0
         if self.billing_info.get('tx_remaining'):
             return 0
         if self.is_billing:
             return 0
-        # trustedcoin won't charge if the total inputs is lower than their fee
         price = int(self.price_per_tx.get(1))
         assert price <= 100000
-        if tx and tx.input_value() < price:
-            self.print_error("not charging for this tx")
-            return 0
         return price
 
     def make_unsigned_transaction(self, coins, outputs, config,
                                   fixed_fee=None, change_addr=None):
-        tx = BIP32_Wallet.make_unsigned_transaction(
-            self, coins, outputs, config, fixed_fee, change_addr)
-        # Plain TX was good.  Now add trustedcoin fee.
+        mk_tx = lambda o: BIP32_Wallet.make_unsigned_transaction(
+            self, coins, o, config, fixed_fee, change_addr)
         fee = self.extra_fee()
         if fee:
             address = self.billing_info['billing_address']
-            outputs = outputs + [(TYPE_ADDRESS, address, fee)]
+            fee_output = (TYPE_ADDRESS, address, fee)
             try:
-                return BIP32_Wallet.make_unsigned_transaction(
-                    self, coins, outputs, config, fixed_fee, change_addr)
+                tx = mk_tx(outputs + [fee_output])
             except NotEnoughFunds:
                 # trustedcoin won't charge if the total inputs is
                 # lower than their fee
+                tx = mk_tx(outputs)
                 if tx.input_value() >= fee:
                     raise
+                self.print_error("not charging for this tx")
+        else:
+            tx = mk_tx(outputs)
         return tx
 
     def sign_transaction(self, tx, password):
