@@ -206,6 +206,27 @@ class Wallet_2fa(Multisig_Wallet):
     def can_sign_without_server(self):
         return self.master_private_keys.get('x2/') is not None
 
+    def get_max_amount(self, config, inputs, fee):
+        from electrum.transaction import Transaction
+        sendable = sum(map(lambda x:x['value'], inputs))
+        for i in inputs:
+            self.add_input_info(i)
+        dummy_address = self.addresses(False)[0]
+        xf = self.extra_fee()
+        if xf and sendable >= xf:
+            billing_address = self.billing_info['billing_address']
+            sendable -= xf
+            outputs = [(TYPE_ADDRESS, dummy_address, sendable),
+                       (TYPE_ADDRESS, billing_address, xf)]
+        else:
+            outputs = [(TYPE_ADDRESS, dummy_addr, sendable)]
+
+        dummy_tx = Transaction.from_io(inputs, outputs)
+        if fee is None:
+            fee = self.estimate_fee(config, dummy_tx.estimated_size())
+        amount = max(0, sendable - fee)
+        return amount, fee
+
     def extra_fee(self):
         if self.can_sign_without_server():
             return 0
