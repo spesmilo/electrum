@@ -654,16 +654,17 @@ class Abstract_Wallet(PrintError):
                 continue
         return coins
 
+    def dummy_address(self):
+        return self.addresses(False)[0]
+
     def get_max_amount(self, config, inputs, fee):
         sendable = sum(map(lambda x:x['value'], inputs))
         for i in inputs:
             self.add_input_info(i)
-        addr = self.addresses(False)[0]
-        output = (TYPE_ADDRESS, addr, sendable)
+        output = (TYPE_ADDRESS, self.dummy_address(), sendable)
         dummy_tx = Transaction.from_io(inputs, [output])
         if fee is None:
-            fee_per_kb = self.fee_per_kb(config)
-            fee = dummy_tx.estimated_fee(self.relayfee(), fee_per_kb)
+            fee = self.estimate_fee(config, dummy_tx.estimated_size())
         amount = max(0, sendable - fee)
         return amount, fee
 
@@ -957,9 +958,7 @@ class Abstract_Wallet(PrintError):
 
         # Fee estimator
         if fixed_fee is None:
-            fee_estimator = partial(Transaction.fee_for_size,
-                                    self.relayfee(),
-                                    self.fee_per_kb(config), outputs=outputs)
+            fee_estimator = partial(self.estimate_fee, config, outputs=outputs)
         else:
             fee_estimator = lambda size: fixed_fee
 
@@ -977,6 +976,14 @@ class Abstract_Wallet(PrintError):
 
         run_hook('make_unsigned_transaction', self, tx)
         return tx
+
+    def estimate_fee(self, config, size, outputs=[]):
+        fee = int(self.fee_per_kb(config) * size / 1000.)
+        fee = max(fee, self.relayfee())
+        for _, _, value in outputs:
+            if value < DUST_SOFT_LIMIT:
+                fee += DUST_SOFT_LIMIT
+        return fee
 
     def mktx(self, outputs, password, config, fee=None, change_addr=None, domain=None):
         coins = self.get_spendable_coins(domain)

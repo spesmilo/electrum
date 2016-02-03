@@ -275,8 +275,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.update_recently_visited(wallet.storage.path)
         self.import_old_contacts()
         # address used to create a dummy transaction and estimate transaction fee
-        a = self.wallet.addresses(False)
-        self.dummy_address = a[0] if a else None
         self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
         self.current_account = self.wallet.storage.get("current_account", None)
         self.history_list.update()
@@ -1095,7 +1093,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         else:
             fee = self.fee_e.get_amount() if freeze_fee else None
             if not outputs:
-                addr = self.payto_e.payto_address if self.payto_e.payto_address else self.dummy_address
+                addr = self.payto_e.payto_address if self.payto_e.payto_address else self.wallet.dummy_address()
                 outputs = [(TYPE_ADDRESS, addr, amount)]
             try:
                 tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, self.config, fee)
@@ -1245,12 +1243,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         confirm_amount = self.config.get('confirm_amount', 10*COIN)
         msg = [
             _("Amount to be sent") + ": " + self.format_amount_and_units(amount),
-            _("Transaction fee") + ": " + self.format_amount_and_units(fee),
+            _("Mining fee") + ": " + self.format_amount_and_units(fee),
         ]
+
+        extra_fee = run_hook('get_additional_fee', self.wallet, tx)
+        if extra_fee:
+            msg.append( _("Additional fees") + ": " + self.format_amount_and_units(extra_fee) )
+
         if tx.get_fee() >= self.config.get('confirm_fee', 1000000):
             msg.append(_('Warning')+ ': ' + _("The fee for this transaction seems unusually high."))
 
         if self.wallet.use_encryption:
+            msg.append("")
             msg.append(_("Enter your password to proceed"))
             password = self.password_dialog('\n'.join(msg))
             if not password:

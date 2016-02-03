@@ -715,17 +715,6 @@ class Transaction:
     def is_final(self):
         return not any([x.get('sequence') < 0xffffffff - 1 for x in self.inputs()])
 
-    @classmethod
-    def fee_for_size(self, relay_fee, fee_per_kb, size, outputs=[]):
-        '''Given a fee per kB in satoshis, and a tx size in bytes,
-        returns the transaction fee.'''
-        fee = int(fee_per_kb * size / 1000.)
-        fee = max(fee, (1 + size / 1000) * relay_fee)
-        for _, _, value in outputs:
-            if value < DUST_SOFT_LIMIT:
-                fee += DUST_SOFT_LIMIT
-        return fee
-
     @profiler
     def estimated_size(self):
         '''Return an estimated tx size in bytes.'''
@@ -735,10 +724,6 @@ class Transaction:
     def estimated_input_size(self, txin):
         '''Return an estimated of serialized input size in bytes.'''
         return len(self.serialize_input(txin, -1, -1)) / 2
-
-    def estimated_fee(self, relay_fee, fee_per_kb, outputs=[]):
-        '''Return an estimated fee given a fee per kB in satoshis.'''
-        return self.fee_for_size(relay_fee, fee_per_kb, self.estimated_size(), outputs)
 
     def signature_count(self):
         r = 0
