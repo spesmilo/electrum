@@ -19,6 +19,7 @@
 from functools import partial
 from threading import Thread
 import re
+from decimal import Decimal
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
