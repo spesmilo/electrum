@@ -655,7 +655,6 @@ class Abstract_Wallet(PrintError):
         return coins
 
     def dummy_address(self):
-        print "dummy"
         return self.addresses(False)[0]
 
     def get_max_amount(self, config, inputs, recipient, fee):
