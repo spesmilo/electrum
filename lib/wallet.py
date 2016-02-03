@@ -655,15 +655,16 @@ class Abstract_Wallet(PrintError):
         return coins
 
     def dummy_address(self):
+        print "dummy"
         return self.addresses(False)[0]
 
     def get_max_amount(self, config, inputs, recipient, fee):
         sendable = sum(map(lambda x:x['value'], inputs))
-        for i in inputs:
-            self.add_input_info(i)
-        outputs = [(TYPE_ADDRESS, recipient, sendable)]
-        dummy_tx = Transaction.from_io(inputs, outputs)
         if fee is None:
+            for i in inputs:
+                self.add_input_info(i)
+            outputs = [(TYPE_ADDRESS, recipient, sendable)]
+            dummy_tx = Transaction.from_io(inputs, outputs)
             fee = self.estimate_fee(config, dummy_tx.estimated_size())
         amount = max(0, sendable - fee)
         return amount, fee
