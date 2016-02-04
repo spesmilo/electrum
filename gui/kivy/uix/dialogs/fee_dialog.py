@@ -4,7 +4,7 @@ from kivy.properties import ObjectProperty
 from kivy.lang import Builder
 
 from electrum.bitcoin import RECOMMENDED_FEE
-from electrum.i18n import _
+from electrum_gui.kivy.i18n import _
 
 Builder.load_string('''
 <FeeDialog@Popup>

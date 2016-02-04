@@ -1,5 +1,5 @@
 from electrum import Wallet
-from electrum.i18n import _
+from electrum_gui.kivy.i18n import _
 
 from kivy.app import App
 from kivy.uix.widget import Widget

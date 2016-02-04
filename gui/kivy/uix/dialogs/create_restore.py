@@ -13,13 +13,12 @@ from kivy.properties import ObjectProperty, StringProperty, OptionProperty
 from kivy.core.window import Window
 
 from electrum_gui.kivy.uix.dialogs import EventsDialog
-
-from electrum.i18n import _
+from electrum_gui.kivy.i18n import _
 
 
 Builder.load_string('''
 #:import Window kivy.core.window.Window
-#:import _ electrum.i18n._
+#:import _ electrum_gui.kivy.i18n._
 
 
 <WizardTextInput@TextInput>

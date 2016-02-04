@@ -17,15 +17,16 @@ from kivy.uix.label import Label
 from kivy.lang import Builder
 from kivy.factory import Factory
 
-from electrum.i18n import _
 from electrum.util import profiler, parse_URI, format_time
 from electrum import bitcoin
 from electrum.util import timestamp_to_datetime
 from electrum.plugins import run_hook
+from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 
 from context_menu import ContextMenu
 
-from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+
+from electrum_gui.kivy.i18n import _
 
 class EmptyLabel(Factory.Label):
     pass
