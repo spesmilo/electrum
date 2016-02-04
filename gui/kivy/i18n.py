@@ -19,8 +19,7 @@ class _(str):
 
     @staticmethod
     def bind(label):
-        if isinstance(label.text, _):
-            _.observers.add(label)
+        _.observers.add(label)
 
     @staticmethod
     def switch_lang(lang):
