@@ -33,4 +33,3 @@ class _(str):
                 label.text = _(label.text.source_text)
             except ReferenceError:
                 pass
-
