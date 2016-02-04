@@ -86,10 +86,10 @@ Builder.load_string('''
                     title: _('Labels Sync') + ': ' + self.status
                     description: "Synchronize labels."
                     action: partial(root.plugin_dialog, 'labels', self)
-                SettingsItem:
-                    title: _('OpenAlias')
-                    description: "DNS record that stores one of your Litecoin addresses."
-                    action: partial(root.openalias_dialog, self)
+                #SettingsItem:
+                #    title: _('OpenAlias')
+                #    description: "DNS record that stores one of your Litecoin addresses."
+                #    action: partial(root.openalias_dialog, self)
         BoxLayout:
             size_hint: 1, 0.1
             Widget:

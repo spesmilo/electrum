@@ -394,18 +394,10 @@ class Commands:
         final_outputs = []
         for address, amount in outputs:
             address = self._resolver(address)
-            #assert self.wallet.is_mine(address)
             if amount == '!':
                 assert len(outputs) == 1
                 inputs = self.wallet.get_spendable_coins(domain)
-                amount = sum(map(lambda x:x['value'], inputs))
-                if fee is None:
-                    for i in inputs:
-                        self.wallet.add_input_info(i)
-                    output = (TYPE_ADDRESS, address, amount)
-                    dummy_tx = Transaction.from_io(inputs, [output])
-                    fee = self.wallet.estimate_fee(self.config, dummy_tx.estimated_size())
-                amount -= fee
+                amount, fee = self.wallet.get_max_amount(self.config, inputs, address, fee)
             else:
                 amount = int(COIN*Decimal(amount))
             final_outputs.append((TYPE_ADDRESS, address, amount))
