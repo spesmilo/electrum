@@ -18,16 +18,11 @@ class _(str):
         return _.lang(s).format(args, kwargs)
 
     @staticmethod
-    def bind(label, arg):
-        if not isinstance(label.text, _):
-            return
-        if label.bound:
-            return
+    def bind(label):
         try:
             _.observers.add(label)
         except:
             pass
-        label.bound = True
         # garbage collection
         new = set()
         for label in _.observers:
