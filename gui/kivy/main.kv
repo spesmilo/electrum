@@ -13,7 +13,7 @@
     font_name: 'Roboto'
     font_size: '16sp'
     bound: False
-    on_text: if isinstance(self.text, _) and not self.bound: self.bound = True; _.bind(self)
+    on_text: _.bind(self, args[1])
 
 <TextInput>
     on_focus: app._focused_widget = root

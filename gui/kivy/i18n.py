@@ -18,8 +18,24 @@ class _(str):
         return _.lang(s).format(args, kwargs)
 
     @staticmethod
-    def bind(label):
-        _.observers.add(label)
+    def bind(label, arg):
+        if not isinstance(label.text, _):
+            return
+        if label.bound:
+            return
+        try:
+            _.observers.add(label)
+        except:
+            pass
+        label.bound = True
+        # garbage collection
+        new = set()
+        for label in _.observers:
+            try:
+                new.add(label)
+            except:
+                pass
+        _.observers = new
 
     @staticmethod
     def switch_lang(lang):
