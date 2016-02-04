@@ -41,5 +41,5 @@ class _(str):
         for label in _.observers:
             try:
                 label.text = _(label.text.source_text)
-            except ReferenceError:
+            except:
                 pass
