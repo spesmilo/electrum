@@ -1,11 +1,12 @@
 #:import Clock kivy.clock.Clock
 #:import Window kivy.core.window.Window
 #:import Factory kivy.factory.Factory
-#:import _ electrum.i18n._
+#:import _ electrum_gui.kivy.i18n._
 
 # Custom Global Widgets
 <Button>
     on_parent: self.MIN_STATE_TIME = 0.1
+    on_text: _.bind(self)
 
 <EmptyLabel@Label>
     color: (0.8, 0.8, 0.8, 1)
@@ -28,6 +29,7 @@
     markup: True
     font_name: 'Roboto'
     font_size: '16sp'
+    on_text: _.bind(self)
 
 <ListItemButton>
     font_size: '12sp'

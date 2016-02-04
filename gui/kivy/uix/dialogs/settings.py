@@ -3,14 +3,15 @@ from kivy.factory import Factory
 from kivy.properties import ObjectProperty
 from kivy.lang import Builder
 
-from electrum.i18n import _
 from electrum.util import base_units
-from electrum.i18n import languages, set_language
+from electrum.i18n import languages
+from electrum_gui.kivy.i18n import _
 from electrum.plugins import run_hook
 from electrum.bitcoin import RECOMMENDED_FEE
 
 Builder.load_string('''
 #:import partial functools.partial
+#:import _ electrum_gui.kivy.i18n._
 
 <SettingsItem@ButtonBehavior+BoxLayout>
     orientation: 'vertical'
@@ -57,8 +58,8 @@ Builder.load_string('''
                 size_hint: 1, None
                 SettingsItem:
                     lang: settings.get_language_name()
-                    title: _('Language') + ': %s'%self.lang
-                    description: _("Language")
+                    title: 'Language' + ': ' + str(self.lang)
+                    description: _('Language')
                     action: partial(root.language_dialog, self)
                     height: '48dp'
                 SettingsItem:
@@ -124,7 +125,7 @@ class SettingsDialog(Factory.Popup):
         def cb(key):
             self.config.set_key("language", key, True)
             item.lang = self.get_language_name()
-            set_language(key)
+            self.app.language = key
         d = ChoiceDialog(_('Language'), languages, l, cb)
         d.open()
 
