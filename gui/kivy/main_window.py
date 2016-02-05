@@ -71,11 +71,11 @@ class ElectrumWindow(App):
         _.switch_lang(language)
 
     def on_quotes(self, d):
-        print "main_window: on_quotes"
+        #Logger.info("on_quotes")
         pass
 
     def on_history(self, d):
-        print "main_window: on_history"
+        #Logger.info("on_history")
         if self.history_screen:
             self.history_screen.update()
 
@@ -292,7 +292,8 @@ class ElectrumWindow(App):
     def on_start(self):
         ''' This is the start point of the kivy ui
         '''
-        import time; print 'python time to on_start:', time.clock(), '<<<<<<<<<' 
+        import time
+        Logger.info('Time to on_start: {} <<<<<<<<'.format(time.clock()))
         Logger.info("dpi: {} {}".format(metrics.dpi, metrics.dpi_rounded))
         win = Window
         win.bind(size=self.on_size,
