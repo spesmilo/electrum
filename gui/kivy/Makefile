@@ -15,7 +15,7 @@ apk:
 		cp -f gui/kivy/tools/blacklist.txt .buildozer/android/platform/python-for-android/src/blacklist.txt;\
 		rm -rf ./.buildozer/android/platform/python-for-android/dist;\
 	fi
-	@-cd ../..; buildozer android debug deploy run
+	@-cd ../..; buildozer android_new debug deploy run
 	@make clean
 clean:
 	# Cleaning up

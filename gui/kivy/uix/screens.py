@@ -9,6 +9,7 @@ from kivy.app import App
 from kivy.cache import Cache
 from kivy.clock import Clock
 from kivy.compat import string_types
+from kivy.utils import platform
 from kivy.properties import (ObjectProperty, DictProperty, NumericProperty,
                              ListProperty, StringProperty)
 

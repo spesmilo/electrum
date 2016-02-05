@@ -269,6 +269,8 @@ class ElectrumWindow(App):
         self.switch_to('receive')
 
     def scan_qr(self, on_complete):
+        if platform != 'android':
+            return
         from jnius import autoclass
         from android import activity
         PythonActivity = autoclass('org.renpy.android.PythonActivity')
@@ -326,7 +328,7 @@ class ElectrumWindow(App):
         self.uri = self.electrum_config.get('url')
         # default tab
         self.switch_to('send' if self.uri else 'history')
-
+        
     def load_wallet_by_name(self, wallet_path):
         if not wallet_path:
             return
