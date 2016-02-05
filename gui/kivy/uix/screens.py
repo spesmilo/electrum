@@ -468,7 +468,6 @@ class TabbedCarousel(Factory.TabbedPanel):
             scroll_x = 0
         else:
             scroll_x = 1. * (n - idx - 1) / (n - 1)
-
         mation = Factory.Animation(scroll_x=scroll_x, d=.25)
         mation.cancel_all(scrlv)
         mation.start(scrlv)
