@@ -273,7 +273,8 @@ class ElectrumWindow(App):
             return
         from jnius import autoclass
         from android import activity
-        PythonActivity = autoclass('org.renpy.android.PythonActivity')
+        from android.config import JAVA_NAMESPACE
+        PythonActivity = autoclass(JAVA_NAMESPACE + '.PythonActivity')
         Intent = autoclass('android.content.Intent')
         intent = Intent("com.google.zxing.client.android.SCAN")
         intent.putExtra("SCAN_MODE", "QR_CODE_MODE")
@@ -291,12 +292,7 @@ class ElectrumWindow(App):
         return Builder.load_file('gui/kivy/main.kv')
 
     def _pause(self):
-        if platform == 'android':
-            # move activity to back
-            from jnius import autoclass
-            python_act = autoclass('org.renpy.android.PythonActivity')
-            mActivity = python_act.mActivity
-            mActivity.moveTaskToBack(True)
+        return True
 
     def on_start(self):
         ''' This is the start point of the kivy ui
