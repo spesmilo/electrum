@@ -35,6 +35,7 @@ SendScreen:
                     id: payto_e
                     text: s.address if s.address else _('Recipient')
                     on_release: app.address_dialog(s)
+                    shorten: True
             CardSeparator:
                 opacity: message_selection.opacity
                 color: blue_bottom.foreground_color

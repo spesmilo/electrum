@@ -37,18 +37,27 @@ ReceiveScreen:
                 on_touch_down:
                     self.shaded = not self.shaded
                     self.foreground_color = (0, 0, 0, 0.5) if self.shaded else (0, 0, 0, 0)
-        Label:
-            id: address_label
-            size_hint: 1, None
-            height: '48dp'
-            opacity: 0.5 if qr.shaded else 1
-            text: _('Bitcoin Address') + ': ' + s.address
-            text_size: self.width, None
 
         SendReceiveBlueBottom:
             id: blue_bottom
             size_hint: 1, None
             height: self.minimum_height
+            BoxLayout:
+                size_hint: 1, None
+                height: blue_bottom.item_height
+                spacing: '5dp'
+                Image:
+                    source: 'atlas://gui/kivy/theming/light/contact'
+                    size_hint: None, None
+                    size: '22dp', '22dp'
+                    pos_hint: {'center_y': .5}
+                BlueButton:
+                    id: address_label
+                    text: s.address if s.address else _('Bitcoin Address')
+                    shorten: True
+            CardSeparator:
+                opacity: message_selection.opacity
+                color: blue_bottom.foreground_color
             BoxLayout:
                 size_hint: 1, None
                 height: blue_bottom.item_height
