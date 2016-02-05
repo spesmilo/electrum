@@ -7,7 +7,7 @@ from decimal import Decimal
 
 import electrum_ltc as electrum
 from electrum_ltc import WalletStorage, Wallet
-from electrum_ltc.i18n import _
+from electrum_ltc_gui.kivy.i18n import _
 from electrum_ltc.contacts import Contacts
 from electrum_ltc.paymentrequest import InvoiceStore
 from electrum_ltc.util import profiler, InvalidPassword
@@ -63,6 +63,12 @@ from electrum_ltc.util import base_units
 class ElectrumWindow(App):
 
     electrum_config = ObjectProperty(None)
+
+    language = StringProperty('en')
+
+    def on_language(self, instance, language):
+        Logger.info('language: {}'.format(language))
+        _.switch_lang(language)
 
     def on_quotes(self, d):
         print "main_window: on_quotes"
@@ -177,6 +183,7 @@ class ElectrumWindow(App):
 
         title = _('Electrum-LTC App')
         self.electrum_config = config = kwargs.get('config', None)
+        self.language = config.get('language', 'en')
         self.network = network = kwargs.get('network', None)
         self.plugins = kwargs.get('plugins', [])
 
@@ -447,7 +454,7 @@ class ElectrumWindow(App):
             else:
                 c, u, x = self.wallet.get_account_balance(self.current_account)
                 text = self.format_amount(c+x+u)
-                self.status = text.strip() + ' ' + self.base_unit
+                self.status = str(text.strip() + ' ' + self.base_unit)
         else:
             self.status = _("Not connected")
 
@@ -471,8 +478,6 @@ class ElectrumWindow(App):
 
     @profiler
     def notify_transactions(self, *dt):
-        '''
-        '''
         if not self.network or not self.network.is_connected():
             return
         # temporarily disabled for merge

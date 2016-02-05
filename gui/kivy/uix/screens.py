@@ -17,15 +17,16 @@ from kivy.uix.label import Label
 from kivy.lang import Builder
 from kivy.factory import Factory
 
-from electrum_ltc.i18n import _
 from electrum_ltc.util import profiler, parse_URI, format_time
 from electrum_ltc import bitcoin
 from electrum_ltc.util import timestamp_to_datetime
 from electrum_ltc.plugins import run_hook
+from electrum_ltc.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 
 from context_menu import ContextMenu
 
-from electrum_ltc.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+
+from electrum_ltc_gui.kivy.i18n import _
 
 class EmptyLabel(Factory.Label):
     pass
@@ -95,7 +96,7 @@ class HistoryScreen(CScreen):
     def __init__(self, **kwargs):
         self.ra_dialog = None
         super(HistoryScreen, self).__init__(**kwargs)
-        self.menu_actions = [ (_('Label'), self.label_dialog), (_('Details'), self.app.tx_details_dialog)]
+        self.menu_actions = [ ('Label', self.label_dialog), ('Details', self.app.tx_details_dialog)]
 
     def label_dialog(self, obj):
         from dialogs.label_dialog import LabelDialog
@@ -308,7 +309,6 @@ class ReceiveScreen(CScreen):
             amount = self.app.get_amount(amount)
         else:
             amount = 0
-        print "saving", amount, message
         req = self.app.wallet.make_payment_request(addr, amount, message, None)
         self.app.wallet.add_payment_request(req, self.app.electrum_config)
         self.app.show_info(_('Request saved'))
@@ -354,7 +354,7 @@ class InvoicesScreen(CScreen):
     kvname = 'invoices'
 
     def update(self):
-        self.menu_actions = [(_('Pay'), self.do_pay), (_('Delete'), self.do_delete)]
+        self.menu_actions = [('Pay', self.do_pay), ('Delete', self.do_delete)]
         invoices_list = self.screen.ids.invoices_container
         invoices_list.clear_widgets()
 
@@ -394,7 +394,7 @@ class RequestsScreen(CScreen):
 
     def update(self):
 
-        self.menu_actions = [(_('Show'), self.do_show), (_('Delete'), self.do_delete)]
+        self.menu_actions = [('Show', self.do_show), ('Delete', self.do_delete)]
         requests_list = self.screen.ids.requests_container
         requests_list.clear_widgets()
         _list = self.app.wallet.get_sorted_requests(self.app.electrum_config)

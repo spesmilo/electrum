@@ -1,11 +1,30 @@
 #:import Clock kivy.clock.Clock
 #:import Window kivy.core.window.Window
 #:import Factory kivy.factory.Factory
-#:import _ electrum_ltc.i18n._
+#:import _ electrum_ltc_gui.kivy.i18n._
 
-# Custom Global Widgets
+
+###########################
+#     Global Defaults
+###########################
+
+<Label>
+    markup: True
+    font_name: 'Roboto'
+    font_size: '16sp'
+    bound: False
+    on_text: if isinstance(self.text, _) and not self.bound: self.bound=True; _.bind(self)
+
+<TextInput>
+    on_focus: app._focused_widget = root
+
 <Button>
     on_parent: self.MIN_STATE_TIME = 0.1
+
+<ListItemButton>
+    font_size: '12sp'
+
+# Custom Global Widgets
 
 <EmptyLabel@Label>
     color: (0.8, 0.8, 0.8, 1)
@@ -17,20 +36,6 @@
     rows: 1
     size_hint: 1, None
     height: self.minimum_height
-
-###########################
-#     Global Defaults
-###########################
-<TextInput>
-    on_focus: app._focused_widget = root
-
-<Label>
-    markup: True
-    font_name: 'Roboto'
-    font_size: '16sp'
-
-<ListItemButton>
-    font_size: '12sp'
 
 #########################
 #       Dialogs
