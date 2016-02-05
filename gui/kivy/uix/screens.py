@@ -294,6 +294,21 @@ class ReceiveScreen(CScreen):
         qr = self.screen.ids.qr
         qr.set_data(uri)
 
+    def do_share(self):
+        if platform != 'android':
+            return
+        from jnius import autoclass, cast
+        Intent = autoclass('android.content.Intent')
+        sendIntent = Intent()
+        sendIntent.setAction(Intent.ACTION_SEND)
+        sendIntent.putExtra(Intent.EXTRA_TEXT, self.get_URI())
+        sendIntent.setType("text/plain");
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
+        JS = autoclass('java.lang.String')
+        it = Intent.createChooser(sendIntent, cast('java.lang.CharSequence', JS("Share Bitcoinaddress")))
+        currentActivity.startActivity(it) 
+
     def do_copy(self):
         uri = self.get_URI()
         self.app._clipboard.copy(uri)
