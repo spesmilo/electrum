@@ -90,14 +90,22 @@ ReceiveScreen:
                 height: '48dp'
                 on_release: s.parent.do_copy()
             Button:
+                text: _('Share')
+                size_hint: 1, None
+                height: '48dp'
+                on_release: s.parent.do_share()
+            Button:
                 text: _('Save')
                 size_hint: 1, None
                 height: '48dp'
                 on_release: s.parent.do_save()
+        BoxLayout:
+            size_hint: 1, None
+            height: '48dp'
+            Widget:
+                size_hint: 1, 1
             Button:
                 text: _('New')
                 size_hint: 1, None
                 height: '48dp'
                 on_release: s.parent.do_new()
-        #Widget:
-        #    size_hint: 1, 0.3
