@@ -166,6 +166,9 @@ class InstallWizard(QDialog, MessageBoxMixin, WizardBase):
         except UserCancelled:
             self.print_error("wallet creation cancelled by user")
             self.accept()  # For when called from menu
+        except BaseException as e:
+            self.show_error(str(e))
+            raise
         return wallet
 
     def remove_from_recently_open(self, filename):
