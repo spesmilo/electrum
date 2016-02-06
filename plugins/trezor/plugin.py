@@ -220,8 +220,6 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         process.  Then create the wallet accounts.'''
         devmgr = self.device_manager()
         device_info = devmgr.select_device(wallet, self)
-        if not device_info:
-            raise RuntimeError(_("No devices found"))
         devmgr.pair_wallet(wallet, device_info.device.id_)
         if device_info.initialized:
             task = partial(wallet.create_hd_account, None)
