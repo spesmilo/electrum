@@ -36,9 +36,6 @@ MSG_RESTORE_PASSPHRASE = \
       "Note this is NOT a password.  Enter nothing if you did not use "
       "one or are unsure.")
 
-class UserCancelled(Exception):
-    pass
-
 class WizardBase(PrintError):
     '''Base class for gui-specific install wizards.'''
     user_actions = ('create', 'restore')

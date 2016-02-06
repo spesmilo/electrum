@@ -40,7 +40,7 @@ from electrum_ltc.i18n import _
 from electrum_ltc.util import (block_explorer, block_explorer_info, format_time,
                                block_explorer_URL, format_satoshis, PrintError,
                                format_satoshis_plain, NotEnoughFunds, StoreDict,
-                               SilentException)
+                               UserCancelled)
 from electrum_ltc import Transaction, mnemonic
 from electrum_ltc import util, bitcoin, commands
 from electrum_ltc import SimpleConfig, COIN_CHOOSERS, paymentrequest
@@ -214,7 +214,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.raise_()
 
     def on_error(self, exc_info):
-        if not isinstance(exc_info[1], SilentException):
+        if not isinstance(exc_info[1], UserCancelled):
             traceback.print_exception(*exc_info)
             self.show_error(str(exc_info[1]))
 

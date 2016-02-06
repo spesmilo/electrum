@@ -1,7 +1,7 @@
 from sys import stderr
 
 from electrum_ltc.i18n import _
-from electrum_ltc.util import PrintError, SilentException
+from electrum_ltc.util import PrintError, UserCancelled
 
 
 class GuiMixin(object):
@@ -27,7 +27,7 @@ class GuiMixin(object):
         # gets old very quickly, so we suppress those.
         if msg.code in (self.types.Failure_PinCancelled,
                         self.types.Failure_ActionCancelled):
-            raise SilentException()
+            raise UserCancelled()
         raise RuntimeError(msg.message)
 
     def callback_ButtonRequest(self, msg):

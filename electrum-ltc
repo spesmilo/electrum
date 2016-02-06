@@ -71,7 +71,7 @@ if is_bundle or is_local or is_android:
 
 from electrum_ltc import SimpleConfig, Network, Wallet, WalletStorage
 from electrum_ltc.util import print_msg, print_stderr, json_encode, json_decode
-from electrum_ltc.util import set_verbosity, InvalidPassword
+from electrum_ltc.util import set_verbosity, InvalidPassword, check_www_dir
 from electrum_ltc.commands import get_parser, known_commands, Commands, config_variables
 from electrum_ltc import daemon
 
@@ -338,7 +338,7 @@ if __name__ == '__main__':
                     from electrum_ltc import websockets
                     websockets.WebSocketServer(config, d.network).start()
                 if config.get('requests_dir'):
-                    util.check_www_dir(config.get('requests_dir'))
+                    check_www_dir(config.get('requests_dir'))
                 d.join()
                 sys.exit(0)
             else:

@@ -34,6 +34,7 @@ class QtHandlerBase(QObject, PrintError):
     logic for handling I/O.'''
 
     qcSig = pyqtSignal(object, object)
+    ynSig = pyqtSignal(object)
 
     def __init__(self, win, device):
         super(QtHandlerBase, self).__init__()
@@ -43,6 +44,7 @@ class QtHandlerBase(QObject, PrintError):
         win.connect(win, SIGNAL('passphrase_dialog'), self.passphrase_dialog)
         win.connect(win, SIGNAL('word_dialog'), self.word_dialog)
         self.qcSig.connect(self.win_query_choice)
+        self.ynSig.connect(self.win_yes_no_question)
         self.win = win
         self.device = device
         self.dialog = None
@@ -59,6 +61,12 @@ class QtHandlerBase(QObject, PrintError):
         self.qcSig.emit(msg, labels)
         self.done.wait()
         return self.choice
+
+    def yes_no_question(self, msg):
+        self.done.clear()
+        self.ynSig.emit(msg)
+        self.done.wait()
+        return self.ok
 
     def show_message(self, msg, on_cancel=None):
         self.win.emit(SIGNAL('message_dialog'), msg, on_cancel)
@@ -125,4 +133,8 @@ class QtHandlerBase(QObject, PrintError):
 
     def win_query_choice(self, msg, labels):
         self.choice = self.win.query_choice(msg, labels)
+        self.done.set()
+
+    def win_yes_no_question(self, msg):
+        self.ok = self.top_level_window().question(msg)
         self.done.set()

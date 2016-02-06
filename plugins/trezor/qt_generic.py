@@ -11,9 +11,8 @@ from ..hw_wallet.qt import QtHandlerBase
 
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import hook, DeviceMgr
-from electrum_ltc.util import PrintError
+from electrum_ltc.util import PrintError, UserCancelled
 from electrum_ltc.wallet import Wallet, BIP44_Wallet
-from electrum_ltc.wizard import UserCancelled
 
 PASSPHRASE_HELP_SHORT =_(
     "Passphrases allow you to access new wallets, each "
@@ -317,10 +316,7 @@ def qt_plugin_class(base_plugin_class):
         device_id = self.device_manager().wallet_id(window.wallet)
         if not device_id:
             info = self.device_manager().select_device(window.wallet, self)
-            if info:
-                device_id = info.device.id_
-            else:
-                window.wallet.handler.show_error(_("No devices found"))
+            device_id = info.device.id_
         return device_id
 
     def query_choice(self, window, msg, choices):

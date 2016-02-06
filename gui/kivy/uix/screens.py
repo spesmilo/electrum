@@ -350,6 +350,18 @@ class ContactsScreen(CScreen):
             contact_list.add_widget(ci)
 
 
+pr_text = {
+    PR_UNPAID:_('Pending'),
+    PR_PAID:_('Paid'),
+    PR_EXPIRED:_('Expired')
+}
+pr_icon = {
+    PR_UNPAID: 'atlas://gui/kivy/theming/light/important',
+    PR_PAID: 'atlas://gui/kivy/theming/light/confirmed',
+    PR_EXPIRED: 'atlas://gui/kivy/theming/light/close'
+}
+
+
 class InvoicesScreen(CScreen):
     kvname = 'invoices'
 
@@ -366,12 +378,8 @@ class InvoicesScreen(CScreen):
             ci.memo = pr.memo
             ci.amount = self.app.format_amount_and_units(pr.get_amount())
             status = self.app.invoices.get_status(ci.key)
-            if status == PR_PAID:
-                ci.icon = "atlas://gui/kivy/theming/light/confirmed"
-            elif status == PR_EXPIRED:
-                ci.icon = "atlas://gui/kivy/theming/light/important"
-            else:
-                ci.icon = "atlas://gui/kivy/theming/light/important"
+            ci.status = pr_text[status]
+            ci.icon = pr_icon[status]
             exp = pr.get_expiration_date()
             ci.date = format_time(exp) if exp else _('Never')
             ci.screen = self
@@ -409,12 +417,8 @@ class RequestsScreen(CScreen):
             ci.address = req['address']
             ci.memo = self.app.wallet.get_label(address)
             status = req.get('status')
-            if status == PR_PAID:
-                ci.icon = "atlas://gui/kivy/theming/light/confirmed"
-            elif status == PR_EXPIRED:
-                ci.icon = "atlas://gui/kivy/theming/light/important"
-            else:
-                ci.icon = "atlas://gui/kivy/theming/light/important"
+            ci.status = pr_text[status]
+            ci.icon = pr_icon[status]
             ci.amount = self.app.format_amount_and_units(amount) if amount else ''
             ci.date = format_time(timestamp)
             ci.screen = self
@@ -468,7 +472,6 @@ class TabbedCarousel(Factory.TabbedPanel):
             scroll_x = 0
         else:
             scroll_x = 1. * (n - idx - 1) / (n - 1)
-
         mation = Factory.Animation(scroll_x=scroll_x, d=.25)
         mation.cancel_all(scrlv)
         mation.start(scrlv)

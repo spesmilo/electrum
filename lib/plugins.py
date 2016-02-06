@@ -26,7 +26,7 @@ import time
 
 from util import *
 from i18n import _
-from util import profiler, PrintError, DaemonThread
+from util import profiler, PrintError, DaemonThread, UserCancelled
 import wallet
 
 class Plugins(DaemonThread):
@@ -386,26 +386,20 @@ class DeviceMgr(PrintError):
         # The wallet has not been previously paired, so let the user
         # choose an unpaired device and compare its first address.
         info = self.select_device(wallet, plugin, devices)
-        if info:
-            client = self.client_lookup(info.device.id_)
-            if client and client.is_pairable():
-                # See comment above for same code
-                client.handler = wallet.handler
-                # This will trigger a PIN/passphrase entry request
-                client_first_address = client.first_address(derivation)
-                if client_first_address == first_address:
-                    self.pair_wallet(wallet, info.device.id_)
-                    return client
 
-        if info and client:
-            # The user input has wrong PIN or passphrase
-            raise DeviceUnpairableError(
-                _('Unable to pair with your %s.') % plugin.device)
+        client = self.client_lookup(info.device.id_)
+        if client and client.is_pairable():
+            # See comment above for same code
+            client.handler = wallet.handler
+            # This will trigger a PIN/passphrase entry request
+            client_first_address = client.first_address(derivation)
+            if client_first_address == first_address:
+                self.pair_wallet(wallet, info.device.id_)
+                return client
 
-        raise DeviceNotFoundError(
-            _('Could not connect to your %s.  Verify the cable is '
-              'connected and that no other application is using it.')
-            % plugin.device)
+        # The user input has wrong PIN or passphrase, or it is not pairable
+        raise DeviceUnpairableError(
+            _('Unable to pair with your %s.') % plugin.device)
 
     def unpaired_device_infos(self, handler, plugin, devices=None):
         '''Returns a list of DeviceInfo objects: one for each connected,
@@ -432,9 +426,17 @@ class DeviceMgr(PrintError):
     def select_device(self, wallet, plugin, devices=None):
         '''Ask the user to select a device to use if there is more than one,
         and return the DeviceInfo for the device.'''
-        infos = self.unpaired_device_infos(wallet.handler, plugin, devices)
-        if not infos:
-            return None
+        while True:
+            infos = self.unpaired_device_infos(wallet.handler, plugin, devices)
+            if infos:
+                break
+            msg = _('Could not connect to your %s.  Verify the cable is '
+                    'connected and that no other application is using it.\n\n'
+                    'Try to connect again?') % plugin.device
+            if not wallet.handler.yes_no_question(msg):
+                raise UserCancelled()
+            devices = None
+
         if len(infos) == 1:
             return infos[0]
         msg = _("Please select which %s device to use:") % plugin.device
@@ -455,7 +457,9 @@ class DeviceMgr(PrintError):
         for d in hid.enumerate(0, 0):
             product_key = (d['vendor_id'], d['product_id'])
             if product_key in self.recognised_hardware:
-                devices.append(Device(d['path'], d['interface_number'],
+                # Older versions of hid don't provide interface_number
+                interface_number = d.get('interface_number', 0)
+                devices.append(Device(d['path'], interface_number,
                                       d['serial_number'], product_key))
 
         # Now find out what was disconnected

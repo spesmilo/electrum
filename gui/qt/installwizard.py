@@ -1,4 +1,4 @@
-from sys import stdout
+import sys
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -14,8 +14,8 @@ from password_dialog import PasswordLayout, PW_NEW, PW_PASSPHRASE
 
 from electrum_ltc.wallet import Wallet
 from electrum_ltc.mnemonic import prepare_seed
-from electrum_ltc.util import SilentException
-from electrum_ltc.wizard import (WizardBase, UserCancelled,
+from electrum_ltc.util import UserCancelled
+from electrum_ltc.wizard import (WizardBase,
                                  MSG_ENTER_PASSWORD, MSG_RESTORE_PASSPHRASE,
                                  MSG_COSIGNER, MSG_ENTER_SEED_OR_MPK,
                                  MSG_SHOW_MPK, MSG_VERIFY_SEED,
@@ -119,7 +119,7 @@ class InstallWizard(QDialog, MessageBoxMixin, WizardBase):
         self.refresh_gui()
 
     def on_error(self, exc_info):
-        if not isinstance(exc_info[1], SilentException):
+        if not isinstance(exc_info[1], UserCancelled):
             traceback.print_exception(*exc_info)
             self.show_error(str(exc_info[1]))
 
@@ -166,6 +166,9 @@ class InstallWizard(QDialog, MessageBoxMixin, WizardBase):
         except UserCancelled:
             self.print_error("wallet creation cancelled by user")
             self.accept()  # For when called from menu
+        except BaseException as e:
+            self.on_error(sys.exc_info())
+            raise
         return wallet
 
     def remove_from_recently_open(self, filename):

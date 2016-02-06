@@ -71,11 +71,11 @@ class ElectrumWindow(App):
         _.switch_lang(language)
 
     def on_quotes(self, d):
-        print "main_window: on_quotes"
+        #Logger.info("on_quotes")
         pass
 
     def on_history(self, d):
-        print "main_window: on_history"
+        #Logger.info("on_history")
         if self.history_screen:
             self.history_screen.update()
 
@@ -158,7 +158,7 @@ class ElectrumWindow(App):
     :data:`ui_mode` is a read only `AliasProperty` Defaults to 'phone'
     '''
 
-    url = StringProperty('', allownone=True)
+    uri = StringProperty('', allownone=True)
     '''
     '''
 
@@ -193,11 +193,7 @@ class ElectrumWindow(App):
         self.contacts = Contacts(self.electrum_config)
         self.invoices = InvoiceStore(self.electrum_config)
 
-        self.bind(url=self.set_URI)
-        # were we sent a url?
-        url = self.electrum_config.get('url', None)
-        if url:
-            self.set_URI(url)
+        self.bind(uri=self.on_uri)
 
         # create triggers so as to minimize updation a max of 2 times a sec
         self._trigger_update_wallet =\
@@ -217,7 +213,8 @@ class ElectrumWindow(App):
     def on_pr(self, pr):
         if pr.verify(self.contacts):
             key = self.invoices.add(pr)
-            self.invoices_screen.update()
+            if self.invoices_screen:
+                self.invoices_screen.update()
             status = self.invoices.get_status(key)
             if status == PR_PAID:
                 self.show_error("invoice already paid")
@@ -241,6 +238,11 @@ class ElectrumWindow(App):
             return
         self.send_screen.set_URI(url)
 
+    def on_uri(self, instance, uri):
+        if uri:
+            Logger.info("on uri:", uri)
+            self.switch_to('send')
+            self.set_URI(uri)
 
     def update_tab(self, name):
         s = getattr(self, name + '_screen', None)
@@ -253,8 +255,13 @@ class ElectrumWindow(App):
             self.update_tab(tab)
 
     def switch_to(self, name):
+        s = getattr(self, name + '_screen', None)
+        if self.send_screen is None:
+            s = self.tabs.ids[name + '_screen']
+            s.load_screen()
+        panel = self.tabs.ids.panel
         tab = self.tabs.ids[name + '_tab']
-        self.tabs.ids.panel.switch_to(tab)
+        panel.switch_to(tab)
 
     def show_request(self, addr):
         self.receive_address = addr
@@ -292,7 +299,8 @@ class ElectrumWindow(App):
     def on_start(self):
         ''' This is the start point of the kivy ui
         '''
-        import time; print 'python time to on_start:', time.clock(), '<<<<<<<<<' 
+        import time
+        Logger.info('Time to on_start: {} <<<<<<<<'.format(time.clock()))
         Logger.info("dpi: {} {}".format(metrics.dpi, metrics.dpi_rounded))
         win = Window
         win.bind(size=self.on_size,
@@ -309,11 +317,15 @@ class ElectrumWindow(App):
                    'gui/kivy/data/fonts/Roboto-Bold.ttf')
 
         win.softinput_mode = 'below_target'
-
         self.on_size(win, win.size)
         self.init_ui()
         self.load_wallet_by_name(self.electrum_config.get_wallet_path())
+        # init plugins
         run_hook('init_kivy', self)
+        # were we sent a url?
+        self.uri = self.electrum_config.get('url')
+        # default tab
+        self.switch_to('send' if self.uri else 'history')
 
     def load_wallet_by_name(self, wallet_path):
         if not wallet_path:
@@ -404,9 +416,13 @@ class ElectrumWindow(App):
 
         # load and focus the ui
         self.root.manager = self.root.ids['manager']
-        self.recent_activity_card = None
+
         self.history_screen = None
         self.contacts_screen = None
+        self.send_screen = None
+        self.invoices_screen = None
+        self.receive_screen = None
+        self.requests_screen = None
 
         self.icon = "icons/electrum-ltc.png"
 
