@@ -52,7 +52,8 @@ from android.runnable import run_on_ui_thread
 # preload java classes
 System = autoclass('java.lang.System')
 System.loadLibrary('iconv')
-PythonActivity = autoclass('org.renpy.android.PythonActivity')
+from android.config import JAVA_NAMESPACE
+PythonActivity = autoclass(JAVA_NAMESPACE + '.PythonActivity')
 Camera = autoclass('android.hardware.Camera')
 ImageScanner = autoclass('net.sourceforge.zbar.ImageScanner')
 Image = autoclass('net.sourceforge.zbar.Image')

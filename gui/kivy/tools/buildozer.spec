@@ -31,7 +31,7 @@ version.filename = %(source.dir)s/lib/version.py
 #version = 1.9.8
 
 # (list) Application requirements
-requirements = openssl, pil, plyer==master, kivy==master
+requirements = hostpython2,android,openssl,pycrypto,pil, plyer, kivy
 
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
@@ -104,7 +104,7 @@ android.private_storage = True
 #android.manifest.intent_filters = nfc_filter.xml
 
 # (list) Android additionnal libraries to copy into libs/armeabi
-android.add_libs_armeabi = lib/android/*.so
+android.add_libs_armeabi-v7a = lib/android/*.so
 
 # (bool) Indicate whether the screen should stay on
 # Don't forget to add the WAKE_LOCK permission if you set this to True

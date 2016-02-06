@@ -269,9 +269,12 @@ class ElectrumWindow(App):
         self.switch_to('receive')
 
     def scan_qr(self, on_complete):
+        if platform != 'android':
+            return
         from jnius import autoclass
         from android import activity
-        PythonActivity = autoclass('org.renpy.android.PythonActivity')
+        from android.config import JAVA_NAMESPACE
+        PythonActivity = autoclass(JAVA_NAMESPACE + '.PythonActivity')
         Intent = autoclass('android.content.Intent')
         intent = Intent("com.google.zxing.client.android.SCAN")
         intent.putExtra("SCAN_MODE", "QR_CODE_MODE")
@@ -289,12 +292,7 @@ class ElectrumWindow(App):
         return Builder.load_file('gui/kivy/main.kv')
 
     def _pause(self):
-        if platform == 'android':
-            # move activity to back
-            from jnius import autoclass
-            python_act = autoclass('org.renpy.android.PythonActivity')
-            mActivity = python_act.mActivity
-            mActivity.moveTaskToBack(True)
+        return True
 
     def on_start(self):
         ''' This is the start point of the kivy ui
@@ -326,7 +324,7 @@ class ElectrumWindow(App):
         self.uri = self.electrum_config.get('url')
         # default tab
         self.switch_to('send' if self.uri else 'history')
-
+        
     def load_wallet_by_name(self, wallet_path):
         if not wallet_path:
             return
