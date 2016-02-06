@@ -455,7 +455,9 @@ class DeviceMgr(PrintError):
         for d in hid.enumerate(0, 0):
             product_key = (d['vendor_id'], d['product_id'])
             if product_key in self.recognised_hardware:
-                devices.append(Device(d['path'], d['interface_number'],
+                # Older versions of hid don't provide interface_number
+                interface_number = d.get('interface_number', 0)
+                devices.append(Device(d['path'], interface_number,
                                       d['serial_number'], product_key))
 
         # Now find out what was disconnected
