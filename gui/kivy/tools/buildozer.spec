@@ -104,7 +104,7 @@ android.private_storage = True
 #android.manifest.intent_filters = nfc_filter.xml
 
 # (list) Android additionnal libraries to copy into libs/armeabi
-android.add_libs_armeabi = lib/android/*.so
+#android.add_libs_armeabi = lib/android/*.so
 
 # (bool) Indicate whether the screen should stay on
 # Don't forget to add the WAKE_LOCK permission if you set this to True
