@@ -134,12 +134,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         assert self.main_thread != threading.current_thread()
 
         devmgr = self.device_manager()
-        try:
-            client = devmgr.client_for_wallet(self, wallet, force_pair)
-        except:
-            wallet.set_force_watching_only(True)
-            raise
-
+        client = devmgr.client_for_wallet(self, wallet, force_pair)
         if client:
             self.print_error("set last_operation")
             wallet.last_operation = time.time()
