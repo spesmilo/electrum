@@ -1150,11 +1150,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def protected(func):
         '''Password request wrapper.  The password is passed to the function
-        as the 'password' named argument.  Return value is a 2-element
-        tuple: (Cancelled, Result) where Cancelled is True if the user
-        cancels the password request, otherwise False.  Result is the
-        return value of the wrapped function, or None if cancelled.
-        '''
+        as the 'password' named argument.  "None" indicates either an
+        unencrypted wallet, or the user cancelled the password request.
+        An empty input is passed as the empty string.'''
         def request_password(self, *args, **kwargs):
             parent = self.top_level_window()
             password = None
@@ -2024,6 +2022,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     @protected
     def show_seed_dialog(self, password):
+        if self.wallet.use_encryption and password is None:
+            return    # User cancelled password input
         if not self.wallet.has_seed():
             self.show_message(_('This wallet has no seed'))
             return
