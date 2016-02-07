@@ -1875,10 +1875,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def change_password_dialog(self):
         from password_dialog import PasswordDialog, PW_CHANGE
 
-        if self.wallet and self.wallet.is_watching_only():
-            self.show_error(_('This is a watching-only wallet'))
-            return
-
         msg = (_('Your wallet is encrypted. Use this dialog to change your '
                  'password. To disable wallet encryption, enter an empty new '
                  'password.') if self.wallet.use_encryption
