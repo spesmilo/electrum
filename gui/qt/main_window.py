@@ -1979,21 +1979,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def check_next_account(self):
         if self.wallet.needs_next_account() and not self.checking_accounts:
-            try:
-                self.checking_accounts = True
-                msg = _("All the accounts in your wallet have received "
-                        "transactions.  Electrum must check whether more "
-                        "accounts exist; one will only be shown if "
-                        "it has been used or you give it a name.")
-                self.show_message(msg, title=_("Check Accounts"))
-                self.create_next_account()
-                self.update_new_account_menu()
-            finally:
-                self.checking_accounts = False
+            self.checking_accounts = True
+            msg = _("All the accounts in your wallet have received "
+                    "transactions.  Electrum must check whether more "
+                    "accounts exist; one will only be shown if "
+                    "it has been used or you give it a name.")
+            self.show_message(msg, title=_("Check Accounts"))
+            self.create_next_account()
 
     @protected
     def create_next_account(self, password):
-        self.wallet.create_next_account(password)
+        def on_done():
+            self.checking_accounts = False
+            self.update_new_account_menu()
+        task = partial(self.wallet.create_next_account, password)
+        self.wallet.thread.add(task, on_done=on_done)
 
     def show_master_public_keys(self):
         dialog = WindowModalDialog(self, "Master Public Keys")
