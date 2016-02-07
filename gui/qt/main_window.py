@@ -1150,11 +1150,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def protected(func):
         '''Password request wrapper.  The password is passed to the function
-        as the 'password' named argument.  Return value is a 2-element
-        tuple: (Cancelled, Result) where Cancelled is True if the user
-        cancels the password request, otherwise False.  Result is the
-        return value of the wrapped function, or None if cancelled.
-        '''
+        as the 'password' named argument.  "None" indicates either an
+        unencrypted wallet, or the user cancelled the password request.
+        An empty input is passed as the empty string.'''
         def request_password(self, *args, **kwargs):
             parent = self.top_level_window()
             password = None
@@ -1875,10 +1873,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def change_password_dialog(self):
         from password_dialog import PasswordDialog, PW_CHANGE
 
-        if self.wallet and self.wallet.is_watching_only():
-            self.show_error(_('This is a watching-only wallet'))
-            return
-
         msg = (_('Your wallet is encrypted. Use this dialog to change your '
                  'password. To disable wallet encryption, enter an empty new '
                  'password.') if self.wallet.use_encryption
@@ -1979,21 +1973,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def check_next_account(self):
         if self.wallet.needs_next_account() and not self.checking_accounts:
-            try:
-                self.checking_accounts = True
-                msg = _("All the accounts in your wallet have received "
-                        "transactions.  Electrum must check whether more "
-                        "accounts exist; one will only be shown if "
-                        "it has been used or you give it a name.")
-                self.show_message(msg, title=_("Check Accounts"))
-                self.create_next_account()
-                self.update_new_account_menu()
-            finally:
-                self.checking_accounts = False
+            self.checking_accounts = True
+            msg = _("All the accounts in your wallet have received "
+                    "transactions.  Electrum must check whether more "
+                    "accounts exist; one will only be shown if "
+                    "it has been used or you give it a name.")
+            self.show_message(msg, title=_("Check Accounts"))
+            self.create_next_account()
 
     @protected
     def create_next_account(self, password):
-        self.wallet.create_next_account(password)
+        def on_done():
+            self.checking_accounts = False
+            self.update_new_account_menu()
+        task = partial(self.wallet.create_next_account, password)
+        self.wallet.thread.add(task, on_done=on_done)
 
     def show_master_public_keys(self):
         dialog = WindowModalDialog(self, "Master Public Keys")
@@ -2028,6 +2022,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     @protected
     def show_seed_dialog(self, password):
+        if self.wallet.use_encryption and password is None:
+            return    # User cancelled password input
         if not self.wallet.has_seed():
             self.show_message(_('This wallet has no seed'))
             return
@@ -2809,7 +2805,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         multiple_cb = QCheckBox(_('Use multiple change addresses'))
         multiple_cb.setEnabled(self.wallet.use_change)
         multiple_cb.setToolTip('\n'.join([
-            _('In some cases, use up to 3 change addresses in order to obfuscate the recipient address.'),
+            _('In some cases, use up to 3 change addresses in order to break '
+              'up large coin amounts and obfuscate the recipient address.'),
             _('This may result in higher transactions fees.')
         ]))
         multiple_cb.setChecked(multiple_change)

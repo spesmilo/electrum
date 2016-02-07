@@ -16,6 +16,7 @@ from kivy.uix.label import Label
 
 from kivy.lang import Builder
 from kivy.factory import Factory
+from kivy.utils import platform
 
 from electrum_ltc.util import profiler, parse_URI, format_time
 from electrum_ltc import bitcoin
@@ -292,6 +293,22 @@ class ReceiveScreen(CScreen):
         uri = self.get_URI()
         qr = self.screen.ids.qr
         qr.set_data(uri)
+
+    def do_share(self):
+        if platform != 'android':
+            return
+        uri = self.get_URI()
+        from jnius import autoclass, cast
+        JS = autoclass('java.lang.String')
+        Intent = autoclass('android.content.Intent')
+        sendIntent = Intent()
+        sendIntent.setAction(Intent.ACTION_SEND)
+        sendIntent.setType("text/plain")
+        sendIntent.putExtra(Intent.EXTRA_TEXT, JS(uri))
+        PythonActivity = autoclass('org.renpy.android.PythonActivity')
+        currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
+        it = Intent.createChooser(sendIntent, cast('java.lang.CharSequence', JS("Share Litecoin Request")))
+        currentActivity.startActivity(it)
 
     def do_copy(self):
         uri = self.get_URI()
