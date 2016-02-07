@@ -21,6 +21,7 @@ import time
 
 from electrum.util import ThreadJob
 from electrum.plugins import BasePlugin, hook
+from electrum.i18n import _
 
 
 class HW_PluginBase(BasePlugin, ThreadJob):
