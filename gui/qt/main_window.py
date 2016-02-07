@@ -2805,7 +2805,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         multiple_cb = QCheckBox(_('Use multiple change addresses'))
         multiple_cb.setEnabled(self.wallet.use_change)
         multiple_cb.setToolTip('\n'.join([
-            _('In some cases, use up to 3 change addresses in order to obfuscate the recipient address.'),
+            _('In some cases, use up to 3 change addresses in order to break '
+              'up large coin amounts and obfuscate the recipient address.'),
             _('This may result in higher transactions fees.')
         ]))
         multiple_cb.setChecked(multiple_change)
