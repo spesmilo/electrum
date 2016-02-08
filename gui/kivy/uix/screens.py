@@ -194,9 +194,6 @@ class SendScreen(CScreen):
         self.screen.address = ''
         self.payment_request = None
 
-    def amount_dialog(self):
-        Clock.schedule_once(lambda dt: self.app.amount_dialog(self, True), .25)
-
     def set_request(self, pr):
         self.payment_request = pr
         self.screen.address = pr.get_requestor()
@@ -263,16 +260,28 @@ class SendScreen(CScreen):
 class ReceiveScreen(CScreen):
 
     kvname = 'receive'
-    
+
     def update(self):
-        addr = self.app.get_receive_address()
+        if not self.screen.address:
+            self.get_new_address()
+
+    def get_new_address(self):
+        addr = self.app.wallet.get_unused_address(None)
+        if addr is None:
+            return False
         self.screen.address = addr
+        self.screen.amount = ''
+        self.screen.message = ''
+        return True
+
+    def on_address(self, addr):
         req = self.app.wallet.receive_requests.get(addr)
         if req:
             self.screen.message = unicode(req.get('memo', ''))
             amount = req.get('amount')
             if amount:
                 self.screen.amount = self.app.format_amount_and_units(amount)
+        Clock.schedule_once(lambda dt: self.update_qr())
 
     def amount_callback(self, popup):
         amount_label = self.screen.ids.get('amount')
@@ -321,31 +330,19 @@ class ReceiveScreen(CScreen):
         message = str(self.screen.message) #.ids.message_input.text)
         if not message and not amount:
             return False
-        if amount:
-            amount = self.app.get_amount(amount)
-        else:
-            amount = 0
+        amount = self.app.get_amount(amount) if amount else 0
         req = self.app.wallet.make_payment_request(addr, amount, message, None)
         self.app.wallet.add_payment_request(req, self.app.electrum_config)
         self.app.update_tab('requests')
         return True
 
-    def on_amount(self):
+    def on_amount_or_message(self):
         self.do_save()
-        self.update_qr()
-
-    def on_message(self):
-        self.do_save()
-        self.update_qr()
+        Clock.schedule_once(lambda dt: self.update_qr())
 
     def do_new(self):
-        if self.do_save():
-            self.app.show_info(_('Request saved'))
-
-        self.app.receive_address = None
-        self.screen.amount = ''
-        self.screen.message = ''
-        self.update()
+        if not self.get_new_address():
+            self.app.show_info(_('Please use the existing requests first.'))
 
 
 class ContactsScreen(CScreen):
@@ -423,15 +420,20 @@ class InvoicesScreen(CScreen):
         self.app.do_pay(obj)
 
     def do_delete(self, obj):
-        self.app.invoices.remove(obj.key)
-        self.app.update_tab('invoices')
+        from dialogs.question import Question
+        def cb():
+            self.app.invoices.remove(obj.key)
+            self.app.update_tab('invoices')
+        d = Question(_('Delete invoice?'), cb)
+        d.open()
+
 
 class RequestsScreen(CScreen):
     kvname = 'requests'
 
     def update(self):
 
-        self.menu_actions = [('Show', self.do_show), ('Delete', self.do_delete)]
+        self.menu_actions = [('View/Edit', self.do_show), ('Delete', self.do_delete)]
         requests_list = self.screen.ids.requests_container
         requests_list.clear_widgets()
         _list = self.app.wallet.get_sorted_requests(self.app.electrum_config)
@@ -445,10 +447,15 @@ class RequestsScreen(CScreen):
             ci = Factory.RequestItem()
             ci.address = req['address']
             ci.memo = self.app.wallet.get_label(address)
-            status = req.get('status')
-            ci.status = pr_text[status]
+            if amount:
+                status = req.get('status')
+                ci.status = pr_text[status]
+            else:
+                received = self.app.wallet.get_addr_received(address)
+                ci.status = self.app.format_amount_and_units(amount)
+
             ci.icon = pr_icon[status]
-            ci.amount = self.app.format_amount_and_units(amount) if amount else ''
+            ci.amount = self.app.format_amount_and_units(amount) if amount else _('No Amount')
             ci.date = format_time(timestamp)
             ci.screen = self
             requests_list.add_widget(ci)
@@ -461,8 +468,12 @@ class RequestsScreen(CScreen):
         self.app.show_request(obj.address)
 
     def do_delete(self, obj):
-        self.app.wallet.remove_payment_request(obj.address, self.app.electrum_config)
-        self.update()
+        from dialogs.question import Question
+        def cb():
+            self.app.wallet.remove_payment_request(obj.address, self.app.electrum_config)
+            self.update()
+        d = Question(_('Delete request?'), cb)
+        d.open()
 
 
 class CSpinner(Factory.Spinner):

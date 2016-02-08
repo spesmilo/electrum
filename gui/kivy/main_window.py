@@ -159,8 +159,6 @@ class ElectrumWindow(App):
     '''
 
     uri = StringProperty('', allownone=True)
-    '''
-    '''
 
     wallet = ObjectProperty(None)
     '''Holds the electrum wallet
@@ -176,7 +174,6 @@ class ElectrumWindow(App):
         self.nfcscanner = None
         self.tabs = None
 
-        self.receive_address = None
         self.current_invoice = None
 
         super(ElectrumWindow, self).__init__(**kwargs)
@@ -202,9 +199,6 @@ class ElectrumWindow(App):
             Clock.create_trigger(self.update_status, .5)
         self._trigger_notify_transactions = \
             Clock.create_trigger(self.notify_transactions, 5)
-
-    def get_receive_address(self):
-        return self.receive_address if self.receive_address else self.wallet.get_unused_address(None)
 
     def do_pay(self, obj):
         pr = self.invoices.get(obj.key)
@@ -264,8 +258,7 @@ class ElectrumWindow(App):
         panel.switch_to(tab)
 
     def show_request(self, addr):
-        self.receive_address = addr
-        self.update_tab('receive')
+        self.receive_screen.screen.address = addr
         self.switch_to('receive')
 
     def scan_qr(self, on_complete):
@@ -644,7 +637,7 @@ class ElectrumWindow(App):
         popup.open()
 
     def address_dialog(self, screen):
-        pass
+        self.switch_to('invoices')
 
     def description_dialog(self, screen):
         from uix.dialogs.label_dialog import LabelDialog

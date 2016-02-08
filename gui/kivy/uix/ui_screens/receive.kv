@@ -15,11 +15,11 @@ ReceiveScreen:
     message: ''
 
     on_address:
-        self.parent.update_qr()
+        self.parent.on_address(self.address)
     on_amount:
-        self.parent.on_amount()
+        self.parent.on_amount_or_message()
     on_message:
-        self.parent.on_message()
+        self.parent.on_amount_or_message()
 
     BoxLayout
         padding: '12dp', '12dp', '12dp', '12dp'
@@ -71,7 +71,7 @@ ReceiveScreen:
                     id: amount_label
                     default_text: _('Amount')
                     text: s.amount if s.amount else _('Amount')
-                    on_release: app.amount_dialog(s, False)
+                    on_release: Clock.schedule_once(lambda dt: app.amount_dialog(s, False))
             CardSeparator:
                 opacity: message_selection.opacity
                 color: blue_bottom.foreground_color
@@ -89,7 +89,7 @@ ReceiveScreen:
                 BlueButton:
                     id: description
                     text: s.message if s.message else _('Description')
-                    on_release: app.description_dialog(s)
+                    on_release: Clock.schedule_once(lambda dt: app.description_dialog(s))
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
@@ -107,4 +107,4 @@ ReceiveScreen:
                 text: _('New')
                 size_hint: 1, None
                 height: '48dp'
-                on_release: s.parent.do_new()
+                on_release: Clock.schedule_once(lambda dt: s.parent.do_new())
