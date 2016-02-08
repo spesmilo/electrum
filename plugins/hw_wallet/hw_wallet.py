@@ -39,29 +39,21 @@ class BIP44_HW_Wallet(BIP44_Wallet):
         # handler.  The handler is per-window and preserved across
         # device reconnects
         self.handler = None
-        self.force_watching_only = False
 
     def set_session_timeout(self, seconds):
         self.print_error("setting session timeout to %d seconds" % seconds)
         self.session_timeout = seconds
         self.storage.put('session_timeout', seconds)
 
-    def set_force_watching_only(self, value):
-        if value != self.force_watching_only:
-            self.force_watching_only = value
-            self.handler.watching_only_changed()
-
     def unpaired(self):
         '''A device paired with the wallet was diconnected.  This can be
         called in any thread context.'''
         self.print_error("unpaired")
-        self.set_force_watching_only(True)
 
     def paired(self):
         '''A device paired with the wallet was (re-)connected.  This can be
         called in any thread context.'''
         self.print_error("paired")
-        self.set_force_watching_only(False)
 
     def timeout(self):
         '''Called when the wallet session times out.  Note this is called from
@@ -81,9 +73,10 @@ class BIP44_HW_Wallet(BIP44_Wallet):
         return False
 
     def is_watching_only(self):
-        '''The wallet is watching-only if its trezor device is unpaired.'''
+        '''The wallet is not watching-only; the user will be prompted for
+        pin and passphrase as appropriate when needed.'''
         assert not self.has_seed()
-        return self.force_watching_only
+        return False
 
     def can_change_password(self):
         return False
