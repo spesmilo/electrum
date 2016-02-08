@@ -37,6 +37,21 @@
     size_hint: 1, None
     height: self.minimum_height
 
+
+
+<IconButton@Button>:
+    icon: ''
+    AnchorLayout:
+        pos: self.parent.pos
+        size: self.parent.size
+        orientation: 'lr-tb'
+        Image:
+            source: self.parent.parent.icon
+            size_hint_x: None
+            size: '30dp', '30dp'
+
+
+
 #########################
 #       Dialogs
 #########################

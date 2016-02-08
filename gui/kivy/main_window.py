@@ -269,6 +269,8 @@ class ElectrumWindow(App):
         self.switch_to('receive')
 
     def scan_qr(self, on_complete):
+        if platform != 'android':
+            return
         from jnius import autoclass
         from android import activity
         PythonActivity = autoclass('org.renpy.android.PythonActivity')

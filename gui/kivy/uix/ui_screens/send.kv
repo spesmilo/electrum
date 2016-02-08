@@ -73,16 +73,15 @@ SendScreen:
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
-            Button:
+            IconButton:
                 id: qr
-                text: _('QR Code')
-                on_release:
-                    app.scan_qr(on_complete=app.set_URI)
+                size_hint: 0.5, 1
+                on_release: app.scan_qr(on_complete=app.set_URI)
+                icon: 'atlas://gui/kivy/theming/light/camera'
             Button:
                 id: paste_button
                 text: _('Paste')
-                on_release:
-                    s.parent.do_paste()
+                on_release: s.parent.do_paste()
             Button:
                 text: _('Clear')
                 size_hint: 1, None
