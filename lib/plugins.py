@@ -27,7 +27,7 @@ import time
 from util import *
 from i18n import _
 from util import profiler, PrintError, DaemonThread, UserCancelled
-import wallet
+
 
 class Plugins(DaemonThread):
 
@@ -140,13 +140,16 @@ class Plugins(DaemonThread):
         return wallet_types, descs
 
     def register_plugin_wallet(self, name, gui_good, details):
+        from wallet import Wallet
+
         def dynamic_constructor(storage):
             return self.wallet_plugin_loader(name).wallet_class(storage)
 
         if details[0] == 'hardware':
             self.hw_wallets[name] = (gui_good, details)
         self.print_error("registering wallet %s: %s" %(name, details))
-        wallet.wallet_types.append(details + (dynamic_constructor,))
+        Wallet.register_plugin_wallet(details[0], details[1],
+                                      dynamic_constructor)
 
     def wallet_plugin_loader(self, name):
         if not name in self.plugins:
@@ -392,14 +395,22 @@ class DeviceMgr(PrintError):
             # See comment above for same code
             client.handler = wallet.handler
             # This will trigger a PIN/passphrase entry request
-            client_first_address = client.first_address(derivation)
+            try:
+                client_first_address = client.first_address(derivation)
+            except (UserCancelled, RuntimeError):
+                 # Bad / cancelled PIN / passphrase
+                client_first_address = None
             if client_first_address == first_address:
                 self.pair_wallet(wallet, info.device.id_)
                 return client
 
-        # The user input has wrong PIN or passphrase, or it is not pairable
+        # The user input has wrong PIN or passphrase, or cancelled input,
+        # or it is not pairable
         raise DeviceUnpairableError(
-            _('Unable to pair with your %s.') % plugin.device)
+            _('Unable to pair with your %s.\n\n'
+              'Ensure you are able to pair it, or you have the seed phrase, '
+              'before you request litecoins to be sent to this wallet.'
+            ) % plugin.device)
 
     def unpaired_device_infos(self, handler, plugin, devices=None):
         '''Returns a list of DeviceInfo objects: one for each connected,

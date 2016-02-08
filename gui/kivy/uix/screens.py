@@ -320,18 +320,28 @@ class ReceiveScreen(CScreen):
         amount = str(self.screen.amount)
         message = str(self.screen.message) #.ids.message_input.text)
         if not message and not amount:
-            self.app.show_error(_('No message or amount'))
-            return
+            return False
         if amount:
             amount = self.app.get_amount(amount)
         else:
             amount = 0
         req = self.app.wallet.make_payment_request(addr, amount, message, None)
         self.app.wallet.add_payment_request(req, self.app.electrum_config)
-        self.app.show_info(_('Request saved'))
         self.app.update_tab('requests')
+        return True
+
+    def on_amount(self):
+        self.do_save()
+        self.update_qr()
+
+    def on_message(self):
+        self.do_save()
+        self.update_qr()
 
     def do_new(self):
+        if self.do_save():
+            self.app.show_info(_('Request saved'))
+
         self.app.receive_address = None
         self.screen.amount = ''
         self.screen.message = ''
@@ -369,11 +379,13 @@ class ContactsScreen(CScreen):
 
 pr_text = {
     PR_UNPAID:_('Pending'),
+    PR_UNKNOWN:_('Unknown'),
     PR_PAID:_('Paid'),
     PR_EXPIRED:_('Expired')
 }
 pr_icon = {
     PR_UNPAID: 'atlas://gui/kivy/theming/light/important',
+    PR_UNKNOWN: 'atlas://gui/kivy/theming/light/important',
     PR_PAID: 'atlas://gui/kivy/theming/light/confirmed',
     PR_EXPIRED: 'atlas://gui/kivy/theming/light/close'
 }

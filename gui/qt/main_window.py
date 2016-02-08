@@ -154,9 +154,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.connect(self, QtCore.SIGNAL('payment_request_error'), self.payment_request_error)
         self.history_list.setFocus(True)
 
-        self.connect(self, QtCore.SIGNAL('watching_only_changed'),
-                     self.watching_only_changed)
-
         # network callbacks
         if self.network:
             self.connect(self, QtCore.SIGNAL('network'), self.on_network_qt)

@@ -27,6 +27,7 @@ import copy
 import re
 from functools import partial
 from unicodedata import normalize
+from collections import namedtuple
 from i18n import _
 
 from util import NotEnoughFunds, PrintError, profiler
@@ -1911,24 +1912,23 @@ class OldWallet(Deterministic_Wallet):
         return ' '.join(old_mnemonic.mn_encode(s))
 
 
-
-
-wallet_types = [
-    # category   type        description                   constructor
-    ('standard', 'old',      ("Old wallet"),               OldWallet),
-    ('standard', 'xpub',     ("BIP32 Import"),             BIP32_Simple_Wallet),
-    ('standard', 'standard', ("Standard wallet"),          NewWallet),
-    ('standard', 'imported', ("Imported wallet"),          Imported_Wallet),
-    ('multisig', '2of2',     ("Multisig wallet (2 of 2)"), Multisig_Wallet),
-    ('multisig', '2of3',     ("Multisig wallet (2 of 3)"), Multisig_Wallet),
-    ('bip44',    'bip44',    ("Restored hardware wallet"), BIP44_Wallet),
-]
+WalletType = namedtuple("WalletType", "category type constructor")
 
 # former WalletFactory
 class Wallet(object):
     """The main wallet "entry point".
     This class is actually a factory that will return a wallet of the correct
     type when passed a WalletStorage instance."""
+
+    wallets = [   # category    type        constructor
+        WalletType('standard', 'old',       OldWallet),
+        WalletType('standard', 'xpub',      BIP32_Simple_Wallet),
+        WalletType('standard', 'standard',  NewWallet),
+        WalletType('standard', 'imported',  Imported_Wallet),
+        WalletType('multisig', '2of2',      Multisig_Wallet),
+        WalletType('multisig', '2of3',      Multisig_Wallet),
+        WalletType('bip44',    'bip44',     BIP44_Wallet),
+    ]
 
     def __new__(self, storage):
         seed_version = storage.get('seed_version')
@@ -1967,14 +1967,22 @@ class Wallet(object):
         return wallet
 
     @staticmethod
+    def categories():
+        return [wallet.category for wallet in Wallet.wallets]
+
+    @staticmethod
+    def register_plugin_wallet(category, type, constructor):
+        Wallet.wallets.append(WalletType(category, type, constructor))
+
+    @staticmethod
     def wallet_class(wallet_type, seed_version):
         if wallet_type:
             if Wallet.multisig_type(wallet_type):
                 return Multisig_Wallet
 
-            for info in wallet_types:
-                if wallet_type == info[1]:
-                    return info[3]
+            for wallet in Wallet.wallets:
+                if wallet.type == wallet_type:
+                    return wallet.constructor
 
             raise RuntimeError("Unknown wallet type: " + wallet_type)
 

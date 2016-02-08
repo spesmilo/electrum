@@ -174,10 +174,10 @@ Builder.load_string('''
             id: back
             text: _('Back')
             root: root
-        Button:
+        IconButton:
             id: scan
-            text: _('QR')
             on_release: root.scan_seed()
+            icon: 'atlas://gui/kivy/theming/light/camera'
         WizardButton:
             id: next
             text: _('Next')

@@ -19,7 +19,7 @@
 from electrum_ltc import WalletStorage
 from electrum_ltc.plugins import run_hook
 from util import PrintError
-from wallet import Wallet, wallet_types
+from wallet import Wallet
 from i18n import _
 
 MSG_GENERATING_WAIT = _("Electrum is generating your addresses, please wait...")
@@ -198,7 +198,7 @@ class WizardBase(PrintError):
         self.remove_from_recently_open(storage.path)
 
         # Filter out any unregistered wallet kinds
-        registered_kinds = zip(*wallet_types)[0]
+        registered_kinds = Wallet.categories()
         kinds, descriptions = zip(*[pair for pair in WizardBase.wallet_kinds
                                     if pair[0] in registered_kinds])
         action, kind_index = self.query_create_or_restore(descriptions)

@@ -42,7 +42,6 @@ class BTChipWallet(BIP44_HW_Wallet):
         # device reconnects
         self.handler = None
         self.force_watching_only = False
-
         self.device_checked = False
         self.signing = False
 

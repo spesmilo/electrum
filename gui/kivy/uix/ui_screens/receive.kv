@@ -17,9 +17,9 @@ ReceiveScreen:
     on_address:
         self.parent.update_qr()
     on_amount:
-        self.parent.update_qr()
+        self.parent.on_amount()
     on_message:
-        self.parent.update_qr()
+        self.parent.on_message()
 
     BoxLayout
         padding: '12dp', '12dp', '12dp', '12dp'
@@ -103,16 +103,6 @@ ReceiveScreen:
                 size_hint: 1, None
                 height: '48dp'
                 on_release: s.parent.do_share()
-            Button:
-                text: _('Save')
-                size_hint: 1, None
-                height: '48dp'
-                on_release: s.parent.do_save()
-        BoxLayout:
-            size_hint: 1, None
-            height: '48dp'
-            Widget:
-                size_hint: 1, 1
             Button:
                 text: _('New')
                 size_hint: 1, None

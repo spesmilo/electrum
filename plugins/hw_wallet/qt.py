@@ -53,9 +53,6 @@ class QtHandlerBase(QObject, PrintError):
     def top_level_window(self):
         return self.win.top_level_window()
 
-    def watching_only_changed(self):
-        self.win.emit(SIGNAL('watching_only_changed'))
-
     def query_choice(self, msg, labels):
         self.done.clear()
         self.qcSig.emit(msg, labels)
