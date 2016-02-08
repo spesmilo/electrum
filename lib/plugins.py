@@ -27,7 +27,7 @@ import time
 from util import *
 from i18n import _
 from util import profiler, PrintError, DaemonThread, UserCancelled
-import wallet
+
 
 class Plugins(DaemonThread):
 
@@ -140,13 +140,16 @@ class Plugins(DaemonThread):
         return wallet_types, descs
 
     def register_plugin_wallet(self, name, gui_good, details):
+        from wallet import Wallet
+
         def dynamic_constructor(storage):
             return self.wallet_plugin_loader(name).wallet_class(storage)
 
         if details[0] == 'hardware':
             self.hw_wallets[name] = (gui_good, details)
         self.print_error("registering wallet %s: %s" %(name, details))
-        wallet.wallet_types.append(details + (dynamic_constructor,))
+        Wallet.register_plugin_wallet(details[0], details[1],
+                                      dynamic_constructor)
 
     def wallet_plugin_loader(self, name):
         if not name in self.plugins:
