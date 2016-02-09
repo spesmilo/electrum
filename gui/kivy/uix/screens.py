@@ -403,7 +403,7 @@ class InvoicesScreen(CScreen):
             invoices_list.add_widget(ci)
 
         if not _list:
-            msg = _('This screen shows the list of payment requests that have been sent to you.')
+            msg = _('This screen shows the list of payment requests that have been sent to you. You may also use it to store contact addresses.')
             invoices_list.add_widget(EmptyLabel(text=msg))
 
 
