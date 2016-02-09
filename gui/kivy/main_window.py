@@ -277,8 +277,10 @@ class ElectrumWindow(App):
                     if intent.getStringExtra("SCAN_RESULT_FORMAT") == 'QR_CODE':
                         on_complete(contents)
         activity.bind(on_activity_result=on_qr_result)
-        PythonActivity.mActivity.startActivityForResult(intent, 0)
-
+        try:
+            PythonActivity.mActivity.startActivityForResult(intent, 0)
+        except:
+            self.show_error('Could not start Barcode Scanner')
 
     def build(self):
         return Builder.load_file('gui/kivy/main.kv')
