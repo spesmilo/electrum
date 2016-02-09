@@ -52,7 +52,7 @@ SendScreen:
                     id: amount_e
                     default_text: _('Amount')
                     text: s.amount if s.amount else _('Amount')
-                    on_release: s.amount_dialog()
+                    on_release: Clock.schedule_once(lambda dt: app.amount_dialog(s, True))
             CardSeparator:
                 opacity: message_selection.opacity
                 color: blue_bottom.foreground_color
@@ -69,7 +69,7 @@ SendScreen:
                 BlueButton:
                     id: description
                     text: s.message if s.message else _('Description')
-                    on_release: app.description_dialog(s)
+                    on_release: Clock.schedule_once(lambda dt: app.description_dialog(s))
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
