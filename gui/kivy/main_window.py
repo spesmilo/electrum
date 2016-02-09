@@ -639,7 +639,7 @@ class ElectrumWindow(App):
         popup.open()
 
     def address_dialog(self, screen):
-        self.switch_to('invoices')
+        pass
 
     def description_dialog(self, screen):
         from uix.dialogs.label_dialog import LabelDialog
