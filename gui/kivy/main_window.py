@@ -258,8 +258,8 @@ class ElectrumWindow(App):
         panel.switch_to(tab)
 
     def show_request(self, addr):
-        self.receive_screen.screen.address = addr
         self.switch_to('receive')
+        self.receive_screen.screen.address = addr
 
     def scan_qr(self, on_complete):
         if platform != 'android':

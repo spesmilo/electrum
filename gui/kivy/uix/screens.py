@@ -202,12 +202,32 @@ class SendScreen(CScreen):
             self.screen.amount = self.app.format_amount_and_units(amount)
         self.screen.message = pr.get_memo()
 
+    def do_save(self):
+        if not self.screen.address:
+            return
+        if self.payment_request:
+            # it sould be already saved
+            return
+        # save address as invoice
+        from electrum.paymentrequest import make_unsigned_request, PaymentRequest
+        req = {'address':self.screen.address, 'memo':self.screen.message}
+        amount = self.app.get_amount(self.screen.amount) if self.screen.amount else 0
+        req['amount'] = amount
+        pr = make_unsigned_request(req).SerializeToString()
+        pr = PaymentRequest(pr)
+        self.app.invoices.add(pr)
+        self.app.update_tab('invoices')
+        self.app.show_info(_("Invoice saved"))
+
     def do_paste(self):
         contents = unicode(self.app._clipboard.paste())
+        if not contents:
+            self.app.show_info(_("Clipboard is empty"))
+            return
         try:
             uri = parse_URI(contents)
         except:
-            self.app.show_info("Invalid URI", contents)
+            self.app.show_info(_("Clipboard content is not a Bitcoin URI"))
             return
         self.set_URI(uri)
 
@@ -324,54 +344,20 @@ class ReceiveScreen(CScreen):
         self.app._clipboard.copy(uri)
         self.app.show_info(_('Request copied to clipboard'))
 
-    def do_save(self):
+    def on_amount_or_message(self):
         addr = str(self.screen.address)
         amount = str(self.screen.amount)
         message = str(self.screen.message) #.ids.message_input.text)
-        if not message and not amount:
-            return False
         amount = self.app.get_amount(amount) if amount else 0
         req = self.app.wallet.make_payment_request(addr, amount, message, None)
         self.app.wallet.add_payment_request(req, self.app.electrum_config)
         self.app.update_tab('requests')
-        return True
-
-    def on_amount_or_message(self):
-        self.do_save()
         Clock.schedule_once(lambda dt: self.update_qr())
 
     def do_new(self):
         if not self.get_new_address():
             self.app.show_info(_('Please use the existing requests first.'))
 
-
-class ContactsScreen(CScreen):
-    kvname = 'contacts'
-
-    def add_new_contact(self):
-        dlg = Cache.get('electrum_widgets', 'NewContactDialog')
-        if not dlg:
-            dlg = NewContactDialog()
-            Cache.append('electrum_widgets', 'NewContactDialog', dlg)
-        dlg.open()
-
-    def update(self):
-        contact_list = self.screen.ids.contact_container
-        contact_list.clear_widgets()
-        child = -1
-        children = contact_list.children
-        for key in sorted(self.app.contacts.keys()):
-            _type, value = self.app.contacts[key]
-            child += 1
-            try:
-                if children[child].label == value:
-                    continue
-            except IndexError:
-                pass
-            ci = Factory.ContactItem()
-            ci.address = key
-            ci.label = value
-            contact_list.add_widget(ci)
 
 
 pr_text = {
@@ -401,11 +387,16 @@ class InvoicesScreen(CScreen):
             ci = Factory.InvoiceItem()
             ci.key = pr.get_id()
             ci.requestor = pr.get_requestor()
-            ci.memo = pr.memo
-            ci.amount = self.app.format_amount_and_units(pr.get_amount())
-            status = self.app.invoices.get_status(ci.key)
-            ci.status = pr_text[status]
-            ci.icon = pr_icon[status]
+            ci.memo = pr.get_memo()
+            amount = pr.get_amount()
+            if amount:
+                ci.amount = self.app.format_amount_and_units(amount)
+                status = self.app.invoices.get_status(ci.key)
+                ci.status = pr_text[status]
+                ci.icon = pr_icon[status]
+            else:
+                ci.amount = _('No Amount')
+                ci.status = ''
             exp = pr.get_expiration_date()
             ci.date = format_time(exp) if exp else _('Never')
             ci.screen = self
@@ -444,8 +435,9 @@ class RequestsScreen(CScreen):
             expiration = req.get('exp', None)
             status = req.get('status')
             signature = req.get('sig')
+
             ci = Factory.RequestItem()
-            ci.address = req['address']
+            ci.address = address
             ci.memo = self.app.wallet.get_label(address)
             if amount:
                 status = req.get('status')
@@ -476,22 +468,6 @@ class RequestsScreen(CScreen):
         d.open()
 
 
-class CSpinner(Factory.Spinner):
-    '''CustomDropDown that allows fading out the dropdown
-    '''
-
-    def _update_dropdown(self, *largs):
-        dp = self._dropdown
-        cls = self.option_cls
-        if isinstance(cls, string_types):
-            cls = Factory.get(cls)
-        dp.clear_widgets()
-        def do_release(option):
-            Clock.schedule_once(lambda dt: dp.select(option.text), .25)
-        for value in self.values:
-            item = cls(text=value)
-            item.bind(on_release=do_release)
-            dp.add_widget(item)
 
 
 class TabbedCarousel(Factory.TabbedPanel):

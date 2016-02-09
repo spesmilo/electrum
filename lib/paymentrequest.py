@@ -186,8 +186,13 @@ class PaymentRequest:
     def get_amount(self):
         return sum(map(lambda x:x[2], self.outputs))
 
+    def get_address(self):
+        o = self.outputs[0]
+        assert o[0] == TYPE_ADDRESS
+        return o[1]
+
     def get_requestor(self):
-        return self.requestor if self.requestor else 'unknown'
+        return self.requestor if self.requestor else self.get_address()
 
     def get_verify_status(self):
         return self.error
@@ -196,7 +201,7 @@ class PaymentRequest:
         return self.memo
 
     def get_id(self):
-        return self.id
+        return self.id if self.requestor else self.get_address()
 
     def get_outputs(self):
         return self.outputs[:]
@@ -421,7 +426,7 @@ class InvoiceStore(object):
         for k, pr in self.invoices.items():
             l[k] = {
                 'hex': str(pr).encode('hex'),
-                'requestor': pr.get_requestor(), 
+                'requestor': pr.requestor,
                 'txid': pr.tx
             }
         path = os.path.join(self.config.path, 'invoices')
