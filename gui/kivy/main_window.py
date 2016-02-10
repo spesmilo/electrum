@@ -173,7 +173,7 @@ class ElectrumWindow(App):
         self.qrscanner = None
         self.nfcscanner = None
         self.tabs = None
-
+        self.is_exit = False
         self.current_invoice = None
 
         super(ElectrumWindow, self).__init__(**kwargs)
@@ -372,10 +372,15 @@ class ElectrumWindow(App):
         #TODO: alt+tab_number to activate the particular tab
 
     def on_keyboard(self, instance, key, keycode, codepoint, modifiers):
-        # override settings button
-        if key in (319, 282): #f1/settings button on android
-            self.gui.main_gui.toggle_settings(self)
+        if key == 27 and self.is_exit is False:
+            self.is_exit = True
+            self.show_info(_('Press again to exit'))
             return True
+        self.is_exit = False
+        # override settings button
+        #if key in (319, 282): #f1/settings button on android
+        #    self.gui.main_gui.toggle_settings(self)
+        #    return True
 
     def popup_dialog(self, name):
         if name == 'settings':
