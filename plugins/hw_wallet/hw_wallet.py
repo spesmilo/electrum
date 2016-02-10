@@ -33,17 +33,10 @@ class BIP44_HW_Wallet(BIP44_Wallet):
 
     def __init__(self, storage):
         BIP44_Wallet.__init__(self, storage)
-        # After timeout seconds we clear the device session
-        self.session_timeout = storage.get('session_timeout', 180)
         # Errors and other user interaction is done through the wallet's
         # handler.  The handler is per-window and preserved across
         # device reconnects
         self.handler = None
-
-    def set_session_timeout(self, seconds):
-        self.print_error("setting session timeout to %d seconds" % seconds)
-        self.session_timeout = seconds
-        self.storage.put('session_timeout', seconds)
 
     def unpaired(self):
         '''A device paired with the wallet was diconnected.  This can be
@@ -54,14 +47,6 @@ class BIP44_HW_Wallet(BIP44_Wallet):
         '''A device paired with the wallet was (re-)connected.  This can be
         called in any thread context.'''
         self.print_error("paired")
-
-    def timeout(self):
-        '''Called when the wallet session times out.  Note this is called from
-        the Plugins thread.'''
-        client = self.get_client(force_pair=False)
-        if client:
-            client.clear_session()
-        self.print_error("timed out")
 
     def get_action(self):
         pass
