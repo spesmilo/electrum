@@ -1,7 +1,6 @@
 import base64
 import re
 import threading
-import time
 
 from binascii import unhexlify
 from functools import partial
@@ -136,8 +135,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         devmgr = self.device_manager()
         client = devmgr.client_for_wallet(self, wallet, force_pair)
         if client:
-            self.print_error("set last_operation")
-            wallet.last_operation = time.time()
+            client.used()
 
         return client
 
@@ -147,9 +145,6 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             self.device_manager().unpair_wallet(wallet)
 
     def initialize_device(self, wallet):
-        # Prevent timeouts during initialization
-        wallet.last_operation = self.prevent_timeout
-
         # Initialization method
         msg = _("Choose how you want to initialize your %s.\n\n"
                 "The first two methods are secure as no secret information "

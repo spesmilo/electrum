@@ -392,8 +392,4 @@ class LedgerPlugin(HW_PluginBase):
             wallet.proper_device = False
             self.client = client
 
-        if client:
-            self.print_error("set last_operation")
-            wallet.last_operation = time.time()
-
         return self.client
