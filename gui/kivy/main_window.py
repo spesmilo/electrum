@@ -378,9 +378,9 @@ class ElectrumWindow(App):
             return True
         self.is_exit = False
         # override settings button
-        #if key in (319, 282): #f1/settings button on android
-        #    self.gui.main_gui.toggle_settings(self)
-        #    return True
+        if key in (319, 282): #f1/settings button on android
+            #self.gui.main_gui.toggle_settings(self)
+            return True
 
     def popup_dialog(self, name):
         if name == 'settings':
