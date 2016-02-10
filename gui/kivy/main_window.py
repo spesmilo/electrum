@@ -258,8 +258,8 @@ class ElectrumWindow(App):
         panel.switch_to(tab)
 
     def show_request(self, addr):
-        self.receive_screen.screen.address = addr
         self.switch_to('receive')
+        self.receive_screen.screen.address = addr
 
     def scan_qr(self, on_complete):
         if platform != 'android':
@@ -277,8 +277,10 @@ class ElectrumWindow(App):
                     if intent.getStringExtra("SCAN_RESULT_FORMAT") == 'QR_CODE':
                         on_complete(contents)
         activity.bind(on_activity_result=on_qr_result)
-        PythonActivity.mActivity.startActivityForResult(intent, 0)
-
+        try:
+            PythonActivity.mActivity.startActivityForResult(intent, 0)
+        except:
+            self.show_error('Could not start Barcode Scanner')
 
     def build(self):
         return Builder.load_file('gui/kivy/main.kv')
@@ -637,7 +639,7 @@ class ElectrumWindow(App):
         popup.open()
 
     def address_dialog(self, screen):
-        self.switch_to('invoices')
+        pass
 
     def description_dialog(self, screen):
         from uix.dialogs.label_dialog import LabelDialog

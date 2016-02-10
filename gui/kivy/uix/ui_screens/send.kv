@@ -75,27 +75,27 @@ SendScreen:
             height: '48dp'
             IconButton:
                 id: qr
-                size_hint: 0.5, 1
+                size_hint: 0.6, 1
                 on_release: app.scan_qr(on_complete=app.set_URI)
                 icon: 'atlas://gui/kivy/theming/light/camera'
             Button:
-                id: paste_button
                 text: _('Paste')
                 on_release: s.parent.do_paste()
             Button:
                 text: _('Clear')
-                size_hint: 1, None
-                height: '48dp'
                 on_release: s.parent.do_clear()
+            IconButton:
+                size_hint: 0.6, 1
+                on_release: s.parent.do_save()
+                icon: 'atlas://gui/kivy/theming/light/save'
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
             Widget:
-                size_hint: 1, 1
+                size_hint: 2, 1
             Button:
-                text: _('Send')
-                size_hint: 1, None
-                height: '48dp'
+                text: _('Pay')
+                size_hint: 1, 1
                 on_release: s.parent.do_send()
         Widget:
             size_hint: 1, 1
