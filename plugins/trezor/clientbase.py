@@ -1,4 +1,4 @@
-from sys import stderr
+import time
 
 from electrum_ltc.i18n import _
 from electrum_ltc.util import PrintError, UserCancelled
@@ -82,6 +82,7 @@ class TrezorClientBase(GuiMixin, PrintError):
         self.tx_api = plugin
         self.types = plugin.types
         self.msg_code_override = None
+        self.used()
 
     def __str__(self):
         return "%s/%s" % (self.label(), self.features.device_id)
@@ -96,6 +97,20 @@ class TrezorClientBase(GuiMixin, PrintError):
 
     def is_pairable(self):
         return not self.features.bootloader_mode
+
+    def used(self):
+        self.print_error("used")
+        self.last_operation = time.time()
+
+    def prevent_timeouts(self):
+        self.print_error("prevent timeouts")
+        self.last_operation = float('inf')
+
+    def timeout(self, cutoff):
+        '''Time out the client if the last operation was before cutoff.'''
+        if self.last_operation < cutoff:
+            self.print_error("timed out")
+            self.clear_session()
 
     @staticmethod
     def expand_path(n):
@@ -158,6 +173,7 @@ class TrezorClientBase(GuiMixin, PrintError):
         '''Clear the session to force pin (and passphrase if enabled)
         re-entry.  Does not leak exceptions.'''
         self.print_error("clear session:", self)
+        self.prevent_timeouts()
         try:
             super(TrezorClientBase, self).clear_session()
         except BaseException as e:
@@ -185,8 +201,10 @@ class TrezorClientBase(GuiMixin, PrintError):
 
         def wrapped(self, *args, **kwargs):
             try:
+                self.prevent_timeouts()
                 return func(self, *args, **kwargs)
             finally:
+                self.used()
                 self.handler.finished()
 
         return wrapped

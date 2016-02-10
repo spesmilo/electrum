@@ -345,6 +345,7 @@ class SettingsDialog(WindowModalDialog):
         self.setMaximumWidth(540)
 
         devmgr = plugin.device_manager()
+        config = devmgr.config
         handler = window.wallet.handler
         thread = window.wallet.thread
         # wallet can be None, needn't be window.wallet
@@ -459,8 +460,7 @@ class SettingsDialog(WindowModalDialog):
             timeout_minutes.setText(_("%2d minutes") % mins)
 
         def slider_released():
-            seconds = timeout_slider.sliderPosition() * 60
-            wallet.set_session_timeout(seconds)
+            config.set_session_timeout(timeout_slider.sliderPosition() * 60)
 
         # Information tab
         info_tab = QWidget()
@@ -549,29 +549,28 @@ class SettingsDialog(WindowModalDialog):
             settings_glayout.addWidget(homescreen_msg, 5, 1, 1, -1)
 
         # Settings tab - Session Timeout
-        if wallet:
-            timeout_label = QLabel(_("Session Timeout"))
-            timeout_minutes = QLabel()
-            timeout_slider = QSlider(Qt.Horizontal)
-            timeout_slider.setRange(1, 60)
-            timeout_slider.setSingleStep(1)
-            timeout_slider.setTickInterval(5)
-            timeout_slider.setTickPosition(QSlider.TicksBelow)
-            timeout_slider.setTracking(True)
-            timeout_msg = QLabel(
-                _("Clear the session after the specified period "
-                  "of inactivity.  Once a session has timed out, "
-                  "your PIN and passphrase (if enabled) must be "
-                  "re-entered to use the device."))
-            timeout_msg.setWordWrap(True)
-            timeout_slider.setSliderPosition(wallet.session_timeout // 60)
-            slider_moved()
-            timeout_slider.valueChanged.connect(slider_moved)
-            timeout_slider.sliderReleased.connect(slider_released)
-            settings_glayout.addWidget(timeout_label, 6, 0)
-            settings_glayout.addWidget(timeout_slider, 6, 1, 1, 3)
-            settings_glayout.addWidget(timeout_minutes, 6, 4)
-            settings_glayout.addWidget(timeout_msg, 7, 1, 1, -1)
+        timeout_label = QLabel(_("Session Timeout"))
+        timeout_minutes = QLabel()
+        timeout_slider = QSlider(Qt.Horizontal)
+        timeout_slider.setRange(1, 60)
+        timeout_slider.setSingleStep(1)
+        timeout_slider.setTickInterval(5)
+        timeout_slider.setTickPosition(QSlider.TicksBelow)
+        timeout_slider.setTracking(True)
+        timeout_msg = QLabel(
+            _("Clear the session after the specified period "
+              "of inactivity.  Once a session has timed out, "
+              "your PIN and passphrase (if enabled) must be "
+              "re-entered to use the device."))
+        timeout_msg.setWordWrap(True)
+        timeout_slider.setSliderPosition(config.get_session_timeout() // 60)
+        slider_moved()
+        timeout_slider.valueChanged.connect(slider_moved)
+        timeout_slider.sliderReleased.connect(slider_released)
+        settings_glayout.addWidget(timeout_label, 6, 0)
+        settings_glayout.addWidget(timeout_slider, 6, 1, 1, 3)
+        settings_glayout.addWidget(timeout_minutes, 6, 4)
+        settings_glayout.addWidget(timeout_msg, 7, 1, 1, -1)
         settings_layout.addLayout(settings_glayout)
         settings_layout.addStretch(1)
 

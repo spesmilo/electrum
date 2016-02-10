@@ -4,7 +4,7 @@ import threading
 import os
 
 from copy import deepcopy
-from util import user_dir, print_error, print_msg, print_stderr
+from util import user_dir, print_error, print_msg, print_stderr, PrintError
 
 SYSTEM_CONFIG_PATH = "/etc/electrum-ltc.conf"
 
@@ -21,7 +21,7 @@ def set_config(c):
     config = c
 
 
-class SimpleConfig(object):
+class SimpleConfig(PrintError):
     """
     The SimpleConfig class is responsible for handling operations involving
     configuration files.
@@ -167,6 +167,13 @@ class SimpleConfig(object):
         if filename in recent:
             recent.remove(filename)
             self.set_key('recently_open', recent)
+
+    def set_session_timeout(self, seconds):
+        self.print_error("session timeout -> %d seconds" % seconds)
+        self.set_key('session_timeout', seconds)
+
+    def get_session_timeout(self):
+        return self.get('session_timeout', 300)
 
 
 def read_system_config(path=SYSTEM_CONFIG_PATH):

@@ -17,14 +17,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import time
-
-from electrum_ltc.util import ThreadJob
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.i18n import _
 
 
-class HW_PluginBase(BasePlugin, ThreadJob):
+class HW_PluginBase(BasePlugin):
     # Derived classes provide:
     #
     #  class-static variables: client_class, firmware_URL, handler_class,
@@ -35,28 +32,12 @@ class HW_PluginBase(BasePlugin, ThreadJob):
         BasePlugin.__init__(self, parent, config, name)
         self.device = self.wallet_class.device
         self.wallet_class.plugin = self
-        self.prevent_timeout = time.time() + 3600 * 24 * 365
 
     def is_enabled(self):
         return self.libraries_available
 
     def device_manager(self):
         return self.parent.device_manager
-
-    def thread_jobs(self):
-        # Thread job to handle device timeouts
-        return [self] if self.libraries_available else []
-
-    def run(self):
-        '''Handle device timeouts.  Runs in the context of the Plugins
-        thread.'''
-        now = time.time()
-        for wallet in self.device_manager().paired_wallets():
-            if (isinstance(wallet, self.wallet_class)
-                    and hasattr(wallet, 'last_operation')
-                    and now > wallet.last_operation + wallet.session_timeout):
-                wallet.timeout()
-                wallet.last_operation = self.prevent_timeout
 
     @hook
     def close_wallet(self, wallet):

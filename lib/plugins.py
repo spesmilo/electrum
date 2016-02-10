@@ -45,8 +45,9 @@ class Plugins(DaemonThread):
         self.plugins = {}
         self.gui_name = gui_name
         self.descriptions = {}
-        self.device_manager = DeviceMgr()
+        self.device_manager = DeviceMgr(config)
         self.load_plugins()
+        self.add_jobs(self.device_manager.thread_jobs())
         self.start()
 
     def load_plugins(self):
@@ -247,7 +248,7 @@ class DeviceUnpairableError(Exception):
 Device = namedtuple("Device", "path interface_number id_ product_key")
 DeviceInfo = namedtuple("DeviceInfo", "device description initialized")
 
-class DeviceMgr(PrintError):
+class DeviceMgr(ThreadJob, PrintError):
     '''Manages hardware clients.  A client communicates over a hardware
     channel with the device.
 
@@ -276,11 +277,9 @@ class DeviceMgr(PrintError):
     the HID IDs.
 
     This plugin is thread-safe.  Currently only devices supported by
-    hidapi are implemented.
+    hidapi are implemented.'''
 
-    '''
-
-    def __init__(self):
+    def __init__(self, config):
         super(DeviceMgr, self).__init__()
         # Keyed by wallet.  The value is the device id if the wallet
         # has been paired, and None otherwise.
@@ -293,6 +292,20 @@ class DeviceMgr(PrintError):
         self.recognised_hardware = set()
         # For synchronization
         self.lock = threading.RLock()
+        self.config = config
+
+    def thread_jobs(self):
+        # Thread job to handle device timeouts
+        return [self]
+
+    def run(self):
+        '''Handle device timeouts.  Runs in the context of the Plugins
+        thread.'''
+        with self.lock:
+            clients = list(self.clients.keys())
+        cutoff = time.time() - self.config.get_session_timeout()
+        for client in clients:
+            client.timeout(cutoff)
 
     def register_devices(self, device_pairs):
         for pair in device_pairs:
@@ -342,9 +355,6 @@ class DeviceMgr(PrintError):
         with self.lock:
             self.wallets[wallet] = id_
         wallet.paired()
-
-    def paired_wallets(self):
-        return list(self.wallets.keys())
 
     def client_lookup(self, id_):
         with self.lock:
