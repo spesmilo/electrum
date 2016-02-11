@@ -11,8 +11,6 @@ Builder.load_string('''
     pos_hint: {'top':0.9}
     BoxLayout:
         orientation: 'vertical'
-        Widget:
-            size_hint: 1, 0.1
         Label:
             id: description
             text: ''
@@ -26,6 +24,8 @@ Builder.load_string('''
                 text: _('Enable')
             CheckBox:
                 id:cb
+        Widget:
+            size_hint: 1, 0.1
         BoxLayout:
             orientation: 'horizontal'
             size_hint: 1, 0.2
