@@ -66,6 +66,12 @@ class ElectrumWindow(App):
 
     language = StringProperty('en')
 
+    def on_new_intent(self, intent):
+        if intent.getScheme() != 'bitcoin':
+            return
+        uri = intent.getDataString()
+        self.uri = uri
+
     def on_language(self, instance, language):
         Logger.info('language: {}'.format(language))
         _.switch_lang(language)
@@ -234,7 +240,7 @@ class ElectrumWindow(App):
 
     def on_uri(self, instance, uri):
         if uri:
-            Logger.info("on uri:", uri)
+            Logger.info("on uri:" + uri)
             self.switch_to('send')
             self.set_URI(uri)
 
@@ -323,6 +329,10 @@ class ElectrumWindow(App):
         self.uri = self.electrum_config.get('url')
         # default tab
         self.switch_to('send' if self.uri else 'history')
+        # bind intent for bitcoin: URI scheme
+        if platform == 'android':
+            from android import activity
+            activity.bind(on_new_intent=self.on_new_intent)
 
     def load_wallet_by_name(self, wallet_path):
         if not wallet_path:
@@ -543,8 +553,6 @@ class ElectrumWindow(App):
             Logger.Error('Notification: needs plyer; `sudo pip install plyer`')
 
     def on_pause(self):
-        '''
-        '''
         # pause nfc
         if self.qrscanner:
             self.qrscanner.stop()
@@ -553,8 +561,6 @@ class ElectrumWindow(App):
         return True
 
     def on_resume(self):
-        '''
-        '''
         if self.qrscanner and qrscanner.get_parent_window():
             self.qrscanner.start()
         if self.nfcscanner:
@@ -564,9 +570,6 @@ class ElectrumWindow(App):
         width, height = value
         self._orientation = 'landscape' if width > height else 'portrait'
         self._ui_mode = 'tablet' if min(width, height) > inch(3.51) else 'phone'
-        #Logger.info("size: {} {}".format(width, height))
-        #Logger.info('orientation: {}'.format(self._orientation))
-        #Logger.info('ui_mode: {}'.format(self._ui_mode))
 
     def set_send(self, address, amount, label, message):
         self.send_payment(address, amount=amount, label=label, message=message)
