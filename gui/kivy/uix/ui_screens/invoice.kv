@@ -2,33 +2,34 @@
 
 Popup:
     id: popup
-    title: _('Transaction')
+    title: _('Invoice')
     AnchorLayout:
         anchor_x: 'center'
         BoxLayout:
             orientation: 'vertical'
             Label:
+                id: requestor_label
+                text_size: self.width, None
+                size_hint: 1, 0.3
+            Label:
+                id: expiration_label
+                text_size: self.width, None
+                size_hint: 1, 0.3
+            Label:
+                id: memo_label
+                text_size: self.width, None
+                size_hint: 1, 0.3
+            Label:
+                id: signature_label
+                text_size: self.width, None
+                size_hint: 1, 0.3
+            Label:
                 id: txid_label
                 text_size: self.width, None
                 size: self.texture_size
-            Label:
-                id: status_label
-                text_size: self.width, None
-                size_hint: 1, 0.3
-            Label:
-                id: date_label
-                text_size: self.width, None
-                size_hint: 1, 0.3
-            Label:
-                id: amount_label
-                text_size: self.width, None
-                size_hint: 1, 0.3
-            Label:
-                id: fee_label
-                text_size: self.width, None
-                size_hint: 1, 0.3
             Widget:
                 size_hint: 1, 0.3
+
             BoxLayout:
                 size_hint: 1, None
                 height: '48dp'

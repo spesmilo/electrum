@@ -676,6 +676,7 @@ class ElectrumWindow(App):
         popup.ids.date_label.text = _('Date') + ': '+ time_str
         popup.open()
 
+
     def address_dialog(self, screen):
         pass
 
