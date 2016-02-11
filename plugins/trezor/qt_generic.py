@@ -22,6 +22,9 @@ PASSPHRASE_HELP = PASSPHRASE_HELP_SHORT + "  " + _(
     "you use as they each generate different addresses.  Changing "
     "your passphrase does not lose other wallets, each is still "
     "accessible behind its own passphrase.")
+RECOMMEND_PIN = _(
+    "You should enable PIN protection.  Your PIN is the only protection "
+    "for your bitcoins if your device is lost or stolen.")
 PASSPHRASE_NOT_PIN = _(
     "If you forget a passphrase you will be unable to access any "
     "bitcoins in the wallet behind it.  A passphrase is not a PIN. "
@@ -179,30 +182,33 @@ class QtHandler(QtHandlerBase):
         vbox = QVBoxLayout()
         next_enabled=True
 
+        label = QLabel(_("Enter a label to name your device:"))
+        name = QLineEdit()
+        hl = QHBoxLayout()
+        hl.addWidget(label)
+        hl.addWidget(name)
+        hl.addStretch(1)
+        vbox.addLayout(hl)
+
         def clean_text(widget):
             text = unicode(widget.toPlainText()).strip()
             return ' '.join(text.split())
 
         if method in [TIM_NEW, TIM_RECOVER]:
             gb = QGroupBox()
-            vbox1 = QVBoxLayout()
-            gb.setLayout(vbox1)
+            hbox1 = QHBoxLayout()
+            gb.setLayout(hbox1)
             # KeepKey recovery doesn't need a word count
             if method == TIM_NEW or self.device == 'TREZOR':
                 vbox.addWidget(gb)
             gb.setTitle(_("Select your seed length:"))
-            choices = [
-                _("12 words"),
-                _("18 words"),
-                _("24 words"),
-            ]
             bg = QButtonGroup()
-            for i, choice in enumerate(choices):
+            for i, count in enumerate([12, 18, 24]):
                 rb = QRadioButton(gb)
-                rb.setText(choice)
+                rb.setText(_("%d words") % count)
                 bg.addButton(rb)
                 bg.setId(rb, i)
-                vbox1.addWidget(rb)
+                hbox1.addWidget(rb)
                 rb.setChecked(True)
             cb_pin = QCheckBox(_('Enable PIN protection'))
             cb_pin.setChecked(True)
@@ -228,15 +234,8 @@ class QtHandler(QtHandlerBase):
             hbox_pin.addWidget(pin)
             hbox_pin.addStretch(1)
 
-        label = QLabel(_("Enter a label to name your device:"))
-        name = QLineEdit()
-        hl = QHBoxLayout()
-        hl.addWidget(label)
-        hl.addWidget(name)
-        hl.addStretch(1)
-        vbox.addLayout(hl)
-
         if method in [TIM_NEW, TIM_RECOVER]:
+            vbox.addWidget(WWLabel(RECOMMEND_PIN))
             vbox.addWidget(cb_pin)
         else:
             vbox.addLayout(hbox_pin)

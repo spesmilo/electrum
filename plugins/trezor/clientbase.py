@@ -9,9 +9,12 @@ class GuiMixin(object):
 
     messages = {
         3: _("Confirm the transaction output on your %s device"),
+        4: _("Confirm internal entropy on your %s device to begin"),
+        5: _("Write down the seed word shown on your %s"),
+        6: _("Confirm on your %s that you want to wipe it clean"),
+        7: _("Confirm on your %s device the message to sign"),
         8: _("Confirm the total amount spent and the transaction fee on your "
              "%s device"),
-        7: _("Confirm on your %s device the message to sign"),
         10: _("Confirm wallet address on your %s device"),
         'default': _("Check your %s device to continue"),
     }
