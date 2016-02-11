@@ -2,6 +2,7 @@ import time
 
 from electrum.i18n import _
 from electrum.util import PrintError, UserCancelled
+from electrum.wallet import BIP44_Wallet
 
 
 class GuiMixin(object):
@@ -52,10 +53,17 @@ class GuiMixin(object):
         return self.proto.PinMatrixAck(pin=pin)
 
     def callback_PassphraseRequest(self, req):
-        msg = _("Please enter your %s passphrase")
-        passphrase = self.handler.get_passphrase(msg % self.device)
+        if self.creating_wallet:
+            msg = _("Enter a passphrase to generate this wallet.  Each time "
+                    "you use this wallet your %s will prompt you for the "
+                    "passphrase.  If you forget the passphrase you cannot "
+                    "access the bitcoins in the wallet.") % self.device
+        else:
+            msg = _("Enter the passphrase to unlock this wallet:")
+        passphrase = self.handler.get_passphrase(msg, self.creating_wallet)
         if passphrase is None:
             return self.proto.Cancel()
+        passphrase = BIP44_Wallet.normalize_passphrase(passphrase)
         return self.proto.PassphraseAck(passphrase=passphrase)
 
     def callback_WordRequest(self, msg):
@@ -72,6 +80,7 @@ class GuiMixin(object):
             return self.proto.Cancel()
         return self.proto.CharacterAck(**char_info)
 
+
 class TrezorClientBase(GuiMixin, PrintError):
 
     def __init__(self, handler, plugin, proto):
@@ -82,6 +91,7 @@ class TrezorClientBase(GuiMixin, PrintError):
         self.tx_api = plugin
         self.types = plugin.types
         self.msg = None
+        self.creating_wallet = False
         self.used()
 
     def __str__(self):
@@ -175,6 +185,10 @@ class TrezorClientBase(GuiMixin, PrintError):
             self.print_error("clear_session: ignoring error", str(e))
             pass
 
+    def get_public_node(self, address_n, creating):
+        self.creating_wallet = creating
+        return super(TrezorClientBase, self).get_public_node(address_n)
+
     def close(self):
         '''Called when Our wallet was closed or the device removed.'''
         self.print_error("closing client")
@@ -200,6 +214,7 @@ class TrezorClientBase(GuiMixin, PrintError):
             finally:
                 self.used()
                 self.handler.finished()
+                self.creating_wallet = False
                 self.msg = None
 
         return wrapped

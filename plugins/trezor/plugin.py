@@ -24,7 +24,8 @@ class TrezorCompatibleWallet(BIP44_HW_Wallet):
     def get_public_key(self, bip32_path):
         client = self.get_client()
         address_n = client.expand_path(bip32_path)
-        node = client.get_public_node(address_n).node
+        creating = self.next_account_number() == 0
+        node = client.get_public_node(address_n, creating).node
         xpub = ("0488B21E".decode('hex') + chr(node.depth)
                 + self.i4b(node.fingerprint) + self.i4b(node.child_num)
                 + node.chain_code + node.public_key)

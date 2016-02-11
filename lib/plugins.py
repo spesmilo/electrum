@@ -418,10 +418,11 @@ class DeviceMgr(ThreadJob, PrintError):
         # The user input has wrong PIN or passphrase, or cancelled input,
         # or it is not pairable
         raise DeviceUnpairableError(
-            _('Unable to pair with your %s.\n\n'
-              'Ensure you are able to pair it, or you have the seed phrase, '
-              'before you request bitcoins to be sent to this wallet.'
-            ) % plugin.device)
+            _('Electrum cannot pair with your %s.\n\n'
+              'Before you request bitcoins to be sent to addresses in this '
+              'wallet, ensure you can pair with your device, or that you have '
+              'its seed (and passphrase, if any).  Otherwise all bitcoins you '
+              'receive will be unspendable.') % plugin.device)
 
     def unpaired_device_infos(self, handler, plugin, devices=None):
         '''Returns a list of DeviceInfo objects: one for each connected,

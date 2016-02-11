@@ -25,7 +25,6 @@ from electrum_gui.qt.util import *
 
 from electrum.i18n import _
 from electrum.util import PrintError
-from electrum.wallet import BIP44_Wallet
 
 # The trickiest thing about this handler was getting windows properly
 # parented on MacOSX.
@@ -80,17 +79,29 @@ class QtHandlerBase(QObject, PrintError):
         self.done.wait()
         return self.word
 
-    def get_passphrase(self, msg):
+    def get_passphrase(self, msg, confirm):
         self.done.clear()
-        self.win.emit(SIGNAL('passphrase_dialog'), msg)
+        self.win.emit(SIGNAL('passphrase_dialog'), msg, confirm)
         self.done.wait()
         return self.passphrase
 
-    def passphrase_dialog(self, msg):
-        d = PasswordDialog(self.top_level_window(), None, msg, PW_PASSPHRASE)
-        confirmed, p, passphrase = d.run()
-        if confirmed:
-            passphrase = BIP44_Wallet.normalize_passphrase(passphrase)
+    def passphrase_dialog(self, msg, confirm):
+        # If confirm is true, require the user to enter the passphrase twice
+        parent = self.top_level_window()
+        if confirm:
+            d = PasswordDialog(parent, None, msg, PW_PASSPHRASE)
+            confirmed, p, passphrase = d.run()
+        else:
+            d = WindowModalDialog(parent, _("Enter Passphrase"))
+            pw = QLineEdit()
+            pw.setEchoMode(2)
+            pw.setMinimumWidth(200)
+            vbox = QVBoxLayout()
+            vbox.addWidget(WWLabel(msg))
+            vbox.addWidget(pw)
+            vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
+            d.setLayout(vbox)
+            passphrase = unicode(pw.text()) if d.exec_() else None
         self.passphrase = passphrase
         self.done.set()
 
