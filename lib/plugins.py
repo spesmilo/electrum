@@ -137,6 +137,7 @@ class Plugins(DaemonThread):
                         wallet_types.append(details[1])
                         descs.append(details[2])
                 except:
+                    traceback.print_exc()
                     self.print_error("cannot load plugin for:", name)
         return wallet_types, descs
 
