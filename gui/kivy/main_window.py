@@ -66,6 +66,12 @@ class ElectrumWindow(App):
 
     language = StringProperty('en')
 
+    def on_new_intent(self, intent):
+        if intent.getScheme() != 'litecoin':
+            return
+        uri = intent.getDataString()
+        self.uri = uri
+
     def on_language(self, instance, language):
         Logger.info('language: {}'.format(language))
         _.switch_lang(language)
@@ -234,7 +240,7 @@ class ElectrumWindow(App):
 
     def on_uri(self, instance, uri):
         if uri:
-            Logger.info("on uri:", uri)
+            Logger.info("on uri:" + uri)
             self.switch_to('send')
             self.set_URI(uri)
 
@@ -323,6 +329,10 @@ class ElectrumWindow(App):
         self.uri = self.electrum_config.get('url')
         # default tab
         self.switch_to('send' if self.uri else 'history')
+        # bind intent for bitcoin: URI scheme
+        if platform == 'android':
+            from android import activity
+            activity.bind(on_new_intent=self.on_new_intent)
 
     def load_wallet_by_name(self, wallet_path):
         if not wallet_path:
@@ -543,8 +553,6 @@ class ElectrumWindow(App):
             Logger.Error('Notification: needs plyer; `sudo pip install plyer`')
 
     def on_pause(self):
-        '''
-        '''
         # pause nfc
         if self.qrscanner:
             self.qrscanner.stop()
@@ -553,8 +561,6 @@ class ElectrumWindow(App):
         return True
 
     def on_resume(self):
-        '''
-        '''
         if self.qrscanner and qrscanner.get_parent_window():
             self.qrscanner.start()
         if self.nfcscanner:
@@ -564,9 +570,6 @@ class ElectrumWindow(App):
         width, height = value
         self._orientation = 'landscape' if width > height else 'portrait'
         self._ui_mode = 'tablet' if min(width, height) > inch(3.51) else 'phone'
-        #Logger.info("size: {} {}".format(width, height))
-        #Logger.info('orientation: {}'.format(self._orientation))
-        #Logger.info('ui_mode: {}'.format(self._ui_mode))
 
     def set_send(self, address, amount, label, message):
         self.send_payment(address, amount=amount, label=label, message=message)
@@ -639,9 +642,40 @@ class ElectrumWindow(App):
         info_bubble.show(pos, duration, width, modal=modal, exit=exit)
 
     def tx_details_dialog(self, obj):
+        tx_hash = obj.tx_hash
         popup = Builder.load_file('gui/kivy/uix/ui_screens/transaction.kv')
-        popup.tx_hash = obj.tx_hash
+        tx = self.wallet.transactions.get(tx_hash)
+        if not tx:
+            return
+        conf, timestamp = self.wallet.get_confirmations(tx_hash)
+        is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
+        if is_relevant:
+            if is_mine:
+                if fee is not None:
+                    amount_str = _("Amount sent:")+' %s'% self.format_amount_and_units(-v+fee)
+                    fee_str = _("Transaction fee")+': %s'% self.format_amount_and_units(-fee)
+                else:
+                    amount_str = _("Amount sent:")+' %s'% self.format_amount_and_units(-v)
+                    fee_str = _("Transaction fee")+': '+ _("unknown")
+            else:
+                amount_str = _("Amount received:")+' %s'% self.format_amount_and_units(v)
+                fee_str = ''
+        else:
+            amount_str = _("Transaction unrelated to your wallet")
+            fee_str = ''
+        if timestamp:
+            time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+        else:
+            time_str = _('Pending')
+        status_str = _("%d confirmations")%conf
+        # update popup
+        popup.ids.txid_label.text = _('Transaction ID') + ' :\n' + ' '.join(map(''.join, zip(*[iter(tx_hash)]*4)))
+        popup.ids.amount_label.text = amount_str
+        popup.ids.fee_label.text = fee_str
+        popup.ids.status_label.text = _('Status') + ': ' + status_str
+        popup.ids.date_label.text = _('Date') + ': '+ time_str
         popup.open()
+
 
     def address_dialog(self, screen):
         pass
@@ -671,6 +705,17 @@ class ElectrumWindow(App):
             self.password_dialog(_('Enter PIN'), f, args)
         else:
             apply(f, args + (None,))
+
+    def show_seed(self, label):
+        self.protected(self._show_seed, (label,))
+
+    def _show_seed(self, label, password):
+        try:
+            seed = self.wallet.get_seed(password)
+        except:
+            self.show_error("Invalid PIN")
+            return
+        label.text = _('Seed') + ':\n' + seed
 
     def change_password(self):
         self.protected(self._change_password, ())

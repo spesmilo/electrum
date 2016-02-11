@@ -22,6 +22,9 @@ PASSPHRASE_HELP = PASSPHRASE_HELP_SHORT + "  " + _(
     "you use as they each generate different addresses.  Changing "
     "your passphrase does not lose other wallets, each is still "
     "accessible behind its own passphrase.")
+RECOMMEND_PIN = _(
+    "You should enable PIN protection.  Your PIN is the only protection "
+    "for your litecoins if your device is lost or stolen.")
 PASSPHRASE_NOT_PIN = _(
     "If you forget a passphrase you will be unable to access any "
     "litecoins in the wallet behind it.  A passphrase is not a PIN. "
@@ -179,30 +182,33 @@ class QtHandler(QtHandlerBase):
         vbox = QVBoxLayout()
         next_enabled=True
 
+        label = QLabel(_("Enter a label to name your device:"))
+        name = QLineEdit()
+        hl = QHBoxLayout()
+        hl.addWidget(label)
+        hl.addWidget(name)
+        hl.addStretch(1)
+        vbox.addLayout(hl)
+
         def clean_text(widget):
             text = unicode(widget.toPlainText()).strip()
             return ' '.join(text.split())
 
         if method in [TIM_NEW, TIM_RECOVER]:
             gb = QGroupBox()
-            vbox1 = QVBoxLayout()
-            gb.setLayout(vbox1)
+            hbox1 = QHBoxLayout()
+            gb.setLayout(hbox1)
             # KeepKey recovery doesn't need a word count
             if method == TIM_NEW or self.device == 'TREZOR':
                 vbox.addWidget(gb)
             gb.setTitle(_("Select your seed length:"))
-            choices = [
-                _("12 words"),
-                _("18 words"),
-                _("24 words"),
-            ]
             bg = QButtonGroup()
-            for i, choice in enumerate(choices):
+            for i, count in enumerate([12, 18, 24]):
                 rb = QRadioButton(gb)
-                rb.setText(choice)
+                rb.setText(_("%d words") % count)
                 bg.addButton(rb)
                 bg.setId(rb, i)
-                vbox1.addWidget(rb)
+                hbox1.addWidget(rb)
                 rb.setChecked(True)
             cb_pin = QCheckBox(_('Enable PIN protection'))
             cb_pin.setChecked(True)
@@ -228,15 +234,8 @@ class QtHandler(QtHandlerBase):
             hbox_pin.addWidget(pin)
             hbox_pin.addStretch(1)
 
-        label = QLabel(_("Enter a label to name your device:"))
-        name = QLineEdit()
-        hl = QHBoxLayout()
-        hl.addWidget(label)
-        hl.addWidget(name)
-        hl.addStretch(1)
-        vbox.addLayout(hl)
-
         if method in [TIM_NEW, TIM_RECOVER]:
+            vbox.addWidget(WWLabel(RECOMMEND_PIN))
             vbox.addWidget(cb_pin)
         else:
             vbox.addLayout(hbox_pin)
@@ -351,7 +350,6 @@ class SettingsDialog(WindowModalDialog):
         # wallet can be None, needn't be window.wallet
         wallet = devmgr.wallet_by_id(device_id)
         hs_rows, hs_cols = (64, 128)
-        self.current_label=None
 
         def invoke_client(method, *args, **kw_args):
             unpair_after = kw_args.pop('unpair_after', False)
@@ -369,7 +367,7 @@ class SettingsDialog(WindowModalDialog):
             thread.add(task, on_success=update)
 
         def update(features):
-            self.current_label = features.label
+            self.features = features
             set_label_enabled()
             bl_hash = features.bootloader_hash.encode('hex')
             bl_hash = "\n".join([bl_hash[:32], bl_hash[32:]])
@@ -400,23 +398,30 @@ class SettingsDialog(WindowModalDialog):
             language_label.setText(features.language)
 
         def set_label_enabled():
-            label_apply.setEnabled(label_edit.text() != self.current_label)
+            label_apply.setEnabled(label_edit.text() != self.features.label)
 
         def rename():
             invoke_client('change_label', unicode(label_edit.text()))
 
         def toggle_passphrase():
             title = _("Confirm Toggle Passphrase Protection")
-            msg = _("This will cause your Electrum wallet to be unpaired "
-                    "unless your passphrase was or will be empty.\n\n"
-                    "This is because addresses will no "
-                    "longer correspond to those used by your %s.\n\n"
-                    "You will need to create a new Electrum wallet "
-                    "with the install wizard so that they match.\n\n"
-                    "Are you sure you want to proceed?") % plugin.device
+            currently_enabled = self.features.passphrase_protection
+            if currently_enabled:
+                msg = _("After disabling passphrases, you can only pair this "
+                        "Electrum wallet if it had an empty passphrase.  "
+                        "If its passphrase was not empty, you will need to "
+                        "create a new wallet with the install wizard.  You "
+                        "can use this wallet again at any time by re-enabling "
+                        "passphrases and entering its passphrase.")
+            else:
+                msg = _("Your current Electrum wallet can only be used with "
+                        "an empty passphrase.  You must create a separate "
+                        "wallet with the install wizard for other passphrases "
+                        "as each one generates a new set of addresses.")
+            msg += "\n\n" + _("Are you sure you want to proceed?")
             if not self.question(msg, title=title):
                 return
-            invoke_client('toggle_passphrase', unpair_after=True)
+            invoke_client('toggle_passphrase', unpair_after=currently_enabled)
 
         def change_homescreen():
             from PIL import Image  # FIXME

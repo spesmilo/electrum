@@ -272,6 +272,9 @@ class SendScreen(CScreen):
             traceback.print_exc(file=sys.stdout)
             self.app.show_error(str(e))
             return
+        if not tx.is_complete():
+            self.app.show_info("Transaction is not complete")
+            return
         # broadcast
         ok, txid = self.app.wallet.sendtx(tx)
         self.app.show_info(txid)
@@ -378,7 +381,7 @@ class InvoicesScreen(CScreen):
     kvname = 'invoices'
 
     def update(self):
-        self.menu_actions = [('Pay', self.do_pay), ('Delete', self.do_delete)]
+        self.menu_actions = [('Pay', self.do_pay), ('Details', self.do_view), ('Delete', self.do_delete)]
         invoices_list = self.screen.ids.invoices_container
         invoices_list.clear_widgets()
 
@@ -409,6 +412,20 @@ class InvoicesScreen(CScreen):
 
     def do_pay(self, obj):
         self.app.do_pay(obj)
+
+    def do_view(self, obj):
+        pr = self.app.invoices.get(obj.key)
+        pr.verify({})
+        exp = pr.get_expiration_date()
+        popup = Builder.load_file('gui/kivy/uix/ui_screens/invoice.kv')
+        popup.ids.requestor_label.text = _("Requestor") + ': ' + pr.get_requestor()
+        popup.ids.expiration_label.text = _('Expires') + ': ' + (format_time(exp) if exp else _('Never'))
+        popup.ids.memo_label.text = _("Description") + ': ' + pr.get_memo()
+        popup.ids.signature_label.text = _("Signature") + ': ' + pr.get_verify_status()
+        if pr.tx:
+            popup.ids.txid_label.text = _("Transaction ID") + ':\n' + ' '.join(map(''.join, zip(*[iter(pr.tx)]*4)))
+
+        popup.open()
 
     def do_delete(self, obj):
         from dialogs.question import Question

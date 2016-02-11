@@ -2,60 +2,68 @@ import time
 
 from electrum_ltc.i18n import _
 from electrum_ltc.util import PrintError, UserCancelled
+from electrum_ltc.wallet import BIP44_Wallet
 
 
 class GuiMixin(object):
     # Requires: self.proto, self.device
 
     messages = {
-        3: _("Confirm transaction outputs on %s device to continue"),
-        8: _("Confirm transaction fee on %s device to continue"),
-        7: _("Confirm message to sign on %s device to continue"),
-        10: _("Confirm address on %s device to continue"),
-        'change pin': _("Confirm PIN change on %s device to continue"),
-        'default': _("Check %s device to continue"),
-        'homescreen': _("Confirm home screen change on %s device to continue"),
-        'label': _("Confirm label change on %s device to continue"),
-        'remove pin': _("Confirm removal of PIN on %s device to continue"),
-        'passphrase': _("Confirm on %s device to continue"),
+        3: _("Confirm the transaction output on your %s device"),
+        4: _("Confirm internal entropy on your %s device to begin"),
+        5: _("Write down the seed word shown on your %s"),
+        6: _("Confirm on your %s that you want to wipe it clean"),
+        7: _("Confirm on your %s device the message to sign"),
+        8: _("Confirm the total amount spent and the transaction fee on your "
+             "%s device"),
+        10: _("Confirm wallet address on your %s device"),
+        'default': _("Check your %s device to continue"),
     }
 
     def callback_Failure(self, msg):
         # BaseClient's unfortunate call() implementation forces us to
         # raise exceptions on failure in order to unwind the stack.
         # However, making the user acknowledge they cancelled
-        # gets old very quickly, so we suppress those.
+        # gets old very quickly, so we suppress those.  The NotInitialized
+        # one is misnamed and indicates a passphrase request was cancelled.
         if msg.code in (self.types.Failure_PinCancelled,
-                        self.types.Failure_ActionCancelled):
+                        self.types.Failure_ActionCancelled,
+                        self.types.Failure_NotInitialized):
             raise UserCancelled()
         raise RuntimeError(msg.message)
 
     def callback_ButtonRequest(self, msg):
-        msg_code = self.msg_code_override or msg.code
-        message = self.messages.get(msg_code, self.messages['default'])
+        message = self.msg
+        if not message:
+            message = self.messages.get(msg.code, self.messages['default'])
         self.handler.show_message(message % self.device, self.cancel)
         return self.proto.ButtonAck()
 
     def callback_PinMatrixRequest(self, msg):
-        if msg.type == 1:
-            msg = _("Enter your current %s PIN:")
-        elif msg.type == 2:
-            msg = _("Enter a new %s PIN:")
+        if msg.type == 2:
+            msg = _("Enter a new PIN for your %s:")
         elif msg.type == 3:
-            msg = (_("Please re-enter your new %s PIN.\n"
-                     "Note the numbers have been shuffled!"))
+            msg = (_("Re-enter the new PIN for your %s.\n\n"
+                     "NOTE: the positions of the numbers have changed!"))
         else:
-            msg = _("Please enter %s PIN")
+            msg = _("Enter your current %s PIN:")
         pin = self.handler.get_pin(msg % self.device)
         if not pin:
             return self.proto.Cancel()
         return self.proto.PinMatrixAck(pin=pin)
 
     def callback_PassphraseRequest(self, req):
-        msg = _("Please enter your %s passphrase")
-        passphrase = self.handler.get_passphrase(msg % self.device)
+        if self.creating_wallet:
+            msg = _("Enter a passphrase to generate this wallet.  Each time "
+                    "you use this wallet your %s will prompt you for the "
+                    "passphrase.  If you forget the passphrase you cannot "
+                    "access the litecoins in the wallet.") % self.device
+        else:
+            msg = _("Enter the passphrase to unlock this wallet:")
+        passphrase = self.handler.get_passphrase(msg, self.creating_wallet)
         if passphrase is None:
             return self.proto.Cancel()
+        passphrase = BIP44_Wallet.normalize_passphrase(passphrase)
         return self.proto.PassphraseAck(passphrase=passphrase)
 
     def callback_WordRequest(self, msg):
@@ -72,6 +80,7 @@ class GuiMixin(object):
             return self.proto.Cancel()
         return self.proto.CharacterAck(**char_info)
 
+
 class TrezorClientBase(GuiMixin, PrintError):
 
     def __init__(self, handler, plugin, proto):
@@ -81,7 +90,8 @@ class TrezorClientBase(GuiMixin, PrintError):
         self.handler = handler
         self.tx_api = plugin
         self.types = plugin.types
-        self.msg_code_override = None
+        self.msg = None
+        self.creating_wallet = False
         self.used()
 
     def __str__(self):
@@ -99,11 +109,9 @@ class TrezorClientBase(GuiMixin, PrintError):
         return not self.features.bootloader_mode
 
     def used(self):
-        self.print_error("used")
         self.last_operation = time.time()
 
     def prevent_timeouts(self):
-        self.print_error("prevent timeouts")
         self.last_operation = float('inf')
 
     def timeout(self, cutoff):
@@ -141,33 +149,29 @@ class TrezorClientBase(GuiMixin, PrintError):
         return self.get_address('Litecoin', self.expand_path(derivation))
 
     def toggle_passphrase(self):
-        self.msg_code_override = 'passphrase'
-        try:
-            enabled = not self.features.passphrase_protection
-            self.apply_settings(use_passphrase=enabled)
-        finally:
-            self.msg_code_override = None
+        if self.features.passphrase_protection:
+            self.msg = _("Confirm on your %s device to disable passphrases")
+        else:
+            self.msg = _("Confirm on your %s device to enable passphrases")
+        enabled = not self.features.passphrase_protection
+        self.apply_settings(use_passphrase=enabled)
 
     def change_label(self, label):
-        self.msg_code_override = 'label'
-        try:
-            self.apply_settings(label=label)
-        finally:
-            self.msg_code_override = None
+        self.msg = _("Confirm the new label on your %s device")
+        self.apply_settings(label=label)
 
     def change_homescreen(self, homescreen):
-        self.msg_code_override = 'homescreen'
-        try:
-            self.apply_settings(homescreen=homescreen)
-        finally:
-            self.msg_code_override = None
+        self.msg = _("Confirm on your %s device to change your home screen")
+        self.apply_settings(homescreen=homescreen)
 
     def set_pin(self, remove):
-        self.msg_code_override = 'remove pin' if remove else 'change pin'
-        try:
-            self.change_pin(remove)
-        finally:
-            self.msg_code_override = None
+        if remove:
+            self.msg = _("Confirm on your %s device to disable PIN protection")
+        elif self.features.pin_protection:
+            self.msg = _("Confirm on your %s device to change your PIN")
+        else:
+            self.msg = _("Confirm on your %s device to set a PIN")
+        self.change_pin(remove)
 
     def clear_session(self):
         '''Clear the session to force pin (and passphrase if enabled)
@@ -180,6 +184,10 @@ class TrezorClientBase(GuiMixin, PrintError):
             # If the device was removed it has the same effect...
             self.print_error("clear_session: ignoring error", str(e))
             pass
+
+    def get_public_node(self, address_n, creating):
+        self.creating_wallet = creating
+        return super(TrezorClientBase, self).get_public_node(address_n)
 
     def close(self):
         '''Called when Our wallet was closed or the device removed.'''
@@ -206,6 +214,8 @@ class TrezorClientBase(GuiMixin, PrintError):
             finally:
                 self.used()
                 self.handler.finished()
+                self.creating_wallet = False
+                self.msg = None
 
         return wrapped
 

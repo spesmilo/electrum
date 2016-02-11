@@ -3,7 +3,7 @@ from electrum_ltc.util import print_msg
 
 class TrezorCmdLineHandler:
 
-    def get_passphrase(self, msg):
+    def get_passphrase(self, msg, confirm):
         import getpass
         print_msg(msg)
         return getpass.getpass('')
