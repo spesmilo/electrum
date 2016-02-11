@@ -23,9 +23,11 @@ class GuiMixin(object):
         # BaseClient's unfortunate call() implementation forces us to
         # raise exceptions on failure in order to unwind the stack.
         # However, making the user acknowledge they cancelled
-        # gets old very quickly, so we suppress those.
+        # gets old very quickly, so we suppress those.  The NotInitialized
+        # one is misnamed and indicates a passphrase request was cancelled.
         if msg.code in (self.types.Failure_PinCancelled,
-                        self.types.Failure_ActionCancelled):
+                        self.types.Failure_ActionCancelled,
+                        self.types.Failure_NotInitialized):
             raise UserCancelled()
         raise RuntimeError(msg.message)
 
