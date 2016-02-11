@@ -272,6 +272,9 @@ class SendScreen(CScreen):
             traceback.print_exc(file=sys.stdout)
             self.app.show_error(str(e))
             return
+        if not tx.is_complete():
+            self.app.show_info("Transaction is not complete")
+            return
         # broadcast
         ok, txid = self.app.wallet.sendtx(tx)
         self.app.show_info(txid)

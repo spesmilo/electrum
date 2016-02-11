@@ -706,6 +706,18 @@ class ElectrumWindow(App):
         else:
             apply(f, args + (None,))
 
+    def show_seed(self, label):
+        self.protected(self._show_seed, (label,))
+
+    def _show_seed(self, label, password):
+        print label, password
+        try:
+            seed = self.wallet.get_seed(password)
+        except:
+            self.show_error("Invalid PIN")
+            return
+        label.text = _('Seed') + ':\n' + seed
+
     def change_password(self):
         self.protected(self._change_password, ())
 

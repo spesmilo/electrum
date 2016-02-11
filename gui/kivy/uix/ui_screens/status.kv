@@ -67,5 +67,24 @@ Popup:
                 opacity: 1 if root.unmatured else 0
                 text_size: self.size
                 halign: 'left'
+        Label:
+            text: ''
+            id: seed_label
+            text_size: self.width, None
+            size: self.texture_size
         Widget:
             size_hint: None, 1
+        BoxLayout:
+            size_hint: 1, None
+            height: '48dp'
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Hide seed') if seed_label.text else _('Show seed')
+                on_release:
+                    setattr(seed_label, 'text', '') if seed_label.text else app.show_seed(seed_label)
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Close')
+                on_release: root.dismiss()
