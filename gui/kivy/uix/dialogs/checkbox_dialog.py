@@ -11,24 +11,24 @@ Builder.load_string('''
     pos_hint: {'top':0.9}
     BoxLayout:
         orientation: 'vertical'
-        ScrollView:
-            size_hint: 1, 1
-            Label:
-                id: description
-                text: ''
-                size_hint: 1, None
-                halign: 'left'
-                text_size: self.width, None
+        Widget:
+            size_hint: 1, 0.1
+        Label:
+            id: description
+            text: ''
+            halign: 'left'
+            text_size: self.width, None
+            size: self.texture_size
         BoxLayout:
             orientation: 'horizontal'
-            size_hint: 1, 0.5
+            size_hint: 1, 0.2
             Label:
                 text: _('Enable')
             CheckBox:
                 id:cb
         BoxLayout:
             orientation: 'horizontal'
-            size_hint: 1, 0.5
+            size_hint: 1, 0.2
             Button:
                 text: 'Cancel'
                 size_hint: 0.5, None
