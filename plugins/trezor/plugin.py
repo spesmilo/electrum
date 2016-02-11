@@ -217,24 +217,6 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             task = self.initialize_device(wallet)
         wallet.thread.add(task, on_done=on_done, on_error=on_error)
 
-    def on_restore_wallet(self, wallet, wizard):
-        assert isinstance(wallet, self.wallet_class)
-
-        msg = _("Enter the seed for your %s wallet:" % self.device)
-        seed = wizard.request_seed(msg, is_valid = self.is_valid_seed)
-
-        # Restored wallets are not hardware wallets
-        wallet_class = self.wallet_class.restore_wallet_class
-        wallet.storage.put('wallet_type', wallet_class.wallet_type)
-        wallet = wallet_class(wallet.storage)
-
-        passphrase = wizard.request_passphrase(self.device, restore=True)
-        password = wizard.request_password()
-        wallet.add_seed(seed, password)
-        wallet.add_xprv_from_seed(seed, 'x/', password, passphrase)
-        wallet.create_hd_account(password)
-        return wallet
-
     def sign_transaction(self, wallet, tx, prev_tx, xpub_path):
         self.prev_tx = prev_tx
         self.xpub_path = xpub_path
