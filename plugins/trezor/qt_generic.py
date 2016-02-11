@@ -351,7 +351,6 @@ class SettingsDialog(WindowModalDialog):
         # wallet can be None, needn't be window.wallet
         wallet = devmgr.wallet_by_id(device_id)
         hs_rows, hs_cols = (64, 128)
-        self.current_label=None
 
         def invoke_client(method, *args, **kw_args):
             unpair_after = kw_args.pop('unpair_after', False)
@@ -369,7 +368,7 @@ class SettingsDialog(WindowModalDialog):
             thread.add(task, on_success=update)
 
         def update(features):
-            self.current_label = features.label
+            self.features = features
             set_label_enabled()
             bl_hash = features.bootloader_hash.encode('hex')
             bl_hash = "\n".join([bl_hash[:32], bl_hash[32:]])
@@ -400,23 +399,30 @@ class SettingsDialog(WindowModalDialog):
             language_label.setText(features.language)
 
         def set_label_enabled():
-            label_apply.setEnabled(label_edit.text() != self.current_label)
+            label_apply.setEnabled(label_edit.text() != self.features.label)
 
         def rename():
             invoke_client('change_label', unicode(label_edit.text()))
 
         def toggle_passphrase():
             title = _("Confirm Toggle Passphrase Protection")
-            msg = _("This will cause your Electrum wallet to be unpaired "
-                    "unless your passphrase was or will be empty.\n\n"
-                    "This is because addresses will no "
-                    "longer correspond to those used by your %s.\n\n"
-                    "You will need to create a new Electrum wallet "
-                    "with the install wizard so that they match.\n\n"
-                    "Are you sure you want to proceed?") % plugin.device
+            currently_enabled = self.features.passphrase_protection
+            if currently_enabled:
+                msg = _("After disabling passphrases, you can only pair this "
+                        "Electrum wallet if it had an empty passphrase.  "
+                        "If its passphrase was not empty, you will need to "
+                        "create a new wallet with the install wizard.  You "
+                        "can use this wallet again at any time by re-enabling "
+                        "passphrases and entering its passphrase.")
+            else:
+                msg = _("Your current Electrum wallet can only be used with "
+                        "an empty passphrase.  You must create a separate "
+                        "wallet with the install wizard for other passphrases "
+                        "as each one generates a new set of addresses.")
+            msg += "\n\n" + _("Are you sure you want to proceed?")
             if not self.question(msg, title=title):
                 return
-            invoke_client('toggle_passphrase', unpair_after=True)
+            invoke_client('toggle_passphrase', unpair_after=currently_enabled)
 
         def change_homescreen():
             from PIL import Image  # FIXME
