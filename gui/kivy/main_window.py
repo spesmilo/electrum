@@ -710,7 +710,6 @@ class ElectrumWindow(App):
         self.protected(self._show_seed, (label,))
 
     def _show_seed(self, label, password):
-        print label, password
         try:
             seed = self.wallet.get_seed(password)
         except:
