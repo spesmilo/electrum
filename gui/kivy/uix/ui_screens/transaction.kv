@@ -8,33 +8,39 @@ Popup:
 
     AnchorLayout:
         anchor_x: 'center'
-
         BoxLayout:
             orientation: 'vertical'
-
-            GridLayout:
-                size_hint: 1, None
-                height: '300dp'
-                cols: 2
-
-                Label:
-                    text: "txid"
-                Label:
-                    text: popup.tx_hash
-                    size_hint_y: None
-                    text_size: self.width, None
+            Label:
+                id: txid_label
+                text_size: self.width, None
+                size: self.texture_size
+            Label:
+                id: status_label
+                text_size: self.width, None
+                size_hint: 1, 0.3
+            Label:
+                id: date_label
+                text_size: self.width, None
+                size_hint: 1, 0.3
+            Label:
+                id: amount_label
+                text_size: self.width, None
+                size_hint: 1, 0.3
+            Label:
+                id: fee_label
+                text_size: self.width, None
+                size_hint: 1, 0.3
+            Widget:
+                size_hint: 1, 0.3
 
             BoxLayout:
                 size_hint: 1, None
                 height: '48dp'
                 Widget:
-                    size_hint: 0.7, None
+                    size_hint: 0.5, None
                     height: '48dp'
                 Button:
-                    size_hint: 0.3, None
+                    size_hint: 0.5, None
                     height: '48dp'
                     text: _('OK')
                     on_release: popup.dismiss()
-                    
-            Widget:
-                size_hint: 1, None
