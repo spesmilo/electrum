@@ -133,12 +133,12 @@ class HistoryScreen(CScreen):
 
             label = self.app.wallet.get_label(tx_hash) if tx_hash else _('Pruned transaction outputs')
             date = timestamp_to_datetime(timestamp)
-            rate = run_hook('history_rate', date)
-            if self.app.fiat_unit:
-                s = run_hook('historical_value_str', value, date)
-                quote_text = "..." if s is None else s + ' ' + self.app.fiat_unit
-            else:
-                quote_text = ''
+            quote_text = ''
+            if self.app.fiat_unit and date:
+                rate = run_hook('history_rate', date)
+                if rate:
+                    s = run_hook('value_str', value, rate)
+                    quote_text = '' if s is None else s + ' ' + self.app.fiat_unit
             yield (conf, icon, time_str, label, value, tx_hash, quote_text)
 
     def update(self, see_all=False):
@@ -273,7 +273,10 @@ class SendScreen(CScreen):
             self.app.show_error(str(e))
             return
         if not tx.is_complete():
-            self.app.show_info("Transaction is not complete")
+            from electrum.bitcoin import base_encode
+            text = str(tx).decode('hex')
+            text = base_encode(text, base=43)
+            self.app.qr_dialog(_("Unsigned Transaction"), text)
             return
         # broadcast
         ok, txid = self.app.wallet.sendtx(tx)

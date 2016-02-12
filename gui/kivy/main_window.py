@@ -267,6 +267,11 @@ class ElectrumWindow(App):
         self.switch_to('receive')
         self.receive_screen.screen.address = addr
 
+    def qr_dialog(self, title, data):
+        from uix.dialogs.qr_dialog import QRDialog
+        popup = QRDialog(title, data)
+        popup.open()
+
     def scan_qr(self, on_complete):
         if platform != 'android':
             return

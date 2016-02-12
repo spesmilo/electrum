@@ -111,7 +111,7 @@ class QRCodeWidget(FloatLayout):
     def _upd_texture(self, buff):
         texture = self._qrtexture
         texture.blit_buffer(buff, colorfmt='rgb', bufferfmt='ubyte')
-        img =self.ids.qrimage
+        img = self.ids.qrimage
         img.anim_delay = -1
         img.texture = texture
         img.canvas.ask_update()
