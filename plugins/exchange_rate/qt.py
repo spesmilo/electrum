@@ -1,3 +1,4 @@
+import time
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 from electrum_gui.qt.util import *
@@ -209,7 +210,7 @@ class Plugin(FxPlugin, QObject):
             return
         tx_hash, conf, value, timestamp, balance = tx
         if conf <= 0:
-            date = datetime.today()
+            date = timestamp_to_datetime(time.time())
         else:
             date = timestamp_to_datetime(timestamp)
         for amount in [value, balance]:
