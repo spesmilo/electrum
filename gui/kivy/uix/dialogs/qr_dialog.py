@@ -33,4 +33,7 @@ class QRDialog(Factory.Popup):
     def __init__(self, title, data):
         Factory.Popup.__init__(self)
         self.title = title
-        self.ids.qr.set_data(data)
+        self.data = data
+
+    def on_open(self):
+        self.ids.qr.set_data(self.data)
