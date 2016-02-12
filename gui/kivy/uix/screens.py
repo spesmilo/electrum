@@ -97,7 +97,14 @@ class HistoryScreen(CScreen):
     def __init__(self, **kwargs):
         self.ra_dialog = None
         super(HistoryScreen, self).__init__(**kwargs)
-        self.menu_actions = [ ('Label', self.label_dialog), ('Details', self.app.tx_details_dialog)]
+        self.menu_actions = [ ('Label', self.label_dialog), ('Details', self.show_tx)]
+
+    def show_tx(self, obj):
+        tx_hash = obj.tx_hash
+        tx = self.app.wallet.transactions.get(tx_hash)
+        if not tx:
+            return
+        self.app.tx_dialog(tx)
 
     def label_dialog(self, obj):
         from dialogs.label_dialog import LabelDialog

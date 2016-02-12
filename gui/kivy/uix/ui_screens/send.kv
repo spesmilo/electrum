@@ -76,7 +76,7 @@ SendScreen:
             IconButton:
                 id: qr
                 size_hint: 0.6, 1
-                on_release: app.scan_qr(on_complete=app.set_URI)
+                on_release: app.scan_qr(on_complete=app.on_qr)
                 icon: 'atlas://gui/kivy/theming/light/camera'
             Button:
                 text: _('Paste')

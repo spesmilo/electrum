@@ -238,6 +238,16 @@ class ElectrumWindow(App):
             return
         self.send_screen.set_URI(url)
 
+    def on_qr(self, data):
+        if data.startswith('bitcoin:'):
+            self.set_URI(data)
+        else:
+            from electrum.bitcoin import base_decode
+            from electrum.transaction import Transaction
+            text = base_decode(data, None, base=43).encode('hex')
+            tx = Transaction(text)
+            self.tx_dialog(tx)
+
     def on_uri(self, instance, uri):
         if uri:
             Logger.info("on uri:" + uri)
@@ -646,12 +656,9 @@ class ElectrumWindow(App):
             pos = (win.center[0], win.center[1] - (info_bubble.height/2))
         info_bubble.show(pos, duration, width, modal=modal, exit=exit)
 
-    def tx_details_dialog(self, obj):
-        tx_hash = obj.tx_hash
+    def tx_dialog(self, tx):
+        tx_hash = tx.hash()
         popup = Builder.load_file('gui/kivy/uix/ui_screens/transaction.kv')
-        tx = self.wallet.transactions.get(tx_hash)
-        if not tx:
-            return
         conf, timestamp = self.wallet.get_confirmations(tx_hash)
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
         if is_relevant:
