@@ -192,8 +192,7 @@ class SendScreen(CScreen):
             self.screen.amount = self.app.format_amount_and_units(amount)
 
     def update(self):
-        if self.app.current_invoice:
-            self.set_request(self.app.current_invoice)
+        pass
 
     def do_clear(self):
         self.screen.amount = ''

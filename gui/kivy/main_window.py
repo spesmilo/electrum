@@ -180,7 +180,6 @@ class ElectrumWindow(App):
         self.nfcscanner = None
         self.tabs = None
         self.is_exit = False
-        self.current_invoice = None
 
         super(ElectrumWindow, self).__init__(**kwargs)
 
@@ -223,9 +222,8 @@ class ElectrumWindow(App):
                 if pr.has_expired():
                     self.show_error(_('Payment request has expired'))
                 else:
-                    self.current_invoice = pr
-                    self.update_tab('send')
                     self.switch_to('send')
+                    self.send_screen.set_request(pr)
         else:
             self.show_error("invoice error:" + pr.error)
             self.send_screen.do_clear()
