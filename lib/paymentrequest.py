@@ -108,9 +108,9 @@ class PaymentRequest:
         pr = pb2.PaymentRequest()
         pr.ParseFromString(self.raw)
         if not pr.signature:
-            self.error = "No signature"
-            return
-
+            # the address will be dispayed as requestor
+            self.requestor = None
+            return True
         if pr.pki_type in ["x509+sha256", "x509+sha1"]:
             return self.verify_x509(pr)
         elif pr.pki_type in ["dnssec+btc", "dnssec+ecdsa"]:
