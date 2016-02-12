@@ -230,12 +230,7 @@ class SendScreen(CScreen):
         if not contents:
             self.app.show_info(_("Clipboard is empty"))
             return
-        try:
-            uri = parse_URI(contents)
-        except:
-            self.app.show_info(_("Clipboard content is not a Bitcoin URI"))
-            return
-        self.set_URI(uri)
+        self.app.set_URI(contents)
 
     def do_send(self):
         if self.payment_request:

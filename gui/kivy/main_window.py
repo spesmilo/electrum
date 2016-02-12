@@ -232,7 +232,7 @@ class ElectrumWindow(App):
         try:
             url = electrum.util.parse_URI(url, self.on_pr)
         except:
-            self.show_info("Invalid URI", url)
+            self.show_info(_("Not a Bitcoin URI") + ':\n', url)
             return
         self.send_screen.set_URI(url)
 
