@@ -275,7 +275,8 @@ class SendScreen(CScreen):
 
     def send_tx_thread(self, tx, password):
         # sign transaction
-        self.app.show_info("Signing...")
+        if self.app.wallet.can_sign(tx):
+            self.app.show_info("Signing...")
         try:
             self.app.wallet.sign_transaction(tx, password)
         except Exception as e:

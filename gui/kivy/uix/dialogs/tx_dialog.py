@@ -2,6 +2,7 @@ from kivy.app import App
 from kivy.factory import Factory
 from kivy.properties import ObjectProperty
 from kivy.lang import Builder
+from kivy.clock import Clock
 
 from electrum_gui.kivy.i18n import _
 from datetime import datetime
@@ -68,7 +69,7 @@ Builder.load_string('''
                 Button:
                     size_hint: 0.5, None
                     height: '48dp'
-                    text: _('OK')
+                    text: _('Close')
                     on_release: popup.dismiss()
 ''')
 
@@ -117,12 +118,14 @@ class TxDialog(Factory.Popup):
         self.can_sign = self.wallet.can_sign(self.tx)
 
     def do_sign(self):
-        self.app.protected(self._do_sign, ())
+        self.app.protected(_("Enter your PIN code in order to sign this transaction"), self._do_sign, ())
 
     def _do_sign(self, password):
-        self.app.show_info(_('Signing'))
+        self.txid_str = _('Signing') + '...'
+        Clock.schedule_once(lambda dt: self.__do_sign(password), 0.1)
+
+    def __do_sign(self, password):
         self.app.wallet.sign_transaction(self.tx, password)
-        self.app.show_info('')
         self.update()
 
     def do_broadcast(self):

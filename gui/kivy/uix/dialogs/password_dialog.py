@@ -3,6 +3,7 @@ from kivy.factory import Factory
 from kivy.properties import ObjectProperty
 from kivy.lang import Builder
 from decimal import Decimal
+from kivy.clock import Clock
 
 Builder.load_string('''
 
@@ -92,4 +93,4 @@ class PasswordDialog(Factory.Popup):
     def on_password(self, pw):
         if len(pw) == 6:
             self.dismiss()
-            self.callback(pw)
+            Clock.schedule_once(lambda dt: self.callback(pw), 0.1)
