@@ -250,23 +250,32 @@ class SendScreen(CScreen):
                 return
             outputs = [(bitcoin.TYPE_ADDRESS, address, amount)]
         message = unicode(self.screen.message)
-        fee = None
-        self.app.protected(self.send_tx, (outputs, fee, message))
-
-    def send_tx(self, *args):
-        self.app.show_info("Sending...")
-        threading.Thread(target=self.send_tx_thread, args=args).start()
-
-    def send_tx_thread(self, outputs, fee, label, password):
+        amount = sum(map(lambda x:x[2], outputs))
         # make unsigned transaction
         coins = self.app.wallet.get_spendable_coins()
+        config = self.app.electrum_config
         try:
-            tx = self.app.wallet.make_unsigned_transaction(coins, outputs, self.app.electrum_config, fee)
+            tx = self.app.wallet.make_unsigned_transaction(coins, outputs, config, None)
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             self.app.show_error(str(e))
             return
+        fee = tx.get_fee()
+        msg = [
+            _("Amount to be sent") + ": " + self.app.format_amount_and_units(amount),
+            _("Mining fee") + ": " + self.app.format_amount_and_units(fee),
+        ]
+        if fee >= config.get('confirm_fee', 100000):
+            msg.append(_('Warning')+ ': ' + _("The fee for this transaction seems unusually high."))
+        msg.append(_("Enter your PIN code to proceed"))
+        self.app.protected('\n'.join(msg), self.send_tx, (tx,))
+
+    def send_tx(self, *args):
+        threading.Thread(target=self.send_tx_thread, args=args).start()
+
+    def send_tx_thread(self, tx, password):
         # sign transaction
+        self.app.show_info("Signing...")
         try:
             self.app.wallet.sign_transaction(tx, password)
         except Exception as e:
@@ -277,6 +286,7 @@ class SendScreen(CScreen):
             self.app.tx_dialog(tx)
             return
         # broadcast
+        self.app.show_info("Sending...")
         ok, txid = self.app.wallet.sendtx(tx)
         self.app.show_info(txid)
 

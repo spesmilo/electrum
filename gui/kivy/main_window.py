@@ -682,14 +682,14 @@ class ElectrumWindow(App):
         popup = AmountDialog(show_max, amount, cb)
         popup.open()
 
-    def protected(self, f, args):
+    def protected(self, msg, f, args):
         if self.wallet.use_encryption:
-            self.password_dialog(_('Enter PIN'), f, args)
+            self.password_dialog(msg, f, args)
         else:
             apply(f, args + (None,))
 
     def show_seed(self, label):
-        self.protected(self._show_seed, (label,))
+        self.protected(_("Enter your PIN code in order to decrypt your seed"), self._show_seed, (label,))
 
     def _show_seed(self, label, password):
         try:
@@ -700,7 +700,7 @@ class ElectrumWindow(App):
         label.text = _('Seed') + ':\n' + seed
 
     def change_password(self):
-        self.protected(self._change_password, ())
+        self.protected(_("Changing PIN code.") + '\n' + _("Enter your current PIN:"), self._change_password, ())
 
     def _change_password(self, old_password):
         if self.wallet.use_encryption:
@@ -720,10 +720,10 @@ class ElectrumWindow(App):
         else:
             self.show_error("PIN numbers do not match")
 
-    def password_dialog(self, title, f, args):
+    def password_dialog(self, msg, f, args):
         from uix.dialogs.password_dialog import PasswordDialog
         def callback(pw):
             Clock.schedule_once(lambda x: apply(f, args + (pw,)), 0.1)
-        popup = PasswordDialog(title, callback)
+        popup = PasswordDialog(msg, callback)
         popup.open()
 
