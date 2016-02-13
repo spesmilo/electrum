@@ -129,6 +129,7 @@ Builder.load_string('''
 
 <WordButton@Button>:
     size_hint: None, None
+    padding: '5dp', '5dp'
     text_size: None, self.height
     width: self.texture_size[0]
     height: '30dp'
@@ -184,6 +185,7 @@ Builder.load_string('''
             new_word: root.on_word
 
         BoxLayout:
+            id: line1
             update_amount: root.update_text
             size_hint: 1, None
             height: '30dp'
@@ -208,9 +210,13 @@ Builder.load_string('''
             MButton:
                 text: 'P'
         BoxLayout:
+            id: line2
             update_amount: root.update_text
             size_hint: 1, None
             height: '30dp'
+            Widget:
+                size_hint: 0.5, None
+                height: '33dp'
             MButton:
                 text: 'A'
             MButton:
@@ -229,10 +235,16 @@ Builder.load_string('''
                 text: 'K'
             MButton:
                 text: 'L'
+            Widget:
+                size_hint: 0.5, None
+                height: '33dp'
         BoxLayout:
+            id: line3
             update_amount: root.update_text
             size_hint: 1, None
             height: '30dp'
+            Widget:
+                size_hint: 1, None
             MButton:
                 text: 'Z'
             MButton:
@@ -249,6 +261,7 @@ Builder.load_string('''
                 text: 'M'
             MButton:
                 text: '<'
+                size_hint: 2, None
 
     GridLayout:
         rows: 1
@@ -408,6 +421,14 @@ class RestoreSeedDialog(WizardDialog):
             for w in suggestions:
                 b = WordButton(text=w)
                 self.ids.suggestions.add_widget(b)
+
+        i = len(last_word)
+        p = set([x[i] for x in suggestions])
+        for line in [self.ids.line1, self.ids.line2, self.ids.line3]:
+            for c in line.children:
+                if isinstance(c, Button):
+                    if c.text in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
+                        c.disabled = (c.text.lower() not in p) and p
 
     def on_word(self, w):
         text = self.get_seed_text()
