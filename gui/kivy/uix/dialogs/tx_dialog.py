@@ -86,6 +86,7 @@ class TxDialog(Factory.Popup):
                     self.status_str += '\n' + _("Date") + ': ' + datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
             else:
                 self.can_broadcast = self.app.network is not None
+                self.status_str = _('Signed')
         else:
             s, r = self.tx.signature_count()
             self.status_str = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
@@ -111,7 +112,7 @@ class TxDialog(Factory.Popup):
         self.app.protected(_("Enter your PIN code in order to sign this transaction"), self._do_sign, ())
 
     def _do_sign(self, password):
-        self.txid_str = _('Signing') + '...'
+        self.status_str = _('Signing') + '...'
         Clock.schedule_once(lambda dt: self.__do_sign(password), 0.1)
 
     def __do_sign(self, password):

@@ -429,11 +429,12 @@ class InvoicesScreen(CScreen):
         pr = self.app.invoices.get(obj.key)
         pr.verify({})
         exp = pr.get_expiration_date()
+        memo = pr.get_memo()
         popup = Builder.load_file('gui/kivy/uix/ui_screens/invoice.kv')
         popup.ids.requestor_label.text = _("Requestor") + ': ' + pr.get_requestor()
         popup.ids.expiration_label.text = _('Expires') + ': ' + (format_time(exp) if exp else _('Never'))
-        popup.ids.memo_label.text = _("Description") + ': ' + pr.get_memo()
-        popup.ids.signature_label.text = _("Signature") + ': ' + pr.get_verify_status()
+        popup.ids.memo_label.text = _("Description") + ': ' + memo if memo else _("No Description")
+        popup.ids.signature_label.text = pr.get_verify_status()
         if pr.tx:
             popup.ids.txid_label.text = _("Transaction ID") + ':\n' + ' '.join(map(''.join, zip(*[iter(pr.tx)]*4)))
 
