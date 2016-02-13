@@ -132,7 +132,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             dialogs.remove(self)
 
     def show_qr(self):
-        text = self.tx.raw.decode('hex')
+        text = str(self.tx).decode('hex')
         text = base_encode(text, base=43)
         try:
             self.main_window.show_qrcode(text, 'Transaction', parent=self)

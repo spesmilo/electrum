@@ -97,7 +97,14 @@ class HistoryScreen(CScreen):
     def __init__(self, **kwargs):
         self.ra_dialog = None
         super(HistoryScreen, self).__init__(**kwargs)
-        self.menu_actions = [ ('Label', self.label_dialog), ('Details', self.app.tx_details_dialog)]
+        self.menu_actions = [ ('Label', self.label_dialog), ('Details', self.show_tx)]
+
+    def show_tx(self, obj):
+        tx_hash = obj.tx_hash
+        tx = self.app.wallet.transactions.get(tx_hash)
+        if not tx:
+            return
+        self.app.tx_dialog(tx)
 
     def label_dialog(self, obj):
         from dialogs.label_dialog import LabelDialog
@@ -133,12 +140,12 @@ class HistoryScreen(CScreen):
 
             label = self.app.wallet.get_label(tx_hash) if tx_hash else _('Pruned transaction outputs')
             date = timestamp_to_datetime(timestamp)
-            rate = run_hook('history_rate', date)
-            if self.app.fiat_unit:
-                s = run_hook('historical_value_str', value, date)
-                quote_text = "..." if s is None else s + ' ' + self.app.fiat_unit
-            else:
-                quote_text = ''
+            quote_text = ''
+            if self.app.fiat_unit and date:
+                rate = run_hook('history_rate', date)
+                if rate:
+                    s = run_hook('value_str', value, rate)
+                    quote_text = '' if s is None else s + ' ' + self.app.fiat_unit
             yield (conf, icon, time_str, label, value, tx_hash, quote_text)
 
     def update(self, see_all=False):
@@ -185,8 +192,7 @@ class SendScreen(CScreen):
             self.screen.amount = self.app.format_amount_and_units(amount)
 
     def update(self):
-        if self.app.current_invoice:
-            self.set_request(self.app.current_invoice)
+        pass
 
     def do_clear(self):
         self.screen.amount = ''
@@ -224,12 +230,7 @@ class SendScreen(CScreen):
         if not contents:
             self.app.show_info(_("Clipboard is empty"))
             return
-        try:
-            uri = parse_URI(contents)
-        except:
-            self.app.show_info(_("Clipboard content is not a Litecoin URI"))
-            return
-        self.set_URI(uri)
+        self.app.set_URI(contents)
 
     def do_send(self):
         if self.payment_request:
@@ -273,7 +274,10 @@ class SendScreen(CScreen):
             self.app.show_error(str(e))
             return
         if not tx.is_complete():
-            self.app.show_info("Transaction is not complete")
+            from electrum_ltc.bitcoin import base_encode
+            text = str(tx).decode('hex')
+            text = base_encode(text, base=43)
+            self.app.qr_dialog(_("Unsigned Transaction"), text)
             return
         # broadcast
         ok, txid = self.app.wallet.sendtx(tx)

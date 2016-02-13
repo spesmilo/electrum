@@ -180,7 +180,6 @@ class ElectrumWindow(App):
         self.nfcscanner = None
         self.tabs = None
         self.is_exit = False
-        self.current_invoice = None
 
         super(ElectrumWindow, self).__init__(**kwargs)
 
@@ -223,9 +222,8 @@ class ElectrumWindow(App):
                 if pr.has_expired():
                     self.show_error(_('Payment request has expired'))
                 else:
-                    self.current_invoice = pr
-                    self.update_tab('send')
                     self.switch_to('send')
+                    self.send_screen.set_request(pr)
         else:
             self.show_error("invoice error:" + pr.error)
             self.send_screen.do_clear()
@@ -234,9 +232,19 @@ class ElectrumWindow(App):
         try:
             url = electrum.util.parse_URI(url, self.on_pr)
         except:
-            self.show_info("Invalid URI", url)
+            self.show_info(_("Not a Litecoin URI") + ':\n', url)
             return
         self.send_screen.set_URI(url)
+
+    def on_qr(self, data):
+        if data.startswith('litecoin:'):
+            self.set_URI(data)
+        else:
+            from electrum_ltc.bitcoin import base_decode
+            from electrum_ltc.transaction import Transaction
+            text = base_decode(data, None, base=43).encode('hex')
+            tx = Transaction(text)
+            self.tx_dialog(tx)
 
     def on_uri(self, instance, uri):
         if uri:
@@ -266,6 +274,11 @@ class ElectrumWindow(App):
     def show_request(self, addr):
         self.switch_to('receive')
         self.receive_screen.screen.address = addr
+
+    def qr_dialog(self, title, data):
+        from uix.dialogs.qr_dialog import QRDialog
+        popup = QRDialog(title, data)
+        popup.open()
 
     def scan_qr(self, on_complete):
         if platform != 'android':
@@ -641,12 +654,9 @@ class ElectrumWindow(App):
             pos = (win.center[0], win.center[1] - (info_bubble.height/2))
         info_bubble.show(pos, duration, width, modal=modal, exit=exit)
 
-    def tx_details_dialog(self, obj):
-        tx_hash = obj.tx_hash
+    def tx_dialog(self, tx):
+        tx_hash = tx.hash()
         popup = Builder.load_file('gui/kivy/uix/ui_screens/transaction.kv')
-        tx = self.wallet.transactions.get(tx_hash)
-        if not tx:
-            return
         conf, timestamp = self.wallet.get_confirmations(tx_hash)
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
         if is_relevant:

@@ -311,6 +311,7 @@ class FxPlugin(BasePlugin, ThreadJob):
     def requires_settings(self):
         return True
 
+    @hook
     def value_str(self, satoshis, rate):
         if satoshis is None:  # Can happen with incomplete history
             return _("Unknown")
