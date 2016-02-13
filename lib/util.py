@@ -330,12 +330,13 @@ def parse_URI(uri, on_pr=None):
     from bitcoin import COIN
 
     if ':' not in uri:
-        assert bitcoin.is_address(uri)
+        if not bitcoin.is_address(uri):
+            raise BaseException("Not a bitcoin address")
         return {'address': uri}
 
     u = urlparse.urlparse(uri)
-    assert u.scheme == 'bitcoin'
-
+    if u.scheme != 'bitcoin':
+        raise BaseException("Not a bitcoin URI")
     address = u.path
 
     # python for android fails to parse query
