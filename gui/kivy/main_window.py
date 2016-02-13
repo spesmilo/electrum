@@ -230,11 +230,11 @@ class ElectrumWindow(App):
 
     def set_URI(self, url):
         try:
-            url = electrum.util.parse_URI(url, self.on_pr)
+            d = electrum.util.parse_URI(url, self.on_pr)
         except:
             self.show_info(_("Not a Litecoin URI") + ':\n', url)
             return
-        self.send_screen.set_URI(url)
+        self.send_screen.set_URI(d)
 
     def on_qr(self, data):
         if data.startswith('litecoin:'):
@@ -655,37 +655,9 @@ class ElectrumWindow(App):
         info_bubble.show(pos, duration, width, modal=modal, exit=exit)
 
     def tx_dialog(self, tx):
-        tx_hash = tx.hash()
-        popup = Builder.load_file('gui/kivy/uix/ui_screens/transaction.kv')
-        conf, timestamp = self.wallet.get_confirmations(tx_hash)
-        is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
-        if is_relevant:
-            if is_mine:
-                if fee is not None:
-                    amount_str = _("Amount sent:")+' %s'% self.format_amount_and_units(-v+fee)
-                    fee_str = _("Transaction fee")+': %s'% self.format_amount_and_units(-fee)
-                else:
-                    amount_str = _("Amount sent:")+' %s'% self.format_amount_and_units(-v)
-                    fee_str = _("Transaction fee")+': '+ _("unknown")
-            else:
-                amount_str = _("Amount received:")+' %s'% self.format_amount_and_units(v)
-                fee_str = ''
-        else:
-            amount_str = _("Transaction unrelated to your wallet")
-            fee_str = ''
-        if timestamp:
-            time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
-        else:
-            time_str = _('Pending')
-        status_str = _("%d confirmations")%conf
-        # update popup
-        popup.ids.txid_label.text = _('Transaction ID') + ' :\n' + ' '.join(map(''.join, zip(*[iter(tx_hash)]*4)))
-        popup.ids.amount_label.text = amount_str
-        popup.ids.fee_label.text = fee_str
-        popup.ids.status_label.text = _('Status') + ': ' + status_str
-        popup.ids.date_label.text = _('Date') + ': '+ time_str
-        popup.open()
-
+        from uix.dialogs.tx_dialog import TxDialog
+        d = TxDialog(self, tx)
+        d.open()
 
     def address_dialog(self, screen):
         pass
@@ -710,14 +682,14 @@ class ElectrumWindow(App):
         popup = AmountDialog(show_max, amount, cb)
         popup.open()
 
-    def protected(self, f, args):
+    def protected(self, msg, f, args):
         if self.wallet.use_encryption:
-            self.password_dialog(_('Enter PIN'), f, args)
+            self.password_dialog(msg, f, args)
         else:
             apply(f, args + (None,))
 
     def show_seed(self, label):
-        self.protected(self._show_seed, (label,))
+        self.protected(_("Enter your PIN code in order to decrypt your seed"), self._show_seed, (label,))
 
     def _show_seed(self, label, password):
         try:
@@ -728,7 +700,7 @@ class ElectrumWindow(App):
         label.text = _('Seed') + ':\n' + seed
 
     def change_password(self):
-        self.protected(self._change_password, ())
+        self.protected(_("Changing PIN code.") + '\n' + _("Enter your current PIN:"), self._change_password, ())
 
     def _change_password(self, old_password):
         if self.wallet.use_encryption:
@@ -748,10 +720,10 @@ class ElectrumWindow(App):
         else:
             self.show_error("PIN numbers do not match")
 
-    def password_dialog(self, title, f, args):
+    def password_dialog(self, msg, f, args):
         from uix.dialogs.password_dialog import PasswordDialog
         def callback(pw):
             Clock.schedule_once(lambda x: apply(f, args + (pw,)), 0.1)
-        popup = PasswordDialog(title, callback)
+        popup = PasswordDialog(msg, callback)
         popup.open()
 

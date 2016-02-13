@@ -1007,12 +1007,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         def on_shortcut():
             inputs = self.get_coins()
+            sendable = sum(map(lambda x:x['value'], inputs))
             fee = self.fee_e.get_amount() if self.fee_e.isModified() else None
             addr = self.get_payto_or_dummy()
             amount, fee = self.wallet.get_max_amount(self.config, inputs, addr, fee)
             if not self.fee_e.isModified():
                 self.fee_e.setAmount(fee)
-            self.amount_e.setAmount(max(0, amount))
+            self.amount_e.setAmount(amount)
+            self.not_enough_funds = (fee + amount > sendable)
             # emit signal for fiat_amount update
             self.amount_e.textEdited.emit("")
 
@@ -1114,6 +1116,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         i = self.from_list.indexOfTopLevelItem(item)
         self.pay_from.pop(i)
         self.redraw_from_list()
+        self.update_fee()
 
     def from_list_menu(self, position):
         item = self.from_list.itemAt(position)

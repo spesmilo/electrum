@@ -250,23 +250,33 @@ class SendScreen(CScreen):
                 return
             outputs = [(bitcoin.TYPE_ADDRESS, address, amount)]
         message = unicode(self.screen.message)
-        fee = None
-        self.app.protected(self.send_tx, (outputs, fee, message))
-
-    def send_tx(self, *args):
-        self.app.show_info("Sending...")
-        threading.Thread(target=self.send_tx_thread, args=args).start()
-
-    def send_tx_thread(self, outputs, fee, label, password):
+        amount = sum(map(lambda x:x[2], outputs))
         # make unsigned transaction
         coins = self.app.wallet.get_spendable_coins()
+        config = self.app.electrum_config
         try:
-            tx = self.app.wallet.make_unsigned_transaction(coins, outputs, self.app.electrum_config, fee)
+            tx = self.app.wallet.make_unsigned_transaction(coins, outputs, config, None)
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             self.app.show_error(str(e))
             return
+        fee = tx.get_fee()
+        msg = [
+            _("Amount to be sent") + ": " + self.app.format_amount_and_units(amount),
+            _("Mining fee") + ": " + self.app.format_amount_and_units(fee),
+        ]
+        if fee >= config.get('confirm_fee', 1000000):
+            msg.append(_('Warning')+ ': ' + _("The fee for this transaction seems unusually high."))
+        msg.append(_("Enter your PIN code to proceed"))
+        self.app.protected('\n'.join(msg), self.send_tx, (tx,))
+
+    def send_tx(self, *args):
+        threading.Thread(target=self.send_tx_thread, args=args).start()
+
+    def send_tx_thread(self, tx, password):
         # sign transaction
+        if self.app.wallet.can_sign(tx):
+            self.app.show_info("Signing...")
         try:
             self.app.wallet.sign_transaction(tx, password)
         except Exception as e:
@@ -274,12 +284,10 @@ class SendScreen(CScreen):
             self.app.show_error(str(e))
             return
         if not tx.is_complete():
-            from electrum_ltc.bitcoin import base_encode
-            text = str(tx).decode('hex')
-            text = base_encode(text, base=43)
-            self.app.qr_dialog(_("Unsigned Transaction"), text)
+            self.app.tx_dialog(tx)
             return
         # broadcast
+        self.app.show_info("Sending...")
         ok, txid = self.app.wallet.sendtx(tx)
         self.app.show_info(txid)
 
@@ -421,11 +429,12 @@ class InvoicesScreen(CScreen):
         pr = self.app.invoices.get(obj.key)
         pr.verify({})
         exp = pr.get_expiration_date()
+        memo = pr.get_memo()
         popup = Builder.load_file('gui/kivy/uix/ui_screens/invoice.kv')
         popup.ids.requestor_label.text = _("Requestor") + ': ' + pr.get_requestor()
         popup.ids.expiration_label.text = _('Expires') + ': ' + (format_time(exp) if exp else _('Never'))
-        popup.ids.memo_label.text = _("Description") + ': ' + pr.get_memo()
-        popup.ids.signature_label.text = _("Signature") + ': ' + pr.get_verify_status()
+        popup.ids.memo_label.text = _("Description") + ': ' + memo if memo else _("No Description")
+        popup.ids.signature_label.text = pr.get_verify_status()
         if pr.tx:
             popup.ids.txid_label.text = _("Transaction ID") + ':\n' + ' '.join(map(''.join, zip(*[iter(pr.tx)]*4)))
 

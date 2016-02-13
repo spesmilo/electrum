@@ -80,6 +80,7 @@ class PaymentRequest:
         self.parse(data)
         self.requestor = None # known after verify
         self.tx = None
+        self.error = None
 
     def __str__(self):
         return self.raw
@@ -195,7 +196,7 @@ class PaymentRequest:
         return self.requestor if self.requestor else self.get_address()
 
     def get_verify_status(self):
-        return self.error
+        return self.error if self.requestor else "No Signature"
 
     def get_memo(self):
         return self.memo
