@@ -132,6 +132,11 @@ class Mnemonic(object):
             words.append(self.wordlist[x])
         return ' '.join(words)
 
+    def get_suggestions(self, prefix):
+        for w in self.wordlist:
+            if w.startswith(prefix) and w!=prefix:
+                yield w
+
     def mnemonic_decode(self, seed):
         n = len(self.wordlist)
         words = seed.split()

@@ -230,11 +230,11 @@ class ElectrumWindow(App):
 
     def set_URI(self, url):
         try:
-            url = electrum.util.parse_URI(url, self.on_pr)
+            d = electrum.util.parse_URI(url, self.on_pr)
         except:
             self.show_info(_("Not a Bitcoin URI") + ':\n', url)
             return
-        self.send_screen.set_URI(url)
+        self.send_screen.set_URI(d)
 
     def on_qr(self, data):
         if data.startswith('bitcoin:'):
