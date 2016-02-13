@@ -274,10 +274,7 @@ class SendScreen(CScreen):
             self.app.show_error(str(e))
             return
         if not tx.is_complete():
-            from electrum.bitcoin import base_encode
-            text = str(tx).decode('hex')
-            text = base_encode(text, base=43)
-            self.app.qr_dialog(_("Unsigned Transaction"), text)
+            self.app.tx_dialog(tx)
             return
         # broadcast
         ok, txid = self.app.wallet.sendtx(tx)

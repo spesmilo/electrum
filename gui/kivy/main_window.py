@@ -655,37 +655,9 @@ class ElectrumWindow(App):
         info_bubble.show(pos, duration, width, modal=modal, exit=exit)
 
     def tx_dialog(self, tx):
-        tx_hash = tx.hash()
-        popup = Builder.load_file('gui/kivy/uix/ui_screens/transaction.kv')
-        conf, timestamp = self.wallet.get_confirmations(tx_hash)
-        is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
-        if is_relevant:
-            if is_mine:
-                if fee is not None:
-                    amount_str = _("Amount sent:")+' %s'% self.format_amount_and_units(-v+fee)
-                    fee_str = _("Transaction fee")+': %s'% self.format_amount_and_units(-fee)
-                else:
-                    amount_str = _("Amount sent:")+' %s'% self.format_amount_and_units(-v)
-                    fee_str = _("Transaction fee")+': '+ _("unknown")
-            else:
-                amount_str = _("Amount received:")+' %s'% self.format_amount_and_units(v)
-                fee_str = ''
-        else:
-            amount_str = _("Transaction unrelated to your wallet")
-            fee_str = ''
-        if timestamp:
-            time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
-        else:
-            time_str = _('Pending')
-        status_str = _("%d confirmations")%conf
-        # update popup
-        popup.ids.txid_label.text = _('Transaction ID') + ' :\n' + ' '.join(map(''.join, zip(*[iter(tx_hash)]*4)))
-        popup.ids.amount_label.text = amount_str
-        popup.ids.fee_label.text = fee_str
-        popup.ids.status_label.text = _('Status') + ': ' + status_str
-        popup.ids.date_label.text = _('Date') + ': '+ time_str
-        popup.open()
-
+        from uix.dialogs.tx_dialog import TxDialog
+        d = TxDialog(self, tx)
+        d.open()
 
     def address_dialog(self, screen):
         pass
