@@ -17,36 +17,28 @@ Builder.load_string('''
     amount_str: ''
     txid_str: ''
     status_str: ''
-    time_str: ''
     AnchorLayout:
         anchor_x: 'center'
         BoxLayout:
             orientation: 'vertical'
             Label:
+                id: status_label
+                text: root.status_str
+                text_size: self.width, None
+                size: self.texture_size
+            Label:
+                id: amount_label
+                text: root.amount_str
+                text_size: self.size
+            Label:
+                id: fee_label
+                text: root.fee_str
+                text_size: self.size
+            Label:
                 id: txid_label
                 text: root.txid_str
                 text_size: self.width, None
                 size: self.texture_size
-            Label:
-                id: status_label
-                text: root.status_str
-                text_size: self.width, None
-                size_hint: 1, 0.3
-            Label:
-                id: date_label
-                text: root.time_str
-                text_size: self.width, None
-                size_hint: 1, 0.3
-            Label:
-                id: amount_label
-                text: root.amount_str
-                text_size: self.width, None
-                size_hint: 1, 0.3
-            Label:
-                id: fee_label
-                text: root.fee_str
-                text_size: self.width, None
-                size_hint: 1, 0.3
             Widget:
                 size_hint: 1, 1
             BoxLayout:
@@ -56,15 +48,15 @@ Builder.load_string('''
                     size_hint: 0.5, None
                     height: '48dp'
                     text: _('Sign') if root.can_sign else _('Broadcast') if root.can_broadcast else ''
-                    #opacity: 1 if root.can_sign or root.can_broadcast else 0
+                    opacity: 1 if root.can_sign or root.can_broadcast else 0
                     disabled: not( root.can_sign or root.can_broadcast )
                     on_release:
                         if root.can_sign: root.do_sign()
                         if root.can_broadcast: root.do_broadcast()
-                Button:
+                IconButton:
                     size_hint: 0.5, None
                     height: '48dp'
-                    text: _('QR')
+                    icon: 'atlas://gui/kivy/theming/light/qrcode'
                     on_release: root.show_qr()
                 Button:
                     size_hint: 0.5, None
@@ -89,16 +81,14 @@ class TxDialog(Factory.Popup):
             self.txid_str = _('Transaction ID') + ' :\n' + ' '.join(map(''.join, zip(*[iter(tx_hash)]*4)))
             if tx_hash in self.wallet.transactions.keys():
                 conf, timestamp = self.wallet.get_confirmations(tx_hash)
-                self.status_str = _("%d confirmations")%conf
+                self.status_str = _("%d confirmations")%conf if conf else _('Pending')
                 if timestamp:
-                    self.time_str = datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
-                else:
-                    self.time_str = _('Pending')
+                    self.status_str += '\n' + _("Date") + ': ' + datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
             else:
                 self.can_broadcast = self.app.network is not None
         else:
             s, r = self.tx.signature_count()
-            self.txid_str = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
+            self.status_str = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
 
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
         if is_relevant:
