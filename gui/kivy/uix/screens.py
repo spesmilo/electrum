@@ -310,12 +310,15 @@ class ReceiveScreen(CScreen):
         return True
 
     def on_address(self, addr):
-        req = self.app.wallet.receive_requests.get(addr)
+        req = self.app.wallet.get_payment_request(addr, self.app.electrum_config)
+        self.screen.status = ''
         if req:
             self.screen.message = unicode(req.get('memo', ''))
             amount = req.get('amount')
             if amount:
                 self.screen.amount = self.app.format_amount_and_units(amount)
+            if req.get('status') == PR_PAID:
+                self.screen.status = _('Payment received')
         Clock.schedule_once(lambda dt: self.update_qr())
 
     def amount_callback(self, popup):

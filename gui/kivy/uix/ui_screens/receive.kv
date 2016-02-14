@@ -13,6 +13,7 @@ ReceiveScreen:
     address: ''
     amount: ''
     message: ''
+    status: ''
 
     on_address:
         self.parent.on_address(self.address)
@@ -37,6 +38,20 @@ ReceiveScreen:
                 on_touch_down:
                     self.shaded = not self.shaded
                     self.foreground_color = (0, 0, 0, 0.5) if self.shaded else (0, 0, 0, 0)
+            Label:
+                text: root.status
+                opacity: 1 if root.status else 0
+                pos_hint: {'center': (.5, .5)}
+                size_hint: None, 1
+                width: min(self.height, bl.width)
+                bcolor: 0.3, 0.3, 0.3, 0.9
+                canvas.before:
+                    Color:
+                        rgba: self.bcolor
+                    Rectangle:
+                        pos: self.pos
+                        size: self.size
+
 
         SendReceiveBlueBottom:
             id: blue_bottom
