@@ -352,7 +352,8 @@ def parse_URI(uri, on_pr=None):
 
     out = {k: v[0] for k, v in pq.items()}
     if address:
-        assert bitcoin.is_address(address)
+        if not bitcoin.is_address(address):
+            raise BaseException("Invalid bitcoin address:" + address)
         out['address'] = address
     if 'amount' in out:
         am = out['amount']

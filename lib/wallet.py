@@ -354,7 +354,8 @@ class Abstract_Wallet(PrintError):
         return account is not None
 
     def import_key(self, sec, password):
-        assert self.can_import(), 'This wallet cannot import private keys'
+        if not self.can_import():
+            raise BaseException('This wallet cannot import private keys')
         try:
             pubkey = public_key_from_private_key(sec)
             address = public_key_to_bc_address(pubkey.decode('hex'))
@@ -929,7 +930,8 @@ class Abstract_Wallet(PrintError):
         # check outputs
         for type, data, value in outputs:
             if type == TYPE_ADDRESS:
-                assert is_address(data), "Address " + data + " is invalid!"
+                if not is_address(data):
+                    raise BaseException("Invalid bitcoin address:" + data)
 
         # Avoid index-out-of-range with coins[0] below
         if not coins:
@@ -1040,7 +1042,8 @@ class Abstract_Wallet(PrintError):
         # asynchronous
         self.tx_event.clear()
         # fixme: this does not handle the case where server does not answer
-        assert self.network.interface, "Not connected."
+        if not self.network.interface:
+            raise BaseException("Not connected")
         self.network.send([('blockchain.transaction.broadcast', [str(tx)])], self.on_broadcast)
         return tx.hash()
 
@@ -1864,18 +1867,16 @@ class OldWallet(Deterministic_Wallet):
         import old_mnemonic
         # see if seed was entered as hex
         seed = seed.strip()
-        try:
-            assert seed
-            seed.decode('hex')
-            return OLD_SEED_VERSION, str(seed)
-        except Exception:
-            pass
-
+        if seed:
+            try:
+                seed.decode('hex')
+                return OLD_SEED_VERSION, str(seed)
+            except Exception:
+                pass
         words = seed.split()
         seed = old_mnemonic.mn_decode(words)
         if not seed:
             raise Exception("Invalid seed")
-
         return OLD_SEED_VERSION, seed
 
     def create_master_keys(self, password):
@@ -2001,10 +2002,9 @@ class Wallet(object):
     def is_old_mpk(mpk):
         try:
             int(mpk, 16)
-            assert len(mpk) == 128
-            return True
         except:
             return False
+        return len(mpk) == 128
 
     @staticmethod
     def is_xpub(text):
