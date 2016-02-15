@@ -56,6 +56,15 @@ from kivy.core.clipboard import Clipboard
 
 Factory.register('TabbedCarousel', module='electrum_ltc_gui.kivy.uix.screens')
 
+# Register fonts without this you won't be able to use bold/italic...
+# inside markup.
+from kivy.core.text import Label
+Label.register('Roboto',
+               'gui/kivy/data/fonts/Roboto.ttf',
+               'gui/kivy/data/fonts/Roboto.ttf',
+               'gui/kivy/data/fonts/Roboto-Bold.ttf',
+               'gui/kivy/data/fonts/Roboto-Bold.ttf')
+
 
 from electrum_ltc.util import base_units
 
@@ -66,11 +75,15 @@ class ElectrumWindow(App):
 
     language = StringProperty('en')
 
+    def set_URI(self, uri):
+        self.switch_to('send')
+        self.send_screen.set_URI(uri)
+
     def on_new_intent(self, intent):
         if intent.getScheme() != 'litecoin':
             return
         uri = intent.getDataString()
-        self.uri = uri
+        self.set_URI(uri)
 
     def on_language(self, instance, language):
         Logger.info('language: {}'.format(language))
@@ -164,8 +177,6 @@ class ElectrumWindow(App):
     :data:`ui_mode` is a read only `AliasProperty` Defaults to 'phone'
     '''
 
-    uri = StringProperty('', allownone=True)
-
     wallet = ObjectProperty(None)
     '''Holds the electrum wallet
 
@@ -194,8 +205,6 @@ class ElectrumWindow(App):
         #self.config = self.gui_object.config
         self.contacts = Contacts(self.electrum_config)
         self.invoices = InvoiceStore(self.electrum_config)
-
-        self.bind(uri=self.on_uri)
 
         # create triggers so as to minimize updation a max of 2 times a sec
         self._trigger_update_wallet =\
@@ -228,29 +237,23 @@ class ElectrumWindow(App):
             self.show_error("invoice error:" + pr.error)
             self.send_screen.do_clear()
 
-    def set_URI(self, url):
-        try:
-            d = electrum.util.parse_URI(url, self.on_pr)
-        except:
-            self.show_info(_("Not a Litecoin URI") + ':\n', url)
-            return
-        self.send_screen.set_URI(d)
-
     def on_qr(self, data):
         if data.startswith('litecoin:'):
             self.set_URI(data)
-        else:
-            from electrum_ltc.bitcoin import base_decode
-            from electrum_ltc.transaction import Transaction
+            return
+        # try to decode transaction
+        from electrum_ltc.bitcoin import base_decode
+        from electrum_ltc.transaction import Transaction
+        try:
             text = base_decode(data, None, base=43).encode('hex')
             tx = Transaction(text)
+        except:
+            tx = None
+        if tx:
             self.tx_dialog(tx)
-
-    def on_uri(self, instance, uri):
-        if uri:
-            Logger.info("on uri:" + uri)
-            self.switch_to('send')
-            self.set_URI(uri)
+            return
+        # show error
+        self.show_error("Unable to decode QR data")
 
     def update_tab(self, name):
         s = getattr(self, name + '_screen', None)
@@ -319,33 +322,25 @@ class ElectrumWindow(App):
         Logger.info('Time to on_start: {} <<<<<<<<'.format(time.clock()))
         Logger.info("dpi: {} {}".format(metrics.dpi, metrics.dpi_rounded))
         win = Window
-        win.bind(size=self.on_size,
-                    on_keyboard=self.on_keyboard)
+        win.bind(size=self.on_size, on_keyboard=self.on_keyboard)
         win.bind(on_key_down=self.on_key_down)
-
-        # Register fonts without this you won't be able to use bold/italic...
-        # inside markup.
-        from kivy.core.text import Label
-        Label.register('Roboto',
-                   'gui/kivy/data/fonts/Roboto.ttf',
-                   'gui/kivy/data/fonts/Roboto.ttf',
-                   'gui/kivy/data/fonts/Roboto-Bold.ttf',
-                   'gui/kivy/data/fonts/Roboto-Bold.ttf')
-
         win.softinput_mode = 'below_target'
         self.on_size(win, win.size)
         self.init_ui()
         self.load_wallet_by_name(self.electrum_config.get_wallet_path())
         # init plugins
         run_hook('init_kivy', self)
-        # were we sent a url?
-        self.uri = self.electrum_config.get('url')
         # default tab
-        self.switch_to('send' if self.uri else 'history')
+        self.switch_to('history')
         # bind intent for bitcoin: URI scheme
         if platform == 'android':
             from android import activity
             activity.bind(on_new_intent=self.on_new_intent)
+
+        # URI passed in config
+        uri = self.electrum_config.get('url')
+        if uri:
+            self.set_URI(uri)
 
     def load_wallet_by_name(self, wallet_path):
         if not wallet_path:

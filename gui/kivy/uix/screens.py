@@ -184,12 +184,17 @@ class SendScreen(CScreen):
     kvname = 'send'
     payment_request = None
 
-    def set_URI(self, uri):
+    def set_URI(self, text):
+        import electrum_ltc as electrum
+        try:
+            uri = electrum.util.parse_URI(text, self.app.on_pr)
+        except:
+            self.app.show_info(_("Not a Litecoin URI") + ':\n', text)
+            return
         self.screen.address = uri.get('address', '')
         self.screen.message = uri.get('message', '')
         amount = uri.get('amount')
-        if amount:
-            self.screen.amount = self.app.format_amount_and_units(amount)
+        self.screen.amount = self.app.format_amount_and_units(amount) if amount else ''
 
     def update(self):
         pass
@@ -204,8 +209,7 @@ class SendScreen(CScreen):
         self.payment_request = pr
         self.screen.address = pr.get_requestor()
         amount = pr.get_amount()
-        if amount:
-            self.screen.amount = self.app.format_amount_and_units(amount)
+        self.screen.amount = self.app.format_amount_and_units(amount) if amount else ''
         self.screen.message = pr.get_memo()
 
     def do_save(self):
@@ -230,7 +234,7 @@ class SendScreen(CScreen):
         if not contents:
             self.app.show_info(_("Clipboard is empty"))
             return
-        self.app.set_URI(contents)
+        self.set_URI(contents)
 
     def do_send(self):
         if self.payment_request:
@@ -299,6 +303,9 @@ class ReceiveScreen(CScreen):
     def update(self):
         if not self.screen.address:
             self.get_new_address()
+        else:
+            status = self.app.wallet.get_request_status(self.screen.address)
+            self.screen.status = _('Payment received') if status == PR_PAID else ''
 
     def get_new_address(self):
         addr = self.app.wallet.get_unused_address(None)
@@ -315,16 +322,10 @@ class ReceiveScreen(CScreen):
         if req:
             self.screen.message = unicode(req.get('memo', ''))
             amount = req.get('amount')
-            if amount:
-                self.screen.amount = self.app.format_amount_and_units(amount)
-            if req.get('status') == PR_PAID:
-                self.screen.status = _('Payment received')
+            self.screen.amount = self.app.format_amount_and_units(amount) if amount else ''
+            status = req.get('status', PR_UNKNOWN)
+            self.screen.status = _('Payment received') if status == PR_PAID else ''
         Clock.schedule_once(lambda dt: self.update_qr())
-
-    def amount_callback(self, popup):
-        amount_label = self.screen.ids.get('amount')
-        amount_label.text = popup.ids.amount_label.text
-        self.update_qr()
 
     def get_URI(self):
         from electrum_ltc.util import create_URI
@@ -362,27 +363,39 @@ class ReceiveScreen(CScreen):
         self.app._clipboard.copy(uri)
         self.app.show_info(_('Request copied to clipboard'))
 
-    def on_amount_or_message(self):
+    def save_request(self):
         addr = str(self.screen.address)
         amount = str(self.screen.amount)
-        message = str(self.screen.message) #.ids.message_input.text)
+        message = str(self.screen.message)
         amount = self.app.get_amount(amount) if amount else 0
         req = self.app.wallet.make_payment_request(addr, amount, message, None)
         self.app.wallet.add_payment_request(req, self.app.electrum_config)
         self.app.update_tab('requests')
+
+    def on_amount_or_message(self):
+        self.save_request()
         Clock.schedule_once(lambda dt: self.update_qr())
 
     def do_new(self):
-        if not self.get_new_address():
+        addr = self.get_new_address()
+        if not addr:
             self.app.show_info(_('Please use the existing requests first.'))
+        else:
+            self.save_request()
+            self.app.show_info(_('New request added to your list.'))
 
 
-
-pr_text = {
+invoice_text = {
     PR_UNPAID:_('Pending'),
     PR_UNKNOWN:_('Unknown'),
     PR_PAID:_('Paid'),
     PR_EXPIRED:_('Expired')
+}
+request_text = {
+    PR_UNPAID: _('Pending'),
+    PR_UNKNOWN: _('Unknown'),
+    PR_PAID: _('Received'),
+    PR_EXPIRED: _('Expired')
 }
 pr_icon = {
     PR_UNPAID: 'atlas://gui/kivy/theming/light/important',
@@ -410,7 +423,7 @@ class InvoicesScreen(CScreen):
             if amount:
                 ci.amount = self.app.format_amount_and_units(amount)
                 status = self.app.invoices.get_status(ci.key)
-                ci.status = pr_text[status]
+                ci.status = invoice_text[status]
                 ci.icon = pr_icon[status]
             else:
                 ci.amount = _('No Amount')
@@ -433,8 +446,10 @@ class InvoicesScreen(CScreen):
         pr.verify({})
         exp = pr.get_expiration_date()
         memo = pr.get_memo()
+        amount = pr.get_amount()
         popup = Builder.load_file('gui/kivy/uix/ui_screens/invoice.kv')
         popup.ids.requestor_label.text = _("Requestor") + ': ' + pr.get_requestor()
+        popup.ids.amount_label.text = _('Amount') + ': ' + self.app.format_amount_and_units(amount) if amount else ''
         popup.ids.expiration_label.text = _('Expires') + ': ' + (format_time(exp) if exp else _('Never'))
         popup.ids.memo_label.text = _("Description") + ': ' + memo if memo else _("No Description")
         popup.ids.signature_label.text = pr.get_verify_status()
@@ -474,7 +489,7 @@ class RequestsScreen(CScreen):
             ci.memo = self.app.wallet.get_label(address)
             if amount:
                 status = req.get('status')
-                ci.status = pr_text[status]
+                ci.status = request_text[status]
             else:
                 received = self.app.wallet.get_addr_received(address)
                 ci.status = self.app.format_amount_and_units(amount)

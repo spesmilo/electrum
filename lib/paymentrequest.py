@@ -54,7 +54,6 @@ PR_UNPAID  = 0
 PR_EXPIRED = 1
 PR_UNKNOWN = 2     # sent but not propagated
 PR_PAID    = 3     # send and propagated
-PR_ERROR   = 4     # could not parse
 
 
 

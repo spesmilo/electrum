@@ -21,7 +21,7 @@ Popup:
             Spinner:
                 id: host
                 text: ''
-                values: app.network.get_servers()
+                values: sorted(app.network.get_servers())
 
         Widget:
             size_hint: 1, 1
