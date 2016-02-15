@@ -263,6 +263,8 @@ Builder.load_string('''
                 text: ' '
             MButton:
                 text: '<'
+    Widget:
+        size_hint: 1, 1
 
     GridLayout:
         rows: 1
