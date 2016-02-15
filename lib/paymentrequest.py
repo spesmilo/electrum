@@ -200,6 +200,16 @@ class PaymentRequest:
     def get_memo(self):
         return self.memo
 
+    def get_dict(self):
+        return {
+            'requestor': self.get_requestor(),
+            'memo':self.get_memo(),
+            'exp': self.get_expiration_date(),
+            'amount': self.get_amount(),
+            'signature': self.get_verify_status(),
+            'txid': self.tx
+        }
+
     def get_id(self):
         return self.id if self.requestor else self.get_address()
 

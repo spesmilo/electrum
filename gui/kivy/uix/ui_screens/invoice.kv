@@ -3,16 +3,25 @@
 Popup:
     id: popup
     title: _('Invoice')
-    AnchorLayout:
-        anchor_x: 'center'
-        BoxLayout:
-            orientation: 'vertical'
+    BoxLayout:
+        orientation: 'vertical'
+        spacing: '1dp'
+        Widget:
+            size_hint: 1, 0.1
+
+        GridLayout:
+            cols:1
+            size_hint: 1, 1
             Label:
                 id: requestor_label
                 text_size: self.width, None
                 size_hint: 1, 0.3
             Label:
                 id: amount_label
+                text_size: self.width, None
+                size_hint: 1, 0.3
+            Label:
+                id: signature_label
                 text_size: self.width, None
                 size_hint: 1, 0.3
             Label:
@@ -24,24 +33,21 @@ Popup:
                 text_size: self.width, None
                 size_hint: 1, 0.3
             Label:
-                id: signature_label
-                text_size: self.width, None
-                size_hint: 1, 0.3
-            Label:
                 id: txid_label
                 text_size: self.width, None
                 size: self.texture_size
-            Widget:
-                size_hint: 1, 0.3
 
-            BoxLayout:
-                size_hint: 1, None
+        Widget:
+            size_hint: 1, 0.5
+
+        BoxLayout:
+            size_hint: 1, None
+            height: '48dp'
+            Widget:
+                size_hint: 0.5, None
                 height: '48dp'
-                Widget:
-                    size_hint: 0.5, None
-                    height: '48dp'
-                Button:
-                    size_hint: 0.5, None
-                    height: '48dp'
-                    text: _('OK')
-                    on_release: popup.dismiss()
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Close')
+                on_release: popup.dismiss()

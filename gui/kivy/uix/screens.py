@@ -444,19 +444,8 @@ class InvoicesScreen(CScreen):
     def do_view(self, obj):
         pr = self.app.invoices.get(obj.key)
         pr.verify({})
-        exp = pr.get_expiration_date()
-        memo = pr.get_memo()
-        amount = pr.get_amount()
-        popup = Builder.load_file('gui/kivy/uix/ui_screens/invoice.kv')
-        popup.ids.requestor_label.text = _("Requestor") + ': ' + pr.get_requestor()
-        popup.ids.amount_label.text = _('Amount') + ': ' + self.app.format_amount_and_units(amount) if amount else ''
-        popup.ids.expiration_label.text = _('Expires') + ': ' + (format_time(exp) if exp else _('Never'))
-        popup.ids.memo_label.text = _("Description") + ': ' + memo if memo else _("No Description")
-        popup.ids.signature_label.text = pr.get_verify_status()
-        if pr.tx:
-            popup.ids.txid_label.text = _("Transaction ID") + ':\n' + ' '.join(map(''.join, zip(*[iter(pr.tx)]*4)))
-
-        popup.open()
+        status = _('Status') + ': ' + obj.status
+        self.app.show_pr_details(pr.get_dict(), status, True)
 
     def do_delete(self, obj):
         from dialogs.question import Question
@@ -472,7 +461,8 @@ class RequestsScreen(CScreen):
 
     def update(self):
 
-        self.menu_actions = [('View/Edit', self.do_show), ('Delete', self.do_delete)]
+        self.menu_actions = [('Show', self.do_show), ('Details', self.do_view), ('Delete', self.do_delete)]
+
         requests_list = self.screen.ids.requests_container
         requests_list.clear_widgets()
         _list = self.app.wallet.get_sorted_requests(self.app.electrum_config)
@@ -506,6 +496,20 @@ class RequestsScreen(CScreen):
 
     def do_show(self, obj):
         self.app.show_request(obj.address)
+
+    def do_view(self, obj):
+        req = self.app.wallet.get_payment_request(obj.address, self.app.electrum_config)
+        status = req.get('status')
+        amount = req.get('amount')
+        address = req['address']
+        if amount:
+            status = req.get('status')
+            status = _('Status') + ': ' + request_text[status]
+        else:
+            received = self.app.wallet.get_addr_received(address)
+            status = _('Amount received') + ': ' + self.app.format_amount_and_units(amount)
+
+        self.app.show_pr_details(req, status, False)
 
     def do_delete(self, obj):
         from dialogs.question import Question
