@@ -184,12 +184,17 @@ class SendScreen(CScreen):
     kvname = 'send'
     payment_request = None
 
-    def set_URI(self, uri):
+    def set_URI(self, text):
+        import electrum
+        try:
+            uri = electrum.util.parse_URI(text, self.app.on_pr)
+        except:
+            self.app.show_info(_("Not a Bitcoin URI") + ':\n', text)
+            return
         self.screen.address = uri.get('address', '')
         self.screen.message = uri.get('message', '')
         amount = uri.get('amount')
-        if amount:
-            self.screen.amount = self.app.format_amount_and_units(amount)
+        self.screen.amount = self.app.format_amount_and_units(amount) if amount else ''
 
     def update(self):
         pass
@@ -204,8 +209,7 @@ class SendScreen(CScreen):
         self.payment_request = pr
         self.screen.address = pr.get_requestor()
         amount = pr.get_amount()
-        if amount:
-            self.screen.amount = self.app.format_amount_and_units(amount)
+        self.screen.amount = self.app.format_amount_and_units(amount) if amount else ''
         self.screen.message = pr.get_memo()
 
     def do_save(self):
@@ -230,7 +234,7 @@ class SendScreen(CScreen):
         if not contents:
             self.app.show_info(_("Clipboard is empty"))
             return
-        self.app.set_URI(contents)
+        self.set_URI(contents)
 
     def do_send(self):
         if self.payment_request:

@@ -70,7 +70,8 @@ class ElectrumWindow(App):
         if intent.getScheme() != 'bitcoin':
             return
         uri = intent.getDataString()
-        self.uri = uri
+        self.switch_to('send')
+        self.send_screen.set_URI(uri)
 
     def on_language(self, instance, language):
         Logger.info('language: {}'.format(language))
@@ -164,8 +165,6 @@ class ElectrumWindow(App):
     :data:`ui_mode` is a read only `AliasProperty` Defaults to 'phone'
     '''
 
-    uri = StringProperty('', allownone=True)
-
     wallet = ObjectProperty(None)
     '''Holds the electrum wallet
 
@@ -194,8 +193,6 @@ class ElectrumWindow(App):
         #self.config = self.gui_object.config
         self.contacts = Contacts(self.electrum_config)
         self.invoices = InvoiceStore(self.electrum_config)
-
-        self.bind(uri=self.on_uri)
 
         # create triggers so as to minimize updation a max of 2 times a sec
         self._trigger_update_wallet =\
@@ -228,29 +225,16 @@ class ElectrumWindow(App):
             self.show_error("invoice error:" + pr.error)
             self.send_screen.do_clear()
 
-    def set_URI(self, url):
-        try:
-            d = electrum.util.parse_URI(url, self.on_pr)
-        except:
-            self.show_info(_("Not a Bitcoin URI") + ':\n', url)
-            return
-        self.send_screen.set_URI(d)
-
     def on_qr(self, data):
         if data.startswith('bitcoin:'):
-            self.set_URI(data)
+            self.switch_to('send')
+            self.send_screen.set_URI(data)
         else:
             from electrum.bitcoin import base_decode
             from electrum.transaction import Transaction
             text = base_decode(data, None, base=43).encode('hex')
             tx = Transaction(text)
             self.tx_dialog(tx)
-
-    def on_uri(self, instance, uri):
-        if uri:
-            Logger.info("on uri:" + uri)
-            self.switch_to('send')
-            self.set_URI(uri)
 
     def update_tab(self, name):
         s = getattr(self, name + '_screen', None)
@@ -339,9 +323,9 @@ class ElectrumWindow(App):
         # init plugins
         run_hook('init_kivy', self)
         # were we sent a url?
-        self.uri = self.electrum_config.get('url')
+        #self.uri = self.electrum_config.get('url')
         # default tab
-        self.switch_to('send' if self.uri else 'history')
+        self.switch_to('history')
         # bind intent for bitcoin: URI scheme
         if platform == 'android':
             from android import activity
