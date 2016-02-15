@@ -137,6 +137,29 @@ Builder.load_string('''
         self.parent.new_word(self.text)
 
 
+<SeedButton@Button>:
+    height: dp(100)
+    border: 4, 4, 4, 4
+    halign: 'justify'
+    valign: 'top'
+    font_size: '18dp'
+    text_size: self.width - dp(24), self.height - dp(12)
+    color: .1, .1, .1, 1
+    background_normal: 'atlas://gui/kivy/theming/light/white_bg_round_top'
+    background_down: self.background_normal
+    size_hint_y: None
+
+
+<SeedLabel@Label>:
+    font_size: '12sp'
+    text_size: self.width, None
+    size_hint: 1, None
+    height: self.texture_size[1]
+    halign: 'justify'
+    valign: 'middle'
+    border: 4, 4, 4, 4
+
+
 <RestoreSeedDialog>
     word: ''
     Label:
@@ -152,38 +175,17 @@ Builder.load_string('''
         spacing: '12dp'
         size_hint: 1, None
         height: self.minimum_height
-        Button:
-            border: 4, 4, 4, 4
-            halign: 'justify'
-            valign: 'middle'
-            font_size: self.width/15
-            text_size: self.width - dp(24), self.height - dp(12)
-            color: .1, .1, .1, 1
-            background_normal: 'atlas://gui/kivy/theming/light/white_bg_round_top'
-            background_down: self.background_normal
+        SeedButton:
             id: text_input_seed
-            size_hint_y: None
-            height: dp(100)
             text: ''
             on_text: Clock.schedule_once(root.on_text)
-        Label:
-            font_size: '12sp'
-            text_size: self.width, None
-            size_hint: 1, None
-            height: self.texture_size[1]
-            halign: 'justify'
-            valign: 'middle'
+        SeedLabel:
             text: root.message
-            on_ref_press:
-                import webbrowser
-                webbrowser.open('https://electrum.org/faq.html#seed')
-
         BoxLayout:
             id: suggestions
             height: '35dp'
             size_hint: 1, None
             new_word: root.on_word
-
         BoxLayout:
             id: line1
             update_amount: root.update_text
@@ -294,33 +296,20 @@ Builder.load_string('''
         text_size: self.width, None
         height: self.texture_size[1]
         text: "[b]PLEASE WRITE DOWN YOUR SEED PHRASE[/b]"
-
     GridLayout:
         id: grid
         cols: 1
         pos_hint: {'center_y': .5}
         size_hint_y: None
-        height: dp(180)
+        height: self.minimum_height
         orientation: 'vertical'
-        Button:
-            border: 4, 4, 4, 4
-            halign: 'justify'
-            valign: 'middle'
-            font_size: self.width/15
-            text_size: self.width - dp(24), self.height - dp(12)
-            color: .1, .1, .1, 1
-            background_normal: 'atlas://gui/kivy/theming/light/white_bg_round_top'
-            background_down: self.background_normal
+        spacing: '12dp'
+        SeedButton:
             text: root.seed_text
-        Label:
-            rows: 1
-            size_hint: 1, .7
-            border: 4, 4, 4, 4
-            halign: 'justify'
-            valign: 'middle'
-            font_size: self.width/21
+        SeedLabel:
             text: root.message
-            text_size: self.width - dp(24), self.height - dp(12)
+    Widget:
+        size_hint: 1, 1
     GridLayout:
         rows: 1
         spacing: '12dp'
@@ -408,9 +397,9 @@ class RestoreSeedDialog(WizardDialog):
         self.mnemonic = Mnemonic('en')
 
     def on_text(self, dt):
-        text = self.ids.text_input_seed.text
-        self.ids.next.disabled = not bool(self._test(text))
+        self.ids.next.disabled = not bool(self._test(self.get_seed_text()))
 
+        text = self.ids.text_input_seed.text
         if not text:
             last_word = ''
         elif text[-1] == ' ':
