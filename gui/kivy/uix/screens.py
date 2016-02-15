@@ -299,6 +299,9 @@ class ReceiveScreen(CScreen):
     def update(self):
         if not self.screen.address:
             self.get_new_address()
+        else:
+            status = self.app.wallet.get_request_status(self.screen.address)
+            self.screen.status = pr_receive_text[status]
 
     def get_new_address(self):
         addr = self.app.wallet.get_unused_address(None)
@@ -315,10 +318,9 @@ class ReceiveScreen(CScreen):
         if req:
             self.screen.message = unicode(req.get('memo', ''))
             amount = req.get('amount')
-            if amount:
-                self.screen.amount = self.app.format_amount_and_units(amount)
-            if req.get('status') == PR_PAID:
-                self.screen.status = _('Payment received')
+            self.screen.amount = self.app.format_amount_and_units(amount) if amount else ''
+            status = req.get('status', PR_UNKNOWN)
+            self.screen.status = pr_receive_text[status]
         Clock.schedule_once(lambda dt: self.update_qr())
 
     def amount_callback(self, popup):
@@ -383,6 +385,12 @@ pr_text = {
     PR_UNKNOWN:_('Unknown'),
     PR_PAID:_('Paid'),
     PR_EXPIRED:_('Expired')
+}
+pr_receive_text = {
+    PR_UNPAID: '',
+    PR_UNKNOWN: '',
+    PR_PAID: _('Payment received'),
+    PR_EXPIRED: ''
 }
 pr_icon = {
     PR_UNPAID: 'atlas://gui/kivy/theming/light/important',
