@@ -1400,7 +1400,13 @@ class Abstract_Wallet(PrintError):
         return True
 
     def get_sorted_requests(self, config):
-        return sorted(map(lambda x: self.get_payment_request(x, config), self.receive_requests.keys()), key=lambda x: x.get('time', 0))
+        def f(x):
+            try:
+                addr = x.get('address')
+                return self.get_address_index(addr)
+            except:
+                return -1, (0, 0)
+        return sorted(map(lambda x: self.get_payment_request(x, config), self.receive_requests.keys()), key=f)
 
 
 
