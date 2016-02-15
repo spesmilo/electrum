@@ -44,10 +44,10 @@ class HistoryWidget(MyTreeWidget):
         if conf > 0:
             time_str = format_time(timestamp)
         if conf == -1:
-            time_str = 'unverified'
+            time_str = _('Not Verified')
             icon = QIcon(":icons/unconfirmed.png")
         elif conf == 0:
-            time_str = 'pending'
+            time_str = _('Unconfirmed')
             icon = QIcon(":icons/unconfirmed.png")
         elif conf < 6:
             icon = QIcon(":icons/clock%d.png"%conf)

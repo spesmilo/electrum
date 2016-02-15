@@ -169,6 +169,7 @@ class Network(util.DaemonThread):
         self.recent_servers = self.read_recent_servers()
 
         self.banner = ''
+        self.donation_address = ''
         self.fee = None
         self.relay_fee = None
         self.heights = {}
@@ -247,7 +248,7 @@ class Network(util.DaemonThread):
         sh = self.get_server_height()
         if not sh:
             self.print_error('no height for main interface')
-            return False
+            return True
         lh = self.get_local_height()
         result = (lh - sh) > 1
         if result:
@@ -291,6 +292,7 @@ class Network(util.DaemonThread):
         for addr in self.subscribed_addresses:
             self.queue_request('blockchain.address.subscribe', [addr])
         self.queue_request('server.banner', [])
+        self.queue_request('server.donation_address', [])
         self.queue_request('server.peers.subscribe', [])
         self.queue_request('blockchain.estimatefee', [2])
         self.queue_request('blockchain.relayfee', [])
@@ -319,6 +321,10 @@ class Network(util.DaemonThread):
     def get_parameters(self):
         host, port, protocol = deserialize_server(self.default_server)
         return host, port, protocol, self.proxy, self.auto_connect
+
+    def get_donation_address(self):
+        if self.is_connected():
+            return self.donation_address
 
     def get_interfaces(self):
         '''The interfaces that are in connected state'''
@@ -487,6 +493,9 @@ class Network(util.DaemonThread):
             if error is None:
                 self.banner = result
                 self.notify('banner')
+        elif method == 'server.donation_address':
+            if error is None:
+                self.donation_address = result
         elif method == 'blockchain.estimatefee':
             if error is None:
                 self.fee = int(result * COIN)

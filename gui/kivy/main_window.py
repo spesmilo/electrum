@@ -278,6 +278,32 @@ class ElectrumWindow(App):
         self.switch_to('receive')
         self.receive_screen.screen.address = addr
 
+    def show_pr_details(self, req, status, is_invoice):
+        from electrum_ltc.util import format_time
+        requestor = req.get('requestor')
+        exp = req.get('exp')
+        memo = req.get('memo')
+        amount = req.get('amount')
+        popup = Builder.load_file('gui/kivy/uix/ui_screens/invoice.kv')
+        if is_invoice:
+            popup.title = _('Invoice')
+            popup.ids.requestor_label.text = _("Requestor") + ': ' + requestor
+        else:
+            popup.title = _('Request')
+            popup.ids.requestor_label.text = _("Address") + ': ' + req.get('address')
+
+        popup.ids.amount_label.text = _('Amount') + ': ' + self.format_amount_and_units(amount) if amount else ''
+        popup.ids.expiration_label.text = _('Expires') + ': ' + format_time(exp) if exp else ''
+        popup.ids.memo_label.text = _("Description") + ': ' + memo if memo else _("No Description")
+        popup.ids.signature_label.text = req.get('signature', '')
+
+        popup.ids.txid_label.text = status
+        txid = req.get('txid')
+        if txid:
+            popup.ids.txid_label.text += '\n' + _("Transaction ID") + ':\n' + ' '.join(map(''.join, zip(*[iter(txid)]*4)))
+        popup.open()
+
+
     def qr_dialog(self, title, data):
         from uix.dialogs.qr_dialog import QRDialog
         popup = QRDialog(title, data)

@@ -115,7 +115,7 @@ class ElectrumGui:
                 except Exception:
                     time_str = "------"
             else:
-                time_str = 'pending'
+                time_str = 'unconfirmed'
 
             label = self.wallet.get_label(tx_hash)
             if len(label) > 40:

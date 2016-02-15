@@ -450,8 +450,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         help_menu.addSeparator()
         help_menu.addAction(_("&Documentation"), lambda: webbrowser.open("http://docs.electrum.org/")).setShortcut(QKeySequence.HelpContents)
         help_menu.addAction(_("&Report Bug"), self.show_report_bug)
+        help_menu.addSeparator()
+        help_menu.addAction(_("&Donate to server"), self.donate_to_server)
 
         self.setMenuBar(menubar)
+
+    def donate_to_server(self):
+        if self.network.is_connected():
+            d = self.network.get_donation_address()
+            host = self.network.get_parameters()[0]
+            self.pay_to_URI('litecoin:%s?message=donation for %s'%(d, host))
 
     def show_about(self):
         QMessageBox.about(self, "Electrum-LTC",
@@ -2469,7 +2477,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 else:
                     time_string = "unknown"
             else:
-                time_string = "pending"
+                time_string = "unconfirmed"
 
             if value is not None:
                 value_string = format_satoshis(value, True)
