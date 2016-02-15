@@ -1323,7 +1323,9 @@ class Abstract_Wallet(PrintError):
 
     def get_request_status(self, key):
         from paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
-        r = self.receive_requests[key]
+        r = self.receive_requests.get(key)
+        if r is None:
+            return PR_UNKNOWN
         address = r['address']
         amount = r.get('amount')
         timestamp = r.get('time', 0)
