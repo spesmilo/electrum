@@ -98,7 +98,7 @@ class InstallWizard(Widget):
             else:
                 self.run('add_seed', (text, None))
                 # fixme: sync
-        msg = _('You may use the camera to scan your seed. Scan a master public key to create a watching-only wallet')
+        msg = _('You may use the camera to scan your seed. To create a watching-only wallet, scan your master public key.')
         RestoreSeedDialog(test=Wallet.is_any, message=msg, on_release=on_seed).open()
 
     def add_seed(self, text, password):

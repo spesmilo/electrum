@@ -260,8 +260,9 @@ Builder.load_string('''
             MButton:
                 text: 'M'
             MButton:
+                text: ' '
+            MButton:
                 text: '<'
-                size_hint: 2, None
 
     GridLayout:
         rows: 1
@@ -405,7 +406,7 @@ class RestoreSeedDialog(WizardDialog):
         self.mnemonic = Mnemonic('en')
 
     def on_text(self, dt):
-        text = self.get_seed_text()
+        text = self.ids.text_input_seed.text
         self.ids.next.disabled = not bool(self._test(text))
 
         if not text:
@@ -415,20 +416,29 @@ class RestoreSeedDialog(WizardDialog):
         else:
             last_word = text.split(' ')[-1]
 
+        enable_space = False
         self.ids.suggestions.clear_widgets()
         suggestions = [x for x in self.mnemonic.get_suggestions(last_word)]
         if suggestions and len(suggestions) < 10:
             for w in suggestions:
-                b = WordButton(text=w)
-                self.ids.suggestions.add_widget(b)
+                if w == last_word:
+                    enable_space = True
+                else:
+                    b = WordButton(text=w)
+                    self.ids.suggestions.add_widget(b)
 
         i = len(last_word)
-        p = set([x[i] for x in suggestions])
+        p = set()
+        for x in suggestions:
+            if len(x)>i: p.add(x[i])
+
         for line in [self.ids.line1, self.ids.line2, self.ids.line3]:
             for c in line.children:
                 if isinstance(c, Button):
                     if c.text in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
-                        c.disabled = (c.text.lower() not in p) and p
+                        c.disabled = (c.text.lower() not in p) and last_word
+                    elif c.text == ' ':
+                        c.disabled = not enable_space
 
     def on_word(self, w):
         text = self.get_seed_text()

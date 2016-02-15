@@ -134,7 +134,7 @@ class Mnemonic(object):
 
     def get_suggestions(self, prefix):
         for w in self.wordlist:
-            if w.startswith(prefix) and w!=prefix:
+            if w.startswith(prefix):
                 yield w
 
     def mnemonic_decode(self, seed):
