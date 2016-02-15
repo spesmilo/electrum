@@ -56,6 +56,15 @@ from kivy.core.clipboard import Clipboard
 
 Factory.register('TabbedCarousel', module='electrum_gui.kivy.uix.screens')
 
+# Register fonts without this you won't be able to use bold/italic...
+# inside markup.
+from kivy.core.text import Label
+Label.register('Roboto',
+               'gui/kivy/data/fonts/Roboto.ttf',
+               'gui/kivy/data/fonts/Roboto.ttf',
+               'gui/kivy/data/fonts/Roboto-Bold.ttf',
+               'gui/kivy/data/fonts/Roboto-Bold.ttf')
+
 
 from electrum.util import base_units
 
@@ -66,12 +75,15 @@ class ElectrumWindow(App):
 
     language = StringProperty('en')
 
+    def set_URI(self, uri):
+        self.switch_to('send')
+        self.send_screen.set_URI(uri)
+
     def on_new_intent(self, intent):
         if intent.getScheme() != 'bitcoin':
             return
         uri = intent.getDataString()
-        self.switch_to('send')
-        self.send_screen.set_URI(uri)
+        self.set_URI(uri)
 
     def on_language(self, instance, language):
         Logger.info('language: {}'.format(language))
@@ -227,8 +239,7 @@ class ElectrumWindow(App):
 
     def on_qr(self, data):
         if data.startswith('bitcoin:'):
-            self.switch_to('send')
-            self.send_screen.set_URI(data)
+            self.set_URI(data)
         else:
             from electrum.bitcoin import base_decode
             from electrum.transaction import Transaction
@@ -303,33 +314,25 @@ class ElectrumWindow(App):
         Logger.info('Time to on_start: {} <<<<<<<<'.format(time.clock()))
         Logger.info("dpi: {} {}".format(metrics.dpi, metrics.dpi_rounded))
         win = Window
-        win.bind(size=self.on_size,
-                    on_keyboard=self.on_keyboard)
+        win.bind(size=self.on_size, on_keyboard=self.on_keyboard)
         win.bind(on_key_down=self.on_key_down)
-
-        # Register fonts without this you won't be able to use bold/italic...
-        # inside markup.
-        from kivy.core.text import Label
-        Label.register('Roboto',
-                   'gui/kivy/data/fonts/Roboto.ttf',
-                   'gui/kivy/data/fonts/Roboto.ttf',
-                   'gui/kivy/data/fonts/Roboto-Bold.ttf',
-                   'gui/kivy/data/fonts/Roboto-Bold.ttf')
-
         win.softinput_mode = 'below_target'
         self.on_size(win, win.size)
         self.init_ui()
         self.load_wallet_by_name(self.electrum_config.get_wallet_path())
         # init plugins
         run_hook('init_kivy', self)
-        # were we sent a url?
-        #self.uri = self.electrum_config.get('url')
         # default tab
         self.switch_to('history')
         # bind intent for bitcoin: URI scheme
         if platform == 'android':
             from android import activity
             activity.bind(on_new_intent=self.on_new_intent)
+
+        # URI passed in config
+        uri = self.electrum_config.get('url')
+        if uri:
+            self.set_URI(uri)
 
     def load_wallet_by_name(self, wallet_path):
         if not wallet_path:
