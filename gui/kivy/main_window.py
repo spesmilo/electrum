@@ -240,12 +240,20 @@ class ElectrumWindow(App):
     def on_qr(self, data):
         if data.startswith('bitcoin:'):
             self.set_URI(data)
-        else:
-            from electrum.bitcoin import base_decode
-            from electrum.transaction import Transaction
+            return
+        # try to decode transaction
+        from electrum.bitcoin import base_decode
+        from electrum.transaction import Transaction
+        try:
             text = base_decode(data, None, base=43).encode('hex')
             tx = Transaction(text)
+        except:
+            tx = None
+        if tx:
             self.tx_dialog(tx)
+            return
+        # show error
+        self.show_error("Unable to decode QR data")
 
     def update_tab(self, name):
         s = getattr(self, name + '_screen', None)
