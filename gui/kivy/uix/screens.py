@@ -305,7 +305,7 @@ class ReceiveScreen(CScreen):
             self.get_new_address()
         else:
             status = self.app.wallet.get_request_status(self.screen.address)
-            self.screen.status = pr_receive_text[status]
+            self.screen.status = _('Payment received') if status == PR_PAID else ''
 
     def get_new_address(self):
         addr = self.app.wallet.get_unused_address(None)
@@ -324,7 +324,7 @@ class ReceiveScreen(CScreen):
             amount = req.get('amount')
             self.screen.amount = self.app.format_amount_and_units(amount) if amount else ''
             status = req.get('status', PR_UNKNOWN)
-            self.screen.status = pr_receive_text[status]
+            self.screen.status = _('Payment received') if status == PR_PAID else ''
         Clock.schedule_once(lambda dt: self.update_qr())
 
     def get_URI(self):
@@ -382,20 +382,20 @@ class ReceiveScreen(CScreen):
             self.app.show_info(_('Please use the existing requests first.'))
         else:
             self.save_request()
-            self.app.show_info(_('New request saved.'))
+            self.app.show_info(_('New request added to your list.'))
 
 
-pr_text = {
+invoice_text = {
     PR_UNPAID:_('Pending'),
     PR_UNKNOWN:_('Unknown'),
     PR_PAID:_('Paid'),
     PR_EXPIRED:_('Expired')
 }
-pr_receive_text = {
-    PR_UNPAID: '',
-    PR_UNKNOWN: '',
-    PR_PAID: _('Payment received'),
-    PR_EXPIRED: ''
+request_text = {
+    PR_UNPAID: _('Pending'),
+    PR_UNKNOWN: _('Unknown'),
+    PR_PAID: _('Received'),
+    PR_EXPIRED: _('Expired')
 }
 pr_icon = {
     PR_UNPAID: 'atlas://gui/kivy/theming/light/important',
@@ -423,7 +423,7 @@ class InvoicesScreen(CScreen):
             if amount:
                 ci.amount = self.app.format_amount_and_units(amount)
                 status = self.app.invoices.get_status(ci.key)
-                ci.status = pr_text[status]
+                ci.status = invoice_text[status]
                 ci.icon = pr_icon[status]
             else:
                 ci.amount = _('No Amount')
@@ -489,7 +489,7 @@ class RequestsScreen(CScreen):
             ci.memo = self.app.wallet.get_label(address)
             if amount:
                 status = req.get('status')
-                ci.status = pr_text[status]
+                ci.status = request_text[status]
             else:
                 received = self.app.wallet.get_addr_received(address)
                 ci.status = self.app.format_amount_and_units(amount)
