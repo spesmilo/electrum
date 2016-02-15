@@ -2477,7 +2477,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 else:
                     time_string = "unknown"
             else:
-                time_string = "pending"
+                time_string = "unconfirmed"
 
             if value is not None:
                 value_string = format_satoshis(value, True)

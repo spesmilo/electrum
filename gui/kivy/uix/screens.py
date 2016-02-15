@@ -127,10 +127,10 @@ class HistoryScreen(CScreen):
                 except Exception:
                     time_str = _("error")
             if conf == -1:
-                time_str = _('unverified')
+                time_str = _('Not Verified')
                 icon = "atlas://gui/kivy/theming/light/close"
             elif conf == 0:
-                time_str = _('pending')
+                time_str = _('Unconfirmed')
                 icon = "atlas://gui/kivy/theming/light/unconfirmed"
             elif conf < 6:
                 conf = max(1, conf)
