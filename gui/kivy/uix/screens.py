@@ -323,11 +323,6 @@ class ReceiveScreen(CScreen):
             self.screen.status = pr_receive_text[status]
         Clock.schedule_once(lambda dt: self.update_qr())
 
-    def amount_callback(self, popup):
-        amount_label = self.screen.ids.get('amount')
-        amount_label.text = popup.ids.amount_label.text
-        self.update_qr()
-
     def get_URI(self):
         from electrum.util import create_URI
         amount = self.screen.amount
@@ -364,20 +359,26 @@ class ReceiveScreen(CScreen):
         self.app._clipboard.copy(uri)
         self.app.show_info(_('Request copied to clipboard'))
 
-    def on_amount_or_message(self):
+    def save_request(self):
         addr = str(self.screen.address)
         amount = str(self.screen.amount)
-        message = str(self.screen.message) #.ids.message_input.text)
+        message = str(self.screen.message)
         amount = self.app.get_amount(amount) if amount else 0
         req = self.app.wallet.make_payment_request(addr, amount, message, None)
         self.app.wallet.add_payment_request(req, self.app.electrum_config)
         self.app.update_tab('requests')
+
+    def on_amount_or_message(self):
+        self.save_request()
         Clock.schedule_once(lambda dt: self.update_qr())
 
     def do_new(self):
-        if not self.get_new_address():
+        addr = self.get_new_address()
+        if not addr:
             self.app.show_info(_('Please use the existing requests first.'))
-
+        else:
+            self.save_request()
+            self.app.show_info(_('New request saved.'))
 
 
 pr_text = {
