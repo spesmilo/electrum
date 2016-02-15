@@ -245,7 +245,7 @@ class Network(util.DaemonThread):
         sh = self.get_server_height()
         if not sh:
             self.print_error('no height for main interface')
-            return False
+            return True
         lh = self.get_local_height()
         result = (lh - sh) > 1
         if result:
