@@ -11,57 +11,69 @@ Builder.load_string('''
 <TxDialog@Popup>
     id: popup
     title: _('Transaction')
+    is_mine: True
     can_sign: False
     can_broadcast: False
     fee_str: ''
+    date_str: ''
     amount_str: ''
     txid_str: ''
     status_str: ''
-    AnchorLayout:
-        anchor_x: 'center'
-        BoxLayout:
-            orientation: 'vertical'
-            Label:
-                id: status_label
+    description: ''
+    BoxLayout:
+        orientation: 'vertical'
+        GridLayout:
+            cols: 2
+            spacing: '10dp'
+            TopLabel:
+                text: _('Status')
+            TopLabel:
                 text: root.status_str
-                text_size: self.size
-            Label:
-                id: amount_label
+            TopLabel:
+                text: _('Description') if root.description else ''
+            TopLabel:
+                text: root.description
+            TopLabel:
+                text: _('Date') if root.date_str else ''
+            TopLabel:
+                text: root.date_str
+            TopLabel:
+                text: _('Amount sent') if root.is_mine else _('Amount received')
+            TopLabel:
                 text: root.amount_str
-                text_size: self.size
-            Label:
-                id: fee_label
+            TopLabel:
+                text: _('Transaction fee') if root.fee_str else ''
+            TopLabel:
                 text: root.fee_str
-                text_size: self.size
-            Label:
-                id: txid_label
-                text: root.txid_str
-                text_size: self.width, None
-                size: self.texture_size
-            Widget:
-                size_hint: 1, 1
-            BoxLayout:
-                size_hint: 1, None
+
+        TopLabel:
+            text: root.txid_str
+
+        Widget:
+            size_hint: 1, 0.2
+
+        BoxLayout:
+            size_hint: 1, None
+            height: '48dp'
+            Button:
+                size_hint: 0.5, None
                 height: '48dp'
-                Button:
-                    size_hint: 0.5, None
-                    height: '48dp'
-                    text: _('Sign') if root.can_sign else _('Broadcast') if root.can_broadcast else ''
-                    opacity: 1 if root.can_sign or root.can_broadcast else 0
-                    disabled: not( root.can_sign or root.can_broadcast )
-                    on_release:
-                        if root.can_sign: root.do_sign()
-                        if root.can_broadcast: root.do_broadcast()
-                IconButton:
-                    size_hint: 0.5, None
-                    height: '48dp'
-                    icon: 'atlas://gui/kivy/theming/light/qrcode'
-                    on_release: root.show_qr()
-                Button:
-                    size_hint: 0.5, None
-                    height: '48dp'
-                    text: _('Close')
-                    on_release: popup.dismiss()
+                text: _('Sign') if root.can_sign else _('Broadcast') if root.can_broadcast else ''
+                opacity: 1 if root.can_sign or root.can_broadcast else 0
+                disabled: not( root.can_sign or root.can_broadcast )
+                on_release:
+                    if root.can_sign: root.do_sign()
+                    if root.can_broadcast: root.do_broadcast()
+            IconButton:
+                size_hint: 0.5, None
+                height: '48dp'
+                icon: 'atlas://gui/kivy/theming/light/qrcode'
+                on_release: root.show_qr()
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Close')
+                on_release: popup.dismiss()
 ''')
 
 class TxDialog(Factory.Popup):
@@ -82,7 +94,7 @@ class TxDialog(Factory.Popup):
                 conf, timestamp = self.wallet.get_confirmations(tx_hash)
                 self.status_str = _("%d confirmations")%conf if conf else _('Pending')
                 if timestamp:
-                    self.status_str += '\n' + _("Date") + ': ' + datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+                    self.date_str = datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
             else:
                 self.can_broadcast = self.app.network is not None
                 self.status_str = _('Signed')
@@ -90,17 +102,19 @@ class TxDialog(Factory.Popup):
             s, r = self.tx.signature_count()
             self.status_str = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
 
+        self.description = self.wallet.get_label(tx_hash)
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
+        self.is_mine = is_mine
         if is_relevant:
             if is_mine:
                 if fee is not None:
-                    self.amount_str = _("Amount sent:")+' %s'% self.app.format_amount_and_units(-v+fee)
-                    self.fee_str = _("Transaction fee")+': %s'% self.app.format_amount_and_units(-fee)
+                    self.amount_str = self.app.format_amount_and_units(-v+fee)
+                    self.fee_str = self.app.format_amount_and_units(-fee)
                 else:
-                    self.amount_str = _("Amount sent:")+' %s'% self.app.format_amount_and_units(-v)
-                    self.fee_str = _("Transaction fee")+': '+ _("unknown")
+                    self.amount_str = self.app.format_amount_and_units(-v)
+                    self.fee_str = _("unknown")
             else:
-                self.amount_str = _("Amount received:")+' %s'% self.app.format_amount_and_units(v)
+                self.amount_str = self.app.format_amount_and_units(v)
                 self.fee_str = ''
         else:
             self.amount_str = _("Transaction unrelated to your wallet")
