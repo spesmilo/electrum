@@ -60,10 +60,10 @@ class TestUtil(unittest.TestCase):
                                 {'r': 'http://domain.tld/page?h=2a8628fc2fbe'})
 
     def test_parse_URI_invalid_address(self):
-        self.assertRaises(AssertionError, parse_URI, 'litecoin:invalidaddress')
+        self.assertRaises(BaseException, parse_URI, 'litecoin:invalidaddress')
 
     def test_parse_URI_invalid(self):
-        self.assertRaises(AssertionError, parse_URI, 'notlitecoin:LectrumELqJWMECz7W2iarBpT4VvAPqwAv')
+        self.assertRaises(BaseException, parse_URI, 'notlitecoin:LectrumELqJWMECz7W2iarBpT4VvAPqwAv')
 
     def test_parse_URI_parameter_polution(self):
         self.assertRaises(Exception, parse_URI, 'litecoin:LectrumELqJWMECz7W2iarBpT4VvAPqwAv?amount=0.0003&label=test&amount=30.0')
