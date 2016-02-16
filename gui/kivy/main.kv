@@ -24,6 +24,23 @@
 <ListItemButton>
     font_size: '12sp'
 
+<Carousel>:
+    canvas.before:
+        Color:
+            rgba: 0.1, 0.1, 0.1, 1
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
+<ActionView>:
+    canvas.before:
+        Color:
+            rgba: 0.1, 0.1, 0.1, 1
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
+
 # Custom Global Widgets
 
 <TopLabel@Label>
@@ -184,7 +201,7 @@
 
 
 <CleanHeader@TabbedPanelHeader>
-    border: 0, 0, 16, 0
+    border: 16, 0, 16, 0
     markup: False
     text_size: self.size
     halign: 'center'
@@ -280,12 +297,9 @@ BoxLayout:
                 id: action_status
                 important: True
                 size_hint: 1, 1
-                markup: True
-                mipmap: True
                 bold: True
-                markup: True
-                color: 1, 1, 1, 1
-                text: "[color=#777777]"+app.status+"[/color]"
+                color: 0.7, 0.7, 0.7, 1
+                text: app.status
                 font_size: '22dp'
                 minimum_width: '1dp'
                 on_release: app.popup_dialog('status')

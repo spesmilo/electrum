@@ -38,7 +38,7 @@ Popup:
             TopLabel:
                 text: root.description
             TopLabel:
-                text: _('Status') if popup.amount or popup.is_invoice else _('Amount received')
+                text: (_('Status') if popup.amount or popup.is_invoice else _('Amount received')) if root.status else ''
             TopLabel:
                 text: root.status
 
