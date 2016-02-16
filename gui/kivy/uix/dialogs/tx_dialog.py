@@ -89,6 +89,7 @@ class TxDialog(Factory.Popup):
         self.can_broadcast = False
         if self.tx.is_complete():
             tx_hash = self.tx.hash()
+            self.description = self.wallet.get_label(tx_hash)
             self.txid_str = _('Transaction ID') + ' :\n' + ' '.join(map(''.join, zip(*[iter(tx_hash)]*4)))
             if tx_hash in self.wallet.transactions.keys():
                 conf, timestamp = self.wallet.get_confirmations(tx_hash)
@@ -102,7 +103,6 @@ class TxDialog(Factory.Popup):
             s, r = self.tx.signature_count()
             self.status_str = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
 
-        self.description = self.wallet.get_label(tx_hash)
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
         self.is_mine = is_mine
         if is_relevant:
