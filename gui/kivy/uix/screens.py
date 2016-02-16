@@ -444,8 +444,7 @@ class InvoicesScreen(CScreen):
     def do_view(self, obj):
         pr = self.app.invoices.get(obj.key)
         pr.verify({})
-        status = _('Status') + ': ' + obj.status
-        self.app.show_pr_details(pr.get_dict(), status, True)
+        self.app.show_pr_details(pr.get_dict(), obj.status, True)
 
     def do_delete(self, obj):
         from dialogs.question import Question
@@ -504,10 +503,10 @@ class RequestsScreen(CScreen):
         address = req['address']
         if amount:
             status = req.get('status')
-            status = _('Status') + ': ' + request_text[status]
+            status = request_text[status]
         else:
             received = self.app.wallet.get_addr_received(address)
-            status = _('Amount received') + ': ' + self.app.format_amount_and_units(amount)
+            status = self.app.format_amount_and_units(amount)
 
         self.app.show_pr_details(req, status, False)
 

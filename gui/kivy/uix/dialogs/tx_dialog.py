@@ -24,8 +24,7 @@ Builder.load_string('''
             Label:
                 id: status_label
                 text: root.status_str
-                text_size: self.width, None
-                size: self.texture_size
+                text_size: self.size
             Label:
                 id: amount_label
                 text: root.amount_str
