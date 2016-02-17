@@ -207,7 +207,8 @@ class PaymentRequest:
             'exp': self.get_expiration_date(),
             'amount': self.get_amount(),
             'signature': self.get_verify_status(),
-            'txid': self.tx
+            'txid': self.tx,
+            'outputs': self.get_outputs()
         }
 
     def get_id(self):

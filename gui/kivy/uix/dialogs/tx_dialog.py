@@ -3,6 +3,7 @@ from kivy.factory import Factory
 from kivy.properties import ObjectProperty
 from kivy.lang import Builder
 from kivy.clock import Clock
+from kivy.uix.label import Label
 
 from electrum_ltc_gui.kivy.i18n import _
 from datetime import datetime
@@ -17,40 +18,57 @@ Builder.load_string('''
     fee_str: ''
     date_str: ''
     amount_str: ''
-    txid_str: ''
+    tx_hash: ''
     status_str: ''
     description: ''
+    outputs_str: ''
     BoxLayout:
         orientation: 'vertical'
-        GridLayout:
-            cols: 2
-            spacing: '10dp'
-            TopLabel:
-                text: _('Status')
-            TopLabel:
-                text: root.status_str
-            TopLabel:
-                text: _('Description') if root.description else ''
-            TopLabel:
-                text: root.description
-            TopLabel:
-                text: _('Date') if root.date_str else ''
-            TopLabel:
-                text: root.date_str
-            TopLabel:
-                text: _('Amount sent') if root.is_mine else _('Amount received')
-            TopLabel:
-                text: root.amount_str
-            TopLabel:
-                text: _('Transaction fee') if root.fee_str else ''
-            TopLabel:
-                text: root.fee_str
-
-        TopLabel:
-            text: root.txid_str
+        ScrollView:
+            GridLayout:
+                height: self.minimum_height
+                size_hint_y: None
+                cols: 1
+                spacing: '10dp'
+                padding: '10dp'
+                GridLayout:
+                    height: self.minimum_height
+                    size_hint_y: None
+                    cols: 2
+                    spacing: '10dp'
+                    TopLabel:
+                        text: _('Status')
+                    TopLabel:
+                        text: root.status_str
+                    TopLabel:
+                        text: _('Description') if root.description else ''
+                    TopLabel:
+                        text: root.description
+                    TopLabel:
+                        text: _('Date') if root.date_str else ''
+                    TopLabel:
+                        text: root.date_str
+                    TopLabel:
+                        text: _('Amount sent') if root.is_mine else _('Amount received')
+                    TopLabel:
+                        text: root.amount_str
+                    TopLabel:
+                        text: _('Transaction fee') if root.fee_str else ''
+                    TopLabel:
+                        text: root.fee_str
+                TopLabel:
+                    text: _('Outputs') + ':'
+                OutputList:
+                    height: self.minimum_height
+                    size_hint: 1, None
+                    id: output_list
+                TopLabel:
+                    text: _('Transaction ID') + ':' if root.tx_hash else ''
+                TxHashLabel:
+                    tx_hash: root.tx_hash
 
         Widget:
-            size_hint: 1, 0.2
+            size_hint: 1, 0.1
 
         BoxLayout:
             size_hint: 1, None
@@ -76,6 +94,7 @@ Builder.load_string('''
                 on_release: popup.dismiss()
 ''')
 
+
 class TxDialog(Factory.Popup):
 
     def __init__(self, app, tx):
@@ -83,16 +102,17 @@ class TxDialog(Factory.Popup):
         self.app = app
         self.wallet = self.app.wallet
         self.tx = tx
+
+    def on_open(self):
         self.update()
 
     def update(self):
         self.can_broadcast = False
         if self.tx.is_complete():
-            tx_hash = self.tx.hash()
-            self.description = self.wallet.get_label(tx_hash)
-            self.txid_str = _('Transaction ID') + ' :\n' + ' '.join(map(''.join, zip(*[iter(tx_hash)]*4)))
-            if tx_hash in self.wallet.transactions.keys():
-                conf, timestamp = self.wallet.get_confirmations(tx_hash)
+            self.tx_hash = self.tx.hash()
+            self.description = self.wallet.get_label(self.tx_hash)
+            if self.tx_hash in self.wallet.transactions.keys():
+                conf, timestamp = self.wallet.get_confirmations(self.tx_hash)
                 self.status_str = _("%d confirmations")%conf if conf else _('Pending')
                 if timestamp:
                     self.date_str = datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
@@ -120,6 +140,7 @@ class TxDialog(Factory.Popup):
             self.amount_str = _("Transaction unrelated to your wallet")
             self.fee_str = ''
         self.can_sign = self.wallet.can_sign(self.tx)
+        self.ids.output_list.update(self.tx.outputs())
 
     def do_sign(self):
         self.app.protected(_("Enter your PIN code in order to sign this transaction"), self._do_sign, ())

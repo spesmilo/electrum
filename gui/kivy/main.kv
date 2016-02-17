@@ -44,7 +44,6 @@
 # Custom Global Widgets
 
 <TopLabel@Label>
-    valign: 'top'
     size_hint_y: None
     text_size: self.width, None
     height: self.texture_size[1]
@@ -78,6 +77,34 @@
 #########################
 #       Dialogs
 #########################
+
+<OutputList>
+    height: self.minimum_height
+    size_hint_y: None
+    cols: 2
+    spacing: '10dp'
+    padding: '10dp'
+    canvas.before:
+        Color:
+            rgb: .3, .3, .3
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
+<TxHashLabel@TopLabel>
+    font_size: '6pt'
+    tx_hash: ''
+    text: '[ref=x]%s[/ref]' %' '.join(map(''.join, zip(*[iter(self.tx_hash)]*4))) if self.tx_hash else ''
+    padding: '10dp', '10dp'
+    on_ref_press:
+        app._clipboard.copy(self.text)
+        app.show_info(_('Transaction ID copied to clipboard'))
+    canvas.before:
+        Color:
+            rgb: .3, .3, .3
+        Rectangle:
+            size: self.size
+            pos: self.pos
 
 <InfoBubble>
     size_hint: None, None

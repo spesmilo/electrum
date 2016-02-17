@@ -480,6 +480,7 @@ class Transaction:
         else:
             raise BaseException("cannot initialize transaction", raw)
         self._inputs = None
+        self._outputs = None
 
     def update(self, raw):
         self.raw = raw

@@ -12,38 +12,54 @@ Popup:
     status: ''
     signature: ''
     title: _('Invoice') if popup.is_invoice else _('Request')
+    tx_hash: ''
     BoxLayout:
         orientation: 'vertical'
-        GridLayout:
-            spacing: '10dp'
-            cols: 2
-            TopLabel:
-                text: _('Requestor') if popup.is_invoice else _('Address')
-            TopLabel:
-                text: root.requestor
-            TopLabel:
-                text: _('Amount') if root.amount else ''
-            TopLabel:
-                text: app.format_amount_and_units(root.amount) if root.amount else ''
-            TopLabel:
-                text: _('Signature') if root.signature else ''
-            TopLabel:
-                text: root.signature
-            TopLabel:
-                text: _('Expiration') if root.exp else ''
-            TopLabel:
-                text: root.exp
-            TopLabel:
-                text: _('Description') if root.description else ''
-            TopLabel:
-                text: root.description
-            TopLabel:
-                text: (_('Status') if popup.amount or popup.is_invoice else _('Amount received')) if root.status else ''
-            TopLabel:
-                text: root.status
+        ScrollView:
+            GridLayout:
+                cols: 1
+                height: self.minimum_height
+                size_hint_y: None
+                GridLayout:
+                    cols: 2
+                    size_hint_y: None
+                    height: self.minimum_height
+                    spacing: '10dp'
+                    padding: '10dp'
+                    TopLabel:
+                        text: _('Requestor') if popup.is_invoice else _('Address')
+                    TopLabel:
+                        text: root.requestor
+                    TopLabel:
+                        text: _('Amount') if root.amount else ''
+                    TopLabel:
+                        text: app.format_amount_and_units(root.amount) if root.amount else ''
+                    TopLabel:
+                        text: _('Signature') if root.signature else ''
+                    TopLabel:
+                        text: root.signature
+                    TopLabel:
+                        text: _('Expiration') if root.exp else ''
+                    TopLabel:
+                        text: root.exp
+                    TopLabel:
+                        text: _('Description') if root.description else ''
+                    TopLabel:
+                        text: root.description
+                    TopLabel:
+                        text: (_('Status') if popup.amount or popup.is_invoice else _('Amount received')) if root.status else ''
+                    TopLabel:
+                        text: root.status
 
-        TopLabel:
-            id: txid_label
+                TopLabel:
+                    text: _('Outputs') if popup.is_invoice else ''
+                OutputList:
+                    id: output_list
+                TopLabel:
+                    text: _('Transaction ID') if popup.tx_hash else ''
+                TxHashLabel:
+                    tx_hash: popup.tx_hash
+
         Widget:
             size_hint: 1, 0.1
 

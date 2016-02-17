@@ -31,7 +31,8 @@ from kivy.lang import Builder
 Factory.register('InstallWizard',
                  module='electrum_ltc_gui.kivy.uix.dialogs.installwizard')
 Factory.register('InfoBubble', module='electrum_ltc_gui.kivy.uix.dialogs')
-Factory.register('ELTextInput', module='electrum_ltc_gui.kivy.uix.screens')
+#Factory.register('ELTextInput', module='electrum_ltc_gui.kivy.uix.screens')
+Factory.register('OutputList', module='electrum_ltc_gui.kivy.uix.dialogs')
 
 
 #from kivy.core.window import Window
@@ -293,8 +294,8 @@ class ElectrumWindow(App):
         popup.signature = req.get('signature', '')
         popup.status = status
         txid = req.get('txid')
-        if txid:
-            popup.ids.txid_label.text =  _("Transaction ID") + ':\n' + ' '.join(map(''.join, zip(*[iter(txid)]*4)))
+        popup.tx_hash = txid or ''
+        popup.ids.output_list.update(req.get('outputs', []))
         popup.open()
 
     def qr_dialog(self, title, data):
@@ -614,7 +615,7 @@ class ElectrumWindow(App):
         exit=False, duration=0, modal=False):
         ''' Show a Info Message Bubble.
         '''
-        self.show_error(error, icon='atlas://gui/kivy/theming/light/error',
+        self.show_error(error, icon='atlas://gui/kivy/theming/light/important',
             duration=duration, modal=modal, exit=exit, pos=pos,
             arrow_pos=arrow_pos)
 
