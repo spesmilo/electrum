@@ -9,7 +9,19 @@ from electrum_gui.kivy.i18n import _
 from datetime import datetime
 
 Builder.load_string('''
-<TxDialog@Popup>
+<BoxLabel@BoxLayout>
+    text: ''
+    value: ''
+    size_hint_y: None
+    height: max(lbl1.height, lbl2.height)
+    TopLabel
+        id: lbl1
+        text: root.text
+    TopLabel
+        id: lbl2
+        text: root.value
+
+<TxDialog>
     id: popup
     title: _('Transaction')
     is_mine: True
@@ -34,28 +46,23 @@ Builder.load_string('''
                 GridLayout:
                     height: self.minimum_height
                     size_hint_y: None
-                    cols: 2
+                    cols: 1
                     spacing: '10dp'
-                    TopLabel:
+                    BoxLabel:
                         text: _('Status')
-                    TopLabel:
-                        text: root.status_str
-                    TopLabel:
+                        value: root.status_str
+                    BoxLabel:
                         text: _('Description') if root.description else ''
-                    TopLabel:
-                        text: root.description
-                    TopLabel:
+                        value: root.description
+                    BoxLabel:
                         text: _('Date') if root.date_str else ''
-                    TopLabel:
-                        text: root.date_str
-                    TopLabel:
+                        value: root.date_str
+                    BoxLabel:
                         text: _('Amount sent') if root.is_mine else _('Amount received')
-                    TopLabel:
-                        text: root.amount_str
-                    TopLabel:
+                        value: root.amount_str
+                    BoxLabel:
                         text: _('Transaction fee') if root.fee_str else ''
-                    TopLabel:
-                        text: root.fee_str
+                        value: root.fee_str
                 TopLabel:
                     text: _('Outputs') + ':'
                 OutputList:
