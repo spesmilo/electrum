@@ -22,84 +22,87 @@ Builder.load_string('''
     status_str: ''
     description: ''
     outputs_str: ''
-    ScrollView:
-        GridLayout:
-            height: self.minimum_height
-            size_hint_y: None
-            cols: 1
-            spacing: '10dp'
-            padding: '10dp'
+    BoxLayout:
+        orientation: 'vertical'
+        ScrollView:
             GridLayout:
                 height: self.minimum_height
                 size_hint_y: None
-                cols: 2
+                cols: 1
                 spacing: '10dp'
+                padding: '10dp'
+                GridLayout:
+                    height: self.minimum_height
+                    size_hint_y: None
+                    cols: 2
+                    spacing: '10dp'
+                    TopLabel:
+                        text: _('Status')
+                    TopLabel:
+                        text: root.status_str
+                    TopLabel:
+                        text: _('Description') if root.description else ''
+                    TopLabel:
+                        text: root.description
+                    TopLabel:
+                        text: _('Date') if root.date_str else ''
+                    TopLabel:
+                        text: root.date_str
+                    TopLabel:
+                        text: _('Amount sent') if root.is_mine else _('Amount received')
+                    TopLabel:
+                        text: root.amount_str
+                    TopLabel:
+                        text: _('Transaction fee') if root.fee_str else ''
+                    TopLabel:
+                        text: root.fee_str
                 TopLabel:
-                    text: _('Status')
+                    text: _('Outputs') + ':'
+                OutputList:
+                    height: self.minimum_height
+                    size_hint: 1, None
+                    id: output_list
                 TopLabel:
-                    text: root.status_str
+                    text: _('Transaction ID') + ':' if root.tx_hash else ''
                 TopLabel:
-                    text: _('Description') if root.description else ''
-                TopLabel:
-                    text: root.description
-                TopLabel:
-                    text: _('Date') if root.date_str else ''
-                TopLabel:
-                    text: root.date_str
-                TopLabel:
-                    text: _('Amount sent') if root.is_mine else _('Amount received')
-                TopLabel:
-                    text: root.amount_str
-                TopLabel:
-                    text: _('Transaction fee') if root.fee_str else ''
-                TopLabel:
-                    text: root.fee_str
-            TopLabel:
-                text: _('Outputs') + ':'
-            OutputList:
-                height: self.minimum_height
-                size_hint: 1, None
-                id: output_list
-            TopLabel:
-                text: _('Transaction ID') + ':' if root.tx_hash else ''
-            TopLabel:
-                font_size: '6pt'
-                text: '[ref=x]%s[/ref]' %' '.join(map(''.join, zip(*[iter(root.tx_hash)]*4))) if root.tx_hash else ''
-                padding: '10dp', '10dp'
-                on_ref_press:
-                    app._clipboard.copy(self.text)
-                    app.show_info(_('Transaction ID copied to clipboard'))
-                canvas.before:
-                    Color:
-                        rgb: .3, .3, .3
-                    Rectangle:
-                        size: self.size
-                        pos: self.pos
-            #Widget:
-            #    size_hint: 1, 0.2
+                    font_size: '6pt'
+                    text: '[ref=x]%s[/ref]' %' '.join(map(''.join, zip(*[iter(root.tx_hash)]*4))) if root.tx_hash else ''
+                    padding: '10dp', '10dp'
+                    on_ref_press:
+                        app._clipboard.copy(self.text)
+                        app.show_info(_('Transaction ID copied to clipboard'))
+                    canvas.before:
+                        Color:
+                            rgb: .3, .3, .3
+                        Rectangle:
+                            size: self.size
+                            pos: self.pos
 
-            BoxLayout:
-                size_hint: 1, None
+        Widget:
+            size_hint: 1, 0.1
+
+        BoxLayout:
+            size_hint: 1, None
+            height: '48dp'
+            Button:
+                size_hint: 0.5, None
                 height: '48dp'
-                Button:
-                    size_hint: 0.5, None
-                    height: '48dp'
-                    text: _('Sign') if root.can_sign else _('Broadcast') if root.can_broadcast else ''
-                    opacity: 1 if root.can_sign or root.can_broadcast else 0
-                    disabled: not( root.can_sign or root.can_broadcast )
-                    on_release:
-                        if root.can_sign: root.do_sign()
-                        if root.can_broadcast: root.do_broadcast()
-                IconButton:
-                    size_hint: 0.5, None
-                    height: '48dp'
-                    icon: 'atlas://gui/kivy/theming/light/qrcode'
-                    on_release: root.show_qr()
-                Button:
-                    size_hint: 0.5, None
-                    height: '48dp'
-                    text: _('Close')
-                    on_release: popup.dismiss()
+                text: _('Sign') if root.can_sign else _('Broadcast') if root.can_broadcast else ''
+                opacity: 1 if root.can_sign or root.can_broadcast else 0
+                disabled: not( root.can_sign or root.can_broadcast )
+                on_release:
+                    if root.can_sign: root.do_sign()
+                    if root.can_broadcast: root.do_broadcast()
+            IconButton:
+                size_hint: 0.5, None
+                height: '48dp'
+                icon: 'atlas://gui/kivy/theming/light/qrcode'
+                on_release: root.show_qr()
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Close')
+                on_release: popup.dismiss()
 ''')
 
 
