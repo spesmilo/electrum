@@ -12,9 +12,9 @@ Popup:
     status: ''
     signature: ''
     title: _('Invoice') if popup.is_invoice else _('Request')
+    tx_hash: ''
     BoxLayout:
         orientation: 'vertical'
-        padding: '10dp'
         ScrollView:
             GridLayout:
                 cols: 1
@@ -56,7 +56,9 @@ Popup:
                 OutputList:
                     id: output_list
                 TopLabel:
-                    id: txid_label
+                    text: _('Transaction ID') if popup.tx_hash else ''
+                TxHashLabel:
+                    tx_hash: popup.tx_hash
 
         Widget:
             size_hint: 1, 0.1

@@ -64,19 +64,8 @@ Builder.load_string('''
                     id: output_list
                 TopLabel:
                     text: _('Transaction ID') + ':' if root.tx_hash else ''
-                TopLabel:
-                    font_size: '6pt'
-                    text: '[ref=x]%s[/ref]' %' '.join(map(''.join, zip(*[iter(root.tx_hash)]*4))) if root.tx_hash else ''
-                    padding: '10dp', '10dp'
-                    on_ref_press:
-                        app._clipboard.copy(self.text)
-                        app.show_info(_('Transaction ID copied to clipboard'))
-                    canvas.before:
-                        Color:
-                            rgb: .3, .3, .3
-                        Rectangle:
-                            size: self.size
-                            pos: self.pos
+                TxHashLabel:
+                    tx_hash: root.tx_hash
 
         Widget:
             size_hint: 1, 0.1
