@@ -197,6 +197,11 @@ class OutputList(Factory.GridLayout):
         super(Factory.GridLayout, self).__init__(**kwargs)
         self.app = App.get_running_app()
 
+    def update(self, outputs):
+        self.clear_widgets()
+        for (type, address, amount) in outputs:
+            self.add_output(address, amount)
+
     def add_output(self, address, amount):
         t = Factory.CardLabel(text = '[ref=%s]%s[/ref]'%(address,address), font_size = '6pt')
         t.shorten = True

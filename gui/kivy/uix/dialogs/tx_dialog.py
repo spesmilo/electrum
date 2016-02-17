@@ -23,13 +23,15 @@ Builder.load_string('''
     description: ''
     outputs_str: ''
     ScrollView:
-        BoxLayout:
-            orientation: 'vertical'
+        GridLayout:
+            height: self.minimum_height
+            size_hint_y: None
+            cols: 1
             spacing: '10dp'
             padding: '10dp'
             GridLayout:
-                size_hint: 1, None
                 height: self.minimum_height
+                size_hint_y: None
                 cols: 2
                 spacing: '10dp'
                 TopLabel:
@@ -55,7 +57,9 @@ Builder.load_string('''
             TopLabel:
                 text: _('Outputs') + ':'
             OutputList:
-                id: outputs
+                height: self.minimum_height
+                size_hint: 1, None
+                id: output_list
             TopLabel:
                 text: _('Transaction ID') + ':' if root.tx_hash else ''
             TopLabel:
@@ -71,8 +75,8 @@ Builder.load_string('''
                     Rectangle:
                         size: self.size
                         pos: self.pos
-            Widget:
-                size_hint: 1, 0.2
+            #Widget:
+            #    size_hint: 1, 0.2
 
             BoxLayout:
                 size_hint: 1, None
@@ -106,6 +110,8 @@ class TxDialog(Factory.Popup):
         self.app = app
         self.wallet = self.app.wallet
         self.tx = tx
+
+    def on_open(self):
         self.update()
 
     def update(self):
@@ -142,10 +148,7 @@ class TxDialog(Factory.Popup):
             self.amount_str = _("Transaction unrelated to your wallet")
             self.fee_str = ''
         self.can_sign = self.wallet.can_sign(self.tx)
-
-        self.ids.outputs.clear_widgets()
-        for (type, address, amount) in self.tx.outputs():
-            self.ids.outputs.add_output(address, amount)
+        self.ids.output_list.update(self.tx.outputs())
 
     def do_sign(self):
         self.app.protected(_("Enter your PIN code in order to sign this transaction"), self._do_sign, ())

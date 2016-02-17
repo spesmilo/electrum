@@ -44,7 +44,6 @@
 # Custom Global Widgets
 
 <TopLabel@Label>
-    valign: 'top'
     size_hint_y: None
     text_size: self.width, None
     height: self.texture_size[1]
@@ -80,8 +79,8 @@
 #########################
 
 <OutputList>
-    size_hint: 1, None
     height: self.minimum_height
+    size_hint_y: None
     cols: 2
     spacing: '10dp'
     padding: '10dp'

@@ -17,6 +17,7 @@ Popup:
         GridLayout:
             spacing: '10dp'
             padding: '10dp'
+            height: self.minimum_height
             cols: 2
             TopLabel:
                 text: _('Requestor') if popup.is_invoice else _('Address')
@@ -43,6 +44,8 @@ Popup:
             TopLabel:
                 text: root.status
 
+        OutputList:
+            id: output_list
         TopLabel:
             id: txid_label
         Widget:

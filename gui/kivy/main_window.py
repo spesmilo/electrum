@@ -297,6 +297,7 @@ class ElectrumWindow(App):
         if txid:
             popup.ids.txid_label.text =  _("Transaction ID") + ':\n' + ' '.join(map(''.join, zip(*[iter(txid)]*4)))
         popup.open()
+        popup.ids.output_list.update(req.get('outputs', []))
 
     def qr_dialog(self, title, data):
         from uix.dialogs.qr_dialog import QRDialog
