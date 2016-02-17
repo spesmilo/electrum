@@ -31,7 +31,8 @@ from kivy.lang import Builder
 Factory.register('InstallWizard',
                  module='electrum_gui.kivy.uix.dialogs.installwizard')
 Factory.register('InfoBubble', module='electrum_gui.kivy.uix.dialogs')
-Factory.register('ELTextInput', module='electrum_gui.kivy.uix.screens')
+#Factory.register('ELTextInput', module='electrum_gui.kivy.uix.screens')
+Factory.register('OutputList', module='electrum_gui.kivy.uix.dialogs')
 
 
 #from kivy.core.window import Window
@@ -614,7 +615,7 @@ class ElectrumWindow(App):
         exit=False, duration=0, modal=False):
         ''' Show a Info Message Bubble.
         '''
-        self.show_error(error, icon='atlas://gui/kivy/theming/light/error',
+        self.show_error(error, icon='atlas://gui/kivy/theming/light/important',
             duration=duration, modal=modal, exit=exit, pos=pos,
             arrow_pos=arrow_pos)
 

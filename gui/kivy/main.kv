@@ -79,6 +79,20 @@
 #       Dialogs
 #########################
 
+<OutputList>
+    size_hint: 1, None
+    height: self.minimum_height
+    cols: 2
+    spacing: '10dp'
+    padding: '10dp'
+    canvas.before:
+        Color:
+            rgb: .3, .3, .3
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
+
 <InfoBubble>
     size_hint: None, None
     width: '270dp' if root.fs else min(self.width, dp(270))
