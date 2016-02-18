@@ -61,15 +61,15 @@ Builder.load_string('''
     BoxLayout:
         orientation: 'vertical' if self.width < self.height else 'horizontal'
         padding:
-            min(dp(42), self.width/16), min(dp(60), self.height/16),\
-            min(dp(42), self.width/16), min(dp(72), self.height/16)
-        spacing: '27dp'
+            min(dp(27), self.width/32), min(dp(27), self.height/32),\
+            min(dp(27), self.width/32), min(dp(27), self.height/32)
+        spacing: '10dp'
         GridLayout:
             id: grid_logo
             cols: 1
             pos_hint: {'center_y': .5}
             size_hint: 1, None
-            #height: self.minimum_height
+            height: self.minimum_height
             Label:
                 color: root.text_color
                 text: 'ELECTRUM'

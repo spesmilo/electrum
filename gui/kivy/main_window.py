@@ -681,6 +681,14 @@ class ElectrumWindow(App):
         d = TxDialog(self, tx)
         d.open()
 
+    def broadcast(self, tx):
+        if self.network and self.network.is_connected():
+            self.show_info(_('Sending'))
+            ok, txid = self.wallet.sendtx(self.tx)
+            self.show_info(txid)
+        else:
+            self.show_info(_('Cannot broadcast transaction') + '\n' + _('Not connected'))
+
     def address_dialog(self, screen):
         pass
 

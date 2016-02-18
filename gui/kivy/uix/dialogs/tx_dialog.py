@@ -154,9 +154,7 @@ class TxDialog(Factory.Popup):
         self.update()
 
     def do_broadcast(self):
-        self.app.show_info(_('Broadcasting'))
-        ok, txid = self.app.wallet.sendtx(self.tx)
-        self.app.show_info(txid)
+        self.app.broadcast(self.tx)
 
     def show_qr(self):
         from electrum.bitcoin import base_encode

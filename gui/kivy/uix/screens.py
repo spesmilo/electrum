@@ -301,9 +301,7 @@ class SendScreen(CScreen):
             self.app.tx_dialog(tx)
             return
         # broadcast
-        self.app.show_info("Sending...")
-        ok, txid = self.app.wallet.sendtx(tx)
-        self.app.show_info(txid)
+        self.app.broadcast(tx)
 
 
 class ReceiveScreen(CScreen):
