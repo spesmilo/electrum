@@ -214,11 +214,14 @@ class SendScreen(CScreen):
         if pr.is_pr():
             self.screen.is_pr = True
             self.payment_request = pr
+        else:
+            self.screen.is_pr = False
+            self.payment_request = None
 
     def do_save(self):
         if not self.screen.address:
             return
-        if self.payment_request:
+        if self.screen.is_pr:
             # it sould be already saved
             return
         # save address as invoice
@@ -240,7 +243,7 @@ class SendScreen(CScreen):
         self.set_URI(contents)
 
     def do_send(self):
-        if self.payment_request:
+        if self.screen.is_pr:
             if self.payment_request.has_expired():
                 self.app.show_error(_('Payment request has expired'))
                 return
