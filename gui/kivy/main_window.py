@@ -684,7 +684,7 @@ class ElectrumWindow(App):
     def broadcast(self, tx):
         if self.network and self.network.is_connected():
             self.show_info(_('Sending'))
-            ok, txid = self.wallet.sendtx(self.tx)
+            ok, txid = self.wallet.sendtx(tx)
             self.show_info(txid)
         else:
             self.show_info(_('Cannot broadcast transaction') + '\n' + _('Not connected'))
