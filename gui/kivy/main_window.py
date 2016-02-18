@@ -296,7 +296,7 @@ class ElectrumWindow(App):
         popup.status = status
         txid = req.get('txid')
         popup.tx_hash = txid or ''
-        popup.ids.output_list.update(req.get('outputs', []))
+        popup.on_open = lambda: popup.ids.output_list.update(req.get('outputs', []))
         popup.open()
 
     def qr_dialog(self, title, data):
