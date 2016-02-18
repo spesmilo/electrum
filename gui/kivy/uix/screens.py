@@ -18,7 +18,7 @@ from kivy.lang import Builder
 from kivy.factory import Factory
 from kivy.utils import platform
 
-from electrum.util import profiler, parse_URI, format_time
+from electrum.util import profiler, parse_URI, format_time, InvalidPassword
 from electrum import bitcoin
 from electrum.util import timestamp_to_datetime
 from electrum.plugins import run_hook
@@ -283,9 +283,8 @@ class SendScreen(CScreen):
             self.app.show_info("Signing...")
         try:
             self.app.wallet.sign_transaction(tx, password)
-        except Exception as e:
-            traceback.print_exc(file=sys.stdout)
-            self.app.show_error(str(e))
+        except InvalidPassword:
+            self.app.show_error(_("Invalid PIN"))
             return
         if not tx.is_complete():
             self.app.tx_dialog(tx)

@@ -7,6 +7,7 @@ from kivy.uix.label import Label
 
 from electrum_gui.kivy.i18n import _
 from datetime import datetime
+from electrum.util import InvalidPassword
 
 Builder.load_string('''
 
@@ -146,7 +147,10 @@ class TxDialog(Factory.Popup):
         Clock.schedule_once(lambda dt: self.__do_sign(password), 0.1)
 
     def __do_sign(self, password):
-        self.app.wallet.sign_transaction(self.tx, password)
+        try:
+            self.app.wallet.sign_transaction(self.tx, password)
+        except InvalidPassword:
+            self.app.show_error(_("Invalid PIN"))
         self.update()
 
     def do_broadcast(self):
