@@ -191,6 +191,7 @@ class InfoBubble(Factory.Bubble):
         anim.start(self)
 
 
+
 class OutputList(Factory.GridLayout):
 
     def __init__(self, **kwargs):
@@ -203,17 +204,8 @@ class OutputList(Factory.GridLayout):
             self.add_output(address, amount)
 
     def add_output(self, address, amount):
-        t = Factory.CardLabel(text = '[ref=%s]%s[/ref]'%(address,address), font_size = '6pt')
-        t.shorten = True
-        t.size_hint_x = 0.65
-        t.on_ref_press = self.do_copy_address
-        self.add_widget(t)
-        t = Factory.CardLabel(text = self.app.format_amount_and_units(amount), font_size='6pt')
-        t.size_hint_x = 0.35
-        t.halign = 'right'
-        self.add_widget(t)
-
-    def do_copy_address(self, text):
-        self.app._clipboard.copy(text)
-        self.app.show_info(_('Address copied to clipboard') + ' ' + text)
+        b = Factory.OutputItem(
+            address = address,
+            value = self.app.format_amount_and_units(amount))
+        self.add_widget(b)
 

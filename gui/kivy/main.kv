@@ -90,10 +90,32 @@
         id: lbl2
         text: root.value
 
+<OutputItem@BoxLayout>
+    address: ''
+    value: ''
+    size_hint_y: None
+    height: max(lbl1.height, lbl2.height)
+    TopLabel
+        id: lbl1
+        text: '[ref=%s]%s[/ref]'%(root.address, root.address)
+        font_size: '6pt'
+        shorten: True
+        size_hint_x: 0.65
+        on_ref_press:
+            app._clipboard.copy(root.address)
+            app.show_info(_('Address copied to clipboard') + ' ' + root.address)
+    TopLabel
+        id: lbl2
+        text: root.value
+        font_size: '6pt'
+        size_hint_x: 0.35
+        halign: 'right'
+
+
 <OutputList>
     height: self.minimum_height
     size_hint_y: None
-    cols: 2
+    cols: 1
     spacing: '10dp'
     padding: '10dp'
     canvas.before:

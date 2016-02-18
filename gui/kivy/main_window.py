@@ -31,8 +31,8 @@ from kivy.lang import Builder
 Factory.register('InstallWizard',
                  module='electrum_gui.kivy.uix.dialogs.installwizard')
 Factory.register('InfoBubble', module='electrum_gui.kivy.uix.dialogs')
-#Factory.register('ELTextInput', module='electrum_gui.kivy.uix.screens')
 Factory.register('OutputList', module='electrum_gui.kivy.uix.dialogs')
+
 
 
 #from kivy.core.window import Window
