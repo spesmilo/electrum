@@ -9,17 +9,6 @@ from electrum_gui.kivy.i18n import _
 from datetime import datetime
 
 Builder.load_string('''
-<BoxLabel@BoxLayout>
-    text: ''
-    value: ''
-    size_hint_y: None
-    height: max(lbl1.height, lbl2.height)
-    TopLabel
-        id: lbl1
-        text: root.text
-    TopLabel
-        id: lbl2
-        text: root.value
 
 <TxDialog>
     id: popup

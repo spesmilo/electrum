@@ -77,6 +77,17 @@
 #########################
 #       Dialogs
 #########################
+<BoxLabel@BoxLayout>
+    text: ''
+    value: ''
+    size_hint_y: None
+    height: max(lbl1.height, lbl2.height)
+    TopLabel
+        id: lbl1
+        text: root.text
+    TopLabel
+        id: lbl2
+        text: root.value
 
 <OutputList>
     height: self.minimum_height
