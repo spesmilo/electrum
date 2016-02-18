@@ -12,7 +12,8 @@ from electrum_gui.kivy.i18n import _
 
 Builder.load_string('''
 <MenuItem@Button>
-    background_color: .2, .9, 1, 1
+    background_normal: ''
+    background_color: (0.192, .498, 0.745, 1)
     height: '48dp'
     size_hint: 1, None
 
@@ -27,6 +28,8 @@ Builder.load_string('''
     BoxLayout:
         size_hint: 1, 1
         height: '48dp'
+        padding: '12dp'
+        spacing: '3dp'
         orientation: 'horizontal'
         id: buttons
 ''')
