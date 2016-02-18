@@ -18,7 +18,7 @@ from kivy.lang import Builder
 from kivy.factory import Factory
 from kivy.utils import platform
 
-from electrum_ltc.util import profiler, parse_URI, format_time
+from electrum_ltc.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds
 from electrum_ltc import bitcoin
 from electrum_ltc.util import timestamp_to_datetime
 from electrum_ltc.plugins import run_hook
@@ -204,18 +204,24 @@ class SendScreen(CScreen):
         self.screen.message = ''
         self.screen.address = ''
         self.payment_request = None
+        self.screen.is_pr = False
 
     def set_request(self, pr):
-        self.payment_request = pr
         self.screen.address = pr.get_requestor()
         amount = pr.get_amount()
         self.screen.amount = self.app.format_amount_and_units(amount) if amount else ''
         self.screen.message = pr.get_memo()
+        if pr.is_pr():
+            self.screen.is_pr = True
+            self.payment_request = pr
+        else:
+            self.screen.is_pr = False
+            self.payment_request = None
 
     def do_save(self):
         if not self.screen.address:
             return
-        if self.payment_request:
+        if self.screen.is_pr:
             # it sould be already saved
             return
         # save address as invoice
@@ -237,7 +243,7 @@ class SendScreen(CScreen):
         self.set_URI(contents)
 
     def do_send(self):
-        if self.payment_request:
+        if self.screen.is_pr:
             if self.payment_request.has_expired():
                 self.app.show_error(_('Payment request has expired'))
                 return
@@ -260,6 +266,9 @@ class SendScreen(CScreen):
         config = self.app.electrum_config
         try:
             tx = self.app.wallet.make_unsigned_transaction(coins, outputs, config, None)
+        except NotEnoughFunds:
+            self.app.show_error(_("Not enough funds"))
+            return
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             self.app.show_error(str(e))
@@ -283,9 +292,8 @@ class SendScreen(CScreen):
             self.app.show_info("Signing...")
         try:
             self.app.wallet.sign_transaction(tx, password)
-        except Exception as e:
-            traceback.print_exc(file=sys.stdout)
-            self.app.show_error(str(e))
+        except InvalidPassword:
+            self.app.show_error(_("Invalid PIN"))
             return
         if not tx.is_complete():
             self.app.tx_dialog(tx)
@@ -437,13 +445,13 @@ class InvoicesScreen(CScreen):
             msg = _('This screen shows the list of payment requests that have been sent to you. You may also use it to store contact addresses.')
             invoices_list.add_widget(EmptyLabel(text=msg))
 
-
     def do_pay(self, obj):
-        self.app.do_pay(obj)
+        pr = self.app.invoices.get(obj.key)
+        self.app.on_pr(pr)
 
     def do_view(self, obj):
         pr = self.app.invoices.get(obj.key)
-        pr.verify({})
+        pr.verify(self.app.contacts)
         self.app.show_pr_details(pr.get_dict(), obj.status, True)
 
     def do_delete(self, obj):
@@ -505,8 +513,8 @@ class RequestsScreen(CScreen):
             status = req.get('status')
             status = request_text[status]
         else:
-            received = self.app.wallet.get_addr_received(address)
-            status = self.app.format_amount_and_units(amount)
+            received_amount = self.app.wallet.get_addr_received(address)
+            status = self.app.format_amount_and_units(received_amount)
 
         self.app.show_pr_details(req, status, False)
 

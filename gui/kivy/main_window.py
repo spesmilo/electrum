@@ -31,8 +31,9 @@ from kivy.lang import Builder
 Factory.register('InstallWizard',
                  module='electrum_ltc_gui.kivy.uix.dialogs.installwizard')
 Factory.register('InfoBubble', module='electrum_ltc_gui.kivy.uix.dialogs')
-#Factory.register('ELTextInput', module='electrum_ltc_gui.kivy.uix.screens')
 Factory.register('OutputList', module='electrum_ltc_gui.kivy.uix.dialogs')
+Factory.register('OutputItem', module='electrum_ltc_gui.kivy.uix.dialogs')
+
 
 
 #from kivy.core.window import Window
@@ -215,9 +216,6 @@ class ElectrumWindow(App):
         self._trigger_notify_transactions = \
             Clock.create_trigger(self.notify_transactions, 5)
 
-    def do_pay(self, obj):
-        pr = self.invoices.get(obj.key)
-        self.on_pr(pr)
 
     def on_pr(self, pr):
         if pr.verify(self.contacts):
@@ -295,12 +293,12 @@ class ElectrumWindow(App):
         popup.status = status
         txid = req.get('txid')
         popup.tx_hash = txid or ''
-        popup.ids.output_list.update(req.get('outputs', []))
+        popup.on_open = lambda: popup.ids.output_list.update(req.get('outputs', []))
         popup.open()
 
-    def qr_dialog(self, title, data):
+    def qr_dialog(self, title, data, show_text=False):
         from uix.dialogs.qr_dialog import QRDialog
-        popup = QRDialog(title, data)
+        popup = QRDialog(title, data, show_text)
         popup.open()
 
     def scan_qr(self, on_complete):
@@ -598,6 +596,15 @@ class ElectrumWindow(App):
         width, height = value
         self._orientation = 'landscape' if width > height else 'portrait'
         self._ui_mode = 'tablet' if min(width, height) > inch(3.51) else 'phone'
+
+    def on_ref_label(self, label, touch):
+        if label.touched:
+            label.touched = False
+            self.qr_dialog(label.name, label.data, True)
+        else:
+            label.touched = True
+            self._clipboard.copy(label.data)
+            Clock.schedule_once(lambda dt: self.show_info(_('Text copied to clipboard.\nTap again to display it as QR code.')))
 
     def set_send(self, address, amount, label, message):
         self.send_payment(address, amount=amount, label=label, message=message)

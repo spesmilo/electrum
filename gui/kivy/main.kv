@@ -77,11 +77,45 @@
 #########################
 #       Dialogs
 #########################
+<BoxLabel@BoxLayout>
+    text: ''
+    value: ''
+    size_hint_y: None
+    height: max(lbl1.height, lbl2.height)
+    TopLabel
+        id: lbl1
+        text: root.text
+        pos_hint: {'top':1}
+    TopLabel
+        id: lbl2
+        text: root.value
+
+<OutputItem>
+    address: ''
+    value: ''
+    size_hint_y: None
+    height: max(lbl1.height, lbl2.height)
+    TopLabel
+        id: lbl1
+        text: '[ref=%s]%s[/ref]'%(root.address, root.address)
+        font_size: '6pt'
+        shorten: True
+        size_hint_x: 0.65
+        on_ref_press:
+            app._clipboard.copy(root.address)
+            app.show_info(_('Address copied to clipboard') + ' ' + root.address)
+    TopLabel
+        id: lbl2
+        text: root.value
+        font_size: '6pt'
+        size_hint_x: 0.35
+        halign: 'right'
+
 
 <OutputList>
     height: self.minimum_height
     size_hint_y: None
-    cols: 2
+    cols: 1
     spacing: '10dp'
     padding: '10dp'
     canvas.before:
@@ -91,20 +125,27 @@
             size: self.size
             pos: self.pos
 
-<TxHashLabel@TopLabel>
+<RefLabel@TopLabel>
     font_size: '6pt'
-    tx_hash: ''
-    text: '[ref=x]%s[/ref]' %' '.join(map(''.join, zip(*[iter(self.tx_hash)]*4))) if self.tx_hash else ''
+    name: ''
+    data: ''
+    text: self.data
+    touched: False
     padding: '10dp', '10dp'
-    on_ref_press:
-        app._clipboard.copy(self.text)
-        app.show_info(_('Transaction ID copied to clipboard'))
+    on_touch_down:
+        touch = args[1]
+        if self.collide_point(*touch.pos): app.on_ref_label(self, touch)
+        else: self.touched = False
     canvas.before:
         Color:
             rgb: .3, .3, .3
         Rectangle:
             size: self.size
             pos: self.pos
+
+<TxHashLabel@RefLabel>
+    data: ''
+    text: ' '.join(map(''.join, zip(*[iter(self.data)]*4))) if self.data else ''
 
 <InfoBubble>
     size_hint: None, None
@@ -138,9 +179,9 @@
 <SendReceiveBlueBottom@GridLayout>
     canvas.before:
         Color:
-            rgba: .238, .585, .878, 1
+            #rgba: .238, .585, .878, 1
+            rgba: 0.192, .498, 0.745, 1
         BorderImage:
-            #border: 9, 9, 9, 9
             source: 'atlas://gui/kivy/theming/light/card_bottom'
             size: self.size
             pos: self.pos
@@ -180,7 +221,7 @@
             pos: self.pos
 
 <BlueButton@Button>:
-    background_color: .238, .585, .878, 0
+    background_color: 1, .585, .878, 0
     halign: 'left'
     text_size: (self.width-10, None)
     size_hint: 0.5, None
@@ -189,7 +230,8 @@
     padding: '5dp', '5db'
     height: '40dp'
     text_color: self.foreground_color
-    foreground_color: 1, 0, 0, 1
+    disabled_color: 1, 1, 1, 1
+    foreground_color: 1, 1, 1, 1
     canvas.before:
         Color:
             rgba: (0.9, .498, 0.745, 1) if self.state == 'down' else self.background_color
@@ -205,6 +247,8 @@
         self.parent.update_amount(self.text)
 
 
+<StripLayout>
+    padding: 0, 0, 0, 0
 
 <TabbedPanelStrip>:
     on_parent:

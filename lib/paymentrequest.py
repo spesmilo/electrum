@@ -101,6 +101,9 @@ class PaymentRequest:
         self.memo = self.details.memo
         self.payment_url = self.details.payment_url
 
+    def is_pr(self):
+        return self.get_outputs() != [(TYPE_ADDRESS, self.get_requestor(), self.get_amount())]
+
     def verify(self, contacts):
         if not self.raw:
             self.error = "Empty request"
@@ -455,9 +458,6 @@ class InvoiceStore(object):
 
     def add(self, pr):
         key = pr.get_id()
-        if key in self.invoices:
-            print_error('invoice already in list')
-            return key
         self.invoices[key] = pr
         self.save()
         return key
