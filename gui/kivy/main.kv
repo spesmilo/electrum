@@ -128,11 +128,11 @@
 <RefLabel@TopLabel>
     font_size: '6pt'
     ref_text: ''
-    text: '[ref=x]%s[/ref]' % self.ref_text
+    text: self.ref_text
     padding: '10dp', '10dp'
-    on_ref_press:
-        app._clipboard.copy(self.ref_text)
-        app.show_info(_('Text copied to clipboard'))
+    on_touch_down:
+        touch = args[1]
+        if self.collide_point(*touch.pos): app.on_ref_label(self.ref_text, touch)
     canvas.before:
         Color:
             rgb: .3, .3, .3
@@ -143,7 +143,7 @@
 <TxHashLabel@RefLabel>
     tx_hash: ''
     ref_text: self.tx_hash
-    text: '[ref=x]%s[/ref]' %' '.join(map(''.join, zip(*[iter(self.tx_hash)]*4))) if self.tx_hash else ''
+    text: ' '.join(map(''.join, zip(*[iter(self.tx_hash)]*4))) if self.tx_hash else ''
 
 <InfoBubble>
     size_hint: None, None

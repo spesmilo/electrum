@@ -600,6 +600,13 @@ class ElectrumWindow(App):
         self._orientation = 'landscape' if width > height else 'portrait'
         self._ui_mode = 'tablet' if min(width, height) > inch(3.51) else 'phone'
 
+    def on_ref_label(self, text, touch):
+        if touch.is_double_tap:
+            self.qr_dialog(_('Share with QR Code'), text)
+        else:
+            self._clipboard.copy(text)
+            self.show_info(_('Text copied to clipboard'))
+
     def set_send(self, address, amount, label, message):
         self.send_payment(address, amount=amount, label=label, message=message)
 

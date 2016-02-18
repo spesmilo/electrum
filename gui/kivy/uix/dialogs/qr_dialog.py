@@ -5,6 +5,7 @@ Builder.load_string('''
 <QRDialog@Popup>
     id: popup
     title: ''
+    data: ''
     shaded: False
     AnchorLayout:
         anchor_x: 'center'
@@ -13,6 +14,8 @@ Builder.load_string('''
             size_hint: 1, 1
             QRCodeWidget:
                 id: qr
+            TopLabel:
+                text: root.data
             Widget:
                 size_hint: 1, 0.2
             BoxLayout:
