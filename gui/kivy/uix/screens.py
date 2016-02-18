@@ -191,10 +191,12 @@ class SendScreen(CScreen):
         except:
             self.app.show_info(_("Not a Bitcoin URI") + ':\n', text)
             return
+        amount = uri.get('amount')
         self.screen.address = uri.get('address', '')
         self.screen.message = uri.get('message', '')
-        amount = uri.get('amount')
         self.screen.amount = self.app.format_amount_and_units(amount) if amount else ''
+        self.payment_request = None
+        self.screen.is_pr = False
 
     def update(self):
         pass
