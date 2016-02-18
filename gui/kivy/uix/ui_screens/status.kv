@@ -7,73 +7,56 @@ Popup:
     unmatured: 0
     on_parent:
         self.confirmed, self.unconfirmed, self.unmatured = app.wallet.get_balance()
+
     BoxLayout:
         orientation: 'vertical'
-        spacing: '1dp'
-        GridLayout:
-            cols:2
-            Label:
-                text: _("Wallet Name:")
-                text_size: self.size
-                halign: 'left'
-            Label:
-                text: os.path.basename(app.wallet.storage.path)
-                text_size: self.size
-                halign: 'left'
-            Label:
-                text: _("Wallet type:")
-                text_size: self.size
-                halign: 'left'
-            Label:
-                text: app.wallet.wallet_type
-                text_size: self.size
-                halign: 'left'
-            Label:
-                text: _("Balance") + ':'
-                text_size: self.size
-                halign: 'left'
-            Label:
-                text: app.format_amount_and_units(root.confirmed + root.unconfirmed + root.unmatured)
-                text_size: self.size
-                halign: 'left'
+        ScrollView:
+            GridLayout:
+                cols: 1
+                height: self.minimum_height
+                size_hint_y: None
+                padding: '10dp'
+                spacing: '10dp'
+                padding: '10dp'
+                spacing: '10dp'
+                GridLayout:
+                    cols: 1
+                    size_hint_y: None
+                    height: self.minimum_height
+                    spacing: '10dp'
+                    BoxLabel:
+                        text: _('Wallet Name')
+                        value: os.path.basename(app.wallet.storage.path)
+                    BoxLabel:
+                        text: _("Wallet type:")
+                        value: app.wallet.wallet_type
+                    BoxLabel:
+                        text: _("Balance") + ':'
+                        value: app.format_amount_and_units(root.confirmed + root.unconfirmed + root.unmatured)
+                    BoxLabel:
+                        text: _("Confirmed") + ':'
+                        opacity: 1 if root.confirmed else 0
+                        value: app.format_amount_and_units(root.confirmed)
+                        opacity: 1 if root.confirmed else 0
+                    BoxLabel:
+                        text: _("Unconfirmed") + ':'
+                        opacity: 1 if root.unconfirmed else 0
+                        value: app.format_amount_and_units(root.unconfirmed)
+                    BoxLabel:
+                        text: _("Unmatured") + ':'
+                        opacity: 1 if root.unmatured else 0
+                        value: app.format_amount_and_units(root.unmatured)
+                        opacity: 1 if root.unmatured else 0
 
-            Label:
-                text: _("Confirmed") + ':'
-                opacity: 1 if root.confirmed else 0
-                text_size: self.size
-                halign: 'left'
-            Label:
-                text: app.format_amount_and_units(root.confirmed)
-                opacity: 1 if root.confirmed else 0
-                text_size: self.size
-                halign: 'left'
-            Label:
-                text: _("Unconfirmed") + ':'
-                text_size: self.size
-                halign: 'left'
-                opacity: 1 if root.unconfirmed else 0
-            Label:
-                text: app.format_amount_and_units(root.unconfirmed)
-                opacity: 1 if root.unconfirmed else 0
-                text_size: self.size
-                halign: 'left'
-            Label:
-                text: _("Unmatured") + ':'
-                text_size: self.size
-                halign: 'left'
-                opacity: 1 if root.unmatured else 0
-            Label:
-                text: app.format_amount_and_units(root.unmatured)
-                opacity: 1 if root.unmatured else 0
-                text_size: self.size
-                halign: 'left'
-        Label:
-            text: ''
-            id: seed_label
-            text_size: self.width, None
-            size: self.texture_size
-        Widget:
-            size_hint: None, 1
+                TopLabel:
+                    text: _('Master Public Key')
+                RefLabel:
+                    ref_text: app.wallet.get_master_public_key()
+
+                TopLabel:
+                    text: ''
+                    id: seed_label
+
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
