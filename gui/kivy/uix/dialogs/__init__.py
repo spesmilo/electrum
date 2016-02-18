@@ -192,6 +192,9 @@ class InfoBubble(Factory.Bubble):
 
 
 
+class OutputItem(Factory.BoxLayout):
+    pass
+
 class OutputList(Factory.GridLayout):
 
     def __init__(self, **kwargs):
@@ -204,8 +207,8 @@ class OutputList(Factory.GridLayout):
             self.add_output(address, amount)
 
     def add_output(self, address, amount):
-        b = Factory.OutputItem(
-            address = address,
-            value = self.app.format_amount_and_units(amount))
+        b = Factory.OutputItem()
+        b.address = address
+        b.value = self.app.format_amount_and_units(amount)
         self.add_widget(b)
 

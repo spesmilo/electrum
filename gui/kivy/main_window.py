@@ -32,6 +32,7 @@ Factory.register('InstallWizard',
                  module='electrum_gui.kivy.uix.dialogs.installwizard')
 Factory.register('InfoBubble', module='electrum_gui.kivy.uix.dialogs')
 Factory.register('OutputList', module='electrum_gui.kivy.uix.dialogs')
+Factory.register('OutputItem', module='electrum_gui.kivy.uix.dialogs')
 
 
 
