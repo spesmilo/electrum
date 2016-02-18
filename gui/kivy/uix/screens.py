@@ -505,8 +505,8 @@ class RequestsScreen(CScreen):
             status = req.get('status')
             status = request_text[status]
         else:
-            received = self.app.wallet.get_addr_received(address)
-            status = self.app.format_amount_and_units(amount)
+            received_amount = self.app.wallet.get_addr_received(address)
+            status = self.app.format_amount_and_units(received_amount)
 
         self.app.show_pr_details(req, status, False)
 
