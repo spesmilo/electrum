@@ -299,9 +299,9 @@ class ElectrumWindow(App):
         popup.on_open = lambda: popup.ids.output_list.update(req.get('outputs', []))
         popup.open()
 
-    def qr_dialog(self, title, data):
+    def qr_dialog(self, title, data, show_text=False):
         from uix.dialogs.qr_dialog import QRDialog
-        popup = QRDialog(title, data)
+        popup = QRDialog(title, data, show_text)
         popup.open()
 
     def scan_qr(self, on_complete):
@@ -600,12 +600,14 @@ class ElectrumWindow(App):
         self._orientation = 'landscape' if width > height else 'portrait'
         self._ui_mode = 'tablet' if min(width, height) > inch(3.51) else 'phone'
 
-    def on_ref_label(self, text, touch):
-        if touch.is_double_tap:
-            self.qr_dialog(_('Share with QR Code'), text)
+    def on_ref_label(self, label, touch):
+        if label.touched:
+            label.touched = False
+            self.qr_dialog(label.name, label.data, True)
         else:
-            self._clipboard.copy(text)
-            self.show_info(_('Text copied to clipboard'))
+            label.touched = True
+            self._clipboard.copy(label.data)
+            Clock.schedule_once(lambda dt: self.show_info(_('Text copied to clipboard.\nTap again to display it as QR code.')))
 
     def set_send(self, address, amount, label, message):
         self.send_payment(address, amount=amount, label=label, message=message)

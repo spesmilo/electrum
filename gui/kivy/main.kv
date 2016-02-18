@@ -127,12 +127,15 @@
 
 <RefLabel@TopLabel>
     font_size: '6pt'
-    ref_text: ''
-    text: self.ref_text
+    name: ''
+    data: ''
+    text: self.data
+    touched: False
     padding: '10dp', '10dp'
     on_touch_down:
         touch = args[1]
-        if self.collide_point(*touch.pos): app.on_ref_label(self.ref_text, touch)
+        if self.collide_point(*touch.pos): app.on_ref_label(self, touch)
+        else: self.touched = False
     canvas.before:
         Color:
             rgb: .3, .3, .3
@@ -141,9 +144,8 @@
             pos: self.pos
 
 <TxHashLabel@RefLabel>
-    tx_hash: ''
-    ref_text: self.tx_hash
-    text: ' '.join(map(''.join, zip(*[iter(self.tx_hash)]*4))) if self.tx_hash else ''
+    data: ''
+    text: ' '.join(map(''.join, zip(*[iter(self.data)]*4))) if self.data else ''
 
 <InfoBubble>
     size_hint: None, None

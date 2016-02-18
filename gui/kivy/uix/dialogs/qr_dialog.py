@@ -7,15 +7,18 @@ Builder.load_string('''
     title: ''
     data: ''
     shaded: False
+    show_text: False
     AnchorLayout:
         anchor_x: 'center'
         BoxLayout:
             orientation: 'vertical'
             size_hint: 1, 1
+            padding: '10dp'
+            spacing: '10dp'
             QRCodeWidget:
                 id: qr
             TopLabel:
-                text: root.data
+                text: root.data if root.show_text else ''
             Widget:
                 size_hint: 1, 0.2
             BoxLayout:
@@ -33,10 +36,11 @@ Builder.load_string('''
 ''')
 
 class QRDialog(Factory.Popup):
-    def __init__(self, title, data):
+    def __init__(self, title, data, show_text):
         Factory.Popup.__init__(self)
         self.title = title
         self.data = data
+        self.show_text = show_text
 
     def on_open(self):
         self.ids.qr.set_data(self.data)

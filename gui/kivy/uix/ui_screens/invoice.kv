@@ -53,8 +53,8 @@ Popup:
                 TopLabel:
                     text: _('Transaction ID') if popup.tx_hash else ''
                 TxHashLabel:
-                    tx_hash: popup.tx_hash
-
+                    data: popup.tx_hash
+                    name: _('Transaction ID')
         Widget:
             size_hint: 1, 0.1
 

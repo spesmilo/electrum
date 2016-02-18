@@ -62,8 +62,8 @@ Builder.load_string('''
                 TopLabel:
                     text: _('Transaction ID') + ':' if root.tx_hash else ''
                 TxHashLabel:
-                    tx_hash: root.tx_hash
-
+                    data: root.tx_hash
+                    name: _('Transaction ID')
         Widget:
             size_hint: 1, 0.1
 
