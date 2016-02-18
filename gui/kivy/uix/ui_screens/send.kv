@@ -11,6 +11,7 @@ SendScreen:
     address: ''
     amount: ''
     message: ''
+    is_pr: False
     BoxLayout
         padding: '12dp', '12dp', '12dp', '12dp'
         spacing: '12dp'
@@ -31,7 +32,7 @@ SendScreen:
                 BlueButton:
                     id: payto_e
                     text: s.address if s.address else _('Recipient')
-                    on_release: app.address_dialog(s)
+                    disabled: True
                     shorten: True
             CardSeparator:
                 opacity: message_selection.opacity
@@ -49,6 +50,7 @@ SendScreen:
                     id: amount_e
                     default_text: _('Amount')
                     text: s.amount if s.amount else _('Amount')
+                    disabled: root.is_pr
                     on_release: Clock.schedule_once(lambda dt: app.amount_dialog(s, True))
             CardSeparator:
                 opacity: message_selection.opacity
@@ -66,6 +68,7 @@ SendScreen:
                 BlueButton:
                     id: description
                     text: s.message if s.message else _('Description')
+                    disabled: root.is_pr
                     on_release: Clock.schedule_once(lambda dt: app.description_dialog(s))
         BoxLayout:
             size_hint: 1, None

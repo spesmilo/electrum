@@ -216,9 +216,6 @@ class ElectrumWindow(App):
         self._trigger_notify_transactions = \
             Clock.create_trigger(self.notify_transactions, 5)
 
-    def do_pay(self, obj):
-        pr = self.invoices.get(obj.key)
-        self.on_pr(pr)
 
     def on_pr(self, pr):
         if pr.verify(self.contacts):

@@ -179,9 +179,9 @@
 <SendReceiveBlueBottom@GridLayout>
     canvas.before:
         Color:
-            rgba: .238, .585, .878, 1
+            #rgba: .238, .585, .878, 1
+            rgba: 0.192, .498, 0.745, 1
         BorderImage:
-            #border: 9, 9, 9, 9
             source: 'atlas://gui/kivy/theming/light/card_bottom'
             size: self.size
             pos: self.pos
@@ -221,7 +221,7 @@
             pos: self.pos
 
 <BlueButton@Button>:
-    background_color: .238, .585, .878, 0
+    background_color: 1, .585, .878, 0
     halign: 'left'
     text_size: (self.width-10, None)
     size_hint: 0.5, None
@@ -230,7 +230,8 @@
     padding: '5dp', '5db'
     height: '40dp'
     text_color: self.foreground_color
-    foreground_color: 1, 0, 0, 1
+    disabled_color: 1, 1, 1, 1
+    foreground_color: 1, 1, 1, 1
     canvas.before:
         Color:
             rgba: (0.9, .498, 0.745, 1) if self.state == 'down' else self.background_color

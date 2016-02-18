@@ -204,13 +204,16 @@ class SendScreen(CScreen):
         self.screen.message = ''
         self.screen.address = ''
         self.payment_request = None
+        self.screen.is_pr = False
 
     def set_request(self, pr):
-        self.payment_request = pr
         self.screen.address = pr.get_requestor()
         amount = pr.get_amount()
         self.screen.amount = self.app.format_amount_and_units(amount) if amount else ''
         self.screen.message = pr.get_memo()
+        if pr.is_pr():
+            self.screen.is_pr = True
+            self.payment_request = pr
 
     def do_save(self):
         if not self.screen.address:
@@ -439,13 +442,13 @@ class InvoicesScreen(CScreen):
             msg = _('This screen shows the list of payment requests that have been sent to you. You may also use it to store contact addresses.')
             invoices_list.add_widget(EmptyLabel(text=msg))
 
-
     def do_pay(self, obj):
-        self.app.do_pay(obj)
+        pr = self.app.invoices.get(obj.key)
+        self.app.on_pr(pr)
 
     def do_view(self, obj):
         pr = self.app.invoices.get(obj.key)
-        pr.verify({})
+        pr.verify(self.app.contacts)
         self.app.show_pr_details(pr.get_dict(), obj.status, True)
 
     def do_delete(self, obj):
