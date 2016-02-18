@@ -18,7 +18,7 @@ from kivy.lang import Builder
 from kivy.factory import Factory
 from kivy.utils import platform
 
-from electrum.util import profiler, parse_URI, format_time, InvalidPassword
+from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds
 from electrum import bitcoin
 from electrum.util import timestamp_to_datetime
 from electrum.plugins import run_hook
@@ -260,6 +260,9 @@ class SendScreen(CScreen):
         config = self.app.electrum_config
         try:
             tx = self.app.wallet.make_unsigned_transaction(coins, outputs, config, None)
+        except NotEnoughFunds:
+            self.app.show_error(_("Not enough funds"))
+            return
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             self.app.show_error(str(e))
