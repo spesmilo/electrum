@@ -3,7 +3,6 @@ from decimal import Decimal
 import re
 import datetime
 import traceback, sys
-import threading
 
 from kivy.app import App
 from kivy.cache import Cache
@@ -236,6 +235,12 @@ class SendScreen(CScreen):
         self.app.invoices.add(pr)
         self.app.update_tab('invoices')
         self.app.show_info(_("Invoice saved"))
+        if pr.is_pr():
+            self.screen.is_pr = True
+            self.payment_request = pr
+        else:
+            self.screen.is_pr = False
+            self.payment_request = None
 
     def do_paste(self):
         contents = unicode(self.app._clipboard.paste())
@@ -283,25 +288,22 @@ class SendScreen(CScreen):
         if fee >= config.get('confirm_fee', 1000000):
             msg.append(_('Warning')+ ': ' + _("The fee for this transaction seems unusually high."))
         msg.append(_("Enter your PIN code to proceed"))
-        self.app.protected('\n'.join(msg), self.send_tx, (tx,))
+        self.app.protected('\n'.join(msg), self.send_tx, (tx, message))
 
-    def send_tx(self, *args):
-        threading.Thread(target=self.send_tx_thread, args=args).start()
-
-    def send_tx_thread(self, tx, password):
-        # sign transaction
+    def send_tx(self, tx, message, password):
+        def on_success(tx):
+            if tx.is_complete():
+                self.app.broadcast(tx, self.payment_request)
+                self.app.wallet.set_label(tx.hash(), message)
+            else:
+                self.app.tx_dialog(tx)
+        def on_failure(error):
+            self.app.show_error(error)
         if self.app.wallet.can_sign(tx):
             self.app.show_info("Signing...")
-        try:
-            self.app.wallet.sign_transaction(tx, password)
-        except InvalidPassword:
-            self.app.show_error(_("Invalid PIN"))
-            return
-        if not tx.is_complete():
+            self.app.sign_tx(tx, password, on_success, on_failure)
+        else:
             self.app.tx_dialog(tx)
-            return
-        # broadcast
-        self.app.broadcast(tx)
 
 
 class ReceiveScreen(CScreen):

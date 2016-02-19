@@ -556,7 +556,7 @@ class Commands:
         return map(self._format_request, out)
 
     @command('w')
-    def addrequest(self, amount, memo='', expiration=60*60, force=False):
+    def addrequest(self, amount, memo='', expiration=None, force=False):
         """Create a payment request."""
         addr = self.wallet.get_unused_address(None)
         if addr is None:
@@ -565,7 +565,7 @@ class Commands:
             else:
                 return False
         amount = int(COIN*Decimal(amount))
-        expiration = int(expiration)
+        expiration = int(expiration) if expiration else None
         req = self.wallet.make_payment_request(addr, amount, memo, expiration)
         self.wallet.add_payment_request(req, self.config)
         out = self.wallet.get_payment_request(addr, self.config)

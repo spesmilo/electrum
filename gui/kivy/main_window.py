@@ -4,6 +4,7 @@ import time
 import datetime
 import traceback
 from decimal import Decimal
+import threading
 
 import electrum_ltc as electrum
 from electrum_ltc import WalletStorage, Wallet
@@ -681,16 +682,34 @@ class ElectrumWindow(App):
         d = TxDialog(self, tx)
         d.open()
 
-    def broadcast(self, tx):
+    def sign_tx(self, *args):
+        threading.Thread(target=self._sign_tx, args=args).start()
+
+    def _sign_tx(self, tx, password, on_success, on_failure):
+        try:
+            self.wallet.sign_transaction(tx, password)
+        except InvalidPassword:
+            Clock.schedule_once(lambda dt: on_failure(_("Invalid PIN")))
+            return
+        Clock.schedule_once(lambda dt: on_success(tx))
+
+    def _broadcast_thread(self, tx, on_complete):
+        ok, txid = self.wallet.sendtx(tx)
+        Clock.schedule_once(lambda dt: on_complete(ok, txid))
+
+    def broadcast(self, tx, pr=None):
+        def on_complete(ok, txid):
+            self.show_info(txid)
+            if ok and pr:
+                pr.set_paid(tx.hash())
+                self.invoices.save()
+                self.update_tab('invoices')
+
         if self.network and self.network.is_connected():
             self.show_info(_('Sending'))
-            ok, txid = self.wallet.sendtx(tx)
-            self.show_info(txid)
+            threading.Thread(target=self._broadcast_thread, args=(tx, on_complete)).start()
         else:
-            self.show_info(_('Cannot broadcast transaction') + '\n' + _('Not connected'))
-
-    def address_dialog(self, screen):
-        pass
+            self.show_info(_('Cannot broadcast transaction') + ':\n' + _('Not connected'))
 
     def description_dialog(self, screen):
         from uix.dialogs.label_dialog import LabelDialog

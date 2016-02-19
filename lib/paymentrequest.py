@@ -102,7 +102,8 @@ class PaymentRequest:
         self.payment_url = self.details.payment_url
 
     def is_pr(self):
-        return self.get_outputs() != [(TYPE_ADDRESS, self.get_requestor(), self.get_amount())]
+        return self.get_amount() != 0
+        #return self.get_outputs() != [(TYPE_ADDRESS, self.get_requestor(), self.get_amount())]
 
     def verify(self, contacts):
         if not self.raw:
@@ -258,6 +259,8 @@ class PaymentRequest:
         print "PaymentACK message received: %s" % paymntack.memo
         return True, paymntack.memo
 
+    def set_paid(self, tx_hash):
+        self.tx = tx_hash
 
 
 def make_unsigned_request(req):
@@ -468,10 +471,6 @@ class InvoiceStore(object):
 
     def get(self, k):
         return self.invoices.get(k)
-
-    def set_paid(self, key, tx_hash):
-        self.invoices[key].tx = tx_hash
-        self.save()
 
     def sorted_list(self):
         # sort

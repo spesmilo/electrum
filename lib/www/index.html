@@ -39,12 +39,13 @@ if (id) {
 		var max = 100;
 		var initial = data.time;
 		var duration = data.exp;
-  		var current = 100 * (Math.floor(Date.now()/1000) - initial)/duration;
-		$("#progressbar").progressbar({
+                if(duration){
+     		  var current = 100 * (Math.floor(Date.now()/1000) - initial)/duration;
+		  $("#progressbar").progressbar({
 		    value: current,
 		    max: max
-		});
-		function update() {
+		  });
+		  function update() {
         	    current = 100 * (Math.floor(Date.now()/1000) - initial)/duration;
 		    $("#progressbar").progressbar({
 			value: current
@@ -52,8 +53,9 @@ if (id) {
 		    if (current >= max) {
 			$("#container").html("This invoice has expired");
 		    }
-		};
-		var interval = setInterval(update, 1000);
+		  };
+		  var interval = setInterval(update, 1000);
+                 }
             });
 	    })
 	.fail(function() {
