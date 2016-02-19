@@ -235,6 +235,12 @@ class SendScreen(CScreen):
         self.app.invoices.add(pr)
         self.app.update_tab('invoices')
         self.app.show_info(_("Invoice saved"))
+        if pr.is_pr():
+            self.screen.is_pr = True
+            self.payment_request = pr
+        else:
+            self.screen.is_pr = False
+            self.payment_request = None
 
     def do_paste(self):
         contents = unicode(self.app._clipboard.paste())
@@ -287,7 +293,7 @@ class SendScreen(CScreen):
     def send_tx(self, tx, password):
         def on_success(tx):
             if tx.is_complete():
-                self.app.broadcast(tx)
+                self.app.broadcast(tx, self.payment_request)
             else:
                 self.app.tx_dialog(tx)
         def on_failure(error):
