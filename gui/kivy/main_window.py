@@ -701,9 +701,6 @@ class ElectrumWindow(App):
         else:
             self.show_info(_('Cannot broadcast transaction') + '\n' + _('Not connected'))
 
-    def address_dialog(self, screen):
-        pass
-
     def description_dialog(self, screen):
         from uix.dialogs.label_dialog import LabelDialog
         text = screen.message
