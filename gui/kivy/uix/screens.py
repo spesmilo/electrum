@@ -191,10 +191,12 @@ class SendScreen(CScreen):
         except:
             self.app.show_info(_("Not a Litecoin URI") + ':\n', text)
             return
+        amount = uri.get('amount')
         self.screen.address = uri.get('address', '')
         self.screen.message = uri.get('message', '')
-        amount = uri.get('amount')
         self.screen.amount = self.app.format_amount_and_units(amount) if amount else ''
+        self.payment_request = None
+        self.screen.is_pr = False
 
     def update(self):
         pass
@@ -299,9 +301,7 @@ class SendScreen(CScreen):
             self.app.tx_dialog(tx)
             return
         # broadcast
-        self.app.show_info("Sending...")
-        ok, txid = self.app.wallet.sendtx(tx)
-        self.app.show_info(txid)
+        self.app.broadcast(tx)
 
 
 class ReceiveScreen(CScreen):
