@@ -288,12 +288,13 @@ class SendScreen(CScreen):
         if fee >= config.get('confirm_fee', 100000):
             msg.append(_('Warning')+ ': ' + _("The fee for this transaction seems unusually high."))
         msg.append(_("Enter your PIN code to proceed"))
-        self.app.protected('\n'.join(msg), self.send_tx, (tx,))
+        self.app.protected('\n'.join(msg), self.send_tx, (tx, message))
 
-    def send_tx(self, tx, password):
+    def send_tx(self, tx, message, password):
         def on_success(tx):
             if tx.is_complete():
                 self.app.broadcast(tx, self.payment_request)
+                self.app.wallet.set_label(tx.hash(), message)
             else:
                 self.app.tx_dialog(tx)
         def on_failure(error):
