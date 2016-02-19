@@ -28,7 +28,7 @@ Builder.load_string('''
     BoxLayout:
         size_hint: 1, 1
         height: '48dp'
-        padding: '12dp'
+        padding: '12dp', '0dp'
         spacing: '3dp'
         orientation: 'horizontal'
         id: buttons
