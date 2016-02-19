@@ -681,6 +681,18 @@ class ElectrumWindow(App):
         d = TxDialog(self, tx)
         d.open()
 
+    def sign_tx(self, *args):
+        import threading
+        threading.Thread(target=self._sign_tx, args=args).start()
+
+    def _sign_tx(self, tx, password, on_success, on_failure):
+        try:
+            self.wallet.sign_transaction(tx, password)
+        except InvalidPassword:
+            Clock.schedule_once(lambda dt: on_failure(_("Invalid PIN")))
+            return
+        Clock.schedule_once(lambda dt: on_success(tx))
+
     def broadcast(self, tx):
         if self.network and self.network.is_connected():
             self.show_info(_('Sending'))
