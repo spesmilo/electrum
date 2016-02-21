@@ -203,7 +203,7 @@ class Blockchain(util.PrintError):
         chain.reverse()
         try:
             self.verify_chain(chain)
-            self.print_error("connected at height:", previous_height)
+            self.print_error("new height:", previous_height + len(chain))
             for header in chain:
                 self.save_header(header)
             return True
