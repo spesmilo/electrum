@@ -699,7 +699,7 @@ class Network(util.DaemonThread):
                 if next_height in [True, False]:
                     self.bc_requests.popleft()
                     if next_height:
-                        self.switch_lagging_interface(interface)
+                        self.switch_lagging_interface(interface.server)
                         self.notify('updated')
                     else:
                         interface.print_error("header didn't connect, dismissing interface")
