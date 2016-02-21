@@ -136,8 +136,7 @@ class Network(util.DaemonThread):
 
     - Member functions get_header(), get_interfaces(), get_local_height(),
           get_parameters(), get_server_height(), get_status_value(),
-          is_connected(), new_blockchain_height(), set_parameters(),
-          stop()
+          is_connected(), set_parameters(), stop()
     """
 
     def __init__(self, config=None):
@@ -465,10 +464,6 @@ class Network(util.DaemonThread):
         self.recent_servers = self.recent_servers[0:20]
         self.save_recent_servers()
 
-    def new_blockchain_height(self, blockchain_height, i):
-        self.switch_lagging_interface(i.server)
-        self.notify('updated')
-
     def process_response(self, interface, response, callbacks):
         if self.debug:
             self.print_error("<--", response)
@@ -704,6 +699,7 @@ class Network(util.DaemonThread):
                 if next_height in [True, False]:
                     self.bc_requests.popleft()
                     if next_height:
+                        self.switch_lagging_interface(interface)
                         self.notify('updated')
                     else:
                         interface.print_error("header didn't connect, dismissing interface")
