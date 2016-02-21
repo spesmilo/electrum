@@ -1,5 +1,6 @@
 # Release 2.6
  * separation between plugins and GUIs
+ * first release of the Kivy GUI
  * the daemon supports jsonrpc commands
  * new command: 'notify <address> <url>'
  * improved coin selection to help preserve user privacy.  This is an
