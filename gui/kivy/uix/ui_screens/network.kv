@@ -9,6 +9,8 @@ Popup:
 
     BoxLayout:
         orientation: 'vertical'
+        padding: '10dp'
+        spacing: '10dp'
         TopLabel:
             s1: _("Connected to %d nodes.")%root.n_nodes if root.n_nodes else _("Not connected?")
             s2: _("Blockchain length") + ": %d "%root.blockchain_height + _("blocks")
@@ -32,6 +34,12 @@ Popup:
                 size_hint_y: None
         Widget:
             size_hint: 1, 0.1
+        TopLabel:
+            text: _("Electrum retrieves your wallet information from a single server (Address server). In addition, it connects to a number of extra nodes, in order to fetch block headers. Block headers are used to verify the information sent by the address server, using Simple Payment Verification (SPV).")
+            font_size: '6pt'
+        Widget:
+            size_hint: 1, 0.1
+
         BoxLayout:
             Widget:
                 size_hint: 0.5, None
