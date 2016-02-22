@@ -156,15 +156,17 @@ class SettingsDialog(Factory.Popup):
         d = ChoiceDialog(_('Coin selection'), choosers, chooser_name, cb)
         d.open()
 
-    def openalias_dialog(self, label, dt):
-        from label_dialog import LabelDialog
-        def callback(text):
-            label.text = text
-        d = LabelDialog(_('OpenAlias'), '', callback)
-        d.open()
-
-    def network_dialog(self, label, dt):
+    def network_dialog(self, item, dt):
+        server, port, protocol, proxy, auto_connect = self.app.network.get_parameters()
+        def cb(popup):
+            server = popup.ids.host.text
+            auto_connect = popup.ids.auto_connect.active
+            self.app.network.set_parameters(server, port, protocol, proxy, auto_connect)
+            item.status = self.network_status()
         popup = Builder.load_file('gui/kivy/uix/ui_screens/network.kv')
+        popup.ids.host.text = server
+        popup.ids.auto_connect.active = auto_connect
+        popup.on_dismiss = lambda: cb(popup)
         popup.open()
 
     def network_status(self):
