@@ -1,31 +1,37 @@
 Popup:
     id: nd
     title: _('Network')
-
+    n_nodes: len(app.network.get_interfaces())
+    blockchain_height: app.network.get_local_height()
+    is_connected: app.network.is_connected()
     on_open:
         host.text, nd.port, nd.protocol, nd.proxy, auto_connect.active = app.network.get_parameters()
 
     BoxLayout:
-
         orientation: 'vertical'
-
+        TopLabel:
+            s1: _("Connected to %d nodes.")%root.n_nodes if root.n_nodes else _("Not connected?")
+            s2: _("Blockchain length") + ": %d "%root.blockchain_height + _("blocks")
+            text: self.s1 + '\n' + self.s2
+        Widget:
+            size_hint: 1, 0.1
         GridLayout:
             cols: 2
+            Label:
+                text: _('Address server')
+            Spinner:
+                id: host
+                height: '48dp'
+                text: ''
+                values: sorted(app.network.get_servers())
+                disabled: auto_connect.active
             Label:
                 text: _('Auto-connect')
             CheckBox:
                 id: auto_connect
                 size_hint_y: None
-            Label:
-                text: _('Server')
-            Spinner:
-                id: host
-                text: ''
-                values: sorted(app.network.get_servers())
-                disabled: auto_connect.active
         Widget:
-            size_hint: 1, 1
-
+            size_hint: 1, 0.1
         BoxLayout:
             Widget:
                 size_hint: 0.5, None
@@ -36,4 +42,3 @@ Popup:
                 on_release:
                     app.network.set_parameters(host.text, nd.port, nd.protocol, nd.proxy, auto_connect.active)
                     nd.dismiss()
-

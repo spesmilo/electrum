@@ -9,6 +9,8 @@ from electrum_gui.kivy.i18n import _
 from electrum.plugins import run_hook
 from electrum.bitcoin import RECOMMENDED_FEE
 
+from choice_dialog import ChoiceDialog
+
 Builder.load_string('''
 #:import partial functools.partial
 #:import _ electrum_gui.kivy.i18n._
@@ -83,14 +85,20 @@ Builder.load_string('''
                     description: _("Display amounts in fiat currency.")
                     action: partial(root.fx_dialog, self)
                 SettingsItem:
+                    status: root.network_status()
+                    title: _('Network') + ': ' + self.status
+                    description: _("Network status and server selection.")
+                    action: partial(root.network_dialog, self)
+                SettingsItem:
                     status: 'ON' if bool(app.plugins.get('labels')) else 'OFF'
                     title: _('Labels Sync') + ': ' + self.status
                     description: "Synchronize labels."
                     action: partial(root.plugin_dialog, 'labels', self)
-                #SettingsItem:
-                #    title: _('OpenAlias')
-                #    description: "DNS record that stores one of your Bitcoin addresses."
-                #    action: partial(root.openalias_dialog, self)
+                SettingsItem:
+                    status: root.coinselect_status()
+                    title: _('Coin selection') + ': ' + self.status
+                    description: "Coin selection method"
+                    action: partial(root.coinselect_dialog, self)
         BoxLayout:
             size_hint: 1, 0.1
             Widget:
@@ -120,7 +128,6 @@ class SettingsDialog(Factory.Popup):
         self.app.change_password()
 
     def language_dialog(self, item, dt):
-        from choice_dialog import ChoiceDialog
         l = self.config.get('language', 'en_UK')
         def cb(key):
             self.config.set_key("language", key, True)
@@ -130,11 +137,23 @@ class SettingsDialog(Factory.Popup):
         d.open()
 
     def unit_dialog(self, item, dt):
-        from choice_dialog import ChoiceDialog
         def cb(text):
             self.app._set_bu(text)
             item.bu = self.app.base_unit
         d = ChoiceDialog(_('Denomination'), base_units.keys(), self.app.base_unit, cb)
+        d.open()
+
+    def coinselect_status(self):
+        return self.app.wallet.coin_chooser_name(self.app.electrum_config)
+
+    def coinselect_dialog(self, item, dt):
+        from electrum import COIN_CHOOSERS
+        choosers = sorted(COIN_CHOOSERS.keys())
+        chooser_name = self.app.wallet.coin_chooser_name(self.config)
+        def cb(text):
+            self.config.set_key('coin_chooser', text)
+            item.status = text
+        d = ChoiceDialog(_('Coin selection'), choosers, chooser_name, cb)
         d.open()
 
     def openalias_dialog(self, label, dt):
@@ -143,6 +162,14 @@ class SettingsDialog(Factory.Popup):
             label.text = text
         d = LabelDialog(_('OpenAlias'), '', callback)
         d.open()
+
+    def network_dialog(self, label, dt):
+        popup = Builder.load_file('gui/kivy/uix/ui_screens/network.kv')
+        popup.open()
+
+    def network_status(self):
+        server, port, protocol, proxy, auto_connect = self.app.network.get_parameters()
+        return 'auto-connect' if auto_connect else server
 
     def plugin_dialog(self, name, label, dt):
         from checkbox_dialog import CheckBoxDialog
