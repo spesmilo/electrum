@@ -136,7 +136,7 @@ class LabelsPlugin(BasePlugin):
     def start_wallet(self, wallet):
         nonce = self.get_nonce(wallet)
         self.print_error("wallet", wallet.basename(), "nonce is", nonce)
-        mpk = ''.join(sorted(wallet.get_master_public_keys().values()))
+        mpk = wallet.get_fingerprint()
         if not mpk:
             return
         password = hashlib.sha1(mpk).digest().encode('hex')[:32]

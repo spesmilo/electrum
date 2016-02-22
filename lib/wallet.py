@@ -1411,6 +1411,8 @@ class Abstract_Wallet(PrintError):
                 return -1, (0, 0)
         return sorted(map(lambda x: self.get_payment_request(x, config), self.receive_requests.keys()), key=f)
 
+    def get_fingerprint(self):
+        raise NotImplementedError()
 
 
 class Imported_Wallet(Abstract_Wallet):
@@ -1445,6 +1447,8 @@ class Imported_Wallet(Abstract_Wallet):
     def is_beyond_limit(self, address, account, is_change):
         return False
 
+    def get_fingerprint(self):
+        return ''
 
 class Deterministic_Wallet(Abstract_Wallet):
 
@@ -1574,6 +1578,8 @@ class Deterministic_Wallet(Abstract_Wallet):
             out[name] = mpk_text
         return out
 
+    def get_fingerprint(self):
+        return self.get_master_public_key()
 
 
 class BIP32_Wallet(Deterministic_Wallet):
@@ -1849,6 +1855,9 @@ class Multisig_Wallet(BIP32_RD_Wallet, Mnemonic):
                 return 'create_seed' if i == 0 else 'add_cosigners'
         if not self.accounts:
             return 'create_main_account'
+
+    def get_fingerprint(self):
+        return ''.join(sorted(self.get_master_public_keys().values()))
 
 
 class OldWallet(Deterministic_Wallet):
