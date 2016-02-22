@@ -354,6 +354,10 @@ class ElectrumWindow(App):
         # bind intent for bitcoin: URI scheme
         if platform == 'android':
             from android import activity
+            from jnius import autoclass
+            PythonActivity = autoclass('org.renpy.android.PythonActivity')
+            mactivity = PythonActivity.mActivity
+            self.on_new_intent(mactivity.getIntent())
             activity.bind(on_new_intent=self.on_new_intent)
 
         # URI passed in config
