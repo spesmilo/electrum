@@ -92,7 +92,7 @@ Builder.load_string('''
                 SettingsItem:
                     status: 'ON' if bool(app.plugins.get('labels')) else 'OFF'
                     title: _('Labels Sync') + ': ' + self.status
-                    description: "Synchronize labels."
+                    description: _("Save and synchronize your labels.")
                     action: partial(root.plugin_dialog, 'labels', self)
                 SettingsItem:
                     status: root.coinselect_status()
