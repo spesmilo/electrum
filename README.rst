@@ -3,7 +3,7 @@ Electrum - lightweight Bitcoin client
 
 ::
 
-  Licence: GNU GPL v3
+  Licence: MIT Licence
   Author: Thomas Voegtlin
   Language: Python
   Homepage: https://electrum.org/
