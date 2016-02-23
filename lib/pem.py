@@ -4,7 +4,7 @@
 
 import binascii
 
-from asn1tinydecoder import *
+from x509 import ASN1_Node
 
 
 def a2b_base64(s):
@@ -122,24 +122,24 @@ def parse_private_key(s):
 
 
 def _parsePKCS8(bytes):
-    s = str(bytes)
-    root = asn1_node_root(s)
-    version_node = asn1_node_first_child(s, root)
-    version = bytestr_to_int(asn1_get_value_of_type(s, version_node, 'INTEGER'))
+    s = ASN1_Node(str(bytes))
+    root = s.root()
+    version_node = s.first_child(root)
+    version = bytestr_to_int(s.get_value_of_type(version_node, 'INTEGER'))
     if version != 0:
         raise SyntaxError("Unrecognized PKCS8 version")
-    rsaOID_node = asn1_node_next(s, version_node)
-    ii = asn1_node_first_child(s, rsaOID_node)
-    rsaOID = decode_OID(asn1_get_value_of_type(s, ii, 'OBJECT IDENTIFIER'))
+    rsaOID_node = s.next_node(version_node)
+    ii = s.first_child(rsaOID_node)
+    rsaOID = decode_OID(s.get_value_of_type(ii, 'OBJECT IDENTIFIER'))
     if rsaOID != '1.2.840.113549.1.1.1':
         raise SyntaxError("Unrecognized AlgorithmIdentifier")
-    privkey_node = asn1_node_next(s, rsaOID_node)
-    value = asn1_get_value_of_type(s, privkey_node, 'OCTET STRING')
+    privkey_node = s.next_node(rsaOID_node)
+    value = s.get_value_of_type(privkey_node, 'OCTET STRING')
     return _parseASN1PrivateKey(value)
 
 
 def _parseSSLeay(bytes):
-    return _parseASN1PrivateKey(str(bytes))
+    return _parseASN1PrivateKey(ASN1_Node(str(bytes)))
 
 
 def bytesToNumber(s):
@@ -147,18 +147,18 @@ def bytesToNumber(s):
 
 
 def _parseASN1PrivateKey(s):
-    root = asn1_node_root(s)
-    version_node = asn1_node_first_child(s, root)
-    version = bytestr_to_int(asn1_get_value_of_type(s, version_node, 'INTEGER'))
+    root = s.root()
+    version_node = s.first_child(root)
+    version = bytestr_to_int(s.get_value_of_type(version_node, 'INTEGER'))
     if version != 0:
         raise SyntaxError("Unrecognized RSAPrivateKey version")
-    n = asn1_node_next(s, version_node)
-    e = asn1_node_next(s, n)
-    d = asn1_node_next(s, e)
-    p = asn1_node_next(s, d)
-    q = asn1_node_next(s, p)
-    dP = asn1_node_next(s, q)
-    dQ = asn1_node_next(s, dP)
-    qInv = asn1_node_next(s, dQ)
-    return map(lambda x: bytesToNumber(asn1_get_value_of_type(s, x, 'INTEGER')), [n, e, d, p, q, dP, dQ, qInv])
+    n = s.next_node(version_node)
+    e = s.next_node(n)
+    d = s.next_node(e)
+    p = s.next_node(d)
+    q = s.next_node(p)
+    dP = s.next_node(q)
+    dQ = s.next_node(dP)
+    qInv = s.next_node(dQ)
+    return map(lambda x: bytesToNumber(s.get_value_of_type(x, 'INTEGER')), [n, e, d, p, q, dP, dQ, qInv])
 
