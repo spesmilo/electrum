@@ -6,7 +6,6 @@ import os
 import qrcode
 
 import electrum_ltc
-from electrum_ltc import bmp
 from electrum_ltc.i18n import _
 from util import WindowModalDialog
 
@@ -101,14 +100,16 @@ class QRDialog(WindowModalDialog):
 
         config = electrum_ltc.get_config()
         if config:
-            filename = os.path.join(config.path, "qrcode.bmp")
+            filename = os.path.join(config.path, "qrcode.png")
 
             def print_qr():
-                bmp.save_qrcode(qrw.qr, filename)
+                p = QPixmap.grabWindow(qrw.winId())
+                p.save(filename, 'png')
                 self.show_message(_("QR code saved to file") + " " + filename)
 
             def copy_to_clipboard():
-                bmp.save_qrcode(qrw.qr, filename)
+                p = QPixmap.grabWindow(qrw.winId())
+                p.save(filename, 'png')
                 QApplication.clipboard().setImage(QImage(filename))
                 self.show_message(_("QR code copied to clipboard"))
 

@@ -19,11 +19,8 @@
 
 from datetime import datetime
 import sys
-
 import util
 from util import profiler, print_error
-
-from asn1tinydecoder import *
 import ecdsa
 import hashlib
 
@@ -40,11 +37,142 @@ PREFIX_RSA_SHA256 = bytearray([0x30,0x31,0x30,0x0d,0x06,0x09,0x60,0x86,0x48,0x01
 PREFIX_RSA_SHA384 = bytearray([0x30,0x41,0x30,0x0d,0x06,0x09,0x60,0x86,0x48,0x01,0x65,0x03,0x04,0x02,0x02,0x05,0x00,0x04,0x30])
 PREFIX_RSA_SHA512 = bytearray([0x30,0x51,0x30,0x0d,0x06,0x09,0x60,0x86,0x48,0x01,0x65,0x03,0x04,0x02,0x03,0x05,0x00,0x04,0x40])
 
+# types used in ASN1 structured data
+ASN1_TYPES = {
+    'BOOLEAN':           0x01,
+    'INTEGER':           0x02,
+    'BIT STRING':        0x03,
+    'OCTET STRING':      0x04,
+    'NULL':              0x05,
+    'OBJECT IDENTIFIER': 0x06,
+    'SEQUENCE':          0x70,
+    'SET':               0x71,
+    'PrintableString':   0x13,
+    'IA5String':         0x16,
+    'UTCTime':           0x17,
+    'ENUMERATED':        0x0A,
+    'UTF8String':        0x0C,
+    'PrintableString':   0x13,
+}
 
 class CertificateError(Exception):
     pass
 
+# helper functions
 
+def bitstr_to_bytestr(s):
+    if s[0] != '\x00':
+        raise BaseException('no padding')
+    return s[1:]
+
+def bytestr_to_int(s):
+    i = 0
+    for char in s:
+        i <<= 8
+        i |= ord(char)
+    return i
+
+def decode_OID(s):
+    s = map(ord, s)
+    r = []
+    r.append(s[0] / 40)
+    r.append(s[0] % 40)
+    k = 0
+    for i in s[1:]:
+        if i < 128:
+            r.append(i + 128*k)
+            k = 0
+        else:
+            k = (i - 128) + 128*k
+    return '.'.join(map(str, r))
+
+
+def encode_OID(oid):
+    x = map(int, oid.split('.'))
+    s = chr(x[0]*40 + x[1])
+    for i in x[2:]:
+        ss = chr(i % 128)
+        while i > 128:
+            i = i / 128
+            ss = chr(128 + i % 128) + ss
+        s += ss
+    return s
+
+
+
+
+class ASN1_Node(str):
+
+    def get_node(self, ix):
+        # return index of first byte, first content byte and last byte.
+	first = ord(self[ix+1])
+	if (ord(self[ix+1]) & 0x80) == 0:
+            length = first
+            ixf = ix + 2
+            ixl = ixf + length - 1
+	else:
+            lengthbytes = first & 0x7F
+            length = bytestr_to_int(self[ix+2:ix+2+lengthbytes])
+            ixf = ix + 2 + lengthbytes
+            ixl = ixf + length -1
+	return (ix, ixf, ixl)
+
+    def root(self):
+	return self.get_node(0)
+
+    def next_node(self, node):
+        ixs, ixf, ixl = node
+	return self.get_node(ixl + 1)
+
+    def first_child(self, node):
+        ixs, ixf, ixl = node
+	if ord(self[ixs]) & 0x20 != 0x20:
+            raise BaseException('Can only open constructed types.', hex(ord(self[ixs])))
+        return self.get_node(ixf)
+
+    def is_child_of(node1, node2):
+        ixs, ixf, ixl = node1
+        jxs, jxf, jxl = node2
+	return ( (ixf <= jxs) and (jxl <= ixl) ) or ( (jxf <= ixs) and (ixl <= jxl) )
+
+    def get_all(self, node):
+        # return type + length + value
+        ixs, ixf, ixl = node
+	return self[ixs:ixl+1]
+
+    def get_value_of_type(self, node, asn1_type):
+        # verify type byte and return content
+        ixs, ixf, ixl = node
+	if ASN1_TYPES[asn1_type] != ord(self[ixs]):
+            raise BaseException('Wrong type:', hex(ord(self[ixs])),  hex(ASN1_TYPES[asn1_type]) )
+	return self[ixf:ixl+1]
+
+    def get_value(self, node):
+        ixs, ixf, ixl = node
+	return self[ixf:ixl+1]
+
+    def get_children(self, node):
+        nodes = []
+        ii = self.first_child(node)
+        nodes.append(ii)
+        while ii[2] < node[2]:
+            ii = self.next_node(ii)
+            nodes.append(ii)
+        return nodes
+
+    def get_sequence(self):
+        return map(lambda j: self.get_value(j), self.get_children(self.root()))
+
+    def get_dict(self, node):
+        p = {}
+        for ii in self.get_children(node):
+            for iii in self.get_children(ii):
+                iiii = self.first_child(iii)
+                oid = decode_OID(self.get_value_of_type(iiii, 'OBJECT IDENTIFIER'))
+                iiii = self.next_node(iiii)
+                value = self.get_value(iiii)
+                p[oid] = value
+        return p
 
 
 class X509(object):
@@ -53,55 +181,53 @@ class X509(object):
 
         self.bytes = bytearray(b)
 
-        der = str(b)
-        root = asn1_node_root(der)
-        cert = asn1_node_first_child(der, root)
+        der = ASN1_Node(str(b))
+        root = der.root()
+        cert = der.first_child(root)
         # data for signature
-        self.data = asn1_get_all(der, cert)
+        self.data = der.get_all(cert)
 
         # optional version field
-        if asn1_get_value(der, cert)[0] == chr(0xa0):
-            version = asn1_node_first_child(der, cert)
-            serial_number = asn1_node_next(der, version)
+        if der.get_value(cert)[0] == chr(0xa0):
+            version = der.first_child(cert)
+            serial_number = der.next_node(version)
         else:
-            serial_number = asn1_node_first_child(der, cert)
-        self.serial_number = bytestr_to_int(asn1_get_value_of_type(der, serial_number, 'INTEGER'))
+            serial_number = der.first_child(cert)
+        self.serial_number = bytestr_to_int(der.get_value_of_type(serial_number, 'INTEGER'))
 
         # signature algorithm
-        sig_algo = asn1_node_next(der, serial_number)
-        ii = asn1_node_first_child(der, sig_algo)
-        self.sig_algo = decode_OID(asn1_get_value_of_type(der, ii, 'OBJECT IDENTIFIER'))
+        sig_algo = der.next_node(serial_number)
+        ii = der.first_child(sig_algo)
+        self.sig_algo = decode_OID(der.get_value_of_type(ii, 'OBJECT IDENTIFIER'))
 
         # issuer
-        issuer = asn1_node_next(der, sig_algo)
-        self.issuer = asn1_get_dict(der, issuer)
+        issuer = der.next_node(sig_algo)
+        self.issuer = der.get_dict(issuer)
 
         # validity
-        validity = asn1_node_next(der, issuer)
-        ii = asn1_node_first_child(der, validity)
-        self.notBefore = asn1_get_value_of_type(der, ii, 'UTCTime')
-        ii = asn1_node_next(der,ii)
-        self.notAfter = asn1_get_value_of_type(der, ii, 'UTCTime')
+        validity = der.next_node(issuer)
+        ii = der.first_child(validity)
+        self.notBefore = der.get_value_of_type(ii, 'UTCTime')
+        ii = der.next_node(ii)
+        self.notAfter = der.get_value_of_type(ii, 'UTCTime')
 
         # subject
-        subject = asn1_node_next(der, validity)
-        self.subject = asn1_get_dict(der, subject)
-
-        subject_pki = asn1_node_next(der, subject)
-
-        public_key_algo = asn1_node_first_child(der, subject_pki)
-        ii = asn1_node_first_child(der, public_key_algo)
-        self.public_key_algo = decode_OID(asn1_get_value_of_type(der, ii, 'OBJECT IDENTIFIER'))
+        subject = der.next_node(validity)
+        self.subject = der.get_dict(subject)
+        subject_pki = der.next_node(subject)
+        public_key_algo = der.first_child(subject_pki)
+        ii = der.first_child(public_key_algo)
+        self.public_key_algo = decode_OID(der.get_value_of_type(ii, 'OBJECT IDENTIFIER'))
 
         # pubkey modulus and exponent
-        subject_public_key = asn1_node_next(der, public_key_algo)
-        spk = asn1_get_value_of_type(der, subject_public_key, 'BIT STRING')
-        spk = bitstr_to_bytestr(spk)
-        r = asn1_node_root(spk)
-        modulus = asn1_node_first_child(spk, r)
-        exponent = asn1_node_next(spk, modulus)
-        rsa_n = asn1_get_value_of_type(spk, modulus, 'INTEGER')
-        rsa_e = asn1_get_value_of_type(spk, exponent, 'INTEGER')
+        subject_public_key = der.next_node(public_key_algo)
+        spk = der.get_value_of_type(subject_public_key, 'BIT STRING')
+        spk = ASN1_Node(bitstr_to_bytestr(spk))
+        r = spk.root()
+        modulus = spk.first_child(r)
+        exponent = spk.next_node(modulus)
+        rsa_n = spk.get_value_of_type(modulus, 'INTEGER')
+        rsa_e = spk.get_value_of_type(exponent, 'INTEGER')
         self.modulus = ecdsa.util.string_to_number(rsa_n)
         self.exponent = ecdsa.util.string_to_number(rsa_e)
 
@@ -111,30 +237,31 @@ class X509(object):
         self.SKI = None
         i = subject_pki
         while i[2] < cert[2]:
-            i = asn1_node_next(der, i)
-            d = asn1_get_dict(der, i)
+            i = der.next_node(i)
+            d = der.get_dict(i)
             for oid, value in d.items():
+                value = ASN1_Node(value)
                 if oid == '2.5.29.19':
                     # Basic Constraints
                     self.CA = bool(value)
                 elif oid == '2.5.29.14':
                     # Subject Key Identifier
-                    r = asn1_node_root(value)
-                    value = asn1_get_value_of_type(value, r, 'OCTET STRING')
+                    r = value.root()
+                    value = value.get_value_of_type(r, 'OCTET STRING')
                     self.SKI = value.encode('hex')
                 elif oid == '2.5.29.35':
                     # Authority Key Identifier
-                    self.AKI = asn1_get_sequence(value)[0].encode('hex')
+                    self.AKI = value.get_sequence()[0].encode('hex')
                 else:
                     pass
 
         # cert signature
-        cert_sig_algo = asn1_node_next(der, cert)
-        ii = asn1_node_first_child(der, cert_sig_algo)
-        self.cert_sig_algo = decode_OID(asn1_get_value_of_type(der, ii, 'OBJECT IDENTIFIER'))
-        cert_sig = asn1_node_next(der, cert_sig_algo)
-        self.signature = asn1_get_value(der, cert_sig)[1:]
-        
+        cert_sig_algo = der.next_node(cert)
+        ii = der.first_child(cert_sig_algo)
+        self.cert_sig_algo = decode_OID(der.get_value_of_type(ii, 'OBJECT IDENTIFIER'))
+        cert_sig = der.next_node(cert_sig_algo)
+        self.signature = der.get_value(cert_sig)[1:]
+
     def get_keyID(self):
         # http://security.stackexchange.com/questions/72077/validating-an-ssl-certificate-chain-according-to-rfc-5280-am-i-understanding-th
         return self.SKI if self.SKI else repr(self.subject)
@@ -190,3 +317,11 @@ def load_certificates(ca_path):
         ca_keyID[x.get_keyID()] = fp
 
     return ca_list, ca_keyID
+
+
+if __name__ == "__main__":
+    import requests
+    util.set_verbosity(True)
+    ca_path = requests.certs.where()
+    ca_list, ca_keyID = load_certificates(ca_path)
+
