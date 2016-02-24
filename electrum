@@ -58,6 +58,7 @@ def check_imports():
     from google.protobuf import message
     from google.protobuf import reflection
     from google.protobuf import descriptor_pb2
+    from jsonrpclib import SimpleJSONRPCServer
     # check that we have the correct version of ecdsa
     try:
         from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
