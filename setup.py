@@ -75,7 +75,7 @@ setup(
     description="Lightweight Litecoin Wallet",
     author="Thomas Voegtlin",
     author_email="thomasv@electrum.org",
-    license="GNU GPLv3",
+    license="MIT Licence",
     url="http://electrum-ltc.org",
     long_description="""Lightweight Litecoin Wallet"""
 )

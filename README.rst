@@ -3,7 +3,7 @@ Electrum-LTC - lightweight Litecoin client
 
 ::
 
-  Licence: GNU GPL v3
+  Licence: MIT Licence
   Original Author: Thomas Voegtlin
   Port Maintainer: Pooler
   Language: Python
