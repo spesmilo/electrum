@@ -7,7 +7,7 @@ NAME_ROOT=electrum
 
 
 # These settings probably don't need any change
-export WINEPREFIX=/opt/electrum/wine64
+export WINEPREFIX=/opt/wine64
 
 PYHOME=c:/python27
 PYTHON="wine $PYHOME/python.exe -OO -B"

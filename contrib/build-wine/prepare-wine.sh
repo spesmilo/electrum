@@ -10,7 +10,7 @@ SETUPTOOLS_URL=https://pypi.python.org/packages/2.7/s/setuptools/setuptools-0.6c
 
 
 ## These settings probably don't need change
-export WINEPREFIX=/opt/electrum/wine64
+export WINEPREFIX=/opt/wine64
 #export WINEARCH='win32'
 
 PYHOME=c:/python27
