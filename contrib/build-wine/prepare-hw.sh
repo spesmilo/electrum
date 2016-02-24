@@ -7,7 +7,7 @@ BTCHIP_GIT_URL=git://github.com/LedgerHQ/btchip-python.git
 BRANCH=master
 
 # These settings probably don't need any change
-export WINEPREFIX=/opt/electrum/wine64
+export WINEPREFIX=/opt/wine64
 
 PYHOME=c:/python27
 PYTHON="wine $PYHOME/python.exe "

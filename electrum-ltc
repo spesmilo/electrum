@@ -50,6 +50,7 @@ def check_imports():
         import qrcode
         import pbkdf2
         import google.protobuf
+        import jsonrpclib
     except ImportError as e:
         sys.exit("Error: %s. Try 'sudo pip install <module-name>'"%e.message)
     # the following imports are for pyinstaller
@@ -57,6 +58,7 @@ def check_imports():
     from google.protobuf import message
     from google.protobuf import reflection
     from google.protobuf import descriptor_pb2
+    from jsonrpclib import SimpleJSONRPCServer
     # check that we have the correct version of ecdsa
     try:
         from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
@@ -286,7 +288,6 @@ if __name__ == '__main__':
             'verbose': True,
             'cmd': 'gui',
             'gui': 'kivy',
-            #'auto_connect': True,
         }
     else:
         config_options = args.__dict__
@@ -295,6 +296,8 @@ if __name__ == '__main__':
                 config_options.pop(k)
         if config_options.get('server'):
             config_options['auto_connect'] = False
+
+    config_options['cwd'] = os.getcwd()
 
     if config_options.get('portable'):
         config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum-ltc_data')
