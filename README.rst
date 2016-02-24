@@ -37,11 +37,6 @@ If you don't have pip, install with::
 
 
 
-To start Electrum from your web browser, see
-http://electrum.org/bitcoin_URIs.html
-
-
-
 2. HOW OFFICIAL PACKAGES ARE CREATED
 ------------------------------------
 
