@@ -1,15 +1,17 @@
 # Release 2.6
- * separation between plugins and GUIs
- * first release of the Kivy GUI
- * the daemon supports jsonrpc commands
- * new command: 'notify <address> <url>'
- * improved coin selection to help preserve user privacy.  This is an
-   experimental feature.  Enable it by setting the Coin Selection
-   preference to Privacy.
- * the install wizard has been rewritten and improved
- * support minikeys as used in Casascius coins for private key import
+ * The source code is relicensed under the MIT Licence
+ * First official release of the Kivy GUI, with android APK
+ * The old 'android' and 'gtk' GUIs are deprecated
+ * Separation between plugins and GUIs
+ * The command line uses jsonrpc to communicate with the daemon
+ * New command: 'notify <address> <url>'
+ * Alternative coin selection policy, designed to help preserve user
+   privacy. Enable it by setting the Coin Selection preference to
+   Privacy.
+ * The install wizard has been rewritten and improved
+ * Support minikeys as used in Casascius coins for private key import
    and sweeping
- * much improved support for TREZOR and KeepKey devices:
+ * Much improved support for TREZOR and KeepKey devices:
    - full device information display
    - initialize a new or wiped device in 4 ways:
      1) device generates a new wallet
