@@ -32,6 +32,7 @@ class TrezorCompatibleWallet(BIP44_HW_Wallet):
         return EncodeBase58Check(xpub)
 
     def decrypt_message(self, pubkey, message, password):
+        raise RuntimeError(_('Electrum and %s encryption and decryption are currently incompatible') % self.device)
         address = public_key_to_bc_address(pubkey.decode('hex'))
         client = self.get_client()
         address_path = self.address_id(address)
