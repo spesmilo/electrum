@@ -47,21 +47,15 @@ DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 DEFAULT_SERVERS = {
     'einfachmalnettsein.de': {'t':'40001', 's':'40002'},
     'electrum.cryptomachine.com': DEFAULT_PORTS,
+    'electrum-ltc.alexcos.ro': {'t':'50003', 's':'50004'},
     'electrum-ltc.bysh.me': DEFAULT_PORTS,
-    'electrum-ltc.koddos.com': DEFAULT_PORTS,
     'electrum-ltc.neocrypto.io': {'t':'50003', 's':'50004'},
-    'electrum-ltc.thwg.org': DEFAULT_PORTS,
-    'electrum.dragonzone.net': {'t':'50003', 's':'50004'},
-    'electrum.litecoiners.nl': DEFAULT_PORTS,
-    'electrum.litecoinguard.com': DEFAULT_PORTS,
-    'electrum.ltc.xurious.com': DEFAULT_PORTS,
-    'electrum.lurkmore.com': DEFAULT_PORTS,
-    'electrum.snicter.com': DEFAULT_PORTS,
     'electrum-ltc.petrkr.net': {'t':'60001', 's':'60002'},
-    'eltc.osl2.i2p.io': DEFAULT_PORTS,
-    'glacialsoftware.net': DEFAULT_PORTS,
-    'ltc2.electrum-servers.us': DEFAULT_PORTS,
-    'rho.hicapacity.org': DEFAULT_PORTS,
+    'electrum.ltc.xurious.com': DEFAULT_PORTS,
+    'electrum.site2.me': DEFAULT_PORTS,
+    'electrum.snicter.com': DEFAULT_PORTS,
+    'electrum.wikit.me': DEFAULT_PORTS,
+    'ltc-westus.electrum-servers.com': DEFAULT_PORTS,
 }
 
 NODES_RETRY_INTERVAL = 60
