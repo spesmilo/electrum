@@ -322,6 +322,8 @@ block_explorer_info = {
                         {'tx': 'tx/info', 'addr': 'address/info'}),
     'Blocktrail.com': ('https://www.blocktrail.com/BTC',
                         {'tx': 'tx', 'addr': 'address'}),
+    'BTC.com': ('https://chain.btc.com',
+                        {'tx': 'tx', 'addr': 'address'}),
     'Chain.so': ('https://www.chain.so',
                         {'tx': 'tx/BTC', 'addr': 'address/BTC'}),
     'Insight.is': ('https://insight.bitpay.com',
