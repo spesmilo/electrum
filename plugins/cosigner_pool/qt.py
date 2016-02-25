@@ -97,6 +97,11 @@ class Plugin(BasePlugin):
         self.cosigner_list = []
 
     @hook
+    def init_qt(self, gui):
+        for window in gui.windows:
+            self.on_new_window(window)
+
+    @hook
     def on_new_window(self, window):
         self.update(window)
 
@@ -153,7 +158,7 @@ class Plugin(BasePlugin):
     def cosigner_can_sign(self, tx, cosigner_xpub):
         from electrum.transaction import x_to_xpub
         xpub_set = set([])
-        for txin in tx.inputs:
+        for txin in tx.inputs():
             for x_pubkey in txin['x_pubkeys']:
                 xpub = x_to_xpub(x_pubkey)
                 if xpub:
