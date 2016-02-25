@@ -835,10 +835,9 @@ class Network(util.DaemonThread):
     def broadcast(self, tx, timeout=10):
         tx_hash = tx.hash()
         try:
-            r = self.synchronous_get(('blockchain.transaction.broadcast', [str(tx)]), timeout)
+            out = self.synchronous_get(('blockchain.transaction.broadcast', [str(tx)]), timeout)
         except BaseException as e:
             return False, "error: " + str(e)
-        result = r.get('result')
         if out != tx_hash:
             return False, "error: " + out
         return True, out
