@@ -99,8 +99,8 @@ Builder.load_string('''
         text_size: self.width, None
         height: self.texture_size[1]
         text:
-            _("Wallet file not found")+"\\n\\n" +\
-            _("Do you want to create a new wallet ")+\
+            _("Creating a new wallet.")+" " +\
+            _("Do you want to create a wallet with a new seed")+\
             _("or restore an existing one?")
     Widget
         size_hint: 1, 1
@@ -116,8 +116,12 @@ Builder.load_string('''
             text: _('Create a new seed')
             root: root
         WizardButton:
-            id: restore
+            id: restore_seed
             text: _('I already have a seed')
+            root: root
+        WizardButton:
+            id: restore_xpub
+            text: _('Watching-only wallet')
             root: root
 
 
@@ -277,10 +281,65 @@ Builder.load_string('''
             id: back
             text: _('Back')
             root: root
+        WizardButton:
+            id: next
+            text: _('Next')
+            root: root
+            disabled: True
+
+
+<RestoreXpubDialog>
+    word: ''
+    Label:
+        color: root.text_color
+        size_hint: 1, None
+        text_size: self.width, None
+        height: self.texture_size[1]
+        text: "[b]MASTER PUBLIC KEY[/b]"
+    GridLayout
+        cols: 1
+        padding: 0, '12dp'
+        orientation: 'vertical'
+        spacing: '12dp'
+        size_hint: 1, None
+        height: self.minimum_height
+        SeedButton:
+            id: text_input_seed
+            text: ''
+            on_text: Clock.schedule_once(root.on_text)
+        SeedLabel:
+            text: root.message
+
+    GridLayout:
+        rows: 1
+        spacing: '12dp'
+        size_hint: 1, None
+        height: self.minimum_height
         IconButton:
             id: scan
+            height: '48sp'
             on_release: root.scan_seed()
             icon: 'atlas://gui/kivy/theming/light/camera'
+            size_hint: 1, None
+        WizardButton:
+            text: _('Paste')
+            on_release: root.do_paste()
+        WizardButton:
+            text: _('Clear')
+            on_release: root.do_clear()
+
+    Widget:
+        size_hint: 1, 1
+
+    GridLayout:
+        rows: 1
+        spacing: '12dp'
+        size_hint: 1, None
+        height: self.minimum_height
+        WizardButton:
+            id: back
+            text: _('Back')
+            root: root
         WizardButton:
             id: next
             text: _('Next')
@@ -397,7 +456,7 @@ class RestoreSeedDialog(WizardDialog):
         self.mnemonic = Mnemonic('en')
 
     def on_text(self, dt):
-        self.ids.next.disabled = not bool(self._test(self.get_seed_text()))
+        self.ids.next.disabled = not bool(self._test(self.get_text()))
 
         text = self.ids.text_input_seed.text
         if not text:
@@ -432,14 +491,14 @@ class RestoreSeedDialog(WizardDialog):
                         c.disabled = not enable_space
 
     def on_word(self, w):
-        text = self.get_seed_text()
+        text = self.get_text()
         words = text.split(' ')
         words[-1] = w
         text = ' '.join(words)
         self.ids.text_input_seed.text = text + ' '
         self.ids.suggestions.clear_widgets()
 
-    def get_seed_text(self):
+    def get_text(self):
         ti = self.ids.text_input_seed
         text = unicode(ti.text).strip()
         text = ' '.join(text.split())
@@ -453,12 +512,6 @@ class RestoreSeedDialog(WizardDialog):
         else:
             text += c
         self.ids.text_input_seed.text = text
-
-    def scan_seed(self):
-        def on_complete(text):
-            self.ids.text_input_seed.text = text
-        app = App.get_running_app()
-        app.scan_qr(on_complete)
 
     def on_parent(self, instance, value):
         if value:
@@ -487,10 +540,29 @@ class RestoreSeedDialog(WizardDialog):
             tis._keyboard.unbind(on_key_down=self.on_key_down)
             tis.focus = False
 
-    def close(self):
-        #self._remove_keyboard()
-        app = App.get_running_app()
-        #if self._back in app.navigation_higherarchy:
-        #    app.navigation_higherarchy.pop()
-        #    self._back = None
-        super(RestoreSeedDialog, self).close()
+class RestoreXpubDialog(WizardDialog):
+
+    message = StringProperty('')
+
+    def __init__(self, **kwargs):
+        super(RestoreXpubDialog, self).__init__(**kwargs)
+        self._test = kwargs['test']
+        self.app = App.get_running_app()
+
+    def get_text(self):
+        ti = self.ids.text_input_seed
+        return unicode(ti.text).strip()
+
+    def on_text(self, dt):
+        self.ids.next.disabled = not bool(self._test(self.get_text()))
+
+    def scan_seed(self):
+        def on_complete(text):
+            self.ids.text_input_seed.text = text
+        self.app.scan_qr(on_complete)
+
+    def do_paste(self):
+        self.ids.text_input_seed.text = unicode(self.app._clipboard.paste())
+
+    def do_clear(self):
+        self.ids.text_input_seed.text = ''
