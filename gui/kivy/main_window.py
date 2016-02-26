@@ -319,10 +319,6 @@ class ElectrumWindow(App):
                         on_complete(contents)
                     else:
                         self.show_error("wrong format " + intent.getStringExtra("SCAN_RESULT_FORMAT"))
-                else:
-                    self.show_error("wrong resultCode %d" % resultCode)
-            else:
-                self.show_error("wrong requestCode %d" % requestCode)
         activity.bind(on_activity_result=on_qr_result)
         try:
             PythonActivity.mActivity.startActivityForResult(intent, 0)
