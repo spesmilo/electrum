@@ -319,15 +319,11 @@ class ElectrumWindow(App):
                         on_complete(contents)
                     else:
                         self.show_error("wrong format " + intent.getStringExtra("SCAN_RESULT_FORMAT"))
-                else:
-                    self.show_error("wrong resultCode %d" % resultCode)
-            else:
-                self.show_error("wrong requestCode %d" % requestCode)
         activity.bind(on_activity_result=on_qr_result)
         try:
             PythonActivity.mActivity.startActivityForResult(intent, 0)
         except:
-            self.show_error('Could not start Barcode Scanner')
+            self.show_error(_('Could not start Barcode Scanner.') + ' ' + _('Please install the Barcode Scanner app from ZXing'))
 
     def build(self):
         return Builder.load_file('gui/kivy/main.kv')

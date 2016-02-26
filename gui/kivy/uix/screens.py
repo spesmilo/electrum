@@ -188,7 +188,7 @@ class SendScreen(CScreen):
         try:
             uri = electrum.util.parse_URI(text, self.app.on_pr)
         except:
-            self.app.show_info(_("Not a Litecoin URI") + ':\n', text)
+            self.app.show_info(_("Not a Litecoin URI"))
             return
         amount = uri.get('amount')
         self.screen.address = uri.get('address', '')
@@ -257,6 +257,9 @@ class SendScreen(CScreen):
             outputs = self.payment_request.get_outputs()
         else:
             address = str(self.screen.address)
+            if not address:
+                self.app.show_error(_('Recipient not specified.') + ' ' + _('Please scan a Litecoin address or a payment request'))
+                return
             if not bitcoin.is_address(address):
                 self.app.show_error(_('Invalid Litecoin Address') + ':\n' + address)
                 return

@@ -12,7 +12,7 @@ import threading
 from functools import partial
 import weakref
 
-from create_restore import CreateRestoreDialog, ShowSeedDialog, RestoreSeedDialog
+from create_restore import CreateRestoreDialog, ShowSeedDialog, RestoreSeedDialog, RestoreXpubDialog
 from password_dialog import PasswordDialog
 
 
@@ -37,7 +37,6 @@ class InstallWizard(Widget):
         self.network = network
         self.storage = storage
         self.wallet = Wallet(self.storage)
-        self.is_restore = False
 
     def waiting_dialog(self, task, msg, on_complete=None):
         '''Perform a blocking task in the background by running the passed
@@ -79,27 +78,36 @@ class InstallWizard(Widget):
             action = dialog.action
             if button == dialog.ids.create:
                 self.run('create')
-            elif button == dialog.ids.restore:
-                self.run('restore')
+            elif button == dialog.ids.restore_seed:
+                self.run('restore_seed')
+            elif button == dialog.ids.restore_xpub:
+                self.run('restore_xpub')
             else:
                 self.dispatch('on_wizard_complete', None)
         CreateRestoreDialog(on_release=on_release).open()
 
-    def restore(self):
-        self.is_restore = True
+    def restore_seed(self):
         def on_seed(_dlg, btn):
             _dlg.close()
             if btn is _dlg.ids.back:
                 self.run('new')
                 return
-            text = _dlg.get_seed_text()
-            if Wallet.should_encrypt(text):
-                self.run('enter_pin', (text,))
-            else:
-                self.run('add_seed', (text, None))
-                # fixme: sync
-        msg = _('You may use the camera to scan your seed. To create a watching-only wallet, scan your master public key.')
-        RestoreSeedDialog(test=Wallet.is_any, message=msg, on_release=on_seed).open()
+            text = _dlg.get_text()
+            self.run('enter_pin', (text,))
+        msg = _('Please type your seed phrase using the virtual keyboard.')
+        RestoreSeedDialog(test=Wallet.is_seed, message=msg, on_release=on_seed).open()
+
+    def restore_xpub(self):
+        def on_xpub(_dlg, btn):
+            _dlg.close()
+            if btn is _dlg.ids.back:
+                self.run('new')
+                return
+            text = _dlg.get_text()
+            self.run('add_seed', (text, None))
+
+        msg = _('To create a watching-only wallet, paste your master public key, or scan it using the camera button.')
+        RestoreXpubDialog(test=Wallet.is_xpub, message=msg, on_release=on_xpub).open()
 
     def add_seed(self, text, password):
         def task():
@@ -114,7 +122,6 @@ class InstallWizard(Widget):
         self.waiting_dialog(task, msg, self.terminate)
 
     def create(self):
-        self.is_restore = False
         seed = self.wallet.make_seed()
         msg = _("If you forget your PIN or lose your device, your seed phrase will be the "
                 "only way to recover your funds.")
@@ -156,11 +163,6 @@ class InstallWizard(Widget):
 
     def terminate(self):
         self.wallet.start_threads(self.network)
-        #if self.is_restore:
-        #    if self.wallet.is_found():
-        #        app.show_info(_("Recovery successful"), duration=.5)
-        #    else:
-        #        app.show_info(_("No transactions found for this seed"), duration=.5)
         self.dispatch('on_wizard_complete', self.wallet)
 
     def on_wizard_complete(self, wallet):
