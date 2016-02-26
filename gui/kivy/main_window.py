@@ -323,7 +323,7 @@ class ElectrumWindow(App):
         try:
             PythonActivity.mActivity.startActivityForResult(intent, 0)
         except:
-            self.show_error('Could not start Barcode Scanner')
+            self.show_error(_('Could not start Barcode Scanner.') + ' ' + _('Please install the Barcode Scanner app from ZXing'))
 
     def build(self):
         return Builder.load_file('gui/kivy/main.kv')
