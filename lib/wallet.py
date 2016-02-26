@@ -204,7 +204,6 @@ class Abstract_Wallet(PrintError):
         self.up_to_date = False
         self.lock = threading.Lock()
         self.transaction_lock = threading.Lock()
-        self.tx_event = threading.Event()
 
         self.check_history()
 
@@ -1040,33 +1039,6 @@ class Abstract_Wallet(PrintError):
         # Sign
         if keypairs:
             tx.sign(keypairs)
-
-
-    def sendtx(self, tx):
-        # synchronous
-        h = self.send_tx(tx)
-        self.tx_event.wait()
-        return self.receive_tx(h, tx)
-
-    def send_tx(self, tx):
-        # asynchronous
-        self.tx_event.clear()
-        # fixme: this does not handle the case where server does not answer
-        if not self.network.interface:
-            raise BaseException("Not connected")
-        self.network.send([('blockchain.transaction.broadcast', [str(tx)])], self.on_broadcast)
-        return tx.hash()
-
-    def on_broadcast(self, r):
-        self.tx_result = r.get('result')
-        self.tx_event.set()
-
-    def receive_tx(self, tx_hash, tx):
-        out = self.tx_result
-        if out != tx_hash:
-            return False, "error: " + out
-        run_hook('receive_tx', tx, self)
-        return True, out
 
     def update_password(self, old_password, new_password):
         if new_password == '':

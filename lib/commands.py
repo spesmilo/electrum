@@ -230,10 +230,10 @@ class Commands:
         return Transaction(tx).deserialize()
 
     @command('n')
-    def broadcast(self, tx):
+    def broadcast(self, tx, timeout=10):
         """Broadcast a transaction to the network. """
         t = Transaction(tx)
-        return self.network.synchronous_get(('blockchain.transaction.broadcast', [str(t)]))
+        return self.network.broadcast(str(t), timeout)
 
     @command('')
     def createmultisig(self, num, pubkeys):
@@ -655,6 +655,7 @@ command_options = {
     'account':     (None, "--account",     "Account"),
     'memo':        ("-m", "--memo",        "Description of the request"),
     'expiration':  (None, "--expiration",  "Time in seconds"),
+    'timeout':     (None, "--timeout",     "Timeout in seconds"),
     'force':       (None, "--force",       "Create new address beyong gap limit, if no more address is available."),
     'pending':     (None, "--pending",     "Show only pending requests."),
     'expired':     (None, "--expired",     "Show only expired requests."),

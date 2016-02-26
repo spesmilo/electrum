@@ -195,10 +195,8 @@ class ElectrumGui:
         if self.str_description:
             self.wallet.labels[tx.hash()] = self.str_description
 
-        h = self.wallet.send_tx(tx)
         print(_("Please wait..."))
-        self.wallet.tx_event.wait()
-        status, msg = self.wallet.receive_tx( h, tx )
+        status, msg = self.network.broadcast(tx)
 
         if status:
             print(_('Payment sent.'))

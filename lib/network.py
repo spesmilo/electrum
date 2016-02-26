@@ -820,7 +820,20 @@ class Network(util.DaemonThread):
     def synchronous_get(self, request, timeout=100000000):
         queue = Queue.Queue()
         self.send([request], queue.put)
-        r = queue.get(True, timeout)
+        try:
+            r = queue.get(True, timeout)
+        except Queue.Empty:
+            raise BaseException('Server did not answer')
         if r.get('error'):
             raise BaseException(r.get('error'))
         return r.get('result')
+
+    def broadcast(self, tx, timeout=10):
+        tx_hash = tx.hash()
+        try:
+            out = self.synchronous_get(('blockchain.transaction.broadcast', [str(tx)]), timeout)
+        except BaseException as e:
+            return False, "error: " + str(e)
+        if out != tx_hash:
+            return False, "error: " + out
+        return True, out

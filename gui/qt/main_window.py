@@ -1321,21 +1321,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def broadcast_thread():
             # non-GUI thread
             pr = self.payment_request
-            if pr is None:
-                return self.wallet.sendtx(tx)
-            if pr.has_expired():
+            if pr and pr.has_expired():
                 self.payment_request = None
                 return False, _("Payment request has expired")
-            status, msg =  self.wallet.sendtx(tx)
-            if not status:
-                return False, msg
-            pr.set_paid(tx.hash())
-            self.invoices.save()
-            self.payment_request = None
-            refund_address = self.wallet.addresses()[0]
-            ack_status, ack_msg = pr.send_ack(str(tx), refund_address)
-            if ack_status:
-                msg = ack_msg
+            status, msg =  self.network.broadcast(tx)
+            if pr and status is True:
+                pr.set_paid(tx.hash())
+                self.invoices.save()
+                self.payment_request = None
+                refund_address = self.wallet.addresses()[0]
+                ack_status, ack_msg = pr.send_ack(str(tx), refund_address)
+                if ack_status:
+                    msg = ack_msg
             return status, msg
 
         # Capture current TL window; override might be removed on return
