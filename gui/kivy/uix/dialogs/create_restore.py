@@ -100,8 +100,7 @@ Builder.load_string('''
         height: self.texture_size[1]
         text:
             _("Creating a new wallet.")+" " +\
-            _("Do you want to create a wallet with a new seed")+\
-            _("or restore an existing one?")
+            _("Do you want to create a new seed, or to restore a wallet using an existing seed?")
     Widget
         size_hint: 1, 1
     GridLayout:
