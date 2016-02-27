@@ -141,11 +141,6 @@ class TrezorCompatiblePlugin(HW_PluginBase):
 
         return client
 
-    @hook
-    def close_wallet(self, wallet):
-        if isinstance(wallet, self.wallet_class):
-            self.device_manager().unpair_wallet(wallet)
-
     def initialize_device(self, wallet):
         # Initialization method
         msg = _("Choose how you want to initialize your %s.\n\n"
