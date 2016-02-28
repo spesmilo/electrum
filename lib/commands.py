@@ -233,7 +233,7 @@ class Commands:
     def broadcast(self, tx, timeout=10):
         """Broadcast a transaction to the network. """
         t = Transaction(tx)
-        return self.network.broadcast(str(t), timeout)
+        return self.network.broadcast(t, timeout)
 
     @command('')
     def createmultisig(self, num, pubkeys):
