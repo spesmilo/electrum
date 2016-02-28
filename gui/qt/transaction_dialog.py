@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import copy
 import datetime
 import json
 
@@ -51,8 +52,12 @@ class TxDialog(QDialog, MessageBoxMixin):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''
-        QDialog.__init__(self, parent=None)   # Top-level window
-        self.tx = tx
+        # We want to be a top-level window
+        QDialog.__init__(self, parent=None)
+        # Take a copy; it might get updated in the main window by
+        # e.g. the FX plugin.  If this happens during or after a long
+        # sign operation the signatures are lost.
+        self.tx = copy.deepcopy(tx)
         self.tx.deserialize()
         self.main_window = parent
         self.wallet = parent.wallet
