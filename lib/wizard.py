@@ -23,8 +23,8 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from electrum_ltc import WalletStorage
-from electrum_ltc.plugins import run_hook
+from wallet import WalletStorage
+from plugins import run_hook
 from util import PrintError
 from wallet import Wallet
 from i18n import _
