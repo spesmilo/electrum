@@ -614,6 +614,11 @@ class Commands:
         self.network.send([('blockchain.address.subscribe', [address])], callback)
         return True
 
+    @command('')
+    def help(self):
+        # for the python console
+        return sorted(known_commands.keys())
+
 param_descriptions = {
     'privkey': 'Private key. Type \'?\' to get a prompt.',
     'destination': 'Bitcoin address, contact or alias',
