@@ -452,7 +452,13 @@ class RestoreSeedDialog(WizardDialog):
         super(RestoreSeedDialog, self).__init__(**kwargs)
         self._test = kwargs['test']
         from electrum.mnemonic import Mnemonic
-        self.mnemonic = Mnemonic('en')
+        from electrum.old_mnemonic import words as old_wordlist
+        self.words = set(Mnemonic('en').wordlist).union(set(old_wordlist))
+
+    def get_suggestions(self, prefix):
+        for w in self.words:
+            if w.startswith(prefix):
+                yield w
 
     def on_text(self, dt):
         self.ids.next.disabled = not bool(self._test(self.get_text()))
@@ -467,7 +473,7 @@ class RestoreSeedDialog(WizardDialog):
 
         enable_space = False
         self.ids.suggestions.clear_widgets()
-        suggestions = [x for x in self.mnemonic.get_suggestions(last_word)]
+        suggestions = [x for x in self.get_suggestions(last_word)]
         if suggestions and len(suggestions) < 10:
             for w in suggestions:
                 if w == last_word:
