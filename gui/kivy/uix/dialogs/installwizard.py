@@ -36,7 +36,6 @@ class InstallWizard(Widget):
         self.config  = config
         self.network = network
         self.storage = storage
-        self.wallet = Wallet(self.storage)
 
     def waiting_dialog(self, task, msg, on_complete=None):
         '''Perform a blocking task in the background by running the passed
@@ -111,18 +110,17 @@ class InstallWizard(Widget):
 
     def add_seed(self, text, password):
         def task():
-            if Wallet.is_seed(text):
-                self.wallet.add_seed(text, password)
-                self.wallet.create_master_keys(password)
-            else:
-                self.wallet = Wallet.from_text(text, None, self.storage)
+            if not Wallet.is_seed(text):
+                raise BaseException("invalid seed")
+            self.wallet = Wallet.from_seed(text, password, self.storage)
             self.wallet.create_main_account()
             self.wallet.synchronize()
         msg= _("Electrum is generating your addresses, please wait.")
         self.waiting_dialog(task, msg, self.terminate)
 
     def create(self):
-        seed = self.wallet.make_seed()
+        from electrum_ltc.wallet import BIP32_Wallet
+        seed = BIP32_Wallet.make_seed()
         msg = _("If you forget your PIN or lose your device, your seed phrase will be the "
                 "only way to recover your funds.")
         def on_ok(_dlg, _btn):
