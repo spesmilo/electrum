@@ -5,7 +5,7 @@ PYTHON = python
 
 theming:
 	$(PYTHON) -m kivy.atlas theming/light 1024 theming/light/*.png
-apk:
+prepare:
 	# running pre build setup
 	@cp tools/buildozer.spec ../../buildozer.spec
 	# copy electrum to main.py
@@ -15,7 +15,13 @@ apk:
 		cp -f gui/kivy/tools/blacklist.txt .buildozer/android/platform/python-for-android/src/blacklist.txt;\
 		rm -rf ./.buildozer/android/platform/python-for-android/dist;\
 	fi
+apk:
+	@make prepare
 	@-cd ../..; buildozer android debug deploy run
+	@make clean
+release:
+	@make prepare
+	@-cd ../..; buildozer android release
 	@make clean
 clean:
 	# Cleaning up
