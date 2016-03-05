@@ -319,7 +319,7 @@ class Interface(util.PrintError):
                     responses.append((request, response))
                 else:
                     self.print_error("unknown wire ID", wire_id)
-                    responses.append(None, None) # Signal
+                    responses.append((None, None)) # Signal
                     break
 
         return responses
