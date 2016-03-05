@@ -1991,6 +1991,10 @@ class Wallet(object):
         return is_old_seed(seed) or is_new_seed(seed)
 
     @staticmethod
+    def is_mpk(text):
+        return Wallet.is_old_mpk(text) or Wallet.is_xpub(text)
+
+    @staticmethod
     def is_old_mpk(mpk):
         try:
             int(mpk, 16)
