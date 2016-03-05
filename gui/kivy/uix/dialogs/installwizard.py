@@ -106,13 +106,11 @@ class InstallWizard(Widget):
             self.run('add_seed', (text, None))
 
         msg = _('To create a watching-only wallet, paste your master public key, or scan it using the camera button.')
-        RestoreXpubDialog(test=Wallet.is_xpub, message=msg, on_release=on_xpub).open()
+        RestoreXpubDialog(test=Wallet.is_mpk, message=msg, on_release=on_xpub).open()
 
     def add_seed(self, text, password):
         def task():
-            if not Wallet.is_seed(text):
-                raise BaseException("invalid seed")
-            self.wallet = Wallet.from_seed(text, password, self.storage)
+            self.wallet = Wallet.from_text(text, password, self.storage)
             self.wallet.create_main_account()
             self.wallet.synchronize()
         msg= _("Electrum is generating your addresses, please wait.")
