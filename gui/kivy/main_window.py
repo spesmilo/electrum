@@ -496,6 +496,8 @@ class ElectrumWindow(App):
         self.update_wallet()
         # Once GUI has been initialized check if we want to announce something
         # since the callback has been called before the GUI was initialized
+        if self.receive_screen:
+            self.receive_screen.clear()
         self.update_tabs()
         self.notify_transactions()
         run_hook('load_wallet', wallet, self)

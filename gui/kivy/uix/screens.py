@@ -320,13 +320,17 @@ class ReceiveScreen(CScreen):
             status = self.app.wallet.get_request_status(self.screen.address)
             self.screen.status = _('Payment received') if status == PR_PAID else ''
 
+    def clear(self):
+        self.screen.address = ''
+        self.screen.amount = ''
+        self.screen.message = ''
+
     def get_new_address(self):
         addr = self.app.wallet.get_unused_address(None)
         if addr is None:
             return False
+        self.clear()
         self.screen.address = addr
-        self.screen.amount = ''
-        self.screen.message = ''
         return True
 
     def on_address(self, addr):
