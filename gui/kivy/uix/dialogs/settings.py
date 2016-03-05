@@ -66,6 +66,7 @@ Builder.load_string('''
                     height: '48dp'
                 SettingsItem:
                     status: 'ON' if app.wallet.use_encryption else 'OFF'
+                    disabled: app.wallet.is_watching_only()
                     title: _('PIN code') + ': ' + self.status
                     description: _("Change your PIN code.")
                     action: partial(root.change_password, self)
