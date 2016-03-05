@@ -68,7 +68,8 @@ Builder.load_string('''
                 size_hint: 0.5, None
                 height: '48dp'
                 text: _('Cancel')
-                on_release: popup.dismiss()
+                on_release:
+                    popup.dismiss()
 ''')
 
 
@@ -78,6 +79,7 @@ class PasswordDialog(Factory.Popup):
         Factory.Popup.__init__(self)
         self.message = message
         self.callback = callback
+        self.pw = None
 
     def update_password(self, c):
         kb = self.ids.kb
@@ -92,5 +94,8 @@ class PasswordDialog(Factory.Popup):
 
     def on_password(self, pw):
         if len(pw) == 6:
+            self.pw = pw
             self.dismiss()
-            Clock.schedule_once(lambda dt: self.callback(pw), 0.1)
+
+    def on_dismiss(self):
+        Clock.schedule_once(lambda dt: self.callback(self.pw), 0.1)
