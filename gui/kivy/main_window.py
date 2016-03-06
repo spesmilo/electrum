@@ -432,6 +432,7 @@ class ElectrumWindow(App):
         if self._settings_dialog is None:
             from uix.dialogs.settings import SettingsDialog
             self._settings_dialog = SettingsDialog(self)
+        self._settings_dialog.update()
         self._settings_dialog.open()
 
     def popup_dialog(self, name):
