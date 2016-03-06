@@ -63,7 +63,7 @@ Builder.load_string('''
                     action: partial(root.language_dialog, self)
                 CardSeparator
                 SettingsItem:
-                    status: 'ON' if app.wallet.use_encryption else 'OFF'
+                    status: root.password_status()
                     disabled: app.wallet.is_watching_only()
                     title: _('PIN code') + ': ' + self.status
                     description: _("Change your PIN code.")
@@ -104,17 +104,9 @@ Builder.load_string('''
                     title: _('Coin selection') + ': ' + self.status
                     description: "Coin selection method"
                     action: partial(root.coinselect_dialog, self)
-        BoxLayout:
-            size_hint: 1, 0.1
-            Widget:
-                size_hint: 0.5, None
-            Button:
-                size_hint: 0.5, None
-                height: '48dp'
-                text: _('OK')
-                on_release:
-                    settings.dismiss()
 ''')
+
+
 
 class SettingsDialog(Factory.Popup):
 
@@ -125,54 +117,73 @@ class SettingsDialog(Factory.Popup):
         Factory.Popup.__init__(self)
         layout = self.ids.scrollviewlayout
         layout.bind(minimum_height=layout.setter('height'))
+        # cached dialogs
+        self._fx_dialog = None
+        self._fee_dialog = None
+        self._network_dialog = None
+        self._language_dialog = None
+        self._unit_dialog = None
+        self._coinselect_dialog = None
 
     def get_language_name(self):
         return languages.get(self.config.get('language', 'en_UK'), '')
 
-    def change_password(self, label, dt):
-        self.app.change_password()
+    def password_status(self):
+        if self.app.wallet.is_watching_only():
+            return 'watching-only'
+        return 'ON' if self.app.wallet.use_encryption else 'OFF'
+
+    def change_password(self, item, dt):
+        def cb():
+            item.status = self.password_status()
+        self.app.change_password(cb)
 
     def language_dialog(self, item, dt):
-        l = self.config.get('language', 'en_UK')
-        def cb(key):
-            self.config.set_key("language", key, True)
-            item.lang = self.get_language_name()
-            self.app.language = key
-        d = ChoiceDialog(_('Language'), languages, l, cb)
-        d.open()
+        if self._language_dialog is None:
+            l = self.config.get('language', 'en_UK')
+            def cb(key):
+                self.config.set_key("language", key, True)
+                item.lang = self.get_language_name()
+                self.app.language = key
+            self._language_dialog = ChoiceDialog(_('Language'), languages, l, cb)
+        self._language_dialog.open()
 
     def unit_dialog(self, item, dt):
-        def cb(text):
-            self.app._set_bu(text)
-            item.bu = self.app.base_unit
-        d = ChoiceDialog(_('Denomination'), base_units.keys(), self.app.base_unit, cb)
-        d.open()
+        if self._unit_dialog is None:
+            def cb(text):
+                self._set_bu(text)
+                item.bu = self.app.base_unit
+            self._unit_dialog = ChoiceDialog(_('Denomination'), base_units.keys(), self.app.base_unit, cb)
+        self._unit_dialog.open()
 
     def coinselect_status(self):
         return self.app.wallet.coin_chooser_name(self.app.electrum_config)
 
     def coinselect_dialog(self, item, dt):
-        from electrum import COIN_CHOOSERS
-        choosers = sorted(COIN_CHOOSERS.keys())
-        chooser_name = self.app.wallet.coin_chooser_name(self.config)
-        def cb(text):
-            self.config.set_key('coin_chooser', text)
-            item.status = text
-        d = ChoiceDialog(_('Coin selection'), choosers, chooser_name, cb)
-        d.open()
+        if self._coinselect_dialog is None:
+            from electrum import COIN_CHOOSERS
+            choosers = sorted(COIN_CHOOSERS.keys())
+            chooser_name = self.app.wallet.coin_chooser_name(self.config)
+            def cb(text):
+                self.config.set_key('coin_chooser', text)
+                item.status = text
+            self._coinselect_dialog = ChoiceDialog(_('Coin selection'), choosers, chooser_name, cb)
+        self._coinselect_dialog.open()
 
     def network_dialog(self, item, dt):
-        server, port, protocol, proxy, auto_connect = self.app.network.get_parameters()
-        def cb(popup):
-            server = popup.ids.host.text
-            auto_connect = popup.ids.auto_connect.active
-            self.app.network.set_parameters(server, port, protocol, proxy, auto_connect)
-            item.status = self.network_status()
-        popup = Builder.load_file('gui/kivy/uix/ui_screens/network.kv')
-        popup.ids.host.text = server
-        popup.ids.auto_connect.active = auto_connect
-        popup.on_dismiss = lambda: cb(popup)
-        popup.open()
+        if self._network_dialog is None:
+            server, port, protocol, proxy, auto_connect = self.app.network.get_parameters()
+            def cb(popup):
+                server = popup.ids.host.text
+                auto_connect = popup.ids.auto_connect.active
+                self.app.network.set_parameters(server, port, protocol, proxy, auto_connect)
+                item.status = self.network_status()
+            popup = Builder.load_file('gui/kivy/uix/ui_screens/network.kv')
+            popup.ids.host.text = server
+            popup.ids.auto_connect.active = auto_connect
+            popup.on_dismiss = lambda: cb(popup)
+            self._network_dialog = popup
+        self._network_dialog.open()
 
     def network_status(self):
         server, port, protocol, proxy, auto_connect = self.app.network.get_parameters()
@@ -200,11 +211,12 @@ class SettingsDialog(Factory.Popup):
             return self.app.format_amount_and_units(F) + '/kB'
 
     def fee_dialog(self, label, dt):
-        from fee_dialog import FeeDialog
-        def cb():
-            label.status = self.fee_status()
-        d = FeeDialog(self.app, self.config, cb)
-        d.open()
+        if self._fee_dialog is None:
+            from fee_dialog import FeeDialog
+            def cb():
+                label.status = self.fee_status()
+            self._fee_dialog = FeeDialog(self.app, self.config, cb)
+        self._fee_dialog.open()
 
     def fx_status(self):
         p = self.plugins.get('exchange_rate')
@@ -216,9 +228,9 @@ class SettingsDialog(Factory.Popup):
             return 'Disabled'
 
     def fx_dialog(self, label, dt):
-        from fx_dialog import FxDialog
-        def cb():
-            label.status = self.fx_status()
-        d = FxDialog(self.app, self.plugins, self.config, cb)
-        d.open()
-
+        if self._fx_dialog is None:
+            from fx_dialog import FxDialog
+            def cb():
+                label.status = self.fx_status()
+            self._fx_dialog = FxDialog(self.app, self.plugins, self.config, cb)
+        self._fx_dialog.open()
