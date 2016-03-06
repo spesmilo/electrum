@@ -17,6 +17,7 @@ Builder.load_string('''
     path: ''
     BoxLayout:
         orientation: 'vertical'
+        padding: '10dp'
         FileChooserListView:
             id: wallet_selector
             dirselect: False

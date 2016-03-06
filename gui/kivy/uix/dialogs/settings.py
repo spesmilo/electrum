@@ -151,7 +151,7 @@ class SettingsDialog(Factory.Popup):
     def unit_dialog(self, item, dt):
         if self._unit_dialog is None:
             def cb(text):
-                self._set_bu(text)
+                self.app._set_bu(text)
                 item.bu = self.app.base_unit
             self._unit_dialog = ChoiceDialog(_('Denomination'), base_units.keys(), self.app.base_unit, cb)
         self._unit_dialog.open()
