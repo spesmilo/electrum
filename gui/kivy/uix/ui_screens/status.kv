@@ -5,9 +5,9 @@ Popup:
     confirmed: 0
     unconfirmed: 0
     unmatured: 0
+    watching_only: app.wallet.is_watching_only()
     on_parent:
         self.confirmed, self.unconfirmed, self.unmatured = app.wallet.get_balance()
-
     BoxLayout:
         orientation: 'vertical'
         ScrollView:
@@ -54,8 +54,8 @@ Popup:
                     data: app.wallet.get_master_public_key()
                     name: _('Master Public Key')
                 TopLabel:
-                    text: ''
                     id: seed_label
+                    text: _('This wallet is watching-only') if root.watching_only else ''
 
         BoxLayout:
             size_hint: 1, None
@@ -63,7 +63,8 @@ Popup:
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
-                text: _('Hide seed') if seed_label.text else _('Show seed')
+                text: '' if root.watching_only else (_('Hide seed') if seed_label.text else _('Show seed'))
+                disabled: root.watching_only
                 on_release:
                     setattr(seed_label, 'text', '') if seed_label.text else app.show_seed(seed_label)
             Button:

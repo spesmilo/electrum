@@ -749,6 +749,8 @@ class ElectrumWindow(App):
         self.protected(_("Enter your PIN code in order to decrypt your seed"), self._show_seed, (label,))
 
     def _show_seed(self, label, password):
+        if not password:
+            return
         try:
             seed = self.wallet.get_seed(password)
         except:
