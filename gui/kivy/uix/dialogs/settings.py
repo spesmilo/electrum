@@ -20,6 +20,7 @@ Builder.load_string('''
     title: ''
     description: ''
     size_hint: 1, None
+    height: '60dp'
 
     canvas.before:
         Color:
@@ -30,20 +31,17 @@ Builder.load_string('''
     on_release:
         Clock.schedule_once(self.action)
 
-    Label:
+    Widget
+    TopLabel:
         id: title
         text: self.parent.title
         bold: True
         halign: 'left'
-        size_hint: 1, 1
-        text_size: self.width, None
-    Label:
+    TopLabel:
         text: self.parent.description
         color: 0.8, 0.8, 0.8, 1
-        size_hint: 1, 1
         halign: 'left'
-        text_size: self.width, None
-    CardSeparator
+    Widget
 
 
 <SettingsDialog@Popup>
@@ -52,49 +50,55 @@ Builder.load_string('''
     BoxLayout:
         orientation: 'vertical'
         ScrollView:
-            size_hint: 1, 0.8
             GridLayout:
-                row_default_height: '68dp'
-                cols:1
                 id: scrollviewlayout
+                cols:1
                 size_hint: 1, None
+                height: self.minimum_height
+                padding: '10dp'
                 SettingsItem:
                     lang: settings.get_language_name()
                     title: 'Language' + ': ' + str(self.lang)
                     description: _('Language')
                     action: partial(root.language_dialog, self)
-                    height: '48dp'
+                CardSeparator
                 SettingsItem:
                     status: 'ON' if app.wallet.use_encryption else 'OFF'
                     disabled: app.wallet.is_watching_only()
                     title: _('PIN code') + ': ' + self.status
                     description: _("Change your PIN code.")
                     action: partial(root.change_password, self)
+                CardSeparator
                 SettingsItem:
                     bu: app.base_unit
                     title: _('Denomination') + ': ' + self.bu
                     description: _("Base unit for Bitcoin amounts.")
                     action: partial(root.unit_dialog, self)
+                CardSeparator
                 SettingsItem:
                     status: root.fee_status()
                     title: _('Fees') + ': ' + self.status
                     description: _("Fees paid to the Bitcoin miners.")
                     action: partial(root.fee_dialog, self)
+                CardSeparator
                 SettingsItem:
                     status: root.fx_status()
                     title: _('Fiat Currency') + ': ' + self.status
                     description: _("Display amounts in fiat currency.")
                     action: partial(root.fx_dialog, self)
+                CardSeparator
                 SettingsItem:
                     status: root.network_status()
                     title: _('Network') + ': ' + self.status
                     description: _("Network status and server selection.")
                     action: partial(root.network_dialog, self)
+                CardSeparator
                 SettingsItem:
                     status: 'ON' if bool(app.plugins.get('labels')) else 'OFF'
                     title: _('Labels Sync') + ': ' + self.status
                     description: _("Save and synchronize your labels.")
                     action: partial(root.plugin_dialog, 'labels', self)
+                CardSeparator
                 SettingsItem:
                     status: root.coinselect_status()
                     title: _('Coin selection') + ': ' + self.status
