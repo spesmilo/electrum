@@ -75,11 +75,14 @@ Builder.load_string('''
 
 class PasswordDialog(Factory.Popup):
 
-    def __init__(self, message, callback):
-        Factory.Popup.__init__(self)
+    #def __init__(self, message, callback):
+    #    Factory.Popup.__init__(self)
+
+    def init(self, message, callback):
+        self.pw = None
         self.message = message
         self.callback = callback
-        self.pw = None
+        self.ids.kb.password = ''
 
     def update_password(self, c):
         kb = self.ids.kb

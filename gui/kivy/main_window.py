@@ -216,6 +216,9 @@ class ElectrumWindow(App):
             Clock.create_trigger(self.update_status, .5)
         self._trigger_notify_transactions = \
             Clock.create_trigger(self.notify_transactions, 5)
+        # cached dialogs
+        self._settings_dialog = None
+        self._password_dialog = None
 
 
     def on_pr(self, pr):
@@ -425,11 +428,15 @@ class ElectrumWindow(App):
             #self.gui.main_gui.toggle_settings(self)
             return True
 
+    def settings_dialog(self):
+        if self._settings_dialog is None:
+            from uix.dialogs.settings import SettingsDialog
+            self._settings_dialog = SettingsDialog(self)
+        self._settings_dialog.open()
+
     def popup_dialog(self, name):
         if name == 'settings':
-            from uix.dialogs.settings import SettingsDialog
-            d = SettingsDialog(self)
-            d.open()
+            self.settings_dialog()
         elif name == 'wallets':
             from uix.dialogs.wallets import WalletDialog
             d = WalletDialog()
@@ -749,7 +756,7 @@ class ElectrumWindow(App):
         self.protected(_("Enter your PIN code in order to decrypt your seed"), self._show_seed, (label,))
 
     def _show_seed(self, label, password):
-        if not password:
+        if self.wallet.use_encryption and password is None:
             return
         try:
             seed = self.wallet.get_seed(password)
@@ -758,31 +765,39 @@ class ElectrumWindow(App):
             return
         label.text = _('Seed') + ':\n' + seed
 
-    def change_password(self):
-        self.protected(_("Changing PIN code.") + '\n' + _("Enter your current PIN:"), self._change_password, ())
-
-    def _change_password(self, old_password):
+    def change_password(self, cb):
         if self.wallet.use_encryption:
+            self.protected(_("Changing PIN code.") + '\n' + _("Enter your current PIN:"), self._change_password, (cb,))
+        else:
+            self._change_password(cb, None)
+
+    def _change_password(self, cb, old_password):
+        if self.wallet.use_encryption:
+            if old_password is None:
+                return
             try:
                 self.wallet.check_password(old_password)
             except InvalidPassword:
                 self.show_error("Invalid PIN")
                 return
-        self.password_dialog(_('Enter new PIN'), self._change_password2, (old_password,))
+        self.password_dialog(_('Enter new PIN'), self._change_password2, (cb, old_password,))
 
-    def _change_password2(self, old_password, new_password):
-        self.password_dialog(_('Confirm new PIN'), self._change_password3, (old_password, new_password))
+    def _change_password2(self, cb, old_password, new_password):
+        self.password_dialog(_('Confirm new PIN'), self._change_password3, (cb, old_password, new_password))
 
-    def _change_password3(self, old_password, new_password, confirmed_password):
+    def _change_password3(self, cb, old_password, new_password, confirmed_password):
         if new_password == confirmed_password:
             self.wallet.update_password(old_password, new_password)
+            cb()
         else:
             self.show_error("PIN numbers do not match")
 
     def password_dialog(self, msg, f, args):
-        from uix.dialogs.password_dialog import PasswordDialog
         def callback(pw):
             Clock.schedule_once(lambda x: apply(f, args + (pw,)), 0.1)
-        popup = PasswordDialog(msg, callback)
-        popup.open()
+        if self._password_dialog is None:
+            from uix.dialogs.password_dialog import PasswordDialog
+            self._password_dialog = PasswordDialog()
+        self._password_dialog.init(msg, callback)
+        self._password_dialog.open()
 
