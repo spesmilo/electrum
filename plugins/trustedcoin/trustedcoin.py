@@ -211,20 +211,19 @@ class Wallet_2fa(Multisig_Wallet):
     def can_sign_without_server(self):
         return self.master_private_keys.get('x2/') is not None
 
-    def get_max_amount(self, config, inputs, fee):
+    def get_max_amount(self, config, inputs, recipient, fee):
         from electrum.transaction import Transaction
         sendable = sum(map(lambda x:x['value'], inputs))
         for i in inputs:
             self.add_input_info(i)
-        dummy_address = self.dummy_address()
         xf = self.extra_fee()
         if xf and sendable >= xf:
             billing_address = self.billing_info['billing_address']
             sendable -= xf
-            outputs = [(TYPE_ADDRESS, dummy_address, sendable),
+            outputs = [(TYPE_ADDRESS, recipient, sendable),
                        (TYPE_ADDRESS, billing_address, xf)]
         else:
-            outputs = [(TYPE_ADDRESS, dummy_address, sendable)]
+            outputs = [(TYPE_ADDRESS, recipient, sendable)]
 
         dummy_tx = Transaction.from_io(inputs, outputs)
         if fee is None:
