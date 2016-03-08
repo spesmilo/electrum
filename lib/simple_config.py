@@ -174,6 +174,17 @@ class SimpleConfig(PrintError):
     def get_session_timeout(self):
         return self.get('session_timeout', 300)
 
+    def open_last_wallet(self):
+        if self.get('wallet_path') is None:
+            last_wallet = self.get('gui_last_wallet')
+            if last_wallet is not None and os.path.exists(last_wallet):
+                self.cmdline_options['default_wallet_path'] = last_wallet
+
+    def save_last_wallet(self, wallet):
+        if self.get('wallet_path') is None:
+            path = wallet.storage.path
+            self.set_key('gui_last_wallet', path)
+
 
 def read_system_config(path=SYSTEM_CONFIG_PATH):
     """Parse and return the system config settings in /etc/electrum.conf."""
