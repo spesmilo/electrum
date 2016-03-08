@@ -99,7 +99,7 @@ class ElectrumWindow(App):
     def on_history(self, d):
         #Logger.info("on_history")
         if self.history_screen:
-            self.history_screen.update()
+            Clock.schedule_once(lambda dt: self.history_screen.update())
 
     def _get_bu(self):
         return self.electrum_config.get('base_unit', 'mBTC')
