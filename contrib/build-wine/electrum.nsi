@@ -7,7 +7,6 @@
 ;Variables
 
   !define PRODUCT_NAME "Electrum"
-  !define PRODUCT_VERSION 2.6.2.0
   !define PRODUCT_WEB_SITE "https://github.com/spesmilo/electrum"
   !define PRODUCT_PUBLISHER "Electrum Technologies GmbH"
   !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
@@ -53,7 +52,7 @@
   Caption "${PRODUCT_NAME}"
 
   ;Adds the Product Version on top of the Version Tab in the Properties of the file.
-  VIProductVersion ${PRODUCT_VERSION}
+  VIProductVersion 1.0.0.0
   
   ;VIAddVersionKey - Adds a field in the Version Tab of the File Properties. This can either be a field provided by the system or a user defined field.
   VIAddVersionKey ProductName "${PRODUCT_NAME} Installer"
@@ -106,7 +105,7 @@ Section
   SetOutPath $INSTDIR
 
   ;Files to pack into the installer
-  File /r "dist\electrum\*.*"
+  ;File /r "dist\electrum\*.*"
   File "electrum.ico"
 
   ;Store installation folder
