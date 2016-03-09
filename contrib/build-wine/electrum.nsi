@@ -1,6 +1,6 @@
 ;--------------------------------
 ;Include Modern UI
-
+  !include "TextFunc.nsh" ;Needed for the $GetSize fuction. I know, doesn't sound logical, it isn't.
   !include "MUI2.nsh"
   
 ;--------------------------------
@@ -133,13 +133,12 @@ Section
   WriteRegStr HKCU "${PRODUCT_UNINST_KEY}" "DisplayVersion" "${PRODUCT_VERSION}"
   WriteRegStr HKCU "${PRODUCT_UNINST_KEY}" "URLInfoAbout" "${PRODUCT_WEB_SITE}"
   WriteRegStr HKCU "${PRODUCT_UNINST_KEY}" "Publisher" "${PRODUCT_PUBLISHER}"
-  WriteRegStr HKCU "${PRODUCT_UNINST_KEY}" "DisplayIcon" "$INSTDIR\electrum.exe"
+  WriteRegStr HKCU "${PRODUCT_UNINST_KEY}" "DisplayIcon" "$INSTDIR\electrum.ico"
 
   ;Fixes Windows broken size estimates
-  ;Currently commented out because ${GetSize} does not work as it requires another header and I don't know if that will be a problem or not
-  ;${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
-  ;IntFmt $0 "0x%08X" $0
-  ;WriteRegDWORD HKCU "${PRODUCT_UNINST_KEY}" "EstimatedSize" "$0"
+  ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
+  IntFmt $0 "0x%08X" $0
+  WriteRegDWORD HKCU "${PRODUCT_UNINST_KEY}" "EstimatedSize" "$0"
 SectionEnd
 
 ;--------------------------------
