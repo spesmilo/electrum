@@ -105,18 +105,22 @@ Section
   SetOutPath $INSTDIR
 
   ;Files to pack into the installer
-  ;File /r "dist\electrum\*.*"
+  File /r "dist\electrum\*.*"
   File "..\..\icons\electrum.ico"
 
   ;Store installation folder
   WriteRegStr HKCU "Software\${PRODUCT_NAME}" "" $INSTDIR
 
   ;Create uninstaller
+  DetailPrint "Creating uninstaller..."
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
+  ;Create desktop shortcut
+  DetailPrint "Creating desktop shortcut..."
   CreateShortCut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\electrum.exe" ""
 
-  ;create start-menu items
+  ;Create start-menu items
+  DetailPrint "Creating start-menu items..."
   CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\Uninstall.exe" 0
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME}.lnk" "$INSTDIR\electrum.exe" "" "$INSTDIR\electrum.exe" 0
