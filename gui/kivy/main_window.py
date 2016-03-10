@@ -1,4 +1,5 @@
 import re
+import os
 import sys
 import time
 import datetime
@@ -370,12 +371,21 @@ class ElectrumWindow(App):
         if uri:
             self.set_URI(uri)
 
+    def get_wallet_path(self):
+        if self.wallet:
+            return self.wallet.storage.path
+        else:
+            return ''
+
     def load_wallet_by_name(self, wallet_path):
         if not wallet_path:
             return
         config = self.electrum_config
-        storage = WalletStorage(wallet_path)
-        Logger.info('Electrum: Check for existing wallet')
+        try:
+            storage = WalletStorage(wallet_path)
+        except IOError:
+            self.show_error("Cannot read wallet file")
+            return
         if storage.file_exists:
             wallet = Wallet(storage)
             action = wallet.get_action()
@@ -587,7 +597,6 @@ class ElectrumWindow(App):
             global notification, os
             if not notification:
                 from plyer import notification
-                import os
             icon = (os.path.dirname(os.path.realpath(__file__))
                     + '/../../' + self.icon)
             notification.notify('Electrum', message,
