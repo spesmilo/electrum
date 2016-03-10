@@ -243,7 +243,10 @@ class Interface(util.PrintError):
 
     def close(self):
         if not self.closed_remotely:
-            self.socket.shutdown(socket.SHUT_RDWR)
+            try:
+                self.socket.shutdown(socket.SHUT_RDWR)
+            except socket.error:
+                pass
         self.socket.close()
 
     def queue_request(self, *args):  # method, params, _id
