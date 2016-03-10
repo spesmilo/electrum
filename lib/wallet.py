@@ -32,11 +32,12 @@ import time
 import json
 import copy
 import re
+import stat
 from functools import partial
 from unicodedata import normalize
 from collections import namedtuple
-from i18n import _
 
+from i18n import _
 from util import NotEnoughFunds, PrintError, profiler
 
 from bitcoin import *
@@ -140,18 +141,14 @@ class WalletStorage(PrintError):
             f.flush()
             os.fsync(f.fileno())
 
-        if 'ANDROID_DATA' not in os.environ:
-            import stat
-            mode = os.stat(self.path).st_mode if os.path.exists(self.path) else stat.S_IREAD | stat.S_IWRITE
+        mode = os.stat(self.path).st_mode if os.path.exists(self.path) else stat.S_IREAD | stat.S_IWRITE
         # perform atomic write on POSIX systems
         try:
             os.rename(temp_path, self.path)
         except:
             os.remove(self.path)
             os.rename(temp_path, self.path)
-        if 'ANDROID_DATA' not in os.environ:
-            import stat
-            os.chmod(self.path, mode)
+        os.chmod(self.path, mode)
         self.print_error("saved", self.path)
         self.modified = False
 
