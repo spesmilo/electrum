@@ -48,7 +48,7 @@ Builder.load_string('''
 <SettingsDialog@Popup>
     id: settings
     title: _('Electrum Settings')
-    watching_only: False
+    disable_pin: False
     use_encryption: False
     BoxLayout:
         orientation: 'vertical'
@@ -66,8 +66,8 @@ Builder.load_string('''
                     action: partial(root.language_dialog, self)
                 CardSeparator
                 SettingsItem:
-                    status: 'watching-only' if root.watching_only else ('ON' if root.use_encryption else 'OFF')
-                    disabled: root.watching_only
+                    status: '' if root.disable_pin else ('ON' if root.use_encryption else 'OFF')
+                    disabled: root.disable_pin
                     title: _('PIN code') + ': ' + self.status
                     description: _("Change your PIN code.")
                     action: partial(root.change_password, self)
@@ -130,8 +130,8 @@ class SettingsDialog(Factory.Popup):
 
     def update(self):
         self.wallet = self.app.wallet
-        self.watching_only = self.wallet.is_watching_only()
-        self.use_encryption = self.wallet.use_encryption
+        self.disable_pin = self.wallet.is_watching_only() if self.wallet else True
+        self.use_encryption = self.wallet.use_encryption if self.wallet else False
 
     def get_language_name(self):
         return languages.get(self.config.get('language', 'en_UK'), '')
