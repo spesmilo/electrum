@@ -8,6 +8,7 @@ from electrum.i18n import languages
 from electrum_gui.kivy.i18n import _
 from electrum.plugins import run_hook
 from electrum.bitcoin import RECOMMENDED_FEE
+from electrum import coinchooser
 
 from choice_dialog import ChoiceDialog
 
@@ -157,13 +158,12 @@ class SettingsDialog(Factory.Popup):
         self._unit_dialog.open()
 
     def coinselect_status(self):
-        return self.app.wallet.coin_chooser_name(self.app.electrum_config)
+        return coinchooser.get_name(self.app.electrum_config)
 
     def coinselect_dialog(self, item, dt):
         if self._coinselect_dialog is None:
-            from electrum import COIN_CHOOSERS
-            choosers = sorted(COIN_CHOOSERS.keys())
-            chooser_name = self.app.wallet.coin_chooser_name(self.config)
+            choosers = sorted(coinchooser.COIN_CHOOSERS.keys())
+            chooser_name = coinchooser.get_name(self.config)
             def cb(text):
                 self.config.set_key('coin_chooser', text)
                 item.status = text
