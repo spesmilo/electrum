@@ -522,6 +522,7 @@ class ElectrumWindow(App):
 
     def update_status(self, *dt):
         if not self.wallet:
+            self.status = _("No Wallet")
             return
         if self.network is None or not self.network.is_running():
             self.status = _("Offline")
