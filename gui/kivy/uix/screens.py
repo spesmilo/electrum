@@ -326,6 +326,8 @@ class ReceiveScreen(CScreen):
         self.screen.message = ''
 
     def get_new_address(self):
+        if not self.app.wallet:
+            return False
         addr = self.app.wallet.get_unused_address(None)
         if addr is None:
             return False
@@ -476,12 +478,10 @@ class RequestsScreen(CScreen):
     kvname = 'requests'
 
     def update(self):
-
         self.menu_actions = [('Show', self.do_show), ('Details', self.do_view), ('Delete', self.do_delete)]
-
         requests_list = self.screen.ids.requests_container
         requests_list.clear_widgets()
-        _list = self.app.wallet.get_sorted_requests(self.app.electrum_config)
+        _list = self.app.wallet.get_sorted_requests(self.app.electrum_config) if self.app.wallet else []
         for req in _list:
             address = req['address']
             timestamp = req.get('time', 0)
