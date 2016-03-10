@@ -23,7 +23,7 @@ Builder.load_string('''
             dirselect: False
             filter_dirs: True
             filter: '*.*'
-            path: os.path.dirname(app.wallet.storage.path)
+            path: os.path.dirname(app.get_wallet_path())
             size_hint_y: 0.6
         Widget
             size_hint_y: 0.1
