@@ -75,6 +75,8 @@ class WalletStorage(PrintError):
                 data = f.read()
         except IOError:
             return
+        if not data:
+            return
         try:
             self.data = json.loads(data)
         except:
