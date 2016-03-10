@@ -308,3 +308,13 @@ class CoinChooserPrivacy(CoinChooserRandom):
 
 COIN_CHOOSERS = {'Priority': CoinChooserOldestFirst,
                  'Privacy': CoinChooserPrivacy}
+
+def get_name(config):
+    kind = config.get('coin_chooser')
+    if not kind in COIN_CHOOSERS:
+        kind = 'Priority'
+    return kind
+
+def get_coin_chooser(config):
+    klass = COIN_CHOOSERS[get_name(config)]
+    return klass()

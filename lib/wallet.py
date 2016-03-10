@@ -47,7 +47,7 @@ from version import *
 from transaction import Transaction
 from plugins import run_hook
 import bitcoin
-from coinchooser import COIN_CHOOSERS
+import coinchooser
 from synchronizer import Synchronizer
 from verifier import SPV
 from mnemonic import Mnemonic
@@ -921,16 +921,6 @@ class Abstract_Wallet(PrintError):
         # this method can be overloaded
         return tx.get_fee()
 
-    def coin_chooser_name(self, config):
-        kind = config.get('coin_chooser')
-        if not kind in COIN_CHOOSERS:
-            kind = 'Priority'
-        return kind
-
-    def coin_chooser(self, config):
-        klass = COIN_CHOOSERS[self.coin_chooser_name(config)]
-        return klass()
-
     def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None, change_addr=None):
         # check outputs
         for type, data, value in outputs:
@@ -975,7 +965,7 @@ class Abstract_Wallet(PrintError):
 
         # Let the coin chooser select the coins to spend
         max_change = self.max_change_outputs if self.multiple_change else 1
-        coin_chooser = self.coin_chooser(config)
+        coin_chooser = coinchooser.get_coin_chooser(config)
         tx = coin_chooser.make_tx(coins, outputs, change_addrs[:max_change],
                                   fee_estimator, dust_threshold)
 
