@@ -1,3 +1,7 @@
+# Release 2.6.2 (bugfixes)
+ * fix Trustedcoin restore from seed (bug #1704)
+ * small improvements to kivy GUI
+
 # Release 2.6.1 (bugfixes)
  * fix broadcast command (bug #1688)
  * fix tx dialog (bug #1690)

@@ -49,8 +49,8 @@ from electrum_ltc.util import (block_explorer, block_explorer_info, format_time,
                                format_satoshis_plain, NotEnoughFunds, StoreDict,
                                UserCancelled)
 from electrum_ltc import Transaction, mnemonic
-from electrum_ltc import util, bitcoin, commands
-from electrum_ltc import SimpleConfig, COIN_CHOOSERS, paymentrequest
+from electrum_ltc import util, bitcoin, commands, coinchooser
+from electrum_ltc import SimpleConfig, paymentrequest
 from electrum_ltc.wallet import Wallet, BIP32_RD_Wallet, Multisig_Wallet
 
 from amountedit import BTCAmountEdit, MyLineEdit, BTCkBEdit
@@ -2845,10 +2845,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             lines = [ln.lstrip(" ") for ln in klass.__doc__.split("\n")]
             return '\n'.join([key, "", " ".join(lines)])
 
-        choosers = sorted(COIN_CHOOSERS.keys())
-        chooser_name = self.wallet.coin_chooser_name(self.config)
+        choosers = sorted(coinchooser.COIN_CHOOSERS.keys())
+        chooser_name = coinchooser.get_name(self.config)
         msg = _('Choose coin (UTXO) selection method.  The following are available:\n\n')
-        msg += '\n\n'.join(fmt_docs(*item) for item in COIN_CHOOSERS.items())
+        msg += '\n\n'.join(fmt_docs(*item) for item in coinchooser.COIN_CHOOSERS.items())
         chooser_label = HelpLabel(_('Coin selection') + ':', msg)
         chooser_combo = QComboBox()
         chooser_combo.addItems(choosers)

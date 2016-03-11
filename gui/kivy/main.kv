@@ -371,6 +371,7 @@ BoxLayout:
                 text: app.status
                 font_size: '22dp'
                 minimum_width: '1dp'
+                disabled: app.wallet is None
                 on_release: app.popup_dialog('status')
 
             ActionOverflow:

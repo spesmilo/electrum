@@ -174,19 +174,13 @@ class ElectrumGui:
         self.windows.remove(window)
         self.build_tray_menu()
         # save wallet path of last open window
-        if self.config.get('wallet_path') is None and not self.windows:
-            path = window.wallet.storage.path
-            self.config.set_key('gui_last_wallet', path)
+        if not self.windows:
+            self.config.save_last_wallet(window.wallet)
         run_hook('on_close_window', window)
 
     def main(self):
         self.timer.start()
-        # open last wallet
-        if self.config.get('wallet_path') is None:
-            last_wallet = self.config.get('gui_last_wallet')
-            if last_wallet is not None and os.path.exists(last_wallet):
-                self.config.cmdline_options['default_wallet_path'] = last_wallet
-
+        self.config.open_last_wallet()
         if not self.start_new_window(self.config.get_wallet_path(),
                                      self.config.get('url')):
             return

@@ -111,7 +111,7 @@ class Blockchain(util.PrintError):
         return rev_hex(getPoWHash(self.serialize_header(header).decode('hex')).encode('hex'))
 
     def path(self):
-        return os.path.join(self.config.path, 'blockchain_headers')
+        return util.get_headers_path(self.config)
 
     def init_headers_file(self):
         filename = self.path()

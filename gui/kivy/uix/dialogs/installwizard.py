@@ -144,7 +144,8 @@ class InstallWizard(Widget):
     def enter_pin(self, seed):
         def callback(pin):
             self.run('confirm_pin', (seed, pin))
-        popup = PasswordDialog('Choose a PIN code', callback)
+        popup = PasswordDialog()
+        popup.init('Choose a PIN code', callback)
         popup.open()
 
     def confirm_pin(self, seed, pin):
@@ -154,7 +155,8 @@ class InstallWizard(Widget):
             else:
                 app.show_error(_('PIN mismatch'), duration=.5)
                 self.run('enter_pin', (seed,))
-        popup = PasswordDialog('Confirm your PIN code', callback)
+        popup = PasswordDialog()
+        popup.init('Confirm your PIN code', callback)
         popup.open()
 
     def terminate(self):

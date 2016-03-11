@@ -27,7 +27,6 @@
 
 import sys
 import os
-os.environ['KIVY_DATA_DIR'] = os.path.abspath(os.path.dirname(__file__)) + '/data/'
 
 try:
     sys.argv = ['']
@@ -51,8 +50,10 @@ class ElectrumGui:
         self.plugins = plugins
 
     def main(self):
+        self.config.open_last_wallet()
         w = ElectrumWindow(config=self.config,
                            network=self.network,
                            plugins = self.plugins,
                            gui_object=self)
         w.run()
+        self.config.save_last_wallet(w.wallet)

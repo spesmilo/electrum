@@ -7,7 +7,7 @@ title = Electrum-LTC
 package.name = Electrum-LTC
 
 # (str) Package domain (needed for android/ios packaging)
-package.domain = org.electrum-ltc
+package.domain = org.electrum_ltc
 
 # (str) Source code where the main.py live
 source.dir = .

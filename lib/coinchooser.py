@@ -285,10 +285,6 @@ class CoinChooserPrivacy(CoinChooserRandom):
     def keys(self, coins):
         return [coin['address'] for coin in coins]
 
-    def penalty_func(self, buckets, tx):
-        '''Returns a penalty for a candidate set of buckets.'''
-        raise NotImplementedError
-
     def penalty_func(self, tx):
         min_change = min(o[2] for o in tx.outputs()) * 0.75
         max_change = max(o[2] for o in tx.outputs()) * 1.33
@@ -312,3 +308,13 @@ class CoinChooserPrivacy(CoinChooserRandom):
 
 COIN_CHOOSERS = {'Priority': CoinChooserOldestFirst,
                  'Privacy': CoinChooserPrivacy}
+
+def get_name(config):
+    kind = config.get('coin_chooser')
+    if not kind in COIN_CHOOSERS:
+        kind = 'Priority'
+    return kind
+
+def get_coin_chooser(config):
+    klass = COIN_CHOOSERS[get_name(config)]
+    return klass()

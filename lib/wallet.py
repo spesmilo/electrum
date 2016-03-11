@@ -32,11 +32,12 @@ import time
 import json
 import copy
 import re
+import stat
 from functools import partial
 from unicodedata import normalize
 from collections import namedtuple
-from i18n import _
 
+from i18n import _
 from util import NotEnoughFunds, PrintError, profiler
 
 from bitcoin import *
@@ -46,7 +47,7 @@ from version import *
 from transaction import Transaction
 from plugins import run_hook
 import bitcoin
-from coinchooser import COIN_CHOOSERS
+import coinchooser
 from synchronizer import Synchronizer
 from verifier import SPV
 from mnemonic import Mnemonic
@@ -74,6 +75,8 @@ class WalletStorage(PrintError):
             with open(self.path, "r") as f:
                 data = f.read()
         except IOError:
+            return
+        if not data:
             return
         try:
             self.data = json.loads(data)
@@ -138,18 +141,14 @@ class WalletStorage(PrintError):
             f.flush()
             os.fsync(f.fileno())
 
-        if 'ANDROID_DATA' not in os.environ:
-            import stat
-            mode = os.stat(self.path).st_mode if os.path.exists(self.path) else stat.S_IREAD | stat.S_IWRITE
+        mode = os.stat(self.path).st_mode if os.path.exists(self.path) else stat.S_IREAD | stat.S_IWRITE
         # perform atomic write on POSIX systems
         try:
             os.rename(temp_path, self.path)
         except:
             os.remove(self.path)
             os.rename(temp_path, self.path)
-        if 'ANDROID_DATA' not in os.environ:
-            import stat
-            os.chmod(self.path, mode)
+        os.chmod(self.path, mode)
         self.print_error("saved", self.path)
         self.modified = False
 
@@ -922,16 +921,6 @@ class Abstract_Wallet(PrintError):
         # this method can be overloaded
         return tx.get_fee()
 
-    def coin_chooser_name(self, config):
-        kind = config.get('coin_chooser')
-        if not kind in COIN_CHOOSERS:
-            kind = 'Priority'
-        return kind
-
-    def coin_chooser(self, config):
-        klass = COIN_CHOOSERS[self.coin_chooser_name(config)]
-        return klass()
-
     def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None, change_addr=None):
         # check outputs
         for type, data, value in outputs:
@@ -976,7 +965,7 @@ class Abstract_Wallet(PrintError):
 
         # Let the coin chooser select the coins to spend
         max_change = self.max_change_outputs if self.multiple_change else 1
-        coin_chooser = self.coin_chooser(config)
+        coin_chooser = coinchooser.get_coin_chooser(config)
         tx = coin_chooser.make_tx(coins, outputs, change_addrs[:max_change],
                                   fee_estimator, dust_threshold)
 

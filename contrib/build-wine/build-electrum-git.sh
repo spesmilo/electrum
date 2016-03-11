@@ -60,7 +60,8 @@ rm -rf dist/
 $PYTHON "C:/pyinstaller/pyinstaller.py" --noconfirm --ascii -w deterministic.spec
 
 # build NSIS installer
-wine "$WINEPREFIX/drive_c/Program Files (x86)/NSIS/makensis.exe" electrum.nsi
+# $VERSION could be passed to the electrum.nsi script, but this would require some rewriting in the script iself.
+wine "$WINEPREFIX/drive_c/Program Files (x86)/NSIS/makensis.exe" /DPRODUCT_VERSION=$VERSION electrum.nsi
 
 cd dist
 mv electrum.exe $NAME_ROOT-$VERSION.exe
