@@ -323,8 +323,6 @@ class Commands:
     @command('n')
     def getservers(self):
         """Return the list of available servers"""
-        while not self.network.is_up_to_date():
-            time.sleep(0.1)
         return self.network.get_servers()
 
     @command('')
