@@ -140,7 +140,7 @@ class ImportedAccount(Account):
 
     def add(self, address, pubkey, privkey, password):
         from wallet import pw_encode
-        self.keypairs[address] = (pubkey, pw_encode(privkey, password ))
+        self.keypairs[address] = [pubkey, pw_encode(privkey, password)]
 
     def remove(self, address):
         self.keypairs.pop(address)
