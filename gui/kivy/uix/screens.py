@@ -385,7 +385,7 @@ class ReceiveScreen(CScreen):
     def save_request(self):
         addr = str(self.screen.address)
         amount = str(self.screen.amount)
-        message = str(self.screen.message)
+        message = unicode(self.screen.message)
         amount = self.app.get_amount(amount) if amount else 0
         req = self.app.wallet.make_payment_request(addr, amount, message, None)
         self.app.wallet.add_payment_request(req, self.app.electrum_config)
