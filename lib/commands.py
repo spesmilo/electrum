@@ -216,24 +216,22 @@ class Commands:
     @command('wp')
     def signtransaction(self, tx, privkey=None):
         """Sign a transaction. The wallet keys will be used unless a private key is provided."""
-        t = Transaction(tx)
         if privkey:
             pubkey = bitcoin.public_key_from_private_key(privkey)
-            t.sign({pubkey:privkey})
+            tx.sign({pubkey:privkey})
         else:
-            self.wallet.sign_transaction(t, self._password)
-        return t.as_dict()
+            self.wallet.sign_transaction(tx, self._password)
+        return tx.as_dict()
 
     @command('')
     def deserialize(self, tx):
         """Deserialize a serialized transaction"""
-        return Transaction(tx).deserialize()
+        return tx.deserialize()
 
     @command('n')
     def broadcast(self, tx, timeout=10):
         """Broadcast a transaction to the network. """
-        t = Transaction(tx)
-        return self.network.broadcast(t, timeout)
+        return self.network.broadcast(tx, timeout)
 
     @command('')
     def createmultisig(self, num, pubkeys):
@@ -667,12 +665,13 @@ command_options = {
 
 
 # don't use floats because of rounding errors
+from transaction import tx_from_str
 json_loads = lambda x: json.loads(x, parse_float=lambda x: str(Decimal(x)))
 arg_types = {
     'num': int,
     'nbits': int,
     'entropy': long,
-    'tx': json_loads,
+    'tx': tx_from_str,
     'pubkeys': json_loads,
     'inputs': json_loads,
     'outputs': json_loads,

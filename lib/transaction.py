@@ -859,3 +859,21 @@ class Transaction:
         print_error(priority, threshold)
 
         return priority < threshold
+
+
+
+def tx_from_str(txt):
+    "json or raw hexadecimal"
+    import json
+    txt = txt.strip()
+    try:
+        txt.decode('hex')
+        is_hex = True
+    except:
+        is_hex = False
+    if is_hex:
+        return Transaction(txt)
+    tx_dict = json.loads(str(txt))
+    assert "hex" in tx_dict.keys()
+    tx = Transaction(tx_dict["hex"])
+    return tx
