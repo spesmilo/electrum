@@ -2244,21 +2244,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
     def tx_from_text(self, txt):
-        "json or raw hexadecimal"
-        txt = txt.strip()
+        from electrum.transaction import tx_from_str
         try:
-            txt.decode('hex')
-            is_hex = True
-        except:
-            is_hex = False
-
-        try:
-            if is_hex:
-                return Transaction(txt)
-            tx_dict = json.loads(str(txt))
-            assert "hex" in tx_dict.keys()
-            tx = Transaction(tx_dict["hex"])
-            return tx
+            return tx_from_str(txt)
         except:
             traceback.print_exc(file=sys.stdout)
             self.show_critical(_("Electrum was unable to parse your transaction"))
