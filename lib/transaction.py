@@ -858,3 +858,21 @@ class Transaction:
         fee += (1 + size / 1000) * MIN_RELAY_TX_FEE
         print_error(fee)
         return fee
+
+
+
+def tx_from_str(txt):
+    "json or raw hexadecimal"
+    import json
+    txt = txt.strip()
+    try:
+        txt.decode('hex')
+        is_hex = True
+    except:
+        is_hex = False
+    if is_hex:
+        return Transaction(txt)
+    tx_dict = json.loads(str(txt))
+    assert "hex" in tx_dict.keys()
+    tx = Transaction(tx_dict["hex"])
+    return tx

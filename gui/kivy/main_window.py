@@ -35,7 +35,7 @@ Factory.register('InstallWizard',
 Factory.register('InfoBubble', module='electrum_ltc_gui.kivy.uix.dialogs')
 Factory.register('OutputList', module='electrum_ltc_gui.kivy.uix.dialogs')
 Factory.register('OutputItem', module='electrum_ltc_gui.kivy.uix.dialogs')
-
+Factory.register('QrScannerDialog', module='electrum_ltc_gui.kivy.uix.dialogs.qr_scanner')
 
 
 #from kivy.core.window import Window
@@ -241,12 +241,15 @@ class ElectrumWindow(App):
             self.show_error("invoice error:" + pr.error)
             self.send_screen.do_clear()
 
-    def on_qr(self, data):
+    def on_qr(self, d, data):
+        from electrum_ltc.bitcoin import base_decode, is_address
+        if is_address(data):
+            self.set_URI(data)
+            return
         if data.startswith('litecoin:'):
             self.set_URI(data)
             return
         # try to decode transaction
-        from electrum_ltc.bitcoin import base_decode
         from electrum_ltc.transaction import Transaction
         try:
             text = base_decode(data, None, base=43).encode('hex')
@@ -307,6 +310,17 @@ class ElectrumWindow(App):
         popup.open()
 
     def scan_qr(self, on_complete):
+        self.scan_qr_android(on_complete)
+
+    def scan_qr_android(self, on_complete):
+        dlg = Cache.get('electrum_ltc_widgets', 'QrScannerDialog')
+        if not dlg:
+            dlg = Factory.QrScannerDialog()
+            Cache.append('electrum_ltc_widgets', 'QrScannerDialog', dlg)
+            dlg.bind(on_complete=on_complete)
+        dlg.open()
+
+    def scan_qr_zxing(self, on_complete):
         if platform != 'android':
             return
         from jnius import autoclass
@@ -555,8 +569,8 @@ class ElectrumWindow(App):
     @profiler
     def update_wallet(self, *dt):
         self._trigger_update_status()
-        #if self.wallet.up_to_date or not self.network or not self.network.is_connected():
-        self.update_tabs()
+        if self.wallet.up_to_date or not self.network or not self.network.is_connected():
+            self.update_tabs()
 
     @profiler
     def notify_transactions(self, *dt):

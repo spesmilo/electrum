@@ -10,9 +10,12 @@ Commands::
 If something in included modules like kivy or any other module changes
 then you need to rebuild the distribution. To do so:
 
-   `rm -rf electrum-ltc/.buildozer/android/platform/python-for-android/dist`
+   `rm -rf .buildozer/android/platform/python-for-android/dist`
 
 
 Note:
   python-for-android must be patched with:
   git pull git@github.com:denys-duchier/python-for-android.git fix-recursive-delete
+
+
+export P4A_pyjnius_DIR=local_clone

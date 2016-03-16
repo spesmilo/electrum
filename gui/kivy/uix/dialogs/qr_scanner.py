@@ -11,8 +11,8 @@ class QrScannerDialog(Factory.AnimatedPopup):
     def on_symbols(self, instance, value):
         instance.stop()
         self.dismiss()
-        uri = App.get_running_app().decode_uri(value[0].data)
-        self.dispatch('on_complete', uri)
+        data = value[0].data
+        self.dispatch('on_complete', data)
 
     def on_complete(self, x):
         ''' Default Handler for on_complete event.
@@ -30,10 +30,10 @@ Builder.load_string('''
     size_hint: None, None
     size: '340dp', '290dp'
     pos_hint: {'center_y': .53}
-    separator_color: .89, .89, .89, 1
-    separator_height: '1.2dp'
-    title_color: .437, .437, .437, 1
-    background: 'atlas://gui/kivy/theming/light/dialog'
+    #separator_color: .89, .89, .89, 1
+    #separator_height: '1.2dp'
+    #title_color: .437, .437, .437, 1
+    #background: 'atlas://gui/kivy/theming/light/dialog'
     on_activate:
         qrscr.start()
         qrscr.size = self.size
