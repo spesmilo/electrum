@@ -244,6 +244,19 @@ class AndroidCamera(Widget):
             self._holder.pos = pos
 
 
+from electrum.util import profiler
+
+use_camera = True
+if use_camera:
+    from kivy.uix.camera import Camera
+    from kivy.clock import Clock
+    from PIL import Image as PILImage
+    class MyCamera(Camera):
+        def start(self):
+            self.play = True
+        def stop(self):
+            self.play = False
+
 class ScannerAndroid(ScannerBase):
     '''Widget that use the AndroidCamera and zbar to detect qrcode.
     When found, the `symbols` will be updated
@@ -251,10 +264,15 @@ class ScannerAndroid(ScannerBase):
 
     def __init__(self, **kwargs):
         super(ScannerAndroid, self).__init__(**kwargs)
-        self._camera = AndroidCamera(
+        if use_camera:
+            self._camera = MyCamera(resolution=self.camera_size)
+            Clock.schedule_interval(self._detect_qrcode_frame2, 1)
+        else:
+            self._camera = AndroidCamera(
                 size=self.camera_size,
                 size_hint=(None, None))
-        self._camera.bind(on_preview_frame=self._detect_qrcode_frame)
+            self._camera.bind(on_preview_frame=self._detect_qrcode_frame)
+
         self.add_widget(self._camera)
 
         # create a scanner used for detecting qrcode
@@ -264,6 +282,7 @@ class ScannerAndroid(ScannerBase):
         self._scanner.setConfig(0, Config.X_DENSITY, 3)
         self._scanner.setConfig(0, Config.Y_DENSITY, 3)
 
+
     def start(self):
         self._camera.start()
 
@@ -271,24 +290,36 @@ class ScannerAndroid(ScannerBase):
         self._camera.stop()
 
     def _detect_qrcode_frame(self, instance, camera, data):
-        # the image we got by default from a camera is using the NV21 format
-        # zbar only allow Y800/GREY image, so we first need to convert,
-        # then start the detection on the image
         if not self.get_root_window():
             self.stop()
             return
         parameters = camera.getParameters()
         size = parameters.getPreviewSize()
-        barcode = Image(size.width, size.height, 'NV21')
+        self.check_image(size.width, size.height, data)
+
+    def _detect_qrcode_frame2(self, *args):
+        if not self._camera.play:
+            return
+        tex = self._camera.texture
+        if not tex:
+            return
+        im = PILImage.fromstring('RGBA', tex.size, tex.pixels)
+        im = im.convert('L')
+        self.check_image(tex.size[0], tex.size[1], im.tostring())
+
+    @profiler
+    def check_image(self, width, height, data):
+        print "zzz", width, height, len(data)
+        # the image we got by default from a camera is using the rgba format
+        # zbar only allow Y800/GREY image, so we first need to convert,
+        # then start the detection on the image
+        barcode = Image(width, height, 'NV21')
         barcode.setData(data)
         barcode = barcode.convert('Y800')
-
         result = self._scanner.scanImage(barcode)
-
         if result == 0:
             self.symbols = []
             return
-
         # we detected qrcode! extract and dispatch them
         symbols = []
         it = barcode.getSymbols().iterator()
@@ -301,8 +332,8 @@ class ScannerAndroid(ScannerBase):
                 count=symbol.getCount(),
                 bounds=symbol.getBounds())
             symbols.append(qrcode)
-
         self.symbols = symbols
+
 
     '''
     # can't work, due to the overlay.

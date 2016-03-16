@@ -16,3 +16,6 @@ then you need to rebuild the distribution. To do so:
 Note:
   python-for-android must be patched with:
   git pull git@github.com:denys-duchier/python-for-android.git fix-recursive-delete
+
+
+export P4A_pyjnius_DIR=local_clone
