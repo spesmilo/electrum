@@ -218,7 +218,9 @@ class Commands:
         """Sign a transaction. The wallet keys will be used unless a private key is provided."""
         if privkey:
             pubkey = bitcoin.public_key_from_private_key(privkey)
-            tx.sign({pubkey:privkey})
+            h160 = bitcoin.hash_160(pubkey.decode('hex'))
+            x_pubkey = 'fd' + (chr(0) + h160).encode('hex')
+            tx.sign({x_pubkey:privkey})
         else:
             self.wallet.sign_transaction(tx, self._password)
         return tx.as_dict()
