@@ -317,7 +317,7 @@ Builder.load_string('''
         IconButton:
             id: scan
             height: '48sp'
-            on_release: root.scan_seed()
+            on_release: root.scan_xpub()
             icon: 'atlas://gui/kivy/theming/light/camera'
             size_hint: 1, None
         WizardButton:
@@ -561,8 +561,8 @@ class RestoreXpubDialog(WizardDialog):
     def on_text(self, dt):
         self.ids.next.disabled = not bool(self._test(self.get_text()))
 
-    def scan_seed(self):
-        def on_complete(text):
+    def scan_xpub(self):
+        def on_complete(d, text):
             self.ids.text_input_seed.text = text
         self.app.scan_qr(on_complete)
 
