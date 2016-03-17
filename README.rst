@@ -46,6 +46,10 @@ Check out the code from Github::
     git clone git://github.com/spesmilo/electrum.git
     cd electrum
 
+Run install (this should install dependencies)::
+
+    python setup.py install
+
 Compile the icons file for Qt::
 
     sudo apt-get install pyqt4-dev-tools
@@ -88,7 +92,7 @@ Creating Binaries
 
 In oder to creating binaries, you must create the 'packages' directory::
 
-    ./contrib/pake_packages
+    ./contrib/make_packages
 
 
 Mac OS X
