@@ -35,7 +35,6 @@ Factory.register('InstallWizard',
 Factory.register('InfoBubble', module='electrum_ltc_gui.kivy.uix.dialogs')
 Factory.register('OutputList', module='electrum_ltc_gui.kivy.uix.dialogs')
 Factory.register('OutputItem', module='electrum_ltc_gui.kivy.uix.dialogs')
-Factory.register('QrScannerDialog', module='electrum_ltc_gui.kivy.uix.dialogs.qr_scanner')
 
 
 #from kivy.core.window import Window
@@ -191,7 +190,6 @@ class ElectrumWindow(App):
         # initialize variables
         self._clipboard = Clipboard
         self.info_bubble = None
-        self.qrscanner = None
         self.nfcscanner = None
         self.tabs = None
         self.is_exit = False
@@ -241,7 +239,7 @@ class ElectrumWindow(App):
             self.show_error("invoice error:" + pr.error)
             self.send_screen.do_clear()
 
-    def on_qr(self, d, data):
+    def on_qr(self, data):
         from electrum_ltc.bitcoin import base_decode, is_address
         if is_address(data):
             self.set_URI(data)
@@ -310,17 +308,6 @@ class ElectrumWindow(App):
         popup.open()
 
     def scan_qr(self, on_complete):
-        self.scan_qr_android(on_complete)
-
-    def scan_qr_android(self, on_complete):
-        dlg = Cache.get('electrum_ltc_widgets', 'QrScannerDialog')
-        if not dlg:
-            dlg = Factory.QrScannerDialog()
-            Cache.append('electrum_ltc_widgets', 'QrScannerDialog', dlg)
-            dlg.bind(on_complete=on_complete)
-        dlg.open()
-
-    def scan_qr_zxing(self, on_complete):
         if platform != 'android':
             return
         from jnius import autoclass
@@ -569,7 +556,7 @@ class ElectrumWindow(App):
     @profiler
     def update_wallet(self, *dt):
         self._trigger_update_status()
-        if self.wallet.up_to_date or not self.network or not self.network.is_connected():
+        if self.wallet and (self.wallet.up_to_date or not self.network or not self.network.is_connected()):
             self.update_tabs()
 
     @profiler
@@ -621,15 +608,11 @@ class ElectrumWindow(App):
 
     def on_pause(self):
         # pause nfc
-        if self.qrscanner:
-            self.qrscanner.stop()
         if self.nfcscanner:
             self.nfcscanner.nfc_disable()
         return True
 
     def on_resume(self):
-        if self.qrscanner and qrscanner.get_parent_window():
-            self.qrscanner.start()
         if self.nfcscanner:
             self.nfcscanner.nfc_enable()
 

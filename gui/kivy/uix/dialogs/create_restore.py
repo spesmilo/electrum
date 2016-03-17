@@ -562,7 +562,7 @@ class RestoreXpubDialog(WizardDialog):
         self.ids.next.disabled = not bool(self._test(self.get_text()))
 
     def scan_xpub(self):
-        def on_complete(d, text):
+        def on_complete(text):
             self.ids.text_input_seed.text = text
         self.app.scan_qr(on_complete)
 
