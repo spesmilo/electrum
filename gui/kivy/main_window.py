@@ -35,7 +35,6 @@ Factory.register('InstallWizard',
 Factory.register('InfoBubble', module='electrum_gui.kivy.uix.dialogs')
 Factory.register('OutputList', module='electrum_gui.kivy.uix.dialogs')
 Factory.register('OutputItem', module='electrum_gui.kivy.uix.dialogs')
-Factory.register('QrScannerDialog', module='electrum_gui.kivy.uix.dialogs.qr_scanner')
 
 
 #from kivy.core.window import Window
@@ -191,7 +190,6 @@ class ElectrumWindow(App):
         # initialize variables
         self._clipboard = Clipboard
         self.info_bubble = None
-        self.qrscanner = None
         self.nfcscanner = None
         self.tabs = None
         self.is_exit = False
@@ -610,15 +608,11 @@ class ElectrumWindow(App):
 
     def on_pause(self):
         # pause nfc
-        if self.qrscanner:
-            self.qrscanner.stop()
         if self.nfcscanner:
             self.nfcscanner.nfc_disable()
         return True
 
     def on_resume(self):
-        if self.qrscanner and qrscanner.get_parent_window():
-            self.qrscanner.start()
         if self.nfcscanner:
             self.nfcscanner.nfc_enable()
 
