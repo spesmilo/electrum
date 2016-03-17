@@ -556,7 +556,7 @@ class ElectrumWindow(App):
     @profiler
     def update_wallet(self, *dt):
         self._trigger_update_status()
-        if self.wallet.up_to_date or not self.network or not self.network.is_connected():
+        if self.wallet and (self.wallet.up_to_date or not self.network or not self.network.is_connected()):
             self.update_tabs()
 
     @profiler
