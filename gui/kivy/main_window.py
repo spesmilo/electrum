@@ -241,7 +241,7 @@ class ElectrumWindow(App):
             self.show_error("invoice error:" + pr.error)
             self.send_screen.do_clear()
 
-    def on_qr(self, d, data):
+    def on_qr(self, data):
         from electrum.bitcoin import base_decode, is_address
         if is_address(data):
             self.set_URI(data)
@@ -310,17 +310,6 @@ class ElectrumWindow(App):
         popup.open()
 
     def scan_qr(self, on_complete):
-        self.scan_qr_android(on_complete)
-
-    def scan_qr_android(self, on_complete):
-        dlg = Cache.get('electrum_widgets', 'QrScannerDialog')
-        if not dlg:
-            dlg = Factory.QrScannerDialog()
-            Cache.append('electrum_widgets', 'QrScannerDialog', dlg)
-            dlg.bind(on_complete=on_complete)
-        dlg.open()
-
-    def scan_qr_zxing(self, on_complete):
         if platform != 'android':
             return
         from jnius import autoclass
