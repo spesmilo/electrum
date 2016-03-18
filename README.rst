@@ -20,12 +20,12 @@ Getting started
 Electrum is a pure python application. However, if you want to use the
 Qt interface, then you need to install the Qt dependencies::
 
-    sudo apt-get install python-pip python-qt4
-
+    sudo apt-get install python-qt4
 
 If you downloaded the official package (tar.gz), then you can run
 Electrum from its root directory, without installing it on your
-system. To run Electrum from this directory, just do::
+system; all the python dependencies are included in the 'packages'
+directory. To run Electrum from its root directory, just do::
 
     ./electrum-ltc
 
@@ -43,10 +43,14 @@ Check out the code from Github::
     git clone git://github.com/pooler/electrum-ltc.git
     cd electrum-ltc
 
+Run install (this should install dependencies)::
+
+    python setup.py install
+
 Compile the icons file for Qt::
 
     sudo apt-get install pyqt4-dev-tools
-    pyrcc4 icons.qrc -o gui/icons_rc.py
+    pyrcc4 icons.qrc -o gui/qt/icons_rc.py
 
 Compile the protobuf description file::
 
@@ -87,6 +91,7 @@ In oder to creating binaries, you must create the 'packages' directory::
 
     ./contrib/make_packages
 
+This directory contains the python dependencies used by Electrum.
 
 Mac OS X
 --------
