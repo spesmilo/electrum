@@ -216,6 +216,7 @@ class Commands:
     @command('wp')
     def signtransaction(self, tx, privkey=None):
         """Sign a transaction. The wallet keys will be used unless a private key is provided."""
+        tx = Transaction(tx)
         if privkey:
             pubkey = bitcoin.public_key_from_private_key(privkey)
             h160 = bitcoin.hash_160(pubkey.decode('hex'))
@@ -228,11 +229,13 @@ class Commands:
     @command('')
     def deserialize(self, tx):
         """Deserialize a serialized transaction"""
+        tx = Transaction(tx)
         return tx.deserialize()
 
     @command('n')
-    def broadcast(self, tx, timeout=10):
+    def broadcast(self, tx, timeout=30):
         """Broadcast a transaction to the network. """
+        tx = Transaction(tx)
         return self.network.broadcast(tx, timeout)
 
     @command('')

@@ -871,8 +871,7 @@ def tx_from_str(txt):
     except:
         is_hex = False
     if is_hex:
-        return Transaction(txt)
+        return txt
     tx_dict = json.loads(str(txt))
     assert "hex" in tx_dict.keys()
-    tx = Transaction(tx_dict["hex"])
-    return tx
+    return tx_dict["hex"]

@@ -2244,9 +2244,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
     def tx_from_text(self, txt):
-        from electrum_ltc.transaction import tx_from_str
+        from electrum_ltc.transaction import tx_from_str, Transaction
         try:
-            return tx_from_str(txt)
+            tx = tx_from_str(txt)
+            return Transaction(tx)
         except:
             traceback.print_exc(file=sys.stdout)
             self.show_critical(_("Electrum was unable to parse your transaction"))
