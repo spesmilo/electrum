@@ -997,12 +997,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.set_pay_from([])
 
         msg = _('Amount to be sent.') + '\n\n' \
-              + _('The amount will be displayed in red if you do not have enough funds in your wallet.') + ' ' \
+              + _('The amount will be displayed in red if you do not have enough funds in your wallet.\n') + ' ' \
               + _('Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') + '\n\n' \
               + _('Keyboard shortcut: type "!" to send all your coins.')
         amount_label = HelpLabel(_('Amount'), msg)
+        amount_label.setToolTip(msg)
+        self.amount_e.setToolTip(msg)
         grid.addWidget(amount_label, 4, 0)
         grid.addWidget(self.amount_e, 4, 1)
+
+        msg = _('Set Send Amount to the maximum possible value.') + '\n\n' \
+            + _('Note that if you have frozen some of your addresses, the maximum\n available funds will be lower than your total balance.')
+        self.select_all_button = EnterButton(_("Select all available funds"), self.do_select_all_funds)
+        self.select_all_button.setToolTip(msg)
+        button = QHBoxLayout()
+        button.addWidget(self.select_all_button)
+        grid.addLayout(button, 4, 2, Qt.AlignLeft, 1)
 
         msg = _('Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
               + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
@@ -1018,7 +1028,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         buttons.addStretch(1)
         buttons.addWidget(self.send_button)
         buttons.addWidget(self.clear_button)
-        grid.addLayout(buttons, 6, 1, 1, 2)
+        grid.addLayout(buttons, 6, 1, 1, 1)
 
         def on_shortcut():
             inputs = self.get_coins()
@@ -1448,6 +1458,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.set_pay_from([])
         self.update_status()
         run_hook('do_clear', self)
+
+    def do_select_all_funds(self):
+        self.amount_e.setText('!')
 
     def set_frozen_state(self, addrs, freeze):
         self.wallet.set_frozen_state(addrs, freeze)
