@@ -92,6 +92,7 @@ class HistoryWidget(MyTreeWidget):
                 if i!=2:
                     item.setFont(i, QFont(MONOSPACE_FONT))
             if value < 0:
+                item.setForeground(3, QBrush(QColor("#BC1E1E")))
                 item.setForeground(4, QBrush(QColor("#BC1E1E")))
             if tx_hash:
                 item.setData(0, Qt.UserRole, tx_hash)
