@@ -235,6 +235,7 @@ class InstallWizard(QDialog, MessageBoxMixin, WizardBase):
                 self.emit(QtCore.SIGNAL('synchronized'), msg)
             self.connect(self, QtCore.SIGNAL('synchronized'), self.show_message)
             t = threading.Thread(target = task)
+            t.daemon = True
             t.start()
         else:
             msg = _("This wallet was restored offline. It may "
