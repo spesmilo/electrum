@@ -20,7 +20,8 @@
     icon: 'atlas://gui/kivy/theming/light/important'
     message: ''
     value: 0
-    amount: app.format_amount(self.value, True) if self.value is not None else '--'
+    value_known: True
+    amount: app.format_amount(self.value, True) if self.value_known else '--'
     amount_color: '#FF6657' if self.value < 0 else '#2EA442'
     confirmations: 0
     date: ''

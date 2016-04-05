@@ -164,7 +164,8 @@ class HistoryScreen(CScreen):
             ri.icon = icon
             ri.date = date_time
             ri.message = message
-            ri.value = value
+            ri.value = value if value is not None else 0
+            ri.value_known = value is not None
             ri.quote_text = quote_text
             ri.confirmations = conf
             ri.tx_hash = tx
