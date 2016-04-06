@@ -110,8 +110,10 @@ class Daemon(DaemonThread):
             self.network.start()
         self.gui = None
         self.wallets = {}
-        # Setup server
-        cmd_runner = Commands(self.config, None, self.network)
+        # Setup JSONRPC server
+        path = config.get_wallet_path()
+        default_wallet = self.load_wallet(path)
+        cmd_runner = Commands(self.config, default_wallet, self.network)
         host = config.get('rpchost', 'localhost')
         port = config.get('rpcport', 0)
         server = SimpleJSONRPCServer((host, port), logRequests=False,
