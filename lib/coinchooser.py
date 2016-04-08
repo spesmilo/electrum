@@ -60,7 +60,7 @@ class PRNG:
         return start + (r % n)
 
     def choice(self, seq):
-        return seq[self.randint(0, seq)]
+        return seq[self.randint(0, len(seq))]
 
     def shuffle(self, x):
         for i in reversed(xrange(1, len(x))):
