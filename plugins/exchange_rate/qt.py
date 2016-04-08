@@ -22,6 +22,8 @@ class Plugin(FxPlugin, QObject):
     def connect_fields(self, window, btc_e, fiat_e, fee_e):
 
         def edit_changed(edit):
+            if edit.follows:
+                return
             edit.setStyleSheet(BLACK_FG)
             fiat_e.is_last_edited = (edit == fiat_e)
             amount = edit.get_amount()
@@ -35,16 +37,23 @@ class Plugin(FxPlugin, QObject):
                     fiat_e.setText("")
             else:
                 if edit is fiat_e:
+                    btc_e.follows = True
                     btc_e.setAmount(int(amount / Decimal(rate) * COIN))
-                    if fee_e: window.update_fee()
                     btc_e.setStyleSheet(BLUE_FG)
+                    btc_e.follows = False
+                    if fee_e:
+                        window.update_fee()
                 else:
+                    fiat_e.follows = True
                     fiat_e.setText(self.ccy_amount_str(
                         amount * Decimal(rate) / COIN, False))
                     fiat_e.setStyleSheet(BLUE_FG)
+                    fiat_e.follows = False
 
-        fiat_e.textEdited.connect(partial(edit_changed, fiat_e))
-        btc_e.textEdited.connect(partial(edit_changed, btc_e))
+        btc_e.follows = False
+        fiat_e.follows = False
+        fiat_e.textChanged.connect(partial(edit_changed, fiat_e))
+        btc_e.textChanged.connect(partial(edit_changed, btc_e))
         fiat_e.is_last_edited = False
 
     @hook
