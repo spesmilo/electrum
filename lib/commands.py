@@ -616,9 +616,9 @@ class Commands:
         return True
 
     @command('wn')
-    def sync(self):
-        """ wait until wallet is synchronized """
-        return self.wallet.wait_until_synchronized()
+    def is_synchronized(self):
+        """ return wallet synchronization status """
+        return self.wallet.is_up_to_date()
 
     @command('')
     def help(self):
