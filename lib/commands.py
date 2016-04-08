@@ -615,6 +615,11 @@ class Commands:
         self.network.send([('blockchain.address.subscribe', [address])], callback)
         return True
 
+    @command('wn')
+    def sync(self):
+        """ wait until wallet is synchronized """
+        return self.wallet.wait_until_synchronized()
+
     @command('')
     def help(self):
         # for the python console
@@ -741,6 +746,7 @@ def get_parser():
     parser = argparse.ArgumentParser(
         parents=[parent_parser],
         epilog="Run 'electrum help <command>' to see the help for a command")
+    parser.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
     subparsers = parser.add_subparsers(dest='cmd', metavar='<command>')
     # gui
     parser_gui = subparsers.add_parser('gui', parents=[parent_parser], description="Run Electrum's Graphical User Interface.", help="Run GUI (default)")
