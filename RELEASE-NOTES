@@ -1,4 +1,5 @@
 # Release 2.6.4 (bugfixes)
+ * fix coinchooser bug (#1703)
  * fix daemon JSONRPC (#1731)
  * fix command-line broadcast (#1728)
  * QT: add colors to labels
