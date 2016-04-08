@@ -746,7 +746,6 @@ def get_parser():
     parser = argparse.ArgumentParser(
         parents=[parent_parser],
         epilog="Run 'electrum help <command>' to see the help for a command")
-    parser.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
     subparsers = parser.add_subparsers(dest='cmd', metavar='<command>')
     # gui
     parser_gui = subparsers.add_parser('gui', parents=[parent_parser], description="Run Electrum's Graphical User Interface.", help="Run GUI (default)")
@@ -766,6 +765,8 @@ def get_parser():
     for cmdname in sorted(known_commands.keys()):
         cmd = known_commands[cmdname]
         p = subparsers.add_parser(cmdname, parents=[parent_parser], help=cmd.help, description=cmd.description)
+        if cmdname == 'restore':
+            p.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
         #p.set_defaults(func=run_cmdline)
         if cmd.requires_password:
             p.add_argument("-W", "--password", dest="password", default=None, help="password")
