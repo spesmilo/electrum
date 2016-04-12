@@ -211,20 +211,15 @@ def read_user_config(path):
     if not path:
         return {}
     config_path = os.path.join(path, "config")
+    if not os.path.exists(config_path):
+        return {}
     try:
         with open(config_path, "r") as f:
             data = f.read()
-    except IOError:
-        print_msg("Error: Cannot read config file.", path)
-        return {}
-    try:
         result = json.loads(data)
     except:
-        try:
-            result = ast.literal_eval(data)
-        except:
-            print_msg("Error: Cannot read config file.")
-            return {}
+        print_msg("Warning: Cannot read config file.", config_path)
+        return {}
     if not type(result) is dict:
         return {}
     return result
