@@ -106,9 +106,7 @@ class Mnemonic(object):
     # Seed derivation no longer follows BIP39
     # Mnemonic phrase uses a hash based checksum, instead of a wordlist-dependent checksum
 
-    def __init__(self, lang=None):
-        if lang in [None, '']:
-            lang = i18n.language.info().get('language', 'en')
+    def __init__(self, lang='en'):
         print_error('language', lang)
         filename = filenames.get(lang[0:2], 'english.txt')
         path = os.path.join(os.path.dirname(__file__), 'wordlist', filename)
