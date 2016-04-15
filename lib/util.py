@@ -349,6 +349,8 @@ block_explorer_info = {
                         {'tx': 'tx/info', 'addr': 'address/info'}),
     'SoChain': ('https://chain.so',
                         {'tx': 'tx/LTC', 'addr': 'address/LTC'}),
+    'system default': ('blockchain:',
+                        {'tx': 'tx', 'addr': 'address'}),
 }
 
 def block_explorer(config):

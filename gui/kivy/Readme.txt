@@ -21,6 +21,3 @@ To use internal storage, python-for-android must be patched with:
   git pull git@github.com:denys-duchier/python-for-android.git fix-recursive-delete
 
 
-To fix the clipboard, pyjnius uses the handle_charsequence branch:
-
-   export P4A_pyjnius_DIR=local_clone

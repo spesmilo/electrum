@@ -25,7 +25,6 @@
 
 from collections import defaultdict, namedtuple
 from math import floor, log10
-import struct
 
 from bitcoin import sha256, COIN, TYPE_ADDRESS
 from transaction import Transaction
@@ -50,22 +49,23 @@ class PRNG:
         result, self.pool = self.pool[:n], self.pool[n:]
         return result
 
-    def random(self):
-        # Returns random double in [0, 1)
-        four = self.get_bytes(4)
-        return struct.unpack("I", four)[0] / 4294967296.0
-
     def randint(self, start, end):
         # Returns random integer in [start, end)
-        return start + int(self.random() * (end - start))
+        n = end - start
+        r = 0
+        p = 1
+        while p < n:
+            r = self.get_bytes(1)[0] + (r << 8)
+            p = p << 8
+        return start + (r % n)
 
     def choice(self, seq):
-        return seq[int(self.random() * len(seq))]
+        return seq[self.randint(0, len(seq))]
 
     def shuffle(self, x):
         for i in reversed(xrange(1, len(x))):
             # pick an element in x[:i+1] with which to exchange x[i]
-            j = int(self.random() * (i+1))
+            j = self.randint(0, i+1)
             x[i], x[j] = x[j], x[i]
 
 

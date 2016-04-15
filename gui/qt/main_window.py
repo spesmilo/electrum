@@ -2407,7 +2407,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
     def do_import_labels(self):
-        labelsFile = self.getOpenFileName(_("Open labels file"), "*.dat")
+        labelsFile = self.getOpenFileName(_("Open labels file"), "*.json")
         if not labelsFile: return
         try:
             f = open(labelsFile, 'r')
@@ -2423,10 +2423,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def do_export_labels(self):
         labels = self.wallet.labels
         try:
-            fileName = self.getSaveFileName(_("Select file to save your labels"), 'electrum-ltc_labels.dat', "*.dat")
+            fileName = self.getSaveFileName(_("Select file to save your labels"), 'electrum-ltc_labels.json', "*.json")
             if fileName:
                 with open(fileName, 'w+') as f:
-                    json.dump(labels, f)
+                    json.dump(labels, f, indent=4, sort_keys=True)
                 self.show_message(_("Your labels where exported to") + " '%s'" % str(fileName))
         except (IOError, os.error), reason:
             self.show_critical(_("Electrum was unable to export your labels.") + "\n" + str(reason))

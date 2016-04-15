@@ -110,8 +110,10 @@ class Daemon(DaemonThread):
             self.network.start()
         self.gui = None
         self.wallets = {}
-        # Setup server
-        cmd_runner = Commands(self.config, None, self.network)
+        # Setup JSONRPC server
+        path = config.get_wallet_path()
+        default_wallet = self.load_wallet(path)
+        cmd_runner = Commands(self.config, default_wallet, self.network)
         host = config.get('rpchost', 'localhost')
         port = config.get('rpcport', 0)
         server = SimpleJSONRPCServer((host, port), logRequests=False,
@@ -174,19 +176,17 @@ class Daemon(DaemonThread):
             wallet = self.wallets[path]
         else:
             storage = WalletStorage(path)
-            if get_wizard:
-                if storage.file_exists:
-                    wallet = Wallet(storage)
-                    action = wallet.get_action()
-                else:
-                    action = 'new'
-                if action:
-                    wizard = get_wizard()
-                    wallet = wizard.run(self.network, storage)
-                else:
-                    wallet.start_threads(self.network)
-            else:
+            if storage.file_exists:
                 wallet = Wallet(storage)
+                action = wallet.get_action()
+            else:
+                action = 'new'
+            if action:
+                if get_wizard is None:
+                    return None
+                wizard = get_wizard()
+                wallet = wizard.run(self.network, storage)
+            else:
                 wallet.start_threads(self.network)
             if wallet:
                 self.wallets[path] = wallet

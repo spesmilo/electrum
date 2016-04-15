@@ -1,3 +1,9 @@
+# Release 2.6.4 (bugfixes)
+ * fix coinchooser bug (#1703)
+ * fix daemon JSONRPC (#1731)
+ * fix command-line broadcast (#1728)
+ * QT: add colors to labels
+
 # Release 2.6.3 (bugfixes)
  * fix command line parsing of transactions
  * fix signtransaction --privkey (#1715)
