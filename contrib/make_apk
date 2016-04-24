@@ -1,1 +1,6 @@
+pushd contrib
+VERSION=$(python -c "import versions; print versions.version_apk")
+popd
+echo $VERSION
+echo $VERSION > contrib/apk_version
 pushd ./gui/kivy/; make apk; popd
