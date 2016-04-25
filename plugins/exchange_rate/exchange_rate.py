@@ -172,11 +172,6 @@ class BTCChina(ExchangeBase):
         json = self.get_json('data.btcchina.com', '/data/ticker')
         return {'CNY': Decimal(json['ticker']['last'])}
 
-class CaVirtEx(ExchangeBase):
-    def get_rates(self, ccy):
-        json = self.get_json('www.cavirtex.com', '/api/CAD/ticker.json')
-        return {'CAD': Decimal(json['last'])}
-
 class Coinbase(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('coinbase.com',
