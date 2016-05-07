@@ -146,7 +146,11 @@ class PasswordLayout(object):
         return None
 
     def new_password(self):
-        return unicode(self.new_pw.text()) or None
+        pw = unicode(self.new_pw.text())
+        # Empty passphrases are fine and returned empty.
+        if pw == "" and self.kind != PW_PASSPHRASE:
+            pw = None
+        return pw
 
 
 class PasswordDialog(WindowModalDialog):
