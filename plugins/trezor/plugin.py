@@ -2,7 +2,7 @@ import base64
 import re
 import threading
 
-from binascii import unhexlify
+from binascii import hexlify, unhexlify
 from functools import partial
 
 from electrum_ltc.account import BIP32_Account
@@ -98,18 +98,33 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         if self.libraries_available:
             self.device_manager().register_devices(self.DEVICE_IDS)
 
-    def create_client(self, device, handler):
+    def _try_hid(self, device):
+        self.print_error("Trying to connect over USB...")
         if device.interface_number == 1:
             pair = [None, device.path]
         else:
             pair = [device.path, None]
 
         try:
-            transport = self.HidTransport(pair)
+            return self.HidTransport(pair)
         except BaseException as e:
-            # We were probably just disconnected; never mind
             self.print_error("cannot connect at", device.path, str(e))
             return None
+ 
+    def _try_bridge(self, device):
+        self.print_error("Trying to connect over Trezor Bridge...")
+        try:
+            return self.BridgeTransport({'path': hexlify(device.path)})
+        except BaseException as e:
+            self.print_error("cannot connect to bridge", str(e))
+            return None
+
+    def create_client(self, device, handler):
+        transport = self._try_bridge(device) or self._try_hid(device)
+        if not transport:
+            self.print_error("cannot connect to device")
+            return
+
         self.print_error("connected to device at", device.path)
 
         client = self.client_class(transport, handler, self)

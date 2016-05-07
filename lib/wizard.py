@@ -98,9 +98,9 @@ class WizardBase(PrintError):
         True on success."""
         raise NotImplementedError
 
-    def request_passphrase(self, device_text, restore=True):
-        """Request a passphrase for a wallet from the given device and
-        confirm it.  restore is True if restoring a wallet.  Should return
+    def request_passphrase(self, device_text):
+        """When restoring a wallet, request the passphrase that was used for
+        the wallet on the given device and confirm it.  Should return
         a unicode string."""
         raise NotImplementedError
 

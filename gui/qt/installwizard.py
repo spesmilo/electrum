@@ -208,13 +208,15 @@ class InstallWizard(QDialog, MessageBoxMixin, WizardBase):
         self.set_main_layout(playout.layout())
         return playout.new_password()
 
-    def request_passphrase(self, device_text, restore=True):
-        """Request a passphrase for a wallet from the given device and
-        confirm it.  restore is True if restoring a wallet.  Should return
+    def request_passphrase(self, device_text):
+        """When restoring a wallet, request the passphrase that was used for
+        the wallet on the given device and confirm it.  Should return
         a unicode string."""
-        if restore:
-            msg = MSG_RESTORE_PASSPHRASE % device_text
-        return unicode(self.pw_layout(msg, PW_PASSPHRASE) or '')
+        phrase = self.pw_layout(MSG_RESTORE_PASSPHRASE % device_text,
+                                PW_PASSPHRASE)
+        if phrase is None:
+            raise UserCancelled
+        return phrase
 
     def request_password(self, msg=None):
         """Request the user enter a new password and confirm it.  Return
