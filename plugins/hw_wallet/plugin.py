@@ -62,7 +62,7 @@ class HW_PluginBase(BasePlugin):
         wallet.storage.put('wallet_type', wallet_class.wallet_type)
         wallet = wallet_class(wallet.storage)
 
-        passphrase = wizard.request_passphrase(self.device, restore=True)
+        passphrase = wizard.request_passphrase(self.device)
         password = wizard.request_password()
         wallet.add_seed(seed, password)
         wallet.add_xprv_from_seed(seed, 'x/', password, passphrase)
