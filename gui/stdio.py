@@ -31,10 +31,10 @@ class ElectrumGui:
         self.str_fee = ""
 
         self.wallet = Wallet(storage)
-        self.wallet.start_threads(network)
+        self.wallet.start_threads(self.network)
         self.contacts = StoreDict(self.config, 'contacts')
 
-        network.register_callback(self.on_network, ['updated', 'banner'])
+        self.network.register_callback(self.on_network, ['updated', 'banner'])
         self.commands = [_("[h] - displays this help text"), \
                          _("[i] - display transaction history"), \
                          _("[o] - enter payment order"), \
