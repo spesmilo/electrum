@@ -671,7 +671,7 @@ class Transaction:
         script = self.input_script(txin, i, for_sig)
         s += var_int(len(script)/2)
         s += script
-        s += "ffffffff"
+        s += int_to_hex(txin.get('sequence', 0xffffffff), 4)
         return s
 
     def BIP_LI01_sort(self):
