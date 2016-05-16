@@ -192,25 +192,35 @@ class Commands:
         r = self.network.synchronous_get(('blockchain.utxo.get_address', [txid, pos]))
         return {'address': r}
 
-    @command('wp')
-    def createrawtx(self, inputs, outputs, unsigned=False):
-        """Create a transaction from json inputs. The syntax is similar to bitcoind."""
-        coins = self.wallet.get_spendable_coins(exclude_frozen = False)
-        tx_inputs = []
-        for i in inputs:
-            prevout_hash = i['txid']
-            prevout_n = i['vout']
-            for c in coins:
-                if c['prevout_hash'] == prevout_hash and c['prevout_n'] == prevout_n:
-                    self.wallet.add_input_info(c)
-                    tx_inputs.append(c)
-                    break
+    @command('')
+    def createrawtx(self, inputs, outputs):
+        """Create a transaction from json inputs. Inputs must have a redeemPubkey. Outputs must be a list of (address, value).
+        """
+        keypairs = {}
+        for txin in inputs:
+            if txin.get('output'):
+                prevout_hash, prevout_n = txin['output'].split(':')
+                txin['prevout_n'] = int(prevout_n)
+                txin['prevout_hash'] = prevout_hash
             else:
-                raise BaseException('Transaction output not in wallet', prevout_hash+":%d"%prevout_n)
-        outputs = map(lambda x: (TYPE_ADDRESS, x[0], int(COIN*x[1])), outputs.items())
-        tx = Transaction.from_io(tx_inputs, outputs)
-        if not unsigned:
-            self.wallet.sign_transaction(tx, self._password)
+                raise BaseException('Output point missing', txin)
+            if txin.get('redeemPubkey'):
+                pubkey = txin['redeemPubkey']
+                txin['pubkeys'] = [pubkey]
+                txin['x_pubkeys'] = [pubkey]
+                txin['signatures'] = [None]
+                txin['num_sig'] = 1
+                privkey = txin.get('privkey')
+                if privkey:
+                    keypairs[pubkey] = privkey
+            elif txin.get('redeemScript'):
+                raise BaseException('Not implemented')
+            else:
+                raise BaseException('No redeem script')
+
+        outputs = map(lambda x: (TYPE_ADDRESS, x[0], int(COIN*Decimal(x[1]))), outputs)
+        tx = Transaction.from_io(inputs, outputs)
+        tx.sign(keypairs)
         return tx.as_dict()
 
     @command('wp')

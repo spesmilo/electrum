@@ -184,10 +184,6 @@ def init_cmdline(config_options):
     if cmdname in ['payto', 'paytomany'] and config.get('broadcast'):
         cmd.requires_network = True
 
-    if cmdname in ['createrawtx'] and config.get('unsigned'):
-        cmd.requires_password = False
-        cmd.requires_wallet = False
-
     # instanciate wallet for command-line
     storage = WalletStorage(config.get_wallet_path())
 
