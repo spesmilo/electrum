@@ -489,6 +489,7 @@ class Transaction:
             raise BaseException("cannot initialize transaction", raw)
         self._inputs = None
         self._outputs = None
+        self.locktime = 0
 
     def update(self, raw):
         self.raw = raw
@@ -693,7 +694,7 @@ class Transaction:
             script = self.pay_script(output_type, addr)
             s += var_int(len(script)/2)                              #  script length
             s += script                                              #  script
-        s += int_to_hex(0, 4)                                        #  lock time
+        s += int_to_hex(self.locktime, 4)                            #  locktime
         if for_sig is not None and for_sig != -1:
             s += int_to_hex(1, 4)                                    #  hash type
         return s
@@ -833,7 +834,8 @@ class Transaction:
         self.deserialize()
         out = {
             'hex': self.raw,
-            'complete': self.is_complete()
+            'complete': self.is_complete(),
+            'final': self.is_final(),
         }
         return out
 
