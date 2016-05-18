@@ -193,10 +193,13 @@ class Commands:
         return {'address': r}
 
     @command('')
-    def createrawtx(self, inputs, outputs):
+    def serialize(self, jsontx):
         """Create a transaction from json inputs. Inputs must have a redeemPubkey. Outputs must be a list of (address, value).
         """
         keypairs = {}
+        inputs = jsontx.get('inputs')
+        outputs = jsontx.get('outputs')
+        locktime = jsontx.get('locktime', 0)
         for txin in inputs:
             if txin.get('output'):
                 prevout_hash, prevout_n = txin['output'].split(':')
@@ -219,7 +222,7 @@ class Commands:
                 raise BaseException('No redeem script')
 
         outputs = map(lambda x: (TYPE_ADDRESS, x[0], int(COIN*Decimal(x[1]))), outputs)
-        tx = Transaction.from_io(inputs, outputs)
+        tx = Transaction.from_io(inputs, outputs, locktime=locktime)
         tx.sign(keypairs)
         return tx.as_dict()
 
@@ -693,6 +696,7 @@ arg_types = {
     'entropy': long,
     'tx': tx_from_str,
     'pubkeys': json_loads,
+    'jsontx': json_loads,
     'inputs': json_loads,
     'outputs': json_loads,
     'tx_fee': lambda x: str(Decimal(x)) if x is not None else None,
