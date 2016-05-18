@@ -285,8 +285,7 @@ class InstallWizard(QDialog, MessageBoxMixin, WizardBase):
         vbox = QVBoxLayout()
         vbox.addLayout(actions_clayout.layout())
         vbox.addLayout(wallet_clayout.layout())
-        self.set_main_layout(vbox)
-        self.next_button.setEnabled(len(choices) != 0)
+        self.set_main_layout(vbox, next_enabled=len(choices) != 0)
 
         if actions_clayout.selected_index() == 2:
             action = 'restore'
