@@ -909,9 +909,15 @@ class Abstract_Wallet(PrintError):
 
     def fee_per_kb(self, config):
         b = config.get('dynamic_fees')
-        f = config.get('fee_factor', 50)
         F = config.get('fee_per_kb', bitcoin.RECOMMENDED_FEE)
-        return min(10*bitcoin.RECOMMENDED_FEE, self.network.fee*(50 + f)/100) if b and self.network and self.network.fee else F
+        if b and self.network and self.network.fee:
+            i = config.get('fee_level', 2)
+            fee = self.network.fee*(i+1)/3
+            fee = max(fee, self.relayfee())
+            fee = min(10*bitcoin.RECOMMENDED_FEE, fee)
+            return fee
+        else:
+            return F
 
     def relayfee(self):
         RELAY_FEE = 5000

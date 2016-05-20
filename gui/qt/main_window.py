@@ -1008,9 +1008,33 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
               + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
               + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')
         self.fee_e_label = HelpLabel(_('Fee'), msg)
+
+        self.fee_slider = QSlider(Qt.Horizontal, self)
+        self.fee_slider.setRange(0, 4)
+        self.fee_slider.setTickInterval(1)
+        self.fee_slider.setTickPosition(QSlider.TicksBelow)
+        self.fee_slider.setToolTip(_(''))
+        self.fee_description = QLabel('')
+        def slider_moved():
+            i = self.fee_slider.sliderPosition()
+            self.fee_description.setText(['slow','','medium','','fast'][i])
+        def slider_released():
+            self.config.set_key('fee_level', self.fee_slider.sliderPosition(), False)
+            self.update_fee()
+        self.fee_slider.valueChanged.connect(slider_moved)
+        self.fee_slider.sliderReleased.connect(slider_released)
+        self.fee_slider.setValue(self.config.get('fee_level', 2))
+
         self.fee_e = BTCAmountEdit(self.get_decimal_point)
+        self.fee_e.textEdited.connect(self.update_fee)
+        # This is so that when the user blanks the fee and moves on,
+        # we go back to auto-calculate mode and put a fee back.
+        self.fee_e.editingFinished.connect(self.update_fee)
+
         grid.addWidget(self.fee_e_label, 5, 0)
         grid.addWidget(self.fee_e, 5, 1)
+        grid.addWidget(self.fee_slider, 5, 1)
+        grid.addWidget(self.fee_description, 5, 2)
 
         self.send_button = EnterButton(_("Send"), self.do_send)
         self.clear_button = EnterButton(_("Clear"), self.do_clear)
@@ -1036,10 +1060,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.amount_e.shortcut.connect(on_shortcut)
         self.payto_e.textChanged.connect(self.update_fee)
         self.amount_e.textEdited.connect(self.update_fee)
-        self.fee_e.textEdited.connect(self.update_fee)
-        # This is so that when the user blanks the fee and moves on,
-        # we go back to auto-calculate mode and put a fee back.
-        self.fee_e.editingFinished.connect(self.update_fee)
 
         def entry_changed():
             text = ""
@@ -1123,9 +1143,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.fee_e.setAmount(fee)
 
     def update_fee_edit(self):
-        b = self.config.get('can_edit_fees', False)
-        self.fee_e.setVisible(b)
-        self.fee_e_label.setVisible(b)
+        b = self.config.get('dynamic_fees', True)
+        self.fee_slider.setVisible(b)
+        self.fee_description.setVisible(b)
+        self.fee_e.setVisible(not b)
 
     def from_list_delete(self, item):
         i = self.from_list.indexOfTopLevelItem(item)
@@ -2625,9 +2646,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         nz.valueChanged.connect(on_nz)
         gui_widgets.append((nz_label, nz))
 
-        msg = '\n'.join([
-            _('Fee per kilobyte of transaction.')
-        ])
+        msg = _('Fee per kilobyte of transaction.')
         fee_label = HelpLabel(_('Transaction fee per kb') + ':', msg)
         fee_e = BTCkBEdit(self.get_decimal_point)
         def on_fee(is_done):
@@ -2640,41 +2659,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fee_e.textEdited.connect(lambda: on_fee(False))
         fee_widgets.append((fee_label, fee_e))
 
-        dynfee_cb = QCheckBox(_('Dynamic fees'))
-        dynfee_cb.setChecked(self.config.get('dynamic_fees', False))
+        dynfee_cb = QCheckBox(_('Use dynamic fees'))
+        dynfee_cb.setChecked(self.config.get('dynamic_fees', True))
         dynfee_cb.setToolTip(_("Use a fee per kB value recommended by the server."))
-        dynfee_sl = QSlider(Qt.Horizontal, self)
-        # The pref is from 0 to 100; add 50 to get the factor from 50% to 150%
-        dynfee_sl.setRange(0, 100)
-        dynfee_sl.setTickInterval(10)
-        dynfee_sl.setTickPosition(QSlider.TicksBelow)
-        dynfee_sl.setValue(self.config.get('fee_factor', 50))
-        dynfee_sl.setToolTip("Min = 50%, Max = 150%")
-        multiplier_label = HelpLabel("", _("Multiply the recommended fee/kb value by a constant factor. Min = 50%, Max = 150%"))
-        fee_widgets.append((dynfee_cb, dynfee_sl))
-        fee_widgets.append((None, multiplier_label))
-
+        fee_widgets.append((dynfee_cb, None))
         def update_feeperkb():
             fee_e.setAmount(self.wallet.fee_per_kb(self.config))
             b = self.config.get('dynamic_fees', False)
-            dynfee_sl.setEnabled(b)
-            multiplier_label.setEnabled(b)
             fee_e.setEnabled(not b)
-        def slider_moved():
-            multiplier_label.setText(_('Fee multiplier: %3d%%')
-                                     % (dynfee_sl.sliderPosition() + 50))
-        def slider_released():
-            self.config.set_key('fee_factor', dynfee_sl.sliderPosition(), False)
-            update_feeperkb()
         def on_dynfee(x):
             dynfee = x == Qt.Checked
             self.config.set_key('dynamic_fees', dynfee)
             update_feeperkb()
+            self.update_fee_edit()
         dynfee_cb.stateChanged.connect(on_dynfee)
-        dynfee_sl.valueChanged.connect(slider_moved)
-        dynfee_sl.sliderReleased.connect(slider_released)
         update_feeperkb()
-        slider_moved()
+        #slider_moved()
 
         msg = _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n'\
               + _('The following alias providers are available:') + '\n'\
@@ -2835,14 +2835,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         showtx_cb.setToolTip(_('Display the details of your transactions before signing it.'))
         tx_widgets.append((showtx_cb, None))
 
-        can_edit_fees_cb = QCheckBox(_('Set transaction fees manually'))
-        can_edit_fees_cb.setChecked(self.config.get('can_edit_fees', False))
-        def on_editfees(x):
-            self.config.set_key('can_edit_fees', x == Qt.Checked)
-            self.update_fee_edit()
-        can_edit_fees_cb.stateChanged.connect(on_editfees)
-        can_edit_fees_cb.setToolTip(_('This option lets you edit fees in the send tab.'))
-        fee_widgets.append((can_edit_fees_cb, None))
 
         def fmt_docs(key, klass):
             lines = [ln.lstrip(" ") for ln in klass.__doc__.split("\n")]
