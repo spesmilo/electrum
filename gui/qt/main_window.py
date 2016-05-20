@@ -174,6 +174,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             # set initial message
             self.console.showMessage(self.network.banner)
 
+        self.is_max = False
         self.payment_request = None
         self.checking_accounts = False
         self.qr_window = None
@@ -1004,6 +1005,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.addWidget(amount_label, 4, 0)
         grid.addWidget(self.amount_e, 4, 1)
 
+        max_button = EnterButton(_("Max"), self.spend_max)
+        hbox = QHBoxLayout()
+        hbox.addWidget(max_button)
+        hbox.addStretch(1)
+        grid.addLayout(hbox, 4, 3)
+
         msg = _('Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
               + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
               + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')
@@ -1011,8 +1018,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.fee_slider = QSlider(Qt.Horizontal, self)
         self.fee_slider.setRange(0, 4)
-        self.fee_slider.setTickInterval(1)
-        self.fee_slider.setTickPosition(QSlider.TicksBelow)
         self.fee_slider.setToolTip(_(''))
         self.fee_description = QLabel('')
         def slider_moved():
@@ -1020,7 +1025,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.fee_description.setText(['slow','','medium','','fast'][i])
         def slider_released():
             self.config.set_key('fee_level', self.fee_slider.sliderPosition(), False)
-            self.update_fee()
+            if self.is_max:
+                self.spend_max()
+            else:
+                self.update_fee()
+
         self.fee_slider.valueChanged.connect(slider_moved)
         self.fee_slider.sliderReleased.connect(slider_released)
         self.fee_slider.setValue(self.config.get('fee_level', 2))
@@ -1044,20 +1053,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         buttons.addWidget(self.clear_button)
         grid.addLayout(buttons, 6, 1, 1, 2)
 
-        def on_shortcut():
-            inputs = self.get_coins()
-            sendable = sum(map(lambda x:x['value'], inputs))
-            fee = self.fee_e.get_amount() if self.fee_e.isModified() else None
-            addr = self.get_payto_or_dummy()
-            amount, fee = self.wallet.get_max_amount(self.config, inputs, addr, fee)
-            if not self.fee_e.isModified():
-                self.fee_e.setAmount(fee)
-            self.amount_e.setAmount(amount)
-            self.not_enough_funds = (fee + amount > sendable)
-            # emit signal for fiat_amount update
-            self.amount_e.textEdited.emit("")
-
-        self.amount_e.shortcut.connect(on_shortcut)
+        self.amount_e.shortcut.connect(self.spend_max)
         self.payto_e.textChanged.connect(self.update_fee)
         self.amount_e.textEdited.connect(self.update_fee)
 
@@ -1109,6 +1105,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         run_hook('create_send_tab', grid)
         return w
+
+
+    def spend_max(self):
+        inputs = self.get_coins()
+        sendable = sum(map(lambda x:x['value'], inputs))
+        fee = self.fee_e.get_amount() if self.fee_e.isModified() else None
+        addr = self.get_payto_or_dummy()
+        amount, fee = self.wallet.get_max_amount(self.config, inputs, addr, fee)
+        if not self.fee_e.isModified():
+            self.fee_e.setAmount(fee)
+        self.amount_e.setAmount(amount)
+        self.not_enough_funds = (fee + amount > sendable)
+        # emit signal for fiat_amount update
+        self.amount_e.textEdited.emit("")
+        self.is_max = True
+
 
     def update_fee(self):
         self.require_fee_update = True
@@ -1460,6 +1472,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
     def do_clear(self):
+        self.is_max = False
         self.not_enough_funds = False
         self.payment_request = None
         self.payto_e.is_pr = False
