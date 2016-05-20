@@ -2785,6 +2785,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         qr_combo.currentIndexChanged.connect(on_video_device)
         gui_widgets.append((qr_label, qr_combo))
 
+        rbf_cb = QCheckBox(_('Enable Replace-By-Fee'))
+        rbf_cb.setChecked(self.wallet.use_rbf)
+        if not self.config.is_modifiable('use_rbf'):
+            rbf_cb.setEnabled(False)
+        def on_rbf(x):
+            rbf_result = x == Qt.Checked
+            if self.wallet.use_rbf != rbf_result:
+                self.wallet.use_rbf = rbf_result
+                self.wallet.storage.put('use_rbf', self.wallet.use_rbf)
+        rbf_cb.stateChanged.connect(on_rbf)
+        rbf_cb.setToolTip(_('Enable RBF'))
+        tx_widgets.append((rbf_cb, None))
+
         usechange_cb = QCheckBox(_('Use change addresses'))
         usechange_cb.setChecked(self.wallet.use_change)
         if not self.config.is_modifiable('use_change'): usechange_cb.setEnabled(False)
@@ -2796,6 +2809,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 multiple_cb.setEnabled(self.wallet.use_change)
         usechange_cb.stateChanged.connect(on_usechange)
         usechange_cb.setToolTip(_('Using change addresses makes it more difficult for other people to track your transactions.'))
+        tx_widgets.append((usechange_cb, None))
 
         def on_multiple(x):
             multiple = x == Qt.Checked
@@ -2812,7 +2826,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         ]))
         multiple_cb.setChecked(multiple_change)
         multiple_cb.stateChanged.connect(on_multiple)
-        tx_widgets.append((usechange_cb, None))
         tx_widgets.append((multiple_cb, None))
 
         showtx_cb = QCheckBox(_('View transaction before signing'))
@@ -2973,20 +2986,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def show_account_details(self, k):
         account = self.wallet.accounts[k]
-
         d = WindowModalDialog(self, _('Account Details'))
-
         vbox = QVBoxLayout(d)
         name = self.wallet.get_account_name(k)
         label = QLabel('Name: ' + name)
         vbox.addWidget(label)
-
         vbox.addWidget(QLabel(_('Address type') + ': ' + account.get_type()))
-
         vbox.addWidget(QLabel(_('Derivation') + ': ' + k))
-
         vbox.addWidget(QLabel(_('Master Public Key:')))
-
         text = QTextEdit()
         text.setReadOnly(True)
         text.setMaximumHeight(170)
@@ -2995,3 +3002,28 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         text.setText(mpk_text)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
+
+    def bump_fee_dialog(self, tx):
+        is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
+        fee = -fee
+        d = WindowModalDialog(self, _('Bump Fee'))
+        vbox = QVBoxLayout(d)
+        vbox.addWidget(QLabel(_('Current fee') + ': %s'% self.format_amount(fee) + ' ' + self.base_unit()))
+        vbox.addWidget(QLabel(_('New Fee') + ': '))
+        e = BTCAmountEdit(self.get_decimal_point)
+        e.setAmount(fee + self.wallet.relayfee())
+        vbox.addWidget(e)
+        vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
+        if not d.exec_():
+            return
+        new_fee = e.get_amount()
+        delta = new_fee - fee
+        if delta < 0:
+            self.show_error("fee too low")
+            return
+        try:
+            new_tx = self.wallet.bump_fee(tx, delta)
+        except BaseException as e:
+            self.show_error(e)
+            return
+        self.show_transaction(new_tx)
