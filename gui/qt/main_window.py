@@ -2582,6 +2582,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox = QVBoxLayout()
         tabs = QTabWidget()
         gui_widgets = []
+        fee_widgets = []
         tx_widgets = []
         id_widgets = []
 
@@ -2637,7 +2638,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.update_fee()
         fee_e.editingFinished.connect(lambda: on_fee(True))
         fee_e.textEdited.connect(lambda: on_fee(False))
-        tx_widgets.append((fee_label, fee_e))
+        fee_widgets.append((fee_label, fee_e))
 
         dynfee_cb = QCheckBox(_('Dynamic fees'))
         dynfee_cb.setChecked(self.config.get('dynamic_fees', False))
@@ -2650,8 +2651,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         dynfee_sl.setValue(self.config.get('fee_factor', 50))
         dynfee_sl.setToolTip("Min = 50%, Max = 150%")
         multiplier_label = HelpLabel("", _("Multiply the recommended fee/kb value by a constant factor. Min = 50%, Max = 150%"))
-        tx_widgets.append((dynfee_cb, dynfee_sl))
-        tx_widgets.append((None, multiplier_label))
+        fee_widgets.append((dynfee_cb, dynfee_sl))
+        fee_widgets.append((None, multiplier_label))
 
         def update_feeperkb():
             fee_e.setAmount(self.wallet.fee_per_kb(self.config))
@@ -2796,7 +2797,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.wallet.storage.put('use_rbf', self.wallet.use_rbf)
         rbf_cb.stateChanged.connect(on_rbf)
         rbf_cb.setToolTip(_('Enable RBF'))
-        tx_widgets.append((rbf_cb, None))
+        fee_widgets.append((rbf_cb, None))
 
         usechange_cb = QCheckBox(_('Use change addresses'))
         usechange_cb.setChecked(self.wallet.use_change)
@@ -2841,7 +2842,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.update_fee_edit()
         can_edit_fees_cb.stateChanged.connect(on_editfees)
         can_edit_fees_cb.setToolTip(_('This option lets you edit fees in the send tab.'))
-        tx_widgets.append((can_edit_fees_cb, None))
+        fee_widgets.append((can_edit_fees_cb, None))
 
         def fmt_docs(key, klass):
             lines = [ln.lstrip(" ") for ln in klass.__doc__.split("\n")]
@@ -2863,6 +2864,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tx_widgets.append((chooser_label, chooser_combo))
 
         tabs_info = [
+            (fee_widgets, _('Fees')),
             (tx_widgets, _('Transactions')),
             (gui_widgets, _('Appearance')),
             (id_widgets, _('Identity')),
