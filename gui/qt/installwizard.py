@@ -260,7 +260,7 @@ class InstallWizard(QDialog, MessageBoxMixin, WizardBase):
         'restore', and kind the index of the wallet kind chosen."""
 
         actions = [_("Create a new wallet"),
-                   _("Restore a wallet or import keys")]
+                   _("Restore a wallet from seed words or from keys")]
         title = _("Electrum could not find an existing wallet.")
         actions_clayout = ChoicesLayout(_("What do you want to do?"), actions)
         wallet_clayout = ChoicesLayout(_("Wallet kind:"), wallet_kinds)
@@ -273,25 +273,15 @@ class InstallWizard(QDialog, MessageBoxMixin, WizardBase):
         action = ['create', 'restore'][actions_clayout.selected_index()]
         return action, wallet_clayout.selected_index()
 
-    def query_hw_wallet_choice(self, msg, action, choices):
-        actions = [_("Initialize a new or wiped device"),
-                   _("Use a device you have already set up"),
-                   _("Restore Electrum wallet from device seed words")]
-        default_action = 1 if action == 'create' else 2
-        actions_clayout = ChoicesLayout(_("What do you want to do?"), actions,
-                                        checked_index=default_action)
-        wallet_clayout = ChoicesLayout(msg, choices)
-
+    def query_hw_wallet_choice(self, msg, choices):
         vbox = QVBoxLayout()
-        vbox.addLayout(actions_clayout.layout())
-        vbox.addLayout(wallet_clayout.layout())
-        self.set_main_layout(vbox, next_enabled=len(choices) != 0)
-
-        if actions_clayout.selected_index() == 2:
-            action = 'restore'
+        if choices:
+            wallet_clayout = ChoicesLayout(msg, choices)
+            vbox.addLayout(wallet_clayout.layout())
         else:
-            action = 'create'
-        return action, wallet_clayout.selected_index()
+            vbox.addWidget(QLabel(msg, wordWrap=True))
+        self.set_main_layout(vbox, next_enabled=len(choices) != 0)
+        return wallet_clayout.selected_index() if choices else 0
 
     def request_many(self, n, xpub_hot=None):
         vbox = QVBoxLayout()
