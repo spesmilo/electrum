@@ -172,14 +172,16 @@ class Abstract_Wallet(PrintError):
         self.gap_limit_for_change = 6 # constant
         # saved fields
         self.seed_version          = storage.get('seed_version', NEW_SEED_VERSION)
-        self.use_change            = storage.get('use_change',True)
+        self.use_change            = storage.get('use_change', True)
         self.multiple_change       = storage.get('multiple_change', False)
         self.use_encryption        = storage.get('use_encryption', False)
+        self.use_rbf               = storage.get('use_rbf', False)
         self.seed                  = storage.get('seed', '')               # encrypted
         self.labels                = storage.get('labels', {})
         self.frozen_addresses      = set(storage.get('frozen_addresses',[]))
         self.stored_height         = storage.get('stored_height', 0)       # last known height (for offline mode)
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
+
 
         # imported_keys is deprecated. The GUI should call convert_imported_keys
         self.imported_keys = self.storage.get('imported_keys',{})
@@ -907,9 +909,15 @@ class Abstract_Wallet(PrintError):
 
     def fee_per_kb(self, config):
         b = config.get('dynamic_fees')
-        f = config.get('fee_factor', 50)
         F = config.get('fee_per_kb', bitcoin.RECOMMENDED_FEE)
-        return min(bitcoin.RECOMMENDED_FEE, self.network.fee*(50 + f)/100) if b and self.network and self.network.fee else F
+        if b and self.network and self.network.fee:
+            i = config.get('fee_level', 2)
+            fee = self.network.fee*(i+1)/3
+            fee = max(fee, self.relayfee())
+            fee = min(10*bitcoin.RECOMMENDED_FEE, fee)
+            return fee
+        else:
+            return F
 
     def relayfee(self):
         RELAY_FEE = bitcoin.MIN_RELAY_TX_FEE
@@ -991,6 +999,7 @@ class Abstract_Wallet(PrintError):
 
     def add_input_info(self, txin):
         address = txin['address']
+        txin['sequence'] = 0 if self.use_rbf else 0xffffffff
         account_id, sequence = self.get_address_index(address)
         account = self.accounts[account_id]
         redeemScript = account.redeem_script(*sequence)
@@ -1001,7 +1010,6 @@ class Abstract_Wallet(PrintError):
         txin['pubkeys'] = list(pubkeys)
         txin['x_pubkeys'] = list(x_pubkeys)
         txin['signatures'] = [None] * len(pubkeys)
-
         if redeemScript:
             txin['redeemScript'] = redeemScript
             txin['num_sig'] = account.m
@@ -1178,6 +1186,23 @@ class Abstract_Wallet(PrintError):
             if tx_age > age:
                 age = tx_age
         return age > age_limit
+
+    def bump_fee(self, tx, delta):
+        if tx.is_final():
+            raise BaseException("cannot bump fee: transaction is final")
+        inputs = copy.deepcopy(tx.inputs())
+        outputs = copy.deepcopy(tx.outputs())
+        for txin in inputs:
+            txin['signatures'] = [None] * len(txin['signatures'])
+        for i, o in enumerate(outputs):
+            otype, address, value = o
+            if self.is_mine(address) and value >= delta:
+                outputs[i] = otype, address, value - delta
+                break
+        else:
+            raise BaseException("cannot bump fee")
+        new_tx = Transaction.from_io(inputs, outputs)
+        return new_tx
 
     def can_sign(self, tx):
         if self.is_watching_only():

@@ -117,11 +117,16 @@ class HistoryWidget(MyTreeWidget):
         if not tx_hash:
             return
         tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
-        if not tx_URL:
-            return
+        conf, timestamp = self.wallet.get_confirmations(tx_hash)
+        tx = self.wallet.transactions.get(tx_hash)
+        is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
+        rbf = is_mine and (conf == 0) and tx and not tx.is_final()
         menu = QMenu()
         menu.addAction(_("Copy ID to Clipboard"), lambda: self.parent.app.clipboard().setText(tx_hash))
-        menu.addAction(_("Details"), lambda: self.parent.show_transaction(self.wallet.transactions.get(tx_hash)))
+        menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx))
         menu.addAction(_("Edit description"), lambda: self.editItem(item, self.editable_columns[0]))
-        menu.addAction(_("View on block explorer"), lambda: webbrowser.open(tx_URL))
+        if rbf:
+            menu.addAction(_("Increase fee"), lambda: self.parent.bump_fee_dialog(tx))
+        if tx_URL:
+            menu.addAction(_("View on block explorer"), lambda: webbrowser.open(tx_URL))
         menu.exec_(self.viewport().mapToGlobal(position))
