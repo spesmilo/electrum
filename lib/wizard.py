@@ -209,19 +209,20 @@ class WizardBase(PrintError):
         kinds, descriptions = zip(*[pair for pair in WizardBase.wallet_kinds
                                     if pair[0] in registered_kinds])
         action, kind_index = self.query_create_or_restore(descriptions)
-
         assert action in WizardBase.user_actions
-
         kind = kinds[kind_index]
         if kind == 'multisig':
             wallet_type = self.query_multisig(action)
         elif kind == 'hardware':
-            # The create/restore distinction is not obvious for hardware
-            # wallets; so we ask for the action again and default based
-            # on the prior choice :)
             hw_wallet_types, choices = self.plugins.hardware_wallets(action)
-            msg = _('Select the type of hardware wallet: ')
-            action, choice = self.query_hw_wallet_choice(msg, action, choices)
+            if choices:
+                msg = _('Select the type of hardware wallet: ')
+            else:
+                msg = ' '.join([
+                    _('No hardware wallet support found on your system.'),
+                    _('Please install the relevant libraries (eg python-trezor for Trezor).'),
+                ])
+            choice = self.query_hw_wallet_choice(msg, choices)
             wallet_type = hw_wallet_types[choice]
         elif kind == 'twofactor':
             wallet_type = '2fa'

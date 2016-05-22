@@ -1019,10 +1019,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fee_slider = QSlider(Qt.Horizontal, self)
         self.fee_slider.setRange(0, 4)
         self.fee_slider.setToolTip(_(''))
-        self.fee_description = QLabel('')
         def slider_moved():
             i = self.fee_slider.sliderPosition()
-            self.fee_description.setText(['slow','','medium','','fast'][i])
+            tooltip = ['very slow', 'slow', 'within 2 blocks', 'fast', 'very fast'][i]
+            QToolTip.showText(QCursor.pos(), tooltip, self.fee_slider)
         def slider_released():
             self.config.set_key('fee_level', self.fee_slider.sliderPosition(), False)
             if self.is_max:
@@ -1043,7 +1043,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.addWidget(self.fee_e_label, 5, 0)
         grid.addWidget(self.fee_e, 5, 1)
         grid.addWidget(self.fee_slider, 5, 1)
-        grid.addWidget(self.fee_description, 5, 2)
 
         self.send_button = EnterButton(_("Send"), self.do_send)
         self.clear_button = EnterButton(_("Clear"), self.do_clear)
@@ -1157,7 +1156,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def update_fee_edit(self):
         b = self.config.get('dynamic_fees', True)
         self.fee_slider.setVisible(b)
-        self.fee_description.setVisible(b)
         self.fee_e.setVisible(not b)
 
     def from_list_delete(self, item):
