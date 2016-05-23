@@ -175,13 +175,11 @@ class Abstract_Wallet(PrintError):
         self.use_change            = storage.get('use_change', True)
         self.multiple_change       = storage.get('multiple_change', False)
         self.use_encryption        = storage.get('use_encryption', False)
-        self.use_rbf               = storage.get('use_rbf', False)
         self.seed                  = storage.get('seed', '')               # encrypted
         self.labels                = storage.get('labels', {})
         self.frozen_addresses      = set(storage.get('frozen_addresses',[]))
         self.stored_height         = storage.get('stored_height', 0)       # last known height (for offline mode)
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
-
 
         # imported_keys is deprecated. The GUI should call convert_imported_keys
         self.imported_keys = self.storage.get('imported_keys',{})
@@ -999,7 +997,6 @@ class Abstract_Wallet(PrintError):
 
     def add_input_info(self, txin):
         address = txin['address']
-        txin['sequence'] = 0 if self.use_rbf else 0xffffffff
         account_id, sequence = self.get_address_index(address)
         account = self.accounts[account_id]
         redeemScript = account.redeem_script(*sequence)
