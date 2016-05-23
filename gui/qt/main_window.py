@@ -1040,9 +1040,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # we go back to auto-calculate mode and put a fee back.
         self.fee_e.editingFinished.connect(self.update_fee)
 
+        self.rbf_checkbox = QCheckBox('RBF')
+        self.rbf_checkbox.setVisible(self.config.get('use_rbf', False))
+
         grid.addWidget(self.fee_e_label, 5, 0)
         grid.addWidget(self.fee_e, 5, 1)
         grid.addWidget(self.fee_slider, 5, 1)
+        grid.addWidget(self.rbf_checkbox, 5, 2)
 
         self.send_button = EnterButton(_("Send"), self.do_send)
         self.clear_button = EnterButton(_("Clear"), self.do_clear)
@@ -1280,6 +1284,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message(str(e))
             return
 
+        use_rbf = self.rbf_checkbox.isChecked()
+        if use_rbf:
+            tx.set_sequence(0)
+
         if tx.get_fee() < self.wallet.relayfee() and tx.requires_fee(self.wallet):
             self.show_error(_("This transaction requires a higher fee, or it will not be propagated by the network"))
             return
@@ -1478,6 +1486,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             e.setText('')
             e.setFrozen(False)
         self.set_pay_from([])
+        self.rbf_checkbox.setChecked(False)
         self.update_status()
         run_hook('do_clear', self)
 
@@ -2805,15 +2814,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         qr_combo.currentIndexChanged.connect(on_video_device)
         gui_widgets.append((qr_label, qr_combo))
 
+        use_rbf = self.config.get('use_rbf', False)
         rbf_cb = QCheckBox(_('Enable Replace-By-Fee'))
-        rbf_cb.setChecked(self.wallet.use_rbf)
-        if not self.config.is_modifiable('use_rbf'):
-            rbf_cb.setEnabled(False)
+        rbf_cb.setChecked(use_rbf)
         def on_rbf(x):
             rbf_result = x == Qt.Checked
-            if self.wallet.use_rbf != rbf_result:
-                self.wallet.use_rbf = rbf_result
-                self.wallet.storage.put('use_rbf', self.wallet.use_rbf)
+            self.config.set_key('use_rbf', rbf_result)
+            self.rbf_checkbox.setVisible(rbf_result)
+            self.rbf_checkbox.setChecked(False)
         rbf_cb.stateChanged.connect(on_rbf)
         rbf_cb.setToolTip(_('Enable RBF'))
         fee_widgets.append((rbf_cb, None))
