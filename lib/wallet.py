@@ -612,7 +612,20 @@ class Abstract_Wallet(PrintError):
         coins, spent = self.get_addr_io(address)
         for txi in spent:
             coins.pop(txi)
-        return coins
+        out = []
+        for txo, v in coins.items():
+            tx_height, value, is_cb = v
+            prevout_hash, prevout_n = txo.split(':')
+            x = {
+                'address':address,
+                'value':value,
+                'prevout_n':int(prevout_n),
+                'prevout_hash':prevout_hash,
+                'height':tx_height,
+                'coinbase':is_cb
+            }
+            out.append(x)
+        return out
 
     # return the total amount ever received by an address
     def get_addr_received(self, address):
@@ -645,21 +658,11 @@ class Abstract_Wallet(PrintError):
         if exclude_frozen:
             domain = set(domain) - self.frozen_addresses
         for addr in domain:
-            c = self.get_addr_utxo(addr)
-            for txo, v in c.items():
-                tx_height, value, is_cb = v
-                if is_cb and tx_height + COINBASE_MATURITY > self.get_local_height():
+            utxos = self.get_addr_utxo(addr)
+            for x in utxos:
+                if x['coinbase'] and x['tx_height'] + COINBASE_MATURITY > self.get_local_height():
                     continue
-                prevout_hash, prevout_n = txo.split(':')
-                output = {
-                    'address':addr,
-                    'value':value,
-                    'prevout_n':int(prevout_n),
-                    'prevout_hash':prevout_hash,
-                    'height':tx_height,
-                    'coinbase':is_cb
-                }
-                coins.append(output)
+                coins.append(x)
                 continue
         return coins
 
