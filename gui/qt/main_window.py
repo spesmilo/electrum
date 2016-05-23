@@ -1040,7 +1040,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # we go back to auto-calculate mode and put a fee back.
         self.fee_e.editingFinished.connect(self.update_fee)
 
-        self.rbf_checkbox = QCheckBox('RBF')
+        self.rbf_checkbox = QCheckBox(_('Replaceable'))
+        msg = [_('If you check this box, your transaction will be marked as non-final,'),
+               _('and you will have the possiblity, while it is unconfirmed, to replace it with a transaction that pays a higher fee.'),
+               _('Note that some merchants do not accept non-final transactions until they are confirmed.')]
+        self.rbf_checkbox.setToolTip('<p>' + ' '.join(msg) + '</p>')
         self.rbf_checkbox.setVisible(self.config.get('use_rbf', False))
 
         grid.addWidget(self.fee_e_label, 5, 0)
