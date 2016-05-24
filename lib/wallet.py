@@ -175,13 +175,11 @@ class Abstract_Wallet(PrintError):
         self.use_change            = storage.get('use_change', True)
         self.multiple_change       = storage.get('multiple_change', False)
         self.use_encryption        = storage.get('use_encryption', False)
-        self.use_rbf               = storage.get('use_rbf', False)
         self.seed                  = storage.get('seed', '')               # encrypted
         self.labels                = storage.get('labels', {})
         self.frozen_addresses      = set(storage.get('frozen_addresses',[]))
         self.stored_height         = storage.get('stored_height', 0)       # last known height (for offline mode)
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
-
 
         # imported_keys is deprecated. The GUI should call convert_imported_keys
         self.imported_keys = self.storage.get('imported_keys',{})
@@ -612,7 +610,20 @@ class Abstract_Wallet(PrintError):
         coins, spent = self.get_addr_io(address)
         for txi in spent:
             coins.pop(txi)
-        return coins
+        out = []
+        for txo, v in coins.items():
+            tx_height, value, is_cb = v
+            prevout_hash, prevout_n = txo.split(':')
+            x = {
+                'address':address,
+                'value':value,
+                'prevout_n':int(prevout_n),
+                'prevout_hash':prevout_hash,
+                'height':tx_height,
+                'coinbase':is_cb
+            }
+            out.append(x)
+        return out
 
     # return the total amount ever received by an address
     def get_addr_received(self, address):
@@ -645,21 +656,11 @@ class Abstract_Wallet(PrintError):
         if exclude_frozen:
             domain = set(domain) - self.frozen_addresses
         for addr in domain:
-            c = self.get_addr_utxo(addr)
-            for txo, v in c.items():
-                tx_height, value, is_cb = v
-                if is_cb and tx_height + COINBASE_MATURITY > self.get_local_height():
+            utxos = self.get_addr_utxo(addr)
+            for x in utxos:
+                if x['coinbase'] and x['tx_height'] + COINBASE_MATURITY > self.get_local_height():
                     continue
-                prevout_hash, prevout_n = txo.split(':')
-                output = {
-                    'address':addr,
-                    'value':value,
-                    'prevout_n':int(prevout_n),
-                    'prevout_hash':prevout_hash,
-                    'height':tx_height,
-                    'coinbase':is_cb
-                }
-                coins.append(output)
+                coins.append(x)
                 continue
         return coins
 
@@ -999,7 +1000,6 @@ class Abstract_Wallet(PrintError):
 
     def add_input_info(self, txin):
         address = txin['address']
-        txin['sequence'] = 0 if self.use_rbf else 0xffffffff
         account_id, sequence = self.get_address_index(address)
         account = self.accounts[account_id]
         redeemScript = account.redeem_script(*sequence)

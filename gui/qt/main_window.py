@@ -1040,9 +1040,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # we go back to auto-calculate mode and put a fee back.
         self.fee_e.editingFinished.connect(self.update_fee)
 
+        self.rbf_checkbox = QCheckBox(_('Replaceable'))
+        msg = [_('If you check this box, your transaction will be marked as non-final,'),
+               _('and you will have the possiblity, while it is unconfirmed, to replace it with a transaction that pays a higher fee.'),
+               _('Note that some merchants do not accept non-final transactions until they are confirmed.')]
+        self.rbf_checkbox.setToolTip('<p>' + ' '.join(msg) + '</p>')
+        self.rbf_checkbox.setVisible(self.config.get('use_rbf', False))
+
         grid.addWidget(self.fee_e_label, 5, 0)
         grid.addWidget(self.fee_e, 5, 1)
         grid.addWidget(self.fee_slider, 5, 1)
+        grid.addWidget(self.rbf_checkbox, 5, 2)
 
         self.send_button = EnterButton(_("Send"), self.do_send)
         self.clear_button = EnterButton(_("Clear"), self.do_clear)
@@ -1280,6 +1288,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message(str(e))
             return
 
+        use_rbf = self.rbf_checkbox.isChecked()
+        if use_rbf:
+            tx.set_sequence(0)
+
         if tx.get_fee() < tx.required_fee(self.wallet):
             self.show_error(_("This transaction requires a higher fee, or it will not be propagated by the network"))
             return
@@ -1478,6 +1490,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             e.setText('')
             e.setFrozen(False)
         self.set_pay_from([])
+        self.rbf_checkbox.setChecked(False)
         self.update_status()
         run_hook('do_clear', self)
 
@@ -1498,7 +1511,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return w
 
     def create_addresses_tab(self):
-        l = MyTreeWidget(self, self.create_receive_menu, [ _('Address'), _('Label'), _('Balance'), _('Tx')], 1)
+        l = MyTreeWidget(self, self.create_address_menu, [ _('Address'), _('Label'), _('Balance'), _('Tx')], 1)
         l.setSelectionMode(QAbstractItemView.ExtendedSelection)
         l.on_update = self.update_address_tab
         self.address_list = l
@@ -1560,7 +1573,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             menu.addAction(_("View details"), lambda: self.show_account_details(k))
         menu.exec_(self.address_list.viewport().mapToGlobal(position))
 
-    def create_receive_menu(self, position):
+    def create_address_menu(self, position):
         selected = self.address_list.selectedItems()
         multi_select = len(selected) > 1
         addrs = [unicode(item.text(0)) for item in selected]
@@ -1576,7 +1589,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 else:
                     item.setExpanded(not item.isExpanded())
                 return
-
         menu = QMenu()
         if not multi_select:
             menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
@@ -1799,23 +1811,32 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     label = self.wallet.labels.get(address,'')
                     c, u, x = self.wallet.get_addr_balance(address)
                     balance = self.format_amount(c + u + x)
-                    item = QTreeWidgetItem([address, label, balance, "%d"%num])
-                    item.setFont(0, QFont(MONOSPACE_FONT))
-                    item.setData(0, Qt.UserRole, address)
-                    item.setData(0, Qt.UserRole+1, True) # label can be edited
+                    address_item = QTreeWidgetItem([address, label, balance, "%d"%num])
+                    address_item.setFont(0, QFont(MONOSPACE_FONT))
+                    address_item.setData(0, Qt.UserRole, address)
+                    address_item.setData(0, Qt.UserRole+1, True) # label can be edited
                     if self.wallet.is_frozen(address):
-                        item.setBackgroundColor(0, QColor('lightblue'))
+                        address_item.setBackgroundColor(0, QColor('lightblue'))
                     if self.wallet.is_beyond_limit(address, account, is_change):
-                        item.setBackgroundColor(0, QColor('red'))
+                        address_item.setBackgroundColor(0, QColor('red'))
                     if is_used:
                         if not used_flag:
                             seq_item.insertChild(0, used_item)
                             used_flag = True
-                        used_item.addChild(item)
+                        used_item.addChild(address_item)
                     else:
-                        seq_item.addChild(item)
+                        seq_item.addChild(address_item)
                     if address == current_address:
-                        l.setCurrentItem(item)
+                        l.setCurrentItem(address_item)
+                    # add utxos
+                    utxos = self.wallet.get_addr_utxo(address)
+                    for x in utxos:
+                        h = x.get('prevout_hash')
+                        s = h + ":%d"%x.get('prevout_n')
+                        label = self.wallet.get_label(h)
+                        utxo_item = QTreeWidgetItem([s, label, self.format_amount(x['value'])])
+                        utxo_item.setFont(0, QFont(MONOSPACE_FONT))
+                        address_item.addChild(utxo_item)
 
 
     def update_contacts_tab(self):
@@ -2797,15 +2818,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         qr_combo.currentIndexChanged.connect(on_video_device)
         gui_widgets.append((qr_label, qr_combo))
 
+        use_rbf = self.config.get('use_rbf', False)
         rbf_cb = QCheckBox(_('Enable Replace-By-Fee'))
-        rbf_cb.setChecked(self.wallet.use_rbf)
-        if not self.config.is_modifiable('use_rbf'):
-            rbf_cb.setEnabled(False)
+        rbf_cb.setChecked(use_rbf)
         def on_rbf(x):
             rbf_result = x == Qt.Checked
-            if self.wallet.use_rbf != rbf_result:
-                self.wallet.use_rbf = rbf_result
-                self.wallet.storage.put('use_rbf', self.wallet.use_rbf)
+            self.config.set_key('use_rbf', rbf_result)
+            self.rbf_checkbox.setVisible(rbf_result)
+            self.rbf_checkbox.setChecked(False)
         rbf_cb.stateChanged.connect(on_rbf)
         rbf_cb.setToolTip(_('Enable RBF'))
         fee_widgets.append((rbf_cb, None))
