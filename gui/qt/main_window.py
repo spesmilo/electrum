@@ -135,7 +135,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tabs.addTab(self.create_history_tab(), _('History') )
         tabs.addTab(self.create_send_tab(), _('Send') )
         tabs.addTab(self.create_receive_tab(), _('Receive') )
-        tabs.addTab(self.create_addresses_tab(), _('Addresses') )
+        self.addresses_tab = self.create_addresses_tab()
+        if self.config.get('show_addresses_tab', False):
+            tabs.addTab(self.addresses_tab, _('Addresses'))
         tabs.addTab(self.create_contacts_tab(), _('Contacts') )
         tabs.addTab(self.create_console_tab(), _('Console') )
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -186,6 +188,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.tl_windows = []
         self.load_wallet(wallet)
         self.connect_slots(gui_object.timer)
+
+    def toggle_addresses_tab(self):
+        show_addr = not self.config.get('show_addresses_tab', False)
+        self.config.set_key('show_addresses_tab', show_addr)
+        if show_addr:
+            self.tabs.insertTab(3, self.addresses_tab, _('Addresses'))
+        else:
+            i = self.tabs.indexOf(self.addresses_tab)
+            self.tabs.removeTab(i)
 
     def push_top_level_window(self, window):
         '''Used for e.g. tx dialog box to ensure new dialogs are appropriately
@@ -431,6 +442,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.export_menu = self.private_keys_menu.addAction(_("&Export"), self.export_privkeys_dialog)
         wallet_menu.addAction(_("&Export History"), self.export_history_dialog)
         wallet_menu.addAction(_("Search"), self.toggle_search).setShortcut(QKeySequence("Ctrl+S"))
+        wallet_menu.addAction(_("Addresses"), self.toggle_addresses_tab).setShortcut(QKeySequence("Ctrl+A"))
 
         tools_menu = menubar.addMenu(_("&Tools"))
 
