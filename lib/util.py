@@ -36,6 +36,7 @@ import threading
 from i18n import _
 
 base_units = {'LTC':8, 'mLTC':5, 'uLTC':2}
+fee_levels = [_('Very low'), _('Low'), _('Normal'), _('High'), _('Very high')]
 
 def normalize_version(v):
     return [int(x) for x in re.sub(r'(\.0+)*$','', v).split(".")]

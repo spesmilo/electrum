@@ -1032,8 +1032,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fee_slider.setRange(0, 4)
         self.fee_slider.setToolTip(_(''))
         def slider_moved():
+            from electrum.util import fee_levels
             i = self.fee_slider.sliderPosition()
-            tooltip = ['very slow', 'slow', 'within 2 blocks', 'fast', 'very fast'][i]
+            tooltip = fee_levels[i] + ' (%d%%)'% (100 * (i + 1)/3)
             QToolTip.showText(QCursor.pos(), tooltip, self.fee_slider)
         def slider_released():
             self.config.set_key('fee_level', self.fee_slider.sliderPosition(), False)

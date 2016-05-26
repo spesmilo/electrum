@@ -3,7 +3,8 @@ from kivy.factory import Factory
 from kivy.properties import ObjectProperty
 from kivy.lang import Builder
 
-from electrum_ltc.bitcoin import RECOMMENDED_FEE
+from electrum_ltc.bitcoin import FEE_STEP, RECOMMENDED_FEE
+from electrum_ltc.util import fee_levels
 from electrum_ltc_gui.kivy.i18n import _
 
 Builder.load_string('''
@@ -22,7 +23,8 @@ Builder.load_string('''
                 text: ''
         Slider:
             id: slider
-            range: 0, 100
+            range: 0, 4
+            step: 1
             on_value: root.on_slider(self.value)
         BoxLayout:
             orientation: 'horizontal'
@@ -68,7 +70,7 @@ class FeeDialog(Factory.Popup):
         self.callback = callback
 
         self.dynfees = self.config.get('dynamic_fees', False)
-        self.fee_factor = self.config.get('fee_factor', 50)
+        self.fee_level = self.config.get('fee_level', 2)
         self.static_fee = self.config.get('fee_per_kb', RECOMMENDED_FEE)
 
         self.ids.dynfees.active = self.dynfees
@@ -84,29 +86,31 @@ class FeeDialog(Factory.Popup):
     def update_slider(self):
         slider = self.ids.slider
         if self.dynfees:
-            slider.value = self.fee_factor
-            slider.range = (0, 100)
+            slider.value = self.fee_level
+            slider.range = (0, 4)
+            slider.step = 1
         else:
             slider.value = self.static_fee
-            slider.range = (0, 2*RECOMMENDED_FEE)
+            slider.range = (FEE_STEP, 2*RECOMMENDED_FEE)
+            slider.step = FEE_STEP
 
     def get_fee_text(self):
         if self.ids.dynfees.active:
-            return 'Recommendation x %d%%'%(self.fee_factor + 50)
+            return fee_levels[self.fee_level] + ' (%d%%)'% (100 * (self.fee_level + 1)/3)
         else:
             return self.app.format_amount_and_units(self.static_fee) + '/kB'
 
     def on_ok(self):
         self.config.set_key('dynamic_fees', self.dynfees, False)
         if self.dynfees:
-            self.config.set_key('fee_factor', self.fee_factor, True)
+            self.config.set_key('fee_level', self.fee_level, True)
         else:
             self.config.set_key('fee_per_kb', self.static_fee, True)
         self.callback()
 
     def on_slider(self, value):
         if self.dynfees:
-            self.fee_factor = int(value)
+            self.fee_level = int(value)
         else:
             self.static_fee = int(value)
         self.update_text()
