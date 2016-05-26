@@ -2510,7 +2510,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 f.write(json.dumps(lines, indent = 4))
 
 
-    def sweep_key_dialog(self):
+    def sweep_key_dialog(self, prefilled_privkey=None):
         d = WindowModalDialog(self, title=_('Sweep private keys'))
         d.setMinimumSize(600, 300)
 
@@ -2519,6 +2519,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         keys_e = QTextEdit()
         keys_e.setTabChangesFocus(True)
+        if prefilled_privkey:
+            keys_e.setText(prefilled_privkey)
         vbox.addWidget(keys_e)
 
         addresses = self.wallet.get_unused_addresses(self.current_account)
@@ -2543,6 +2545,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         f = lambda: button.setEnabled(get_address() is not None and get_pk() is not None)
         keys_e.textChanged.connect(f)
         address_e.textChanged.connect(f)
+        if prefilled_privkey:
+            f()
         if not d.exec_():
             return
 
