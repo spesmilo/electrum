@@ -37,6 +37,7 @@ import aes
 
 ################################## transactions
 
+FEE_STEP = 10000
 RECOMMENDED_FEE = 50000
 COINBASE_MATURITY = 100
 COIN = 100000000
