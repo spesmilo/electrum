@@ -26,7 +26,7 @@ from kivy.properties import (OptionProperty, AliasProperty, ObjectProperty,
 from kivy.cache import Cache
 from kivy.clock import Clock
 from kivy.factory import Factory
-from kivy.metrics import inch, metrics
+from kivy.metrics import inch
 from kivy.lang import Builder
 
 # lazy imports for factory so that widgets can be used in kv
@@ -366,7 +366,6 @@ class ElectrumWindow(App):
         '''
         import time
         Logger.info('Time to on_start: {} <<<<<<<<'.format(time.clock()))
-        Logger.info("dpi: {} {}".format(metrics.dpi, metrics.dpi_rounded))
         win = Window
         win.bind(size=self.on_size, on_keyboard=self.on_keyboard)
         win.bind(on_key_down=self.on_key_down)
