@@ -800,6 +800,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def new_payment_request(self):
         addr = self.wallet.get_unused_address(self.current_account)
         if addr is None:
+            from electrum.wallet import Imported_Wallet
             if isinstance(self.wallet, Imported_Wallet):
                 self.show_message(_('No more addresses in your wallet.'))
                 return
