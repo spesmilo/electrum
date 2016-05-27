@@ -27,6 +27,28 @@ BLACK_FG = "QWidget {color:black;}"
 
 dialogs = []
 
+from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+
+pr_icons = {
+    PR_UNPAID:":icons/unpaid.png",
+    PR_PAID:":icons/confirmed.png",
+    PR_EXPIRED:":icons/expired.png"
+}
+
+pr_tooltips = {
+    PR_UNPAID:_('Pending'),
+    PR_PAID:_('Paid'),
+    PR_EXPIRED:_('Expired')
+}
+
+expiration_values = [
+    (_('1 hour'), 60*60),
+    (_('1 day'), 24*60*60),
+    (_('1 week'), 7*24*60*60),
+    (_('Never'), None)
+]
+
+
 class Timer(QThread):
     stopped = False
 
@@ -351,6 +373,7 @@ class MyTreeWidget(QTreeWidget):
                  editable_columns=None):
         QTreeWidget.__init__(self, parent)
         self.parent = parent
+        self.config = self.parent.config
         self.stretch_column = stretch_column
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(create_menu)
@@ -366,7 +389,7 @@ class MyTreeWidget(QTreeWidget):
             editable_columns = [stretch_column]
         self.editable_columns = editable_columns
         self.setItemDelegate(ElectrumItemDelegate(self))
-        self.itemActivated.connect(self.on_activated)
+        self.itemDoubleClicked.connect(self.on_doubleclick)
         self.update_headers(headers)
 
     def update_headers(self, headers):
@@ -386,7 +409,7 @@ class MyTreeWidget(QTreeWidget):
             item.setFlags(item.flags() & ~Qt.ItemIsEditable)
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_F2:
+        if event.key() in [ Qt.Key_F2, Qt.Key_Return ] and self.editor is None:
             self.on_activated(self.currentItem(), self.currentColumn())
         else:
             QTreeWidget.keyPressEvent(self, event)
@@ -398,13 +421,15 @@ class MyTreeWidget(QTreeWidget):
     def on_permit_edit(self, item, column):
         return True
 
-    def on_activated(self, item, column):
+    def on_doubleclick(self, item, column):
         if self.permit_edit(item, column):
             self.editItem(item, column)
-        else:
-            pt = self.visualItemRect(item).bottomLeft()
-            pt.setX(50)
-            self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), pt)
+
+    def on_activated(self, item, column):
+        # on 'enter' we show the menu
+        pt = self.visualItemRect(item).bottomLeft()
+        pt.setX(50)
+        self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), pt)
 
     def createEditor(self, parent, option, index):
         self.editor = QStyledItemDelegate.createEditor(self.itemDelegate(),

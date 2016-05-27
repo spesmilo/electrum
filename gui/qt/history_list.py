@@ -32,13 +32,12 @@ from electrum.util import block_explorer_URL, format_satoshis, format_time
 from electrum.plugins import run_hook
 
 
-class HistoryWidget(MyTreeWidget):
+class HistoryList(MyTreeWidget):
 
     def __init__(self, parent=None):
         MyTreeWidget.__init__(self, parent, self.create_menu, [], 3)
         self.refresh_headers()
         self.setColumnHidden(1, True)
-        self.config = self.parent.config
 
     def refresh_headers(self):
         headers = ['', '', _('Date'), _('Description') , _('Amount'),
@@ -113,18 +112,29 @@ class HistoryWidget(MyTreeWidget):
         item = self.currentItem()
         if not item:
             return
+        column = self.currentColumn()
         tx_hash = str(item.data(0, Qt.UserRole).toString())
         if not tx_hash:
             return
+        if column is 0:
+            column_title = "ID"
+            column_data = tx_hash
+        else:
+            column_title = self.headerItem().text(column)
+            column_data = item.text(column)
+
         tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
         conf, timestamp = self.wallet.get_confirmations(tx_hash)
         tx = self.wallet.transactions.get(tx_hash)
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
         rbf = is_mine and (conf == 0) and tx and not tx.is_final()
         menu = QMenu()
-        menu.addAction(_("Copy ID to Clipboard"), lambda: self.parent.app.clipboard().setText(tx_hash))
+
+        menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(column_data))
+        if column in self.editable_columns:
+            menu.addAction(_("Edit %s")%column_title, lambda: self.editItem(item, column))
+
         menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx))
-        menu.addAction(_("Edit description"), lambda: self.editItem(item, self.editable_columns[0]))
         if rbf:
             menu.addAction(_("Increase fee"), lambda: self.parent.bump_fee_dialog(tx))
         if tx_URL:
