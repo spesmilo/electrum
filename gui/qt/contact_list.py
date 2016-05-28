@@ -36,13 +36,13 @@ from util import MyTreeWidget, pr_tooltips, pr_icons
 class ContactList(MyTreeWidget):
 
     def __init__(self, parent):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [_('Name'), _('Value'), _('Type')], 1, [0, 1])
+        MyTreeWidget.__init__(self, parent, self.create_menu, [_('Name'), _('Type'), _('Value')], 0, [0])
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
 
     def on_permit_edit(self, item, column):
         # openalias items shouldn't be editable
-        return item.text(2) != "openalias"
+        return item.text(1) != "openalias"
 
     def on_edited(self, item, column, prior):
         if column == 0:  # Remove old contact if renamed
@@ -55,9 +55,9 @@ class ContactList(MyTreeWidget):
         if not selected:
             menu.addAction(_("New contact"), lambda: self.parent.new_contact_dialog())
         else:
-            labels = [unicode(item.text(0)) for item in selected]
-            addrs = [unicode(item.text(1)) for item in selected]
-            types = [unicode(item.text(2)) for item in selected]
+            names = [unicode(item.text(0)) for item in selected]
+            types = [unicode(item.text(1)) for item in selected]
+            keys = [unicode(item.text(2)) for item in selected]
             column = self.currentColumn()
             column_title = self.headerItem().text(column)
             column_data = '\n'.join([unicode(item.text(column)) for item in selected])
@@ -66,10 +66,10 @@ class ContactList(MyTreeWidget):
             if column in self.editable_columns:
                 menu.addAction(_("Edit %s")%column_title, lambda: self.editItem(item, column))
 
-            menu.addAction(_("Pay to"), lambda: self.parent.payto_contacts(labels))
-            menu.addAction(_("Delete"), lambda: self.parent.delete_contacts(labels))
+            menu.addAction(_("Pay to"), lambda: self.parent.payto_contacts(keys))
+            menu.addAction(_("Delete"), lambda: self.parent.delete_contacts(keys))
             URLs = []
-            for (addr, _type) in zip(addrs, types):
+            for (addr, _type) in zip(keys, types):
                 if _type == 'address':
                     URLs.append(block_explorer_URL(self.config, 'addr', addr))
             if URLs:
@@ -84,8 +84,8 @@ class ContactList(MyTreeWidget):
         current_key = item.data(0, Qt.UserRole).toString() if item else None
         self.clear()
         for key in sorted(self.parent.contacts.keys()):
-            _type, value = self.parent.contacts[key]
-            item = QTreeWidgetItem([key, value, _type])
+            _type, name = self.parent.contacts[key]
+            item = QTreeWidgetItem([name, _type, key])
             item.setData(0, Qt.UserRole, key)
             self.addTopLevelItem(item)
             if key == current_key:

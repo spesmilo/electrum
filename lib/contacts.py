@@ -35,6 +35,13 @@ class Contacts(StoreDict):
 
     def __init__(self, config):
         StoreDict.__init__(self, config, 'contacts')
+        # backward compatibility
+        for k, v in self.items():
+            _type, n = v
+            if _type == 'address' and bitcoin.is_address(n):
+                self.pop(k)
+                self[n] = ('address', k)
+
 
     def resolve(self, k):
         if bitcoin.is_address(k):
