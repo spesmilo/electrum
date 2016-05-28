@@ -161,8 +161,12 @@ class AddressList(MyTreeWidget):
     def create_account_menu(self, position, k, item):
         menu = QMenu()
         exp = item.isExpanded()
-        menu.addAction(_("Minimize") if exp else _("Maximize"), lambda: self.parent.account_set_expanded(item, k, not exp))
+        menu.addAction(_("Minimize") if exp else _("Maximize"), lambda: self.set_account_expanded(item, k, not exp))
         menu.addAction(_("Rename"), lambda: self.parent.edit_account_label(k))
         if self.wallet.seed_version > 4:
             menu.addAction(_("View details"), lambda: self.parent.show_account_details(k))
         menu.exec_(self.viewport().mapToGlobal(position))
+
+    def set_account_expanded(self, item, k, b):
+        item.setExpanded(b)
+        self.accounts_expanded[k] = b

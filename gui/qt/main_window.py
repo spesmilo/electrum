@@ -1446,10 +1446,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.wallet.set_label(k,label)
             self.address_list.update()
 
-    def account_set_expanded(self, item, k, b):
-        item.setExpanded(b)
-        self.accounts_expanded[k] = b
-
     def get_coins(self):
         if self.pay_from:
             return self.pay_from
