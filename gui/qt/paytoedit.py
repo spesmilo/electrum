@@ -279,7 +279,7 @@ class PayToEdit(ScanQRTextEdit):
 
         #if self.win.config.get('openalias_autoadd') == 'checked':
         self.win.contacts[key] = ('openalias', name)
-        self.win.update_contacts_tab()
+        self.win.contact_list.on_update()
 
         self.setFrozen(True)
         if data.get('type') == 'openalias':
