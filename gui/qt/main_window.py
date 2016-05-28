@@ -1450,16 +1450,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         item.setExpanded(b)
         self.accounts_expanded[k] = b
 
-    def create_account_menu(self, position, k, item):
-        menu = QMenu()
-        exp = item.isExpanded()
-        menu.addAction(_("Minimize") if exp else _("Maximize"), lambda: self.account_set_expanded(item, k, not exp))
-        menu.addAction(_("Rename"), lambda: self.edit_account_label(k))
-        if self.wallet.seed_version > 4:
-            menu.addAction(_("View details"), lambda: self.show_account_details(k))
-        menu.exec_(self.address_list.viewport().mapToGlobal(position))
-
-
     def get_coins(self):
         if self.pay_from:
             return self.pay_from
