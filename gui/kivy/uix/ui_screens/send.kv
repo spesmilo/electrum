@@ -32,8 +32,8 @@ SendScreen:
                 BlueButton:
                     id: payto_e
                     text: s.address if s.address else _('Recipient')
-                    disabled: True
                     shorten: True
+                    on_release: Clock.schedule_once(lambda dt: app.show_info(_('Copy and paste the recipient address using the Paste button, or use the camera to scan a QR code.')))
             CardSeparator:
                 opacity: int(not root.is_pr)
                 color: blue_bottom.foreground_color

@@ -88,26 +88,6 @@ class StatusBarButton(QPushButton):
 
 from electrum_ltc.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 
-pr_icons = {
-    PR_UNPAID:":icons/unpaid.png",
-    PR_PAID:":icons/confirmed.png",
-    PR_EXPIRED:":icons/expired.png"
-}
-
-pr_tooltips = {
-    PR_UNPAID:_('Pending'),
-    PR_PAID:_('Paid'),
-    PR_EXPIRED:_('Expired')
-}
-
-expiration_values = [
-    (_('1 hour'), 60*60),
-    (_('1 day'), 24*60*60),
-    (_('1 week'), 7*24*60*60),
-    (_('Never'), None)
-]
-
-
 
 class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
@@ -305,7 +285,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.update_buttons_on_seed()
         self.update_console()
         self.clear_receive_tab()
-        self.receive_list.update()
+        self.request_list.update()
         self.tabs.show()
 
         try:
@@ -628,15 +608,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def update_tabs(self):
         self.history_list.update()
-        self.receive_list.update()
+        self.request_list.update()
         self.address_list.update()
-        self.contacts_list.update()
-        self.invoices_list.update()
+        self.contact_list.update()
+        self.invoice_list.update()
         self.update_completions()
 
     def create_history_tab(self):
-        from history_widget import HistoryWidget
-        self.history_list = l = HistoryWidget(self)
+        from history_list import HistoryList
+        self.history_list = l = HistoryList(self)
         return l
 
     def show_address(self, addr):
@@ -711,14 +691,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.addLayout(buttons, 4, 1, 1, 2)
 
         self.receive_requests_label = QLabel(_('Requests'))
-        self.receive_list = MyTreeWidget(self, self.receive_list_menu, [_('Date'), _('Account'), _('Address'), '', _('Description'), _('Amount'), _('Status')], 4)
-        self.receive_list.currentItemChanged.connect(self.receive_item_changed)
-        self.receive_list.itemClicked.connect(self.receive_item_changed)
-        self.receive_list.setSortingEnabled(True)
-        self.receive_list.setColumnWidth(0, 180)
-        self.receive_list.hideColumn(1)
-        self.receive_list.hideColumn(2)
-        self.receive_list.on_update = self.update_receive_tab
+
+        from request_list import RequestList
+        self.request_list = RequestList(self)
 
         # layout
         vbox_g = QVBoxLayout()
@@ -734,33 +709,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addLayout(hbox)
         vbox.addStretch(1)
         vbox.addWidget(self.receive_requests_label)
-        vbox.addWidget(self.receive_list)
-        vbox.setStretchFactor(self.receive_list, 1000)
+        vbox.addWidget(self.request_list)
+        vbox.setStretchFactor(self.request_list, 1000)
 
         return w
 
-    def receive_item_changed(self, item):
-        if item is None:
-            return
-        if not self.receive_list.isItemSelected(item):
-            return
-        addr = str(item.text(2))
-        req = self.wallet.receive_requests[addr]
-        expires = util.age(req['time'] + req['exp']) if req.get('exp') else _('Never')
-        amount = req['amount']
-        message = self.wallet.labels.get(addr, '')
-        self.receive_address_e.setText(addr)
-        self.receive_message_e.setText(message)
-        self.receive_amount_e.setAmount(amount)
-        self.expires_combo.hide()
-        self.expires_label.show()
-        self.expires_label.setText(expires)
-        self.new_request_button.setEnabled(True)
 
     def delete_payment_request(self, item):
         addr = str(item.text(2))
         self.wallet.remove_payment_request(addr, self.config)
-        self.receive_list.update()
+        self.request_list.update()
         self.clear_receive_tab()
 
     def get_request_URI(self, addr):
@@ -778,17 +736,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             URI += "&name=" + req['name'] + "&sig="+sig
         return str(URI)
 
-    def receive_list_menu(self, position):
-        item = self.receive_list.itemAt(position)
-        addr = str(item.text(2))
-        req = self.wallet.receive_requests[addr]
-        menu = QMenu(self)
-        menu.addAction(_("Copy Address"), lambda: self.view_and_paste(_('Address'), '', addr))
-        menu.addAction(_("Copy URI"), lambda: self.view_and_paste('URI', '', self.get_request_URI(addr)))
-        menu.addAction(_("Save as BIP70 file"), lambda: self.export_payment_request(addr))
-        menu.addAction(_("Delete"), lambda: self.delete_payment_request(item))
-        run_hook('receive_list_menu', menu, addr)
-        menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
     def sign_payment_request(self, addr):
         alias = self.config.get('alias')
@@ -823,7 +770,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         req = self.wallet.make_payment_request(addr, amount, message, expiration)
         self.wallet.add_payment_request(req, self.config)
         self.sign_payment_request(addr)
-        self.receive_list.update()
+        self.request_list.update()
         self.address_list.update()
         self.save_request_button.setEnabled(False)
 
@@ -853,6 +800,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def new_payment_request(self):
         addr = self.wallet.get_unused_address(self.current_account)
         if addr is None:
+            from electrum_ltc.wallet import Imported_Wallet
             if isinstance(self.wallet, Imported_Wallet):
                 self.show_message(_('No more addresses in your wallet.'))
                 return
@@ -900,52 +848,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.tabs.setCurrentIndex(2)
         self.receive_address_e.setText(addr)
         self.new_request_button.setEnabled(True)
-
-    def update_receive_tab(self):
-
-        # hide receive tab if no receive requests available
-        b = len(self.wallet.receive_requests) > 0
-        self.receive_list.setVisible(b)
-        self.receive_requests_label.setVisible(b)
-        if not b:
-            self.expires_label.hide()
-            self.expires_combo.show()
-
-        # check if it is necessary to show the account
-        self.receive_list.setColumnHidden(1, len(self.wallet.get_accounts()) == 1)
-
-        # update the receive address if necessary
-        current_address = self.receive_address_e.text()
-        domain = self.wallet.get_account_addresses(self.current_account, include_change=False)
-        addr = self.wallet.get_unused_address(self.current_account)
-        if not current_address in domain and addr:
-            self.set_receive_address(addr)
-        self.new_request_button.setEnabled(addr != current_address)
-
-        # clear the list and fill it again
-        self.receive_list.clear()
-        for req in self.wallet.get_sorted_requests(self.config):
-            address = req['address']
-            if address not in domain:
-                continue
-            timestamp = req.get('time', 0)
-            amount = req.get('amount')
-            expiration = req.get('exp', None)
-            message = req.get('memo', '')
-            date = format_time(timestamp)
-            status = req.get('status')
-            signature = req.get('sig')
-            requestor = req.get('name', '')
-            amount_str = self.format_amount(amount) if amount else ""
-            account = ''
-            item = QTreeWidgetItem([date, account, address, '', message, amount_str, pr_tooltips.get(status,'')])
-            if signature is not None:
-                item.setIcon(3, QIcon(":icons/seal.png"))
-                item.setToolTip(3, 'signed by '+ requestor)
-            if status is not PR_UNKNOWN:
-                item.setIcon(6, QIcon(pr_icons.get(status)))
-            self.receive_list.addTopLevelItem(item)
-
 
     def update_receive_qr(self):
         addr = str(self.receive_address_e.text())
@@ -1032,7 +934,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fee_slider.setRange(0, 4)
         self.fee_slider.setToolTip(_(''))
         def slider_moved():
-            from electrum.util import fee_levels
+            from electrum_ltc.util import fee_levels
             i = self.fee_slider.sliderPosition()
             tooltip = fee_levels[i] + ' (%d%%)'% (100 * (i + 1)/3)
             QToolTip.showText(QCursor.pos(), tooltip, self.fee_slider)
@@ -1101,12 +1003,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fee_e.textChanged.connect(entry_changed)
 
         self.invoices_label = QLabel(_('Invoices'))
-        self.invoices_list = MyTreeWidget(self, self.invoices_list_menu,
-                                          [_('Expires'), _('Requestor'), _('Description'), _('Amount'), _('Status')], 2)
-        self.invoices_list.setSortingEnabled(True)
-        self.invoices_list.header().setResizeMode(1, QHeaderView.Interactive)
-        self.invoices_list.setColumnWidth(1, 200)
-        self.invoices_list.on_update = self.update_invoices_list
+        from invoice_list import InvoiceList
+        self.invoice_list = InvoiceList(self)
 
         vbox0 = QVBoxLayout()
         vbox0.addLayout(grid)
@@ -1117,8 +1015,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addLayout(hbox)
         vbox.addStretch(1)
         vbox.addWidget(self.invoices_label)
-        vbox.addWidget(self.invoices_list)
-        vbox.setStretchFactor(self.invoices_list, 1000)
+        vbox.addWidget(self.invoice_list)
+        vbox.setStretchFactor(self.invoice_list, 1000)
 
         # Defer this until grid is parented to avoid ugly flash during startup
         self.update_fee_edit()
@@ -1402,7 +1300,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     if tx_desc is not None and tx.is_complete():
                         self.wallet.set_label(tx.hash(), tx_desc)
                         parent.show_message(_('Payment sent.') + '\n' + msg)
-                        self.invoices_list.update()
+                        self.invoice_list.update()
                         self.do_clear()
                 else:
                     parent.show_error(msg)
@@ -1428,23 +1326,25 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.payto_e.setText(_("please wait..."))
         return True
 
+    def delete_invoice(self, key):
+        self.invoices.remove(key)
+        self.invoice_list.update()
+
     def payment_request_ok(self):
         pr = self.payment_request
         key = self.invoices.add(pr)
         status = self.invoices.get_status(key)
-        self.invoices_list.update()
+        self.invoice_list.update()
         if status == PR_PAID:
             self.show_message("invoice already paid")
             self.do_clear()
             self.payment_request = None
             return
-
         self.payto_e.is_pr = True
         if not pr.has_expired():
             self.payto_e.setGreen()
         else:
             self.payto_e.setExpired()
-
         self.payto_e.setText(pr.get_requestor())
         self.amount_e.setText(format_satoshis_plain(pr.get_amount(), self.decimal_point))
         self.message_e.setText(pr.get_memo())
@@ -1524,41 +1424,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return w
 
     def create_addresses_tab(self):
-        l = MyTreeWidget(self, self.create_address_menu, [ _('Address'), _('Label'), _('Balance'), _('Tx')], 1)
-        l.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        l.on_update = self.update_address_tab
-        self.address_list = l
+        from address_list import AddressList
+        self.address_list = l = AddressList(self)
         return self.create_list_tab(l)
 
     def create_contacts_tab(self):
-        l = MyTreeWidget(self, self.create_contact_menu, [_('Name'), _('Value'), _('Type')], 1, [0, 1])
-        l.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        l.setSortingEnabled(True)
-        l.on_edited = self.on_contact_edited
-        l.on_permit_edit = self.on_permit_contact_edit
-        l.on_update = self.update_contacts_tab
-        self.contacts_list = l
+        from contact_list import ContactList
+        self.contact_list = l = ContactList(self)
         return self.create_list_tab(l)
-
-    def update_invoices_list(self):
-        inv_list = self.invoices.sorted_list()
-        l = self.invoices_list
-        l.clear()
-        for pr in inv_list:
-            key = pr.get_id()
-            status = self.invoices.get_status(key)
-            requestor = pr.get_requestor()
-            exp = pr.get_expiration_date()
-            date_str = util.format_time(exp) if exp else _('Never')
-            item = QTreeWidgetItem([date_str, requestor, pr.memo, self.format_amount(pr.get_amount(), whitespaces=True), pr_tooltips.get(status,'')])
-            item.setIcon(4, QIcon(pr_icons.get(status)))
-            item.setData(0, Qt.UserRole, key)
-            item.setFont(1, QFont(MONOSPACE_FONT))
-            item.setFont(3, QFont(MONOSPACE_FONT))
-            l.addTopLevelItem(item)
-        l.setCurrentItem(l.topLevelItem(0))
-        self.invoices_list.setVisible(len(inv_list))
-        self.invoices_label.setVisible(len(inv_list))
 
     def delete_imported_key(self, addr):
         if self.question(_("Do you want to remove")+" %s "%addr +_("from your wallet?")):
@@ -1584,53 +1457,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         menu.addAction(_("Rename"), lambda: self.edit_account_label(k))
         if self.wallet.seed_version > 4:
             menu.addAction(_("View details"), lambda: self.show_account_details(k))
-        menu.exec_(self.address_list.viewport().mapToGlobal(position))
-
-    def create_address_menu(self, position):
-        selected = self.address_list.selectedItems()
-        multi_select = len(selected) > 1
-        addrs = [unicode(item.text(0)) for item in selected]
-        if not multi_select:
-            item = self.address_list.itemAt(position)
-            if not item:
-                return
-            addr = addrs[0]
-            if not is_valid(addr):
-                k = str(item.data(0,32).toString())
-                if k:
-                    self.create_account_menu(position, k, item)
-                else:
-                    item.setExpanded(not item.isExpanded())
-                return
-        menu = QMenu()
-        if not multi_select:
-            menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
-            menu.addAction(_("Request payment"), lambda: self.receive_at(addr))
-            menu.addAction(_("Edit label"), lambda: self.address_list.editItem(item, self.address_list.editable_columns[0]))
-            menu.addAction(_('History'), lambda: self.show_address(addr))
-            menu.addAction(_('Public Keys'), lambda: self.show_public_keys(addr))
-            if self.wallet.can_export():
-                menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
-            if not self.wallet.is_watching_only():
-                menu.addAction(_("Sign/verify message"), lambda: self.sign_verify_message(addr))
-                menu.addAction(_("Encrypt/decrypt message"), lambda: self.encrypt_message(addr))
-            if self.wallet.is_imported(addr):
-                menu.addAction(_("Remove from wallet"), lambda: self.delete_imported_key(addr))
-            addr_URL = block_explorer_URL(self.config, 'addr', addr)
-            if addr_URL:
-                menu.addAction(_("View on block explorer"), lambda: webbrowser.open(addr_URL))
-
-        if any(not self.wallet.is_frozen(addr) for addr in addrs):
-            menu.addAction(_("Freeze"), lambda: self.set_frozen_state(addrs, True))
-        if any(self.wallet.is_frozen(addr) for addr in addrs):
-            menu.addAction(_("Unfreeze"), lambda: self.set_frozen_state(addrs, False))
-
-        def can_send(addr):
-            return not self.wallet.is_frozen(addr) and sum(self.wallet.get_addr_balance(addr)[:2])
-        if any(can_send(addr) for addr in addrs):
-            menu.addAction(_("Send From"), lambda: self.send_from_addresses(addrs))
-
-        run_hook('receive_menu', menu, addrs, self.wallet)
         menu.exec_(self.address_list.viewport().mapToGlobal(position))
 
 
@@ -1669,22 +1495,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.payto_e.setText(text)
             self.payto_e.setFocus()
 
-    def on_permit_contact_edit(self, item, column):
-        # openalias items shouldn't be editable
-        return item.text(2) != "openalias"
-
-    def on_contact_edited(self, item, column, prior):
-        if column == 0:  # Remove old contact if renamed
-            self.contacts.pop(prior)
-        self.set_contact(unicode(item.text(0)), unicode(item.text(1)))
-
     def set_contact(self, label, address):
         if not is_valid(address):
             self.show_error(_('Invalid Address'))
-            self.contacts_list.update()  # Displays original unchanged value
+            self.contact_list.update()  # Displays original unchanged value
             return False
         self.contacts[label] = ('address', address)
-        self.contacts_list.update()
+        self.contact_list.update()
         self.history_list.update()
         self.update_completions()
         return True
@@ -1696,32 +1513,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         for label in labels:
             self.contacts.pop(label)
         self.history_list.update()
-        self.contacts_list.update()
+        self.contact_list.update()
         self.update_completions()
-
-    def create_contact_menu(self, position):
-        menu = QMenu()
-        selected = self.contacts_list.selectedItems()
-        if not selected:
-            menu.addAction(_("New contact"), lambda: self.new_contact_dialog())
-        else:
-            labels = [unicode(item.text(0)) for item in selected]
-            addrs = [unicode(item.text(1)) for item in selected]
-            types = [unicode(item.text(2)) for item in selected]
-            menu.addAction(_("Copy to Clipboard"), lambda:
-                           self.app.clipboard().setText('\n'.join(labels)))
-            menu.addAction(_("Pay to"), lambda: self.payto_contacts(labels))
-            menu.addAction(_("Delete"), lambda: self.delete_contacts(labels))
-            URLs = []
-            for (addr, _type) in zip(addrs, types):
-                if _type == 'address':
-                    URLs.append(block_explorer_URL(self.config, 'addr', addr))
-            if URLs:
-                menu.addAction(_("View on block explorer"),
-                               lambda: map(webbrowser.open, URLs))
-
-        run_hook('create_contact_menu', menu, selected)
-        menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
 
     def show_invoice(self, key):
@@ -1766,107 +1559,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         else:
             self.payment_request_error()
 
-
-    def invoices_list_menu(self, position):
-        item = self.invoices_list.itemAt(position)
-        if not item:
-            return
-        key = str(item.data(0, 32).toString())
-        pr = self.invoices.get(key)
-        status = self.invoices.get_status(key)
-        menu = QMenu()
-        menu.addAction(_("Details"), lambda: self.show_invoice(key))
-        if status == PR_UNPAID:
-            menu.addAction(_("Pay Now"), lambda: self.do_pay_invoice(key))
-        def delete_invoice(key):
-            self.invoices.remove(key)
-            self.invoices_list.update()
-        menu.addAction(_("Delete"), lambda: delete_invoice(key))
-        menu.exec_(self.invoices_list.viewport().mapToGlobal(position))
-
-
-    def update_address_tab(self):
-        l = self.address_list
-        item = l.currentItem()
-        current_address = item.data(0, Qt.UserRole).toString() if item else None
-        l.clear()
-        accounts = self.wallet.get_accounts()
-        if self.current_account is None:
-            account_items = sorted(accounts.items())
-        else:
-            account_items = [(self.current_account, accounts.get(self.current_account))]
-        for k, account in account_items:
-            if len(accounts) > 1:
-                name = self.wallet.get_account_name(k)
-                c, u, x = self.wallet.get_account_balance(k)
-                account_item = QTreeWidgetItem([ name, '', self.format_amount(c + u + x), ''])
-                account_item.setExpanded(self.accounts_expanded.get(k, True))
-                account_item.setData(0, Qt.UserRole, k)
-                l.addTopLevelItem(account_item)
-            else:
-                account_item = l
-            sequences = [0,1] if account.has_change() else [0]
-            for is_change in sequences:
-                if len(sequences) > 1:
-                    name = _("Receiving") if not is_change else _("Change")
-                    seq_item = QTreeWidgetItem( [ name, '', '', '', ''] )
-                    account_item.addChild(seq_item)
-                    if not is_change:
-                        seq_item.setExpanded(True)
-                else:
-                    seq_item = account_item
-                used_item = QTreeWidgetItem( [ _("Used"), '', '', '', ''] )
-                used_flag = False
-                addr_list = account.get_addresses(is_change)
-                for address in addr_list:
-                    num = len(self.wallet.history.get(address,[]))
-                    is_used = self.wallet.is_used(address)
-                    label = self.wallet.labels.get(address,'')
-                    c, u, x = self.wallet.get_addr_balance(address)
-                    balance = self.format_amount(c + u + x)
-                    address_item = QTreeWidgetItem([address, label, balance, "%d"%num])
-                    address_item.setFont(0, QFont(MONOSPACE_FONT))
-                    address_item.setData(0, Qt.UserRole, address)
-                    address_item.setData(0, Qt.UserRole+1, True) # label can be edited
-                    if self.wallet.is_frozen(address):
-                        address_item.setBackgroundColor(0, QColor('lightblue'))
-                    if self.wallet.is_beyond_limit(address, account, is_change):
-                        address_item.setBackgroundColor(0, QColor('red'))
-                    if is_used:
-                        if not used_flag:
-                            seq_item.insertChild(0, used_item)
-                            used_flag = True
-                        used_item.addChild(address_item)
-                    else:
-                        seq_item.addChild(address_item)
-                    if address == current_address:
-                        l.setCurrentItem(address_item)
-                    # add utxos
-                    utxos = self.wallet.get_addr_utxo(address)
-                    for x in utxos:
-                        h = x.get('prevout_hash')
-                        s = h + ":%d"%x.get('prevout_n')
-                        label = self.wallet.get_label(h)
-                        utxo_item = QTreeWidgetItem([s, label, self.format_amount(x['value'])])
-                        utxo_item.setFont(0, QFont(MONOSPACE_FONT))
-                        address_item.addChild(utxo_item)
-
-
-    def update_contacts_tab(self):
-        l = self.contacts_list
-        item = l.currentItem()
-        current_key = item.data(0, Qt.UserRole).toString() if item else None
-        l.clear()
-        for key in sorted(self.contacts.keys()):
-            _type, value = self.contacts[key]
-            item = QTreeWidgetItem([key, value, _type])
-            item.setData(0, Qt.UserRole, key)
-            l.addTopLevelItem(item)
-            if key == current_key:
-                l.setCurrentItem(item)
-        run_hook('update_contacts_tab', l)
-
-
     def create_console_tab(self):
         from console import Console
         self.console = console = Console()
@@ -1906,7 +1598,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.history_list.update()
         self.update_status()
         self.address_list.update()
-        self.receive_list.update()
+        self.request_list.update()
 
     def create_status_bar(self):
 
@@ -1993,13 +1685,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if i == 0:
             self.history_list.filter(t, [2, 3, 4])  # Date, Description, Amount
         elif i == 1:
-            self.invoices_list.filter(t, [0, 1, 2, 3]) # Date, Requestor, Description, Amount
+            self.invoice_list.filter(t, [0, 1, 2, 3]) # Date, Requestor, Description, Amount
         elif i == 2:
-            self.receive_list.filter(t, [0, 1, 2, 3, 4]) # Date, Account, Address, Description, Amount
+            self.request_list.filter(t, [0, 1, 2, 3, 4]) # Date, Account, Address, Description, Amount
         elif i == 3:
             self.address_list.filter(t, [0,1, 2])  # Address, Label, Balance
         elif i == 4:
-            self.contacts_list.filter(t, [0, 1])  # Key, Value
+            self.contact_list.filter(t, [0, 1])  # Key, Value
 
 
     def new_contact_dialog(self):
@@ -2795,7 +2487,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 raise Exception('Unknown base unit')
             self.config.set_key('decimal_point', self.decimal_point, True)
             self.history_list.update()
-            self.receive_list.update()
+            self.request_list.update()
             self.address_list.update()
             for edit, amount in zip(edits, amounts):
                 edit.setAmount(amount)
