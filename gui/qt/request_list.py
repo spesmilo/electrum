@@ -110,6 +110,8 @@ class RequestList(MyTreeWidget):
 
     def create_menu(self, position):
         item = self.itemAt(position)
+        if not item:
+            return
         addr = str(item.text(2))
         req = self.wallet.receive_requests[addr]
         column = self.currentColumn()

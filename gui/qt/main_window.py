@@ -269,7 +269,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         wallet.thread = TaskThread(self, self.on_error)
         self.wallet = wallet
         self.update_recently_visited(wallet.storage.path)
-        self.import_old_contacts()
         # address used to create a dummy transaction and estimate transaction fee
         self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
         self.current_account = self.wallet.storage.get("current_account", None)
@@ -319,16 +318,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 _("Make sure you own the seed phrase or the private keys, before you request litecoins to be sent to this wallet.")
             ])
             self.show_warning(msg, title=_('Information'))
-
-    def import_old_contacts(self):
-        # backward compatibility: import contacts
-        old_contacts = self.wallet.storage.get('contacts', [])
-        if old_contacts:
-            for k in set(old_contacts):
-                l = self.wallet.labels.get(k)
-                if bitcoin.is_address(k) and l:
-                    self.contacts[l] = ('address', k)
-            self.wallet.storage.put('contacts', None)
 
     def open_wallet(self):
         wallet_folder = self.get_wallet_folder()
@@ -1106,8 +1095,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.from_list.addTopLevelItem(QTreeWidgetItem( [format(item), self.format_amount(item['value']) ]))
 
     def get_contact_payto(self, key):
-        _type, value = self.contacts.get(key)
-        return key + '  <' + value + '>' if _type == 'address' else key
+        _type, label = self.contacts.get(key)
+        return label + '  <' + key + '>' if _type == 'address' else key
 
     def update_completions(self):
         l = [self.get_contact_payto(key) for key in self.contacts.keys()]
@@ -1446,20 +1435,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.wallet.set_label(k,label)
             self.address_list.update()
 
-    def account_set_expanded(self, item, k, b):
-        item.setExpanded(b)
-        self.accounts_expanded[k] = b
-
-    def create_account_menu(self, position, k, item):
-        menu = QMenu()
-        exp = item.isExpanded()
-        menu.addAction(_("Minimize") if exp else _("Maximize"), lambda: self.account_set_expanded(item, k, not exp))
-        menu.addAction(_("Rename"), lambda: self.edit_account_label(k))
-        if self.wallet.seed_version > 4:
-            menu.addAction(_("View details"), lambda: self.show_account_details(k))
-        menu.exec_(self.address_list.viewport().mapToGlobal(position))
-
-
     def get_coins(self):
         if self.pay_from:
             return self.pay_from
@@ -1500,7 +1475,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(_('Invalid Address'))
             self.contact_list.update()  # Displays original unchanged value
             return False
-        self.contacts[label] = ('address', address)
+        self.contacts[address] = ('address', label)
         self.contact_list.update()
         self.history_list.update()
         self.update_completions()

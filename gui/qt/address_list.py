@@ -109,6 +109,8 @@ class AddressList(MyTreeWidget):
         selected = self.selectedItems()
         multi_select = len(selected) > 1
         addrs = [unicode(item.text(0)) for item in selected]
+        if not addrs:
+            return
         if not multi_select:
             item = self.itemAt(position)
             col = self.currentColumn()
@@ -155,3 +157,16 @@ class AddressList(MyTreeWidget):
 
         run_hook('receive_menu', menu, addrs, self.wallet)
         menu.exec_(self.viewport().mapToGlobal(position))
+
+    def create_account_menu(self, position, k, item):
+        menu = QMenu()
+        exp = item.isExpanded()
+        menu.addAction(_("Minimize") if exp else _("Maximize"), lambda: self.set_account_expanded(item, k, not exp))
+        menu.addAction(_("Rename"), lambda: self.parent.edit_account_label(k))
+        if self.wallet.seed_version > 4:
+            menu.addAction(_("View details"), lambda: self.parent.show_account_details(k))
+        menu.exec_(self.viewport().mapToGlobal(position))
+
+    def set_account_expanded(self, item, k, b):
+        item.setExpanded(b)
+        self.accounts_expanded[k] = b

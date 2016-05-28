@@ -73,16 +73,17 @@ class HistoryList(MyTreeWidget):
         current_tx = item.data(0, Qt.UserRole).toString() if item else None
         self.clear()
         run_hook('history_tab_update_begin')
-        for tx in h:
-            tx_hash, conf, value, timestamp, balance = tx
+        for h_item in h:
+            tx_hash, conf, value, timestamp, balance = h_item
             if conf is None and timestamp is None:
                 continue  # skip history in offline mode
+
             icon, time_str = self.get_icon(conf, timestamp)
             v_str = self.parent.format_amount(value, True, whitespaces=True)
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             label = self.wallet.get_label(tx_hash)
             entry = ['', tx_hash, time_str, label, v_str, balance_str]
-            run_hook('history_tab_update', tx, entry)
+            run_hook('history_tab_update', h_item, entry)
             item = QTreeWidgetItem(entry)
             item.setIcon(0, icon)
             for i in range(len(entry)):
