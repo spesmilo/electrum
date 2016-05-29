@@ -109,10 +109,12 @@ class TxDialog(Factory.Popup):
             self.tx_hash = self.tx.hash()
             self.description = self.wallet.get_label(self.tx_hash)
             if self.tx_hash in self.wallet.transactions.keys():
-                conf, timestamp = self.wallet.get_confirmations(self.tx_hash)
-                self.status_str = _("%d confirmations")%conf if conf else _('Pending')
-                if timestamp:
+                height, conf, timestamp = self.wallet.get_tx_height(self.tx_hash)
+                if conf:
+                    self.status_str = _("%d confirmations")%conf
                     self.date_str = datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+                else:
+                    self.status_str =  _('Unconfirmed')
             else:
                 self.can_broadcast = self.app.network is not None
                 self.status_str = _('Signed')

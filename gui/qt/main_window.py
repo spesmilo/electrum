@@ -2196,14 +2196,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         history = wallet.get_history()
         lines = []
         for item in history:
-            tx_hash, confirmations, value, timestamp, balance = item
-            if confirmations:
+            tx_hash, height, conf, timestamp, value, balance = item
+            if height>0:
                 if timestamp is not None:
                     time_string = format_time(timestamp)
                 else:
-                    time_string = "unknown"
+                    time_string = _("unverified")
             else:
-                time_string = "unconfirmed"
+                time_string = _("unconfirmed")
 
             if value is not None:
                 value_string = format_satoshis(value, True)

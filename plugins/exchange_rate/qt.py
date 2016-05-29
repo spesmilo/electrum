@@ -217,7 +217,7 @@ class Plugin(FxPlugin, QObject):
     def history_tab_update(self, tx, entry):
         if not self.show_history():
             return
-        tx_hash, conf, value, timestamp, balance = tx
+        tx_hash, height, conf, timestamp, value, balance = tx
         if conf <= 0:
             date = timestamp_to_datetime(time.time())
         else:

@@ -35,7 +35,7 @@ import re
 import stat
 from functools import partial
 from unicodedata import normalize
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 
 from i18n import _
 from util import NotEnoughFunds, PrintError, profiler
@@ -193,7 +193,8 @@ class Abstract_Wallet(PrintError):
 
         # Transactions pending verification.  A map from tx hash to transaction
         # height.  Access is not contended so no lock is needed.
-        self.unverified_tx = {}
+        self.unverified_tx = defaultdict(int)
+
         # Verified transactions.  Each value is a (height, timestamp, block_pos) tuple.  Access with self.lock.
         self.verified_tx   = storage.get('verified_tx3',{})
 
@@ -455,8 +456,8 @@ class Abstract_Wallet(PrintError):
         return decrypted
 
     def add_unverified_tx(self, tx_hash, tx_height):
-        # Only add if confirmed and not verified
-        if tx_height > 0 and tx_hash not in self.verified_tx:
+        # tx will be verified only if height > 0
+        if tx_hash not in self.verified_tx:
             self.unverified_tx[tx_hash] = tx_height
 
     def add_verified_tx(self, tx_hash, info):
@@ -465,9 +466,8 @@ class Abstract_Wallet(PrintError):
         with self.lock:
             self.verified_tx[tx_hash] = info  # (tx_height, timestamp, pos)
         self.storage.put('verified_tx3', self.verified_tx)
-
-        conf, timestamp = self.get_confirmations(tx_hash)
-        self.network.trigger_callback('verified', tx_hash, conf, timestamp)
+        height, conf, timestamp = self.get_tx_height(tx_hash)
+        self.network.trigger_callback('verified', tx_hash, height, conf, timestamp)
 
     def get_unverified_txs(self):
         '''Returns a map from tx hash to transaction height'''
@@ -488,34 +488,29 @@ class Abstract_Wallet(PrintError):
         """ return last known height if we are offline """
         return self.network.get_local_height() if self.network else self.stored_height
 
-    def get_confirmations(self, tx):
-        """ return the number of confirmations of a monitored transaction. """
+    def get_tx_height(self, tx_hash):
+        """ return the height and timestamp of a verified transaction. """
         with self.lock:
-            if tx in self.verified_tx:
-                height, timestamp, pos = self.verified_tx[tx]
-                conf = (self.get_local_height() - height + 1)
-                if conf <= 0: timestamp = None
-            elif tx in self.unverified_tx:
-                conf = -1
-                timestamp = None
+            if tx_hash in self.verified_tx:
+                height, timestamp, pos = self.verified_tx[tx_hash]
+                conf = max(self.get_local_height() - height + 1, 0)
+                return height, conf, timestamp
             else:
-                conf = 0
-                timestamp = None
-
-        return conf, timestamp
+                height = self.unverified_tx[tx_hash]
+                return height, 0, False
 
     def get_txpos(self, tx_hash):
         "return position, even if the tx is unverified"
         with self.lock:
             x = self.verified_tx.get(tx_hash)
-        y = self.unverified_tx.get(tx_hash)
-        if x:
-            height, timestamp, pos = x
-            return height, pos
-        elif y:
-            return y, 0
-        else:
-            return 1e12, 0
+            y = self.unverified_tx.get(tx_hash)
+            if x:
+                height, timestamp, pos = x
+                return height, pos
+            elif y > 0:
+                return y, 0
+            else:
+                return 1e12, 0
 
     def is_found(self):
         return self.history.values() != [[]] * len(self.history)
@@ -827,7 +822,6 @@ class Abstract_Wallet(PrintError):
                     self.tx_addr_hist[tx_hash].remove(addr)
                     if not self.tx_addr_hist[tx_hash]:
                         self.remove_transaction(tx_hash)
-
             self.history[addr] = hist
 
         for tx_hash, tx_height in hist:
@@ -846,7 +840,6 @@ class Abstract_Wallet(PrintError):
         self.save_transactions()
 
     def get_history(self, domain=None):
-        from collections import defaultdict
         # get domain
         if domain is None:
             domain = self.get_account_addresses(None)
@@ -865,9 +858,10 @@ class Abstract_Wallet(PrintError):
 
         # 2. create sorted history
         history = []
-        for tx_hash, delta in tx_deltas.items():
-            conf, timestamp = self.get_confirmations(tx_hash)
-            history.append((tx_hash, conf, delta, timestamp))
+        for tx_hash in tx_deltas:
+            delta = tx_deltas[tx_hash]
+            height, conf, timestamp = self.get_tx_height(tx_hash)
+            history.append((tx_hash, height, conf, timestamp, delta))
         history.sort(key = lambda x: self.get_txpos(x[0]))
         history.reverse()
 
@@ -875,9 +869,8 @@ class Abstract_Wallet(PrintError):
         c, u, x = self.get_balance(domain)
         balance = c + u + x
         h2 = []
-        for item in history:
-            tx_hash, conf, delta, timestamp = item
-            h2.append((tx_hash, conf, delta, timestamp, balance))
+        for tx_hash, height, conf, timestamp, delta in history:
+            h2.append((tx_hash, height, conf, timestamp, delta, balance))
             if balance is None or delta is None:
                 balance = None
             else:
@@ -1076,7 +1069,7 @@ class Abstract_Wallet(PrintError):
         for addr, hist in self.history.items():
             for tx_hash, tx_height in hist:
                 # add it in case it was previously unconfirmed
-                self.add_unverified_tx (tx_hash, tx_height)
+                self.add_unverified_tx(tx_hash, tx_height)
 
         # if we are on a pruning server, remove unverified transactions
         with self.lock:
