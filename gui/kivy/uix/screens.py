@@ -118,19 +118,25 @@ class HistoryScreen(CScreen):
 
     def parse_history(self, items):
         for item in items:
-            tx_hash, conf, value, timestamp, balance = item
-            time_str = _("unknown")
-            if conf > 0:
-                try:
-                    time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
-                except Exception:
-                    time_str = _("error")
-            if conf == -1:
-                time_str = _('Not Verified')
+            tx_hash, height, conf, timestamp, value, balance = item
+            time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3] if timestamp else _("unknown")
+            if conf == 0:
+                tx = self.app.wallet.transactions.get(tx_hash)
+                is_final = tx.is_final()
+            else:
+                is_final = True
+            if not is_final:
+                time_str = _('Replaceable')
                 icon = "atlas://gui/kivy/theming/light/close"
-            elif conf == 0:
+            elif height < 0:
+                time_str = _('Unconfirmed inputs')
+                icon = "atlas://gui/kivy/theming/light/close"
+            elif height == 0:
                 time_str = _('Unconfirmed')
                 icon = "atlas://gui/kivy/theming/light/unconfirmed"
+            elif conf == 0:
+                time_str = _('Not Verified')
+                icon = "atlas://gui/kivy/theming/light/close"
             elif conf < 6:
                 conf = max(1, conf)
                 icon = "atlas://gui/kivy/theming/light/clock{}".format(conf)

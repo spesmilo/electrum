@@ -45,15 +45,19 @@ class HistoryList(MyTreeWidget):
         run_hook('history_tab_headers', headers)
         self.update_headers(headers)
 
-    def get_icon(self, conf, timestamp):
-        time_str = _("unknown")
-        if conf > 0:
-            time_str = format_time(timestamp)
-        if conf == -1:
-            time_str = _('Not Verified')
+    def get_icon(self, height, conf, timestamp, is_final):
+        time_str = format_time(timestamp) if timestamp else _("unknown")
+        if not is_final:
+            time_str = _('Replaceable')
+            icon = QIcon(":icons/warning.png")
+        elif height < 0:
+            time_str = _('Unconfirmed inputs')
+            icon = QIcon(":icons/warning.png")
+        elif height == 0:
+            time_str = _('Unconfirmed')
             icon = QIcon(":icons/unconfirmed.png")
         elif conf == 0:
-            time_str = _('Unconfirmed')
+            time_str = _('Not Verified')
             icon = QIcon(":icons/unconfirmed.png")
         elif conf < 6:
             icon = QIcon(":icons/clock%d.png"%conf)
@@ -68,17 +72,18 @@ class HistoryList(MyTreeWidget):
     def on_update(self):
         self.wallet = self.parent.wallet
         h = self.wallet.get_history(self.get_domain())
-
         item = self.currentItem()
         current_tx = item.data(0, Qt.UserRole).toString() if item else None
         self.clear()
         run_hook('history_tab_update_begin')
         for h_item in h:
-            tx_hash, conf, value, timestamp, balance = h_item
-            if conf is None and timestamp is None:
-                continue  # skip history in offline mode
-
-            icon, time_str = self.get_icon(conf, timestamp)
+            tx_hash, height, conf, timestamp, value, balance = h_item
+            if conf == 0:
+                tx = self.wallet.transactions.get(tx_hash)
+                is_final = tx.is_final()
+            else:
+                is_final = True
+            icon, time_str = self.get_icon(height, conf, timestamp, is_final)
             v_str = self.parent.format_amount(value, True, whitespaces=True)
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             label = self.wallet.get_label(tx_hash)
@@ -100,8 +105,8 @@ class HistoryList(MyTreeWidget):
             if current_tx == tx_hash:
                 self.setCurrentItem(item)
 
-    def update_item(self, tx_hash, conf, timestamp):
-        icon, time_str = self.get_icon(conf, timestamp)
+    def update_item(self, tx_hash, height, conf, timestamp):
+        icon, time_str = self.get_icon(height, conf, timestamp, True)
         items = self.findItems(tx_hash, Qt.UserRole|Qt.MatchContains|Qt.MatchRecursive, column=1)
         if items:
             item = items[0]
@@ -125,10 +130,10 @@ class HistoryList(MyTreeWidget):
             column_data = item.text(column)
 
         tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
-        conf, timestamp = self.wallet.get_confirmations(tx_hash)
+        height, conf, timestamp = self.wallet.get_tx_height(tx_hash)
         tx = self.wallet.transactions.get(tx_hash)
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
-        rbf = is_mine and (conf == 0) and tx and not tx.is_final()
+        rbf = is_mine and height <=0 and tx and not tx.is_final()
         menu = QMenu()
 
         menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(column_data))

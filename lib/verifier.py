@@ -43,7 +43,7 @@ class SPV(ThreadJob):
         unverified = self.wallet.get_unverified_txs()
         for tx_hash, tx_height in unverified.items():
             # do not request merkle branch before headers are available
-            if tx_hash not in self.merkle_roots and tx_height <= lh:
+            if tx_height>0 and tx_hash not in self.merkle_roots and tx_height <= lh:
                 request = ('blockchain.transaction.get_merkle',
                            [tx_hash, tx_height])
                 self.network.send([request], self.verify_merkle)

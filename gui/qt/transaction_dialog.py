@@ -183,17 +183,19 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.broadcast_button.hide()
 
         if self.tx.is_complete():
-            status = _("Signed")
-
             if tx_hash in self.wallet.transactions.keys():
                 desc = self.wallet.get_label(tx_hash)
-                conf, timestamp = self.wallet.get_confirmations(tx_hash)
-                if timestamp:
-                    time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+                height, conf, timestamp = self.wallet.get_tx_height(tx_hash)
+                if height > 0:
+                    if conf:
+                        status = _("%d confirmations") % height
+                        time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+                    else:
+                        status = _('Not verified')
                 else:
-                    time_str = _('Pending')
-                status = _("%d confirmations")%conf
+                    status = _('Unconfirmed')
             else:
+                status = _("Signed")
                 self.broadcast_button.show()
                 # cannot broadcast when offline
                 if self.main_window.network is None:

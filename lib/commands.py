@@ -450,20 +450,21 @@ class Commands:
         balance = 0
         out = []
         for item in self.wallet.get_history():
-            tx_hash, conf, value, timestamp, balance = item
-            try:
-                time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
-            except Exception:
-                time_str = "----"
+            tx_hash, height, conf, timestamp, value, balance = item
+            if timestamp:
+                date = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+            else:
+                date = "----"
             label = self.wallet.get_label(tx_hash)
             out.append({
-                'txid':tx_hash,
-                'timestamp':timestamp,
-                'date':"%16s"%time_str,
-                'label':label,
-                'value':float(value)/COIN if value is not None else None,
-                'confirmations':conf}
-            )
+                'txid': tx_hash,
+                'timestamp': timestamp,
+                'date': date,
+                'label': label,
+                'value': float(value)/COIN if value is not None else None,
+                'height': height,
+                'confirmations': conf
+            })
         return out
 
     @command('w')
