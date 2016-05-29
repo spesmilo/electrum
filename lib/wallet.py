@@ -1209,7 +1209,7 @@ class Abstract_Wallet(PrintError):
         out = set()
         coins = self.get_spendable_coins()
         for i in tx.inputs_without_script():
-            txin = tx.inputs[i]
+            txin = tx.inputs()[i]
             for item in coins:
                 if txin.get('prevout_hash') == item.get('prevout_hash') and txin.get('prevout_n') == item.get('prevout_n'):
                     out.add((i, item.get('address')))
