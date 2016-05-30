@@ -32,6 +32,21 @@ from electrum.util import block_explorer_URL, format_satoshis, format_time
 from electrum.plugins import run_hook
 
 
+TX_ICONS = [
+    "warning.png",
+    "warning.png",
+    "warning.png",
+    "unconfirmed.png",
+    "unconfirmed.png",
+    "clock1.png",
+    "clock2.png",
+    "clock3.png",
+    "clock4.png",
+    "clock5.png",
+    "confirmed.png",
+]
+
+
 class HistoryList(MyTreeWidget):
 
     def __init__(self, parent=None):
@@ -40,30 +55,9 @@ class HistoryList(MyTreeWidget):
         self.setColumnHidden(1, True)
 
     def refresh_headers(self):
-        headers = ['', '', _('Date'), _('Description') , _('Amount'),
-                   _('Balance')]
+        headers = ['', '', _('Date'), _('Description') , _('Amount'), _('Balance')]
         run_hook('history_tab_headers', headers)
         self.update_headers(headers)
-
-    def get_icon(self, height, conf, timestamp, is_final):
-        time_str = format_time(timestamp) if timestamp else _("unknown")
-        if not is_final:
-            time_str = _('Replaceable')
-            icon = QIcon(":icons/warning.png")
-        elif height < 0:
-            time_str = _('Unconfirmed inputs')
-            icon = QIcon(":icons/warning.png")
-        elif height == 0:
-            time_str = _('Unconfirmed')
-            icon = QIcon(":icons/unconfirmed.png")
-        elif conf == 0:
-            time_str = _('Not Verified')
-            icon = QIcon(":icons/unconfirmed.png")
-        elif conf < 6:
-            icon = QIcon(":icons/clock%d.png"%conf)
-        else:
-            icon = QIcon(":icons/confirmed.png")
-        return icon, time_str
 
     def get_domain(self):
         '''Replaced in address_dialog.py'''
@@ -78,16 +72,12 @@ class HistoryList(MyTreeWidget):
         run_hook('history_tab_update_begin')
         for h_item in h:
             tx_hash, height, conf, timestamp, value, balance = h_item
-            if conf == 0:
-                tx = self.wallet.transactions.get(tx_hash)
-                is_final = tx and tx.is_final()
-            else:
-                is_final = True
-            icon, time_str = self.get_icon(height, conf, timestamp, is_final)
+            status, status_str = self.wallet.get_tx_status(tx_hash, height, conf, timestamp)
+            icon = QIcon(":icons/" + TX_ICONS[status])
             v_str = self.parent.format_amount(value, True, whitespaces=True)
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             label = self.wallet.get_label(tx_hash)
-            entry = ['', tx_hash, time_str, label, v_str, balance_str]
+            entry = ['', tx_hash, status_str, label, v_str, balance_str]
             run_hook('history_tab_update', h_item, entry)
             item = QTreeWidgetItem(entry)
             item.setIcon(0, icon)
@@ -106,7 +96,8 @@ class HistoryList(MyTreeWidget):
                 self.setCurrentItem(item)
 
     def update_item(self, tx_hash, height, conf, timestamp):
-        icon, time_str = self.get_icon(height, conf, timestamp, True)
+        status, status_str = self.wallet.get_tx_status(tx_hash, height, conf, timestamp)
+        icon = QIcon(":icons/" +  TX_ICONS[status])
         items = self.findItems(tx_hash, Qt.UserRole|Qt.MatchContains|Qt.MatchRecursive, column=1)
         if items:
             item = items[0]

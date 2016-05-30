@@ -111,6 +111,9 @@ class Synchronizer(ThreadJob):
         server_status = self.requested_histories[addr]
         hashes = set(map(lambda item: item['tx_hash'], result))
         hist = map(lambda item: (item['tx_hash'], item['height']), result)
+        # tx_fees
+        tx_fees = [(item['tx_hash'], item.get('fee')) for item in result]
+        tx_fees = dict(filter(lambda x:x[1] is not None, tx_fees))
         # Note if the server hasn't been patched to sort the items properly
         if hist != sorted(hist, key=lambda x:x[1]):
             self.network.interface.print_error("serving improperly sorted address histories")
@@ -122,7 +125,7 @@ class Synchronizer(ThreadJob):
             self.print_error("error: status mismatch: %s" % addr)
         else:
             # Store received history
-            self.wallet.receive_history_callback(addr, hist)
+            self.wallet.receive_history_callback(addr, hist, tx_fees)
             # Request transactions we don't have
             self.request_missing_txs(hist)
         # Remove request; this allows up_to_date to be True

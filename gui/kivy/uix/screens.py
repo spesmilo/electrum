@@ -88,6 +88,20 @@ class CScreen(Factory.Screen):
         self.add_widget(self.context_menu)
 
 
+TX_ICONS = [
+    "close",
+    "close",
+    "close",
+    "unconfirmed",
+    "close",
+    "clock1",
+    "clock2",
+    "clock3",
+    "clock4",
+    "clock5",
+    "confirmed",
+]
+
 class HistoryScreen(CScreen):
 
     tab = ObjectProperty(None)
@@ -119,30 +133,8 @@ class HistoryScreen(CScreen):
     def parse_history(self, items):
         for item in items:
             tx_hash, height, conf, timestamp, value, balance = item
-            time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3] if timestamp else _("unknown")
-            if conf == 0:
-                tx = self.app.wallet.transactions.get(tx_hash)
-                is_final = tx.is_final()
-            else:
-                is_final = True
-            if not is_final:
-                time_str = _('Replaceable')
-                icon = "atlas://gui/kivy/theming/light/close"
-            elif height < 0:
-                time_str = _('Unconfirmed inputs')
-                icon = "atlas://gui/kivy/theming/light/close"
-            elif height == 0:
-                time_str = _('Unconfirmed')
-                icon = "atlas://gui/kivy/theming/light/unconfirmed"
-            elif conf == 0:
-                time_str = _('Not Verified')
-                icon = "atlas://gui/kivy/theming/light/close"
-            elif conf < 6:
-                conf = max(1, conf)
-                icon = "atlas://gui/kivy/theming/light/clock{}".format(conf)
-            else:
-                icon = "atlas://gui/kivy/theming/light/confirmed"
-
+            status, status_str = self.app.wallet.get_tx_status(tx_hash, height, conf, timestamp)
+            icon = "atlas://gui/kivy/theming/light/" + TX_ICONS[status]
             label = self.app.wallet.get_label(tx_hash) if tx_hash else _('Pruned transaction outputs')
             date = timestamp_to_datetime(timestamp)
             quote_text = ''
@@ -151,7 +143,7 @@ class HistoryScreen(CScreen):
                 if rate:
                     s = run_hook('value_str', value, rate)
                     quote_text = '' if s is None else s + ' ' + self.app.fiat_unit
-            yield (conf, icon, time_str, label, value, tx_hash, quote_text)
+            yield (conf, icon, status_str, label, value, tx_hash, quote_text)
 
     def update(self, see_all=False):
         if self.app.wallet is None:

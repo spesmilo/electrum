@@ -57,6 +57,16 @@ import paymentrequest
 # internal ID for imported account
 IMPORTED_ACCOUNT = '/x'
 
+
+TX_STATUS = [
+    _('Replaceable'),
+    _('Unconfirmed parent'),
+    _('Low fee'),
+    _('Unconfirmed'),
+    _('Not Verified'),
+]
+
+
 class WalletStorage(PrintError):
 
     def __init__(self, path):
@@ -225,6 +235,7 @@ class Abstract_Wallet(PrintError):
     def load_transactions(self):
         self.txi = self.storage.get('txi', {})
         self.txo = self.storage.get('txo', {})
+        self.tx_fees = self.storage.get('tx_fees', {})
         self.pruned_txo = self.storage.get('pruned_txo', {})
         tx_list = self.storage.get('transactions', {})
         self.transactions = {}
@@ -244,6 +255,7 @@ class Abstract_Wallet(PrintError):
             self.storage.put('transactions', tx)
             self.storage.put('txi', self.txi)
             self.storage.put('txo', self.txo)
+            self.storage.put('tx_fees', self.tx_fees)
             self.storage.put('pruned_txo', self.pruned_txo)
             self.storage.put('addr_history', self.history)
             if write:
@@ -253,6 +265,7 @@ class Abstract_Wallet(PrintError):
         with self.transaction_lock:
             self.txi = {}
             self.txo = {}
+            self.tx_fees = {}
             self.pruned_txo = {}
         self.save_transactions()
         with self.lock:
@@ -804,8 +817,7 @@ class Abstract_Wallet(PrintError):
         self.save_transactions()
         self.add_unverified_tx(tx_hash, tx_height)
 
-
-    def receive_history_callback(self, addr, hist):
+    def receive_history_callback(self, addr, hist, tx_fees):
         with self.lock:
             old_hist = self.history.get(addr, [])
             for tx_hash, height in old_hist:
@@ -830,6 +842,8 @@ class Abstract_Wallet(PrintError):
 
         # Write updated TXI, TXO etc.
         self.save_transactions()
+        # Store fees
+        self.tx_fees.update(tx_fees)
 
     def get_history(self, domain=None):
         # get domain
@@ -904,6 +918,34 @@ class Abstract_Wallet(PrintError):
             return fee
         else:
             return F
+
+    def get_tx_status(self, tx_hash, height, conf, timestamp):
+        from util import format_time
+        if conf == 0:
+            tx = self.transactions.get(tx_hash)
+            is_final = tx and tx.is_final()
+            fee = self.tx_fees.get(tx_hash)
+            if fee and self.network and self.network.fee:
+                size = len(tx.raw)/2
+                network_fee = int(self.network.fee * size / 1000)
+                is_lowfee = fee < network_fee * 0.25
+            else:
+                is_lowfee = False
+            if not is_final:
+                status = 0
+            elif height < 0:
+                status = 1
+            elif height == 0 and is_lowfee:
+                status = 2
+            elif height == 0:
+                status = 3
+            else:
+                status = 4
+        else:
+            status = 4 + min(conf, 6)
+        time_str = format_time(timestamp) if timestamp else _("unknown")
+        status_str = TX_STATUS[status] if status < 5 else time_str
+        return status, status_str
 
     def relayfee(self):
         RELAY_FEE = 5000
