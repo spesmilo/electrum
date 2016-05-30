@@ -147,6 +147,20 @@ class WizardBase(PrintError):
             wallet = Wallet(storage)
             if wallet.imported_keys:
                 self.update_wallet_format(wallet)
+            action = wallet.get_action()
+            if action != 'new':
+                self.hide()
+                path = storage.path
+                msg = _("The file '%s' contains an incompletely created wallet.\n"
+                        "Do you want to complete its creation now?") % path
+                if not self.question(msg):
+                    if self.question(_("Do you want to delete '%s'?") % path):
+                        import os
+                        os.remove(path)
+                        self.show_warning(_('The file was removed'))
+                        return
+                    return
+                self.show()
         else:
             cr, wallet = self.create_or_restore(storage)
             if not wallet:
