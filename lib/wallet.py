@@ -713,14 +713,6 @@ class Abstract_Wallet(PrintError):
         with self.lock:
             return self.history.get(address, [])
 
-    def get_status(self, h):
-        if not h:
-            return None
-        status = ''
-        for tx_hash, height in h:
-            status += tx_hash + ':%d:' % height
-        return hashlib.sha256( status ).digest().encode('hex')
-
     def find_pay_to_pubkey_address(self, prevout_hash, prevout_n):
         dd = self.txo.get(prevout_hash, {})
         for addr, l in dd.items():

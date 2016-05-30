@@ -25,6 +25,7 @@
 
 
 from threading import Lock
+import hashlib
 
 from bitcoin import Hash, hash_encode
 from transaction import Transaction
@@ -78,13 +79,21 @@ class Synchronizer(ThreadJob):
                        addresses)
             self.network.send(msgs, self.addr_subscription_response)
 
+    def get_status(self, h):
+        if not h:
+            return None
+        status = ''
+        for tx_hash, height in h:
+            status += tx_hash + ':%d:' % height
+        return hashlib.sha256(status).digest().encode('hex')
+
     def addr_subscription_response(self, response):
         params, result = self.parse_response(response)
         if not params:
             return
         addr = params[0]
         history = self.wallet.get_address_history(addr)
-        if self.wallet.get_status(history) != result:
+        if self.get_status(history) != result:
             if self.requested_histories.get(addr) is None:
                 self.requested_histories[addr] = result
                 self.network.send([('blockchain.address.get_history', [addr])],
@@ -109,7 +118,7 @@ class Synchronizer(ThreadJob):
         if len(hashes) != len(result):
             self.print_error("error: server history has non-unique txids: %s"% addr)
         # Check that the status corresponds to what was announced
-        elif self.wallet.get_status(hist) != server_status:
+        elif self.get_status(hist) != server_status:
             self.print_error("error: status mismatch: %s" % addr)
         else:
             # Store received history
