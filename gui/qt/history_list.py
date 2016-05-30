@@ -80,7 +80,7 @@ class HistoryList(MyTreeWidget):
             tx_hash, height, conf, timestamp, value, balance = h_item
             if conf == 0:
                 tx = self.wallet.transactions.get(tx_hash)
-                is_final = tx.is_final()
+                is_final = tx and tx.is_final()
             else:
                 is_final = True
             icon, time_str = self.get_icon(height, conf, timestamp, is_final)
