@@ -25,6 +25,7 @@
 
 
 from electrum_ltc.i18n import _
+from electrum_ltc.bitcoin import is_address
 from electrum_ltc.util import block_explorer_URL, format_satoshis, format_time, age
 from electrum_ltc.plugins import run_hook
 from electrum_ltc.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
@@ -36,7 +37,7 @@ from util import MyTreeWidget, pr_tooltips, pr_icons
 class ContactList(MyTreeWidget):
 
     def __init__(self, parent):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [_('Name'), _('Type'), _('Value')], 0, [0])
+        MyTreeWidget.__init__(self, parent, self.create_menu, [_('Name'), _('Address')], 0, [0])
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
 
@@ -56,8 +57,7 @@ class ContactList(MyTreeWidget):
             menu.addAction(_("New contact"), lambda: self.parent.new_contact_dialog())
         else:
             names = [unicode(item.text(0)) for item in selected]
-            types = [unicode(item.text(1)) for item in selected]
-            keys = [unicode(item.text(2)) for item in selected]
+            keys = [unicode(item.text(1)) for item in selected]
             column = self.currentColumn()
             column_title = self.headerItem().text(column)
             column_data = '\n'.join([unicode(item.text(column)) for item in selected])
@@ -68,13 +68,9 @@ class ContactList(MyTreeWidget):
 
             menu.addAction(_("Pay to"), lambda: self.parent.payto_contacts(keys))
             menu.addAction(_("Delete"), lambda: self.parent.delete_contacts(keys))
-            URLs = []
-            for (addr, _type) in zip(keys, types):
-                if _type == 'address':
-                    URLs.append(block_explorer_URL(self.config, 'addr', addr))
+            URLs = [block_explorer_URL(self.config, 'addr', key) for key in filter(is_address, keys)]
             if URLs:
-                menu.addAction(_("View on block explorer"),
-                               lambda: map(webbrowser.open, URLs))
+                menu.addAction(_("View on block explorer"), lambda: map(webbrowser.open, URLs))
 
         run_hook('create_contact_menu', menu, selected)
         menu.exec_(self.viewport().mapToGlobal(position))
@@ -85,7 +81,7 @@ class ContactList(MyTreeWidget):
         self.clear()
         for key in sorted(self.parent.contacts.keys()):
             _type, name = self.parent.contacts[key]
-            item = QTreeWidgetItem([name, _type, key])
+            item = QTreeWidgetItem([name, key])
             item.setData(0, Qt.UserRole, key)
             self.addTopLevelItem(item)
             if key == current_key:

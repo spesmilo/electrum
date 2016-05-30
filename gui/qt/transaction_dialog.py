@@ -188,7 +188,7 @@ class TxDialog(QDialog, MessageBoxMixin):
                 height, conf, timestamp = self.wallet.get_tx_height(tx_hash)
                 if height > 0:
                     if conf:
-                        status = _("%d confirmations") % height
+                        status = _("%d confirmations") % conf
                         time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
                     else:
                         status = _('Not verified')

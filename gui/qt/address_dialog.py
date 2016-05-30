@@ -30,7 +30,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 from util import *
-from history_widget import HistoryWidget
+from history_list import HistoryList
 
 class AddressDialog(WindowModalDialog):
 
@@ -55,7 +55,7 @@ class AddressDialog(WindowModalDialog):
         vbox.addWidget(self.addr_e)
 
         vbox.addWidget(QLabel(_("History")))
-        self.hw = HistoryWidget(self.parent)
+        self.hw = HistoryList(self.parent)
         self.hw.get_domain = self.get_domain
         vbox.addWidget(self.hw)
 
