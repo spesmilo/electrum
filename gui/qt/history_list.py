@@ -102,7 +102,7 @@ class HistoryList(MyTreeWidget):
         if items:
             item = items[0]
             item.setIcon(0, icon)
-            item.setText(2, time_str)
+            item.setText(2, status_str)
 
     def create_menu(self, position):
         self.selectedIndexes()
