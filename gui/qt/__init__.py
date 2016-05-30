@@ -181,8 +181,8 @@ class ElectrumGui:
     def main(self):
         self.timer.start()
         self.config.open_last_wallet()
-        if not self.start_new_window(self.config.get_wallet_path(),
-                                     self.config.get('url')):
+        path = self.config.get_wallet_path()
+        if not self.start_new_window(path, self.config.get('url')):
             return
 
         signal.signal(signal.SIGINT, lambda *args: self.app.quit())
