@@ -1,4 +1,5 @@
 PYTHON = python
+
 # needs kivy installed or in PYTHONPATH
 
 .PHONY: theming apk clean
@@ -17,11 +18,11 @@ prepare:
 	fi
 apk:
 	@make prepare
-	@-cd ../..; buildozer android debug deploy run
+	@-cd ../..; buildozer android_new debug deploy run
 	@make clean
 release:
 	@make prepare
-	@-cd ../..; buildozer android release
+	@-cd ../..; buildozer android_new release
 	@make clean
 clean:
 	# Cleaning up

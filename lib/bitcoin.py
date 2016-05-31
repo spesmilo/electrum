@@ -208,7 +208,9 @@ def i2o_ECPublicKey(pubkey, compressed=False):
 ############ functions from pywallet #####################
 
 def hash_160(public_key):
-    md = hashlib.new('ripemd160')
+    #md = hashlib.new('ripemd')
+    from Crypto.Hash import RIPEMD
+    md = RIPEMD.new()
     md.update(sha256(public_key))
     return md.digest()
 
