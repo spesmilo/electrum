@@ -34,14 +34,6 @@ Builder.load_string('''
             CheckBox:
                 id: dynfees
                 on_active: root.on_checkbox(self.active)
-        BoxLayout:
-            orientation: 'horizontal'
-            size_hint: 1, None
-            Label:
-                id: reco
-                font_size: '6pt'
-                text_size: self.size
-                text: ''
         Widget:
             size_hint: 1, 1
         BoxLayout:
@@ -77,9 +69,6 @@ class FeeDialog(Factory.Popup):
         self.update_slider()
         self.update_text()
 
-        if self.app.network and self.app.network.fee:
-            self.ids.reco.text = _('Recommended fee for inclusion in the next two blocks') + ': ' + self.app.format_amount_and_units(self.app.network.fee) +'/kb' 
-
     def update_text(self):
         self.ids.fee_per_kb.text = self.get_fee_text()
 
@@ -96,7 +85,12 @@ class FeeDialog(Factory.Popup):
 
     def get_fee_text(self):
         if self.ids.dynfees.active:
-            return fee_levels[self.fee_level] + ' (%d%%)'% (100 * (self.fee_level + 1)/3)
+            tooltip = fee_levels[self.fee_level]
+            if self.app.network:
+                dynfee = self.app.network.dynfee(self.fee_level)
+                if dynfee:
+                    tooltip += '\n' + (self.app.format_amount_and_units(dynfee)) + '/kB'
+            return tooltip
         else:
             return self.app.format_amount_and_units(self.static_fee) + '/kB'
 

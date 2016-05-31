@@ -36,7 +36,7 @@ import threading
 from i18n import _
 
 base_units = {'BTC':8, 'mBTC':5, 'uBTC':2}
-fee_levels = [_('Very low'), _('Low'), _('Normal'), _('High'), _('Very high')]
+fee_levels = [_('Within 25 blocks'), _('Within 10 blocks'), _('Within 5 blocks'), _('Within 2 blocks'), _('In the next block')]
 
 def normalize_version(v):
     return [int(x) for x in re.sub(r'(\.0+)*$','', v).split(".")]
