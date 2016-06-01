@@ -924,7 +924,7 @@ class Abstract_Wallet(PrintError):
             if fee and self.network and self.network.dynfee(0):
                 size = len(tx.raw)/2
                 low_fee = int(self.network.dynfee(0)*size/1000)
-                is_lowfee = fee < low_fee
+                is_lowfee = fee < low_fee * 0.5
             else:
                 is_lowfee = False
             if not is_final:
