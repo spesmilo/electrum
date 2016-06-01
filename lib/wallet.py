@@ -921,10 +921,10 @@ class Abstract_Wallet(PrintError):
             tx = self.transactions.get(tx_hash)
             is_final = tx and tx.is_final()
             fee = self.tx_fees.get(tx_hash)
-            if fee and self.network and self.network.dynfee(25):
+            if fee and self.network and self.network.dynfee(0):
                 size = len(tx.raw)/2
-                low_fee = int(self.network.dynfee(25)*size/1000)
-                is_lowfee = fee < low_fee * 0.5
+                low_fee = int(self.network.dynfee(0)*size/1000)
+                is_lowfee = fee < low_fee
             else:
                 is_lowfee = False
             if not is_final:
