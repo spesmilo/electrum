@@ -1,3 +1,12 @@
+# Release 2.7.0
+ * Dynamic fees are enabled by default
+ * Support for Replace-By-Fee transactions
+ * Use confirmation times targets for dynamic fees
+ * Qt GUI:
+   - A fee slider is available in the in send tab
+   - The Address tab is hidden by default
+   - UTXOs are displayed in the Address tab
+
 # Release 2.6.4 (bugfixes)
  * fix coinchooser bug (#1703)
  * fix daemon JSONRPC (#1731)

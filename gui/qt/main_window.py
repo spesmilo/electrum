@@ -925,7 +925,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def slider_moved():
             from electrum_ltc.util import fee_levels
             i = self.fee_slider.sliderPosition()
-            tooltip = fee_levels[i] + ' (%d%%)'% (100 * (i + 1)/3)
+            tooltip = fee_levels[i]
+            dynfee = self.network.dynfee(i)
+            if dynfee:
+                tooltip += '\n' + self.format_amount(dynfee) + ' ' + self.base_unit() + '/kB'
             QToolTip.showText(QCursor.pos(), tooltip, self.fee_slider)
         def slider_released():
             self.config.set_key('fee_level', self.fee_slider.sliderPosition(), False)
@@ -933,7 +936,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.spend_max()
             else:
                 self.update_fee()
-
         self.fee_slider.valueChanged.connect(slider_moved)
         self.fee_slider.sliderReleased.connect(slider_released)
         self.fee_slider.setValue(self.config.get('fee_level', 2))
@@ -2376,12 +2378,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         dynfee_cb.setToolTip(_("Use a fee per kB value recommended by the server."))
         fee_widgets.append((dynfee_cb, None))
         def update_feeperkb():
-            fee_e.setAmount(self.wallet.fee_per_kb(self.config))
+            fee_e.setAmount(self.config.get('fee_per_kb', bitcoin.RECOMMENDED_FEE))
             b = self.config.get('dynamic_fees', False)
             fee_e.setEnabled(not b)
         def on_dynfee(x):
-            dynfee = x == Qt.Checked
-            self.config.set_key('dynamic_fees', dynfee)
+            self.config.set_key('dynamic_fees', x == Qt.Checked)
             update_feeperkb()
             self.update_fee_edit()
         dynfee_cb.stateChanged.connect(on_dynfee)

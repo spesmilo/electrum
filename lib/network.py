@@ -42,6 +42,8 @@ from interface import Connection, Interface
 from blockchain import Blockchain
 from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 
+FEE_TARGETS = [25, 10, 5, 2]
+
 DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 
 DEFAULT_SERVERS = {
@@ -186,7 +188,7 @@ class Network(util.DaemonThread):
 
         self.banner = ''
         self.donation_address = ''
-        self.fee = None
+        self.fee_estimates = {}
         self.relay_fee = None
         self.heights = {}
         self.merkle_roots = {}
@@ -310,7 +312,8 @@ class Network(util.DaemonThread):
         self.queue_request('server.banner', [])
         self.queue_request('server.donation_address', [])
         self.queue_request('server.peers.subscribe', [])
-        self.queue_request('blockchain.estimatefee', [2])
+        for i in FEE_TARGETS:
+            self.queue_request('blockchain.estimatefee', [i])
         self.queue_request('blockchain.relayfee', [])
 
     def get_status_value(self, key):
@@ -319,7 +322,7 @@ class Network(util.DaemonThread):
         elif key == 'banner':
             value = self.banner
         elif key == 'fee':
-            value = self.fee
+            value = self.fee_estimates
         elif key == 'updated':
             value = (self.get_local_height(), self.get_server_height())
         elif key == 'servers':
@@ -327,6 +330,20 @@ class Network(util.DaemonThread):
         elif key == 'interfaces':
             value = self.get_interfaces()
         return value
+
+    def dynfee(self, i):
+        from bitcoin import RECOMMENDED_FEE
+        if i < 4:
+            j = FEE_TARGETS[i]
+            fee = self.fee_estimates.get(j)
+        else:
+            assert i == 4
+            fee = self.fee_estimates.get(2)
+            if fee is not None:
+                fee += fee/2
+        if fee is not None:
+            fee = min(10*RECOMMENDED_FEE, fee)
+        return fee
 
     def notify(self, key):
         if key in ['status', 'updated']:
@@ -510,8 +527,8 @@ class Network(util.DaemonThread):
                 self.donation_address = result
         elif method == 'blockchain.estimatefee':
             if error is None:
-                self.fee = int(result * COIN)
-                self.print_error("recommended fee", self.fee)
+                i = params[0]
+                self.fee_estimates[i] = int(result * COIN)
                 self.notify('fee')
         elif method == 'blockchain.relayfee':
             if error is None:
