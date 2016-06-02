@@ -127,8 +127,8 @@ class TxDialog(Factory.Popup):
         if is_relevant:
             if is_mine:
                 if fee is not None:
-                    self.amount_str = self.app.format_amount_and_units(-v+fee)
-                    self.fee_str = self.app.format_amount_and_units(-fee)
+                    self.amount_str = self.app.format_amount_and_units(-v-fee)
+                    self.fee_str = self.app.format_amount_and_units(fee)
                 else:
                     self.amount_str = self.app.format_amount_and_units(-v)
                     self.fee_str = _("unknown")

@@ -234,7 +234,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         if is_relevant:
             if is_mine:
                 if fee is not None:
-                    amount_str = _("Amount sent:") + ' %s'% format_amount(-v+fee) + ' ' + base_unit
+                    amount_str = _("Amount sent:") + ' %s'% format_amount(-v-fee) + ' ' + base_unit
                 else:
                     amount_str = _("Amount sent:") + ' %s'% format_amount(-v) + ' ' + base_unit
             else:
@@ -244,7 +244,7 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         if fee is None:
             fee = self.wallet.tx_fees.get(tx_hash)
-        fee_str = _("Transaction fee") + ': %s'% (format_amount(-fee) + ' ' + base_unit if fee is not None else _('unknown'))
+        fee_str = _("Transaction fee") + ': %s'% (format_amount(fee) + ' ' + base_unit if fee is not None else _('unknown'))
 
         self.amount_label.setText(amount_str)
         self.fee_label.setText(fee_str)

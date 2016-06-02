@@ -2711,7 +2711,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def bump_fee_dialog(self, tx):
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
-        fee = -fee
         d = WindowModalDialog(self, _('Bump Fee'))
         vbox = QVBoxLayout(d)
         vbox.addWidget(QLabel(_('Current fee') + ': %s'% self.format_amount(fee) + ' ' + self.base_unit()))

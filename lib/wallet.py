@@ -596,7 +596,7 @@ class Abstract_Wallet(PrintError):
                 fee = None
             else:
                 # all inputs are mine
-                fee = v_out - v_in
+                fee = v_in - v_out
         if not is_mine:
             fee = None
         return is_relevant, is_mine, v, fee
