@@ -594,10 +594,11 @@ class Abstract_Wallet(PrintError):
             if is_partial:
                 # some inputs are mine, but not all
                 fee = None
-                is_mine = v < 0
             else:
                 # all inputs are mine
                 fee = v_out - v_in
+        if not is_mine:
+            fee = None
         return is_relevant, is_mine, v, fee
 
     def get_addr_io(self, address):
