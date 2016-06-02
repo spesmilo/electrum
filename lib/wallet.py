@@ -552,14 +552,14 @@ class Abstract_Wallet(PrintError):
         """ effect of tx on wallet """
         addresses = self.addresses(True)
         is_relevant = False
-        is_send = False
+        is_mine = False
         is_pruned = False
         is_partial = False
         v_in = v_out = v_out_mine = 0
         for item in tx.inputs():
             addr = item.get('address')
             if addr in addresses:
-                is_send = True
+                is_mine = True
                 is_relevant = True
                 d = self.txo.get(item['prevout_hash'], {}).get(addr, [])
                 for n, v, cb in d:
@@ -574,7 +574,7 @@ class Abstract_Wallet(PrintError):
                     v_in += value
             else:
                 is_partial = True
-        if not is_send:
+        if not is_mine:
             is_partial = False
         for addr, value in tx.get_outputs():
             v_out += value
@@ -584,7 +584,7 @@ class Abstract_Wallet(PrintError):
         if is_pruned:
             # some inputs are mine:
             fee = None
-            if is_send:
+            if is_mine:
                 v = v_out_mine - v_out
             else:
                 # no input is mine
@@ -594,11 +594,11 @@ class Abstract_Wallet(PrintError):
             if is_partial:
                 # some inputs are mine, but not all
                 fee = None
-                is_send = v < 0
+                is_mine = v < 0
             else:
                 # all inputs are mine
                 fee = v_out - v_in
-        return is_relevant, is_send, v, fee
+        return is_relevant, is_mine, v, fee
 
     def get_addr_io(self, address):
         h = self.history.get(address, [])

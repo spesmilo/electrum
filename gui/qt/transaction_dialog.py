@@ -234,15 +234,20 @@ class TxDialog(QDialog, MessageBoxMixin):
         if is_relevant:
             if is_mine:
                 if fee is not None:
-                    self.amount_label.setText(_("Amount sent:")+' %s'% format_amount(-v+fee) + ' ' + base_unit)
-                    self.fee_label.setText(_("Transaction fee")+': %s'% format_amount(-fee) + ' ' + base_unit)
+                    amount_str = _("Amount sent:") + ' %s'% format_amount(-v+fee) + ' ' + base_unit
                 else:
-                    self.amount_label.setText(_("Amount sent:")+' %s'% format_amount(-v) + ' ' + base_unit)
-                    self.fee_label.setText(_("Transaction fee")+': '+ _("unknown"))
+                    amount_str = _("Amount sent:") + ' %s'% format_amount(-v) + ' ' + base_unit
             else:
-                self.amount_label.setText(_("Amount received:")+' %s'% format_amount(v) + ' ' + base_unit)
+                amount_str = _("Amount received:") + ' %s'% format_amount(v) + ' ' + base_unit
         else:
-            self.amount_label.setText(_("Transaction unrelated to your wallet"))
+            amount_str = _("Transaction unrelated to your wallet")
+
+        if fee is None:
+            fee = self.wallet.tx_fees.get(tx_hash)
+        fee_str = _("Transaction fee") + ': %s'% (format_amount(-fee) + ' ' + base_unit if fee is not None else _('unknown'))
+
+        self.amount_label.setText(amount_str)
+        self.fee_label.setText(fee_str)
 
         run_hook('transaction_dialog_update', self)
 
