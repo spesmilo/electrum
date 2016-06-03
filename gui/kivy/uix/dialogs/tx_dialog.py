@@ -104,6 +104,7 @@ class TxDialog(Factory.Popup):
         self.update()
 
     def update(self):
+        is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
         self.can_broadcast = False
         if self.tx.is_complete():
             self.tx_hash = self.tx.hash()
@@ -115,6 +116,8 @@ class TxDialog(Factory.Popup):
                     self.date_str = datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
                 else:
                     self.status_str =  _('Unconfirmed')
+                    if fee is None:
+                        fee = self.wallet.tx_fees.get(tx_hash)
             else:
                 self.can_broadcast = self.app.network is not None
                 self.status_str = _('Signed')
@@ -122,13 +125,12 @@ class TxDialog(Factory.Popup):
             s, r = self.tx.signature_count()
             self.status_str = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
 
-        is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
         self.is_mine = is_mine
         if is_relevant:
             if is_mine:
                 if fee is not None:
-                    self.amount_str = self.app.format_amount_and_units(-v+fee)
-                    self.fee_str = self.app.format_amount_and_units(-fee)
+                    self.amount_str = self.app.format_amount_and_units(-v-fee)
+                    self.fee_str = self.app.format_amount_and_units(fee)
                 else:
                     self.amount_str = self.app.format_amount_and_units(-v)
                     self.fee_str = _("unknown")

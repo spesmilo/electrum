@@ -177,12 +177,12 @@ class TxDialog(QDialog, MessageBoxMixin):
 
     def update(self):
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
-        tx_hash = self.tx.hash()
         desc = self.desc
         time_str = None
         self.broadcast_button.hide()
 
         if self.tx.is_complete():
+            tx_hash = self.tx.hash()
             if tx_hash in self.wallet.transactions.keys():
                 desc = self.wallet.get_label(tx_hash)
                 height, conf, timestamp = self.wallet.get_tx_height(tx_hash)
@@ -194,6 +194,8 @@ class TxDialog(QDialog, MessageBoxMixin):
                         status = _('Not verified')
                 else:
                     status = _('Unconfirmed')
+                    if fee is None:
+                        fee = self.wallet.tx_fees.get(tx_hash)
             else:
                 status = _("Signed")
                 self.broadcast_button.show()
@@ -234,15 +236,18 @@ class TxDialog(QDialog, MessageBoxMixin):
         if is_relevant:
             if is_mine:
                 if fee is not None:
-                    self.amount_label.setText(_("Amount sent:")+' %s'% format_amount(-v+fee) + ' ' + base_unit)
-                    self.fee_label.setText(_("Transaction fee")+': %s'% format_amount(-fee) + ' ' + base_unit)
+                    amount_str = _("Amount sent:") + ' %s'% format_amount(-v-fee) + ' ' + base_unit
                 else:
-                    self.amount_label.setText(_("Amount sent:")+' %s'% format_amount(-v) + ' ' + base_unit)
-                    self.fee_label.setText(_("Transaction fee")+': '+ _("unknown"))
+                    amount_str = _("Amount sent:") + ' %s'% format_amount(-v) + ' ' + base_unit
             else:
-                self.amount_label.setText(_("Amount received:")+' %s'% format_amount(v) + ' ' + base_unit)
+                amount_str = _("Amount received:") + ' %s'% format_amount(v) + ' ' + base_unit
         else:
-            self.amount_label.setText(_("Transaction unrelated to your wallet"))
+            amount_str = _("Transaction unrelated to your wallet")
+
+        fee_str = _("Transaction fee") + ': %s'% (format_amount(fee) + ' ' + base_unit if fee is not None else _('unknown'))
+
+        self.amount_label.setText(amount_str)
+        self.fee_label.setText(fee_str)
 
         run_hook('transaction_dialog_update', self)
 
