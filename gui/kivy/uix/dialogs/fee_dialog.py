@@ -60,53 +60,47 @@ class FeeDialog(Factory.Popup):
         self.app = app
         self.config = config
         self.callback = callback
-
         self.dynfees = self.config.get('dynamic_fees', False)
-        self.fee_level = self.config.get('fee_level', 2)
-        self.static_fee = self.config.get('fee_per_kb', RECOMMENDED_FEE)
-
         self.ids.dynfees.active = self.dynfees
         self.update_slider()
         self.update_text()
 
     def update_text(self):
-        self.ids.fee_per_kb.text = self.get_fee_text()
+        value = int(self.ids.slider.value)
+        self.ids.fee_per_kb.text = self.get_fee_text(value)
 
     def update_slider(self):
         slider = self.ids.slider
         if self.dynfees:
-            slider.value = self.fee_level
             slider.range = (0, 4)
             slider.step = 1
+            slider.value = self.config.get('fee_level', 2)
         else:
-            slider.value = self.static_fee
             slider.range = (FEE_STEP, 2*RECOMMENDED_FEE)
             slider.step = FEE_STEP
+            slider.value = self.config.get('fee_per_kb', RECOMMENDED_FEE)
 
-    def get_fee_text(self):
+    def get_fee_text(self, value):
         if self.ids.dynfees.active:
-            tooltip = fee_levels[self.fee_level]
+            tooltip = fee_levels[value]
             if self.app.network:
-                dynfee = self.app.network.dynfee(self.fee_level)
+                dynfee = self.app.network.dynfee(value)
                 if dynfee:
                     tooltip += '\n' + (self.app.format_amount_and_units(dynfee)) + '/kB'
             return tooltip
         else:
-            return self.app.format_amount_and_units(self.static_fee) + '/kB'
+            return self.app.format_amount_and_units(value) + '/kB'
 
     def on_ok(self):
+        value = int(self.ids.slider.value)
         self.config.set_key('dynamic_fees', self.dynfees, False)
         if self.dynfees:
-            self.config.set_key('fee_level', self.fee_level, True)
+            self.config.set_key('fee_level', value, True)
         else:
-            self.config.set_key('fee_per_kb', self.static_fee, True)
+            self.config.set_key('fee_per_kb', value, True)
         self.callback()
 
     def on_slider(self, value):
-        if self.dynfees:
-            self.fee_level = int(value)
-        else:
-            self.static_fee = int(value)
         self.update_text()
 
     def on_checkbox(self, b):
