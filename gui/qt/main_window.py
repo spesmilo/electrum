@@ -445,10 +445,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.setMenuBar(menubar)
 
     def donate_to_server(self):
-        if self.network.is_connected():
-            d = self.network.get_donation_address()
+        d = self.network.get_donation_address()
+        if d:
             host = self.network.get_parameters()[0]
             self.pay_to_URI('bitcoin:%s?message=donation for %s'%(d, host))
+        else:
+            self.show_error(_('No donation address for this server'))
 
     def show_about(self):
         QMessageBox.about(self, "Electrum",
