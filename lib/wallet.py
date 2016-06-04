@@ -1010,7 +1010,6 @@ class Abstract_Wallet(PrintError):
 
     def estimate_fee(self, config, size):
         fee = int(self.fee_per_kb(config) * size / 1000.)
-        fee = max(fee, self.relayfee())
         return fee
 
     def mktx(self, outputs, password, config, fee=None, change_addr=None, domain=None):

@@ -1194,7 +1194,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if use_rbf:
             tx.set_sequence(0)
 
-        if tx.get_fee() < self.wallet.relayfee() and tx.requires_fee(self.wallet):
+        if tx.get_fee() < self.wallet.relayfee() * tx.estimated_size() / 1000 and tx.requires_fee(self.wallet):
             self.show_error(_("This transaction requires a higher fee, or it will not be propagated by the network"))
             return
 
@@ -2716,7 +2716,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addWidget(QLabel(_('Current fee') + ': %s'% self.format_amount(fee) + ' ' + self.base_unit()))
         vbox.addWidget(QLabel(_('New Fee') + ': '))
         e = BTCAmountEdit(self.get_decimal_point)
-        e.setAmount(fee + self.wallet.relayfee())
+        e.setAmount(fee *1.5)
         vbox.addWidget(e)
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         if not d.exec_():
