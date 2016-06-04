@@ -60,7 +60,6 @@ class TcpConnection(threading.Thread, util.PrintError):
 
     def __init__(self, server, queue, config_path):
         threading.Thread.__init__(self)
-        self.daemon = True
         self.config_path = config_path
         self.queue = queue
         self.server = server
@@ -105,6 +104,7 @@ class TcpConnection(threading.Thread, util.PrintError):
         for res in l:
             try:
                 s = socket.socket(res[0], socket.SOCK_STREAM)
+                s.settimeout(10)
                 s.connect(res[4])
                 s.settimeout(2)
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
