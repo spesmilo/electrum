@@ -169,7 +169,7 @@ class Plugins(DaemonThread):
         while self.is_running():
             time.sleep(0.1)
             self.run_jobs()
-        self.print_error("stopped")
+        self.on_stop()
 
 
 hook_names = set()

@@ -814,7 +814,7 @@ class Network(util.DaemonThread):
             self.process_pending_sends()
 
         self.stop_network()
-        self.print_error("stopped")
+        self.on_stop()
 
     def on_header(self, i, header):
         height = header.get('block_height')

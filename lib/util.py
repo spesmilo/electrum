@@ -149,6 +149,12 @@ class DaemonThread(threading.Thread, PrintError):
         with self.running_lock:
             self.running = False
 
+    def on_stop(self):
+        if 'ANDROID_DATA' in os.environ:
+            import jnius
+            jnius.detach()
+            self.print_error("jnius detach")
+        self.print_error("stopped")
 
 
 is_verbose = False

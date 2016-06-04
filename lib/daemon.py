@@ -220,6 +220,7 @@ class Daemon(DaemonThread):
             self.print_error("shutting down network")
             self.network.stop()
             self.network.join()
+        self.on_stop()
 
     def stop(self):
         self.print_error("stopping, removing lockfile")
