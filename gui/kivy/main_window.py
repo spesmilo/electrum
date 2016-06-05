@@ -779,6 +779,19 @@ class ElectrumWindow(App):
         else:
             apply(f, args + (None,))
 
+    def delete_wallet(self, name):
+        basename = os.path.basename(name)
+        def f(pw):
+            if self.wallet.use_encryption:
+                try:
+                    self.wallet.check_password(old_password)
+                except:
+                    self.show_error("Invalid PIN")
+                    return
+            os.unlink, (name,)
+            self.show_error("File %s removed."%basename)
+        self.protected(_("Enter your PIN code to delete %s") % basename, f, ())
+
     def show_seed(self, label):
         self.protected(_("Enter your PIN code in order to decrypt your seed"), self._show_seed, (label,))
 

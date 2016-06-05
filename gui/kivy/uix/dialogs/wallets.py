@@ -73,6 +73,5 @@ class WalletDialog(Factory.Popup):
     def delete_wallet(self, app):
         from question import Question
         name = self.ids.wallet_selector.selection[0]
-        f = lambda: os.unlink(name)
-        d = Question(_('Delete wallet?') + '\n' + os.path.basename(name), f)
+        d = Question(_('Delete wallet?') + '\n' + os.path.basename(name), lambda: app.delete_wallet(name))
         d.open()
