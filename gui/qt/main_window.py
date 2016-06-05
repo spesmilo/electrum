@@ -445,10 +445,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.setMenuBar(menubar)
 
     def donate_to_server(self):
-        if self.network.is_connected():
-            d = self.network.get_donation_address()
+        d = self.network.get_donation_address()
+        if d:
             host = self.network.get_parameters()[0]
             self.pay_to_URI('litecoin:%s?message=donation for %s'%(d, host))
+        else:
+            self.show_error(_('No donation address for this server'))
 
     def show_about(self):
         QMessageBox.about(self, "Electrum-LTC",
@@ -2716,7 +2718,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addWidget(QLabel(_('Current fee') + ': %s'% self.format_amount(fee) + ' ' + self.base_unit()))
         vbox.addWidget(QLabel(_('New Fee') + ': '))
         e = BTCAmountEdit(self.get_decimal_point)
-        e.setAmount(fee + self.wallet.relayfee())
+        e.setAmount(fee *1.5)
         vbox.addWidget(e)
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         if not d.exec_():

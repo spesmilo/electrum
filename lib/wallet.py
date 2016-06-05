@@ -1010,7 +1010,6 @@ class Abstract_Wallet(PrintError):
 
     def estimate_fee(self, config, size, outputs=[]):
         fee = int(self.fee_per_kb(config) * size / 1000.)
-        fee = max(fee, self.relayfee())
         for _, _, value in outputs:
             if value < DUST_SOFT_LIMIT:
                 fee += DUST_SOFT_LIMIT
