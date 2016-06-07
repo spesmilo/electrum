@@ -681,7 +681,8 @@ class Abstract_Wallet(PrintError):
         if fee is None:
             for i in inputs:
                 self.add_input_info(i)
-            outputs = [(TYPE_ADDRESS, recipient, sendable)]
+            _type, addr = recipient
+            outputs = [(_type, addr, sendable)]
             dummy_tx = Transaction.from_io(inputs, outputs)
             fee = self.estimate_fee(config, dummy_tx.estimated_size())
         amount = max(0, sendable - fee)

@@ -220,7 +220,8 @@ class Wallet_2fa(Multisig_Wallet):
         if xf and sendable >= xf:
             billing_address = self.billing_info['billing_address']
             sendable -= xf
-            outputs = [(TYPE_ADDRESS, recipient, sendable),
+            _type, addr = recipient
+            outputs = [(_type, addr, sendable),
                        (TYPE_ADDRESS, billing_address, xf)]
         else:
             outputs = [(TYPE_ADDRESS, recipient, sendable)]

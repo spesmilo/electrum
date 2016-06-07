@@ -1022,8 +1022,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         inputs = self.get_coins()
         sendable = sum(map(lambda x:x['value'], inputs))
         fee = self.fee_e.get_amount() if self.fee_e.isModified() else None
-        addr = self.get_payto_or_dummy()
-        amount, fee = self.wallet.get_max_amount(self.config, inputs, addr, fee)
+        r = self.get_payto_or_dummy()
+        amount, fee = self.wallet.get_max_amount(self.config, inputs, r, fee)
         if not self.fee_e.isModified():
             self.fee_e.setAmount(fee)
         self.amount_e.setAmount(amount)
@@ -1032,12 +1032,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.amount_e.textEdited.emit("")
         self.is_max = True
 
-
     def update_fee(self):
         self.require_fee_update = True
 
     def get_payto_or_dummy(self):
-        return self.payto_e.payto_address if self.payto_e.payto_address else self.wallet.dummy_address()
+        r = self.payto_e.get_recipient()
+        if r:
+            return r
+        return (TYPE_ADDRESS, self.wallet.dummy_address())
 
     def do_update_fee(self):
         '''Recalculate the fee.  If the fee was manually input, retain it, but
@@ -1054,8 +1056,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             fee = self.fee_e.get_amount() if freeze_fee else None
             outputs = self.payto_e.get_outputs()
             if not outputs:
-                addr = self.get_payto_or_dummy()
-                outputs = [(TYPE_ADDRESS, addr, amount)]
+                _type, addr = self.get_payto_or_dummy()
+                outputs = [(_type, addr, amount)]
             try:
                 tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, self.config, fee)
                 self.not_enough_funds = False

@@ -80,15 +80,28 @@ class PayToEdit(ScanQRTextEdit):
 
     def parse_address_and_amount(self, line):
         x, y = line.split(',')
-        n = re.match('^SCRIPT\s+([0-9a-fA-F]+)$', x.strip())
-        if n:
-            script = str(n.group(1)).decode('hex')
-            amount = self.parse_amount(y)
-            return bitcoin.TYPE_SCRIPT, script, amount
-        else:
+        out_type, out = self.parse_output(x)
+        amount = self.parse_amount(y)
+        return out_type, out, amount
+
+    def parse_output(self, x):
+        try:
             address = self.parse_address(x)
-            amount = self.parse_amount(y)
-            return bitcoin.TYPE_ADDRESS, address, amount
+            return bitcoin.TYPE_ADDRESS, address
+        except:
+            script = self.parse_script(x)
+            return bitcoin.TYPE_SCRIPT, script
+
+    def parse_script(self, x):
+        from electrum.transaction import opcodes, push_script
+        script = ''
+        for word in x.split():
+            if word[0:3] == 'OP_':
+                assert word in opcodes.lookup
+                script += chr(opcodes.lookup[word])
+            else:
+                script += push_script(word).decode('hex')
+        return script
 
     def parse_amount(self, x):
         p = pow(10, self.amount_edit.decimal_point())
@@ -116,7 +129,7 @@ class PayToEdit(ScanQRTextEdit):
                 self.scan_f(data)
                 return
             try:
-                self.payto_address = self.parse_address(data)
+                self.payto_address = self.parse_output(data)
             except:
                 pass
             if self.payto_address:
@@ -150,13 +163,17 @@ class PayToEdit(ScanQRTextEdit):
     def get_errors(self):
         return self.errors
 
+    def get_recipient(self):
+        return self.payto_address
+
     def get_outputs(self):
         if self.payto_address:
             try:
                 amount = self.amount_edit.get_amount()
             except:
                 amount = None
-            self.outputs = [(bitcoin.TYPE_ADDRESS, self.payto_address, amount)]
+            _type, addr = self.payto_address
+            self.outputs = [(_type, addr, amount)]
 
         return self.outputs[:]
 
