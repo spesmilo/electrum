@@ -77,11 +77,10 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.tx_hash_e.addButton(":icons/qrcode.png", qr_show, _("Show as QR code"))
         self.tx_hash_e.setReadOnly(True)
         vbox.addWidget(self.tx_hash_e)
-        self.status_label = QLabel()
-        vbox.addWidget(self.status_label)
-
         self.tx_desc = QLabel()
         vbox.addWidget(self.tx_desc)
+        self.status_label = QLabel()
+        vbox.addWidget(self.status_label)
         self.date_label = QLabel()
         vbox.addWidget(self.date_label)
         self.amount_label = QLabel()
@@ -176,9 +175,12 @@ class TxDialog(QDialog, MessageBoxMixin):
 
 
     def update(self):
+        base_unit = self.main_window.base_unit()
+        format_amount = self.main_window.format_amount
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
         desc = self.desc
         time_str = None
+        exp_n = None
         self.broadcast_button.hide()
 
         if self.tx.is_complete():
@@ -196,6 +198,10 @@ class TxDialog(QDialog, MessageBoxMixin):
                     status = _('Unconfirmed')
                     if fee is None:
                         fee = self.wallet.tx_fees.get(tx_hash)
+                    if fee:
+                        size = self.tx.estimated_size()
+                        fee_per_kb = fee * 1000 / size
+                        exp_n = self.wallet.network.reverse_dynfee(fee_per_kb)
             else:
                 status = _("Signed")
                 self.broadcast_button.show()
@@ -223,15 +229,15 @@ class TxDialog(QDialog, MessageBoxMixin):
         if time_str is not None:
             self.date_label.setText(_("Date: %s")%time_str)
             self.date_label.show()
+        elif exp_n:
+            self.date_label.setText(_('Expected confirmation time: %d blocks (%s)'%(exp_n, format_amount(fee_per_kb) + ' ' + base_unit + '/kb')))
+            self.date_label.show()
         else:
             self.date_label.hide()
 
         # if we are not synchronized, we cannot tell
         if not self.wallet.up_to_date:
             return
-
-        base_unit = self.main_window.base_unit()
-        format_amount = self.main_window.format_amount
 
         if is_relevant:
             if is_mine:
