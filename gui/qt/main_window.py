@@ -894,9 +894,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.addWidget(amount_label, 4, 0)
         grid.addWidget(self.amount_e, 4, 1)
 
-        max_button = EnterButton(_("Max"), self.spend_max)
+        self.max_button = EnterButton(_("Max"), self.spend_max)
         hbox = QHBoxLayout()
-        hbox.addWidget(max_button)
+        hbox.addWidget(self.max_button)
         hbox.addStretch(1)
         grid.addLayout(hbox, 4, 3)
 
@@ -1302,6 +1302,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addLayout(Buttons(OkButton(dialog)))
         dialog.exec_()
         return clayout.selected_index()
+
+    def lock_amount(self, b):
+        self.amount_e.setFrozen(b)
+        self.max_button.setEnabled(not b)
 
     def prepare_for_payment_request(self):
         self.tabs.setCurrentIndex(1)

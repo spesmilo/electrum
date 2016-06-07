@@ -60,12 +60,6 @@ class PayToEdit(ScanQRTextEdit):
 
         self.previous_payto = ''
 
-    def lock_amount(self):
-        self.amount_edit.setFrozen(True)
-
-    def unlock_amount(self):
-        self.amount_edit.setFrozen(False)
-
     def setFrozen(self, b):
         self.setReadOnly(b)
         self.setStyleSheet(frozen_style if b else normal_style)
@@ -133,7 +127,7 @@ class PayToEdit(ScanQRTextEdit):
             except:
                 pass
             if self.payto_address:
-                self.unlock_amount()
+                self.win.lock_amount(False)
                 return
 
         for i, line in enumerate(lines):
@@ -148,17 +142,8 @@ class PayToEdit(ScanQRTextEdit):
 
         self.outputs = outputs
         self.payto_address = None
-
-        if outputs:
-            self.amount_edit.setAmount(total)
-        else:
-            self.amount_edit.setText("")
-
-        if total or len(lines)>1:
-            self.lock_amount()
-        else:
-            self.unlock_amount()
-
+        self.amount_edit.setAmount(total if outputs else None)
+        self.win.lock_amount(total or len(lines)>1)
 
     def get_errors(self):
         return self.errors
