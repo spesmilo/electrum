@@ -14,7 +14,7 @@ Builder.load_string('''
 <WalletDialog@Popup>:
     title: _('Wallets')
     id: popup
-    path: ''
+    path: os.path.dirname(app.get_wallet_path())
     BoxLayout:
         orientation: 'vertical'
         padding: '10dp'
@@ -23,7 +23,8 @@ Builder.load_string('''
             dirselect: False
             filter_dirs: True
             filter: '*.*'
-            path: os.path.dirname(app.get_wallet_path())
+            path: root.path
+            rootpath: root.path
             size_hint_y: 0.6
         Widget
             size_hint_y: 0.1

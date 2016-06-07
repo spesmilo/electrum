@@ -418,7 +418,7 @@ class Commands:
             if amount == '!':
                 assert len(outputs) == 1
                 inputs = self.wallet.get_spendable_coins(domain)
-                amount, fee = self.wallet.get_max_amount(self.config, inputs, address, fee)
+                amount, fee = self.wallet.get_max_amount(self.config, inputs, (TYPE_ADDRESS, address), fee)
             else:
                 amount = int(COIN*Decimal(amount))
             final_outputs.append((TYPE_ADDRESS, address, amount))

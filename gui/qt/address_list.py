@@ -106,6 +106,8 @@ class AddressList(MyTreeWidget):
                         address_item.addChild(utxo_item)
 
     def create_menu(self, position):
+        from electrum_ltc.wallet import Multisig_Wallet
+        is_multisig = isinstance(self.wallet, Multisig_Wallet)
         selected = self.selectedItems()
         multi_select = len(selected) > 1
         addrs = [unicode(item.text(0)) for item in selected]
@@ -136,7 +138,7 @@ class AddressList(MyTreeWidget):
             menu.addAction(_('Public Keys'), lambda: self.parent.show_public_keys(addr))
             if self.wallet.can_export():
                 menu.addAction(_("Private key"), lambda: self.parent.show_private_key(addr))
-            if not self.wallet.is_watching_only():
+            if not is_multisig and not self.wallet.is_watching_only():
                 menu.addAction(_("Sign/verify message"), lambda: self.parent.sign_verify_message(addr))
                 menu.addAction(_("Encrypt/decrypt message"), lambda: self.parent.encrypt_message(addr))
             if self.wallet.is_imported(addr):

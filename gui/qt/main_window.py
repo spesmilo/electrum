@@ -850,22 +850,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.qr_window and self.qr_window.isVisible():
             self.qr_window.set_content(addr, amount, message, uri)
 
-    def show_before_broadcast(self):
-        return self.config.get('show_before_broadcast', False)
-
-    def set_show_before_broadcast(self, show):
-        self.config.set_key('show_before_broadcast', bool(show))
-        self.set_send_button_text()
-
-    def set_send_button_text(self):
-        if self.show_before_broadcast():
-            text = _("Send...")
-        elif self.wallet and self.wallet.is_watching_only():
-            text = _("Send...")
-        else:
-            text = _("Send")
-        self.send_button.setText(text)
-
     def create_send_tab(self):
         # A 4-column grid layout.  All the stretch is in the last column.
         # The exchange rate plugin adds a fiat widget in column 2
@@ -910,9 +894,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.addWidget(amount_label, 4, 0)
         grid.addWidget(self.amount_e, 4, 1)
 
-        max_button = EnterButton(_("Max"), self.spend_max)
+        self.max_button = EnterButton(_("Max"), self.spend_max)
         hbox = QHBoxLayout()
-        hbox.addWidget(max_button)
+        hbox.addWidget(self.max_button)
         hbox.addStretch(1)
         grid.addLayout(hbox, 4, 3)
 
@@ -960,12 +944,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.addWidget(self.fee_slider, 5, 1)
         grid.addWidget(self.rbf_checkbox, 5, 2)
 
+        self.preview_button = EnterButton(_("Preview"), self.do_preview)
+        self.preview_button.setToolTip(_('Display the details of your transactions before signing it.'))
         self.send_button = EnterButton(_("Send"), self.do_send)
         self.clear_button = EnterButton(_("Clear"), self.do_clear)
         buttons = QHBoxLayout()
         buttons.addStretch(1)
-        buttons.addWidget(self.send_button)
         buttons.addWidget(self.clear_button)
+        buttons.addWidget(self.preview_button)
+        buttons.addWidget(self.send_button)
         grid.addLayout(buttons, 6, 1, 1, 2)
 
         self.amount_e.shortcut.connect(self.spend_max)
@@ -1022,8 +1009,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         inputs = self.get_coins()
         sendable = sum(map(lambda x:x['value'], inputs))
         fee = self.fee_e.get_amount() if self.fee_e.isModified() else None
-        addr = self.get_payto_or_dummy()
-        amount, fee = self.wallet.get_max_amount(self.config, inputs, addr, fee)
+        r = self.get_payto_or_dummy()
+        amount, fee = self.wallet.get_max_amount(self.config, inputs, r, fee)
         if not self.fee_e.isModified():
             self.fee_e.setAmount(fee)
         self.amount_e.setAmount(amount)
@@ -1032,12 +1019,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.amount_e.textEdited.emit("")
         self.is_max = True
 
-
     def update_fee(self):
         self.require_fee_update = True
 
     def get_payto_or_dummy(self):
-        return self.payto_e.payto_address if self.payto_e.payto_address else self.wallet.dummy_address()
+        r = self.payto_e.get_recipient()
+        if r:
+            return r
+        return (TYPE_ADDRESS, self.wallet.dummy_address())
 
     def do_update_fee(self):
         '''Recalculate the fee.  If the fee was manually input, retain it, but
@@ -1054,8 +1043,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             fee = self.fee_e.get_amount() if freeze_fee else None
             outputs = self.payto_e.get_outputs()
             if not outputs:
-                addr = self.get_payto_or_dummy()
-                outputs = [(TYPE_ADDRESS, addr, amount)]
+                _type, addr = self.get_payto_or_dummy()
+                outputs = [(_type, addr, amount)]
             try:
                 tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, self.config, fee)
                 self.not_enough_funds = False
@@ -1173,8 +1162,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         coins = self.get_coins()
         return outputs, fee, label, coins
 
+    def do_preview(self):
+        self.do_send(preview = True)
 
-    def do_send(self):
+    def do_send(self, preview = False):
         if run_hook('abort_send', self):
             return
         r = self.read_send_tab()
@@ -1200,9 +1191,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(_("This transaction requires a higher fee, or it will not be propagated by the network"))
             return
 
-        if self.show_before_broadcast():
+        if preview:
             self.show_transaction(tx, tx_desc)
             return
+
         # confirmation dialog
         confirm_amount = self.config.get('confirm_amount', 10*COIN)
         msg = [
@@ -1310,6 +1302,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addLayout(Buttons(OkButton(dialog)))
         dialog.exec_()
         return clayout.selected_index()
+
+    def lock_amount(self, b):
+        self.amount_e.setFrozen(b)
+        self.max_button.setEnabled(not b)
 
     def prepare_for_payment_request(self):
         self.tabs.setCurrentIndex(1)
@@ -1617,7 +1613,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def update_buttons_on_seed(self):
         self.seed_button.setVisible(self.wallet.has_seed())
         self.password_button.setVisible(self.wallet.can_change_password())
-        self.set_send_button_text()
+        self.send_button.setVisible(not self.wallet.is_watching_only())
 
     def change_password_dialog(self):
         from password_dialog import PasswordDialog, PW_CHANGE
@@ -2542,13 +2538,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         multiple_cb.setChecked(multiple_change)
         multiple_cb.stateChanged.connect(on_multiple)
         tx_widgets.append((multiple_cb, None))
-
-        showtx_cb = QCheckBox(_('View transaction before signing'))
-        showtx_cb.setChecked(self.show_before_broadcast())
-        showtx_cb.stateChanged.connect(lambda x: self.set_show_before_broadcast(showtx_cb.isChecked()))
-        showtx_cb.setToolTip(_('Display the details of your transactions before signing it.'))
-        tx_widgets.append((showtx_cb, None))
-
 
         def fmt_docs(key, klass):
             lines = [ln.lstrip(" ") for ln in klass.__doc__.split("\n")]

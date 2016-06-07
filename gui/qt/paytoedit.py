@@ -60,12 +60,6 @@ class PayToEdit(ScanQRTextEdit):
 
         self.previous_payto = ''
 
-    def lock_amount(self):
-        self.amount_edit.setFrozen(True)
-
-    def unlock_amount(self):
-        self.amount_edit.setFrozen(False)
-
     def setFrozen(self, b):
         self.setReadOnly(b)
         self.setStyleSheet(frozen_style if b else normal_style)
@@ -80,15 +74,28 @@ class PayToEdit(ScanQRTextEdit):
 
     def parse_address_and_amount(self, line):
         x, y = line.split(',')
-        n = re.match('^SCRIPT\s+([0-9a-fA-F]+)$', x.strip())
-        if n:
-            script = str(n.group(1)).decode('hex')
-            amount = self.parse_amount(y)
-            return bitcoin.TYPE_SCRIPT, script, amount
-        else:
+        out_type, out = self.parse_output(x)
+        amount = self.parse_amount(y)
+        return out_type, out, amount
+
+    def parse_output(self, x):
+        try:
             address = self.parse_address(x)
-            amount = self.parse_amount(y)
-            return bitcoin.TYPE_ADDRESS, address, amount
+            return bitcoin.TYPE_ADDRESS, address
+        except:
+            script = self.parse_script(x)
+            return bitcoin.TYPE_SCRIPT, script
+
+    def parse_script(self, x):
+        from electrum_ltc.transaction import opcodes, push_script
+        script = ''
+        for word in x.split():
+            if word[0:3] == 'OP_':
+                assert word in opcodes.lookup
+                script += chr(opcodes.lookup[word])
+            else:
+                script += push_script(word).decode('hex')
+        return script
 
     def parse_amount(self, x):
         p = pow(10, self.amount_edit.decimal_point())
@@ -116,11 +123,11 @@ class PayToEdit(ScanQRTextEdit):
                 self.scan_f(data)
                 return
             try:
-                self.payto_address = self.parse_address(data)
+                self.payto_address = self.parse_output(data)
             except:
                 pass
             if self.payto_address:
-                self.unlock_amount()
+                self.win.lock_amount(False)
                 return
 
         for i, line in enumerate(lines):
@@ -135,20 +142,14 @@ class PayToEdit(ScanQRTextEdit):
 
         self.outputs = outputs
         self.payto_address = None
-
-        if outputs:
-            self.amount_edit.setAmount(total)
-        else:
-            self.amount_edit.setText("")
-
-        if total or len(lines)>1:
-            self.lock_amount()
-        else:
-            self.unlock_amount()
-
+        self.amount_edit.setAmount(total if outputs else None)
+        self.win.lock_amount(total or len(lines)>1)
 
     def get_errors(self):
         return self.errors
+
+    def get_recipient(self):
+        return self.payto_address
 
     def get_outputs(self):
         if self.payto_address:
@@ -156,7 +157,8 @@ class PayToEdit(ScanQRTextEdit):
                 amount = self.amount_edit.get_amount()
             except:
                 amount = None
-            self.outputs = [(bitcoin.TYPE_ADDRESS, self.payto_address, amount)]
+            _type, addr = self.payto_address
+            self.outputs = [(_type, addr, amount)]
 
         return self.outputs[:]
 

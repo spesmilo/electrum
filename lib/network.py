@@ -345,6 +345,12 @@ class Network(util.DaemonThread):
             fee = min(10*RECOMMENDED_FEE, fee)
         return fee
 
+    def reverse_dynfee(self, fee_per_kb):
+        import operator
+        dist = map(lambda x: (x[0], abs(x[1] - fee_per_kb)), self.fee_estimates.items())
+        min_target, min_value = min(dist, key=operator.itemgetter(1))
+        return min_target
+
     def notify(self, key):
         if key in ['status', 'updated']:
             self.trigger_callback(key)
