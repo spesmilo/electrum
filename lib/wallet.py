@@ -605,7 +605,9 @@ class Abstract_Wallet(PrintError):
         is_relevant, is_mine, v, fee = self.get_wallet_delta(tx)
         exp_n = None
         can_broadcast = False
+        can_bump = False
         label = None
+        height = conf = timestamp = None
         if tx.is_complete():
             tx_hash = tx.hash()
             if tx_hash in self.transactions.keys():
@@ -624,6 +626,7 @@ class Abstract_Wallet(PrintError):
                         size = tx.estimated_size()
                         fee_per_kb = fee * 1000 / size
                         exp_n = self.network.reverse_dynfee(fee_per_kb)
+                    can_bump = is_mine and not tx.is_final()
             else:
                 status = _("Signed")
                 can_broadcast = self.network is not None
@@ -643,9 +646,7 @@ class Abstract_Wallet(PrintError):
         else:
             amount = None
 
-        can_rbf = is_mine and height <=0 and not tx.is_final()
-
-        return tx_hash, status, label, can_broadcast, can_rbf, amount, fee, height, conf, timestamp, exp_n
+        return tx_hash, status, label, can_broadcast, can_bump, amount, fee, height, conf, timestamp, exp_n
 
 
     def get_addr_io(self, address):
