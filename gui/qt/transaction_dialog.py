@@ -178,13 +178,10 @@ class TxDialog(QDialog, MessageBoxMixin):
         desc = self.desc
         base_unit = self.main_window.base_unit()
         format_amount = self.main_window.format_amount
-        tx_hash, status, label, can_broadcast, amount, fee, height, conf, timestamp = self.wallet.get_tx_info(self.tx)
+        tx_hash, status, label, can_broadcast, amount, fee, height, conf, timestamp, exp_n = self.wallet.get_tx_info(self.tx)
 
         if can_broadcast:
             self.broadcast_button.show()
-            # cannot broadcast when offline
-            if self.main_window.network is None:
-                self.broadcast_button.setEnabled(False)
         else:
             self.broadcast_button.hide()
 
@@ -201,12 +198,12 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.tx_desc.show()
         self.status_label.setText(_('Status:') + ' ' + status)
 
-        if timestamp is not None:
+        if timestamp:
             time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
             self.date_label.setText(_("Date: %s")%time_str)
             self.date_label.show()
         elif exp_n:
-            self.date_label.setText(_('Expected confirmation time: %d blocks (%s)'%(exp_n, format_amount(fee_per_kb) + ' ' + base_unit + '/kb')))
+            self.date_label.setText(_('Expected confirmation time: %d blocks'%(exp_n)))
             self.date_label.show()
         else:
             self.date_label.hide()

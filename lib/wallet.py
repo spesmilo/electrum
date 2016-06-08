@@ -643,7 +643,7 @@ class Abstract_Wallet(PrintError):
         else:
             amount = None
 
-        return tx_hash, status, label, can_broadcast, amount, fee, height, conf, timestamp
+        return tx_hash, status, label, can_broadcast, amount, fee, height, conf, timestamp, exp_n
 
 
     def get_addr_io(self, address):

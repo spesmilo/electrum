@@ -104,17 +104,24 @@ class TxDialog(Factory.Popup):
         self.update()
 
     def update(self):
-        self.tx_hash, self.status_str, self.description, self.can_broadcast, amount, fee, height, conf, timestamp = self.wallet.get_tx_info(self.tx)
-        self.date_str = datetime.fromtimestamp(timestamp).isoformat(' ')[:-3] if timestamp else ''
+        format_amount = self.app.format_amount_and_units
+        self.tx_hash, self.status_str, self.description, self.can_broadcast, amount, fee, height, conf, timestamp, exp_n = self.wallet.get_tx_info(self.tx)
+        if timestamp:
+            self.date_str = datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+        elif exp_n:
+            self.date_str = _('Within %d blocks') % exp_n
+        else:
+            self.date_str = ''
+
         if amount is None:
             self.amount_str = _("Transaction unrelated to your wallet")
         elif amount > 0:
             self.is_mine = False
-            self.amount_str = self.app.format_amount_and_units(amount)
+            self.amount_str = format_amount(amount)
         else:
             self.is_mine = True
-            self.amount_str = self.app.format_amount_and_units(-amount)
-        self.fee_str = self.app.format_amount_and_units(fee) if fee is not None else _('unknown')
+            self.amount_str = format_amount(-amount)
+        self.fee_str = format_amount(fee) if fee is not None else _('unknown')
         self.can_sign = self.wallet.can_sign(self.tx)
         self.ids.output_list.update(self.tx.outputs())
 
