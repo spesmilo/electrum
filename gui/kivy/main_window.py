@@ -214,8 +214,6 @@ class ElectrumWindow(App):
             Clock.create_trigger(self.update_wallet, .5)
         self._trigger_update_status =\
             Clock.create_trigger(self.update_status, .5)
-        self._trigger_notify_transactions = \
-            Clock.create_trigger(self.notify_transactions, 5)
         # cached dialogs
         self._settings_dialog = None
         self._password_dialog = None
@@ -512,7 +510,7 @@ class ElectrumWindow(App):
 
         # connect callbacks
         if self.network:
-            interests = ['updated', 'status', 'new_transaction']
+            interests = ['updated', 'status', 'new_transaction', 'verified']
             self.network.register_callback(self.on_network, interests)
 
         #self.wallet = None
@@ -524,7 +522,9 @@ class ElectrumWindow(App):
         elif event == 'status':
             self._trigger_update_status()
         elif event == 'new_transaction':
-            self._trigger_notify_transactions(*args)
+            self._trigger_update_wallet()
+        elif event == 'verified':
+            self._trigger_update_wallet()
 
     @profiler
     def load_wallet(self, wallet):
@@ -538,7 +538,6 @@ class ElectrumWindow(App):
         if self.receive_screen:
             self.receive_screen.clear()
         self.update_tabs()
-        self.notify_transactions()
         run_hook('load_wallet', wallet, self)
 
     def update_status(self, *dt):
@@ -578,41 +577,6 @@ class ElectrumWindow(App):
         self._trigger_update_status()
         if self.wallet and (self.wallet.up_to_date or not self.network or not self.network.is_connected()):
             self.update_tabs()
-
-    @profiler
-    def notify_transactions(self, *dt):
-        if not self.network or not self.network.is_connected():
-            return
-        # temporarily disabled for merge
-        return
-        iface = self.network
-        ptfn = iface.pending_transactions_for_notifications
-        if len(ptfn) > 0:
-            # Combine the transactions if there are more then three
-            tx_amount = len(ptfn)
-            if(tx_amount >= 3):
-                total_amount = 0
-                for tx in ptfn:
-                    is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
-                    if(v > 0):
-                        total_amount += v
-                self.notify(_("{txs}s new transactions received. Total amount"
-                              "received in the new transactions {amount}s"
-                              "{unit}s").format(txs=tx_amount,
-                                    amount=self.format_amount(total_amount),
-                                    unit=self.base_unit()))
-
-                iface.pending_transactions_for_notifications = []
-            else:
-              for tx in iface.pending_transactions_for_notifications:
-                  if tx:
-                      iface.pending_transactions_for_notifications.remove(tx)
-                      is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
-                      if(v > 0):
-                          self.notify(
-                              _("{txs} new transaction received. {amount} {unit}").
-                              format(txs=tx_amount, amount=self.format_amount(v),
-                                     unit=self.base_unit))
 
     def notify(self, message):
         try:

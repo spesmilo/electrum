@@ -17,6 +17,7 @@ Builder.load_string('''
     is_mine: True
     can_sign: False
     can_broadcast: False
+    can_rbf: False
     fee_str: ''
     date_str: ''
     amount_str: ''
@@ -73,12 +74,13 @@ Builder.load_string('''
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
-                text: _('Sign') if root.can_sign else _('Broadcast') if root.can_broadcast else ''
-                opacity: 1 if root.can_sign or root.can_broadcast else 0
-                disabled: not( root.can_sign or root.can_broadcast )
+                text: _('Sign') if root.can_sign else _('Broadcast') if root.can_broadcast else _('Bump fee') if root.can_rbf else ''
+                disabled: not(root.can_sign or root.can_broadcast or root.can_rbf)
+                opacity: 0 if self.disabled else 1
                 on_release:
                     if root.can_sign: root.do_sign()
                     if root.can_broadcast: root.do_broadcast()
+                    if root.can_rbf: root.do_rbf()
             IconButton:
                 size_hint: 0.5, None
                 height: '48dp'
@@ -105,7 +107,7 @@ class TxDialog(Factory.Popup):
 
     def update(self):
         format_amount = self.app.format_amount_and_units
-        self.tx_hash, self.status_str, self.description, self.can_broadcast, amount, fee, height, conf, timestamp, exp_n = self.wallet.get_tx_info(self.tx)
+        self.tx_hash, self.status_str, self.description, self.can_broadcast, self.can_rbf, amount, fee, height, conf, timestamp, exp_n = self.wallet.get_tx_info(self.tx)
         if timestamp:
             self.date_str = datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
         elif exp_n:
@@ -124,6 +126,10 @@ class TxDialog(Factory.Popup):
         self.fee_str = format_amount(fee) if fee is not None else _('unknown')
         self.can_sign = self.wallet.can_sign(self.tx)
         self.ids.output_list.update(self.tx.outputs())
+
+    def do_rbf(self):
+        # not implemented
+        pass
 
     def do_sign(self):
         self.app.protected(_("Enter your PIN code in order to sign this transaction"), self._do_sign, ())

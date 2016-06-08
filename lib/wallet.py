@@ -643,7 +643,9 @@ class Abstract_Wallet(PrintError):
         else:
             amount = None
 
-        return tx_hash, status, label, can_broadcast, amount, fee, height, conf, timestamp, exp_n
+        can_rbf = is_mine and height <=0 and not tx.is_final()
+
+        return tx_hash, status, label, can_broadcast, can_rbf, amount, fee, height, conf, timestamp, exp_n
 
 
     def get_addr_io(self, address):
