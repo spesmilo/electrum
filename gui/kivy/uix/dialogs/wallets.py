@@ -48,15 +48,6 @@ Builder.load_string('''
                 on_release:
                     popup.dismiss()
                     root.open_wallet(app)
-            Button:
-                id: open_button
-                size_hint: 0.1, None
-                height: '48dp'
-                text: _('Delete')
-                disabled: not wallet_selector.selection
-                on_release:
-                    popup.dismiss()
-                    root.delete_wallet(app)
 ''')
 
 class WalletDialog(Factory.Popup):
@@ -71,8 +62,3 @@ class WalletDialog(Factory.Popup):
     def open_wallet(self, app):
         app.load_wallet_by_name(self.ids.wallet_selector.selection[0])
 
-    def delete_wallet(self, app):
-        from question import Question
-        name = self.ids.wallet_selector.selection[0]
-        d = Question(_('Delete wallet?') + '\n' + os.path.basename(name), lambda: app.delete_wallet(name))
-        d.open()

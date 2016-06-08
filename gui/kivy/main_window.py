@@ -181,12 +181,6 @@ class ElectrumWindow(App):
     :data:`ui_mode` is a read only `AliasProperty` Defaults to 'phone'
     '''
 
-    wallet = ObjectProperty(None)
-    '''Holds the electrum wallet
-
-    :attr:`wallet` is a `ObjectProperty` defaults to None.
-    '''
-
     def __init__(self, **kwargs):
         # initialize variables
         self._clipboard = Clipboard
@@ -194,6 +188,7 @@ class ElectrumWindow(App):
         self.nfcscanner = None
         self.tabs = None
         self.is_exit = False
+        self.wallet = None
 
         super(ElectrumWindow, self).__init__(**kwargs)
 
@@ -426,6 +421,7 @@ class ElectrumWindow(App):
     def stop_wallet(self):
         if self.wallet:
             self.wallet.stop_threads()
+            self.wallet = None
 
     def on_key_down(self, instance, key, keycode, codepoint, modifiers):
         if 'ctrl' in modifiers:
@@ -513,7 +509,6 @@ class ElectrumWindow(App):
             interests = ['updated', 'status', 'new_transaction', 'verified']
             self.network.register_callback(self.on_network, interests)
 
-        #self.wallet = None
         self.tabs = self.root.ids['tabs']
 
     def on_network(self, event, *args):
@@ -744,18 +739,33 @@ class ElectrumWindow(App):
         else:
             apply(f, args + (None,))
 
-    def delete_wallet(self, name):
-        basename = os.path.basename(name)
-        def f(pw):
-            if self.wallet.use_encryption:
-                try:
-                    self.wallet.check_password(old_password)
-                except:
-                    self.show_error("Invalid PIN")
-                    return
-            os.unlink, (name,)
-            self.show_error("File %s removed."%basename)
-        self.protected(_("Enter your PIN code to delete %s") % basename, f, ())
+    def delete_wallet(self):
+        from uix.dialogs.question import Question
+        basename = os.path.basename(self.wallet.storage.path)
+        d = Question(_('Delete wallet?') + '\n' + basename, self._delete_wallet)
+        d.open()
+
+    def _delete_wallet(self):
+        basename = os.path.basename(self.wallet.storage.path)
+        self.protected(_("Enter your PIN code to confirm deletion of %s") % basename, self.__delete_wallet, ())
+
+    def __delete_wallet(self, pw):
+        wallet_path = self.get_wallet_path()
+        dirname = os.path.dirname(wallet_path)
+        basename = os.path.basename(wallet_path)
+        if self.wallet.use_encryption:
+            try:
+                self.wallet.check_password(pw)
+            except:
+                self.show_error("Invalid PIN")
+                return
+        self.stop_wallet()
+        os.unlink(wallet_path)
+        self.show_error("Wallet removed:" + basename)
+        d = os.listdir(dirname)
+        name = 'default_wallet'
+        new_path = os.path.join(dirname, name)
+        self.load_wallet_by_name(new_path)
 
     def show_seed(self, label):
         self.protected(_("Enter your PIN code in order to decrypt your seed"), self._show_seed, (label,))
@@ -805,4 +815,3 @@ class ElectrumWindow(App):
             self._password_dialog = PasswordDialog()
         self._password_dialog.init(msg, callback)
         self._password_dialog.open()
-
