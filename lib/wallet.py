@@ -601,6 +601,51 @@ class Abstract_Wallet(PrintError):
             fee = None
         return is_relevant, is_mine, v, fee
 
+    def get_tx_info(self, tx):
+        is_relevant, is_mine, v, fee = self.get_wallet_delta(tx)
+        exp_n = None
+        can_broadcast = False
+        label = None
+        if tx.is_complete():
+            tx_hash = tx.hash()
+            if tx_hash in self.transactions.keys():
+                label = self.get_label(tx_hash)
+                height, conf, timestamp = self.get_tx_height(tx_hash)
+                if height > 0:
+                    if conf:
+                        status = _("%d confirmations") % conf
+                    else:
+                        status = _('Not verified')
+                else:
+                    status = _('Unconfirmed')
+                    if fee is None:
+                        fee = self.tx_fees.get(tx_hash)
+                    if fee:
+                        size = tx.estimated_size()
+                        fee_per_kb = fee * 1000 / size
+                        exp_n = self.network.reverse_dynfee(fee_per_kb)
+            else:
+                status = _("Signed")
+                can_broadcast = self.network is not None
+        else:
+            s, r = tx.signature_count()
+            status = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
+            tx_hash = _('Unknown')
+
+        if is_relevant:
+            if is_mine:
+                if fee is not None:
+                    amount = v + fee
+                else:
+                    amount = v
+            else:
+                amount = v
+        else:
+            amount = None
+
+        return tx_hash, status, label, can_broadcast, amount, fee, height, conf, timestamp
+
+
     def get_addr_io(self, address):
         h = self.history.get(address, [])
         received = {}

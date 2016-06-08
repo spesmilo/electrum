@@ -104,42 +104,17 @@ class TxDialog(Factory.Popup):
         self.update()
 
     def update(self):
-        is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
-        self.can_broadcast = False
-        if self.tx.is_complete():
-            self.tx_hash = self.tx.hash()
-            self.description = self.wallet.get_label(self.tx_hash)
-            if self.tx_hash in self.wallet.transactions.keys():
-                height, conf, timestamp = self.wallet.get_tx_height(self.tx_hash)
-                if conf:
-                    self.status_str = _("%d confirmations")%conf
-                    self.date_str = datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
-                else:
-                    self.status_str =  _('Unconfirmed')
-                    if fee is None:
-                        fee = self.wallet.tx_fees.get(tx_hash)
-            else:
-                self.can_broadcast = self.app.network is not None
-                self.status_str = _('Signed')
-        else:
-            s, r = self.tx.signature_count()
-            self.status_str = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
-
-        self.is_mine = is_mine
-        if is_relevant:
-            if is_mine:
-                if fee is not None:
-                    self.amount_str = self.app.format_amount_and_units(-v-fee)
-                    self.fee_str = self.app.format_amount_and_units(fee)
-                else:
-                    self.amount_str = self.app.format_amount_and_units(-v)
-                    self.fee_str = _("unknown")
-            else:
-                self.amount_str = self.app.format_amount_and_units(v)
-                self.fee_str = ''
-        else:
+        self.tx_hash, self.status_str, self.description, self.can_broadcast, amount, fee, height, conf, timestamp = self.wallet.get_tx_info(self.tx)
+        self.date_str = datetime.fromtimestamp(timestamp).isoformat(' ')[:-3] if timestamp else ''
+        if amount is None:
             self.amount_str = _("Transaction unrelated to your wallet")
-            self.fee_str = ''
+        elif amount > 0:
+            self.is_mine = False
+            self.amount_str = self.app.format_amount_and_units(amount)
+        else:
+            self.is_mine = True
+            self.amount_str = self.app.format_amount_and_units(-amount)
+        self.fee_str = self.app.format_amount_and_units(fee) if fee is not None else _('unknown')
         self.can_sign = self.wallet.can_sign(self.tx)
         self.ids.output_list.update(self.tx.outputs())
 

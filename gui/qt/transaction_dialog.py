@@ -175,43 +175,18 @@ class TxDialog(QDialog, MessageBoxMixin):
 
 
     def update(self):
+        desc = self.desc
         base_unit = self.main_window.base_unit()
         format_amount = self.main_window.format_amount
-        is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
-        desc = self.desc
-        time_str = None
-        exp_n = None
-        self.broadcast_button.hide()
+        tx_hash, status, label, can_broadcast, amount, fee, height, conf, timestamp = self.wallet.get_tx_info(self.tx)
 
-        if self.tx.is_complete():
-            tx_hash = self.tx.hash()
-            if tx_hash in self.wallet.transactions.keys():
-                desc = self.wallet.get_label(tx_hash)
-                height, conf, timestamp = self.wallet.get_tx_height(tx_hash)
-                if height > 0:
-                    if conf:
-                        status = _("%d confirmations") % conf
-                        time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
-                    else:
-                        status = _('Not verified')
-                else:
-                    status = _('Unconfirmed')
-                    if fee is None:
-                        fee = self.wallet.tx_fees.get(tx_hash)
-                    if fee:
-                        size = self.tx.estimated_size()
-                        fee_per_kb = fee * 1000 / size
-                        exp_n = self.wallet.network.reverse_dynfee(fee_per_kb)
-            else:
-                status = _("Signed")
-                self.broadcast_button.show()
-                # cannot broadcast when offline
-                if self.main_window.network is None:
-                    self.broadcast_button.setEnabled(False)
+        if can_broadcast:
+            self.broadcast_button.show()
+            # cannot broadcast when offline
+            if self.main_window.network is None:
+                self.broadcast_button.setEnabled(False)
         else:
-            s, r = self.tx.signature_count()
-            status = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
-            tx_hash = _('Unknown');
+            self.broadcast_button.hide()
 
         if self.wallet.can_sign(self.tx):
             self.sign_button.show()
@@ -226,7 +201,8 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.tx_desc.show()
         self.status_label.setText(_('Status:') + ' ' + status)
 
-        if time_str is not None:
+        if timestamp is not None:
+            time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
             self.date_label.setText(_("Date: %s")%time_str)
             self.date_label.show()
         elif exp_n:
@@ -234,27 +210,18 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.date_label.show()
         else:
             self.date_label.hide()
-
         # if we are not synchronized, we cannot tell
         if not self.wallet.up_to_date:
             return
-
-        if is_relevant:
-            if is_mine:
-                if fee is not None:
-                    amount_str = _("Amount sent:") + ' %s'% format_amount(-v-fee) + ' ' + base_unit
-                else:
-                    amount_str = _("Amount sent:") + ' %s'% format_amount(-v) + ' ' + base_unit
-            else:
-                amount_str = _("Amount received:") + ' %s'% format_amount(v) + ' ' + base_unit
-        else:
+        if amount is None:
             amount_str = _("Transaction unrelated to your wallet")
-
+        elif amount > 0:
+            amount_str = _("Amount received:") + ' %s'% format_amount(amount) + ' ' + base_unit
+        else:
+            amount_str = _("Amount sent:") + ' %s'% format_amount(-amount) + ' ' + base_unit
         fee_str = _("Transaction fee") + ': %s'% (format_amount(fee) + ' ' + base_unit if fee is not None else _('unknown'))
-
         self.amount_label.setText(amount_str)
         self.fee_label.setText(fee_str)
-
         run_hook('transaction_dialog_update', self)
 
 
