@@ -181,12 +181,6 @@ class ElectrumWindow(App):
     :data:`ui_mode` is a read only `AliasProperty` Defaults to 'phone'
     '''
 
-    wallet = ObjectProperty(None)
-    '''Holds the electrum wallet
-
-    :attr:`wallet` is a `ObjectProperty` defaults to None.
-    '''
-
     def __init__(self, **kwargs):
         # initialize variables
         self._clipboard = Clipboard
@@ -194,6 +188,7 @@ class ElectrumWindow(App):
         self.nfcscanner = None
         self.tabs = None
         self.is_exit = False
+        self.wallet = None
 
         super(ElectrumWindow, self).__init__(**kwargs)
 
@@ -214,8 +209,6 @@ class ElectrumWindow(App):
             Clock.create_trigger(self.update_wallet, .5)
         self._trigger_update_status =\
             Clock.create_trigger(self.update_status, .5)
-        self._trigger_notify_transactions = \
-            Clock.create_trigger(self.notify_transactions, 5)
         # cached dialogs
         self._settings_dialog = None
         self._password_dialog = None
@@ -428,6 +421,7 @@ class ElectrumWindow(App):
     def stop_wallet(self):
         if self.wallet:
             self.wallet.stop_threads()
+            self.wallet = None
 
     def on_key_down(self, instance, key, keycode, codepoint, modifiers):
         if 'ctrl' in modifiers:
@@ -453,7 +447,6 @@ class ElectrumWindow(App):
             self.is_exit = True
             self.show_info(_('Press again to exit'))
             return True
-        self.is_exit = False
         # override settings button
         if key in (319, 282): #f1/settings button on android
             #self.gui.main_gui.toggle_settings(self)
@@ -512,10 +505,9 @@ class ElectrumWindow(App):
 
         # connect callbacks
         if self.network:
-            interests = ['updated', 'status', 'new_transaction']
+            interests = ['updated', 'status', 'new_transaction', 'verified']
             self.network.register_callback(self.on_network, interests)
 
-        #self.wallet = None
         self.tabs = self.root.ids['tabs']
 
     def on_network(self, event, *args):
@@ -524,7 +516,9 @@ class ElectrumWindow(App):
         elif event == 'status':
             self._trigger_update_status()
         elif event == 'new_transaction':
-            self._trigger_notify_transactions(*args)
+            self._trigger_update_wallet()
+        elif event == 'verified':
+            self._trigger_update_wallet()
 
     @profiler
     def load_wallet(self, wallet):
@@ -538,7 +532,6 @@ class ElectrumWindow(App):
         if self.receive_screen:
             self.receive_screen.clear()
         self.update_tabs()
-        self.notify_transactions()
         run_hook('load_wallet', wallet, self)
 
     def update_status(self, *dt):
@@ -578,41 +571,6 @@ class ElectrumWindow(App):
         self._trigger_update_status()
         if self.wallet and (self.wallet.up_to_date or not self.network or not self.network.is_connected()):
             self.update_tabs()
-
-    @profiler
-    def notify_transactions(self, *dt):
-        if not self.network or not self.network.is_connected():
-            return
-        # temporarily disabled for merge
-        return
-        iface = self.network
-        ptfn = iface.pending_transactions_for_notifications
-        if len(ptfn) > 0:
-            # Combine the transactions if there are more then three
-            tx_amount = len(ptfn)
-            if(tx_amount >= 3):
-                total_amount = 0
-                for tx in ptfn:
-                    is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
-                    if(v > 0):
-                        total_amount += v
-                self.notify(_("{txs}s new transactions received. Total amount"
-                              "received in the new transactions {amount}s"
-                              "{unit}s").format(txs=tx_amount,
-                                    amount=self.format_amount(total_amount),
-                                    unit=self.base_unit()))
-
-                iface.pending_transactions_for_notifications = []
-            else:
-              for tx in iface.pending_transactions_for_notifications:
-                  if tx:
-                      iface.pending_transactions_for_notifications.remove(tx)
-                      is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
-                      if(v > 0):
-                          self.notify(
-                              _("{txs} new transaction received. {amount} {unit}").
-                              format(txs=tx_amount, amount=self.format_amount(v),
-                                     unit=self.base_unit))
 
     def notify(self, message):
         try:
@@ -780,18 +738,33 @@ class ElectrumWindow(App):
         else:
             apply(f, args + (None,))
 
-    def delete_wallet(self, name):
-        basename = os.path.basename(name)
-        def f(pw):
-            if self.wallet.use_encryption:
-                try:
-                    self.wallet.check_password(old_password)
-                except:
-                    self.show_error("Invalid PIN")
-                    return
-            os.unlink, (name,)
-            self.show_error("File %s removed."%basename)
-        self.protected(_("Enter your PIN code to delete %s") % basename, f, ())
+    def delete_wallet(self):
+        from uix.dialogs.question import Question
+        basename = os.path.basename(self.wallet.storage.path)
+        d = Question(_('Delete wallet?') + '\n' + basename, self._delete_wallet)
+        d.open()
+
+    def _delete_wallet(self):
+        basename = os.path.basename(self.wallet.storage.path)
+        self.protected(_("Enter your PIN code to confirm deletion of %s") % basename, self.__delete_wallet, ())
+
+    def __delete_wallet(self, pw):
+        wallet_path = self.get_wallet_path()
+        dirname = os.path.dirname(wallet_path)
+        basename = os.path.basename(wallet_path)
+        if self.wallet.use_encryption:
+            try:
+                self.wallet.check_password(pw)
+            except:
+                self.show_error("Invalid PIN")
+                return
+        self.stop_wallet()
+        os.unlink(wallet_path)
+        self.show_error("Wallet removed:" + basename)
+        d = os.listdir(dirname)
+        name = 'default_wallet'
+        new_path = os.path.join(dirname, name)
+        self.load_wallet_by_name(new_path)
 
     def show_seed(self, label):
         self.protected(_("Enter your PIN code in order to decrypt your seed"), self._show_seed, (label,))
@@ -841,4 +814,3 @@ class ElectrumWindow(App):
             self._password_dialog = PasswordDialog()
         self._password_dialog.init(msg, callback)
         self._password_dialog.open()
-

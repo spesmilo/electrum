@@ -70,5 +70,7 @@ Popup:
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
-                text: _('Close')
-                on_release: root.dismiss()
+                text: _('Delete')
+                on_release:
+                    root.dismiss()
+                    app.delete_wallet()

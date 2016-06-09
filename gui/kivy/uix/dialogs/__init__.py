@@ -182,6 +182,9 @@ class InfoBubble(Factory.Bubble):
                 App.get_running_app().stop()
                 import sys
                 sys.exit()
+            else:
+                App.get_running_app().is_exit = False
+
         if now:
             return on_stop()
 
