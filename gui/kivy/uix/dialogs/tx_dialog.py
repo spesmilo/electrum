@@ -90,7 +90,7 @@ Builder.load_string('''
                 size_hint: 0.5, None
                 height: '48dp'
                 text: _('Close')
-                on_release: popup.dismiss()
+                on_release: root.dismiss()
 ''')
 
 
@@ -129,8 +129,27 @@ class TxDialog(Factory.Popup):
         self.ids.output_list.update(self.tx.outputs())
 
     def do_rbf(self):
-        # not implemented
-        pass
+        from bump_fee_dialog import BumpFeeDialog
+        is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
+        size = self.tx.estimated_size()
+        d = BumpFeeDialog(self.app, fee, size, self._do_rbf)
+        d.open()
+
+    def _do_rbf(self, old_fee, new_fee):
+        if new_fee is None:
+            return
+        delta = new_fee - old_fee
+        if delta < 0:
+            self.app.show_error("fee too low")
+            return
+        try:
+            new_tx = self.wallet.bump_fee(self.tx, delta)
+        except BaseException as e:
+            self.app.show_error(e)
+            return
+        self.tx = new_tx
+        self.update()
+        self.do_sign()
 
     def do_sign(self):
         self.app.protected(_("Enter your PIN code in order to sign this transaction"), self._do_sign, ())
