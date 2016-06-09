@@ -447,7 +447,6 @@ class ElectrumWindow(App):
             self.is_exit = True
             self.show_info(_('Press again to exit'))
             return True
-        self.is_exit = False
         # override settings button
         if key in (319, 282): #f1/settings button on android
             #self.gui.main_gui.toggle_settings(self)
