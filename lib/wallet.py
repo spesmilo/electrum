@@ -606,7 +606,7 @@ class Abstract_Wallet(PrintError):
         exp_n = None
         can_broadcast = False
         can_bump = False
-        label = None
+        label = ''
         height = conf = timestamp = None
         if tx.is_complete():
             tx_hash = tx.hash()
@@ -633,7 +633,7 @@ class Abstract_Wallet(PrintError):
         else:
             s, r = tx.signature_count()
             status = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
-            tx_hash = _('Unknown')
+            tx_hash = None
 
         if is_relevant:
             if is_mine:

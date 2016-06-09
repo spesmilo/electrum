@@ -190,7 +190,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         else:
             self.sign_button.hide()
 
-        self.tx_hash_e.setText(tx_hash)
+        self.tx_hash_e.setText(tx_hash or _('Unknown'))
         if desc is None:
             self.tx_desc.hide()
         else:

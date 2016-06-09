@@ -107,7 +107,8 @@ class TxDialog(Factory.Popup):
 
     def update(self):
         format_amount = self.app.format_amount_and_units
-        self.tx_hash, self.status_str, self.description, self.can_broadcast, self.can_rbf, amount, fee, height, conf, timestamp, exp_n = self.wallet.get_tx_info(self.tx)
+        tx_hash, self.status_str, self.description, self.can_broadcast, self.can_rbf, amount, fee, height, conf, timestamp, exp_n = self.wallet.get_tx_info(self.tx)
+        self.tx_hash = tx_hash or ''
         if timestamp:
             self.date_str = datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
         elif exp_n:
