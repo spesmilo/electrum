@@ -238,7 +238,7 @@ class SettingsDialog(Factory.Popup):
                    _('and you will have the possiblity, while they are unconfirmed, to replace them with transactions that pays higher fees.'),
                    _('Note that some merchants do not accept non-final transactions until they are confirmed.')]
             fullname = _('Replace by fee')
-            self._rbf_dialog = CheckBoxDialog(fullname, ' '.join(msg), self.config.get('use_rbf'), cb)
+            self._rbf_dialog = CheckBoxDialog(fullname, ' '.join(msg), self.config.get('use_rbf', False), cb)
         self._rbf_dialog.open()
 
     def fx_status(self):
