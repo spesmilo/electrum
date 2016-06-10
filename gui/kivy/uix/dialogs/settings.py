@@ -103,6 +103,12 @@ Builder.load_string('''
                     action: partial(root.plugin_dialog, 'labels', self)
                 CardSeparator
                 SettingsItem:
+                    status: root.rbf_status()
+                    title: _('Replace-by-fee') + ': ' + self.status
+                    description: _("Create replaceable transactions.")
+                    action: partial(root.rbf_dialog, self)
+                CardSeparator
+                SettingsItem:
                     status: root.coinselect_status()
                     title: _('Coin selection') + ': ' + self.status
                     description: "Coin selection method"
@@ -123,6 +129,7 @@ class SettingsDialog(Factory.Popup):
         # cached dialogs
         self._fx_dialog = None
         self._fee_dialog = None
+        self._rbf_dialog = None
         self._network_dialog = None
         self._language_dialog = None
         self._unit_dialog = None
@@ -203,7 +210,7 @@ class SettingsDialog(Factory.Popup):
         d.open()
 
     def fee_status(self):
-        if self.config.get('dynamic_fees'):
+        if self.config.get('dynamic_fees', True):
             from electrum.util import fee_levels
             return fee_levels[self.config.get('fee_level', 2)]
         else:
@@ -217,6 +224,22 @@ class SettingsDialog(Factory.Popup):
                 label.status = self.fee_status()
             self._fee_dialog = FeeDialog(self.app, self.config, cb)
         self._fee_dialog.open()
+
+    def rbf_status(self):
+        return 'ON' if self.config.get('use_rbf') else 'OFF'
+
+    def rbf_dialog(self, label, dt):
+        if self._rbf_dialog is None:
+            from checkbox_dialog import CheckBoxDialog
+            def cb(x):
+                self.config.set_key('use_rbf', x, True)
+                label.status = self.rbf_status()
+            msg = [_('If you check this box, your transactions will be marked as non-final,'),
+                   _('and you will have the possiblity, while they are unconfirmed, to replace them with transactions that pays higher fees.'),
+                   _('Note that some merchants do not accept non-final transactions until they are confirmed.')]
+            fullname = _('Replace by fee')
+            self._rbf_dialog = CheckBoxDialog(fullname, ' '.join(msg), self.config.get('use_rbf'), cb)
+        self._rbf_dialog.open()
 
     def fx_status(self):
         p = self.plugins.get('exchange_rate')
