@@ -14,6 +14,7 @@ Builder.load_string('''
     pos_hint: {'top':0.9}
     BoxLayout:
         orientation: 'vertical'
+        padding: '10dp'
 
         GridLayout:
             height: self.minimum_height
@@ -22,7 +23,7 @@ Builder.load_string('''
             spacing: '10dp'
             BoxLabel:
                 id: old_fee
-                text: _('Fee')
+                text: _('Current Fee')
                 value: ''
             BoxLabel:
                 id: new_fee
@@ -31,11 +32,19 @@ Builder.load_string('''
         Label:
             id: tooltip
             text: ''
+            size_hint_y: None
         Slider:
             id: slider
             range: 0, 4
             step: 1
             on_value: root.on_slider(self.value)
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint: 1, 0.2
+            Label:
+                text: _('Final')
+            CheckBox:
+                id: final_cb
         Widget:
             size_hint: 1, 1
         BoxLayout:
@@ -98,7 +107,8 @@ class BumpFeeDialog(Factory.Popup):
 
     def on_ok(self):
         new_fee = self.get_fee()
-        self.callback(self.init_fee, new_fee)
+        is_final = self.ids.final_cb.active
+        self.callback(self.init_fee, new_fee, is_final)
 
     def on_slider(self, value):
         self.update_text()

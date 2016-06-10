@@ -276,6 +276,8 @@ class SendScreen(CScreen):
             traceback.print_exc(file=sys.stdout)
             self.app.show_error(str(e))
             return
+        if self.app.electrum_config.get('use_rbf'):
+            tx.set_sequence(0)
         fee = tx.get_fee()
         msg = [
             _("Amount to be sent") + ": " + self.app.format_amount_and_units(amount),

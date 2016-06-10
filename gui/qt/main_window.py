@@ -2695,7 +2695,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         text.setReadOnly(True)
         text.setMaximumHeight(170)
         vbox.addWidget(text)
-        mpk_text = '\n'.join( account.get_master_pubkeys() )
+        mpk_text = '\n'.join(account.get_master_pubkeys())
         text.setText(mpk_text)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
@@ -2709,9 +2709,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         e = BTCAmountEdit(self.get_decimal_point)
         e.setAmount(fee *1.5)
         vbox.addWidget(e)
+        cb = QCheckBox(_('Final'))
+        vbox.addWidget(cb)
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         if not d.exec_():
             return
+        is_final = cb.isChecked()
         new_fee = e.get_amount()
         delta = new_fee - fee
         if delta < 0:
@@ -2722,4 +2725,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         except BaseException as e:
             self.show_error(e)
             return
+        if is_final:
+            new_tx.set_sequence(0xffffffff)
         self.show_transaction(new_tx)
