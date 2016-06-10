@@ -135,7 +135,7 @@ class TxDialog(Factory.Popup):
         d = BumpFeeDialog(self.app, fee, size, self._do_rbf)
         d.open()
 
-    def _do_rbf(self, old_fee, new_fee):
+    def _do_rbf(self, old_fee, new_fee, is_final):
         if new_fee is None:
             return
         delta = new_fee - old_fee
@@ -147,6 +147,8 @@ class TxDialog(Factory.Popup):
         except BaseException as e:
             self.app.show_error(e)
             return
+        if is_final:
+            new_tx.set_sequence(0xffffffff)
         self.tx = new_tx
         self.update()
         self.do_sign()
