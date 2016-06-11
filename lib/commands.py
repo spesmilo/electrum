@@ -272,10 +272,10 @@ class Commands:
     @command('wp')
     def getprivatekeys(self, address):
         """Get private keys of addresses. You may pass a single wallet address, or a list of wallet addresses."""
-        is_list = type(address) is list
-        domain = address if is_list else [address]
-        out = [self.wallet.get_private_key(address, self._password) for address in domain]
-        return out if is_list else out[0]
+        if is_address(address):
+            return self.wallet.get_private_key(address, self._password)
+        domain = json_loads(address)
+        return [self.wallet.get_private_key(address, self._password) for address in domain]
 
     @command('w')
     def ismine(self, address):
