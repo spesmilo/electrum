@@ -27,7 +27,7 @@ import bitcoin
 from bitcoin import *
 from i18n import _
 from transaction import Transaction, is_extended_pubkey
-from util import print_msg, InvalidPassword
+from util import InvalidPassword
 
 
 class Account(object):
@@ -67,7 +67,6 @@ class Account(object):
         address = self.pubkeys_to_address(pubkeys)
         pubkeys_list.append(pubkeys)
         addr_list.append(address)
-        print_msg(address)
         return address
 
     def pubkeys_to_address(self, pubkey):

@@ -349,8 +349,8 @@ class Commands:
 
     @command('w')
     def getmpk(self):
-        """Get master public key. Return your wallet\'s master public key(s)"""
-        return self.wallet.get_master_public_keys()
+        """Get master public key. Return your wallet\'s master public key"""
+        return self.wallet.get_master_public_key()
 
     @command('wp')
     def getmasterprivate(self):
