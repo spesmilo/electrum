@@ -112,7 +112,7 @@ class TxDialog(Factory.Popup):
         if timestamp:
             self.date_str = datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
         elif exp_n:
-            self.date_str = _('Within %d blocks') % exp_n
+            self.date_str = _('Within %d blocks') % exp_n if exp_n > 0 else _('unknown (low fee)')
         else:
             self.date_str = ''
 

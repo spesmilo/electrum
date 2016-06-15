@@ -353,6 +353,8 @@ class Network(util.DaemonThread):
         import operator
         dist = map(lambda x: (x[0], abs(x[1] - fee_per_kb)), self.fee_estimates.items())
         min_target, min_value = min(dist, key=operator.itemgetter(1))
+        if fee_per_kb < self.fee_estimates.get(25)/2:
+            min_target = -1
         return min_target
 
     def notify(self, key):
