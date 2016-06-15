@@ -213,6 +213,8 @@ class ElectrumWindow(App):
         self._settings_dialog = None
         self._password_dialog = None
 
+    def wallet_name(self):
+        return os.path.basename(self.wallet.storage.path) if self.wallet else ' '
 
     def on_pr(self, pr):
         if pr.verify(self.contacts):
