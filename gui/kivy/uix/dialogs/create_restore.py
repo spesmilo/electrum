@@ -587,7 +587,7 @@ class ShowXpubDialog(WizardDialog):
         self.app._clipboard.copy(self.xpub)
 
     def do_share(self):
-        self.app.do_share(self.xpub)
+        self.app.do_share(self.xpub, _("Master Public Key"))
 
     def do_qr(self):
         from qr_dialog import QRDialog

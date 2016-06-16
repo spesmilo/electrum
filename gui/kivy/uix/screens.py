@@ -358,7 +358,7 @@ class ReceiveScreen(CScreen):
 
     def do_share(self):
         uri = self.get_URI()
-        self.app.do_share(uri)
+        self.app.do_share(uri, _("Share Bitcoin Request"))
 
     def do_copy(self):
         uri = self.get_URI()

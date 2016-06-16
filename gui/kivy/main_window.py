@@ -346,7 +346,7 @@ class ElectrumWindow(App):
         activity.bind(on_activity_result=on_qr_result)
         integrator.initiateScan()
 
-    def do_share(self, data):
+    def do_share(self, data, title):
         if platform != 'android':
             return
         from jnius import autoclass, cast
@@ -358,7 +358,7 @@ class ElectrumWindow(App):
         sendIntent.putExtra(Intent.EXTRA_TEXT, JS(data))
         PythonActivity = autoclass('org.renpy.android.PythonActivity')
         currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
-        it = Intent.createChooser(sendIntent, cast('java.lang.CharSequence', JS("Share Bitcoin Request")))
+        it = Intent.createChooser(sendIntent, cast('java.lang.CharSequence', JS(title)))
         currentActivity.startActivity(it)
 
     def build(self):
