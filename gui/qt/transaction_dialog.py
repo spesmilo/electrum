@@ -203,7 +203,8 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.date_label.setText(_("Date: %s")%time_str)
             self.date_label.show()
         elif exp_n:
-            self.date_label.setText(_('Expected confirmation time: %d blocks'%(exp_n)))
+            text = '%d blocks'%(exp_n) if exp_n > 0 else _('unknown (low fee)')
+            self.date_label.setText(_('Expected confirmation time') + ': ' + text)
             self.date_label.show()
         else:
             self.date_label.hide()

@@ -361,6 +361,7 @@ BoxLayout:
                 app_icon_width: '100dp'
                 with_previous: False
                 size_hint_x: None
+                on_release: app.popup_dialog('status')
 
             ActionButton:
                 id: action_status
@@ -370,7 +371,7 @@ BoxLayout:
                 color: 0.7, 0.7, 0.7, 1
                 text: app.status
                 font_size: '22dp'
-                minimum_width: '1dp'
+                #minimum_width: '1dp'
                 on_release: app.popup_dialog('status')
 
             ActionOverflow:

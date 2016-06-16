@@ -1,8 +1,3 @@
-''' Dialogs and widgets Responsible for creation, restoration of accounts are
-defined here.
-
-Namely: CreateAccountDialog, CreateRestoreDialog, RestoreSeedDialog
-'''
 
 from functools import partial
 
@@ -12,10 +7,14 @@ from kivy.lang import Builder
 from kivy.properties import ObjectProperty, StringProperty, OptionProperty
 from kivy.core.window import Window
 from kivy.uix.button import Button
+from kivy.utils import platform
 
 from electrum_ltc_gui.kivy.uix.dialogs import EventsDialog
 from electrum_ltc_gui.kivy.i18n import _
 
+test_xpub = "xpub661MyMwAqRbcFpV2JqonBDKdgJiExpxiSAtvphtpviunv42FNVJNNRA3Zdy5kQXoK7NpwUC2QQPXVMLKLoHxaekNfemFs5zkfrNnk91dobZ"
+test_seed = "powder idea leader task pretty harsh resemble alert quit athlete clerk almost able"
+is_test = platform != 'android'
 
 Builder.load_string('''
 #:import Window kivy.core.window.Window
@@ -44,6 +43,7 @@ Builder.load_string('''
 
 <-WizardDialog>
     text_color: .854, .925, .984, 1
+    value: ''
     #auto_dismiss: False
     size_hint: None, None
     canvas.before:
@@ -81,16 +81,62 @@ Builder.load_string('''
             cols: 1
             id: crcontent
             spacing: '1dp'
+        Widget:
+            size_hint: 1, 0.3
+        GridLayout:
+            rows: 1
+            spacing: '12dp'
+            size_hint: 1, None
+            height: self.minimum_height
+            WizardButton:
+                id: back
+                text: _('Back')
+                root: root
+            WizardButton:
+                id: next
+                text: _('Next')
+                root: root
+                disabled: root.value == ''
 
 
-<CreateRestoreDialog>
-    Image:
-        id: logo_img
-        mipmap: True
-        allow_stretch: True
+<WizardMultisigDialog>
+    value: 'next'
+    Widget
+        size_hint: 1, 1
+    Label:
+        color: root.text_color
         size_hint: 1, None
-        height: '110dp'
-        source: 'atlas://gui/kivy/theming/light/electrum_icon640'
+        text_size: self.width, None
+        height: self.texture_size[1]
+        text: _("Choose the number of signatures needed to unlock funds in your wallet")
+    Widget
+        size_hint: 1, 1
+    GridLayout:
+        orientation: 'vertical'
+        cols: 2
+        spacing: '14dp'
+        size_hint: 1, 1
+        height: self.minimum_height
+        Label:
+            color: root.text_color
+            text: _('From %d cosigners')%n.value
+        Slider:
+            id: n
+            range: 2, 5
+            step: 1
+            value: 2
+        Label:
+            color: root.text_color
+            text: _('Require %d signatures')%m.value
+        Slider:
+            id: m
+            range: 1, n.value
+            step: 1
+            value: 2
+
+
+<WizardChoiceDialog>
+    msg : ''
     Widget:
         size_hint: 1, 1
     Label:
@@ -98,31 +144,16 @@ Builder.load_string('''
         size_hint: 1, None
         text_size: self.width, None
         height: self.texture_size[1]
-        text:
-            _("Creating a new wallet.")+" " +\
-            _("Do you want to create a new seed, or to restore a wallet using an existing seed?")
+        text: root.msg
     Widget
         size_hint: 1, 1
     GridLayout:
-        id: grid
+        row_default_height: '48dp'
         orientation: 'vertical'
+        id: choices
         cols: 1
         spacing: '14dp'
         size_hint: 1, None
-        height: self.minimum_height
-        WizardButton:
-            id: create
-            text: _('Create a new seed')
-            root: root
-        WizardButton:
-            id: restore_seed
-            text: _('I already have a seed')
-            root: root
-        WizardButton:
-            id: restore_xpub
-            text: _('Watching-only wallet')
-            root: root
-
 
 <MButton@Button>:
     size_hint: 1, None
@@ -268,27 +299,8 @@ Builder.load_string('''
                 text: ' '
             MButton:
                 text: '<'
-    Widget:
-        size_hint: 1, 1
 
-    GridLayout:
-        rows: 1
-        spacing: '12dp'
-        size_hint: 1, None
-        height: self.minimum_height
-        WizardButton:
-            id: back
-            text: _('Back')
-            root: root
-        WizardButton:
-            id: next
-            text: _('Next')
-            root: root
-            disabled: True
-
-
-<RestoreXpubDialog>
-    word: ''
+<AddXpubDialog>
     Label:
         color: root.text_color
         size_hint: 1, None
@@ -309,7 +321,7 @@ Builder.load_string('''
         SeedLabel:
             text: root.message
 
-    GridLayout:
+    GridLayout
         rows: 1
         spacing: '12dp'
         size_hint: 1, None
@@ -327,27 +339,10 @@ Builder.load_string('''
             text: _('Clear')
             on_release: root.do_clear()
 
-    Widget:
-        size_hint: 1, 1
-
-    GridLayout:
-        rows: 1
-        spacing: '12dp'
-        size_hint: 1, None
-        height: self.minimum_height
-        WizardButton:
-            id: back
-            text: _('Back')
-            root: root
-        WizardButton:
-            id: next
-            text: _('Next')
-            root: root
-            disabled: True
-
 
 <ShowSeedDialog>
     spacing: '12dp'
+    value: 'next'
     Label:
         color: root.text_color
         size_hint: 1, None
@@ -366,22 +361,8 @@ Builder.load_string('''
             text: root.seed_text
         SeedLabel:
             text: root.message
-    Widget:
-        size_hint: 1, 1
-    GridLayout:
-        rows: 1
-        spacing: '12dp'
-        size_hint: 1, None
-        height: self.minimum_height
-        WizardButton:
-            id: back
-            text: _('Back')
-            root: root
-        WizardButton:
-            id: confirm
-            text: _('Confirm')
-            root: root
 ''')
+
 
 
 class WizardDialog(EventsDialog):
@@ -421,8 +402,24 @@ class WizardDialog(EventsDialog):
             app.stop()
 
 
-class CreateRestoreDialog(WizardDialog):
-    ''' Initial Dialog for creating or restoring seed'''
+class WizardMultisigDialog(WizardDialog):
+    pass
+
+class WizardChoiceDialog(WizardDialog):
+    ''' Multiple choices dialog '''
+
+    def __init__(self, **kwargs):
+        super(WizardChoiceDialog, self).__init__(**kwargs)
+        self.msg = kwargs.get('msg', '')
+        choices = kwargs.get('choices', [])
+        layout = self.ids.choices
+        layout.bind(minimum_height=layout.setter('height'))
+        for text, action in choices:
+            l = WizardButton(text=text)
+            l.action = action
+            l.height = '48dp'
+            l.root = self
+            layout.add_widget(l)
 
     def on_parent(self, instance, value):
         if value:
@@ -444,6 +441,9 @@ class ShowSeedDialog(WizardDialog):
 class WordButton(Button):
     pass
 
+class WizardButton(Button):
+    pass
+
 class RestoreSeedDialog(WizardDialog):
 
     message = StringProperty('')
@@ -454,6 +454,7 @@ class RestoreSeedDialog(WizardDialog):
         from electrum_ltc.mnemonic import Mnemonic
         from electrum_ltc.old_mnemonic import words as old_wordlist
         self.words = set(Mnemonic('en').wordlist).union(set(old_wordlist))
+        self.ids.text_input_seed.text = test_seed if is_test else ''
 
     def get_suggestions(self, prefix):
         for w in self.words:
@@ -545,12 +546,12 @@ class RestoreSeedDialog(WizardDialog):
             tis._keyboard.unbind(on_key_down=self.on_key_down)
             tis.focus = False
 
-class RestoreXpubDialog(WizardDialog):
+class AddXpubDialog(WizardDialog):
 
     message = StringProperty('')
 
     def __init__(self, **kwargs):
-        super(RestoreXpubDialog, self).__init__(**kwargs)
+        super(AddXpubDialog, self).__init__(**kwargs)
         self._test = kwargs['test']
         self.app = App.get_running_app()
 
@@ -567,7 +568,8 @@ class RestoreXpubDialog(WizardDialog):
         self.app.scan_qr(on_complete)
 
     def do_paste(self):
-        self.ids.text_input_seed.text = unicode(self.app._clipboard.paste())
+        self.ids.text_input_seed.text = test_xpub if is_test else unicode(self.app._clipboard.paste())
 
     def do_clear(self):
         self.ids.text_input_seed.text = ''
+
