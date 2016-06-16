@@ -13,7 +13,7 @@ import threading
 from functools import partial
 import weakref
 
-from create_restore import WizardChoiceDialog, ShowSeedDialog, RestoreSeedDialog, AddXpubDialog, WizardMultisigDialog
+from create_restore import WizardChoiceDialog, ShowSeedDialog, RestoreSeedDialog, AddXpubDialog, ShowXpubDialog, WizardMultisigDialog
 from password_dialog import PasswordDialog
 
 
@@ -135,8 +135,9 @@ class InstallWizard(Widget):
                 return
             text = _dlg.get_text()
             self.run('create_wallet', (text, None))
-        msg = _('To create a watching-only wallet, paste your master public key, or scan it using the camera button.')
-        AddXpubDialog(test=Wallet.is_mpk, message=msg, on_release=on_xpub).open()
+        title = "MASTER PUBLIC KEY"
+        message =  _('To create a watching-only wallet, paste your master public key, or scan it using the camera button.')
+        AddXpubDialog(title=title, message=message, test=Wallet.is_mpk, on_release=on_xpub).open()
 
     def create_standard(self):
         self.wallet_type = 'standard'
@@ -158,15 +159,30 @@ class InstallWizard(Widget):
             action = self.wallet.get_action()
             self.run(action)
 
+
     def add_cosigners(self):
+        def on_release(_dlg, btn):
+            _dlg.close()
+            self.run('add_cosigner')
+        xpub = self.wallet.master_public_keys.get('x1/')
+        ShowXpubDialog(xpub=xpub, test=Wallet.is_xpub, on_release=on_release).open()
+
+    def add_cosigner(self):
         def on_xpub(_dlg, btn):
             xpub = _dlg.get_text()
             _dlg.close()
-            self.wallet.add_master_public_key("x%d/" % 2, xpub)
+            if btn is _dlg.ids.back:
+                self.run('add_cosigners')
+                return
+            if xpub:
+                self.wallet.add_master_public_key("x%d/" % 2, xpub)
             action = self.wallet.get_action()
+            if action == 'add_cosigners': action = 'add_cosigner'
             self.run(action)
-        msg = _('Paste your cosigner xpub, or scan it using the camera button.')
-        AddXpubDialog(test=Wallet.is_xpub, message=msg, on_release=on_xpub).open()
+
+        title = "ADD COSIGNERS"
+        message = _('Please paste your cosigners master public key, or scan it using the camera button.')
+        AddXpubDialog(title=title, message=message, test=Wallet.is_xpub, on_release=on_xpub).open()
 
     def create_main_account(self):
         self.wallet.create_main_account()

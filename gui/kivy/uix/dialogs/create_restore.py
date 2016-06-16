@@ -40,6 +40,12 @@ Builder.load_string('''
     on_press: if self.root: self.root.dispatch('on_press', self)
     on_release: if self.root: self.root.dispatch('on_release', self)
 
+<BigLabel@Label>
+    color: .854, .925, .984, 1
+    size_hint: 1, None
+    text_size: self.width, None
+    height: self.texture_size[1]
+    bold: True
 
 <-WizardDialog>
     text_color: .854, .925, .984, 1
@@ -196,12 +202,8 @@ Builder.load_string('''
 
 <RestoreSeedDialog>
     word: ''
-    Label:
-        color: root.text_color
-        size_hint: 1, None
-        text_size: self.width, None
-        height: self.texture_size[1]
-        text: "[b]ENTER YOUR SEED PHRASE[/b]"
+    BigLabel:
+        text: "ENTER YOUR SEED PHRASE"
     GridLayout
         cols: 1
         padding: 0, '12dp'
@@ -301,12 +303,10 @@ Builder.load_string('''
                 text: '<'
 
 <AddXpubDialog>
-    Label:
-        color: root.text_color
-        size_hint: 1, None
-        text_size: self.width, None
-        height: self.texture_size[1]
-        text: "[b]MASTER PUBLIC KEY[/b]"
+    title: ''
+    message: ''
+    BigLabel:
+        text: root.title
     GridLayout
         cols: 1
         padding: 0, '12dp'
@@ -315,12 +315,11 @@ Builder.load_string('''
         size_hint: 1, None
         height: self.minimum_height
         SeedButton:
-            id: text_input_seed
+            id: text_input
             text: ''
-            on_text: Clock.schedule_once(root.on_text)
+            on_text: Clock.schedule_once(root.check_text)
         SeedLabel:
             text: root.message
-
     GridLayout
         rows: 1
         spacing: '12dp'
@@ -340,15 +339,44 @@ Builder.load_string('''
             on_release: root.do_clear()
 
 
+<ShowXpubDialog>
+    xpub: ''
+    message: _('Here is your master public key. Share it with your cosigners.')
+    BigLabel:
+        text: "MASTER PUBLIC KEY"
+    GridLayout
+        cols: 1
+        padding: 0, '12dp'
+        orientation: 'vertical'
+        spacing: '12dp'
+        size_hint: 1, None
+        height: self.minimum_height
+        SeedButton:
+            id: text_input
+            text: root.xpub
+        SeedLabel:
+            text: root.message
+    GridLayout
+        rows: 1
+        spacing: '12dp'
+        size_hint: 1, None
+        height: self.minimum_height
+        WizardButton:
+            text: _('QR code')
+            on_release: root.do_qr()
+        WizardButton:
+            text: _('Copy')
+            on_release: root.do_copy()
+        WizardButton:
+            text: _('Share')
+            on_release: root.do_share()
+
+
 <ShowSeedDialog>
     spacing: '12dp'
     value: 'next'
-    Label:
-        color: root.text_color
-        size_hint: 1, None
-        text_size: self.width, None
-        height: self.texture_size[1]
-        text: "[b]PLEASE WRITE DOWN YOUR SEED PHRASE[/b]"
+    BigLabel:
+        text: "PLEASE WRITE DOWN YOUR SEED PHRASE"
     GridLayout:
         id: grid
         cols: 1
@@ -546,30 +574,50 @@ class RestoreSeedDialog(WizardDialog):
             tis._keyboard.unbind(on_key_down=self.on_key_down)
             tis.focus = False
 
-class AddXpubDialog(WizardDialog):
 
-    message = StringProperty('')
+class ShowXpubDialog(WizardDialog):
 
     def __init__(self, **kwargs):
-        super(AddXpubDialog, self).__init__(**kwargs)
-        self._test = kwargs['test']
+        WizardDialog.__init__(self, **kwargs)
         self.app = App.get_running_app()
+        self.xpub = kwargs['xpub']
+        self.ids.next.disabled = False
+
+    def do_copy(self):
+        self.app._clipboard.copy(self.xpub)
+
+    def do_share(self):
+        self.app.do_share(self.xpub)
+
+    def do_qr(self):
+        from qr_dialog import QRDialog
+        popup = QRDialog(_("Master Public Key"), self.xpub, True)
+        popup.open()
+
+
+class AddXpubDialog(WizardDialog):
+
+    def __init__(self, **kwargs):
+        WizardDialog.__init__(self, **kwargs)
+        self.app = App.get_running_app()
+        self._test = kwargs['test']
+        self.title = kwargs['title']
+        self.message = kwargs['message']
+
+    def check_text(self, dt):
+        self.ids.next.disabled = not bool(self._test(self.get_text()))
 
     def get_text(self):
-        ti = self.ids.text_input_seed
+        ti = self.ids.text_input
         return unicode(ti.text).strip()
-
-    def on_text(self, dt):
-        self.ids.next.disabled = not bool(self._test(self.get_text()))
 
     def scan_xpub(self):
         def on_complete(text):
-            self.ids.text_input_seed.text = text
+            self.ids.text_input.text = text
         self.app.scan_qr(on_complete)
 
     def do_paste(self):
-        self.ids.text_input_seed.text = test_xpub if is_test else unicode(self.app._clipboard.paste())
+        self.ids.text_input.text = test_xpub if is_test else unicode(self.app._clipboard.paste())
 
     def do_clear(self):
-        self.ids.text_input_seed.text = ''
-
+        self.ids.text_input.text = ''
