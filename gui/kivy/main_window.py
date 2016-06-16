@@ -358,7 +358,7 @@ class ElectrumWindow(App):
         sendIntent.setAction(Intent.ACTION_SEND)
         sendIntent.setType("text/plain")
         sendIntent.putExtra(Intent.EXTRA_TEXT, JS(data))
-        PythonActivity = autoclass('org.renpy.android.PythonActivity')
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
         currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
         it = Intent.createChooser(sendIntent, cast('java.lang.CharSequence', JS(title)))
         currentActivity.startActivity(it)
