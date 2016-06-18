@@ -1918,10 +1918,19 @@ class Multisig_Wallet(BIP32_RD_Wallet, Mnemonic):
     def get_master_public_keys(self):
         return self.master_public_keys
 
-    def get_action(self):
+    def get_missing_cosigner(self):
         for i in range(self.n):
             if self.master_public_keys.get("x%d/"%(i+1)) is None:
-                return 'create_seed' if i == 0 else 'add_cosigners'
+                return i+1
+
+    def add_cosigner(self, xpub):
+        i = self.get_missing_cosigner()
+        self.add_master_public_key("x%d/" % i, xpub)
+
+    def get_action(self):
+        i = self.get_missing_cosigner()
+        if i is not None:
+            return 'create_seed' if i == 1 else 'add_cosigners'
         if not self.accounts:
             return 'create_main_account'
 
