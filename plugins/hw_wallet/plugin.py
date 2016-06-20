@@ -53,21 +53,27 @@ class HW_PluginBase(BasePlugin):
 
     def on_restore_wallet(self, wallet, wizard):
         assert isinstance(wallet, self.wallet_class)
-
         msg = _("Enter the seed for your %s wallet:" % self.device)
-        seed = wizard.request_seed(msg, is_valid = self.is_valid_seed)
+        f = lambda x: wizard.run('on_restore_seed', x)
+        wizard.enter_seed_dialog(run_next=f, title=_('Restore hardware wallet'), message=msg, is_valid=self.is_valid_seed)
 
+    def on_restore_seed(self, wallet, wizard, seed):
+        f = lambda x: wizard.run('on_restore_passphrase', seed, x)
+        wizard.request_passphrase(self.device, run_next=f)
+
+    def on_restore_passphrase(self, wallet, wizard, seed, passphrase):
+        f = lambda x: wizard.run('on_restore_password', seed, passphrase, x)
+        wizard.request_password(run_next=f)
+
+    def on_restore_password(self, wallet, wizard, seed, passphrase, password):
         # Restored wallets are not hardware wallets
         wallet_class = self.wallet_class.restore_wallet_class
         wallet.storage.put('wallet_type', wallet_class.wallet_type)
         wallet = wallet_class(wallet.storage)
-
-        passphrase = wizard.request_passphrase(self.device)
-        password = wizard.request_password()
         wallet.add_seed(seed, password)
         wallet.add_xprv_from_seed(seed, 'x/', password, passphrase)
         wallet.create_hd_account(password)
-        return wallet
+        wizard.create_addresses()
 
     @staticmethod
     def is_valid_seed(seed):

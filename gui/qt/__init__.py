@@ -149,9 +149,6 @@ class ElectrumGui:
         run_hook('on_new_window', w)
         return w
 
-    def get_wizard(self):
-        return InstallWizard(self.config, self.app, self.plugins)
-
     def start_new_window(self, path, uri):
         '''Raises the window for the wallet if it is open.  Otherwise
         opens the wallet and creates a new window for it.'''
@@ -160,14 +157,18 @@ class ElectrumGui:
                 w.bring_to_top()
                 break
         else:
-            wallet = self.daemon.load_wallet(path, self.get_wizard)
+            wallet = self.daemon.load_wallet(path)
             if not wallet:
-                return
+                wizard = InstallWizard(self.config, self.app, self.plugins, self.daemon.network, path)
+                wallet = wizard.run_and_get_wallet()
+                if not wallet:
+                    return
+                if wallet.get_action():
+                    return
+                self.daemon.add_wallet(wallet)
             w = self.create_window_for_wallet(wallet)
-
         if uri:
             w.pay_to_URI(uri)
-
         return w
 
     def close_window(self, window):

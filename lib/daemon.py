@@ -171,26 +171,28 @@ class Daemon(DaemonThread):
             response = "Error: Electrum is running in daemon mode. Please stop the daemon first."
         return response
 
-    def load_wallet(self, path, get_wizard=None):
+    def load_wallet(self, path):
         if path in self.wallets:
             wallet = self.wallets[path]
-        else:
-            storage = WalletStorage(path)
-            if storage.file_exists:
-                wallet = Wallet(storage)
-                action = wallet.get_action()
-            else:
-                action = 'new'
-            if action:
-                if get_wizard is None:
-                    return None
-                wizard = get_wizard()
-                wallet = wizard.run(self.network, storage)
-            else:
-                wallet.start_threads(self.network)
-            if wallet:
-                self.wallets[path] = wallet
+            return wallet
+        storage = WalletStorage(path)
+        if not storage.file_exists:
+            return
+        wallet = Wallet(storage)
+        action = wallet.get_action()
+        if action:
+            return
+        wallet.start_threads(self.network)
+        self.wallets[path] = wallet
         return wallet
+
+    def add_wallet(self, wallet):
+        path = wallet.storage.path
+        self.wallets[path] = wallet
+
+    def stop_wallet(self, path):
+        wallet = self.wallets.pop(path)
+        wallet.stop_threads()
 
     def run_cmdline(self, config_options):
         config = SimpleConfig(config_options)

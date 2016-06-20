@@ -346,21 +346,32 @@ class TrustedCoinPlugin(BasePlugin):
         wallet.price_per_tx = dict(billing_info['price_per_tx'])
         return True
 
-    def create_extended_seed(self, wallet, window):
+    def create_extended_seed(self, wallet, wizard):
+        self.wallet = wallet
+        self.wizard = wizard
         seed = wallet.make_seed()
-        window.show_and_verify_seed(seed, is_valid=self.is_valid_seed)
+        f = lambda x: wizard.run('confirm_seed', x)
+        self.wizard.show_seed_dialog(run_next=f, message="z", seed_text=seed)
 
-        password = window.request_password()
+    def confirm_seed(self, wallet, wizard, seed):
+        title = _('Confirm Seed')
+        msg = _('Please retype your seed phrase, to confirm that you properly saved it')
+        f = lambda x: wizard.run('add_password', x)
+        self.wizard.enter_seed_dialog(run_next=f, title=title, message=msg, is_valid=lambda x: x==seed)
+
+    def add_password(self, wallet, wizard, seed):
+        f = lambda x: self.create_wallet(seed, x)
+        self.wizard.request_password(run_next=f)
+
+    def create_wallet(self, seed, password):
+        wallet = self.wallet
         wallet.storage.put('seed_version', wallet.seed_version)
         wallet.storage.put('use_encryption', password is not None)
-
         words = seed.split()
         n = len(words)/2
         wallet.add_xprv_from_seed(' '.join(words[0:n]), 'x1/', password)
         wallet.add_xpub_from_seed(' '.join(words[n:]), 'x2/')
-
         wallet.storage.write()
-
         msg = [
             _("Your wallet file is: %s.")%os.path.abspath(wallet.storage.path),
             _("You need to be online in order to complete the creation of "
@@ -371,7 +382,8 @@ class TrustedCoinPlugin(BasePlugin):
             _('If you are online, click on "%s" to continue.') % _('Next')
         ]
         msg = '\n\n'.join(msg)
-        self.confirm(window, msg)
+        self.wizard.confirm(msg)
+        return wallet
 
     @hook
     def do_clear(self, window):
@@ -379,19 +391,22 @@ class TrustedCoinPlugin(BasePlugin):
 
     def on_restore_wallet(self, wallet, wizard):
         assert isinstance(wallet, self.wallet_class)
+        title = _("Restore two-factor Wallet")
+        f = lambda x: wizard.run('on_restore_seed', x)
+        wizard.enter_seed_dialog(run_next=f, title=title, message=RESTORE_MSG, is_valid=self.is_valid_seed)
 
-        seed = wizard.request_seed(RESTORE_MSG, is_valid=self.is_valid_seed)
-        password = wizard.request_password()
+    def on_restore_seed(self, wallet, wizard, seed):
+        f = lambda x: wizard.run('on_restore_pw', seed, x)
+        wizard.request_password(run_next=f)
 
+    def on_restore_pw(self, wallet, wizard, seed, password):
         wallet.add_seed(seed, password)
         words = seed.split()
         n = len(words)/2
         wallet.add_xprv_from_seed(' '.join(words[0:n]), 'x1/', password)
         wallet.add_xprv_from_seed(' '.join(words[n:]), 'x2/', password)
-
         restore_third_key(wallet)
-        wallet.create_main_account()
-        return wallet
+        wizard.create_addresses()
 
     def create_remote_key(self, wallet, window):
         email = self.accept_terms_of_use(window)
