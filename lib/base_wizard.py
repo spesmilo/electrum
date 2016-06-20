@@ -25,7 +25,7 @@
 
 import os
 from electrum.wallet import Wallet, Multisig_Wallet
-from electrum_gui.kivy.i18n import _
+from i18n import _
 
 
 class BaseWizard(object):
