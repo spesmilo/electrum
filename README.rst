@@ -87,7 +87,7 @@ Creating Binaries
 =================
 
 
-In oder to creating binaries, you must create the 'packages' directory::
+In order to create binaries, you must create the 'packages' directory::
 
     ./contrib/make_packages
 
