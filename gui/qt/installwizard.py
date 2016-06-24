@@ -85,11 +85,9 @@ def wizard_dialog(func):
         try:
             out = func(*args, **kwargs)
         except GoBack:
-            print "go back"
             wizard.go_back()
             return
         except UserCancelled:
-            print "usercancelled"
             return
         #if out is None:
         #    out = ()

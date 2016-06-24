@@ -35,7 +35,6 @@ from network import Network
 from util import json_decode, DaemonThread
 from util import print_msg, print_error, print_stderr
 from wallet import WalletStorage, Wallet
-from wizard import WizardBase
 from commands import known_commands, Commands
 from simple_config import SimpleConfig
 
