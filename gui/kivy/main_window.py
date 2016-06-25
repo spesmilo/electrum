@@ -237,6 +237,7 @@ class ElectrumWindow(App):
 
     def on_qr(self, data):
         from electrum.bitcoin import base_decode, is_address
+        data = data.strip()
         if is_address(data):
             self.set_URI(data)
             return
@@ -248,6 +249,7 @@ class ElectrumWindow(App):
         try:
             text = base_decode(data, None, base=43).encode('hex')
             tx = Transaction(text)
+            tx.deserialize()
         except:
             tx = None
         if tx:
