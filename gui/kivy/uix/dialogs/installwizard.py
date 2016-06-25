@@ -12,19 +12,18 @@ from kivy.utils import platform
 from kivy.uix.widget import Widget
 from kivy.core.window import Window
 from kivy.clock import Clock
+from kivy.utils import platform
 
 from electrum_gui.kivy.uix.dialogs import EventsDialog
 from electrum_gui.kivy.i18n import _
+from electrum.base_wizard import BaseWizard
 
+from password_dialog import PasswordDialog
 
 # global Variables
 app = App.get_running_app()
 
-from password_dialog import PasswordDialog
-
-from electrum.base_wizard import BaseWizard
-
-is_test = True
+is_test = (platform == "linux")
 test_seed = "time taxi field recycle tiny license olive virus report rare steel portion achieve"
 test_xpub = "xpub661MyMwAqRbcEbvVtRRSjqxVnaWVUMewVzMiURAKyYratih4TtBpMypzzefmv8zUNebmNVzB3PojdC5sV2P9bDgMoo9B3SARw1MXUUfU1GL"
 
