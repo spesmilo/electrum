@@ -62,14 +62,11 @@ class Plugins(DaemonThread):
             m = loader.find_module(name).load_module(name)
             d = m.__dict__
             gui_good = self.gui_name in d.get('available_for', [])
-            # We register wallet types even if the GUI isn't provided
-            # otherwise the user gets a misleading message like
-            # "Unknown wallet type: 2fa"
+            if not gui_good:
+                continue
             details = d.get('registers_wallet_type')
             if details:
                 self.register_plugin_wallet(name, gui_good, details)
-            if not gui_good:
-                continue
             self.descriptions[name] = d
             if not d.get('requires_wallet_type') and self.config.get('use_' + name):
                 try:
