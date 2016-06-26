@@ -12,19 +12,20 @@ from kivy.utils import platform
 from kivy.uix.widget import Widget
 from kivy.core.window import Window
 from kivy.clock import Clock
+from kivy.utils import platform
 
 from electrum_ltc_gui.kivy.uix.dialogs import EventsDialog
 from electrum_ltc_gui.kivy.i18n import _
+from electrum_ltc.base_wizard import BaseWizard
 
+from password_dialog import PasswordDialog
 
 # global Variables
 app = App.get_running_app()
 
-from password_dialog import PasswordDialog
-
-from electrum_ltc.base_wizard import BaseWizard
-
-
+is_test = (platform == "linux")
+test_seed = "time taxi field recycle tiny license olive virus report rare steel portion achieve"
+test_xpub = "xpub661MyMwAqRbcEbvVtRRSjqxVnaWVUMewVzMiURAKyYratih4TtBpMypzzefmv8zUNebmNVzB3PojdC5sV2P9bDgMoo9B3SARw1MXUUfU1GL"
 
 Builder.load_string('''
 #:import Window kivy.core.window.Window
@@ -152,7 +153,7 @@ Builder.load_string('''
 
 
 <WizardChoiceDialog>
-    msg : ''
+    message : ''
     Widget:
         size_hint: 1, 1
     Label:
@@ -160,7 +161,7 @@ Builder.load_string('''
         size_hint: 1, None
         text_size: self.width, None
         height: self.texture_size[1]
-        text: root.msg
+        text: root.message
     Widget
         size_hint: 1, 1
     GridLayout:
@@ -408,11 +409,12 @@ class WizardDialog(EventsDialog):
     '''
     crcontent = ObjectProperty(None)
 
-    def __init__(self, **kwargs):
+    def __init__(self, wizard, **kwargs):
         super(WizardDialog, self).__init__(**kwargs)
-        #self.action = kwargs.get('action')
+        self.wizard = wizard
+        self.ids.back.disabled = not wizard.can_go_back()
+        self.app = App.get_running_app()
         self.run_next = kwargs['run_next']
-        self.run_prev = kwargs['run_prev']
         _trigger_size_dialog = Clock.create_trigger(self._size_dialog)
         Window.bind(size=_trigger_size_dialog,
                     rotation=_trigger_size_dialog)
@@ -443,7 +445,7 @@ class WizardDialog(EventsDialog):
             app.stop()
 
     def get_params(self, button):
-        return ()
+        return (None,)
 
     def on_release(self, button):
         self._on_release = True
@@ -452,7 +454,7 @@ class WizardDialog(EventsDialog):
             self.parent.dispatch('on_wizard_complete', None)
             return
         if button is self.ids.back:
-            self.run_prev()
+            self.wizard.go_back()
             return
         params = self.get_params(button)
         self.run_next(*params)
@@ -467,13 +469,13 @@ class WizardMultisigDialog(WizardDialog):
 
 class WizardChoiceDialog(WizardDialog):
 
-    def __init__(self, **kwargs):
-        super(WizardChoiceDialog, self).__init__(**kwargs)
-        self.msg = kwargs.get('msg', '')
+    def __init__(self, wizard, **kwargs):
+        super(WizardChoiceDialog, self).__init__(wizard, **kwargs)
+        self.message = kwargs.get('message', '')
         choices = kwargs.get('choices', [])
         layout = self.ids.choices
         layout.bind(minimum_height=layout.setter('height'))
-        for text, action in choices:
+        for action, text in choices:
             l = WizardButton(text=text)
             l.action = action
             l.height = '48dp'
@@ -508,17 +510,18 @@ class WordButton(Button):
 class WizardButton(Button):
     pass
 
+
 class RestoreSeedDialog(WizardDialog):
 
     message = StringProperty('')
 
-    def __init__(self, **kwargs):
-        super(RestoreSeedDialog, self).__init__(**kwargs)
-        self._test = kwargs['test']
+    def __init__(self, wizard, **kwargs):
+        super(RestoreSeedDialog, self).__init__(wizard, **kwargs)
+        self._test = kwargs['is_valid']
         from electrum_ltc.mnemonic import Mnemonic
         from electrum_ltc.old_mnemonic import words as old_wordlist
         self.words = set(Mnemonic('en').wordlist).union(set(old_wordlist))
-        self.ids.text_input_seed.text = ''
+        self.ids.text_input_seed.text = test_seed if is_test else ''
 
     def get_suggestions(self, prefix):
         for w in self.words:
@@ -539,11 +542,11 @@ class RestoreSeedDialog(WizardDialog):
         enable_space = False
         self.ids.suggestions.clear_widgets()
         suggestions = [x for x in self.get_suggestions(last_word)]
-        if suggestions and len(suggestions) < 10:
-            for w in suggestions:
-                if w == last_word:
-                    enable_space = True
-                else:
+        for w in suggestions:
+            if w == last_word:
+                enable_space = True
+            else:
+                if len(suggestions) < 10:
                     b = WordButton(text=w)
                     self.ids.suggestions.add_widget(b)
 
@@ -616,9 +619,8 @@ class RestoreSeedDialog(WizardDialog):
 
 class ShowXpubDialog(WizardDialog):
 
-    def __init__(self, **kwargs):
-        WizardDialog.__init__(self, **kwargs)
-        self.app = App.get_running_app()
+    def __init__(self, wizard, **kwargs):
+        WizardDialog.__init__(self, wizard, **kwargs)
         self.xpub = kwargs['xpub']
         self.ids.next.disabled = False
 
@@ -636,15 +638,14 @@ class ShowXpubDialog(WizardDialog):
 
 class AddXpubDialog(WizardDialog):
 
-    def __init__(self, **kwargs):
-        WizardDialog.__init__(self, **kwargs)
-        self.app = App.get_running_app()
-        self._test = kwargs['test']
+    def __init__(self, wizard, **kwargs):
+        WizardDialog.__init__(self, wizard, **kwargs)
+        self.is_valid = kwargs['is_valid']
         self.title = kwargs['title']
         self.message = kwargs['message']
 
     def check_text(self, dt):
-        self.ids.next.disabled = not bool(self._test(self.get_text()))
+        self.ids.next.disabled = not bool(self.is_valid(self.get_text()))
 
     def get_text(self):
         ti = self.ids.text_input
@@ -659,7 +660,7 @@ class AddXpubDialog(WizardDialog):
         self.app.scan_qr(on_complete)
 
     def do_paste(self):
-        self.ids.text_input.text = unicode(self.app._clipboard.paste())
+        self.ids.text_input.text = test_xpub if is_test else unicode(self.app._clipboard.paste())
 
     def do_clear(self):
         self.ids.text_input.text = ''
@@ -681,7 +682,7 @@ class InstallWizard(BaseWizard, Widget):
         """overriden by main_window"""
         pass
 
-    def waiting_dialog(self, task, msg, on_complete=None):
+    def waiting_dialog(self, task, msg):
         '''Perform a blocking task in the background by running the passed
         method in a thread.
         '''
@@ -693,8 +694,6 @@ class InstallWizard(BaseWizard, Widget):
                 Clock.schedule_once(lambda dt: app.show_error(str(err)))
             # on  completion hide message
             Clock.schedule_once(lambda dt: app.info_bubble.hide(now=True), -1)
-            if on_complete:
-                on_complete()
 
         app.show_info_bubble(
             text=msg, icon='atlas://gui/kivy/theming/light/important',
@@ -702,17 +701,42 @@ class InstallWizard(BaseWizard, Widget):
         t = threading.Thread(target = target)
         t.start()
 
-    def choice_dialog(self, **kwargs): WizardChoiceDialog(**kwargs).open()
-    def multisig_dialog(self, **kwargs): WizardMultisigDialog(**kwargs).open()
-    def show_seed_dialog(self, **kwargs): ShowSeedDialog(**kwargs).open()
-    def restore_seed_dialog(self, **kwargs): RestoreSeedDialog(**kwargs).open()
-    def add_xpub_dialog(self, **kwargs): AddXpubDialog(**kwargs).open()
-    def show_xpub_dialog(self, **kwargs): ShowXpubDialog(**kwargs).open()
+    def terminate(self, **kwargs):
+        self.wallet.start_threads(self.network)
+        self.dispatch('on_wizard_complete', self.wallet)
+
+    def choice_dialog(self, **kwargs): WizardChoiceDialog(self, **kwargs).open()
+    def multisig_dialog(self, **kwargs): WizardMultisigDialog(self, **kwargs).open()
+    def show_seed_dialog(self, **kwargs): ShowSeedDialog(self, **kwargs).open()
+    def enter_seed_dialog(self, **kwargs): RestoreSeedDialog(self, **kwargs).open()
+    def add_xpub_dialog(self, **kwargs): AddXpubDialog(self, **kwargs).open()
+    def show_xpub_dialog(self, **kwargs): ShowXpubDialog(self, **kwargs).open()
+
+    def show_error(self, msg):
+        app.show_error(msg, duration=0.5)
 
     def password_dialog(self, message, callback):
         popup = PasswordDialog()
         popup.init(message, callback)
         popup.open()
 
-    def show_error(self, msg):
-        app.show_error(msg, duration=0.5)
+    def request_password(self, run_next):
+        def callback(pin):
+            if pin:
+                self.run('confirm_password', (pin, run_next))
+            else:
+                run_next(None)
+        self.password_dialog('Choose a PIN code', callback)
+
+    def confirm_password(self, pin, run_next):
+        def callback(conf):
+            if conf == pin:
+                run_next(pin)
+            else:
+                self.show_error(_('PIN mismatch'))
+                self.run('request_password', (run_next,))
+        self.password_dialog('Confirm your PIN code', callback)
+
+    def action_dialog(self, action, run_next):
+        f = getattr(self, action)
+        f()

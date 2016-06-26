@@ -11,4 +11,3 @@ import transaction
 from transaction import Transaction
 from plugins import BasePlugin
 from commands import Commands, known_commands
-import wizard as wizard

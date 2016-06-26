@@ -45,6 +45,7 @@ class ElectrumGui:
 
     def __init__(self, config, daemon, plugins):
         Logger.debug('ElectrumGUI: initialising')
+        self.daemon = daemon
         self.network = daemon.network
         self.config = config
         self.plugins = plugins
