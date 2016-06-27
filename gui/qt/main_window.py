@@ -262,7 +262,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def close_wallet(self):
         if self.wallet:
             self.print_error('close_wallet', self.wallet.storage.path)
-            self.wallet.storage.put('accounts_expanded', self.accounts_expanded)
+            self.address_list.on_close()
         run_hook('close_wallet', self.wallet)
 
     def load_wallet(self, wallet):
@@ -270,7 +270,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.wallet = wallet
         self.update_recently_visited(wallet.storage.path)
         # address used to create a dummy transaction and estimate transaction fee
-        self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
         self.current_account = self.wallet.storage.get("current_account", None)
         self.history_list.update()
         self.need_update.set()
