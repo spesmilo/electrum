@@ -94,6 +94,8 @@ class Commands:
         cmd = known_commands[method]
         if cmd.requires_password and self.wallet.use_encryption:
             self._password = apply(password_getter,())
+            if self._password is None:
+                return
         f = getattr(self, method)
         result = f(*args)
         self._password = None

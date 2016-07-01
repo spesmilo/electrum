@@ -1627,24 +1627,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
 
         try:
-            self.wallet.check_password(password)
+            self.wallet.update_password(password, new_password)
         except BaseException as e:
             self.show_error(str(e))
             return
-
-        try:
-            self.wallet.update_password(password, new_password)
         except:
             traceback.print_exc(file=sys.stdout)
             self.show_error(_('Failed to update password'))
             return
 
-        if new_password:
-            msg = _('Password was updated successfully')
-        else:
-            msg = _('This wallet is not encrypted')
+        msg = _('Password was updated successfully') if new_password else _('This wallet is not encrypted')
         self.show_message(msg, title=_("Success"))
-
         self.update_lock_icon()
 
     def toggle_search(self):
