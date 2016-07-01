@@ -1920,14 +1920,24 @@ class Multisig_Wallet(BIP32_RD_Wallet, Mnemonic):
             if self.master_public_keys.get("x%d/"%(i+1)) is None:
                 return i+1
 
-    def add_cosigner(self, xpub):
-        i = self.get_missing_cosigner()
-        self.add_master_public_key("x%d/" % i, xpub)
+    def add_cosigner(self, name, text, password):
+        if Wallet.is_xprv(text):
+            xpub = bitcoin.xpub_from_xprv(text)
+            self.add_master_public_key(name, xpub)
+            self.add_master_private_key(name, text, password)
+        elif Wallet.is_xpub(text):
+            self.add_master_public_key(name, text)
+        if Wallet.is_seed(text):
+            if name == 'x1/':
+                self.add_seed(text, password)
+                self.create_master_keys(password)
+            else:
+                self.add_xprv_from_seed(text, name, password)
 
     def get_action(self):
         i = self.get_missing_cosigner()
         if i is not None:
-            return 'create_seed' if i == 1 else 'add_cosigners'
+            return 'create_seed' if i == 1 else 'show_xpub_and_add_cosigners'
         if not self.accounts:
             return 'create_main_account'
 
@@ -2189,30 +2199,6 @@ class Wallet(object):
         w = BIP32_Simple_Wallet(storage)
         w.create_xprv_wallet(xprv, password)
         return w
-
-    @staticmethod
-    def from_multisig(key_list, password, storage, wallet_type):
-        storage.put('wallet_type', wallet_type)
-        wallet = Multisig_Wallet(storage)
-        key_list = sorted(key_list, key = Wallet.is_xpub)
-        for i, text in enumerate(key_list):
-            name = "x%d/" % (i+1)
-            if Wallet.is_xprv(text):
-                xpub = bitcoin.xpub_from_xprv(text)
-                wallet.add_master_public_key(name, xpub)
-                wallet.add_master_private_key(name, text, password)
-            elif Wallet.is_xpub(text):
-                wallet.add_master_public_key(name, text)
-            elif Wallet.is_seed(text):
-                if name == 'x1/':
-                    wallet.add_seed(text, password)
-                    wallet.create_master_keys(password)
-                else:
-                    wallet.add_xprv_from_seed(text, name, password)
-            else:
-                raise RunTimeError("Cannot handle text for multisig")
-        wallet.set_use_encryption(password is not None)
-        return wallet
 
     @staticmethod
     def from_text(text, password, storage):

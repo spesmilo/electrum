@@ -28,6 +28,11 @@ from electrum.wallet import Wallet, Multisig_Wallet, WalletStorage
 from i18n import _
 
 
+is_any_key = lambda x: Wallet.is_old_mpk(x) or Wallet.is_xprv(x) or Wallet.is_xpub(x) or Wallet.is_address(x) or Wallet.is_private_key(x)
+is_private_key = lambda x: Wallet.is_xprv(x) or Wallet.is_private_key(x)
+is_bip32_key = lambda x: Wallet.is_xprv(x) or Wallet.is_xpub(x)
+
+
 class BaseWizard(object):
 
     def __init__(self, config, network, path):
@@ -116,13 +121,13 @@ class BaseWizard(object):
         self.multisig_dialog(run_next=on_multisig)
 
     def choose_seed(self):
-        title = _('Private Keys')
+        title = _('Choose Seed')
         message = _("Do you want to create a new seed, or to restore a wallet using an existing seed?")
         if self.wallet_type == 'standard':
             choices = [
                 ('create_seed', _('Create a new seed')),
                 ('restore_seed', _('I already have a seed')),
-                ('restore_xpub', _('Watching-only wallet')),
+                ('restore_from_key', _('Import keys')),
             ]
         elif self.wallet_type == 'twofactor':
             choices = [
@@ -133,26 +138,42 @@ class BaseWizard(object):
             choices = [
                 ('create_seed', _('Create a new seed')),
                 ('restore_seed', _('I already have a seed')),
-                ('restore_xpub', _('Watching-only wallet')),
+                ('restore_from_key', _('I have a master key')),
                 ('choose_hw', _('Cosign with hardware wallet')),
             ]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 
     def create_2fa(self):
-        print 'create 2fa'
         self.storage.put('wallet_type', '2fa')
         self.wallet = Wallet(self.storage)
         self.run_wallet()
 
     def restore_seed(self):
-        msg = _('Please type your seed phrase using the virtual keyboard.')
-        title = _('Enter Seed')
-        self.enter_seed_dialog(run_next=self.add_password, title=title, message=msg, is_valid=Wallet.is_seed)
+        # TODO: return derivation password too
+        self.restore_seed_dialog(run_next=self.add_password, is_valid=Wallet.is_seed)
 
-    def restore_xpub(self):
-        title = "MASTER PUBLIC KEY"
-        message = _('To create a watching-only wallet, paste your master public key, or scan it using the camera button.')
-        self.add_xpub_dialog(run_next=lambda xpub: self.create_wallet(xpub, None), title=title, message=message, is_valid=Wallet.is_mpk)
+    def on_restore(self, text):
+        if is_private_key(text):
+            self.add_password(text)
+        else:
+            self.create_wallet(text, None)
+
+    def restore_from_key(self):
+        if self.wallet_type == 'standard':
+            v = is_any_key
+            title = _("Import keys")
+            message = ' '.join([
+                _("To create a watching-only wallet, please enter your master public key (xpub), or a list of Bitcoin addresses."),
+                _("To create a spending wallet, please enter a master private key (xprv), or a list of Bitcoin private keys.")
+            ])
+        else:
+            v = is_bip32_key
+            title = _("Master public or private key")
+            message = ' '.join([
+                _("To create a watching-only wallet, please enter your master public key (xpub)."),
+                _("To create a spending wallet, please enter a master private key (xprv).")
+            ])
+        self.restore_keys_dialog(title=title, message=message, run_next=self.on_restore, is_valid=v)
 
     def restore_2fa(self):
         self.storage.put('wallet_type', '2fa')
@@ -210,46 +231,46 @@ class BaseWizard(object):
         elif self.wallet_type == 'multisig':
             self.storage.put('wallet_type', self.multisig_type)
             self.wallet = Multisig_Wallet(self.storage)
-            self.wallet.add_seed(text, password)
-            self.wallet.create_master_keys(password)
-            self.run_wallet()
+            self.wallet.add_cosigner('x1/', text, password)
+            self.run('show_xpub_and_add_cosigners', (Wallet.is_xpub(text), password,))
 
-    def add_cosigners(self):
-        xpub = self.wallet.master_public_keys.get('x1/')
-        self.show_xpub_dialog(run_next=lambda x: self.add_cosigner(), xpub=xpub)
+    def show_xpub_and_add_cosigners(self, is_xpub, password):
+        if not is_xpub:
+            xpub = self.wallet.master_public_keys.get('x1/')
+            self.show_xpub_dialog(run_next=lambda x: self.add_cosigners(password), xpub=xpub)
+        else:
+            self.add_cosigners(password)
 
-    def add_cosigner(self):
-        def on_xpub(xpub):
-            self.wallet.add_cosigner(xpub)
-            i = self.wallet.get_missing_cosigner()
-            action = 'add_cosigner' if i else 'create_addresses'
-            self.run(action)
+    def add_cosigners(self, password):
         i = self.wallet.get_missing_cosigner()
-        title = _("Add Cosigner") + " %d"%(i-1)
-        message = _('Please paste your cosigners master public key, or scan it using the camera button.')
-        self.add_xpub_dialog(run_next=on_xpub, title=title, message=message, is_valid=Wallet.is_any)
+        self.add_cosigner_dialog(run_next=lambda x: self.on_cosigner(x, password), index=(i-1), is_valid=Wallet.is_xpub)
+
+    def on_cosigner(self, text, password):
+        i = self.wallet.get_missing_cosigner()
+        self.wallet.add_cosigner('x%d/'%i, text, password)
+        i = self.wallet.get_missing_cosigner()
+        if i:
+            self.run('add_cosigners', (password,))
+        else:
+            self.create_addresses()
 
     def create_addresses(self):
         def task():
             self.wallet.create_main_account()
             self.wallet.synchronize()
             self.terminate()
-        msg= _("Electrum is generating your addresses, please wait.")
+        msg = _("Electrum is generating your addresses, please wait.")
         self.waiting_dialog(task, msg)
 
     def create_seed(self):
         from electrum.wallet import BIP32_Wallet
         seed = BIP32_Wallet.make_seed()
-        msg = _("If you forget your PIN or lose your device, your seed phrase will be the "
-                "only way to recover your funds.")
-        self.show_seed_dialog(run_next=self.confirm_seed, message=msg, seed_text=seed)
+        self.show_seed_dialog(run_next=self.confirm_seed, seed_text=seed)
 
     def confirm_seed(self, seed):
         assert Wallet.is_seed(seed)
-        title = _('Confirm Seed')
-        msg = _('Please retype your seed phrase, to confirm that you properly saved it')
-        self.enter_seed_dialog(run_next=self.add_password, title=title, message=msg, is_valid=lambda x: x==seed)
+        self.confirm_seed_dialog(run_next=self.add_password, is_valid=lambda x: x==seed)
 
-    def add_password(self, seed):
-        f = lambda x: self.create_wallet(seed, x)
+    def add_password(self, text):
+        f = lambda x: self.create_wallet(text, x)
         self.request_password(run_next=f)

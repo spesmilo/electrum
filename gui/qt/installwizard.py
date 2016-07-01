@@ -24,7 +24,6 @@ MSG_GENERATING_WAIT = _("Electrum is generating your addresses, please wait...")
 MSG_ENTER_ANYTHING = _("Please enter a seed phrase, a master key, a list of "
                        "Bitcoin addresses, or a list of private keys")
 MSG_ENTER_SEED_OR_MPK = _("Please enter a seed phrase or a master key (xpub or xprv):")
-MSG_VERIFY_SEED = _("Your seed is important!\nTo make sure that you have properly saved your seed, please retype it here.")
 MSG_COSIGNER = _("Please enter the master public key of cosigner #%d:")
 MSG_SHOW_MPK = _("Here is your master public key:")
 MSG_ENTER_PASSWORD = _("Choose a password to encrypt your wallet keys.  "
@@ -236,16 +235,33 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return seed
 
     @wizard_dialog
-    def add_xpub_dialog(self, title, message, is_valid, run_next):
+    def restore_keys_dialog(self, title, message, is_valid, run_next):
         return self.text_input(title, message, is_valid)
 
     @wizard_dialog
-    def enter_seed_dialog(self, run_next, title, message, is_valid):
+    def add_cosigner_dialog(self, run_next, index, is_valid):
+        title = _("Add Cosigner") + " %d"%index
+        message = ' '.join([
+            _('Please enter the master public key of your cosigner.'),
+            _('Enter their seed or master private key if you want to be able to sign for them.')
+        ])
+        return self.text_input(title, message, is_valid)
+
+    @wizard_dialog
+    def restore_seed_dialog(self, run_next, is_valid):
+        title = _('Enter Seed')
+        message = _('Please enter your seed phrase in order to restore your wallet.')
+        return self.text_input(title, message, is_valid)
+
+    @wizard_dialog
+    def confirm_seed_dialog(self, run_next, is_valid):
         self.app.clipboard().clear()
+        title = _('Confirm Seed')
+        message = _("Your seed is important!\nTo make sure that you have properly saved your seed, please retype it here.")
         return self.text_input(title, message, is_valid)
 
     @wizard_dialog
-    def show_seed_dialog(self, run_next, message, seed_text):
+    def show_seed_dialog(self, run_next, seed_text):
         slayout = SeedWarningLayout(seed_text)
         self.set_main_layout(slayout.layout())
         return seed_text
@@ -326,7 +342,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     @wizard_dialog
     def show_xpub_dialog(self, xpub, run_next):
         vbox = QVBoxLayout()
-        layout = SeedDisplayLayout(xpub, title=MSG_SHOW_MPK, sid='hot')
+        layout = SeedDisplayLayout(xpub, title=_('Master Public Key'), sid='hot')
         vbox.addLayout(layout.layout())
         self.set_main_layout(vbox, MSG_SHOW_MPK)
         return None
