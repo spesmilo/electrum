@@ -1107,7 +1107,8 @@ class Abstract_Wallet(PrintError):
             tx.sign(keypairs)
 
     def update_password(self, old_password, new_password):
-        self.check_password(old_password)
+        if old_password is not None:
+            self.check_password(old_password)
 
         if new_password == '':
             new_password = None
