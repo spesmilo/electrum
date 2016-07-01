@@ -555,20 +555,22 @@ class ElectrumWindow(App):
             self.status = _("No Wallet")
             return
         if self.network is None or not self.network.is_running():
-            self.status = _("Offline")
+            status = _("Offline")
         elif self.network.is_connected():
             server_height = self.network.get_server_height()
             server_lag = self.network.get_local_height() - server_height
             if not self.wallet.up_to_date or server_height == 0:
-                self.status = _("Synchronizing...")
+                status = _("Synchronizing...")
             elif server_lag > 1:
-                self.status = _("Server lagging (%d blocks)"%server_lag)
+                status = _("Server lagging (%d blocks)"%server_lag)
             else:
                 c, u, x = self.wallet.get_account_balance(self.current_account)
                 text = self.format_amount(c+x+u)
-                self.status = str(text.strip() + ' ' + self.base_unit)
+                status = str(text.strip() + ' ' + self.base_unit)
         else:
-            self.status = _("Not connected")
+            status = _("Not connected")
+        n = self.wallet.basename()
+        self.status = '[size=15dp]%s[/size]\n%s' %(n, status) if n !='default_wallet' else status
 
     def get_max_amount(self):
         inputs = self.wallet.get_spendable_coins(None)
