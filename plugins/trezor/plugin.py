@@ -106,15 +106,19 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             pair = [device.path, None]
 
         try:
-            return self.HidTransport(pair)
+            from trezorlib.transport_hid import HidTransport
+            return HidTransport(pair)
         except BaseException as e:
+            raise
             self.print_error("cannot connect at", device.path, str(e))
             return None
  
     def _try_bridge(self, device):
         self.print_error("Trying to connect over Trezor Bridge...")
+
         try:
-            return self.BridgeTransport({'path': hexlify(device.path)})
+            from trezorlib.transport_bridge import BridgeTransport
+            return BridgeTransport({'path': hexlify(device.path)})
         except BaseException as e:
             self.print_error("cannot connect to bridge", str(e))
             return None
