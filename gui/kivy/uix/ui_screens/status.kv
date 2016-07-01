@@ -49,7 +49,7 @@ Popup:
                 TopLabel:
                     text: _('Master Public Key')
                 RefLabel:
-                    data: app.wallet.get_master_public_key()
+                    data: app.wallet.get_master_public_key() or 'None'
                     name: _('Master Public Key')
                 TopLabel:
                     id: seed_label

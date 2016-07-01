@@ -231,6 +231,9 @@ class Abstract_Wallet(PrintError):
         self.use_encryption = use_encryption
         self.storage.put('use_encryption', use_encryption)
 
+    def get_master_public_key(self):
+        pass
+
     @profiler
     def load_transactions(self):
         self.txi = self.storage.get('txi', {})
