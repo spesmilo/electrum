@@ -35,6 +35,10 @@ from util import *
 from i18n import _
 from util import profiler, PrintError, DaemonThread, UserCancelled
 
+plugin_loaders = {}
+hook_names = set()
+hooks = {}
+
 
 class Plugins(DaemonThread):
 
@@ -66,15 +70,17 @@ class Plugins(DaemonThread):
                 continue
             details = d.get('registers_wallet_type')
             if details:
-                self.register_plugin_wallet(name, gui_good, details)
+                self.register_wallet_type(name, gui_good, details)
+            details = d.get('registers_keystore')
+            if details:
+                self.register_keystore(name, gui_good, details)
             self.descriptions[name] = d
             if not d.get('requires_wallet_type') and self.config.get('use_' + name):
                 try:
                     self.load_plugin(name)
                 except BaseException as e:
                     traceback.print_exc(file=sys.stdout)
-                    self.print_error("cannot initialize plugin %s:" % name,
-                                     str(e))
+                    self.print_error("cannot initialize plugin %s:" % name, str(e))
 
     def get(self, name):
         return self.plugins.get(name)
@@ -83,6 +89,8 @@ class Plugins(DaemonThread):
         return len(self.plugins)
 
     def load_plugin(self, name):
+        if name in self.plugins:
+            return
         full_name = 'electrum_plugins.' + name + '.' + self.gui_name
         loader = pkgutil.find_loader(full_name)
         if not loader:
@@ -145,17 +153,23 @@ class Plugins(DaemonThread):
                     self.print_error("cannot load plugin for:", name)
         return wallet_types, descs
 
-    def register_plugin_wallet(self, name, gui_good, details):
+    def register_wallet_type(self, name, gui_good, details):
         from wallet import Wallet
+        global plugin_loaders
+        def loader():
+            plugin = self.wallet_plugin_loader(name)
+            Wallet.register_constructor(details[0], details[1], plugin.wallet_class)
+        self.print_error("registering wallet type %s: %s" %(name, details))
+        plugin_loaders[details[1]] = loader
 
-        def dynamic_constructor(storage):
-            return self.wallet_plugin_loader(name).wallet_class(storage)
-
+    def register_keystore(self, name, gui_good, details):
+        from keystore import register_keystore
+        def dynamic_constructor():
+            return self.wallet_plugin_loader(name).keystore_class()
         if details[0] == 'hardware':
             self.hw_wallets[name] = (gui_good, details)
-        self.print_error("registering wallet %s: %s" %(name, details))
-        Wallet.register_plugin_wallet(details[0], details[1],
-                                      dynamic_constructor)
+            self.print_error("registering keystore %s: %s" %(name, details))
+        register_keystore(details[0], details[1], dynamic_constructor)
 
     def wallet_plugin_loader(self, name):
         if not name in self.plugins:
@@ -168,9 +182,6 @@ class Plugins(DaemonThread):
             self.run_jobs()
         self.on_stop()
 
-
-hook_names = set()
-hooks = {}
 
 def hook(func):
     hook_names.add(func.func_name)
@@ -375,48 +386,45 @@ class DeviceMgr(ThreadJob, PrintError):
         self.scan_devices(handler)
         return self.client_lookup(id_)
 
-    def client_for_wallet(self, plugin, wallet, force_pair):
-        assert wallet.handler
-
-        devices = self.scan_devices(wallet.handler)
-        wallet_id = self.wallet_id(wallet)
-
+    def client_for_keystore(self, plugin, keystore, force_pair):
+        assert keystore.handler
+        devices = self.scan_devices(keystore.handler)
+        wallet_id = self.wallet_id(keystore)
         client = self.client_lookup(wallet_id)
         if client:
             # An unpaired client might have another wallet's handler
             # from a prior scan.  Replace to fix dialog parenting.
-            client.handler = wallet.handler
+            client.handler = keystore.handler
             return client
 
         for device in devices:
             if device.id_ == wallet_id:
-                return self.create_client(device, wallet.handler, plugin)
+                return self.create_client(device, keystore.handler, plugin)
 
         if force_pair:
-            return self.force_pair_wallet(plugin, wallet, devices)
+            return self.force_pair_wallet(plugin, keystore, devices)
 
         return None
 
-    def force_pair_wallet(self, plugin, wallet, devices):
-        first_address, derivation = wallet.first_address()
-        assert first_address
+    def force_pair_wallet(self, plugin, keystore, devices):
+        xpub = keystore.get_master_public_key()
+        derivation = keystore.get_derivation()
 
         # The wallet has not been previously paired, so let the user
         # choose an unpaired device and compare its first address.
-        info = self.select_device(wallet, plugin, devices)
-
+        info = self.select_device(keystore, plugin, devices)
         client = self.client_lookup(info.device.id_)
         if client and client.is_pairable():
             # See comment above for same code
-            client.handler = wallet.handler
+            client.handler = keystore.handler
             # This will trigger a PIN/passphrase entry request
             try:
-                client_first_address = client.first_address(derivation)
+                client_xpub = client.get_xpub(derivation)
             except (UserCancelled, RuntimeError):
                  # Bad / cancelled PIN / passphrase
-                client_first_address = None
-            if client_first_address == first_address:
-                self.pair_wallet(wallet, info.device.id_)
+                client_xpub = None
+            if client_xpub == xpub:
+                self.pair_wallet(keystore, info.device.id_)
                 return client
 
         # The user input has wrong PIN or passphrase, or cancelled input,

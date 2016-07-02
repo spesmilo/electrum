@@ -163,8 +163,8 @@ class ElectrumGui:
                 wallet = wizard.run_and_get_wallet()
                 if not wallet:
                     return
-                if wallet.get_action():
-                    return
+                #if wallet.get_action():
+                #    return
                 self.daemon.add_wallet(wallet)
             w = self.create_window_for_wallet(wallet)
         if uri:

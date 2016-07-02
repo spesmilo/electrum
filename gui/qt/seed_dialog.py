@@ -39,18 +39,12 @@ def icon_filename(sid):
         return ":icons/seed.png"
 
 class SeedDialog(WindowModalDialog):
-    def __init__(self, parent, seed, imported_keys):
+    def __init__(self, parent, seed):
         WindowModalDialog.__init__(self, parent, ('Electrum - ' + _('Seed')))
         self.setMinimumWidth(400)
         vbox = QVBoxLayout(self)
         vbox.addLayout(SeedWarningLayout(seed).layout())
-        if imported_keys:
-            warning = ("<b>" + _("WARNING") + ":</b> " +
-                       _("Your wallet contains imported keys. These keys "
-                         "cannot be recovered from your seed.") + "</b><p>")
-            vbox.addWidget(WWLabel(warning))
         vbox.addLayout(Buttons(CloseButton(self)))
-
 
 class SeedLayoutBase(object):
     def _seed_layout(self, seed=None, title=None, sid=None):

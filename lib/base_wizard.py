@@ -24,24 +24,21 @@
 # SOFTWARE.
 
 import os
-from electrum.wallet import Wallet, Multisig_Wallet, WalletStorage
+import keystore
+from wallet import Wallet, Imported_Wallet, Standard_Wallet, Multisig_Wallet, WalletStorage
 from i18n import _
-
-
-is_any_key = lambda x: Wallet.is_old_mpk(x) or Wallet.is_xprv(x) or Wallet.is_xpub(x) or Wallet.is_address(x) or Wallet.is_private_key(x)
-is_private_key = lambda x: Wallet.is_xprv(x) or Wallet.is_private_key(x)
-is_bip32_key = lambda x: Wallet.is_xprv(x) or Wallet.is_xpub(x)
-
+from plugins import run_hook
 
 class BaseWizard(object):
 
     def __init__(self, config, network, path):
         super(BaseWizard, self).__init__()
-        self.config  = config
+        self.config = config
         self.network = network
         self.storage = WalletStorage(path)
         self.wallet = None
         self.stack = []
+        self.plugin = None
 
     def run(self, *args):
         action = args[0]
@@ -49,26 +46,16 @@ class BaseWizard(object):
         self.stack.append((action, args))
         if not action:
             return
-        if hasattr(self.wallet, 'plugin') and hasattr(self.wallet.plugin, action):
-            f = getattr(self.wallet.plugin, action)
-            apply(f, (self.wallet, self) + args)
+        if type(action) is tuple:
+            self.plugin, action = action
+        if self.plugin and hasattr(self.plugin, action):
+            f = getattr(self.plugin, action)
+            apply(f, (self,) + args)
         elif hasattr(self, action):
             f = getattr(self, action)
             apply(f, args)
         else:
             raise BaseException("unknown action", action)
-
-    def get_action(self):
-        if self.storage.file_exists:
-            self.wallet = Wallet(self.storage)
-            action = self.wallet.get_action()
-        else:
-            action = 'new'
-        return action
-
-    def get_wallet(self):
-        if self.wallet and self.wallet.get_action() is None:
-            return self.wallet
 
     def can_go_back(self):
         return len(self.stack)>1
@@ -91,11 +78,10 @@ class BaseWizard(object):
             ('standard',  _("Standard wallet")),
             ('twofactor', _("Wallet with two-factor authentication")),
             ('multisig',  _("Multi-signature wallet")),
-            ('hardware',  _("Hardware wallet")),
         ]
         registered_kinds = Wallet.categories()
-        choices = [pair for pair in wallet_kinds if pair[0] in registered_kinds]
-        self.choice_dialog(title = title, message=message, choices=choices, run_next=self.on_wallet_type)
+        choices = wallet_kinds#[pair for pair in wallet_kinds if pair[0] in registered_kinds]
+        self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
 
     def on_wallet_type(self, choice):
         self.wallet_type = choice
@@ -103,66 +89,58 @@ class BaseWizard(object):
             action = 'choose_seed'
         elif choice == 'multisig':
             action = 'choose_multisig'
-        elif choice == 'hardware':
-            action = 'choose_hw'
         elif choice == 'twofactor':
-            action = 'choose_seed'
+            self.storage.put('wallet_type', '2fa')
+            self.storage.put('use_trustedcoin', True)
+            self.plugin = self.plugins.load_plugin('trustedcoin')
+            action = self.storage.get_action()
+
         self.run(action)
 
     def choose_multisig(self):
         def on_multisig(m, n):
             self.multisig_type = "%dof%d"%(m, n)
+            self.n = n
             self.run('choose_seed')
         self.multisig_dialog(run_next=on_multisig)
 
     def choose_seed(self):
-        title = _('Choose Seed')
-        message = _("Do you want to create a new seed, or to restore a wallet using an existing seed?")
-        if self.wallet_type == 'standard':
+        title = _('Seed and Private Keys')
+        message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
+        if self.wallet_type in ['standard', 'multisig']:
             choices = [
                 ('create_seed', _('Create a new seed')),
                 ('restore_seed', _('I already have a seed')),
-                ('restore_from_key', _('Import keys')),
+                ('restore_from_key', _('Import keys or addresses')),
+                ('choose_hw',  _('Use hardware wallet')),
             ]
-        elif self.wallet_type == 'twofactor':
-            choices = [
-                ('create_2fa', _('Create a new seed')),
-                ('restore_2fa', _('I already have a seed')),
-            ]
-        elif self.wallet_type == 'multisig':
-            choices = [
-                ('create_seed', _('Create a new seed')),
-                ('restore_seed', _('I already have a seed')),
-                ('restore_from_key', _('I have a master key')),
-                #('choose_hw', _('Cosign with hardware wallet')),
-            ]
-        self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
-
-    def create_2fa(self):
-        self.storage.put('wallet_type', '2fa')
-        self.wallet = Wallet(self.storage)
-        self.run('show_disclaimer')
+            self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 
     def restore_seed(self):
         # TODO: return derivation password too
-        self.restore_seed_dialog(run_next=self.add_password, is_valid=Wallet.is_seed)
+        self.restore_seed_dialog(run_next=self.add_password, is_valid=keystore.is_seed)
 
     def on_restore(self, text):
-        if is_private_key(text):
+        if keystore.is_address_list(text):
+            self.wallet = Imported_Wallet(self.storage)
+            for x in text.split():
+                self.wallet.add_address(x)
+            self.terminate()
+        elif keystore.is_private(text):
             self.add_password(text)
         else:
-            self.create_wallet(text, None)
+            self.create_keystore(text, None)
 
     def restore_from_key(self):
         if self.wallet_type == 'standard':
-            v = is_any_key
+            v = keystore.is_any_key
             title = _("Import keys")
             message = ' '.join([
                 _("To create a watching-only wallet, please enter your master public key (xpub), or a list of Bitcoin addresses."),
                 _("To create a spending wallet, please enter a master private key (xprv), or a list of Bitcoin private keys.")
             ])
         else:
-            v = is_bip32_key
+            v = keystore.is_bip32_key
             title = _("Master public or private key")
             message = ' '.join([
                 _("To create a watching-only wallet, please enter your master public key (xpub)."),
@@ -170,12 +148,8 @@ class BaseWizard(object):
             ])
         self.restore_keys_dialog(title=title, message=message, run_next=self.on_restore, is_valid=v)
 
-    def restore_2fa(self):
-        self.storage.put('wallet_type', '2fa')
-        self.wallet = Wallet(self.storage)
-        self.wallet.plugin.on_restore_wallet(self.wallet, self)
-
     def choose_hw(self):
+        self.storage.put('key_type', 'hardware')
         hw_wallet_types, choices = self.plugins.hardware_wallets('create')
         choices = zip(hw_wallet_types, choices)
         title = _('Hardware wallet')
@@ -189,84 +163,87 @@ class BaseWizard(object):
         self.choice_dialog(title=title, message=msg, choices=choices, run_next=self.on_hardware)
 
     def on_hardware(self, hw_type):
-        self.hw_type = hw_type
-        if self.wallet_type == 'multisig':
-            self.create_hardware_multisig()
-        else:
-            title = _('Hardware wallet') + ' [%s]' % hw_type
-            message = _('Do you have a device, or do you want to restore a wallet using an existing seed?')
-            choices = [
-                ('create_hardware_wallet', _('I have a device')),
-                ('restore_hardware_wallet', _('Use hardware wallet seed')),
-            ]
-            self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
+        self.storage.put('hardware_type', hw_type)
+        title = _('Hardware wallet') + ' [%s]' % hw_type
+        message = _('Do you have a device, or do you want to restore a wallet using an existing seed?')
+        choices = [
+            ('on_hardware_device', _('I have a %s device')%hw_type),
+            ('on_hardware_seed', _('I have a %s seed')%hw_type),
+        ]
+        self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 
-    def create_hardware_multisig(self):
-        self.storage.put('wallet_type', self.multisig_type)
-        self.wallet = Multisig_Wallet(self.storage)
-        # todo: get the xpub from the plugin
-        self.run('create_wallet', xpub, None)
+    def on_hardware_device(self):
+        from keystore import load_keystore
+        keystore = load_keystore(self.storage, None)
+        keystore.plugin.on_create_wallet(keystore, self)
+        self.create_wallet(keystore, None)
 
-    def create_hardware_wallet(self):
-        self.storage.put('wallet_type', self.hw_type)
-        self.wallet = Wallet(self.storage)
-        self.wallet.plugin.on_create_wallet(self.wallet, self)
-        self.terminate()
+    def on_hardware_seed(self):
+        from keystore import load_keystore
+        self.storage.put('key_type', 'hw_seed')
+        keystore = load_keystore(self.storage, None)
+        self.plugin = keystore #fixme .plugin
+        keystore.on_restore_wallet(self)
+        self.wallet = Standard_Wallet(self.storage)
+        self.run('create_addresses')
 
-    def restore_hardware_wallet(self):
-        self.storage.put('wallet_type', self.wallet_type)
-        self.wallet = Wallet(self.storage)
-        self.wallet.plugin.on_restore_wallet(self.wallet, self)
-        self.terminate()
-
-    def create_wallet(self, text, password):
+    def create_wallet(self, k, password):
         if self.wallet_type == 'standard':
-            self.wallet = Wallet.from_text(text, password, self.storage)
+            k.save(self.storage, 'x/')
+            self.wallet = Standard_Wallet(self.storage)
             self.run('create_addresses')
         elif self.wallet_type == 'multisig':
             self.storage.put('wallet_type', self.multisig_type)
-            self.wallet = Multisig_Wallet(self.storage)
-            self.wallet.add_cosigner('x1/', text, password)
+            self.add_cosigner(k, 0)
+            xpub = k.get_master_public_key()
             self.stack = []
-            self.run('show_xpub_and_add_cosigners', (password,))
+            self.run('show_xpub_and_add_cosigners', password, xpub)
 
-    def show_xpub_and_add_cosigners(self, password):
-        xpub = self.wallet.master_public_keys.get('x1/')
-        self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('add_cosigners', password))
+    def show_xpub_and_add_cosigners(self, password, xpub):
+        self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('add_cosigners', password, 1))
 
-    def add_cosigners(self, password):
-        i = self.wallet.get_missing_cosigner()
-        self.add_cosigner_dialog(run_next=lambda x: self.on_cosigner(x, password), index=(i-1), is_valid=Wallet.is_xpub)
+    def add_cosigner(self, keystore, i):
+        d = self.storage.get('master_public_keys', {})
+        if keystore.xpub in d.values():
+            raise BaseException('duplicate key')
+        keystore.save(self.storage, 'x%d/'%(i+1))
 
-    def on_cosigner(self, text, password):
-        i = self.wallet.get_missing_cosigner()
+    def add_cosigners(self, password, i):
+        self.add_cosigner_dialog(run_next=lambda x: self.on_cosigner(x, password, i), index=i, is_valid=keystore.is_xpub)
+
+    def on_cosigner(self, text, password, i):
+        k = keystore.from_text(text, password)
         try:
-            self.wallet.add_cosigner('x%d/'%i, text, password)
+            self.add_cosigner(k, i)
         except BaseException as e:
-            print "error:" + str(e)
-        i = self.wallet.get_missing_cosigner()
-        if i:
-            self.run('add_cosigners', password)
+            self.show_message("error:" + str(e))
+            return
+        if i < self.n - 1:
+            self.run('add_cosigners', password, i+1)
         else:
+            self.wallet = Multisig_Wallet(self.storage)
             self.create_addresses()
 
-    def create_addresses(self):
-        def task():
-            self.wallet.create_main_account()
-            self.wallet.synchronize()
-            self.wallet.storage.write()
-            self.terminate()
-        msg = _("Electrum is generating your addresses, please wait.")
-        self.waiting_dialog(task, msg)
-
     def create_seed(self):
-        from electrum.wallet import BIP32_Wallet
-        seed = BIP32_Wallet.make_seed()
+        from electrum.mnemonic import Mnemonic
+        seed = Mnemonic('en').make_seed()
         self.show_seed_dialog(run_next=self.confirm_seed, seed_text=seed)
 
     def confirm_seed(self, seed):
         self.confirm_seed_dialog(run_next=self.add_password, is_valid=lambda x: x==seed)
 
     def add_password(self, text):
-        f = lambda pw: self.run('create_wallet', text, pw)
+        f = lambda pw: self.run('create_keystore', text, pw)
         self.request_password(run_next=f)
+
+    def create_keystore(self, text, password):
+        k = keystore.from_text(text, password)
+        self.create_wallet(k, password)
+
+    def create_addresses(self):
+        def task():
+            self.wallet.synchronize()
+            self.wallet.storage.write()
+            self.terminate()
+        msg = _("Electrum is generating your addresses, please wait.")
+        self.waiting_dialog(task, msg)

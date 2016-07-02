@@ -7,7 +7,7 @@ import electrum
 from electrum.bitcoin import EncodeBase58Check, DecodeBase58Check, TYPE_ADDRESS
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
-from ..hw_wallet import BIP44_HW_Wallet
+from ..hw_wallet import BIP32_HW_Wallet
 from ..hw_wallet import HW_PluginBase
 from electrum.util import format_satoshis_plain, print_error
 
@@ -26,12 +26,12 @@ except ImportError:
     BTCHIP = False
 
 
-class BTChipWallet(BIP44_HW_Wallet):
+class BTChipWallet(BIP32_HW_Wallet):
     wallet_type = 'btchip'
     device = 'Ledger'
 
     def __init__(self, storage):
-        BIP44_HW_Wallet.__init__(self, storage)
+        BIP32_HW_Wallet.__init__(self, storage)
         # Errors and other user interaction is done through the wallet's
         # handler.  The handler is per-window and preserved across
         # device reconnects
@@ -53,7 +53,7 @@ class BTChipWallet(BIP44_HW_Wallet):
 
     def address_id(self, address):
         # Strip the leading "m/"
-        return BIP44_HW_Wallet.address_id(self, address)[2:]
+        return BIP32_HW_Wallet.address_id(self, address)[2:]
 
     def get_public_key(self, bip32_path):
         # bip32_path is of the form 44'/0'/1'

@@ -41,26 +41,14 @@ class AddressList(MyTreeWidget):
 
     def on_update(self):
         self.wallet = self.parent.wallet
-        self.accounts_expanded = self.wallet.storage.get('accounts_expanded', {})
         item = self.currentItem()
         current_address = item.data(0, Qt.UserRole).toString() if item else None
         self.clear()
-        accounts = self.wallet.get_accounts()
-        if self.parent.current_account is None:
-            account_items = sorted(accounts.items())
-        else:
-            account_items = [(self.parent.current_account, accounts.get(self.parent.current_account))]
-        for k, account in account_items:
-            if len(accounts) > 1:
-                name = self.wallet.get_account_name(k)
-                c, u, x = self.wallet.get_account_balance(k)
-                account_item = QTreeWidgetItem([ name, '', self.parent.format_amount(c + u + x), ''])
-                account_item.setData(0, Qt.UserRole, k)
-                self.addTopLevelItem(account_item)
-                account_item.setExpanded(self.accounts_expanded.get(k, True))
-            else:
-                account_item = self
-            sequences = [0,1] if account.has_change() else [0]
+        receiving_addresses = self.wallet.get_receiving_addresses()
+        change_addresses = self.wallet.get_change_addresses()
+        if True:
+            account_item = self
+            sequences = [0,1] if change_addresses else [0]
             for is_change in sequences:
                 if len(sequences) > 1:
                     name = _("Receiving") if not is_change else _("Change")
@@ -72,7 +60,7 @@ class AddressList(MyTreeWidget):
                     seq_item = account_item
                 used_item = QTreeWidgetItem( [ _("Used"), '', '', '', ''] )
                 used_flag = False
-                addr_list = account.get_addresses(is_change)
+                addr_list = change_addresses if is_change else receiving_addresses
                 for address in addr_list:
                     num = len(self.wallet.history.get(address,[]))
                     is_used = self.wallet.is_used(address)
@@ -85,7 +73,7 @@ class AddressList(MyTreeWidget):
                     address_item.setData(0, Qt.UserRole+1, True) # label can be edited
                     if self.wallet.is_frozen(address):
                         address_item.setBackgroundColor(0, QColor('lightblue'))
-                    if self.wallet.is_beyond_limit(address, account, is_change):
+                    if self.wallet.is_beyond_limit(address, is_change):
                         address_item.setBackgroundColor(0, QColor('red'))
                     if is_used:
                         if not used_flag:
@@ -107,8 +95,9 @@ class AddressList(MyTreeWidget):
                         address_item.addChild(utxo_item)
 
     def create_menu(self, position):
-        from electrum.wallet import Multisig_Wallet
+        from electrum.wallet import Multisig_Wallet, Imported_Wallet
         is_multisig = isinstance(self.wallet, Multisig_Wallet)
+        is_imported = isinstance(self.wallet, Imported_Wallet)
         selected = self.selectedItems()
         multi_select = len(selected) > 1
         addrs = [unicode(item.text(0)) for item in selected]
@@ -142,7 +131,7 @@ class AddressList(MyTreeWidget):
             if not is_multisig and not self.wallet.is_watching_only():
                 menu.addAction(_("Sign/verify message"), lambda: self.parent.sign_verify_message(addr))
                 menu.addAction(_("Encrypt/decrypt message"), lambda: self.parent.encrypt_message(addr))
-            if self.wallet.is_imported(addr):
+            if is_imported:
                 menu.addAction(_("Remove from wallet"), lambda: self.parent.delete_imported_key(addr))
             addr_URL = block_explorer_URL(self.config, 'addr', addr)
             if addr_URL:
@@ -161,18 +150,3 @@ class AddressList(MyTreeWidget):
         run_hook('receive_menu', menu, addrs, self.wallet)
         menu.exec_(self.viewport().mapToGlobal(position))
 
-    def create_account_menu(self, position, k, item):
-        menu = QMenu()
-        exp = item.isExpanded()
-        menu.addAction(_("Minimize") if exp else _("Maximize"), lambda: self.set_account_expanded(item, k, not exp))
-        menu.addAction(_("Rename"), lambda: self.parent.edit_account_label(k))
-        if self.wallet.seed_version > 4:
-            menu.addAction(_("View details"), lambda: self.parent.show_account_details(k))
-        menu.exec_(self.viewport().mapToGlobal(position))
-
-    def set_account_expanded(self, item, k, b):
-        item.setExpanded(b)
-        self.accounts_expanded[k] = b
-
-    def on_close(self):
-        self.wallet.storage.put('accounts_expanded', self.accounts_expanded)

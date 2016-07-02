@@ -126,7 +126,8 @@ class Plugin(BasePlugin):
             self.listener = None
         self.keys = []
         self.cosigner_list = []
-        for key, xpub in wallet.master_public_keys.items():
+        for key, keystore in wallet.keystores.items():
+            xpub = keystore.get_master_public_key()
             K = bitcoin.deserialize_xkey(xpub)[-1].encode('hex')
             _hash = bitcoin.Hash(K).encode('hex')
             if wallet.master_private_keys.get(key):

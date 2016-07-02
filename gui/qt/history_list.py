@@ -61,7 +61,7 @@ class HistoryList(MyTreeWidget):
 
     def get_domain(self):
         '''Replaced in address_dialog.py'''
-        return self.wallet.get_account_addresses(self.parent.current_account)
+        return self.wallet.get_addresses()
 
     def on_update(self):
         self.wallet = self.parent.wallet

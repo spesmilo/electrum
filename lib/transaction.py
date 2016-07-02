@@ -761,23 +761,6 @@ class Transaction:
                 out.add(i)
         return out
 
-    def inputs_to_sign(self):
-        out = set()
-        for txin in self.inputs():
-            num_sig = txin.get('num_sig')
-            if num_sig is None:
-                continue
-            x_signatures = txin['signatures']
-            signatures = filter(None, x_signatures)
-            if len(signatures) == num_sig:
-                # input is complete
-                continue
-            for k, x_pubkey in enumerate(txin['x_pubkeys']):
-                if x_signatures[k] is not None:
-                    # this pubkey already signed
-                    continue
-                out.add(x_pubkey)
-        return out
 
     def sign(self, keypairs):
         for i, txin in enumerate(self.inputs()):

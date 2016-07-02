@@ -8,28 +8,32 @@ from functools import partial
 from electrum.account import BIP32_Account
 from electrum.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
                               public_key_to_bc_address, EncodeBase58Check,
-                              TYPE_ADDRESS)
+                              TYPE_ADDRESS, TYPE_SCRIPT)
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from electrum.transaction import (deserialize, is_extended_pubkey,
                                   Transaction, x_to_xpub)
-from ..hw_wallet import BIP44_HW_Wallet, HW_PluginBase
+from electrum.keystore import Hardware_KeyStore
+
+from ..hw_wallet import HW_PluginBase
 
 
 # TREZOR initialization methods
 TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
 
-class TrezorCompatibleWallet(BIP44_HW_Wallet):
+class TrezorCompatibleKeyStore(Hardware_KeyStore):
+    root = "m/44'/0'"
+    account_id = 0
 
-    def get_public_key(self, bip32_path):
+    def get_derivation(self):
+        return self.root + "/%d'"%self.account_id
+
+    def get_client(self, force_pair=True):
+        return self.plugin.get_client(self, force_pair)
+
+    def init_xpub(self):
         client = self.get_client()
-        address_n = client.expand_path(bip32_path)
-        creating = self.next_account_number() == 0
-        node = client.get_public_node(address_n, creating).node
-        xpub = ("0488B21E".decode('hex') + chr(node.depth)
-                + self.i4b(node.fingerprint) + self.i4b(node.child_num)
-                + node.chain_code + node.public_key)
-        return EncodeBase58Check(xpub)
+        self.xpub = client.get_xpub(self.get_derivation())
 
     def decrypt_message(self, pubkey, message, password):
         raise RuntimeError(_('Electrum and %s encryption and decryption are currently incompatible') % self.device)
@@ -49,17 +53,6 @@ class TrezorCompatibleWallet(BIP44_HW_Wallet):
         msg_sig = client.sign_message('Bitcoin', address_n, message)
         return msg_sig.signature
 
-    def get_input_tx(self, tx_hash):
-        # First look up an input transaction in the wallet where it
-        # will likely be.  If co-signing a transaction it may not have
-        # all the input txs, in which case we ask the network.
-        tx = self.transactions.get(tx_hash)
-        if not tx:
-            request = ('blockchain.transaction.get', [tx_hash])
-            # FIXME: what if offline?
-            tx = Transaction(self.network.synchronous_get(request))
-        return tx
-
     def sign_transaction(self, tx, password):
         if tx.is_complete():
             return
@@ -69,15 +62,13 @@ class TrezorCompatibleWallet(BIP44_HW_Wallet):
         xpub_path = {}
         for txin in tx.inputs():
             tx_hash = txin['prevout_hash']
-            prev_tx[tx_hash] = self.get_input_tx(tx_hash)
+            prev_tx[tx_hash] = txin['prev_tx'] 
             for x_pubkey in txin['x_pubkeys']:
                 if not is_extended_pubkey(x_pubkey):
                     continue
                 xpub = x_to_xpub(x_pubkey)
-                for k, v in self.master_public_keys.items():
-                    if v == xpub:
-                        acc_id = re.match("x/(\d+)'", k).group(1)
-                        xpub_path[xpub] = self.account_derivation(acc_id)
+                if xpub == self.get_master_public_key():
+                    xpub_path[xpub] = self.get_derivation()
 
         self.plugin.sign_transaction(self, tx, prev_tx, xpub_path)
 
@@ -149,18 +140,16 @@ class TrezorCompatiblePlugin(HW_PluginBase):
 
         return client
 
-    def get_client(self, wallet, force_pair=True):
+    def get_client(self, keystore, force_pair=True):
         # All client interaction should not be in the main GUI thread
         assert self.main_thread != threading.current_thread()
-
         devmgr = self.device_manager()
-        client = devmgr.client_for_wallet(self, wallet, force_pair)
+        client = devmgr.client_for_keystore(self, keystore, force_pair)
         if client:
             client.used()
-
         return client
 
-    def initialize_device(self, wallet):
+    def initialize_device(self, keystore):
         # Initialization method
         msg = _("Choose how you want to initialize your %s.\n\n"
                 "The first two methods are secure as no secret information "
@@ -179,13 +168,13 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             _("Upload a master private key")
         ]
 
-        method = wallet.handler.query_choice(msg, methods)
+        method = keystore.handler.query_choice(msg, methods)
         (item, label, pin_protection, passphrase_protection) \
             = wallet.handler.request_trezor_init_settings(method, self.device)
 
         if method == TIM_RECOVER and self.device == 'TREZOR':
             # Warn user about firmware lameness
-            wallet.handler.show_error(_(
+            keystore.handler.show_error(_(
                 "You will be asked to enter 24 words regardless of your "
                 "seed's actual length.  If you enter a word incorrectly or "
                 "misspell it, you cannot change it or go back - you will need "
@@ -195,7 +184,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         language = 'english'
 
         def initialize_method():
-            client = self.get_client(wallet)
+            client = self.get_client(keystore)
 
             if method == TIM_NEW:
                 strength = 64 * (item + 2)  # 128, 192 or 256
@@ -216,35 +205,36 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                 client.load_device_by_xprv(item, pin, passphrase_protection,
                                            label, language)
             # After successful initialization create accounts
-            wallet.create_hd_account(None)
+            keystore.init_xpub()
+            #wallet.create_main_account()
 
         return initialize_method
 
-    def setup_device(self, wallet, on_done, on_error):
+    def setup_device(self, keystore, on_done, on_error):
         '''Called when creating a new wallet.  Select the device to use.  If
         the device is uninitialized, go through the intialization
         process.  Then create the wallet accounts.'''
         devmgr = self.device_manager()
-        device_info = devmgr.select_device(wallet, self)
-        devmgr.pair_wallet(wallet, device_info.device.id_)
+        device_info = devmgr.select_device(keystore, self)
+        devmgr.pair_wallet(keystore, device_info.device.id_)
         if device_info.initialized:
-            task = partial(wallet.create_hd_account, None)
+            task = keystore.init_xpub
         else:
-            task = self.initialize_device(wallet)
-        wallet.thread.add(task, on_done=on_done, on_error=on_error)
+            task = self.initialize_device(keystore)
+        keystore.thread.add(task, on_done=on_done, on_error=on_error)
 
-    def sign_transaction(self, wallet, tx, prev_tx, xpub_path):
+    def sign_transaction(self, keystore, tx, prev_tx, xpub_path):
         self.prev_tx = prev_tx
         self.xpub_path = xpub_path
-        client = self.get_client(wallet)
+        client = self.get_client(keystore)
         inputs = self.tx_inputs(tx, True)
-        outputs = self.tx_outputs(wallet, tx)
+        outputs = self.tx_outputs(keystore.get_derivation(), tx)
         signed_tx = client.sign_tx('Bitcoin', inputs, outputs)[1]
         raw = signed_tx.encode('hex')
         tx.update_signatures(raw)
 
     def show_address(self, wallet, address):
-        client = self.get_client(wallet)
+        client = self.get_client(wallet.keystore)
         if not client.atleast_version(1, 3):
             wallet.handler.show_error(_("Your device firmware is too old"))
             return
@@ -313,23 +303,29 @@ class TrezorCompatiblePlugin(HW_PluginBase):
 
         return inputs
 
-    def tx_outputs(self, wallet, tx):
+    def tx_outputs(self, derivation, tx):
         outputs = []
-        for type, address, amount in tx.outputs():
-            assert type == TYPE_ADDRESS
+        for i, (_type, address, amount) in enumerate(tx.outputs()):
             txoutputtype = self.types.TxOutputType()
-            if wallet.is_change(address):
-                address_path = wallet.address_id(address)
-                address_n = self.client_class.expand_path(address_path)
-                txoutputtype.address_n.extend(address_n)
-            else:
-                txoutputtype.address = address
             txoutputtype.amount = amount
-            addrtype, hash_160 = bc_address_to_hash_160(address)
-            if addrtype == 0:
-                txoutputtype.script_type = self.types.PAYTOADDRESS
-            elif addrtype == 5:
-                txoutputtype.script_type = self.types.PAYTOSCRIPTHASH
+            change, index = tx.output_info[i]
+            if _type == TYPE_SCRIPT:
+                txoutputtype.script_type = self.types.PAYTOOPRETURN
+                txoutputtype.op_return_data = address[2:]
+            elif _type == TYPE_ADDRESS:
+                if change is not None:
+                    address_path = "%s/%d/%d/"%(derivation, change, index)
+                    address_n = self.client_class.expand_path(address_path)
+                    txoutputtype.address_n.extend(address_n)
+                else:
+                    txoutputtype.address = address
+                addrtype, hash_160 = bc_address_to_hash_160(address)
+                if addrtype == 0:
+                    txoutputtype.script_type = self.types.PAYTOADDRESS
+                elif addrtype == 5:
+                    txoutputtype.script_type = self.types.PAYTOSCRIPTHASH
+                else:
+                    raise BaseException('addrtype')
             else:
                 raise BaseException('addrtype')
             outputs.append(txoutputtype)

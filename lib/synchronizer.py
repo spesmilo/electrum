@@ -180,7 +180,7 @@ class Synchronizer(ThreadJob):
 
         if self.requested_tx:
             self.print_error("missing tx", self.requested_tx)
-        self.subscribe_to_addresses(set(self.wallet.addresses(True)))
+        self.subscribe_to_addresses(set(self.wallet.get_addresses()))
 
     def run(self):
         '''Called from the network proxy thread main loop.'''

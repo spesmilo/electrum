@@ -1,8 +1,10 @@
 import time
+from struct import pack
 
 from electrum.i18n import _
 from electrum.util import PrintError, UserCancelled
-from electrum.wallet import BIP44_Wallet
+from electrum.keystore import BIP44_KeyStore
+from electrum.bitcoin import EncodeBase58Check
 
 
 class GuiMixin(object):
@@ -63,7 +65,7 @@ class GuiMixin(object):
         passphrase = self.handler.get_passphrase(msg, self.creating_wallet)
         if passphrase is None:
             return self.proto.Cancel()
-        passphrase = BIP44_Wallet.normalize_passphrase(passphrase)
+        passphrase = BIP44_KeyStore.normalize_passphrase(passphrase)
         return self.proto.PassphraseAck(passphrase=passphrase)
 
     def callback_WordRequest(self, msg):
@@ -142,11 +144,20 @@ class TrezorClientBase(GuiMixin, PrintError):
         '''Provided here as in keepkeylib but not trezorlib.'''
         self.transport.write(self.proto.Cancel())
 
-    def first_address(self, derivation):
-        return self.address_from_derivation(derivation)
+    def i4b(self, x):
+        return pack('>I', x)
 
-    def address_from_derivation(self, derivation):
-        return self.get_address('Bitcoin', self.expand_path(derivation))
+    def get_xpub(self, bip32_path):
+        address_n = self.expand_path(bip32_path)
+        creating = False #self.next_account_number() == 0
+        node = self.get_public_node(address_n, creating).node
+        xpub = ("0488B21E".decode('hex') + chr(node.depth)
+                + self.i4b(node.fingerprint) + self.i4b(node.child_num)
+                + node.chain_code + node.public_key)
+        return EncodeBase58Check(xpub)
+
+    #def address_from_derivation(self, derivation):
+    #    return self.get_address('Bitcoin', self.expand_path(derivation))
 
     def toggle_passphrase(self):
         if self.features.passphrase_protection:

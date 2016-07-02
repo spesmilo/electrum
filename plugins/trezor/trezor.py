@@ -1,16 +1,15 @@
-from .plugin import TrezorCompatiblePlugin, TrezorCompatibleWallet
+from .plugin import TrezorCompatiblePlugin, TrezorCompatibleKeyStore
 
 
-class TrezorWallet(TrezorCompatibleWallet):
+class TrezorKeyStore(TrezorCompatibleKeyStore):
     wallet_type = 'trezor'
     device = 'TREZOR'
-
 
 class TrezorPlugin(TrezorCompatiblePlugin):
     firmware_URL = 'https://www.mytrezor.com'
     libraries_URL = 'https://github.com/trezor/python-trezor'
     minimum_firmware = (1, 3, 3)
-    wallet_class = TrezorWallet
+    keystore_class = TrezorKeyStore
     try:
         from .client import TrezorClient as client_class
         import trezorlib.ckd_public as ckd_public
