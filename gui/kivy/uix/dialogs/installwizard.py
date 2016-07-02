@@ -212,6 +212,7 @@ Builder.load_string('''
 
 
 <RestoreSeedDialog>
+    message: ''
     word: ''
     BigLabel:
         text: "ENTER YOUR SEED PHRASE"
@@ -384,6 +385,7 @@ Builder.load_string('''
 
 
 <ShowSeedDialog>
+    message: ''
     spacing: '12dp'
     value: 'next'
     BigLabel:
@@ -493,7 +495,8 @@ class WizardChoiceDialog(WizardDialog):
 class ShowSeedDialog(WizardDialog):
 
     seed_text = StringProperty('')
-    message = StringProperty('')
+    message = _("If you forget your PIN or lose your device, your seed phrase will be the "
+                "only way to recover your funds.")
 
     def on_parent(self, instance, value):
         if value:
@@ -513,8 +516,6 @@ class WizardButton(Button):
 
 class RestoreSeedDialog(WizardDialog):
 
-    message = StringProperty('')
-
     def __init__(self, wizard, **kwargs):
         super(RestoreSeedDialog, self).__init__(wizard, **kwargs)
         self._test = kwargs['is_valid']
@@ -522,6 +523,8 @@ class RestoreSeedDialog(WizardDialog):
         from electrum_ltc.old_mnemonic import words as old_wordlist
         self.words = set(Mnemonic('en').wordlist).union(set(old_wordlist))
         self.ids.text_input_seed.text = test_seed if is_test else ''
+        self.message = _('Please type your seed phrase using the virtual keyboard.')
+        self.title = _('Enter Seed')
 
     def get_suggestions(self, prefix):
         for w in self.words:
@@ -708,8 +711,24 @@ class InstallWizard(BaseWizard, Widget):
     def choice_dialog(self, **kwargs): WizardChoiceDialog(self, **kwargs).open()
     def multisig_dialog(self, **kwargs): WizardMultisigDialog(self, **kwargs).open()
     def show_seed_dialog(self, **kwargs): ShowSeedDialog(self, **kwargs).open()
-    def enter_seed_dialog(self, **kwargs): RestoreSeedDialog(self, **kwargs).open()
-    def add_xpub_dialog(self, **kwargs): AddXpubDialog(self, **kwargs).open()
+
+    def confirm_seed_dialog(self, **kwargs):
+        kwargs['title'] = _('Confirm Seed')
+        kwargs['message'] = _('Please retype your seed phrase, to confirm that you properly saved it')
+        RestoreSeedDialog(self, **kwargs).open()
+
+    def restore_seed_dialog(self, **kwargs):
+        RestoreSeedDialog(self, **kwargs).open()
+
+    def restore_keys_dialog(self, **kwargs):
+        kwargs['message'] += ' ' + _('Use the camera button to scan a QR code.')
+        AddXpubDialog(self, **kwargs).open()
+
+    def add_cosigner_dialog(self, **kwargs):
+        kwargs['title'] = _("Add Cosigner") + " %d"%kwargs['index']
+        kwargs['message'] = _('Please paste your cosigners master public key, or scan it using the camera button.')
+        AddXpubDialog(self, **kwargs).open()
+
     def show_xpub_dialog(self, **kwargs): ShowXpubDialog(self, **kwargs).open()
 
     def show_error(self, msg):
