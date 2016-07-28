@@ -139,7 +139,7 @@ class BaseWizard(object):
                 ('create_seed', _('Create a new seed')),
                 ('restore_seed', _('I already have a seed')),
                 ('restore_from_key', _('I have a master key')),
-                ('choose_hw', _('Cosign with hardware wallet')),
+                #('choose_hw', _('Cosign with hardware wallet')),
             ]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 
