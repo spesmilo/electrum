@@ -409,7 +409,7 @@ class Commands:
         sig = base64.b64decode(signature)
         return bitcoin.verify_message(address, sig, message)
 
-    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned):
+    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned, rbf):
         self.nocheck = nocheck
         change_addr = self._resolver(change_addr)
         domain = None if domain is None else map(self._resolver, domain)
@@ -427,23 +427,24 @@ class Commands:
 
         coins = self.wallet.get_spendable_coins(domain)
         tx = self.wallet.make_unsigned_transaction(coins, final_outputs, self.config, fee, change_addr)
-        str(tx) #this serializes
+        if rbf:
+            tx.set_sequence(0)
         if not unsigned:
             self.wallet.sign_transaction(tx, self._password)
         return tx
 
     @command('wp')
-    def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False):
+    def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False):
         """Create a transaction. """
         domain = [from_addr] if from_addr else None
-        tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned)
+        tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, rbf)
         return tx.as_dict()
 
     @command('wp')
-    def paytomany(self, outputs, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False):
+    def paytomany(self, outputs, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False):
         """Create a multi-output transaction. """
         domain = [from_addr] if from_addr else None
-        tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned)
+        tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, rbf)
         return tx.as_dict()
 
     @command('w')
@@ -678,6 +679,7 @@ command_options = {
     'gap_limit':   ("-G", "--gap",         "Gap limit"),
     'privkey':     (None, "--privkey",     "Private key. Set to '?' to get a prompt."),
     'unsigned':    ("-u", "--unsigned",    "Do not sign transaction"),
+    'rbf':         (None, "--rbf",         "Replace-by-fee transaction"),
     'domain':      ("-D", "--domain",      "List of addresses"),
     'account':     (None, "--account",     "Account"),
     'memo':        ("-m", "--memo",        "Description of the request"),
