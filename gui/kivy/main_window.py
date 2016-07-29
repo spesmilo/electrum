@@ -54,8 +54,6 @@ Cache.register('electrum_widgets', timeout=0)
 from kivy.uix.screenmanager import Screen
 from kivy.uix.tabbedpanel import TabbedPanel
 from kivy.uix.label import Label
-from kivy.uix.checkbox import CheckBox
-from kivy.uix.switch import Switch
 from kivy.core.clipboard import Clipboard
 
 Factory.register('TabbedCarousel', module='electrum_gui.kivy.uix.screens')
@@ -762,9 +760,10 @@ class ElectrumWindow(App):
         d = Question(_('Delete wallet?') + '\n' + basename, self._delete_wallet)
         d.open()
 
-    def _delete_wallet(self):
-        basename = os.path.basename(self.wallet.storage.path)
-        self.protected(_("Enter your PIN code to confirm deletion of %s") % basename, self.__delete_wallet, ())
+    def _delete_wallet(self, b):
+        if b:
+            basename = os.path.basename(self.wallet.storage.path)
+            self.protected(_("Enter your PIN code to confirm deletion of %s") % basename, self.__delete_wallet, ())
 
     def __delete_wallet(self, pw):
         wallet_path = self.get_wallet_path()
