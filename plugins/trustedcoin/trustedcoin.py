@@ -349,21 +349,9 @@ class TrustedCoinPlugin(BasePlugin):
         self.wallet = wallet
         self.wizard = wizard
         seed = wallet.make_seed()
-        f = lambda x: wizard.run('confirm_seed', x)
-        self.wizard.show_seed_dialog(run_next=f, message="z", seed_text=seed)
+        self.wizard.show_seed_dialog(run_next=wizard.confirm_seed, seed_text=seed)
 
-    def confirm_seed(self, wallet, wizard, seed):
-        title = _('Confirm Seed')
-        msg = _('Please retype your seed phrase, to confirm that you properly saved it')
-        f = lambda x: wizard.run('add_password', x)
-        self.wizard.enter_seed_dialog(run_next=f, title=title, message=msg, is_valid=lambda x: x==seed)
-
-    def add_password(self, wallet, wizard, seed):
-        f = lambda x: self.create_wallet(seed, x)
-        self.wizard.request_password(run_next=f)
-
-    def create_wallet(self, seed, password):
-        wallet = self.wallet
+    def create_wallet(self, wallet, wizard, seed, password):
         wallet.storage.put('seed_version', wallet.seed_version)
         wallet.storage.put('use_encryption', password is not None)
         words = seed.split()
@@ -381,8 +369,8 @@ class TrustedCoinPlugin(BasePlugin):
             _('If you are online, click on "%s" to continue.') % _('Next')
         ]
         msg = '\n\n'.join(msg)
-        self.wizard.confirm(msg)
-        return wallet
+        wizard.confirm(msg)
+        wizard.run('create_remote_key')
 
     @hook
     def do_clear(self, window):
@@ -411,11 +399,9 @@ class TrustedCoinPlugin(BasePlugin):
         email = self.accept_terms_of_use(window)
         xpub_hot = wallet.master_public_keys["x1/"]
         xpub_cold = wallet.master_public_keys["x2/"]
-
         # Generate third key deterministically.
         long_user_id, short_id = wallet.get_user_id()
         xpub3 = make_xpub(signing_xpub, long_user_id)
-
         # secret must be sent by the server
         try:
             r = server.create(xpub_hot, xpub_cold, email)
@@ -427,7 +413,6 @@ class TrustedCoinPlugin(BasePlugin):
                 r = None
             else:
                 raise e
-
         if r is None:
             otp_secret = None
         else:
@@ -443,7 +428,8 @@ class TrustedCoinPlugin(BasePlugin):
             except Exception as e:
                 window.show_message(str(e))
                 return
-
-        if self.setup_google_auth(window, short_id, otp_secret):
-            wallet.add_master_public_key('x3/', xpub3)
-            wallet.create_main_account()
+        if not self.setup_google_auth(window, short_id, otp_secret):
+            window.show_message("otp error")
+            return
+        wallet.add_master_public_key('x3/', xpub3)
+        window.run('create_addresses')
