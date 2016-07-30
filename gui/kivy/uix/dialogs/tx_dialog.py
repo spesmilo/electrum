@@ -145,7 +145,7 @@ class TxDialog(Factory.Popup):
         try:
             new_tx = self.wallet.bump_fee(self.tx, delta)
         except BaseException as e:
-            self.app.show_error(e)
+            self.app.show_error(str(e))
             return
         if is_final:
             new_tx.set_sequence(0xffffffff)

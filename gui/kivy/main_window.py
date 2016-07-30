@@ -54,8 +54,6 @@ Cache.register('electrum_ltc_widgets', timeout=0)
 from kivy.uix.screenmanager import Screen
 from kivy.uix.tabbedpanel import TabbedPanel
 from kivy.uix.label import Label
-from kivy.uix.checkbox import CheckBox
-from kivy.uix.switch import Switch
 from kivy.core.clipboard import Clipboard
 
 Factory.register('TabbedCarousel', module='electrum_ltc_gui.kivy.uix.screens')
@@ -310,7 +308,7 @@ class ElectrumWindow(App):
             return
         from jnius import autoclass
         from android import activity
-        PythonActivity = autoclass('org.renpy.android.PythonActivity')
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
         Intent = autoclass('android.content.Intent')
         intent = Intent("com.google.zxing.client.android.SCAN")
         intent.putExtra("SCAN_MODE", "QR_CODE_MODE")
@@ -334,7 +332,7 @@ class ElectrumWindow(App):
             return
         from jnius import autoclass
         from android import activity
-        PythonActivity = autoclass('org.renpy.android.PythonActivity')
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
         IntentIntegrator = autoclass('com.google.zxing.integration.android.IntentIntegrator')
         integrator = IntentIntegrator(PythonActivity.mActivity)
         def on_qr_result(requestCode, resultCode, intent):
@@ -358,7 +356,7 @@ class ElectrumWindow(App):
         sendIntent.setAction(Intent.ACTION_SEND)
         sendIntent.setType("text/plain")
         sendIntent.putExtra(Intent.EXTRA_TEXT, JS(data))
-        PythonActivity = autoclass('org.renpy.android.PythonActivity')
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
         currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
         it = Intent.createChooser(sendIntent, cast('java.lang.CharSequence', JS(title)))
         currentActivity.startActivity(it)
@@ -370,7 +368,7 @@ class ElectrumWindow(App):
         if platform == 'android':
             # move activity to back
             from jnius import autoclass
-            python_act = autoclass('org.renpy.android.PythonActivity')
+            python_act = autoclass('org.kivy.android.PythonActivity')
             mActivity = python_act.mActivity
             mActivity.moveTaskToBack(True)
 
@@ -394,7 +392,7 @@ class ElectrumWindow(App):
         if platform == 'android':
             from android import activity
             from jnius import autoclass
-            PythonActivity = autoclass('org.renpy.android.PythonActivity')
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
             mactivity = PythonActivity.mActivity
             self.on_new_intent(mactivity.getIntent())
             activity.bind(on_new_intent=self.on_new_intent)
@@ -762,9 +760,10 @@ class ElectrumWindow(App):
         d = Question(_('Delete wallet?') + '\n' + basename, self._delete_wallet)
         d.open()
 
-    def _delete_wallet(self):
-        basename = os.path.basename(self.wallet.storage.path)
-        self.protected(_("Enter your PIN code to confirm deletion of %s") % basename, self.__delete_wallet, ())
+    def _delete_wallet(self, b):
+        if b:
+            basename = os.path.basename(self.wallet.storage.path)
+            self.protected(_("Enter your PIN code to confirm deletion of %s") % basename, self.__delete_wallet, ())
 
     def __delete_wallet(self, pw):
         wallet_path = self.get_wallet_path()

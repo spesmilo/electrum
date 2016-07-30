@@ -20,6 +20,7 @@ Builder.load_string('''
         Label:
             id: label
             text: root.message
+            text_size: self.width, None
         Widget:
             size_hint: 1, 0.1
         BoxLayout:
@@ -30,13 +31,14 @@ Builder.load_string('''
                 size_hint: 0.5, None
                 height: '48dp'
                 on_release:
+                    root.callback(False)
                     popup.dismiss()
             Button:
                 text: _('Yes')
                 size_hint: 0.5, None
                 height: '48dp'
                 on_release:
-                    root.callback()
+                    root.callback(True)
                     popup.dismiss()
 ''')
 

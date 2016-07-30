@@ -210,7 +210,7 @@ def android_ext_dir():
 
 def android_data_dir():
     import jnius
-    PythonActivity = jnius.autoclass('org.renpy.android.PythonActivity')
+    PythonActivity = jnius.autoclass('org.kivy.android.PythonActivity')
     return PythonActivity.mActivity.getFilesDir().getPath() + '/data'
 
 def android_headers_path():
