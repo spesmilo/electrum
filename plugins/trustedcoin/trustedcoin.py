@@ -217,15 +217,14 @@ class Wallet_2fa(Multisig_Wallet):
         for i in inputs:
             self.add_input_info(i)
         xf = self.extra_fee()
+        _type, addr = recipient
         if xf and sendable >= xf:
             billing_address = self.billing_info['billing_address']
             sendable -= xf
-            _type, addr = recipient
             outputs = [(_type, addr, sendable),
                        (TYPE_ADDRESS, billing_address, xf)]
         else:
-            outputs = [(TYPE_ADDRESS, recipient, sendable)]
-
+            outputs = [(_type, addr, sendable)]
         dummy_tx = Transaction.from_io(inputs, outputs)
         if fee is None:
             fee = self.estimate_fee(config, dummy_tx.estimated_size())
