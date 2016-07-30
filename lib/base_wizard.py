@@ -232,14 +232,11 @@ class BaseWizard(object):
             self.storage.put('wallet_type', self.multisig_type)
             self.wallet = Multisig_Wallet(self.storage)
             self.wallet.add_cosigner('x1/', text, password)
-            self.run('show_xpub_and_add_cosigners', (Wallet.is_xpub(text), password,))
+            self.run('show_xpub_and_add_cosigners', (password,))
 
-    def show_xpub_and_add_cosigners(self, is_xpub, password):
-        if not is_xpub:
-            xpub = self.wallet.master_public_keys.get('x1/')
-            self.show_xpub_dialog(run_next=lambda x: self.add_cosigners(password), xpub=xpub)
-        else:
-            self.add_cosigners(password)
+    def show_xpub_and_add_cosigners(self, password):
+        xpub = self.wallet.master_public_keys.get('x1/')
+        self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('add_cosigners', (password,)))
 
     def add_cosigners(self, password):
         i = self.wallet.get_missing_cosigner()
