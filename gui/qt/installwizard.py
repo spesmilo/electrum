@@ -309,6 +309,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                     "contain more addresses than displayed.")
             self.show_message(msg)
 
+    @wizard_dialog
+    def confirm_dialog(self, msg, run_next):
+        self.confirm(msg)
+
     def confirm(self, msg):
         vbox = QVBoxLayout()
         vbox.addWidget(WWLabel(msg))

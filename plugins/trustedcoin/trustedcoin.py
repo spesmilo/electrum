@@ -351,6 +351,12 @@ class TrustedCoinPlugin(BasePlugin):
         seed = wallet.make_seed()
         self.wizard.show_seed_dialog(run_next=wizard.confirm_seed, seed_text=seed)
 
+    def show_disclaimer(self, wallet, wizard):
+        self.set_enabled(wallet, True)
+        wizard.set_icon(':icons/trustedcoin.png')
+        wizard.stack = []
+        wizard.confirm_dialog('\n\n'.join(DISCLAIMER), run_next = lambda x: wizard.run('create_extended_seed'))
+
     def create_wallet(self, wallet, wizard, seed, password):
         wallet.storage.put('seed_version', wallet.seed_version)
         wallet.storage.put('use_encryption', password is not None)
@@ -369,8 +375,8 @@ class TrustedCoinPlugin(BasePlugin):
             _('If you are online, click on "%s" to continue.') % _('Next')
         ]
         msg = '\n\n'.join(msg)
-        wizard.confirm(msg)
-        wizard.run('create_remote_key')
+        wizard.stack = []
+        wizard.confirm_dialog(msg, run_next = lambda x: wizard.run('create_remote_key'))
 
     @hook
     def do_clear(self, window):

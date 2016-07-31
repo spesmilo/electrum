@@ -80,12 +80,6 @@ class BaseWizard(object):
         action, args = self.stack.pop()
         self.run(action, *args)
 
-    def run_wallet(self):
-        self.stack = []
-        action = self.wallet.get_action()
-        if action:
-            self.action_dialog(action=action, run_next=lambda x: self.run_wallet())
-
     def new(self):
         name = os.path.basename(self.storage.path)
         title = _("Welcome to the Electrum installation wizard.")
@@ -147,7 +141,7 @@ class BaseWizard(object):
     def create_2fa(self):
         self.storage.put('wallet_type', '2fa')
         self.wallet = Wallet(self.storage)
-        self.run_wallet()
+        self.run('show_disclaimer')
 
     def restore_seed(self):
         # TODO: return derivation password too

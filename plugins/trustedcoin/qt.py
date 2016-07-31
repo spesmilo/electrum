@@ -38,7 +38,7 @@ from electrum_gui.qt.main_window import StatusBarButton
 from electrum.i18n import _
 from electrum.plugins import hook
 
-from trustedcoin import TrustedCoinPlugin, DISCLAIMER, server
+from trustedcoin import TrustedCoinPlugin, server
 
 def need_server(wallet, tx):
     from electrum.account import BIP32_Account
@@ -108,11 +108,6 @@ class Plugin(TrustedCoinPlugin):
         task = partial(self.request_billing_info, window.wallet)
         return WaitingDialog(window, 'Getting billing information...', task,
                              on_finished)
-
-    def show_disclaimer(self, wallet, wizard):
-        wizard.set_icon(':icons/trustedcoin.png')
-        wizard.confirm('\n\n'.join(DISCLAIMER))
-        self.set_enabled(wallet, True)
 
     @hook
     def abort_send(self, window):
