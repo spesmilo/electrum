@@ -906,7 +906,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.fee_slider = QSlider(Qt.Horizontal, self)
         self.fee_slider.setRange(0, 4)
-        self.fee_slider.setToolTip(_(''))
+        self.fee_slider.setToolTip('')
         def slider_moved():
             from electrum.util import fee_levels
             i = self.fee_slider.sliderPosition()

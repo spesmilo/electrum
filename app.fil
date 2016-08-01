@@ -1,6 +1,9 @@
 gui/qt/__init__.py
 gui/qt/main_window.py
-gui/qt/history_widget.py
+gui/qt/history_list.py
+gui/qt/contact_list.py
+gui/qt/invoice_list.py
+gui/qt/request_list.py
 gui/qt/installwizard.py
 gui/qt/network_dialog.py
 gui/qt/password_dialog.py
@@ -14,7 +17,6 @@ gui/qt/qrwindow.py
 gui/kivy/main.kv
 gui/kivy/main_window.py
 gui/kivy/uix/dialogs/__init__.py
-gui/kivy/uix/dialogs/create_restore.py
 gui/kivy/uix/dialogs/fee_dialog.py
 gui/kivy/uix/dialogs/installwizard.py
 gui/kivy/uix/dialogs/settings.py
