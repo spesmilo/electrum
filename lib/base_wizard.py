@@ -243,7 +243,7 @@ class BaseWizard(object):
         try:
             self.wallet.add_cosigner('x%d/'%i, text, password)
         except BaseException as e:
-            print "error:" + e
+            print "error:" + str(e)
         i = self.wallet.get_missing_cosigner()
         if i:
             self.run('add_cosigners', password)
