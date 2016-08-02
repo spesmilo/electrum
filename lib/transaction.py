@@ -859,8 +859,8 @@ class Transaction:
         threshold = 57600000
         weight = 0
         for txin in self.inputs():
-            age = wallet.get_confirmations(txin["prevout_hash"])[0]
-            weight += txin["value"] * age
+            height, conf, timestamp = wallet.get_tx_height(txin["prevout_hash"])
+            weight += txin["value"] * conf
         priority = weight / size
         print_error(priority, threshold)
 
