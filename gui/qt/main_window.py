@@ -1283,9 +1283,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 if status:
                     if tx_desc is not None and tx.is_complete():
                         self.wallet.set_label(tx.hash(), tx_desc)
-                        parent.show_message(_('Payment sent.') + '\n' + msg)
-                        self.invoice_list.update()
-                        self.do_clear()
+                    parent.show_message(_('Payment sent.') + '\n' + msg)
+                    self.invoice_list.update()
+                    self.do_clear()
                 else:
                     parent.show_error(msg)
 
