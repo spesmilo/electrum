@@ -25,9 +25,8 @@ MSG_ENTER_ANYTHING = _("Please enter a seed phrase, a master key, a list of "
                        "Litecoin addresses, or a list of private keys")
 MSG_ENTER_SEED_OR_MPK = _("Please enter a seed phrase or a master key (xpub or xprv):")
 MSG_COSIGNER = _("Please enter the master public key of cosigner #%d:")
-MSG_SHOW_MPK = _("Here is your master public key:")
-MSG_ENTER_PASSWORD = _("Choose a password to encrypt your wallet keys.  "
-                       "Enter nothing if you want to disable encryption.")
+MSG_ENTER_PASSWORD = _("Choose a password to encrypt your wallet keys.") + '\n'\
+                     + _("Leave this field empty if you want to disable encryption.")
 MSG_RESTORE_PASSPHRASE = \
     _("Please enter the passphrase you used when creating your %s wallet.  "
       "Note this is NOT a password.  Enter nothing if you did not use "
@@ -115,7 +114,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.setMinimumSize(530, 370)
         self.setMaximumSize(530, 370)
         self.connect(self, QtCore.SIGNAL('accept'), self.accept)
-        self.title = WWLabel()
+        self.title = QLabel()
         self.main_widget = QWidget()
         self.back_button = QPushButton(_("Back"), self)
         self.next_button = QPushButton(_("Next"), self)
@@ -191,7 +190,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     def set_main_layout(self, layout, title=None, raise_on_cancel=True,
                         next_enabled=True):
-        self.title.setText(title or "")
+        self.title.setText("<b>%s</b>"%title if title else "")
         self.title.setVisible(bool(title))
         # Get rid of any prior layout by assigning it to a temporary widget
         prior_layout = self.main_widget.layout()
@@ -257,7 +256,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def confirm_seed_dialog(self, run_next, is_valid):
         self.app.clipboard().clear()
         title = _('Confirm Seed')
-        message = _("Your seed is important!\nTo make sure that you have properly saved your seed, please retype it here.")
+        message = ' '.join([
+            _('Your seed is important!'),
+            _('To make sure that you have properly saved your seed, please retype it here.')
+        ])
         return self.text_input(title, message, is_valid)
 
     @wizard_dialog
@@ -345,10 +347,14 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     @wizard_dialog
     def show_xpub_dialog(self, xpub, run_next):
+        msg = ' '.join([
+            _("Here is your master public key."),
+            _("Please share it with your cosigners.")
+        ])
         vbox = QVBoxLayout()
-        layout = SeedDisplayLayout(xpub, title=_('Master Public Key'), sid='hot')
+        layout = SeedDisplayLayout(xpub, title=msg, sid='hot')
         vbox.addLayout(layout.layout())
-        self.set_main_layout(vbox, MSG_SHOW_MPK)
+        self.set_main_layout(vbox, _('Master Public Key'))
         return None
 
     def choose_server(self, network):

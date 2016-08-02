@@ -227,6 +227,7 @@ class BaseWizard(object):
             self.storage.put('wallet_type', self.multisig_type)
             self.wallet = Multisig_Wallet(self.storage)
             self.wallet.add_cosigner('x1/', text, password)
+            self.stack = []
             self.run('show_xpub_and_add_cosigners', (password,))
 
     def show_xpub_and_add_cosigners(self, password):
@@ -239,7 +240,10 @@ class BaseWizard(object):
 
     def on_cosigner(self, text, password):
         i = self.wallet.get_missing_cosigner()
-        self.wallet.add_cosigner('x%d/'%i, text, password)
+        try:
+            self.wallet.add_cosigner('x%d/'%i, text, password)
+        except BaseException as e:
+            print "error:" + str(e)
         i = self.wallet.get_missing_cosigner()
         if i:
             self.run('add_cosigners', password)
