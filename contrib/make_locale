@@ -23,7 +23,7 @@ if os.path.exists('../contrib/crowdin_api_key.txt'):
     crowdin_api_key = open('../contrib/crowdin_api_key.txt').read().strip()
     # Push to Crowdin
     print 'Push to Crowdin'
-    url = ('http://api.crowdin.com/api/project/' + crowdin_identifier + '/update-file?key=' + crowdin_api_key)
+    url = ('https://api.crowdin.com/api/project/' + crowdin_identifier + '/update-file?key=' + crowdin_api_key)
     c = pycurl.Curl()
     c.setopt(c.URL, url)
     c.setopt(c.POST, 1)
