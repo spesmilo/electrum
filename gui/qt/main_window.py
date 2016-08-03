@@ -1712,7 +1712,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.wallet.needs_next_account() and not self.checking_accounts:
             self.checking_accounts = True
             msg = _("All the accounts in your wallet have received "
-                    "transactions.  Electrum must check whether more "
+                    "transactions. Electrum must check whether more "
                     "accounts exist; one will only be shown if "
                     "it has been used or you give it a name.")
             self.show_message(msg, title=_("Check Accounts"))
