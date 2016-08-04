@@ -773,7 +773,7 @@ class Transaction:
                 # input is complete
                 continue
             for k, x_pubkey in enumerate(txin['x_pubkeys']):
-                if x_signatures[k] is not None:
+                if k < len(x_signatures) and x_signatures[k] is not None:
                     # this pubkey already signed
                     continue
                 out.add(x_pubkey)
