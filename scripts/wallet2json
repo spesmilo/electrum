@@ -1,0 +1,14 @@
+#!/usr/bin/env python
+#
+# This simple wallet to JSON format converter makes it easier to view a wallet file for debugging.
+#
+# Use it like this:  wallet2json > wallet.json
+# Now any JSON viewer allows formatted easy-to-view wallet digging.
+# There is a nice JSON viewer for Firefox on github: https://github.com/bhollis/jsonview
+#
+
+import json
+from electrum import SimpleConfig
+
+cfg = SimpleConfig()
+print json.dumps(cfg.wallet_config)
