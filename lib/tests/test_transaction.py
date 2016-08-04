@@ -77,7 +77,7 @@ class TestTransaction(unittest.TestCase):
         self.assertEquals(tx.deserialize(), expected)
         self.assertEquals(tx.deserialize(), None)
 
-        self.assertEquals(tx.as_dict(), {'hex': unsigned_blob, 'complete': False})
+        self.assertEquals(tx.as_dict(), {'hex': unsigned_blob, 'complete': False, 'final': True})
         self.assertEquals(tx.get_outputs(), [('14CHYaaByjJZpx4oHBpfDMdqhTyXnZ3kVs', 1000000)])
         self.assertEquals(tx.get_output_addresses(), ['14CHYaaByjJZpx4oHBpfDMdqhTyXnZ3kVs'])
 
@@ -121,7 +121,7 @@ class TestTransaction(unittest.TestCase):
         tx = transaction.Transaction(signed_blob)
         self.assertEquals(tx.deserialize(), expected)
         self.assertEquals(tx.deserialize(), None)
-        self.assertEquals(tx.as_dict(), {'hex': signed_blob, 'complete': True})
+        self.assertEquals(tx.as_dict(), {'hex': signed_blob, 'complete': True, 'final': True})
 
         self.assertEquals(tx.inputs_to_sign(), set())
         self.assertEquals(tx.serialize(), signed_blob)
