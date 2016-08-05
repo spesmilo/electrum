@@ -4,6 +4,7 @@ import os
 import unittest
 import tempfile
 import shutil
+import json
 
 from StringIO import StringIO
 from lib.simple_config import (SimpleConfig, read_system_config,
@@ -233,7 +234,7 @@ class TestUserConfig(unittest.TestCase):
         thefile = os.path.join(self.user_dir, "config")
         payload = {"gap_limit": 5}
         with open(thefile, "w") as f:
-            f.write(repr(payload))
+            f.write(json.dumps(payload))
 
         result = read_user_config(self.user_dir)
         self.assertEqual(payload, result)
