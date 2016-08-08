@@ -1278,7 +1278,7 @@ class Abstract_Wallet(PrintError):
 
 
     def is_watching_only(self):
-        False
+        return False
 
     def can_change_password(self):
         return not self.is_watching_only()
