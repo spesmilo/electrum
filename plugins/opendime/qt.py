@@ -266,7 +266,7 @@ class OpendimeTab(QWidget):
         # capture these
         self.real_wallet = wallet
         while not isinstance(main_window, ElectrumWindow):
-            main_window = main_window.parent()
+            main_window = main_window.parent
             assert main_window
         self.main_window = main_window
 
