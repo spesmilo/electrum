@@ -271,18 +271,23 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.clear_receive_tab()
         self.request_list.update()
         self.tabs.show()
-
-        try:
-            self.setGeometry(*self.wallet.storage.get("winpos-qt"))
-        except:
-            self.setGeometry(100, 100, 840, 400)
-
+        self.init_geometry()
         if self.config.get('hide_gui') and self.gui_object.tray.isVisible():
             self.hide()
         else:
             self.show()
         self.watching_only_changed()
         run_hook('load_wallet', wallet, self)
+
+    def init_geometry(self):
+        winpos = self.wallet.storage.get("winpos-qt")
+        try:
+            screen = self.app.desktop().screenGeometry()
+            assert screen.contains(QRect(*winpos))
+            self.setGeometry(*winpos)
+        except:
+            self.print_error("using default geometry")
+            self.setGeometry(100, 100, 840, 400)
 
     def watching_only_changed(self):
         title = 'Electrum %s  -  %s' % (self.wallet.electrum_version,
