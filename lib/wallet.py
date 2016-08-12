@@ -1435,6 +1435,7 @@ class Standard_Wallet(Deterministic_Wallet, P2PK_Wallet):
 
     def import_key(self, pk, pw):
         pubkey = self.keystore.import_key(pk, pw)
+        self.keystore.save(self.storage, self.root_name)
         self.receiving_pubkeys.append(pubkey)
         self.save_pubkeys()
         addr = self.pubkeys_to_address(pubkey)

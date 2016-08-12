@@ -81,12 +81,15 @@ if is_bundle or is_local or is_android:
     imp.load_module('electrum_gui', *imp.find_module('gui'))
 
 
-from electrum import SimpleConfig, Network, Wallet, WalletStorage
+from electrum import SimpleConfig, Network
+from electrum.wallet import Wallet
+from electrum.storage import WalletStorage
 from electrum.util import print_msg, print_stderr, json_encode, json_decode
 from electrum.util import set_verbosity, InvalidPassword, check_www_dir
 from electrum.commands import get_parser, known_commands, Commands, config_variables
 from electrum import daemon
-
+from electrum.keystore import from_text, is_private
+from electrum.mnemonic import Mnemonic
 
 # get password routine
 def prompt_password(prompt, confirm=True):
@@ -114,12 +117,14 @@ def run_non_RPC(config):
 
     if cmdname == 'restore':
         text = config.get('text')
-        password = password_dialog() if Wallet.is_seed(text) or Wallet.is_xprv(text) or Wallet.is_private_key(text) else None
+        password = password_dialog() if is_private(text) else None
         try:
-            wallet = Wallet.from_text(text, password, storage)
+            k = from_text(text, password)
         except BaseException as e:
             sys.exit(str(e))
-        wallet.create_main_account()
+        k.save(storage, 'x/')
+        storage.put('wallet_type', 'standard')
+        wallet = Wallet(storage)
         if not config.get('offline'):
             network = Network(config)
             network.start()
@@ -134,11 +139,11 @@ def run_non_RPC(config):
 
     elif cmdname == 'create':
         password = password_dialog()
+        seed = Mnemonic('en').make_seed()
+        k = from_text(seed, password)
+        k.save(storage, 'x/')
+        storage.put('wallet_type', 'standard')
         wallet = Wallet(storage)
-        seed = wallet.make_seed()
-        wallet.add_seed(seed, password)
-        wallet.create_master_keys(password)
-        wallet.create_main_account()
         wallet.synchronize()
         print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
         print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
