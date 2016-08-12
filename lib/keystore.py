@@ -527,6 +527,7 @@ class Hardware_KeyStore(KeyStore, Xpub):
 class BIP44_KeyStore(BIP32_KeyStore):
     root_derivation = "m/44'/0'/0'"
 
+    @classmethod
     def normalize_passphrase(self, passphrase):
         return normalize('NFKD', unicode(passphrase or ''))
 
@@ -676,13 +677,11 @@ def from_xprv(xprv, password):
 def xprv_from_seed(seed, password):
     # do not store the seed, only the master xprv
     xprv, xpub = bip32_root(Mnemonic.mnemonic_to_seed(seed, ''))
-    #xprv, xpub = bip32_private_derivation(xprv, "m/", self.root_derivation)
     return from_xprv(xprv, password)
 
 def xpub_from_seed(seed):
     # store only master xpub
     xprv, xpub = bip32_root(Mnemonic.mnemonic_to_seed(seed,''))
-    #xprv, xpub = bip32_private_derivation(xprv, "m/", self.root_derivation)
     return from_xpub(xpub)
 
 def from_text(text, password):
