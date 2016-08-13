@@ -1,0 +1,253 @@
+#!/usr/bin/env python
+#
+# Electrum - lightweight Bitcoin client
+# Copyright (C) 2015 Thomas Voegtlin
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+import os
+import ast
+import threading
+import random
+import time
+import json
+import copy
+import re
+import stat
+
+from i18n import _
+from util import NotEnoughFunds, PrintError, profiler
+from plugins import run_hook, plugin_loaders
+
+class WalletStorage(PrintError):
+
+    def __init__(self, path):
+        self.lock = threading.RLock()
+        self.data = {}
+        self.path = path
+        self.file_exists = False
+        self.modified = False
+        self.print_error("wallet path", self.path)
+        if self.path:
+            self.read(self.path)
+
+        # check here if I need to load a plugin
+        t = self.get('wallet_type')
+        l = plugin_loaders.get(t)
+        if l: l()
+
+
+    def read(self, path):
+        """Read the contents of the wallet file."""
+        try:
+            with open(self.path, "r") as f:
+                data = f.read()
+        except IOError:
+            return
+        if not data:
+            return
+        try:
+            self.data = json.loads(data)
+        except:
+            try:
+                d = ast.literal_eval(data)  #parse raw data from reading wallet file
+                labels = d.get('labels', {})
+            except Exception as e:
+                raise IOError("Cannot read wallet file '%s'" % self.path)
+            self.data = {}
+            # In old versions of Electrum labels were latin1 encoded, this fixes breakage.
+            for i, label in labels.items():
+                try:
+                    unicode(label)
+                except UnicodeDecodeError:
+                    d['labels'][i] = unicode(label.decode('latin1'))
+            for key, value in d.items():
+                try:
+                    json.dumps(key)
+                    json.dumps(value)
+                except:
+                    self.print_error('Failed to convert label to json format', key)
+                    continue
+                self.data[key] = value
+        self.file_exists = True
+
+    def get(self, key, default=None):
+        with self.lock:
+            v = self.data.get(key)
+            if v is None:
+                v = default
+            else:
+                v = copy.deepcopy(v)
+        return v
+
+    def put(self, key, value):
+        try:
+            json.dumps(key)
+            json.dumps(value)
+        except:
+            self.print_error("json error: cannot save", key)
+            return
+        with self.lock:
+            if value is not None:
+                if self.data.get(key) != value:
+                    self.modified = True
+                    self.data[key] = copy.deepcopy(value)
+            elif key in self.data:
+                self.modified = True
+                self.data.pop(key)
+
+    def write(self):
+        with self.lock:
+            self._write()
+        self.file_exists = True
+
+    def _write(self):
+        if threading.currentThread().isDaemon():
+            self.print_error('warning: daemon thread cannot write wallet')
+            return
+        if not self.modified:
+            return
+        s = json.dumps(self.data, indent=4, sort_keys=True)
+        temp_path = "%s.tmp.%s" % (self.path, os.getpid())
+        with open(temp_path, "w") as f:
+            f.write(s)
+            f.flush()
+            os.fsync(f.fileno())
+
+        mode = os.stat(self.path).st_mode if os.path.exists(self.path) else stat.S_IREAD | stat.S_IWRITE
+        # perform atomic write on POSIX systems
+        try:
+            os.rename(temp_path, self.path)
+        except:
+            os.remove(self.path)
+            os.rename(temp_path, self.path)
+        os.chmod(self.path, mode)
+        self.print_error("saved", self.path)
+        self.modified = False
+
+    def requires_split(self):
+        d = self.get('accounts', {})
+        return len(d) > 1
+
+    def split_accounts(storage):
+        result = []
+        # backward compatibility with old wallets
+        d = storage.get('accounts', {})
+        if len(d) < 2:
+            return
+        wallet_type = storage.get('wallet_type')
+        if wallet_type == 'old':
+            assert len(d) == 2
+            storage1 = WalletStorage(storage.path + '.deterministic')
+            storage1.data = copy.deepcopy(storage.data)
+            storage1.put('accounts', {'0': d['0']})
+            storage1.write()
+            storage2 = WalletStorage(storage.path + '.imported')
+            storage2.data = copy.deepcopy(storage.data)
+            storage2.put('accounts', {'/x': d['/x']})
+            storage2.put('seed', None)
+            storage2.put('seed_version', None)
+            storage2.put('master_public_key', None)
+            storage2.put('wallet_type', 'imported')
+            storage2.write()
+            storage2.upgrade()
+            result = [storage1.path, storage2.path]
+        elif wallet_type in ['bip44', 'trezor']:
+            mpk = storage.get('master_public_keys')
+            for k in d.keys():
+                i = int(k)
+                x = d[k]
+                if x.get("pending"):
+                    continue
+                xpub = mpk["x/%d'"%i]
+                new_path = storage.path + '.' + k
+                storage2 = WalletStorage(new_path)
+                storage2.data = copy.deepcopy(storage.data)
+                storage2.put('wallet_type', 'standard')
+                if wallet_type in ['trezor', 'keepkey']:
+                    storage2.put('key_type', 'hardware')
+                    storage2.put('hardware_type', wallet_type)
+                storage2.put('accounts', {'0': x})
+                # need to save derivation and xpub too
+                storage2.put('master_public_keys', {'x/': xpub})
+                storage2.put('account_id', k)
+                storage2.write()
+                result.append(new_path)
+        else:
+            raise BaseException("This wallet has multiple accounts and must be split")
+        return result
+
+    def requires_upgrade(storage):
+        # '/x' is the internal ID for imported accounts
+        return bool(storage.get('accounts', {}).get('/x', {}).get('imported',{}))
+
+    def upgrade(storage):
+        d = storage.get('accounts', {}).get('/x', {}).get('imported',{})
+        addresses = []
+        keypairs = {}
+        for addr, v in d.items():
+            pubkey, privkey = v
+            if privkey:
+                keypairs[pubkey] = privkey
+            else:
+                addresses.append(addr)
+        if addresses and keypairs:
+            raise BaseException('mixed addresses and privkeys')
+        elif addresses:
+            storage.put('addresses', addresses)
+            storage.put('accounts', None)
+        elif keypairs:
+            storage.put('wallet_type', 'standard')
+            storage.put('key_type', 'imported')
+            storage.put('keypairs', keypairs)
+            storage.put('accounts', None)
+        else:
+            raise BaseException('no addresses or privkeys')
+        storage.write()
+
+    def get_action(self):
+        action = run_hook('get_action', self)
+        if action:
+            return action
+        if not self.file_exists:
+            return 'new'
+
+    def get_seed_version(self):
+        from version import OLD_SEED_VERSION, NEW_SEED_VERSION
+        seed_version = self.get('seed_version')
+        if not seed_version:
+            seed_version = OLD_SEED_VERSION if len(self.get('master_public_key','')) == 128 else NEW_SEED_VERSION
+        if seed_version not in [OLD_SEED_VERSION, NEW_SEED_VERSION]:
+            msg = "Your wallet has an unsupported seed version."
+            msg += '\n\nWallet file: %s' % os.path.abspath(self.path)
+            if seed_version in [5, 7, 8, 9, 10]:
+                msg += "\n\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
+            if seed_version == 6:
+                # version 1.9.8 created v6 wallets when an incorrect seed was entered in the restore dialog
+                msg += '\n\nThis file was created because of a bug in version 1.9.8.'
+                if self.get('master_public_keys') is None and self.get('master_private_keys') is None and self.get('imported_keys') is None:
+                    # pbkdf2 was not included with the binaries, and wallet creation aborted.
+                    msg += "\nIt does not contain any keys, and can safely be removed."
+                else:
+                    # creation was complete if electrum was run from source
+                    msg += "\nPlease open this file with Electrum 1.9.8, and move your coins to a new wallet."
+            raise BaseException(msg)
+        return seed_version

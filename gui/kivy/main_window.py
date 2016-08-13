@@ -425,7 +425,7 @@ class ElectrumWindow(App):
             Logger.debug('Electrum: Wallet not found. Launching install wizard')
             wizard = Factory.InstallWizard(self.electrum_config, self.network, path)
             wizard.bind(on_wizard_complete=self.on_wizard_complete)
-            action = wizard.get_action()
+            action = wizard.storage.get_action()
             wizard.run(action)
 
     def on_stop(self):
@@ -562,7 +562,7 @@ class ElectrumWindow(App):
             elif server_lag > 1:
                 status = _("Server lagging (%d blocks)"%server_lag)
             else:
-                c, u, x = self.wallet.get_account_balance(self.current_account)
+                c, u, x = self.wallet.get_balance(self.current_account)
                 text = self.format_amount(c+x+u)
                 status = str(text.strip() + ' ' + self.base_unit)
         else:
@@ -749,7 +749,7 @@ class ElectrumWindow(App):
         popup.open()
 
     def protected(self, msg, f, args):
-        if self.wallet.use_encryption:
+        if self.wallet.has_password():
             self.password_dialog(msg, f, args)
         else:
             apply(f, args + (None,))
@@ -769,7 +769,7 @@ class ElectrumWindow(App):
         wallet_path = self.get_wallet_path()
         dirname = os.path.dirname(wallet_path)
         basename = os.path.basename(wallet_path)
-        if self.wallet.use_encryption:
+        if self.wallet.has_password():
             try:
                 self.wallet.check_password(pw)
             except:
@@ -787,7 +787,7 @@ class ElectrumWindow(App):
         self.protected(_("Enter your PIN code in order to decrypt your seed"), self._show_seed, (label,))
 
     def _show_seed(self, label, password):
-        if self.wallet.use_encryption and password is None:
+        if self.wallet.has_password() and password is None:
             return
         try:
             seed = self.wallet.get_seed(password)
@@ -797,13 +797,13 @@ class ElectrumWindow(App):
         label.text = _('Seed') + ':\n' + seed
 
     def change_password(self, cb):
-        if self.wallet.use_encryption:
+        if self.wallet.has_password():
             self.protected(_("Changing PIN code.") + '\n' + _("Enter your current PIN:"), self._change_password, (cb,))
         else:
             self._change_password(cb, None)
 
     def _change_password(self, cb, old_password):
-        if self.wallet.use_encryption:
+        if self.wallet.has_password():
             if old_password is None:
                 return
             try:

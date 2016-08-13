@@ -1,7 +1,7 @@
-from ..trezor.plugin import TrezorCompatiblePlugin, TrezorCompatibleWallet
+from ..trezor.plugin import TrezorCompatiblePlugin, TrezorCompatibleKeyStore
 
 
-class KeepKeyWallet(TrezorCompatibleWallet):
+class KeepKey_KeyStore(TrezorCompatibleKeyStore):
     wallet_type = 'keepkey'
     device = 'KeepKey'
 
@@ -10,7 +10,7 @@ class KeepKeyPlugin(TrezorCompatiblePlugin):
     firmware_URL = 'https://www.keepkey.com'
     libraries_URL = 'https://github.com/keepkey/python-keepkey'
     minimum_firmware = (1, 0, 0)
-    wallet_class = KeepKeyWallet
+    keystore_class = KeepKey_KeyStore
     try:
         from .client import KeepKeyClient as client_class
         import keepkeylib.ckd_public as ckd_public

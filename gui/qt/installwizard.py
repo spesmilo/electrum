@@ -1,4 +1,5 @@
 import sys
+import os
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -156,22 +157,47 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             if self.config.get('auto_connect') is None:
                 self.choose_server(self.network)
 
-        action = self.get_action()
-        if action != 'new':
+        path = self.storage.path
+        if self.storage.requires_split():
             self.hide()
-            path = self.storage.path
+            msg = _("The wallet '%s' contains multiple accounts, which are no longer supported in Electrum 2.7.\n\n"
+                    "Do you want to split your wallet into multiple files?"%path)
+            if not self.question(msg):
+                return
+            file_list = '\n'.join(self.storage.split_accounts())
+            msg = _('Your accounts have been moved to:\n %s.\n\nDo you want to delete the old file:\n%s' % (file_list, path))
+            if self.question(msg):
+                os.remove(path)
+                self.show_warning(_('The file was removed'))
+            return
+
+        if self.storage.requires_upgrade():
+            self.hide()
+            msg = _("The format of your wallet '%s' must be upgraded for Electrum. This change will not be backward compatible"%path)
+            if not self.question(msg):
+                return
+            self.storage.upgrade()
+            self.show_warning(_('Your wallet was upgraded successfully'))
+            self.wallet = Wallet(self.storage)
+            self.terminate()
+            return self.wallet
+
+        action = self.storage.get_action()
+        if action and action != 'new':
+            self.hide()
             msg = _("The file '%s' contains an incompletely created wallet.\n"
                     "Do you want to complete its creation now?") % path
             if not self.question(msg):
                 if self.question(_("Do you want to delete '%s'?") % path):
-                    import os
                     os.remove(path)
                     self.show_warning(_('The file was removed'))
-                    return
                 return
             self.show()
-        self.run(action)
-        return self.wallet
+        if action:
+            # self.wallet is set in run
+            self.run(action)
+            return self.wallet
+
 
     def finished(self):
         '''Ensure the dialog is closed.'''

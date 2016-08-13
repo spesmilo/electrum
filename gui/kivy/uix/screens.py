@@ -331,7 +331,7 @@ class ReceiveScreen(CScreen):
     def get_new_address(self):
         if not self.app.wallet:
             return False
-        addr = self.app.wallet.get_unused_address(None)
+        addr = self.app.wallet.get_unused_address()
         if addr is None:
             return False
         self.clear()

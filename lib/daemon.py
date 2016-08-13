@@ -37,7 +37,7 @@ from util import print_msg, print_error, print_stderr
 from wallet import WalletStorage, Wallet
 from commands import known_commands, Commands
 from simple_config import SimpleConfig
-
+from plugins import run_hook
 
 def get_lockfile(config):
     return os.path.join(config.path, 'daemon')
@@ -171,16 +171,16 @@ class Daemon(DaemonThread):
         return response
 
     def load_wallet(self, path):
+        # wizard will be launched if we return
         if path in self.wallets:
             wallet = self.wallets[path]
             return wallet
         storage = WalletStorage(path)
         if not storage.file_exists:
             return
-        wallet = Wallet(storage)
-        action = wallet.get_action()
-        if action:
+        if storage.requires_split() or storage.requires_upgrade() or storage.get_action():
             return
+        wallet = Wallet(storage)
         wallet.start_threads(self.network)
         self.wallets[path] = wallet
         return wallet

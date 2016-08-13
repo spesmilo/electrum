@@ -36,20 +36,19 @@ from util import MyTreeWidget, pr_tooltips, pr_icons
 class RequestList(MyTreeWidget):
 
     def __init__(self, parent):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [_('Date'), _('Account'), _('Address'), '', _('Description'), _('Amount'), _('Status')], 4)
+        MyTreeWidget.__init__(self, parent, self.create_menu, [_('Date'), _('Address'), '', _('Description'), _('Amount'), _('Status')], 3)
         self.currentItemChanged.connect(self.item_changed)
         self.itemClicked.connect(self.item_changed)
         self.setSortingEnabled(True)
         self.setColumnWidth(0, 180)
         self.hideColumn(1)
-        self.hideColumn(2)
 
     def item_changed(self, item):
         if item is None:
             return
         if not self.isItemSelected(item):
             return
-        addr = str(item.text(2))
+        addr = str(item.text(1))
         req = self.wallet.receive_requests[addr]
         expires = age(req['time'] + req['exp']) if req.get('exp') else _('Never')
         amount = req['amount']
@@ -72,13 +71,10 @@ class RequestList(MyTreeWidget):
             self.parent.expires_label.hide()
             self.parent.expires_combo.show()
 
-        # check if it is necessary to show the account
-        self.setColumnHidden(1, len(self.wallet.get_accounts()) == 1)
-
         # update the receive address if necessary
         current_address = self.parent.receive_address_e.text()
-        domain = self.wallet.get_account_addresses(self.parent.current_account, include_change=False)
-        addr = self.wallet.get_unused_address(self.parent.current_account)
+        domain = self.wallet.get_receiving_addresses()
+        addr = self.wallet.get_unused_address()
         if not current_address in domain and addr:
             self.parent.set_receive_address(addr)
         self.parent.new_request_button.setEnabled(addr != current_address)
@@ -98,11 +94,10 @@ class RequestList(MyTreeWidget):
             signature = req.get('sig')
             requestor = req.get('name', '')
             amount_str = self.parent.format_amount(amount) if amount else ""
-            account = ''
-            item = QTreeWidgetItem([date, account, address, '', message, amount_str, pr_tooltips.get(status,'')])
+            item = QTreeWidgetItem([date, address, '', message, amount_str, pr_tooltips.get(status,'')])
             if signature is not None:
-                item.setIcon(3, QIcon(":icons/seal.png"))
-                item.setToolTip(3, 'signed by '+ requestor)
+                item.setIcon(2, QIcon(":icons/seal.png"))
+                item.setToolTip(2, 'signed by '+ requestor)
             if status is not PR_UNKNOWN:
                 item.setIcon(6, QIcon(pr_icons.get(status)))
             self.addTopLevelItem(item)

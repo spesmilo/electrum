@@ -12,7 +12,7 @@ from ..hw_wallet.qt import QtHandlerBase
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import hook, DeviceMgr
 from electrum_ltc.util import PrintError, UserCancelled
-from electrum_ltc.wallet import Wallet, BIP44_Wallet
+from electrum_ltc.wallet import Wallet
 
 PASSPHRASE_HELP_SHORT =_(
     "Passphrases allow you to access new wallets, each "
@@ -273,23 +273,25 @@ def qt_plugin_class(base_plugin_class):
 
     @hook
     def load_wallet(self, wallet, window):
-        if type(wallet) != self.wallet_class:
+        keystore = wallet.get_keystore()
+        if type(keystore) != self.keystore_class:
             return
         window.tzb = StatusBarButton(QIcon(self.icon_file), self.device,
                                      partial(self.settings_dialog, window))
         window.statusBar().addPermanentWidget(window.tzb)
-        wallet.handler = self.create_handler(window)
+        keystore.handler = self.create_handler(window)
+        keystore.thread = TaskThread(window, window.on_error)
         # Trigger a pairing
-        wallet.thread.add(partial(self.get_client, wallet))
+        keystore.thread.add(partial(self.get_client, keystore))
 
-    def on_create_wallet(self, wallet, wizard):
-        assert type(wallet) == self.wallet_class
-        wallet.handler = self.create_handler(wizard)
-        wallet.thread = TaskThread(wizard, wizard.on_error)
+    def on_create_wallet(self, keystore, wizard):
+        #assert type(keystore) == self.keystore_class
+        keystore.handler = self.create_handler(wizard)
+        keystore.thread = TaskThread(wizard, wizard.on_error)
         # Setup device and create accounts in separate thread; wait until done
         loop = QEventLoop()
         exc_info = []
-        self.setup_device(wallet, on_done=loop.quit,
+        self.setup_device(keystore, on_done=loop.quit,
                           on_error=lambda info: exc_info.extend(info))
         loop.exec_()
         # If an exception was thrown, show to user and exit install wizard
@@ -299,9 +301,10 @@ def qt_plugin_class(base_plugin_class):
 
     @hook
     def receive_menu(self, menu, addrs, wallet):
-        if type(wallet) == self.wallet_class and len(addrs) == 1:
+        keystore = wallet.get_keystore()
+        if type(keystore) == self.keystore_class and len(addrs) == 1:
             def show_address():
-                wallet.thread.add(partial(self.show_address, wallet, addrs[0]))
+                keystore.thread.add(partial(self.show_address, wallet, addrs[0]))
             menu.addAction(_("Show on %s") % self.device, show_address)
 
     def settings_dialog(self, window):
@@ -312,9 +315,10 @@ def qt_plugin_class(base_plugin_class):
     def choose_device(self, window):
         '''This dialog box should be usable even if the user has
         forgotten their PIN or it is in bootloader mode.'''
-        device_id = self.device_manager().wallet_id(window.wallet)
+        keystore = window.wallet.get_keystore()
+        device_id = self.device_manager().wallet_id(keystore)
         if not device_id:
-            info = self.device_manager().select_device(window.wallet, self)
+            info = self.device_manager().select_device(keystore, self)
             device_id = info.device.id_
         return device_id
 
@@ -345,8 +349,9 @@ class SettingsDialog(WindowModalDialog):
 
         devmgr = plugin.device_manager()
         config = devmgr.config
-        handler = window.wallet.handler
-        thread = window.wallet.thread
+        keystore = window.wallet.get_keystore()
+        handler = keystore.handler
+        thread = keystore.thread
         # wallet can be None, needn't be window.wallet
         wallet = devmgr.wallet_by_id(device_id)
         hs_rows, hs_cols = (64, 128)

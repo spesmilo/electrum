@@ -742,7 +742,7 @@ class InstallWizard(BaseWizard, Widget):
     def request_password(self, run_next):
         def callback(pin):
             if pin:
-                self.run('confirm_password', (pin, run_next))
+                self.run('confirm_password', pin, run_next)
             else:
                 run_next(None)
         self.password_dialog('Choose a PIN code', callback)
@@ -753,7 +753,7 @@ class InstallWizard(BaseWizard, Widget):
                 run_next(pin)
             else:
                 self.show_error(_('PIN mismatch'))
-                self.run('request_password', (run_next,))
+                self.run('request_password', run_next)
         self.password_dialog('Confirm your PIN code', callback)
 
     def action_dialog(self, action, run_next):
