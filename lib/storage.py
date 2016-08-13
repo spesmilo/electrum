@@ -170,7 +170,7 @@ class WalletStorage(PrintError):
             storage2.write()
             storage2.upgrade()
             result = [storage1.path, storage2.path]
-        elif wallet_type in ['bip44', 'trezor']:
+        elif wallet_type in ['bip44', 'trezor', 'keepkey']:
             mpk = storage.get('master_public_keys')
             for k in d.keys():
                 i = int(k)
