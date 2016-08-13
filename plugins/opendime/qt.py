@@ -49,7 +49,7 @@ from PyQt4.QtCore import pyqtSignal
 from functools import partial
 from collections import OrderedDict
 
-from electrum.wallet import Imported_Wallet, IMPORTED_ACCOUNT
+from electrum.wallet import Imported_Wallet
 from electrum.paymentrequest import PR_UNKNOWN
 
 from .shared import AttachedOpendime, has_libusb, has_psutil
@@ -210,18 +210,6 @@ class OpendimeTransientWallet(Imported_Wallet):
         # not encrypted
         pass
 
-    def import_address(self, address):
-        # abstract wallet doesn't have this, but there is a constructor
-        self.accounts[IMPORTED_ACCOUNT].add(address, None, None, None)
-        self.save_accounts()
-
-        # force resynchronization, because we need to re-run add_transaction
-        if address in self.history:
-            self.history.pop(address)
-
-        assert self.synchronizer
-        self.synchronizer.add(address)
-
     def save_transactions(self, write=False):
         # need an event to know when changes/results are known
         super(OpendimeTransientWallet, self).save_transactions(write)
@@ -269,6 +257,7 @@ class OpendimeTab(QWidget):
             main_window = main_window.parent
             assert main_window
         self.main_window = main_window
+        self.config = main_window.config
 
         # for balance tracking we need a wallet which will be an
         # 'imported' watch-only type wallet, and uses fake storage
@@ -589,7 +578,7 @@ class OpendimeTab(QWidget):
         self.attached[sn] = item
 
         if not unit.is_new:
-            self.od_wallet.import_address(unit.address)
+            self.od_wallet.add_address(unit.address)
 
     def on_new_unit(self, unit):
         '''
@@ -604,7 +593,7 @@ class OpendimeTab(QWidget):
 
         # start watching the payment address
         if not unit.is_new:
-            self.od_wallet.import_address(unit.address)
+            self.od_wallet.add_address(unit.address)
 
     def on_scan_done(self, found_serials):
         '''
