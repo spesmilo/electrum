@@ -276,22 +276,6 @@ class Abstract_Wallet(PrintError):
         sequence = self.get_address_index(address)
         return self.get_pubkeys(*sequence)
 
-    def sign_message(self, address, message, password):
-        keys = self.get_private_key(address, password)
-        assert len(keys) == 1
-        sec = keys[0]
-        key = regenerate_key(sec)
-        compressed = is_compressed(sec)
-        return key.sign_message(message, compressed, address)
-
-    def decrypt_message(self, pubkey, message, password):
-        address = public_key_to_bc_address(pubkey.decode('hex'))
-        keys = self.get_private_key(address, password)
-        secret = keys[0]
-        ec = regenerate_key(secret)
-        decrypted = ec.decrypt_message(message)
-        return decrypted
-
     def add_unverified_tx(self, tx_hash, tx_height):
         # tx will be verified only if height > 0
         if tx_hash not in self.verified_tx:
@@ -1039,7 +1023,7 @@ class Abstract_Wallet(PrintError):
         tx.output_info = []
         for i, txout in enumerate(tx.outputs()):
             _type, addr, amount = txout
-            change, address_index = self.get_address_index(addr) if self.is_change(addr) else None, None
+            change, address_index = self.get_address_index(addr) if self.is_change(addr) else (None, None)
             tx.output_info.append((change, address_index))
 
         # sign
@@ -1254,6 +1238,13 @@ class P2PK_Wallet(Abstract_Wallet):
         pubkey_list = self.change_pubkeys if c else self.receiving_pubkeys
         return pubkey_list[i]
 
+    def get_pubkey_index(self, pubkey):
+        if pubkey in self.receiving_pubkeys:
+            return False, self.receiving_pubkeys.index(pubkey)
+        if pubkey in self.change_pubkeys:
+            return True, self.change_pubkeys.index(pubkey)
+        raise BaseExeption('pubkey not found')
+
     def add_input_sig_info(self, txin, address):
         txin['derivation'] = derivation = self.get_address_index(address)
         x_pubkey = self.keystore.get_xpubkey(*derivation)
@@ -1264,6 +1255,14 @@ class P2PK_Wallet(Abstract_Wallet):
         txin['redeemPubkey'] = pubkey
         txin['num_sig'] = 1
         txin['can_sign'] = any([x is None for x in txin['signatures']])
+
+    def sign_message(self, address, message, password):
+        sequence = self.get_address_index(address)
+        return self.keystore.sign_message(sequence, message, password)
+
+    def decrypt_message(self, pubkey, message, password):
+        sequence = self.get_pubkey_index(pubkey)
+        return self.keystore.decrypt_message(sequence, message, password)
 
 
 class Deterministic_Wallet(Abstract_Wallet):

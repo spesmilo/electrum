@@ -62,6 +62,19 @@ class Software_KeyStore(KeyStore):
     def has_password(self):
         return self.use_encryption
 
+    def sign_message(self, sequence, message, password):
+        sec = self.get_private_key(sequence, password)
+        key = regenerate_key(sec)
+        compressed = is_compressed(sec)
+        return key.sign_message(message, compressed)
+
+    def decrypt_message(self, sequence, message, password):
+        sec = self.get_private_key(sequence, password)
+        ec = regenerate_key(sec)
+        decrypted = ec.decrypt_message(message)
+        return decrypted
+
+
 
 class Imported_KeyStore(Software_KeyStore):
     # keystore for imported private keys
@@ -108,6 +121,11 @@ class Imported_KeyStore(Software_KeyStore):
 
     def delete_imported_key(self, key):
         self.keypairs.pop(key)
+
+    def get_public_key(self, sequence):
+        for_change, i = sequence
+        pubkey = (self.change_pubkeys if for_change else self.receiving_pubkeys)[i]
+        return pubkey
 
     def get_private_key(self, sequence, password):
         for_change, i = sequence
@@ -296,14 +314,14 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
     def make_seed(self, lang=None):
         return Mnemonic(lang).make_seed()
 
-    @classmethod
-    def address_derivation(self, account_id, change, address_index):
-        account_derivation = self.account_derivation(account_id)
-        return "%s/%d/%d" % (account_derivation, change, address_index)
+    #@classmethod
+    #def address_derivation(self, account_id, change, address_index):
+    #    account_derivation = self.account_derivation(account_id)
+    #    return "%s/%d/%d" % (account_derivation, change, address_index)
 
-    def address_id(self, address):
-        acc_id, (change, address_index) = self.get_address_index(address)
-        return self.address_derivation(acc_id, change, address_index)
+    #def address_id(self, address):
+    #    acc_id, (change, address_index) = self.get_address_index(address)
+    #    return self.address_derivation(acc_id, change, address_index)
 
     def add_seed_and_xprv(self, seed, password, passphrase=''):
         xprv, xpub = bip32_root(self.mnemonic_to_seed(seed, passphrase))

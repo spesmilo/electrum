@@ -176,7 +176,6 @@ class BaseWizard(object):
         from keystore import load_keystore
         keystore = load_keystore(self.storage, None)
         keystore.plugin.on_create_wallet(keystore, self)
-        self.create_wallet(keystore, None)
 
     def on_hardware_seed(self):
         from keystore import load_keystore

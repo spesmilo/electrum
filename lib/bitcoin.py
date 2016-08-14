@@ -412,9 +412,17 @@ def msg_magic(message):
     return "\x19Litecoin Signed Message:\n" + encoded_varint + message
 
 
-def verify_message(address, signature, message):
+def verify_message(address, sig, message):
     try:
-        EC_KEY.verify_message(address, signature, message)
+        public_key, compressed = pubkey_from_signature(sig, message)
+        # check public key using the address
+        pubkey = point_to_ser(public_key.pubkey.point, compressed)
+        addr = public_key_to_bc_address(pubkey)
+        if address != addr:
+            raise Exception("Bad signature")
+        # check message
+        h = Hash(msg_magic(message))
+        public_key.verify_digest(sig[1:], h, sigdecode = ecdsa.util.sigdecode_string)
         return True
     except Exception as e:
         print_error("Verification error: {0}".format(e))
@@ -495,6 +503,22 @@ class MyVerifyingKey(ecdsa.VerifyingKey):
         return klass.from_public_point( Q, curve )
 
 
+def pubkey_from_signature(sig, message):
+    if len(sig) != 65:
+        raise Exception("Wrong encoding")
+    nV = ord(sig[0])
+    if nV < 27 or nV >= 35:
+        raise Exception("Bad encoding")
+    if nV >= 31:
+        compressed = True
+        nV -= 4
+    else:
+        compressed = False
+    recid = nV - 27
+    h = Hash(msg_magic(message))
+    return MyVerifyingKey.from_signature(sig[1:], recid, h, curve = SECP256k1), compressed
+
+
 class MySigningKey(ecdsa.SigningKey):
     """Enforce low S values in signatures"""
 
@@ -526,41 +550,27 @@ class EC_KEY(object):
         assert public_key.verify_digest(signature, msg_hash, sigdecode = ecdsa.util.sigdecode_string)
         return signature
 
-    def sign_message(self, message, compressed, address):
+    def sign_message(self, message, is_compressed):
         signature = self.sign(Hash(msg_magic(message)))
         for i in range(4):
-            sig = chr(27 + i + (4 if compressed else 0)) + signature
+            sig = chr(27 + i + (4 if is_compressed else 0)) + signature
             try:
-                self.verify_message(address, sig, message)
+                self.verify_message(sig, message)
                 return sig
             except Exception:
                 continue
         else:
             raise Exception("error: cannot sign message")
 
-    @classmethod
-    def verify_message(self, address, sig, message):
-        if len(sig) != 65:
-            raise Exception("Wrong encoding")
-        nV = ord(sig[0])
-        if nV < 27 or nV >= 35:
-            raise Exception("Bad encoding")
-        if nV >= 31:
-            compressed = True
-            nV -= 4
-        else:
-            compressed = False
-        recid = nV - 27
 
-        h = Hash(msg_magic(message))
-        public_key = MyVerifyingKey.from_signature(sig[1:], recid, h, curve = SECP256k1)
+    def verify_message(self, sig, message):
+        public_key, compressed = pubkey_from_signature(sig, message)
         # check public key
-        public_key.verify_digest(sig[1:], h, sigdecode = ecdsa.util.sigdecode_string)
-        pubkey = point_to_ser(public_key.pubkey.point, compressed)
-        # check that we get the original signing address
-        addr = public_key_to_bc_address(pubkey)
-        if address != addr:
+        if point_to_ser(public_key.pubkey.point, compressed) != point_to_ser(self.pubkey.point, compressed):
             raise Exception("Bad signature")
+        # check message
+        h = Hash(msg_magic(message))
+        public_key.verify_digest(sig[1:], h, sigdecode = ecdsa.util.sigdecode_string)
 
 
     # ECIES encryption/decryption methods; AES-128-CBC with PKCS7 is used as the cipher; hmac-sha256 is used as the mac

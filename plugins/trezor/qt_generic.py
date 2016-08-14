@@ -285,7 +285,6 @@ def qt_plugin_class(base_plugin_class):
         keystore.thread.add(partial(self.get_client, keystore))
 
     def on_create_wallet(self, keystore, wizard):
-        #assert type(keystore) == self.keystore_class
         keystore.handler = self.create_handler(wizard)
         keystore.thread = TaskThread(wizard, wizard.on_error)
         # Setup device and create accounts in separate thread; wait until done
@@ -298,6 +297,7 @@ def qt_plugin_class(base_plugin_class):
         if exc_info:
             wizard.on_error(exc_info)
             raise UserCancelled
+        wizard.create_wallet(keystore, None)
 
     @hook
     def receive_menu(self, menu, addrs, wallet):
