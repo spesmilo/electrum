@@ -25,6 +25,9 @@ class TrezorCompatibleKeyStore(Hardware_KeyStore):
     root = "m/44'/0'"
     account_id = 0
 
+    def load(self, storage, name):
+        self.xpub = storage.get('master_public_keys', {}).get(name)
+
     def get_derivation(self):
         return self.root + "/%d'"%self.account_id
 
@@ -46,9 +49,9 @@ class TrezorCompatibleKeyStore(Hardware_KeyStore):
         result = client.decrypt_message(address_n, nonce, message, msg_hmac)
         return result.message
 
-    def sign_message(self, address, message, password):
+    def sign_message(self, sequence, message, password):
         client = self.get_client()
-        address_path = self.address_id(address)
+        address_path = self.get_derivation() + "/%d/%d"%sequence
         address_n = client.expand_path(address_path)
         msg_sig = client.sign_message('Bitcoin', address_n, message)
         return msg_sig.signature
@@ -312,7 +315,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                 txoutputtype.op_return_data = address[2:]
             elif _type == TYPE_ADDRESS:
                 if change is not None:
-                    address_path = "%s/%d/%d/"%(derivation, change, index)
+                    address_path = "%s/%d/%d"%(derivation, change, index)
                     address_n = self.client_class.expand_path(address_path)
                     txoutputtype.address_n.extend(address_n)
                 else:

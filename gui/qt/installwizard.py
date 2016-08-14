@@ -372,6 +372,16 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return action
 
     @wizard_dialog
+    def input_dialog(self, title, message, run_next):
+        line = QLineEdit()
+        vbox = QVBoxLayout()
+        vbox.addWidget(QLabel(message))
+        vbox.addWidget(line)
+        self.set_main_layout(vbox, title)
+        action = line.text()
+        return action
+
+    @wizard_dialog
     def show_xpub_dialog(self, xpub, run_next):
         msg = ' '.join([
             _("Here is your master public key."),
