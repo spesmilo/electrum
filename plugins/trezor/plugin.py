@@ -99,7 +99,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             pair = [device.path, None]
 
         try:
-            return self.HidTransport(pair)
+            return self.hid_transport(pair)
         except BaseException as e:
             raise
             self.print_error("cannot connect at", device.path, str(e))
@@ -109,7 +109,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         self.print_error("Trying to connect over Trezor Bridge...")
 
         try:
-            return self.BridgeTransport({'path': hexlify(device.path)})
+            return self.bridge_transport({'path': hexlify(device.path)})
         except BaseException as e:
             self.print_error("cannot connect to bridge", str(e))
             return None
