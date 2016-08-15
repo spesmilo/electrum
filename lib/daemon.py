@@ -112,16 +112,25 @@ class Daemon(DaemonThread):
         # Setup JSONRPC server
         path = config.get_wallet_path()
         default_wallet = self.load_wallet(path)
-        cmd_runner = Commands(self.config, default_wallet, self.network)
-        host = config.get('rpchost', 'localhost')
+        self.cmd_runner = Commands(self.config, default_wallet, self.network)
+        self.init_server(config, fd)
+
+    def init_server(self, config, fd):
+        host = config.get('rpchost', '')
         port = config.get('rpcport', 0)
-        server = SimpleJSONRPCServer((host, port), logRequests=False,
-                                     requestHandler=RequestHandler)
+        try:
+            server = SimpleJSONRPCServer((host, port), logRequests=False,
+                                         requestHandler=RequestHandler)
+        except:
+            self.print_error('Warning: cannot initialize RPC server on host', host)
+            self.server = None
+            os.close(fd)
+            return
         os.write(fd, repr((server.socket.getsockname(), time.time())))
         os.close(fd)
         server.timeout = 0.1
         for cmdname in known_commands:
-            server.register_function(getattr(cmd_runner, cmdname), cmdname)
+            server.register_function(getattr(self.cmd_runner, cmdname), cmdname)
         server.register_function(self.run_cmdline, 'run_cmdline')
         server.register_function(self.ping, 'ping')
         server.register_function(self.run_daemon, 'daemon')
@@ -214,7 +223,7 @@ class Daemon(DaemonThread):
 
     def run(self):
         while self.is_running():
-            self.server.handle_request()
+            self.server.handle_request() if self.server else time.sleep(0.1)
         for k, wallet in self.wallets.items():
             wallet.stop_threads()
         if self.network:
