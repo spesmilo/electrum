@@ -372,14 +372,20 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return action
 
     @wizard_dialog
-    def input_dialog(self, title, message, run_next):
+    def account_id_dialog(self, run_next):
+        message = '\n'.join([
+            _('Enter your account number here.'),
+            _('If you are not sure what this is, leave this field to zero.')
+        ])
+        default = '0'
+        title = _('Account Number')
         line = QLineEdit()
+        line.setText(default)
         vbox = QVBoxLayout()
         vbox.addWidget(QLabel(message))
         vbox.addWidget(line)
         self.set_main_layout(vbox, title)
-        action = line.text()
-        return action
+        return int(line.text())
 
     @wizard_dialog
     def show_xpub_dialog(self, xpub, run_next):

@@ -22,14 +22,13 @@ from ..hw_wallet import HW_PluginBase
 TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
 
 class TrezorCompatibleKeyStore(Hardware_KeyStore):
-    root = "m/44'/0'"
-    account_id = 0
 
     def load(self, storage, name):
         self.xpub = storage.get('master_public_keys', {}).get(name)
+        self.account_id = storage.get('account_id')
 
     def get_derivation(self):
-        return self.root + "/%d'"%self.account_id
+        return "m/44'/0'/%d'"%self.account_id
 
     def get_client(self, force_pair=True):
         return self.plugin.get_client(self, force_pair)

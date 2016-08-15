@@ -173,16 +173,42 @@ class BaseWizard(object):
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 
     def on_hardware_device(self):
+        f = lambda x: self.run('on_hardware_account_id', x)
+        self.account_id_dialog(run_next=f)
+
+    def on_hardware_account_id(self, account_id):
         from keystore import load_keystore
+        self.storage.put('account_id', int(account_id))
         keystore = load_keystore(self.storage, None)
         keystore.plugin.on_create_wallet(keystore, self)
 
     def on_hardware_seed(self):
-        from keystore import load_keystore
         self.storage.put('key_type', 'hw_seed')
-        keystore = load_keystore(self.storage, None)
-        self.plugin = keystore #fixme .plugin
-        keystore.on_restore_wallet(self)
+        is_valid = lambda x: True #fixme: bip39
+        f = lambda seed: self.run('on_bip39_seed', seed)
+        self.restore_seed_dialog(run_next=f, is_valid=is_valid)
+
+    def on_bip_39_seed(self, seed):
+        f = lambda passphrase: self.run('on_bip39_passphrase', seed, passphrase)
+        self.request_passphrase(self.storage.get('hw_type'), run_next=f)
+
+    def on_bip39_passphrase(self, seed, passphrase):
+        f = lambda account_id: self.run('on_bip44_account_id', seed, passphrase, account_id)
+        self.account_id_dialog(run_next=f)
+
+    def on_bip44_account_id(self, seed, passphrase, account_id):
+        f = lambda pw: self.run('on_bip44', seed, passphrase, account_id, pw)
+        self.request_password(run_next=f)
+
+    def on_bip44(self, seed, passphrase, account_id, password):
+        import keystore
+        k = keystore.BIP32_KeyStore()
+        k.add_seed(seed, password)
+        bip32_seed = keystore.bip39_to_seed(seed, passphrase)
+        derivation = "m/44'/0'/%d'"%account_id
+        self.storage.put('account_id', account_id)
+        k.add_xprv_from_seed(bip32_seed, derivation, password)
+        k.save(self.storage, 'x/')
         self.wallet = Standard_Wallet(self.storage)
         self.run('create_addresses')
 

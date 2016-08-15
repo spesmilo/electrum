@@ -216,7 +216,6 @@ class Xpub:
 
 
 class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
-    root_derivation = "m/"
 
     def __init__(self):
         Xpub.__init__(self)
@@ -298,42 +297,18 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         if keypairs:
             tx.sign(keypairs)
 
-    def derive_xkeys(self, root, derivation, password):
-        x = self.master_private_keys[root]
-        root_xprv = pw_decode(x, password)
-        xprv, xpub = bip32_private_derivation(root_xprv, root, derivation)
-        return xpub, xprv
-
     def get_mnemonic(self, password):
         return self.get_seed(password)
-
-    def mnemonic_to_seed(self, seed, password):
-        return Mnemonic.mnemonic_to_seed(seed, password)
-
-    @classmethod
-    def make_seed(self, lang=None):
-        return Mnemonic(lang).make_seed()
-
-    #@classmethod
-    #def address_derivation(self, account_id, change, address_index):
-    #    account_derivation = self.account_derivation(account_id)
-    #    return "%s/%d/%d" % (account_derivation, change, address_index)
-
-    #def address_id(self, address):
-    #    acc_id, (change, address_index) = self.get_address_index(address)
-    #    return self.address_derivation(acc_id, change, address_index)
-
-    def add_seed_and_xprv(self, seed, password, passphrase=''):
-        xprv, xpub = bip32_root(self.mnemonic_to_seed(seed, passphrase))
-        xprv, xpub = bip32_private_derivation(xprv, "m/", self.root_derivation)
-        self.add_seed(seed, password)
-        self.add_master_private_key(xprv, password)
-        self.add_master_public_key(xpub)
 
     def add_xprv(self, xprv, password):
         xpub = bitcoin.xpub_from_xprv(xprv)
         self.add_master_private_key(xprv, password)
         self.add_master_public_key(xpub)
+
+    def add_xprv_from_seed(self, bip32_seed, derivation, password):
+        xprv, xpub = bip32_root(bip32_seed)
+        xprv, xpub = bip32_private_derivation(xprv, "m/", derivation)
+        self.add_xprv(xprv, password)
 
     def can_sign(self, xpub):
         return xpub == self.xpub and self.xprv is not None
@@ -533,54 +508,19 @@ class Hardware_KeyStore(KeyStore, Xpub):
     def can_change_password(self):
         return False
 
-    def derive_xkeys(self, root, derivation, password):
-        if self.master_public_keys.get(self.root_name):
-            return BIP44_wallet.derive_xkeys(self, root, derivation, password)
-        # When creating a wallet we need to ask the device for the
-        # master public key
-        xpub = self.get_public_key(derivation)
-        return xpub, None
 
 
-class BIP44_KeyStore(BIP32_KeyStore):
-    root_derivation = "m/44'/0'/0'"
+def bip39_normalize_passphrase(passphrase):
+    return normalize('NFKD', unicode(passphrase or ''))
 
-    @classmethod
-    def normalize_passphrase(self, passphrase):
-        return normalize('NFKD', unicode(passphrase or ''))
-
-    def is_valid_seed(self, seed):
-        return True
-
-    def mnemonic_to_seed(self, mnemonic, passphrase):
-        # See BIP39
-        import pbkdf2, hashlib, hmac
-        PBKDF2_ROUNDS = 2048
-        mnemonic = normalize('NFKD', ' '.join(mnemonic.split()))
-        passphrase = self.normalize_passphrase(passphrase)
-        return pbkdf2.PBKDF2(mnemonic, 'mnemonic' + passphrase,
-                             iterations = PBKDF2_ROUNDS, macmodule = hmac,
-                             digestmodule = hashlib.sha512).read(64)
-
-    def on_restore_wallet(self, wizard):
-        #assert isinstance(keystore, self.keystore_class)
-        #msg = _("Enter the seed for your %s wallet:" % self.device)
-        #title=_('Restore hardware wallet'),
-        f = lambda seed: wizard.run('on_restore_seed', seed)
-        wizard.restore_seed_dialog(run_next=f, is_valid=self.is_valid_seed)
-
-    def on_restore_seed(self, wizard, seed):
-        f = lambda passphrase: wizard.run('on_restore_passphrase', seed, passphrase)
-        self.device = ''
-        wizard.request_passphrase(self.device, run_next=f)
-
-    def on_restore_passphrase(self, wizard, seed, passphrase):
-        f = lambda pw: wizard.run('on_restore_password', seed, passphrase, pw)
-        wizard.request_password(run_next=f)
-
-    def on_restore_password(self, wizard, seed, passphrase, password):
-        self.add_seed_and_xprv(seed, password, passphrase)
-        self.save(wizard.storage, 'x/')
+def bip39_to_seed(mnemonic, passphrase):
+    import pbkdf2, hashlib, hmac
+    PBKDF2_ROUNDS = 2048
+    mnemonic = normalize('NFKD', ' '.join(mnemonic.split()))
+    passphrase = bip39_normalize_passphrase(passphrase)
+    return pbkdf2.PBKDF2(mnemonic, 'mnemonic' + passphrase,
+                         iterations = PBKDF2_ROUNDS, macmodule = hmac,
+                         digestmodule = hashlib.sha512).read(64)
 
 
 
@@ -596,7 +536,7 @@ def load_keystore(storage, name):
         k = Imported_KeyStore()
     elif name and name not in [ 'x/', 'x1/' ]:
         k = BIP32_KeyStore()
-    elif t == 'seed':
+    elif t in ['seed', 'hw_seed']:
         k = BIP32_KeyStore()
     elif t == 'hardware':
         hw_type = storage.get('hardware_type')
@@ -606,8 +546,6 @@ def load_keystore(storage, name):
                 break
         else:
             raise BaseException('unknown hardware type')
-    elif t == 'hw_seed':
-        k = BIP44_KeyStore()
     else:
         raise BaseException('unknown wallet type', t)
     k.load(storage, name)
@@ -665,7 +603,9 @@ def from_seed(seed, password):
         keystore.add_seed(seed, password)
     elif is_new_seed(seed):
         keystore = BIP32_KeyStore()
-        keystore.add_seed_and_xprv(seed, password)
+        keystore.add_seed(seed, password)
+        bip32_seed = Mnemonic.mnemonic_to_seed(seed, '')
+        keystore.add_xprv_from_seed(bip32_seed, "m/", password)
     return keystore
 
 def from_private_key_list(text, password):
