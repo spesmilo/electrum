@@ -25,7 +25,7 @@ class TrezorCompatibleKeyStore(Hardware_KeyStore):
 
     def load(self, storage, name):
         self.xpub = storage.get('master_public_keys', {}).get(name)
-        self.account_id = storage.get('account_id')
+        self.account_id = int(storage.get('account_id'))
 
     def get_derivation(self):
         return "m/44'/0'/%d'"%self.account_id
