@@ -116,7 +116,7 @@ class Daemon(DaemonThread):
         self.init_server(config, fd)
 
     def init_server(self, config, fd):
-        host = config.get('rpchost', '')
+        host = config.get('rpchost', '127.0.0.1')
         port = config.get('rpcport', 0)
         try:
             server = SimpleJSONRPCServer((host, port), logRequests=False,
