@@ -580,10 +580,10 @@ class Commands:
     @command('w')
     def addrequest(self, amount, memo='', expiration=None, force=False):
         """Create a payment request."""
-        addr = self.wallet.get_unused_address(None)
+        addr = self.wallet.get_unused_address()
         if addr is None:
             if force:
-                addr = self.wallet.create_new_address(None, False)
+                addr = self.wallet.create_new_address(False)
             else:
                 return False
         amount = int(COIN*Decimal(amount))
