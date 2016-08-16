@@ -1155,6 +1155,9 @@ class Abstract_Wallet(PrintError):
     def get_fingerprint(self):
         raise NotImplementedError()
 
+    def can_import(self):
+        return False
+
 
 
 class Imported_Wallet(Abstract_Wallet):

@@ -1,11 +1,25 @@
-# Release 2.7.0
- * Dynamic fees are enabled by default
- * Support for Replace-By-Fee transactions
- * Use confirmation times targets for dynamic fees
+# Release 2.7.0 (August 2016)
+
+ * Wallets are abstracted from keystores. 'Wallet' refers to the type
+   of Bitcoin contract, while 'keystore' refers to the type of private
+   key storage. In this perspective, so-called 'hardware wallets' are
+   actually a type of keystore. Hardware keystores can be used as
+   cosigners in multi-signature wallets.
+ * Support for Replace-By-Fee transactions in the GUI.
+ * A warning is shown in the history for unconfirmed transactions that
+   are replaceable, that have unconfirmed parents, or that have very
+   low fees.
+ * Dynamic fees are enabled by default.
+ * Show expected confirmation times for unconfirmed transactions.
  * Qt GUI:
    - A fee slider is available in the in send tab
    - The Address tab is hidden by default
    - UTXOs are displayed in the Address tab
+ * Kivy GUI:
+   - support for multisig wallets
+   - Add creation and deletion of wallets
+   - Show complete transaction history.
+
 
 # Release 2.6.4 (bugfixes)
  * fix coinchooser bug (#1703)
