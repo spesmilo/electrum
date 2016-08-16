@@ -1254,7 +1254,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 pr.set_paid(tx.hash())
                 self.invoices.save()
                 self.payment_request = None
-                refund_address = self.wallet.addresses()[0]
+                refund_address = self.wallet.get_receiving_addresses()[0]
                 ack_status, ack_msg = pr.send_ack(str(tx), refund_address)
                 if ack_status:
                     msg = ack_msg
@@ -2003,7 +2003,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addLayout(Buttons(CancelButton(d), b))
 
         private_keys = {}
-        addresses = self.wallet.addresses(True)
+        addresses = self.wallet.get_addresses()
         done = False
         def privkeys_thread():
             for addr in addresses:
