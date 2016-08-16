@@ -3,7 +3,7 @@ from struct import pack
 
 from electrum_ltc.i18n import _
 from electrum_ltc.util import PrintError, UserCancelled
-from electrum_ltc.keystore import BIP44_KeyStore
+from electrum_ltc.keystore import bip39_normalize_passphrase
 from electrum_ltc.bitcoin import EncodeBase58Check
 
 
@@ -65,7 +65,7 @@ class GuiMixin(object):
         passphrase = self.handler.get_passphrase(msg, self.creating_wallet)
         if passphrase is None:
             return self.proto.Cancel()
-        passphrase = BIP44_KeyStore.normalize_passphrase(passphrase)
+        passphrase = bip39_normalize_passphrase(passphrase)
         return self.proto.PassphraseAck(passphrase=passphrase)
 
     def callback_WordRequest(self, msg):

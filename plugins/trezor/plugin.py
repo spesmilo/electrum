@@ -22,14 +22,13 @@ from ..hw_wallet import HW_PluginBase
 TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
 
 class TrezorCompatibleKeyStore(Hardware_KeyStore):
-    root = "m/44'/2'"
-    account_id = 0
 
     def load(self, storage, name):
         self.xpub = storage.get('master_public_keys', {}).get(name)
+        self.account_id = int(storage.get('account_id'))
 
     def get_derivation(self):
-        return self.root + "/%d'"%self.account_id
+        return "m/44'/2'/%d'"%self.account_id
 
     def get_client(self, force_pair=True):
         return self.plugin.get_client(self, force_pair)
@@ -100,7 +99,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             pair = [device.path, None]
 
         try:
-            return self.HidTransport(pair)
+            return self.hid_transport(pair)
         except BaseException as e:
             raise
             self.print_error("cannot connect at", device.path, str(e))
@@ -110,7 +109,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         self.print_error("Trying to connect over Trezor Bridge...")
 
         try:
-            return self.BridgeTransport({'path': hexlify(device.path)})
+            return self.bridge_transport({'path': hexlify(device.path)})
         except BaseException as e:
             self.print_error("cannot connect to bridge", str(e))
             return None
