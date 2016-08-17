@@ -115,7 +115,9 @@ class Imported_KeyStore(Software_KeyStore):
         try:
             pubkey = public_key_from_private_key(sec)
         except Exception:
-            raise Exception('Invalid private key')
+            raise BaseException('Invalid private key')
+        if pubkey in self.keypairs:
+            raise BaseException('Private key already in keystore')
         self.keypairs[pubkey] = sec
         return pubkey
 

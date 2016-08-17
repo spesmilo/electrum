@@ -368,7 +368,7 @@ class Commands:
         try:
             addr = self.wallet.import_key(privkey, self._password)
             out = "Keypair imported: " + addr
-        except Exception as e:
+        except BaseException as e:
             out = "Error: " + str(e)
         return out
 

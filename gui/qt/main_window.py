@@ -2208,10 +2208,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         badkeys = []
         addrlist = []
         for key in text:
-            addr = self.wallet.import_key(key, password)
             try:
                 addr = self.wallet.import_key(key, password)
-            except Exception as e:
+            except BaseException as e:
                 badkeys.append(key)
                 continue
             if not addr:
