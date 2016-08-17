@@ -157,14 +157,13 @@ class Plugin(BasePlugin):
             d.cosigner_send_button.hide()
 
     def cosigner_can_sign(self, tx, cosigner_xpub):
-        from electrum.transaction import x_to_xpub
+        from electrum.keystore import is_xpubkey, parse_xpubkey
         xpub_set = set([])
         for txin in tx.inputs():
             for x_pubkey in txin['x_pubkeys']:
-                xpub = x_to_xpub(x_pubkey)
-                if xpub:
+                if is_xpubkey(x_pubkey):
+                    xpub, s = parse_xpubkey(x_pubkey)
                     xpub_set.add(xpub)
-
         return cosigner_xpub in xpub_set
 
     def do_send(self, tx):

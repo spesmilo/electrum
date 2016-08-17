@@ -41,6 +41,7 @@ import struct
 import struct
 import StringIO
 import random
+from keystore import xpubkey_to_address
 
 NO_SIGNATURE = 'ff'
 
@@ -291,38 +292,6 @@ def parse_sig(x_sig):
             s.append(None)
     return s
 
-def is_extended_pubkey(x_pubkey):
-    return x_pubkey[0:2] in ['fe', 'ff']
-
-def x_to_xpub(x_pubkey):
-    if x_pubkey[0:2] == 'ff':
-        from account import BIP32_Account
-        xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
-        return xpub
-
-
-
-def parse_xpub(x_pubkey):
-    if x_pubkey[0:2] in ['02','03','04']:
-        pubkey = x_pubkey
-    elif x_pubkey[0:2] == 'ff':
-        from account import BIP32_Account
-        xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
-        pubkey = BIP32_Account.derive_pubkey_from_xpub(xpub, s[0], s[1])
-    elif x_pubkey[0:2] == 'fe':
-        from account import OldAccount
-        mpk, s = OldAccount.parse_xpubkey(x_pubkey)
-        pubkey = OldAccount.get_pubkey_from_mpk(mpk.decode('hex'), s[0], s[1])
-    elif x_pubkey[0:2] == 'fd':
-        addrtype = ord(x_pubkey[2:4].decode('hex'))
-        hash160 = x_pubkey[4:].decode('hex')
-        pubkey = None
-        address = hash_160_to_bc_address(hash160, addrtype)
-    else:
-        raise BaseException("Cannnot parse pubkey")
-    if pubkey:
-        address = public_key_to_bc_address(pubkey.decode('hex'))
-    return pubkey, address
 
 
 def parse_scriptSig(d, bytes):
@@ -353,7 +322,7 @@ def parse_scriptSig(d, bytes):
         x_pubkey = decoded[1][1].encode('hex')
         try:
             signatures = parse_sig([sig])
-            pubkey, address = parse_xpub(x_pubkey)
+            pubkey, address = xpubkey_to_address(x_pubkey)
         except:
             import traceback
             traceback.print_exc(file=sys.stdout)
@@ -382,7 +351,7 @@ def parse_scriptSig(d, bytes):
         print_error("cannot find address in input script", bytes.encode('hex'))
         return
     x_pubkeys = map(lambda x: x[1].encode('hex'), dec2[1:-2])
-    pubkeys = [parse_xpub(x)[0] for x in x_pubkeys]     # xpub, addr = parse_xpub()
+    pubkeys = [xpubkey_to_address(x)[0] for x in x_pubkeys]
     redeemScript = Transaction.multisig_script(pubkeys, m)
     # write result in d
     d['num_sig'] = m

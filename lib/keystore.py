@@ -216,6 +216,22 @@ class Xpub:
         s = ''.join(map(lambda x: bitcoin.int_to_hex(x,2), (c, i)))
         return 'ff' + bitcoin.DecodeBase58Check(self.xpub).encode('hex') + s
 
+    @classmethod
+    def parse_xpubkey(self, pubkey):
+        assert pubkey[0:2] == 'ff'
+        pk = pubkey.decode('hex')
+        pk = pk[1:]
+        xkey = bitcoin.EncodeBase58Check(pk[0:78])
+        dd = pk[78:]
+        s = []
+        while dd:
+            n = int(bitcoin.rev_hex(dd[0:2].encode('hex')), 16)
+            dd = dd[2:]
+            s.append(n)
+        assert len(s) == 2
+        return xkey, s
+
+
 
 class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
 
@@ -429,15 +445,15 @@ class Old_KeyStore(Deterministic_KeyStore):
     def get_master_public_key(self):
         return self.mpk.encode('hex')
 
-    def get_xpubkeys(self, for_change, n):
+    def get_xpubkey(self, for_change, n):
         s = ''.join(map(lambda x: bitcoin.int_to_hex(x,2), (for_change, n)))
         mpk = self.mpk.encode('hex')
         x_pubkey = 'fe' + mpk + s
-        return [ x_pubkey ]
+        return x_pubkey
 
     @classmethod
     def parse_xpubkey(self, x_pubkey):
-        assert is_extended_pubkey(x_pubkey)
+        assert x_pubkey[0:2] == 'fe'
         pk = x_pubkey[2:]
         mpk = pk[0:128]
         dd = pk[128:]
@@ -524,6 +540,36 @@ def bip39_to_seed(mnemonic, passphrase):
                          iterations = PBKDF2_ROUNDS, macmodule = hmac,
                          digestmodule = hashlib.sha512).read(64)
 
+
+
+# extended pubkeys
+
+def is_xpubkey(x_pubkey):
+    return x_pubkey[0:2] == 'ff'
+
+def parse_xpubkey(x_pubkey):
+    assert x_pubkey[0:2] == 'ff'
+    return BIP32_KeyStore.parse_xpubkey(x_pubkey)
+
+def xpubkey_to_address(x_pubkey):
+    if x_pubkey[0:2] in ['02','03','04']:
+        pubkey = x_pubkey
+    elif x_pubkey[0:2] == 'ff':
+        xpub, s = BIP32_KeyStore.parse_xpubkey(x_pubkey)
+        pubkey = BIP32_KeyStore.derive_pubkey_from_xpub(xpub, s[0], s[1])
+    elif x_pubkey[0:2] == 'fe':
+        mpk, s = Old_KeyStore.parse_xpubkey(x_pubkey)
+        pubkey = Old_KeyStore.get_pubkey_from_mpk(mpk.decode('hex'), s[0], s[1])
+    elif x_pubkey[0:2] == 'fd':
+        addrtype = ord(x_pubkey[2:4].decode('hex'))
+        hash160 = x_pubkey[4:].decode('hex')
+        pubkey = None
+        address = hash_160_to_bc_address(hash160, addrtype)
+    else:
+        raise BaseException("Cannnot parse pubkey")
+    if pubkey:
+        address = public_key_to_bc_address(pubkey.decode('hex'))
+    return pubkey, address
 
 
 keystores = []

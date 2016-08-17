@@ -777,7 +777,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.saved = True
 
     def new_payment_request(self):
-        addr = self.wallet.get_unused_address(None)
+        addr = self.wallet.get_unused_address()
         if addr is None:
             from electrum.wallet import Imported_Wallet
             if isinstance(self.wallet, Imported_Wallet):
@@ -785,7 +785,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 return
             if not self.question(_("Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\nThis occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\nCreate anyway?")):
                 return
-            addr = self.wallet.create_new_address(None, False)
+            addr = self.wallet.create_new_address(False)
         self.set_receive_address(addr)
         self.expires_label.hide()
         self.expires_combo.show()

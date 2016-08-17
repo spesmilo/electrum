@@ -5,15 +5,13 @@ import threading
 from binascii import hexlify, unhexlify
 from functools import partial
 
-from electrum.account import BIP32_Account
 from electrum.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
                               public_key_to_bc_address, EncodeBase58Check,
                               TYPE_ADDRESS, TYPE_SCRIPT)
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
-from electrum.transaction import (deserialize, is_extended_pubkey,
-                                  Transaction, x_to_xpub)
-from electrum.keystore import Hardware_KeyStore
+from electrum.transaction import deserialize, Transaction
+from electrum.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
 
 from ..hw_wallet import HW_PluginBase
 
@@ -66,9 +64,9 @@ class TrezorCompatibleKeyStore(Hardware_KeyStore):
             tx_hash = txin['prevout_hash']
             prev_tx[tx_hash] = txin['prev_tx'] 
             for x_pubkey in txin['x_pubkeys']:
-                if not is_extended_pubkey(x_pubkey):
+                if not is_xpubkey(x_pubkey):
                     continue
-                xpub = x_to_xpub(x_pubkey)
+                xpub, s = parse_xpubkey(x_pubkey)
                 if xpub == self.get_master_public_key():
                     xpub_path[xpub] = self.get_derivation()
 
@@ -254,13 +252,13 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                     x_pubkeys = txin['x_pubkeys']
                     if len(x_pubkeys) == 1:
                         x_pubkey = x_pubkeys[0]
-                        xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
+                        xpub, s = parse_xpubkey(x_pubkey)
                         xpub_n = self.client_class.expand_path(self.xpub_path[xpub])
                         txinputtype.address_n.extend(xpub_n + s)
                     else:
                         def f(x_pubkey):
-                            if is_extended_pubkey(x_pubkey):
-                                xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
+                            if is_xpubkey(x_pubkey):
+                                xpub, s = parse_xpubkey(x_pubkey)
                             else:
                                 xpub = xpub_from_pubkey(x_pubkey.decode('hex'))
                                 s = []
@@ -278,8 +276,8 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                         )
                         # find which key is mine
                         for x_pubkey in x_pubkeys:
-                            if is_extended_pubkey(x_pubkey):
-                                xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
+                            if is_xpubkey(x_pubkey):
+                                xpub, s = parse_xpubkey(x_pubkey)
                                 if xpub in self.xpub_path:
                                     xpub_n = self.client_class.expand_path(self.xpub_path[xpub])
                                     txinputtype.address_n.extend(xpub_n + s)
