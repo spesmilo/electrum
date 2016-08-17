@@ -1152,9 +1152,17 @@ class Abstract_Wallet(PrintError):
     def get_fingerprint(self):
         raise NotImplementedError()
 
-    def can_import(self):
+    def can_import_privkey(self):
         return False
 
+    def can_import_address(self):
+        return False
+
+    def add_address(self, address):
+        if address not in self.history:
+            self.history[address] = []
+        if self.synchronizer:
+            self.synchronizer.add(address)
 
 
 class Imported_Wallet(Abstract_Wallet):
@@ -1177,7 +1185,7 @@ class Imported_Wallet(Abstract_Wallet):
     def can_change_password(self):
         return False
 
-    def can_import(self):
+    def can_import_address(self):
         return True
 
     def is_watching_only(self):
@@ -1204,19 +1212,21 @@ class Imported_Wallet(Abstract_Wallet):
     def get_addresses(self, include_change=False):
         return self.addresses
 
-    def add_address(self, address):
+    def import_address(self, address):
         if address in self.addresses:
             return
         self.addresses.append(address)
         self.storage.put('addresses', self.addresses)
         self.storage.write()
-
-        # force resynchronization, because we need to re-run add_transaction
-        if address in self.history:
-            self.history.pop(address)
-        if self.synchronizer:
-            self.synchronizer.add(address)
+        self.add_address(address)
         return address
+
+    def delete_address(self, address):
+        if address not in self.addresses:
+            return
+        self.addresses.remove(address)
+        self.storage.put('addresses', self.addresses)
+        self.storage.write()
 
     def get_receiving_addresses(self):
         return self.addresses[:]
@@ -1332,12 +1342,6 @@ class Deterministic_Wallet(Abstract_Wallet):
                 if n > nmax: nmax = n
         return nmax + 1
 
-    def add_address(self, address):
-        if address not in self.history:
-            self.history[address] = []
-        if self.synchronizer:
-            self.synchronizer.add(address)
-
     def create_new_address(self, for_change):
         pubkey_list = self.change_pubkeys if for_change else self.receiving_pubkeys
         n = len(pubkey_list)
@@ -1432,7 +1436,7 @@ class Standard_Wallet(Deterministic_Wallet, P2PK_Wallet):
         self.keystore.update_password(old_pw, new_pw)
         self.keystore.save(self.storage, self.root_name)
 
-    def can_import(self):
+    def can_import_privkey(self):
         return self.keystore.can_import()
 
     def import_key(self, pk, pw):

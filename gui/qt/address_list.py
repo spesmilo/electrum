@@ -132,7 +132,7 @@ class AddressList(MyTreeWidget):
                 menu.addAction(_("Sign/verify message"), lambda: self.parent.sign_verify_message(addr))
                 menu.addAction(_("Encrypt/decrypt message"), lambda: self.parent.encrypt_message(addr))
             if is_imported:
-                menu.addAction(_("Remove from wallet"), lambda: self.parent.delete_imported_key(addr))
+                menu.addAction(_("Remove from wallet"), lambda: self.parent.remove_address(addr))
             addr_URL = block_explorer_URL(self.config, 'addr', addr)
             if addr_URL:
                 menu.addAction(_("View on block explorer"), lambda: webbrowser.open(addr_URL))
