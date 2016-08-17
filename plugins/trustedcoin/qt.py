@@ -41,13 +41,13 @@ from electrum.plugins import hook
 from trustedcoin import TrustedCoinPlugin, server
 
 def need_server(wallet, tx):
-    from electrum.account import BIP32_Account
+    from electrum.keystore import parse_xpubkey, is_xpubkey
     # Detect if the server is needed
     long_id, short_id = wallet.get_user_id()
     xpub3 = wallet.master_public_keys['x3/']
     for x in tx.inputs_to_sign():
-        if x[0:2] == 'ff':
-            xpub, sequence = BIP32_Account.parse_xpubkey(x)
+        if is_xpubkey(x):
+            xpub, sequence = parse_xpubkey(x)
             if xpub == xpub3:
                 return True
     return False
