@@ -297,7 +297,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             title += ' [%s]' % (_('watching only'))
         self.setWindowTitle(title)
         self.password_menu.setEnabled(self.wallet.can_change_password())
-        self.import_menu.setVisible(self.wallet.can_import())
+        self.import_privkey_menu.setVisible(self.wallet.can_import_privkey())
+        self.import_address_menu.setVisible(self.wallet.can_import_address())
         self.export_menu.setEnabled(self.wallet.can_export())
 
     def warn_if_watching_only(self):
@@ -395,8 +396,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.private_keys_menu = wallet_menu.addMenu(_("&Private keys"))
         self.private_keys_menu.addAction(_("&Sweep"), self.sweep_key_dialog)
-        self.import_menu = self.private_keys_menu.addAction(_("&Import"), self.do_import_privkey)
+        self.import_privkey_menu = self.private_keys_menu.addAction(_("&Import"), self.do_import_privkey)
         self.export_menu = self.private_keys_menu.addAction(_("&Export"), self.export_privkeys_dialog)
+        self.import_address_menu = wallet_menu.addAction(_("Import addresses"), self.import_addresses)
         wallet_menu.addAction(_("&Export History"), self.export_history_dialog)
         wallet_menu.addAction(_("Search"), self.toggle_search).setShortcut(QKeySequence("Ctrl+S"))
         wallet_menu.addAction(_("Addresses"), self.toggle_addresses_tab).setShortcut(QKeySequence("Ctrl+A"))
@@ -775,7 +777,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.saved = True
 
     def new_payment_request(self):
-        addr = self.wallet.get_unused_address(None)
+        addr = self.wallet.get_unused_address()
         if addr is None:
             from electrum_ltc.wallet import Imported_Wallet
             if isinstance(self.wallet, Imported_Wallet):
@@ -783,7 +785,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 return
             if not self.question(_("Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\nThis occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\nCreate anyway?")):
                 return
-            addr = self.wallet.create_new_address(None, False)
+            addr = self.wallet.create_new_address(False)
         self.set_receive_address(addr)
         self.expires_label.hide()
         self.expires_combo.show()
@@ -1408,9 +1410,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.contact_list = l = ContactList(self)
         return self.create_list_tab(l)
 
-    def delete_imported_key(self, addr):
+    def remove_address(self, addr):
         if self.question(_("Do you want to remove")+" %s "%addr +_("from your wallet?")):
-            self.wallet.delete_imported_key(addr)
+            self.wallet.delete_address(addr)
             self.address_list.update()
             self.history_list.update()
 
@@ -2196,34 +2198,38 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.warn_if_watching_only()
         self.show_transaction(tx)
 
+    def _do_import(self, title, msg, func):
+        text = text_dialog(self, title, msg + ' :', _('Import'))
+        if not text:
+            return
+        bad = []
+        good = []
+        for key in str(text).split():
+            try:
+                addr = func(key)
+                good.append(addr)
+            except BaseException as e:
+                bad.append(key)
+                continue
+        if good:
+            self.show_message(_("The following addresses were added") + ':\n' + '\n'.join(good))
+        if bad:
+            self.show_critical(_("The following inputs could not be imported") + ':\n'+ '\n'.join(bad))
+        self.address_list.update()
+        self.history_list.update()
+
+    def import_addresses(self):
+        if not self.wallet.can_import_address():
+            return
+        title, msg = _('Import addresses'), _("Enter addresses")
+        self._do_import(title, msg, self.wallet.import_address)
 
     @protected
     def do_import_privkey(self, password):
-        if not self.wallet.keystore.can_import():
+        if not self.wallet.can_import_privkey():
             return
-        text = text_dialog(self, _('Import private keys'), _("Enter private keys")+':', _("Import"))
-        if not text:
-            return
-        text = str(text).split()
-        badkeys = []
-        addrlist = []
-        for key in text:
-            addr = self.wallet.import_key(key, password)
-            try:
-                addr = self.wallet.import_key(key, password)
-            except Exception as e:
-                badkeys.append(key)
-                continue
-            if not addr:
-                badkeys.append(key)
-            else:
-                addrlist.append(addr)
-        if addrlist:
-            self.show_message(_("The following addresses were added") + ':\n' + '\n'.join(addrlist))
-        if badkeys:
-            self.show_critical(_("The following inputs could not be imported") + ':\n'+ '\n'.join(badkeys))
-        self.address_list.update()
-        self.history_list.update()
+        title, msg = _('Import private keys'), _("Enter private keys")
+        self._do_import(title, msg, lambda x: self.wallet.import_key(x, password))
 
 
     def settings_dialog(self):

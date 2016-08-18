@@ -124,7 +124,7 @@ class BaseWizard(object):
         if keystore.is_address_list(text):
             self.wallet = Imported_Wallet(self.storage)
             for x in text.split():
-                self.wallet.add_address(x)
+                self.wallet.import_address(x)
             self.terminate()
         elif keystore.is_private(text):
             self.add_password(text)

@@ -107,7 +107,7 @@ class RequestList(MyTreeWidget):
         item = self.itemAt(position)
         if not item:
             return
-        addr = str(item.text(2))
+        addr = str(item.text(1))
         req = self.wallet.receive_requests[addr]
         column = self.currentColumn()
         column_title = self.headerItem().text(column)
