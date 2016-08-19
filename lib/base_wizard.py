@@ -86,7 +86,7 @@ class BaseWizard(object):
     def on_wallet_type(self, choice):
         self.wallet_type = choice
         if choice == 'standard':
-            action = 'choose_seed'
+            action = 'choose_keystore'
         elif choice == 'multisig':
             action = 'choose_multisig'
         elif choice == 'twofactor':
@@ -101,18 +101,18 @@ class BaseWizard(object):
         def on_multisig(m, n):
             self.multisig_type = "%dof%d"%(m, n)
             self.n = n
-            self.run('choose_seed')
+            self.run('choose_keystore')
         self.multisig_dialog(run_next=on_multisig)
 
-    def choose_seed(self):
-        title = _('Seed and Private Keys')
+    def choose_keystore(self):
+        title = _('Keystore')
         message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
         if self.wallet_type in ['standard', 'multisig']:
             choices = [
                 ('create_seed', _('Create a new seed')),
                 ('restore_seed', _('I already have a seed')),
                 ('restore_from_key', _('Import keys or addresses')),
-                ('choose_hw',  _('Use hardware wallet')),
+                ('choose_hw',  _('Use hardware keystore')),
             ]
             self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 
@@ -152,9 +152,9 @@ class BaseWizard(object):
         self.storage.put('key_type', 'hardware')
         hw_wallet_types, choices = self.plugins.hardware_wallets('create')
         choices = zip(hw_wallet_types, choices)
-        title = _('Hardware wallet')
+        title = _('Hardware Keystore')
         if choices:
-            msg = _('Select the type of hardware wallet: ')
+            msg = _('Select the type of device') + ':'
         else:
             msg = ' '.join([
                 _('No hardware wallet support found on your system.'),
