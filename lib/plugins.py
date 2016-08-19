@@ -153,14 +153,14 @@ class Plugins(DaemonThread):
                     self.print_error("cannot load plugin for:", name)
         return wallet_types, descs
 
-    def register_wallet_type(self, name, gui_good, details):
-        from wallet import Wallet
-        global plugin_loaders
+    def register_wallet_type(self, name, gui_good, wallet_type):
+        from wallet import register_wallet_type, register_constructor
+        self.print_error("registering wallet type", (wallet_type, name))
         def loader():
             plugin = self.wallet_plugin_loader(name)
-            Wallet.register_constructor(details[0], details[1], plugin.wallet_class)
-        self.print_error("registering wallet type %s: %s" %(name, details))
-        plugin_loaders[details[1]] = loader
+            register_constructor(wallet_type, plugin.wallet_class)
+        register_wallet_type(wallet_type)
+        plugin_loaders[wallet_type] = loader
 
     def register_keystore(self, name, gui_good, details):
         from keystore import register_keystore

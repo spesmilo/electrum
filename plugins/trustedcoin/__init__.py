@@ -7,5 +7,5 @@ description = ''.join([
     " <a href=\"https://api.trustedcoin.com/#/electrum-help\">https://api.trustedcoin.com/#/electrum-help</a>"
 ])
 requires_wallet_type = ['2fa']
-registers_wallet_type = ('twofactor', '2fa', _("Wallet with two-factor authentication"))
+registers_wallet_type = '2fa'
 available_for = ['qt']

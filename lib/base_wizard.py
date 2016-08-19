@@ -25,7 +25,7 @@
 
 import os
 import keystore
-from wallet import Wallet, Imported_Wallet, Standard_Wallet, Multisig_Wallet, WalletStorage
+from wallet import Wallet, Imported_Wallet, Standard_Wallet, Multisig_Wallet, WalletStorage, wallet_types
 from i18n import _
 from plugins import run_hook
 
@@ -76,11 +76,10 @@ class BaseWizard(object):
         ])
         wallet_kinds = [
             ('standard',  _("Standard wallet")),
-            ('twofactor', _("Wallet with two-factor authentication")),
+            ('2fa', _("Wallet with two-factor authentication")),
             ('multisig',  _("Multi-signature wallet")),
         ]
-        registered_kinds = Wallet.categories()
-        choices = wallet_kinds#[pair for pair in wallet_kinds if pair[0] in registered_kinds]
+        choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
 
     def on_wallet_type(self, choice):
@@ -89,7 +88,7 @@ class BaseWizard(object):
             action = 'choose_keystore'
         elif choice == 'multisig':
             action = 'choose_multisig'
-        elif choice == 'twofactor':
+        elif choice == '2fa':
             self.storage.put('wallet_type', '2fa')
             self.storage.put('use_trustedcoin', True)
             self.plugin = self.plugins.load_plugin('trustedcoin')
