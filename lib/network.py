@@ -690,7 +690,7 @@ class Network(util.DaemonThread):
                 # Request headers if it is ahead of our blockchain
                 if not self.bc_request_headers(interface, data):
                     continue
-            elif time.time() - req_time > 10:
+            elif time.time() - req_time > 60:
                 interface.print_error("blockchain request timed out")
                 self.connection_down(interface.server)
                 continue
