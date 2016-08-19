@@ -138,7 +138,7 @@ class SettingsDialog(Factory.Popup):
     def update(self):
         self.wallet = self.app.wallet
         self.disable_pin = self.wallet.is_watching_only() if self.wallet else True
-        self.use_encryption = self.wallet.use_encryption if self.wallet else False
+        self.use_encryption = self.wallet.has_password() if self.wallet else False
 
     def get_language_name(self):
         return languages.get(self.config.get('language', 'en_UK'), '')
