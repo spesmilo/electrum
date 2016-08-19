@@ -7,7 +7,7 @@ import electrum_ltc as electrum
 from electrum_ltc.bitcoin import EncodeBase58Check, DecodeBase58Check, bc_address_to_hash_160, hash_160_to_bc_address, TYPE_ADDRESS
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin, hook
-from ..hw_wallet import BIP32_HW_Wallet
+from electrum_ltc.keystore import Hardware_KeyStore
 from ..hw_wallet import HW_PluginBase
 from electrum_ltc.util import format_satoshis_plain, print_error
 
@@ -31,12 +31,12 @@ except ImportError:
     BTCHIP = False
 
 
-class BTChipWallet(BIP32_HW_Wallet):
+class Ledger_KeyStore(Hardware_KeyStore):
     wallet_type = 'btchip'
     device = 'Ledger'
 
-    def __init__(self, storage):
-        BIP32_HW_Wallet.__init__(self, storage)
+    def __init__(self):
+        Hardware_KeyStore.__init__(self)
         # Errors and other user interaction is done through the wallet's
         # handler.  The handler is per-window and preserved across
         # device reconnects
@@ -44,6 +44,18 @@ class BTChipWallet(BIP32_HW_Wallet):
         self.force_watching_only = False
         self.device_checked = False
         self.signing = False
+        self.client = None
+
+    def get_derivation(self):
+        return "m/44'/2'/%d'"%self.account_id
+
+    def load(self, storage, name):
+        self.xpub = storage.get('master_public_keys', {}).get(name)
+        self.account_id = int(storage.get('account_id'))
+
+    def init_xpub(self):
+        client = self.get_client()
+        self.xpub = self.get_public_key(self.get_derivation())
 
     def give_error(self, message, clear_client = False):
         print_error(message)
@@ -52,7 +64,7 @@ class BTChipWallet(BIP32_HW_Wallet):
         else:
             self.signing = False
         if clear_client:
-            self.plugin.client = None
+            self.client = None
             self.device_checked = False
         raise Exception(message)
 
@@ -280,7 +292,7 @@ class BTChipWallet(BIP32_HW_Wallet):
         self.signing = False
 
     def check_proper_device(self):
-        pubKey = DecodeBase58Check(self.master_public_keys["x/0'"])[45:]
+        pubKey = DecodeBase58Check(self.xpub)[45:]
         if not self.device_checked:
             self.handler.show_message("Checking device")
             try:
@@ -315,24 +327,7 @@ class BTChipWallet(BIP32_HW_Wallet):
             return False, None, None
         return True, response, response
 
-
-class LedgerPlugin(HW_PluginBase):
-    libraries_available = BTCHIP
-    wallet_class = BTChipWallet
-
-    def __init__(self, parent, config, name):
-        HW_PluginBase.__init__(self, parent, config, name)
-        # FIXME shouldn't be a plugin member.  Then this constructor can go.
-        self.client = None
-
-    def btchip_is_connected(self, wallet):
-        try:
-            wallet.get_client().getFirmwareVersion()
-        except:
-            return False
-        return True
-
-    def get_client(self, wallet, force_pair=True, noPin=False):
+    def get_client(self, force_pair=True, noPin=False):
         aborted = False
         client = self.client
         if not client or client.bad:
@@ -402,8 +397,21 @@ class LedgerPlugin(HW_PluginBase):
                 else:
                     raise e
             client.bad = False
-            wallet.device_checked = False
-            wallet.proper_device = False
+            self.device_checked = False
+            self.proper_device = False
             self.client = client
 
         return self.client
+
+
+class LedgerPlugin(HW_PluginBase):
+    libraries_available = BTCHIP
+    keystore_class = Ledger_KeyStore
+
+    def btchip_is_connected(self, keystore):
+        try:
+            keystore.get_client().getFirmwareVersion()
+        except Exception as e:
+            self.print_error("get_client", str(e))
+            return False
+        return True

@@ -6,35 +6,36 @@ import PyQt4.QtCore as QtCore
 
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import hook
-from .ledger import LedgerPlugin, BTChipWallet
+from .ledger import LedgerPlugin, Ledger_KeyStore
 from ..hw_wallet.qt import QtHandlerBase
 
 class Plugin(LedgerPlugin):
 
     @hook
     def load_wallet(self, wallet, window):
-        if type(wallet) != BTChipWallet:
+        keystore = wallet.get_keystore()
+        if type(keystore) != self.keystore_class:
             return
-        wallet.handler = BTChipQTHandler(window)
-        if self.btchip_is_connected(wallet):
-            if not wallet.check_proper_device():
+        keystore.handler = BTChipQTHandler(window)
+        if self.btchip_is_connected(keystore):
+            if not keystore.check_proper_device():
                 window.show_error(_("This wallet does not match your Ledger device"))
                 wallet.force_watching_only = True
         else:
             window.show_error(_("Ledger device not detected.\nContinuing in watching-only mode."))
             wallet.force_watching_only = True
 
-    def on_create_wallet(self, wallet, wizard):
-        assert type(wallet) == self.wallet_class
-        wallet.handler = BTChipQTHandler(wizard)
-#        self.select_device(wallet)
-        wallet.create_hd_account(None)
+    def on_create_wallet(self, keystore, wizard):
+        assert type(keystore) == self.keystore_class
+        keystore.handler = BTChipQTHandler(wizard)
+        keystore.init_xpub()
+        print keystore.xpub
+        wizard.create_wallet(keystore, None)
 
 class BTChipQTHandler(QtHandlerBase):
 
     def __init__(self, win):
         super(BTChipQTHandler, self).__init__(win, 'Ledger')
-
 
     def word_dialog(self, msg):
         response = QInputDialog.getText(self.top_level_window(), "Ledger Wallet Authentication", msg, QLineEdit.Password)
@@ -42,4 +43,4 @@ class BTChipQTHandler(QtHandlerBase):
             self.word = None
         else:
             self.word = str(response[0])
-        self.done.set()                
+        self.done.set()

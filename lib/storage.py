@@ -195,12 +195,38 @@ class WalletStorage(PrintError):
             raise BaseException("This wallet has multiple accounts and must be split")
         return result
 
-    def requires_upgrade(storage):
-        # '/x' is the internal ID for imported accounts
-        return bool(storage.get('accounts', {}).get('/x', {}).get('imported',{}))
+    def requires_upgrade(self):
+        r = False
+        r |= self.convert_wallet_type(True)
+        r |= self.convert_imported(True)
+        return r
 
-    def upgrade(storage):
-        d = storage.get('accounts', {}).get('/x', {}).get('imported',{})
+    def upgrade(self):
+        self.convert_imported(False)
+        self.convert_wallet_type(False)
+        self.write()
+
+    def convert_wallet_type(self, is_test):
+        assert not self.requires_split()
+        wallet_type = self.get('wallet_type')
+        if wallet_type not in ['trezor', 'keepkey']:
+            return False
+        if is_test:
+            return True
+        self.put('wallet_type', 'standard')
+        self.put('key_type', 'hardware')
+        self.put('hardware_type', wallet_type)
+        xpub = self.get('master_public_keys')["x/0'"]
+        self.put('master_public_keys', {'x/': xpub})
+        self.put('account_id', 0)
+
+    def convert_imported(self, test):
+        # '/x' is the internal ID for imported accounts
+        d = self.get('accounts', {}).get('/x', {}).get('imported',{})
+        if not d:
+            return False
+        if test:
+            return True
         addresses = []
         keypairs = {}
         for addr, v in d.items():
@@ -212,16 +238,15 @@ class WalletStorage(PrintError):
         if addresses and keypairs:
             raise BaseException('mixed addresses and privkeys')
         elif addresses:
-            storage.put('addresses', addresses)
-            storage.put('accounts', None)
+            self.put('addresses', addresses)
+            self.put('accounts', None)
         elif keypairs:
-            storage.put('wallet_type', 'standard')
-            storage.put('key_type', 'imported')
-            storage.put('keypairs', keypairs)
-            storage.put('accounts', None)
+            self.put('wallet_type', 'standard')
+            self.put('key_type', 'imported')
+            self.put('keypairs', keypairs)
+            self.put('accounts', None)
         else:
             raise BaseException('no addresses or privkeys')
-        storage.write()
 
     def get_action(self):
         action = run_hook('get_action', self)
