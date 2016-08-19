@@ -105,16 +105,16 @@ class BaseWizard(object):
         self.multisig_dialog(run_next=on_multisig)
 
     def choose_keystore(self):
+        assert self.wallet_type in ['standard', 'multisig']
         title = _('Keystore')
         message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
-        if self.wallet_type in ['standard', 'multisig']:
-            choices = [
-                ('create_seed', _('Create a new seed')),
-                ('restore_seed', _('I already have a seed')),
-                ('restore_from_key', _('Import keys or addresses')),
-                ('choose_hw',  _('Use hardware keystore')),
-            ]
-            self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
+        choices = [
+            ('create_seed', _('Create a new seed')),
+            ('restore_seed', _('I already have a seed')),
+            ('restore_from_key', _('Import keys or addresses')),
+            ('choose_hw',  _('Use hardware keystore')),
+        ]
+        self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 
     def restore_seed(self):
         # TODO: return derivation password too
@@ -188,7 +188,7 @@ class BaseWizard(object):
         f = lambda seed: self.run('on_bip39_seed', seed)
         self.restore_seed_dialog(run_next=f, is_valid=is_valid)
 
-    def on_bip_39_seed(self, seed):
+    def on_bip39_seed(self, seed):
         f = lambda passphrase: self.run('on_bip39_passphrase', seed, passphrase)
         self.request_passphrase(self.storage.get('hw_type'), run_next=f)
 
