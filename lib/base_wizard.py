@@ -178,8 +178,9 @@ class BaseWizard(object):
     def on_hardware_account_id(self, account_id):
         from keystore import load_keystore
         self.storage.put('account_id', int(account_id))
-        keystore = load_keystore(self.storage, None)
-        keystore.plugin.on_create_wallet(keystore, self)
+        name = self.storage.get('hardware_type')
+        plugin = self.plugins.get_plugin(name)
+        plugin.on_create_wallet(self.storage, self)
 
     def on_hardware_seed(self):
         self.storage.put('key_type', 'hw_seed')
