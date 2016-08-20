@@ -176,8 +176,9 @@ class BaseWizard(object):
         self.account_id_dialog(run_next=f)
 
     def on_hardware_account_id(self, account_id):
-        from keystore import load_keystore
-        self.storage.put('account_id', int(account_id))
+        from keystore import load_keystore, bip44_derivation
+        derivation = bip44_derivation(int(account_id))
+        self.storage.put('derivation', derivation)
         name = self.storage.get('hardware_type')
         plugin = self.plugins.get_plugin(name)
         plugin.on_create_wallet(self.storage, self)

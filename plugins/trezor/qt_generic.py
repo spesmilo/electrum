@@ -291,7 +291,7 @@ def qt_plugin_class(base_plugin_class):
         # Setup device and create accounts in separate thread; wait until done
         loop = QEventLoop()
         exc_info = []
-        derivation = "m/44'/0'/%d'"%storage.get('account_id')
+        derivation = storage.get('derivation')
         self.setup_device(derivation, thread, handler, on_done=loop.quit,
                           on_error=lambda info: exc_info.extend(info))
         loop.exec_()

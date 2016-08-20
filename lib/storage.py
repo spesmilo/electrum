@@ -36,6 +36,7 @@ import stat
 from i18n import _
 from util import NotEnoughFunds, PrintError, profiler
 from plugins import run_hook, plugin_loaders
+from keystore import bip44_derivation
 
 class WalletStorage(PrintError):
 
@@ -188,7 +189,7 @@ class WalletStorage(PrintError):
                 storage2.put('accounts', {'0': x})
                 # need to save derivation and xpub too
                 storage2.put('master_public_keys', {'x/': xpub})
-                storage2.put('account_id', k)
+                storage2.put('derivation', bip44_derivation(k))
                 storage2.write()
                 result.append(new_path)
         else:
@@ -218,7 +219,7 @@ class WalletStorage(PrintError):
         self.put('hardware_type', wallet_type)
         xpub = self.get('master_public_keys')["x/0'"]
         self.put('master_public_keys', {'x/': xpub})
-        self.put('account_id', 0)
+        self.put('derivation', bip44_derivation(0))
 
     def convert_imported(self, test):
         # '/x' is the internal ID for imported accounts
