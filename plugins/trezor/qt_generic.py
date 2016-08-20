@@ -350,10 +350,9 @@ class SettingsDialog(WindowModalDialog):
         devmgr = plugin.device_manager()
         config = devmgr.config
         wallet = window.wallet
+        keystore = wallet.keystore
         handler = keystore.handler
         thread = keystore.thread
-        # wallet can be None, needn't be window.wallet
-        keystore = devmgr.wallet_by_id(device_id)
         hs_rows, hs_cols = (64, 128)
 
         def invoke_client(method, *args, **kw_args):
