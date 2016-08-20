@@ -748,7 +748,7 @@ class Abstract_Wallet(PrintError):
         return ''
 
     def fee_per_kb(self, config):
-        b = config.get('dynamic_fees')
+        b = config.get('dynamic_fees', True)
         i = config.get('fee_level', 2)
         if b and self.network and self.network.dynfee(i):
             return self.network.dynfee(i)

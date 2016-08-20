@@ -2285,7 +2285,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fee_label = HelpLabel(_('Transaction fee per kb') + ':', msg)
         fee_e = BTCkBEdit(self.get_decimal_point)
         def on_fee(is_done):
-            if self.config.get('dynamic_fees'):
+            if self.config.get('dynamic_fees', True):
                 return
             v = fee_e.get_amount() or 0
             self.config.set_key('fee_per_kb', v, is_done)
@@ -2300,7 +2300,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fee_widgets.append((dynfee_cb, None))
         def update_feeperkb():
             fee_e.setAmount(self.config.get('fee_per_kb', bitcoin.RECOMMENDED_FEE))
-            b = self.config.get('dynamic_fees', False)
+            b = self.config.get('dynamic_fees', True)
             fee_e.setEnabled(not b)
         def on_dynfee(x):
             self.config.set_key('dynamic_fees', x == Qt.Checked)
