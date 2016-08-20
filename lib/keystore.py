@@ -644,6 +644,8 @@ is_any_key = lambda x: is_old_mpk(x) or is_xprv(x) or is_xpub(x) or is_address_l
 is_private_key = lambda x: is_xprv(x) or is_private_key_list(x)
 is_bip32_key = lambda x: is_xprv(x) or is_xpub(x)
 
+def bip44_derivation(account_id):
+    return "m/44'/2'/%d'"% int(account_id)
 
 def from_seed(seed, password):
     if is_old_seed(seed):

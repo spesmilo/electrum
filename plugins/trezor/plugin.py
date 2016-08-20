@@ -23,17 +23,13 @@ class TrezorCompatibleKeyStore(Hardware_KeyStore):
 
     def load(self, storage, name):
         self.xpub = storage.get('master_public_keys', {}).get(name)
-        self.account_id = int(storage.get('account_id'))
+        self.derivation = storage.get('derivation')
 
     def get_derivation(self):
-        return "m/44'/2'/%d'"%self.account_id
+        return self.derivation
 
     def get_client(self, force_pair=True):
         return self.plugin.get_client(self, force_pair)
-
-    def init_xpub(self):
-        client = self.get_client()
-        self.xpub = client.get_xpub(self.get_derivation())
 
     def decrypt_message(self, pubkey, message, password):
         raise RuntimeError(_('Electrum and %s encryption and decryption are currently incompatible') % self.device)
@@ -142,7 +138,11 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         # All client interaction should not be in the main GUI thread
         assert self.main_thread != threading.current_thread()
         devmgr = self.device_manager()
-        client = devmgr.client_for_keystore(self, keystore, force_pair)
+        derivation = keystore.get_derivation()
+        xpub = keystore.xpub
+        handler = keystore.handler
+        client = devmgr.client_for_xpub(self, xpub, derivation, handler, force_pair)
+        # returns the client for a given keystore. can use xpub
         if client:
             client.used()
         return client
@@ -202,24 +202,31 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                 pin = pin_protection  # It's the pin, not a boolean
                 client.load_device_by_xprv(item, pin, passphrase_protection,
                                            label, language)
-            # After successful initialization create accounts
-            keystore.init_xpub()
-            #wallet.create_main_account()
+            # After successful initialization get xpub
+            self.xpub = client.get_xpub(derivation)
 
         return initialize_method
 
-    def setup_device(self, keystore, on_done, on_error):
+    def init_xpub(self, derivation, device_id, handler):
+        devmgr = self.device_manager()
+        client = devmgr.client_by_id(device_id, handler)
+        if client:
+            client.used()
+        self.xpub = client.get_xpub(derivation)
+
+    def setup_device(self, derivation, thread, handler, on_done, on_error):
         '''Called when creating a new wallet.  Select the device to use.  If
         the device is uninitialized, go through the intialization
         process.  Then create the wallet accounts.'''
         devmgr = self.device_manager()
-        device_info = devmgr.select_device(keystore, self)
-        devmgr.pair_wallet(keystore, device_info.device.id_)
+        device_info = devmgr.select_device(handler, self)
+        device_id = device_info.device.id_
+        #devmgr.pair_wallet(keystore, device_info.device.id_)
         if device_info.initialized:
-            task = keystore.init_xpub
+            task = lambda: self.init_xpub(derivation, device_id, handler)
         else:
             task = self.initialize_device(keystore)
-        keystore.thread.add(task, on_done=on_done, on_error=on_error)
+        thread.add(task, on_done=on_done, on_error=on_error)
 
     def sign_transaction(self, keystore, tx, prev_tx, xpub_path):
         self.prev_tx = prev_tx

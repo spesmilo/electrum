@@ -284,19 +284,23 @@ def qt_plugin_class(base_plugin_class):
         # Trigger a pairing
         keystore.thread.add(partial(self.get_client, keystore))
 
-    def on_create_wallet(self, keystore, wizard):
-        keystore.handler = self.create_handler(wizard)
-        keystore.thread = TaskThread(wizard, wizard.on_error)
+    def on_create_wallet(self, storage, wizard):
+        from electrum.keystore import load_keystore
+        handler = self.create_handler(wizard)
+        thread = TaskThread(wizard, wizard.on_error)
         # Setup device and create accounts in separate thread; wait until done
         loop = QEventLoop()
         exc_info = []
-        self.setup_device(keystore, on_done=loop.quit,
+        derivation = storage.get('derivation')
+        self.setup_device(derivation, thread, handler, on_done=loop.quit,
                           on_error=lambda info: exc_info.extend(info))
         loop.exec_()
         # If an exception was thrown, show to user and exit install wizard
         if exc_info:
             wizard.on_error(exc_info)
             raise UserCancelled
+        storage.put('master_public_keys', {'/x':self.xpub})
+        keystore = load_keystore(storage, '/x') # this calls the dynamic constructor
         wizard.create_wallet(keystore, None)
 
     @hook
@@ -316,9 +320,9 @@ def qt_plugin_class(base_plugin_class):
         '''This dialog box should be usable even if the user has
         forgotten their PIN or it is in bootloader mode.'''
         keystore = window.wallet.get_keystore()
-        device_id = self.device_manager().wallet_id(keystore)
+        device_id = self.device_manager().xpub_id(keystore.xpub)
         if not device_id:
-            info = self.device_manager().select_device(keystore, self)
+            info = self.device_manager().select_device(keystore.handler, self)
             device_id = info.device.id_
         return device_id
 
@@ -350,10 +354,9 @@ class SettingsDialog(WindowModalDialog):
         devmgr = plugin.device_manager()
         config = devmgr.config
         wallet = window.wallet
+        keystore = wallet.keystore
         handler = keystore.handler
         thread = keystore.thread
-        # wallet can be None, needn't be window.wallet
-        keystore = devmgr.wallet_by_id(device_id)
         hs_rows, hs_cols = (64, 128)
 
         def invoke_client(method, *args, **kw_args):

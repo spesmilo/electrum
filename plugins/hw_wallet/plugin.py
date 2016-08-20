@@ -48,6 +48,7 @@ class HW_PluginBase(BasePlugin):
 
     @hook
     def close_wallet(self, wallet):
-        if isinstance(wallet.get_keystore(), self.keystore_class):
-            self.device_manager().unpair_wallet(wallet)
+        keystore = wallet.get_keystore()
+        if isinstance(keystore, self.keystore_class):
+            self.device_manager().unpair_xpub(keystore.xpub)
 

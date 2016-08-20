@@ -144,7 +144,7 @@ class Plugins(DaemonThread):
         for name, (gui_good, details) in self.hw_wallets.items():
             if gui_good:
                 try:
-                    p = self.wallet_plugin_loader(name)
+                    p = self.get_plugin(name)
                     if action == 'restore' or p.is_enabled():
                         wallet_types.append(details[1])
                         descs.append(details[2])
@@ -157,7 +157,7 @@ class Plugins(DaemonThread):
         from wallet import register_wallet_type, register_constructor
         self.print_error("registering wallet type", (wallet_type, name))
         def loader():
-            plugin = self.wallet_plugin_loader(name)
+            plugin = self.get_plugin(name)
             register_constructor(wallet_type, plugin.wallet_class)
         register_wallet_type(wallet_type)
         plugin_loaders[wallet_type] = loader
@@ -165,13 +165,13 @@ class Plugins(DaemonThread):
     def register_keystore(self, name, gui_good, details):
         from keystore import register_keystore
         def dynamic_constructor():
-            return self.wallet_plugin_loader(name).keystore_class()
+            return self.get_plugin(name).keystore_class()
         if details[0] == 'hardware':
             self.hw_wallets[name] = (gui_good, details)
             self.print_error("registering keystore %s: %s" %(name, details))
         register_keystore(details[0], details[1], dynamic_constructor)
 
-    def wallet_plugin_loader(self, name):
+    def get_plugin(self, name):
         if not name in self.plugins:
             self.load_plugin(name)
         return self.plugins[name]
@@ -297,9 +297,9 @@ class DeviceMgr(ThreadJob, PrintError):
 
     def __init__(self, config):
         super(DeviceMgr, self).__init__()
-        # Keyed by wallet.  The value is the device id if the wallet
+        # Keyed by xpub.  The value is the device id 
         # has been paired, and None otherwise.
-        self.wallets = {}
+        self.xpub_ids = {}
         # A list of clients.  The key is the client, the value is
         # a (path, id_) pair.
         self.clients = {}
@@ -339,38 +339,38 @@ class DeviceMgr(ThreadJob, PrintError):
                 self.clients[client] = (device.path, device.id_)
         return client
 
-    def wallet_id(self, wallet):
+    def xpub_id(self, xpub):
         with self.lock:
-            return self.wallets.get(wallet)
+            return self.xpub_ids.get(xpub)
 
-    def wallet_by_id(self, id_):
+    def xpub_by_id(self, id_):
         with self.lock:
-            for wallet, wallet_id in self.wallets.items():
-                if wallet_id == id_:
-                    return wallet
+            for xpub, xpub_id in self.xpub_ids.items():
+                if xpub_id == id_:
+                    return xpub
             return None
 
-    def unpair_wallet(self, wallet):
+    def unpair_xpub(self, xpub):
         with self.lock:
-            if not wallet in self.wallets:
+            if not xpub in self.xpub_ids:
                 return
-            wallet_id = self.wallets.pop(wallet)
-            client = self.client_lookup(wallet_id)
+            _id = self.xpub_ids.pop(xpub)
+            client = self.client_lookup(_id)
             self.clients.pop(client, None)
-        wallet.unpaired()
+        #wallet.unpaired()
         if client:
             client.close()
 
     def unpair_id(self, id_):
         with self.lock:
-            wallet = self.wallet_by_id(id_)
-        if wallet:
-            self.unpair_wallet(wallet)
+            xpub = self.xpub_by_id(id_)
+        if xpub:
+            self.unpair_xpub(xpub)
 
-    def pair_wallet(self, wallet, id_):
+    def pair_xpub(self, xpub, id_):
         with self.lock:
-            self.wallets[wallet] = id_
-        wallet.paired()
+            self.xpub_ids[xpub] = id_
+        #wallet.paired()
 
     def client_lookup(self, id_):
         with self.lock:
@@ -386,37 +386,33 @@ class DeviceMgr(ThreadJob, PrintError):
         self.scan_devices(handler)
         return self.client_lookup(id_)
 
-    def client_for_keystore(self, plugin, keystore, force_pair):
-        assert keystore.handler
-        devices = self.scan_devices(keystore.handler)
-        wallet_id = self.wallet_id(keystore)
-        client = self.client_lookup(wallet_id)
+    def client_for_xpub(self, plugin, xpub, derivation, handler, force_pair):
+        devices = self.scan_devices(handler)
+        _id = self.xpub_id(xpub)
+        client = self.client_lookup(_id)
         if client:
             # An unpaired client might have another wallet's handler
             # from a prior scan.  Replace to fix dialog parenting.
-            client.handler = keystore.handler
+            client.handler = handler
             return client
 
         for device in devices:
-            if device.id_ == wallet_id:
-                return self.create_client(device, keystore.handler, plugin)
+            if device.id_ == _id:
+                return self.create_client(device, handler, plugin)
 
         if force_pair:
-            return self.force_pair_wallet(plugin, keystore, devices)
+            return self.force_pair_xpub(plugin, handler, xpub, derivation, devices)
 
         return None
 
-    def force_pair_wallet(self, plugin, keystore, devices):
-        xpub = keystore.get_master_public_key()
-        derivation = keystore.get_derivation()
-
+    def force_pair_xpub(self, plugin, handler, xpub, derivation, devices):
         # The wallet has not been previously paired, so let the user
         # choose an unpaired device and compare its first address.
-        info = self.select_device(keystore, plugin, devices)
+        info = self.select_device(handler, plugin, devices)
         client = self.client_lookup(info.device.id_)
         if client and client.is_pairable():
             # See comment above for same code
-            client.handler = keystore.handler
+            client.handler = handler
             # This will trigger a PIN/passphrase entry request
             try:
                 client_xpub = client.get_xpub(derivation)
@@ -424,7 +420,7 @@ class DeviceMgr(ThreadJob, PrintError):
                  # Bad / cancelled PIN / passphrase
                 client_xpub = None
             if client_xpub == xpub:
-                self.pair_wallet(keystore, info.device.id_)
+                self.pair_xpub(xpub, info.device.id_)
                 return client
 
         # The user input has wrong PIN or passphrase, or cancelled input,
@@ -441,7 +437,7 @@ class DeviceMgr(ThreadJob, PrintError):
         unpaired device accepted by the plugin.'''
         if devices is None:
             devices = self.scan_devices(handler)
-        devices = [dev for dev in devices if not self.wallet_by_id(dev.id_)]
+        devices = [dev for dev in devices if not self.xpub_by_id(dev.id_)]
 
         states = [_("wiped"), _("initialized")]
         infos = []
@@ -458,17 +454,17 @@ class DeviceMgr(ThreadJob, PrintError):
 
         return infos
 
-    def select_device(self, wallet, plugin, devices=None):
+    def select_device(self, handler, plugin, devices=None):
         '''Ask the user to select a device to use if there is more than one,
         and return the DeviceInfo for the device.'''
         while True:
-            infos = self.unpaired_device_infos(wallet.handler, plugin, devices)
+            infos = self.unpaired_device_infos(handler, plugin, devices)
             if infos:
                 break
             msg = _('Could not connect to your %s.  Verify the cable is '
                     'connected and that no other application is using it.\n\n'
                     'Try to connect again?') % plugin.device
-            if not wallet.handler.yes_no_question(msg):
+            if not handler.yes_no_question(msg):
                 raise UserCancelled()
             devices = None
 
@@ -476,7 +472,7 @@ class DeviceMgr(ThreadJob, PrintError):
             return infos[0]
         msg = _("Please select which %s device to use:") % plugin.device
         descriptions = [info.description for info in infos]
-        return infos[wallet.handler.query_choice(msg, descriptions)]
+        return infos[handler.query_choice(msg, descriptions)]
 
     def scan_devices(self, handler):
         # All currently supported hardware libraries use hid, so we
