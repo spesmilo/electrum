@@ -748,7 +748,7 @@ class Abstract_Wallet(PrintError):
         return ''
 
     def fee_per_kb(self, config):
-        b = config.get('dynamic_fees')
+        b = config.get('dynamic_fees', True)
         i = config.get('fee_level', 2)
         if b and self.network and self.network.dynfee(i):
             return self.network.dynfee(i)
@@ -1533,7 +1533,20 @@ class Multisig_Wallet(Deterministic_Wallet):
 
 
 
-WalletType = namedtuple("WalletType", "category type constructor")
+wallet_types = ['standard', 'multisig', 'imported']
+
+def register_wallet_type(category):
+    wallet_types.append(category)
+
+wallet_constructors = {
+    'standard': Standard_Wallet,
+    'old': Standard_Wallet,
+    'xpub': Standard_Wallet,
+    'imported': Imported_Wallet
+}
+
+def register_constructor(wallet_type, constructor):
+    wallet_constructors[wallet_type] = constructor
 
 
 # former WalletFactory
@@ -1541,15 +1554,6 @@ class Wallet(object):
     """The main wallet "entry point".
     This class is actually a factory that will return a wallet of the correct
     type when passed a WalletStorage instance."""
-
-    wallets = [   # category    type        constructor
-        WalletType('standard', 'old',       Standard_Wallet),
-        WalletType('standard', 'xpub',      Standard_Wallet),
-        WalletType('standard', 'standard',  Standard_Wallet),
-        WalletType('standard', 'imported',  Imported_Wallet),
-        WalletType('multisig', '2of2',      Multisig_Wallet),
-        WalletType('multisig', '2of3',      Multisig_Wallet),
-    ]
 
     def __new__(self, storage):
         wallet_type = storage.get('wallet_type')
@@ -1566,20 +1570,11 @@ class Wallet(object):
         return wallet
 
     @staticmethod
-    def categories():
-        return [wallet.category for wallet in Wallet.wallets]
-
-    @staticmethod
-    def register_constructor(category, type, constructor):
-        Wallet.wallets.append(WalletType(category, type, constructor))
-
-    @staticmethod
     def wallet_class(wallet_type):
         if Wallet.multisig_type(wallet_type):
             return Multisig_Wallet
-        for wallet in Wallet.wallets:
-            if wallet.type == wallet_type:
-                return wallet.constructor
+        if wallet_type in wallet_constructors:
+            return wallet_constructors[wallet_type]
         raise RuntimeError("Unknown wallet type: " + wallet_type)
 
     @staticmethod

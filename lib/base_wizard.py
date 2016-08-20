@@ -25,7 +25,7 @@
 
 import os
 import keystore
-from wallet import Wallet, Imported_Wallet, Standard_Wallet, Multisig_Wallet, WalletStorage
+from wallet import Wallet, Imported_Wallet, Standard_Wallet, Multisig_Wallet, WalletStorage, wallet_types
 from i18n import _
 from plugins import run_hook
 
@@ -76,11 +76,10 @@ class BaseWizard(object):
         ])
         wallet_kinds = [
             ('standard',  _("Standard wallet")),
-            ('twofactor', _("Wallet with two-factor authentication")),
+            ('2fa', _("Wallet with two-factor authentication")),
             ('multisig',  _("Multi-signature wallet")),
         ]
-        registered_kinds = Wallet.categories()
-        choices = wallet_kinds#[pair for pair in wallet_kinds if pair[0] in registered_kinds]
+        choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
 
     def on_wallet_type(self, choice):
@@ -89,7 +88,7 @@ class BaseWizard(object):
             action = 'choose_keystore'
         elif choice == 'multisig':
             action = 'choose_multisig'
-        elif choice == 'twofactor':
+        elif choice == '2fa':
             self.storage.put('wallet_type', '2fa')
             self.storage.put('use_trustedcoin', True)
             self.plugin = self.plugins.load_plugin('trustedcoin')
@@ -105,16 +104,16 @@ class BaseWizard(object):
         self.multisig_dialog(run_next=on_multisig)
 
     def choose_keystore(self):
+        assert self.wallet_type in ['standard', 'multisig']
         title = _('Keystore')
         message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
-        if self.wallet_type in ['standard', 'multisig']:
-            choices = [
-                ('create_seed', _('Create a new seed')),
-                ('restore_seed', _('I already have a seed')),
-                ('restore_from_key', _('Import keys or addresses')),
-                ('choose_hw',  _('Use hardware keystore')),
-            ]
-            self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
+        choices = [
+            ('create_seed', _('Create a new seed')),
+            ('restore_seed', _('I already have a seed')),
+            ('restore_from_key', _('Import keys or addresses')),
+            ('choose_hw',  _('Use hardware keystore')),
+        ]
+        self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 
     def restore_seed(self):
         # TODO: return derivation password too
@@ -188,7 +187,7 @@ class BaseWizard(object):
         f = lambda seed: self.run('on_bip39_seed', seed)
         self.restore_seed_dialog(run_next=f, is_valid=is_valid)
 
-    def on_bip_39_seed(self, seed):
+    def on_bip39_seed(self, seed):
         f = lambda passphrase: self.run('on_bip39_passphrase', seed, passphrase)
         self.request_passphrase(self.storage.get('hw_type'), run_next=f)
 
