@@ -231,10 +231,14 @@ class WalletStorage(PrintError):
         seed_version = self.get_seed_version()
         if seed_version == OLD_SEED_VERSION or wallet_type == 'old':
             seed = self.get('seed')
+            mpk = self.get('master_public_key')
             d = {
                 'type': 'old',
-                'seed': seed
+                'seed': seed,
+                'mpk': mpk,
             }
+            self.put('seed', None)
+            self.put('master_public_key', None)
             self.put('wallet_type', 'standard')
             self.put('keystore', d)
 
@@ -247,6 +251,9 @@ class WalletStorage(PrintError):
                 'xprv': xprv,
                 'seed': self.get('seed', '')
             }
+            self.put('master_public_keys', None)
+            self.put('master_private_keys', None)
+            self.put('seed', None)
             self.put('wallet_type', 'standard')
             self.put('keystore', d)
 
