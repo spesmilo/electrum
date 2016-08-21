@@ -273,9 +273,8 @@ class Wallet_2fa(Multisig_Wallet):
 def get_user_id(storage):
     def make_long_id(xpub_hot, xpub_cold):
         return bitcoin.sha256(''.join(sorted([xpub_hot, xpub_cold])))
-    mpk = storage.get('master_public_keys')
-    xpub1 = mpk["x1/"]
-    xpub2 = mpk["x2/"]
+    xpub1 = storage.get('x1/')['xpub']
+    xpub2 = storage.get('x2/')['xpub']
     long_id = make_long_id(xpub1, xpub2)
     short_id = hashlib.sha256(long_id).hexdigest()
     return long_id, short_id
@@ -359,8 +358,8 @@ class TrustedCoinPlugin(BasePlugin):
         n = len(words)/2
         keystore1 = keystore.xprv_from_seed(' '.join(words[0:n]), password)
         keystore2 = keystore.xpub_from_seed(' '.join(words[n:]))
-        keystore1.save(wizard.storage, 'x1/')
-        keystore2.save(wizard.storage, 'x2/')
+        wizard.storage.put('x1/', keystore1.dump())
+        wizard.storage.put('x2/', keystore2.dump())
         wizard.storage.write()
         msg = [
             _("Your wallet file is: %s.")%os.path.abspath(wizard.storage.path),
@@ -392,20 +391,19 @@ class TrustedCoinPlugin(BasePlugin):
         n = len(words)/2
         keystore1 = keystore.xprv_from_seed(' '.join(words[0:n]), password)
         keystore2 = keystore.xprv_from_seed(' '.join(words[n:]), password)
-        keystore1.save(storage, 'x1/')
-        keystore2.save(storage, 'x2/')
+        storage.put('x1/', keystore1.dump())
+        storage.put('x2/', keystore2.dump())
         long_user_id, short_id = get_user_id(storage)
         xpub3 = make_xpub(signing_xpub, long_user_id)
         keystore3 = keystore.from_xpub(xpub3)
-        keystore3.save(storage, 'x3/')
+        storage.put('x3/', keystore3.dump())
         wizard.wallet = Wallet(storage)
         wizard.create_addresses()
 
     def create_remote_key(self, wizard):
         email = self.accept_terms_of_use(wizard)
-        mpk = wizard.storage.get('master_public_keys')
-        xpub1 = mpk["x1/"]
-        xpub2 = mpk["x2/"]
+        xpub1 = wizard.storage.get('x1/')['xpub']
+        xpub2 = wizard.storage.get('x2/')['xpub']
         # Generate third key deterministically.
         long_user_id, short_id = get_user_id(wizard.storage)
         xpub3 = make_xpub(signing_xpub, long_user_id)
@@ -439,7 +437,7 @@ class TrustedCoinPlugin(BasePlugin):
             wizard.show_message("otp error")
             return
         keystore3 = keystore.from_xpub(xpub3)
-        keystore3.save(wizard.storage, 'x3/')
+        wizard.storage.put('x3/', keystore3.dump())
         wizard.storage.put('use_trustedcoin', True)
         wizard.storage.write()
         wizard.wallet = Wallet(wizard.storage)
@@ -447,10 +445,9 @@ class TrustedCoinPlugin(BasePlugin):
 
     @hook
     def get_action(self, storage):
-        mpk = storage.get('master_public_keys', {})
-        if not mpk.get('x1/'):
+        if not storage.get('x1/'):
             return self, 'show_disclaimer'
-        if not mpk.get('x2/'):
+        if not storage.get('x2/'):
             return self, 'show_disclaimer'
-        if not mpk.get('x3/'):
+        if not storage.get('x3/'):
             return self, 'create_remote_key'
