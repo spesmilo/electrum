@@ -231,6 +231,8 @@ class WalletStorage(PrintError):
         xpubs = self.get('master_public_keys')
         xprvs = self.get('master_private_keys')
         mpk = self.get('master_public_key')
+        keypairs = self.get('keypairs')
+        key_type = self.get('key_type')
         if seed_version == OLD_SEED_VERSION or wallet_type == 'old':
             d = {
                 'type': 'old',
@@ -240,9 +242,17 @@ class WalletStorage(PrintError):
             self.put('wallet_type', 'standard')
             self.put('keystore', d)
 
+        elif key_type == 'imported':
+            d = {
+                'type': 'imported',
+                'keypairs': keypairs,
+            }
+            self.put('wallet_type', 'standard')
+            self.put('keystore', d)
+
         elif wallet_type == 'standard':
-            xpub = self.get('master_public_keys')["x/"]
-            xprv = self.get('master_private_keys')["x/"]
+            xpub = xpubs["x/"]
+            xprv = xprvs["x/"]
             d = {
                 'type': 'bip32',
                 'xpub': xpub,
@@ -278,6 +288,8 @@ class WalletStorage(PrintError):
         self.put('master_public_keys', None)
         self.put('master_private_keys', None)
         self.put('seed', None)
+        self.put('keypairs', None)
+        self.put('key_type', None)
 
 
     def convert_imported(self, test):

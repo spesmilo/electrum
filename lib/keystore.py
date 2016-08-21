@@ -137,7 +137,8 @@ class Imported_KeyStore(Software_KeyStore):
         for k, v in self.keypairs.items():
             b = pw_decode(v, old_password)
             c = pw_encode(b, new_password)
-            self.keypairs[k] = b
+            self.keypairs[k] = c
+        print self.keypairs
 
 
 class Deterministic_KeyStore(Software_KeyStore):
