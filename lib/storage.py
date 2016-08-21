@@ -221,24 +221,22 @@ class WalletStorage(PrintError):
 
     def convert_wallet_type(self, is_test):
         assert not self.requires_split()
-        d = self.get('keystore', {})
-        t = d.get('type')
-        if t:
+        if self.get('keystore') or self.get('x1/'):
             return False
         if is_test:
             return True
         wallet_type = self.get('wallet_type')
         seed_version = self.get_seed_version()
+        seed = self.get('seed')
+        xpubs = self.get('master_public_keys')
+        xprvs = self.get('master_private_keys')
+        mpk = self.get('master_public_key')
         if seed_version == OLD_SEED_VERSION or wallet_type == 'old':
-            seed = self.get('seed')
-            mpk = self.get('master_public_key')
             d = {
                 'type': 'old',
                 'seed': seed,
                 'mpk': mpk,
             }
-            self.put('seed', None)
-            self.put('master_public_key', None)
             self.put('wallet_type', 'standard')
             self.put('keystore', d)
 
@@ -249,16 +247,13 @@ class WalletStorage(PrintError):
                 'type': 'bip32',
                 'xpub': xpub,
                 'xprv': xprv,
-                'seed': self.get('seed', '')
+                'seed': seed,
             }
-            self.put('master_public_keys', None)
-            self.put('master_private_keys', None)
-            self.put('seed', None)
             self.put('wallet_type', 'standard')
             self.put('keystore', d)
 
         elif wallet_type in ['trezor', 'keepkey']:
-            xpub = self.get('master_public_keys')["x/0'"]
+            xpub = xpubs["x/0'"]
             d = {
                 'type': 'hardware',
                 'hardware_type': wallet_type,
@@ -268,11 +263,21 @@ class WalletStorage(PrintError):
             self.put('wallet_type', 'standard')
             self.put('keystore', d)
 
-        elif multisig_type(wallet_type):
-            raise BaseException('not implemented')
+        elif (wallet_type == '2fa') or multisig_type(wallet_type):
+            for key in xpubs.keys():
+                d = {
+                    'type': 'bip32',
+                    'xpub': xpubs[key],
+                    'xprv': xprvs.get(key),
+                }
+                if key == 'x1/' and seed:
+                    d['seed'] = seed
+                self.put(key, d)
 
-        elif wallet_type in ['2fa']:
-            raise BaseException('not implemented')
+        self.put('master_public_key', None)
+        self.put('master_public_keys', None)
+        self.put('master_private_keys', None)
+        self.put('seed', None)
 
 
     def convert_imported(self, test):
