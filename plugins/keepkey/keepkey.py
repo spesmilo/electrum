@@ -2,7 +2,7 @@ from ..trezor.plugin import TrezorCompatiblePlugin, TrezorCompatibleKeyStore
 
 
 class KeepKey_KeyStore(TrezorCompatibleKeyStore):
-    wallet_type = 'keepkey'
+    hw_type = 'keepkey'
     device = 'KeepKey'
 
 

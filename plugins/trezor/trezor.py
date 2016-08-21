@@ -2,7 +2,7 @@ from .plugin import TrezorCompatiblePlugin, TrezorCompatibleKeyStore
 
 
 class TrezorKeyStore(TrezorCompatibleKeyStore):
-    wallet_type = 'trezor'
+    hw_type = 'trezor'
     device = 'TREZOR'
 
 class TrezorPlugin(TrezorCompatiblePlugin):

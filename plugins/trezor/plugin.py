@@ -20,7 +20,6 @@ from ..hw_wallet import HW_PluginBase
 TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
 
 class TrezorCompatibleKeyStore(Hardware_KeyStore):
-    hw_type = 'trezor'
 
     def get_derivation(self):
         return self.derivation
