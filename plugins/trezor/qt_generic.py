@@ -284,14 +284,13 @@ def qt_plugin_class(base_plugin_class):
         # Trigger a pairing
         keystore.thread.add(partial(self.get_client, keystore))
 
-    def on_create_wallet(self, storage, wizard):
-        from electrum.keystore import load_keystore
+    def create_keystore(self, hw_type, derivation, wizard):
+        from electrum.keystore import hardware_keystore
         handler = self.create_handler(wizard)
         thread = TaskThread(wizard, wizard.on_error)
         # Setup device and create accounts in separate thread; wait until done
         loop = QEventLoop()
         exc_info = []
-        derivation = storage.get('derivation')
         self.setup_device(derivation, thread, handler, on_done=loop.quit,
                           on_error=lambda info: exc_info.extend(info))
         loop.exec_()
@@ -299,9 +298,15 @@ def qt_plugin_class(base_plugin_class):
         if exc_info:
             wizard.on_error(exc_info)
             raise UserCancelled
-        storage.put('master_public_keys', {'/x':self.xpub})
-        keystore = load_keystore(storage, '/x') # this calls the dynamic constructor
-        wizard.create_wallet(keystore, None)
+        # create keystore
+        d = {
+            'xpub': self.xpub,
+            'type': 'hardware',
+            'hw_type': hw_type,
+            'derivation': derivation
+        }
+        k = hardware_keystore(hw_type, d)
+        return k
 
     @hook
     def receive_menu(self, menu, addrs, wallet):

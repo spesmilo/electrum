@@ -50,6 +50,7 @@ from util import NotEnoughFunds, PrintError, profiler
 from bitcoin import *
 from version import *
 from keystore import load_keystore
+from storage import multisig_type
 
 from transaction import Transaction
 from plugins import run_hook
@@ -1164,6 +1165,9 @@ class Abstract_Wallet(PrintError):
         if self.synchronizer:
             self.synchronizer.add(address)
 
+    def has_password(self):
+        return self.storage.get('use_encryption', False)
+
 
 class Imported_Wallet(Abstract_Wallet):
     # wallet made of imported addresses
@@ -1242,7 +1246,7 @@ class P2PK_Wallet(Abstract_Wallet):
         return public_key_to_bc_address(pubkey.decode('hex'))
 
     def load_keystore(self):
-        self.keystore = load_keystore(self.storage, self.root_name)
+        self.keystore = load_keystore(self.storage, 'keystore')
 
     def get_pubkey(self, c, i):
         pubkey_list = self.change_pubkeys if c else self.receiving_pubkeys
@@ -1402,7 +1406,6 @@ class Deterministic_Wallet(Abstract_Wallet):
 
 
 class Standard_Wallet(Deterministic_Wallet, P2PK_Wallet):
-    root_name = 'x/'
     wallet_type = 'standard'
 
     def __init__(self, storage):
@@ -1426,22 +1429,23 @@ class Standard_Wallet(Deterministic_Wallet, P2PK_Wallet):
     def can_change_password(self):
         return self.keystore.can_change_password()
 
-    def has_password(self):
-        return self.keystore.has_password()
-
     def check_password(self, password):
         self.keystore.check_password(password)
 
     def update_password(self, old_pw, new_pw):
         self.keystore.update_password(old_pw, new_pw)
-        self.keystore.save(self.storage, self.root_name)
+        self.save_keystore()
+        self.storage.put('use_encryption', (new_pw is not None))
+
+    def save_keystore(self):
+        self.storage.put('keystore', self.keystore.dump())
 
     def can_import_privkey(self):
         return self.keystore.can_import()
 
     def import_key(self, pk, pw):
         pubkey = self.keystore.import_key(pk, pw)
-        self.keystore.save(self.storage, self.root_name)
+        self.save_keystore()
         self.receiving_pubkeys.append(pubkey)
         self.save_pubkeys()
         addr = self.pubkeys_to_address(pubkey)
@@ -1452,12 +1456,11 @@ class Standard_Wallet(Deterministic_Wallet, P2PK_Wallet):
 
 class Multisig_Wallet(Deterministic_Wallet):
     # generic m of n
-    root_name = "x1/"
     gap_limit = 20
 
     def __init__(self, storage):
         self.wallet_type = storage.get('wallet_type')
-        self.m, self.n = Wallet.multisig_type(self.wallet_type)
+        self.m, self.n = multisig_type(self.wallet_type)
         Deterministic_Wallet.__init__(self, storage)
 
     def get_pubkeys(self, c, i):
@@ -1481,10 +1484,10 @@ class Multisig_Wallet(Deterministic_Wallet):
         for i in range(self.n):
             name = 'x%d/'%(i+1)
             self.keystores[name] = load_keystore(self.storage, name)
-        self.keystore = self.keystores[self.root_name]
+        self.keystore = self.keystores['x1/']
 
     def get_keystore(self):
-        return self.keystores.get(self.root_name)
+        return self.keystores.get('x1/')
 
     def get_keystores(self):
         return self.keystores.values()
@@ -1492,16 +1495,14 @@ class Multisig_Wallet(Deterministic_Wallet):
     def update_password(self, old_pw, new_pw):
         for name, keystore in self.keystores.items():
             keystore.update_password(old_pw, new_pw)
-            keystore.save(self.storage, name)
+            self.storage.put(name, keystore.dump())
+        self.storage.put('use_encryption', (new_pw is not None))
 
     def has_seed(self):
         return self.keystore.has_seed()
 
     def can_change_password(self):
         return self.keystore.can_change_password()
-
-    def has_password(self):
-        return self.keystore.has_password()
 
     def is_watching_only(self):
         return not any([not k.is_watching_only() for k in self.get_keystores()])
@@ -1568,18 +1569,9 @@ class Wallet(object):
 
     @staticmethod
     def wallet_class(wallet_type):
-        if Wallet.multisig_type(wallet_type):
+        if multisig_type(wallet_type):
             return Multisig_Wallet
         if wallet_type in wallet_constructors:
             return wallet_constructors[wallet_type]
         raise RuntimeError("Unknown wallet type: " + wallet_type)
-
-    @staticmethod
-    def multisig_type(wallet_type):
-        '''If wallet_type is mofn multi-sig, return [m, n],
-        otherwise return None.'''
-        match = re.match('(\d+)of(\d+)', wallet_type)
-        if match:
-            match = [int(x) for x in match.group(1, 2)]
-        return match
 

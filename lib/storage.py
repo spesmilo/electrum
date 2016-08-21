@@ -37,6 +37,17 @@ from i18n import _
 from util import NotEnoughFunds, PrintError, profiler
 from plugins import run_hook, plugin_loaders
 from keystore import bip44_derivation
+from version import OLD_SEED_VERSION
+
+
+def multisig_type(wallet_type):
+    '''If wallet_type is mofn multi-sig, return [m, n],
+    otherwise return None.'''
+    match = re.match('(\d+)of(\d+)', wallet_type)
+    if match:
+        match = [int(x) for x in match.group(1, 2)]
+    return match
+
 
 class WalletStorage(PrintError):
 
@@ -198,8 +209,9 @@ class WalletStorage(PrintError):
 
     def requires_upgrade(self):
         r = False
-        r |= self.convert_wallet_type(True)
-        r |= self.convert_imported(True)
+        if self.file_exists:
+            r |= self.convert_wallet_type(True)
+            r |= self.convert_imported(True)
         return r
 
     def upgrade(self):
@@ -209,17 +221,52 @@ class WalletStorage(PrintError):
 
     def convert_wallet_type(self, is_test):
         assert not self.requires_split()
-        wallet_type = self.get('wallet_type')
-        if wallet_type not in ['trezor', 'keepkey']:
+        d = self.get('keystore', {})
+        t = d.get('type')
+        if t:
             return False
         if is_test:
             return True
-        self.put('wallet_type', 'standard')
-        self.put('key_type', 'hardware')
-        self.put('hardware_type', wallet_type)
-        xpub = self.get('master_public_keys')["x/0'"]
-        self.put('master_public_keys', {'x/': xpub})
-        self.put('derivation', bip44_derivation(0))
+        wallet_type = self.get('wallet_type')
+        seed_version = self.get_seed_version()
+        if seed_version == OLD_SEED_VERSION or wallet_type == 'old':
+            seed = self.get('seed')
+            d = {
+                'type': 'old',
+                'seed': seed
+            }
+            self.put('wallet_type', 'standard')
+            self.put('keystore', d)
+
+        elif wallet_type == 'standard':
+            xpub = self.get('master_public_keys')["x/"]
+            xprv = self.get('master_private_keys')["x/"]
+            d = {
+                'type': 'bip32',
+                'xpub': xpub,
+                'xprv': xprv,
+                'seed': self.get('seed', '')
+            }
+            self.put('wallet_type', 'standard')
+            self.put('keystore', d)
+
+        elif wallet_type in ['trezor', 'keepkey']:
+            xpub = self.get('master_public_keys')["x/0'"]
+            d = {
+                'type': 'hardware',
+                'hardware_type': wallet_type,
+                'xpub': xpub,
+                'derivation': bip44_derivation(0),
+            }
+            self.put('wallet_type', 'standard')
+            self.put('keystore', d)
+
+        elif multisig_type(wallet_type):
+            raise BaseException('not implemented')
+
+        elif wallet_type in ['2fa']:
+            raise BaseException('not implemented')
+
 
     def convert_imported(self, test):
         # '/x' is the internal ID for imported accounts

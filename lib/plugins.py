@@ -164,12 +164,12 @@ class Plugins(DaemonThread):
 
     def register_keystore(self, name, gui_good, details):
         from keystore import register_keystore
-        def dynamic_constructor():
-            return self.get_plugin(name).keystore_class()
+        def dynamic_constructor(d):
+            return self.get_plugin(name).keystore_class(d)
         if details[0] == 'hardware':
             self.hw_wallets[name] = (gui_good, details)
-            self.print_error("registering keystore %s: %s" %(name, details))
-        register_keystore(details[0], details[1], dynamic_constructor)
+            self.print_error("registering hardware %s: %s" %(name, details))
+            register_keystore(details[1], dynamic_constructor)
 
     def get_plugin(self, name):
         if not name in self.plugins:
