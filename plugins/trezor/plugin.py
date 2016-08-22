@@ -217,7 +217,6 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         devmgr = self.device_manager()
         device_info = devmgr.select_device(handler, self)
         device_id = device_info.device.id_
-        #devmgr.pair_wallet(keystore, device_info.device.id_)
         if device_info.initialized:
             task = lambda: self.init_xpub(derivation, device_id, handler)
         else:
@@ -239,7 +238,9 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         if not client.atleast_version(1, 3):
             wallet.handler.show_error(_("Your device firmware is too old"))
             return
-        address_path = wallet.address_id(address)
+        change, index = wallet.get_address_index(address)
+        derivation = wallet.keystore.derivation
+        address_path = "%s/%d/%d"%(derivation, change, index)
         address_n = client.expand_path(address_path)
         client.get_address('Bitcoin', address_n, True)
 

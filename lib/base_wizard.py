@@ -78,6 +78,7 @@ class BaseWizard(object):
             ('standard',  _("Standard wallet")),
             ('2fa', _("Wallet with two-factor authentication")),
             ('multisig',  _("Multi-signature wallet")),
+            ('imported',  _("Watch Bitcoin addresses")),
         ]
         choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
@@ -93,26 +94,37 @@ class BaseWizard(object):
             self.storage.put('use_trustedcoin', True)
             self.plugin = self.plugins.load_plugin('trustedcoin')
             action = self.storage.get_action()
-
+        elif choice == 'imported':
+            action = 'import_addresses'
         self.run(action)
 
     def choose_multisig(self):
         def on_multisig(m, n):
             self.multisig_type = "%dof%d"%(m, n)
+            self.storage.put('wallet_type', self.multisig_type)
             self.n = n
+            self.keystores = []
             self.run('choose_keystore')
         self.multisig_dialog(run_next=on_multisig)
 
     def choose_keystore(self):
         assert self.wallet_type in ['standard', 'multisig']
-        title = _('Keystore')
+        c = self.wallet_type == 'multisig' and len(self.keystores)>0
+        title = _('Add cosigner') + ' %d'%len(self.keystores) if c else _('Keystore')
         message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
-        choices = [
-            ('create_seed', _('Create a new seed')),
-            ('restore_seed', _('I already have a seed')),
-            ('restore_from_key', _('Import keys or addresses')),
-            ('choose_hw',  _('Use hardware keystore')),
-        ]
+        if not c:
+            choices = [
+                ('create_seed', _('Create a new seed')),
+                ('restore_seed', _('I already have a seed')),
+                ('restore_from_key', _('Import keys')),
+                ('choose_hw',  _('Use hardware device')),
+            ]
+        else:
+            choices = [
+                ('restore_from_key', _('Import cosigner key')),
+                ('choose_hw',  _('Cosign with hardware device')),
+            ]
+
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 
     def restore_seed(self):
@@ -130,12 +142,18 @@ class BaseWizard(object):
         else:
             self.create_keystore(text, None)
 
+    def import_addresses(self):
+        v = keystore.is_address_list
+        title = _("Import Bitcoin Addresses")
+        message = _("Enter a list of Bitcoin addresses. This will create a watching-only wallet.")
+        self.restore_keys_dialog(title=title, message=message, run_next=self.on_restore, is_valid=v)
+
     def restore_from_key(self):
         if self.wallet_type == 'standard':
             v = keystore.is_any_key
             title = _("Import keys")
             message = ' '.join([
-                _("To create a watching-only wallet, please enter your master public key (xpub), or a list of Bitcoin addresses."),
+                _("To create a watching-only wallet, please enter your master public key (xpub)."),
                 _("To create a spending wallet, please enter a master private key (xprv), or a list of Bitcoin private keys.")
             ])
         else:
@@ -179,7 +197,7 @@ class BaseWizard(object):
         derivation = bip44_derivation(int(account_id))
         plugin = self.plugins.get_plugin(self.hw_type)
         k = plugin.create_keystore(self.hw_type, derivation, self)
-        self.create_wallet(k, None)
+        self.on_keystore(k, None)
 
     def on_hardware_seed(self):
         self.storage.put('key_type', 'hw_seed')
@@ -207,46 +225,41 @@ class BaseWizard(object):
         derivation = "m/44'/0'/%d'"%account_id
         self.storage.put('account_id', account_id)
         k.add_xprv_from_seed(bip32_seed, derivation, password)
-        self.storage.put('keystore', k.dump())
-        self.wallet = Standard_Wallet(self.storage)
-        self.run('create_addresses')
+        self.on_keystore(k, password)
 
-    def create_wallet(self, k, password):
+    def on_keystore(self, k, password):
         if self.wallet_type == 'standard':
             self.storage.put('keystore', k.dump())
             self.wallet = Standard_Wallet(self.storage)
             self.run('create_addresses')
         elif self.wallet_type == 'multisig':
-            self.storage.put('wallet_type', self.multisig_type)
-            self.add_cosigner(k, 0)
-            xpub = k.get_master_public_key()
-            self.stack = []
-            self.run('show_xpub_and_add_cosigners', password, xpub)
 
-    def show_xpub_and_add_cosigners(self, password, xpub):
-        self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('add_cosigners', password, 1))
+            if k.xpub in map(lambda x: x.xpub, self.keystores):
+                raise BaseException('duplicate key')
+            self.keystores.append(k)
 
-    def add_cosigner(self, keystore, i):
-        d = self.storage.get('master_public_keys', {})
-        if keystore.xpub in d.values():
-            raise BaseException('duplicate key')
-        self.storage.put('x%d/'%(i+1), keystore.dump())
+            if len(self.keystores) == 1:
+                xpub = k.get_master_public_key()
+                self.stack = []
+                self.run('show_xpub_and_add_cosigners', xpub)
+            elif len(self.keystores) < self.n:
+                self.run('choose_keystore')
+            else:
+                for i, k in enumerate(self.keystores):
+                    self.storage.put('x%d/'%(i+1), k.dump())
+                self.storage.write()
+                self.wallet = Multisig_Wallet(self.storage)
+                self.run('create_addresses')
+
+    def show_xpub_and_add_cosigners(self, xpub):
+        self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('choose_keystore'))
 
     def add_cosigners(self, password, i):
         self.add_cosigner_dialog(run_next=lambda x: self.on_cosigner(x, password, i), index=i, is_valid=keystore.is_xpub)
 
     def on_cosigner(self, text, password, i):
         k = keystore.from_text(text, password)
-        try:
-            self.add_cosigner(k, i)
-        except BaseException as e:
-            self.show_message("error:" + str(e))
-            return
-        if i < self.n - 1:
-            self.run('add_cosigners', password, i+1)
-        else:
-            self.wallet = Multisig_Wallet(self.storage)
-            self.create_addresses()
+        self.on_keystore(k)
 
     def create_seed(self):
         from electrum.mnemonic import Mnemonic
@@ -262,7 +275,7 @@ class BaseWizard(object):
 
     def create_keystore(self, text, password):
         k = keystore.from_text(text, password)
-        self.create_wallet(k, password)
+        self.on_keystore(k, password)
 
     def create_addresses(self):
         def task():

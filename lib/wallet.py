@@ -990,9 +990,9 @@ class Abstract_Wallet(PrintError):
             return False
         if tx.is_complete():
             return False
-        # add input info. (should be done already)
-        for txin in tx.inputs():
-            self.add_input_info(txin)
+        ## add input info. (should be done already)
+        #for txin in tx.inputs():
+        #    self.add_input_info(txin)
         can_sign = any([txin['can_sign'] for txin in tx.inputs()])
         return can_sign
 
@@ -1027,7 +1027,10 @@ class Abstract_Wallet(PrintError):
         # sign
         for keystore in self.get_keystores():
             if not keystore.is_watching_only():
-                keystore.sign_transaction(tx, password)
+                try:
+                    keystore.sign_transaction(tx, password)
+                except:
+                    print "keystore cannot sign", keystore
 
     def get_unused_addresses(self):
         # fixme: use slots from expired requests
@@ -1519,7 +1522,7 @@ class Multisig_Wallet(Deterministic_Wallet):
     def add_input_sig_info(self, txin, address):
         txin['derivation'] = derivation = self.get_address_index(address)
         pubkeys = self.get_pubkeys(*derivation)
-        x_pubkeys = self.get_xpubkeys(*derivation)
+        x_pubkeys = [k.get_xpubkey(*derivation) for k in self.get_keystores()]
         # sort pubkeys and x_pubkeys, using the order of pubkeys
         pubkeys, x_pubkeys = zip( *sorted(zip(pubkeys, x_pubkeys)))
         txin['pubkeys'] = list(pubkeys)
@@ -1527,7 +1530,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         txin['signatures'] = [None] * len(pubkeys)
         txin['redeemScript'] = self.redeem_script(*derivation)
         txin['num_sig'] = self.m
-
+        txin['can_sign'] = any([x is None for x in txin['signatures']])
 
 
 
