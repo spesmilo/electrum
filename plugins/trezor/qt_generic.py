@@ -273,16 +273,16 @@ def qt_plugin_class(base_plugin_class):
 
     @hook
     def load_wallet(self, wallet, window):
-        keystore = wallet.get_keystore()
-        if type(keystore) != self.keystore_class:
-            return
-        window.tzb = StatusBarButton(QIcon(self.icon_file), self.device,
-                                     partial(self.settings_dialog, window))
-        window.statusBar().addPermanentWidget(window.tzb)
-        keystore.handler = self.create_handler(window)
-        keystore.thread = TaskThread(window, window.on_error)
-        # Trigger a pairing
-        keystore.thread.add(partial(self.get_client, keystore))
+        for keystore in wallet.get_keystores():
+            if type(keystore) != self.keystore_class:
+                continue
+            window.tzb = StatusBarButton(QIcon(self.icon_file), self.device,
+                                         partial(self.settings_dialog, window))
+            window.statusBar().addPermanentWidget(window.tzb)
+            keystore.handler = self.create_handler(window)
+            keystore.thread = TaskThread(window, window.on_error)
+            # Trigger a pairing
+            keystore.thread.add(partial(self.get_client, keystore))
 
     def create_keystore(self, hw_type, derivation, wizard):
         from electrum_ltc.keystore import hardware_keystore
@@ -310,11 +310,11 @@ def qt_plugin_class(base_plugin_class):
 
     @hook
     def receive_menu(self, menu, addrs, wallet):
-        keystore = wallet.get_keystore()
-        if type(keystore) == self.keystore_class and len(addrs) == 1:
-            def show_address():
-                keystore.thread.add(partial(self.show_address, wallet, addrs[0]))
-            menu.addAction(_("Show on %s") % self.device, show_address)
+        for keystore in wallet.get_keystores():
+            if type(keystore) == self.keystore_class and len(addrs) == 1:
+                def show_address():
+                    keystore.thread.add(partial(self.show_address, wallet, addrs[0]))
+                menu.addAction(_("Show on %s") % self.device, show_address)
 
     def settings_dialog(self, window):
         device_id = self.choose_device(window)

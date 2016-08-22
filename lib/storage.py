@@ -250,7 +250,7 @@ class WalletStorage(PrintError):
             self.put('wallet_type', 'standard')
             self.put('keystore', d)
 
-        elif wallet_type == 'standard':
+        elif wallet_type in['xpub', 'standard']:
             xpub = xpubs["x/"]
             xprv = xprvs["x/"]
             d = {
@@ -283,6 +283,8 @@ class WalletStorage(PrintError):
                 if key == 'x1/' and seed:
                     d['seed'] = seed
                 self.put(key, d)
+        else:
+            raise
 
         self.put('master_public_key', None)
         self.put('master_public_keys', None)
