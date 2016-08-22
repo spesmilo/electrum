@@ -21,10 +21,6 @@ TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
 
 class TrezorCompatibleKeyStore(Hardware_KeyStore):
 
-    def load(self, storage, name):
-        self.xpub = storage.get('master_public_keys', {}).get(name)
-        self.derivation = storage.get('derivation')
-
     def get_derivation(self):
         return self.derivation
 

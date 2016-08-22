@@ -43,9 +43,6 @@ class KeyStore(PrintError):
     def has_seed(self):
         return False
 
-    def has_password(self):
-        return False
-
     def is_watching_only(self):
         return False
 
@@ -57,10 +54,6 @@ class Software_KeyStore(KeyStore):
 
     def __init__(self):
         KeyStore.__init__(self)
-        self.use_encryption = False
-
-    def has_password(self):
-        return self.use_encryption
 
     def sign_message(self, sequence, message, password):
         sec = self.get_private_key(sequence, password)
@@ -79,9 +72,11 @@ class Software_KeyStore(KeyStore):
 class Imported_KeyStore(Software_KeyStore):
     # keystore for imported private keys
 
-    def __init__(self):
+    def __init__(self, d):
         Software_KeyStore.__init__(self)
-        self.keypairs = {}
+        self.keypairs = d.get('keypairs', {})
+        self.receiving_pubkeys = self.keypairs.keys()
+        self.change_pubkeys = []
 
     def is_deterministic(self):
         return False
@@ -92,16 +87,11 @@ class Imported_KeyStore(Software_KeyStore):
     def get_master_public_key(self):
         return None
 
-    def load(self, storage, name):
-        self.keypairs = storage.get('keypairs', {})
-        self.use_encryption = storage.get('use_encryption', False)
-        self.receiving_pubkeys = self.keypairs.keys()
-        self.change_pubkeys = []
-
-    def save(self, storage, root_name):
-        storage.put('key_type', 'imported')
-        storage.put('keypairs', self.keypairs)
-        storage.put('use_encryption', self.use_encryption)
+    def dump(self):
+        return {
+            'type': 'imported',
+            'keypairs': self.keypairs,
+        }
 
     def can_import(self):
         return True
@@ -147,26 +137,23 @@ class Imported_KeyStore(Software_KeyStore):
         for k, v in self.keypairs.items():
             b = pw_decode(v, old_password)
             c = pw_encode(b, new_password)
-            self.keypairs[k] = b
-        self.use_encryption = (new_password is not None)
+            self.keypairs[k] = c
+        print self.keypairs
 
 
 class Deterministic_KeyStore(Software_KeyStore):
 
-    def __init__(self):
+    def __init__(self, d):
         Software_KeyStore.__init__(self)
-        self.seed = ''
+        self.seed = d.get('seed', '')
 
     def is_deterministic(self):
         return True
 
-    def load(self, storage, name):
-        self.seed = storage.get('seed', '')
-        self.use_encryption = storage.get('use_encryption', False)
-
-    def save(self, storage, name):
-        storage.put('seed', self.seed)
-        storage.put('use_encryption', self.use_encryption)
+    def dump(self):
+        return {
+            'seed': self.seed,
+        }
 
     def has_seed(self):
         return self.seed != ''
@@ -180,7 +167,6 @@ class Deterministic_KeyStore(Software_KeyStore):
         self.seed_version, self.seed = self.format_seed(seed)
         if password:
             self.seed = pw_encode(self.seed, password)
-        self.use_encryption = (password is not None)
 
     def get_seed(self, password):
         return pw_decode(self.seed, password).encode('utf8')
@@ -235,27 +221,21 @@ class Xpub:
 
 class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
 
-    def __init__(self):
+    def __init__(self, d):
         Xpub.__init__(self)
-        Deterministic_KeyStore.__init__(self)
-        self.xprv = None
+        Deterministic_KeyStore.__init__(self, d)
+        self.xpub = d.get('xpub')
+        self.xprv = d.get('xprv')
 
     def format_seed(self, seed):
         return NEW_SEED_VERSION, ' '.join(seed.split())
 
-    def load(self, storage, name):
-        Deterministic_KeyStore.load(self, storage, name)
-        self.xpub = storage.get('master_public_keys', {}).get(name)
-        self.xprv = storage.get('master_private_keys', {}).get(name)
-
-    def save(self, storage, name):
-        Deterministic_KeyStore.save(self, storage, name)
-        d = storage.get('master_public_keys', {})
-        d[name] = self.xpub
-        storage.put('master_public_keys', d)
-        d = storage.get('master_private_keys', {})
-        d[name] = self.xprv
-        storage.put('master_private_keys', d)
+    def dump(self):
+        d = Deterministic_KeyStore.dump(self)
+        d['type'] = 'bip32'
+        d['xpub'] = self.xpub
+        d['xprv'] = self.xprv
+        return d
 
     def add_master_private_key(self, xprv, password):
         self.xprv = pw_encode(xprv, password)
@@ -279,7 +259,6 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         if self.xprv is not None:
             b = pw_decode(self.xprv, old_password)
             self.xprv = pw_encode(b, new_password)
-        self.use_encryption = (new_password is not None)
 
     def is_watching_only(self):
         return self.xprv is None
@@ -340,18 +319,14 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
 
 class Old_KeyStore(Deterministic_KeyStore):
 
-    def __init__(self):
-        Deterministic_KeyStore.__init__(self)
-        self.mpk = None
+    def __init__(self, d):
+        Deterministic_KeyStore.__init__(self, d)
+        self.mpk = d.get('mpk').decode('hex')
 
-    def load(self, storage, name):
-        Deterministic_KeyStore.load(self, storage, name)
-        self.mpk = storage.get('master_public_key').decode('hex')
-
-    def save(self, storage, name):
-        Deterministic_KeyStore.save(self, storage, name)
-        storage.put('wallet_type', 'old')
-        storage.put('master_public_key', self.mpk.encode('hex'))
+    def dump(self):
+        d = Deterministic_KeyStore.dump(self)
+        d['mpk'] = self.mpk.encode('hex')
+        return d
 
     def add_seed(self, seed, password):
         Deterministic_KeyStore.add_seed(self, seed, password)
@@ -473,7 +448,6 @@ class Old_KeyStore(Deterministic_KeyStore):
         if self.has_seed():
             decoded = self.get_seed(old_password)
             self.seed = pw_encode(decoded, new_password)
-        self.use_encryption = (new_password is not None)
 
 
 class Hardware_KeyStore(KeyStore, Xpub):
@@ -485,24 +459,26 @@ class Hardware_KeyStore(KeyStore, Xpub):
     #restore_wallet_class = BIP32_RD_Wallet
     max_change_outputs = 1
 
-    def __init__(self):
+    def __init__(self, d):
         Xpub.__init__(self)
         KeyStore.__init__(self)
         # Errors and other user interaction is done through the wallet's
         # handler.  The handler is per-window and preserved across
         # device reconnects
+        self.xpub = d.get('xpub')
+        self.derivation = d.get('derivation')
         self.handler = None
 
     def is_deterministic(self):
         return True
 
-    def load(self, storage, name):
-        self.xpub = storage.get('master_public_keys', {}).get(name)
-
-    def save(self, storage, name):
-        d = storage.get('master_public_keys', {})
-        d[name] = self.xpub
-        storage.put('master_public_keys', d)
+    def dump(self):
+        return {
+            'type': 'hardware',
+            'hw_type': self.hw_type,
+            'xpub': self.xpub,
+            'derivation':self.derivation,
+        }
 
     def unpaired(self):
         '''A device paired with the wallet was diconnected.  This can be
@@ -572,36 +548,36 @@ def xpubkey_to_address(x_pubkey):
     return pubkey, address
 
 
-keystores = []
+hw_keystores = {}
+
+def register_keystore(hw_type, constructor):
+    hw_keystores[hw_type] = constructor
+
+def hardware_keystore(hw_type, d):
+    if hw_type in hw_keystores:
+        constructor = hw_keystores[hw_type]
+        return constructor(d)
+    raise BaseException('unknown hardware type', hw_type)
 
 def load_keystore(storage, name):
-    w = storage.get('wallet_type')
-    t = storage.get('key_type', 'seed')
-    seed_version = storage.get_seed_version()
-    if seed_version == OLD_SEED_VERSION or w == 'old':
-        k = Old_KeyStore()
+    w = storage.get('wallet_type', 'standard')
+    d = storage.get(name, {})
+    t = d.get('type')
+    if not t:
+        raise BaseException('wallet format requires update')
+    if t == 'old':
+        k = Old_KeyStore(d)
     elif t == 'imported':
-        k = Imported_KeyStore()
-    elif name and name not in [ 'x/', 'x1/' ]:
-        k = BIP32_KeyStore()
-    elif t in ['seed', 'hw_seed']:
-        k = BIP32_KeyStore()
+        k = Imported_KeyStore(d)
+    elif t == 'bip32':
+        k = BIP32_KeyStore(d)
     elif t == 'hardware':
-        hw_type = storage.get('hardware_type')
-        for cat, _type, constructor in keystores:
-            if cat == 'hardware' and _type == hw_type:
-                k = constructor()
-                break
-        else:
-            raise BaseException('unknown hardware type')
+        hw_type = d.get('hw_type')
+        k = hardware_keystore(hw_type, d)
     else:
         raise BaseException('unknown wallet type', t)
-    k.load(storage, name)
     return k
 
-
-def register_keystore(category, type, constructor):
-    keystores.append((category, type, constructor))
 
 
 def is_old_mpk(mpk):
@@ -649,35 +625,35 @@ def bip44_derivation(account_id):
 
 def from_seed(seed, password):
     if is_old_seed(seed):
-        keystore = Old_KeyStore()
+        keystore = Old_KeyStore({})
         keystore.add_seed(seed, password)
     elif is_new_seed(seed):
-        keystore = BIP32_KeyStore()
+        keystore = BIP32_KeyStore({})
         keystore.add_seed(seed, password)
         bip32_seed = Mnemonic.mnemonic_to_seed(seed, '')
         keystore.add_xprv_from_seed(bip32_seed, "m/", password)
     return keystore
 
 def from_private_key_list(text, password):
-    keystore = Imported_KeyStore()
+    keystore = Imported_KeyStore({})
     for x in text.split():
         keystore.import_key(x, None)
     keystore.update_password(None, password)
     return keystore
 
 def from_old_mpk(mpk):
-    keystore = Old_KeyStore()
+    keystore = Old_KeyStore({})
     keystore.add_master_public_key(mpk)
     return keystore
 
 def from_xpub(xpub):
-    keystore = BIP32_KeyStore()
+    keystore = BIP32_KeyStore({})
     keystore.add_master_public_key(xpub)
     return keystore
 
 def from_xprv(xprv, password):
     xpub = bitcoin.xpub_from_xprv(xprv)
-    keystore = BIP32_KeyStore()
+    keystore = BIP32_KeyStore({})
     keystore.add_master_private_key(xprv, password)
     keystore.add_master_public_key(xpub)
     return keystore

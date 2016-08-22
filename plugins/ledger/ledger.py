@@ -32,26 +32,19 @@ except ImportError:
 
 
 class Ledger_KeyStore(Hardware_KeyStore):
-    wallet_type = 'btchip'
     device = 'Ledger'
 
-    def __init__(self):
-        Hardware_KeyStore.__init__(self)
+    def __init__(self, d):
+        Hardware_KeyStore.__init__(self, d)
         # Errors and other user interaction is done through the wallet's
         # handler.  The handler is per-window and preserved across
         # device reconnects
-        self.handler = None
         self.force_watching_only = False
         self.device_checked = False
         self.signing = False
-        self.client = None
 
-    def get_derivation(self):
-        return "m/44'/2'/%d'"%self.account_id
-
-    def load(self, storage, name):
-        self.xpub = storage.get('master_public_keys', {}).get(name)
-        self.account_id = int(storage.get('account_id'))
+    def get_client(self):
+        return self.plugin.get_client()
 
     def init_xpub(self):
         client = self.get_client()
@@ -71,42 +64,6 @@ class Ledger_KeyStore(Hardware_KeyStore):
     def address_id(self, address):
         # Strip the leading "m/"
         return BIP32_HW_Wallet.address_id(self, address)[2:]
-
-    def get_public_key(self, bip32_path):
-        # bip32_path is of the form 44'/0'/1'
-        # S-L-O-W - we don't handle the fingerprint directly, so compute
-        # it manually from the previous node
-        # This only happens once so it's bearable
-        self.get_client() # prompt for the PIN before displaying the dialog if necessary
-        self.handler.show_message("Computing master public key")
-        try:
-            splitPath = bip32_path.split('/')
-            if splitPath[0] == 'm':
-                splitPath = splitPath[1:]
-                bip32_path = bip32_path[2:]
-            fingerprint = 0
-            if len(splitPath) > 1:
-                prevPath = "/".join(splitPath[0:len(splitPath) - 1])
-                nodeData = self.get_client().getWalletPublicKey(prevPath)
-                publicKey = compress_public_key(nodeData['publicKey'])
-                h = hashlib.new('ripemd160')
-                h.update(hashlib.sha256(publicKey).digest())
-                fingerprint = unpack(">I", h.digest()[0:4])[0]
-            nodeData = self.get_client().getWalletPublicKey(bip32_path)
-            publicKey = compress_public_key(nodeData['publicKey'])
-            depth = len(splitPath)
-            lastChild = splitPath[len(splitPath) - 1].split('\'')
-            if len(lastChild) == 1:
-                childnum = int(lastChild[0])
-            else:
-                childnum = 0x80000000 | int(lastChild[0])
-            xpub = "0488B21E".decode('hex') + chr(depth) + self.i4b(fingerprint) + self.i4b(childnum) + str(nodeData['chainCode']) + str(publicKey)
-        except Exception, e:
-            self.give_error(e, True)
-        finally:
-            self.handler.clear_dialog()
-
-        return EncodeBase58Check(xpub)
 
     def decrypt_message(self, pubkey, message, password):
         self.give_error("Not supported")
@@ -327,6 +284,21 @@ class Ledger_KeyStore(Hardware_KeyStore):
             return False, None, None
         return True, response, response
 
+
+class LedgerPlugin(HW_PluginBase):
+    libraries_available = BTCHIP
+    keystore_class = Ledger_KeyStore
+    hw_type='ledger'
+    client = None
+
+    def btchip_is_connected(self, keystore):
+        try:
+            self.get_client().getFirmwareVersion()
+        except Exception as e:
+            self.print_error("get_client", str(e))
+            return False
+        return True
+
     def get_client(self, force_pair=True, noPin=False):
         aborted = False
         client = self.client
@@ -403,15 +375,39 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
         return self.client
 
-
-class LedgerPlugin(HW_PluginBase):
-    libraries_available = BTCHIP
-    keystore_class = Ledger_KeyStore
-
-    def btchip_is_connected(self, keystore):
+    def get_public_key(self, bip32_path):
+        # bip32_path is of the form 44'/0'/1'
+        # S-L-O-W - we don't handle the fingerprint directly, so compute
+        # it manually from the previous node
+        # This only happens once so it's bearable
+        self.get_client() # prompt for the PIN before displaying the dialog if necessary
+        self.handler.show_message("Computing master public key")
         try:
-            keystore.get_client().getFirmwareVersion()
-        except Exception as e:
-            self.print_error("get_client", str(e))
-            return False
-        return True
+            splitPath = bip32_path.split('/')
+            if splitPath[0] == 'm':
+                splitPath = splitPath[1:]
+                bip32_path = bip32_path[2:]
+            fingerprint = 0
+            if len(splitPath) > 1:
+                prevPath = "/".join(splitPath[0:len(splitPath) - 1])
+                nodeData = self.get_client().getWalletPublicKey(prevPath)
+                publicKey = compress_public_key(nodeData['publicKey'])
+                h = hashlib.new('ripemd160')
+                h.update(hashlib.sha256(publicKey).digest())
+                fingerprint = unpack(">I", h.digest()[0:4])[0]
+            nodeData = self.get_client().getWalletPublicKey(bip32_path)
+            publicKey = compress_public_key(nodeData['publicKey'])
+            depth = len(splitPath)
+            lastChild = splitPath[len(splitPath) - 1].split('\'')
+            if len(lastChild) == 1:
+                childnum = int(lastChild[0])
+            else:
+                childnum = 0x80000000 | int(lastChild[0])
+            xpub = "0488B21E".decode('hex') + chr(depth) + self.i4b(fingerprint) + self.i4b(childnum) + str(nodeData['chainCode']) + str(publicKey)
+        except Exception, e:
+            self.give_error(e, True)
+        finally:
+            self.handler.clear_dialog()
+
+        return EncodeBase58Check(xpub)
+

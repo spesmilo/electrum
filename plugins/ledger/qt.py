@@ -25,12 +25,21 @@ class Plugin(LedgerPlugin):
             window.show_error(_("Ledger device not detected.\nContinuing in watching-only mode."))
             wallet.force_watching_only = True
 
-    def on_create_wallet(self, keystore, wizard):
-        assert type(keystore) == self.keystore_class
-        keystore.handler = BTChipQTHandler(wizard)
-        keystore.init_xpub()
-        print keystore.xpub
-        wizard.create_wallet(keystore, None)
+    def create_keystore(self, hw_type, derivation, wizard):
+        from electrum_ltc.keystore import hardware_keystore
+        # create keystore
+        handler = BTChipQTHandler(wizard)
+        client = self.get_client()
+        xpub = self.get_public_key(derivation)
+        d = {
+            'xpub': self.xpub,
+            'type': 'hardware',
+            'hw_type': hw_type,
+            'derivation': derivation
+        }
+        k = hardware_keystore(hw_type, d)
+        return k
+
 
 class BTChipQTHandler(QtHandlerBase):
 
