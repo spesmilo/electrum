@@ -333,7 +333,7 @@ class SettingsDialog(WindowModalDialog):
             unpair_after = kw_args.pop('unpair_after', False)
 
             def task():
-                client = devmgr.client_by_id(device_id, handler)
+                client = devmgr.client_by_id(device_id)
                 if not client:
                     raise RuntimeError("Device not connected")
                 if method:

@@ -178,7 +178,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
 
         language = 'english'
         devmgr = self.device_manager()
-        client = devmgr.client_by_id(device_id, handler)
+        client = devmgr.client_by_id(device_id)
 
         if method == TIM_NEW:
             strength = 64 * (item + 2)  # 128, 192 or 256
@@ -209,8 +209,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         device_id = device_info.device.id_
         if not device_info.initialized:
             self.initialize_device(device_id, wizard, handler)
-
-        client = devmgr.client_by_id(device_id, handler)
+        client = devmgr.client_by_id(device_id)
         client.used()
         return client.get_xpub(derivation)
 
