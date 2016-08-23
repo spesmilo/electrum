@@ -199,13 +199,12 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             client.load_device_by_xprv(item, pin, passphrase_protection,
                                        label, language)
 
-    def setup_device(self, derivation, wizard):
+    def setup_device(self, device_info, derivation, wizard):
         '''Called when creating a new wallet.  Select the device to use.  If
         the device is uninitialized, go through the intialization
         process.'''
-        handler = self.create_handler(wizard)
+        handler = wizard
         devmgr = self.device_manager()
-        device_info = devmgr.select_device(handler, self)
         device_id = device_info.device.id_
         if not device_info.initialized:
             self.initialize_device(device_id, wizard, handler)

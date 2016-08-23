@@ -337,7 +337,7 @@ class TrustedCoinPlugin(BasePlugin):
     def show_disclaimer(self, wizard):
         wizard.set_icon(':icons/trustedcoin.png')
         wizard.stack = []
-        wizard.confirm_dialog('\n\n'.join(DISCLAIMER), run_next = lambda x: wizard.run('choose_seed'))
+        wizard.confirm_dialog(title='Disclaimer', message='\n\n'.join(DISCLAIMER), run_next = lambda x: wizard.run('choose_seed'))
 
     def choose_seed(self, wizard):
         title = _('Create or restore')
@@ -372,7 +372,7 @@ class TrustedCoinPlugin(BasePlugin):
         ]
         msg = '\n\n'.join(msg)
         wizard.stack = []
-        wizard.confirm_dialog(msg, run_next = lambda x: wizard.run('create_remote_key'))
+        wizard.confirm_dialog(title='', message=msg, run_next = lambda x: wizard.run('create_remote_key'))
 
     def restore_wallet(self, wizard):
         title = _("Restore two-factor Wallet")
