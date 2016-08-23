@@ -193,10 +193,18 @@ class BaseWizard(object):
         self.account_id_dialog(run_next=f)
 
     def on_hardware_account_id(self, account_id):
-        from keystore import load_keystore, bip44_derivation
+        from keystore import hardware_keystore, bip44_derivation
         derivation = bip44_derivation(int(account_id))
         plugin = self.plugins.get_plugin(self.hw_type)
-        k = plugin.create_keystore(self.hw_type, derivation, self)
+        xpub = plugin.setup_device(derivation, self)
+        # create keystore
+        d = {
+            'type': 'hardware',
+            'hw_type': self.hw_type,
+            'derivation': derivation,
+            'xpub': xpub,
+        }
+        k = hardware_keystore(self.hw_type, d)
         self.on_keystore(k, None)
 
     def on_hardware_seed(self):

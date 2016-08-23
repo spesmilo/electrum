@@ -284,30 +284,6 @@ def qt_plugin_class(base_plugin_class):
             # Trigger a pairing
             keystore.thread.add(partial(self.get_client, keystore))
 
-    def create_keystore(self, hw_type, derivation, wizard):
-        from electrum.keystore import hardware_keystore
-        handler = self.create_handler(wizard)
-        thread = TaskThread(wizard, wizard.on_error)
-        # Setup device and create accounts in separate thread; wait until done
-        loop = QEventLoop()
-        exc_info = []
-        self.setup_device(derivation, thread, handler, on_done=loop.quit,
-                          on_error=lambda info: exc_info.extend(info))
-        loop.exec_()
-        # If an exception was thrown, show to user and exit install wizard
-        if exc_info:
-            wizard.on_error(exc_info)
-            raise UserCancelled
-        # create keystore
-        d = {
-            'xpub': self.xpub,
-            'type': 'hardware',
-            'hw_type': hw_type,
-            'derivation': derivation
-        }
-        k = hardware_keystore(hw_type, d)
-        return k
-
     @hook
     def receive_menu(self, menu, addrs, wallet):
         for keystore in wallet.get_keystores():
