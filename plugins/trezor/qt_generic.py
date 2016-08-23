@@ -276,37 +276,13 @@ def qt_plugin_class(base_plugin_class):
         for keystore in wallet.get_keystores():
             if type(keystore) != self.keystore_class:
                 continue
-            window.tzb = StatusBarButton(QIcon(self.icon_file), self.device,
-                                         partial(self.settings_dialog, window))
-            window.statusBar().addPermanentWidget(window.tzb)
+            button = StatusBarButton(QIcon(self.icon_file), self.device,
+                                     partial(self.settings_dialog, window))
+            window.statusBar().addPermanentWidget(button)
             keystore.handler = self.create_handler(window)
             keystore.thread = TaskThread(window, window.on_error)
             # Trigger a pairing
             keystore.thread.add(partial(self.get_client, keystore))
-
-    def create_keystore(self, hw_type, derivation, wizard):
-        from electrum_ltc.keystore import hardware_keystore
-        handler = self.create_handler(wizard)
-        thread = TaskThread(wizard, wizard.on_error)
-        # Setup device and create accounts in separate thread; wait until done
-        loop = QEventLoop()
-        exc_info = []
-        self.setup_device(derivation, thread, handler, on_done=loop.quit,
-                          on_error=lambda info: exc_info.extend(info))
-        loop.exec_()
-        # If an exception was thrown, show to user and exit install wizard
-        if exc_info:
-            wizard.on_error(exc_info)
-            raise UserCancelled
-        # create keystore
-        d = {
-            'xpub': self.xpub,
-            'type': 'hardware',
-            'hw_type': hw_type,
-            'derivation': derivation
-        }
-        k = hardware_keystore(hw_type, d)
-        return k
 
     @hook
     def receive_menu(self, menu, addrs, wallet):
@@ -330,17 +306,6 @@ def qt_plugin_class(base_plugin_class):
             info = self.device_manager().select_device(keystore.handler, self)
             device_id = info.device.id_
         return device_id
-
-    def query_choice(self, window, msg, choices):
-        dialog = WindowModalDialog(window)
-        clayout = ChoicesLayout(msg, choices)
-        layout = clayout.layout()
-        layout.addStretch(1)
-        layout.addLayout(Buttons(CancelButton(dialog), OkButton(dialog)))
-        dialog.setLayout(layout)
-        if not dialog.exec_():
-            return None
-        return clayout.selected_index()
 
 
   return QtPlugin
@@ -368,7 +333,7 @@ class SettingsDialog(WindowModalDialog):
             unpair_after = kw_args.pop('unpair_after', False)
 
             def task():
-                client = devmgr.client_by_id(device_id, handler)
+                client = devmgr.client_by_id(device_id)
                 if not client:
                     raise RuntimeError("Device not connected")
                 if method:

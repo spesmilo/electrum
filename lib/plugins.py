@@ -379,15 +379,15 @@ class DeviceMgr(ThreadJob, PrintError):
                     return client
         return None
 
-    def client_by_id(self, id_, handler):
+    def client_by_id(self, id_):
         '''Returns a client for the device ID if one is registered.  If
         a device is wiped or in bootloader mode pairing is impossible;
         in such cases we communicate by device ID and not wallet.'''
-        self.scan_devices(handler)
+        self.scan_devices()
         return self.client_lookup(id_)
 
     def client_for_xpub(self, plugin, xpub, derivation, handler, force_pair):
-        devices = self.scan_devices(handler)
+        devices = self.scan_devices()
         _id = self.xpub_id(xpub)
         client = self.client_lookup(_id)
         if client:
@@ -436,7 +436,7 @@ class DeviceMgr(ThreadJob, PrintError):
         '''Returns a list of DeviceInfo objects: one for each connected,
         unpaired device accepted by the plugin.'''
         if devices is None:
-            devices = self.scan_devices(handler)
+            devices = self.scan_devices()
         devices = [dev for dev in devices if not self.xpub_by_id(dev.id_)]
 
         states = [_("wiped"), _("initialized")]
@@ -474,7 +474,7 @@ class DeviceMgr(ThreadJob, PrintError):
         descriptions = [info.description for info in infos]
         return infos[handler.query_choice(msg, descriptions)]
 
-    def scan_devices(self, handler):
+    def scan_devices(self):
         # All currently supported hardware libraries use hid, so we
         # assume it here.  This can be easily abstracted if necessary.
         # Note this import must be local so those without hardware

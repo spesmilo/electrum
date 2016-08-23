@@ -143,7 +143,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             client.used()
         return client
 
-    def initialize_device(self, keystore):
+    def initialize_device(self, device_id, wizard, handler):
         # Initialization method
         msg = _("Choose how you want to initialize your %s.\n\n"
                 "The first two methods are secure as no secret information "
@@ -153,22 +153,23 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                 "only do those on a computer you know to be trustworthy "
                 "and free of malware."
         ) % (self.device, self.device)
-
-        methods = [
+        choices = [
             # Must be short as QT doesn't word-wrap radio button text
-            _("Let the device generate a completely new seed randomly"),
-            _("Recover from a seed you have previously written down"),
-            _("Upload a BIP39 mnemonic to generate the seed"),
-            _("Upload a master private key")
+            (TIM_NEW, _("Let the device generate a completely new seed randomly")),
+            (TIM_RECOVER, _("Recover from a seed you have previously written down")),
+            (TIM_MNEMONIC, _("Upload a BIP39 mnemonic to generate the seed")),
+            (TIM_PRIVKEY, _("Upload a master private key"))
         ]
+        f = lambda x: self._initialize_device(x, device_id, handler)
+        wizard.choice_dialog(title=_('Initialize Device'), message=msg, choices=choices, run_next=f)
 
-        method = keystore.handler.query_choice(msg, methods)
+    def _initialize_device(self, method, device_id, handler):
         (item, label, pin_protection, passphrase_protection) \
-            = wallet.handler.request_trezor_init_settings(method, self.device)
+            = handler.request_trezor_init_settings(method, self.device)
 
         if method == TIM_RECOVER and self.device == 'TREZOR':
             # Warn user about firmware lameness
-            keystore.handler.show_error(_(
+            handler.show_error(_(
                 "You will be asked to enter 24 words regardless of your "
                 "seed's actual length.  If you enter a word incorrectly or "
                 "misspell it, you cannot change it or go back - you will need "
@@ -176,52 +177,41 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                 "the words carefully!"))
 
         language = 'english'
-
-        def initialize_method():
-            client = self.get_client(keystore)
-
-            if method == TIM_NEW:
-                strength = 64 * (item + 2)  # 128, 192 or 256
-                client.reset_device(True, strength, passphrase_protection,
-                                    pin_protection, label, language)
-            elif method == TIM_RECOVER:
-                word_count = 6 * (item + 2)  # 12, 18 or 24
-                client.step = 0
-                client.recovery_device(word_count, passphrase_protection,
-                                       pin_protection, label, language)
-            elif method == TIM_MNEMONIC:
-                pin = pin_protection  # It's the pin, not a boolean
-                client.load_device_by_mnemonic(str(item), pin,
-                                               passphrase_protection,
-                                               label, language)
-            else:
-                pin = pin_protection  # It's the pin, not a boolean
-                client.load_device_by_xprv(item, pin, passphrase_protection,
-                                           label, language)
-            # After successful initialization get xpub
-            self.xpub = client.get_xpub(derivation)
-
-        return initialize_method
-
-    def init_xpub(self, derivation, device_id, handler):
         devmgr = self.device_manager()
-        client = devmgr.client_by_id(device_id, handler)
-        if client:
-            client.used()
-        self.xpub = client.get_xpub(derivation)
+        client = devmgr.client_by_id(device_id)
 
-    def setup_device(self, derivation, thread, handler, on_done, on_error):
+        if method == TIM_NEW:
+            strength = 64 * (item + 2)  # 128, 192 or 256
+            client.reset_device(True, strength, passphrase_protection,
+                                    pin_protection, label, language)
+        elif method == TIM_RECOVER:
+            word_count = 6 * (item + 2)  # 12, 18 or 24
+            client.step = 0
+            client.recovery_device(word_count, passphrase_protection,
+                                       pin_protection, label, language)
+        elif method == TIM_MNEMONIC:
+            pin = pin_protection  # It's the pin, not a boolean
+            client.load_device_by_mnemonic(str(item), pin,
+                                           passphrase_protection,
+                                           label, language)
+        else:
+            pin = pin_protection  # It's the pin, not a boolean
+            client.load_device_by_xprv(item, pin, passphrase_protection,
+                                       label, language)
+
+    def setup_device(self, derivation, wizard):
         '''Called when creating a new wallet.  Select the device to use.  If
         the device is uninitialized, go through the intialization
-        process.  Then create the wallet accounts.'''
+        process.'''
+        handler = self.create_handler(wizard)
         devmgr = self.device_manager()
         device_info = devmgr.select_device(handler, self)
         device_id = device_info.device.id_
-        if device_info.initialized:
-            task = lambda: self.init_xpub(derivation, device_id, handler)
-        else:
-            task = self.initialize_device(keystore)
-        thread.add(task, on_done=on_done, on_error=on_error)
+        if not device_info.initialized:
+            self.initialize_device(device_id, wizard, handler)
+        client = devmgr.client_by_id(device_id)
+        client.used()
+        return client.get_xpub(derivation)
 
     def sign_transaction(self, keystore, tx, prev_tx, xpub_path):
         self.prev_tx = prev_tx
