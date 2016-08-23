@@ -307,17 +307,6 @@ def qt_plugin_class(base_plugin_class):
             device_id = info.device.id_
         return device_id
 
-    def query_choice(self, window, msg, choices):
-        dialog = WindowModalDialog(window)
-        clayout = ChoicesLayout(msg, choices)
-        layout = clayout.layout()
-        layout.addStretch(1)
-        layout.addLayout(Buttons(CancelButton(dialog), OkButton(dialog)))
-        dialog.setLayout(layout)
-        if not dialog.exec_():
-            return None
-        return clayout.selected_index()
-
 
   return QtPlugin
 

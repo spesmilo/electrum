@@ -371,6 +371,14 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         action = c_values[clayout.selected_index()]
         return action
 
+    def query_choice(self, msg, choices):
+        """called by hardware wallets"""
+        clayout = ChoicesLayout(msg, choices)
+        vbox = QVBoxLayout()
+        vbox.addLayout(clayout.layout())
+        self.set_main_layout(vbox, '')
+        return clayout.selected_index()
+
     @wizard_dialog
     def account_id_dialog(self, run_next):
         message = '\n'.join([
