@@ -200,9 +200,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
 
     def finished(self):
-        '''Ensure the dialog is closed.'''
-        self.accept()
-        self.refresh_gui()
+        """Called in hardware client wrapper, in order to close popups."""
+        return
 
     def on_error(self, exc_info):
         if not isinstance(exc_info[1], UserCancelled):
