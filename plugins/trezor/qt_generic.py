@@ -276,9 +276,9 @@ def qt_plugin_class(base_plugin_class):
         for keystore in wallet.get_keystores():
             if type(keystore) != self.keystore_class:
                 continue
-            window.tzb = StatusBarButton(QIcon(self.icon_file), self.device,
-                                         partial(self.settings_dialog, window))
-            window.statusBar().addPermanentWidget(window.tzb)
+            button = StatusBarButton(QIcon(self.icon_file), self.device,
+                                     partial(self.settings_dialog, window))
+            window.statusBar().addPermanentWidget(button)
             keystore.handler = self.create_handler(window)
             keystore.thread = TaskThread(window, window.on_error)
             # Trigger a pairing
