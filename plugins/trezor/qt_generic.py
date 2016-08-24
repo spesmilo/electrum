@@ -194,7 +194,7 @@ def qt_plugin_class(base_plugin_class):
             if type(keystore) != self.keystore_class:
                 continue
             button = StatusBarButton(QIcon(self.icon_file), self.device,
-                                     partial(self.settings_dialog, window))
+                                     partial(self.settings_dialog, window, keystore))
             window.statusBar().addPermanentWidget(button)
             keystore.handler = self.create_handler(window)
             keystore.thread = TaskThread(window, window.on_error)
@@ -209,15 +209,14 @@ def qt_plugin_class(base_plugin_class):
                     keystore.thread.add(partial(self.show_address, wallet, addrs[0]))
                 menu.addAction(_("Show on %s") % self.device, show_address)
 
-    def settings_dialog(self, window):
-        device_id = self.choose_device(window)
+    def settings_dialog(self, window, keystore):
+        device_id = self.choose_device(window, keystore)
         if device_id:
             SettingsDialog(window, self, device_id).exec_()
 
-    def choose_device(self, window):
+    def choose_device(self, window, keystore):
         '''This dialog box should be usable even if the user has
         forgotten their PIN or it is in bootloader mode.'''
-        keystore = window.wallet.get_keystore()
         device_id = self.device_manager().xpub_id(keystore.xpub)
         if not device_id:
             info = self.device_manager().select_device(keystore.handler, self)
