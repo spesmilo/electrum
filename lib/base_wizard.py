@@ -198,28 +198,29 @@ class BaseWizard(object):
         self.devices = devices
         choices = []
         for name, device_info in devices:
-            choices.append( ((name, device_info), device_info.description) )
+            choices.append( ((name, device_info), device_info.description + ' [%s]'%name) )
         msg = _('Select a device') + ':'
         self.choice_dialog(title=title, message=msg, choices=choices, run_next=self.on_device)
 
     def on_device(self, name, device_info):
+        plugin = self.plugins.get_plugin(name)
+        self.plugin = plugin
+        xpub = plugin.setup_device(device_info, 'm', self)
         f = lambda x: self.run('on_hardware_account_id', name, device_info, x)
         self.account_id_dialog(run_next=f)
 
-    def on_hardware_account_id(self, hw_type, device_info, account_id):
+    def on_hardware_account_id(self, name, device_info, account_id):
         from keystore import hardware_keystore, bip44_derivation
+        plugin = self.plugins.get_plugin(name)
         derivation = bip44_derivation(int(account_id))
-        plugin = self.plugins.get_plugin(hw_type)
-        self.plugin = plugin
         xpub = plugin.setup_device(device_info, derivation, self)
-        # create keystore
         d = {
             'type': 'hardware',
-            'hw_type': hw_type,
+            'hw_type': name,
             'derivation': derivation,
             'xpub': xpub,
         }
-        k = hardware_keystore(hw_type, d)
+        k = hardware_keystore(d)
         self.on_keystore(k, None)
 
     def on_hardware_seed(self):
