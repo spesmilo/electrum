@@ -39,6 +39,7 @@ class BaseWizard(object):
         self.wallet = None
         self.stack = []
         self.plugin = None
+        self.keystores = []
 
     def run(self, *args):
         action = args[0]
@@ -103,26 +104,26 @@ class BaseWizard(object):
             self.multisig_type = "%dof%d"%(m, n)
             self.storage.put('wallet_type', self.multisig_type)
             self.n = n
-            self.keystores = []
             self.run('choose_keystore')
         self.multisig_dialog(run_next=on_multisig)
 
     def choose_keystore(self):
         assert self.wallet_type in ['standard', 'multisig']
-        c = self.wallet_type == 'multisig' and len(self.keystores)>0
-        title = _('Add cosigner') + ' %d'%len(self.keystores) if c else _('Keystore')
-        message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
-        if not c:
+        i = len(self.keystores)
+        title = _('Add cosigner') + ' (%d of %d)'%(i+1, self.n) if self.wallet_type=='multisig' else _('Keystore')
+        if self.wallet_type =='standard' or i==0:
+            message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
             choices = [
                 ('create_seed', _('Create a new seed')),
                 ('restore_seed', _('I already have a seed')),
                 ('restore_from_key', _('Import keys')),
-                ('choose_hw',  _('Use hardware device')),
+                ('choose_hw_device',  _('Use hardware device')),
             ]
         else:
+            message = _('Add a cosigner to your multi-sig wallet')
             choices = [
                 ('restore_from_key', _('Import cosigner key')),
-                ('choose_hw',  _('Cosign with hardware device')),
+                ('choose_hw_device',  _('Cosign with hardware device')),
             ]
 
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
@@ -165,46 +166,62 @@ class BaseWizard(object):
             ])
         self.restore_keys_dialog(title=title, message=message, run_next=self.on_restore, is_valid=v)
 
-    def choose_hw(self):
-        hw_wallet_types, choices = self.plugins.hardware_wallets('create')
-        choices = zip(hw_wallet_types, choices)
+    def choose_hw_device(self):
         title = _('Hardware Keystore')
-        if choices:
-            msg = _('Select the type of device') + ':'
-        else:
-            msg = ' '.join([
+        # check available plugins
+        support = self.plugins.get_hardware_support()
+        if not support:
+            msg = '\n'.join([
                 _('No hardware wallet support found on your system.'),
                 _('Please install the relevant libraries (eg python-trezor for Trezor).'),
             ])
-        self.choice_dialog(title=title, message=msg, choices=choices, run_next=self.on_hardware)
+            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device())
+            return
+        # scan devices
+        devices = []
+        devmgr = self.plugins.device_manager
+        for name, description, plugin in support:
+            try:
+                # FIXME: side-effect: unpaired_device_info sets client.handler
+                u = devmgr.unpaired_device_infos(None, plugin)
+            except:
+                devmgr.print_error("error", name)
+                continue
+            devices += map(lambda x: (name, x), u)
+        if not devices:
+            msg = '\n'.join([
+                _('No hardware device detected.'),
+                _('To trigger a rescan, press \'next\'.'),
+            ])
+            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device())
+            return
+        # select device
+        self.devices = devices
+        choices = []
+        for name, device_info in devices:
+            choices.append( ((name, device_info), device_info.description + ' [%s]'%name) )
+        msg = _('Select a device') + ':'
+        self.choice_dialog(title=title, message=msg, choices=choices, run_next=self.on_device)
 
-    def on_hardware(self, hw_type):
-        self.hw_type = hw_type
-        title = _('Hardware wallet') + ' [%s]' % hw_type
-        message = _('Do you have a device, or do you want to restore a wallet using an existing seed?')
-        choices = [
-            ('on_hardware_device', _('I have a %s device')%hw_type),
-            ('on_hardware_seed', _('I have a %s seed')%hw_type),
-        ]
-        self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
-
-    def on_hardware_device(self):
-        f = lambda x: self.run('on_hardware_account_id', x)
+    def on_device(self, name, device_info):
+        plugin = self.plugins.get_plugin(name)
+        self.plugin = plugin
+        xpub = plugin.setup_device(device_info, 'm', self)
+        f = lambda x: self.run('on_hardware_account_id', name, device_info, x)
         self.account_id_dialog(run_next=f)
 
-    def on_hardware_account_id(self, account_id):
+    def on_hardware_account_id(self, name, device_info, account_id):
         from keystore import hardware_keystore, bip44_derivation
+        plugin = self.plugins.get_plugin(name)
         derivation = bip44_derivation(int(account_id))
-        plugin = self.plugins.get_plugin(self.hw_type)
-        xpub = plugin.setup_device(derivation, self)
-        # create keystore
+        xpub = plugin.setup_device(device_info, derivation, self)
         d = {
             'type': 'hardware',
-            'hw_type': self.hw_type,
+            'hw_type': name,
             'derivation': derivation,
             'xpub': xpub,
         }
-        k = hardware_keystore(self.hw_type, d)
+        k = hardware_keystore(d)
         self.on_keystore(k, None)
 
     def on_hardware_seed(self):

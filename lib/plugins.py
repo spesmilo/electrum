@@ -139,19 +139,18 @@ class Plugins(DaemonThread):
         requires = d.get('requires_wallet_type', [])
         return not requires or w.wallet_type in requires
 
-    def hardware_wallets(self, action):
-        wallet_types, descs = [], []
+    def get_hardware_support(self):
+        out = []
         for name, (gui_good, details) in self.hw_wallets.items():
             if gui_good:
                 try:
                     p = self.get_plugin(name)
-                    if action == 'restore' or p.is_enabled():
-                        wallet_types.append(details[1])
-                        descs.append(details[2])
+                    if p.is_enabled():
+                        out.append([name, details[2], p])
                 except:
                     traceback.print_exc()
                     self.print_error("cannot load plugin for:", name)
-        return wallet_types, descs
+        return out
 
     def register_wallet_type(self, name, gui_good, wallet_type):
         from wallet import register_wallet_type, register_constructor
@@ -438,8 +437,6 @@ class DeviceMgr(ThreadJob, PrintError):
         if devices is None:
             devices = self.scan_devices()
         devices = [dev for dev in devices if not self.xpub_by_id(dev.id_)]
-
-        states = [_("wiped"), _("initialized")]
         infos = []
         for device in devices:
             if not device.product_key in plugin.DEVICE_IDS:
@@ -447,7 +444,7 @@ class DeviceMgr(ThreadJob, PrintError):
             client = self.create_client(device, handler, plugin)
             if not client:
                 continue
-            state = states[client.is_initialized()]
+            state = _("initialized") if client.is_initialized() else _("wiped")
             label = client.label() or _("An unnamed %s") % plugin.device
             descr = "%s (%s)" % (label, state)
             infos.append(DeviceInfo(device, descr, client.is_initialized()))

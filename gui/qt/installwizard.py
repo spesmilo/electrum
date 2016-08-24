@@ -200,9 +200,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
 
     def finished(self):
-        '''Ensure the dialog is closed.'''
-        self.accept()
-        self.refresh_gui()
+        """Called in hardware client wrapper, in order to close popups."""
+        return
 
     def on_error(self, exc_info):
         if not isinstance(exc_info[1], UserCancelled):
@@ -338,13 +337,13 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             self.show_message(msg)
 
     @wizard_dialog
-    def confirm_dialog(self, msg, run_next):
-        self.confirm(msg)
+    def confirm_dialog(self, title, message, run_next):
+        self.confirm(message, title)
 
-    def confirm(self, msg):
+    def confirm(self, message, title):
         vbox = QVBoxLayout()
-        vbox.addWidget(WWLabel(msg))
-        self.set_main_layout(vbox)
+        vbox.addWidget(WWLabel(message))
+        self.set_main_layout(vbox, title)
 
     @wizard_dialog
     def action_dialog(self, action, run_next):
@@ -378,6 +377,13 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         vbox.addLayout(clayout.layout())
         self.set_main_layout(vbox, '')
         return clayout.selected_index()
+
+    def get_passphrase(self, msg, confirm):
+        phrase = self.pw_layout(msg, PW_PASSPHRASE)
+        if phrase is None:
+            raise UserCancelled
+        return phrase
+
 
     @wizard_dialog
     def account_id_dialog(self, run_next):

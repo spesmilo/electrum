@@ -553,7 +553,8 @@ hw_keystores = {}
 def register_keystore(hw_type, constructor):
     hw_keystores[hw_type] = constructor
 
-def hardware_keystore(hw_type, d):
+def hardware_keystore(d):
+    hw_type = d['hw_type']
     if hw_type in hw_keystores:
         constructor = hw_keystores[hw_type]
         return constructor(d)
@@ -572,8 +573,7 @@ def load_keystore(storage, name):
     elif t == 'bip32':
         k = BIP32_KeyStore(d)
     elif t == 'hardware':
-        hw_type = d.get('hw_type')
-        k = hardware_keystore(hw_type, d)
+        k = hardware_keystore(d)
     else:
         raise BaseException('unknown wallet type', t)
     return k

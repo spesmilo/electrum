@@ -39,18 +39,23 @@ class QtHandlerBase(QObject, PrintError):
     '''An interface between the GUI (here, QT) and the device handling
     logic for handling I/O.'''
 
-    qcSig = pyqtSignal(object, object)
-    ynSig = pyqtSignal(object)
+    passphrase_signal = pyqtSignal(object, object)
+    message_signal = pyqtSignal(object, object)
+    error_signal = pyqtSignal(object)
+    word_signal = pyqtSignal(object)
+    clear_signal = pyqtSignal()
+    query_signal = pyqtSignal(object, object)
+    yes_no_signal = pyqtSignal(object)
 
     def __init__(self, win, device):
         super(QtHandlerBase, self).__init__()
-        win.connect(win, SIGNAL('clear_dialog'), self.clear_dialog)
-        win.connect(win, SIGNAL('error_dialog'), self.error_dialog)
-        win.connect(win, SIGNAL('message_dialog'), self.message_dialog)
-        win.connect(win, SIGNAL('passphrase_dialog'), self.passphrase_dialog)
-        win.connect(win, SIGNAL('word_dialog'), self.word_dialog)
-        self.qcSig.connect(self.win_query_choice)
-        self.ynSig.connect(self.win_yes_no_question)
+        self.clear_signal.connect(self.clear_dialog)
+        self.error_signal.connect(self.error_dialog)
+        self.message_signal.connect(self.message_dialog)
+        self.passphrase_signal.connect(self.passphrase_dialog)
+        self.word_signal.connect(self.word_dialog)
+        self.query_signal.connect(self.win_query_choice)
+        self.yes_no_signal.connect(self.win_yes_no_question)
         self.win = win
         self.device = device
         self.dialog = None
@@ -61,34 +66,34 @@ class QtHandlerBase(QObject, PrintError):
 
     def query_choice(self, msg, labels):
         self.done.clear()
-        self.qcSig.emit(msg, labels)
+        self.query_signal.emit(msg, labels)
         self.done.wait()
         return self.choice
 
     def yes_no_question(self, msg):
         self.done.clear()
-        self.ynSig.emit(msg)
+        self.yes_no_signal.emit(msg)
         self.done.wait()
         return self.ok
 
     def show_message(self, msg, on_cancel=None):
-        self.win.emit(SIGNAL('message_dialog'), msg, on_cancel)
+        self.message_signal.emit(msg, on_cancel)
 
     def show_error(self, msg):
-        self.win.emit(SIGNAL('error_dialog'), msg)
+        self.error_signal.emit(msg)
 
     def finished(self):
-        self.win.emit(SIGNAL('clear_dialog'))
+        self.clear_signal.emit()
 
     def get_word(self, msg):
         self.done.clear()
-        self.win.emit(SIGNAL('word_dialog'), msg)
+        self.word_signal.emit(msg)
         self.done.wait()
         return self.word
 
     def get_passphrase(self, msg, confirm):
         self.done.clear()
-        self.win.emit(SIGNAL('passphrase_dialog'), msg, confirm)
+        self.passphrase_signal.emit(msg, confirm)
         self.done.wait()
         return self.passphrase
 

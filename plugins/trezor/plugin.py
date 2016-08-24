@@ -160,13 +160,12 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             (TIM_MNEMONIC, _("Upload a BIP39 mnemonic to generate the seed")),
             (TIM_PRIVKEY, _("Upload a master private key"))
         ]
-        f = lambda x: self._initialize_device(x, device_id, handler)
+        f = lambda x: self._initialize_device(x, device_id, wizard, handler)
         wizard.choice_dialog(title=_('Initialize Device'), message=msg, choices=choices, run_next=f)
 
-    def _initialize_device(self, method, device_id, handler):
+    def _initialize_device(self, method, device_id, wizard, handler):
         (item, label, pin_protection, passphrase_protection) \
-            = handler.request_trezor_init_settings(method, self.device)
-
+            = self.request_trezor_init_settings(wizard, method, self.device)
         if method == TIM_RECOVER and self.device == 'TREZOR':
             # Warn user about firmware lameness
             handler.show_error(_(
@@ -199,19 +198,22 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             client.load_device_by_xprv(item, pin, passphrase_protection,
                                        label, language)
 
-    def setup_device(self, derivation, wizard):
+    def setup_device(self, device_info, derivation, wizard):
         '''Called when creating a new wallet.  Select the device to use.  If
         the device is uninitialized, go through the intialization
         process.'''
-        handler = self.create_handler(wizard)
         devmgr = self.device_manager()
-        device_info = devmgr.select_device(handler, self)
         device_id = device_info.device.id_
-        if not device_info.initialized:
-            self.initialize_device(device_id, wizard, handler)
         client = devmgr.client_by_id(device_id)
+        if not device_info.initialized:
+            handler = self.create_handler(wizard)
+            client.handler = handler
+            self.initialize_device(device_id, wizard, handler)
+
+        client.handler = wizard
+        xpub = client.get_xpub(derivation)
         client.used()
-        return client.get_xpub(derivation)
+        return xpub
 
     def sign_transaction(self, keystore, tx, prev_tx, xpub_path):
         self.prev_tx = prev_tx
