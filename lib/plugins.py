@@ -437,8 +437,6 @@ class DeviceMgr(ThreadJob, PrintError):
         if devices is None:
             devices = self.scan_devices()
         devices = [dev for dev in devices if not self.xpub_by_id(dev.id_)]
-
-        states = [_("wiped"), _("initialized")]
         infos = []
         for device in devices:
             if not device.product_key in plugin.DEVICE_IDS:
@@ -446,7 +444,7 @@ class DeviceMgr(ThreadJob, PrintError):
             client = self.create_client(device, handler, plugin)
             if not client:
                 continue
-            state = states[client.is_initialized()]
+            state = _("initialized") if client.is_initialized() else _("wiped")
             label = client.label() or _("An unnamed %s") % plugin.device
             descr = "%s (%s)" % (label, state)
             infos.append(DeviceInfo(device, descr, client.is_initialized()))

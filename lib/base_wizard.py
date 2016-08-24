@@ -178,12 +178,13 @@ class BaseWizard(object):
             return
         # scan devices
         devices = []
+        devmgr = self.plugins.device_manager
         for name, description, plugin in support:
-            devmgr = plugin.device_manager()
             try:
-                u = devmgr.unpaired_device_infos(self, plugin)
+                # FIXME: side-effect: unpaired_device_info sets client.handler
+                u = devmgr.unpaired_device_infos(None, plugin)
             except:
-                print "error", name
+                devmgr.print_error("error", name)
                 continue
             devices += map(lambda x: (name, x), u)
         if not devices:
@@ -209,6 +210,7 @@ class BaseWizard(object):
         from keystore import hardware_keystore, bip44_derivation
         derivation = bip44_derivation(int(account_id))
         plugin = self.plugins.get_plugin(hw_type)
+        self.plugin = plugin
         xpub = plugin.setup_device(device_info, derivation, self)
         # create keystore
         d = {
