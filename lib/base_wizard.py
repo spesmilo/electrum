@@ -204,17 +204,15 @@ class BaseWizard(object):
         self.choice_dialog(title=title, message=msg, choices=choices, run_next=self.on_device)
 
     def on_device(self, name, device_info):
-        plugin = self.plugins.get_plugin(name)
-        self.plugin = plugin
-        xpub = plugin.setup_device(device_info, 'm', self)
+        self.plugin = self.plugins.get_plugin(name)
+        self.plugin.setup_device(device_info, self)
         f = lambda x: self.run('on_hardware_account_id', name, device_info, x)
         self.account_id_dialog(run_next=f)
 
     def on_hardware_account_id(self, name, device_info, account_id):
         from keystore import hardware_keystore, bip44_derivation
-        plugin = self.plugins.get_plugin(name)
         derivation = bip44_derivation(int(account_id))
-        xpub = plugin.setup_device(device_info, derivation, self)
+        xpub = self.plugin.get_xpub(device_info.device.id_, derivation, self)
         d = {
             'type': 'hardware',
             'hw_type': name,
