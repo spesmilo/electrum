@@ -39,6 +39,7 @@ class BaseWizard(object):
         self.wallet = None
         self.stack = []
         self.plugin = None
+        self.keystores = []
 
     def run(self, *args):
         action = args[0]
@@ -103,26 +104,26 @@ class BaseWizard(object):
             self.multisig_type = "%dof%d"%(m, n)
             self.storage.put('wallet_type', self.multisig_type)
             self.n = n
-            self.keystores = []
             self.run('choose_keystore')
         self.multisig_dialog(run_next=on_multisig)
 
     def choose_keystore(self):
         assert self.wallet_type in ['standard', 'multisig']
-        c = self.wallet_type == 'multisig' and len(self.keystores)>0
-        title = _('Add cosigner') + ' %d'%len(self.keystores) if c else _('Keystore')
-        message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
-        if not c:
+        i = len(self.keystores)
+        title = _('Add cosigner') + ' (%d of %d)'%(i+1, self.n) if self.wallet_type=='multisig' else _('Keystore')
+        if self.wallet_type =='standard' or i==0:
+            message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
             choices = [
                 ('create_seed', _('Create a new seed')),
                 ('restore_seed', _('I already have a seed')),
                 ('restore_from_key', _('Import keys')),
-                ('choose_device',  _('Use hardware device')),
+                ('choose_hw_device',  _('Use hardware device')),
             ]
         else:
+            message = _('Add a cosigner to your multi-sig wallet')
             choices = [
                 ('restore_from_key', _('Import cosigner key')),
-                ('choose_device',  _('Cosign with hardware device')),
+                ('choose_hw_device',  _('Cosign with hardware device')),
             ]
 
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
@@ -165,7 +166,7 @@ class BaseWizard(object):
             ])
         self.restore_keys_dialog(title=title, message=message, run_next=self.on_restore, is_valid=v)
 
-    def choose_device(self):
+    def choose_hw_device(self):
         title = _('Hardware Keystore')
         # check available plugins
         support = self.plugins.get_hardware_support()
@@ -174,7 +175,7 @@ class BaseWizard(object):
                 _('No hardware wallet support found on your system.'),
                 _('Please install the relevant libraries (eg python-trezor for Trezor).'),
             ])
-            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_device())
+            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device())
             return
         # scan devices
         devices = []
@@ -192,7 +193,7 @@ class BaseWizard(object):
                 _('No hardware device detected.'),
                 _('To trigger a rescan, press \'next\'.'),
             ])
-            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_device())
+            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device())
             return
         # select device
         self.devices = devices
