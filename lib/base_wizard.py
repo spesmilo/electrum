@@ -159,13 +159,8 @@ class BaseWizard(object):
         self.restore_keys_dialog(title=title, message=message, run_next=self.on_restore_from_key, is_valid=v)
 
     def on_restore_from_key(self, text):
-        def f(password):
-            k = keystore.from_keys(text, password)
-            self.on_keystore(k, password)
-        if keystore.is_private(text):
-            self.run('request_password', run_next=f)
-        else:
-            f(None)
+        k = keystore.from_keys(text)
+        self.on_keystore(k)
 
     def choose_hw_device(self):
         title = _('Hardware Keystore')
@@ -228,43 +223,36 @@ class BaseWizard(object):
 
     def on_seed(self, seed, add_passphrase, is_bip39):
         self.is_bip39 = is_bip39
-        f = lambda x: self.run('on_passphrase', seed, x)
+        f = lambda x: self.run('create_keystore', seed, x)
         if add_passphrase:
             self.request_passphrase(run_next=f)
         else:
             f('')
 
-    def on_passphrase(self, seed, passphrase):
-        f = lambda x: self.run('on_password', seed, passphrase, x)
-        self.request_password(run_next=f)
-
-    def on_password(self, seed, passphrase, password):
+    def create_keystore(self, seed, passphrase):
         if self.is_bip39:
-            f = lambda account_id: self.run('on_bip44', seed, passphrase, password, account_id)
+            f = lambda account_id: self.run('on_bip44', seed, passphrase, account_id)
             self.account_id_dialog(run_next=f)
         else:
-            k = keystore.from_seed(seed, passphrase, password)
-            self.on_keystore(k, password)
+            k = keystore.from_seed(seed, passphrase)
+            self.on_keystore(k)
 
-    def on_bip44(self, seed, passphrase, password, account_id):
+    def on_bip44(self, seed, passphrase, account_id):
         import keystore
         k = keystore.BIP32_KeyStore({})
         bip32_seed = keystore.bip39_to_seed(seed, passphrase)
         derivation = "m/44'/0'/%d'"%account_id
-        k.add_xprv_from_seed(bip32_seed, derivation, password)
-        self.on_keystore(k, password)
+        k.add_xprv_from_seed(bip32_seed, derivation)
+        self.on_keystore(k)
 
-    def on_keystore(self, k, password):
+    def on_keystore(self, k):
         if self.wallet_type == 'standard':
-            self.storage.put('keystore', k.dump())
-            self.wallet = Standard_Wallet(self.storage)
-            self.run('create_addresses')
+            self.keystores.append(k)
+            self.run('create_wallet')
         elif self.wallet_type == 'multisig':
-
             if k.xpub in map(lambda x: x.xpub, self.keystores):
                 raise BaseException('duplicate key')
             self.keystores.append(k)
-
             if len(self.keystores) == 1:
                 xpub = k.get_master_public_key()
                 self.stack = []
@@ -272,11 +260,29 @@ class BaseWizard(object):
             elif len(self.keystores) < self.n:
                 self.run('choose_keystore')
             else:
-                for i, k in enumerate(self.keystores):
-                    self.storage.put('x%d/'%(i+1), k.dump())
-                self.storage.write()
-                self.wallet = Multisig_Wallet(self.storage)
-                self.run('create_addresses')
+                self.run('create_wallet')
+
+    def create_wallet(self):
+        if any(k.may_have_password() for k in self.keystores):
+            self.request_password(run_next=self.on_password)
+        else:
+            self.on_password(None)
+
+    def on_password(self, password):
+        self.storage.put('use_encryption', bool(password))
+        for k in self.keystores:
+            if k.may_have_password():
+                k.update_password(None, password)
+        if self.wallet_type == 'standard':
+            self.storage.put('keystore', k.dump())
+            self.wallet = Standard_Wallet(self.storage)
+            self.run('create_addresses')
+        elif self.wallet_type == 'multisig':
+            for i, k in enumerate(self.keystores):
+                self.storage.put('x%d/'%(i+1), k.dump())
+            self.storage.write()
+            self.wallet = Multisig_Wallet(self.storage)
+            self.run('create_addresses')
 
     def show_xpub_and_add_cosigners(self, xpub):
         self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('choose_keystore'))

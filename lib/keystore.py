@@ -49,11 +49,13 @@ class KeyStore(PrintError):
     def can_import(self):
         return False
 
-
 class Software_KeyStore(KeyStore):
 
     def __init__(self):
         KeyStore.__init__(self)
+
+    def may_have_password(self):
+        return not self.is_watching_only()
 
     def sign_message(self, sequence, message, password):
         sec = self.get_private_key(sequence, password)
@@ -161,12 +163,10 @@ class Deterministic_KeyStore(Software_KeyStore):
     def can_change_password(self):
         return not self.is_watching_only()
 
-    def add_seed(self, seed, password):
+    def add_seed(self, seed):
         if self.seed:
             raise Exception("a seed exists")
         self.seed_version, self.seed = self.format_seed(seed)
-        if password:
-            self.seed = pw_encode(self.seed, password)
 
     def get_seed(self, password):
         return pw_decode(self.seed, password).encode('utf8')
@@ -178,9 +178,6 @@ class Xpub:
         self.xpub = None
         self.xpub_receive = None
         self.xpub_change = None
-
-    def add_master_public_key(self, xpub):
-        self.xpub = xpub
 
     def get_master_public_key(self):
         return self.xpub
@@ -236,9 +233,6 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         d['xpub'] = self.xpub
         d['xprv'] = self.xprv
         return d
-
-    def add_master_private_key(self, xprv, password):
-        self.xprv = pw_encode(xprv, password)
 
     def get_master_private_key(self, password):
         return pw_decode(self.xprv, password)
@@ -297,15 +291,14 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
     def get_mnemonic(self, password):
         return self.get_seed(password)
 
-    def add_xprv(self, xprv, password):
-        xpub = bitcoin.xpub_from_xprv(xprv)
-        self.add_master_private_key(xprv, password)
-        self.add_master_public_key(xpub)
+    def add_xprv(self, xprv):
+        self.xprv = xprv
+        self.xpub = bitcoin.xpub_from_xprv(xprv)
 
-    def add_xprv_from_seed(self, bip32_seed, derivation, password):
+    def add_xprv_from_seed(self, bip32_seed, derivation):
         xprv, xpub = bip32_root(bip32_seed)
         xprv, xpub = bip32_private_derivation(xprv, "m/", derivation)
-        self.add_xprv(xprv, password)
+        self.add_xprv(xprv)
 
     def can_sign(self, xpub):
         return xpub == self.xpub and self.xprv is not None
@@ -328,9 +321,9 @@ class Old_KeyStore(Deterministic_KeyStore):
         d['mpk'] = self.mpk.encode('hex')
         return d
 
-    def add_seed(self, seed, password):
-        Deterministic_KeyStore.add_seed(self, seed, password)
-        self.mpk = self.mpk_from_seed(self.get_seed(password))
+    def add_seed(self, seed):
+        Deterministic_KeyStore.add_seed(self, seed)
+        self.mpk = self.mpk_from_seed(seed)
 
     def add_master_public_key(self, mpk):
         self.mpk = mpk.decode('hex')
@@ -468,6 +461,9 @@ class Hardware_KeyStore(KeyStore, Xpub):
         self.xpub = d.get('xpub')
         self.derivation = d.get('derivation')
         self.handler = None
+
+    def may_have_password(self):
+        return False
 
     def is_deterministic(self):
         return True
@@ -623,22 +619,21 @@ is_bip32_key = lambda x: is_xprv(x) or is_xpub(x)
 def bip44_derivation(account_id):
     return "m/44'/0'/%d'"% int(account_id)
 
-def from_seed(seed, passphrase, password):
+def from_seed(seed, passphrase):
     if is_old_seed(seed):
         keystore = Old_KeyStore({})
-        keystore.add_seed(seed, password)
+        keystore.add_seed(seed)
     elif is_new_seed(seed):
         keystore = BIP32_KeyStore({})
-        keystore.add_seed(seed, password)
+        keystore.add_seed(seed)
         bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
-        keystore.add_xprv_from_seed(bip32_seed, "m/", password)
+        keystore.add_xprv_from_seed(bip32_seed, "m/")
     return keystore
 
-def from_private_key_list(text, password):
+def from_private_key_list(text):
     keystore = Imported_KeyStore({})
     for x in text.split():
         keystore.import_key(x, None)
-    keystore.update_password(None, password)
     return keystore
 
 def from_old_mpk(mpk):
@@ -647,36 +642,36 @@ def from_old_mpk(mpk):
     return keystore
 
 def from_xpub(xpub):
-    keystore = BIP32_KeyStore({})
-    keystore.add_master_public_key(xpub)
-    return keystore
+    k = BIP32_KeyStore({})
+    k.xpub = xpub
+    return k
 
-def from_xprv(xprv, password):
+def from_xprv(xprv):
     xpub = bitcoin.xpub_from_xprv(xprv)
-    keystore = BIP32_KeyStore({})
-    keystore.add_master_private_key(xprv, password)
-    keystore.add_master_public_key(xpub)
-    return keystore
+    k = BIP32_KeyStore({})
+    k.xprv = xprv
+    k.xpub = xpub
+    return k
 
-def xprv_from_seed(seed, password):
+def xprv_from_seed(seed):
     # do not store the seed, only the master xprv
     xprv, xpub = bip32_root(Mnemonic.mnemonic_to_seed(seed, ''))
-    return from_xprv(xprv, password)
+    return from_xprv(xprv)
 
-def xpub_from_seed(seed, passphrase):
+def xpub_from_seed(seed):
     # store only master xpub
     xprv, xpub = bip32_root(Mnemonic.mnemonic_to_seed(seed,''))
     return from_xpub(xpub)
 
-def from_keys(text, password):
+def from_keys(text):
     if is_xprv(text):
-        k = from_xprv(text, password)
+        k = from_xprv(text)
     elif is_old_mpk(text):
         k = from_old_mpk(text)
     elif is_xpub(text):
         k = from_xpub(text)
     elif is_private_key_list(text):
-        k = from_private_key_list(text, password)
+        k = from_private_key_list(text)
     else:
         raise BaseException('Invalid key')
     return k

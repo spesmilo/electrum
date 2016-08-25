@@ -352,14 +352,20 @@ class TrustedCoinPlugin(BasePlugin):
         seed = self.make_seed()
         wizard.show_seed_dialog(run_next=wizard.confirm_seed, seed_text=seed)
 
-    def create_keystore(self, wizard, seed, password):
+    def create_keystore(self, wizard, seed, passphrase):
+        assert passphrase == ''
         # this overloads the wizard's method
         words = seed.split()
         n = len(words)/2
-        keystore1 = keystore.xprv_from_seed(' '.join(words[0:n]), password)
-        keystore2 = keystore.xpub_from_seed(' '.join(words[n:]))
-        wizard.storage.put('x1/', keystore1.dump())
-        wizard.storage.put('x2/', keystore2.dump())
+        k1 = keystore.xprv_from_seed(' '.join(words[0:n]))
+        k2 = keystore.xpub_from_seed(' '.join(words[n:]))
+        wizard.request_password(run_next=lambda pw: self.on_password(wizard, pw, k1, k2))
+
+    def on_password(self, wizard, password, k1, k2):
+        k1.update_password(None, password)
+        wizard.storage.put('use_encryption', bool(password))
+        wizard.storage.put('x1/', k1.dump())
+        wizard.storage.put('x2/', k2.dump())
         wizard.storage.write()
         msg = [
             _("Your wallet file is: %s.")%os.path.abspath(wizard.storage.path),
@@ -389,14 +395,17 @@ class TrustedCoinPlugin(BasePlugin):
         storage = wizard.storage
         words = seed.split()
         n = len(words)/2
-        keystore1 = keystore.xprv_from_seed(' '.join(words[0:n]), password)
-        keystore2 = keystore.xprv_from_seed(' '.join(words[n:]), password)
-        storage.put('x1/', keystore1.dump())
-        storage.put('x2/', keystore2.dump())
+        k1 = keystore.xprv_from_seed(' '.join(words[0:n]))
+        k2 = keystore.xprv_from_seed(' '.join(words[n:]))
+        k1.update_password(None, password)
+        k2.update_password(None, password)
         long_user_id, short_id = get_user_id(storage)
         xpub3 = make_xpub(signing_xpub, long_user_id)
-        keystore3 = keystore.from_xpub(xpub3)
-        storage.put('x3/', keystore3.dump())
+        k3 = keystore.from_xpub(xpub3)
+        storage.put('use_encryption', bool(password))
+        storage.put('x1/', k1.dump())
+        storage.put('x2/', k2.dump())
+        storage.put('x3/', k3.dump())
         wizard.wallet = Wallet(storage)
         wizard.create_addresses()
 
@@ -436,8 +445,8 @@ class TrustedCoinPlugin(BasePlugin):
         if not self.setup_google_auth(wizard, short_id, otp_secret):
             wizard.show_message("otp error")
             return
-        keystore3 = keystore.from_xpub(xpub3)
-        wizard.storage.put('x3/', keystore3.dump())
+        k3 = keystore.from_xpub(xpub3)
+        wizard.storage.put('x3/', k3.dump())
         wizard.storage.put('use_trustedcoin', True)
         wizard.storage.write()
         wizard.wallet = Wallet(wizard.storage)
