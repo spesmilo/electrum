@@ -275,7 +275,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def restore_seed_dialog(self, run_next, is_valid):
         title = _('Enter Seed')
         message = _('Please enter your seed phrase in order to restore your wallet.')
-        return self.text_input(title, message, is_valid)
+        text = self.text_input(title, message, is_valid)
+        return text, False, True
 
     @wizard_dialog
     def confirm_seed_dialog(self, run_next, is_valid):

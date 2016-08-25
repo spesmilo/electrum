@@ -115,7 +115,7 @@ class BaseWizard(object):
             message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
             choices = [
                 ('create_seed', _('Create a new seed')),
-                ('restore_seed', _('I already have a seed')),
+                ('restore_from_seed', _('I already have a seed')),
                 ('restore_from_key', _('Import keys')),
                 ('choose_hw_device',  _('Use hardware device')),
             ]
@@ -128,26 +128,18 @@ class BaseWizard(object):
 
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 
-    def restore_seed(self):
-        # TODO: return derivation password too
-        self.restore_seed_dialog(run_next=self.add_password, is_valid=keystore.is_seed)
-
-    def on_restore(self, text):
-        if keystore.is_address_list(text):
-            self.wallet = Imported_Wallet(self.storage)
-            for x in text.split():
-                self.wallet.import_address(x)
-            self.terminate()
-        elif keystore.is_private(text):
-            self.add_password(text)
-        else:
-            self.create_keystore(text, None)
-
     def import_addresses(self):
         v = keystore.is_address_list
         title = _("Import Bitcoin Addresses")
         message = _("Enter a list of Bitcoin addresses. This will create a watching-only wallet.")
-        self.restore_keys_dialog(title=title, message=message, run_next=self.on_restore, is_valid=v)
+        self.restore_keys_dialog(title=title, message=message, run_next=self.on_import_addresses, is_valid=v)
+
+    def on_import_addresses(self, text):
+        assert keystore.is_address_list(text)
+        self.wallet = Imported_Wallet(self.storage)
+        for x in text.split():
+            self.wallet.import_address(x)
+        self.terminate()
 
     def restore_from_key(self):
         if self.wallet_type == 'standard':
@@ -164,7 +156,13 @@ class BaseWizard(object):
                 _("To create a watching-only wallet, please enter your master public key (xpub)."),
                 _("To create a spending wallet, please enter a master private key (xprv).")
             ])
-        self.restore_keys_dialog(title=title, message=message, run_next=self.on_restore, is_valid=v)
+        self.restore_keys_dialog(title=title, message=message, run_next=self.on_restore_from_key, is_valid=v)
+
+    def on_restore_from_key(self, text):
+        if keystore.is_private(text):
+            self.add_password(text)
+        else:
+            self.create_keystore(text, None)
 
     def choose_hw_device(self):
         title = _('Hardware Keystore')
@@ -222,25 +220,29 @@ class BaseWizard(object):
         k = hardware_keystore(d)
         self.on_keystore(k, None)
 
-    def on_hardware_seed(self):
-        self.storage.put('key_type', 'hw_seed')
-        is_valid = lambda x: True #fixme: bip39
-        f = lambda seed: self.run('on_bip39_seed', seed)
-        self.restore_seed_dialog(run_next=f, is_valid=is_valid)
+    def restore_from_seed(self):
+        self.restore_seed_dialog(run_next=self.on_restore_from_seed, is_valid=keystore.is_seed)
 
-    def on_bip39_seed(self, seed):
-        f = lambda passphrase: self.run('on_bip39_passphrase', seed, passphrase)
-        self.request_passphrase(self.storage.get('hw_type'), run_next=f)
+    def on_restore_from_seed(self, seed, is_bip39, is_passphrase):
+        self.is_bip39 = is_bip39
+        f = lambda x: self.run('on_passphrase', seed, x)
+        if is_passphrase:
+            self.request_passphrase(self.storage.get('hw_type'), run_next=f)
+        else:
+            self.run('on_passphrase', seed, '')
 
-    def on_bip39_passphrase(self, seed, passphrase):
-        f = lambda account_id: self.run('on_bip44_account_id', seed, passphrase, account_id)
-        self.account_id_dialog(run_next=f)
-
-    def on_bip44_account_id(self, seed, passphrase, account_id):
-        f = lambda pw: self.run('on_bip44', seed, passphrase, account_id, pw)
+    def on_passphrase(self, seed, passphrase):
+        f = lambda x: self.run('on_password', seed, passphrase, password)
         self.request_password(run_next=f)
 
-    def on_bip44(self, seed, passphrase, account_id, password):
+    def on_password(self, seed, passphrase, password):
+        if self.is_bip39:
+            f = lambda account_id: self.run('on_bip44', seed, passphrase, password, account_id)
+            self.account_id_dialog(run_next=f)
+        else:
+            self.create_keystore(seed, passphrase, password)
+
+    def on_bip44(self, seed, passphrase, password, account_id):
         import keystore
         k = keystore.BIP32_KeyStore()
         k.add_seed(seed, password)
