@@ -581,7 +581,7 @@ class RestoreSeedDialog(WizardDialog):
         return text
 
     def get_params(self, b):
-        return (self.get_text(),)
+        return (self.get_text(), False, False)
 
     def update_text(self, c):
         c = c.lower()
