@@ -216,7 +216,7 @@ class BaseWizard(object):
             'xpub': xpub,
         }
         k = hardware_keystore(d)
-        self.on_keystore(k, None)
+        self.on_keystore(k)
 
     def restore_from_seed(self):
         self.restore_seed_dialog(run_next=self.on_seed, is_valid=keystore.is_seed)
