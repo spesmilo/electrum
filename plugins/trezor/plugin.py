@@ -160,12 +160,18 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             (TIM_MNEMONIC, _("Upload a BIP39 mnemonic to generate the seed")),
             (TIM_PRIVKEY, _("Upload a master private key"))
         ]
-        f = lambda x: self._initialize_device(x, device_id, wizard, handler)
+        def f(method):
+            import threading
+            settings = self.request_trezor_init_settings(wizard, method, self.device)
+            t = threading.Thread(target = self._initialize_device, args=(settings, method, device_id, wizard, handler))
+            t.setDaemon(True)
+            t.start()
+            wizard.loop.exec_()
         wizard.choice_dialog(title=_('Initialize Device'), message=msg, choices=choices, run_next=f)
 
-    def _initialize_device(self, method, device_id, wizard, handler):
-        (item, label, pin_protection, passphrase_protection) \
-            = self.request_trezor_init_settings(wizard, method, self.device)
+    def _initialize_device(self, settings, method, device_id, wizard, handler):
+        item, label, pin_protection, passphrase_protection = settings
+
         if method == TIM_RECOVER and self.device == 'TREZOR':
             # Warn user about firmware lameness
             handler.show_error(_(
@@ -197,6 +203,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             pin = pin_protection  # It's the pin, not a boolean
             client.load_device_by_xprv(item, pin, passphrase_protection,
                                        label, language)
+        wizard.loop.exit(0)
 
     def setup_device(self, device_info, wizard):
         '''Called when creating a new wallet.  Select the device to use.  If
