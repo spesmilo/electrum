@@ -205,11 +205,10 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         devmgr = self.device_manager()
         device_id = device_info.device.id_
         client = devmgr.client_by_id(device_id)
+        # fixme: we should use: client.handler = wizard
+        client.handler = self.create_handler(wizard)
         if not device_info.initialized:
-            handler = self.create_handler(wizard)
-            client.handler = handler
-            self.initialize_device(device_id, wizard, handler)
-        client.handler = wizard
+            self.initialize_device(device_id, wizard, client.handler)
         client.get_xpub('m')
         client.used()
 
