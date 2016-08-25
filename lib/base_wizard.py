@@ -194,14 +194,18 @@ class BaseWizard(object):
         # select device
         self.devices = devices
         choices = []
-        for name, device_info in devices:
-            choices.append( ((name, device_info), device_info.description + ' [%s]'%name) )
+        for name, info in devices:
+            state = _("initialized") if info.initialized else _("wiped")
+            label = info.label or _("An unnamed %s")%name
+            descr = "%s [%s, %s]" % (label, name, state)
+            choices.append(((name, info), descr))
         msg = _('Select a device') + ':'
         self.choice_dialog(title=title, message=msg, choices=choices, run_next=self.on_device)
 
     def on_device(self, name, device_info):
         self.plugin = self.plugins.get_plugin(name)
         self.plugin.setup_device(device_info, self)
+        print device_info
         f = lambda x: self.run('on_hardware_account_id', name, device_info, x)
         self.account_id_dialog(run_next=f)
 

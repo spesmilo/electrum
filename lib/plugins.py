@@ -261,7 +261,7 @@ class DeviceUnpairableError(Exception):
     pass
 
 Device = namedtuple("Device", "path interface_number id_ product_key")
-DeviceInfo = namedtuple("DeviceInfo", "device description initialized")
+DeviceInfo = namedtuple("DeviceInfo", "device label initialized")
 
 class DeviceMgr(ThreadJob, PrintError):
     '''Manages hardware clients.  A client communicates over a hardware
@@ -443,10 +443,7 @@ class DeviceMgr(ThreadJob, PrintError):
             client = self.create_client(device, handler, plugin)
             if not client:
                 continue
-            state = _("initialized") if client.is_initialized() else _("wiped")
-            label = client.label() or _("An unnamed %s") % plugin.device
-            descr = "%s (%s)" % (label, state)
-            infos.append(DeviceInfo(device, descr, client.is_initialized()))
+            infos.append(DeviceInfo(device, client.label(), client.is_initialized()))
 
         return infos
 
@@ -467,7 +464,7 @@ class DeviceMgr(ThreadJob, PrintError):
         if len(infos) == 1:
             return infos[0]
         msg = _("Please select which %s device to use:") % plugin.device
-        descriptions = [info.description for info in infos]
+        descriptions = [info.label + ' (%s)'%(_("initialized") if info.initialized else _("wiped")) for info in infos]
         return infos[handler.query_choice(msg, descriptions)]
 
     def scan_devices(self):
