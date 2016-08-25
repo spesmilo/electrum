@@ -623,14 +623,14 @@ is_bip32_key = lambda x: is_xprv(x) or is_xpub(x)
 def bip44_derivation(account_id):
     return "m/44'/0'/%d'"% int(account_id)
 
-def from_seed(seed, password):
+def from_seed(seed, passphrase, password):
     if is_old_seed(seed):
         keystore = Old_KeyStore({})
         keystore.add_seed(seed, password)
     elif is_new_seed(seed):
         keystore = BIP32_KeyStore({})
         keystore.add_seed(seed, password)
-        bip32_seed = Mnemonic.mnemonic_to_seed(seed, '')
+        bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
         keystore.add_xprv_from_seed(bip32_seed, "m/", password)
     return keystore
 
@@ -663,12 +663,12 @@ def xprv_from_seed(seed, password):
     xprv, xpub = bip32_root(Mnemonic.mnemonic_to_seed(seed, ''))
     return from_xprv(xprv, password)
 
-def xpub_from_seed(seed):
+def xpub_from_seed(seed, passphrase):
     # store only master xpub
     xprv, xpub = bip32_root(Mnemonic.mnemonic_to_seed(seed,''))
     return from_xpub(xpub)
 
-def from_text(text, password):
+def from_keys(text, password):
     if is_xprv(text):
         k = from_xprv(text, password)
     elif is_old_mpk(text):
@@ -677,8 +677,6 @@ def from_text(text, password):
         k = from_xpub(text)
     elif is_private_key_list(text):
         k = from_private_key_list(text, password)
-    elif is_seed(text):
-        k = from_seed(text, password)
     else:
-        raise BaseException('Invalid seedphrase or key')
+        raise BaseException('Invalid key')
     return k

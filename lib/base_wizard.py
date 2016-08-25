@@ -159,10 +159,13 @@ class BaseWizard(object):
         self.restore_keys_dialog(title=title, message=message, run_next=self.on_restore_from_key, is_valid=v)
 
     def on_restore_from_key(self, text):
+        def f(password):
+            k = keystore.from_keys(text, password)
+            self.on_keystore(k, password)
         if keystore.is_private(text):
-            self.add_password(text)
+            self.run('request_password', run_next=f)
         else:
-            self.create_keystore(text, None)
+            f(None)
 
     def choose_hw_device(self):
         title = _('Hardware Keystore')
@@ -221,18 +224,18 @@ class BaseWizard(object):
         self.on_keystore(k, None)
 
     def restore_from_seed(self):
-        self.restore_seed_dialog(run_next=self.on_restore_from_seed, is_valid=keystore.is_seed)
+        self.restore_seed_dialog(run_next=self.on_seed, is_valid=keystore.is_seed)
 
-    def on_restore_from_seed(self, seed, is_bip39, is_passphrase):
+    def on_seed(self, seed, add_passphrase, is_bip39):
         self.is_bip39 = is_bip39
         f = lambda x: self.run('on_passphrase', seed, x)
-        if is_passphrase:
-            self.request_passphrase(self.storage.get('hw_type'), run_next=f)
+        if add_passphrase:
+            self.request_passphrase(run_next=f)
         else:
-            self.run('on_passphrase', seed, '')
+            f('')
 
     def on_passphrase(self, seed, passphrase):
-        f = lambda x: self.run('on_password', seed, passphrase, password)
+        f = lambda x: self.run('on_password', seed, passphrase, x)
         self.request_password(run_next=f)
 
     def on_password(self, seed, passphrase, password):
@@ -240,15 +243,14 @@ class BaseWizard(object):
             f = lambda account_id: self.run('on_bip44', seed, passphrase, password, account_id)
             self.account_id_dialog(run_next=f)
         else:
-            self.create_keystore(seed, passphrase, password)
+            k = keystore.from_seed(seed, passphrase, password)
+            self.on_keystore(k, password)
 
     def on_bip44(self, seed, passphrase, password, account_id):
         import keystore
-        k = keystore.BIP32_KeyStore()
-        k.add_seed(seed, password)
+        k = keystore.BIP32_KeyStore({})
         bip32_seed = keystore.bip39_to_seed(seed, passphrase)
         derivation = "m/44'/0'/%d'"%account_id
-        self.storage.put('account_id', account_id)
         k.add_xprv_from_seed(bip32_seed, derivation, password)
         self.on_keystore(k, password)
 
@@ -283,7 +285,7 @@ class BaseWizard(object):
         self.add_cosigner_dialog(run_next=lambda x: self.on_cosigner(x, password, i), index=i, is_valid=keystore.is_xpub)
 
     def on_cosigner(self, text, password, i):
-        k = keystore.from_text(text, password)
+        k = keystore.from_keys(text, password)
         self.on_keystore(k)
 
     def create_seed(self):
@@ -292,15 +294,7 @@ class BaseWizard(object):
         self.show_seed_dialog(run_next=self.confirm_seed, seed_text=seed)
 
     def confirm_seed(self, seed):
-        self.confirm_seed_dialog(run_next=self.add_password, is_valid=lambda x: x==seed)
-
-    def add_password(self, text):
-        f = lambda pw: self.run('create_keystore', text, pw)
-        self.request_password(run_next=f)
-
-    def create_keystore(self, text, password):
-        k = keystore.from_text(text, password)
-        self.on_keystore(k, password)
+        self.confirm_seed_dialog(run_next=self.on_seed, is_valid=lambda x: x==seed)
 
     def create_addresses(self):
         def task():
