@@ -12,7 +12,7 @@ from ..hw_wallet.qt import QtHandlerBase
 from electrum.i18n import _
 from electrum.plugins import hook, DeviceMgr
 from electrum.util import PrintError, UserCancelled
-from electrum.wallet import Wallet
+from electrum.wallet import Wallet, Standard_Wallet
 
 PASSPHRASE_HELP_SHORT =_(
     "Passphrases allow you to access new wallets, each "
@@ -203,11 +203,13 @@ def qt_plugin_class(base_plugin_class):
 
     @hook
     def receive_menu(self, menu, addrs, wallet):
-        for keystore in wallet.get_keystores():
-            if type(keystore) == self.keystore_class and len(addrs) == 1:
-                def show_address():
-                    keystore.thread.add(partial(self.show_address, wallet, addrs[0]))
-                menu.addAction(_("Show on %s") % self.device, show_address)
+        if type(wallet) is not Standard_Wallet:
+            return
+        keystore = wallet.get_keystore()
+        if type(keystore) == self.keystore_class and len(addrs) == 1:
+            def show_address():
+                keystore.thread.add(partial(self.show_address, wallet, addrs[0]))
+            menu.addAction(_("Show on %s") % self.device, show_address)
 
     def settings_dialog(self, window, keystore):
         device_id = self.choose_device(window, keystore)
