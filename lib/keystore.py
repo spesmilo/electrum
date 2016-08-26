@@ -49,6 +49,7 @@ class KeyStore(PrintError):
     def can_import(self):
         return False
 
+
 class Software_KeyStore(KeyStore):
 
     def __init__(self):
@@ -68,7 +69,6 @@ class Software_KeyStore(KeyStore):
         ec = regenerate_key(sec)
         decrypted = ec.decrypt_message(message)
         return decrypted
-
 
 
 class Imported_KeyStore(Software_KeyStore):
@@ -459,8 +459,12 @@ class Hardware_KeyStore(KeyStore, Xpub):
         # handler.  The handler is per-window and preserved across
         # device reconnects
         self.xpub = d.get('xpub')
+        self.label = d.get('label')
         self.derivation = d.get('derivation')
         self.handler = None
+
+    def set_label(self, label):
+        self.label = label
 
     def may_have_password(self):
         return False
@@ -474,6 +478,7 @@ class Hardware_KeyStore(KeyStore, Xpub):
             'hw_type': self.hw_type,
             'xpub': self.xpub,
             'derivation':self.derivation,
+            'label':self.label,
         }
 
     def unpaired(self):

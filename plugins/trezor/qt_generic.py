@@ -219,7 +219,7 @@ def qt_plugin_class(base_plugin_class):
         forgotten their PIN or it is in bootloader mode.'''
         device_id = self.device_manager().xpub_id(keystore.xpub)
         if not device_id:
-            info = self.device_manager().select_device(keystore.handler, self)
+            info = self.device_manager().select_device(keystore.handler, self, keystore)
             device_id = info.device.id_
         return device_id
 

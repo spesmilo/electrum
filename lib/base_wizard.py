@@ -218,6 +218,7 @@ class BaseWizard(object):
             'hw_type': name,
             'derivation': derivation,
             'xpub': xpub,
+            'label': device_info.label,
         }
         k = hardware_keystore(d)
         self.on_keystore(k)

@@ -134,10 +134,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         # All client interaction should not be in the main GUI thread
         assert self.main_thread != threading.current_thread()
         devmgr = self.device_manager()
-        derivation = keystore.get_derivation()
-        xpub = keystore.xpub
-        handler = keystore.handler
-        client = devmgr.client_for_xpub(self, xpub, derivation, handler, force_pair)
+        client = devmgr.client_for_keystore(self, keystore, force_pair)
         # returns the client for a given keystore. can use xpub
         if client:
             client.used()

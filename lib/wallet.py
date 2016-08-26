@@ -1489,6 +1489,10 @@ class Multisig_Wallet(Deterministic_Wallet):
             self.keystores[name] = load_keystore(self.storage, name)
         self.keystore = self.keystores['x1/']
 
+    def save_keystore(self):
+        for name, k in self.keystores.items():
+            self.storage.put(name, k.dump())
+
     def get_keystore(self):
         return self.keystores.get('x1/')
 
