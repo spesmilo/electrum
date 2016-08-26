@@ -187,6 +187,9 @@ class Daemon(DaemonThread):
         storage = WalletStorage(path)
         if not storage.file_exists:
             return
+        if storage.requires_upgrade() and 'ANDROID_DATA' in os.environ:
+            self.print_error('upgrading wallet format')
+            storage.upgrade()
         if storage.requires_split() or storage.requires_upgrade() or storage.get_action():
             return
         wallet = Wallet(storage)
