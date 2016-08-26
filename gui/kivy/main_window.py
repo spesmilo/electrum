@@ -418,7 +418,8 @@ class ElectrumWindow(App):
         if not path:
             return
         wallet = self.daemon.load_wallet(path)
-        if wallet:
+        if wallet != self.wallet:
+            self.stop_wallet()
             self.load_wallet(wallet)
             self.on_resume()
         else:
@@ -535,9 +536,6 @@ class ElectrumWindow(App):
 
     @profiler
     def load_wallet(self, wallet):
-        print "load wallet", wallet.storage.path
-
-        self.stop_wallet()
         self.wallet = wallet
         self.current_account = self.wallet.storage.get('current_account', None)
         self.update_wallet()
