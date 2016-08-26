@@ -393,6 +393,7 @@ class DeviceMgr(ThreadJob, PrintError):
             if client is None and force_pair:
                 info = self.select_device(handler, plugin, keystore, devices)
                 client = self.force_pair_xpub(plugin, handler, info, xpub, derivation, devices)
+            return client
 
     def client_by_xpub(self, plugin, xpub, handler, devices):
         _id = self.xpub_id(xpub)
