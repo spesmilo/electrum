@@ -472,7 +472,10 @@ class DeviceMgr(ThreadJob, PrintError):
                 return info
         msg = _("Please select which %s device to use:") % plugin.device
         descriptions = [info.label + ' (%s)'%(_("initialized") if info.initialized else _("wiped")) for info in infos]
-        info = infos[handler.query_choice(msg, descriptions)]
+        c = handler.query_choice(msg, descriptions)
+        if c is None:
+            raise UserCancelled()
+        info = infos[c]
         # save new label
         keystore.set_label(info.label)
         keystore.handler.win.wallet.save_keystore()
