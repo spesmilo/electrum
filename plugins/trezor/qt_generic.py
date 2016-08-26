@@ -193,7 +193,8 @@ def qt_plugin_class(base_plugin_class):
         for keystore in wallet.get_keystores():
             if type(keystore) != self.keystore_class:
                 continue
-            button = StatusBarButton(QIcon(self.icon_file), self.device,
+            tooltip = self.device + ' ' + keystore.label
+            button = StatusBarButton(QIcon(self.icon_file), tooltip,
                                      partial(self.settings_dialog, window, keystore))
             window.statusBar().addPermanentWidget(button)
             keystore.handler = self.create_handler(window)
