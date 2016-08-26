@@ -609,6 +609,9 @@ class ElectrumWindow(App):
     def on_resume(self):
         if self.nfcscanner:
             self.nfcscanner.nfc_enable()
+        # workaround p4a bug:
+        # show an empty info bubble, to refresh the display
+        self.show_info_bubble('', duration=0.1, pos=(0,0), width=1, arrow_pos=None)
 
     def on_size(self, instance, value):
         width, height = value
