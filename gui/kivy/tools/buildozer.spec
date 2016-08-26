@@ -4,7 +4,7 @@
 title = Electrum-LTC
 
 # (str) Package name
-package.name = Electrum-LTC
+package.name = Electrum_LTC
 
 # (str) Package domain (needed for android/ios packaging)
 package.domain = org.electrum_ltc

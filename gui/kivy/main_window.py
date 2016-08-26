@@ -418,7 +418,8 @@ class ElectrumWindow(App):
         if not path:
             return
         wallet = self.daemon.load_wallet(path)
-        if wallet:
+        if wallet != self.wallet:
+            self.stop_wallet()
             self.load_wallet(wallet)
             self.on_resume()
         else:
@@ -535,9 +536,6 @@ class ElectrumWindow(App):
 
     @profiler
     def load_wallet(self, wallet):
-        print "load wallet", wallet.storage.path
-
-        self.stop_wallet()
         self.wallet = wallet
         self.current_account = self.wallet.storage.get('current_account', None)
         self.update_wallet()
@@ -609,6 +607,9 @@ class ElectrumWindow(App):
     def on_resume(self):
         if self.nfcscanner:
             self.nfcscanner.nfc_enable()
+        # workaround p4a bug:
+        # show an empty info bubble, to refresh the display
+        self.show_info_bubble('', duration=0.1, pos=(0,0), width=1, arrow_pos=None)
 
     def on_size(self, instance, value):
         width, height = value

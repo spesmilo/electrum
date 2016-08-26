@@ -1288,7 +1288,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox = QVBoxLayout(dialog)
         vbox.addLayout(clayout.layout())
         vbox.addLayout(Buttons(OkButton(dialog)))
-        dialog.exec_()
+        if not dialog.exec_():
+            return None
         return clayout.selected_index()
 
     def lock_amount(self, b):

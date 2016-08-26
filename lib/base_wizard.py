@@ -115,7 +115,7 @@ class BaseWizard(object):
             message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
             choices = [
                 ('create_seed', _('Create a new seed')),
-                ('restore_seed', _('I already have a seed')),
+                ('restore_from_seed', _('I already have a seed')),
                 ('restore_from_key', _('Import keys')),
                 ('choose_hw_device',  _('Use hardware device')),
             ]
@@ -128,26 +128,18 @@ class BaseWizard(object):
 
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 
-    def restore_seed(self):
-        # TODO: return derivation password too
-        self.restore_seed_dialog(run_next=self.add_password, is_valid=keystore.is_seed)
-
-    def on_restore(self, text):
-        if keystore.is_address_list(text):
-            self.wallet = Imported_Wallet(self.storage)
-            for x in text.split():
-                self.wallet.import_address(x)
-            self.terminate()
-        elif keystore.is_private(text):
-            self.add_password(text)
-        else:
-            self.create_keystore(text, None)
-
     def import_addresses(self):
         v = keystore.is_address_list
         title = _("Import Litecoin Addresses")
         message = _("Enter a list of Litecoin addresses. This will create a watching-only wallet.")
-        self.restore_keys_dialog(title=title, message=message, run_next=self.on_restore, is_valid=v)
+        self.restore_keys_dialog(title=title, message=message, run_next=self.on_import_addresses, is_valid=v)
+
+    def on_import_addresses(self, text):
+        assert keystore.is_address_list(text)
+        self.wallet = Imported_Wallet(self.storage)
+        for x in text.split():
+            self.wallet.import_address(x)
+        self.terminate()
 
     def restore_from_key(self):
         if self.wallet_type == 'standard':
@@ -164,7 +156,11 @@ class BaseWizard(object):
                 _("To create a watching-only wallet, please enter your master public key (xpub)."),
                 _("To create a spending wallet, please enter a master private key (xprv).")
             ])
-        self.restore_keys_dialog(title=title, message=message, run_next=self.on_restore, is_valid=v)
+        self.restore_keys_dialog(title=title, message=message, run_next=self.on_restore_from_key, is_valid=v)
+
+    def on_restore_from_key(self, text):
+        k = keystore.from_keys(text)
+        self.on_keystore(k)
 
     def choose_hw_device(self):
         title = _('Hardware Keystore')
@@ -198,14 +194,18 @@ class BaseWizard(object):
         # select device
         self.devices = devices
         choices = []
-        for name, device_info in devices:
-            choices.append( ((name, device_info), device_info.description + ' [%s]'%name) )
+        for name, info in devices:
+            state = _("initialized") if info.initialized else _("wiped")
+            label = info.label or _("An unnamed %s")%name
+            descr = "%s [%s, %s]" % (label, name, state)
+            choices.append(((name, info), descr))
         msg = _('Select a device') + ':'
         self.choice_dialog(title=title, message=msg, choices=choices, run_next=self.on_device)
 
     def on_device(self, name, device_info):
         self.plugin = self.plugins.get_plugin(name)
         self.plugin.setup_device(device_info, self)
+        print device_info
         f = lambda x: self.run('on_hardware_account_id', name, device_info, x)
         self.account_id_dialog(run_next=f)
 
@@ -218,49 +218,46 @@ class BaseWizard(object):
             'hw_type': name,
             'derivation': derivation,
             'xpub': xpub,
+            'label': device_info.label,
         }
         k = hardware_keystore(d)
-        self.on_keystore(k, None)
+        self.on_keystore(k)
 
-    def on_hardware_seed(self):
-        self.storage.put('key_type', 'hw_seed')
-        is_valid = lambda x: True #fixme: bip39
-        f = lambda seed: self.run('on_bip39_seed', seed)
-        self.restore_seed_dialog(run_next=f, is_valid=is_valid)
+    def restore_from_seed(self):
+        self.restore_seed_dialog(run_next=self.on_seed, is_valid=keystore.is_seed)
 
-    def on_bip39_seed(self, seed):
-        f = lambda passphrase: self.run('on_bip39_passphrase', seed, passphrase)
-        self.request_passphrase(self.storage.get('hw_type'), run_next=f)
+    def on_seed(self, seed, add_passphrase, is_bip39):
+        self.is_bip39 = is_bip39
+        f = lambda x: self.run('create_keystore', seed, x)
+        if add_passphrase:
+            self.request_passphrase(run_next=f)
+        else:
+            f('')
 
-    def on_bip39_passphrase(self, seed, passphrase):
-        f = lambda account_id: self.run('on_bip44_account_id', seed, passphrase, account_id)
-        self.account_id_dialog(run_next=f)
+    def create_keystore(self, seed, passphrase):
+        if self.is_bip39:
+            f = lambda account_id: self.run('on_bip44', seed, passphrase, account_id)
+            self.account_id_dialog(run_next=f)
+        else:
+            k = keystore.from_seed(seed, passphrase)
+            self.on_keystore(k)
 
-    def on_bip44_account_id(self, seed, passphrase, account_id):
-        f = lambda pw: self.run('on_bip44', seed, passphrase, account_id, pw)
-        self.request_password(run_next=f)
-
-    def on_bip44(self, seed, passphrase, account_id, password):
+    def on_bip44(self, seed, passphrase, account_id):
         import keystore
-        k = keystore.BIP32_KeyStore()
-        k.add_seed(seed, password)
+        k = keystore.BIP32_KeyStore({})
         bip32_seed = keystore.bip39_to_seed(seed, passphrase)
         derivation = "m/44'/2'/%d'"%account_id
-        self.storage.put('account_id', account_id)
-        k.add_xprv_from_seed(bip32_seed, derivation, password)
-        self.on_keystore(k, password)
+        k.add_xprv_from_seed(bip32_seed, derivation)
+        self.on_keystore(k)
 
-    def on_keystore(self, k, password):
+    def on_keystore(self, k):
         if self.wallet_type == 'standard':
-            self.storage.put('keystore', k.dump())
-            self.wallet = Standard_Wallet(self.storage)
-            self.run('create_addresses')
+            self.keystores.append(k)
+            self.run('create_wallet')
         elif self.wallet_type == 'multisig':
-
             if k.xpub in map(lambda x: x.xpub, self.keystores):
                 raise BaseException('duplicate key')
             self.keystores.append(k)
-
             if len(self.keystores) == 1:
                 xpub = k.get_master_public_key()
                 self.stack = []
@@ -268,11 +265,29 @@ class BaseWizard(object):
             elif len(self.keystores) < self.n:
                 self.run('choose_keystore')
             else:
-                for i, k in enumerate(self.keystores):
-                    self.storage.put('x%d/'%(i+1), k.dump())
-                self.storage.write()
-                self.wallet = Multisig_Wallet(self.storage)
-                self.run('create_addresses')
+                self.run('create_wallet')
+
+    def create_wallet(self):
+        if any(k.may_have_password() for k in self.keystores):
+            self.request_password(run_next=self.on_password)
+        else:
+            self.on_password(None)
+
+    def on_password(self, password):
+        self.storage.put('use_encryption', bool(password))
+        for k in self.keystores:
+            if k.may_have_password():
+                k.update_password(None, password)
+        if self.wallet_type == 'standard':
+            self.storage.put('keystore', k.dump())
+            self.wallet = Standard_Wallet(self.storage)
+            self.run('create_addresses')
+        elif self.wallet_type == 'multisig':
+            for i, k in enumerate(self.keystores):
+                self.storage.put('x%d/'%(i+1), k.dump())
+            self.storage.write()
+            self.wallet = Multisig_Wallet(self.storage)
+            self.run('create_addresses')
 
     def show_xpub_and_add_cosigners(self, xpub):
         self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('choose_keystore'))
@@ -281,7 +296,7 @@ class BaseWizard(object):
         self.add_cosigner_dialog(run_next=lambda x: self.on_cosigner(x, password, i), index=i, is_valid=keystore.is_xpub)
 
     def on_cosigner(self, text, password, i):
-        k = keystore.from_text(text, password)
+        k = keystore.from_keys(text, password)
         self.on_keystore(k)
 
     def create_seed(self):
@@ -290,15 +305,7 @@ class BaseWizard(object):
         self.show_seed_dialog(run_next=self.confirm_seed, seed_text=seed)
 
     def confirm_seed(self, seed):
-        self.confirm_seed_dialog(run_next=self.add_password, is_valid=lambda x: x==seed)
-
-    def add_password(self, text):
-        f = lambda pw: self.run('create_keystore', text, pw)
-        self.request_password(run_next=f)
-
-    def create_keystore(self, text, password):
-        k = keystore.from_text(text, password)
-        self.on_keystore(k, password)
+        self.confirm_seed_dialog(run_next=self.on_seed, is_valid=lambda x: x==seed)
 
     def create_addresses(self):
         def task():

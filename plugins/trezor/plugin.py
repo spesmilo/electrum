@@ -134,10 +134,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         # All client interaction should not be in the main GUI thread
         assert self.main_thread != threading.current_thread()
         devmgr = self.device_manager()
-        derivation = keystore.get_derivation()
-        xpub = keystore.xpub
-        handler = keystore.handler
-        client = devmgr.client_for_xpub(self, xpub, derivation, handler, force_pair)
+        client = devmgr.client_for_keystore(self, keystore, force_pair)
         # returns the client for a given keystore. can use xpub
         if client:
             client.used()
@@ -160,12 +157,18 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             (TIM_MNEMONIC, _("Upload a BIP39 mnemonic to generate the seed")),
             (TIM_PRIVKEY, _("Upload a master private key"))
         ]
-        f = lambda x: self._initialize_device(x, device_id, wizard, handler)
+        def f(method):
+            import threading
+            settings = self.request_trezor_init_settings(wizard, method, self.device)
+            t = threading.Thread(target = self._initialize_device, args=(settings, method, device_id, wizard, handler))
+            t.setDaemon(True)
+            t.start()
+            wizard.loop.exec_()
         wizard.choice_dialog(title=_('Initialize Device'), message=msg, choices=choices, run_next=f)
 
-    def _initialize_device(self, method, device_id, wizard, handler):
-        (item, label, pin_protection, passphrase_protection) \
-            = self.request_trezor_init_settings(wizard, method, self.device)
+    def _initialize_device(self, settings, method, device_id, wizard, handler):
+        item, label, pin_protection, passphrase_protection = settings
+
         if method == TIM_RECOVER and self.device == 'TREZOR':
             # Warn user about firmware lameness
             handler.show_error(_(
@@ -197,6 +200,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             pin = pin_protection  # It's the pin, not a boolean
             client.load_device_by_xprv(item, pin, passphrase_protection,
                                        label, language)
+        wizard.loop.exit(0)
 
     def setup_device(self, device_info, wizard):
         '''Called when creating a new wallet.  Select the device to use.  If
@@ -205,11 +209,10 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         devmgr = self.device_manager()
         device_id = device_info.device.id_
         client = devmgr.client_by_id(device_id)
+        # fixme: we should use: client.handler = wizard
+        client.handler = self.create_handler(wizard)
         if not device_info.initialized:
-            handler = self.create_handler(wizard)
-            client.handler = handler
-            self.initialize_device(device_id, wizard, handler)
-        client.handler = wizard
+            self.initialize_device(device_id, wizard, client.handler)
         client.get_xpub('m')
         client.used()
 

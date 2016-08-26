@@ -261,7 +261,7 @@ class DeviceUnpairableError(Exception):
     pass
 
 Device = namedtuple("Device", "path interface_number id_ product_key")
-DeviceInfo = namedtuple("DeviceInfo", "device description initialized")
+DeviceInfo = namedtuple("DeviceInfo", "device label initialized")
 
 class DeviceMgr(ThreadJob, PrintError):
     '''Manages hardware clients.  A client communicates over a hardware
@@ -383,8 +383,19 @@ class DeviceMgr(ThreadJob, PrintError):
         self.scan_devices()
         return self.client_lookup(id_)
 
-    def client_for_xpub(self, plugin, xpub, derivation, handler, force_pair):
-        devices = self.scan_devices()
+    def client_for_keystore(self, plugin, keystore, force_pair):
+        with self.lock:
+            devices = self.scan_devices()
+            xpub = keystore.xpub
+            derivation = keystore.get_derivation()
+            handler = keystore.handler
+            client = self.client_by_xpub(plugin, xpub, handler, devices)
+            if client is None and force_pair:
+                info = self.select_device(handler, plugin, keystore, devices)
+                client = self.force_pair_xpub(plugin, handler, info, xpub, derivation, devices)
+            return client
+
+    def client_by_xpub(self, plugin, xpub, handler, devices):
         _id = self.xpub_id(xpub)
         client = self.client_lookup(_id)
         if client:
@@ -397,16 +408,11 @@ class DeviceMgr(ThreadJob, PrintError):
             if device.id_ == _id:
                 return self.create_client(device, handler, plugin)
 
-        if force_pair:
-            return self.force_pair_xpub(plugin, handler, xpub, derivation, devices)
 
-        return None
-
-    def force_pair_xpub(self, plugin, handler, xpub, derivation, devices):
+    def force_pair_xpub(self, plugin, handler, info, xpub, derivation, devices):
         # The wallet has not been previously paired, so let the user
         # choose an unpaired device and compare its first address.
-        with self.lock:
-            info = self.select_device(handler, plugin, devices)
+
         client = self.client_lookup(info.device.id_)
         if client and client.is_pairable():
             # See comment above for same code
@@ -443,14 +449,11 @@ class DeviceMgr(ThreadJob, PrintError):
             client = self.create_client(device, handler, plugin)
             if not client:
                 continue
-            state = _("initialized") if client.is_initialized() else _("wiped")
-            label = client.label() or _("An unnamed %s") % plugin.device
-            descr = "%s (%s)" % (label, state)
-            infos.append(DeviceInfo(device, descr, client.is_initialized()))
+            infos.append(DeviceInfo(device, client.label(), client.is_initialized()))
 
         return infos
 
-    def select_device(self, handler, plugin, devices=None):
+    def select_device(self, handler, plugin, keystore, devices=None):
         '''Ask the user to select a device to use if there is more than one,
         and return the DeviceInfo for the device.'''
         while True:
@@ -463,12 +466,20 @@ class DeviceMgr(ThreadJob, PrintError):
             if not handler.yes_no_question(msg):
                 raise UserCancelled()
             devices = None
-
-        if len(infos) == 1:
-            return infos[0]
+        # select device by label
+        for info in infos:
+            if info.label == keystore.label:
+                return info
         msg = _("Please select which %s device to use:") % plugin.device
-        descriptions = [info.description for info in infos]
-        return infos[handler.query_choice(msg, descriptions)]
+        descriptions = [info.label + ' (%s)'%(_("initialized") if info.initialized else _("wiped")) for info in infos]
+        c = handler.query_choice(msg, descriptions)
+        if c is None:
+            raise UserCancelled()
+        info = infos[c]
+        # save new label
+        keystore.set_label(info.label)
+        keystore.handler.win.wallet.save_keystore()
+        return info
 
     def scan_devices(self):
         # All currently supported hardware libraries use hid, so we

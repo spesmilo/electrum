@@ -88,7 +88,7 @@ from electrum_ltc.util import print_msg, print_stderr, json_encode, json_decode
 from electrum_ltc.util import set_verbosity, InvalidPassword, check_www_dir
 from electrum_ltc.commands import get_parser, known_commands, Commands, config_variables
 from electrum_ltc import daemon
-from electrum_ltc.keystore import from_text, is_private
+from electrum_ltc import keystore
 from electrum_ltc.mnemonic import Mnemonic
 
 # get password routine
@@ -117,13 +117,19 @@ def run_non_RPC(config):
 
     if cmdname == 'restore':
         text = config.get('text')
-        password = password_dialog() if is_private(text) else None
-        try:
-            k = from_text(text, password)
-        except BaseException as e:
+        passphrase = config.get('passphrase', '')
+        password = password_dialog() if keystore.is_private(text) else None
+        if keystore.is_seed(text):
+            k = keystore.from_seed(text, passphrase)
+        elif keystore.is_any_key(text):
+            k = keystore.from_keys(text)
+        else:
             sys.exit(str(e))
-        k.save(storage, 'x/')
+        k.update_password(None, password)
+        storage.put('keystore', k.dump())
         storage.put('wallet_type', 'standard')
+        storage.put('use_encryption', bool(password))
+        storage.write()
         wallet = Wallet(storage)
         if not config.get('offline'):
             network = Network(config)
@@ -139,10 +145,14 @@ def run_non_RPC(config):
 
     elif cmdname == 'create':
         password = password_dialog()
+        passphrase = config.get('passphrase', '')
         seed = Mnemonic('en').make_seed()
-        k = from_text(seed, password)
-        k.save(storage, 'x/')
+        k = keystore.from_seed(seed, passphrase)
+        k.update_password(None, password)
+        storage.put('keystore', k.dump())
         storage.put('wallet_type', 'standard')
+        storage.put('use_encryption', bool(password))
+        storage.write()
         wallet = Wallet(storage)
         wallet.synchronize()
         print_msg("Your wallet generation seed is:\n\"%s\"" % seed)

@@ -28,10 +28,10 @@ MSG_ENTER_SEED_OR_MPK = _("Please enter a seed phrase or a master key (xpub or x
 MSG_COSIGNER = _("Please enter the master public key of cosigner #%d:")
 MSG_ENTER_PASSWORD = _("Choose a password to encrypt your wallet keys.") + '\n'\
                      + _("Leave this field empty if you want to disable encryption.")
-MSG_RESTORE_PASSPHRASE = \
-    _("Please enter the passphrase you used when creating your %s wallet.  "
-      "Note this is NOT a password.  Enter nothing if you did not use "
-      "one or are unsure.")
+MSG_PASSPHRASE = \
+    _("Please enter your seed derivation passphrase. "
+      "Note: this is NOT your encryption password. "
+      "Leave this field empty if you did not use one or are unsure.")
 
 def clean_text(seed_e):
     text = unicode(seed_e.toPlainText()).strip()
@@ -247,16 +247,38 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def remove_from_recently_open(self, filename):
         self.config.remove_from_recently_open(filename)
 
-    def text_input(self, title, message, is_valid):
+    def text_input_layout(self, title, message, is_valid):
         slayout = SeedInputLayout(title=message)
-        def sanitized_seed():
-            return clean_text(slayout.seed_edit())
-        def set_enabled():
-            self.next_button.setEnabled(is_valid(sanitized_seed()))
-        slayout.seed_edit().textChanged.connect(set_enabled)
+        slayout.is_valid = is_valid
+        slayout.sanitized_text = lambda: clean_text(slayout.seed_edit())
+        slayout.set_enabled = lambda: self.next_button.setEnabled(slayout.is_valid(slayout.sanitized_text()))
+        slayout.seed_edit().textChanged.connect(slayout.set_enabled)
+        return slayout
+
+    def text_input(self, title, message, is_valid):
+        slayout = self.text_input_layout(title, message, is_valid)
         self.set_main_layout(slayout.layout(), title, next_enabled=False)
-        seed = sanitized_seed()
+        seed = slayout.sanitized_text()
         return seed
+
+    def seed_input(self, title, message, is_valid, bip39=False):
+        slayout = self.text_input_layout(title, message, is_valid)
+        vbox = QVBoxLayout()
+        vbox.addLayout(slayout.layout())
+        cb_passphrase = QCheckBox(_('Add a passphrase to this seed'))
+        vbox.addWidget(cb_passphrase)
+        cb_bip39 = QCheckBox(_('BIP39/BIP44 seed'))
+        cb_bip39.setVisible(bip39)
+        vbox.addWidget(cb_bip39)
+        def f(b):
+            slayout.is_valid = (lambda x: bool(x)) if b else is_valid
+            slayout.set_enabled()
+        cb_bip39.toggled.connect(f)
+        self.set_main_layout(vbox, title, next_enabled=False)
+        seed = slayout.sanitized_text()
+        add_passphrase = cb_passphrase.isChecked()
+        is_bip39 = cb_bip39.isChecked()
+        return seed, add_passphrase, is_bip39
 
     @wizard_dialog
     def restore_keys_dialog(self, title, message, is_valid, run_next):
@@ -275,7 +297,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def restore_seed_dialog(self, run_next, is_valid):
         title = _('Enter Seed')
         message = _('Please enter your seed phrase in order to restore your wallet.')
-        return self.text_input(title, message, is_valid)
+        return self.seed_input(title, message, is_valid, bip39=True)
 
     @wizard_dialog
     def confirm_seed_dialog(self, run_next, is_valid):
@@ -285,7 +307,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             _('Your seed is important!'),
             _('To make sure that you have properly saved your seed, please retype it here.')
         ])
-        return self.text_input(title, message, is_valid)
+        return self.seed_input(title, message, is_valid)
 
     @wizard_dialog
     def show_seed_dialog(self, run_next, seed_text):
@@ -299,12 +321,11 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return playout.new_password()
 
     @wizard_dialog
-    def request_passphrase(self, device_text, run_next):
+    def request_passphrase(self, run_next):
         """When restoring a wallet, request the passphrase that was used for
         the wallet on the given device and confirm it.  Should return
         a unicode string."""
-        phrase = self.pw_layout(MSG_RESTORE_PASSPHRASE % device_text,
-                                PW_PASSPHRASE)
+        phrase = self.pw_layout(MSG_PASSPHRASE, PW_PASSPHRASE)
         if phrase is None:
             raise UserCancelled
         return phrase
