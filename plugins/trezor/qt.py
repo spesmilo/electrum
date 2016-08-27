@@ -1,8 +1,8 @@
-from ..trezor.qt_generic import qt_plugin_class
+from ..trezor.qt_generic import QtPlugin
 from trezor import TrezorPlugin
 
 
-class Plugin(qt_plugin_class(TrezorPlugin)):
+class Plugin(TrezorPlugin, QtPlugin):
     icon_unpaired = ":icons/trezor_unpaired.png"
     icon_paired = ":icons/trezor.png"
 

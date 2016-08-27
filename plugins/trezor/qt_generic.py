@@ -178,9 +178,7 @@ class QtHandler(QtHandlerBase):
 
 
 
-def qt_plugin_class(base_plugin_class):
-
-  class QtPlugin(base_plugin_class):
+class QtPlugin(object):
     # Derived classes must provide the following class-static variables:
     #   icon_file
     #   pin_matrix_widget_class
@@ -194,8 +192,8 @@ def qt_plugin_class(base_plugin_class):
             if type(keystore) != self.keystore_class:
                 continue
             tooltip = self.device + ' ' + (keystore.label or '')
-            button = StatusBarButton(QIcon(self.icon_unpaired), tooltip,
-                                     partial(self.settings_dialog, window, keystore))
+            cb = lambda: self.show_settings_dialog(window, keystore)
+            button = StatusBarButton(QIcon(self.icon_unpaired), tooltip, cb)
             window.statusBar().addPermanentWidget(button)
             handler = self.create_handler(window)
             handler.button = button
@@ -223,7 +221,7 @@ def qt_plugin_class(base_plugin_class):
                 keystore.thread.add(partial(self.show_address, wallet, addrs[0]))
             menu.addAction(_("Show on %s") % self.device, show_address)
 
-    def settings_dialog(self, window, keystore):
+    def show_settings_dialog(self, window, keystore):
         device_id = self.choose_device(window, keystore)
         if device_id:
             SettingsDialog(window, self, device_id).exec_()
@@ -321,7 +319,7 @@ def qt_plugin_class(base_plugin_class):
 
         return (item, unicode(name.text()), pin, cb_phrase.isChecked())
 
-  return QtPlugin
+
 
 
 class SettingsDialog(WindowModalDialog):
