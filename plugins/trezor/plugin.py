@@ -136,7 +136,8 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         assert self.main_thread != threading.current_thread()
         devmgr = self.device_manager()
         handler = keystore.handler
-        client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
+        with devmgr.hid_lock:
+            client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
         # returns the client for a given keystore. can use xpub
         if client:
             client.used()

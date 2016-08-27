@@ -307,6 +307,7 @@ class DeviceMgr(ThreadJob, PrintError):
         self.recognised_hardware = set()
         # For synchronization
         self.lock = threading.RLock()
+        self.hid_lock = threading.RLock()
         self.config = config
 
     def thread_jobs(self):
@@ -490,7 +491,8 @@ class DeviceMgr(ThreadJob, PrintError):
         # wallet libraries are not affected.
         import hid
         self.print_error("scanning devices...")
-        hid_list = hid.enumerate(0, 0)
+        with self.hid_lock:
+            hid_list = hid.enumerate(0, 0)
         # First see what's connected that we know about
         devices = []
         for d in hid_list:
