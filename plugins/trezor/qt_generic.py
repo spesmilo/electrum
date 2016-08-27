@@ -193,14 +193,25 @@ def qt_plugin_class(base_plugin_class):
         for keystore in wallet.get_keystores():
             if type(keystore) != self.keystore_class:
                 continue
-            tooltip = self.device + ' ' + keystore.label
-            button = StatusBarButton(QIcon(self.icon_file), tooltip,
+            tooltip = self.device + ' ' + (keystore.label or '')
+            button = StatusBarButton(QIcon(self.icon_unpaired), tooltip,
                                      partial(self.settings_dialog, window, keystore))
             window.statusBar().addPermanentWidget(button)
-            keystore.handler = self.create_handler(window)
+            handler = self.create_handler(window)
+            handler.button = button
+            keystore.handler = handler
             keystore.thread = TaskThread(window, window.on_error)
             # Trigger a pairing
             keystore.thread.add(partial(self.get_client, keystore))
+
+        window.connect(window, SIGNAL('keystore_status'), self._update_status)
+
+    def update_status(self, handler, paired):
+        handler.win.emit(SIGNAL('keystore_status'), handler, paired)
+
+    def _update_status(self, handler, paired):
+        icon = self.icon_paired if paired else self.icon_unpaired
+        handler.button.setIcon(QIcon(icon))
 
     @hook
     def receive_menu(self, menu, addrs, wallet):
@@ -222,7 +233,10 @@ def qt_plugin_class(base_plugin_class):
         forgotten their PIN or it is in bootloader mode.'''
         device_id = self.device_manager().xpub_id(keystore.xpub)
         if not device_id:
-            info = self.device_manager().select_device(keystore.handler, self, keystore)
+            try:
+                info = self.device_manager().select_device(self, keystore.handler, keystore)
+            except UserCancelled:
+                return
             device_id = info.device.id_
         return device_id
 

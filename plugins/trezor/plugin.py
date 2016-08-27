@@ -353,7 +353,3 @@ class TrezorCompatiblePlugin(HW_PluginBase):
     def get_tx(self, tx_hash):
         tx = self.prev_tx[tx_hash]
         return self.electrum_tx_to_txtype(tx)
-
-    @staticmethod
-    def is_valid_seed(seed):
-        return True

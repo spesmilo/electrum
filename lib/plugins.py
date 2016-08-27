@@ -385,6 +385,7 @@ class DeviceMgr(ThreadJob, PrintError):
 
     def client_for_keystore(self, plugin, handler, keystore, force_pair):
         with self.lock:
+            plugin.update_status(handler, False)
             devices = self.scan_devices()
             xpub = keystore.xpub
             derivation = keystore.get_derivation()
@@ -392,6 +393,8 @@ class DeviceMgr(ThreadJob, PrintError):
             if client is None and force_pair:
                 info = self.select_device(plugin, handler, keystore, devices)
                 client = self.force_pair_xpub(plugin, handler, info, xpub, derivation, devices)
+            if client:
+                plugin.update_status(handler, True)
             return client
 
     def client_by_xpub(self, plugin, xpub, handler, devices):
