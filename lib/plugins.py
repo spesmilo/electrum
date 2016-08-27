@@ -354,14 +354,13 @@ class DeviceMgr(ThreadJob, PrintError):
             if not xpub in self.xpub_ids:
                 return
             _id = self.xpub_ids.pop(xpub)
-            client = self.client_lookup(_id)
-            self.clients.pop(client, None)
+        client = self.client_lookup(_id)
+        self.clients.pop(client, None)
         if client:
             client.close()
 
     def unpair_id(self, id_):
-        with self.lock:
-            xpub = self.xpub_by_id(id_)
+        xpub = self.xpub_by_id(id_)
         if xpub:
             self.unpair_xpub(xpub)
 
@@ -384,18 +383,19 @@ class DeviceMgr(ThreadJob, PrintError):
         return self.client_lookup(id_)
 
     def client_for_keystore(self, plugin, handler, keystore, force_pair):
-        with self.lock:
-            plugin.update_status(handler, False)
-            devices = self.scan_devices()
-            xpub = keystore.xpub
-            derivation = keystore.get_derivation()
-            client = self.client_by_xpub(plugin, xpub, handler, devices)
-            if client is None and force_pair:
-                info = self.select_device(plugin, handler, keystore, devices)
-                client = self.force_pair_xpub(plugin, handler, info, xpub, derivation, devices)
-            if client:
-                plugin.update_status(handler, True)
-            return client
+        self.print_error("getting client for keystore")
+        plugin.update_status(handler, False)
+        devices = self.scan_devices()
+        xpub = keystore.xpub
+        derivation = keystore.get_derivation()
+        client = self.client_by_xpub(plugin, xpub, handler, devices)
+        if client is None and force_pair:
+            info = self.select_device(plugin, handler, keystore, devices)
+            client = self.force_pair_xpub(plugin, handler, info, xpub, derivation, devices)
+        if client:
+            plugin.update_status(handler, True)
+        self.print_error("end client for keystore")
+        return client
 
     def client_by_xpub(self, plugin, xpub, handler, devices):
         _id = self.xpub_id(xpub)
