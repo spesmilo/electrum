@@ -196,7 +196,7 @@ class WalletStorage(PrintError):
                 storage2.put('wallet_type', 'standard')
                 if wallet_type in ['trezor', 'keepkey']:
                     storage2.put('key_type', 'hardware')
-                    storage2.put('hardware_type', wallet_type)
+                    storage2.put('hw_type', wallet_type)
                 storage2.put('accounts', {'0': x})
                 # need to save derivation and xpub too
                 storage2.put('master_public_keys', {'x/': xpub})
@@ -266,7 +266,7 @@ class WalletStorage(PrintError):
             xpub = xpubs["x/0'"]
             d = {
                 'type': 'hardware',
-                'hardware_type': wallet_type,
+                'hw_type': wallet_type,
                 'xpub': xpub,
                 'derivation': bip44_derivation(0),
             }
