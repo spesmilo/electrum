@@ -134,7 +134,8 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         # All client interaction should not be in the main GUI thread
         assert self.main_thread != threading.current_thread()
         devmgr = self.device_manager()
-        client = devmgr.client_for_keystore(self, keystore, force_pair)
+        handler = keystore.handler
+        client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
         # returns the client for a given keystore. can use xpub
         if client:
             client.used()
@@ -237,7 +238,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
     def show_address(self, wallet, address):
         client = self.get_client(wallet.keystore)
         if not client.atleast_version(1, 3):
-            wallet.handler.show_error(_("Your device firmware is too old"))
+            keystore.handler.show_error(_("Your device firmware is too old"))
             return
         change, index = wallet.get_address_index(address)
         derivation = wallet.keystore.derivation

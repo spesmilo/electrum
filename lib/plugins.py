@@ -383,15 +383,14 @@ class DeviceMgr(ThreadJob, PrintError):
         self.scan_devices()
         return self.client_lookup(id_)
 
-    def client_for_keystore(self, plugin, keystore, force_pair):
+    def client_for_keystore(self, plugin, handler, keystore, force_pair):
         with self.lock:
             devices = self.scan_devices()
             xpub = keystore.xpub
             derivation = keystore.get_derivation()
-            handler = keystore.handler
             client = self.client_by_xpub(plugin, xpub, handler, devices)
             if client is None and force_pair:
-                info = self.select_device(handler, plugin, keystore, devices)
+                info = self.select_device(plugin, handler, keystore, devices)
                 client = self.force_pair_xpub(plugin, handler, info, xpub, derivation, devices)
             return client
 
@@ -453,7 +452,7 @@ class DeviceMgr(ThreadJob, PrintError):
 
         return infos
 
-    def select_device(self, handler, plugin, keystore, devices=None):
+    def select_device(self, plugin, handler, keystore, devices=None):
         '''Ask the user to select a device to use if there is more than one,
         and return the DeviceInfo for the device.'''
         while True:
@@ -478,7 +477,7 @@ class DeviceMgr(ThreadJob, PrintError):
         info = infos[c]
         # save new label
         keystore.set_label(info.label)
-        keystore.handler.win.wallet.save_keystore()
+        handler.win.wallet.save_keystore()
         return info
 
     def scan_devices(self):
