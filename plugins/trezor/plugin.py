@@ -97,7 +97,6 @@ class TrezorCompatiblePlugin(HW_PluginBase):
  
     def _try_bridge(self, device):
         self.print_error("Trying to connect over Trezor Bridge...")
-
         try:
             return self.bridge_transport({'path': hexlify(device.path)})
         except BaseException as e:

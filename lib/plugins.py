@@ -384,7 +384,7 @@ class DeviceMgr(ThreadJob, PrintError):
 
     def client_for_keystore(self, plugin, handler, keystore, force_pair):
         self.print_error("getting client for keystore")
-        plugin.update_status(handler, False)
+        handler.update_status(False)
         devices = self.scan_devices()
         xpub = keystore.xpub
         derivation = keystore.get_derivation()
@@ -393,7 +393,7 @@ class DeviceMgr(ThreadJob, PrintError):
             info = self.select_device(plugin, handler, keystore, devices)
             client = self.force_pair_xpub(plugin, handler, info, xpub, derivation, devices)
         if client:
-            plugin.update_status(handler, True)
+            handler.update_status(True)
         self.print_error("end client for keystore")
         return client
 
@@ -489,12 +489,11 @@ class DeviceMgr(ThreadJob, PrintError):
         # Note this import must be local so those without hardware
         # wallet libraries are not affected.
         import hid
-
         self.print_error("scanning devices...")
-
+        hid_list = hid.enumerate(0, 0)
         # First see what's connected that we know about
         devices = []
-        for d in hid.enumerate(0, 0):
+        for d in hid_list:
             product_key = (d['vendor_id'], d['product_id'])
             if product_key in self.recognised_hardware:
                 # Older versions of hid don't provide interface_number

@@ -194,6 +194,8 @@ class QtPlugin(object):
             tooltip = self.device + ' ' + (keystore.label or '')
             cb = lambda: self.show_settings_dialog(window, keystore)
             button = StatusBarButton(QIcon(self.icon_unpaired), tooltip, cb)
+            button.icon_paired = self.icon_paired
+            button.icon_unpaired = self.icon_unpaired
             window.statusBar().addPermanentWidget(button)
             handler = self.create_handler(window)
             handler.button = button
@@ -201,15 +203,6 @@ class QtPlugin(object):
             keystore.thread = TaskThread(window, window.on_error)
             # Trigger a pairing
             keystore.thread.add(partial(self.get_client, keystore))
-
-        window.connect(window, SIGNAL('keystore_status'), self._update_status)
-
-    def update_status(self, handler, paired):
-        handler.win.emit(SIGNAL('keystore_status'), handler, paired)
-
-    def _update_status(self, handler, paired):
-        icon = self.icon_paired if paired else self.icon_unpaired
-        handler.button.setIcon(QIcon(icon))
 
     @hook
     def receive_menu(self, menu, addrs, wallet):
