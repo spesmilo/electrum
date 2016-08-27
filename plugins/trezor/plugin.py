@@ -104,7 +104,9 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             return None
 
     def create_client(self, device, handler):
-        transport = self._try_bridge(device) or self._try_hid(device)
+        # disable bridge because it seems to never returns if keepkey is plugged
+        #transport = self._try_bridge(device) or self._try_hid(device)
+        transport = self._try_hid(device)
         if not transport:
             self.print_error("cannot connect to device")
             return
