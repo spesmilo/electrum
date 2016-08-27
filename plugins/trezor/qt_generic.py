@@ -192,7 +192,7 @@ class QtPlugin(object):
             if type(keystore) != self.keystore_class:
                 continue
             tooltip = self.device + ' ' + (keystore.label or '')
-            cb = lambda: self.show_settings_dialog(window, keystore)
+            cb = partial(self.show_settings_dialog, window, keystore)
             button = StatusBarButton(QIcon(self.icon_unpaired), tooltip, cb)
             button.icon_paired = self.icon_paired
             button.icon_unpaired = self.icon_unpaired
