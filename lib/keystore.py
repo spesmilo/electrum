@@ -170,7 +170,7 @@ class Deterministic_KeyStore(Software_KeyStore):
     def add_seed(self, seed):
         if self.seed:
             raise Exception("a seed exists")
-        self.seed_version, self.seed = self.format_seed(seed)
+        self.seed = self.format_seed(seed)
 
     def get_seed(self, password):
         return pw_decode(self.seed, password).encode('utf8')
@@ -233,7 +233,7 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         self.xprv = d.get('xprv')
 
     def format_seed(self, seed):
-        return NEW_SEED_VERSION, ' '.join(seed.split())
+        return ' '.join(seed.split())
 
     def dump(self):
         d = Deterministic_KeyStore.dump(self)
@@ -325,19 +325,20 @@ class Old_KeyStore(Deterministic_KeyStore):
 
     def __init__(self, d):
         Deterministic_KeyStore.__init__(self, d)
-        self.mpk = d.get('mpk').decode('hex')
+        self.mpk = d.get('mpk')
 
     def dump(self):
         d = Deterministic_KeyStore.dump(self)
-        d['mpk'] = self.mpk.encode('hex')
+        d['mpk'] = self.mpk
+        d['type'] = 'old'
         return d
 
-    def add_seed(self, seed):
-        Deterministic_KeyStore.add_seed(self, seed)
-        self.mpk = self.mpk_from_seed(seed)
+    def add_seed(self, seedphrase):
+        Deterministic_KeyStore.add_seed(self, seedphrase)
+        self.mpk = self.mpk_from_seed(self.seed)
 
     def add_master_public_key(self, mpk):
-        self.mpk = mpk.decode('hex')
+        self.mpk = mpk
 
     def format_seed(self, seed):
         import old_mnemonic
@@ -353,7 +354,7 @@ class Old_KeyStore(Deterministic_KeyStore):
         seed = old_mnemonic.mn_decode(words)
         if not seed:
             raise Exception("Invalid seed")
-        return OLD_SEED_VERSION, seed
+        return seed
 
     def get_mnemonic(self, password):
         import old_mnemonic
@@ -365,7 +366,7 @@ class Old_KeyStore(Deterministic_KeyStore):
         secexp = klass.stretch_key(seed)
         master_private_key = ecdsa.SigningKey.from_secret_exponent(secexp, curve = SECP256k1)
         master_public_key = master_private_key.get_verifying_key().to_string()
-        return master_public_key
+        return master_public_key.encode('hex')
 
     @classmethod
     def stretch_key(self, seed):
@@ -376,7 +377,7 @@ class Old_KeyStore(Deterministic_KeyStore):
 
     @classmethod
     def get_sequence(self, mpk, for_change, n):
-        return string_to_number(Hash("%d:%d:"%(n, for_change) + mpk))
+        return string_to_number(Hash("%d:%d:"%(n, for_change) + mpk.decode('hex')))
 
     def get_address(self, for_change, n):
         pubkey = self.get_pubkey(for_change, n)
@@ -386,7 +387,7 @@ class Old_KeyStore(Deterministic_KeyStore):
     @classmethod
     def get_pubkey_from_mpk(self, mpk, for_change, n):
         z = self.get_sequence(mpk, for_change, n)
-        master_public_key = ecdsa.VerifyingKey.from_string(mpk, curve = SECP256k1)
+        master_public_key = ecdsa.VerifyingKey.from_string(mpk.decode('hex'), curve = SECP256k1)
         pubkey_point = master_public_key.pubkey.point + z*SECP256k1.generator
         public_key2 = ecdsa.VerifyingKey.from_public_point(pubkey_point, curve = SECP256k1)
         return '04' + public_key2.to_string().encode('hex')
@@ -413,8 +414,8 @@ class Old_KeyStore(Deterministic_KeyStore):
         secexp = self.stretch_key(seed)
         master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
         master_public_key = master_private_key.get_verifying_key().to_string()
-        if master_public_key != self.mpk:
-            print_error('invalid password (mpk)', self.mpk.encode('hex'), master_public_key.encode('hex'))
+        if master_public_key != self.mpk.decode('hex'):
+            print_error('invalid password (mpk)', self.mpk, master_public_key.encode('hex'))
             raise InvalidPassword()
 
     def check_password(self, password):
@@ -422,12 +423,11 @@ class Old_KeyStore(Deterministic_KeyStore):
         self.check_seed(seed)
 
     def get_master_public_key(self):
-        return self.mpk.encode('hex')
+        return self.mpk
 
     def get_xpubkey(self, for_change, n):
         s = ''.join(map(lambda x: bitcoin.int_to_hex(x,2), (for_change, n)))
-        mpk = self.mpk.encode('hex')
-        x_pubkey = 'fe' + mpk + s
+        x_pubkey = 'fe' + self.mpk + s
         return x_pubkey
 
     @classmethod
