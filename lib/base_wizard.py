@@ -116,13 +116,13 @@ class BaseWizard(object):
             choices = [
                 ('create_seed', _('Create a new seed')),
                 ('restore_from_seed', _('I already have a seed')),
-                ('restore_from_key', _('Import keys')),
-                ('choose_hw_device',  _('Use hardware device')),
+                ('restore_from_key', _('Use public or private keys')),
+                ('choose_hw_device',  _('Use a hardware device')),
             ]
         else:
             message = _('Add a cosigner to your multi-sig wallet')
             choices = [
-                ('restore_from_key', _('Import cosigner key')),
+                ('restore_from_key', _('Enter cosigner key')),
                 ('choose_hw_device',  _('Cosign with hardware device')),
             ]
 
@@ -144,7 +144,7 @@ class BaseWizard(object):
     def restore_from_key(self):
         if self.wallet_type == 'standard':
             v = keystore.is_any_key
-            title = _("Import keys")
+            title = _("Create keystore from keys")
             message = ' '.join([
                 _("To create a watching-only wallet, please enter your master public key (xpub)."),
                 _("To create a spending wallet, please enter a master private key (xprv), or a list of Bitcoin private keys.")
