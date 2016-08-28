@@ -97,7 +97,6 @@ class TrezorCompatiblePlugin(HW_PluginBase):
  
     def _try_bridge(self, device):
         self.print_error("Trying to connect over Trezor Bridge...")
-
         try:
             return self.bridge_transport({'path': hexlify(device.path)})
         except BaseException as e:
@@ -105,7 +104,9 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             return None
 
     def create_client(self, device, handler):
-        transport = self._try_bridge(device) or self._try_hid(device)
+        # disable bridge because it seems to never returns if keepkey is plugged
+        #transport = self._try_bridge(device) or self._try_hid(device)
+        transport = self._try_hid(device)
         if not transport:
             self.print_error("cannot connect to device")
             return
@@ -134,7 +135,9 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         # All client interaction should not be in the main GUI thread
         assert self.main_thread != threading.current_thread()
         devmgr = self.device_manager()
-        client = devmgr.client_for_keystore(self, keystore, force_pair)
+        handler = keystore.handler
+        with devmgr.hid_lock:
+            client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
         # returns the client for a given keystore. can use xpub
         if client:
             client.used()
@@ -237,7 +240,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
     def show_address(self, wallet, address):
         client = self.get_client(wallet.keystore)
         if not client.atleast_version(1, 3):
-            wallet.handler.show_error(_("Your device firmware is too old"))
+            keystore.handler.show_error(_("Your device firmware is too old"))
             return
         change, index = wallet.get_address_index(address)
         derivation = wallet.keystore.derivation
@@ -352,7 +355,3 @@ class TrezorCompatiblePlugin(HW_PluginBase):
     def get_tx(self, tx_hash):
         tx = self.prev_tx[tx_hash]
         return self.electrum_tx_to_txtype(tx)
-
-    @staticmethod
-    def is_valid_seed(seed):
-        return True

@@ -196,7 +196,7 @@ class WalletStorage(PrintError):
                 storage2.put('wallet_type', 'standard')
                 if wallet_type in ['trezor', 'keepkey']:
                     storage2.put('key_type', 'hardware')
-                    storage2.put('hardware_type', wallet_type)
+                    storage2.put('hw_type', wallet_type)
                 storage2.put('accounts', {'0': x})
                 # need to save derivation and xpub too
                 storage2.put('master_public_keys', {'x/': xpub})
@@ -221,11 +221,11 @@ class WalletStorage(PrintError):
 
     def convert_wallet_type(self, is_test):
         assert not self.requires_split()
-        if self.get('keystore') or self.get('x1/'):
+        wallet_type = self.get('wallet_type')
+        if self.get('keystore') or self.get('x1/') or wallet_type=='imported':
             return False
         if is_test:
             return True
-        wallet_type = self.get('wallet_type')
         seed_version = self.get_seed_version()
         seed = self.get('seed')
         xpubs = self.get('master_public_keys')
@@ -266,7 +266,7 @@ class WalletStorage(PrintError):
             xpub = xpubs["x/0'"]
             d = {
                 'type': 'hardware',
-                'hardware_type': wallet_type,
+                'hw_type': wallet_type,
                 'xpub': xpub,
                 'derivation': bip44_derivation(0),
             }

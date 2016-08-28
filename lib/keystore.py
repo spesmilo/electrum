@@ -148,14 +148,18 @@ class Deterministic_KeyStore(Software_KeyStore):
     def __init__(self, d):
         Software_KeyStore.__init__(self)
         self.seed = d.get('seed', '')
+        self.passphrase = d.get('passphrase', '')
 
     def is_deterministic(self):
         return True
 
     def dump(self):
-        return {
-            'seed': self.seed,
-        }
+        d = {}
+        if self.seed:
+            d['seed'] = self.seed
+        if self.passphrase:
+            d['passphrase'] = self.passphrase
+        return d
 
     def has_seed(self):
         return self.seed != ''
@@ -170,6 +174,10 @@ class Deterministic_KeyStore(Software_KeyStore):
 
     def get_seed(self, password):
         return pw_decode(self.seed, password).encode('utf8')
+
+    def get_passphrase(self, password):
+        return pw_decode(self.passphrase, password).encode('utf8')
+
 
 
 class Xpub:
@@ -249,7 +257,10 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
             new_password = None
         if self.has_seed():
             decoded = self.get_seed(old_password)
-            self.seed = pw_encode( decoded, new_password)
+            self.seed = pw_encode(decoded, new_password)
+        if self.passphrase:
+            decoded = self.get_passphrase(old_password)
+            self.passphrase = pw_encode(decoded, new_password)
         if self.xprv is not None:
             b = pw_decode(self.xprv, old_password)
             self.xprv = pw_encode(b, new_password)
@@ -631,6 +642,7 @@ def from_seed(seed, passphrase):
     elif is_new_seed(seed):
         keystore = BIP32_KeyStore({})
         keystore.add_seed(seed)
+        keystore.passphrase = passphrase
         bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
         keystore.add_xprv_from_seed(bip32_seed, "m/")
     return keystore

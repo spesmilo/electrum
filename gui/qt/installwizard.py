@@ -112,8 +112,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         # Set for base base class
         self.plugins = plugins
         self.language_for_seed = config.get('language')
-        self.setMinimumSize(530, 370)
-        self.setMaximumSize(530, 370)
+        self.setMinimumSize(600, 400)
         self.connect(self, QtCore.SIGNAL('accept'), self.accept)
         self.title = QLabel()
         self.main_widget = QWidget()
@@ -224,6 +223,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.main_widget.setLayout(layout)
         self.back_button.setEnabled(True)
         self.next_button.setEnabled(next_enabled)
+        if next_enabled:
+            self.next_button.setFocus()
         self.main_widget.setVisible(True)
         self.please_wait.setVisible(False)
         result = self.loop.exec_()
@@ -261,24 +262,28 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         seed = slayout.sanitized_text()
         return seed
 
-    def seed_input(self, title, message, is_valid, bip39=False):
+    def seed_input(self, title, message, is_valid):
         slayout = self.text_input_layout(title, message, is_valid)
         vbox = QVBoxLayout()
         vbox.addLayout(slayout.layout())
-        cb_passphrase = QCheckBox(_('Add a passphrase to this seed'))
-        vbox.addWidget(cb_passphrase)
-        cb_bip39 = QCheckBox(_('BIP39/BIP44 seed'))
-        cb_bip39.setVisible(bip39)
-        vbox.addWidget(cb_bip39)
-        def f(b):
-            slayout.is_valid = (lambda x: bool(x)) if b else is_valid
-            slayout.set_enabled()
-        cb_bip39.toggled.connect(f)
+        if self.opt_ext or self.opt_bip39:
+            vbox.addStretch(1)
+            vbox.addWidget(QLabel(_('Options')+ ':'))
+        if self.opt_ext:
+            cb_ext = QCheckBox(_('Extend this seed with a passphrase'))
+            vbox.addWidget(cb_ext)
+        if self.opt_bip39:
+            def f(b):
+                slayout.is_valid = (lambda x: bool(x)) if b else is_valid
+                slayout.set_enabled()
+            cb_bip39 = QCheckBox(_('BIP39/BIP44 seed'))
+            cb_bip39.toggled.connect(f)
+            vbox.addWidget(cb_bip39)
         self.set_main_layout(vbox, title, next_enabled=False)
         seed = slayout.sanitized_text()
-        add_passphrase = cb_passphrase.isChecked()
-        is_bip39 = cb_bip39.isChecked()
-        return seed, add_passphrase, is_bip39
+        is_ext = cb_ext.isChecked() if self.opt_ext else False
+        is_bip39 = cb_bip39.isChecked() if self.opt_bip39 else False
+        return seed, is_ext, is_bip39
 
     @wizard_dialog
     def restore_keys_dialog(self, title, message, is_valid, run_next):
@@ -297,14 +302,15 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def restore_seed_dialog(self, run_next, is_valid):
         title = _('Enter Seed')
         message = _('Please enter your seed phrase in order to restore your wallet.')
-        return self.seed_input(title, message, is_valid, bip39=True)
+        return self.seed_input(title, message, is_valid)
 
     @wizard_dialog
     def confirm_seed_dialog(self, run_next, is_valid):
         self.app.clipboard().clear()
         title = _('Confirm Seed')
         message = ' '.join([
-            _('Your seed is important!'),
+            _('Your seed is your wallet!'),
+            _('If you lose your seed, your money will be permanently lost.'),
             _('To make sure that you have properly saved your seed, please retype it here.')
         ])
         return self.seed_input(title, message, is_valid)

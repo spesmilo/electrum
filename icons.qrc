@@ -15,7 +15,10 @@
     <file>icons/file.png</file>
     <file>icons/hot_seed.png</file>
     <file>icons/keepkey.png</file>
+    <file>icons/keepkey_unpaired.png</file>
     <file>icons/key.png</file>
+    <file>icons/ledger.png</file>
+    <file>icons/ledger_unpaired.png</file>
     <file>icons/lock.png</file>
     <file>icons/microphone.png</file>
     <file>icons/network.png</file>
@@ -28,6 +31,7 @@
     <file>icons/status_lagging.png</file>
     <file>icons/seal.png</file>
     <file>icons/speaker.png</file>
+    <file>icons/trezor_unpaired.png</file>
     <file>icons/trezor.png</file>
     <file>icons/trustedcoin.png</file>
     <file>icons/unconfirmed.png</file>

@@ -178,9 +178,7 @@ class QtHandler(QtHandlerBase):
 
 
 
-def qt_plugin_class(base_plugin_class):
-
-  class QtPlugin(base_plugin_class):
+class QtPlugin(object):
     # Derived classes must provide the following class-static variables:
     #   icon_file
     #   pin_matrix_widget_class
@@ -193,10 +191,15 @@ def qt_plugin_class(base_plugin_class):
         for keystore in wallet.get_keystores():
             if type(keystore) != self.keystore_class:
                 continue
-            button = StatusBarButton(QIcon(self.icon_file), self.device,
-                                     partial(self.settings_dialog, window, keystore))
+            tooltip = self.device + ' ' + (keystore.label or '')
+            cb = partial(self.show_settings_dialog, window, keystore)
+            button = StatusBarButton(QIcon(self.icon_unpaired), tooltip, cb)
+            button.icon_paired = self.icon_paired
+            button.icon_unpaired = self.icon_unpaired
             window.statusBar().addPermanentWidget(button)
-            keystore.handler = self.create_handler(window)
+            handler = self.create_handler(window)
+            handler.button = button
+            keystore.handler = handler
             keystore.thread = TaskThread(window, window.on_error)
             # Trigger a pairing
             keystore.thread.add(partial(self.get_client, keystore))
@@ -211,17 +214,20 @@ def qt_plugin_class(base_plugin_class):
                 keystore.thread.add(partial(self.show_address, wallet, addrs[0]))
             menu.addAction(_("Show on %s") % self.device, show_address)
 
-    def settings_dialog(self, window, keystore):
+    def show_settings_dialog(self, window, keystore):
         device_id = self.choose_device(window, keystore)
         if device_id:
-            SettingsDialog(window, self, device_id).exec_()
+            SettingsDialog(window, self, keystore, device_id).exec_()
 
     def choose_device(self, window, keystore):
         '''This dialog box should be usable even if the user has
         forgotten their PIN or it is in bootloader mode.'''
         device_id = self.device_manager().xpub_id(keystore.xpub)
         if not device_id:
-            info = self.device_manager().select_device(keystore.handler, self, keystore)
+            try:
+                info = self.device_manager().select_device(self, keystore.handler, keystore)
+            except UserCancelled:
+                return
             device_id = info.device.id_
         return device_id
 
@@ -306,7 +312,7 @@ def qt_plugin_class(base_plugin_class):
 
         return (item, unicode(name.text()), pin, cb_phrase.isChecked())
 
-  return QtPlugin
+
 
 
 class SettingsDialog(WindowModalDialog):
@@ -314,15 +320,13 @@ class SettingsDialog(WindowModalDialog):
     We want users to be able to wipe a device even if they've forgotten
     their PIN.'''
 
-    def __init__(self, window, plugin, device_id):
+    def __init__(self, window, plugin, keystore, device_id):
         title = _("%s Settings") % plugin.device
         super(SettingsDialog, self).__init__(window, title)
         self.setMaximumWidth(540)
 
         devmgr = plugin.device_manager()
         config = devmgr.config
-        wallet = window.wallet
-        keystore = wallet.keystore
         handler = keystore.handler
         thread = keystore.thread
         hs_rows, hs_cols = (64, 128)

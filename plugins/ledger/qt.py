@@ -3,27 +3,35 @@ import threading
 from PyQt4.Qt import (QDialog, QInputDialog, QLineEdit,
                       QVBoxLayout, QLabel, SIGNAL)
 import PyQt4.QtCore as QtCore
+from electrum_ltc_gui.qt.main_window import StatusBarButton
 
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import hook
 from .ledger import LedgerPlugin, Ledger_KeyStore
 from ..hw_wallet.qt import QtHandlerBase
+from electrum_ltc_gui.qt.util import *
 
 class Plugin(LedgerPlugin):
+    icon_unpaired = ":icons/ledger_unpaired.png"
+    icon_paired = ":icons/ledger.png"
 
     @hook
     def load_wallet(self, wallet, window):
-        keystore = wallet.get_keystore()
-        if type(keystore) != self.keystore_class:
-            return
-        keystore.handler = BTChipQTHandler(window)
-        if self.btchip_is_connected(keystore):
-            if not keystore.check_proper_device():
-                window.show_error(_("This wallet does not match your Ledger device"))
-                wallet.force_watching_only = True
-        else:
-            window.show_error(_("Ledger device not detected.\nContinuing in watching-only mode."))
-            wallet.force_watching_only = True
+        for keystore in wallet.get_keystores():
+            if type(keystore) != self.keystore_class:
+                continue
+            tooltip = self.device
+            cb = partial(self.show_settings_dialog, window, keystore)
+            button = StatusBarButton(QIcon(self.icon_unpaired), tooltip, cb)
+            button.icon_paired = self.icon_paired
+            button.icon_unpaired = self.icon_unpaired
+            window.statusBar().addPermanentWidget(button)
+            handler = BTChipQTHandler(window)
+            handler.button = button
+            keystore.handler = handler
+            keystore.thread = TaskThread(window, window.on_error)
+            # Trigger a pairing
+            keystore.thread.add(partial(self.get_client, keystore))
 
     def create_keystore(self, hw_type, derivation, wizard):
         from electrum_ltc.keystore import hardware_keystore
@@ -40,6 +48,11 @@ class Plugin(LedgerPlugin):
         k = hardware_keystore(hw_type, d)
         return k
 
+    def create_handler(self, wizard):
+        return BTChipQTHandler(wizard)        
+
+    def show_settings_dialog(self, window, keystore):
+        pass
 
 class BTChipQTHandler(QtHandlerBase):
 

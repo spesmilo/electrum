@@ -116,13 +116,13 @@ class BaseWizard(object):
             choices = [
                 ('create_seed', _('Create a new seed')),
                 ('restore_from_seed', _('I already have a seed')),
-                ('restore_from_key', _('Import keys')),
-                ('choose_hw_device',  _('Use hardware device')),
+                ('restore_from_key', _('Use public or private keys')),
+                ('choose_hw_device',  _('Use a hardware device')),
             ]
         else:
             message = _('Add a cosigner to your multi-sig wallet')
             choices = [
-                ('restore_from_key', _('Import cosigner key')),
+                ('restore_from_key', _('Enter cosigner key')),
                 ('choose_hw_device',  _('Cosign with hardware device')),
             ]
 
@@ -144,7 +144,7 @@ class BaseWizard(object):
     def restore_from_key(self):
         if self.wallet_type == 'standard':
             v = keystore.is_any_key
-            title = _("Import keys")
+            title = _("Create keystore from keys")
             message = ' '.join([
                 _("To create a watching-only wallet, please enter your master public key (xpub)."),
                 _("To create a spending wallet, please enter a master private key (xprv), or a list of Litecoin private keys.")
@@ -224,6 +224,8 @@ class BaseWizard(object):
         self.on_keystore(k)
 
     def restore_from_seed(self):
+        self.opt_bip39 = True
+        self.opt_ext = True
         self.restore_seed_dialog(run_next=self.on_seed, is_valid=keystore.is_seed)
 
     def on_seed(self, seed, add_passphrase, is_bip39):
@@ -302,6 +304,8 @@ class BaseWizard(object):
     def create_seed(self):
         from electrum_ltc.mnemonic import Mnemonic
         seed = Mnemonic('en').make_seed()
+        self.opt_bip39 = False
+        self.opt_ext = True
         self.show_seed_dialog(run_next=self.confirm_seed, seed_text=seed)
 
     def confirm_seed(self, seed):

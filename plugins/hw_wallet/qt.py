@@ -46,6 +46,7 @@ class QtHandlerBase(QObject, PrintError):
     clear_signal = pyqtSignal()
     query_signal = pyqtSignal(object, object)
     yes_no_signal = pyqtSignal(object)
+    status_signal = pyqtSignal(object)
 
     def __init__(self, win, device):
         super(QtHandlerBase, self).__init__()
@@ -56,6 +57,7 @@ class QtHandlerBase(QObject, PrintError):
         self.word_signal.connect(self.word_dialog)
         self.query_signal.connect(self.win_query_choice)
         self.yes_no_signal.connect(self.win_yes_no_question)
+        self.status_signal.connect(self._update_status)
         self.win = win
         self.device = device
         self.dialog = None
@@ -63,6 +65,14 @@ class QtHandlerBase(QObject, PrintError):
 
     def top_level_window(self):
         return self.win.top_level_window()
+
+    def update_status(self, paired):
+        self.status_signal.emit(paired)
+
+    def _update_status(self, paired):
+        button = self.button
+        icon = button.icon_paired if paired else button.icon_unpaired
+        button.setIcon(QIcon(icon))
 
     def query_choice(self, msg, labels):
         self.done.clear()

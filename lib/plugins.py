@@ -307,6 +307,7 @@ class DeviceMgr(ThreadJob, PrintError):
         self.recognised_hardware = set()
         # For synchronization
         self.lock = threading.RLock()
+        self.hid_lock = threading.RLock()
         self.config = config
 
     def thread_jobs(self):
@@ -354,14 +355,13 @@ class DeviceMgr(ThreadJob, PrintError):
             if not xpub in self.xpub_ids:
                 return
             _id = self.xpub_ids.pop(xpub)
-            client = self.client_lookup(_id)
-            self.clients.pop(client, None)
+        client = self.client_lookup(_id)
+        self.clients.pop(client, None)
         if client:
             client.close()
 
     def unpair_id(self, id_):
-        with self.lock:
-            xpub = self.xpub_by_id(id_)
+        xpub = self.xpub_by_id(id_)
         if xpub:
             self.unpair_xpub(xpub)
 
@@ -383,17 +383,20 @@ class DeviceMgr(ThreadJob, PrintError):
         self.scan_devices()
         return self.client_lookup(id_)
 
-    def client_for_keystore(self, plugin, keystore, force_pair):
-        with self.lock:
-            devices = self.scan_devices()
-            xpub = keystore.xpub
-            derivation = keystore.get_derivation()
-            handler = keystore.handler
-            client = self.client_by_xpub(plugin, xpub, handler, devices)
-            if client is None and force_pair:
-                info = self.select_device(handler, plugin, keystore, devices)
-                client = self.force_pair_xpub(plugin, handler, info, xpub, derivation, devices)
-            return client
+    def client_for_keystore(self, plugin, handler, keystore, force_pair):
+        self.print_error("getting client for keystore")
+        handler.update_status(False)
+        devices = self.scan_devices()
+        xpub = keystore.xpub
+        derivation = keystore.get_derivation()
+        client = self.client_by_xpub(plugin, xpub, handler, devices)
+        if client is None and force_pair:
+            info = self.select_device(plugin, handler, keystore, devices)
+            client = self.force_pair_xpub(plugin, handler, info, xpub, derivation, devices)
+        if client:
+            handler.update_status(True)
+        self.print_error("end client for keystore")
+        return client
 
     def client_by_xpub(self, plugin, xpub, handler, devices):
         _id = self.xpub_id(xpub)
@@ -453,7 +456,7 @@ class DeviceMgr(ThreadJob, PrintError):
 
         return infos
 
-    def select_device(self, handler, plugin, keystore, devices=None):
+    def select_device(self, plugin, handler, keystore, devices=None):
         '''Ask the user to select a device to use if there is more than one,
         and return the DeviceInfo for the device.'''
         while True:
@@ -478,7 +481,7 @@ class DeviceMgr(ThreadJob, PrintError):
         info = infos[c]
         # save new label
         keystore.set_label(info.label)
-        keystore.handler.win.wallet.save_keystore()
+        handler.win.wallet.save_keystore()
         return info
 
     def scan_devices(self):
@@ -487,18 +490,21 @@ class DeviceMgr(ThreadJob, PrintError):
         # Note this import must be local so those without hardware
         # wallet libraries are not affected.
         import hid
-
         self.print_error("scanning devices...")
-
+        with self.hid_lock:
+            hid_list = hid.enumerate(0, 0)
         # First see what's connected that we know about
         devices = []
-        for d in hid.enumerate(0, 0):
+        for d in hid_list:
             product_key = (d['vendor_id'], d['product_id'])
             if product_key in self.recognised_hardware:
                 # Older versions of hid don't provide interface_number
                 interface_number = d.get('interface_number', 0)
+                serial = d['serial_number']
+                if len(serial) == 0:
+                    serial = d['path']
                 devices.append(Device(d['path'], interface_number,
-                                      d['serial_number'], product_key))
+                                      serial, product_key))
 
         # Now find out what was disconnected
         pairs = [(dev.path, dev.id_) for dev in devices]
