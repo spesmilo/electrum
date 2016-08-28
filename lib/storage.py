@@ -221,11 +221,11 @@ class WalletStorage(PrintError):
 
     def convert_wallet_type(self, is_test):
         assert not self.requires_split()
-        if self.get('keystore') or self.get('x1/'):
+        wallet_type = self.get('wallet_type')
+        if self.get('keystore') or self.get('x1/') or wallet_type=='imported':
             return False
         if is_test:
             return True
-        wallet_type = self.get('wallet_type')
         seed_version = self.get_seed_version()
         seed = self.get('seed')
         xpubs = self.get('master_public_keys')
