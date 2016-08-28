@@ -70,6 +70,15 @@ class Software_KeyStore(KeyStore):
         decrypted = ec.decrypt_message(message)
         return decrypted
 
+    def sign_transaction(self, tx, password):
+        # Raise if password is not correct.
+        self.check_password(password)
+        # Add private keys
+        keypairs = self.get_keypairs_for_sig(tx, password)
+        # Sign
+        if keypairs:
+            tx.sign(keypairs)
+
 
 class Imported_KeyStore(Software_KeyStore):
     # keystore for imported private keys
@@ -289,15 +298,6 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
                     keypairs[x_pubkey] = sec
 
         return keypairs
-
-    def sign_transaction(self, tx, password):
-        # Raise if password is not correct.
-        self.check_password(password)
-        # Add private keys
-        keypairs = self.get_keypairs_for_sig(tx, password)
-        # Sign
-        if keypairs:
-            tx.sign(keypairs)
 
     def get_mnemonic(self, password):
         return self.get_seed(password)
