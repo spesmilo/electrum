@@ -224,6 +224,8 @@ class BaseWizard(object):
         self.on_keystore(k)
 
     def restore_from_seed(self):
+        self.opt_bip39 = True
+        self.opt_ext = True
         self.restore_seed_dialog(run_next=self.on_seed, is_valid=keystore.is_seed)
 
     def on_seed(self, seed, add_passphrase, is_bip39):
@@ -302,6 +304,8 @@ class BaseWizard(object):
     def create_seed(self):
         from electrum.mnemonic import Mnemonic
         seed = Mnemonic('en').make_seed()
+        self.opt_bip39 = False
+        self.opt_ext = True
         self.show_seed_dialog(run_next=self.confirm_seed, seed_text=seed)
 
     def confirm_seed(self, seed):

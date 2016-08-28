@@ -346,6 +346,8 @@ class TrustedCoinPlugin(BasePlugin):
             ('create_seed', _('Create a new seed')),
             ('restore_wallet', _('I already have a seed')),
         ]
+        wizard.opt_bip39 = False
+        wizard.opt_ext = False
         wizard.choice_dialog(title=title, message=message, choices=choices, run_next=wizard.run)
 
     def create_seed(self, wizard):
