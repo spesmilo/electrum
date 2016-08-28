@@ -223,6 +223,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.main_widget.setLayout(layout)
         self.back_button.setEnabled(True)
         self.next_button.setEnabled(next_enabled)
+        if next_enabled:
+            self.next_button.setFocus()
         self.main_widget.setVisible(True)
         self.please_wait.setVisible(False)
         result = self.loop.exec_()
