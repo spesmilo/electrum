@@ -450,9 +450,6 @@ class LedgerPlugin(HW_PluginBase):
         dev.open_path(device.path)
         dev.set_nonblocking(True)
         return HIDDongleHIDAPI(dev, ledger, BTCHIP_DEBUG)
-
-    def verify_btchip_pin(self):
-        pass
 	
     def create_client(self, device, handler):
         self.handler = handler
@@ -468,7 +465,8 @@ class LedgerPlugin(HW_PluginBase):
         client = devmgr.client_by_id(device_id)
         #client.handler = wizard
         client.handler = self.create_handler(wizard)
-        client.get_xpub('m')
+        #client.get_xpub('m')
+        client.get_xpub("m/44'/0'") # TODO replace by direct derivation once Nano S > 1.1
 
     def get_xpub(self, device_id, derivation, wizard):
         devmgr = self.device_manager()
