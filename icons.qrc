@@ -17,6 +17,8 @@
     <file>icons/keepkey.png</file>
     <file>icons/keepkey_unpaired.png</file>
     <file>icons/key.png</file>
+    <file>icons/ledger.png</file>
+    <file>icons/ledger_unpaired.png</file>
     <file>icons/lock.png</file>
     <file>icons/microphone.png</file>
     <file>icons/network.png</file>
