@@ -217,7 +217,7 @@ class QtPlugin(object):
     def show_settings_dialog(self, window, keystore):
         device_id = self.choose_device(window, keystore)
         if device_id:
-            SettingsDialog(window, self, device_id).exec_()
+            SettingsDialog(window, self, keystore, device_id).exec_()
 
     def choose_device(self, window, keystore):
         '''This dialog box should be usable even if the user has
@@ -320,15 +320,13 @@ class SettingsDialog(WindowModalDialog):
     We want users to be able to wipe a device even if they've forgotten
     their PIN.'''
 
-    def __init__(self, window, plugin, device_id):
+    def __init__(self, window, plugin, keystore, device_id):
         title = _("%s Settings") % plugin.device
         super(SettingsDialog, self).__init__(window, title)
         self.setMaximumWidth(540)
 
         devmgr = plugin.device_manager()
         config = devmgr.config
-        wallet = window.wallet
-        keystore = wallet.keystore
         handler = keystore.handler
         thread = keystore.thread
         hs_rows, hs_cols = (64, 128)
