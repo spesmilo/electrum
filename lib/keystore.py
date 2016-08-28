@@ -70,6 +70,27 @@ class Software_KeyStore(KeyStore):
         decrypted = ec.decrypt_message(message)
         return decrypted
 
+    def get_keypairs_for_sig(self, tx, password):
+        keypairs = {}
+        for txin in tx.inputs():
+            num_sig = txin.get('num_sig')
+            if num_sig is None:
+                continue
+            x_signatures = txin['signatures']
+            signatures = filter(None, x_signatures)
+            if len(signatures) == num_sig:
+                # input is complete
+                continue
+            for k, x_pubkey in enumerate(txin['x_pubkeys']):
+                if x_signatures[k] is not None:
+                    # this pubkey already signed
+                    continue
+                derivation = txin['derivation']
+                sec = self.get_private_key(derivation, password)
+                if sec:
+                    keypairs[x_pubkey] = sec
+        return keypairs
+
     def sign_transaction(self, tx, password):
         # Raise if password is not correct.
         self.check_password(password)
@@ -277,27 +298,6 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
     def is_watching_only(self):
         return self.xprv is None
 
-    def get_keypairs_for_sig(self, tx, password):
-        keypairs = {}
-        for txin in tx.inputs():
-            num_sig = txin.get('num_sig')
-            if num_sig is None:
-                continue
-            x_signatures = txin['signatures']
-            signatures = filter(None, x_signatures)
-            if len(signatures) == num_sig:
-                # input is complete
-                continue
-            for k, x_pubkey in enumerate(txin['x_pubkeys']):
-                if x_signatures[k] is not None:
-                    # this pubkey already signed
-                    continue
-                derivation = txin['derivation']
-                sec = self.get_private_key(derivation, password)
-                if sec:
-                    keypairs[x_pubkey] = sec
-
-        return keypairs
 
     def get_mnemonic(self, password):
         return self.get_seed(password)
