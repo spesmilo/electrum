@@ -113,7 +113,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.plugins = plugins
         self.language_for_seed = config.get('language')
         self.setMinimumSize(600, 400)
-        self.setMaximumSize(600, 400)
         self.connect(self, QtCore.SIGNAL('accept'), self.accept)
         self.title = QLabel()
         self.main_widget = QWidget()
