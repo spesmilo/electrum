@@ -500,8 +500,11 @@ class DeviceMgr(ThreadJob, PrintError):
             if product_key in self.recognised_hardware:
                 # Older versions of hid don't provide interface_number
                 interface_number = d.get('interface_number', 0)
+                serial = d['serial_number']
+                if len(serial) == 0:
+                    serial = d['path']
                 devices.append(Device(d['path'], interface_number,
-                                      d['serial_number'], product_key))
+                                      serial, product_key))
 
         # Now find out what was disconnected
         pairs = [(dev.path, dev.id_) for dev in devices]
