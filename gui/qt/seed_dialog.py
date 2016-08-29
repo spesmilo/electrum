@@ -38,13 +38,6 @@ def icon_filename(sid):
     else:
         return ":icons/seed.png"
 
-class SeedDialog(WindowModalDialog):
-    def __init__(self, parent, seed):
-        WindowModalDialog.__init__(self, parent, ('Electrum - ' + _('Seed')))
-        self.setMinimumWidth(400)
-        vbox = QVBoxLayout(self)
-        vbox.addLayout(SeedWarningLayout(seed).layout())
-        vbox.addLayout(Buttons(CloseButton(self)))
 
 class SeedLayoutBase(object):
     def _seed_layout(self, seed=None, title=None, sid=None):
@@ -75,34 +68,124 @@ class SeedLayoutBase(object):
         return self.seed_e
 
 
-class SeedInputLayout(SeedLayoutBase):
-    def __init__(self, title=None, sid=None):
-        self.layout_ = self._seed_layout(title=title, sid=sid)
-
 
 class SeedDisplayLayout(SeedLayoutBase):
     def __init__(self, seed, title=None, sid=None):
         self.layout_ = self._seed_layout(seed=seed, title=title, sid=sid)
 
 
-class SeedWarningLayout(SeedLayoutBase):
-    def __init__(self, seed, title=None):
-        if title is None:
-            title =  _("Your wallet generation seed is:")
-        msg = ''.join([
-            "<p>",
-            _("Please save these %d words on paper (order is important). "),
-            _("This seed will allow you to recover your wallet in case "
-              "of computer failure."),
-            "</p>",
-            "<b>" + _("WARNING") + ":</b> ",
-            "<ul>",
-            "<li>" + _("Never disclose your seed.") + "</li>",
-            "<li>" + _("Never type it on a website.") + "</li>",
-            "<li>" + _("Do not send your seed to a printer.") + "</li>",
-            "</ul>"
-        ]) % len(seed.split())
+
+def seed_warning_msg(seed):
+    return ''.join([
+        "<p>",
+        _("Please save these %d words on paper (order is important). "),
+        _("This seed will allow you to recover your wallet in case "
+          "of computer failure."),
+        "</p>",
+        "<b>" + _("WARNING") + ":</b> ",
+        "<ul>",
+        "<li>" + _("Never disclose your seed.") + "</li>",
+        "<li>" + _("Never type it on a website.") + "</li>",
+        "<li>" + _("Do not send your seed to a printer.") + "</li>",
+        "</ul>"
+    ]) % len(seed.split())
+
+
+class CreateSeedLayout(SeedLayoutBase):
+
+    def __init__(self, seed):
+        title =  _("Your wallet generation seed is:")
+        tooltip = '\n'.join([
+            _('You may extend your seed with a passphrase.'),
+            _('Note tha this is NOT your encryption password.'),
+            _('If you do not know what it is, leave it empty.'),
+        ])
         vbox = QVBoxLayout()
         vbox.addLayout(self._seed_layout(seed=seed, title=title))
+        self.passphrase_e = QLineEdit()
+        self.passphrase_e.setToolTip(tooltip)
+        hbox = QHBoxLayout()
+        hbox.addStretch()
+        label = QLabel(_('Passphrase') + ':')
+        label.setToolTip(tooltip)
+        hbox.addWidget(label)
+        hbox.addWidget(self.passphrase_e)
+        vbox.addLayout(hbox)
+        msg = seed_warning_msg(seed)
         vbox.addWidget(WWLabel(msg))
         self.layout_ = vbox
+
+    def passphrase(self):
+        return unicode(self.passphrase_e.text()).strip()
+
+
+class TextInputLayout(SeedLayoutBase):
+
+    def __init__(self, parent, title, is_valid):
+        self.is_valid = is_valid
+        self.parent = parent
+        self.layout_ = self._seed_layout(title=title)
+        self.seed_e.textChanged.connect(self.on_edit)
+
+    def get_text(self):
+        return clean_text(self.seed_edit())
+
+    def on_edit(self):
+        self.parent.next_button.setEnabled(self.is_valid(self.get_text()))
+
+
+class SeedInputLayout(SeedLayoutBase):
+
+    def __init__(self, parent, title, is_seed, is_passphrase):
+        vbox = QVBoxLayout()
+        vbox.addLayout(self._seed_layout(title=title))
+        self.passphrase_e = QLineEdit()
+        hbox = QHBoxLayout()
+        hbox.addStretch()
+        hbox.addWidget(QLabel(_('Passphrase') + ':'))
+        hbox.addWidget(self.passphrase_e)
+        vbox.addLayout(hbox)
+        self.layout_ = vbox
+        self.parent = parent
+        self.is_seed = is_seed
+        self.is_passphrase = is_passphrase
+        self.seed_e.textChanged.connect(self.on_edit)
+        self.passphrase_e.textChanged.connect(self.on_edit)
+
+    def get_passphrase(self):
+        return unicode(self.passphrase_e.text()).strip()
+
+    def get_seed(self):
+        return clean_text(self.seed_edit())
+
+    def on_edit(self):
+        self.parent.next_button.setEnabled(self.is_seed(self.get_seed()) and self.is_passphrase(self.get_passphrase()))
+
+
+
+class ShowSeedLayout(SeedLayoutBase):
+
+    def __init__(self, seed, passphrase):
+        title =  _("Your wallet generation seed is:")
+        vbox = QVBoxLayout()
+        vbox.addLayout(self._seed_layout(seed=seed, title=title))
+        if passphrase:
+            hbox = QHBoxLayout()
+            passphrase_e = QLineEdit()
+            passphrase_e.setText(passphrase)
+            passphrase_e.setReadOnly(True)
+            hbox.addWidget(QLabel('Your seed passphrase is'))
+            hbox.addWidget(passphrase_e)
+            vbox.addLayout(hbox)
+        msg = seed_warning_msg(seed)
+        vbox.addWidget(WWLabel(msg))
+        self.layout_ = vbox
+
+
+class SeedDialog(WindowModalDialog):
+    def __init__(self, parent, seed, passphrase):
+        WindowModalDialog.__init__(self, parent, ('Electrum - ' + _('Seed')))
+        self.setMinimumWidth(400)
+        vbox = QVBoxLayout(self)
+        vbox.addLayout(ShowSeedLayout(seed, passphrase).layout())
+        vbox.addLayout(Buttons(CloseButton(self)))

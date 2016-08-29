@@ -40,6 +40,7 @@ class BaseWizard(object):
         self.stack = []
         self.plugin = None
         self.keystores = []
+        self.is_kivy = config.get('gui') == 'kivy'
 
     def run(self, *args):
         action = args[0]
@@ -229,15 +230,15 @@ class BaseWizard(object):
     def restore_from_seed(self):
         self.opt_bip39 = True
         self.opt_ext = True
-        self.restore_seed_dialog(run_next=self.on_seed, is_valid=keystore.is_seed)
+        self.restore_seed_dialog(run_next=self.on_seed, is_seed=keystore.is_seed)
 
-    def on_seed(self, seed, add_passphrase, is_bip39):
+    def on_seed(self, seed, passphrase, is_bip39):
         self.is_bip39 = is_bip39
-        f = lambda x: self.run('create_keystore', seed, x)
-        if add_passphrase:
-            self.request_passphrase(run_next=f)
+        if self.is_kivy:
+            f = lambda x: self.run('create_keystore', seed, x)
+            self.passphrase_dialog(run_next=f)
         else:
-            f('')
+            self.run('create_keystore', seed, passphrase)
 
     def create_keystore(self, seed, passphrase):
         if self.is_bip39:
@@ -248,7 +249,6 @@ class BaseWizard(object):
             self.on_keystore(k)
 
     def on_bip44(self, seed, passphrase, account_id):
-        import keystore
         k = keystore.BIP32_KeyStore({})
         bip32_seed = keystore.bip39_to_seed(seed, passphrase)
         derivation = "m/44'/0'/%d'"%account_id
@@ -311,8 +311,8 @@ class BaseWizard(object):
         self.opt_ext = True
         self.show_seed_dialog(run_next=self.confirm_seed, seed_text=seed)
 
-    def confirm_seed(self, seed):
-        self.confirm_seed_dialog(run_next=self.on_seed, is_valid=lambda x: x==seed)
+    def confirm_seed(self, seed, passphrase):
+        self.confirm_seed_dialog(run_next=self.on_seed, is_seed = lambda x: x==seed, is_passphrase=lambda x: x==passphrase)
 
     def create_addresses(self):
         def task():

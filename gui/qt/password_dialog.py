@@ -47,12 +47,12 @@ def check_password_strength(password):
     return password_strength[min(3, int(score))]
 
 
-PW_NEW, PW_CHANGE, PW_PASSPHRASE = range(0, 3)
+PW_NEW, PW_CHANGE = range(0, 2)
 
 
 class PasswordLayout(object):
 
-    titles = [_("Enter Password"), _("Change Password"), _("Enter Passphrase")]
+    titles = [_("Enter Password"), _("Change Password")]
 
     def __init__(self, wallet, msg, kind, OK_button):
         self.wallet = wallet
@@ -60,8 +60,8 @@ class PasswordLayout(object):
         self.pw = QLineEdit()
         self.pw.setEchoMode(2)
         self.new_pw = QLineEdit()
-        self.new_pw.setEchoMode(2)
         self.conf_pw = QLineEdit()
+        self.new_pw.setEchoMode(2)
         self.conf_pw.setEchoMode(2)
         self.kind = kind
         self.OK_button = OK_button
@@ -76,31 +76,24 @@ class PasswordLayout(object):
         grid.setColumnMinimumWidth(1, 100)
         grid.setColumnStretch(1,1)
 
-        if kind == PW_PASSPHRASE:
-            vbox.addWidget(label)
-            msgs = [_('Passphrase:'), _('Confirm Passphrase:')]
+        logo_grid = QGridLayout()
+        logo_grid.setSpacing(8)
+        logo_grid.setColumnMinimumWidth(0, 70)
+        logo_grid.setColumnStretch(1,1)
+        logo = QLabel()
+        logo.setAlignment(Qt.AlignCenter)
+        logo_grid.addWidget(logo,  0, 0)
+        logo_grid.addWidget(label, 0, 1, 1, 2)
+        vbox.addLayout(logo_grid)
+        m1 = _('New Password:') if kind == PW_NEW else _('Password:')
+        msgs = [m1, _('Confirm Password:')]
+        if wallet and wallet.has_password():
+            grid.addWidget(QLabel(_('Current Password:')), 0, 0)
+            grid.addWidget(self.pw, 0, 1)
+            lockfile = ":icons/lock.png"
         else:
-            logo_grid = QGridLayout()
-            logo_grid.setSpacing(8)
-            logo_grid.setColumnMinimumWidth(0, 70)
-            logo_grid.setColumnStretch(1,1)
-
-            logo = QLabel()
-            logo.setAlignment(Qt.AlignCenter)
-
-            logo_grid.addWidget(logo,  0, 0)
-            logo_grid.addWidget(label, 0, 1, 1, 2)
-            vbox.addLayout(logo_grid)
-
-            m1 = _('New Password:') if kind == PW_NEW else _('Password:')
-            msgs = [m1, _('Confirm Password:')]
-            if wallet and wallet.has_password():
-                grid.addWidget(QLabel(_('Current Password:')), 0, 0)
-                grid.addWidget(self.pw, 0, 1)
-                lockfile = ":icons/lock.png"
-            else:
-                lockfile = ":icons/unlock.png"
-            logo.setPixmap(QPixmap(lockfile).scaledToWidth(36))
+            lockfile = ":icons/unlock.png"
+        logo.setPixmap(QPixmap(lockfile).scaledToWidth(36))
 
         grid.addWidget(QLabel(msgs[0]), 1, 0)
         grid.addWidget(self.new_pw, 1, 1)
@@ -110,10 +103,9 @@ class PasswordLayout(object):
         vbox.addLayout(grid)
 
         # Password Strength Label
-        if kind != PW_PASSPHRASE:
-            self.pw_strength = QLabel()
-            grid.addWidget(self.pw_strength, 3, 0, 1, 2)
-            self.new_pw.textChanged.connect(self.pw_changed)
+        self.pw_strength = QLabel()
+        grid.addWidget(self.pw_strength, 3, 0, 1, 2)
+        self.new_pw.textChanged.connect(self.pw_changed)
 
         def enable_OK():
             OK_button.setEnabled(self.new_pw.text() == self.conf_pw.text())
@@ -147,8 +139,7 @@ class PasswordLayout(object):
 
     def new_password(self):
         pw = unicode(self.new_pw.text())
-        # Empty passphrases are fine and returned empty.
-        if pw == "" and self.kind != PW_PASSPHRASE:
+        if pw == "":
             pw = None
         return pw
 

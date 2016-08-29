@@ -1696,13 +1696,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not self.wallet.has_seed():
             self.show_message(_('This wallet has no seed'))
             return
+        keystore = self.wallet.get_keystore()
         try:
-            mnemonic = self.wallet.get_mnemonic(password)
+            mnemonic = keystore.get_mnemonic(password)
+            passphrase = keystore.get_passphrase(password)
         except BaseException as e:
             self.show_error(str(e))
             return
         from seed_dialog import SeedDialog
-        d = SeedDialog(self, mnemonic)
+        d = SeedDialog(self, mnemonic, passphrase)
         d.exec_()
 
 
