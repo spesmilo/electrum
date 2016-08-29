@@ -385,7 +385,6 @@ Builder.load_string('''
 
 
 <ShowSeedDialog>
-    message: ''
     spacing: '12dp'
     value: 'next'
     BigLabel:
@@ -398,10 +397,29 @@ Builder.load_string('''
         height: self.minimum_height
         orientation: 'vertical'
         spacing: '12dp'
-        SeedButton:
-            text: root.seed_text
         SeedLabel:
             text: root.message
+        SeedButton:
+            text: root.seed_text
+
+<PassphraseDialog>
+
+    BigLabel:
+        text: "SEED PASSPHRASE"
+    SeedLabel:
+        text: root.passphrase_message
+    GridLayout:
+        cols: 2
+        size_hint: 1, None
+        height: '27dp'
+        BigLabel:
+            text: _('Passphrase')
+        TextInput:
+            id: passphrase_input
+            multiline: False
+            size_hint: 1, None
+            height: '27dp'
+
 ''')
 
 
@@ -492,11 +510,27 @@ class WizardChoiceDialog(WizardDialog):
     def get_params(self, button):
         return (button.action,)
 
-class ShowSeedDialog(WizardDialog):
 
+
+class PassphraseDialog(WizardDialog):
+    passphrase = StringProperty('')
+    passphrase_message = ' '.join([
+        _("You may extend your seed with a derivation passphrase."),
+        '\n\n',
+        _("Note: This is NOT your encryption password."),
+        _("Leave this field empty if you are not sure about what it is."),
+    ])
+
+    def __init__(self, wizard, **kwargs):
+        WizardDialog.__init__(self, wizard, **kwargs)
+        self.ids.next.disabled = False
+
+    def get_params(self, b):
+        return (self.ids.passphrase_input.text,)
+
+class ShowSeedDialog(WizardDialog):
     seed_text = StringProperty('')
-    message = _("If you forget your PIN or lose your device, your seed phrase will be the "
-                "only way to recover your funds.")
+    message = _("If you forget your PIN or lose your device, your seed phrase will be the only way to recover your funds.")
 
     def on_parent(self, instance, value):
         if value:
@@ -504,7 +538,7 @@ class ShowSeedDialog(WizardDialog):
             self._back = _back = partial(self.ids.back.dispatch, 'on_release')
 
     def get_params(self, b):
-        return(self.seed_text,)
+        return(self.seed_text, '')
 
 
 class WordButton(Button):
@@ -518,7 +552,7 @@ class RestoreSeedDialog(WizardDialog):
 
     def __init__(self, wizard, **kwargs):
         super(RestoreSeedDialog, self).__init__(wizard, **kwargs)
-        self._test = kwargs['is_valid']
+        self._test = kwargs['is_seed']
         from electrum_ltc.mnemonic import Mnemonic
         from electrum_ltc.old_mnemonic import words as old_wordlist
         self.words = set(Mnemonic('en').wordlist).union(set(old_wordlist))
@@ -581,7 +615,7 @@ class RestoreSeedDialog(WizardDialog):
         return text
 
     def get_params(self, b):
-        return (self.get_text(), False, False)
+        return (self.get_text(), '', False)
 
     def update_text(self, c):
         c = c.lower()
@@ -671,7 +705,6 @@ class AddXpubDialog(WizardDialog):
 
 
 
-
 class InstallWizard(BaseWizard, Widget):
     '''
     events::
@@ -711,6 +744,7 @@ class InstallWizard(BaseWizard, Widget):
     def choice_dialog(self, **kwargs): WizardChoiceDialog(self, **kwargs).open()
     def multisig_dialog(self, **kwargs): WizardMultisigDialog(self, **kwargs).open()
     def show_seed_dialog(self, **kwargs): ShowSeedDialog(self, **kwargs).open()
+    def passphrase_dialog(self, **kwargs): PassphraseDialog(self, **kwargs).open()
 
     def confirm_seed_dialog(self, **kwargs):
         kwargs['title'] = _('Confirm Seed')
