@@ -182,7 +182,7 @@ class WalletStorage(PrintError):
             storage2.write()
             storage2.upgrade()
             result = [storage1.path, storage2.path]
-        elif wallet_type in ['bip44', 'trezor', 'keepkey']:
+        elif wallet_type in ['bip44', 'trezor', 'keepkey', 'ledger']:
             mpk = storage.get('master_public_keys')
             for k in d.keys():
                 i = int(k)
@@ -194,7 +194,7 @@ class WalletStorage(PrintError):
                 storage2 = WalletStorage(new_path)
                 storage2.data = copy.deepcopy(storage.data)
                 storage2.put('wallet_type', 'standard')
-                if wallet_type in ['trezor', 'keepkey']:
+                if wallet_type in ['trezor', 'keepkey', 'ledger']:
                     storage2.put('key_type', 'hardware')
                     storage2.put('hw_type', wallet_type)
                 storage2.put('accounts', {'0': x})
@@ -229,7 +229,7 @@ class WalletStorage(PrintError):
         seed_version = self.get_seed_version()
         seed = self.get('seed')
         xpubs = self.get('master_public_keys')
-        xprvs = self.get('master_private_keys')
+        xprvs = self.get('master_private_keys', {})
         mpk = self.get('master_public_key')
         keypairs = self.get('keypairs')
         key_type = self.get('key_type')
@@ -262,7 +262,7 @@ class WalletStorage(PrintError):
             self.put('wallet_type', 'standard')
             self.put('keystore', d)
 
-        elif wallet_type in ['trezor', 'keepkey']:
+        elif wallet_type in ['trezor', 'keepkey', 'ledger']:
             xpub = xpubs["x/0'"]
             d = {
                 'type': 'hardware',
