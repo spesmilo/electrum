@@ -213,6 +213,9 @@ class BaseWizard(object):
         from keystore import hardware_keystore, bip44_derivation
         derivation = bip44_derivation(int(account_id))
         xpub = self.plugin.get_xpub(device_info.device.id_, derivation, self)
+        if xpub is None:
+            self.show_error('Cannot read xpub from device')
+            return
         d = {
             'type': 'hardware',
             'hw_type': name,

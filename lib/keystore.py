@@ -151,6 +151,9 @@ class Imported_KeyStore(Software_KeyStore):
         pubkey = (self.change_pubkeys if for_change else self.receiving_pubkeys)[i]
         return pubkey
 
+    def get_xpubkey(self, c, i):
+        return self.get_public_key((c,i)).encode('hex')
+
     def get_private_key(self, sequence, password):
         for_change, i = sequence
         assert for_change == 0
