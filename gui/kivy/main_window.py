@@ -418,10 +418,11 @@ class ElectrumWindow(App):
         if not path:
             return
         wallet = self.daemon.load_wallet(path)
-        if wallet != self.wallet:
-            self.stop_wallet()
-            self.load_wallet(wallet)
-            self.on_resume()
+        if wallet:
+            if wallet != self.wallet:
+                self.stop_wallet()
+                self.load_wallet(wallet)
+                self.on_resume()
         else:
             Logger.debug('Electrum: Wallet not found. Launching install wizard')
             wizard = Factory.InstallWizard(self.electrum_config, self.network, path)
@@ -537,7 +538,6 @@ class ElectrumWindow(App):
     @profiler
     def load_wallet(self, wallet):
         self.wallet = wallet
-        self.current_account = self.wallet.storage.get('current_account', None)
         self.update_wallet()
         # Once GUI has been initialized check if we want to announce something
         # since the callback has been called before the GUI was initialized
@@ -560,7 +560,7 @@ class ElectrumWindow(App):
             elif server_lag > 1:
                 status = _("Server lagging (%d blocks)"%server_lag)
             else:
-                c, u, x = self.wallet.get_balance(self.current_account)
+                c, u, x = self.wallet.get_balance()
                 text = self.format_amount(c+x+u)
                 status = str(text.strip() + ' ' + self.base_unit)
         else:
@@ -790,12 +790,16 @@ class ElectrumWindow(App):
     def _show_seed(self, label, password):
         if self.wallet.has_password() and password is None:
             return
+        keystore = self.wallet.keystore
         try:
-            seed = self.wallet.get_seed(password)
+            seed = keystore.get_seed(password)
+            passphrase = keystore.get_passphrase(password)
         except:
             self.show_error("Invalid PIN")
             return
         label.text = _('Seed') + ':\n' + seed
+        if passphrase:
+            label.text += '\n\n' + _('Passphrase') + ': ' + passphrase
 
     def change_password(self, cb):
         if self.wallet.has_password():

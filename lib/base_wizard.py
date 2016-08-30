@@ -118,14 +118,16 @@ class BaseWizard(object):
                 ('create_seed', _('Create a new seed')),
                 ('restore_from_seed', _('I already have a seed')),
                 ('restore_from_key', _('Use public or private keys')),
-                ('choose_hw_device',  _('Use a hardware device')),
             ]
+            if not self.is_kivy:
+                choices.append(('choose_hw_device',  _('Use a hardware device')))
         else:
             message = _('Add a cosigner to your multi-sig wallet')
             choices = [
                 ('restore_from_key', _('Enter cosigner key')),
-                ('choose_hw_device',  _('Cosign with hardware device')),
             ]
+            if not self.is_kivy:
+                choices.append(('choose_hw_device',  _('Cosign with hardware device')))
 
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 
@@ -281,7 +283,9 @@ class BaseWizard(object):
             self.run('create_wallet')
         elif self.wallet_type == 'multisig':
             if k.xpub in map(lambda x: x.xpub, self.keystores):
-                raise BaseException('duplicate key')
+                self.show_error(_('Error: duplicate master public key'))
+                self.run('choose_keystore')
+                return
             self.keystores.append(k)
             if len(self.keystores) == 1:
                 xpub = k.get_master_public_key()
