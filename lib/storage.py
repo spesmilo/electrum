@@ -171,6 +171,7 @@ class WalletStorage(PrintError):
             storage1 = WalletStorage(storage.path + '.deterministic')
             storage1.data = copy.deepcopy(storage.data)
             storage1.put('accounts', {'0': d['0']})
+            storage1.upgrade()
             storage1.write()
             storage2 = WalletStorage(storage.path + '.imported')
             storage2.data = copy.deepcopy(storage.data)
@@ -179,8 +180,8 @@ class WalletStorage(PrintError):
             storage2.put('seed_version', None)
             storage2.put('master_public_key', None)
             storage2.put('wallet_type', 'imported')
-            storage2.write()
             storage2.upgrade()
+            storage2.write()
             result = [storage1.path, storage2.path]
         elif wallet_type in ['bip44', 'trezor', 'keepkey', 'ledger']:
             mpk = storage.get('master_public_keys')
@@ -193,14 +194,11 @@ class WalletStorage(PrintError):
                 new_path = storage.path + '.' + k
                 storage2 = WalletStorage(new_path)
                 storage2.data = copy.deepcopy(storage.data)
-                storage2.put('wallet_type', 'standard')
-                if wallet_type in ['trezor', 'keepkey', 'ledger']:
-                    storage2.put('key_type', 'hardware')
-                    storage2.put('hw_type', wallet_type)
+                # save account, derivation and xpub at index 0
                 storage2.put('accounts', {'0': x})
-                # need to save derivation and xpub too
-                storage2.put('master_public_keys', {'x/': xpub})
+                storage2.put('master_public_keys', {"x/0'": xpub})
                 storage2.put('derivation', bip44_derivation(k))
+                storage2.upgrade()
                 storage2.write()
                 result.append(new_path)
         else:
@@ -252,7 +250,7 @@ class WalletStorage(PrintError):
 
         elif wallet_type in['xpub', 'standard']:
             xpub = xpubs["x/"]
-            xprv = xprvs["x/"]
+            xprv = xprvs.get("x/")
             d = {
                 'type': 'bip32',
                 'xpub': xpub,
@@ -264,11 +262,12 @@ class WalletStorage(PrintError):
 
         elif wallet_type in ['trezor', 'keepkey', 'ledger']:
             xpub = xpubs["x/0'"]
+            derivation = self.get('derivation', bip44_derivation(0))
             d = {
                 'type': 'hardware',
                 'hw_type': wallet_type,
                 'xpub': xpub,
-                'derivation': bip44_derivation(0),
+                'derivation': derivation,
             }
             self.put('wallet_type', 'standard')
             self.put('keystore', d)
@@ -285,10 +284,11 @@ class WalletStorage(PrintError):
                 self.put(key, d)
         else:
             raise
-
+        # remove junk
         self.put('master_public_key', None)
         self.put('master_public_keys', None)
         self.put('master_private_keys', None)
+        self.put('derivation', None)
         self.put('seed', None)
         self.put('keypairs', None)
         self.put('key_type', None)
