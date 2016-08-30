@@ -95,28 +95,11 @@ class CreateSeedLayout(SeedLayoutBase):
 
     def __init__(self, seed):
         title =  _("Your wallet generation seed is:")
-        tooltip = '\n'.join([
-            _('You may extend your seed with a passphrase.'),
-            _('Note tha this is NOT your encryption password.'),
-            _('If you do not know what it is, leave it empty.'),
-        ])
         vbox = QVBoxLayout()
         vbox.addLayout(self._seed_layout(seed=seed, title=title))
-        self.passphrase_e = QLineEdit()
-        self.passphrase_e.setToolTip(tooltip)
-        hbox = QHBoxLayout()
-        hbox.addStretch()
-        label = QLabel(_('Passphrase') + ':')
-        label.setToolTip(tooltip)
-        hbox.addWidget(label)
-        hbox.addWidget(self.passphrase_e)
-        vbox.addLayout(hbox)
         msg = seed_warning_msg(seed)
         vbox.addWidget(WWLabel(msg))
         self.layout_ = vbox
-
-    def passphrase(self):
-        return unicode(self.passphrase_e.text()).strip()
 
 
 class TextInputLayout(SeedLayoutBase):
@@ -136,30 +119,19 @@ class TextInputLayout(SeedLayoutBase):
 
 class SeedInputLayout(SeedLayoutBase):
 
-    def __init__(self, parent, title, is_seed, is_passphrase):
+    def __init__(self, parent, title, is_seed):
         vbox = QVBoxLayout()
         vbox.addLayout(self._seed_layout(title=title))
-        self.passphrase_e = QLineEdit()
-        hbox = QHBoxLayout()
-        hbox.addStretch()
-        hbox.addWidget(QLabel(_('Passphrase') + ':'))
-        hbox.addWidget(self.passphrase_e)
-        vbox.addLayout(hbox)
         self.layout_ = vbox
         self.parent = parent
         self.is_seed = is_seed
-        self.is_passphrase = is_passphrase
         self.seed_e.textChanged.connect(self.on_edit)
-        self.passphrase_e.textChanged.connect(self.on_edit)
-
-    def get_passphrase(self):
-        return unicode(self.passphrase_e.text()).strip()
 
     def get_seed(self):
         return clean_text(self.seed_edit())
 
     def on_edit(self):
-        self.parent.next_button.setEnabled(self.is_seed(self.get_seed()) and self.is_passphrase(self.get_passphrase()))
+        self.parent.next_button.setEnabled(self.is_seed(self.get_seed()))
 
 
 

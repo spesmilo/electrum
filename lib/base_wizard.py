@@ -207,8 +207,21 @@ class BaseWizard(object):
         self.plugin = self.plugins.get_plugin(name)
         self.plugin.setup_device(device_info, self)
         print device_info
-        f = lambda x: self.run('on_hardware_account_id', name, device_info, x)
-        self.account_id_dialog(run_next=f)
+        f = lambda x: self.run('on_hardware_account_id', name, device_info, int(x))
+        self.account_id_dialog(f)
+
+    def account_id_dialog(self, f):
+        message = '\n'.join([
+            _('Enter your BIP44 account number here.'),
+            _('If you are not sure what this is, leave this field to zero.')
+        ])
+        def is_int(x):
+            try:
+                int(x)
+                return True
+            except:
+                return False
+        self.line_dialog(run_next=f, title=_('Account Number'), message=message, default='0', test=is_int)
 
     def on_hardware_account_id(self, name, device_info, account_id):
         from keystore import hardware_keystore, bip44_derivation
@@ -230,23 +243,31 @@ class BaseWizard(object):
     def restore_from_seed(self):
         self.opt_bip39 = True
         self.opt_ext = True
-        self.restore_seed_dialog(run_next=self.on_seed, is_seed=keystore.is_seed)
+        self.restore_seed_dialog(run_next=self.on_restore_seed, test=keystore.is_seed)
 
-    def on_seed(self, seed, passphrase, is_bip39):
-        self.is_bip39 = is_bip39
-        if self.is_kivy:
-            f = lambda x: self.run('create_keystore', seed, x)
-            self.passphrase_dialog(run_next=f)
+    def on_restore_seed(self, seed, is_bip39):
+        if keystore.is_new_seed(seed) or is_bip39:
+            message = '\n'.join([
+                _('You may have extended your seed with a passphrase.'),
+                _('If that is the case, enter it here.'),
+                _('Note that this is NOT your encryption password.'),
+                _('If you do not know what this is, leave this field empty.'),
+            ])
+            f = lambda x: self.on_restore_passphrase(seed, x, is_bip39)
+            self.line_dialog(title=_('Passphrase'), message=message, default='', test=lambda x:True, run_next=f)
+        else:
+            self.on_restore_passphrase(seed, '', False)
+
+    def on_restore_passphrase(self, seed, passphrase, is_bip39):
+        if is_bip39:
+            f = lambda x: self.run('on_bip44', seed, passphrase, int(x))
+            self.account_id_dialog(f)
         else:
             self.run('create_keystore', seed, passphrase)
 
     def create_keystore(self, seed, passphrase):
-        if self.is_bip39:
-            f = lambda account_id: self.run('on_bip44', seed, passphrase, account_id)
-            self.account_id_dialog(run_next=f)
-        else:
-            k = keystore.from_seed(seed, passphrase)
-            self.on_keystore(k)
+        k = keystore.from_seed(seed, passphrase)
+        self.on_keystore(k)
 
     def on_bip44(self, seed, passphrase, account_id):
         k = keystore.BIP32_KeyStore({})
@@ -309,10 +330,33 @@ class BaseWizard(object):
         seed = Mnemonic('en').make_seed()
         self.opt_bip39 = False
         self.opt_ext = True
-        self.show_seed_dialog(run_next=self.confirm_seed, seed_text=seed)
+        self.show_seed_dialog(run_next=self.request_passphrase, seed_text=seed)
+
+    def request_passphrase(self, seed):
+        title = _('Passphrase')
+        message = '\n'.join([
+            _('You may extend your seed with a passphrase.'),
+            _('Note that this is NOT your encryption password.'),
+            _('If you do not know what this is, leave this field empty.'),
+        ])
+        f = lambda x: self.confirm_seed(seed, x)
+        self.line_dialog(run_next=f, title=title, message=message, default='', test=lambda x:True)
 
     def confirm_seed(self, seed, passphrase):
-        self.confirm_seed_dialog(run_next=self.on_seed, is_seed = lambda x: x==seed, is_passphrase=lambda x: x==passphrase)
+        f = lambda x: self.confirm_passphrase(seed, passphrase)
+        self.confirm_seed_dialog(run_next=f, test=lambda x: x==seed)
+
+    def confirm_passphrase(self, seed, passphrase):
+        if passphrase:
+            title = _('Confirm Passphrase')
+            message = '\n'.join([
+                _('Your passphrase must be saved with your seed.'),
+                _('Please type it here.'),
+            ])
+            f = lambda x: self.create_keystore(seed, x)
+            self.line_dialog(run_next=f, title=title, message=message, default='', test=lambda x: x==passphrase)
+        else:
+            self.create_keystore(seed, '')
 
     def create_addresses(self):
         def task():
