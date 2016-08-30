@@ -385,8 +385,8 @@ class TrustedCoinPlugin(BasePlugin):
 
     def restore_wallet(self, wizard):
         title = _("Restore two-factor Wallet")
-        f = lambda x: wizard.run('on_restore_seed', x)
-        wizard.restore_seed_dialog(run_next=f, is_valid=self.is_valid_seed)
+        f = lambda x, y: wizard.run('on_restore_seed', x)
+        wizard.restore_seed_dialog(run_next=f, test=self.is_valid_seed)
 
     def on_restore_seed(self, wizard, seed):
         f = lambda pw: wizard.run('on_restore_pw', seed, pw)
@@ -402,14 +402,14 @@ class TrustedCoinPlugin(BasePlugin):
         k2 = keystore.xprv_from_seed(' '.join(words[n:]))
         k1.update_password(None, password)
         k2.update_password(None, password)
+        storage.put('x1/', k1.dump())
+        storage.put('x2/', k2.dump())
         long_user_id, short_id = get_user_id(storage)
         xpub3 = make_xpub(signing_xpub, long_user_id)
         k3 = keystore.from_xpub(xpub3)
         storage.put('use_encryption', bool(password))
-        storage.put('x1/', k1.dump())
-        storage.put('x2/', k2.dump())
         storage.put('x3/', k3.dump())
-        wizard.wallet = Wallet(storage)
+        wizard.wallet = Wallet_2fa(storage)
         wizard.create_addresses()
 
     def create_remote_key(self, wizard):
