@@ -242,7 +242,6 @@ class BaseWizard(object):
 
     def restore_from_seed(self):
         self.opt_bip39 = True
-        self.opt_ext = True
         self.restore_seed_dialog(run_next=self.on_restore_seed, test=keystore.is_seed)
 
     def on_restore_seed(self, seed, is_bip39):
@@ -329,7 +328,6 @@ class BaseWizard(object):
         from electrum.mnemonic import Mnemonic
         seed = Mnemonic('en').make_seed()
         self.opt_bip39 = False
-        self.opt_ext = True
         self.show_seed_dialog(run_next=self.request_passphrase, seed_text=seed)
 
     def request_passphrase(self, seed):
@@ -347,16 +345,16 @@ class BaseWizard(object):
         self.confirm_seed_dialog(run_next=f, test=lambda x: x==seed)
 
     def confirm_passphrase(self, seed, passphrase):
+        f = lambda x: self.run('create_keystore', seed, x)
         if passphrase:
             title = _('Confirm Passphrase')
             message = '\n'.join([
                 _('Your passphrase must be saved with your seed.'),
                 _('Please type it here.'),
             ])
-            f = lambda x: self.create_keystore(seed, x)
             self.line_dialog(run_next=f, title=title, message=message, default='', test=lambda x: x==passphrase)
         else:
-            self.create_keystore(seed, '')
+            f('')
 
     def create_addresses(self):
         def task():

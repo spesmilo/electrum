@@ -352,7 +352,8 @@ class TrustedCoinPlugin(BasePlugin):
 
     def create_seed(self, wizard):
         seed = self.make_seed()
-        wizard.show_seed_dialog(run_next=wizard.confirm_seed, seed_text=seed)
+        f = lambda x: wizard.confirm_seed(seed, '')
+        wizard.show_seed_dialog(run_next=f, seed_text=seed)
 
     def create_keystore(self, wizard, seed, passphrase):
         assert passphrase == ''
