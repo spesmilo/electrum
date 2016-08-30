@@ -402,18 +402,18 @@ Builder.load_string('''
         SeedButton:
             text: root.seed_text
 
-<PassphraseDialog>
+<LineDialog>
 
     BigLabel:
-        text: "SEED PASSPHRASE"
+        text: root.title
     SeedLabel:
-        text: root.passphrase_message
+        text: root.message
     GridLayout:
         cols: 2
         size_hint: 1, None
         height: '27dp'
         BigLabel:
-            text: _('Passphrase')
+            text: ''
         TextInput:
             id: passphrase_input
             multiline: False
@@ -512,14 +512,9 @@ class WizardChoiceDialog(WizardDialog):
 
 
 
-class PassphraseDialog(WizardDialog):
-    passphrase = StringProperty('')
-    passphrase_message = ' '.join([
-        _("You may extend your seed with a derivation passphrase."),
-        '\n\n',
-        _("Note: This is NOT your encryption password."),
-        _("Leave this field empty if you are not sure about what it is."),
-    ])
+class LineDialog(WizardDialog):
+    title = StringProperty('')
+    message = StringProperty('')
 
     def __init__(self, wizard, **kwargs):
         WizardDialog.__init__(self, wizard, **kwargs)
@@ -538,7 +533,7 @@ class ShowSeedDialog(WizardDialog):
             self._back = _back = partial(self.ids.back.dispatch, 'on_release')
 
     def get_params(self, b):
-        return(self.seed_text, '')
+        return (self.seed_text,)
 
 
 class WordButton(Button):
@@ -552,7 +547,7 @@ class RestoreSeedDialog(WizardDialog):
 
     def __init__(self, wizard, **kwargs):
         super(RestoreSeedDialog, self).__init__(wizard, **kwargs)
-        self._test = kwargs['is_seed']
+        self._test = kwargs['test']
         from electrum_ltc.mnemonic import Mnemonic
         from electrum_ltc.old_mnemonic import words as old_wordlist
         self.words = set(Mnemonic('en').wordlist).union(set(old_wordlist))
@@ -614,9 +609,6 @@ class RestoreSeedDialog(WizardDialog):
         text = ' '.join(text.split())
         return text
 
-    def get_params(self, b):
-        return (self.get_text(), '', False)
-
     def update_text(self, c):
         c = c.lower()
         text = self.ids.text_input_seed.text
@@ -652,6 +644,14 @@ class RestoreSeedDialog(WizardDialog):
         if tis._keyboard:
             tis._keyboard.unbind(on_key_down=self.on_key_down)
             tis.focus = False
+
+    def get_params(self, b):
+        return (self.get_text(), False)
+
+
+class ConfirmSeedDialog(RestoreSeedDialog):
+    def get_params(self, b):
+        return (self.get_text(),)
 
 
 class ShowXpubDialog(WizardDialog):
@@ -744,12 +744,12 @@ class InstallWizard(BaseWizard, Widget):
     def choice_dialog(self, **kwargs): WizardChoiceDialog(self, **kwargs).open()
     def multisig_dialog(self, **kwargs): WizardMultisigDialog(self, **kwargs).open()
     def show_seed_dialog(self, **kwargs): ShowSeedDialog(self, **kwargs).open()
-    def passphrase_dialog(self, **kwargs): PassphraseDialog(self, **kwargs).open()
+    def line_dialog(self, **kwargs): LineDialog(self, **kwargs).open()
 
     def confirm_seed_dialog(self, **kwargs):
         kwargs['title'] = _('Confirm Seed')
         kwargs['message'] = _('Please retype your seed phrase, to confirm that you properly saved it')
-        RestoreSeedDialog(self, **kwargs).open()
+        ConfirmSeedDialog(self, **kwargs).open()
 
     def restore_seed_dialog(self, **kwargs):
         RestoreSeedDialog(self, **kwargs).open()

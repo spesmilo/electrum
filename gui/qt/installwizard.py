@@ -249,24 +249,23 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.set_main_layout(slayout.layout(), title, next_enabled=False)
         return slayout.get_text()
 
-    def seed_input(self, title, message, is_seed, is_passphrase):
-        slayout = SeedInputLayout(self, message, is_seed, is_passphrase)
+    def seed_input(self, title, message, is_seed):
+        slayout = SeedInputLayout(self, message, is_seed)
         vbox = QVBoxLayout()
         vbox.addLayout(slayout.layout())
         if self.opt_bip39:
             vbox.addStretch(1)
             vbox.addWidget(QLabel(_('Options') + ':'))
             def f(b):
-                slayout.is_valid = (lambda x: bool(x)) if b else is_valid
-                slayout.set_enabled()
+                slayout.is_seed = (lambda x: bool(x)) if b else is_valid
+                slayout.on_edit()
             cb_bip39 = QCheckBox(_('BIP39/BIP44 seed'))
             cb_bip39.toggled.connect(f)
             vbox.addWidget(cb_bip39)
         self.set_main_layout(vbox, title, next_enabled=False)
         seed = slayout.get_seed()
-        passphrase = slayout.get_passphrase()
         is_bip39 = cb_bip39.isChecked() if self.opt_bip39 else False
-        return seed, passphrase, is_bip39
+        return seed, is_bip39
 
     @wizard_dialog
     def restore_keys_dialog(self, title, message, is_valid, run_next):
@@ -282,14 +281,13 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return self.text_input(title, message, is_valid)
 
     @wizard_dialog
-    def restore_seed_dialog(self, run_next, is_seed):
+    def restore_seed_dialog(self, run_next, test):
         title = _('Enter Seed')
         message = _('Please enter your seed phrase in order to restore your wallet.')
-        is_passphrase = lambda x: True
-        return self.seed_input(title, message, is_seed, is_passphrase)
+        return self.seed_input(title, message, test)
 
     @wizard_dialog
-    def confirm_seed_dialog(self, run_next, is_seed, is_passphrase):
+    def confirm_seed_dialog(self, run_next, test):
         self.app.clipboard().clear()
         title = _('Confirm Seed')
         message = ' '.join([
@@ -297,13 +295,14 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             _('If you lose your seed, your money will be permanently lost.'),
             _('To make sure that you have properly saved your seed, please retype it here.')
         ])
-        return self.seed_input(title, message, is_seed, is_passphrase)
+        seed, is_bip39 = self.seed_input(title, message, test)
+        return seed
 
     @wizard_dialog
     def show_seed_dialog(self, run_next, seed_text):
         slayout = CreateSeedLayout(seed_text)
         self.set_main_layout(slayout.layout())
-        return seed_text, slayout.passphrase()
+        return seed_text
 
     def pw_layout(self, msg, kind):
         playout = PasswordLayout(None, msg, kind, self.next_button)
@@ -380,20 +379,17 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return clayout.selected_index()
 
     @wizard_dialog
-    def account_id_dialog(self, run_next):
-        message = '\n'.join([
-            _('Enter your account number here.'),
-            _('If you are not sure what this is, leave this field to zero.')
-        ])
-        default = '0'
-        title = _('Account Number')
+    def line_dialog(self, run_next, title, message, default, test):
+        vbox = QVBoxLayout()
+        vbox.addWidget(WWLabel(message))
         line = QLineEdit()
         line.setText(default)
-        vbox = QVBoxLayout()
-        vbox.addWidget(QLabel(message))
+        def f(text):
+            self.next_button.setEnabled(test(text))
+        line.textEdited.connect(f)
         vbox.addWidget(line)
-        self.set_main_layout(vbox, title)
-        return int(line.text())
+        self.set_main_layout(vbox, title, next_enabled=test(default))
+        return ' '.join(unicode(line.text()).split())
 
     @wizard_dialog
     def show_xpub_dialog(self, xpub, run_next):

@@ -157,7 +157,7 @@ class HistoryScreen(CScreen):
     def update(self, see_all=False):
         if self.app.wallet is None:
             return
-        history = reversed(self.app.wallet.get_history(self.app.current_account))
+        history = reversed(self.app.wallet.get_history())
         history_card = self.screen.ids.history_container
         history_card.clear_widgets()
         count = 0
