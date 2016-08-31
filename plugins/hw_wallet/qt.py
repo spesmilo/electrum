@@ -168,3 +168,31 @@ class QtHandlerBase(QObject, PrintError):
     def win_yes_no_question(self, msg):
         self.ok = self.win.question(msg)
         self.done.set()
+
+
+
+from electrum.plugins import hook
+from electrum_gui.qt.main_window import StatusBarButton
+
+class QtPluginBase(object):
+
+    @hook
+    def load_wallet(self, wallet, window):
+        for keystore in wallet.get_keystores():
+            if type(keystore) != self.keystore_class:
+                continue
+            tooltip = self.device + '\n' + (keystore.label or 'unnamed')
+            cb = partial(self.show_settings_dialog, window, keystore)
+            button = StatusBarButton(QIcon(self.icon_unpaired), tooltip, cb)
+            button.icon_paired = self.icon_paired
+            button.icon_unpaired = self.icon_unpaired
+            window.statusBar().addPermanentWidget(button)
+            handler = self.create_handler(window)
+            handler.button = button
+            keystore.handler = handler
+            keystore.thread = TaskThread(window, window.on_error)
+            # Trigger a pairing
+            keystore.thread.add(partial(self.get_client, keystore))
+
+    def show_settings_dialog(self, window, keystore):
+        pass
