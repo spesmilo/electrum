@@ -185,7 +185,7 @@ class WalletStorage(PrintError):
             storage2.upgrade()
             storage2.write()
             result = [storage1.path, storage2.path]
-        elif wallet_type in ['bip44', 'trezor', 'keepkey', 'ledger']:
+        elif wallet_type in ['bip44', 'trezor', 'keepkey', 'ledger', 'btchip']:
             mpk = storage.get('master_public_keys')
             for k in d.keys():
                 i = int(k)
@@ -218,6 +218,7 @@ class WalletStorage(PrintError):
 
     def convert_wallet_type(self):
         wallet_type = self.get('wallet_type')
+        if wallet_type == 'btchip': wallet_type = 'ledger'
         if self.get('keystore') or self.get('x1/') or wallet_type=='imported':
             return False
         assert not self.requires_split()
