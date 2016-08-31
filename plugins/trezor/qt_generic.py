@@ -7,7 +7,7 @@ from PyQt4.Qt import QVBoxLayout, QLabel, SIGNAL
 from electrum_ltc_gui.qt.main_window import StatusBarButton
 from electrum_ltc_gui.qt.util import *
 from .plugin import TIM_NEW, TIM_RECOVER, TIM_MNEMONIC
-from ..hw_wallet.qt import QtHandlerBase
+from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import hook, DeviceMgr
@@ -178,31 +178,13 @@ class QtHandler(QtHandlerBase):
 
 
 
-class QtPlugin(object):
+class QtPlugin(QtPluginBase):
     # Derived classes must provide the following class-static variables:
     #   icon_file
     #   pin_matrix_widget_class
 
     def create_handler(self, window):
         return QtHandler(window, self.pin_matrix_widget_class(), self.device)
-
-    @hook
-    def load_wallet(self, wallet, window):
-        for keystore in wallet.get_keystores():
-            if type(keystore) != self.keystore_class:
-                continue
-            tooltip = self.device + ' ' + (keystore.label or '')
-            cb = partial(self.show_settings_dialog, window, keystore)
-            button = StatusBarButton(QIcon(self.icon_unpaired), tooltip, cb)
-            button.icon_paired = self.icon_paired
-            button.icon_unpaired = self.icon_unpaired
-            window.statusBar().addPermanentWidget(button)
-            handler = self.create_handler(window)
-            handler.button = button
-            keystore.handler = handler
-            keystore.thread = TaskThread(window, window.on_error)
-            # Trigger a pairing
-            keystore.thread.add(partial(self.get_client, keystore))
 
     @hook
     def receive_menu(self, menu, addrs, wallet):

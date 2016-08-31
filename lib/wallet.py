@@ -209,11 +209,10 @@ class Abstract_Wallet(PrintError):
         return os.path.basename(self.storage.path)
 
     def save_pubkeys(self):
-        # this name is inherited from old multi-account wallets
-        self.storage.put('accounts', {'0': {'receiving':self.receiving_pubkeys, 'change':self.change_pubkeys}})
+        self.storage.put('pubkeys', {'receiving':self.receiving_pubkeys, 'change':self.change_pubkeys})
 
     def load_addresses(self):
-        d = self.storage.get('accounts', {}).get('0', {})
+        d = self.storage.get('pubkeys', {})
         self.receiving_pubkeys = d.get('receiving', [])
         self.change_pubkeys = d.get('change', [])
         self.receiving_addresses = map(self.pubkeys_to_address, self.receiving_pubkeys)

@@ -1,24 +1,44 @@
 # Release 2.7.0 (August 2016)
 
- * Wallets are abstracted from keystores. 'Wallet' refers to the type
-   of Bitcoin contract, while 'keystore' refers to the type of private
-   key storage. In this perspective, so-called 'hardware wallets' are
-   actually a type of keystore. Hardware keystores can be used as
-   cosigners in multi-signature wallets.
- * Support for Replace-By-Fee transactions in the GUI.
- * A warning is shown in the history for unconfirmed transactions that
-   are replaceable, that have unconfirmed parents, or that have very
+ * The wallet file format is upgraded. This upgrade is not backward
+   compatible, which means that a wallet upgraded to the 2.7 format
+   will not be readable by earlier versions of Electrum. Before
+   upgrading the wallet format, the Qt GUI will ask the user if they
+   want to proceed. The Kivy GUI (Android) will proceed
+   automatically. Multiple accounts inside the same wallet are not
+   supported in the new format; the upgrade tool will propose to split
+   any wallet that has several accounts. As usual, make sure that you
+   have saved your seed phrase before you upgrade.
+ * This version introduces a separation between wallets types and
+   keystores types. 'Wallet type' defines the type of Bitcoin contract
+   used in the wallet, while 'keystore type' refers to the method used
+   to store private keys. Therefore, so-called 'hardware wallets' will
+   be refered to as 'hardware keystores'.
+ * Hardware keystores:
+   - The Ledger Nano S is supported.
+   - Hardware keystores can be used as cosigners in multi-signature
+     wallets.
+   - Multiple hardware keystores can be used in the same multisig
+     wallet. One icon per keystore is displayed in the satus bar. Each
+     connected device will co-sign the transaction.
+ * Seed phrases can be extended with a user-chosen passphrase (similar
+   to the infamous BIP39).
+ * Replace-By-Fee: RBF transactions are supported in both Qt and
+   Android. A warning is displayed in the history for transactions
+   that are replaceable, have unconfirmed parents, or that have very
    low fees.
- * Dynamic fees are enabled by default.
- * Show expected confirmation times for unconfirmed transactions.
- * Qt GUI:
-   - A fee slider is available in the in send tab
-   - The Address tab is hidden by default
+ * Dynamic fees: Dynamic fees are enabled by default. A slider allows
+   the user to select the expected confirmation time of their
+   transaction. The expected confirmation times of incoming
+   transactions is also displayed in the history.
+ * Qt GUI (Desktop):
+   - A fee slider is visible in the in send tab
+   - The Address tab is hidden by default, can be shown with Ctrl-A
    - UTXOs are displayed in the Address tab
- * Kivy GUI:
-   - support for multisig wallets
-   - Add creation and deletion of wallets
-   - Show complete transaction history.
+ * Kivy GUI (Android):
+   - The GUI displays the complete transaction history.
+   - Multisig wallets are supported.
+   - Wallets can be created and deleted.
 
 
 # Release 2.6.4 (bugfixes)

@@ -37,7 +37,7 @@ from i18n import _
 from util import NotEnoughFunds, PrintError, profiler
 from plugins import run_hook, plugin_loaders
 from keystore import bip44_derivation
-from version import OLD_SEED_VERSION
+from version import *
 
 
 def multisig_type(wallet_type):
@@ -127,6 +127,8 @@ class WalletStorage(PrintError):
                 self.data.pop(key)
 
     def write(self):
+        # this ensures that previous versions of electrum won't open the wallet
+        self.put('seed_version', FINAL_SEED_VERSION)
         with self.lock:
             self._write()
         self.file_exists = True
@@ -206,23 +208,18 @@ class WalletStorage(PrintError):
         return result
 
     def requires_upgrade(self):
-        r = False
-        if self.file_exists:
-            r |= self.convert_wallet_type(True)
-            r |= self.convert_imported(True)
-        return r
+        return self.file_exists and self.get_seed_version() != FINAL_SEED_VERSION
 
     def upgrade(self):
-        self.convert_imported(False)
-        self.convert_wallet_type(False)
+        self.convert_imported()
+        self.convert_wallet_type()
+        self.convert_account()
         self.write()
 
-    def convert_wallet_type(self, is_test):
+    def convert_wallet_type(self):
         wallet_type = self.get('wallet_type')
         if self.get('keystore') or self.get('x1/') or wallet_type=='imported':
             return False
-        if is_test:
-            return True
         assert not self.requires_split()
         seed_version = self.get_seed_version()
         seed = self.get('seed')
@@ -293,14 +290,11 @@ class WalletStorage(PrintError):
         self.put('keypairs', None)
         self.put('key_type', None)
 
-
-    def convert_imported(self, test):
+    def convert_imported(self):
         # '/x' is the internal ID for imported accounts
         d = self.get('accounts', {}).get('/x', {}).get('imported',{})
         if not d:
             return False
-        if test:
-            return True
         addresses = []
         keypairs = {}
         for addr, v in d.items():
@@ -322,6 +316,13 @@ class WalletStorage(PrintError):
         else:
             raise BaseException('no addresses or privkeys')
 
+    def convert_account(self):
+        d = self.get('accounts', {}).get('0', {})
+        if not d:
+            return False
+        self.put('accounts', None)
+        self.put('pubkeys', d)
+
     def get_action(self):
         action = run_hook('get_action', self)
         if action:
@@ -330,11 +331,10 @@ class WalletStorage(PrintError):
             return 'new'
 
     def get_seed_version(self):
-        from version import OLD_SEED_VERSION, NEW_SEED_VERSION
         seed_version = self.get('seed_version')
         if not seed_version:
             seed_version = OLD_SEED_VERSION if len(self.get('master_public_key','')) == 128 else NEW_SEED_VERSION
-        if seed_version not in [OLD_SEED_VERSION, NEW_SEED_VERSION]:
+        if seed_version not in [OLD_SEED_VERSION, NEW_SEED_VERSION, FINAL_SEED_VERSION]:
             msg = "Your wallet has an unsupported seed version."
             msg += '\n\nWallet file: %s' % os.path.abspath(self.path)
             if seed_version in [5, 7, 8, 9, 10]:
