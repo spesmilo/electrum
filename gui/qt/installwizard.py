@@ -291,7 +291,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.app.clipboard().clear()
         title = _('Confirm Seed')
         message = ' '.join([
-            _('Your seed is your wallet!'),
+            _('Your seed is important!'),
             _('If you lose your seed, your money will be permanently lost.'),
             _('To make sure that you have properly saved your seed, please retype it here.')
         ])

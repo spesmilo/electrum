@@ -33,21 +33,6 @@ class Plugin(LedgerPlugin):
             # Trigger a pairing
             keystore.thread.add(partial(self.get_client, keystore))
 
-    def create_keystore(self, hw_type, derivation, wizard):
-        from electrum_ltc.keystore import hardware_keystore
-        # create keystore
-        handler = BTChipQTHandler(wizard)
-        client = self.get_client()
-        xpub = self.get_public_key(derivation)
-        d = {
-            'xpub': self.xpub,
-            'type': 'hardware',
-            'hw_type': hw_type,
-            'derivation': derivation
-        }
-        k = hardware_keystore(hw_type, d)
-        return k
-
     def create_handler(self, wizard):
         return BTChipQTHandler(wizard)        
 
