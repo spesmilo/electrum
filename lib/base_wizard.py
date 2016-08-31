@@ -214,7 +214,7 @@ class BaseWizard(object):
 
     def account_id_dialog(self, f):
         message = '\n'.join([
-            _('Enter your BIP44 account number here.'),
+            _('Enter your account number here.'),
             _('If you are not sure what this is, leave this field to zero.')
         ])
         def is_int(x):
@@ -226,8 +226,7 @@ class BaseWizard(object):
         self.line_dialog(run_next=f, title=_('Account Number'), message=message, default='0', test=is_int)
 
     def on_hardware_account_id(self, name, device_info, account_id):
-        from keystore import hardware_keystore, bip44_derivation
-        derivation = bip44_derivation(int(account_id))
+        derivation = keystore.bip44_derivation(int(account_id), self.wallet_type == 'multisig')
         xpub = self.plugin.get_xpub(device_info.device.id_, derivation, self)
         if xpub is None:
             self.show_error('Cannot read xpub from device')
@@ -239,7 +238,7 @@ class BaseWizard(object):
             'xpub': xpub,
             'label': device_info.label,
         }
-        k = hardware_keystore(d)
+        k = keystore.hardware_keystore(d)
         self.on_keystore(k)
 
     def restore_from_seed(self):
@@ -274,7 +273,7 @@ class BaseWizard(object):
     def on_bip44(self, seed, passphrase, account_id):
         k = keystore.BIP32_KeyStore({})
         bip32_seed = keystore.bip39_to_seed(seed, passphrase)
-        derivation = "m/44'/0'/%d'"%account_id
+        derivation = keystore.bip44_derivation(account_id, self.wallet_type == 'multisig')
         k.add_xprv_from_seed(bip32_seed, derivation)
         self.on_keystore(k)
 
