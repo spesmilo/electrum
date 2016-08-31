@@ -469,6 +469,8 @@ class DeviceMgr(ThreadJob, PrintError):
             if not handler.yes_no_question(msg):
                 raise UserCancelled()
             devices = None
+        if len(infos) == 1:
+            return infos[0]
         # select device by label
         for info in infos:
             if info.label == keystore.label:
