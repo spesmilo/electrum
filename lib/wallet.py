@@ -767,7 +767,7 @@ class Abstract_Wallet(PrintError):
                 is_lowfee = fee < low_fee * 0.5
             else:
                 is_lowfee = False
-            if not is_final:
+            if height==0 and not is_final:
                 status = 0
             elif height < 0:
                 status = 1
