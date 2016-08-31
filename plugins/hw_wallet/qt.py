@@ -166,5 +166,5 @@ class QtHandlerBase(QObject, PrintError):
         self.done.set()
 
     def win_yes_no_question(self, msg):
-        self.ok = self.top_level_window().question(msg)
+        self.ok = self.win.question(msg)
         self.done.set()
