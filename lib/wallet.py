@@ -1438,6 +1438,7 @@ class Standard_Wallet(Deterministic_Wallet, P2PK_Wallet):
         self.keystore.update_password(old_pw, new_pw)
         self.save_keystore()
         self.storage.put('use_encryption', (new_pw is not None))
+        self.storage.write()
 
     def save_keystore(self):
         self.storage.put('keystore', self.keystore.dump())
