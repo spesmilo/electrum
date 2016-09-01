@@ -981,28 +981,21 @@ class Abstract_Wallet(PrintError):
         address = txin['address']
         if self.is_mine(address):
             self.add_input_sig_info(txin, address)
-        else:
-            txin['can_sign'] = False
 
     def can_sign(self, tx):
-        if self.is_watching_only():
-            return False
         if tx.is_complete():
             return False
-        ## add input info. (should be done already)
-        #for txin in tx.inputs():
-        #    self.add_input_info(txin)
-        can_sign = any([txin['can_sign'] for txin in tx.inputs()])
-        return can_sign
+        for k in self.get_keystores():
+            if k.can_sign(tx):
+                return True
 
     def get_input_tx(self, tx_hash):
         # First look up an input transaction in the wallet where it
         # will likely be.  If co-signing a transaction it may not have
         # all the input txs, in which case we ask the network.
         tx = self.transactions.get(tx_hash)
-        if not tx:
+        if not tx and self.network:
             request = ('blockchain.transaction.get', [tx_hash])
-            # FIXME: what if offline?
             tx = Transaction(self.network.synchronous_get(request))
         return tx
 
@@ -1014,7 +1007,6 @@ class Abstract_Wallet(PrintError):
         for txin in tx.inputs():
             tx_hash = txin['prevout_hash']
             txin['prev_tx'] = self.get_input_tx(tx_hash)
-            # I should add the address index if it's an address of mine
 
         # add output info for hw wallets
         tx.output_info = []
@@ -1024,12 +1016,9 @@ class Abstract_Wallet(PrintError):
             tx.output_info.append((change, address_index))
 
         # sign
-        for keystore in self.get_keystores():
-            if not keystore.is_watching_only():
-                try:
-                    keystore.sign_transaction(tx, password)
-                except:
-                    print "keystore cannot sign", keystore
+        for k in self.get_keystores():
+            k.sign_transaction(tx, password)
+
 
     def get_unused_addresses(self):
         # fixme: use slots from expired requests
@@ -1270,7 +1259,6 @@ class P2PK_Wallet(Abstract_Wallet):
         txin['signatures'] = [None]
         txin['redeemPubkey'] = pubkey
         txin['num_sig'] = 1
-        txin['can_sign'] = any([x is None for x in txin['signatures']])
 
     def sign_message(self, address, message, password):
         sequence = self.get_address_index(address)
@@ -1534,8 +1522,6 @@ class Multisig_Wallet(Deterministic_Wallet):
         txin['signatures'] = [None] * len(pubkeys)
         txin['redeemScript'] = self.redeem_script(*derivation)
         txin['num_sig'] = self.m
-        txin['can_sign'] = any([x is None for x in txin['signatures']])
-
 
 
 wallet_types = ['standard', 'multisig', 'imported']
