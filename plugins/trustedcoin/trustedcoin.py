@@ -456,6 +456,8 @@ class TrustedCoinPlugin(BasePlugin):
 
     @hook
     def get_action(self, storage):
+        if storage.get('wallet_type') != '2fa':
+            return
         if not storage.get('x1/'):
             return self, 'show_disclaimer'
         if not storage.get('x2/'):
