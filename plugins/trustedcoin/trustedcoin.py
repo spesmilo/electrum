@@ -314,6 +314,8 @@ class TrustedCoinPlugin(BasePlugin):
 
     @hook
     def get_additional_fee(self, wallet, tx):
+        if type(wallet) != Wallet_2fa:
+            return
         address = wallet.billing_info['billing_address']
         for _type, addr, amount in tx.outputs():
             if _type == TYPE_ADDRESS and addr == address:
