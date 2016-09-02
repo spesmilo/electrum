@@ -393,13 +393,12 @@ class TrustedCoinPlugin(BasePlugin):
         wizard.request_password(run_next=f)
 
     def on_restore_pw(self, wizard, seed, password):
-        # FIXME
-        # wallet.add_seed(seed, password)
         storage = wizard.storage
         words = seed.split()
         n = len(words)/2
         k1 = keystore.xprv_from_seed(' '.join(words[0:n]))
         k2 = keystore.xprv_from_seed(' '.join(words[n:]))
+        k1.add_seed(seed)
         k1.update_password(None, password)
         k2.update_password(None, password)
         storage.put('x1/', k1.dump())
