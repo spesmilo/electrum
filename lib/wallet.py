@@ -1539,7 +1539,6 @@ wallet_constructors = {
 def register_constructor(wallet_type, constructor):
     wallet_constructors[wallet_type] = constructor
 
-
 # former WalletFactory
 class Wallet(object):
     """The main wallet "entry point".

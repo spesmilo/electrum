@@ -451,7 +451,7 @@ class TrustedCoinPlugin(BasePlugin):
         wizard.storage.put('x3/', k3.dump())
         wizard.storage.put('use_trustedcoin', True)
         wizard.storage.write()
-        wizard.wallet = Wallet(wizard.storage)
+        wizard.wallet = Wallet_2fa(wizard.storage)
         wizard.run('create_addresses')
 
     @hook
