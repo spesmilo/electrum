@@ -37,20 +37,8 @@ from electrum_gui.qt.amountedit import AmountEdit
 from electrum_gui.qt.main_window import StatusBarButton
 from electrum.i18n import _
 from electrum.plugins import hook
-
 from trustedcoin import TrustedCoinPlugin, server
 
-def need_server(wallet, tx):
-    from electrum.keystore import parse_xpubkey, is_xpubkey
-    # Detect if the server is needed
-    long_id, short_id = wallet.get_user_id()
-    xpub3 = wallet.master_public_keys['x3/']
-    for x in tx.inputs_to_sign():
-        if is_xpubkey(x):
-            xpub, sequence = parse_xpubkey(x)
-            if xpub == xpub3:
-                return True
-    return False
 
 class Plugin(TrustedCoinPlugin):
 
@@ -98,7 +86,7 @@ class Plugin(TrustedCoinPlugin):
         if not wallet.can_sign_without_server():
             self.print_error("twofactor:sign_tx")
             auth_code = None
-            if need_server(wallet, tx):
+            if wallet.keystores['x3/'].get_tx_derivations(tx):
                 auth_code = self.auth_dialog(window)
             else:
                 self.print_error("twofactor: xpub3 not needed")

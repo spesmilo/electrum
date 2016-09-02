@@ -194,7 +194,7 @@ class Wallet_2fa(Multisig_Wallet):
         self.billing_info = None
 
     def can_sign_without_server(self):
-        return not self.keystores.get('x2/').is_watching_only()
+        return not self.keystores['x2/'].is_watching_only()
 
     def get_user_id(self):
         return get_user_id(self.storage)
