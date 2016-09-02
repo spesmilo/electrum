@@ -49,6 +49,32 @@ class KeyStore(PrintError):
     def can_import(self):
         return False
 
+    def get_tx_derivations(self, tx):
+        keypairs = {}
+        for txin in tx.inputs():
+            num_sig = txin.get('num_sig')
+            if num_sig is None:
+                continue
+            x_signatures = txin['signatures']
+            signatures = filter(None, x_signatures)
+            if len(signatures) == num_sig:
+                # input is complete
+                continue
+            for k, x_pubkey in enumerate(txin['x_pubkeys']):
+                if x_signatures[k] is not None:
+                    # this pubkey already signed
+                    continue
+                derivation = self.get_pubkey_derivation(x_pubkey)
+                if not derivation:
+                    continue
+                keypairs[x_pubkey] = derivation
+        return keypairs
+
+    def can_sign(self, tx):
+        if self.is_watching_only():
+            return False
+        return bool(self.get_tx_derivations(tx))
+
 
 class Software_KeyStore(KeyStore):
 
@@ -70,32 +96,15 @@ class Software_KeyStore(KeyStore):
         decrypted = ec.decrypt_message(message)
         return decrypted
 
-    def get_keypairs_for_sig(self, tx, password):
-        keypairs = {}
-        for txin in tx.inputs():
-            num_sig = txin.get('num_sig')
-            if num_sig is None:
-                continue
-            x_signatures = txin['signatures']
-            signatures = filter(None, x_signatures)
-            if len(signatures) == num_sig:
-                # input is complete
-                continue
-            for k, x_pubkey in enumerate(txin['x_pubkeys']):
-                if x_signatures[k] is not None:
-                    # this pubkey already signed
-                    continue
-                derivation = txin['derivation']
-                sec = self.get_private_key(derivation, password)
-                if sec:
-                    keypairs[x_pubkey] = sec
-        return keypairs
-
     def sign_transaction(self, tx, password):
+        if self.is_watching_only():
+            return
         # Raise if password is not correct.
         self.check_password(password)
         # Add private keys
-        keypairs = self.get_keypairs_for_sig(tx, password)
+        keypairs = self.get_tx_derivations(tx)
+        for k, v in keypairs.items():
+            keypairs[k] = self.get_private_key(v, password)
         # Sign
         if keypairs:
             tx.sign(keypairs)
@@ -157,12 +166,18 @@ class Imported_KeyStore(Software_KeyStore):
     def get_private_key(self, sequence, password):
         for_change, i = sequence
         assert for_change == 0
-        pubkey = (self.change_pubkeys if for_change else self.receiving_pubkeys)[i]
+        pubkey = self.receiving_pubkeys[i]
         pk = pw_decode(self.keypairs[pubkey], password)
         # this checks the password
         if pubkey != public_key_from_private_key(pk):
             raise InvalidPassword()
         return pk
+
+    def get_pubkey_derivation(self, pubkey):
+        if pubkey not in self.receiving_keys:
+            return
+        i = self.receiving_keys.index(pubkey)
+        return (False, i)
 
     def update_password(self, old_password, new_password):
         if old_password is not None:
@@ -255,6 +270,14 @@ class Xpub:
         assert len(s) == 2
         return xkey, s
 
+    def get_pubkey_derivation(self, x_pubkey):
+        if x_pubkey[0:2] != 'ff':
+            return
+        xpub, derivation = self.parse_xpubkey(x_pubkey)
+        if self.xpub != xpub:
+            return
+        return derivation
+
 
 
 class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
@@ -301,7 +324,6 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
     def is_watching_only(self):
         return self.xprv is None
 
-
     def get_mnemonic(self, password):
         return self.get_seed(password)
 
@@ -314,14 +336,12 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         xprv, xpub = bip32_private_derivation(xprv, "m/", derivation)
         self.add_xprv(xprv)
 
-    def can_sign(self, xpub):
-        return xpub == self.xpub and self.xprv is not None
-
     def get_private_key(self, sequence, password):
         xprv = self.get_master_private_key(password)
         _, _, _, c, k = deserialize_xkey(xprv)
         pk = bip32_private_key(sequence, k, c)
         return pk
+
 
 
 class Old_KeyStore(Deterministic_KeyStore):
@@ -430,8 +450,7 @@ class Old_KeyStore(Deterministic_KeyStore):
 
     def get_xpubkey(self, for_change, n):
         s = ''.join(map(lambda x: bitcoin.int_to_hex(x,2), (for_change, n)))
-        x_pubkey = 'fe' + self.mpk + s
-        return x_pubkey
+        return 'fe' + self.mpk + s
 
     @classmethod
     def parse_xpubkey(self, x_pubkey):
@@ -446,6 +465,14 @@ class Old_KeyStore(Deterministic_KeyStore):
             s.append(n)
         assert len(s) == 2
         return mpk, s
+
+    def get_pubkey_derivation(self, x_pubkey):
+        if x_pubkey[0:2] != 'fe':
+            return
+        mpk, derivation = self.parse_xpubkey(x_pubkey)
+        if self.mpk != mpk:
+            return
+        return derivation
 
     def update_password(self, old_password, new_password):
         if old_password is not None:
@@ -550,7 +577,7 @@ def xpubkey_to_address(x_pubkey):
         pubkey = BIP32_KeyStore.derive_pubkey_from_xpub(xpub, s[0], s[1])
     elif x_pubkey[0:2] == 'fe':
         mpk, s = Old_KeyStore.parse_xpubkey(x_pubkey)
-        pubkey = Old_KeyStore.get_pubkey_from_mpk(mpk.decode('hex'), s[0], s[1])
+        pubkey = Old_KeyStore.get_pubkey_from_mpk(mpk, s[0], s[1])
     elif x_pubkey[0:2] == 'fd':
         addrtype = ord(x_pubkey[2:4].decode('hex'))
         hash160 = x_pubkey[4:].decode('hex')
