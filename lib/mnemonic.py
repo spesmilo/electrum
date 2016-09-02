@@ -78,7 +78,7 @@ def is_CJK(c):
     return False
 
 
-def prepare_seed(seed):
+def normalize_text(seed):
     # normalize
     seed = unicodedata.normalize('NFKD', unicode(seed))
     # lower
@@ -126,7 +126,8 @@ class Mnemonic(object):
     @classmethod
     def mnemonic_to_seed(self, mnemonic, passphrase):
         PBKDF2_ROUNDS = 2048
-        mnemonic = prepare_seed(mnemonic)
+        mnemonic = normalize_text(mnemonic)
+        passphrase = normalize_text(passphrase)
         return pbkdf2.PBKDF2(mnemonic, 'electrum' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
 
     def mnemonic_encode(self, i):

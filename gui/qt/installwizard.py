@@ -7,7 +7,6 @@ import PyQt4.QtCore as QtCore
 
 import electrum_ltc as electrum
 from electrum_ltc.wallet import Wallet
-from electrum_ltc.mnemonic import prepare_seed
 from electrum_ltc.util import UserCancelled
 from electrum_ltc.base_wizard import BaseWizard
 from electrum_ltc.i18n import _
