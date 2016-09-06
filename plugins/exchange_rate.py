@@ -113,6 +113,12 @@ class Poloniex(ExchangeBase):
 
         return quote_currencies
 
+class GRSTicker(ExchangeBase):
+    def get_rates(self, ccy):
+        url = 'http://groestlcoin.org/grsticker.php'
+        response = requests.request('GET', url,
+                                    headers={'User-Agent' : 'Electrum'})
+        return {'BTC': Decimal(response.content)}
 
 class Plugin(BasePlugin, ThreadJob):
 
@@ -155,7 +161,7 @@ class Plugin(BasePlugin, ThreadJob):
         return self.config.get("currency", "BTC")
 
     def config_exchange(self):
-        return self.config.get('use_exchange', 'Poloniex')
+        return self.config.get('use_exchange', 'GRSTicker')
 
     def config_history(self):
         return self.config.get('history_rates', 'unchecked') != 'unchecked'
