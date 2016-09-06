@@ -246,10 +246,14 @@ class Xpub:
                 self.xpub_change = xpub
             else:
                 self.xpub_receive = xpub
+        return self.get_pubkey_from_xpub(xpub, (n,))
+
+    @classmethod
+    def get_pubkey_from_xpub(self, xpub, sequence):
         _, _, _, c, cK = deserialize_xkey(xpub)
-        cK, c = CKD_pub(cK, c, n)
-        result = cK.encode('hex')
-        return result
+        for i in sequence:
+            cK, c = CKD_pub(cK, c, i)
+        return cK.encode('hex')
 
     def get_xpubkey(self, c, i):
         s = ''.join(map(lambda x: bitcoin.int_to_hex(x,2), (c, i)))
@@ -574,7 +578,7 @@ def xpubkey_to_address(x_pubkey):
         pubkey = x_pubkey
     elif x_pubkey[0:2] == 'ff':
         xpub, s = BIP32_KeyStore.parse_xpubkey(x_pubkey)
-        pubkey = BIP32_KeyStore.derive_pubkey_from_xpub(xpub, s[0], s[1])
+        pubkey = BIP32_KeyStore.get_pubkey_from_xpub(xpub, s)
     elif x_pubkey[0:2] == 'fe':
         mpk, s = Old_KeyStore.parse_xpubkey(x_pubkey)
         pubkey = Old_KeyStore.get_pubkey_from_mpk(mpk, s[0], s[1])
