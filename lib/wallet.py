@@ -1052,6 +1052,8 @@ class Abstract_Wallet(PrintError):
                 out['request_url'] = os.path.join(baseurl, key)
                 out['URI'] += '&r=' + out['request_url']
                 out['index_url'] = os.path.join(baseurl, 'index.html') + '?id=' + key
+                out['websocket_server'] = config.get('websocket_server', 'localhost')
+                out['websocket_port'] = config.get('websocket_port', 9999)
         return out
 
     def get_request_status(self, key):
