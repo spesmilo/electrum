@@ -161,7 +161,7 @@ class Imported_KeyStore(Software_KeyStore):
         return pubkey
 
     def get_xpubkey(self, c, i):
-        return self.get_public_key((c,i)).encode('hex')
+        return self.get_public_key((c,i))
 
     def get_private_key(self, sequence, password):
         for_change, i = sequence
@@ -174,13 +174,16 @@ class Imported_KeyStore(Software_KeyStore):
         return pk
 
     def get_pubkey_derivation(self, x_pubkey):
-        if x_pubkey[0:2] != 'fd':
-            return
-        # fixme: this assumes p2pkh
-        _, addr = xpubkey_to_address(x_pubkey)
-        for i, pubkey in enumerate(self.receiving_pubkeys):
-            if public_key_to_bc_address(pubkey.decode('hex')) == addr:
+        if x_pubkey[0:2] in ['02', '03', '04']:
+            if x_pubkey in self.receiving_pubkeys:
+                i = self.receiving_pubkeys.index(x_pubkey)
                 return (False, i)
+        elif x_pubkey[0:2] == 'fd':
+            # fixme: this assumes p2pkh
+            _, addr = xpubkey_to_address(x_pubkey)
+            for i, pubkey in enumerate(self.receiving_pubkeys):
+                if public_key_to_bc_address(pubkey.decode('hex')) == addr:
+                    return (False, i)
 
     def update_password(self, old_password, new_password):
         if old_password is not None:
