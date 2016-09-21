@@ -38,7 +38,9 @@ if (id) {
 		var current;
 		var max = 100;
 		var initial = data.time;
-		var duration = data.exp;
+                var duration = data.exp;
+                var websocket_server = data.websocket_server;
+                var websocket_port = data.websocket_port;
                 if(duration){
      		  var current = 100 * (Math.floor(Date.now()/1000) - initial)/duration;
 		  $("#progressbar").progressbar({
@@ -64,7 +66,7 @@ if (id) {
         });
 };
 
-var ws = new WebSocket("wss://" + window.location.hostname + ":9999/");
+var ws = new WebSocket("wss://" + websocket_server + ":" + websocket_port +"/");
 ws.onopen = function() {
             ws.send('id:' + id);
 };
