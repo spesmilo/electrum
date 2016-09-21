@@ -1175,6 +1175,11 @@ class Imported_Wallet(Abstract_Wallet):
 
     def load_addresses(self):
         self.addresses = self.storage.get('addresses', [])
+        self.receiving_addresses = self.addresses
+        self.change_addresses = []
+
+    def get_keystores(self):
+        return []
 
     def has_password(self):
         return False
@@ -1231,6 +1236,12 @@ class Imported_Wallet(Abstract_Wallet):
     def get_change_addresses(self):
         return []
 
+    def add_input_sig_info(self, txin, address):
+        addrtype, hash160 = bc_address_to_hash_160(address)
+        xpubkey = 'fd' + (chr(addrtype) + hash160).encode('hex')
+        txin['x_pubkeys'] = [ xpubkey ]
+        txin['pubkeys'] = [ xpubkey ]
+        txin['signatures'] = [None]
 
 
 class P2PK_Wallet(Abstract_Wallet):
@@ -1518,7 +1529,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         pubkeys = self.get_pubkeys(*derivation)
         x_pubkeys = [k.get_xpubkey(*derivation) for k in self.get_keystores()]
         # sort pubkeys and x_pubkeys, using the order of pubkeys
-        pubkeys, x_pubkeys = zip( *sorted(zip(pubkeys, x_pubkeys)))
+        pubkeys, x_pubkeys = zip(*sorted(zip(pubkeys, x_pubkeys)))
         txin['pubkeys'] = list(pubkeys)
         txin['x_pubkeys'] = list(x_pubkeys)
         txin['signatures'] = [None] * len(pubkeys)

@@ -173,11 +173,14 @@ class Imported_KeyStore(Software_KeyStore):
             raise InvalidPassword()
         return pk
 
-    def get_pubkey_derivation(self, pubkey):
-        if pubkey not in self.receiving_keys:
+    def get_pubkey_derivation(self, x_pubkey):
+        if x_pubkey[0:2] != 'fd':
             return
-        i = self.receiving_keys.index(pubkey)
-        return (False, i)
+        # fixme: this assumes p2pkh
+        _, addr = xpubkey_to_address(x_pubkey)
+        for i, pubkey in enumerate(self.receiving_pubkeys):
+            if public_key_to_bc_address(pubkey.decode('hex')) == addr:
+                return (False, i)
 
     def update_password(self, old_password, new_password):
         if old_password is not None:
