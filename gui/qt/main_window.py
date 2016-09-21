@@ -781,7 +781,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if addr is None:
             from electrum.wallet import Imported_Wallet
             if not self.wallet.is_deterministic():
-                self.show_message(_('No more addresses in your wallet.'))
+                msg = [
+                    _('No more addresses in your wallet.'),
+                    _('You are using a non-deterministic wallet, which cannot create new addresses.'),
+                    _('If you want to create new addresses, use a deterministic wallet instead.')
+                   ]
+                self.show_message(' '.join(msg))
                 return
             if not self.question(_("Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\nThis occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\nCreate anyway?")):
                 return
@@ -1723,14 +1728,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
             return
-
         d = WindowModalDialog(self, _("Public key"))
         d.setMinimumSize(600, 200)
         vbox = QVBoxLayout()
         vbox.addWidget( QLabel(_("Address") + ': ' + address))
-        #if isinstance(self.wallet, BIP32_RD_Wallet):
-        #    derivation = self.wallet.address_id(address)
-        #    vbox.addWidget(QLabel(_("Derivation") + ': ' + derivation))
         vbox.addWidget(QLabel(_("Public key") + ':'))
         keys_e = ShowQRTextEdit(text='\n'.join(pubkey_list))
         keys_e.addCopyButton(self.app)
