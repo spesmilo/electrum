@@ -313,7 +313,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     output = address
                     outputAmount = amount
 
-        self.handler.show_message("Signing Transaction ...")
+        self.handler.show_message(_("Confirm Transaction on your Ledger device..."))
         try:
             # Get trusted inputs from the original transactions
             for utxo in inputs:                
@@ -324,7 +324,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 else:
                     tmp = utxo[3].decode('hex')[::-1].encode('hex')
                     tmp += int_to_hex(utxo[1], 4)
-                    chipInputs.append({ 'value' : tmp.decode('hex') })                                        
+                    chipInputs.append({'value' : tmp.decode('hex')})
                     redeemScripts.append(bytearray(utxo[2].decode('hex')))
 
             # Sign all inputs
