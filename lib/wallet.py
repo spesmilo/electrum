@@ -1017,8 +1017,10 @@ class Abstract_Wallet(PrintError):
 
         # sign
         for k in self.get_keystores():
-            k.sign_transaction(tx, password)
-
+            try:
+                k.sign_transaction(tx, password)
+            except:
+                continue
 
     def get_unused_addresses(self):
         # fixme: use slots from expired requests
