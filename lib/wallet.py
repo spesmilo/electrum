@@ -45,7 +45,7 @@ from functools import partial
 from collections import namedtuple, defaultdict
 
 from i18n import _
-from util import NotEnoughFunds, PrintError, profiler
+from util import NotEnoughFunds, PrintError, UserCancelled, profiler
 
 from bitcoin import *
 from version import *
@@ -1019,7 +1019,7 @@ class Abstract_Wallet(PrintError):
         for k in self.get_keystores():
             try:
                 k.sign_transaction(tx, password)
-            except:
+            except UserCancelled:
                 continue
 
     def get_unused_addresses(self):
