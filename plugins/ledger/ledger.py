@@ -2,12 +2,14 @@ from binascii import hexlify
 from struct import pack, unpack
 import hashlib
 import time
+import sys
+import traceback
 
 import electrum_ltc as electrum
 from electrum_ltc.bitcoin import EncodeBase58Check, DecodeBase58Check, bc_address_to_hash_160, hash_160_to_bc_address, TYPE_ADDRESS, int_to_hex, var_int
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin, hook
-from electrum_ltc.keystore import Hardware_KeyStore
+from electrum_ltc.keystore import Hardware_KeyStore, parse_xpubkey
 from ..hw_wallet import HW_PluginBase
 from electrum_ltc.util import format_satoshis_plain, print_error
 
@@ -267,43 +269,45 @@ class Ledger_KeyStore(Hardware_KeyStore):
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
         rawTx = tx.serialize()
         # Fetch inputs of the transaction to sign
-        for txinput in tx.inputs():
-            if ('is_coinbase' in txinput and txinput['is_coinbase']):
+        for txin in tx.inputs():
+            if txin.get('is_coinbase'):
                 self.give_error("Coinbase not supported")     # should never happen
             redeemScript = None
             signingPos = -1
-            hwAddress = "%s/%d/%d" % (self.get_derivation()[2:], txinput['derivation'][0], txinput['derivation'][1])            
-            if len(txinput['pubkeys']) > 1:
-                p2shTransaction = True            
-            if 'redeemScript' in txinput:
-                redeemScript = txinput['redeemScript']
+            xpub, s = parse_xpubkey(txin['x_pubkeys'][0])
+            hwAddress = "%s/%d/%d" % (self.get_derivation()[2:], s[0], s[1])
+
+            if len(txin['pubkeys']) > 1:
+                p2shTransaction = True
+            if 'redeemScript' in txin:
+                redeemScript = txin['redeemScript']
             if p2shTransaction:
                 chipPublicKey = compress_public_key(self.get_client().getWalletPublicKey(hwAddress)['publicKey'])
-                for currentIndex, key in enumerate(txinput['pubkeys']):
+                for currentIndex, key in enumerate(txin['pubkeys']):
                     if chipPublicKey == key.decode('hex'):
                         signingPos = currentIndex
                         break
                 if signingPos == -1:
                     self.give_error("No matching key for multisignature input") # should never happen
 
-            inputs.append([ txinput['prev_tx'].raw,
-                             txinput['prevout_n'], redeemScript, txinput['prevout_hash'], signingPos ])
+            inputs.append([txin['prev_tx'].raw, txin['prevout_n'], redeemScript, txin['prevout_hash'], signingPos ])
             inputsPaths.append(hwAddress)
-            pubKeys.append(txinput['pubkeys'])
-       
+            pubKeys.append(txin['pubkeys'])
+
         # Sanity check
         if p2shTransaction:
             for txinput in tx.inputs():
                 if len(txinput['pubkeys']) < 2:
                     self.give_error("P2SH / regular input mixed in same transaction not supported") # should never happen
-            txOutput = var_int(len(tx.outputs()))
-            for output in tx.outputs():
-                output_type, addr, amount = output
-                txOutput += int_to_hex(amount, 8)                       
-                script = tx.pay_script(output_type, addr)
-                txOutput += var_int(len(script)/2)
-                txOutput += script
-            txOutput = txOutput.decode('hex')
+
+        txOutput = var_int(len(tx.outputs()))
+        for txout in tx.outputs():
+            output_type, addr, amount = txout
+            txOutput += int_to_hex(amount, 8)
+            script = tx.pay_script(output_type, addr)
+            txOutput += var_int(len(script)/2)
+            txOutput += script
+        txOutput = txOutput.decode('hex')
 
         # Recognize outputs - only one output and one change is authorized
         if not p2shTransaction:
@@ -316,16 +320,14 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     changePath = "%s/%d/%d" % (self.get_derivation()[2:], change, index)
                     changeAmount = amount
                 else:
-                    if output <> None: # should never happen
-                        self.give_error("Multiple outputs with no change not supported")
                     output = address
                     if not self.canAlternateCoinVersions:
                         v, h = bc_address_to_hash_160(address)
                         if v == 48:
                             output = hash_160_to_bc_address(h, 0)
                     outputAmount = amount
-        
-        self.handler.show_message("Signing Transaction ...")
+
+        self.handler.show_message(_("Confirm Transaction on your Ledger device..."))
         try:
             # Get trusted inputs from the original transactions
             for utxo in inputs:                
@@ -336,7 +338,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 else:
                     tmp = utxo[3].decode('hex')[::-1].encode('hex')
                     tmp += int_to_hex(utxo[1], 4)
-                    chipInputs.append({ 'value' : tmp.decode('hex') })                                        
+                    chipInputs.append({'value' : tmp.decode('hex')})
                     redeemScripts.append(bytearray(utxo[2].decode('hex')))
 
             # Sign all inputs
@@ -344,13 +346,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
             inputIndex = 0
             while inputIndex < len(inputs):
                 self.get_client().startUntrustedTransaction(firstTransaction, inputIndex,
-                chipInputs, redeemScripts[inputIndex])
-                if not p2shTransaction:
-                    outputData = self.get_client().finalizeInput(output, format_satoshis_plain(outputAmount),
-                        format_satoshis_plain(tx.get_fee()), changePath, bytearray(rawTx.decode('hex')))
-                else:
-                    outputData = self.get_client().finalizeInputFull(txOutput)
-                    outputData['outputData'] = txOutput
+                                                            chipInputs, redeemScripts[inputIndex])
+                outputData = self.get_client().finalizeInputFull(txOutput)
+                outputData['outputData'] = txOutput
                 if firstTransaction:
                     transactionOutput = outputData['outputData']
                 if outputData['confirmationNeeded']:
@@ -392,7 +390,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     signatures.append(inputSignature)
                     inputIndex = inputIndex + 1
                 firstTransaction = False
-        except Exception, e:
+        except BaseException as e:
+            traceback.print_exc(file=sys.stdout)
             self.give_error(e, True)
         finally:
             self.handler.clear_dialog()
