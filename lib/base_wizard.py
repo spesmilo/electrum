@@ -339,6 +339,8 @@ class BaseWizard(object):
         title = _('Passphrase')
         message = '\n'.join([
             _('You may extend your seed with a passphrase.'),
+            _('This allows you to derive several wallets from the same seed.'),
+            '\n',
             _('Note that this is NOT your encryption password.'),
             _('If you do not know what this is, leave this field empty.'),
         ])
