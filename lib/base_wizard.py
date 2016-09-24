@@ -208,9 +208,14 @@ class BaseWizard(object):
     def on_device(self, name, device_info):
         self.plugin = self.plugins.get_plugin(name)
         self.plugin.setup_device(device_info, self)
-        print device_info
-        f = lambda x: self.run('on_hardware_account_id', name, device_info, int(x))
-        self.account_id_dialog(f)
+        if self.wallet_type=='multisig':
+            # There is no general standard for HD multisig.
+            # This is partially compatible with BIP45; assumes index=0
+            self.on_hw_derivation(name, device_info, "m/45'/0")
+        else:
+            from keystore import bip44_derivation
+            f = lambda x: self.run('on_hw_derivation', name, device_info, bip44_derivation(int(x)))
+            self.account_id_dialog(f)
 
     def account_id_dialog(self, f):
         message = '\n'.join([
@@ -225,9 +230,8 @@ class BaseWizard(object):
                 return False
         self.line_dialog(run_next=f, title=_('Account Number'), message=message, default='0', test=is_int)
 
-    def on_hardware_account_id(self, name, device_info, account_id):
-        from keystore import hardware_keystore, bip44_derivation
-        derivation = bip44_derivation(int(account_id))
+    def on_hw_derivation(self, name, device_info, derivation):
+        from keystore import hardware_keystore
         xpub = self.plugin.get_xpub(device_info.device.id_, derivation, self)
         if xpub is None:
             self.show_error('Cannot read xpub from device')
@@ -339,6 +343,8 @@ class BaseWizard(object):
         title = _('Passphrase')
         message = '\n'.join([
             _('You may extend your seed with a passphrase.'),
+            _('This allows you to derive several wallets from the same seed.'),
+            '\n',
             _('Note that this is NOT your encryption password.'),
             _('If you do not know what this is, leave this field empty.'),
         ])
