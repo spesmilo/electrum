@@ -4,7 +4,6 @@ import threading
 from PyQt4.Qt import Qt
 from PyQt4.Qt import QGridLayout, QInputDialog, QPushButton
 from PyQt4.Qt import QVBoxLayout, QLabel, SIGNAL
-from electrum_gui.qt.main_window import StatusBarButton
 from electrum_gui.qt.util import *
 from .plugin import TIM_NEW, TIM_RECOVER, TIM_MNEMONIC
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
@@ -131,18 +130,19 @@ class CharacterDialog(WindowModalDialog):
 
 class QtHandler(QtHandlerBase):
 
-    charSig = pyqtSignal(object)
+    char_signal = pyqtSignal(object)
+    pin_signal = pyqtSignal(object)
 
     def __init__(self, win, pin_matrix_widget_class, device):
         super(QtHandler, self).__init__(win, device)
-        win.connect(win, SIGNAL('pin_dialog'), self.pin_dialog)
-        self.charSig.connect(self.update_character_dialog)
+        self.char_signal.connect(self.update_character_dialog)
+        self.pin_signal.connect(self.pin_dialog)
         self.pin_matrix_widget_class = pin_matrix_widget_class
         self.character_dialog = None
 
     def get_char(self, msg):
         self.done.clear()
-        self.charSig.emit(msg)
+        self.char_signal.emit(msg)
         self.done.wait()
         data = self.character_dialog.data
         if not data or 'done' in data:
@@ -152,7 +152,7 @@ class QtHandler(QtHandlerBase):
 
     def get_pin(self, msg):
         self.done.clear()
-        self.win.emit(SIGNAL('pin_dialog'), msg)
+        self.pin_signal.emit(msg)
         self.done.wait()
         return self.response
 
