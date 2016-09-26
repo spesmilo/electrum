@@ -408,17 +408,13 @@ Builder.load_string('''
         text: root.title
     SeedLabel:
         text: root.message
-    GridLayout:
-        cols: 2
+    TextInput:
+        id: passphrase_input
+        multiline: False
         size_hint: 1, None
         height: '27dp'
-        BigLabel:
-            text: ''
-        TextInput:
-            id: passphrase_input
-            multiline: False
-            size_hint: 1, None
-            height: '27dp'
+    SeedLabel:
+        text: root.warning
 
 ''')
 
@@ -515,6 +511,7 @@ class WizardChoiceDialog(WizardDialog):
 class LineDialog(WizardDialog):
     title = StringProperty('')
     message = StringProperty('')
+    warning = StringProperty('')
 
     def __init__(self, wizard, **kwargs):
         WizardDialog.__init__(self, wizard, **kwargs)
@@ -741,7 +738,14 @@ class InstallWizard(BaseWizard, Widget):
         self.wallet.start_threads(self.network)
         self.dispatch('on_wizard_complete', self.wallet)
 
-    def choice_dialog(self, **kwargs): WizardChoiceDialog(self, **kwargs).open()
+    def choice_dialog(self, **kwargs):
+        choices = kwargs['choices']
+        if len(choices) > 1:
+            WizardChoiceDialog(self, **kwargs).open()
+        else:
+            f = kwargs['run_next']
+            apply(f, (choices[0][0],))
+
     def multisig_dialog(self, **kwargs): WizardMultisigDialog(self, **kwargs).open()
     def show_seed_dialog(self, **kwargs): ShowSeedDialog(self, **kwargs).open()
     def line_dialog(self, **kwargs): LineDialog(self, **kwargs).open()
@@ -754,7 +758,7 @@ class InstallWizard(BaseWizard, Widget):
     def restore_seed_dialog(self, **kwargs):
         RestoreSeedDialog(self, **kwargs).open()
 
-    def restore_keys_dialog(self, **kwargs):
+    def add_xpub_dialog(self, **kwargs):
         kwargs['message'] += ' ' + _('Use the camera button to scan a QR code.')
         AddXpubDialog(self, **kwargs).open()
 

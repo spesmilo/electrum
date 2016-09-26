@@ -152,14 +152,11 @@ class BaseWizard(object):
                 _("To create a watching-only wallet, please enter your master public key (xpub)."),
                 _("To create a spending wallet, please enter a master private key (xprv), or a list of Bitcoin private keys.")
             ])
+            self.add_xpub_dialog(title=title, message=message, run_next=self.on_restore_from_key, is_valid=v)
         else:
             v = keystore.is_bip32_key
-            title = _("Master public or private key")
-            message = ' '.join([
-                _("To create a watching-only wallet, please enter your master public key (xpub)."),
-                _("To create a spending wallet, please enter a master private key (xprv).")
-            ])
-        self.restore_keys_dialog(title=title, message=message, run_next=self.on_restore_from_key, is_valid=v)
+            i = len(self.keystores) + 1
+            self.add_cosigner_dialog(index=i, run_next=self.on_restore_from_key, is_valid=v)
 
     def on_restore_from_key(self, text):
         k = keystore.from_keys(text)
@@ -255,12 +252,13 @@ class BaseWizard(object):
             message = '\n'.join([
                 _('Your seed may have a passphrase.'),
                 _('If that is the case, enter it here.'),
-                '\n',
+            ])
+            warning = '\n'.join([
                 _('Note that this is NOT your encryption password.'),
                 _('If you do not know what this is, leave this field empty.'),
             ])
             f = lambda x: self.on_restore_passphrase(seed, x, is_bip39)
-            self.line_dialog(title=_('Passphrase'), message=message, default='', test=lambda x:True, run_next=f)
+            self.line_dialog(title=_('Passphrase'), message=message, warning=warning, default='', test=lambda x:True, run_next=f)
         else:
             self.on_restore_passphrase(seed, '', False)
 
@@ -344,12 +342,13 @@ class BaseWizard(object):
         message = '\n'.join([
             _('You may extend your seed with a passphrase.'),
             _('This allows you to derive several wallets from the same seed.'),
-            '\n',
+        ])
+        warning = '\n'.join([
             _('Note that this is NOT your encryption password.'),
             _('If you do not know what this is, leave this field empty.'),
         ])
         f = lambda x: self.confirm_seed(seed, x)
-        self.line_dialog(run_next=f, title=title, message=message, default='', test=lambda x:True)
+        self.line_dialog(run_next=f, title=title, message=message, warning=warning, default='', test=lambda x:True)
 
     def confirm_seed(self, seed, passphrase):
         f = lambda x: self.confirm_passphrase(seed, passphrase)
