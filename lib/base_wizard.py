@@ -250,7 +250,7 @@ class BaseWizard(object):
     def on_restore_seed(self, seed, is_bip39):
         if keystore.is_new_seed(seed) or is_bip39:
             message = '\n'.join([
-                _('Your seed may have a passphrase.'),
+                _('Your seed may be extended with a passphrase.'),
                 _('If that is the case, enter it here.'),
             ])
             warning = '\n'.join([
