@@ -378,7 +378,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return clayout.selected_index()
 
     @wizard_dialog
-    def line_dialog(self, run_next, title, message, warning, default, test):
+    def line_dialog(self, run_next, title, message, default, test, warning=''):
         vbox = QVBoxLayout()
         vbox.addWidget(WWLabel(message))
         line = QLineEdit()

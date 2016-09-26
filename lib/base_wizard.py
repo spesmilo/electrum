@@ -341,7 +341,7 @@ class BaseWizard(object):
         title = _('Passphrase')
         message = '\n'.join([
             _('You may extend your seed with a passphrase.'),
-            _('This allows you to derive several wallets from the same seed.'),
+            _('The passphrase must be saved together with your seed.'),
         ])
         warning = '\n'.join([
             _('Note that this is NOT your encryption password.'),
@@ -359,7 +359,7 @@ class BaseWizard(object):
         if passphrase:
             title = _('Confirm Passphrase')
             message = '\n'.join([
-                _('Your passphrase must be saved with your seed.'),
+                _('Your passphrase must be saved together with your seed.'),
                 _('Please type it here.'),
             ])
             self.line_dialog(run_next=f, title=title, message=message, default='', test=lambda x: x==passphrase)
