@@ -361,7 +361,7 @@ class TrustedCoinPlugin(BasePlugin):
         words = seed.split()
         n = len(words)
         # old version use long seed phrases
-        if n == 24:
+        if n >= 24:
             xprv1, xpub1 = keystore.xkeys_from_seed(' '.join(words[0:12]), "m/")
             xprv2, xpub2 = keystore.xkeys_from_seed(' '.join(words[12:]), "m/")
         elif n==12:
