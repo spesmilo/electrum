@@ -172,6 +172,7 @@ class QtHandlerBase(QObject, PrintError):
 
 
 from electrum.plugins import hook
+from electrum.util import UserCancelled
 from electrum_gui.qt.main_window import StatusBarButton
 
 class QtPluginBase(object):
@@ -194,5 +195,17 @@ class QtPluginBase(object):
             # Trigger a pairing
             keystore.thread.add(partial(self.get_client, keystore))
 
+    def choose_device(self, window, keystore):
+        '''This dialog box should be usable even if the user has
+        forgotten their PIN or it is in bootloader mode.'''
+        device_id = self.device_manager().xpub_id(keystore.xpub)
+        if not device_id:
+            try:
+                info = self.device_manager().select_device(self, keystore.handler, keystore)
+            except UserCancelled:
+                return
+            device_id = info.device.id_
+        return device_id
+
     def show_settings_dialog(self, window, keystore):
-        pass
+        device_id = self.choose_device(window, keystore)

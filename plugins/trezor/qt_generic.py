@@ -201,18 +201,6 @@ class QtPlugin(QtPluginBase):
         if device_id:
             SettingsDialog(window, self, keystore, device_id).exec_()
 
-    def choose_device(self, window, keystore):
-        '''This dialog box should be usable even if the user has
-        forgotten their PIN or it is in bootloader mode.'''
-        device_id = self.device_manager().xpub_id(keystore.xpub)
-        if not device_id:
-            try:
-                info = self.device_manager().select_device(self, keystore.handler, keystore)
-            except UserCancelled:
-                return
-            device_id = info.device.id_
-        return device_id
-
     def request_trezor_init_settings(self, wizard, method, device):
         vbox = QVBoxLayout()
         next_enabled = True
