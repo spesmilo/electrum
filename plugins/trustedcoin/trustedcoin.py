@@ -330,7 +330,7 @@ class TrustedCoinPlugin(BasePlugin):
         return True
 
     def make_seed(self):
-        return Mnemonic('english').make_seed(num_bits=256, prefix=SEED_PREFIX)
+        return Mnemonic('english').make_seed(num_bits=128, prefix=SEED_PREFIX)
 
     @hook
     def do_clear(self, window):
@@ -357,13 +357,26 @@ class TrustedCoinPlugin(BasePlugin):
         f = lambda x: wizard.confirm_seed(seed, '')
         wizard.show_seed_dialog(run_next=f, seed_text=seed)
 
+    def xkeys_from_seed(self, seed):
+        words = seed.split()
+        n = len(words)
+        # old version use long seed phrases
+        if n == 24:
+            xprv1, xpub1 = keystore.xkeys_from_seed(' '.join(words[0:12]), "m/")
+            xprv2, xpub2 = keystore.xkeys_from_seed(' '.join(words[12:]), "m/")
+        elif n==12:
+            xprv1, xpub1 = keystore.xkeys_from_seed(seed, "m/0'/")
+            xprv2, xpub2 = keystore.xkeys_from_seed(seed, "m/1'/")
+        else:
+            raise BaseException('unrecognized seed length')
+        return xprv1, xpub1, xprv2, xpub2
+
     def create_keystore(self, wizard, seed, passphrase):
         assert passphrase == ''
         # this overloads the wizard's method
-        words = seed.split()
-        n = len(words)/2
-        k1 = keystore.xprv_from_seed(' '.join(words[0:n]))
-        k2 = keystore.xpub_from_seed(' '.join(words[n:]))
+        xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(seed)
+        k1 = keystore.from_xprv(xprv1)
+        k2 = keystore.from_xpub(xpub2)
         wizard.request_password(run_next=lambda pw: self.on_password(wizard, pw, k1, k2))
 
     def on_password(self, wizard, password, k1, k2):
@@ -396,10 +409,9 @@ class TrustedCoinPlugin(BasePlugin):
 
     def on_restore_pw(self, wizard, seed, password):
         storage = wizard.storage
-        words = seed.split()
-        n = len(words)/2
-        k1 = keystore.xprv_from_seed(' '.join(words[0:n]))
-        k2 = keystore.xprv_from_seed(' '.join(words[n:]))
+        xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(seed)
+        k1 = keystore.from_xprv(xprv1)
+        k2 = keystore.from_xprv(xprv2)
         k1.add_seed(seed)
         k1.update_password(None, password)
         k2.update_password(None, password)

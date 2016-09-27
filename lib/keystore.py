@@ -710,16 +710,6 @@ def from_xprv(xprv):
     k.xpub = xpub
     return k
 
-def xprv_from_seed(seed):
-    # do not store the seed, only the master xprv
-    xprv, xpub = bip32_root(Mnemonic.mnemonic_to_seed(seed, ''))
-    return from_xprv(xprv)
-
-def xpub_from_seed(seed):
-    # store only master xpub
-    xprv, xpub = bip32_root(Mnemonic.mnemonic_to_seed(seed,''))
-    return from_xpub(xpub)
-
 def from_keys(text):
     if is_xprv(text):
         k = from_xprv(text)

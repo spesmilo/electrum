@@ -814,3 +814,10 @@ def bip32_private_key(sequence, k, chain):
     for i in sequence:
         k, chain = CKD_priv(k, chain, i)
     return SecretToASecret(k, True)
+
+
+def xkeys_from_seed(seed, derivation):
+    from mnemonic import Mnemonic
+    xprv, xpub = bip32_root(Mnemonic.mnemonic_to_seed(seed, ''))
+    xprv, xpub = bip32_private_derivation(xprv, "m/", derivation)
+    return xprv, xpub
