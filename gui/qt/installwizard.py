@@ -267,7 +267,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return seed, is_bip39
 
     @wizard_dialog
-    def restore_keys_dialog(self, title, message, is_valid, run_next):
+    def add_xpub_dialog(self, title, message, is_valid, run_next):
         return self.text_input(title, message, is_valid)
 
     @wizard_dialog
@@ -378,7 +378,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return clayout.selected_index()
 
     @wizard_dialog
-    def line_dialog(self, run_next, title, message, default, test):
+    def line_dialog(self, run_next, title, message, default, test, warning=''):
         vbox = QVBoxLayout()
         vbox.addWidget(WWLabel(message))
         line = QLineEdit()
@@ -387,6 +387,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             self.next_button.setEnabled(test(text))
         line.textEdited.connect(f)
         vbox.addWidget(line)
+        vbox.addWidget(WWLabel(warning))
         self.set_main_layout(vbox, title, next_enabled=test(default))
         return ' '.join(unicode(line.text()).split())
 
