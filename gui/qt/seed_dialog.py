@@ -30,19 +30,13 @@ from electrum.i18n import _
 from util import *
 from qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 
-def icon_filename(sid):
-    if sid == 'cold':
-        return ":icons/cold_seed.png"
-    elif sid == 'hot':
-        return ":icons/hot_seed.png"
-    else:
-        return ":icons/seed.png"
-
 
 class SeedLayoutBase(object):
-    def _seed_layout(self, seed=None, title=None, sid=None):
+
+    def _seed_layout(self, seed=None, title=None, xpub=False):
+        icon = ":icons/xpub.png" if xpub else ":icons/seed.png"
         logo = QLabel()
-        logo.setPixmap(QPixmap(icon_filename(sid)).scaledToWidth(56))
+        logo.setPixmap(QPixmap(icon).scaledToWidth(64))
         logo.setMaximumWidth(60)
         if seed:
             self.seed_e = ShowQRTextEdit()
@@ -70,8 +64,8 @@ class SeedLayoutBase(object):
 
 
 class SeedDisplayLayout(SeedLayoutBase):
-    def __init__(self, seed, title=None, sid=None):
-        self.layout_ = self._seed_layout(seed=seed, title=title, sid=sid)
+    def __init__(self, seed, title=None, xpub=False):
+        self.layout_ = self._seed_layout(seed=seed, title=title, xpub=xpub)
 
 
 
@@ -107,7 +101,7 @@ class TextInputLayout(SeedLayoutBase):
     def __init__(self, parent, title, is_valid):
         self.is_valid = is_valid
         self.parent = parent
-        self.layout_ = self._seed_layout(title=title)
+        self.layout_ = self._seed_layout(title=title, xpub=True)
         self.seed_e.textChanged.connect(self.on_edit)
 
     def get_text(self):
