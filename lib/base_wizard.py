@@ -260,7 +260,7 @@ class BaseWizard(object):
 
     def restore_from_seed(self):
         self.opt_bip39 = True
-        test = bitcoin.is_seed
+        test = bitcoin.is_seed if self.wallet_type == 'standard' else bitcoin.is_new_seed
         self.restore_seed_dialog(run_next=self.on_restore_seed, test=test)
 
     def on_restore_seed(self, seed, is_bip39):
