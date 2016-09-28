@@ -259,12 +259,8 @@ class BaseWizard(object):
         self.line_dialog(title=_('Passphrase'), message=message, warning=warning, default='', test=lambda x:True, run_next=run_next)
 
     def restore_from_seed(self):
-        if self.wallet_type == 'standard':
-            self.opt_bip39 = True
-            test = bitcoin.is_seed
-        else:
-            self.opt_bip39 = False
-            test = bitcoin.is_new_seed
+        self.opt_bip39 = True
+        test = bitcoin.is_seed
         self.restore_seed_dialog(run_next=self.on_restore_seed, test=test)
 
     def on_restore_seed(self, seed, is_bip39):
