@@ -129,6 +129,7 @@ class BaseWizard(object):
             message = _('Add a cosigner to your multi-sig wallet')
             choices = [
                 ('restore_from_key', _('Enter cosigner key')),
+                ('restore_from_seed', _('Enter cosigner seed')),
             ]
             if not self.is_kivy:
                 choices.append(('choose_hw_device',  _('Cosign with hardware device')))
