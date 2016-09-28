@@ -275,8 +275,12 @@ class BaseWizard(object):
             elif seed_type == 'old':
                 self.run('create_keystore', seed, passphrase)
             elif seed_type == '2fa':
-                self.load_2fa()
-                self.run('on_restore_seed', seed)
+                if self.is_kivy:
+                    self.show_error('2FA seeds are not supported in this version')
+                    self.run('restore_from_seed')
+                else:
+                    self.load_2fa()
+                    self.run('on_restore_seed', seed)
             else:
                 raise
 
