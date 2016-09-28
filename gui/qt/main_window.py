@@ -905,9 +905,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             from electrum_ltc.util import fee_levels
             i = self.fee_slider.sliderPosition()
             tooltip = fee_levels[i]
-            dynfee = self.network.dynfee(i)
-            if dynfee:
-                tooltip += '\n' + self.format_amount(dynfee) + ' ' + self.base_unit() + '/kB'
+            if self.network:
+                dynfee = self.network.dynfee(i)
+                if dynfee:
+                    tooltip += '\n' + self.format_amount(dynfee) + ' ' + self.base_unit() + '/kB'
             QToolTip.showText(QCursor.pos(), tooltip, self.fee_slider)
         def slider_released():
             self.config.set_key('fee_level', self.fee_slider.sliderPosition(), False)

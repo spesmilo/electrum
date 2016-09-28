@@ -122,6 +122,8 @@ class SeedInputLayout(SeedLayoutBase):
     def __init__(self, parent, title, is_seed):
         vbox = QVBoxLayout()
         vbox.addLayout(self._seed_layout(title=title))
+        self.seed_type_label = QLabel('')
+        vbox.addWidget(self.seed_type_label)
         self.layout_ = vbox
         self.parent = parent
         self.is_seed = is_seed
@@ -131,7 +133,13 @@ class SeedInputLayout(SeedLayoutBase):
         return clean_text(self.seed_edit())
 
     def on_edit(self):
-        self.parent.next_button.setEnabled(self.is_seed(self.get_seed()))
+        from electrum_ltc.bitcoin import seed_type
+        s = self.get_seed()
+        b = self.is_seed(s)
+        t = seed_type(s)
+        label = _('Seed Type') + ': ' + t if t else ''
+        self.seed_type_label.setText(label)
+        self.parent.next_button.setEnabled(b)
 
 
 

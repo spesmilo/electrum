@@ -33,7 +33,7 @@ from bitcoin import pw_encode, pw_decode, bip32_root, bip32_private_derivation, 
 from bitcoin import public_key_from_private_key, public_key_to_bc_address
 from bitcoin import *
 
-from bitcoin import is_old_seed, is_new_seed
+from bitcoin import is_old_seed, is_new_seed, is_seed
 from util import PrintError, InvalidPassword
 from mnemonic import Mnemonic
 
@@ -665,7 +665,7 @@ def is_private_key_list(text):
     parts = text.split()
     return bool(parts) and all(bitcoin.is_private_key(x) for x in parts)
 
-is_seed = lambda x: is_old_seed(x) or is_new_seed(x)
+
 is_mpk = lambda x: is_old_mpk(x) or is_xpub(x)
 is_private = lambda x: is_seed(x) or is_xprv(x) or is_private_key_list(x)
 is_any_key = lambda x: is_old_mpk(x) or is_xprv(x) or is_xpub(x) or is_address_list(x) or is_private_key_list(x)
@@ -709,16 +709,6 @@ def from_xprv(xprv):
     k.xprv = xprv
     k.xpub = xpub
     return k
-
-def xprv_from_seed(seed):
-    # do not store the seed, only the master xprv
-    xprv, xpub = bip32_root(Mnemonic.mnemonic_to_seed(seed, ''))
-    return from_xprv(xprv)
-
-def xpub_from_seed(seed):
-    # store only master xpub
-    xprv, xpub = bip32_root(Mnemonic.mnemonic_to_seed(seed,''))
-    return from_xpub(xpub)
 
 def from_keys(text):
     if is_xprv(text):

@@ -724,7 +724,7 @@ class InstallWizard(BaseWizard, Widget):
             try:
                 task()
             except Exception as err:
-                Clock.schedule_once(lambda dt: app.show_error(str(err)))
+                self.show_error(str(err))
             # on  completion hide message
             Clock.schedule_once(lambda dt: app.info_bubble.hide(now=True), -1)
 
@@ -770,7 +770,7 @@ class InstallWizard(BaseWizard, Widget):
     def show_xpub_dialog(self, **kwargs): ShowXpubDialog(self, **kwargs).open()
 
     def show_error(self, msg):
-        app.show_error(msg, duration=0.5)
+        Clock.schedule_once(lambda dt: app.show_error(msg))
 
     def password_dialog(self, message, callback):
         popup = PasswordDialog()

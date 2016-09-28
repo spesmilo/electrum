@@ -175,15 +175,24 @@ def is_old_seed(seed):
         uses_electrum_words = True
     except Exception:
         uses_electrum_words = False
-
     try:
         seed.decode('hex')
         is_hex = (len(seed) == 32 or len(seed) == 64)
     except Exception:
         is_hex = False
-
     return is_hex or (uses_electrum_words and (len(words) == 12 or len(words) == 24))
 
+
+def seed_type(x):
+    if is_old_seed(x):
+        return 'old'
+    elif is_new_seed(x):
+        return 'standard'
+    elif is_new_seed(x, version.SEED_PREFIX_2FA):
+        return '2fa'
+    return ''
+
+is_seed = lambda x: bool(seed_type(x))
 
 # pywallet openssl private key implementation
 
@@ -829,3 +838,10 @@ def bip32_private_key(sequence, k, chain):
     for i in sequence:
         k, chain = CKD_priv(k, chain, i)
     return SecretToASecret(k, True)
+
+
+def xkeys_from_seed(seed, derivation):
+    from mnemonic import Mnemonic
+    xprv, xpub = bip32_root(Mnemonic.mnemonic_to_seed(seed, ''))
+    xprv, xpub = bip32_private_derivation(xprv, "m/", derivation)
+    return xprv, xpub

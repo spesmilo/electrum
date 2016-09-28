@@ -24,6 +24,7 @@
 # SOFTWARE.
 
 import os
+import bitcoin
 import keystore
 from wallet import Wallet, Imported_Wallet, Standard_Wallet, Multisig_Wallet, WalletStorage, wallet_types
 from i18n import _
@@ -85,6 +86,11 @@ class BaseWizard(object):
         choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
 
+    def load_2fa(self):
+        self.storage.put('wallet_type', '2fa')
+        self.storage.put('use_trustedcoin', True)
+        self.plugin = self.plugins.load_plugin('trustedcoin')
+
     def on_wallet_type(self, choice):
         self.wallet_type = choice
         if choice == 'standard':
@@ -92,9 +98,7 @@ class BaseWizard(object):
         elif choice == 'multisig':
             action = 'choose_multisig'
         elif choice == '2fa':
-            self.storage.put('wallet_type', '2fa')
-            self.storage.put('use_trustedcoin', True)
-            self.plugin = self.plugins.load_plugin('trustedcoin')
+            self.load_2fa()
             action = self.storage.get_action()
         elif choice == 'imported':
             action = 'import_addresses'
@@ -243,31 +247,46 @@ class BaseWizard(object):
         k = hardware_keystore(d)
         self.on_keystore(k)
 
+    def passphrase_dialog(self, run_next):
+        message = '\n'.join([
+            _('Your seed may be extended with a passphrase.'),
+            _('If that is the case, enter it here.'),
+        ])
+        warning = '\n'.join([
+            _('Note that this is NOT your encryption password.'),
+            _('If you do not know what this is, leave this field empty.'),
+        ])
+        self.line_dialog(title=_('Passphrase'), message=message, warning=warning, default='', test=lambda x:True, run_next=run_next)
+
     def restore_from_seed(self):
         self.opt_bip39 = True
-        self.restore_seed_dialog(run_next=self.on_restore_seed, test=keystore.is_seed)
+        test = bitcoin.is_seed if self.wallet_type == 'standard' else bitcoin.is_new_seed
+        self.restore_seed_dialog(run_next=self.on_restore_seed, test=test)
 
     def on_restore_seed(self, seed, is_bip39):
-        if keystore.is_new_seed(seed) or is_bip39:
-            message = '\n'.join([
-                _('Your seed may be extended with a passphrase.'),
-                _('If that is the case, enter it here.'),
-            ])
-            warning = '\n'.join([
-                _('Note that this is NOT your encryption password.'),
-                _('If you do not know what this is, leave this field empty.'),
-            ])
-            f = lambda x: self.on_restore_passphrase(seed, x, is_bip39)
-            self.line_dialog(title=_('Passphrase'), message=message, warning=warning, default='', test=lambda x:True, run_next=f)
-        else:
-            self.on_restore_passphrase(seed, '', False)
-
-    def on_restore_passphrase(self, seed, passphrase, is_bip39):
         if is_bip39:
-            f = lambda x: self.run('on_bip44', seed, passphrase, int(x))
-            self.account_id_dialog(f)
+            f = lambda x: self.on_restore_bip39(seed, x)
+            self.passphrase_dialog(run_next=f)
         else:
-            self.run('create_keystore', seed, passphrase)
+            seed_type = bitcoin.seed_type(seed)
+            if seed_type == 'standard':
+                f = lambda x: self.run('create_keystore', seed, x)
+                self.passphrase_dialog(run_next=f)
+            elif seed_type == 'old':
+                self.run('create_keystore', seed, passphrase)
+            elif seed_type == '2fa':
+                if self.is_kivy:
+                    self.show_error('2FA seeds are not supported in this version')
+                    self.run('restore_from_seed')
+                else:
+                    self.load_2fa()
+                    self.run('on_restore_seed', seed)
+            else:
+                raise
+
+    def on_restore_bip39(self, seed, passphrase):
+        f = lambda x: self.run('on_bip44', seed, passphrase, int(x))
+        self.account_id_dialog(f)
 
     def create_keystore(self, seed, passphrase):
         k = keystore.from_seed(seed, passphrase)
