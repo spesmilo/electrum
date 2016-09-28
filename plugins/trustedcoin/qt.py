@@ -252,7 +252,10 @@ class Plugin(TrustedCoinPlugin):
             vbox.addWidget(qrw, 1)
             msg = _('Then, enter your Google Authenticator code:')
         else:
-            label = QLabel("This wallet is already registered, but it was never authenticated. To finalize your registration, please enter your Google Authenticator Code. If you do not have this code, delete the wallet file and start a new registration")
+            label = QLabel(
+                "This wallet is already registered with Trustedcoin. "
+                "To finalize wallet creation, please enter your Google Authenticator Code. "
+                "If you do not have this code, delete the wallet file and start a new registration")
             label.setWordWrap(1)
             vbox.addWidget(label)
             msg = _('Google Authenticator code:')

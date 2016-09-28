@@ -256,9 +256,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             vbox.addStretch(1)
             vbox.addWidget(QLabel(_('Options') + ':'))
             def f(b):
-                slayout.is_seed = (lambda x: bool(x)) if b else is_valid
+                slayout.is_seed = (lambda x: bool(x)) if b else is_seed
                 slayout.on_edit()
-            cb_bip39 = QCheckBox(_('BIP39/BIP44 seed'))
+            cb_bip39 = QCheckBox(_('BIP39 seed'))
             cb_bip39.toggled.connect(f)
             vbox.addWidget(cb_bip39)
         self.set_main_layout(vbox, title, next_enabled=False)

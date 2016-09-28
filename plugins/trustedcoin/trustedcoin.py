@@ -404,8 +404,24 @@ class TrustedCoinPlugin(BasePlugin):
         wizard.restore_seed_dialog(run_next=f, test=self.is_valid_seed)
 
     def on_restore_seed(self, wizard, seed):
-        f = lambda pw: wizard.run('on_restore_pw', seed, pw)
-        wizard.request_password(run_next=f)
+        wizard.set_icon(':icons/trustedcoin.png')
+        wizard.stack = []
+        title = _('Restore 2FA wallet')
+        msg = ' '.join([
+            'You are going to restore a wallet protected with two-factor authentication.',
+            'Do you want to keep using two-factor authentication with this wallet,',
+            'or do you want to disable it, and have two master private keys in your wallet?'
+        ])
+        choices = [('keep', 'Keep'), ('disable', 'Disable')]
+        f = lambda x: self.on_choice(wizard, seed, x)
+        wizard.choice_dialog(choices=choices, message=msg, title=title, run_next=f)
+
+    def on_choice(self, wizard, seed, x):
+        if x == 'disable':
+            f = lambda pw: wizard.run('on_restore_pw', seed, pw)
+            wizard.request_password(run_next=f)
+        else:
+            self.create_keystore(wizard, seed, '')
 
     def on_restore_pw(self, wizard, seed, password):
         storage = wizard.storage

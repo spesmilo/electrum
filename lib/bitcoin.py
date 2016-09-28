@@ -173,15 +173,24 @@ def is_old_seed(seed):
         uses_electrum_words = True
     except Exception:
         uses_electrum_words = False
-
     try:
         seed.decode('hex')
         is_hex = (len(seed) == 32 or len(seed) == 64)
     except Exception:
         is_hex = False
-
     return is_hex or (uses_electrum_words and (len(words) == 12 or len(words) == 24))
 
+
+def seed_type(x):
+    if is_old_seed(x):
+        return 'old'
+    elif is_new_seed(x):
+        return 'standard'
+    elif is_new_seed(x, version.SEED_PREFIX_2FA):
+        return '2fa'
+    return ''
+
+is_seed = lambda x: bool(seed_type(x))
 
 # pywallet openssl private key implementation
 
