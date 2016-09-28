@@ -37,6 +37,5 @@
     <file>icons/unlock.png</file>
     <file>icons/warning.png</file>
     <file>icons/zoom.png</file>
-    <file>icons/xpub.png</file>
   </qresource>
 </RCC>

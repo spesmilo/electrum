@@ -140,7 +140,7 @@ class BaseWizard(object):
         v = keystore.is_address_list
         title = _("Import Bitcoin Addresses")
         message = _("Enter a list of Bitcoin addresses. This will create a watching-only wallet.")
-        self.restore_keys_dialog(title=title, message=message, run_next=self.on_import_addresses, is_valid=v)
+        self.add_xpub_dialog(title=title, message=message, run_next=self.on_import_addresses, is_valid=v)
 
     def on_import_addresses(self, text):
         assert keystore.is_address_list(text)

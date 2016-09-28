@@ -412,7 +412,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             _("Please share it with your cosigners.")
         ])
         vbox = QVBoxLayout()
-        layout = SeedDisplayLayout(xpub, title=msg, xpub=True)
+        layout = SeedDisplayLayout(xpub, title=msg, icon=False)
         vbox.addLayout(layout.layout())
         self.set_main_layout(vbox, _('Master Public Key'))
         return None
