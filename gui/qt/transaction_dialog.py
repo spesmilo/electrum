@@ -208,9 +208,6 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.date_label.show()
         else:
             self.date_label.hide()
-        # if we are not synchronized, we cannot tell
-        if not self.wallet.up_to_date:
-            return
         if amount is None:
             amount_str = _("Transaction unrelated to your wallet")
         elif amount > 0:
@@ -222,14 +219,11 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.fee_label.setText(fee_str)
         run_hook('transaction_dialog_update', self)
 
-
     def add_io(self, vbox):
-
         if self.tx.locktime > 0:
             vbox.addWidget(QLabel("LockTime: %d\n" % self.tx.locktime))
 
         vbox.addWidget(QLabel(_("Inputs") + ' (%d)'%len(self.tx.inputs())))
-
         ext = QTextCharFormat()
         rec = QTextCharFormat()
         rec.setBackground(QBrush(QColor("lightgreen")))
