@@ -348,33 +348,31 @@ class TrustedCoinPlugin(BasePlugin):
             ('create_seed', _('Create a new seed')),
             ('restore_wallet', _('I already have a seed')),
         ]
-        wizard.opt_bip39 = False
-        wizard.opt_ext = False
         wizard.choice_dialog(title=title, message=message, choices=choices, run_next=wizard.run)
 
     def create_seed(self, wizard):
         seed = self.make_seed()
-        f = lambda x: wizard.confirm_seed(seed, '')
+        f = lambda x: wizard.request_passphrase(seed, x)
         wizard.show_seed_dialog(run_next=f, seed_text=seed)
 
-    def xkeys_from_seed(self, seed):
+    def xkeys_from_seed(self, seed, passphrase):
         words = seed.split()
         n = len(words)
         # old version use long seed phrases
         if n >= 24:
-            xprv1, xpub1 = keystore.xkeys_from_seed(' '.join(words[0:12]), "m/")
-            xprv2, xpub2 = keystore.xkeys_from_seed(' '.join(words[12:]), "m/")
+            assert passphrase == ''
+            xprv1, xpub1 = keystore.xkeys_from_seed(' '.join(words[0:12]), '', "m/")
+            xprv2, xpub2 = keystore.xkeys_from_seed(' '.join(words[12:]), '', "m/")
         elif n==12:
-            xprv1, xpub1 = keystore.xkeys_from_seed(seed, "m/0'/")
-            xprv2, xpub2 = keystore.xkeys_from_seed(seed, "m/1'/")
+            xprv1, xpub1 = keystore.xkeys_from_seed(seed, passphrase, "m/0'/")
+            xprv2, xpub2 = keystore.xkeys_from_seed(seed, passphrase, "m/1'/")
         else:
             raise BaseException('unrecognized seed length')
         return xprv1, xpub1, xprv2, xpub2
 
     def create_keystore(self, wizard, seed, passphrase):
-        assert passphrase == ''
         # this overloads the wizard's method
-        xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(seed)
+        xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(seed, passphrase)
         k1 = keystore.from_xprv(xprv1)
         k2 = keystore.from_xpub(xpub2)
         wizard.request_password(run_next=lambda pw: self.on_password(wizard, pw, k1, k2))
@@ -399,11 +397,17 @@ class TrustedCoinPlugin(BasePlugin):
         wizard.confirm_dialog(title='', message=msg, run_next = lambda x: wizard.run('create_remote_key'))
 
     def restore_wallet(self, wizard):
+        wizard.opt_bip39 = False
+        wizard.opt_ext = True
         title = _("Restore two-factor Wallet")
-        f = lambda x, y: wizard.run('on_restore_seed', x)
+        f = lambda seed, is_bip39, is_ext: wizard.run('on_restore_seed', seed, is_ext)
         wizard.restore_seed_dialog(run_next=f, test=self.is_valid_seed)
 
-    def on_restore_seed(self, wizard, seed):
+    def on_restore_seed(self, wizard, seed, is_ext):
+        f = lambda x: self.restore_choice(wizard, seed, x)
+        wizard.passphrase_dialog(run_next=f) if is_ext else f('')
+
+    def restore_choice(self, wizard, seed, passphrase):
         wizard.set_icon(':icons/trustedcoin.png')
         wizard.stack = []
         title = _('Restore 2FA wallet')
@@ -413,19 +417,19 @@ class TrustedCoinPlugin(BasePlugin):
             'or do you want to disable it, and have two master private keys in your wallet?'
         ])
         choices = [('keep', 'Keep'), ('disable', 'Disable')]
-        f = lambda x: self.on_choice(wizard, seed, x)
+        f = lambda x: self.on_choice(wizard, seed, passphrase, x)
         wizard.choice_dialog(choices=choices, message=msg, title=title, run_next=f)
 
-    def on_choice(self, wizard, seed, x):
+    def on_choice(self, wizard, seed, passphrase, x):
         if x == 'disable':
-            f = lambda pw: wizard.run('on_restore_pw', seed, pw)
+            f = lambda pw: wizard.run('on_restore_pw', seed, passphrase, pw)
             wizard.request_password(run_next=f)
         else:
-            self.create_keystore(wizard, seed, '')
+            self.create_keystore(wizard, seed, passphrase)
 
-    def on_restore_pw(self, wizard, seed, password):
+    def on_restore_pw(self, wizard, seed, passphrase, password):
         storage = wizard.storage
-        xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(seed)
+        xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(seed, passphrase)
         k1 = keystore.from_xprv(xprv1)
         k2 = keystore.from_xprv(xprv2)
         k1.add_seed(seed)
