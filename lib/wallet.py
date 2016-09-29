@@ -1018,7 +1018,8 @@ class Abstract_Wallet(PrintError):
         # sign
         for k in self.get_keystores():
             try:
-                k.sign_transaction(tx, password)
+                if k.can_sign(tx):
+                    k.sign_transaction(tx, password)
             except UserCancelled:
                 continue
 
