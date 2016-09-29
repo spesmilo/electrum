@@ -313,7 +313,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             _('If you lose your seed, your money will be permanently lost.'),
             _('To make sure that you have properly saved your seed, please retype it here.')
         ])
-        seed, is_bip39, is_pass = self.seed_input(title, message, test)
+        self.opt_ext = False
+        self.opt_bip39 = False
+        seed, is_bip39, is_ext = self.seed_input(title, message, test)
         return seed
 
     @wizard_dialog
