@@ -292,9 +292,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def watching_only_changed(self):
         title = 'Electrum %s  -  %s' % (self.wallet.electrum_version,
                                         self.wallet.basename())
+        extra = [self.wallet.storage.get('wallet_type', '?')]
         if self.wallet.is_watching_only():
             self.warn_if_watching_only()
-            title += ' [%s]' % (_('watching only'))
+            extra.append(_('watching only'))
+        title += '  [%s]'% ', '.join(extra)
         self.setWindowTitle(title)
         self.password_menu.setEnabled(self.wallet.can_change_password())
         self.import_privkey_menu.setVisible(self.wallet.can_import_privkey())
