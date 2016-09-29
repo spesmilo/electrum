@@ -288,8 +288,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def add_cosigner_dialog(self, run_next, index, is_valid):
         title = _("Add Cosigner") + " %d"%index
         message = ' '.join([
-            _('Please enter the master public key of your cosigner.'),
-            _('Enter their seed or master private key if you want to be able to sign for them.')
+            _('Please enter the master public key (xpub) of your cosigner.'),
+            _('Enter their master private key (xprv) if you want to be able to sign for them.')
         ])
         return self.text_input(title, message, is_valid)
 
@@ -412,7 +412,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             _("Please share it with your cosigners.")
         ])
         vbox = QVBoxLayout()
-        layout = SeedDisplayLayout(xpub, title=msg, sid='hot')
+        layout = SeedDisplayLayout(xpub, title=msg, icon=False)
         vbox.addLayout(layout.layout())
         self.set_main_layout(vbox, _('Master Public Key'))
         return None

@@ -30,20 +30,10 @@ from electrum_ltc.i18n import _
 from util import *
 from qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 
-def icon_filename(sid):
-    if sid == 'cold':
-        return ":icons/cold_seed.png"
-    elif sid == 'hot':
-        return ":icons/hot_seed.png"
-    else:
-        return ":icons/seed.png"
-
 
 class SeedLayoutBase(object):
-    def _seed_layout(self, seed=None, title=None, sid=None):
-        logo = QLabel()
-        logo.setPixmap(QPixmap(icon_filename(sid)).scaledToWidth(56))
-        logo.setMaximumWidth(60)
+
+    def _seed_layout(self, seed=None, title=None, icon=True):
         if seed:
             self.seed_e = ShowQRTextEdit()
             self.seed_e.setText(seed)
@@ -52,7 +42,11 @@ class SeedLayoutBase(object):
             self.seed_e.setTabChangesFocus(True)
         self.seed_e.setMaximumHeight(75)
         hbox = QHBoxLayout()
-        hbox.addWidget(logo)
+        if icon:
+            logo = QLabel()
+            logo.setPixmap(QPixmap(":icons/seed.png").scaledToWidth(64))
+            logo.setMaximumWidth(60)
+            hbox.addWidget(logo)
         hbox.addWidget(self.seed_e)
         if not title:
             return hbox
@@ -70,8 +64,8 @@ class SeedLayoutBase(object):
 
 
 class SeedDisplayLayout(SeedLayoutBase):
-    def __init__(self, seed, title=None, sid=None):
-        self.layout_ = self._seed_layout(seed=seed, title=title, sid=sid)
+    def __init__(self, seed, title=None, icon=True):
+        self.layout_ = self._seed_layout(seed=seed, title=title, icon=icon)
 
 
 
@@ -107,7 +101,7 @@ class TextInputLayout(SeedLayoutBase):
     def __init__(self, parent, title, is_valid):
         self.is_valid = is_valid
         self.parent = parent
-        self.layout_ = self._seed_layout(title=title)
+        self.layout_ = self._seed_layout(title=title, icon=False)
         self.seed_e.textChanged.connect(self.on_edit)
 
     def get_text(self):

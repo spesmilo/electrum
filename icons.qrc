@@ -7,13 +7,11 @@
     <file>icons/clock4.png</file>
     <file>icons/clock5.png</file>
     <file>icons/confirmed.png</file>
-    <file>icons/cold_seed.png</file>
     <file>icons/copy.png</file>
     <file>icons/expired.png</file>
     <file>icons/electrum_light_icon.png</file>
     <file>icons/electrum_dark_icon.png</file>
     <file>icons/file.png</file>
-    <file>icons/hot_seed.png</file>
     <file>icons/keepkey.png</file>
     <file>icons/keepkey_unpaired.png</file>
     <file>icons/key.png</file>

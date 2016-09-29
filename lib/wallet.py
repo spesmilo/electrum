@@ -1519,6 +1519,9 @@ class Multisig_Wallet(Deterministic_Wallet):
             self.storage.put(name, keystore.dump())
         self.storage.put('use_encryption', (new_pw is not None))
 
+    def check_password(self, password):
+        self.keystore.check_password(password)
+
     def has_seed(self):
         return self.keystore.has_seed()
 
