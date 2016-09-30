@@ -257,28 +257,27 @@ class Ledger_KeyStore(Hardware_KeyStore):
         p2shTransaction = False
         pin = ""
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
-        rawTx = tx.serialize()
+
         # Fetch inputs of the transaction to sign
+        derivations = self.get_tx_derivations(tx)
         for txin in tx.inputs():
             if txin.get('is_coinbase'):
                 self.give_error("Coinbase not supported")     # should never happen
             redeemScript = None
-            signingPos = -1
-            xpub, s = parse_xpubkey(txin['x_pubkeys'][0])
-            hwAddress = "%s/%d/%d" % (self.get_derivation()[2:], s[0], s[1])
 
             if len(txin['pubkeys']) > 1:
                 p2shTransaction = True
             if 'redeemScript' in txin:
                 redeemScript = txin['redeemScript']
-            if p2shTransaction:
-                chipPublicKey = compress_public_key(self.get_client().getWalletPublicKey(hwAddress)['publicKey'])
-                for currentIndex, key in enumerate(txin['pubkeys']):
-                    if chipPublicKey == key.decode('hex'):
-                        signingPos = currentIndex
-                        break
-                if signingPos == -1:
-                    self.give_error("No matching key for multisignature input") # should never happen
+
+            for i, x_pubkey in enumerate(txin['x_pubkeys']):
+                if x_pubkey in derivations:
+                    signingPos = i
+                    s = derivations.get(x_pubkey)
+                    hwAddress = "%s/%d/%d" % (self.get_derivation()[2:], s[0], s[1])
+                    break
+            else:
+                self.give_error("No matching x_key for sign_transaction") # should never happen
 
             inputs.append([txin['prev_tx'].raw, txin['prevout_n'], redeemScript, txin['prevout_hash'], signingPos ])
             inputsPaths.append(hwAddress)
