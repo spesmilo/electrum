@@ -252,9 +252,13 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         slayout = SeedInputLayout(self, message, is_seed)
         vbox = QVBoxLayout()
         vbox.addLayout(slayout.layout())
-        if self.opt_bip39:
+        if self.opt_ext or self.opt_bip39:
             vbox.addStretch(1)
             vbox.addWidget(QLabel(_('Options') + ':'))
+        if self.opt_ext:
+            cb_pass = QCheckBox(_('Add a passphrase to this seed'))
+            vbox.addWidget(cb_pass)
+        if self.opt_bip39:
             def f(b):
                 if b:
                     msg = ' '.join([
@@ -278,7 +282,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.set_main_layout(vbox, title, next_enabled=False)
         seed = slayout.get_seed()
         is_bip39 = cb_bip39.isChecked() if self.opt_bip39 else False
-        return seed, is_bip39
+        is_ext = cb_pass.isChecked() if self.opt_ext else False
+        return seed, is_bip39, is_ext
 
     @wizard_dialog
     def add_xpub_dialog(self, title, message, is_valid, run_next):
@@ -308,14 +313,22 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             _('If you lose your seed, your money will be permanently lost.'),
             _('To make sure that you have properly saved your seed, please retype it here.')
         ])
-        seed, is_bip39 = self.seed_input(title, message, test)
+        self.opt_ext = False
+        self.opt_bip39 = False
+        seed, is_bip39, is_ext = self.seed_input(title, message, test)
         return seed
 
     @wizard_dialog
     def show_seed_dialog(self, run_next, seed_text):
+        vbox = QVBoxLayout()
         slayout = CreateSeedLayout(seed_text)
-        self.set_main_layout(slayout.layout())
-        return seed_text
+        vbox.addLayout(slayout.layout())
+        vbox.addStretch(1)
+        vbox.addWidget(QLabel('<b>'+_('Option') + '</b>:'))
+        cb_pass = QCheckBox(_('Add a passphrase to this seed'))
+        vbox.addWidget(cb_pass)
+        self.set_main_layout(vbox)
+        return cb_pass.isChecked()
 
     def pw_layout(self, msg, kind):
         playout = PasswordLayout(None, msg, kind, self.next_button)

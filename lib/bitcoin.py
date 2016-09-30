@@ -840,8 +840,8 @@ def bip32_private_key(sequence, k, chain):
     return SecretToASecret(k, True)
 
 
-def xkeys_from_seed(seed, derivation):
+def xkeys_from_seed(seed, passphrase, derivation):
     from mnemonic import Mnemonic
-    xprv, xpub = bip32_root(Mnemonic.mnemonic_to_seed(seed, ''))
+    xprv, xpub = bip32_root(Mnemonic.mnemonic_to_seed(seed, passphrase))
     xprv, xpub = bip32_private_derivation(xprv, "m/", derivation)
     return xprv, xpub

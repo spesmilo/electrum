@@ -530,7 +530,7 @@ class ShowSeedDialog(WizardDialog):
             self._back = _back = partial(self.ids.back.dispatch, 'on_release')
 
     def get_params(self, b):
-        return (self.seed_text,)
+        return (True,)
 
 
 class WordButton(Button):
@@ -643,7 +643,7 @@ class RestoreSeedDialog(WizardDialog):
             tis.focus = False
 
     def get_params(self, b):
-        return (self.get_text(), False)
+        return (self.get_text(), False, True)
 
 
 class ConfirmSeedDialog(RestoreSeedDialog):

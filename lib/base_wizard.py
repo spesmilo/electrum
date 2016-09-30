@@ -249,9 +249,10 @@ class BaseWizard(object):
         self.on_keystore(k)
 
     def passphrase_dialog(self, run_next):
+        title = _('Passphrase')
         message = '\n'.join([
-            _('Your seed may be extended with a passphrase.'),
-            _('If that is the case, enter it here.'),
+            _('You may extend your seed with a passphrase.'),
+            _('The passphrase must be saved together with your seed.'),
         ])
         warning = '\n'.join([
             _('Note that this is NOT your encryption password.'),
@@ -261,18 +262,19 @@ class BaseWizard(object):
 
     def restore_from_seed(self):
         self.opt_bip39 = True
+        self.opt_ext = True
         test = bitcoin.is_seed if self.wallet_type == 'standard' else bitcoin.is_new_seed
         self.restore_seed_dialog(run_next=self.on_restore_seed, test=test)
 
-    def on_restore_seed(self, seed, is_bip39):
+    def on_restore_seed(self, seed, is_bip39, is_ext):
         if is_bip39:
-            f = lambda x: self.on_restore_bip39(seed, x)
-            self.passphrase_dialog(run_next=f)
+            f = lambda passphrase: self.on_restore_bip39(seed, passphrase)
+            self.passphrase_dialog(run_next=f) if is_ext else f('')
         else:
             seed_type = bitcoin.seed_type(seed)
             if seed_type == 'standard':
-                f = lambda x: self.run('create_keystore', seed, x)
-                self.passphrase_dialog(run_next=f)
+                f = lambda passphrase: self.run('create_keystore', seed, passphrase)
+                self.passphrase_dialog(run_next=f) if is_ext else f('')
             elif seed_type == 'old':
                 self.run('create_keystore', seed, passphrase)
             elif seed_type == '2fa':
@@ -281,7 +283,7 @@ class BaseWizard(object):
                     self.run('restore_from_seed')
                 else:
                     self.load_2fa()
-                    self.run('on_restore_seed', seed)
+                    self.run('on_restore_seed', seed, is_ext)
             else:
                 raise
 
@@ -355,20 +357,15 @@ class BaseWizard(object):
         from electrum_ltc.mnemonic import Mnemonic
         seed = Mnemonic('en').make_seed()
         self.opt_bip39 = False
-        self.show_seed_dialog(run_next=self.request_passphrase, seed_text=seed)
+        f = lambda x: self.request_passphrase(seed, x)
+        self.show_seed_dialog(run_next=f, seed_text=seed)
 
-    def request_passphrase(self, seed):
-        title = _('Passphrase')
-        message = '\n'.join([
-            _('You may extend your seed with a passphrase.'),
-            _('The passphrase must be saved together with your seed.'),
-        ])
-        warning = '\n'.join([
-            _('Note that this is NOT your encryption password.'),
-            _('If you do not know what this is, leave this field empty.'),
-        ])
-        f = lambda x: self.confirm_seed(seed, x)
-        self.line_dialog(run_next=f, title=title, message=message, warning=warning, default='', test=lambda x:True)
+    def request_passphrase(self, seed, opt_passphrase):
+        if opt_passphrase:
+            f = lambda x: self.confirm_seed(seed, x)
+            self.passphrase_dialog(run_next=f)
+        else:
+            self.run('confirm_seed', seed, '')
 
     def confirm_seed(self, seed, passphrase):
         f = lambda x: self.confirm_passphrase(seed, passphrase)

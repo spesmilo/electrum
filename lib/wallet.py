@@ -1021,7 +1021,8 @@ class Abstract_Wallet(PrintError):
         # sign
         for k in self.get_keystores():
             try:
-                k.sign_transaction(tx, password)
+                if k.can_sign(tx):
+                    k.sign_transaction(tx, password)
             except UserCancelled:
                 continue
 
@@ -1268,6 +1269,10 @@ class P2PK_Wallet(Abstract_Wallet):
     def get_pubkey(self, c, i):
         pubkey_list = self.change_pubkeys if c else self.receiving_pubkeys
         return pubkey_list[i]
+
+    def get_public_keys(self, address):
+        sequence = self.get_address_index(address)
+        return [self.get_pubkey(*sequence)]
 
     def get_pubkey_index(self, pubkey):
         if pubkey in self.receiving_pubkeys:
