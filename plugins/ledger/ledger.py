@@ -263,12 +263,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
         for txin in tx.inputs():
             if txin.get('is_coinbase'):
                 self.give_error("Coinbase not supported")     # should never happen
-            redeemScript = None
 
             if len(txin['pubkeys']) > 1:
                 p2shTransaction = True
-            if 'redeemScript' in txin:
-                redeemScript = txin['redeemScript']
 
             for i, x_pubkey in enumerate(txin['x_pubkeys']):
                 if x_pubkey in derivations:
@@ -279,7 +276,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
             else:
                 self.give_error("No matching x_key for sign_transaction") # should never happen
 
-            inputs.append([txin['prev_tx'].raw, txin['prevout_n'], redeemScript, txin['prevout_hash'], signingPos ])
+            inputs.append([txin['prev_tx'].raw, txin['prevout_n'], txin.get('redeemScript'), txin['prevout_hash'], signingPos ])
             inputsPaths.append(hwAddress)
             pubKeys.append(txin['pubkeys'])
 
