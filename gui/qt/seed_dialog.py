@@ -118,6 +118,7 @@ class SeedInputLayout(SeedLayoutBase):
         vbox.addLayout(self._seed_layout(title=title))
         hbox = QHBoxLayout()
         hbox.addStretch(1)
+        hbox.addWidget(QLabel(''))
         self.seed_type_label = QLabel('')
         hbox.addWidget(self.seed_type_label)
         vbox.addLayout(hbox)
