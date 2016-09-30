@@ -116,8 +116,12 @@ class SeedInputLayout(SeedLayoutBase):
     def __init__(self, parent, title, is_seed):
         vbox = QVBoxLayout()
         vbox.addLayout(self._seed_layout(title=title))
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
+        hbox.addWidget(QLabel(''))
         self.seed_type_label = QLabel('')
-        vbox.addWidget(self.seed_type_label)
+        hbox.addWidget(self.seed_type_label)
+        vbox.addLayout(hbox)
         self.layout_ = vbox
         self.parent = parent
         self.is_seed = is_seed

@@ -1,28 +1,24 @@
 # Release 2.7.0 (August 2016)
 
- * The wallet file format is upgraded. This upgrade is not backward
-   compatible, which means that a wallet upgraded to the 2.7 format
-   will not be readable by earlier versions of Electrum. Before
-   upgrading the wallet format, the Qt GUI will ask the user if they
-   want to proceed. The Kivy GUI (Android) will proceed
-   automatically. Multiple accounts inside the same wallet are not
-   supported in the new format; the upgrade tool will propose to split
-   any wallet that has several accounts. As usual, make sure that you
-   have saved your seed phrase before you upgrade.
+ * The wallet file format has been upgraded. This upgrade is not
+   backward compatible, which means that a wallet upgraded to the 2.7
+   format will not be readable by earlier versions of
+   Electrum. Multiple accounts inside the same wallet are not
+   supported in the new format; the Qt GUI will propose to split any
+   wallet that has several accounts. Make sure that you have saved
+   your seed phrase before you upgrade Electrum.
  * This version introduces a separation between wallets types and
    keystores types. 'Wallet type' defines the type of Bitcoin contract
    used in the wallet, while 'keystore type' refers to the method used
    to store private keys. Therefore, so-called 'hardware wallets' will
-   be refered to as 'hardware keystores'.
+   be referred to as 'hardware keystores'.
  * Hardware keystores:
    - The Ledger Nano S is supported.
    - Hardware keystores can be used as cosigners in multi-signature
      wallets.
-   - Multiple hardware keystores can be used in the same multisig
+   - Multiple hardware cosigners can be used in the same multisig
      wallet. One icon per keystore is displayed in the satus bar. Each
      connected device will co-sign the transaction.
- * Seed phrases can be extended with a user-chosen passphrase (similar
-   to the infamous BIP39).
  * Replace-By-Fee: RBF transactions are supported in both Qt and
    Android. A warning is displayed in the history for transactions
    that are replaceable, have unconfirmed parents, or that have very
@@ -31,6 +27,7 @@
    the user to select the expected confirmation time of their
    transaction. The expected confirmation times of incoming
    transactions is also displayed in the history.
+ * The install wizards of Qt and Kivy have been unified.
  * Qt GUI (Desktop):
    - A fee slider is visible in the in send tab
    - The Address tab is hidden by default, can be shown with Ctrl-A
@@ -38,7 +35,11 @@
  * Kivy GUI (Android):
    - The GUI displays the complete transaction history.
    - Multisig wallets are supported.
-   - Wallets can be created and deleted.
+   - Wallets can be created and deleted in the GUI.
+ * Seed phrases can be extended with a user-chosen passphrase. The
+   length of seed phrases is standardized to 12 words, using 132 bits
+   of entropy (including 2FA seeds). In the wizard, the type of the
+   seed is displayed in the seed input dialog.
 
 
 # Release 2.6.4 (bugfixes)
