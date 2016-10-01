@@ -76,11 +76,11 @@ def seed_warning_msg(seed):
         _("This seed will allow you to recover your wallet in case "
           "of computer failure."),
         "</p>",
-        "<b>" + _("WARNING") + ":</b> ",
+        "<b>" + _("WARNING") + ":</b>",
         "<ul>",
         "<li>" + _("Never disclose your seed.") + "</li>",
         "<li>" + _("Never type it on a website.") + "</li>",
-        "<li>" + _("Do not send your seed to a printer.") + "</li>",
+        "<li>" + _("Do not store it electronically.") + "</li>",
         "</ul>"
     ]) % len(seed.split())
 

@@ -324,7 +324,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         slayout = CreateSeedLayout(seed_text)
         vbox.addLayout(slayout.layout())
         vbox.addStretch(1)
-        vbox.addWidget(QLabel('<b>'+_('Option') + '</b>:'))
+        vbox.addWidget(QLabel(_('Option') + ':'))
         cb_pass = QCheckBox(_('Add a passphrase to this seed'))
         vbox.addWidget(cb_pass)
         self.set_main_layout(vbox)
