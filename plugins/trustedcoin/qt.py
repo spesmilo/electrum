@@ -237,11 +237,9 @@ class Plugin(TrustedCoinPlugin):
 
         window.set_main_layout(vbox, next_enabled=False)
         next_button.setText(prior_button_text)
-
         return str(email_e.text())
 
-
-    def setup_google_auth(self, window, _id, otp_secret):
+    def request_otp_dialog(self, window, _id, otp_secret):
         vbox = QVBoxLayout()
         if otp_secret is not None:
             uri = "otpauth://totp/%s?secret=%s"%('trustedcoin.com', otp_secret)
@@ -255,7 +253,7 @@ class Plugin(TrustedCoinPlugin):
             label = QLabel(
                 "This wallet is already registered with Trustedcoin. "
                 "To finalize wallet creation, please enter your Google Authenticator Code. "
-                "If you do not have this code, delete the wallet file and start a new registration")
+            )
             label.setWordWrap(1)
             vbox.addWidget(label)
             msg = _('Google Authenticator code:')
@@ -268,18 +266,20 @@ class Plugin(TrustedCoinPlugin):
         hbox.addWidget(pw)
         vbox.addLayout(hbox)
 
-        def set_enabled():
-            window.next_button.setEnabled(len(pw.text()) == 6)
-        pw.textChanged.connect(set_enabled)
+        cb_lost = QCheckBox(_("I have lost my Google Authenticator account"))
+        cb_lost.setToolTip(_("Check this box to request a new secret. You will need to retype your seed."))
+        vbox.addWidget(cb_lost)
+        cb_lost.setVisible(otp_secret is None)
 
-        while True:
-            if not window.set_main_layout(vbox, next_enabled=False,
-                                          raise_on_cancel=False):
-                return False
-            otp = pw.get_amount()
-            try:
-                server.auth(_id, otp)
-                return True
-            except:
-                window.show_message(_('Incorrect password'))
-                pw.setText('')
+        def set_enabled():
+            b = True if cb_lost.isChecked() else len(pw.text()) == 6
+            window.next_button.setEnabled(b)
+
+        pw.textChanged.connect(set_enabled)
+        cb_lost.toggled.connect(set_enabled)
+
+        window.set_main_layout(vbox, next_enabled=False,
+                               raise_on_cancel=False)
+        return pw.get_amount(), cb_lost.isChecked()
+
+

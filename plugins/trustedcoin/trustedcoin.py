@@ -74,9 +74,9 @@ class TrustedCoinException(Exception):
         self.status_code = status_code
 
 class TrustedCoinCosignerClient(object):
-    def __init__(self, user_agent=None, base_url='https://api.trustedcoin.com/2/', debug=False):
+    def __init__(self, user_agent=None, base_url='https://api.trustedcoin.com/2/'):
         self.base_url = base_url
-        self.debug = debug
+        self.debug = False
         self.user_agent = user_agent
 
     def send_request(self, method, relative_url, data=None):
@@ -141,12 +141,17 @@ class TrustedCoinCosignerClient(object):
         return self.send_request('post', 'cosigner/%s/auth' % quote(id), payload)
 
     def get(self, id):
-        """
-        Attempt to authenticate for a particular cosigner.
-        :param id: the id of the cosigner
-        :param otp: the one time password
-        """
+        """ Get billing info """
         return self.send_request('get', 'cosigner/%s' % quote(id))
+
+    def get_challenge(self, id):
+        """ Get challenge to reset Google Auth secret """
+        return self.send_request('get', 'cosigner/%s/otp_secret' % quote(id))
+
+    def reset_auth(self, id, challenge, signatures):
+        """ Reset Google Auth secret """
+        payload = {'challenge':challenge, 'signatures':signatures}
+        return self.send_request('post', 'cosigner/%s/otp_secret' % quote(id), payload)
 
     def sign(self, id, transaction, otp):
         """
@@ -478,8 +483,27 @@ class TrustedCoinPlugin(BasePlugin):
             except Exception as e:
                 wizard.show_message(str(e))
                 return
-        if not self.setup_google_auth(wizard, short_id, otp_secret):
-            wizard.show_message("otp error")
+        self.check_otp(wizard, short_id, otp_secret, xpub3)
+
+    def check_otp(self, wizard, short_id, otp_secret, xpub3):
+        otp, reset = self.request_otp_dialog(wizard, short_id, otp_secret)
+        if otp:
+            self.do_auth(wizard, short_id, otp, xpub3)
+        elif reset:
+            wizard.opt_bip39 = False
+            wizard.opt_ext = True
+            f = lambda seed, is_bip39, is_ext: wizard.run('on_reset_seed', short_id, seed, is_ext, xpub3)
+            wizard.restore_seed_dialog(run_next=f, test=self.is_valid_seed)
+
+    def on_reset_seed(self, wizard, short_id, seed, is_ext, xpub3):
+        f = lambda passphrase: wizard.run('on_reset_auth', short_id, seed, passphrase, xpub3)
+        wizard.passphrase_dialog(run_next=f) if is_ext else f('')
+
+    def do_auth(self, wizard, short_id, otp, xpub3):
+        try:
+            server.auth(short_id, otp)
+        except:
+            wizard.show_message(_('Incorrect password'))
             return
         k3 = keystore.from_xpub(xpub3)
         wizard.storage.put('x3/', k3.dump())
@@ -487,6 +511,34 @@ class TrustedCoinPlugin(BasePlugin):
         wizard.storage.write()
         wizard.wallet = Wallet_2fa(wizard.storage)
         wizard.run('create_addresses')
+
+    def on_reset_auth(self, wizard, short_id, seed, passphrase, xpub3):
+        xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(seed, passphrase)
+        try:
+            assert xpub1 == wizard.storage.get('x1/')['xpub']
+            assert xpub2 == wizard.storage.get('x2/')['xpub']
+        except:
+            wizard.show_message(_('Incorrect seed'))
+            return
+        r = server.get_challenge(short_id)
+        challenge = r.get('challenge')
+        message = 'TRUSTEDCOIN CHALLENGE: ' + challenge
+        def f(xprv):
+            from electrum.bitcoin import deserialize_xkey, bip32_private_key, regenerate_key, is_compressed
+            _, _, _, c, k = deserialize_xkey(xprv)
+            pk = bip32_private_key([0, 0], k, c)
+            key = regenerate_key(pk)
+            compressed = is_compressed(pk)
+            sig = key.sign_message(message, compressed)
+            return base64.b64encode(sig)
+
+        signatures = [f(x) for x in [xprv1, xprv2]]
+        r = server.reset_auth(short_id, challenge, signatures)
+        new_secret = r.get('otp_secret')
+        if not new_secret:
+            wizard.show_message(_('Request rejected by server'))
+            return
+        self.check_otp(wizard, short_id, new_secret, xpub3)
 
     @hook
     def get_action(self, storage):
