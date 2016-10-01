@@ -40,6 +40,8 @@
    length of seed phrases is standardized to 12 words, using 132 bits
    of entropy (including 2FA seeds). In the wizard, the type of the
    seed is displayed in the seed input dialog.
+ * TrustedCoin users can request a reset of their Google Authenticator
+   account, if they still have their seed.
 
 
 # Release 2.6.4 (bugfixes)
