@@ -25,7 +25,8 @@ function getUrlParameter(sParam)
 var id = getUrlParameter('id');
 
 if (id) {
-    var jqxhr = $.getJSON(id + ".json", function() {
+        var uri_path = location.pathname;
+        var jqxhr = $.getJSON(uri_path.replace("index.html", "req/"+  id[0] + "/"+ id[1] + "/"+ id + "/"+ id + ".json"), function() {
 	console.log("getJSON:success");
     })
         .done( function(data) {
