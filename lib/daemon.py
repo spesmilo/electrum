@@ -189,7 +189,7 @@ class Daemon(DaemonThread):
             return
         if storage.requires_split() or storage.get_action():
             return
-        if self.requires_upgrade():
+        if storage.requires_upgrade():
             self.print_error('upgrading wallet format')
             self.upgrade()
         wallet = Wallet(storage)
