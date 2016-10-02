@@ -67,6 +67,7 @@ cd ..
 if [ -d "keepkey-git" ]; then
     cd keepkey-git
     git pull
+    git checkout v0.7.3
     cd ..
 else
     git clone -b $BRANCH $KEEPKEY_GIT_URL keepkey-git
