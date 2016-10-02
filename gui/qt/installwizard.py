@@ -159,7 +159,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             if not self.question(msg):
                 return
             file_list = '\n'.join(self.storage.split_accounts())
-            msg = _('Your accounts have been moved to:\n %s.\n\nDo you want to delete the old file:\n%s' % (file_list, path))
+            msg = _('Your accounts have been moved to') + ':\n' + file_list + '\n\n'+ _('Do you want to delete the old file') + ':\n' + path
             if self.question(msg):
                 os.remove(path)
                 self.show_warning(_('The file was removed'))
@@ -324,7 +324,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         slayout = CreateSeedLayout(seed_text)
         vbox.addLayout(slayout.layout())
         vbox.addStretch(1)
-        vbox.addWidget(QLabel('<b>'+_('Option') + '</b>:'))
+        vbox.addWidget(QLabel(_('Option') + ':'))
         cb_pass = QCheckBox(_('Add a passphrase to this seed'))
         vbox.addWidget(cb_pass)
         self.set_main_layout(vbox)

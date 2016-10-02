@@ -60,9 +60,6 @@ class WalletStorage(PrintError):
         self.print_error("wallet path", self.path)
         if self.path:
             self.read(self.path)
-        if self.requires_upgrade():
-            self.print_error('upgrading wallet format')
-            self.upgrade()
         # check here if I need to load a plugin
         t = self.get('wallet_type')
         l = plugin_loaders.get(t)

@@ -1049,13 +1049,13 @@ class Abstract_Wallet(PrintError):
         rdir = config.get('requests_dir')
         if rdir:
             key = out.get('id', addr)
-            path = os.path.join(rdir, key)
+            path = os.path.join(rdir, 'req', key[0], key[1], key)
             if os.path.exists(path):
                 baseurl = 'file://' + rdir
                 rewrite = config.get('url_rewrite')
                 if rewrite:
                     baseurl = baseurl.replace(*rewrite)
-                out['request_url'] = os.path.join(baseurl, key)
+                out['request_url'] = os.path.join(baseurl, 'req', key[0], key[1], key, key)
                 out['URI'] += '&r=' + out['request_url']
                 out['index_url'] = os.path.join(baseurl, 'index.html') + '?id=' + key
                 websocket_server_announce = config.get('websocket_server_announce')
@@ -1125,12 +1125,18 @@ class Abstract_Wallet(PrintError):
         if rdir and amount is not None:
             key = req.get('id', addr)
             pr = paymentrequest.make_request(config, req)
-            path = os.path.join(rdir, key)
-            with open(path, 'w') as f:
+            path = os.path.join(rdir, 'req', key[0], key[1], key)
+            if not os.path.exists(path):
+                try:
+                    os.makedirs(path)
+                except OSError as exc:
+                    if exc.errno != errno.EEXIST:
+                        raise
+            with open(os.path.join(path, key), 'w') as f:
                 f.write(pr.SerializeToString())
             # reload
             req = self.get_payment_request(addr, config)
-            with open(os.path.join(rdir, key + '.json'), 'w') as f:
+            with open(os.path.join(path, key + '.json'), 'w') as f:
                 f.write(json.dumps(req))
         return req
 
@@ -1142,7 +1148,7 @@ class Abstract_Wallet(PrintError):
         if rdir:
             key = r.get('id', addr)
             for s in ['.json', '']:
-                n = os.path.join(rdir, key + s)
+                n = os.path.join(rdir, 'req', key[0], key[1], key, key + s)
                 if os.path.exists(n):
                     os.unlink(n)
         self.storage.put('payment_requests', self.receive_requests)

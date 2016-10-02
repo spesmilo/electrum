@@ -187,7 +187,12 @@ class Daemon(DaemonThread):
         storage = WalletStorage(path)
         if not storage.file_exists:
             return
-        if storage.requires_split() or storage.requires_upgrade() or storage.get_action():
+        if storage.requires_split():
+            return
+        if storage.requires_upgrade():
+            self.print_error('upgrading wallet format')
+            storage.upgrade()
+        if storage.get_action():
             return
         wallet = Wallet(storage)
         wallet.start_threads(self.network)
