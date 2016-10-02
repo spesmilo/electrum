@@ -191,7 +191,7 @@ class Daemon(DaemonThread):
             return
         if storage.requires_upgrade():
             self.print_error('upgrading wallet format')
-            self.upgrade()
+            storage.upgrade()
         wallet = Wallet(storage)
         wallet.start_threads(self.network)
         self.wallets[path] = wallet
