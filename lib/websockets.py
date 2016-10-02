@@ -63,7 +63,7 @@ class WsClientThread(util.DaemonThread):
     def make_request(self, request_id):
         # read json file
         rdir = self.config.get('requests_dir')
-        n = os.path.join(rdir, request_id + '.json')
+        n = os.path.join(rdir, 'req', request_id[0], request_id[1], request_id, request_id + '.json')
         with open(n) as f:
             s = f.read()
         d = json.loads(s)
