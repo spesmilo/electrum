@@ -2591,7 +2591,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         for i, descr in enumerate(plugins.descriptions.values()):
             name = descr['__name__']
             p = plugins.get(name)
-            if descr.get('registers_wallet_type'):
+            if descr.get('registers_keystore'):
                 continue
             try:
                 cb = QCheckBox(descr['fullname'])
