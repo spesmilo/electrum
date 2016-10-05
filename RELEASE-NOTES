@@ -1,3 +1,7 @@
+# Release 2.7.1
+ * fix wizard crash with old seeds
+ * fix issue #1948: fee slider
+
 # Release 2.7.0 (Oct 2 2016)
 
  * The wallet file format has been upgraded. This upgrade is not
