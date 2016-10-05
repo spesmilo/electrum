@@ -121,12 +121,6 @@ class Commands:
         seed, type '?' or ':' (concealed) """
         raise BaseException('Not a JSON-RPC command')
 
-    @command('w')
-    def deseed(self):
-        """Remove seed from wallet. This creates a seedless, watching-only
-        wallet."""
-        raise BaseException('Not a JSON-RPC command')
-
     @command('wp')
     def password(self):
         """Change wallet password. """
