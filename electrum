@@ -116,7 +116,7 @@ def run_non_RPC(config):
         return prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
 
     if cmdname == 'restore':
-        text = config.get('text')
+        text = config.get('text').strip()
         passphrase = config.get('passphrase', '')
         password = password_dialog() if keystore.is_private(text) else None
         if keystore.is_seed(text):
@@ -124,7 +124,7 @@ def run_non_RPC(config):
         elif keystore.is_any_key(text):
             k = keystore.from_keys(text)
         else:
-            sys.exit(str(e))
+            sys.exit("Error: Seed or key not recognized")
         k.update_password(None, password)
         storage.put('keystore', k.dump())
         storage.put('wallet_type', 'standard')
