@@ -954,6 +954,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.amount_e.shortcut.connect(self.spend_max)
         self.payto_e.textChanged.connect(self.update_fee)
         self.amount_e.textEdited.connect(self.update_fee)
+        self.amount_e.textEdited.connect(self.reset_max)
 
         def entry_changed():
             text = ""
@@ -1014,6 +1015,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # emit signal for fiat_amount update
         self.amount_e.textEdited.emit("")
         self.is_max = True
+
+    def reset_max(self):
+        self.is_max = False
 
     def update_fee(self):
         self.require_fee_update = True

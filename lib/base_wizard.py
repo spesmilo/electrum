@@ -276,7 +276,7 @@ class BaseWizard(object):
                 f = lambda passphrase: self.run('create_keystore', seed, passphrase)
                 self.passphrase_dialog(run_next=f) if is_ext else f('')
             elif seed_type == 'old':
-                self.run('create_keystore', seed, passphrase)
+                self.run('create_keystore', seed, '')
             elif seed_type == '2fa':
                 if self.is_kivy:
                     self.show_error('2FA seeds are not supported in this version')
