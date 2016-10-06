@@ -102,6 +102,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.tray = gui_object.tray
         self.app = gui_object.app
         self.cleaned_up = False
+        self.is_max = False
 
         self.create_status_bar()
         self.need_update = threading.Event()
@@ -156,7 +157,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             # set initial message
             self.console.showMessage(self.network.banner)
 
-        self.is_max = False
         self.payment_request = None
         self.checking_accounts = False
         self.qr_window = None
@@ -905,21 +905,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fee_slider.setToolTip('')
         def slider_moved():
             from electrum.util import fee_levels
-            i = self.fee_slider.sliderPosition()
-            tooltip = fee_levels[i]
+            pos = self.fee_slider.sliderPosition()
+            self.config.set_key('fee_level', pos, False)
+            self.spend_max() if self.is_max else self.update_fee()
+            tooltip = fee_levels[pos]
             if self.network:
-                dynfee = self.network.dynfee(i)
+                dynfee = self.network.dynfee(pos)
                 if dynfee:
                     tooltip += '\n' + self.format_amount(dynfee) + ' ' + self.base_unit() + '/kB'
             QToolTip.showText(QCursor.pos(), tooltip, self.fee_slider)
-        def slider_released():
-            self.config.set_key('fee_level', self.fee_slider.sliderPosition(), False)
-            if self.is_max:
-                self.spend_max()
-            else:
-                self.update_fee()
+
         self.fee_slider.valueChanged.connect(slider_moved)
-        self.fee_slider.sliderReleased.connect(slider_released)
         self.fee_slider.setValue(self.config.get('fee_level', 2))
 
         self.fee_e = BTCAmountEdit(self.get_decimal_point)
