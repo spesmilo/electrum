@@ -186,15 +186,13 @@ class Imported_KeyStore(Software_KeyStore):
                     return (False, i)
 
     def update_password(self, old_password, new_password):
-        if old_password is not None:
-            self.check_password(old_password)
+        self.check_password(old_password)
         if new_password == '':
             new_password = None
         for k, v in self.keypairs.items():
             b = pw_decode(v, old_password)
             c = pw_encode(b, new_password)
             self.keypairs[k] = c
-        print self.keypairs
 
 
 class Deterministic_KeyStore(Software_KeyStore):
@@ -317,8 +315,7 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
             raise InvalidPassword()
 
     def update_password(self, old_password, new_password):
-        if old_password is not None:
-            self.check_password(old_password)
+        self.check_password(old_password)
         if new_password == '':
             new_password = None
         if self.has_seed():
@@ -485,8 +482,7 @@ class Old_KeyStore(Deterministic_KeyStore):
         return derivation
 
     def update_password(self, old_password, new_password):
-        if old_password is not None:
-            self.check_password(old_password)
+        self.check_password(old_password)
         if new_password == '':
             new_password = None
         if self.has_seed():
