@@ -116,7 +116,7 @@ def run_non_RPC(config):
         return prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
 
     if cmdname == 'restore':
-        text = config.get('text')
+        text = config.get('text').strip()
         passphrase = config.get('passphrase', '')
         password = password_dialog() if keystore.is_private(text) else None
         if keystore.is_seed(text):
@@ -124,7 +124,7 @@ def run_non_RPC(config):
         elif keystore.is_any_key(text):
             k = keystore.from_keys(text)
         else:
-            sys.exit(str(e))
+            sys.exit("Error: Seed or key not recognized")
         k.update_password(None, password)
         storage.put('keystore', k.dump())
         storage.put('wallet_type', 'standard')
@@ -157,27 +157,6 @@ def run_non_RPC(config):
         wallet.synchronize()
         print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
         print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
-
-    elif cmdname == 'deseed':
-        if not wallet.seed:
-            print_msg("Error: This wallet has no seed")
-        else:
-            ns = wallet.storage.path + '.seedless'
-            print_msg("Warning: you are going to create a seedless wallet'\nIt will be saved in '%s'" % ns)
-            if raw_input("Are you sure you want to continue? (y/n) ") in ['y', 'Y', 'yes']:
-                wallet.storage.path = ns
-                wallet.seed = ''
-                wallet.storage.put('seed', '')
-                wallet.use_encryption = False
-                wallet.storage.put('use_encryption', wallet.use_encryption)
-                for k in wallet.imported_keys.keys():
-                    wallet.imported_keys[k] = ''
-                wallet.storage.put('imported_keys', wallet.imported_keys)
-                print_msg("Done.")
-            else:
-                print_msg("Action canceled.")
-        wallet.storage.write()
-        sys.exit(0)
 
     wallet.storage.write()
     print_msg("Wallet saved in '%s'" % wallet.storage.path)
@@ -330,7 +309,7 @@ if __name__ == '__main__':
     cmdname = config.get('cmd')
 
     # run non-RPC commands separately
-    if cmdname in ['create', 'restore', 'deseed']:
+    if cmdname in ['create', 'restore']:
         run_non_RPC(config)
         sys.exit(0)
 
