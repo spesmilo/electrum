@@ -1,0 +1,7 @@
+<RCC>
+  <qresource prefix="/od-plugin/" >
+    <file>od-logo.png</file>
+    <file>prod-shot.png</file>
+    <file>placeholder.png</file>
+  </qresource>
+</RCC>

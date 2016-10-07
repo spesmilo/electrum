@@ -550,6 +550,7 @@ class Transaction:
             return
 
         total = sum(i.get('value') for i in inputs) - fee
+        assert total > 0, "fee exceeds value"
         outputs = [(TYPE_ADDRESS, to_address, total)]
         self = klass.from_io(inputs, outputs)
         self.sign(keypairs)
