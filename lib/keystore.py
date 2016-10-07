@@ -377,7 +377,7 @@ class Old_KeyStore(Deterministic_KeyStore):
         if seed:
             try:
                 seed.decode('hex')
-                return OLD_SEED_VERSION, str(seed)
+                return str(seed)
             except Exception:
                 pass
         words = seed.split()
