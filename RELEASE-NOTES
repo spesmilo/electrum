@@ -1,3 +1,7 @@
+# Release 2.7.2
+ * fix bug in password update (issue #1954)
+ * fix fee slider (issue #1953)
+
 # Release 2.7.1
  * fix wizard crash with old seeds
  * fix issue #1948: fee slider
