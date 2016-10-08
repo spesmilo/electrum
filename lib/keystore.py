@@ -214,7 +214,7 @@ class Deterministic_KeyStore(Software_KeyStore):
         return d
 
     def has_seed(self):
-        return self.seed != ''
+        return bool(self.seed)
 
     def can_change_password(self):
         return not self.is_watching_only()
@@ -377,7 +377,7 @@ class Old_KeyStore(Deterministic_KeyStore):
         if seed:
             try:
                 seed.decode('hex')
-                return OLD_SEED_VERSION, str(seed)
+                return str(seed)
             except Exception:
                 pass
         words = seed.split()

@@ -857,6 +857,43 @@ class Abstract_Wallet(PrintError):
         self.sign_transaction(tx, password)
         return tx
 
+    def sweep(self, privkeys, network, config, recipient, fee=None, imax=100):
+        inputs = []
+        keypairs = {}
+        for privkey in privkeys:
+            pubkey = public_key_from_private_key(privkey)
+            address = address_from_private_key(privkey)
+            u = network.synchronous_get(('blockchain.address.listunspent', [address]))
+            pay_script = Transaction.pay_script(TYPE_ADDRESS, address)
+            for item in u:
+                if len(inputs) >= imax:
+                    break
+                item['scriptPubKey'] = pay_script
+                item['redeemPubkey'] = pubkey
+                item['address'] = address
+                item['prevout_hash'] = item['tx_hash']
+                item['prevout_n'] = item['tx_pos']
+                item['pubkeys'] = [pubkey]
+                item['x_pubkeys'] = [pubkey]
+                item['signatures'] = [None]
+                item['num_sig'] = 1
+                inputs.append(item)
+            keypairs[pubkey] = privkey
+
+        if not inputs:
+            return
+
+        total = sum(i.get('value') for i in inputs)
+        if fee is None:
+            outputs = [(TYPE_ADDRESS, recipient, total)]
+            tx = Transaction.from_io(inputs, outputs)
+            fee = self.estimate_fee(config, tx.estimated_size())
+
+        outputs = [(TYPE_ADDRESS, recipient, total - fee)]
+        tx = Transaction.from_io(inputs, outputs)
+        tx.sign(keypairs)
+        return tx
+
     def is_frozen(self, addr):
         return addr in self.frozen_addresses
 

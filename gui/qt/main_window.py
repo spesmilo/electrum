@@ -42,6 +42,7 @@ import PyQt4.QtCore as QtCore
 import icons_rc
 
 from electrum_ltc.bitcoin import COIN, is_valid, TYPE_ADDRESS
+from electrum_ltc.keystore import is_private_key
 from electrum_ltc.plugins import run_hook
 from electrum_ltc.i18n import _
 from electrum_ltc.util import (block_explorer, block_explorer_info, format_time,
@@ -2172,7 +2173,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         keys_e.setTabChangesFocus(True)
         vbox.addWidget(keys_e)
 
-        addresses = self.wallet.get_unused_addresses(None)
+        addresses = self.wallet.get_unused_addresses()
         h, address_e = address_field(addresses)
         vbox.addLayout(h)
 
@@ -2188,7 +2189,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         def get_pk():
             pk = str(keys_e.toPlainText()).strip()
-            if Wallet.is_private_key(pk):
+            if is_private_key(pk):
                 return pk.split()
 
         f = lambda: button.setEnabled(get_address() is not None and get_pk() is not None)
@@ -2197,8 +2198,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not d.exec_():
             return
 
-        fee = self.wallet.fee_per_kb(self.config)
-        tx = Transaction.sweep(get_pk(), self.network, get_address(), fee)
+        tx = self.wallet.sweep(get_pk(), self.network, self.config, get_address(), None)
         if not tx:
             self.show_message(_('No inputs found. (Note that inputs need to be confirmed)'))
             return
