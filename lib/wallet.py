@@ -854,7 +854,7 @@ class Abstract_Wallet(PrintError):
         self.sign_transaction(tx, password)
         return tx
 
-    def sweep(self, privkeys, network, config, recipient, fee):
+    def sweep(self, privkeys, network, config, recipient, fee=None, imax=100):
         inputs = []
         keypairs = {}
         for privkey in privkeys:
@@ -863,6 +863,8 @@ class Abstract_Wallet(PrintError):
             u = network.synchronous_get(('blockchain.address.listunspent', [address]))
             pay_script = Transaction.pay_script(TYPE_ADDRESS, address)
             for item in u:
+                if len(inputs) >= imax:
+                    break
                 item['scriptPubKey'] = pay_script
                 item['redeemPubkey'] = pubkey
                 item['address'] = address
@@ -872,7 +874,7 @@ class Abstract_Wallet(PrintError):
                 item['x_pubkeys'] = [pubkey]
                 item['signatures'] = [None]
                 item['num_sig'] = 1
-            inputs += u
+                inputs.append(item)
             keypairs[pubkey] = privkey
 
         if not inputs:
