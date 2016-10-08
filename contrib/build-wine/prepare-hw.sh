@@ -50,35 +50,35 @@ cd tmp
 #$PYTHON setup.py install
 #cd ..
 
-
-
-if [ -d "trezor-git" ]; then
-    cd trezor-git
-    git pull
-    cd ..
-else
-    git clone -b $BRANCH $TREZOR_GIT_URL trezor-git
+# trezor
+if ! [ -d "trezor-0.7.4" ]; then
+    wget "https://pypi.python.org/packages/16/f1/e30d601857ab48f80ab73d15cda957528b5fa3b90bd8168f1e5a1fdd5b1d/trezor-0.7.4.tar.gz"
+    tar -xvzf trezor-0.7.4.tar.gz
 fi
-cd trezor-git
+cd trezor-0.7.4
 $PYTHON setup.py install
 cd ..
 
 #keepkey
 if [ -d "keepkey-git" ]; then
     cd keepkey-git
+    git checkout master
     git pull
-    git checkout v0.7.3
     cd ..
 else
     git clone -b $BRANCH $KEEPKEY_GIT_URL keepkey-git
 fi
 cd keepkey-git
-# fails $PYTHON setup.py install
+# checkout 2 commits before v0.7.3, because it fails to build
+# git checkout v0.7.3
+git checkout 7abe0f0c9026907e9a8db1d231e084df2c175817
+$PYTHON setup.py install
 cd ..
 
 #btchip
 if [ -d "btchip-git" ]; then
     cd btchip-git
+    git checkout master
     git pull
     cd ..
 else
