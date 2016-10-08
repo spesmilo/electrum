@@ -368,7 +368,7 @@ class Commands:
             raise BaseException('cannot verify alias', x)
         return out['address']
 
-    @command('n')
+    @command('nw')
     def sweep(self, privkey, destination, tx_fee=None, nocheck=False):
         """Sweep private keys. Returns a transaction that spends UTXOs from
         privkey to a destination address. The transaction is not
@@ -376,10 +376,8 @@ class Commands:
         privkeys = privkey if type(privkey) is list else [privkey]
         self.nocheck = nocheck
         dest = self._resolver(destination)
-        if tx_fee is None:
-            tx_fee = 0.0001
-        fee = int(Decimal(tx_fee)*COIN)
-        return Transaction.sweep(privkeys, self.network, dest, fee)
+        tx = self.wallet.sweep(privkeys, self.network, self.config, dest, tx_fee)
+        return tx.as_dict()
 
     @command('wp')
     def signmessage(self, address, message):
@@ -398,7 +396,6 @@ class Commands:
         self.nocheck = nocheck
         change_addr = self._resolver(change_addr)
         domain = None if domain is None else map(self._resolver, domain)
-        fee = None if fee is None else int(COIN*Decimal(fee))
         final_outputs = []
         for address, amount in outputs:
             address = self._resolver(address)
@@ -686,7 +683,7 @@ arg_types = {
     'jsontx': json_loads,
     'inputs': json_loads,
     'outputs': json_loads,
-    'tx_fee': lambda x: str(Decimal(x)) if x is not None else None,
+    'tx_fee': lambda x: int(COIN*Decimal(x)) if x is not None else None,
     'amount': lambda x: str(Decimal(x)) if x!='!' else '!',
 }
 

@@ -525,37 +525,6 @@ class Transaction:
         return self
 
     @classmethod
-    def sweep(klass, privkeys, network, to_address, fee):
-        inputs = []
-        keypairs = {}
-        for privkey in privkeys:
-            pubkey = public_key_from_private_key(privkey)
-            address = address_from_private_key(privkey)
-            u = network.synchronous_get(('blockchain.address.listunspent', [address]))
-            pay_script = klass.pay_script(TYPE_ADDRESS, address)
-            for item in u:
-                item['scriptPubKey'] = pay_script
-                item['redeemPubkey'] = pubkey
-                item['address'] = address
-                item['prevout_hash'] = item['tx_hash']
-                item['prevout_n'] = item['tx_pos']
-                item['pubkeys'] = [pubkey]
-                item['x_pubkeys'] = [pubkey]
-                item['signatures'] = [None]
-                item['num_sig'] = 1
-            inputs += u
-            keypairs[pubkey] = privkey
-
-        if not inputs:
-            return
-
-        total = sum(i.get('value') for i in inputs) - fee
-        outputs = [(TYPE_ADDRESS, to_address, total)]
-        self = klass.from_io(inputs, outputs)
-        self.sign(keypairs)
-        return self
-
-    @classmethod
     def multisig_script(klass, public_keys, m):
         n = len(public_keys)
         assert n <= 15
