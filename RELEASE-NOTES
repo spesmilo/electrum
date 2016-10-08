@@ -1,3 +1,8 @@
+# Release 2.7.3
+ * fix Trezor and Keepkey support in Windows builds
+ * fix sweep private key dialog
+ * minor fixes: #1958, #1959
+
 # Release 2.7.2
  * fix bug in password update (issue #1954)
  * fix fee slider (issue #1953)

@@ -150,6 +150,7 @@ class Imported_KeyStore(Software_KeyStore):
         if pubkey in self.keypairs:
             raise BaseException('Private key already in keystore')
         self.keypairs[pubkey] = sec
+        self.receiving_pubkeys = self.keypairs.keys()
         return pubkey
 
     def delete_imported_key(self, key):
