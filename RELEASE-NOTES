@@ -1,3 +1,9 @@
+# Release 2.7.4
+ * Fix private key import in wizard
+ * Fix Ledger display (issue #1961)
+ * Fix old watching-only wallets (issue #1959)
+ * Fix Android compatibility (issue #1947)
+
 # Release 2.7.3
  * fix Trezor and Keepkey support in Windows builds
  * fix sweep private key dialog
