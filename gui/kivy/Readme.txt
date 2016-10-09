@@ -12,12 +12,3 @@ then you need to rebuild the distribution. To do so:
 
   rm -rf .buildozer/android/platform/python-for-android/dist
 
-
-Notes:
-
-
-To use internal storage, python-for-android must be patched with:
-
-  git pull git@github.com:denys-duchier/python-for-android.git fix-recursive-delete
-
-
