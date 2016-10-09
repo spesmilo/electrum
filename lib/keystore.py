@@ -217,6 +217,9 @@ class Deterministic_KeyStore(Software_KeyStore):
     def has_seed(self):
         return bool(self.seed)
 
+    def is_watching_only(self):
+        return not self.has_seed()
+
     def can_change_password(self):
         return not self.is_watching_only()
 
