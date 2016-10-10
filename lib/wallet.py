@@ -1071,6 +1071,27 @@ class Abstract_Wallet(PrintError):
         if addrs:
             return addrs[0]
 
+    def get_payment_status(self, address, amount):
+        local_height = self.get_local_height()
+        received, sent = self.get_addr_io(address)
+        l = []
+        for txo, x in received.items():
+            h, v, is_cb = x
+            txid, n = txo.split(':')
+            info = self.verified_tx.get(txid)
+            if info:
+                tx_height, timestamp, pos = info
+                conf = local_height - tx_height
+            else:
+                conf = 0
+            l.append((conf, v))
+        vsum = 0
+        for conf, v in reversed(sorted(l)):
+            vsum += v
+            if vsum >= amount:
+                return True, conf
+        return False, None
+
     def get_payment_request(self, addr, config):
         import util
         r = self.receive_requests.get(addr)
@@ -1078,7 +1099,10 @@ class Abstract_Wallet(PrintError):
             return
         out = copy.copy(r)
         out['URI'] = 'bitcoin:' + addr + '?amount=' + util.format_satoshis(out.get('amount'))
-        out['status'] = self.get_request_status(addr)
+        status, conf = self.get_request_status(addr)
+        out['status'] = status
+        if conf is not None:
+            out['confirmations'] = conf
         # check if bip70 file exists
         rdir = config.get('requests_dir')
         if rdir:
@@ -1117,9 +1141,10 @@ class Abstract_Wallet(PrintError):
         expiration = r.get('exp')
         if expiration and type(expiration) != int:
             expiration = 0
+        conf = None
         if amount:
             if self.up_to_date:
-                paid = amount <= self.get_addr_received(address)
+                paid, conf = self.get_payment_status(address, amount)
                 status = PR_PAID if paid else PR_UNPAID
                 if status == PR_UNPAID and expiration is not None and time.time() > timestamp + expiration:
                     status = PR_EXPIRED
@@ -1127,7 +1152,7 @@ class Abstract_Wallet(PrintError):
                 status = PR_UNKNOWN
         else:
             status = PR_UNKNOWN
-        return status
+        return status, conf
 
     def make_payment_request(self, addr, amount, message, expiration):
         timestamp = int(time.time())
