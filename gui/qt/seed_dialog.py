@@ -152,7 +152,7 @@ class ShowSeedLayout(SeedLayoutBase):
             passphrase_e = QLineEdit()
             passphrase_e.setText(passphrase)
             passphrase_e.setReadOnly(True)
-            hbox.addWidget(QLabel('Your seed extension is') + ':')
+            hbox.addWidget(QLabel(_("Your seed extension is") + ':'))
             hbox.addWidget(passphrase_e)
             vbox.addLayout(hbox)
         msg = seed_warning_msg(seed)
