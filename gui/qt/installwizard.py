@@ -256,7 +256,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             vbox.addStretch(1)
             vbox.addWidget(QLabel(_('Options') + ':'))
         if self.opt_ext:
-            cb_pass = QCheckBox(_('Add an extension to this seed'))
+            cb_pass = QCheckBox(_('Extend this seed with custom words'))
             vbox.addWidget(cb_pass)
         if self.opt_bip39:
             def f(b):
@@ -325,7 +325,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         vbox.addLayout(slayout.layout())
         vbox.addStretch(1)
         vbox.addWidget(QLabel(_('Option') + ':'))
-        cb_pass = QCheckBox(_('Add an extension to this seed'))
+        cb_pass = QCheckBox(_('Extend this seed with custom words'))
         vbox.addWidget(cb_pass)
         self.set_main_layout(vbox)
         return cb_pass.isChecked()

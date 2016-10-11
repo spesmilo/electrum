@@ -1,3 +1,11 @@
+# Release 2.7.5
+ * Add number of confirmations to request status. (issue #1757)
+ * In the GUI, refer to passphrase as 'seed extension'.
+ * Fix bug with utf8 encoded passphrases.
+ * Kivy wizard: add a dialog for seed options.
+ * Kivy wizard: add current word to suggestions, because some users
+   don't see the space key.
+
 # Release 2.7.4
  * Fix private key import in wizard
  * Fix Ledger display (issue #1961)

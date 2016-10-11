@@ -229,10 +229,10 @@ class Deterministic_KeyStore(Software_KeyStore):
         self.seed = self.format_seed(seed)
 
     def get_seed(self, password):
-        return pw_decode(self.seed, password).encode('utf8')
+        return pw_decode(self.seed, password)
 
     def get_passphrase(self, password):
-        return pw_decode(self.passphrase, password).encode('utf8') if self.passphrase else ''
+        return pw_decode(self.passphrase, password) if self.passphrase else ''
 
 
 

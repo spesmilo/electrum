@@ -43,7 +43,6 @@ from transaction import Transaction
 import paymentrequest
 from paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 import contacts
-
 known_commands = {}
 
 class Command:
@@ -331,8 +330,8 @@ class Commands:
     @command('')
     def version(self):
         """Return the version of electrum."""
-        import electrum_ltc as electrum  # Needs to stay here to prevent ciruclar imports
-        return electrum.ELECTRUM_VERSION
+        from version import ELECTRUM_VERSION
+        return ELECTRUM_VERSION
 
     @command('w')
     def getmpk(self):
