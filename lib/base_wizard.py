@@ -285,7 +285,7 @@ class BaseWizard(object):
                     self.load_2fa()
                     self.run('on_restore_seed', seed, is_ext)
             else:
-                raise
+                raise BaseException('Unknown seed type', seed_type)
 
     def on_restore_bip39(self, seed, passphrase):
         f = lambda x: self.run('on_bip44', seed, passphrase, int(x))
