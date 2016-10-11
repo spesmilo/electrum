@@ -95,6 +95,15 @@ class HistoryList(MyTreeWidget):
             if current_tx == tx_hash:
                 self.setCurrentItem(item)
 
+    def update_labels(self):
+        root = self.invisibleRootItem()
+        child_count = root.childCount()
+        for i in range(child_count):
+            item = root.child(i)
+            txid = str(item.data(0, Qt.UserRole).toString())
+            label = self.wallet.get_label(txid)
+            item.setText(3, label)
+
     def update_item(self, tx_hash, height, conf, timestamp):
         status, status_str = self.wallet.get_tx_status(tx_hash, height, conf, timestamp)
         icon = QIcon(":icons/" +  TX_ICONS[status])

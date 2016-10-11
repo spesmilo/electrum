@@ -249,16 +249,16 @@ class BaseWizard(object):
         self.on_keystore(k)
 
     def passphrase_dialog(self, run_next):
-        title = _('Passphrase')
+        title = _('Seed extension')
         message = '\n'.join([
-            _('You may extend your seed with a passphrase.'),
-            _('The passphrase must be saved together with your seed.'),
+            _('You may extend your seed with custom words.'),
+            _('Your seed extension must be saved together with your seed.'),
         ])
         warning = '\n'.join([
             _('Note that this is NOT your encryption password.'),
             _('If you do not know what this is, leave this field empty.'),
         ])
-        self.line_dialog(title=_('Passphrase'), message=message, warning=warning, default='', test=lambda x:True, run_next=run_next)
+        self.line_dialog(title=title, message=message, warning=warning, default='', test=lambda x:True, run_next=run_next)
 
     def restore_from_seed(self):
         self.opt_bip39 = True
@@ -374,9 +374,9 @@ class BaseWizard(object):
     def confirm_passphrase(self, seed, passphrase):
         f = lambda x: self.run('create_keystore', seed, x)
         if passphrase:
-            title = _('Confirm Passphrase')
+            title = _('Confirm Seed Extension')
             message = '\n'.join([
-                _('Your passphrase must be saved together with your seed.'),
+                _('Your seed extension must be saved together with your seed.'),
                 _('Please type it here.'),
             ])
             self.line_dialog(run_next=f, title=title, message=message, default='', test=lambda x: x==passphrase)

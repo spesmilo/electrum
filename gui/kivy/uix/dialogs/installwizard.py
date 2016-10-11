@@ -571,13 +571,16 @@ class RestoreSeedDialog(WizardDialog):
         enable_space = False
         self.ids.suggestions.clear_widgets()
         suggestions = [x for x in self.get_suggestions(last_word)]
+
+        if last_word in suggestions:
+            b = WordButton(text=last_word)
+            self.ids.suggestions.add_widget(b)
+            enable_space = True
+
         for w in suggestions:
-            if w == last_word:
-                enable_space = True
-            else:
-                if len(suggestions) < 10:
-                    b = WordButton(text=w)
-                    self.ids.suggestions.add_widget(b)
+            if w != last_word and len(suggestions) < 10:
+                b = WordButton(text=w)
+                self.ids.suggestions.add_widget(b)
 
         i = len(last_word)
         p = set()

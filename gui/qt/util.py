@@ -472,7 +472,7 @@ class MyTreeWidget(QTreeWidget):
         key = str(item.data(0, Qt.UserRole).toString())
         text = unicode(item.text(column))
         self.parent.wallet.set_label(key, text)
-        self.parent.history_list.update()
+        self.parent.history_list.update_labels()
         self.parent.update_completions()
 
     def update(self):

@@ -51,7 +51,9 @@ from installwizard import InstallWizard
 try:
     import icons_rc
 except Exception:
-    sys.exit("Error: Could not import icons_rc.py, please generate it with: 'pyrcc4 icons.qrc -o gui/qt/icons_rc.py'")
+    print "Error: Could not find icons file."
+    print "Please run 'pyrcc4 icons.qrc -o gui/qt/icons_rc.py', and reinstall Electrum"
+    sys.exit(1)
 
 from util import *   # * needed for plugins
 from main_window import ElectrumWindow
