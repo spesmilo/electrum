@@ -1,3 +1,13 @@
+# Release 2.7.6
+
+ * Fixes a critical bug with imported private keys (issue #1966). Keys
+   imported in Electrum 2.7.x were not encrypted, even if the wallet
+   had a password. If you imported private keys using Electrum 2.7.x,
+   you will need to import those keys again. If you imported keys in
+   2.6 and converted with 2.7.x, you don't need to do anything, but
+   you still need to upgrade in order to be able to spend.
+ * Wizard: Hide seed options in a popup dialog.
+
 # Release 2.7.5
  * Add number of confirmations to request status. (issue #1757)
  * In the GUI, refer to passphrase as 'seed extension'.
