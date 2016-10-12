@@ -146,22 +146,6 @@ class SeedLayout(QVBoxLayout):
 
 
 
-class TextInputLayout(SeedLayout):
-
-    def __init__(self, parent, title, is_valid):
-        self.is_valid = is_valid
-        self.parent = parent
-        self.layout_ = self._seed_layout(title=title, icon=False)
-        self.seed_e.textChanged.connect(self.on_edit)
-
-    def get_text(self):
-        return clean_text(self.seed_edit())
-
-    def on_edit(self):
-        self.parent.next_button.setEnabled(self.is_valid(self.get_text()))
-
-
-
 class SeedDialog(WindowModalDialog):
 
     def __init__(self, parent, seed, passphrase):

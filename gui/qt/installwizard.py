@@ -11,7 +11,7 @@ from electrum.util import UserCancelled
 from electrum.base_wizard import BaseWizard
 from electrum.i18n import _
 
-from seed_dialog import SeedLayout, TextInputLayout
+from seed_dialog import SeedLayout
 from network_dialog import NetworkChoiceLayout
 from util import *
 from password_dialog import PasswordLayout, PW_NEW
@@ -244,9 +244,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.config.remove_from_recently_open(filename)
 
     def text_input(self, title, message, is_valid):
-        slayout = TextInputLayout(self, message, is_valid)
+        slayout = SeedLayout(parent=self, title=message, is_seed=is_valid, icon=False)
         self.set_main_layout(slayout.layout(), title, next_enabled=False)
-        return slayout.get_text()
+        return slayout.get_seed()
 
     def seed_input(self, title, message, is_seed, options):
         slayout = SeedLayout(title=message, is_seed=is_seed, options=options, parent=self)
