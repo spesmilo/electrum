@@ -116,8 +116,6 @@ class Imported_KeyStore(Software_KeyStore):
     def __init__(self, d):
         Software_KeyStore.__init__(self)
         self.keypairs = d.get('keypairs', {})
-        self.receiving_pubkeys = self.keypairs.keys()
-        self.change_pubkeys = []
 
     def is_deterministic(self):
         return False
@@ -138,7 +136,8 @@ class Imported_KeyStore(Software_KeyStore):
         return True
 
     def check_password(self, password):
-        self.get_private_key((0,0), password)
+        pubkey = self.keypairs.keys()[0]
+        self.get_private_key(pubkey, password)
 
     def import_key(self, sec, password):
         try:
@@ -147,24 +146,12 @@ class Imported_KeyStore(Software_KeyStore):
             raise BaseException('Invalid private key')
         # allow overwrite
         self.keypairs[pubkey] = pw_encode(sec, password)
-        self.receiving_pubkeys = self.keypairs.keys()
         return pubkey
 
     def delete_imported_key(self, key):
         self.keypairs.pop(key)
 
-    def get_public_key(self, sequence):
-        for_change, i = sequence
-        pubkey = (self.change_pubkeys if for_change else self.receiving_pubkeys)[i]
-        return pubkey
-
-    def get_xpubkey(self, c, i):
-        return self.get_public_key((c,i))
-
-    def get_private_key(self, sequence, password):
-        for_change, i = sequence
-        assert for_change == 0
-        pubkey = self.receiving_pubkeys[i]
+    def get_private_key(self, pubkey, password):
         pk = pw_decode(self.keypairs[pubkey], password)
         # this checks the password
         if pubkey != public_key_from_private_key(pk):
@@ -173,15 +160,14 @@ class Imported_KeyStore(Software_KeyStore):
 
     def get_pubkey_derivation(self, x_pubkey):
         if x_pubkey[0:2] in ['02', '03', '04']:
-            if x_pubkey in self.receiving_pubkeys:
-                i = self.receiving_pubkeys.index(x_pubkey)
-                return (False, i)
+            if x_pubkey in self.keypairs.keys():
+                return x_pubkey
         elif x_pubkey[0:2] == 'fd':
             # fixme: this assumes p2pkh
             _, addr = xpubkey_to_address(x_pubkey)
-            for i, pubkey in enumerate(self.receiving_pubkeys):
+            for pubkey in self.keypairs.keys():
                 if public_key_to_bc_address(pubkey.decode('hex')) == addr:
-                    return (False, i)
+                    return pubkey
 
     def update_password(self, old_password, new_password):
         self.check_password(old_password)

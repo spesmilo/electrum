@@ -269,8 +269,23 @@ class Abstract_Wallet(PrintError):
     def get_private_key(self, address, password):
         if self.is_watching_only():
             return []
-        sequence = self.get_address_index(address)
-        return [ self.keystore.get_private_key(sequence, password) ]
+        if self.keystore.can_import():
+            i = self.receiving_addresses.index(address)
+            pubkey = self.receiving_pubkeys[i]
+            pk = self.keystore.get_private_key(pubkey, password)
+        else:
+            sequence = self.get_address_index(address)
+            pk = self.keystore.get_private_key(sequence, password)
+        return [pk]
+
+    def get_public_key(self, address):
+        if self.keystore.can_import():
+            i = self.receiving_addresses.index(address)
+            pubkey = self.receiving_pubkeys[i]
+        else:
+            sequence = self.get_address_index(address)
+            pubkey = self.get_pubkey(*sequence)
+        return pubkey
 
     def get_public_keys(self, address):
         sequence = self.get_address_index(address)
@@ -1170,7 +1185,6 @@ class Abstract_Wallet(PrintError):
         self.receive_requests[key] = req
         self.storage.put('payment_requests', self.receive_requests)
 
-
     def add_payment_request(self, req, config):
         import os
         addr = req['address']
@@ -1229,6 +1243,9 @@ class Abstract_Wallet(PrintError):
         return False
 
     def can_import_address(self):
+        return False
+
+    def can_delete_address(self):
         return False
 
     def add_address(self, address):
@@ -1302,6 +1319,9 @@ class Imported_Wallet(Abstract_Wallet):
         self.add_address(address)
         return address
 
+    def can_delete_address(self):
+        return True
+
     def delete_address(self, address):
         if address not in self.addresses:
             return
@@ -1336,8 +1356,7 @@ class P2PK_Wallet(Abstract_Wallet):
         return pubkey_list[i]
 
     def get_public_keys(self, address):
-        sequence = self.get_address_index(address)
-        return [self.get_pubkey(*sequence)]
+        return [self.get_public_key(address)]
 
     def get_pubkey_index(self, pubkey):
         if pubkey in self.receiving_pubkeys:
@@ -1347,9 +1366,15 @@ class P2PK_Wallet(Abstract_Wallet):
         raise BaseExeption('pubkey not found')
 
     def add_input_sig_info(self, txin, address):
-        txin['derivation'] = derivation = self.get_address_index(address)
-        x_pubkey = self.keystore.get_xpubkey(*derivation)
-        pubkey = self.get_pubkey(*derivation)
+        if not self.keystore.can_import():
+            txin['derivation'] = derivation = self.get_address_index(address)
+            x_pubkey = self.keystore.get_xpubkey(*derivation)
+            pubkey = self.get_pubkey(*derivation)
+        else:
+            pubkey = self.get_public_key(address)
+            assert pubkey is not None
+            x_pubkey = pubkey
+
         txin['x_pubkeys'] = [x_pubkey]
         txin['pubkeys'] = [pubkey]
         txin['signatures'] = [None]
@@ -1527,6 +1552,17 @@ class Standard_Wallet(Deterministic_Wallet, P2PK_Wallet):
     def save_keystore(self):
         self.storage.put('keystore', self.keystore.dump())
 
+    def can_delete_address(self):
+        return self.keystore.can_import()
+
+    def delete_address(self, address):
+        pubkey = self.get_public_key(address)
+        self.keystore.delete_imported_key(pubkey)
+        self.save_keystore()
+        self.receiving_pubkeys.remove(pubkey)
+        self.receiving_addresses.remove(addr)
+        self.storage.write()
+
     def can_import_privkey(self):
         return self.keystore.can_import()
 
@@ -1537,6 +1573,7 @@ class Standard_Wallet(Deterministic_Wallet, P2PK_Wallet):
         self.save_pubkeys()
         addr = self.pubkeys_to_address(pubkey)
         self.receiving_addresses.append(addr)
+        self.storage.write()
         self.add_address(addr)
         return addr
 

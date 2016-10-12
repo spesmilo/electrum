@@ -95,9 +95,9 @@ class AddressList(MyTreeWidget):
                         address_item.addChild(utxo_item)
 
     def create_menu(self, position):
-        from electrum.wallet import Multisig_Wallet, Imported_Wallet
+        from electrum.wallet import Multisig_Wallet
         is_multisig = isinstance(self.wallet, Multisig_Wallet)
-        is_imported = isinstance(self.wallet, Imported_Wallet)
+        can_delete = self.wallet.can_delete_address()
         selected = self.selectedItems()
         multi_select = len(selected) > 1
         addrs = [unicode(item.text(0)) for item in selected]
@@ -131,7 +131,7 @@ class AddressList(MyTreeWidget):
             if not is_multisig and not self.wallet.is_watching_only():
                 menu.addAction(_("Sign/verify message"), lambda: self.parent.sign_verify_message(addr))
                 menu.addAction(_("Encrypt/decrypt message"), lambda: self.parent.encrypt_message(addr))
-            if is_imported:
+            if can_delete:
                 menu.addAction(_("Remove from wallet"), lambda: self.parent.remove_address(addr))
             addr_URL = block_explorer_URL(self.config, 'addr', addr)
             if addr_URL:
