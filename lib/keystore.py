@@ -141,15 +141,12 @@ class Imported_KeyStore(Software_KeyStore):
         self.get_private_key((0,0), password)
 
     def import_key(self, sec, password):
-        if not self.can_import():
-            raise BaseException('This wallet cannot import private keys')
         try:
             pubkey = public_key_from_private_key(sec)
         except Exception:
             raise BaseException('Invalid private key')
-        if pubkey in self.keypairs:
-            raise BaseException('Private key already in keystore')
-        self.keypairs[pubkey] = sec
+        # allow overwrite
+        self.keypairs[pubkey] = pw_encode(sec, password)
         self.receiving_pubkeys = self.keypairs.keys()
         return pubkey
 
