@@ -344,6 +344,9 @@ class Old_KeyStore(Deterministic_KeyStore):
         Deterministic_KeyStore.__init__(self, d)
         self.mpk = d.get('mpk')
 
+    def get_seed(self, password):
+        return pw_decode(self.seed, password).encode('utf8')
+
     def dump(self):
         d = Deterministic_KeyStore.dump(self)
         d['mpk'] = self.mpk
