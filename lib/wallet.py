@@ -1560,7 +1560,7 @@ class Standard_Wallet(Deterministic_Wallet, P2PK_Wallet):
         self.keystore.delete_imported_key(pubkey)
         self.save_keystore()
         self.receiving_pubkeys.remove(pubkey)
-        self.receiving_addresses.remove(addr)
+        self.receiving_addresses.remove(address)
         self.storage.write()
 
     def can_import_privkey(self):
