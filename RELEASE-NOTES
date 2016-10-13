@@ -1,5 +1,8 @@
-# Release 2.7.6
+# Release 2.7.7
+  * Fix utf8 encoding bug with old wallet seeds (issue #1967)
+  * Fix delete request from menu (isue #1968)
 
+# Release 2.7.6
  * Fixes a critical bug with imported private keys (issue #1966). Keys
    imported in Electrum 2.7.x were not encrypted, even if the wallet
    had a password. If you imported private keys using Electrum 2.7.x,
