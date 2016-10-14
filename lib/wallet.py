@@ -1013,6 +1013,7 @@ class Abstract_Wallet(PrintError):
         outputs = copy.deepcopy(tx.outputs())
         for txin in inputs:
             txin['signatures'] = [None] * len(txin['signatures'])
+            self.add_input_info(txin)
         for i, o in enumerate(outputs):
             otype, address, value = o
             if self.is_mine(address) and value >= delta:
@@ -1040,6 +1041,7 @@ class Abstract_Wallet(PrintError):
         for k in self.get_keystores():
             if k.can_sign(tx):
                 return True
+        return False
 
     def get_input_tx(self, tx_hash):
         # First look up an input transaction in the wallet where it
@@ -1374,7 +1376,6 @@ class P2PK_Wallet(Abstract_Wallet):
             pubkey = self.get_public_key(address)
             assert pubkey is not None
             x_pubkey = pubkey
-
         txin['x_pubkeys'] = [x_pubkey]
         txin['pubkeys'] = [pubkey]
         txin['signatures'] = [None]
