@@ -1706,13 +1706,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         keystore = self.wallet.get_keystore()
         try:
-            mnemonic = keystore.get_mnemonic(password)
+            seed = keystore.get_seed(password)
             passphrase = keystore.get_passphrase(password)
         except BaseException as e:
             self.show_error(str(e))
             return
         from seed_dialog import SeedDialog
-        d = SeedDialog(self, mnemonic, passphrase)
+        d = SeedDialog(self, seed, passphrase)
         d.exec_()
 
 
