@@ -32,10 +32,9 @@ from plugins import run_hook
 
 class BaseWizard(object):
 
-    def __init__(self, config, network, path):
+    def __init__(self, config, path):
         super(BaseWizard, self).__init__()
         self.config = config
-        self.network = network
         self.storage = WalletStorage(path)
         self.wallet = None
         self.stack = []

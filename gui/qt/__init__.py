@@ -161,12 +161,11 @@ class ElectrumGui:
         else:
             wallet = self.daemon.load_wallet(path)
             if not wallet:
-                wizard = InstallWizard(self.config, self.app, self.plugins, self.daemon.network, path)
+                wizard = InstallWizard(self.config, self.app, self.plugins, path)
                 wallet = wizard.run_and_get_wallet()
                 if not wallet:
                     return
-                #if wallet.get_action():
-                #    return
+                wallet.start_threads(self.daemon.network)
                 self.daemon.add_wallet(wallet)
             w = self.create_window_for_wallet(wallet)
         if uri:
@@ -181,23 +180,31 @@ class ElectrumGui:
             self.config.save_last_wallet(window.wallet)
         run_hook('on_close_window', window)
 
+    def init_network(self):
+        # Show network dialog if config does not exist
+        if self.daemon.network:
+            if self.config.get('auto_connect') is None:
+                wizard = InstallWizard(self.config, self.app, self.plugins, None)
+                wizard.init_network(self.daemon.network)
+                wizard.terminate()
+
     def main(self):
+        try:
+            self.init_network()
+        except:
+            traceback.print_exc(file=sys.stdout)
+            return
         self.timer.start()
         self.config.open_last_wallet()
         path = self.config.get_wallet_path()
         if not self.start_new_window(path, self.config.get('url')):
             return
-
         signal.signal(signal.SIGINT, lambda *args: self.app.quit())
-
         # main loop
         self.app.exec_()
-
         # Shut down the timer cleanly
         self.timer.stop()
-
         # clipboard persistence. see http://www.mail-archive.com/pyqt@riverbankcomputing.com/msg17328.html
         event = QtCore.QEvent(QtCore.QEvent.Clipboard)
         self.app.sendEvent(self.app.clipboard(), event)
-
         self.tray.hide()

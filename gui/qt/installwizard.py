@@ -95,9 +95,9 @@ def wizard_dialog(func):
 # WindowModalDialog must come first as it overrides show_error
 class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
-    def __init__(self, config, app, plugins, network, storage):
+    def __init__(self, config, app, plugins, storage):
 
-        BaseWizard.__init__(self, config, network, storage)
+        BaseWizard.__init__(self, config, storage)
         QDialog.__init__(self, None)
 
         self.setWindowTitle('Electrum  -  ' + _('Install Wizard'))
@@ -146,10 +146,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.refresh_gui()  # Need for QT on MacOSX.  Lame.
 
     def run_and_get_wallet(self):
-        # Show network dialog if config does not exist
-        if self.network:
-            if self.config.get('auto_connect') is None:
-                self.choose_server(self.network)
 
         path = self.storage.path
         if self.storage.requires_split():
@@ -337,7 +333,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.run(action)
 
     def terminate(self):
-        self.wallet.start_threads(self.network)
         self.emit(QtCore.SIGNAL('accept'))
 
     def waiting_dialog(self, task, msg):
@@ -391,25 +386,29 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.set_main_layout(vbox, _('Master Public Key'))
         return None
 
-    def choose_server(self, network):
-        title = _("Electrum communicates with remote servers to get "
+    def init_network(self, network):
+        message = _("Electrum communicates with remote servers to get "
                   "information about your transactions and addresses. The "
                   "servers all fulfil the same purpose only differing in "
                   "hardware. In most cases you simply want to let Electrum "
                   "pick one at random.  However if you prefer feel free to "
                   "select a server manually.")
         choices = [_("Auto connect"), _("Select server manually")]
-        choices_title = _("How do you want to connect to a server? ")
-        clayout = ChoicesLayout(choices_title, choices)
+        title = _("How do you want to connect to a server? ")
+        clayout = ChoicesLayout(message, choices)
         self.set_main_layout(clayout.layout(), title)
-        auto_connect = True
-        if clayout.selected_index() == 1:
+        r = clayout.selected_index()
+        if r == 0:
+            auto_connect = True
+        elif r == 1:
+            auto_connect = True
             nlayout = NetworkChoiceLayout(network, self.config, wizard=True)
-            if self.set_main_layout(nlayout.layout(), raise_on_cancel=False):
-                nlayout.accept()
+            if self.set_main_layout(nlayout.layout()):
                 auto_connect = False
-        self.config.set_key('auto_connect', auto_connect, True)
+        else:
+            auto_connect = True
         network.auto_connect = auto_connect
+        self.config.set_key('auto_connect', auto_connect, True)
 
     @wizard_dialog
     def multisig_dialog(self, run_next):

@@ -410,6 +410,7 @@ class ElectrumWindow(App):
 
     def on_wizard_complete(self, instance, wallet):
         if wallet:
+            wallet.start_threads(self.daemon.network)
             self.daemon.add_wallet(wallet)
             self.load_wallet(wallet)
         self.on_resume()
@@ -425,7 +426,7 @@ class ElectrumWindow(App):
                 self.on_resume()
         else:
             Logger.debug('Electrum: Wallet not found. Launching install wizard')
-            wizard = Factory.InstallWizard(self.electrum_config, self.network, path)
+            wizard = Factory.InstallWizard(self.electrum_config, path)
             wizard.bind(on_wizard_complete=self.on_wizard_complete)
             action = wizard.storage.get_action()
             wizard.run(action)

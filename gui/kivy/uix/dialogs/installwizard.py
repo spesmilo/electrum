@@ -759,7 +759,6 @@ class InstallWizard(BaseWizard, Widget):
         t.start()
 
     def terminate(self, **kwargs):
-        self.wallet.start_threads(self.network)
         self.dispatch('on_wizard_complete', self.wallet)
 
     def choice_dialog(self, **kwargs):
