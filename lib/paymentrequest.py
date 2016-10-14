@@ -117,7 +117,11 @@ class PaymentRequest:
             self.error = "Empty request"
             return
         pr = pb2.PaymentRequest()
-        pr.ParseFromString(self.raw)
+        try:
+            pr.ParseFromString(self.raw)
+        except:
+            self.error = "Error: Cannot parse payment request"
+            return
         if not pr.signature:
             # the address will be dispayed as requestor
             self.requestor = None
