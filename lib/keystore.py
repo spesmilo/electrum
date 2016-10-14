@@ -318,9 +318,6 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
     def is_watching_only(self):
         return self.xprv is None
 
-    def get_mnemonic(self, password):
-        return self.get_seed(password)
-
     def add_xprv(self, xprv):
         self.xprv = xprv
         self.xpub = bitcoin.xpub_from_xprv(xprv)
@@ -344,7 +341,7 @@ class Old_KeyStore(Deterministic_KeyStore):
         Deterministic_KeyStore.__init__(self, d)
         self.mpk = d.get('mpk')
 
-    def get_seed(self, password):
+    def get_hex_seed(self, password):
         return pw_decode(self.seed, password).encode('utf8')
 
     def dump(self):
@@ -376,9 +373,9 @@ class Old_KeyStore(Deterministic_KeyStore):
             raise Exception("Invalid seed")
         return seed
 
-    def get_mnemonic(self, password):
+    def get_seed(self, password):
         import old_mnemonic
-        s = self.get_seed(password)
+        s = self.get_hex_seed(password)
         return ' '.join(old_mnemonic.mn_encode(s))
 
     @classmethod
@@ -423,7 +420,7 @@ class Old_KeyStore(Deterministic_KeyStore):
         return SecretToASecret(pk, compressed)
 
     def get_private_key(self, sequence, password):
-        seed = self.get_seed(password)
+        seed = self.get_hex_seed(password)
         self.check_seed(seed)
         for_change, n = sequence
         secexp = self.stretch_key(seed)
@@ -439,7 +436,7 @@ class Old_KeyStore(Deterministic_KeyStore):
             raise InvalidPassword()
 
     def check_password(self, password):
-        seed = self.get_seed(password)
+        seed = self.get_hex_seed(password)
         self.check_seed(seed)
 
     def get_master_public_key(self):
@@ -476,7 +473,7 @@ class Old_KeyStore(Deterministic_KeyStore):
         if new_password == '':
             new_password = None
         if self.has_seed():
-            decoded = self.get_seed(old_password)
+            decoded = self.get_hex_seed(old_password)
             self.seed = pw_encode(decoded, new_password)
 
 

@@ -1418,9 +1418,6 @@ class Deterministic_Wallet(Abstract_Wallet):
     def add_seed(self, seed, pw):
         self.keystore.add_seed(seed, pw)
 
-    def get_mnemonic(self, password):
-        return self.keystore.get_mnemonic(password)
-
     def change_gap_limit(self, value):
         '''This method is not called in the code, it is kept for console use'''
         if value >= self.gap_limit:

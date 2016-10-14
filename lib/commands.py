@@ -346,7 +346,7 @@ class Commands:
     @command('wp')
     def getseed(self):
         """Get seed phrase. Print the generation seed of your wallet."""
-        s = self.wallet.get_mnemonic(self._password)
+        s = self.wallet.get_seed(self._password)
         return s.encode('utf8')
 
     @command('wp')
