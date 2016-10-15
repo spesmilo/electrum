@@ -2633,7 +2633,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         try:
             new_tx = self.wallet.bump_fee(tx, delta)
         except BaseException as e:
-            self.show_error(e)
+            self.show_error(str(e))
             return
         if is_final:
             new_tx.set_sequence(0xffffffff)

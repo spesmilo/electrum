@@ -1023,7 +1023,7 @@ class Abstract_Wallet(PrintError):
                 outputs[i] = otype, address, value - delta
                 break
         else:
-            raise BaseException("cannot bump fee")
+            raise BaseException("cannot bump fee: could not find a change output")
         new_tx = Transaction.from_io(inputs, outputs)
         return new_tx
 
