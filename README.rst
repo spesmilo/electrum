@@ -32,6 +32,13 @@ directory. To run Electrum from its root directory, just do::
 
     ./electrum
 
+You can also install Electrum on your system, by running this command::
+
+    python setup.py install
+
+This will download and install the Python dependencies used by
+Electrum, instead of using the 'packages' directory.
+
 If you cloned the git repository, then you need to compile extra files
 before you can run Electrum. Read the next section, "Development
 Version".
@@ -60,29 +67,11 @@ Compile the protobuf description file::
     sudo apt-get install protobuf-compiler
     protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto
 
-Create translations::
+Create translations (optional)::
 
     sudo apt-get install python-pycurl gettext
     ./contrib/make_locale
 
-
-
-Install on Linux systems
-========================
-
-If you install Electrum on your system, you can run it from any
-directory.
-
-If you have pip, you can do::
-
-    python setup.py sdist
-    sudo pip install --pre dist/Electrum-2.0.tar.gz
-
-
-If you don't have pip, install with::
-
-    python setup.py sdist
-    sudo python setup.py install
 
 
 
