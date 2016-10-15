@@ -45,9 +45,9 @@ class Test_bitcoin(unittest.TestCase):
         dec2 = eck.decrypt_message(enc)
         assert dec2 == message
 
-        signature = eck.sign_message(message, True, addr_c)
+        signature = eck.sign_message(message, True)
         #print signature
-        EC_KEY.verify_message(addr_c, signature, message)
+        EC_KEY.verify_message(eck, signature, message)
 
     def test_bip32(self):
         # see https://en.bitcoin.it/wiki/BIP_0032_TestVectors
