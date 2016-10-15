@@ -319,13 +319,13 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                 txoutputtype.script_type = self.types.PAYTOOPRETURN
                 txoutputtype.op_return_data = address[2:]
             elif _type == TYPE_ADDRESS:
-                if change is not None:
+                addrtype, hash_160 = bc_address_to_hash_160(address)
+                if addrtype == 0 and change is not None:
                     address_path = "%s/%d/%d"%(derivation, change, index)
                     address_n = self.client_class.expand_path(address_path)
                     txoutputtype.address_n.extend(address_n)
                 else:
                     txoutputtype.address = address
-                addrtype, hash_160 = bc_address_to_hash_160(address)
                 if addrtype == 0:
                     txoutputtype.script_type = self.types.PAYTOADDRESS
                 elif addrtype == 5:
