@@ -311,6 +311,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
 
     def tx_outputs(self, derivation, tx):
         outputs = []
+        has_change = False
         for i, (_type, address, amount) in enumerate(tx.outputs()):
             txoutputtype = self.types.TxOutputType()
             txoutputtype.amount = amount
@@ -320,10 +321,12 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                 txoutputtype.op_return_data = address[2:]
             elif _type == TYPE_ADDRESS:
                 addrtype, hash_160 = bc_address_to_hash_160(address)
-                if addrtype == 0 and change is not None:
+                if addrtype == 0 and change is not None and not has_change:
                     address_path = "%s/%d/%d"%(derivation, change, index)
                     address_n = self.client_class.expand_path(address_path)
                     txoutputtype.address_n.extend(address_n)
+                    # do not show more than one change address to device
+                    has_change = True
                 else:
                     txoutputtype.address = address
                 if addrtype == 0:
