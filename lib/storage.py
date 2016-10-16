@@ -37,7 +37,15 @@ from i18n import _
 from util import NotEnoughFunds, PrintError, profiler
 from plugins import run_hook, plugin_loaders
 from keystore import bip44_derivation
-from version import *
+
+
+# seed_version is now used for the version of the wallet file
+
+OLD_SEED_VERSION = 4        # electrum versions < 2.0
+NEW_SEED_VERSION = 11       # electrum versions >= 2.0
+FINAL_SEED_VERSION = 13     # electrum >= 2.7 will set this to prevent
+                            # old versions from overwriting new format
+
 
 
 def multisig_type(wallet_type):
@@ -213,7 +221,17 @@ class WalletStorage(PrintError):
         self.convert_imported()
         self.convert_wallet_type()
         self.convert_account()
+        self.convert_pubkeys()
         self.write()
+
+    def convert_pubkeys(self):
+        # version 12 had a bug in pubkey ordering
+        # it is fixed by forcing pubkey regeneration
+        if self.get_seed_version() != 12:
+            return
+        if self.get('wallet_type') in ['standard', 'imported']:
+            return
+        self.put('pubkeys', {})
 
     def convert_wallet_type(self):
         wallet_type = self.get('wallet_type')
@@ -334,7 +352,9 @@ class WalletStorage(PrintError):
         seed_version = self.get('seed_version')
         if not seed_version:
             seed_version = OLD_SEED_VERSION if len(self.get('master_public_key','')) == 128 else NEW_SEED_VERSION
-        if seed_version not in [OLD_SEED_VERSION, NEW_SEED_VERSION, FINAL_SEED_VERSION]:
+        if seed_version >=12:
+            return seed_version
+        if seed_version not in [OLD_SEED_VERSION, NEW_SEED_VERSION]:
             msg = "Your wallet has an unsupported seed version."
             msg += '\n\nWallet file: %s' % os.path.abspath(self.path)
             if seed_version in [5, 7, 8, 9, 10]:
