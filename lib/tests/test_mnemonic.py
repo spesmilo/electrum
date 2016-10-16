@@ -4,10 +4,6 @@ from lib import old_mnemonic
 
 class Test_NewMnemonic(unittest.TestCase):
 
-    def test_prepare_seed(self):
-        seed = 'foo BAR Baz'
-        self.assertEquals(mnemonic.prepare_seed(seed), 'foo bar baz')
-
     def test_to_seed(self):
         seed = mnemonic.Mnemonic.mnemonic_to_seed(mnemonic='foobar', passphrase='none')
         self.assertEquals(seed.encode('hex'),
@@ -19,7 +15,6 @@ class Test_NewMnemonic(unittest.TestCase):
         m = mnemonic.Mnemonic(lang='en')
         for _ in range(iters):
             seed = m.make_seed()
-            self.assertTrue(m.check_seed(seed, custom_entropy=1))
             i = m.mnemonic_decode(seed)
             self.assertEquals(m.mnemonic_encode(i), seed)
 
