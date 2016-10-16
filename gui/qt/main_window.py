@@ -1667,27 +1667,23 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def show_master_public_keys(self):
         dialog = WindowModalDialog(self, "Master Public Keys")
-        mpk_dict = self.wallet.get_master_public_keys()
+        mpk_list = self.wallet.get_master_public_keys()
         vbox = QVBoxLayout()
         mpk_text = ShowQRTextEdit()
         mpk_text.setMaximumHeight(100)
         mpk_text.addCopyButton(self.app)
-        sorted_keys = sorted(mpk_dict.keys())
         def show_mpk(index):
-            mpk_text.setText(mpk_dict[sorted_keys[index]])
+            mpk_text.setText(mpk_list[index])
 
         # only show the combobox in case multiple accounts are available
-        if len(mpk_dict) > 1:
+        if len(mpk_list) > 1:
             def label(key):
                 if isinstance(self.wallet, Multisig_Wallet):
-                    is_mine = False#self.wallet.master_private_keys.has_key(key)
-                    mine_text = [_("cosigner"), _("self")]
-                    return "%s (%s)" % (key, mine_text[is_mine])
-                return key
-            labels = list(map(label, sorted_keys))
+                    return _("cosigner") + ' ' + str(i+1)
+                return ''
+            labels = [ label(i) for i in range(len(mpk_list))]
             on_click = lambda clayout: show_mpk(clayout.selected_index())
-            labels_clayout = ChoicesLayout(_("Master Public Keys"), labels,
-                                           on_click)
+            labels_clayout = ChoicesLayout(_("Master Public Keys"), labels, on_click)
             vbox.addLayout(labels_clayout.layout())
 
         show_mpk(0)
