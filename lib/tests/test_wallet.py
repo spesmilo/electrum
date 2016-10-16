@@ -6,7 +6,7 @@ import os
 import json
 
 from StringIO import StringIO
-from electrum_ltc.storage import WalletStorage
+from electrum_ltc.storage import WalletStorage, FINAL_SEED_VERSION
 
 
 class FakeSynchronizer(object):
@@ -55,9 +55,9 @@ class TestWalletStorage(WalletTestCase):
         storage = WalletStorage(self.wallet_path)
 
         some_dict = {
-          u"a": u"b",
-          u"c": u"d",
-          u"seed_version": 12}
+            u"a": u"b",
+            u"c": u"d",
+            u"seed_version": FINAL_SEED_VERSION}
 
         for key, value in some_dict.items():
             storage.put(key, value)

@@ -1066,11 +1066,17 @@ class Abstract_Wallet(PrintError):
             txin['prev_tx'] = self.get_input_tx(tx_hash)
 
         # add output info for hw wallets
-        tx.output_info = []
-        for i, txout in enumerate(tx.outputs()):
+        info = {}
+        xpubs = self.get_master_public_keys()
+        for txout in tx.outputs():
             _type, addr, amount = txout
-            change, address_index = self.get_address_index(addr) if self.is_change(addr) else (None, None)
-            tx.output_info.append((change, address_index))
+            if self.is_change(addr):
+                index = self.get_address_index(addr)
+                pubkeys = self.get_public_keys(addr)
+                # sort xpubs using the order of pubkeys
+                sorted_pubkeys, sorted_xpubs = zip(*sorted(zip(pubkeys, xpubs)))
+                info[addr] = index, sorted_xpubs, self.m if isinstance(self, Multisig_Wallet) else None
+        tx.output_info = info
 
         # sign
         for k in self.get_keystores():
@@ -1304,7 +1310,7 @@ class Imported_Wallet(Abstract_Wallet):
         return False
 
     def get_master_public_keys(self):
-        return {}
+        return []
 
     def is_beyond_limit(self, address, is_change):
         return False
@@ -1509,7 +1515,7 @@ class Deterministic_Wallet(Abstract_Wallet):
         return True
 
     def get_master_public_keys(self):
-        return {'x':self.get_master_public_key()}
+        return [self.get_master_public_key()]
 
     def get_fingerprint(self):
         return self.get_master_public_key()
@@ -1602,7 +1608,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         return address
 
     def new_pubkeys(self, c, i):
-        return [k.derive_pubkey(c, i) for k in self.keystores.values()]
+        return [k.derive_pubkey(c, i) for k in self.get_keystores()]
 
     def load_keystore(self):
         self.keystores = {}
@@ -1619,7 +1625,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         return self.keystores.get('x1/')
 
     def get_keystores(self):
-        return self.keystores.values()
+        return [self.keystores[i] for i in sorted(self.keystores.keys())]
 
     def update_password(self, old_pw, new_pw):
         for name, keystore in self.keystores.items():
@@ -1643,7 +1649,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         return self.keystore.get_master_public_key()
 
     def get_master_public_keys(self):
-        return dict(map(lambda x: (x[0], x[1].get_master_public_key()), self.keystores.items()))
+        return [k.get_master_public_key() for k in self.get_keystores()]
 
     def get_fingerprint(self):
         return ''.join(sorted(self.get_master_public_keys()))

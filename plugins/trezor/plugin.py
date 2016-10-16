@@ -312,31 +312,48 @@ class TrezorCompatiblePlugin(HW_PluginBase):
     def tx_outputs(self, derivation, tx):
         outputs = []
         has_change = False
-        for i, (_type, address, amount) in enumerate(tx.outputs()):
-            txoutputtype = self.types.TxOutputType()
-            txoutputtype.amount = amount
-            change, index = tx.output_info[i]
-            if _type == TYPE_SCRIPT:
-                txoutputtype.script_type = self.types.PAYTOOPRETURN
-                txoutputtype.op_return_data = address[2:]
-            elif _type == TYPE_ADDRESS:
+
+        for _type, address, amount in tx.outputs():
+            info = tx.output_info.get(address)
+            if info is not None and not has_change:
+                has_change = True # no more than one change address
                 addrtype, hash_160 = bc_address_to_hash_160(address)
-                if addrtype == 48 and change is not None and not has_change:
-                    address_path = "%s/%d/%d"%(derivation, change, index)
-                    address_n = self.client_class.expand_path(address_path)
-                    txoutputtype.address_n.extend(address_n)
-                    # do not show more than one change address to device
-                    has_change = True
-                else:
-                    txoutputtype.address = address
+                index, xpubs, m = info
                 if addrtype == 48:
-                    txoutputtype.script_type = self.types.PAYTOADDRESS
+                    address_n = self.client_class.expand_path(derivation + "/%d/%d"%index)
+                    txoutputtype = self.types.TxOutputType(
+                        amount = amount,
+                        script_type = self.types.PAYTOADDRESS,
+                        address_n = address_n,
+                    )
                 elif addrtype == 5:
-                    txoutputtype.script_type = self.types.PAYTOSCRIPTHASH
-                else:
-                    raise BaseException('addrtype')
+                    address_n = self.client_class.expand_path("/%d/%d"%index)
+                    nodes = map(self.ckd_public.deserialize, xpubs)
+                    pubkeys = [ self.types.HDNodePathType(node=node, address_n=address_n) for node in nodes]
+                    multisig = self.types.MultisigRedeemScriptType(
+                        pubkeys = pubkeys,
+                        signatures = [b'', b'', b''],
+                        m = m)
+                    txoutputtype = self.types.TxOutputType(
+                        multisig = multisig,
+                        amount = amount,
+                        script_type = self.types.PAYTOMULTISIG)
             else:
-                raise BaseException('addrtype')
+                txoutputtype = self.types.TxOutputType()
+                txoutputtype.amount = amount
+                if _type == TYPE_SCRIPT:
+                    txoutputtype.script_type = self.types.PAYTOOPRETURN
+                    txoutputtype.op_return_data = address[2:]
+                elif _type == TYPE_ADDRESS:
+                    addrtype, hash_160 = bc_address_to_hash_160(address)
+                    if addrtype == 48:
+                        txoutputtype.script_type = self.types.PAYTOADDRESS
+                    elif addrtype == 5:
+                        txoutputtype.script_type = self.types.PAYTOSCRIPTHASH
+                    else:
+                        raise BaseException('addrtype')
+                    txoutputtype.address = address
+
             outputs.append(txoutputtype)
 
         return outputs
