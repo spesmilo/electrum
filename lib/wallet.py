@@ -1475,11 +1475,15 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def synchronize_sequence(self, for_change):
         limit = self.gap_limit_for_change if for_change else self.gap_limit
-        addresses = self.get_change_addresses() if for_change else self.get_receiving_addresses()
-        if len(addresses) < limit:
-            self.create_new_address(for_change)
-        elif map(lambda a: self.address_is_old(a), addresses[-limit:]) != limit*[False]:
-            self.create_new_address(for_change)
+        while True:
+            addresses = self.get_change_addresses() if for_change else self.get_receiving_addresses()
+            if len(addresses) < limit:
+                self.create_new_address(for_change)
+                continue
+            if map(lambda a: self.address_is_old(a), addresses[-limit:] ) == limit*[False]:
+                break
+            else:
+                self.create_new_address(for_change)
 
     def synchronize(self):
         with self.lock:
