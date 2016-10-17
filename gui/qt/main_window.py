@@ -104,6 +104,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.app = gui_object.app
         self.cleaned_up = False
         self.is_max = False
+        self.payment_request = None
+        self.checking_accounts = False
+        self.qr_window = None
+        self.not_enough_funds = False
+        self.pluginsdialog = None
+        self.require_fee_update = False
+        self.tx_notifications = []
+        self.tl_windows = []
 
         self.create_status_bar()
         self.need_update = threading.Event()
@@ -158,17 +166,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             # set initial message
             self.console.showMessage(self.network.banner)
 
-        self.payment_request = None
-        self.checking_accounts = False
-        self.qr_window = None
-        self.not_enough_funds = False
-        self.pluginsdialog = None
-        self.fetch_alias()
-        self.require_fee_update = False
-        self.tx_notifications = []
-        self.tl_windows = []
         self.load_wallet(wallet)
         self.connect_slots(gui_object.timer)
+        self.fetch_alias()
 
     def toggle_addresses_tab(self):
         show_addr = not self.config.get('show_addresses_tab', False)

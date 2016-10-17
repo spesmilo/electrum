@@ -79,7 +79,7 @@ def wizard_dialog(func):
         try:
             out = func(*args, **kwargs)
         except GoBack:
-            wizard.go_back()
+            wizard.go_back() if wizard.can_go_back() else wizard.close()
             return
         except UserCancelled:
             return
