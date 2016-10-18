@@ -804,6 +804,10 @@ class Abstract_Wallet(PrintError):
         f = self.network.relay_fee if self.network and self.network.relay_fee else RELAY_FEE
         return min(f, MAX_RELAY_FEE)
 
+    def dust_threshold(self):
+        # Change <= dust threshold is added to the tx fee
+        return DUST_SOFT_LIMIT
+
     def get_tx_fee(self, tx):
         # this method can be overloaded
         return tx.get_fee()
@@ -844,14 +848,11 @@ class Abstract_Wallet(PrintError):
         else:
             fee_estimator = lambda size: fixed_fee
 
-        # Change <= dust threshold is added to the tx fee
-        dust_threshold = DUST_SOFT_LIMIT
-
         # Let the coin chooser select the coins to spend
         max_change = self.max_change_outputs if self.multiple_change else 1
         coin_chooser = coinchooser.get_coin_chooser(config)
         tx = coin_chooser.make_tx(coins, outputs, change_addrs[:max_change],
-                                  fee_estimator, dust_threshold)
+                                  fee_estimator, self.dust_threshold())
 
         # Sort the inputs and outputs deterministically
         tx.BIP_LI01_sort()
@@ -1011,7 +1012,7 @@ class Abstract_Wallet(PrintError):
 
     def bump_fee(self, tx, delta):
         if tx.is_final():
-            raise BaseException("cannot bump fee: transaction is final")
+            raise BaseException(_("Cannot bump fee: transaction is final"))
         inputs = copy.deepcopy(tx.inputs())
         outputs = copy.deepcopy(tx.outputs())
         for txin in inputs:
@@ -1020,12 +1021,14 @@ class Abstract_Wallet(PrintError):
         for i, o in enumerate(outputs):
             otype, address, value = o
             if self.is_mine(address) and value >= delta:
-                outputs[i] = otype, address, value - delta
+                if value - delta >= self.dust_threshold():
+                    outputs[i] = otype, address, value - delta
+                else:
+                    del outputs[i]
                 break
         else:
-            raise BaseException("cannot bump fee: could not find a change output")
-        new_tx = Transaction.from_io(inputs, outputs)
-        return new_tx
+            raise BaseException(_("Cannot bump fee: could not find a change output"))
+        return Transaction.from_io(inputs, outputs)
 
     def add_input_info(self, txin):
         # Add address for utxo that are in wallet
