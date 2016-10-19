@@ -1655,15 +1655,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.addWidget(line1, 1, 1)
         grid.addWidget(QLabel(_("Name")), 2, 0)
         grid.addWidget(line2, 2, 1)
-
         vbox.addLayout(grid)
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
-
-        if not d.exec_():
-            return
-
-        if self.set_contact(unicode(line2.text()), str(line1.text())):
-            self.tabs.setCurrentIndex(4)
+        if d.exec_():
+            self.set_contact(unicode(line2.text()), str(line1.text()))
 
     def show_master_public_keys(self):
         dialog = WindowModalDialog(self, "Master Public Keys")
