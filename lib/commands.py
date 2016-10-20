@@ -143,11 +143,17 @@ class Commands:
         return True
 
     @command('')
-    def make_seed(self, nbits=128, language=None):
+    def make_seed(self, nbits=128, entropy=1, language=None):
         """Create a seed"""
         from mnemonic import Mnemonic
-        s = Mnemonic(language).make_seed(nbits)
+        s = Mnemonic(language).make_seed(nbits, custom_entropy=entropy)
         return s.encode('utf8')
+
+    @command('')
+    def check_seed(self, seed, entropy=1, language=None):
+        """Check that a seed was generated with given entropy"""
+        from mnemonic import Mnemonic
+        return Mnemonic(language).check_seed(seed, entropy)
 
     @command('n')
     def getaddresshistory(self, address):
@@ -656,6 +662,7 @@ command_options = {
     'from_addr':   ("-F", "--from",        "Source address. If it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet."),
     'change_addr': ("-c", "--change",      "Change address. Default is a spare address, or the source address if it's not in the wallet"),
     'nbits':       (None, "--nbits",       "Number of bits of entropy"),
+    'entropy':     (None, "--entropy",     "Custom entropy"),
     'language':    ("-L", "--lang",        "Default language for wordlist"),
     'gap_limit':   ("-G", "--gap",         "Gap limit"),
     'privkey':     (None, "--privkey",     "Private key. Set to '?' to get a prompt."),
@@ -679,6 +686,7 @@ arg_types = {
     'num': int,
     'nbits': int,
     'imax': int,
+    'entropy': long,
     'tx': tx_from_str,
     'pubkeys': json_loads,
     'jsontx': json_loads,
