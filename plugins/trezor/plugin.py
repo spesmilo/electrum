@@ -332,7 +332,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                     pubkeys = [ self.types.HDNodePathType(node=node, address_n=address_n) for node in nodes]
                     multisig = self.types.MultisigRedeemScriptType(
                         pubkeys = pubkeys,
-                        signatures = [b'', b'', b''],
+                        signatures = [b''] * len(pubkeys),
                         m = m)
                     txoutputtype = self.types.TxOutputType(
                         multisig = multisig,
