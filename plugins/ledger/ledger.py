@@ -299,11 +299,12 @@ class Ledger_KeyStore(Hardware_KeyStore):
         if not p2shTransaction:
             if len(tx.outputs()) > 2: # should never happen
                 self.give_error("Transaction with more than 2 outputs not supported")
-            for i, (_type, address, amount) in enumerate(tx.outputs()):
+            for _type, address, amount in tx.outputs():
                 assert _type == TYPE_ADDRESS
-                change, index = tx.output_info[i]            
-                if change:
-                    changePath = "%s/%d/%d" % (self.get_derivation()[2:], change, index)
+                info = tx.output_info.get(address)
+                if info is not None:
+                    index, xpubs, m = info
+                    changePath = self.get_derivation()[2:] + "/%d/%d"%index
                     changeAmount = amount
                 else:
                     output = address
