@@ -1015,16 +1015,26 @@ class Abstract_Wallet(PrintError):
         for txin in inputs:
             txin['signatures'] = [None] * len(txin['signatures'])
             self.add_input_info(txin)
-        for i, o in enumerate(outputs):
+        # use own outputs
+        s = filter(lambda x: self.is_mine(x[1]), outputs)
+        # ... unless there is none
+        if not s:
+            s = outputs
+        # prioritize low value outputs, to get rid of dust
+        s = sorted(s, key=lambda x: x[2])
+        for o in s:
+            i = outputs.index(o)
             otype, address, value = o
-            if self.is_mine(address) and value >= delta:
-                if value - delta >= self.dust_threshold():
-                    outputs[i] = otype, address, value - delta
-                else:
-                    del outputs[i]
+            if value - delta >= self.dust_threshold():
+                outputs[i] = otype, address, value - delta
                 break
-        else:
-            raise BaseException(_("Cannot bump fee: could not find a change output"))
+            else:
+                del outputs[i]
+                delta -= value
+                if delta > 0:
+                    continue
+        if delta > 0:
+            raise BaseException(_('Cannot bump fee: cound not find suitable outputs'))
         return Transaction.from_io(inputs, outputs)
 
     def add_input_info(self, txin):
