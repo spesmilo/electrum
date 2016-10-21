@@ -156,13 +156,12 @@ class TxDialog(QDialog, MessageBoxMixin):
             if success:
                 self.prompt_if_unsaved = True
                 self.saved = False
-                self.update()
+            self.update()
+            self.main_window.pop_top_level_window(self)
 
         self.sign_button.setDisabled(True)
         self.main_window.push_top_level_window(self)
         self.main_window.sign_tx(self.tx, sign_done)
-        self.sign_button.setDisabled(False)
-        self.main_window.pop_top_level_window(self)
 
     def save(self):
         name = 'signed_%s.txn' % (self.tx.hash()[0:8]) if self.tx.is_complete() else 'unsigned.txn'
@@ -173,23 +172,13 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.show_message(_("Transaction saved successfully"))
             self.saved = True
 
-
     def update(self):
         desc = self.desc
         base_unit = self.main_window.base_unit()
         format_amount = self.main_window.format_amount
         tx_hash, status, label, can_broadcast, can_rbf, amount, fee, height, conf, timestamp, exp_n = self.wallet.get_tx_info(self.tx)
-
-        if can_broadcast:
-            self.broadcast_button.show()
-        else:
-            self.broadcast_button.hide()
-
-        if self.wallet.can_sign(self.tx):
-            self.sign_button.show()
-        else:
-            self.sign_button.hide()
-
+        self.broadcast_button.setEnabled(can_broadcast)
+        self.sign_button.setEnabled(self.wallet.can_sign(self.tx))
         self.tx_hash_e.setText(tx_hash or _('Unknown'))
         if desc is None:
             self.tx_desc.hide()
