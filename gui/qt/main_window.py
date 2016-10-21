@@ -2162,7 +2162,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         button.setEnabled(False)
 
         def get_address():
-            addr = str(address_e.text())
+            addr = str(address_e.text()).strip()
             if bitcoin.is_address(addr):
                 return addr
 
@@ -2172,8 +2172,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 return pk.split()
 
         f = lambda: button.setEnabled(get_address() is not None and get_pk() is not None)
+        on_address = lambda text: address_e.setStyleSheet(BLACK_FG if get_address() else RED_FG)
         keys_e.textChanged.connect(f)
         address_e.textChanged.connect(f)
+        address_e.textChanged.connect(on_address)
         if not d.exec_():
             return
 
