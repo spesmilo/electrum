@@ -1101,9 +1101,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             password = None
             while self.wallet.has_password():
                 password = self.password_dialog(parent=parent)
+                if password is None:
+                    # User cancelled password input
+                    return
                 try:
-                    if password:
-                        self.wallet.check_password(password)
+                    self.wallet.check_password(password)
                     break
                 except Exception as e:
                     self.show_error(str(e), parent=parent)
@@ -1234,10 +1236,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         '''Sign the transaction in a separate thread.  When done, calls
         the callback with a success code of True or False.
         '''
-        if self.wallet.has_password() and not password:
-            callback(False) # User cancelled password input
-            return
-
         # call hook to see if plugin needs gui interaction
         run_hook('sign_tx', self, tx)
 
@@ -1689,9 +1687,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     @protected
     def show_seed_dialog(self, password):
-        if self.wallet.has_password() and password is None:
-            # User cancelled password input
-            return
         if not self.wallet.has_seed():
             self.show_message(_('This wallet has no seed'))
             return
@@ -1736,7 +1731,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     @protected
     def show_private_key(self, address, password):
-        if not address: return
+        if not address:
+            return
         try:
             pk_list = self.wallet.get_private_key(address, password)
         except Exception as e:
@@ -1816,7 +1812,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         hbox.addWidget(b)
         layout.addLayout(hbox, 4, 1)
         d.exec_()
-
 
     @protected
     def do_decrypt(self, message_e, pubkey_e, encrypted_e, password):
@@ -1968,16 +1963,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             tx = transaction.Transaction(r)
             self.show_transaction(tx)
 
-
     @protected
     def export_privkeys_dialog(self, password):
         if self.wallet.is_watching_only():
             self.show_message(_("This is a watching-only wallet"))
-            return
-        try:
-            self.wallet.check_password(password)
-        except Exception as e:
-            self.show_error(str(e))
             return
 
         d = WindowModalDialog(self, _('Private keys'))
@@ -2227,7 +2216,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         title, msg = _('Import private keys'), _("Enter private keys")
         self._do_import(title, msg, lambda x: self.wallet.import_key(x, password))
-
 
     def settings_dialog(self):
         self.need_restart = False
