@@ -644,14 +644,19 @@ def is_address_list(text):
     parts = text.split()
     return bool(parts) and all(bitcoin.is_address(x) for x in parts)
 
-def is_private_key_list(text):
-    parts = text.split()
-    return bool(parts) and all(bitcoin.is_private_key(x) for x in parts)
+def get_private_keys(text):
+    parts = text.split('\n')
+    parts = map(lambda x: ''.join(x.split()), parts)
+    parts = filter(bool, parts)
+    if bool(parts) and all(bitcoin.is_private_key(x) for x in parts):
+        return parts
 
+def is_private_key_list(text):
+    return bool(get_private_keys(text))
 
 is_mpk = lambda x: is_old_mpk(x) or is_xpub(x)
 is_private = lambda x: is_seed(x) or is_xprv(x) or is_private_key_list(x)
-is_any_key = lambda x: is_old_mpk(x) or is_xprv(x) or is_xpub(x) or is_address_list(x) or is_private_key_list(x)
+is_any_key = lambda x: is_old_mpk(x) or is_xprv(x) or is_xpub(x) or is_private_key_list(x)
 is_private_key = lambda x: is_xprv(x) or is_private_key_list(x)
 is_bip32_key = lambda x: is_xprv(x) or is_xpub(x)
 
