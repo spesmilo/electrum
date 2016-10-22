@@ -49,12 +49,6 @@ expiration_values = [
 ]
 
 
-def clean_text(seed_e):
-    text = unicode(seed_e.toPlainText()).strip()
-    text = ' '.join(text.split())
-    return text
-
-
 class Timer(QThread):
     stopped = False
 

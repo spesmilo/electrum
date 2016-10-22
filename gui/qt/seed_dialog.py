@@ -133,7 +133,8 @@ class SeedLayout(QVBoxLayout):
             self.addWidget(WWLabel(msg))
 
     def get_seed(self):
-        return clean_text(self.seed_e)
+        text = unicode(self.seed_e.text())
+        return ' '.join(text.split())
 
     def on_edit(self):
         from electrum_ltc.bitcoin import seed_type
@@ -144,6 +145,24 @@ class SeedLayout(QVBoxLayout):
         self.seed_type_label.setText(label)
         self.parent.next_button.setEnabled(b)
 
+
+
+class KeysLayout(QVBoxLayout):
+    def __init__(self, parent=None, title=None, is_valid=None):
+        QVBoxLayout.__init__(self)
+        self.parent = parent
+        self.is_valid = is_valid
+        self.text_e = ScanQRTextEdit()
+        self.text_e.textChanged.connect(self.on_edit)
+        self.addWidget(WWLabel(title))
+        self.addWidget(self.text_e)
+
+    def get_text(self):
+        return unicode(self.text_e.text())
+
+    def on_edit(self):
+        b = self.is_valid(self.get_text())
+        self.parent.next_button.setEnabled(b)
 
 
 class SeedDialog(WindowModalDialog):

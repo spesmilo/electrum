@@ -41,8 +41,8 @@ import PyQt4.QtCore as QtCore
 
 import icons_rc
 
+from electrum_ltc import keystore
 from electrum_ltc.bitcoin import COIN, is_valid, TYPE_ADDRESS
-from electrum_ltc.keystore import is_private_key
 from electrum_ltc.plugins import run_hook
 from electrum_ltc.i18n import _
 from electrum_ltc.util import (block_explorer, block_explorer_info, format_time,
@@ -2167,9 +2167,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 return addr
 
         def get_pk():
-            pk = str(keys_e.toPlainText()).strip()
-            if is_private_key(pk):
-                return pk.split()
+            text = str(keys_e.toPlainText())
+            return keystore.get_private_keys(text)
 
         f = lambda: button.setEnabled(get_address() is not None and get_pk() is not None)
         on_address = lambda text: address_e.setStyleSheet(BLACK_FG if get_address() else RED_FG)
