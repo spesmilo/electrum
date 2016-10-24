@@ -112,7 +112,8 @@ class Blockchain(util.PrintError):
             import urllib, socket
             socket.setdefaulttimeout(30)
             self.print_error("downloading ", self.headers_url)
-            urllib.urlretrieve(self.headers_url, filename)
+            urllib.urlretrieve(self.headers_url, filename + '.tmp')
+            os.rename(filename + '.tmp', filename)
             self.print_error("done.")
         except Exception:
             self.print_error("download failed. creating file", filename)

@@ -396,6 +396,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         choices = [_("Auto connect"), _("Select server manually")]
         title = _("How do you want to connect to a server? ")
         clayout = ChoicesLayout(message, choices)
+        self.back_button.setText(_('Cancel'))
         self.set_main_layout(clayout.layout(), title)
         r = clayout.selected_index()
         if r == 0:
