@@ -114,13 +114,13 @@ class Ledger_Client():
         try:
             firmware = self.dongleObject.getFirmwareVersion()['version'].split(".")
             if not checkFirmware(firmware):
-                self.dongleObject.close()
+                self.dongleObject.dongle.close()
                 raise Exception("HW1 firmware version too old. Please update at https://www.ledgerwallet.com")
             try:
                 self.dongleObject.getOperationMode()
             except BTChipException, e:
                 if (e.sw == 0x6985):
-                    self.dongleObject.close()
+                    self.dongleObject.dongle.close()
                     dialog = StartBTChipPersoDialog()
                     dialog.exec_()
                     # Acquire the new client on the next run
@@ -260,6 +260,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         output = None
         outputAmount = None
         p2shTransaction = False
+	reorganize = False
         pin = ""
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
 
@@ -339,6 +340,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 if not p2shTransaction:
                     outputData = self.get_client().finalizeInput(output, format_satoshis_plain(outputAmount),
                         format_satoshis_plain(tx.get_fee()), changePath, bytearray(rawTx.decode('hex')))
+                    reorganize = True
                 else:
                     outputData = self.get_client().finalizeInputFull(txOutput)
                     outputData['outputData'] = txOutput
@@ -403,7 +405,11 @@ class Ledger_KeyStore(Hardware_KeyStore):
             inputIndex = inputIndex + 1
         updatedTransaction = format_transaction(transactionOutput, preparedTrustedInputs)
         updatedTransaction = hexlify(updatedTransaction)
-        tx.update_signatures(updatedTransaction)
+
+        if reorganize:
+           tx.update(updatedTransaction)
+        else:
+           tx.update_signatures(updatedTransaction)
         self.signing = False
 
     def password_dialog(self, msg=None):
