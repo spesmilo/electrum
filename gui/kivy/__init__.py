@@ -41,6 +41,9 @@ kivy.require('1.8.0')
 from kivy.logger import Logger
 from main_window import ElectrumWindow
 
+
+
+
 class ElectrumGui:
 
     def __init__(self, config, daemon, plugins):

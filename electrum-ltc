@@ -27,6 +27,21 @@
 import os
 import sys
 
+# from https://gist.github.com/tito/09c42fb4767721dc323d
+import threading
+try:
+    import jnius
+except:
+    jnius = None
+if jnius:
+    orig_thread_run = threading.Thread.run
+    def thread_check_run(*args, **kwargs):
+        try:
+            return orig_thread_run(*args, **kwargs)
+        finally:
+            jnius.detach()
+    threading.Thread.run = thread_check_run
+
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)

@@ -809,7 +809,12 @@ class Network(util.DaemonThread):
             self.process_responses(interface)
 
     def run(self):
-        self.blockchain.init()
+        import threading
+        t = threading.Thread(target = self.blockchain.init)
+        t.daemon = True
+        t.start()
+        while t.isAlive() and self.is_running():
+            t.join(1)
         while self.is_running():
             self.maintain_sockets()
             self.wait_on_sockets()

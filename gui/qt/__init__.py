@@ -43,9 +43,9 @@ from electrum_ltc.paymentrequest import InvoiceStore
 from electrum_ltc.contacts import Contacts
 from electrum_ltc.synchronizer import Synchronizer
 from electrum_ltc.verifier import SPV
-from electrum_ltc.util import DebugMem
+from electrum_ltc.util import DebugMem, UserCancelled
 from electrum_ltc.wallet import Abstract_Wallet
-from installwizard import InstallWizard
+from installwizard import InstallWizard, GoBack
 
 
 try:
@@ -191,6 +191,10 @@ class ElectrumGui:
     def main(self):
         try:
             self.init_network()
+        except UserCancelled:
+            return
+        except GoBack:
+            return
         except:
             traceback.print_exc(file=sys.stdout)
             return
