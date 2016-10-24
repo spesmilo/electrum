@@ -49,7 +49,7 @@ from util import NotEnoughFunds, PrintError, UserCancelled, profiler
 
 from bitcoin import *
 from version import *
-from keystore import load_keystore
+from keystore import load_keystore, Hardware_KeyStore
 from storage import multisig_type
 
 from transaction import Transaction
@@ -1066,15 +1066,11 @@ class Abstract_Wallet(PrintError):
             tx = Transaction(self.network.synchronous_get(request))
         return tx
 
-    def sign_transaction(self, tx, password):
-        if self.is_watching_only():
-            return
-
+    def add_hw_info(self, tx):
         # add previous tx for hw wallets
         for txin in tx.inputs():
             tx_hash = txin['prevout_hash']
             txin['prev_tx'] = self.get_input_tx(tx_hash)
-
         # add output info for hw wallets
         info = {}
         xpubs = self.get_master_public_keys()
@@ -1088,6 +1084,12 @@ class Abstract_Wallet(PrintError):
                 info[addr] = index, sorted_xpubs, self.m if isinstance(self, Multisig_Wallet) else None
         tx.output_info = info
 
+    def sign_transaction(self, tx, password):
+        if self.is_watching_only():
+            return
+        # hardware wallets require extra info
+        if any([(isinstance(k, Hardware_KeyStore) and k.can_sign(tx)) for k in self.get_keystores()]):
+            self.add_hw_info(tx)
         # sign
         for k in self.get_keystores():
             try:
