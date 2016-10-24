@@ -31,6 +31,7 @@ import time
 import jsonrpclib
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCRequestHandler
 
+from version import ELECTRUM_VERSION
 from network import Network
 from util import json_decode, DaemonThread
 from util import print_msg, print_error, print_stderr
@@ -153,9 +154,10 @@ class Daemon(DaemonThread):
                     'server': p[0],
                     'blockchain_height': self.network.get_local_height(),
                     'server_height': self.network.get_server_height(),
-                    'nodes': self.network.get_interfaces(),
+                    'spv_nodes': len(self.network.get_interfaces()),
                     'connected': self.network.is_connected(),
                     'auto_connect': p[4],
+                    'version': ELECTRUM_VERSION,
                     'wallets': {k: w.is_up_to_date()
                                 for k, w in self.wallets.items()},
                 }
