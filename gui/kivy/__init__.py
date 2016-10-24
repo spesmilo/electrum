@@ -41,6 +41,25 @@ kivy.require('1.8.0')
 from kivy.logger import Logger
 from main_window import ElectrumWindow
 
+# from https://gist.github.com/tito/09c42fb4767721dc323d
+import threading
+try:
+    import jnius
+except:
+    jnius = None
+
+if jnius:
+    orig_thread_run = threading.Thread.run
+    def thread_check_run(*args, **kwargs):
+        try:
+            return orig_thread_run(*args, **kwargs)
+        finally:
+            #print "jnius detach", threading.currentThread()
+            jnius.detach()
+    threading.Thread.run = thread_check_run
+
+
+
 class ElectrumGui:
 
     def __init__(self, config, daemon, plugins):
