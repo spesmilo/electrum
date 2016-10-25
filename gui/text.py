@@ -146,7 +146,7 @@ class ElectrumGui:
         self.stdscr.addstr(self.maxy -1, self.maxx-30, ' '.join([_("Settings"), _("Network"), _("Quit")]))
 
     def print_receive(self):
-        addr = self.wallet.get_unused_address(None)
+        addr = self.wallet.get_unused_address()
         self.stdscr.addstr(2, 1, "Address: "+addr)
         self.print_qr(addr)
 
@@ -156,7 +156,7 @@ class ElectrumGui:
 
     def print_addresses(self):
         fmt = "%-35s  %-30s"
-        messages = map(lambda addr: fmt % (addr, self.wallet.labels.get(addr,"")), self.wallet.addresses())
+        messages = map(lambda addr: fmt % (addr, self.wallet.labels.get(addr,"")), self.wallet.get_addresses())
         self.print_list(messages,   fmt % ("Address", "Label"))
 
     def print_edit_line(self, y, label, text, index, size):
