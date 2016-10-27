@@ -1027,6 +1027,7 @@ class Abstract_Wallet(PrintError):
             otype, address, value = o
             if value - delta >= self.dust_threshold():
                 outputs[i] = otype, address, value - delta
+                delta = 0
                 break
             else:
                 del outputs[i]
