@@ -35,10 +35,12 @@ cd tmp
 
 # Install Cython
 #wine "$PYHOME\\Scripts\\easy_install.exe" cython
+wine "$PYHOME\\Scripts\\pip.exe" install cython
 
 
 # not working
 ##wine "$PYHOME\\Scripts\\easy_install.exe" hidapi
+wine "$PYHOME\\Scripts\\pip.exe" install hidapi
 
 #git clone https://github.com/trezor/cython-hidapi.git
 

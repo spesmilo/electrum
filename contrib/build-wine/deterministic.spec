@@ -1,6 +1,6 @@
 # -*- mode: python -*-
 
-home = 'C:\\electrum\\'
+home = 'C:\\electrum-ltc\\'
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([home+'electrum-ltc',
@@ -10,6 +10,7 @@ a = Analysis([home+'electrum-ltc',
               home+'lib/wallet.py',
               home+'lib/simple_config.py',
               home+'lib/bitcoin.py',
+              home+'lib/blockchain.py',
               home+'lib/dnssec.py',
               home+'lib/commands.py',
               home+'plugins/cosigner_pool/qt.py',
