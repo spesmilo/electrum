@@ -134,7 +134,7 @@ class Abstract_Wallet(PrintError):
         return self.basename()
 
     def get_master_public_key(self):
-        raise NotImplementedError
+        return None
 
     @profiler
     def load_transactions(self):
