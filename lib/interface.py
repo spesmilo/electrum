@@ -258,19 +258,20 @@ class Interface(util.PrintError):
         self.unsent_requests.append(args)
 
     def send_requests(self):
-        '''Sends all queued requests.  Returns False on failure.'''
+        '''Sends queued requests.  Returns False on failure.'''
         make_dict = lambda (m, p, i): {'method': m, 'params': p, 'id': i}
-        wire_requests = map(make_dict, self.unsent_requests)
+        n = 100 - len(self.unanswered_requests)
+        wire_requests = self.unsent_requests[0:n]
         try:
-            self.pipe.send_all(wire_requests)
+            self.pipe.send_all(map(make_dict, wire_requests))
         except socket.error, e:
             self.print_error("socket error:", e)
             return False
-        for request in self.unsent_requests:
+        self.unsent_requests = self.unsent_requests[n:]
+        for request in wire_requests:
             if self.debug:
                 self.print_error("-->", request)
             self.unanswered_requests[request[2]] = request
-        self.unsent_requests = []
         return True
 
     def ping_required(self):

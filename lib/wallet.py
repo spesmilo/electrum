@@ -537,7 +537,7 @@ class Abstract_Wallet(PrintError):
         for addr in domain:
             utxos = self.get_addr_utxo(addr)
             for x in utxos:
-                if x['coinbase'] and x['tx_height'] + COINBASE_MATURITY > self.get_local_height():
+                if x['coinbase'] and x['height'] + COINBASE_MATURITY > self.get_local_height():
                     continue
                 coins.append(x)
                 continue
@@ -774,6 +774,8 @@ class Abstract_Wallet(PrintError):
         from util import format_time
         if conf == 0:
             tx = self.transactions.get(tx_hash)
+            if not tx:
+                return 3, 'unknown'
             is_final = tx and tx.is_final()
             fee = self.tx_fees.get(tx_hash)
             if fee and self.network and self.network.dynfee(0):

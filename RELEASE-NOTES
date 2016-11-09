@@ -1,3 +1,6 @@
+# Release 2.7.12
+  various bugfixes
+
 # Release 2.7.11
   * fix offline signing (issue #195)
   * fix android crashes caused by threads
