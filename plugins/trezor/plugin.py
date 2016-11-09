@@ -122,10 +122,11 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             self.print_error("ping failed", str(e))
             return None
 
-        if not client.atleast_version(*self.minimum_firmware):
+        if client.atleast_version(*self.minimum_firmware) < 0:
             msg = (_('Outdated %s firmware for device labelled %s. Please '
                      'download the updated firmware from %s') %
                    (self.device, client.label(), self.firmware_URL))
+            self.print_error(msg)
             handler.show_error(msg)
             return None
 
