@@ -8,6 +8,9 @@ from electrum.util import format_satoshis
 from electrum.bitcoin import COIN
 
 try:
+    import matplotlib
+    matplotlib.use('Qt4Agg')
+
     import matplotlib.pyplot as plt
     import matplotlib.dates as md
     from matplotlib.patches import Ellipse
@@ -48,7 +51,7 @@ class Plugin(BasePlugin):
         counter_trans = 0
         balance = 0
         for item in history:
-            tx_hash, confirmations, value, timestamp, balance = item
+            tx_hash, confirmations, value, timestamp, balance, _ = item
             if confirmations:
                 if timestamp is not None:
                     try:
