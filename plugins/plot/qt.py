@@ -48,7 +48,7 @@ class Plugin(BasePlugin):
         counter_trans = 0
         balance = 0
         for item in history:
-            tx_hash, confirmations, value, timestamp, balance = item
+            tx_hash, height, confirmations, timestamp, value, balance = item
             if confirmations:
                 if timestamp is not None:
                     try:
