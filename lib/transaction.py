@@ -670,7 +670,7 @@ class Transaction:
     @profiler
     def estimated_size(self):
         '''Return an estimated tx size in bytes.'''
-        return len(self.serialize(-1)) / 2  # ASCII hex string
+        return len(self.serialize(-1)) / 2 if not self.is_complete() or self.raw is None else len(self.raw) / 2 # ASCII hex string
 
     @classmethod
     def estimated_input_size(self, txin):

@@ -204,6 +204,9 @@ class TxDialog(QDialog, MessageBoxMixin):
         else:
             amount_str = _("Amount sent:") + ' %s'% format_amount(-amount) + ' ' + base_unit
         fee_str = _("Transaction fee") + ': %s'% (format_amount(fee) + ' ' + base_unit if fee is not None else _('unknown'))
+        if fee is not None:
+            size = self.tx.estimated_size()
+            fee_str += '   ( %d bytes @ %s ' % (size, format_amount(fee * 1000 / size)) + base_unit + '/kB, %.0d sat/byte )' % (fee/size)
         self.amount_label.setText(amount_str)
         self.fee_label.setText(fee_str)
         run_hook('transaction_dialog_update', self)
