@@ -8,6 +8,8 @@ from electrum.util import format_satoshis
 from electrum.bitcoin import COIN
 
 try:
+    import matplotlib
+    matplotlib.use('Qt4Agg')
     import matplotlib.pyplot as plt
     import matplotlib.dates as md
     from matplotlib.patches import Ellipse
