@@ -212,7 +212,7 @@ class TrezorClientBase(GuiMixin, PrintError):
         return (f.major_version, f.minor_version, f.patch_version)
 
     def atleast_version(self, major, minor=0, patch=0):
-        return cmp(self.firmware_version(), (major, minor, patch))
+        return cmp(self.firmware_version(), (major, minor, patch)) >= 0
 
     @staticmethod
     def wrapper(func):

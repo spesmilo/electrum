@@ -8,6 +8,8 @@ from electrum_ltc.util import format_satoshis
 from electrum_ltc.bitcoin import COIN
 
 try:
+    import matplotlib
+    matplotlib.use('Qt4Agg')
     import matplotlib.pyplot as plt
     import matplotlib.dates as md
     from matplotlib.patches import Ellipse
@@ -63,12 +65,6 @@ class Plugin(BasePlugin):
                 pending_trans += 1
 
             value_val.append(1.*value/COIN)
-            if tx_hash:
-                label = wallet.get_label(tx_hash)
-                label = label.encode('utf-8')
-            else:
-                label = ""
-
 
         f, axarr = plt.subplots(2, sharex=True)
 

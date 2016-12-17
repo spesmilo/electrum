@@ -126,6 +126,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             msg = (_('Outdated %s firmware for device labelled %s. Please '
                      'download the updated firmware from %s') %
                    (self.device, client.label(), self.firmware_URL))
+            self.print_error(msg)
             handler.show_error(msg)
             return None
 
