@@ -402,7 +402,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.import_privkey_menu = self.private_keys_menu.addAction(_("&Import"), self.do_import_privkey)
         self.export_menu = self.private_keys_menu.addAction(_("&Export"), self.export_privkeys_dialog)
         self.import_address_menu = wallet_menu.addAction(_("Import addresses"), self.import_addresses)
-        wallet_menu.addAction(_("&Export History"), self.export_history_dialog)
+
+        hist_menu = wallet_menu.addMenu(_("&History"))
+        hist_menu.addAction("Plot", self.plot_history_dialog)
+        hist_menu.addAction("Export", self.export_history_dialog)
+
         wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
         wallet_menu.addAction(_("Addresses"), self.toggle_addresses_tab).setShortcut(QKeySequence("Ctrl+A"))
 
@@ -2099,6 +2103,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_critical(export_error_label + "\n" + str(reason), title=_("Unable to export history"))
             return
         self.show_message(_("Your wallet history has been successfully exported."))
+
+    def plot_history_dialog(self):
+        try:
+            from electrum_ltc.plot import plot_history
+        except:
+            return
+        wallet = self.wallet
+        history = wallet.get_history()
+        if len(history) > 0:
+            plt = plot_history(self.wallet, history)
+            plt.show()
 
 
     def do_export_history(self, wallet, fileName, is_csv):
