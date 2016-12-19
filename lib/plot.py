@@ -36,15 +36,12 @@ def plot_history(wallet, history):
     f, axarr = plt.subplots(2, sharex=True)
     plt.subplots_adjust(bottom=0.2)
     plt.xticks( rotation=25 )
-    ax=plt.gca()
-
+    ax = plt.gca()
     plt.ylabel('BTC')
-    plt.xlabel('Dates')
+    plt.xlabel('Month')
     xfmt = md.DateFormatter('%Y-%m-%d')
     ax.xaxis.set_major_formatter(xfmt)
-
-    axarr[0].set_title('History Transactions')
-
+    axarr[0].set_title('Monthly Volume')
     xfmt = md.DateFormatter('%Y-%m')
     ax.xaxis.set_major_formatter(xfmt)
     width = 20
@@ -54,5 +51,4 @@ def plot_history(wallet, history):
     dates, values = zip(*sorted(hist_out.items()))
     r2 = axarr[1].bar(dates, values, width, color='r', label='outgoing')
     axarr[1].legend(loc='upper left')
-    #   plt.annotate('unknown transaction = %d \n pending transactions = %d' %(unknown_trans,pending_trans),xy=(0.7,0.05),xycoords='axes fraction',size=12)
     return plt
