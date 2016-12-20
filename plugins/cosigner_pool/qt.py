@@ -35,6 +35,7 @@ from electrum import bitcoin, util
 from electrum import transaction
 from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
+from electrum.wallet import Multisig_Wallet
 
 from electrum_gui.qt.transaction_dialog import show_transaction
 
@@ -114,7 +115,7 @@ class Plugin(BasePlugin):
 
     def update(self, window):
         wallet = window.wallet
-        if wallet.wallet_type not in ['2of2', '2of3']:
+        if type(wallet) != Multisig_Wallet:
             return
         if self.listener is None:
             self.print_error("starting listener")
