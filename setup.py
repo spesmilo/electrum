@@ -59,7 +59,6 @@ setup(
         'electrum_ltc_plugins.keepkey',
         'electrum_ltc_plugins.labels',
         'electrum_ltc_plugins.ledger',
-        'electrum_ltc_plugins.plot',
         'electrum_ltc_plugins.trezor',
         'electrum_ltc_plugins.virtualkeyboard',
     ],
