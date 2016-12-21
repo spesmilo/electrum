@@ -52,7 +52,7 @@ from electrum_ltc.util import (block_explorer, block_explorer_info, format_time,
 from electrum_ltc import Transaction, mnemonic
 from electrum_ltc import util, bitcoin, commands, coinchooser
 from electrum_ltc import SimpleConfig, paymentrequest
-from electrum_ltc.wallet import Wallet, Multisig_Wallet
+from electrum_ltc.wallet import Wallet, Multisig_Wallet, P2PK_Wallet
 
 from amountedit import BTCAmountEdit, MyLineEdit, BTCkBEdit
 from network_dialog import NetworkDialog
@@ -1758,20 +1758,35 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     @protected
     def do_sign(self, address, message, signature, password):
-        message = unicode(message.toPlainText()).encode('utf-8')
-        task = partial(self.wallet.sign_message, str(address.text()),
-                       message, password)
+        address  = str(address.text()).strip()
+        message = unicode(message.toPlainText()).encode('utf-8').strip()
+        if not bitcoin.is_address(address):
+            self.show_message('Invalid Litecoin address.')
+            return
+        if not bitcoin.is_p2pkh(address):
+            self.show_message('Cannot sign messages with this type of address.')
+            return
+        if not wallet.is_mine(address):
+            self.show_message('Address not in wallet.')
+            return
+        task = partial(self.wallet.sign_message, address, message, password)
         def show_signed_message(sig):
             signature.setText(base64.b64encode(sig))
         self.wallet.thread.add(task, on_success=show_signed_message)
 
     def do_verify(self, address, message, signature):
-        message = unicode(message.toPlainText())
-        message = message.encode('utf-8')
+        address  = str(address.text()).strip()
+        message = unicode(message.toPlainText()).encode('utf-8').strip()
+        if not bitcoin.is_address(address):
+            self.show_message('Invalid Litecoin address.')
+            return
+        if not bitcoin.is_p2pkh(address):
+            self.show_message('Cannot verify messages with this type of address.')
+            return
         try:
             # This can throw on invalid base64
             sig = base64.b64decode(str(signature.toPlainText()))
-            verified = bitcoin.verify_message(address.text(), sig, message)
+            verified = bitcoin.verify_message(address, sig, message)
         except:
             verified = False
         if verified:
@@ -1848,8 +1863,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         pubkey_e = QLineEdit()
         if address:
-            sequence = self.wallet.get_address_index(address)
-            pubkey = self.wallet.get_pubkey(*sequence)
+            pubkey = self.wallet.get_public_key(address)
             pubkey_e.setText(pubkey)
         layout.addWidget(QLabel(_('Public key')), 2, 0)
         layout.addWidget(pubkey_e, 2, 1)

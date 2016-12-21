@@ -254,28 +254,33 @@ class Abstract_Wallet(PrintError):
     def is_change(self, address):
         if not self.is_mine(address):
             return False
-        s = self.get_address_index(address)
-        if s is None:
-            return False
-        return s[0] == 1
+        return address in self.change_addresses
 
     def get_address_index(self, address):
-        if address in self.receiving_addresses:
+        if self.keystore.can_import():
+            i = self.receiving_addresses.index(address)
+            return self.receiving_pubkeys[i]
+        elif address in self.receiving_addresses:
             return False, self.receiving_addresses.index(address)
         if address in self.change_addresses:
             return True, self.change_addresses.index(address)
         raise Exception("Address not found", address)
 
+    def get_pubkey_index(self, pubkey):
+        if self.keystore.can_import():
+            assert pubkey in self.receiving_pubkeys
+            return pubkey
+        elif pubkey in self.receiving_pubkeys:
+            return False, self.receiving_pubkeys.index(pubkey)
+        if pubkey in self.change_pubkeys:
+            return True, self.change_pubkeys.index(pubkey)
+        raise Exception("Pubkey not found", pubkey)
+
     def get_private_key(self, address, password):
         if self.is_watching_only():
             return []
-        if self.keystore.can_import():
-            i = self.receiving_addresses.index(address)
-            pubkey = self.receiving_pubkeys[i]
-            pk = self.keystore.get_private_key(pubkey, password)
-        else:
-            sequence = self.get_address_index(address)
-            pk = self.keystore.get_private_key(sequence, password)
+        index = self.get_address_index(address)
+        pk = self.keystore.get_private_key(index, password)
         return [pk]
 
     def get_public_key(self, address):
@@ -1387,13 +1392,6 @@ class P2PK_Wallet(Abstract_Wallet):
     def get_public_keys(self, address):
         return [self.get_public_key(address)]
 
-    def get_pubkey_index(self, pubkey):
-        if pubkey in self.receiving_pubkeys:
-            return False, self.receiving_pubkeys.index(pubkey)
-        if pubkey in self.change_pubkeys:
-            return True, self.change_pubkeys.index(pubkey)
-        raise BaseExeption('pubkey not found')
-
     def add_input_sig_info(self, txin, address):
         if not self.keystore.can_import():
             txin['derivation'] = derivation = self.get_address_index(address)
@@ -1410,12 +1408,12 @@ class P2PK_Wallet(Abstract_Wallet):
         txin['num_sig'] = 1
 
     def sign_message(self, address, message, password):
-        sequence = self.get_address_index(address)
-        return self.keystore.sign_message(sequence, message, password)
+        index = self.get_address_index(address)
+        return self.keystore.sign_message(index, message, password)
 
     def decrypt_message(self, pubkey, message, password):
-        sequence = self.get_pubkey_index(pubkey)
-        return self.keystore.decrypt_message(sequence, message, password)
+        index = self.get_pubkey_index(pubkey)
+        return self.keystore.decrypt_message(index, message, password)
 
 
 class Deterministic_Wallet(Abstract_Wallet):
