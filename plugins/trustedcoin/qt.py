@@ -158,9 +158,6 @@ class Plugin(TrustedCoinPlugin):
 
         i = 1
 
-        if 10 not in price_per_tx:
-            price_per_tx[10] = 10 * price_per_tx.get(1)
-
         for k, v in sorted(price_per_tx.items()):
             if k == 1:
                 continue
