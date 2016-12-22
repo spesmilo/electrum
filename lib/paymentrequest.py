@@ -67,31 +67,48 @@ PR_PAID    = 3     # send and propagated
 def get_payment_request(url):
     u = urlparse.urlparse(url)
     if u.scheme in ['http', 'https']:
-        response = requests.request('GET', url, headers=REQUEST_HEADERS)
-        data = response.content
-        print_error('fetched payment request', url, len(data))
+        try:
+            response = requests.request('GET', url, headers=REQUEST_HEADERS)
+            response.raise_for_status()
+            # Guard against `bitcoin:`-URIs with invalid payment request URLs
+            if "Content-Type" not in response.headers \
+            or response.headers["Content-Type"] != "application/bitcoin-paymentrequest":
+                data = None
+                error = "payment URL not pointing to a payment request handling server"
+            else:
+                data = response.content
+            print_error('fetched payment request', url, len(response.content))
+        except requests.exceptions.RequestException:
+            data = None
+            error = "payment URL not pointing to a valid server"
     elif u.scheme == 'file':
-        with open(u.path, 'r') as f:
-            data = f.read()
+        try:
+            with open(u.path, 'r') as f:
+                data = f.read()
+        except IOError:
+            data = None
+            error = "payment URL not pointing to a valid file"
     else:
         raise BaseException("unknown scheme", url)
-    pr = PaymentRequest(data)
+    pr = PaymentRequest(data, error)
     return pr
 
 
 class PaymentRequest:
 
-    def __init__(self, data):
+    def __init__(self, data, error=None):
         self.raw = data
+        self.error = error
         self.parse(data)
         self.requestor = None # known after verify
         self.tx = None
-        self.error = None
 
     def __str__(self):
         return self.raw
 
     def parse(self, r):
+        if self.error:
+            return
         self.id = bitcoin.sha256(r)[0:16].encode('hex')
         try:
             self.data = pb2.PaymentRequest()
@@ -113,15 +130,17 @@ class PaymentRequest:
         #return self.get_outputs() != [(TYPE_ADDRESS, self.get_requestor(), self.get_amount())]
 
     def verify(self, contacts):
+        if self.error:
+            return False
         if not self.raw:
             self.error = "Empty request"
-            return
+            return False
         pr = pb2.PaymentRequest()
         try:
             pr.ParseFromString(self.raw)
         except:
             self.error = "Error: Cannot parse payment request"
-            return
+            return False
         if not pr.signature:
             # the address will be dispayed as requestor
             self.requestor = None
