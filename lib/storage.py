@@ -263,7 +263,7 @@ class WalletStorage(PrintError):
             self.put('wallet_type', 'standard')
             self.put('keystore', d)
 
-        elif wallet_type in['xpub', 'standard']:
+        elif wallet_type in ['xpub', 'standard']:
             xpub = xpubs["x/"]
             xprv = xprvs.get("x/")
             d = {
@@ -271,6 +271,17 @@ class WalletStorage(PrintError):
                 'xpub': xpub,
                 'xprv': xprv,
                 'seed': seed,
+            }
+            self.put('wallet_type', 'standard')
+            self.put('keystore', d)
+
+        elif wallet_type in ['bip44']:
+            xpub = xpubs["x/0'"]
+            xprv = xprvs.get("x/0'")
+            d = {
+                'type': 'bip32',
+                'xpub': xpub,
+                'xprv': xprv,
             }
             self.put('wallet_type', 'standard')
             self.put('keystore', d)
