@@ -1766,7 +1766,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not bitcoin.is_p2pkh(address):
             self.show_message('Cannot sign messages with this type of address.')
             return
-        if not wallet.is_mine(address):
+        if not self.wallet.is_mine(address):
             self.show_message('Address not in wallet.')
             return
         task = partial(self.wallet.sign_message, address, message, password)
