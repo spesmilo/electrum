@@ -192,7 +192,7 @@ class WalletStorage(PrintError):
             storage2.upgrade()
             storage2.write()
             result = [storage1.path, storage2.path]
-        elif wallet_type in ['bip44', 'trezor', 'keepkey', 'ledger', 'btchip']:
+        elif wallet_type in ['bip44', 'trezor', 'keepkey', 'ledger', 'btchip', 'digitalbitbox']:
             mpk = storage.get('master_public_keys')
             for k in d.keys():
                 i = int(k)
@@ -286,7 +286,7 @@ class WalletStorage(PrintError):
             self.put('wallet_type', 'standard')
             self.put('keystore', d)
 
-        elif wallet_type in ['trezor', 'keepkey', 'ledger']:
+        elif wallet_type in ['trezor', 'keepkey', 'ledger', 'digitalbitbox']:
             xpub = xpubs["x/0'"]
             derivation = self.get('derivation', bip44_derivation(0))
             d = {

@@ -8,6 +8,8 @@
     <file>icons/clock5.png</file>
     <file>icons/confirmed.png</file>
     <file>icons/copy.png</file>
+    <file>icons/digitalbitbox.png</file>
+    <file>icons/digitalbitbox_unpaired.png</file>
     <file>icons/expired.png</file>
     <file>icons/electrum_light_icon.png</file>
     <file>icons/electrum_dark_icon.png</file>
