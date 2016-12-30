@@ -2121,7 +2121,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def plot_history_dialog(self):
         try:
             from electrum.plot import plot_history
-        except:
+        except ImportError as e:
+            self.show_error(str(e))
             return
         wallet = self.wallet
         history = wallet.get_history()
