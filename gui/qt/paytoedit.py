@@ -132,6 +132,7 @@ class PayToEdit(ScanQRTextEdit):
                 self.win.lock_amount(False)
                 return
 
+        is_max = False
         for i, line in enumerate(lines):
             try:
                 _type, to_address, amount = self.parse_address_and_amount(line)
@@ -141,10 +142,11 @@ class PayToEdit(ScanQRTextEdit):
 
             outputs.append((_type, to_address, amount))
             if amount == '!':
-                self.win.is_max = True
+                is_max = True
             else:
                 total += amount
 
+        self.win.is_max = is_max
         self.outputs = outputs
         self.payto_address = None
 
