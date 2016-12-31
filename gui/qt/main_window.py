@@ -1044,7 +1044,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if self.is_max:
                 amount = tx.output_value()
                 self.amount_e.setAmount(amount)
-                self.amount_e.textEdited.emit("")
 
 
     def update_fee_edit(self):
