@@ -572,7 +572,9 @@ class ElectrumWindow(App):
     def get_max_amount(self):
         inputs = self.wallet.get_spendable_coins(None)
         addr = str(self.send_screen.screen.address) or self.wallet.dummy_address()
-        amount, fee = self.wallet.get_max_amount(self.electrum_config, inputs, (TYPE_ADDRESS, addr), None)
+        outputs = [(TYPE_ADDRESS, addr, '!')]
+        tx = self.wallet.make_unsigned_transaction(inputs, outputs, self.electrum_config)
+        amount = tx.output_value()
         return format_satoshis_plain(amount, self.decimal_point())
 
     def format_amount(self, x, is_diff=False, whitespaces=False):

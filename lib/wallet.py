@@ -551,18 +551,6 @@ class Abstract_Wallet(PrintError):
     def dummy_address(self):
         return self.get_receiving_addresses()[0]
 
-    def get_max_amount(self, config, inputs, recipient, fee):
-        sendable = sum(map(lambda x:x['value'], inputs))
-        if fee is None:
-            for i in inputs:
-                self.add_input_info(i)
-            _type, addr = recipient
-            outputs = [(_type, addr, sendable)]
-            dummy_tx = Transaction.from_io(inputs, outputs)
-            fee = self.estimate_fee(config, dummy_tx.estimated_size())
-        amount = max(0, sendable - fee)
-        return amount, fee
-
     def get_addresses(self):
         out = []
         out += self.get_receiving_addresses()
@@ -819,18 +807,24 @@ class Abstract_Wallet(PrintError):
         # this method can be overloaded
         return tx.get_fee()
 
-    def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None, change_addr=None):
+    def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None, change_addr=None):
         # check outputs
-        for type, data, value in outputs:
-            if type == TYPE_ADDRESS:
+        i_max = None
+        for i, o in enumerate(outputs):
+            _type, data, value = o
+            if _type == TYPE_ADDRESS:
                 if not is_address(data):
                     raise BaseException("Invalid bitcoin address:" + data)
+            if value == '!':
+                if i_max is not None:
+                    raise BaseException("More than one output set to spend max")
+                i_max = i
 
         # Avoid index-out-of-range with coins[0] below
-        if not coins:
+        if not inputs:
             raise NotEnoughFunds()
 
-        for item in coins:
+        for item in inputs:
             self.add_input_info(item)
 
         # change address
@@ -855,11 +849,21 @@ class Abstract_Wallet(PrintError):
         else:
             fee_estimator = lambda size: fixed_fee
 
-        # Let the coin chooser select the coins to spend
-        max_change = self.max_change_outputs if self.multiple_change else 1
-        coin_chooser = coinchooser.get_coin_chooser(config)
-        tx = coin_chooser.make_tx(coins, outputs, change_addrs[:max_change],
-                                  fee_estimator, self.dust_threshold())
+        if i_max is None:
+            # Let the coin chooser select the coins to spend
+            max_change = self.max_change_outputs if self.multiple_change else 1
+            coin_chooser = coinchooser.get_coin_chooser(config)
+            tx = coin_chooser.make_tx(inputs, outputs, change_addrs[:max_change],
+                                      fee_estimator, self.dust_threshold())
+        else:
+            sendable = sum(map(lambda x:x['value'], inputs))
+            _type, data, value = outputs[i_max]
+            outputs[i_max] = (_type, data, 0)
+            tx = Transaction.from_io(inputs, outputs[:])
+            fee = fee_estimator(tx.estimated_size())
+            amount = max(0, sendable - tx.output_value() - fee)
+            outputs[i_max] = (_type, data, amount)
+            tx = Transaction.from_io(inputs, outputs[:])
 
         # Sort the inputs and outputs deterministically
         tx.BIP_LI01_sort()

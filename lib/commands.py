@@ -404,11 +404,7 @@ class Commands:
         final_outputs = []
         for address, amount in outputs:
             address = self._resolver(address)
-            if amount == '!':
-                assert len(outputs) == 1
-                inputs = self.wallet.get_spendable_coins(domain)
-                amount, fee = self.wallet.get_max_amount(self.config, inputs, (TYPE_ADDRESS, address), fee)
-            else:
+            if amount != '!':
                 amount = int(COIN*Decimal(amount))
             final_outputs.append((TYPE_ADDRESS, address, amount))
 
