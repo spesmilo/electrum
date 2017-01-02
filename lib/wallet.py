@@ -1378,7 +1378,7 @@ class Imported_Wallet(Abstract_Wallet):
         txin['signatures'] = [None]
 
 
-class P2PK_Wallet(Abstract_Wallet):
+class P2PKH_Wallet(Abstract_Wallet):
 
     def pubkeys_to_address(self, pubkey):
         return public_key_to_bc_address(pubkey.decode('hex'))
@@ -1540,7 +1540,7 @@ class Deterministic_Wallet(Abstract_Wallet):
 
 
 
-class Standard_Wallet(Deterministic_Wallet, P2PK_Wallet):
+class Standard_Wallet(Deterministic_Wallet, P2PKH_Wallet):
     wallet_type = 'standard'
 
     def __init__(self, storage):

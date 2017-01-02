@@ -52,7 +52,7 @@ from electrum.util import (block_explorer, block_explorer_info, format_time,
 from electrum import Transaction, mnemonic
 from electrum import util, bitcoin, commands, coinchooser
 from electrum import SimpleConfig, paymentrequest
-from electrum.wallet import Wallet, Multisig_Wallet, P2PK_Wallet
+from electrum.wallet import Wallet, Multisig_Wallet
 
 from amountedit import BTCAmountEdit, MyLineEdit, BTCkBEdit
 from network_dialog import NetworkDialog
