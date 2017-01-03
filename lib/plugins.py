@@ -63,6 +63,9 @@ class Plugins(DaemonThread):
 
     def load_plugins(self):
         for loader, name, ispkg in pkgutil.iter_modules([self.pkgpath]):
+            # do not load deprecated plugins
+            if name in ['plot', 'exchange_rate']:
+                continue
             m = loader.find_module(name).load_module(name)
             d = m.__dict__
             gui_good = self.gui_name in d.get('available_for', [])

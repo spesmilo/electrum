@@ -30,6 +30,7 @@ from util import *
 from electrum.i18n import _
 from electrum.util import block_explorer_URL, format_satoshis, format_time
 from electrum.plugins import run_hook
+from electrum.util import timestamp_to_datetime
 
 
 TX_ICONS = [
@@ -55,8 +56,10 @@ class HistoryList(MyTreeWidget):
         self.setColumnHidden(1, True)
 
     def refresh_headers(self):
+        ccy = self.parent.fx.ccy
         headers = ['', '', _('Date'), _('Description') , _('Amount'), _('Balance')]
-        run_hook('history_tab_headers', headers)
+        if self.parent.fx.show_history():
+            headers.extend(['%s '%ccy + _('Amount'), '%s '%ccy + _('Balance')])
         self.update_headers(headers)
 
     def get_domain(self):
@@ -69,7 +72,10 @@ class HistoryList(MyTreeWidget):
         item = self.currentItem()
         current_tx = item.data(0, Qt.UserRole).toString() if item else None
         self.clear()
-        run_hook('history_tab_update_begin')
+
+        fx = self.parent.fx
+        fx.history_used_spot = False
+
         for h_item in h:
             tx_hash, height, conf, timestamp, value, balance = h_item
             status, status_str = self.wallet.get_tx_status(tx_hash, height, conf, timestamp)
@@ -78,7 +84,11 @@ class HistoryList(MyTreeWidget):
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             label = self.wallet.get_label(tx_hash)
             entry = ['', tx_hash, status_str, label, v_str, balance_str]
-            run_hook('history_tab_update', h_item, entry)
+            if fx.show_history():
+                date = timestamp_to_datetime(time.time() if conf <= 0 else timestamp)
+                for amount in [value, balance]:
+                    text = fx.historical_value_str(amount, date)
+                    entry.append(text)
             item = QTreeWidgetItem(entry)
             item.setIcon(0, icon)
             for i in range(len(entry)):

@@ -86,46 +86,35 @@ class FxDialog(Factory.Popup):
         self.app = app
         self.config = config
         self.callback = callback
-        self.plugins = plugins
-        p = self.plugins.get('exchange_rate')
-        self.ids.enabled.active = bool(p)
+        self.fx = self.app.fx
+        self.ids.enabled.active = self.fx.is_enabled()
 
     def on_active(self, b):
-        if b:
-            p = self.plugins.get('exchange_rate')
-            if p is None:
-                p = self.plugins.enable('exchange_rate')
-                p.init_kivy(self.app)
-        else:
-            self.plugins.disable('exchange_rate')
+        self.fx.set_enabled(b)
         Clock.schedule_once(lambda dt: self.add_currencies())
 
     def add_exchanges(self):
-        p = self.plugins.get('exchange_rate')
-        exchanges = sorted(p.exchanges_by_ccy.get(p.get_currency())) if p else []
-        mx = p.exchange.name() if p else ''
+        exchanges = sorted(self.fx.exchanges_by_ccy.get(self.fx.get_currency())) if self.fx.is_enabled() else []
+        mx = self.fx.exchange.name() if self.fx.is_enabled() else ''
         ex = self.ids.exchanges
         ex.values = exchanges
-        ex.text = (mx if mx in exchanges else exchanges[0]) if p else ''
+        ex.text = (mx if mx in exchanges else exchanges[0]) if self.fx.is_enabled() else ''
 
     def on_exchange(self, text):
         if not text:
             return
-        p = self.plugins.get('exchange_rate')
-        if p and text != p.exchange.name():
-            p.set_exchange(text)
+        if self.fx.is_enabled() and text != self.fx.exchange.name():
+            self.fx.set_exchange(text)
 
     def add_currencies(self):
-        p = self.plugins.get('exchange_rate')
-        currencies = sorted(p.exchanges_by_ccy.keys()) if p else []
-        my_ccy = p.get_currency() if p else ''
+        currencies = sorted(self.fx.exchanges_by_ccy.keys()) if self.fx else []
+        my_ccy = self.fx.get_currency() if self.fx.is_enabled() else ''
         self.ids.ccy.values = currencies
         self.ids.ccy.text = my_ccy
 
     def on_currency(self, ccy):
         if ccy:
-            p = self.plugins.get('exchange_rate')
-            if p and ccy != p.get_currency():
-                p.set_currency(ccy)
+            if self.fx.is_enabled() and ccy != self.fx.get_currency():
+                self.fx.set_currency(ccy)
             self.app.fiat_unit = ccy
         Clock.schedule_once(lambda dt: self.add_exchanges())

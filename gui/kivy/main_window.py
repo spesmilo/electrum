@@ -92,11 +92,12 @@ class ElectrumWindow(App):
         _.switch_lang(language)
 
     def on_quotes(self, d):
-        #Logger.info("on_quotes")
-        pass
+        Logger.info("on_quotes")
+        if self.history_screen:
+            Clock.schedule_once(lambda dt: self.history_screen.update())
 
     def on_history(self, d):
-        #Logger.info("on_history")
+        Logger.info("on_history")
         if self.history_screen:
             Clock.schedule_once(lambda dt: self.history_screen.update())
 
@@ -124,7 +125,7 @@ class ElectrumWindow(App):
     def btc_to_fiat(self, amount_str):
         if not amount_str:
             return ''
-        rate = run_hook('exchange_rate')
+        rate = self.fx.exchange_rate()
         if not rate:
             return ''
         fiat_amount = self.get_amount(amount_str + ' ' + self.base_unit) * rate / pow(10, 8)
@@ -133,7 +134,7 @@ class ElectrumWindow(App):
     def fiat_to_btc(self, fiat_amount):
         if not fiat_amount:
             return ''
-        rate = run_hook('exchange_rate')
+        rate = self.fx.exchange_rate()
         if not rate:
             return ''
         satoshis = int(pow(10,8) * Decimal(fiat_amount) / Decimal(rate))
@@ -198,6 +199,7 @@ class ElectrumWindow(App):
 
         self.gui_object = kwargs.get('gui_object', None)
         self.daemon = self.gui_object.daemon
+        self.fx = self.daemon.fx
 
         self.contacts = Contacts(self.electrum_config)
         self.invoices = InvoiceStore(self.electrum_config)
@@ -386,6 +388,12 @@ class ElectrumWindow(App):
         self.load_wallet_by_name(self.electrum_config.get_wallet_path())
         # init plugins
         run_hook('init_kivy', self)
+
+        # fiat currency
+        self.fiat_unit = self.fx.ccy if self.fx.is_enabled() else ''
+        self.network.register_callback(self.on_quotes, ['on_quotes'])
+        self.network.register_callback(self.on_history, ['on_history'])
+
         # default tab
         self.switch_to('history')
         # bind intent for bitcoin: URI scheme

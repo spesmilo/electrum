@@ -20,7 +20,6 @@ from kivy.utils import platform
 from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds
 from electrum import bitcoin
 from electrum.util import timestamp_to_datetime
-from electrum.plugins import run_hook
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 
 from context_menu import ContextMenu
@@ -148,9 +147,9 @@ class HistoryScreen(CScreen):
         ri.value_known = value is not None
         ri.confirmations = conf
         if self.app.fiat_unit and date:
-            rate = run_hook('history_rate', date)
+            rate = self.app.fx.history_rate(date)
             if rate:
-                s = run_hook('value_str', value, rate)
+                s = self.app.fx.value_str(value, rate)
                 ri.quote_text = '' if s is None else s + ' ' + self.app.fiat_unit
         return ri
 
