@@ -306,7 +306,6 @@ class Abstract_Wallet(PrintError):
         self.unverified_tx.pop(tx_hash, None)
         with self.lock:
             self.verified_tx[tx_hash] = info  # (tx_height, timestamp, pos)
-        self.storage.put('verified_tx3', self.verified_tx)
         height, conf, timestamp = self.get_tx_height(tx_hash)
         self.network.trigger_callback('verified', tx_hash, height, conf, timestamp)
 
@@ -663,7 +662,6 @@ class Abstract_Wallet(PrintError):
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
         self.add_transaction(tx_hash, tx)
-        self.save_transactions()
         self.add_unverified_tx(tx_hash, tx_height)
 
     def receive_history_callback(self, addr, hist, tx_fees):
@@ -689,8 +687,6 @@ class Abstract_Wallet(PrintError):
             if tx is not None and self.txi.get(tx_hash, {}).get(addr) is None and self.txo.get(tx_hash, {}).get(addr) is None:
                 self.add_transaction(tx_hash, tx)
 
-        # Write updated TXI, TXO etc.
-        self.save_transactions()
         # Store fees
         self.tx_fees.update(tx_fees)
 
@@ -967,6 +963,8 @@ class Abstract_Wallet(PrintError):
             # Now no references to the syncronizer or verifier
             # remain so they will be GC-ed
             self.storage.put('stored_height', self.get_local_height())
+        self.save_transactions()
+        self.storage.put('verified_tx3', self.verified_tx)
         self.storage.write()
 
     def wait_until_synchronized(self, callback=None):
