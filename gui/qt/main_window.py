@@ -1100,6 +1100,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if not freeze_fee:
                 self.fee_e.setAmount(None)
             self.not_enough_funds = False
+            self.statusBar().showMessage('')
         else:
             fee = self.fee_e.get_amount() if freeze_fee else None
             outputs = self.payto_e.get_outputs(self.is_max)
