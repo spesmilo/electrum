@@ -816,7 +816,7 @@ class Abstract_Wallet(PrintError):
                     raise BaseException("More than one output set to spend max")
                 i_max = i
 
-        # Avoid index-out-of-range with coins[0] below
+        # Avoid index-out-of-range with inputs[0] below
         if not inputs:
             raise NotEnoughFunds()
 
@@ -837,7 +837,7 @@ class Abstract_Wallet(PrintError):
                 if not change_addrs:
                     change_addrs = [random.choice(addrs)]
             else:
-                change_addrs = [coins[0]['address']]
+                change_addrs = [inputs[0]['address']]
 
         # Fee estimator
         if fixed_fee is None:
