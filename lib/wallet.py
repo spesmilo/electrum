@@ -1049,8 +1049,8 @@ class Abstract_Wallet(PrintError):
 
     def add_input_info(self, txin):
         # Add address for utxo that are in wallet
-        coins = self.get_spendable_coins()
         if txin.get('scriptSig') == '':
+            coins = self.get_spendable_coins()
             for item in coins:
                 if txin.get('prevout_hash') == item.get('prevout_hash') and txin.get('prevout_n') == item.get('prevout_n'):
                     txin['address'] = item.get('address')
