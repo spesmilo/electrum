@@ -474,7 +474,9 @@ class MyTreeWidget(QTreeWidget):
         if self.editor:
             self.pending_update = True
         else:
+            self.setUpdatesEnabled(False)
             self.on_update()
+            self.setUpdatesEnabled(True)
 
     def on_update(self):
         pass

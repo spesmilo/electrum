@@ -30,7 +30,7 @@ from util import *
 from electrum.i18n import _
 from electrum.util import block_explorer_URL, format_satoshis, format_time
 from electrum.plugins import run_hook
-from electrum.util import timestamp_to_datetime
+from electrum.util import timestamp_to_datetime, profiler
 
 
 TX_ICONS = [
@@ -66,16 +66,15 @@ class HistoryList(MyTreeWidget):
         '''Replaced in address_dialog.py'''
         return self.wallet.get_addresses()
 
+    @profiler
     def on_update(self):
         self.wallet = self.parent.wallet
         h = self.wallet.get_history(self.get_domain())
         item = self.currentItem()
         current_tx = item.data(0, Qt.UserRole).toString() if item else None
         self.clear()
-
         fx = self.parent.fx
         fx.history_used_spot = False
-
         for h_item in h:
             tx_hash, height, conf, timestamp, value, balance = h_item
             status, status_str = self.wallet.get_tx_status(tx_hash, height, conf, timestamp)
