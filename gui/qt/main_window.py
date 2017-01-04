@@ -877,8 +877,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.receive_amount_e.setAmount(None)
 
     def clear_receive_tab(self):
-        addr = self.wallet.get_unused_address()
-        self.receive_address_e.setText(addr if addr else '')
+        addr = self.wallet.get_receiving_address()
+        self.receive_address_e.setText(addr)
         self.receive_message_e.setText('')
         self.receive_amount_e.setAmount(None)
         self.expires_label.hide()

@@ -330,12 +330,15 @@ class ReceiveScreen(CScreen):
     def get_new_address(self):
         if not self.app.wallet:
             return False
+        self.clear()
         addr = self.app.wallet.get_unused_address()
         if addr is None:
-            return False
-        self.clear()
+            addr = self.app.wallet.get_receiving_address()
+            b = False
+        else:
+            b = True
         self.screen.address = addr
-        return True
+        return b
 
     def on_address(self, addr):
         req = self.app.wallet.get_payment_request(addr, self.app.electrum_config)

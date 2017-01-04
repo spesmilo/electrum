@@ -1119,6 +1119,18 @@ class Abstract_Wallet(PrintError):
         if addrs:
             return addrs[0]
 
+    def get_receiving_address(self):
+        # always return an address
+        domain = self.get_receiving_addresses()
+        choice = domain[0]
+        for addr in domain:
+            if addr not in self.history.keys():
+                if addr not in self.receive_requests.keys():
+                    return addr
+                else:
+                    choice = addr
+        return choice
+
     def get_payment_status(self, address, amount):
         local_height = self.get_local_height()
         received, sent = self.get_addr_io(address)
