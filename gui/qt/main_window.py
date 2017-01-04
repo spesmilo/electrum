@@ -2620,7 +2620,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.fx.set_history_config(checked)
             self.history_list.refresh_headers()
             if self.fx.is_enabled() and checked:
-                self.fx.get_historical_rates()
+                # reset timeout to get historical rates
+                self.fx.timeout = 0
 
         update_currencies()
         update_history_cb()
