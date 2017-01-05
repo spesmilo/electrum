@@ -92,6 +92,22 @@ class Bit2C(ExchangeBase):
         json = self.get_json('www.bit2c.co.il', '/Exchanges/LTCNIS/Ticker.json')
         return {'NIS': Decimal(json['ll'])}
 
+class BitcoinAverage(ExchangeBase):
+    def get_rates(self, ccy):
+        json = self.get_json('apiv2.bitcoinaverage.com', '/indices/global/ticker/LTC%s' % ccy)
+        return {ccy: Decimal(json['last'])}
+
+    def history_ccys(self):
+        return ['AUD', 'BRL', 'CAD', 'CHF', 'CNY', 'EUR', 'GBP', 'IDR', 'ILS',
+                'MXN', 'NOK', 'NZD', 'PLN', 'RON', 'RUB', 'SEK', 'SGD', 'USD',
+                'ZAR']
+
+    def historical_rates(self, ccy):
+        history = self.get_csv('apiv2.bitcoinaverage.com',
+                               "/indices/global/history/LTC%s?format=csv" % ccy)
+        return dict([(h['DateTime'][:10], h['Average'])
+                     for h in history])
+
 class BitcoinVenezuela(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('api.bitcoinvenezuela.com', '/')
