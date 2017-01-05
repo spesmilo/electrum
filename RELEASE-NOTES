@@ -1,3 +1,10 @@
+# Release 2.7.15
+  * Critical: Fix password update issue (#2097). This bug prevents
+    password updates in multisig and 2FA wallets. It may also cause
+    wallet corruption if the wallet contains several master private
+    keys (such as 2FA wallets that have been restored from
+    seed). Affected wallets will need to be restored again.
+
 # Release 2.7.14
   * Merge exchange_rate plugin with main code
   * Faster synchronization and transaction creation
