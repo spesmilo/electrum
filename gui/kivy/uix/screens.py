@@ -20,7 +20,6 @@ from kivy.utils import platform
 from electrum_ltc.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds
 from electrum_ltc import bitcoin
 from electrum_ltc.util import timestamp_to_datetime
-from electrum_ltc.plugins import run_hook
 from electrum_ltc.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 
 from context_menu import ContextMenu
@@ -148,9 +147,9 @@ class HistoryScreen(CScreen):
         ri.value_known = value is not None
         ri.confirmations = conf
         if self.app.fiat_unit and date:
-            rate = run_hook('history_rate', date)
+            rate = self.app.fx.history_rate(date)
             if rate:
-                s = run_hook('value_str', value, rate)
+                s = self.app.fx.value_str(value, rate)
                 ri.quote_text = '' if s is None else s + ' ' + self.app.fiat_unit
         return ri
 
@@ -331,12 +330,15 @@ class ReceiveScreen(CScreen):
     def get_new_address(self):
         if not self.app.wallet:
             return False
+        self.clear()
         addr = self.app.wallet.get_unused_address()
         if addr is None:
-            return False
-        self.clear()
+            addr = self.app.wallet.get_receiving_address()
+            b = False
+        else:
+            b = True
         self.screen.address = addr
-        return True
+        return b
 
     def on_address(self, addr):
         req = self.app.wallet.get_payment_request(addr, self.app.electrum_config)

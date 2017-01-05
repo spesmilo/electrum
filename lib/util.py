@@ -243,14 +243,14 @@ def get_headers_path(config):
         return os.path.join(config.path, 'blockchain_headers')
 
 def user_dir():
-    if "HOME" in os.environ:
+    if 'ANDROID_DATA' in os.environ:
+        return android_check_data_dir()
+    elif os.name == 'posix':
         return os.path.join(os.environ["HOME"], ".electrum-ltc")
     elif "APPDATA" in os.environ:
         return os.path.join(os.environ["APPDATA"], "Electrum-LTC")
     elif "LOCALAPPDATA" in os.environ:
         return os.path.join(os.environ["LOCALAPPDATA"], "Electrum-LTC")
-    elif 'ANDROID_DATA' in os.environ:
-        return android_check_data_dir()
     else:
         #raise Exception("No home directory found in environment variables.")
         return

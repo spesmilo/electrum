@@ -242,10 +242,10 @@ class SettingsDialog(Factory.Popup):
         self._rbf_dialog.open()
 
     def fx_status(self):
-        p = self.plugins.get('exchange_rate')
-        if p:
-            source = p.exchange.name()
-            ccy = p.get_currency()
+        fx = self.app.fx
+        if fx.is_enabled():
+            source = fx.exchange.name()
+            ccy = fx.get_currency()
             return '%s [%s]' %(ccy, source)
         else:
             return 'Disabled'

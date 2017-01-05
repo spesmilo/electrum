@@ -54,7 +54,6 @@ setup(
         'electrum_ltc_plugins.audio_modem',
         'electrum_ltc_plugins.cosigner_pool',
         'electrum_ltc_plugins.email_requests',
-        'electrum_ltc_plugins.exchange_rate',
         'electrum_ltc_plugins.hw_wallet',
         'electrum_ltc_plugins.keepkey',
         'electrum_ltc_plugins.labels',

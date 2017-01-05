@@ -4,7 +4,7 @@ import re
 import hashlib
 import os
 
-from versions import version, version_win, version_mac, version_apk
+from versions import version, version_win, version_mac, version_android, version_apk
 from versions import download_template, download_page
 
 with open(download_template) as f:
@@ -13,6 +13,7 @@ with open(download_template) as f:
 string = string.replace("##VERSION##", version)
 string = string.replace("##VERSION_WIN##", version_win)
 string = string.replace("##VERSION_MAC##", version_mac)
+string = string.replace("##VERSION_ANDROID##", version_android)
 string = string.replace("##VERSION_APK##", version_apk)
 
 files = {

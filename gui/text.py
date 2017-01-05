@@ -146,7 +146,7 @@ class ElectrumGui:
         self.stdscr.addstr(self.maxy -1, self.maxx-30, ' '.join([_("Settings"), _("Network"), _("Quit")]))
 
     def print_receive(self):
-        addr = self.wallet.get_unused_address()
+        addr = self.wallet.get_receiving_address()
         self.stdscr.addstr(2, 1, "Address: "+addr)
         self.print_qr(addr)
 

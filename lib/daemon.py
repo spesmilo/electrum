@@ -39,6 +39,7 @@ from wallet import WalletStorage, Wallet
 from commands import known_commands, Commands
 from simple_config import SimpleConfig
 from plugins import run_hook
+from exchange_rate import FxThread
 
 def get_lockfile(config):
     return os.path.join(config.path, 'daemon')
@@ -100,14 +101,17 @@ class RequestHandler(SimpleJSONRPCRequestHandler):
 class Daemon(DaemonThread):
 
     def __init__(self, config, fd):
-
         DaemonThread.__init__(self)
         self.config = config
         if config.get('offline'):
             self.network = None
+            self.fx = None
         else:
             self.network = Network(config)
             self.network.start()
+            self.fx = FxThread(config, self.network)
+            self.network.add_jobs([self.fx])
+
         self.gui = None
         self.wallets = {}
         # Setup JSONRPC server

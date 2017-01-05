@@ -306,7 +306,6 @@ class Abstract_Wallet(PrintError):
         self.unverified_tx.pop(tx_hash, None)
         with self.lock:
             self.verified_tx[tx_hash] = info  # (tx_height, timestamp, pos)
-        self.storage.put('verified_tx3', self.verified_tx)
         height, conf, timestamp = self.get_tx_height(tx_hash)
         self.network.trigger_callback('verified', tx_hash, height, conf, timestamp)
 
@@ -551,18 +550,6 @@ class Abstract_Wallet(PrintError):
     def dummy_address(self):
         return self.get_receiving_addresses()[0]
 
-    def get_max_amount(self, config, inputs, recipient, fee):
-        sendable = sum(map(lambda x:x['value'], inputs))
-        if fee is None:
-            for i in inputs:
-                self.add_input_info(i)
-            _type, addr = recipient
-            outputs = [(_type, addr, sendable)]
-            dummy_tx = Transaction.from_io(inputs, outputs)
-            fee = self.estimate_fee(config, dummy_tx.estimated_size())
-        amount = max(0, sendable - fee)
-        return amount, fee
-
     def get_addresses(self):
         out = []
         out += self.get_receiving_addresses()
@@ -675,7 +662,6 @@ class Abstract_Wallet(PrintError):
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
         self.add_transaction(tx_hash, tx)
-        self.save_transactions()
         self.add_unverified_tx(tx_hash, tx_height)
 
     def receive_history_callback(self, addr, hist, tx_fees):
@@ -701,8 +687,6 @@ class Abstract_Wallet(PrintError):
             if tx is not None and self.txi.get(tx_hash, {}).get(addr) is None and self.txo.get(tx_hash, {}).get(addr) is None:
                 self.add_transaction(tx_hash, tx)
 
-        # Write updated TXI, TXO etc.
-        self.save_transactions()
         # Store fees
         self.tx_fees.update(tx_fees)
 
@@ -819,18 +803,24 @@ class Abstract_Wallet(PrintError):
         # this method can be overloaded
         return tx.get_fee()
 
-    def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None, change_addr=None):
+    def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None, change_addr=None):
         # check outputs
-        for type, data, value in outputs:
-            if type == TYPE_ADDRESS:
+        i_max = None
+        for i, o in enumerate(outputs):
+            _type, data, value = o
+            if _type == TYPE_ADDRESS:
                 if not is_address(data):
                     raise BaseException("Invalid litecoin address:" + data)
+            if value == '!':
+                if i_max is not None:
+                    raise BaseException("More than one output set to spend max")
+                i_max = i
 
-        # Avoid index-out-of-range with coins[0] below
-        if not coins:
+        # Avoid index-out-of-range with inputs[0] below
+        if not inputs:
             raise NotEnoughFunds()
 
-        for item in coins:
+        for item in inputs:
             self.add_input_info(item)
 
         # change address
@@ -847,7 +837,7 @@ class Abstract_Wallet(PrintError):
                 if not change_addrs:
                     change_addrs = [random.choice(addrs)]
             else:
-                change_addrs = [coins[0]['address']]
+                change_addrs = [inputs[0]['address']]
 
         # Fee estimator
         if fixed_fee is None:
@@ -855,11 +845,21 @@ class Abstract_Wallet(PrintError):
         else:
             fee_estimator = lambda size: fixed_fee
 
-        # Let the coin chooser select the coins to spend
-        max_change = self.max_change_outputs if self.multiple_change else 1
-        coin_chooser = coinchooser.get_coin_chooser(config)
-        tx = coin_chooser.make_tx(coins, outputs, change_addrs[:max_change],
-                                  fee_estimator, self.dust_threshold())
+        if i_max is None:
+            # Let the coin chooser select the coins to spend
+            max_change = self.max_change_outputs if self.multiple_change else 1
+            coin_chooser = coinchooser.get_coin_chooser(config)
+            tx = coin_chooser.make_tx(inputs, outputs, change_addrs[:max_change],
+                                      fee_estimator, self.dust_threshold())
+        else:
+            sendable = sum(map(lambda x:x['value'], inputs))
+            _type, data, value = outputs[i_max]
+            outputs[i_max] = (_type, data, 0)
+            tx = Transaction.from_io(inputs, outputs[:])
+            fee = fee_estimator(tx.estimated_size())
+            amount = max(0, sendable - tx.output_value() - fee)
+            outputs[i_max] = (_type, data, amount)
+            tx = Transaction.from_io(inputs, outputs[:])
 
         # Sort the inputs and outputs deterministically
         tx.BIP_LI01_sort()
@@ -966,6 +966,8 @@ class Abstract_Wallet(PrintError):
             # Now no references to the syncronizer or verifier
             # remain so they will be GC-ed
             self.storage.put('stored_height', self.get_local_height())
+        self.save_transactions()
+        self.storage.put('verified_tx3', self.verified_tx)
         self.storage.write()
 
     def wait_until_synchronized(self, callback=None):
@@ -1050,8 +1052,8 @@ class Abstract_Wallet(PrintError):
 
     def add_input_info(self, txin):
         # Add address for utxo that are in wallet
-        coins = self.get_spendable_coins()
         if txin.get('scriptSig') == '':
+            coins = self.get_spendable_coins()
             for item in coins:
                 if txin.get('prevout_hash') == item.get('prevout_hash') and txin.get('prevout_n') == item.get('prevout_n'):
                     txin['address'] = item.get('address')
@@ -1119,6 +1121,18 @@ class Abstract_Wallet(PrintError):
         addrs = self.get_unused_addresses()
         if addrs:
             return addrs[0]
+
+    def get_receiving_address(self):
+        # always return an address
+        domain = self.get_receiving_addresses()
+        choice = domain[0]
+        for addr in domain:
+            if addr not in self.history.keys():
+                if addr not in self.receive_requests.keys():
+                    return addr
+                else:
+                    choice = addr
+        return choice
 
     def get_payment_status(self, address, amount):
         local_height = self.get_local_height()
@@ -1377,7 +1391,7 @@ class Imported_Wallet(Abstract_Wallet):
         txin['signatures'] = [None]
 
 
-class P2PK_Wallet(Abstract_Wallet):
+class P2PKH_Wallet(Abstract_Wallet):
 
     def pubkeys_to_address(self, pubkey):
         return public_key_to_bc_address(pubkey.decode('hex'))
@@ -1539,7 +1553,7 @@ class Deterministic_Wallet(Abstract_Wallet):
 
 
 
-class Standard_Wallet(Deterministic_Wallet, P2PK_Wallet):
+class Standard_Wallet(Deterministic_Wallet, P2PKH_Wallet):
     wallet_type = 'standard'
 
     def __init__(self, storage):
@@ -1645,8 +1659,9 @@ class Multisig_Wallet(Deterministic_Wallet):
 
     def update_password(self, old_pw, new_pw):
         for name, keystore in self.keystores.items():
-            keystore.update_password(old_pw, new_pw)
-            self.storage.put(name, keystore.dump())
+            if keystore.can_change_password():
+                keystore.update_password(old_pw, new_pw)
+                self.storage.put(name, keystore.dump())
         self.storage.put('use_encryption', (new_pw is not None))
 
     def check_password(self, password):
