@@ -15,9 +15,11 @@ build/
 contrib/pyinstaller/
 dist/
 env/
+ext/
 Electrum.egg-info/
 locale/
 packages
+venv/
 
 #[dotfiles]
 .editorconfig
