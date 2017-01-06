@@ -964,15 +964,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.fiat_send_e = AmountEdit(self.fx.get_currency)
         self.fiat_send_e.setVisible(self.fx.is_enabled())
-        grid.addWidget(self.fiat_send_e, 4, 2, Qt.AlignLeft)
+        grid.addWidget(self.fiat_send_e, 4, 2)
         self.amount_e.frozen.connect(
             lambda: self.fiat_send_e.setFrozen(self.amount_e.isReadOnly()))
 
         self.max_button = EnterButton(_("Max"), self.spend_max)
+        self.max_button.setFixedWidth(140)
+        grid.addWidget(self.max_button, 4, 3)
         hbox = QHBoxLayout()
-        hbox.addWidget(self.max_button)
         hbox.addStretch(1)
-        grid.addLayout(hbox, 4, 3)
+        grid.addLayout(hbox, 4, 4)
 
         msg = _('Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
               + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
@@ -982,6 +983,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fee_cb = lambda x: self.spend_max() if self.is_max else self.update_fee()
         self.fee_slider = self.create_fee_slider(self, fee_cb)
         self.fee_slider.setValue(self.config.get('fee_level', 2))
+        self.fee_slider.setFixedWidth(140)
 
         self.fee_e = BTCAmountEdit(self.get_decimal_point)
         self.fee_e.setVisible(self.config.get('show_fee', False))
@@ -1012,7 +1014,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         buttons.addWidget(self.clear_button)
         buttons.addWidget(self.preview_button)
         buttons.addWidget(self.send_button)
-        grid.addLayout(buttons, 6, 1, 1, 2)
+        grid.addLayout(buttons, 6, 1, 1, 3)
 
         self.amount_e.shortcut.connect(self.spend_max)
         self.payto_e.textChanged.connect(self.update_fee)
