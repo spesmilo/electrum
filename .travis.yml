@@ -1,8 +1,12 @@
 sudo: false
+
 language: python
+
 python:
-    - "2.7"
+- '2.7'
+
 install:
-    - pip install tox
+- pip install tox
+
 script:
-    - tox
+- tox
