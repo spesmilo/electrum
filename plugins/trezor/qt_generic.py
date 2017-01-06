@@ -401,6 +401,7 @@ class SettingsDialog(WindowModalDialog):
             invoke_client('set_pin', remove=True)
 
         def wipe_device():
+            wallet = window.wallet
             if wallet and sum(wallet.get_balance()):
                 title = _("Confirm Device Wipe")
                 msg = _("Are you SURE you want to wipe the device?\n"
