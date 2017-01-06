@@ -977,25 +977,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
               + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')
         self.fee_e_label = HelpLabel(_('Fee'), msg)
 
-        self.fee_slider = QSlider(Qt.Horizontal, self)
-        self.fee_slider.setRange(0, 4)
-        self.fee_slider.setToolTip('')
-        def slider_moved():
-            from electrum.util import fee_levels
-            pos = self.fee_slider.sliderPosition()
-            self.config.set_key('fee_level', pos, False)
-            self.spend_max() if self.is_max else self.update_fee()
-            tooltip = fee_levels[pos]
-            if self.network:
-                dynfee = self.network.dynfee(pos)
-                if dynfee:
-                    tooltip += '\n' + self.format_amount(dynfee) + ' ' + self.base_unit() + '/kB'
-            QToolTip.showText(QCursor.pos(), tooltip, self.fee_slider)
-
-        self.fee_slider.valueChanged.connect(slider_moved)
+        fee_cb = lambda x: self.spend_max() if self.is_max else self.update_fee()
+        self.fee_slider = self.create_fee_slider(self, fee_cb)
         self.fee_slider.setValue(self.config.get('fee_level', 2))
 
         self.fee_e = BTCAmountEdit(self.get_decimal_point)
+        self.fee_e.setVisible(self.config.get('show_fee', False))
         self.fee_e.textEdited.connect(self.update_fee)
         # This is so that when the user blanks the fee and moves on,
         # we go back to auto-calculate mode and put a fee back.
@@ -1010,9 +997,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.rbf_checkbox.setVisible(self.config.get('use_rbf', False))
 
         grid.addWidget(self.fee_e_label, 5, 0)
-        grid.addWidget(self.fee_e, 5, 1)
         grid.addWidget(self.fee_slider, 5, 1)
-        grid.addWidget(self.rbf_checkbox, 5, 2)
+        grid.addWidget(self.fee_e, 5, 2)
+        grid.addWidget(self.rbf_checkbox, 5, 3)
 
         self.preview_button = EnterButton(_("Preview"), self.do_preview)
         self.preview_button.setToolTip(_('Display the details of your transactions before signing it.'))
@@ -1069,7 +1056,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addWidget(self.invoice_list)
         vbox.setStretchFactor(self.invoice_list, 1000)
         # Defer this until grid is parented to avoid ugly flash during startup
-        self.update_fee_edit()
         run_hook('create_send_tab', grid)
         return w
 
@@ -1119,12 +1105,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if self.is_max:
                 amount = tx.output_value()
                 self.amount_e.setAmount(amount)
-
-
-    def update_fee_edit(self):
-        b = self.config.get('dynamic_fees', True)
-        self.fee_slider.setVisible(b)
-        self.fee_e.setVisible(not b)
 
     def from_list_delete(self, item):
         i = self.from_list.indexOfTopLevelItem(item)
@@ -2397,10 +2377,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def on_dynfee(x):
             self.config.set_key('dynamic_fees', x == Qt.Checked)
             update_feeperkb()
-            self.update_fee_edit()
         dynfee_cb.stateChanged.connect(on_dynfee)
         update_feeperkb()
-        #slider_moved()
+
+        feebox_cb = QCheckBox(_('Edit fees manually'))
+        feebox_cb.setChecked(self.config.get('show_fee', False))
+        feebox_cb.setToolTip(_("Show fee edit box in send tab."))
+        fee_widgets.append((feebox_cb, None))
+        def on_feebox(x):
+            self.config.set_key('show_fee', x == Qt.Checked)
+            self.fee_e.setVisible(bool(x))
+        feebox_cb.stateChanged.connect(on_feebox)
 
         msg = _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n'\
               + _('The following alias providers are available:') + '\n'\
@@ -2767,22 +2754,51 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
 
+    def create_fee_slider(self, parent, callback):
+        from electrum.util import fee_levels
+        from electrum.bitcoin import FEE_STEP, RECOMMENDED_FEE
+        fee_slider = QSlider(Qt.Horizontal, parent)
+        def slider_moved():
+            pos = fee_slider.sliderPosition()
+            self.config.set_key('fee_level', pos, False)
+            is_dyn = self.config.get('dynamic_fees') and self.network and self.network.dynfee(pos)
+            fee_rate = self.wallet.fee_per_kb(self.config)
+            tooltip = fee_levels[pos] + '\n' if is_dyn else ''
+            tooltip += self.format_amount(fee_rate) + ' ' + self.base_unit() + '/kB'
+            QToolTip.showText(QCursor.pos(), tooltip, self.fee_slider)
+            callback(fee_rate)
+
+        fee_slider.setRange(0, 4)
+        fee_slider.setToolTip('')
+        fee_slider.setValue(self.config.get('fee_level', 2))
+        fee_slider.valueChanged.connect(slider_moved)
+        return fee_slider
+
     def bump_fee_dialog(self, tx):
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
+        tx_size = tx.estimated_size()
         d = WindowModalDialog(self, _('Bump Fee'))
         vbox = QVBoxLayout(d)
         vbox.addWidget(QLabel(_('Current fee') + ': %s'% self.format_amount(fee) + ' ' + self.base_unit()))
-        vbox.addWidget(QLabel(_('New Fee') + ': '))
-        e = BTCAmountEdit(self.get_decimal_point)
-        e.setAmount(fee *1.5)
-        vbox.addWidget(e)
+        vbox.addWidget(QLabel(_('New fee' + ':')))
+
+        fee_e = BTCAmountEdit(self.get_decimal_point)
+        fee_e.setAmount(fee * 1.5)
+        vbox.addWidget(fee_e)
+
+        def on_rate(fee_rate):
+            fee = fee_rate * tx_size / 1000
+            fee_e.setAmount(fee)
+        fee_slider = self.create_fee_slider(d, on_rate)
+        vbox.addWidget(fee_slider)
+
         cb = QCheckBox(_('Final'))
         vbox.addWidget(cb)
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         if not d.exec_():
             return
         is_final = cb.isChecked()
-        new_fee = e.get_amount()
+        new_fee = fee_e.get_amount()
         delta = new_fee - fee
         if delta < 0:
             self.show_error("fee too low")
