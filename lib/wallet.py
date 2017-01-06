@@ -1126,7 +1126,7 @@ class Abstract_Wallet(PrintError):
         domain = self.get_receiving_addresses()
         choice = domain[0]
         for addr in domain:
-            if addr not in self.history.keys():
+            if not self.history.get(addr):
                 if addr not in self.receive_requests.keys():
                     return addr
                 else:
