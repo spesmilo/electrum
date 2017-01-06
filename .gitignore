@@ -22,6 +22,7 @@ packages
 venv/
 
 #[dotfiles]
+.DS_Store
 .editorconfig
 
 #[files]
