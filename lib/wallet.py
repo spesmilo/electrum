@@ -757,7 +757,9 @@ class Abstract_Wallet(PrintError):
         if b and self.network and self.network.dynfee(i):
             return self.network.dynfee(i)
         else:
-            return config.get('fee_per_kb', bitcoin.RECOMMENDED_FEE)
+            fee_per_kb = config.get('fee_per_kb', RECOMMENDED_FEE)
+            coeff = {0:0.3, 1:0.5, 2:1, 3:1.5, 4:2}
+            return fee_per_kb * coeff[i]
 
     def get_tx_status(self, tx_hash, height, conf, timestamp):
         from util import format_time

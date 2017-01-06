@@ -1,4 +1,7 @@
 # Release 2.7.15
+  * Use fee slider for both static and dynamic fees.
+  * Add fee slider to RBF dialog (fix #2083).
+  * Simplify fee preferences.
   * Critical: Fix password update issue (#2097). This bug prevents
     password updates in multisig and 2FA wallets. It may also cause
     wallet corruption if the wallet contains several master private
