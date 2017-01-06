@@ -2354,8 +2354,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         nz.valueChanged.connect(on_nz)
         gui_widgets.append((nz_label, nz))
 
-        msg = _('Fee per kilobyte of transaction.')
-        fee_label = HelpLabel(_('Transaction fee per kb') + ':', msg)
+        dynfee_cb = QCheckBox(_('Use static fees'))
+        dynfee_cb.setChecked(not self.config.get('dynamic_fees', True))
+        dynfee_cb.setToolTip(_("Do not use fees recommended by the server."))
         fee_e = BTCkBEdit(self.get_decimal_point)
         def on_fee(is_done):
             if self.config.get('dynamic_fees', True):
@@ -2363,32 +2364,39 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             v = fee_e.get_amount() or 0
             self.config.set_key('fee_per_kb', v, is_done)
             self.update_fee()
-        fee_e.editingFinished.connect(lambda: on_fee(True))
-        fee_e.textEdited.connect(lambda: on_fee(False))
-        fee_widgets.append((fee_label, fee_e))
-
-        dynfee_cb = QCheckBox(_('Use dynamic fees'))
-        dynfee_cb.setChecked(self.config.get('dynamic_fees', True))
-        dynfee_cb.setToolTip(_("Use a fee per kB value recommended by the server."))
-        fee_widgets.append((dynfee_cb, None))
         def update_feeperkb():
             fee_e.setAmount(self.config.get('fee_per_kb', bitcoin.RECOMMENDED_FEE))
             b = self.config.get('dynamic_fees', True)
             fee_e.setEnabled(not b)
         def on_dynfee(x):
-            self.config.set_key('dynamic_fees', x == Qt.Checked)
+            self.config.set_key('dynamic_fees', x != Qt.Checked)
             update_feeperkb()
+        fee_e.editingFinished.connect(lambda: on_fee(True))
+        fee_e.textEdited.connect(lambda: on_fee(False))
         dynfee_cb.stateChanged.connect(on_dynfee)
         update_feeperkb()
+        fee_widgets.append((dynfee_cb, fee_e))
 
         feebox_cb = QCheckBox(_('Edit fees manually'))
         feebox_cb.setChecked(self.config.get('show_fee', False))
         feebox_cb.setToolTip(_("Show fee edit box in send tab."))
-        fee_widgets.append((feebox_cb, None))
         def on_feebox(x):
             self.config.set_key('show_fee', x == Qt.Checked)
             self.fee_e.setVisible(bool(x))
         feebox_cb.stateChanged.connect(on_feebox)
+        fee_widgets.append((feebox_cb, None))
+
+        use_rbf = self.config.get('use_rbf', False)
+        rbf_cb = QCheckBox(_('Enable Replace-By-Fee'))
+        rbf_cb.setChecked(use_rbf)
+        def on_rbf(x):
+            rbf_result = x == Qt.Checked
+            self.config.set_key('use_rbf', rbf_result)
+            self.rbf_checkbox.setVisible(rbf_result)
+            self.rbf_checkbox.setChecked(False)
+        rbf_cb.stateChanged.connect(on_rbf)
+        rbf_cb.setToolTip(_('Enable RBF'))
+        fee_widgets.append((rbf_cb, None))
 
         msg = _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n'\
               + _('The following alias providers are available:') + '\n'\
@@ -2499,18 +2507,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         on_video_device = lambda x: self.config.set_key("video_device", str(qr_combo.itemData(x).toString()), True)
         qr_combo.currentIndexChanged.connect(on_video_device)
         gui_widgets.append((qr_label, qr_combo))
-
-        use_rbf = self.config.get('use_rbf', False)
-        rbf_cb = QCheckBox(_('Enable Replace-By-Fee'))
-        rbf_cb.setChecked(use_rbf)
-        def on_rbf(x):
-            rbf_result = x == Qt.Checked
-            self.config.set_key('use_rbf', rbf_result)
-            self.rbf_checkbox.setVisible(rbf_result)
-            self.rbf_checkbox.setChecked(False)
-        rbf_cb.stateChanged.connect(on_rbf)
-        rbf_cb.setToolTip(_('Enable RBF'))
-        fee_widgets.append((rbf_cb, None))
 
         usechange_cb = QCheckBox(_('Use change addresses'))
         usechange_cb.setChecked(self.wallet.use_change)
