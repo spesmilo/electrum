@@ -242,7 +242,8 @@ class QtPlugin(QtPluginBase):
             else:
                 msg = _("Enter the master private key beginning with xprv:")
                 def set_enabled():
-                    wizard.next_button.setEnabled(Wallet.is_xprv(clean_text(text)))
+                    from electrum.keystore import is_xprv
+                    wizard.next_button.setEnabled(is_xprv(clean_text(text)))
                 text.textChanged.connect(set_enabled)
                 next_enabled = False
 
