@@ -147,8 +147,8 @@ class Daemon(DaemonThread):
 
     def run_daemon(self, config):
         sub = config.get('subcommand')
-        assert sub in ['start', 'stop', 'status']
-        if sub == 'start':
+        assert sub in [None, 'start', 'stop', 'status']
+        if sub in [None, 'start']:
             response = "Daemon already running"
         elif sub == 'status':
             if self.network:
