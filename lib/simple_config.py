@@ -76,6 +76,9 @@ class SimpleConfig(PrintError):
         if path is None:
             path = self.user_dir()
 
+        if self.get('testnet'):
+            path = os.path.join(path, 'testnet')
+
         # Make directory if it does not yet exist.
         if not os.path.exists(path):
             if os.path.islink(path):
