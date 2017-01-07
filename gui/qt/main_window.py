@@ -712,7 +712,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.expires_combo = QComboBox()
         self.expires_combo.addItems(map(lambda x:x[0], expiration_values))
-        self.expires_combo.setCurrentIndex(1)
+        self.expires_combo.setCurrentIndex(3)
         self.expires_combo.setFixedWidth(self.receive_amount_e.width())
         msg = ' '.join([
             _('Expiration date of your request.'),
