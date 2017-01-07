@@ -42,6 +42,7 @@ ADDRTYPE_P2PKH = 0
 ADDRTYPE_P2SH = 5
 XPRV_HEADER = "0488ade4"
 XPUB_HEADER = "0488b21e"
+HEADERS_URL = "https://headers.electrum.org/blockchain_headers"
 
 def set_testnet():
     global ADDRTYPE_P2PKH, ADDRTYPE_P2SH
@@ -52,6 +53,7 @@ def set_testnet():
     ADDRTYPE_P2SH = 196
     XPRV_HEADER = "04358394"
     XPUB_HEADER = "043587cf"
+    HEADERS_URL = "https://headers.electrum.org/testnet_headers"
 
 ################################## transactions
 

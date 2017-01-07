@@ -37,7 +37,6 @@ class Blockchain(util.PrintError):
     def __init__(self, config, network):
         self.config = config
         self.network = network
-        self.headers_url = "https://headers.electrum.org/blockchain_headers"
         self.local_height = 0
         self.set_local_height()
 
@@ -111,11 +110,10 @@ class Blockchain(util.PrintError):
         if os.path.exists(filename):
             return
         try:
-            if bitcoin.TESTNET: raise
             import urllib, socket
             socket.setdefaulttimeout(30)
-            self.print_error("downloading ", self.headers_url)
-            urllib.urlretrieve(self.headers_url, filename + '.tmp')
+            self.print_error("downloading ", bitcoin.HEADERS_URL)
+            urllib.urlretrieve(bitcoin.HEADERS_URL, filename + '.tmp')
             os.rename(filename + '.tmp', filename)
             self.print_error("done.")
         except Exception:
