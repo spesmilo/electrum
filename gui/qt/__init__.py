@@ -159,8 +159,12 @@ class ElectrumGui:
                 w.bring_to_top()
                 break
         else:
-            wallet = self.daemon.load_wallet(path)
-            if not wallet:
+            try:
+                wallet = self.daemon.load_wallet(path)
+            except BaseException as e:
+                QMessageBox.information(None, _('Error'), str(e), _('OK'))
+                return
+            if wallet is None:
                 wizard = InstallWizard(self.config, self.app, self.plugins, path)
                 wallet = wizard.run_and_get_wallet()
                 if not wallet:

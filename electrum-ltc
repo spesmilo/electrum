@@ -342,14 +342,15 @@ if __name__ == '__main__':
 
     elif cmdname == 'daemon':
         subcommand = config.get('subcommand')
-        assert subcommand in ['start', 'stop', 'status']
-        if subcommand == 'start':
+        assert subcommand in [None, 'start', 'stop', 'status']
+        if subcommand in [None, 'start']:
             fd, server = daemon.get_fd_or_server(config)
             if fd is not None:
-                pid = os.fork()
-                if pid:
-                    print_stderr("starting daemon (PID %d)" % pid)
-                    sys.exit(0)
+                if subcommand == 'start':
+                    pid = os.fork()
+                    if pid:
+                        print_stderr("starting daemon (PID %d)" % pid)
+                        sys.exit(0)
                 init_plugins(config, 'cmdline')
                 d = daemon.Daemon(config, fd)
                 d.start()
