@@ -44,7 +44,7 @@ from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 
 FEE_TARGETS = [25, 10, 5, 2]
 
-DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
+DEFAULT_PORTS = {'t':'50001', 's':'50002'}
 
 DEFAULT_SERVERS = {
     'erbium1.sytes.net':{'t':'50001', 's':'50002'},
@@ -52,7 +52,7 @@ DEFAULT_SERVERS = {
     'gh05.geekhosters.com':{'t':'50001', 's':'50002'},
     'VPS.hsmiths.com':{'t':'50001', 's':'50002'},
     'electrum.anduck.net':{'t':'50001', 's':'50002'},
-    'electrum.no-ip.org':{'t':'50001', 's':'50002', 'g':'443'},
+    'electrum.no-ip.org':{'t':'50001', 's':'50002'},
     'us.electrum.be':DEFAULT_PORTS,
     'electrum.villocq.com':{'t':'50001', 's':'50002'},
     'us10.einfachmalnettsein.de':{'t':'50001', 's':'50002'},
@@ -79,7 +79,7 @@ def parse_servers(result):
         pruning_level = '-'
         if len(item) > 2:
             for v in item[2]:
-                if re.match("[stgh]\d*", v):
+                if re.match("[st]\d*", v):
                     protocol, port = v[0], v[1:]
                     if port == '': port = DEFAULT_PORTS[protocol]
                     out[protocol] = port
