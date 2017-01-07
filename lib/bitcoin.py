@@ -47,7 +47,7 @@ HEADERS_URL = "https://headers.electrum.org/blockchain_headers"
 def set_testnet():
     global ADDRTYPE_P2PKH, ADDRTYPE_P2SH
     global XPRV_HEADER, XPUB_HEADER
-    global TESTNET
+    global TESTNET, HEADERS_URL
     TESTNET = True
     ADDRTYPE_P2PKH = 111
     ADDRTYPE_P2SH = 196
