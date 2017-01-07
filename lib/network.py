@@ -747,6 +747,8 @@ class Network(util.DaemonThread):
 
     def on_get_header(self, interface, response):
         '''Handle receiving a single block header'''
+        if self.blockchain.downloading_headers:
+            return
         if self.bc_requests:
             req_if, data = self.bc_requests[0]
             req_height = data.get('header_height', -1)
@@ -769,6 +771,8 @@ class Network(util.DaemonThread):
         '''Send a request for the next header, or a chunk of them,
         if necessary.
         '''
+        if self.blockchain.downloading_headers:
+            return False
         local_height, if_height = self.get_local_height(), data['if_height']
         if if_height <= local_height:
             return False
@@ -787,14 +791,13 @@ class Network(util.DaemonThread):
             # If the connection was lost move on
             if not interface in self.interfaces.values():
                 continue
-
             req_time = data.get('req_time')
             if not req_time:
                 # No requests sent yet.  This interface has a new height.
                 # Request headers if it is ahead of our blockchain
                 if not self.bc_request_headers(interface, data):
                     continue
-            elif time.time() - req_time > 10:
+            elif time.time() - req_time > 20:
                 interface.print_error("blockchain request timed out")
                 self.connection_down(interface.server)
                 continue
@@ -823,12 +826,7 @@ class Network(util.DaemonThread):
             self.process_responses(interface)
 
     def run(self):
-        import threading
-        t = threading.Thread(target = self.blockchain.init)
-        t.daemon = True
-        t.start()
-        while t.isAlive() and self.is_running():
-            t.join(1)
+        self.blockchain.init()
         while self.is_running():
             self.maintain_sockets()
             self.wait_on_sockets()

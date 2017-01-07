@@ -44,9 +44,14 @@ class Blockchain(util.PrintError):
         return self.local_height
 
     def init(self):
-        self.init_headers_file()
-        self.set_local_height()
-        self.print_error("%d blocks" % self.local_height)
+        import threading
+        if os.path.exists(self.path()):
+            self.downloading_headers = False
+            return
+        self.downloading_headers = True
+        t = threading.Thread(target = self.init_headers_file)
+        t.daemon = True
+        t.start()
 
     def verify_header(self, header, prev_header, bits, target):
         prev_hash = self.hash_header(prev_header)
@@ -107,8 +112,6 @@ class Blockchain(util.PrintError):
 
     def init_headers_file(self):
         filename = self.path()
-        if os.path.exists(filename):
-            return
         try:
             import urllib, socket
             socket.setdefaulttimeout(30)
@@ -119,6 +122,9 @@ class Blockchain(util.PrintError):
         except Exception:
             self.print_error("download failed. creating file", filename)
             open(filename, 'wb+').close()
+        self.downloading_headers = False
+        self.set_local_height()
+        self.print_error("%d blocks" % self.local_height)
 
     def save_chunk(self, index, chunk):
         filename = self.path()
