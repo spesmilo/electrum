@@ -720,7 +720,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.receive_amount_e.textChanged.connect(self.update_receive_qr)
 
         self.fiat_receive_e = AmountEdit(self.fx.get_currency)
-        self.fiat_receive_e.setVisible(self.fx.is_enabled())
+        if not self.fx.is_enabled():
+            self.fiat_receive_e.setVisible(False)
         grid.addWidget(self.fiat_receive_e, 2, 2, Qt.AlignLeft)
         self.connect_fields(self, self.receive_amount_e, self.fiat_receive_e, None)
 
@@ -977,7 +978,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.addWidget(self.amount_e, 4, 1)
 
         self.fiat_send_e = AmountEdit(self.fx.get_currency)
-        self.fiat_send_e.setVisible(self.fx.is_enabled())
+        if not self.fx.is_enabled():
+            self.fiat_send_e.setVisible(False)
         grid.addWidget(self.fiat_send_e, 4, 2)
         self.amount_e.frozen.connect(
             lambda: self.fiat_send_e.setFrozen(self.amount_e.isReadOnly()))
@@ -1073,8 +1075,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addWidget(self.invoices_label)
         vbox.addWidget(self.invoice_list)
         vbox.setStretchFactor(self.invoice_list, 1000)
-
-        # Defer this until grid is parented to avoid ugly flash during startup
         run_hook('create_send_tab', grid)
         return w
 
