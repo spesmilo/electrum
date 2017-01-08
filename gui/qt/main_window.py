@@ -129,6 +129,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.addresses_tab = self.create_addresses_tab()
         if self.config.get('show_addresses_tab', False):
             tabs.addTab(self.addresses_tab, _('Addresses'))
+        self.utxo_tab = self.create_utxo_tab()
+        if self.config.get('show_utxo_tab', False):
+            tabs.addTab(self.utxo_tab, _('Coins'))
         tabs.addTab(self.create_contacts_tab(), _('Contacts') )
         tabs.addTab(self.create_console_tab(), _('Console') )
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -198,12 +201,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.history_list.update()
 
     def toggle_addresses_tab(self):
-        show_addr = not self.config.get('show_addresses_tab', False)
-        self.config.set_key('show_addresses_tab', show_addr)
-        if show_addr:
+        show = not self.config.get('show_addresses_tab', False)
+        self.config.set_key('show_addresses_tab', show)
+        if show:
             self.tabs.insertTab(3, self.addresses_tab, _('Addresses'))
         else:
             i = self.tabs.indexOf(self.addresses_tab)
+            self.tabs.removeTab(i)
+
+    def toggle_utxo_tab(self):
+        show = not self.config.get('show_utxo_tab', False)
+        self.config.set_key('show_utxo_tab', show)
+        if show:
+            self.tabs.insertTab(3, self.utxo_tab, _('Coins'))
+        else:
+            i = self.tabs.indexOf(self.utxo_tab)
             self.tabs.removeTab(i)
 
     def push_top_level_window(self, window):
@@ -436,6 +448,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
         wallet_menu.addAction(_("Addresses"), self.toggle_addresses_tab).setShortcut(QKeySequence("Ctrl+A"))
+        wallet_menu.addAction(_("Coins"), self.toggle_utxo_tab).setShortcut(QKeySequence("Ctrl+C"))
 
         tools_menu = menubar.addMenu(_("&Tools"))
 
@@ -660,6 +673,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.history_list.update()
         self.request_list.update()
         self.address_list.update()
+        self.utxo_list.update()
         self.contact_list.update()
         self.invoice_list.update()
         self.update_completions()
@@ -1059,6 +1073,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addWidget(self.invoices_label)
         vbox.addWidget(self.invoice_list)
         vbox.setStretchFactor(self.invoice_list, 1000)
+
         # Defer this until grid is parented to avoid ugly flash during startup
         run_hook('create_send_tab', grid)
         return w
@@ -1122,8 +1137,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         menu.addAction(_("Remove"), lambda: self.from_list_delete(item))
         menu.exec_(self.from_list.viewport().mapToGlobal(position))
 
-    def set_pay_from(self, domain = None):
-        self.pay_from = [] if domain == [] else self.wallet.get_spendable_coins(domain)
+    def set_pay_from(self, coins):
+        self.pay_from = coins
         self.redraw_from_list()
 
     def redraw_from_list(self):
@@ -1133,7 +1148,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         def format(x):
             h = x.get('prevout_hash')
-            return h[0:8] + '...' + h[-8:] + ":%d"%x.get('prevout_n') + u'\t' + "%s"%x.get('address')
+            return h[0:10] + '...' + h[-10:] + ":%d"%x.get('prevout_n') + u'\t' + "%s"%x.get('address')
 
         for item in self.pay_from:
             self.from_list.addTopLevelItem(QTreeWidgetItem( [format(item), self.format_amount(item['value']) ]))
@@ -1469,6 +1484,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.address_list = l = AddressList(self)
         return self.create_list_tab(l)
 
+    def create_utxo_tab(self):
+        from utxo_list import UTXOList
+        self.utxo_list = l = UTXOList(self)
+        return self.create_list_tab(l)
+
     def create_contacts_tab(self):
         from contact_list import ContactList
         self.contact_list = l = ContactList(self)
@@ -1480,13 +1500,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.address_list.update()
             self.history_list.update()
 
-    def edit_account_label(self, k):
-        text, ok = QInputDialog.getText(self, _('Rename account'), _('Name') + ':', text = self.wallet.labels.get(k,''))
-        if ok:
-            label = unicode(text)
-            self.wallet.set_label(k,label)
-            self.address_list.update()
-
     def get_coins(self):
         if self.pay_from:
             return self.pay_from
@@ -1494,9 +1507,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             domain = self.wallet.get_addresses()
             return self.wallet.get_spendable_coins(domain)
 
-
-    def send_from_addresses(self, addrs):
-        self.set_pay_from(addrs)
+    def spend_coins(self, coins):
+        self.set_pay_from(coins)
         self.tabs.setCurrentIndex(1)
         self.update_fee()
 

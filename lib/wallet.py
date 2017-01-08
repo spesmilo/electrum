@@ -532,7 +532,10 @@ class Abstract_Wallet(PrintError):
                     u -= v
         return c, u, x
 
-    def get_spendable_coins(self, domain = None, exclude_frozen = True):
+    def get_spendable_coins(self, domain = None):
+        return self.get_utxos(self, domain, exclude_frozen=True, mature=True)
+
+    def get_utxos(self, domain = None, exclude_frozen = False, mature = False):
         coins = []
         if domain is None:
             domain = self.get_addresses()
@@ -541,7 +544,7 @@ class Abstract_Wallet(PrintError):
         for addr in domain:
             utxos = self.get_addr_utxo(addr)
             for x in utxos:
-                if x['coinbase'] and x['height'] + COINBASE_MATURITY > self.get_local_height():
+                if mature and x['coinbase'] and x['height'] + COINBASE_MATURITY > self.get_local_height():
                     continue
                 coins.append(x)
                 continue
