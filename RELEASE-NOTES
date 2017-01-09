@@ -1,3 +1,10 @@
+# Release 2.7.16
+  * add Testnet support (fix #541)
+  * allow daemon to be launched in the foreground (fix #1873)
+  * Qt: use separate tabs for addresses and UTXOs
+  * Qt: update fee slider with a network callback
+  * Ledger: new ui and mobile 2fa validation (neocogent)
+
 # Release 2.7.15
   * Use fee slider for both static and dynamic fees.
   * Add fee slider to RBF dialog (fix #2083).
