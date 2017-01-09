@@ -129,11 +129,6 @@ class AddressList(MyTreeWidget):
         if any(self.wallet.is_frozen(addr) for addr in addrs):
             menu.addAction(_("Unfreeze"), lambda: self.parent.set_frozen_state(addrs, False))
 
-        def can_send(addr):
-            return not self.wallet.is_frozen(addr) and sum(self.wallet.get_addr_balance(addr)[:2])
-        if any(can_send(addr) for addr in addrs):
-            menu.addAction(_("Send From"), lambda: self.parent.send_from_addresses(addrs))
-
         run_hook('receive_menu', menu, addrs, self.wallet)
         menu.exec_(self.viewport().mapToGlobal(position))
 
