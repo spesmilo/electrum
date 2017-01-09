@@ -95,7 +95,7 @@ if is_bundle or is_local or is_android:
     imp.load_module('electrum_ltc', *imp.find_module('lib'))
     imp.load_module('electrum_ltc_gui', *imp.find_module('gui'))
 
-
+from electrum_ltc import bitcoin, network
 from electrum_ltc import SimpleConfig, Network
 from electrum_ltc.wallet import Wallet
 from electrum_ltc.storage import WalletStorage
@@ -323,6 +323,10 @@ if __name__ == '__main__':
 
     config = SimpleConfig(config_options)
     cmdname = config.get('cmd')
+
+    if config.get('testnet'):
+        bitcoin.set_testnet()
+        network.set_testnet()
 
     # run non-RPC commands separately
     if cmdname in ['create', 'restore']:

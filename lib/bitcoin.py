@@ -36,6 +36,29 @@ from util import print_error, InvalidPassword
 import ecdsa
 import aes
 
+# Litecoin network constants
+TESTNET = False
+ADDRTYPE_P2PKH = 48
+ADDRTYPE_P2SH = 5
+XPRV_HEADER = "0488ade4"
+XPUB_HEADER = "0488b21e"
+XPRV_HEADER_ALT = "019d9cfe"
+XPUB_HEADER_ALT = "019da462"
+HEADERS_URL = "https://electrum-ltc.org/blockchain_headers"
+
+def set_testnet():
+    global ADDRTYPE_P2PKH, ADDRTYPE_P2SH
+    global XPRV_HEADER, XPUB_HEADER
+    global TESTNET, HEADERS_URL
+    TESTNET = True
+    ADDRTYPE_P2PKH = 111
+    ADDRTYPE_P2SH = 196
+    XPRV_HEADER = "04358394"
+    XPUB_HEADER = "043587cf"
+    XPRV_HEADER_ALT = "0436ef7d"
+    XPUB_HEADER_ALT = "0436f6e1"
+    HEADERS_URL = "https://electrum-ltc.org/testnet_headers"
+
 ################################## transactions
 
 DUST_SOFT_LIMIT = 100000
@@ -228,11 +251,7 @@ def hash_160(public_key):
     md.update(sha256(public_key))
     return md.digest()
 
-def public_key_to_bc_address(public_key):
-    h160 = hash_160(public_key)
-    return hash_160_to_bc_address(h160)
-
-def hash_160_to_bc_address(h160, addrtype = 48):
+def hash_160_to_bc_address(h160, addrtype):
     vh160 = chr(addrtype) + h160
     h = Hash(vh160)
     addr = vh160 + h[0:4]
@@ -241,6 +260,15 @@ def hash_160_to_bc_address(h160, addrtype = 48):
 def bc_address_to_hash_160(addr):
     bytes = base_decode(addr, 25, base=58)
     return ord(bytes[0]), bytes[1:21]
+
+def hash160_to_p2pkh(h160):
+    return hash_160_to_bc_address(h160, ADDRTYPE_P2PKH)
+
+def hash160_to_p2sh(h160):
+    return hash_160_to_bc_address(h160, ADDRTYPE_P2SH)
+
+def public_key_to_bc_address(public_key):
+    return hash160_to_p2pkh(hash_160(public_key))
 
 
 __b58chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
@@ -320,12 +348,14 @@ def PrivKeyToSecret(privkey):
     return privkey[9:9+32]
 
 
-def SecretToASecret(secret, compressed=False, addrtype=48):
+def SecretToASecret(secret, compressed=False):
+    addrtype = ADDRTYPE_P2PKH
     vchIn = chr((addrtype+128)&255) + secret
     if compressed: vchIn += '\01'
     return EncodeBase58Check(vchIn)
 
-def ASecretToSecret(key, addrtype=48):
+def ASecretToSecret(key):
+    addrtype = ADDRTYPE_P2PKH
     vch = DecodeBase58Check(key)
     if vch and vch[0] == chr((addrtype+128)&255):
         return vch[1:]
@@ -375,26 +405,23 @@ def is_valid(addr):
 
 
 def is_address(addr):
-    ADDRESS_RE = re.compile('[1-9A-HJ-NP-Za-km-z]{26,}\\Z')
-    if not ADDRESS_RE.match(addr):
-        return False
     try:
         addrtype, h = bc_address_to_hash_160(addr)
     except Exception:
         return False
-    if addrtype not in [48, 5]:
+    if addrtype not in [ADDRTYPE_P2PKH, ADDRTYPE_P2SH]:
         return False
     return addr == hash_160_to_bc_address(h, addrtype)
 
 def is_p2pkh(addr):
     if is_address(addr):
         addrtype, h = bc_address_to_hash_160(addr)
-        return addrtype in [48]
+        return addrtype == ADDRTYPE_P2PKH
 
 def is_p2sh(addr):
     if is_address(addr):
         addrtype, h = bc_address_to_hash_160(addr)
-        return addrtype in [5]
+        return addrtype == ADDRTYPE_P2SH
 
 def is_private_key(key):
     try:
@@ -704,63 +731,21 @@ def _CKD_pub(cK, c, s):
     return cK_n, c_n
 
 
-BITCOIN_HEADER_PRIV = "0488ade4"
-BITCOIN_HEADER_PUB = "0488b21e"
-
-TESTNET_HEADER_PRIV = "04358394"
-TESTNET_HEADER_PUB = "043587cf"
-
-BITCOIN_HEADERS = (BITCOIN_HEADER_PUB, BITCOIN_HEADER_PRIV)
-TESTNET_HEADERS = (TESTNET_HEADER_PUB, TESTNET_HEADER_PRIV)
-
-BITCOIN_HEADER_ALT_PRIV = "019d9cfe"
-BITCOIN_HEADER_ALT_PUB = "019da462"
-
-TESTNET_HEADER_ALT_PRIV = "0436ef7d"
-TESTNET_HEADER_ALT_PUB = "0436f6e1"
-
-BITCOIN_HEADERS_ALT = (BITCOIN_HEADER_ALT_PUB, BITCOIN_HEADER_ALT_PRIV)
-TESTNET_HEADERS_ALT = (TESTNET_HEADER_ALT_PUB, TESTNET_HEADER_ALT_PRIV)
-
-def _get_headers(testnet):
-    """Returns the correct headers for either testnet or bitcoin, in the form
-    of a 2-tuple, like (public, private)."""
-    if testnet:
-        return TESTNET_HEADERS
-    else:
-        return BITCOIN_HEADERS
-
-
 def deserialize_xkey(xkey):
-
     xkey = DecodeBase58Check(xkey)
     assert len(xkey) == 78
-
-    xkey_header = xkey[0:4].encode('hex')
-    # Determine if the key is a bitcoin key or a testnet key.
-    if xkey_header in TESTNET_HEADERS:
-        head = TESTNET_HEADER_PRIV
-    elif xkey_header in BITCOIN_HEADERS:
-        head = BITCOIN_HEADER_PRIV
-    elif xkey_header in TESTNET_HEADERS_ALT:
-        head = TESTNET_HEADER_ALT_PRIV
-    elif xkey_header in BITCOIN_HEADERS_ALT:
-        head = BITCOIN_HEADER_ALT_PRIV
-    else:
-        raise Exception("Unknown xkey header: '%s'" % xkey_header)
-
     depth = ord(xkey[4])
     fingerprint = xkey[5:9]
     child_number = xkey[9:13]
     c = xkey[13:13+32]
-    if xkey[0:4].encode('hex') == head:
+    if xkey[0:4].encode('hex') in (XPRV_HEADER, XPRV_HEADER_ALT):
         K_or_k = xkey[13+33:]
     else:
         K_or_k = xkey[13+32:]
     return depth, fingerprint, child_number, c, K_or_k
 
 
-def get_xkey_name(xkey, testnet=False):
+def get_xkey_name(xkey):
     depth, fingerprint, child_number, c, K = deserialize_xkey(xkey)
     n = int(child_number.encode('hex'), 16)
     if n & BIP32_PRIME:
@@ -775,38 +760,34 @@ def get_xkey_name(xkey, testnet=False):
         raise BaseException("xpub depth error")
 
 
-def xpub_from_xprv(xprv, testnet=False):
+def xpub_from_xprv(xprv):
     depth, fingerprint, child_number, c, k = deserialize_xkey(xprv)
     K, cK = get_pubkeys_from_secret(k)
-    header_pub, _  = _get_headers(testnet)
-    xpub = header_pub.decode('hex') + chr(depth) + fingerprint + child_number + c + cK
+    xpub = XPUB_HEADER.decode('hex') + chr(depth) + fingerprint + child_number + c + cK
     return EncodeBase58Check(xpub)
 
 
-def bip32_root(seed, testnet=False):
-    header_pub, header_priv = _get_headers(testnet)
+def bip32_root(seed):
     I = hmac.new("Bitcoin seed", seed, hashlib.sha512).digest()
     master_k = I[0:32]
     master_c = I[32:]
     K, cK = get_pubkeys_from_secret(master_k)
-    xprv = (header_priv + "00" + "00000000" + "00000000").decode("hex") + master_c + chr(0) + master_k
-    xpub = (header_pub + "00" + "00000000" + "00000000").decode("hex") + master_c + cK
+    xprv = (XPRV_HEADER + "00" + "00000000" + "00000000").decode("hex") + master_c + chr(0) + master_k
+    xpub = (XPUB_HEADER + "00" + "00000000" + "00000000").decode("hex") + master_c + cK
     return EncodeBase58Check(xprv), EncodeBase58Check(xpub)
 
 
-def xpub_from_pubkey(cK, testnet=False):
-    header_pub, header_priv = _get_headers(testnet)
+def xpub_from_pubkey(cK):
     assert cK[0] in ['\x02','\x03']
     master_c = chr(0)*32
-    xpub = (header_pub + "00" + "00000000" + "00000000").decode("hex") + master_c + cK
+    xpub = (XPUB_HEADER + "00" + "00000000" + "00000000").decode("hex") + master_c + cK
     return EncodeBase58Check(xpub)
 
 
-def bip32_private_derivation(xprv, branch, sequence, testnet=False):
+def bip32_private_derivation(xprv, branch, sequence):
     assert sequence.startswith(branch)
     if branch == sequence:
-        return xprv, xpub_from_xprv(xprv, testnet)
-    header_pub, header_priv = _get_headers(testnet)
+        return xprv, xpub_from_xprv(xprv)
     depth, fingerprint, child_number, c, k = deserialize_xkey(xprv)
     sequence = sequence[len(branch):]
     for n in sequence.split('/'):
@@ -820,13 +801,12 @@ def bip32_private_derivation(xprv, branch, sequence, testnet=False):
     fingerprint = hash_160(parent_cK)[0:4]
     child_number = ("%08X"%i).decode('hex')
     K, cK = get_pubkeys_from_secret(k)
-    xprv = header_priv.decode('hex') + chr(depth) + fingerprint + child_number + c + chr(0) + k
-    xpub = header_pub.decode('hex') + chr(depth) + fingerprint + child_number + c + cK
+    xprv = XPRV_HEADER.decode('hex') + chr(depth) + fingerprint + child_number + c + chr(0) + k
+    xpub = XPUB_HEADER.decode('hex') + chr(depth) + fingerprint + child_number + c + cK
     return EncodeBase58Check(xprv), EncodeBase58Check(xpub)
 
 
-def bip32_public_derivation(xpub, branch, sequence, testnet=False):
-    header_pub, _ = _get_headers(testnet)
+def bip32_public_derivation(xpub, branch, sequence):
     depth, fingerprint, child_number, c, cK = deserialize_xkey(xpub)
     assert sequence.startswith(branch)
     sequence = sequence[len(branch):]
@@ -836,10 +816,9 @@ def bip32_public_derivation(xpub, branch, sequence, testnet=False):
         parent_cK = cK
         cK, c = CKD_pub(cK, c, i)
         depth += 1
-
     fingerprint = hash_160(parent_cK)[0:4]
     child_number = ("%08X"%i).decode('hex')
-    xpub = header_pub.decode('hex') + chr(depth) + fingerprint + child_number + c + cK
+    xpub = XPUB_HEADER.decode('hex') + chr(depth) + fingerprint + child_number + c + cK
     return EncodeBase58Check(xpub)
 
 

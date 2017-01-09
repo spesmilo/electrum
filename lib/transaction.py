@@ -30,6 +30,7 @@
 
 import bitcoin
 from bitcoin import *
+from bitcoin import hash160_to_p2sh, hash160_to_p2pkh
 from util import print_error, profiler
 import time
 import sys
@@ -359,7 +360,7 @@ def parse_scriptSig(d, bytes):
     d['x_pubkeys'] = x_pubkeys
     d['pubkeys'] = pubkeys
     d['redeemScript'] = redeemScript
-    d['address'] = hash_160_to_bc_address(hash_160(redeemScript.decode('hex')), 5)
+    d['address'] = hash160_to_p2sh(hash_160(redeemScript.decode('hex')))
 
 
 
@@ -377,12 +378,12 @@ def get_address_from_output_script(bytes):
     # DUP HASH160 20 BYTES:... EQUALVERIFY CHECKSIG
     match = [ opcodes.OP_DUP, opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG ]
     if match_decoded(decoded, match):
-        return TYPE_ADDRESS, hash_160_to_bc_address(decoded[2][1])
+        return TYPE_ADDRESS, hash160_to_p2pkh(decoded[2][1])
 
     # p2sh
     match = [ opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUAL ]
     if match_decoded(decoded, match):
-        return TYPE_ADDRESS, hash_160_to_bc_address(decoded[1][1],5)
+        return TYPE_ADDRESS, hash160_to_p2sh(decoded[1][1])
 
     return TYPE_SCRIPT, bytes
 
@@ -540,11 +541,11 @@ class Transaction:
             return addr.encode('hex')
         elif output_type == TYPE_ADDRESS:
             addrtype, hash_160 = bc_address_to_hash_160(addr)
-            if addrtype == 48:
+            if addrtype == bitcoin.ADDRTYPE_P2PKH:
                 script = '76a9'                                      # op_dup, op_hash_160
                 script += push_script(hash_160.encode('hex'))
                 script += '88ac'                                     # op_equalverify, op_checksig
-            elif addrtype == 5:
+            elif addrtype == bitcoin.ADDRTYPE_P2SH:
                 script = 'a9'                                        # op_hash_160
                 script += push_script(hash_160.encode('hex'))
                 script += '87'                                       # op_equal
