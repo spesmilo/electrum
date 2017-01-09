@@ -11,8 +11,6 @@ from electrum_gui.qt.util import *
 
 from btchip.btchipPersoWizard import StartBTChipPersoDialog
 
-from .auth2fa import LedgerAuthDialog
-
 class Plugin(LedgerPlugin, QtPluginBase):
     icon_unpaired = ":icons/ledger_unpaired.png"
     icon_paired = ":icons/ledger.png"
@@ -46,6 +44,11 @@ class Ledger_Handler(QtHandlerBase):
         dialog.show()
 
     def auth_dialog(self, data):
+        try:
+            from .auth2fa import LedgerAuthDialog
+        except ImportError as e:
+            self.message_dialog(e)
+            return
         dialog = LedgerAuthDialog(self, data)
         dialog.exec_()
         self.word = dialog.pin
