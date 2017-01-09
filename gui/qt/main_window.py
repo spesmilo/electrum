@@ -303,6 +303,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.update_recently_visited(wallet.storage.path)
         # address used to create a dummy transaction and estimate transaction fee
         self.history_list.update()
+        self.address_list.update()
+        self.utxo_list.update()
         self.need_update.set()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         self.notify_transactions()

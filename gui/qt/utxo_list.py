@@ -61,6 +61,9 @@ class UTXOList(MyTreeWidget):
             return
         coins = filter(lambda x: self.get_name(x) in selected, self.utxos)
         menu = QMenu()
+        if len(selected) == 1:
+            coin = coins[0]
+            menu.addAction(_("Copy Address"), lambda: self.parent.app.clipboard().setText(coin.get('address')))
         menu.addAction(_("Spend"), lambda: self.parent.spend_coins(coins))
         menu.exec_(self.viewport().mapToGlobal(position))
 
