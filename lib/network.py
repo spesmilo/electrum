@@ -37,12 +37,11 @@ import socket
 import json
 
 import util
+import bitcoin
 from bitcoin import *
 from interface import Connection, Interface
 from blockchain import Blockchain
 from version import ELECTRUM_VERSION, PROTOCOL_VERSION
-
-FEE_TARGETS = [25, 10, 5, 2]
 
 DEFAULT_PORTS = {'t':'50001', 's':'50002'}
 
@@ -202,7 +201,6 @@ class Network(util.DaemonThread):
 
         self.banner = ''
         self.donation_address = ''
-        self.fee_estimates = {}
         self.relay_fee = None
         self.heights = {}
         self.merkle_roots = {}
@@ -326,7 +324,7 @@ class Network(util.DaemonThread):
         self.queue_request('server.banner', [])
         self.queue_request('server.donation_address', [])
         self.queue_request('server.peers.subscribe', [])
-        for i in FEE_TARGETS:
+        for i in bitcoin.FEE_TARGETS:
             self.queue_request('blockchain.estimatefee', [i])
         self.queue_request('blockchain.relayfee', [])
 
@@ -336,7 +334,7 @@ class Network(util.DaemonThread):
         elif key == 'banner':
             value = self.banner
         elif key == 'fee':
-            value = self.fee_estimates
+            value = self.config.fee_estimates
         elif key == 'updated':
             value = (self.get_local_height(), self.get_server_height())
         elif key == 'servers':
@@ -344,28 +342,6 @@ class Network(util.DaemonThread):
         elif key == 'interfaces':
             value = self.get_interfaces()
         return value
-
-    def dynfee(self, i):
-        from bitcoin import RECOMMENDED_FEE
-        if i < 4:
-            j = FEE_TARGETS[i]
-            fee = self.fee_estimates.get(j)
-        else:
-            assert i == 4
-            fee = self.fee_estimates.get(2)
-            if fee is not None:
-                fee += fee/2
-        if fee is not None:
-            fee = min(10*RECOMMENDED_FEE, fee)
-        return fee
-
-    def reverse_dynfee(self, fee_per_kb):
-        import operator
-        dist = map(lambda x: (x[0], abs(x[1] - fee_per_kb)), self.fee_estimates.items())
-        min_target, min_value = min(dist, key=operator.itemgetter(1))
-        if fee_per_kb < self.fee_estimates.get(25)/2:
-            min_target = -1
-        return min_target
 
     def notify(self, key):
         if key in ['status', 'updated']:
@@ -550,7 +526,7 @@ class Network(util.DaemonThread):
         elif method == 'blockchain.estimatefee':
             if error is None:
                 i = params[0]
-                self.fee_estimates[i] = int(result * COIN)
+                self.config.fee_estimates[i] = int(result * COIN)
                 self.notify('fee')
         elif method == 'blockchain.relayfee':
             if error is None:

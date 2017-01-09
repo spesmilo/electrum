@@ -754,16 +754,6 @@ class Abstract_Wallet(PrintError):
             return ', '.join(labels)
         return ''
 
-    def fee_per_kb(self, config):
-        b = config.get('dynamic_fees', True)
-        i = config.get('fee_level', 2)
-        if b and self.network and self.network.dynfee(i):
-            return self.network.dynfee(i)
-        else:
-            fee_per_kb = config.get('fee_per_kb', RECOMMENDED_FEE)
-            coeff = {0:0.3, 1:0.5, 2:1, 3:1.5, 4:2}
-            return fee_per_kb * coeff[i]
-
     def get_tx_status(self, tx_hash, height, conf, timestamp):
         from util import format_time
         if conf == 0:
@@ -772,9 +762,9 @@ class Abstract_Wallet(PrintError):
                 return 3, 'unknown'
             is_final = tx and tx.is_final()
             fee = self.tx_fees.get(tx_hash)
-            if fee and self.network and self.network.dynfee(0):
+            if fee and self.network and self.network.config.has_fee_estimates():
                 size = len(tx.raw)/2
-                low_fee = int(self.network.dynfee(0)*size/1000)
+                low_fee = int(self.network.config.dynfee(0)*size/1000)
                 is_lowfee = fee < low_fee * 0.5
             else:
                 is_lowfee = False
@@ -873,7 +863,7 @@ class Abstract_Wallet(PrintError):
         return tx
 
     def estimate_fee(self, config, size):
-        fee = int(self.fee_per_kb(config) * size / 1000.)
+        fee = int(config.fee_per_kb() * size / 1000.)
         return fee
 
     def mktx(self, outputs, password, config, fee=None, change_addr=None, domain=None):

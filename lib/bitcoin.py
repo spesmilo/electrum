@@ -58,7 +58,9 @@ def set_testnet():
 ################################## transactions
 
 FEE_STEP = 10000
-RECOMMENDED_FEE = 50000
+MAX_FEE_RATE = 100000
+FEE_TARGETS = [25, 10, 5, 2]
+
 COINBASE_MATURITY = 100
 COIN = 100000000
 

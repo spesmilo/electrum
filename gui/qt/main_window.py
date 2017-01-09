@@ -59,7 +59,7 @@ from network_dialog import NetworkDialog
 from qrcodewidget import QRCodeWidget, QRDialog
 from qrtextedit import ShowQRTextEdit
 from transaction_dialog import show_transaction
-
+from fee_slider import FeeSlider
 
 
 from electrum import ELECTRUM_VERSION
@@ -161,7 +161,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.network:
             self.connect(self, QtCore.SIGNAL('network'), self.on_network_qt)
             interests = ['updated', 'new_transaction', 'status',
-                         'banner', 'verified']
+                         'banner', 'verified', 'fee']
             # To avoid leaking references to "self" that prevent the
             # window from being GC-ed when closed, callbacks should be
             # methods of this class only, and specifically not be
@@ -169,12 +169,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.network.register_callback(self.on_network, interests)
             # set initial message
             self.console.showMessage(self.network.banner)
-
             self.network.register_callback(self.on_quotes, ['on_quotes'])
             self.network.register_callback(self.on_history, ['on_history'])
             self.connect(self, SIGNAL('new_fx_quotes'), self.on_fx_quotes)
             self.connect(self, SIGNAL('new_fx_history'), self.on_fx_history)
 
+        # update fee slider in case we missed the callback
+        self.fee_slider.update()
         self.load_wallet(wallet)
         self.connect_slots(gui_object.timer)
         self.fetch_alias()
@@ -259,7 +260,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.need_update.set()
         elif event == 'new_transaction':
             self.tx_notifications.append(args[0])
-        elif event in ['status', 'banner', 'verified']:
+        elif event in ['status', 'banner', 'verified', 'fee']:
             # Handle in GUI thread
             self.emit(QtCore.SIGNAL('network'), event, *args)
         else:
@@ -273,6 +274,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.console.showMessage(args[0])
         elif event == 'verified':
             self.history_list.update_item(*args)
+        elif event == 'fee':
+            if self.config.is_dynfee():
+                self.fee_slider.update()
         else:
             self.print_error("unexpected network_qt signal:", event, args)
 
@@ -996,13 +1000,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
               + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')
         self.fee_e_label = HelpLabel(_('Fee'), msg)
 
-        fee_cb = lambda x: self.spend_max() if self.is_max else self.update_fee()
-        self.fee_slider = self.create_fee_slider(self, fee_cb)
-        self.fee_slider.setValue(self.config.get('fee_level', 2))
+        def fee_cb(dyn, pos, fee_rate):
+            if dyn:
+                self.config.set_key('fee_level', pos, False)
+            else:
+                self.config.set_key('fee_per_kb', fee_rate, False)
+            self.spend_max() if self.is_max else self.update_fee()
+
+        self.fee_slider = FeeSlider(self, self.config, fee_cb)
         self.fee_slider.setFixedWidth(140)
 
         self.fee_e = BTCAmountEdit(self.get_decimal_point)
-        self.fee_e.setVisible(self.config.get('show_fee', False))
+        if not self.config.get('show_fee', False):
+            self.fee_e.setVisible(False)
         self.fee_e.textEdited.connect(self.update_fee)
         # This is so that when the user blanks the fee and moves on,
         # we go back to auto-calculate mode and put a fee back.
@@ -1275,9 +1285,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if extra_fee:
             msg.append( _("Additional fees") + ": " + self.format_amount_and_units(extra_fee) )
 
-        confirm_rate = self.config.get('confirm_fee', 200000)
+        confirm_rate = 2 * self.config.max_fee_rate()
         if tx.get_fee() > confirm_rate * tx.estimated_size() / 1000:
-            msg.append(_('Warning')+ ': ' + _("The fee for this transaction seems unusually high."))
+            msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
 
         if self.wallet.has_password():
             msg.append("")
@@ -2370,28 +2380,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         nz.valueChanged.connect(on_nz)
         gui_widgets.append((nz_label, nz))
 
-        dynfee_cb = QCheckBox(_('Use static fees'))
-        dynfee_cb.setChecked(not self.config.get('dynamic_fees', True))
-        dynfee_cb.setToolTip(_("Do not use fees recommended by the server."))
-        fee_e = BTCkBEdit(self.get_decimal_point)
-        def on_fee(is_done):
-            if self.config.get('dynamic_fees', True):
-                return
-            v = fee_e.get_amount() or 0
-            self.config.set_key('fee_per_kb', v, is_done)
-            self.update_fee()
-        def update_feeperkb():
-            fee_e.setAmount(self.config.get('fee_per_kb', bitcoin.RECOMMENDED_FEE))
-            b = self.config.get('dynamic_fees', True)
-            fee_e.setEnabled(not b)
+        dynfee_cb = QCheckBox(_('Use dynamic fees'))
+        dynfee_cb.setChecked(self.config.get('dynamic_fees', True))
+        dynfee_cb.setToolTip(_("Use fees recommended by the server."))
         def on_dynfee(x):
-            self.config.set_key('dynamic_fees', x != Qt.Checked)
-            update_feeperkb()
-        fee_e.editingFinished.connect(lambda: on_fee(True))
-        fee_e.textEdited.connect(lambda: on_fee(False))
+            self.config.set_key('dynamic_fees', x == Qt.Checked)
+            self.fee_slider.update()
         dynfee_cb.stateChanged.connect(on_dynfee)
-        update_feeperkb()
-        fee_widgets.append((dynfee_cb, fee_e))
+        fee_widgets.append((dynfee_cb, None))
 
         feebox_cb = QCheckBox(_('Edit fees manually'))
         feebox_cb.setChecked(self.config.get('show_fee', False))
@@ -2767,25 +2763,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
 
-    def create_fee_slider(self, parent, callback):
-        from electrum.util import fee_levels
-        from electrum.bitcoin import FEE_STEP, RECOMMENDED_FEE
-        fee_slider = QSlider(Qt.Horizontal, parent)
-        def slider_moved():
-            pos = fee_slider.sliderPosition()
-            self.config.set_key('fee_level', pos, False)
-            is_dyn = self.config.get('dynamic_fees') and self.network and self.network.dynfee(pos)
-            fee_rate = self.wallet.fee_per_kb(self.config)
-            tooltip = fee_levels[pos] + '\n' if is_dyn else ''
-            tooltip += self.format_amount(fee_rate) + ' ' + self.base_unit() + '/kB'
-            QToolTip.showText(QCursor.pos(), tooltip, self.fee_slider)
-            callback(fee_rate)
-
-        fee_slider.setRange(0, 4)
-        fee_slider.setToolTip('')
-        fee_slider.setValue(self.config.get('fee_level', 2))
-        fee_slider.valueChanged.connect(slider_moved)
-        return fee_slider
 
     def bump_fee_dialog(self, tx):
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
@@ -2799,12 +2776,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fee_e.setAmount(fee * 1.5)
         vbox.addWidget(fee_e)
 
-        def on_rate(fee_rate):
+        def on_rate(dyn, pos, fee_rate):
             fee = fee_rate * tx_size / 1000
             fee_e.setAmount(fee)
-        fee_slider = self.create_fee_slider(d, on_rate)
+        fee_slider = FeeSlider(self, self.config, on_rate)
         vbox.addWidget(fee_slider)
-
         cb = QCheckBox(_('Final'))
         vbox.addWidget(cb)
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
