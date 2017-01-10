@@ -452,7 +452,7 @@ class Abstract_Wallet(PrintError):
                     if fee:
                         size = tx.estimated_size()
                         fee_per_kb = fee * 1000 / size
-                        exp_n = self.network.reverse_dynfee(fee_per_kb)
+                        exp_n = self.network.config.reverse_dynfee(fee_per_kb)
                     can_bump = is_mine and not tx.is_final()
             else:
                 status = _("Signed")

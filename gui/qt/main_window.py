@@ -2474,7 +2474,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             unit_result = units[unit_combo.currentIndex()]
             if self.base_unit() == unit_result:
                 return
-            edits = self.amount_e, self.fee_e, self.receive_amount_e, fee_e
+            edits = self.amount_e, self.fee_e, self.receive_amount_e
             amounts = [edit.get_amount() for edit in edits]
             if unit_result == 'LTC':
                 self.decimal_point = 8

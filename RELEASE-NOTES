@@ -1,3 +1,6 @@
+# Release 2.7.17
+  * fix a few minor regressions in the Qt GUI
+
 # Release 2.7.16
   * add Testnet support (fix #541)
   * allow daemon to be launched in the foreground (fix #1873)
