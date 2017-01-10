@@ -311,7 +311,7 @@ class FxThread(ThreadJob):
         self.set_exchange(self.config_exchange())
 
     def get_exchanges_by_ccy(self, ccy, h):
-        return self.exchanges_by_ccy.get(ccy)
+        return self.exchanges_by_ccy.get(ccy, [])
 
     def ccy_amount_str(self, amount, commas):
         prec = CCY_PRECISIONS.get(self.ccy, 2)
