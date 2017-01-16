@@ -584,7 +584,9 @@ class Transaction:
                 pubkeys = txin['x_pubkeys']
                 sig_list = ((sig + '01') if sig else NO_SIGNATURE for sig in x_signatures)
             script = ''.join(push_script(x) for x in sig_list)
-            if not p2sh:
+            if not pubkeys:
+                pass
+            elif not p2sh:
                 x_pubkey = pubkeys[0]
                 if x_pubkey is None:
                     addrtype, h160 = bc_address_to_hash_160(txin['address'])
