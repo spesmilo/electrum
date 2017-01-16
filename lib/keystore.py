@@ -30,7 +30,7 @@ from unicodedata import normalize
 from version import *
 import bitcoin
 from bitcoin import pw_encode, pw_decode, bip32_root, bip32_private_derivation, bip32_public_derivation, bip32_private_key, deserialize_xprv, deserialize_xpub
-from bitcoin import public_key_from_private_key, public_key_to_bc_address
+from bitcoin import public_key_from_private_key, public_key_to_p2pkh
 from bitcoin import *
 
 from bitcoin import is_old_seed, is_new_seed, is_seed
@@ -166,7 +166,7 @@ class Imported_KeyStore(Software_KeyStore):
             # fixme: this assumes p2pkh
             _, addr = xpubkey_to_address(x_pubkey)
             for pubkey in self.keypairs.keys():
-                if public_key_to_bc_address(pubkey.decode('hex')) == addr:
+                if public_key_to_p2pkh(pubkey.decode('hex')) == addr:
                     return pubkey
 
     def update_password(self, old_password, new_password):
@@ -398,7 +398,7 @@ class Old_KeyStore(Deterministic_KeyStore):
 
     def get_address(self, for_change, n):
         pubkey = self.get_pubkey(for_change, n)
-        address = public_key_to_bc_address(pubkey.decode('hex'))
+        address = public_key_to_p2pkh(pubkey.decode('hex'))
         return address
 
     @classmethod
@@ -563,6 +563,11 @@ def parse_xpubkey(x_pubkey):
     return BIP32_KeyStore.parse_xpubkey(x_pubkey)
 
 def xpubkey_to_address(x_pubkey):
+    if x_pubkey[0:2] == 'fd':
+        addrtype = ord(x_pubkey[2:4].decode('hex'))
+        hash160 = x_pubkey[4:].decode('hex')
+        address = bitcoin.hash_160_to_bc_address(hash160, addrtype)
+        return x_pubkey, address
     if x_pubkey[0:2] in ['02','03','04']:
         pubkey = x_pubkey
     elif x_pubkey[0:2] == 'ff':
@@ -571,15 +576,10 @@ def xpubkey_to_address(x_pubkey):
     elif x_pubkey[0:2] == 'fe':
         mpk, s = Old_KeyStore.parse_xpubkey(x_pubkey)
         pubkey = Old_KeyStore.get_pubkey_from_mpk(mpk, s[0], s[1])
-    elif x_pubkey[0:2] == 'fd':
-        addrtype = ord(x_pubkey[2:4].decode('hex'))
-        hash160 = x_pubkey[4:].decode('hex')
-        pubkey = None
-        address = hash_160_to_bc_address(hash160, addrtype)
     else:
-        raise BaseException("Cannnot parse pubkey")
+        raise BaseException("Cannot parse pubkey")
     if pubkey:
-        address = public_key_to_bc_address(pubkey.decode('hex'))
+        address = public_key_to_p2pkh(pubkey.decode('hex'))
     return pubkey, address
 
 
@@ -660,10 +660,11 @@ def bip44_derivation(account_id):
     return "m/44'/0'/%d'"% int(account_id)
 
 def from_seed(seed, passphrase):
-    if is_old_seed(seed):
+    t = seed_type(seed)
+    if t == 'old':
         keystore = Old_KeyStore({})
         keystore.add_seed(seed)
-    elif is_new_seed(seed):
+    elif t in ['standard', 'segwit']:
         keystore = BIP32_KeyStore({})
         keystore.add_seed(seed)
         keystore.passphrase = passphrase

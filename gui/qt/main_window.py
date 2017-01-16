@@ -1343,7 +1343,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 return False, _("Payment request has expired")
             status, msg =  self.network.broadcast(tx)
             if pr and status is True:
-                pr.set_paid(tx.hash())
+                pr.set_paid(tx.txid())
                 self.invoices.save()
                 self.payment_request = None
                 refund_address = self.wallet.get_receiving_addresses()[0]
@@ -1361,7 +1361,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 status, msg = result
                 if status:
                     if tx_desc is not None and tx.is_complete():
-                        self.wallet.set_label(tx.hash(), tx_desc)
+                        self.wallet.set_label(tx.txid(), tx_desc)
                     parent.show_message(_('Payment sent.') + '\n' + msg)
                     self.invoice_list.update()
                     self.do_clear()

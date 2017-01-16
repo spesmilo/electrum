@@ -136,7 +136,7 @@ class Synchronizer(ThreadJob):
         if not params:
             return
         tx_hash, tx_height = params
-        assert tx_hash == hash_encode(Hash(result.decode('hex')))
+        #assert tx_hash == hash_encode(Hash(result.decode('hex')))
         tx = Transaction(result)
         try:
             tx.deserialize()
