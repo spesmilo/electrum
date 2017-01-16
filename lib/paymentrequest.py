@@ -66,6 +66,7 @@ PR_PAID    = 3     # send and propagated
 
 def get_payment_request(url):
     u = urlparse.urlparse(url)
+    error = None
     if u.scheme in ['http', 'https']:
         try:
             response = requests.request('GET', url, headers=REQUEST_HEADERS)

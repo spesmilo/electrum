@@ -51,7 +51,7 @@ class UTXOList(MyTreeWidget):
             utxo_item.setFont(1, QFont(MONOSPACE_FONT))
             utxo_item.setData(0, Qt.UserRole, name)
             if self.wallet.is_frozen(address):
-                utxo_item.setBackgroundColor(0, QColor('lightblue'))
+                utxo_item.setBackgroundColor(1, QColor('lightblue'))
             self.addChild(utxo_item)
 
     def create_menu(self, position):

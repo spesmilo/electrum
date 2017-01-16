@@ -1478,6 +1478,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def set_frozen_state(self, addrs, freeze):
         self.wallet.set_frozen_state(addrs, freeze)
         self.address_list.update()
+        self.utxo_list.update()
         self.update_fee()
 
     def create_list_tab(self, l):
