@@ -58,6 +58,7 @@ class SeedLayout(QVBoxLayout):
         vbox = QVBoxLayout(dialog)
         if 'ext' in self.options:
             cb_ext = QCheckBox(_('Extend this seed with custom words'))
+            cb_ext.setChecked(self.is_ext)
             vbox.addWidget(cb_ext)
         if 'bip39' in self.options:
             def f(b):
@@ -79,6 +80,7 @@ class SeedLayout(QVBoxLayout):
                 self.on_edit()
             cb_bip39 = QCheckBox(_('BIP39 seed'))
             cb_bip39.toggled.connect(f)
+            cb_bip39.setChecked(self.is_bip39)
             vbox.addWidget(cb_bip39)
         vbox.addLayout(Buttons(OkButton(dialog)))
         if not dialog.exec_():
