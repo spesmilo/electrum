@@ -3,7 +3,6 @@ from kivy.factory import Factory
 from kivy.properties import ObjectProperty
 from kivy.lang import Builder
 
-from electrum.bitcoin import FEE_STEP, RECOMMENDED_FEE
 from electrum.util import fee_levels
 from electrum_gui.kivy.i18n import _
 
@@ -59,6 +58,8 @@ class FeeDialog(Factory.Popup):
         Factory.Popup.__init__(self)
         self.app = app
         self.config = config
+        self.fee_step = self.config.max_fee_rate() / 10
+        self.fee_rate = self.config.fee_per_kb()
         self.callback = callback
         self.dynfees = self.config.get('dynamic_fees', True)
         self.ids.dynfees.active = self.dynfees
@@ -76,20 +77,23 @@ class FeeDialog(Factory.Popup):
             slider.step = 1
             slider.value = self.config.get('fee_level', 2)
         else:
-            slider.range = (FEE_STEP, 2*RECOMMENDED_FEE)
-            slider.step = FEE_STEP
-            slider.value = self.config.get('fee_per_kb', RECOMMENDED_FEE)
+            slider.range = (1, 10)
+            slider.step = 1
+            slider.value = min(self.fee_rate / self.fee_step, 10)
 
     def get_fee_text(self, value):
         if self.ids.dynfees.active:
             tooltip = fee_levels[value]
-            if self.app.network:
-                dynfee = self.app.network.dynfee(value)
-                if dynfee:
-                    tooltip += '\n' + (self.app.format_amount_and_units(dynfee)) + '/kB'
-            return tooltip
+            if self.config.has_fee_estimates():
+                dynfee = self.config.dynfee(value)
+                tooltip += '\n' + (self.app.format_amount_and_units(dynfee)) + '/kB'
         else:
-            return self.app.format_amount_and_units(value) + '/kB'
+            fee_rate = value * self.fee_step
+            tooltip = self.app.format_amount_and_units(fee_rate) + '/kB'
+            if self.config.has_fee_estimates():
+                i = self.config.reverse_dynfee(fee_rate)
+                tooltip += '\n' + (_('low fee') if i < 0 else 'Within %d blocks'%i)
+        return tooltip
 
     def on_ok(self):
         value = int(self.ids.slider.value)
@@ -97,7 +101,7 @@ class FeeDialog(Factory.Popup):
         if self.dynfees:
             self.config.set_key('fee_level', value, True)
         else:
-            self.config.set_key('fee_per_kb', value, True)
+            self.config.set_key('fee_per_kb', value * self.fee_step, True)
         self.callback()
 
     def on_slider(self, value):
