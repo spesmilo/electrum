@@ -37,6 +37,10 @@ CHARACTER_RECOVERY = (
     "Press BACKSPACE to go back a character or word.\n"
     "Press ENTER or the Seed Entered button once the last word in your "
     "seed is auto-completed.")
+MATRIX_RECOVERY = (
+    "Enter the recovery words by pressing the buttons according to what "
+    "the device shows on its display.  You can also use your NUMPAD.\n"
+    "Press BACKSPACE to go back a choice or word.\n")
 
 class CharacterButton(QPushButton):
     def __init__(self, text=None):
@@ -127,18 +131,83 @@ class CharacterDialog(WindowModalDialog):
         if self.loop.exec_():
             self.data = None  # User cancelled
 
+class MatrixDialog(WindowModalDialog):
+
+    def __init__(self, parent):
+        super(MatrixDialog, self).__init__(parent)
+        self.setWindowTitle(_("Trezor Matrix Recovery"))
+        self.num = 9
+        self.loop = QEventLoop()
+
+        vbox = QVBoxLayout(self)
+        vbox.addWidget(WWLabel(MATRIX_RECOVERY))
+
+        grid = QGridLayout()
+        grid.setSpacing(0)
+        self.char_buttons = [];
+        for y in range(3):
+            for x in range(3):
+                button = QPushButton('?')
+                button.clicked.connect(partial(self.process_key, ord('1')+y*3+x))
+                grid.addWidget(button, 3-y, x)
+                self.char_buttons.append(button)
+        vbox.addLayout(grid)
+        
+        hbox = QHBoxLayout()
+        self.backspace_button = QPushButton(_("<="))
+        self.backspace_button.clicked.connect(partial(self.process_key, Qt.Key_Backspace))
+        self.cancel_button = QPushButton(_("Cancel"))
+        self.cancel_button.clicked.connect(partial(self.process_key, Qt.Key_Escape))
+        buttons = Buttons(self.backspace_button, self.cancel_button)
+        vbox.addSpacing(40)
+        vbox.addLayout(buttons)
+        self.refresh()
+        self.show()
+
+    def refresh(self):
+        for y in range(3):
+            self.char_buttons[3*y+1].setEnabled(self.num == 9)
+
+    def is_valid(self, key):
+        return key >= ord('1') and key <= ord('9')
+
+    def process_key(self, key):
+        self.data = None
+        if key == Qt.Key_Backspace:
+            self.data = '\010'
+        elif key == Qt.Key_Escape:
+            self.data = 'x'
+        elif self.is_valid(key):
+            self.char_buttons[key-ord('1')].setFocus()
+            self.data = '%c' % key;
+        if self.data:
+            self.loop.exit(0)
+
+    def keyPressEvent(self, event):
+        self.process_key(event.key())
+        if not self.data:
+            QDialog.keyPressEvent(self, event)
+
+    def get_matrix(self, num):
+        self.num = num
+        self.refresh()
+        self.loop.exec_()
+
 
 class QtHandler(QtHandlerBase):
 
     char_signal = pyqtSignal(object)
     pin_signal = pyqtSignal(object)
+    matrix_signal = pyqtSignal(object)
 
     def __init__(self, win, pin_matrix_widget_class, device):
         super(QtHandler, self).__init__(win, device)
         self.char_signal.connect(self.update_character_dialog)
         self.pin_signal.connect(self.pin_dialog)
+        self.matrix_signal.connect(self.matrix_recovery_dialog)
         self.pin_matrix_widget_class = pin_matrix_widget_class
         self.character_dialog = None
+        self.matrix_dialog = None
 
     def get_char(self, msg):
         self.done.clear()
@@ -155,6 +224,16 @@ class QtHandler(QtHandlerBase):
         self.pin_signal.emit(msg)
         self.done.wait()
         return self.response
+
+    def get_matrix(self, msg):
+        self.done.clear()
+        self.matrix_signal.emit(msg)
+        self.done.wait()
+        data = self.matrix_dialog.data
+        if data == 'x':
+            self.matrix_dialog.accept()
+            self.matrix_dialog = None
+        return data
 
     def pin_dialog(self, msg):
         # Needed e.g. when resetting a device
@@ -176,6 +255,11 @@ class QtHandler(QtHandlerBase):
         self.character_dialog.get_char(msg.word_pos, msg.character_pos)
         self.done.set()
 
+    def matrix_recovery_dialog(self, msg):
+        if not self.matrix_dialog:
+            self.matrix_dialog = MatrixDialog(self.top_level_window())
+        self.matrix_dialog.get_matrix(msg)
+        self.done.set()
 
 
 class QtPlugin(QtPluginBase):
