@@ -20,15 +20,21 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import six
 
 import sys
 import re
 import dns
 
-import bitcoin
-import dnssec
-from util import StoreDict, print_error
-from i18n import _
+from . import bitcoin
+from . import dnssec
+from .util import StoreDict, print_error
+from .i18n import _
 
 
 class Contacts(StoreDict):

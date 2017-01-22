@@ -22,24 +22,29 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
+import six
 import ast
 import os
 import sys
 import time
 
-import jsonrpclib
-from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCRequestHandler
+# import jsonrpclib
+# from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCRequestHandler
 
-from version import ELECTRUM_VERSION
-from network import Network
-from util import json_decode, DaemonThread
-from util import print_msg, print_error, print_stderr
-from wallet import WalletStorage, Wallet
-from commands import known_commands, Commands
-from simple_config import SimpleConfig
-from plugins import run_hook
-from exchange_rate import FxThread
+from .version import ELECTRUM_VERSION
+from .network import Network
+from .util import json_decode, DaemonThread
+from .util import print_msg, print_error, print_stderr
+from .wallet import WalletStorage, Wallet
+from .commands import known_commands, Commands
+from .simple_config import SimpleConfig
+from .plugins import run_hook
+from .exchange_rate import FxThread
 
 def get_lockfile(config):
     return os.path.join(config.path, 'daemon')
@@ -84,18 +89,17 @@ def get_server(config):
         time.sleep(1.0)
 
 
-
-class RequestHandler(SimpleJSONRPCRequestHandler):
-
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.end_headers()
-
-    def end_headers(self):
-        self.send_header("Access-Control-Allow-Headers",
-                         "Origin, X-Requested-With, Content-Type, Accept")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        SimpleJSONRPCRequestHandler.end_headers(self)
+# class RequestHandler(SimpleJSONRPCRequestHandler):
+#
+#     def do_OPTIONS(self):
+#         self.send_response(200)
+#         self.end_headers()
+#
+#     def end_headers(self):
+#         self.send_header("Access-Control-Allow-Headers",
+#                          "Origin, X-Requested-With, Content-Type, Accept")
+#         self.send_header("Access-Control-Allow-Origin", "*")
+#         SimpleJSONRPCRequestHandler.end_headers(self)
 
 
 class Daemon(DaemonThread):

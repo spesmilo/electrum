@@ -1,10 +1,16 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import six
 import os.path
 import time
 import traceback
 import sys
 import threading
 import platform
-import Queue
+from six.moves import queue
 from collections import namedtuple
 from functools import partial
 
@@ -565,7 +571,7 @@ class TaskThread(QThread):
     def __init__(self, parent, on_error=None):
         super(TaskThread, self).__init__(parent)
         self.on_error = on_error
-        self.tasks = Queue.Queue()
+        self.tasks = queue.Queue()
         self.doneSig.connect(self.on_done)
         self.start()
 

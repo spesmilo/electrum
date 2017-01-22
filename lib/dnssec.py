@@ -22,7 +22,12 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
+import six
 
 
 # Check DNSSEC trust chain.
@@ -61,25 +66,21 @@ import dns.rdtypes.IN.AAAA
 from dns.exception import DNSException
 
 
-
-"""
-Pure-Python version of dns.dnssec._validate_rsig
-"""
-
+# Pure-Python version of dns.dnssec._validate_rsig
 import ecdsa
-import rsakey
+from . import rsakey
 
 
 def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
     from dns.dnssec import ValidationFailure, ECDSAP256SHA256, ECDSAP384SHA384
     from dns.dnssec import _find_candidate_keys, _make_hash, _is_ecdsa, _is_rsa, _to_rdata, _make_algorithm_id
 
-    if isinstance(origin, (str, unicode)):
+    if isinstance(origin, six.text_type):
         origin = dns.name.from_text(origin, dns.name.root)
 
     for candidate_key in _find_candidate_keys(keys, rrsig):
         if not candidate_key:
-            raise ValidationFailure, 'unknown key'
+            raise ValidationFailure('unknown key')
 
         # For convenience, allow the rrset to be specified as a (name, rdataset)
         # tuple as well as a proper rrset
@@ -93,9 +94,9 @@ def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
         if now is None:
             now = time.time()
         if rrsig.expiration < now:
-            raise ValidationFailure, 'expired'
+            raise ValidationFailure('expired')
         if rrsig.inception > now:
-            raise ValidationFailure, 'not yet valid'
+            raise ValidationFailure('not yet valid')
 
         hash = _make_hash(rrsig.algorithm)
 
@@ -124,7 +125,7 @@ def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
                 digest_len = 48
             else:
                 # shouldn't happen
-                raise ValidationFailure, 'unknown ECDSA curve'
+                raise ValidationFailure('unknown ECDSA curve')
             keyptr = candidate_key.key
             x = ecdsa.util.string_to_number(keyptr[0:key_len])
             y = ecdsa.util.string_to_number(keyptr[key_len:key_len * 2])
@@ -137,7 +138,7 @@ def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
                                         ecdsa.util.string_to_number(s))
 
         else:
-            raise ValidationFailure, 'unknown algorithm %u' % rrsig.algorithm
+            raise ValidationFailure('unknown algorithm %u' % rrsig.algorithm)
 
         hash.update(_to_rdata(rrsig, origin)[:18])
         hash.update(rrsig.signer.to_digestable(origin))
@@ -170,9 +171,9 @@ def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
                 return
 
         else:
-            raise ValidationFailure, 'unknown algorithm %u' % rrsig.algorithm
+            raise ValidationFailure('unknown algorithm %s' % rrsig.algorithm)
 
-    raise ValidationFailure, 'verify failure'
+    raise ValidationFailure('verify failure')
 
 
 # replace validate_rrsig
@@ -182,11 +183,14 @@ dns.dnssec.validate = dns.dnssec._validate
 
 
 
-from util import print_error
+from .util import print_error
 
 
 # hard-coded root KSK
-root_KSK = dns.rrset.from_text('.', 15202, 'IN', 'DNSKEY', '257 3 8 AwEAAagAIKlVZrpC6Ia7gEzahOR+9W29euxhJhVVLOyQbSEW0O8gcCjF FVQUTf6v58fLjwBd0YI0EzrAcQqBGCzh/RStIoO8g0NfnfL2MTJRkxoX bfDaUeVPQuYEhg37NZWAJQ9VnMVDxP/VHL496M/QZxkjf5/Efucp2gaD X6RS6CXpoY68LsvPVjR0ZSwzz1apAzvN9dlzEheX7ICJBBtuA6G3LQpz W5hOA2hzCTMjJPJ8LbqF6dsV6DoBQzgul0sGIcGOYl7OyQdXfZ57relS Qageu+ipAdTTJ25AsRTAoub8ONGcLmqrAmRLKBP1dfwhYB4N7knNnulq QxA+Uk1ihz0=')
+key = '257 3 8 AwEAAagAIKlVZrpC6Ia7gEzahOR+9W29euxhJhVVLOyQbSEW0O8gcCjF FVQUTf6v58fLjwBd0YI0EzrAcQqBGCzh/RStIoO8g0NfnfL2MTJRkxoX bfDaUeVPQuYEhg37NZWAJQ9VnMVDxP/VHL496M/QZxkjf5/Efucp2gaD X6RS6CXpoY68LsvPVjR0ZSwzz1apAzvN9dlzEheX7ICJBBtuA6G3LQpz W5hOA2hzCTMjJPJ8LbqF6dsV6DoBQzgul0sGIcGOYl7OyQdXfZ57relS Qageu+ipAdTTJ25AsRTAoub8ONGcLmqrAmRLKBP1dfwhYB4N7knNnulq QxA+Uk1ihz0='
+if six.PY2:
+    key = key.encode('ascii')
+root_KSK = dns.rrset.from_text('.', 15202, 'IN', 'DNSKEY', key)
 
 
 

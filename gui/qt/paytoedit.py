@@ -22,16 +22,21 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
+import six
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
-from qrtextedit import ScanQRTextEdit
+from .qrtextedit import ScanQRTextEdit
 
 import re
 from decimal import Decimal
 from electrum import bitcoin
 
-import util
+from . import util
 
 RE_ADDRESS = '[1-9A-HJ-NP-Za-km-z]{26,}'
 RE_ALIAS = '(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>'

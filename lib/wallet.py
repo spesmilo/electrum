@@ -23,13 +23,11 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""
-Wallet classes:
-  - Imported_Wallet: imported address, no keystore
-  - Standard_Wallet: one keystore, P2PKH
-  - Multisig_Wallet: several keystores, P2SH
+# Wallet classes:
+#   - Imported_Wallet: imported address, no keystore
+#   - Standard_Wallet: one keystore, P2PKH
+#   - Multisig_Wallet: several keystores, P2SH
 
-"""
 
 import os
 import hashlib
@@ -44,26 +42,26 @@ import stat
 from functools import partial
 from collections import namedtuple, defaultdict
 
-from i18n import _
-from util import NotEnoughFunds, PrintError, UserCancelled, profiler
+from .i18n import _
+from .util import NotEnoughFunds, PrintError, UserCancelled, profiler
 
-from bitcoin import *
-from version import *
-from keystore import load_keystore, Hardware_KeyStore
-from storage import multisig_type
+from .bitcoin import *
+from .version import *
+from .keystore import load_keystore, Hardware_KeyStore
+from .storage import multisig_type
 
 import transaction
-from transaction import Transaction
-from plugins import run_hook
-import bitcoin
-import coinchooser
-from synchronizer import Synchronizer
-from verifier import SPV
-from mnemonic import Mnemonic
+from .transaction import Transaction
+from .plugins import run_hook
+from . import bitcoin
+from . import coinchooser
+from .synchronizer import Synchronizer
+from .verifier import SPV
+from .mnemonic import Mnemonic
 
-import paymentrequest
+from . import paymentrequest
 
-from storage import WalletStorage
+from .storage import WalletStorage
 
 TX_STATUS = [
     _('Replaceable'),
@@ -190,11 +188,11 @@ class Abstract_Wallet(PrintError):
     @profiler
     def check_history(self):
         save = False
-        for addr, hist in self.history.items():
-            if not self.is_mine(addr):
-                self.history.pop(addr)
-                save = True
-                continue
+        mine_addrs = list(filter(lambda k: self.is_mine(self.history[k]), self.history.keys()))
+        if len(mine_addrs) != len(self.history.keys()):
+            save = True
+        for addr in mine_addrs:
+            hist = self.history[addr]
 
             for tx_hash, tx_height in hist:
                 if tx_hash in self.pruned_txo.values() or self.txi.get(tx_hash) or self.txo.get(tx_hash):
@@ -607,7 +605,7 @@ class Abstract_Wallet(PrintError):
                 if _type == TYPE_ADDRESS:
                     addr = x
                 elif _type == TYPE_PUBKEY:
-                    addr = bitcoin.public_key_to_p2pkh(x.decode('hex'))
+                    addr = bitcoin.public_key_to_p2pkh(bfh(x))
                 else:
                     addr = None
                 if addr and self.is_mine(addr):
@@ -921,7 +919,7 @@ class Abstract_Wallet(PrintError):
 
         # if we are on a pruning server, remove unverified transactions
         with self.lock:
-            vr = self.verified_tx.keys() + self.unverified_tx.keys()
+            vr = list(self.verified_tx.keys()) + list(self.unverified_tx.keys())
         for tx_hash in self.transactions.keys():
             if tx_hash not in vr:
                 self.print_error("removing transaction", tx_hash)
@@ -1222,7 +1220,7 @@ class Abstract_Wallet(PrintError):
 
     def make_payment_request(self, addr, amount, message, expiration):
         timestamp = int(time.time())
-        _id = Hash(addr + "%d"%timestamp).encode('hex')[0:10]
+        _id = bh2u(Hash(addr + "%d"%timestamp))[0:10]
         r = {'time':timestamp, 'amount':amount, 'exp':expiration, 'address':addr, 'memo':message, 'id':_id}
         return r
 
@@ -1232,7 +1230,7 @@ class Abstract_Wallet(PrintError):
         pr = paymentrequest.make_unsigned_request(req)
         paymentrequest.sign_request_with_alias(pr, alias, alias_privkey)
         req['name'] = pr.pki_data
-        req['sig'] = pr.signature.encode('hex')
+        req['sig'] = bh2u(pr.signature)
         self.receive_requests[key] = req
         self.storage.put('payment_requests', self.receive_requests)
 
@@ -1389,7 +1387,10 @@ class Imported_Wallet(Abstract_Wallet):
 
     def add_input_sig_info(self, txin, address):
         addrtype, hash160 = bc_address_to_hash_160(address)
-        x_pubkey = 'fd' + (chr(addrtype) + hash160).encode('hex')
+        if six.PY3:
+            x_pubkey = 'fd' + bh2u(bytes([addrtype]) + hash160)
+        else:
+            x_pubkey = 'fd' + bh2u(chr(addrtype) + hash160)
         txin['x_pubkeys'] = [x_pubkey]
         txin['signatures'] = [None]
 

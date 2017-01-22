@@ -1,12 +1,20 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import six
 import unittest
 from lib import mnemonic
 from lib import old_mnemonic
+from lib.util import bh2u
+
 
 class Test_NewMnemonic(unittest.TestCase):
 
     def test_to_seed(self):
         seed = mnemonic.Mnemonic.mnemonic_to_seed(mnemonic='foobar', passphrase='none')
-        self.assertEquals(seed.encode('hex'),
+        self.assertEquals(bh2u(seed),
                           '741b72fd15effece6bfe5a26a52184f66811bd2be363190e07a42cca442b1a5b'
                           'b22b3ad0eb338197287e6d314866c7fba863ac65d3f156087a5052ebc7157fce')
 
