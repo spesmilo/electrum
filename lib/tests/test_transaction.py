@@ -1,9 +1,19 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import six
 import unittest
 from lib import transaction
 from lib.bitcoin import TYPE_ADDRESS
 
 import pprint
 from lib.keystore import xpubkey_to_address
+
+from lib.util import bh2u
+
+from lib.util import bh2u
 
 unsigned_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000005701ff4c53ff0488b21e03ef2afea18000000089689bff23e1e7fb2f161daa37270a97a3d8c2e537584b2d304ecb47b86d21fc021b010d3bd425f8cf2e04824bfdf1f1f5ff1d51fadd9a41f9e3fb8dd3403b1bfe00000000ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
 signed_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000006c493046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d985012102e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
@@ -20,7 +30,7 @@ class TestBCDataStream(unittest.TestCase):
         with self.assertRaises(transaction.SerializationError):
             s.write_compact_size(-1)
 
-        self.assertEquals(s.input.encode('hex'),
+        self.assertEquals(bh2u(s.input),
                           '0001fcfdfd00fdfffffe00000100feffffffffff0000000001000000ffffffffffffffffff')
         for v in values:
             self.assertEquals(s.read_compact_size(), v)
@@ -44,11 +54,11 @@ class TestBCDataStream(unittest.TestCase):
 
     def test_bytes(self):
         s = transaction.BCDataStream()
-        s.write('foobar')
-        self.assertEquals(s.read_bytes(3), 'foo')
-        self.assertEquals(s.read_bytes(2), 'ba')
-        self.assertEquals(s.read_bytes(4), 'r')
-        self.assertEquals(s.read_bytes(1), '')
+        s.write(b'foobar')
+        self.assertEquals(s.read_bytes(3), b'foo')
+        self.assertEquals(s.read_bytes(2), b'ba')
+        self.assertEquals(s.read_bytes(4), b'r')
+        self.assertEquals(s.read_bytes(1), b'')
 
 class TestTransaction(unittest.TestCase):
 

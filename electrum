@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # -*- mode: python -*-
 #
 # Electrum - lightweight Bitcoin client
@@ -23,9 +23,14 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
 import os
 import sys
+import six
 
 # from https://gist.github.com/tito/09c42fb4767721dc323d
 import threading
@@ -42,6 +47,12 @@ if jnius:
             jnius.detach()
     threading.Thread.run = thread_check_run
 
+# monkeypatch unicode constructor for py3
+if six.PY3:
+    import builtins
+    builtins.unicode = str
+    builtins.QString = str
+    builtins.long = int
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
@@ -54,6 +65,7 @@ os.environ['KIVY_DATA_DIR'] = os.path.abspath(os.path.dirname(__file__)) + '/gui
 if is_local or is_android:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
 elif is_bundle and sys.platform=='darwin':
+    # TODO: py3
     sys.path.insert(0, os.getcwd() + "/lib/python2.7/packages")
 
 
@@ -68,7 +80,7 @@ def check_imports():
         import qrcode
         import pbkdf2
         import google.protobuf
-        import jsonrpclib
+        # import jsonrpclib
     except ImportError as e:
         sys.exit("Error: %s. Try 'sudo pip install <module-name>'"%e.message)
     # the following imports are for pyinstaller
@@ -76,7 +88,7 @@ def check_imports():
     from google.protobuf import message
     from google.protobuf import reflection
     from google.protobuf import descriptor_pb2
-    from jsonrpclib import SimpleJSONRPCServer
+    # from jsonrpclib import SimpleJSONRPCServer
     # check that we have the correct version of ecdsa
     try:
         from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
@@ -276,11 +288,11 @@ def run_offline_command(config, config_options):
     if cmd.requires_network:
         print_msg("Warning: running command offline")
     # arguments passed to function
-    args = map(lambda x: config.get(x), cmd.params)
+    args = [config.get(x) for x in cmd.params]
     # decode json arguments
-    args = map(json_decode, args)
+    args = list(map(json_decode, args))
     # options
-    args += map(lambda x: (config_options.get(x) if x in ['password', 'new_password'] else config.get(x)), cmd.options)
+    args += [(config_options.get(x) if x in ['password', 'new_password'] else config.get(x)) for x in cmd.options]
     cmd_runner = Commands(config, wallet, None)
     func = getattr(cmd_runner, cmd.name)
     result = func(*args)
@@ -296,10 +308,10 @@ def init_plugins(config, gui_name):
 if __name__ == '__main__':
 
     # on osx, delete Process Serial Number arg generated for apps launched in Finder
-    sys.argv = filter(lambda x: not x.startswith('-psn'), sys.argv)
+    sys.argv = list(filter(lambda x: not x.startswith('-psn'), sys.argv))
 
     # old 'help' syntax
-    if len(sys.argv)>1 and sys.argv[1] == 'help':
+    if len(sys.argv) > 1 and sys.argv[1] == 'help':
         sys.argv.remove('help')
         sys.argv.append('-h')
 
@@ -312,9 +324,9 @@ if __name__ == '__main__':
             else:
                 raise BaseException('Cannot get argument from stdin')
         elif arg == '?':
-            sys.argv[i] = raw_input("Enter argument:")
+            sys.argv[i] = input("Enter argument:")
         elif arg == ':':
-            sys.argv[i] = prompt_password('Enter argument (will not echo):', False)
+            sys.argv[i] = prompt_password('Enter argument (will noot echo):', False)
 
     # parse command line
     parser = get_parser()
@@ -329,9 +341,8 @@ if __name__ == '__main__':
         }
     else:
         config_options = args.__dict__
-        for k, v in config_options.items():
-            if v is None or (k in config_variables.get(args.cmd, {}).keys()):
-                config_options.pop(k)
+        f = lambda key: config_options[key] is not None and key not in config_variables.get(args.cmd, {}).keys()
+        config_options = {key: config_options[key] for key in filter(f, config_options.keys())}
         if config_options.get('server'):
             config_options['auto_connect'] = False
 
@@ -426,8 +437,8 @@ if __name__ == '__main__':
                 init_plugins(config, 'cmdline')
                 result = run_offline_command(config, config_options)
 
-    # print result
-    if type(result) in [str, unicode]:
+                # print result
+    if isinstance(result, six.text_type):
         print_msg(result)
     elif type(result) is dict and result.get('error'):
         print_stderr(result.get('error'))
