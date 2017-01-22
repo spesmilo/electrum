@@ -22,13 +22,19 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
+import six
 from collections import defaultdict, namedtuple
 from math import floor, log10
 
-from bitcoin import sha256, COIN, TYPE_ADDRESS
-from transaction import Transaction
-from util import NotEnoughFunds, PrintError, profiler
+from .bitcoin import sha256, COIN, TYPE_ADDRESS
+from .transaction import Transaction
+from .util import NotEnoughFunds, PrintError, profiler
+
 
 # A simple deterministic PRNG.  Used to deterministically shuffle a
 # set of coins - the same set of coins should produce the same output.
@@ -36,7 +42,6 @@ from util import NotEnoughFunds, PrintError, profiler
 # so if sending twice from the same UTXO set we choose the same UTXOs
 # to spend.  This prevents attacks on users by malicious or stale
 # servers.
-
 class PRNG:
     def __init__(self, seed):
         self.sha = sha256(seed)

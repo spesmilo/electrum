@@ -22,8 +22,12 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
-
+import six
 import os
 import re
 import socket
@@ -36,9 +40,9 @@ import traceback
 import requests
 ca_path = requests.certs.where()
 
-import util
-import x509
-import pem
+from . import util
+from . import x509
+from . import pem
 
 
 def Connection(server, queue, config_path):
@@ -80,7 +84,7 @@ class TcpConnection(threading.Thread, util.PrintError):
         # None/{} is not acceptable.
         if not peercert:
             return False
-        if peercert.has_key("subjectAltName"):
+        if 'subjectAltName' in peercert:
             for typ, val in peercert["subjectAltName"]:
                 if typ == "DNS" and val == name:
                     return True
@@ -102,6 +106,7 @@ class TcpConnection(threading.Thread, util.PrintError):
         except socket.gaierror:
             self.print_error("cannot resolve hostname")
             return
+        e = None
         for res in l:
             try:
                 s = socket.socket(res[0], socket.SOCK_STREAM)
@@ -110,7 +115,8 @@ class TcpConnection(threading.Thread, util.PrintError):
                 s.settimeout(2)
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
                 return s
-            except BaseException as e:
+            except BaseException as _e:
+                e = _e
                 continue
         else:
             self.print_error("failed to connect", str(e))
@@ -126,7 +132,7 @@ class TcpConnection(threading.Thread, util.PrintError):
                 # try with CA first
                 try:
                     s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv23, cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_path, do_handshake_on_connect=True)
-                except ssl.SSLError, e:
+                except ssl.SSLError as e:
                     s = None
                 if s and self.check_host_name(s.getpeercert(), self.host):
                     self.print_error("SSL certificate signed by CA")
@@ -138,7 +144,7 @@ class TcpConnection(threading.Thread, util.PrintError):
                     return
                 try:
                     s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv23, cert_reqs=ssl.CERT_NONE, ca_certs=None)
-                except ssl.SSLError, e:
+                except ssl.SSLError as e:
                     self.print_error("SSL error retrieving SSL certificate:", e)
                     return
 
@@ -164,7 +170,7 @@ class TcpConnection(threading.Thread, util.PrintError):
                                     cert_reqs=ssl.CERT_REQUIRED,
                                     ca_certs= (temporary_path if is_new else cert_path),
                                     do_handshake_on_connect=True)
-            except ssl.SSLError, e:
+            except ssl.SSLError as e:
                 self.print_error("SSL error:", e)
                 if e.errno != 1:
                     return
@@ -191,7 +197,7 @@ class TcpConnection(threading.Thread, util.PrintError):
                         return
                     self.print_error("wrong certificate")
                 return
-            except BaseException, e:
+            except BaseException as e:
                 self.print_error(e)
                 if e.errno == 104:
                     return
@@ -264,12 +270,12 @@ class Interface(util.PrintError):
 
     def send_requests(self):
         '''Sends queued requests.  Returns False on failure.'''
-        make_dict = lambda (m, p, i): {'method': m, 'params': p, 'id': i}
+        make_dict = lambda m, p, i: {'method': m, 'params': p, 'id': i}
         n = self.num_requests()
         wire_requests = self.unsent_requests[0:n]
         try:
             self.pipe.send_all(map(make_dict, wire_requests))
-        except socket.error, e:
+        except socket.error as e:
             self.print_error("socket error:", e)
             return False
         self.unsent_requests = self.unsent_requests[n:]
@@ -363,12 +369,12 @@ def _match_hostname(name, val):
     return val.startswith('*.') and name.endswith(val[1:])
 
 def test_certificates():
-    from simple_config import SimpleConfig
+    from .simple_config import SimpleConfig
     config = SimpleConfig()
     mydir = os.path.join(config.path, "certs")
     certs = os.listdir(mydir)
     for c in certs:
-        print c
+        print(c)
         p = os.path.join(mydir,c)
         with open(p) as f:
             cert = f.read()

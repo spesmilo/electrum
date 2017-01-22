@@ -45,18 +45,20 @@ from electrum.synchronizer import Synchronizer
 from electrum.verifier import SPV
 from electrum.util import DebugMem, UserCancelled
 from electrum.wallet import Abstract_Wallet
-from installwizard import InstallWizard, GoBack
+
+from .installwizard import InstallWizard, GoBack
 
 
 try:
-    import icons_rc
-except Exception:
-    print "Error: Could not find icons file."
-    print "Please run 'pyrcc4 icons.qrc -o gui/qt/icons_rc.py', and reinstall Electrum"
+    from . import icons_rc
+except Exception as e:
+    print(e)
+    print("Error: Could not find icons file.")
+    print("Please run 'pyrcc4 icons.qrc -o gui/qt/icons_rc.py', and reinstall Electrum")
     sys.exit(1)
 
-from util import *   # * needed for plugins
-from main_window import ElectrumWindow
+from .util import *   # * needed for plugins
+from .main_window import ElectrumWindow
 
 
 class OpenFileEventFilter(QObject):

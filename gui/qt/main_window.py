@@ -22,7 +22,12 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
+import six
 import sys, time, threading
 import os, json, traceback
 import shutil
@@ -39,7 +44,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
-import icons_rc
+from . import icons_rc
 
 from electrum import keystore
 from electrum.bitcoin import COIN, is_valid, TYPE_ADDRESS
@@ -54,18 +59,18 @@ from electrum import util, bitcoin, commands, coinchooser
 from electrum import SimpleConfig, paymentrequest
 from electrum.wallet import Wallet, Multisig_Wallet
 
-from amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit
-from network_dialog import NetworkDialog
-from qrcodewidget import QRCodeWidget, QRDialog
-from qrtextedit import ShowQRTextEdit
-from transaction_dialog import show_transaction
-from fee_slider import FeeSlider
+from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit
+from .network_dialog import NetworkDialog
+from .qrcodewidget import QRCodeWidget, QRDialog
+from .qrtextedit import ShowQRTextEdit
+from .transaction_dialog import show_transaction
+from .fee_slider import FeeSlider
 
 
 from electrum import ELECTRUM_VERSION
 import re
 
-from util import *
+from .util import *
 
 
 class StatusBarButton(QPushButton):
@@ -378,7 +383,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             try:
                 shutil.copy2(path, new_path)
                 self.show_message(_("A copy of your wallet file was created in")+" '%s'" % str(new_path), title=_("Wallet backup created"))
-            except (IOError, os.error), reason:
+            except (IOError, os.error) as reason:
                 self.show_critical(_("Electrum was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
 
     def update_recently_visited(self, filename):
@@ -685,12 +690,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.update_completions()
 
     def create_history_tab(self):
-        from history_list import HistoryList
+        from .history_list import HistoryList
         self.history_list = l = HistoryList(self)
         return l
 
     def show_address(self, addr):
-        import address_dialog
+        from . import address_dialog
         d = address_dialog.AddressDialog(self, addr)
         d.exec_()
 
@@ -732,7 +737,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.connect_fields(self, self.receive_amount_e, self.fiat_receive_e, None)
 
         self.expires_combo = QComboBox()
-        self.expires_combo.addItems(map(lambda x:x[0], expiration_values))
+        self.expires_combo.addItems([i[0] for i in expiration_values])
         self.expires_combo.setCurrentIndex(3)
         self.expires_combo.setFixedWidth(self.receive_amount_e.width())
         msg = ' '.join([
@@ -768,7 +773,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.receive_requests_label = QLabel(_('Requests'))
 
-        from request_list import RequestList
+        from .request_list import RequestList
         self.request_list = RequestList(self)
 
         # layout
@@ -946,7 +951,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.setSpacing(8)
         grid.setColumnStretch(3, 1)
 
-        from paytoedit import PayToEdit
+        from .paytoedit import PayToEdit
         self.amount_e = BTCAmountEdit(self.get_decimal_point)
         self.payto_e = PayToEdit(self)
         msg = _('Recipient of the funds.') + '\n\n'\
@@ -1073,7 +1078,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fee_e.textChanged.connect(entry_changed)
 
         self.invoices_label = QLabel(_('Invoices'))
-        from invoice_list import InvoiceList
+        from .invoice_list import InvoiceList
         self.invoice_list = InvoiceList(self)
 
         vbox0 = QVBoxLayout()
@@ -1493,17 +1498,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return w
 
     def create_addresses_tab(self):
-        from address_list import AddressList
+        from .address_list import AddressList
         self.address_list = l = AddressList(self)
         return self.create_list_tab(l)
 
     def create_utxo_tab(self):
-        from utxo_list import UTXOList
+        from .utxo_list import UTXOList
         self.utxo_list = l = UTXOList(self)
         return self.create_list_tab(l)
 
     def create_contacts_tab(self):
-        from contact_list import ContactList
+        from .contact_list import ContactList
         self.contact_list = l = ContactList(self)
         return self.create_list_tab(l)
 
@@ -1612,10 +1617,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.payment_request_error()
 
     def create_console_tab(self):
-        from console import Console
+        from .console import Console
         self.console = console = Console()
         return console
-
 
     def update_console(self):
         console = self.console
@@ -2167,7 +2171,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 with open(fileName, 'w+') as f:
                     json.dump(labels, f, indent=4, sort_keys=True)
                 self.show_message(_("Your labels where exported to") + " '%s'" % str(fileName))
-        except (IOError, os.error), reason:
+        except (IOError, os.error) as reason:
             self.show_critical(_("Electrum was unable to export your labels.") + "\n" + str(reason))
 
 
@@ -2191,7 +2195,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         try:
             self.do_export_history(self.wallet, filename, csv_button.isChecked())
-        except (IOError, os.error), reason:
+        except (IOError, os.error) as reason:
             export_error_label = _("Electrum was unable to produce a transaction export.")
             self.show_critical(export_error_label + "\n" + str(reason), title=_("Unable to export history"))
             return

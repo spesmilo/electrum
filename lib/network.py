@@ -20,9 +20,14 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
+import six
 import time
-import Queue
+from six.moves import queue
 import os
 import errno
 import sys
@@ -32,16 +37,16 @@ import traceback
 from collections import defaultdict, deque
 from threading import Lock
 
-import socks
 import socket
 import json
 
-import util
-import bitcoin
-from bitcoin import *
-from interface import Connection, Interface
-from blockchain import Blockchain
-from version import ELECTRUM_VERSION, PROTOCOL_VERSION
+from . import socks
+from . import util
+from . import bitcoin
+from .bitcoin import *
+from .interface import Connection, Interface
+from .blockchain import Blockchain
+from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
 
 DEFAULT_PORTS = {'t':'50001', 's':'50002'}
 
@@ -122,7 +127,7 @@ def pick_random_server(hostmap = None, protocol = 's', exclude_set = set()):
     eligible = list(set(filter_protocol(hostmap, protocol)) - exclude_set)
     return random.choice(eligible) if eligible else None
 
-from simple_config import SimpleConfig
+from .simple_config import SimpleConfig
 
 proxy_modes = ['socks4', 'socks5', 'http']
 
@@ -229,7 +234,7 @@ class Network(util.DaemonThread):
         self.interfaces = {}
         self.auto_connect = self.config.get('auto_connect', True)
         self.connecting = set()
-        self.socket_queue = Queue.Queue()
+        self.socket_queue = queue.Queue()
         self.start_network(deserialize_server(self.default_server)[2],
                            deserialize_proxy(self.config.get('proxy')))
 
@@ -405,8 +410,9 @@ class Network(util.DaemonThread):
             # prevent dns leaks, see http://stackoverflow.com/questions/13184205/dns-over-proxy
             socket.getaddrinfo = lambda *args: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
         else:
-            socket.socket = socket._socketobject
-            socket.getaddrinfo = socket._socket.getaddrinfo
+            if six.PY2:
+                socket.socket = socket._socketobject
+                socket.getaddrinfo = socket._socket.getaddrinfo
 
     def start_network(self, protocol, proxy):
         assert not self.interface and not self.interfaces
@@ -425,7 +431,7 @@ class Network(util.DaemonThread):
         assert not self.interfaces
         self.connecting = set()
         # Get a new queue - no old pending connections thanks!
-        self.socket_queue = Queue.Queue()
+        self.socket_queue = queue.Queue()
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
         proxy_str = serialize_proxy(proxy)
@@ -792,7 +798,9 @@ class Network(util.DaemonThread):
         win = [i for i in self.interfaces.values() if i.num_requests()]
         try:
             rout, wout, xout = select.select(rin, win, [], 0.1)
-        except socket.error as (code, msg):
+        except socket.error as e:
+            # TODO: py3, get code from e
+            code = None
             if code == errno.EINTR:
                 return
             raise
@@ -837,11 +845,11 @@ class Network(util.DaemonThread):
         return self.blockchain.height()
 
     def synchronous_get(self, request, timeout=30):
-        queue = Queue.Queue()
+        queue = queue.Queue()
         self.send([request], queue.put)
         try:
             r = queue.get(True, timeout)
-        except Queue.Empty:
+        except queue.Empty:
             raise BaseException('Server did not answer')
         if r.get('error'):
             raise BaseException(r.get('error'))

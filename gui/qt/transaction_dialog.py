@@ -22,7 +22,12 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
+import six
 import copy
 import datetime
 import json
@@ -37,7 +42,7 @@ from electrum.bitcoin import base_encode
 from electrum.i18n import _
 from electrum.plugins import run_hook
 
-from util import *
+from .util import *
 
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
 
