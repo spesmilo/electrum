@@ -64,6 +64,7 @@ class SeedLayout(QVBoxLayout):
             def f(b):
                 self.is_seed = (lambda x: bool(x)) if b else self.saved_is_seed
                 self.on_edit()
+                self.is_bip39 = b
                 if b:
                     msg = ' '.join([
                         '<b>' + _('Warning') + ': BIP39 seeds are dangerous!' + '</b><br/><br/>',
@@ -76,7 +77,6 @@ class SeedLayout(QVBoxLayout):
                 else:
                     msg = ''
                 self.seed_warning.setText(msg)
-
             cb_bip39 = QCheckBox(_('BIP39 seed'))
             cb_bip39.toggled.connect(f)
             cb_bip39.setChecked(self.is_bip39)
@@ -130,9 +130,9 @@ class SeedLayout(QVBoxLayout):
             self.addLayout(hbox)
         self.addStretch(1)
         self.seed_warning = WWLabel('')
-        self.addWidget(self.seed_warning)
         if msg:
             self.seed_warning.setText(seed_warning_msg(seed))
+        self.addWidget(self.seed_warning)
 
     def get_seed(self):
         text = unicode(self.seed_e.text())
@@ -146,7 +146,10 @@ class SeedLayout(QVBoxLayout):
             t = seed_type(s)
             label = _('Seed Type') + ': ' + t if t else ''
         else:
-            label = 'BIP39 (checksum disabled)'
+            from electrum.keystore import bip39_is_checksum_valid
+            is_checksum, is_wordlist = bip39_is_checksum_valid(s)
+            status = ('checksum: ' + ('ok' if is_checksum else 'failed')) if is_wordlist else 'unknown wordlist'
+            label = 'BIP39' + ' (%s)'%status
         self.seed_type_label.setText(label)
         self.parent.next_button.setEnabled(b)
 
