@@ -22,6 +22,12 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import six
 
 import os
 import hmac
@@ -33,10 +39,10 @@ import string
 import ecdsa
 import pbkdf2
 
-from util import print_error
-from bitcoin import is_old_seed, is_new_seed
-import version
-import i18n
+from .util import print_error
+from .bitcoin import is_old_seed, is_new_seed
+from . import version
+from . import i18n
 
 # http://www.asahi-net.or.jp/~ax2s-kmtn/ref/unicode/e_asia.html
 CJK_INTERVALS = [
@@ -80,7 +86,10 @@ def is_CJK(c):
 
 def normalize_text(seed):
     # normalize
-    seed = unicodedata.normalize('NFKD', unicode(seed))
+    if six.PY2:
+        seed = unicodedata.normalize('NFKD', unicode(seed))
+    else:
+        seed = unicodedata.normalize('NFKD', str(seed))
     # lower
     seed = seed.lower()
     # remove accents
@@ -111,7 +120,7 @@ class Mnemonic(object):
         print_error('language', lang)
         filename = filenames.get(lang[0:2], 'english.txt')
         path = os.path.join(os.path.dirname(__file__), 'wordlist', filename)
-        s = open(path,'r').read().strip()
+        s = open(path,'rb').read().strip()
         s = unicodedata.normalize('NFKD', s.decode('utf8'))
         lines = s.split('\n')
         self.wordlist = []
@@ -135,7 +144,7 @@ class Mnemonic(object):
         words = []
         while i:
             x = i%n
-            i = i/n
+            i = i//n
             words.append(self.wordlist[x])
         return ' '.join(words)
 

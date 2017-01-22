@@ -1,3 +1,9 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import six
 import ast
 import sys
 import os
@@ -6,7 +12,7 @@ import tempfile
 import shutil
 import json
 
-from StringIO import StringIO
+from six.moves import StringIO
 from lib.simple_config import (SimpleConfig, read_system_config,
                                read_user_config)
 
@@ -229,15 +235,6 @@ class TestUserConfig(unittest.TestCase):
     def test_no_path_means_no_result(self):
        result = read_user_config(None)
        self.assertEqual({}, result)
-
-    def test_path_with_reprd_dict(self):
-        thefile = os.path.join(self.user_dir, "config")
-        payload = {"gap_limit": 5}
-        with open(thefile, "w") as f:
-            f.write(json.dumps(payload))
-
-        result = read_user_config(self.user_dir)
-        self.assertEqual(payload, result)
 
     def test_path_without_config_file(self):
         """We pass a path but if does not contain a "config" file."""

@@ -1,3 +1,9 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import six
 # source: http://stackoverflow.com/questions/2758159/how-to-embed-a-python-interpreter-in-a-pyqt-widget
 
 import sys, os, re
@@ -220,7 +226,7 @@ class Console(QtGui.QPlainTextEdit):
                             self.appendPlainText(repr(result))
                 except SyntaxError:
                     # exec is generally considered bad practice. use it wisely!
-                    exec command in self.namespace
+                    exec(command) in self.namespace
             except SystemExit:
                 self.close()
             except Exception:

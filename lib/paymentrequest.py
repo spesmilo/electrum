@@ -22,8 +22,12 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
-
+import six
 import hashlib
 import os.path
 import re
@@ -31,23 +35,28 @@ import sys
 import threading
 import time
 import traceback
-import urlparse
 import json
 import requests
 
+from six.moves import urllib_parse
+
+
 try:
-    import paymentrequest_pb2 as pb2
+    if six.PY3:
+        from . import paymentrequest_pb2_py3 as pb2
+    else:
+        from . import paymentrequest_pb2 as pb2
 except ImportError:
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto'")
 
-import bitcoin
-import util
-from util import print_error
-import transaction
-import x509
-import rsakey
+from . import bitcoin
+from . import util
+from .util import print_error
+from . import transaction
+from . import x509
+from . import rsakey
 
-from bitcoin import TYPE_ADDRESS
+from .bitcoin import TYPE_ADDRESS
 
 REQUEST_HEADERS = {'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'}
 ACK_HEADERS = {'Content-Type':'application/bitcoin-payment','Accept':'application/bitcoin-paymentack','User-Agent':'Electrum'}
@@ -72,7 +81,7 @@ PR_PAID    = 3     # send and propagated
 
 
 def get_payment_request(url):
-    u = urlparse.urlparse(url)
+    u = urllib_parse.urlparse(url)
     error = None
     if u.scheme in ['http', 'https']:
         try:
@@ -275,15 +284,15 @@ class PaymentRequest:
         paymnt.memo = "Paid using Electrum"
         pm = paymnt.SerializeToString()
 
-        payurl = urlparse.urlparse(pay_det.payment_url)
+        payurl = urllib_parse.urlparse(pay_det.payment_url)
         try:
             r = requests.post(payurl.geturl(), data=pm, headers=ACK_HEADERS, verify=ca_path)
         except requests.exceptions.SSLError:
-            print "Payment Message/PaymentACK verify Failed"
+            print("Payment Message/PaymentACK verify Failed")
             try:
                 r = requests.post(payurl.geturl(), data=pm, headers=ACK_HEADERS, verify=False)
             except Exception as e:
-                print e
+                print(e)
                 return False, "Payment Message/PaymentACK Failed"
 
         if r.status_code >= 500:
@@ -295,12 +304,12 @@ class PaymentRequest:
         except Exception:
             return False, "PaymentACK could not be processed. Payment was sent; please manually verify that payment was received."
 
-        print "PaymentACK message received: %s" % paymntack.memo
+        print("PaymentACK message received: %s" % paymntack.memo)
         return True, paymntack.memo
 
 
 def make_unsigned_request(req):
-    from transaction import Transaction
+    from .transaction import Transaction
     addr = req['address']
     time = req.get('time', 0)
     exp = req.get('exp', 0)
@@ -392,7 +401,7 @@ def verify_cert_chain(chain):
 
 
 def check_ssl_config(config):
-    import pem
+    from . import pem
     key_path = config.get('ssl_privkey')
     cert_path = config.get('ssl_chain')
     with open(key_path, 'r') as f:
@@ -414,7 +423,7 @@ def check_ssl_config(config):
     return requestor
 
 def sign_request_with_x509(pr, key_path, cert_path):
-    import pem
+    from . import pem
     with open(key_path, 'r') as f:
         params = pem.parse_private_key(f.read())
         privkey = rsakey.RSAKey(*params)

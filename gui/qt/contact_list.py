@@ -22,8 +22,13 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
 import webbrowser
+import six
 
 from electrum.i18n import _
 from electrum.bitcoin import is_address
@@ -32,7 +37,7 @@ from electrum.plugins import run_hook
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-from util import MyTreeWidget, pr_tooltips, pr_icons
+from .util import MyTreeWidget, pr_tooltips, pr_icons
 
 
 class ContactList(MyTreeWidget):
