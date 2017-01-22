@@ -337,10 +337,12 @@
 
 
 <ActionOvrButton@ActionButton>
-    on_release:
+    #on_release:
         # fixme: the following line was commented out because it does no seem to do what it is intended
         # Clock.schedule_once(lambda dt: self.parent.parent.dismiss() if self.parent else None, 0.05)
+    on_press:
         Clock.schedule_once(lambda dt: app.popup_dialog(self.name), 0.05)
+        self.state = 'normal'
 
 
 BoxLayout:

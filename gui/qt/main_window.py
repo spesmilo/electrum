@@ -454,7 +454,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
         wallet_menu.addAction(_("Addresses"), self.toggle_addresses_tab).setShortcut(QKeySequence("Ctrl+A"))
-        wallet_menu.addAction(_("Coins"), self.toggle_utxo_tab).setShortcut(QKeySequence("Ctrl+C"))
+        wallet_menu.addAction(_("Coins"), self.toggle_utxo_tab)
 
         tools_menu = menubar.addMenu(_("&Tools"))
 
