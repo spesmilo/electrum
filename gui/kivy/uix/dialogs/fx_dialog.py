@@ -94,7 +94,7 @@ class FxDialog(Factory.Popup):
         Clock.schedule_once(lambda dt: self.add_currencies())
 
     def add_exchanges(self):
-        exchanges = sorted(self.fx.exchanges_by_ccy.get(self.fx.get_currency())) if self.fx.is_enabled() else []
+        exchanges = sorted(self.fx.get_exchanges_by_ccy(self.fx.get_currency(), True)) if self.fx.is_enabled() else []
         mx = self.fx.exchange.name() if self.fx.is_enabled() else ''
         ex = self.ids.exchanges
         ex.values = exchanges
@@ -107,7 +107,7 @@ class FxDialog(Factory.Popup):
             self.fx.set_exchange(text)
 
     def add_currencies(self):
-        currencies = sorted(self.fx.exchanges_by_ccy.keys()) if self.fx else []
+        currencies = sorted(self.fx.get_currencies()) if self.fx else []
         my_ccy = self.fx.get_currency() if self.fx.is_enabled() else ''
         self.ids.ccy.values = currencies
         self.ids.ccy.text = my_ccy

@@ -7,8 +7,8 @@ from electrum.util import base_units
 from electrum.i18n import languages
 from electrum_gui.kivy.i18n import _
 from electrum.plugins import run_hook
-from electrum.bitcoin import RECOMMENDED_FEE
 from electrum import coinchooser
+from electrum.util import fee_levels
 
 from choice_dialog import ChoiceDialog
 
@@ -211,11 +211,9 @@ class SettingsDialog(Factory.Popup):
 
     def fee_status(self):
         if self.config.get('dynamic_fees', True):
-            from electrum.util import fee_levels
             return fee_levels[self.config.get('fee_level', 2)]
         else:
-            F = self.config.get('fee_per_kb', RECOMMENDED_FEE)
-            return self.app.format_amount_and_units(F) + '/kB'
+            return self.app.format_amount_and_units(self.config.fee_per_kb()) + '/kB'
 
     def fee_dialog(self, label, dt):
         if self._fee_dialog is None:
