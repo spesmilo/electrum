@@ -2578,7 +2578,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         ex_combo = QComboBox()
 
         def update_currencies():
-            currencies = sorted(self.fx.exchanges_by_ccy.keys())
+            currencies = sorted(self.fx.get_currencies())
             ccy_combo.clear()
             ccy_combo.addItems([_('None')] + currencies)
             if self.fx.is_enabled():
@@ -2596,7 +2596,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 c = self.fx.get_currency()
                 exchanges = self.fx.get_exchanges_by_ccy(c, h)
             else:
-                exchanges = self.fx.exchanges.keys()
+                exchanges = self.fx.get_exchanges_by_ccy('USD', False)
             ex_combo.clear()
             ex_combo.addItems(sorted(exchanges))
             ex_combo.setCurrentIndex(ex_combo.findText(self.fx.config_exchange()))
@@ -2613,11 +2613,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         def on_exchange(idx):
             exchange = str(ex_combo.currentText())
-            if self.fx.is_enabled() and exchange != self.fx.exchange.name():
+            if self.fx.is_enabled() and exchange and exchange != self.fx.exchange.name():
                 self.fx.set_exchange(exchange)
 
         def on_history(checked):
             self.fx.set_history_config(checked)
+            update_exchanges()
             self.history_list.refresh_headers()
             if self.fx.is_enabled() and checked:
                 # reset timeout to get historical rates

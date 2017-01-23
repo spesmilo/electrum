@@ -30,19 +30,15 @@ class ExchangeBase(PrintError):
         self.on_quotes = on_quotes
         self.on_history = on_history
 
-    def protocol(self):
-        return "https"
-
     def get_json(self, site, get_string):
-        url = "".join([self.protocol(), '://', site, get_string])
-        response = requests.request('GET', url,
-                                    headers={'User-Agent' : 'Electrum'})
+        # APIs must have https
+        url = ''.join(['https://', site, get_string])
+        response = requests.request('GET', url, headers={'User-Agent' : 'Electrum'})
         return response.json()
 
     def get_csv(self, site, get_string):
-        url = "".join([self.protocol(), '://', site, get_string])
-        response = requests.request('GET', url,
-                                    headers={'User-Agent' : 'Electrum'})
+        url = ''.join(['https://', site, get_string])
+        response = requests.request('GET', url, headers={'User-Agent' : 'Electrum'})
         reader = csv.DictReader(response.content.split('\n'))
         return list(reader)
 
@@ -86,6 +82,10 @@ class ExchangeBase(PrintError):
     def historical_rate(self, ccy, d_t):
         return self.history.get(ccy, {}).get(d_t.strftime('%Y-%m-%d'))
 
+    def get_currencies(self):
+        rates = self.get_rates('')
+        return [str(a) for (a, b) in rates.iteritems() if b is not None]
+
 
 class BitcoinAverage(ExchangeBase):
     def get_rates(self, ccy):
@@ -105,14 +105,12 @@ class BitcoinAverage(ExchangeBase):
                      for h in history])
 
 class BitcoinVenezuela(ExchangeBase):
+
     def get_rates(self, ccy):
         json = self.get_json('api.bitcoinvenezuela.com', '/')
         rates = [(r, json['BTC'][r]) for r in json['BTC']
                  if json['BTC'][r] is not None]  # Giving NULL for LTC
         return dict(rates)
-
-    def protocol(self):
-        return "http"
 
     def history_ccys(self):
         return ['ARS', 'EUR', 'USD', 'VEF']
@@ -122,26 +120,17 @@ class BitcoinVenezuela(ExchangeBase):
                              "/historical/index.php?coin=BTC")[ccy +'_BTC']
 
 class BTCParalelo(ExchangeBase):
+
     def get_rates(self, ccy):
         json = self.get_json('btcparalelo.com', '/api/price')
         return {'VEF': Decimal(json['price'])}
 
-    def protocol(self):
-        return "http"
 
 class Bitso(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('api.bitso.com', '/v2/ticker')
         return {'MXN': Decimal(json['last'])}
 
-    def protocol(self):
-        return "http"
-
-class Bitcurex(ExchangeBase):
-    def get_rates(self, ccy):
-        json = self.get_json('pln.bitcurex.com', '/data/ticker.json')
-        pln_price = json['last']
-        return {'PLN': Decimal(pln_price)}
 
 class Bitmarket(ExchangeBase):
     def get_rates(self, ccy):
@@ -254,17 +243,13 @@ class Winkdex(ExchangeBase):
                      for h in history])
 
 class MercadoBitcoin(ExchangeBase):
-    def get_rates(self,ccy):
-	json = requests.get('http://api.bitvalor.com/v1/ticker.json').json()
+    def get_rates(self, ccy):
+	json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
         return {'BRL': Decimal(json['ticker_1h']['exchanges']['MBT']['last'])}
-    
-    def history_ccys(self):
-        return ['BRL']
 
 class Bitcointoyou(ExchangeBase):
-    def get_rates(self,ccy):
-        json = self.get_json('bitcointoyou.com',
-                                "/API/ticker.aspx")
+    def get_rates(self, ccy):
+        json = self.get_json('bitcointoyou.com', "/API/ticker.aspx")
         return {'BRL': Decimal(json['ticker']['last'])}
 
     def history_ccys(self):
@@ -272,24 +257,18 @@ class Bitcointoyou(ExchangeBase):
 
 class Bitvalor(ExchangeBase):
     def get_rates(self,ccy):
-	json = requests.get('http://api.bitvalor.com/v1/ticker.json').json()
+	json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
         return {'BRL': Decimal(json['ticker_1h']['total']['last'])}
-
-    def history_ccys(self):
-        return ['BRL']
 
 
 class Foxbit(ExchangeBase):
     def get_rates(self,ccy):
-	json = requests.get('http://api.bitvalor.com/v1/ticker.json').json()
+	json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
         return {'BRL': Decimal(json['ticker_1h']['exchanges']['FOX']['last'])}
-
-    def history_ccys(self):
-        return ['BRL']
 
 class NegocieCoins(ExchangeBase):
     def get_rates(self,ccy):
-	json = requests.get('http://api.bitvalor.com/v1/ticker.json').json()
+	json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
         return {'BRL': Decimal(json['ticker_1h']['exchanges']['NEG']['last'])}
 
     def history_ccys(self):
@@ -304,17 +283,39 @@ def dictinvert(d):
             keys.append(k)
     return inv
 
-def get_exchanges():
+def get_exchanges_and_currencies():
+    import os, json
+    path = os.path.join(os.path.dirname(__file__), 'currencies.json')
+    try:
+        return json.loads(open(path, 'r').read())
+    except:
+        pass
+    d = {}
     is_exchange = lambda obj: (inspect.isclass(obj)
                                and issubclass(obj, ExchangeBase)
                                and obj != ExchangeBase)
-    return dict(inspect.getmembers(sys.modules[__name__], is_exchange))
-
-def get_exchanges_by_ccy():
-    "return only the exchanges that have history rates (which is hardcoded)"
-    d = {}
-    exchanges = get_exchanges()
+    exchanges = dict(inspect.getmembers(sys.modules[__name__], is_exchange))
     for name, klass in exchanges.items():
+        exchange = klass(None, None)
+        try:
+            d[name] = exchange.get_currencies()
+        except:
+            continue
+    with open(path, 'w') as f:
+        f.write(json.dumps(d, indent=4, sort_keys=True))
+    return d
+
+
+CURRENCIES = get_exchanges_and_currencies()
+
+
+def get_exchanges_by_ccy(history=True):
+    if not history:
+        return dictinvert(CURRENCIES)
+    d = {}
+    exchanges = CURRENCIES.keys()
+    for name in exchanges:
+        klass = globals()[name]
         exchange = klass(None, None)
         d[name] = exchange.history_ccys()
     return dictinvert(d)
@@ -330,12 +331,15 @@ class FxThread(ThreadJob):
         self.history_used_spot = False
         self.ccy_combo = None
         self.hist_checkbox = None
-        self.exchanges = get_exchanges()
-        self.exchanges_by_ccy = get_exchanges_by_ccy()
         self.set_exchange(self.config_exchange())
 
+    def get_currencies(self):
+        d = get_exchanges_by_ccy(False)
+        return sorted(d.keys())
+
     def get_exchanges_by_ccy(self, ccy, h):
-        return self.exchanges_by_ccy.get(ccy, [])
+        d = get_exchanges_by_ccy(h)
+        return d.get(ccy, [])
 
     def ccy_amount_str(self, amount, commas):
         prec = CCY_PRECISIONS.get(self.ccy, 2)
@@ -380,12 +384,10 @@ class FxThread(ThreadJob):
         self.on_quotes()
 
     def set_exchange(self, name):
-        class_ = self.exchanges.get(name) or self.exchanges.values()[0]
-        name = class_.__name__
+        class_ = globals()[name]
         self.print_error("using exchange", name)
         if self.config_exchange() != name:
             self.config.set_key('use_exchange', name, True)
-
         self.exchange = class_(self.on_quotes, self.on_history)
         # A new exchange means new fx quotes, initially empty.  Force
         # a quote refresh
