@@ -311,7 +311,8 @@ if __name__ == '__main__':
     if config_options.get('portable'):
         config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum-ltc_data')
 
-    set_verbosity(config_options.get('verbose'))
+    # kivy sometimes freezes when we write to sys.stderr
+    set_verbosity(config_options.get('verbose') and config_options.get('gui')!='kivy')
 
     # check uri
     uri = config_options.get('url')
