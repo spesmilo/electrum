@@ -255,9 +255,8 @@ class Winkdex(ExchangeBase):
 
 class MercadoBitcoin(ExchangeBase):
     def get_rates(self,ccy):
-        json = self.get_json('mercadobitcoin.net',
-                                "/api/ticker/ticker_bitcoin")
-        return {'BRL': Decimal(json['ticker']['last'])}
+	json = requests.get('http://api.bitvalor.com/v1/ticker.json').json()
+        return {'BRL': Decimal(json['ticker_1h']['exchanges']['MBT']['last'])}
     
     def history_ccys(self):
         return ['BRL']
@@ -267,6 +266,31 @@ class Bitcointoyou(ExchangeBase):
         json = self.get_json('bitcointoyou.com',
                                 "/API/ticker.aspx")
         return {'BRL': Decimal(json['ticker']['last'])}
+
+    def history_ccys(self):
+        return ['BRL']
+
+class Bitvalor(ExchangeBase):
+    def get_rates(self,ccy):
+	json = requests.get('http://api.bitvalor.com/v1/ticker.json').json()
+        return {'BRL': Decimal(json['ticker_1h']['total']['last'])}
+
+    def history_ccys(self):
+        return ['BRL']
+
+
+class Foxbit(ExchangeBase):
+    def get_rates(self,ccy):
+	json = requests.get('http://api.bitvalor.com/v1/ticker.json').json()
+        return {'BRL': Decimal(json['ticker_1h']['exchanges']['FOX']['last'])}
+
+    def history_ccys(self):
+        return ['BRL']
+
+class NegocieCoins(ExchangeBase):
+    def get_rates(self,ccy):
+	json = requests.get('http://api.bitvalor.com/v1/ticker.json').json()
+        return {'BRL': Decimal(json['ticker_1h']['exchanges']['NEG']['last'])}
 
     def history_ccys(self):
         return ['BRL']
