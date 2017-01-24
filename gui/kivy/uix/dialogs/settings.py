@@ -246,7 +246,7 @@ class SettingsDialog(Factory.Popup):
             ccy = fx.get_currency()
             return '%s [%s]' %(ccy, source)
         else:
-            return 'Disabled'
+            return _('None')
 
     def fx_dialog(self, label, dt):
         if self._fx_dialog is None:
