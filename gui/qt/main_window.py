@@ -2578,7 +2578,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         ex_combo = QComboBox()
 
         def update_currencies():
-            currencies = sorted(self.fx.get_currencies())
+            currencies = sorted(self.fx.get_currencies(self.fx.get_history_config()))
             ccy_combo.clear()
             ccy_combo.addItems([_('None')] + currencies)
             if self.fx.is_enabled():

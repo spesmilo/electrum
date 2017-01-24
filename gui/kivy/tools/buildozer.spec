@@ -13,19 +13,19 @@ package.domain = org.electrum_ltc
 source.dir = .
 
 # (list) Source files to include (let empty to include all the files)
-source.include_exts = py,png,jpg,kv,atlas,ttf,txt,gif,pem,mo,vs,fs
+source.include_exts = py,png,jpg,kv,atlas,ttf,txt,gif,pem,mo,vs,fs,json
 
 # (list) Source files to exclude (let empty to not exclude anything)
 source.exclude_exts = spec
 
 # (list) List of directory to exclude (let empty to not exclude anything)
-source.exclude_dirs = bin, build, dist, contrib, gui/android, gui/qt, gui/kivy/tools, gui/kivy/theming/light
+source.exclude_dirs = bin, build, dist, contrib, gui/qt, gui/kivy/tools, gui/kivy/theming/light
 # (list) List of exclusions using pattern matching
 source.exclude_patterns = Makefile,setup*
 
 # (str) Application versioning (method 1)
-version.regex = ELECTRUM_VERSION = '(.*)'
-version.filename = %(source.dir)s/lib/version.py
+version.regex = version_apk = '(.*)'
+version.filename = %(source.dir)s/contrib/versions.py
 
 # (str) Application versioning (method 2)
 #version = 1.9.8
@@ -53,7 +53,7 @@ fullscreen = False
 #
 
 # (list) Permissions
-android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE, CAMERA, NFC
+android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
 # (int) Android API to use
 #android.api = 14
 
@@ -119,6 +119,8 @@ android.manifest.intent_filters = gui/kivy/tools/bitcoin_intent.xml
 
 android.p4a_whitelist = lib-dynload/_csv.so
 
+# local version that merges branch 866
+android.p4a_dir = /opt/python-for-android
 
 #
 # iOS specific

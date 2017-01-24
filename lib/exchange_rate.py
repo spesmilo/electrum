@@ -271,8 +271,8 @@ class FxThread(ThreadJob):
         self.hist_checkbox = None
         self.set_exchange(self.config_exchange())
 
-    def get_currencies(self):
-        d = get_exchanges_by_ccy(False)
+    def get_currencies(self, h):
+        d = get_exchanges_by_ccy(h)
         return sorted(d.keys())
 
     def get_exchanges_by_ccy(self, ccy, h):

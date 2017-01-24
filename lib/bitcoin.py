@@ -733,37 +733,30 @@ def _CKD_pub(cK, c, s):
     return cK_n, c_n
 
 
-def deserialize_xkey(xkey):
+def deserialize_xkey(xkey, prv):
+    headers = (XPRV_HEADER, XPRV_HEADER_ALT) if prv else (XPUB_HEADER, XPUB_HEADER_ALT)
     xkey = DecodeBase58Check(xkey)
     assert len(xkey) == 78
     depth = ord(xkey[4])
     fingerprint = xkey[5:9]
     child_number = xkey[9:13]
     c = xkey[13:13+32]
-    if xkey[0:4].encode('hex') in (XPRV_HEADER, XPRV_HEADER_ALT):
-        K_or_k = xkey[13+33:]
+    if xkey[0:4].encode('hex') in headers:
+        n = 33 if prv else 32
+        K_or_k = xkey[13+n:]
     else:
-        K_or_k = xkey[13+32:]
+        raise BaseException('wrong key')
     return depth, fingerprint, child_number, c, K_or_k
 
+def deserialize_xpub(xkey):
+    return deserialize_xkey(xkey, False)
 
-def get_xkey_name(xkey):
-    depth, fingerprint, child_number, c, K = deserialize_xkey(xkey)
-    n = int(child_number.encode('hex'), 16)
-    if n & BIP32_PRIME:
-        child_id = "%d'"%(n - BIP32_PRIME)
-    else:
-        child_id = "%d"%n
-    if depth == 0:
-        return ''
-    elif depth == 1:
-        return child_id
-    else:
-        raise BaseException("xpub depth error")
+def deserialize_xprv(xkey):
+    return deserialize_xkey(xkey, True)
 
 
 def xpub_from_xprv(xprv):
-    depth, fingerprint, child_number, c, k = deserialize_xkey(xprv)
+    depth, fingerprint, child_number, c, k = deserialize_xprv(xprv)
     K, cK = get_pubkeys_from_secret(k)
     xpub = XPUB_HEADER.decode('hex') + chr(depth) + fingerprint + child_number + c + cK
     return EncodeBase58Check(xpub)
@@ -790,7 +783,7 @@ def bip32_private_derivation(xprv, branch, sequence):
     assert sequence.startswith(branch)
     if branch == sequence:
         return xprv, xpub_from_xprv(xprv)
-    depth, fingerprint, child_number, c, k = deserialize_xkey(xprv)
+    depth, fingerprint, child_number, c, k = deserialize_xprv(xprv)
     sequence = sequence[len(branch):]
     for n in sequence.split('/'):
         if n == '': continue
@@ -809,7 +802,7 @@ def bip32_private_derivation(xprv, branch, sequence):
 
 
 def bip32_public_derivation(xpub, branch, sequence):
-    depth, fingerprint, child_number, c, cK = deserialize_xkey(xpub)
+    depth, fingerprint, child_number, c, cK = deserialize_xpub(xpub)
     assert sequence.startswith(branch)
     sequence = sequence[len(branch):]
     for n in sequence.split('/'):

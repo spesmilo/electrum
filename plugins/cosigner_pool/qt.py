@@ -129,7 +129,7 @@ class Plugin(BasePlugin):
         self.cosigner_list = []
         for key, keystore in wallet.keystores.items():
             xpub = keystore.get_master_public_key()
-            K = bitcoin.deserialize_xkey(xpub)[-1].encode('hex')
+            K = bitcoin.deserialize_xpub(xpub)[-1].encode('hex')
             _hash = bitcoin.Hash(K).encode('hex')
             if not keystore.is_watching_only():
                 self.keys.append((key, _hash, window))
@@ -203,7 +203,7 @@ class Plugin(BasePlugin):
         if not xprv:
             return
         try:
-            k = bitcoin.deserialize_xkey(xprv)[-1].encode('hex')
+            k = bitcoin.deserialize_xprv(xprv)[-1].encode('hex')
             EC = bitcoin.EC_KEY(k.decode('hex'))
             message = EC.decrypt_message(message)
         except Exception as e:

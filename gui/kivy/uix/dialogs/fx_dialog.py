@@ -11,16 +11,6 @@ Builder.load_string('''
     pos_hint: {'top':0.9}
     BoxLayout:
         orientation: 'vertical'
-        BoxLayout:
-            orientation: 'horizontal'
-            size_hint: 1, 0.1
-            Label:
-                text: _('Enable')
-                height: '48dp'
-            CheckBox:
-                height: '48dp'
-                id: enabled
-                on_active: popup.on_active(self.active)
 
         Widget:
             size_hint: 1, 0.1
@@ -76,7 +66,7 @@ from kivy.uix.checkbox import CheckBox
 from kivy.uix.widget import Widget
 from kivy.clock import Clock
 
-from electrum_ltc.plugins import run_hook
+from electrum_ltc_gui.kivy.i18n import _
 from functools import partial
 
 class FxDialog(Factory.Popup):
@@ -87,11 +77,8 @@ class FxDialog(Factory.Popup):
         self.config = config
         self.callback = callback
         self.fx = self.app.fx
-        self.ids.enabled.active = self.fx.is_enabled()
-
-    def on_active(self, b):
-        self.fx.set_enabled(b)
-        Clock.schedule_once(lambda dt: self.add_currencies())
+        self.fx.set_history_config(True)
+        self.add_currencies()
 
     def add_exchanges(self):
         exchanges = sorted(self.fx.get_exchanges_by_ccy(self.fx.get_currency(), True)) if self.fx.is_enabled() else []
@@ -107,14 +94,16 @@ class FxDialog(Factory.Popup):
             self.fx.set_exchange(text)
 
     def add_currencies(self):
-        currencies = sorted(self.fx.get_currencies()) if self.fx else []
-        my_ccy = self.fx.get_currency() if self.fx.is_enabled() else ''
+        currencies = [_('None')] + self.fx.get_currencies(True)
+        my_ccy = self.fx.get_currency() if self.fx.is_enabled() else _('None')
         self.ids.ccy.values = currencies
         self.ids.ccy.text = my_ccy
 
     def on_currency(self, ccy):
-        if ccy:
-            if self.fx.is_enabled() and ccy != self.fx.get_currency():
+        b = (ccy != _('None'))
+        self.fx.set_enabled(b)
+        if b:
+            if ccy != self.fx.get_currency():
                 self.fx.set_currency(ccy)
             self.app.fiat_unit = ccy
         Clock.schedule_once(lambda dt: self.add_exchanges())

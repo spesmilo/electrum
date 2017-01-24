@@ -68,6 +68,7 @@ setup(
     },
     package_data={
         'electrum_ltc': [
+            'currencies.json',
             'www/index.html',
             'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electrum.mo',

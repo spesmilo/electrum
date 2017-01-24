@@ -1,3 +1,9 @@
+# Release 2.7.18
+  * enforce https on exchange rate APIs
+  * use hardcoded list of exchanges
+  * move 'Freeze' menu to Coins (utxo) tab
+  * various bugfixes
+
 # Release 2.7.17
   * fix a few minor regressions in the Qt GUI
 

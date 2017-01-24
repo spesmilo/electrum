@@ -29,7 +29,7 @@ from unicodedata import normalize
 
 from version import *
 import bitcoin
-from bitcoin import pw_encode, pw_decode, bip32_root, bip32_private_derivation, bip32_public_derivation, bip32_private_key, deserialize_xkey
+from bitcoin import pw_encode, pw_decode, bip32_root, bip32_private_derivation, bip32_public_derivation, bip32_private_key, deserialize_xprv, deserialize_xpub
 from bitcoin import public_key_from_private_key, public_key_to_bc_address
 from bitcoin import *
 
@@ -241,7 +241,7 @@ class Xpub:
 
     @classmethod
     def get_pubkey_from_xpub(self, xpub, sequence):
-        _, _, _, c, cK = deserialize_xkey(xpub)
+        _, _, _, c, cK = deserialize_xpub(xpub)
         for i in sequence:
             cK, c = CKD_pub(cK, c, i)
         return cK.encode('hex')
@@ -298,7 +298,7 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
 
     def check_password(self, password):
         xprv = pw_decode(self.xprv, password)
-        if deserialize_xkey(xprv)[3] != deserialize_xkey(self.xpub)[3]:
+        if deserialize_xprv(xprv)[3] != deserialize_xpub(self.xpub)[3]:
             raise InvalidPassword()
 
     def update_password(self, old_password, new_password):
@@ -329,7 +329,7 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
 
     def get_private_key(self, sequence, password):
         xprv = self.get_master_private_key(password)
-        _, _, _, c, k = deserialize_xkey(xprv)
+        _, _, _, c, k = deserialize_xprv(xprv)
         pk = bip32_private_key(sequence, k, c)
         return pk
 
@@ -623,19 +623,15 @@ def is_old_mpk(mpk):
     return len(mpk) == 128
 
 def is_xpub(text):
-    if text[0:4] not in ('xpub', 'Ltub'):
-        return False
     try:
-        deserialize_xkey(text)
+        deserialize_xpub(text)
         return True
     except:
         return False
 
 def is_xprv(text):
-    if text[0:4] not in ('xprv', 'Ltpv'):
-        return False
     try:
-        deserialize_xkey(text)
+        deserialize_xprv(text)
         return True
     except:
         return False
