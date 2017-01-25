@@ -6,12 +6,12 @@ import sys
 import traceback
 
 import electrum
-from electrum.bitcoin import EncodeBase58Check, DecodeBase58Check, TYPE_ADDRESS, int_to_hex, var_int
+from electrum.bitcoin import EncodeBase58Check, DecodeBase58Check, TYPE_ADDRESS, XPUB_HEADER, int_to_hex, var_int
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from electrum.keystore import Hardware_KeyStore, parse_xpubkey
 from ..hw_wallet import HW_PluginBase
-from electrum.util import format_satoshis_plain, print_error
+from electrum.util import format_satoshis_plain, print_error, is_verbose
 
 try:
     import hid
@@ -22,7 +22,7 @@ try:
     from btchip.btchipFirmwareWizard import checkFirmware, updateFirmware
     from btchip.btchipException import BTChipException
     BTCHIP = True
-    BTCHIP_DEBUG = False
+    BTCHIP_DEBUG = is_verbose
 except ImportError:
     BTCHIP = False
 
@@ -78,7 +78,7 @@ class Ledger_Client():
                 childnum = int(lastChild[0])
             else:
                 childnum = 0x80000000 | int(lastChild[0])
-            xpub = "0488B21E".decode('hex') + chr(depth) + self.i4b(fingerprint) + self.i4b(childnum) + str(nodeData['chainCode']) + str(publicKey)
+            xpub = XPUB_HEADER.decode('hex') + chr(depth) + self.i4b(fingerprint) + self.i4b(childnum) + str(nodeData['chainCode']) + str(publicKey)
         except Exception, e:
             #self.give_error(e, True)
             return None
@@ -108,9 +108,13 @@ class Ledger_Client():
                 return True
             raise e
 
+    def supports_multi_output(self):
+        return self.multiOutputSupported
+
     def perform_hw1_preflight(self):
         try:
             firmware = self.dongleObject.getFirmwareVersion()['version'].split(".")
+            self.multiOutputSupported = int(firmware[0]) >= 1 and int(firmware[1]) >= 1 and int(firmware[2]) >= 4
             if not checkFirmware(firmware):
                 self.dongleObject.dongle.close()
                 raise Exception("HW1 firmware version too old. Please update at https://www.ledgerwallet.com")
@@ -180,6 +184,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
         return self.derivation        
 
     def get_client(self):
+        return self.plugin.get_client(self).dongleObject
+    
+    def get_client_electrum(self):
         return self.plugin.get_client(self)
     
     def give_error(self, message, clear_client = False):
@@ -264,7 +271,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         output = None
         outputAmount = None
         p2shTransaction = False
-	reorganize = False
+    	reorganize = False
         pin = ""
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
 
@@ -307,8 +314,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
         # Recognize outputs - only one output and one change is authorized
         if not p2shTransaction:
-            if len(tx.outputs()) > 2: # should never happen
-                self.give_error("Transaction with more than 2 outputs not supported")
+            if not self.get_client_electrum().supports_multi_output():
+                if len(tx.outputs()) > 2:
+                    self.give_error("Transaction with more than 2 outputs not supported")
             for _type, address, amount in tx.outputs():
                 assert _type == TYPE_ADDRESS
                 info = tx.output_info.get(address)
@@ -470,6 +478,5 @@ class LedgerPlugin(HW_PluginBase):
         #if client:
         #    client.used()
         if client <> None:
-            client.checkDevice()
-            client = client.dongleObject            
+            client.checkDevice()                    
         return client
