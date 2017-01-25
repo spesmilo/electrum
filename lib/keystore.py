@@ -241,7 +241,7 @@ class Xpub:
 
     @classmethod
     def get_pubkey_from_xpub(self, xpub, sequence):
-        _, _, _, c, cK = deserialize_xpub(xpub)
+        _, _, _, _, c, cK = deserialize_xpub(xpub)
         for i in sequence:
             cK, c = CKD_pub(cK, c, i)
         return cK.encode('hex')
@@ -298,7 +298,7 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
 
     def check_password(self, password):
         xprv = pw_decode(self.xprv, password)
-        if deserialize_xprv(xprv)[3] != deserialize_xpub(self.xpub)[3]:
+        if deserialize_xprv(xprv)[4] != deserialize_xpub(self.xpub)[4]:
             raise InvalidPassword()
 
     def update_password(self, old_password, new_password):
@@ -322,14 +322,14 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         self.xprv = xprv
         self.xpub = bitcoin.xpub_from_xprv(xprv)
 
-    def add_xprv_from_seed(self, bip32_seed, derivation):
-        xprv, xpub = bip32_root(bip32_seed)
+    def add_xprv_from_seed(self, bip32_seed, xtype, derivation):
+        xprv, xpub = bip32_root(bip32_seed, xtype)
         xprv, xpub = bip32_private_derivation(xprv, "m/", derivation)
         self.add_xprv(xprv)
 
     def get_private_key(self, sequence, password):
         xprv = self.get_master_private_key(password)
-        _, _, _, c, k = deserialize_xprv(xprv)
+        _, _, _, _, c, k = deserialize_xprv(xprv)
         pk = bip32_private_key(sequence, k, c)
         return pk
 
@@ -622,20 +622,6 @@ def is_old_mpk(mpk):
         return False
     return len(mpk) == 128
 
-def is_xpub(text):
-    try:
-        deserialize_xpub(text)
-        return True
-    except:
-        return False
-
-def is_xprv(text):
-    try:
-        deserialize_xprv(text)
-        return True
-    except:
-        return False
-
 def is_address_list(text):
     parts = text.split()
     return bool(parts) and all(bitcoin.is_address(x) for x in parts)
@@ -669,7 +655,8 @@ def from_seed(seed, passphrase):
         keystore.add_seed(seed)
         keystore.passphrase = passphrase
         bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
-        keystore.add_xprv_from_seed(bip32_seed, "m/")
+        xtype = 0 if t == 'standard' else 1
+        keystore.add_xprv_from_seed(bip32_seed, xtype, "m/")
     return keystore
 
 def from_private_key_list(text):

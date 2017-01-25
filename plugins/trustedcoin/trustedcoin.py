@@ -285,19 +285,16 @@ def get_user_id(storage):
     return long_id, short_id
 
 def make_xpub(xpub, s):
-    _, _, _, c, cK = deserialize_xpub(xpub)
+    version, _, _, _, c, cK = deserialize_xpub(xpub)
     cK2, c2 = bitcoin._CKD_pub(cK, c, s)
-    xpub2 = ("0488B21E" + "00" + "00000000" + "00000000").decode("hex") + c2 + cK2
-    return EncodeBase58Check(xpub2)
-
+    return bitcoin.serialize_xpub(version, c2, cK2)
 
 def make_billing_address(wallet, num):
     long_id, short_id = wallet.get_user_id()
     xpub = make_xpub(billing_xpub, long_id)
-    _, _, _, c, cK = deserialize_xpub(xpub)
+    version, _, _, _, c, cK = deserialize_xpub(xpub)
     cK, c = bitcoin.CKD_pub(cK, c, num)
-    address = public_key_to_bc_address( cK )
-    return address
+    return bitcoin.public_key_to_p2pkh(cK)
 
 
 class TrustedCoinPlugin(BasePlugin):
@@ -524,7 +521,7 @@ class TrustedCoinPlugin(BasePlugin):
         challenge = r.get('challenge')
         message = 'TRUSTEDCOIN CHALLENGE: ' + challenge
         def f(xprv):
-            _, _, _, c, k = deserialize_xprv(xprv)
+            _, _, _, _, c, k = deserialize_xprv(xprv)
             pk = bip32_private_key([0, 0], k, c)
             key = regenerate_key(pk)
             compressed = is_compressed(pk)
