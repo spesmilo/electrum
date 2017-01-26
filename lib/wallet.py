@@ -1631,15 +1631,15 @@ class P2SH:
 class Standard_Wallet(Simple_Deterministic_Wallet):
     wallet_type = 'standard'
 
-    def pubkeys_to_redeem_script(self, pubkeys):
+    def pubkeys_to_redeem_script(self, pubkey):
         if self.xpub_type == 1:
             return transaction.segwit_script(pubkey)
 
     def pubkeys_to_address(self, pubkey):
         if self.xpub_type == 0:
             return bitcoin.public_key_to_p2pkh(pubkey.decode('hex'))
-        elif self.xpub_type == 1 and TESTNET:
-            redeem_script = self.pubkeys_to_redeem_script(pubkeys)
+        elif self.xpub_type == 1 and bitcoin.TESTNET:
+            redeem_script = self.pubkeys_to_redeem_script(pubkey)
             return bitcoin.hash160_to_p2sh(hash_160(redeem_script.decode('hex')))
         else:
             raise NotImplementedError()

@@ -745,7 +745,7 @@ def xprv_header(xtype):
 def xpub_header(xtype):
     return ("%08x"%(XPUB_HEADER + xtype)).decode('hex')
 
-def serialize_xpub(xtype, c, k):
+def serialize_xprv(xtype, c, k):
     xprv = xprv_header(xtype) + chr(0)*9 + c + chr(0) + k
     return EncodeBase58Check(xprv)
 
@@ -802,7 +802,7 @@ def bip32_root(seed, xtype):
     master_c = I[32:]
     K, cK = get_pubkeys_from_secret(master_k)
     xprv = serialize_xprv(xtype, master_c, master_k)
-    xpub = serialize_xpub(xtype, master_c + cK)
+    xpub = serialize_xpub(xtype, master_c, cK)
     return xprv, xpub
 
 def xpub_from_pubkey(xtype, cK):
