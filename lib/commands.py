@@ -747,6 +747,7 @@ def get_parser():
     group.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum-ltc_data' directory")
     group.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
     group.add_argument("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
+    group.add_argument("--segwit", action="store_true", dest="segwit", default=False, help="The Wizard will create Segwit seed phrases (Testnet only).")
     # create main parser
     parser = argparse.ArgumentParser(
         parents=[parent_parser],

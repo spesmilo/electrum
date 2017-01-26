@@ -26,7 +26,7 @@
 import os
 import bitcoin
 import keystore
-from wallet import Wallet, Imported_Wallet, Standard_Wallet, Multisig_Wallet, WalletStorage, wallet_types
+from wallet import Wallet, Imported_Wallet, Standard_Wallet, Segwit_Wallet, Multisig_Wallet, WalletStorage, wallet_types
 from i18n import _
 from plugins import run_hook
 
@@ -41,6 +41,7 @@ class BaseWizard(object):
         self.plugin = None
         self.keystores = []
         self.is_kivy = config.get('gui') == 'kivy'
+        self.seed_type = None
 
     def run(self, *args):
         action = args[0]
@@ -271,25 +272,24 @@ class BaseWizard(object):
         self.restore_seed_dialog(run_next=self.on_restore_seed, test=test)
 
     def on_restore_seed(self, seed, is_bip39, is_ext):
-        if is_bip39:
+        self.seed_type = 'bip39' if is_bip39 else bitcoin.seed_type(seed)
+        if self.seed_type == 'bip39':
             f = lambda passphrase: self.on_restore_bip39(seed, passphrase)
             self.passphrase_dialog(run_next=f) if is_ext else f('')
-        else:
-            seed_type = bitcoin.seed_type(seed)
-            if seed_type == 'standard':
-                f = lambda passphrase: self.run('create_keystore', seed, passphrase)
-                self.passphrase_dialog(run_next=f) if is_ext else f('')
-            elif seed_type == 'old':
-                self.run('create_keystore', seed, '')
-            elif seed_type == '2fa':
-                if self.is_kivy:
-                    self.show_error('2FA seeds are not supported in this version')
-                    self.run('restore_from_seed')
-                else:
-                    self.load_2fa()
-                    self.run('on_restore_seed', seed, is_ext)
+        elif self.seed_type in ['standard', 'segwit']:
+            f = lambda passphrase: self.run('create_keystore', seed, passphrase)
+            self.passphrase_dialog(run_next=f) if is_ext else f('')
+        elif self.seed_type == 'old':
+            self.run('create_keystore', seed, '')
+        elif self.seed_type == '2fa':
+            if self.is_kivy:
+                self.show_error('2FA seeds are not supported in this version')
+                self.run('restore_from_seed')
             else:
-                raise BaseException('Unknown seed type', seed_type)
+                self.load_2fa()
+                self.run('on_restore_seed', seed, is_ext)
+        else:
+            raise BaseException('Unknown seed type', seed_type)
 
     def on_restore_bip39(self, seed, passphrase):
         f = lambda x: self.run('on_bip44', seed, passphrase, int(x))
@@ -337,8 +337,12 @@ class BaseWizard(object):
             if k.may_have_password():
                 k.update_password(None, password)
         if self.wallet_type == 'standard':
+            self.storage.put('seed_type', self.seed_type)
             self.storage.put('keystore', k.dump())
-            self.wallet = Standard_Wallet(self.storage)
+            if self.seed_type == 'segwit':
+                self.wallet = Segwit_Wallet(self.storage)
+            else:
+                self.wallet = Standard_Wallet(self.storage)
             self.run('create_addresses')
         elif self.wallet_type == 'multisig':
             for i, k in enumerate(self.keystores):
@@ -358,8 +362,9 @@ class BaseWizard(object):
         self.on_keystore(k)
 
     def create_seed(self):
-        from electrum_ltc.mnemonic import Mnemonic
-        seed = Mnemonic('en').make_seed()
+        import mnemonic
+        self.seed_type = 'segwit' if bitcoin.TESTNET and self.config.get('segwit') else 'standard'
+        seed = mnemonic.Mnemonic('en').make_seed(self.seed_type)
         self.opt_bip39 = False
         f = lambda x: self.request_passphrase(seed, x)
         self.show_seed_dialog(run_next=f, seed_text=seed)

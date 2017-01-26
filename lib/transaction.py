@@ -303,15 +303,26 @@ def parse_scriptSig(d, bytes):
         print_error("cannot find address in input script", bytes.encode('hex'))
         return
 
-    # payto_pubkey
     match = [ opcodes.OP_PUSHDATA4 ]
     if match_decoded(decoded, match):
-        sig = decoded[0][1].encode('hex')
-        d['address'] = "(pubkey)"
-        d['signatures'] = [sig]
-        d['num_sig'] = 1
-        d['x_pubkeys'] = ["(pubkey)"]
-        d['pubkeys'] = ["(pubkey)"]
+        item = decoded[0][1]
+        if item[0] == chr(0):
+            redeemScript = item.encode('hex')
+            d['address'] = bitcoin.hash160_to_p2sh(bitcoin.hash_160(redeemScript.decode('hex')))
+            d['type'] = 'p2wpkh-p2sh'
+            d['redeemScript'] = redeemScript
+            d['x_pubkeys'] = ["(witness)"]
+            d['pubkeys'] = ["(witness)"]
+            d['signatures'] = ['(witness)']
+            d['num_sig'] = 1
+        else:
+            # payto_pubkey
+            d['type'] = 'p2pk'
+            d['address'] = "(pubkey)"
+            d['signatures'] = [item.encode('hex')]
+            d['num_sig'] = 1
+            d['x_pubkeys'] = ["(pubkey)"]
+            d['pubkeys'] = ["(pubkey)"]
         return
 
     # non-generated TxIn transactions push a signature
@@ -329,6 +340,7 @@ def parse_scriptSig(d, bytes):
             traceback.print_exc(file=sys.stdout)
             print_error("cannot find address in input script", bytes.encode('hex'))
             return
+        d['type'] = 'p2pkh'
         d['signatures'] = signatures
         d['x_pubkeys'] = [x_pubkey]
         d['num_sig'] = 1
@@ -353,8 +365,9 @@ def parse_scriptSig(d, bytes):
         return
     x_pubkeys = map(lambda x: x[1].encode('hex'), dec2[1:-2])
     pubkeys = [xpubkey_to_address(x)[0] for x in x_pubkeys]
-    redeemScript = Transaction.multisig_script(pubkeys, m)
+    redeemScript = multisig_script(pubkeys, m)
     # write result in d
+    d['type'] = 'p2sh'
     d['num_sig'] = m
     d['signatures'] = parse_sig(x_sig)
     d['x_pubkeys'] = x_pubkeys
@@ -412,6 +425,10 @@ def parse_input(vds):
             parse_scriptSig(d, scriptSig)
     return d
 
+def parse_witness(vds):
+    n = vds.read_compact_size()
+    for i in range(n):
+        x = vds.read_bytes(vds.read_compact_size())
 
 def parse_output(vds, i):
     d = {}
@@ -430,15 +447,53 @@ def deserialize(raw):
     start = vds.read_cursor
     d['version'] = vds.read_int32()
     n_vin = vds.read_compact_size()
+    is_segwit = (n_vin == 0)
+    if is_segwit:
+        marker = vds.read_bytes(1)
+        assert marker == chr(1)
+        n_vin = vds.read_compact_size()
     d['inputs'] = list(parse_input(vds) for i in xrange(n_vin))
     n_vout = vds.read_compact_size()
     d['outputs'] = list(parse_output(vds,i) for i in xrange(n_vout))
+    if is_segwit:
+        d['witness'] = list(parse_witness(vds) for i in xrange(n_vin))
     d['lockTime'] = vds.read_uint32()
     return d
 
 
+# pay & redeem scripts
+
 def push_script(x):
     return op_push(len(x)/2) + x
+
+def get_scriptPubKey(addr):
+    addrtype, hash_160 = bc_address_to_hash_160(addr)
+    if addrtype == bitcoin.ADDRTYPE_P2PKH:
+        script = '76a9'                                      # op_dup, op_hash_160
+        script += push_script(hash_160.encode('hex'))
+        script += '88ac'                                     # op_equalverify, op_checksig
+    elif addrtype == bitcoin.ADDRTYPE_P2SH:
+        script = 'a9'                                        # op_hash_160
+        script += push_script(hash_160.encode('hex'))
+        script += '87'                                       # op_equal
+    else:
+        raise BaseException('unknown address type')
+    return script
+
+def segwit_script(pubkey):
+    pkh = hash_160(pubkey.decode('hex')).encode('hex')
+    return '00' + push_script(pkh)
+
+def multisig_script(public_keys, m):
+    n = len(public_keys)
+    assert n <= 15
+    assert m <= n
+    op_m = format(opcodes.OP_1 + m - 1, 'x')
+    op_n = format(opcodes.OP_1 + n - 1, 'x')
+    keylist = [op_push(len(k)/2) + k for k in public_keys]
+    return op_m + ''.join(keylist) + op_n + 'ae'
+
+
 
 
 class Transaction:
@@ -485,7 +540,7 @@ class Transaction:
             for sig in sigs2:
                 if sig in sigs1:
                     continue
-                for_sig = Hash(self.tx_for_sig(i).decode('hex'))
+                pre_hash = Hash(self.serialize_preimage(i).decode('hex'))
                 # der to string
                 order = ecdsa.ecdsa.generator_secp256k1.order()
                 r, s = ecdsa.util.sigdecode_der(sig.decode('hex'), order)
@@ -493,10 +548,10 @@ class Transaction:
                 pubkeys = txin.get('pubkeys')
                 compressed = True
                 for recid in range(4):
-                    public_key = MyVerifyingKey.from_signature(sig_string, recid, for_sig, curve = SECP256k1)
+                    public_key = MyVerifyingKey.from_signature(sig_string, recid, pre_hash, curve = SECP256k1)
                     pubkey = point_to_ser(public_key.pubkey.point, compressed).encode('hex')
                     if pubkey in pubkeys:
-                        public_key.verify_digest(sig_string, for_sig, sigdecode = ecdsa.util.sigdecode_string)
+                        public_key.verify_digest(sig_string, pre_hash, sigdecode = ecdsa.util.sigdecode_string)
                         j = pubkeys.index(pubkey)
                         print_error("adding sig", i, j, pubkey, sig)
                         self._inputs[i]['signatures'][j] = sig
@@ -526,91 +581,71 @@ class Transaction:
         return self
 
     @classmethod
-    def multisig_script(klass, public_keys, m):
-        n = len(public_keys)
-        assert n <= 15
-        assert m <= n
-        op_m = format(opcodes.OP_1 + m - 1, 'x')
-        op_n = format(opcodes.OP_1 + n - 1, 'x')
-        keylist = [op_push(len(k)/2) + k for k in public_keys]
-        return op_m + ''.join(keylist) + op_n + 'ae'
-
-    @classmethod
     def pay_script(self, output_type, addr):
         if output_type == TYPE_SCRIPT:
             return addr.encode('hex')
         elif output_type == TYPE_ADDRESS:
-            addrtype, hash_160 = bc_address_to_hash_160(addr)
-            if addrtype == bitcoin.ADDRTYPE_P2PKH:
-                script = '76a9'                                      # op_dup, op_hash_160
-                script += push_script(hash_160.encode('hex'))
-                script += '88ac'                                     # op_equalverify, op_checksig
-            elif addrtype == bitcoin.ADDRTYPE_P2SH:
-                script = 'a9'                                        # op_hash_160
-                script += push_script(hash_160.encode('hex'))
-                script += '87'                                       # op_equal
-            else:
-                raise
+            return get_scriptPubKey(addr)
         else:
-            raise
+            raise BaseException('Unknown output type')
         return script
 
     @classmethod
-    def input_script(self, txin, i, for_sig):
-        # for_sig:
-        #   -1   : do not sign, estimate length
-        #   i>=0 : serialized tx for signing input i
-        #   None : add all known signatures
-
-        p2sh = txin.get('redeemScript') is not None
-        num_sig = txin['num_sig'] if p2sh else 1
-        address = txin['address']
-
+    def get_siglist(self, txin, estimate_size=False):
+        # if we have enough signatures, we use the actual pubkeys
+        # otherwise, use extended pubkeys (with bip32 derivation)
+        num_sig = txin.get('num_sig', 1)
         x_signatures = txin['signatures']
         signatures = filter(None, x_signatures)
         is_complete = len(signatures) == num_sig
-
-        if for_sig in [-1, None]:
-            # if we have enough signatures, we use the actual pubkeys
-            # use extended pubkeys (with bip32 derivation)
-            if for_sig == -1:
-                # we assume that signature will be 0x48 bytes long
-                pubkeys = txin['pubkeys']
-                sig_list = [ "00" * 0x48 ] * num_sig
-            elif is_complete:
-                pubkeys = txin['pubkeys']
-                sig_list = ((sig + '01') for sig in signatures)
-            else:
-                pubkeys = txin['x_pubkeys']
-                sig_list = ((sig + '01') if sig else NO_SIGNATURE for sig in x_signatures)
-            script = ''.join(push_script(x) for x in sig_list)
-            if not pubkeys:
-                pass
-            elif not p2sh:
-                x_pubkey = pubkeys[0]
-                if x_pubkey is None:
-                    addrtype, h160 = bc_address_to_hash_160(txin['address'])
-                    x_pubkey = 'fd' + (chr(addrtype) + h160).encode('hex')
-                script += push_script(x_pubkey)
-            else:
-                script = '00' + script          # put op_0 in front of script
-                redeem_script = self.multisig_script(pubkeys, num_sig)
-                script += push_script(redeem_script)
-
-        elif for_sig==i:
-            script = txin['redeemScript'] if p2sh else self.pay_script(TYPE_ADDRESS, address)
+        if estimate_size:
+            # we assume that signature will be 0x48 bytes long
+            pubkeys = txin['pubkeys']
+            sig_list = [ "00" * 0x48 ] * num_sig
+        elif is_complete:
+            pubkeys = txin['pubkeys']
+            sig_list = [(sig + '01') for sig in signatures]
         else:
-            script = ''
+            pubkeys = txin['x_pubkeys']
+            sig_list = [(sig + '01') if sig else NO_SIGNATURE for sig in x_signatures]
+        return pubkeys, sig_list
 
+    @classmethod
+    def serialize_witness(self, txin):
+        pubkeys, sig_list = self.get_siglist(txin)
+        n = len(pubkeys) + len(sig_list)
+        return var_int(n) + ''.join(push_script(x) for x in sig_list) + ''.join(push_script(x) for x in pubkeys)
+
+    @classmethod
+    def is_segwit_input(self, txin):
+        return txin['type'] in ['p2wpkh-p2sh']
+
+    @classmethod
+    def input_script(self, txin, estimate_size=False):
+        redeem_script = txin.get('redeemScript')
+        if self.is_segwit_input(txin):
+            return push_script(redeem_script)
+        pubkeys, sig_list = self.get_siglist(txin, estimate_size)
+        script = ''.join(push_script(x) for x in sig_list)
+        if not pubkeys:
+            pass
+        elif redeem_script:
+            # put op_0 before script
+            script = '00' + script
+            script += push_script(redeem_script)
+        else:
+            script += push_script(pubkeys[0])
         return script
 
     @classmethod
-    def serialize_input(self, txin, i, for_sig):
+    def serialize_outpoint(self, txin):
+        return txin['prevout_hash'].decode('hex')[::-1].encode('hex') + int_to_hex(txin['prevout_n'], 4)
+
+    @classmethod
+    def serialize_input(self, txin, script):
         # Prev hash and index
-        s = txin['prevout_hash'].decode('hex')[::-1].encode('hex')
-        s += int_to_hex(txin['prevout_n'], 4)
+        s = self.serialize_outpoint(txin)
         # Script length, script, sequence
-        script = self.input_script(txin, i, for_sig)
         s += var_int(len(script)/2)
         s += script
         s += int_to_hex(txin.get('sequence', 0xffffffff), 4)
@@ -625,30 +660,71 @@ class Transaction:
         self._inputs.sort(key = lambda i: (i['prevout_hash'], i['prevout_n']))
         self._outputs.sort(key = lambda o: (o[2], self.pay_script(o[0], o[1])))
 
-    def serialize(self, for_sig=None):
-        inputs = self.inputs()
-        outputs = self.outputs()
-        s = int_to_hex(1, 4)                                         # version
-        s += var_int(len(inputs))                                    # number of inputs
-        for i, txin in enumerate(inputs):
-            s += self.serialize_input(txin, i, for_sig)
-        s += var_int(len(outputs))                                   # number of outputs
-        for output in outputs:
-            output_type, addr, amount = output
-            s += int_to_hex(amount, 8)                               # amount
-            script = self.pay_script(output_type, addr)
-            s += var_int(len(script)/2)                              #  script length
-            s += script                                              #  script
-        s += int_to_hex(self.locktime, 4)                            #  locktime
-        if for_sig is not None and for_sig != -1:
-            s += int_to_hex(1, 4)                                    #  hash type
+    def serialize_output(self, output):
+        output_type, addr, amount = output
+        s = int_to_hex(amount, 8)
+        script = self.pay_script(output_type, addr)
+        s += var_int(len(script)/2)
+        s += script
         return s
 
-    def tx_for_sig(self,i):
-        return self.serialize(for_sig = i)
+    def serialize_preimage(self, i):
+        nVersion = int_to_hex(1, 4)
+        nHashType = int_to_hex(1, 4)
+        nLocktime = int_to_hex(self.locktime, 4)
+        inputs = self.inputs()
+        outputs = self.outputs()
+        txin = inputs[i]
+        if self.is_segwit_input(txin):
+            hashPrevouts = Hash(''.join(self.serialize_outpoint(txin) for txin in inputs).decode('hex')).encode('hex')
+            hashSequence = Hash(''.join(int_to_hex(txin.get('sequence', 0xffffffff), 4) for txin in inputs).decode('hex')).encode('hex')
+            hashOutputs = Hash(''.join(self.serialize_output(o) for o in outputs).decode('hex')).encode('hex')
+            outpoint = self.serialize_outpoint(txin)
+            pubkey = txin['pubkeys'][0]
+            pkh = bitcoin.hash_160(pubkey.decode('hex')).encode('hex')
+            redeemScript = '00' + push_script(pkh)
+            scriptCode = push_script('76a9' + push_script(pkh) + '88ac')
+            script_hash = bitcoin.hash_160(redeemScript.decode('hex')).encode('hex')
+            scriptPubKey = 'a9' + push_script(script_hash) + '87'
+            amount = int_to_hex(txin['value'], 8)
+            nSequence = int_to_hex(txin.get('sequence', 0xffffffff), 4)
+            preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
+        else:
+            txin_script = lambda txin: txin.get('redeemScript') or get_scriptPubKey(txin['address'])
+            txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, txin_script(txin) if i==k else '') for k, txin in enumerate(inputs))
+            txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
+            preimage = nVersion + txins + txouts + nLocktime + nHashType
+        return preimage
+
+    def is_segwit(self):
+        return any(self.is_segwit_input(x) for x in self.inputs())
+
+    def serialize(self, estimate_size=False, witness=True):
+        nVersion = int_to_hex(1, 4)
+        nLocktime = int_to_hex(self.locktime, 4)
+        inputs = self.inputs()
+        outputs = self.outputs()
+        txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.input_script(txin, estimate_size)) for txin in inputs)
+        txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
+        if witness and self.is_segwit():
+            marker = '00'
+            flag = '01'
+            witness = ''.join(self.serialize_witness(x) for x in inputs)
+            return nVersion + marker + flag + txins + txouts + witness + nLocktime
+        else:
+            return nVersion + txins + txouts + nLocktime
 
     def hash(self):
-        return Hash(self.raw.decode('hex'))[::-1].encode('hex')
+        print "warning: deprecated tx.hash()"
+        return self.txid()
+
+    def txid(self):
+        ser = self.serialize(witness=False)
+        return Hash(ser.decode('hex'))[::-1].encode('hex')
+
+    def wtxid(self):
+        ser = self.serialize(witness=True)
+        return Hash(ser.decode('hex'))[::-1].encode('hex')
 
     def add_inputs(self, inputs):
         self._inputs.extend(inputs)
@@ -662,7 +738,7 @@ class Transaction:
         return sum(x['value'] for x in self.inputs())
 
     def output_value(self):
-        return sum( val for tp,addr,val in self.outputs())
+        return sum(val for tp, addr, val in self.outputs())
 
     def get_fee(self):
         return self.input_value() - self.output_value()
@@ -673,12 +749,13 @@ class Transaction:
     @profiler
     def estimated_size(self):
         '''Return an estimated tx size in bytes.'''
-        return len(self.serialize(-1)) / 2 if not self.is_complete() or self.raw is None else len(self.raw) / 2 # ASCII hex string
+        return len(self.serialize(True)) / 2 if not self.is_complete() or self.raw is None else len(self.raw) / 2 # ASCII hex string
 
     @classmethod
     def estimated_input_size(self, txin):
         '''Return an estimated of serialized input size in bytes.'''
-        return len(self.serialize_input(txin, -1, -1)) / 2
+        script = self.input_script(txin, True)
+        return len(self.serialize_input(txin, script)) / 2
 
     def signature_count(self):
         r = 0
@@ -723,13 +800,13 @@ class Transaction:
                     txin['pubkeys'][ii] = pubkey
                     self._inputs[i] = txin
                     # add signature
-                    for_sig = Hash(self.tx_for_sig(i).decode('hex'))
+                    pre_hash = Hash(self.serialize_preimage(i).decode('hex'))
                     pkey = regenerate_key(sec)
                     secexp = pkey.secret
-                    private_key = bitcoin.MySigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
+                    private_key = bitcoin.MySigningKey.from_secret_exponent(secexp, curve = SECP256k1)
                     public_key = private_key.get_verifying_key()
-                    sig = private_key.sign_digest_deterministic( for_sig, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der )
-                    assert public_key.verify_digest( sig, for_sig, sigdecode = ecdsa.util.sigdecode_der)
+                    sig = private_key.sign_digest_deterministic(pre_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
+                    assert public_key.verify_digest(sig, pre_hash, sigdecode = ecdsa.util.sigdecode_der)
                     txin['signatures'][ii] = sig.encode('hex')
                     self._inputs[i] = txin
         print_error("is_complete", self.is_complete())

@@ -40,6 +40,7 @@ import aes
 TESTNET = False
 ADDRTYPE_P2PKH = 48
 ADDRTYPE_P2SH = 5
+ADDRTYPE_P2WPKH = 6
 XPRV_HEADER = "0488ade4"
 XPUB_HEADER = "0488b21e"
 XPRV_HEADER_ALT = "019d9cfe"
@@ -47,12 +48,13 @@ XPUB_HEADER_ALT = "019da462"
 HEADERS_URL = "https://electrum-ltc.org/blockchain_headers"
 
 def set_testnet():
-    global ADDRTYPE_P2PKH, ADDRTYPE_P2SH
+    global ADDRTYPE_P2PKH, ADDRTYPE_P2SH, ADDRTYPE_P2WPKH
     global XPRV_HEADER, XPUB_HEADER
     global TESTNET, HEADERS_URL
     TESTNET = True
     ADDRTYPE_P2PKH = 111
     ADDRTYPE_P2SH = 196
+    ADDRTYPE_P2WPKH = 3
     XPRV_HEADER = "04358394"
     XPUB_HEADER = "043587cf"
     XPRV_HEADER_ALT = "0436ef7d"
@@ -180,7 +182,6 @@ def Hash(x):
     if type(x) is unicode: x=x.encode('utf-8')
     return sha256(sha256(x))
 
-
 hash_encode = lambda x: x[::-1].encode('hex')
 hash_decode = lambda x: x.decode('hex')[::-1]
 hmac_sha_512 = lambda x,y: hmac.new(x, y, hashlib.sha512).digest()
@@ -213,6 +214,8 @@ def seed_type(x):
         return 'old'
     elif is_new_seed(x):
         return 'standard'
+    elif TESTNET and is_new_seed(x, version.SEED_PREFIX_SW):
+        return 'segwit'
     elif is_new_seed(x, version.SEED_PREFIX_2FA):
         return '2fa'
     return ''
@@ -253,11 +256,12 @@ def hash_160(public_key):
     md.update(sha256(public_key))
     return md.digest()
 
-def hash_160_to_bc_address(h160, addrtype):
-    vh160 = chr(addrtype) + h160
-    h = Hash(vh160)
-    addr = vh160 + h[0:4]
-    return base_encode(addr, base=58)
+def hash_160_to_bc_address(h160, addrtype, witness_program_version=1):
+    s = chr(addrtype)
+    if addrtype == ADDRTYPE_P2WPKH:
+        s += chr(witness_program_version) + chr(0)
+    s += h160
+    return base_encode(s+Hash(s)[0:4], base=58)
 
 def bc_address_to_hash_160(addr):
     bytes = base_decode(addr, 25, base=58)
@@ -269,8 +273,13 @@ def hash160_to_p2pkh(h160):
 def hash160_to_p2sh(h160):
     return hash_160_to_bc_address(h160, ADDRTYPE_P2SH)
 
-def public_key_to_bc_address(public_key):
+def public_key_to_p2pkh(public_key):
     return hash160_to_p2pkh(hash_160(public_key))
+
+def public_key_to_p2wpkh(public_key):
+    return hash160_to_bc_address(hash_160(public_key), ADDRTYPE_P2WPKH)
+
+
 
 
 __b58chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
