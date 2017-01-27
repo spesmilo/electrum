@@ -1519,6 +1519,7 @@ class Simple_Wallet(Abstract_Wallet):
 
     def load_keystore(self):
         self.keystore = load_keystore(self.storage, 'keystore')
+        self.xpub_type = deserialize_xpub(self.keystore.xpub)[0]
 
     def get_pubkey(self, c, i):
         pubkey_list = self.change_pubkeys if c else self.receiving_pubkeys
@@ -1625,26 +1626,28 @@ class P2SH:
     def pubkeys_to_redeem_script(self, pubkeys):
         raise NotImplementedError()
 
-    def pubkeys_to_address(self, pubkeys):
-        redeem_script = self.pubkeys_to_redeem_script(pubkeys)
+    def pubkeys_to_address(self, pubkey):
+        redeem_script = self.pubkeys_to_redeem_script(pubkey)
         return bitcoin.hash160_to_p2sh(hash_160(redeem_script.decode('hex')))
 
 
-class P2PKH:
-
-    def pubkeys_to_address(self, pubkey):
-        return bitcoin.public_key_to_p2pkh(pubkey.decode('hex'))
-
-
-class Standard_Wallet(Simple_Deterministic_Wallet, P2PKH):
+class Standard_Wallet(Simple_Deterministic_Wallet):
     wallet_type = 'standard'
 
-
-class Segwit_Wallet(Simple_Deterministic_Wallet, P2SH):
-    wallet_type = 'segwit'
-
     def pubkeys_to_redeem_script(self, pubkey):
-        return transaction.segwit_script(pubkey)
+        if self.xpub_type == 1:
+            return transaction.segwit_script(pubkey)
+
+    def pubkeys_to_address(self, pubkey):
+        if self.xpub_type == 0:
+            return bitcoin.public_key_to_p2pkh(pubkey.decode('hex'))
+        elif self.xpub_type == 1 and bitcoin.TESTNET:
+            redeem_script = self.pubkeys_to_redeem_script(pubkey)
+            return bitcoin.hash160_to_p2sh(hash_160(redeem_script.decode('hex')))
+        else:
+            raise NotImplementedError()
+
+
 
 
 
@@ -1739,8 +1742,7 @@ wallet_constructors = {
     'standard': Standard_Wallet,
     'old': Standard_Wallet,
     'xpub': Standard_Wallet,
-    'imported': Imported_Wallet,
-    'segwit': Segwit_Wallet
+    'imported': Imported_Wallet
 }
 
 def register_constructor(wallet_type, constructor):

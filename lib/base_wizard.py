@@ -26,7 +26,7 @@
 import os
 import bitcoin
 import keystore
-from wallet import Wallet, Imported_Wallet, Standard_Wallet, Segwit_Wallet, Multisig_Wallet, WalletStorage, wallet_types
+from wallet import Wallet, Imported_Wallet, Standard_Wallet, Multisig_Wallet, WalletStorage, wallet_types
 from i18n import _
 from plugins import run_hook
 
@@ -339,10 +339,7 @@ class BaseWizard(object):
         if self.wallet_type == 'standard':
             self.storage.put('seed_type', self.seed_type)
             self.storage.put('keystore', k.dump())
-            if self.seed_type == 'segwit':
-                self.wallet = Segwit_Wallet(self.storage)
-            else:
-                self.wallet = Standard_Wallet(self.storage)
+            self.wallet = Standard_Wallet(self.storage)
             self.run('create_addresses')
         elif self.wallet_type == 'multisig':
             for i, k in enumerate(self.keystores):

@@ -41,10 +41,10 @@ TESTNET = False
 ADDRTYPE_P2PKH = 48
 ADDRTYPE_P2SH = 5
 ADDRTYPE_P2WPKH = 6
-XPRV_HEADER = "0488ade4"
-XPUB_HEADER = "0488b21e"
-XPRV_HEADER_ALT = "019d9cfe"
-XPUB_HEADER_ALT = "019da462"
+XPRV_HEADER = 0x0488ade4
+XPUB_HEADER = 0x0488b21e
+XPRV_HEADER_ALT = 0x019d9cfe
+XPUB_HEADER_ALT = 0x019da462
 HEADERS_URL = "https://electrum-ltc.org/blockchain_headers"
 
 def set_testnet():
@@ -55,11 +55,14 @@ def set_testnet():
     ADDRTYPE_P2PKH = 111
     ADDRTYPE_P2SH = 196
     ADDRTYPE_P2WPKH = 3
-    XPRV_HEADER = "04358394"
-    XPUB_HEADER = "043587cf"
-    XPRV_HEADER_ALT = "0436ef7d"
-    XPUB_HEADER_ALT = "0436f6e1"
+    XPRV_HEADER = 0x04358394
+    XPUB_HEADER = 0x043587cf
+    XPRV_HEADER_ALT = 0x0436ef7d
+    XPUB_HEADER_ALT = 0x0436f6e1
     HEADERS_URL = "https://electrum-ltc.org/testnet_headers"
+
+
+
 
 ################################## transactions
 
@@ -742,20 +745,35 @@ def _CKD_pub(cK, c, s):
     return cK_n, c_n
 
 
+def xprv_header(xtype):
+    return ("%08x"%(XPRV_HEADER + xtype)).decode('hex')
+
+def xpub_header(xtype):
+    return ("%08x"%(XPUB_HEADER + xtype)).decode('hex')
+
+def serialize_xprv(xtype, c, k):
+    xprv = xprv_header(xtype) + chr(0)*9 + c + chr(0) + k
+    return EncodeBase58Check(xprv)
+
+def serialize_xpub(xtype, c, cK, depth=0, fingerprint=chr(0)*4, child_number=chr(0)*4):
+    xpub = xpub_header(xtype) + chr(depth) + fingerprint + child_number + c + cK
+    return EncodeBase58Check(xpub)
+
 def deserialize_xkey(xkey, prv):
-    headers = (XPRV_HEADER, XPRV_HEADER_ALT) if prv else (XPUB_HEADER, XPUB_HEADER_ALT)
     xkey = DecodeBase58Check(xkey)
-    assert len(xkey) == 78
+    if len(xkey) != 78:
+        raise BaseException('Invalid length')
     depth = ord(xkey[4])
     fingerprint = xkey[5:9]
     child_number = xkey[9:13]
     c = xkey[13:13+32]
-    if xkey[0:4].encode('hex') in headers:
-        n = 33 if prv else 32
-        K_or_k = xkey[13+n:]
-    else:
-        raise BaseException('wrong key')
-    return depth, fingerprint, child_number, c, K_or_k
+    header = XPRV_HEADER if prv else XPUB_HEADER
+    xtype = int('0x' + xkey[0:4].encode('hex'), 16) - header
+    if xtype not in ([0, 1] if TESTNET else [0]):
+        raise BaseException('Invalid header')
+    n = 33 if prv else 32
+    K_or_k = xkey[13+n:]
+    return xtype, depth, fingerprint, child_number, c, K_or_k
 
 def deserialize_xpub(xkey):
     return deserialize_xkey(xkey, False)
@@ -763,36 +781,46 @@ def deserialize_xpub(xkey):
 def deserialize_xprv(xkey):
     return deserialize_xkey(xkey, True)
 
+def is_xpub(text):
+    try:
+        deserialize_xpub(text)
+        return True
+    except:
+        return False
+
+def is_xprv(text):
+    try:
+        deserialize_xprv(text)
+        return True
+    except:
+        return False
+
 
 def xpub_from_xprv(xprv):
-    depth, fingerprint, child_number, c, k = deserialize_xprv(xprv)
+    xtype, depth, fingerprint, child_number, c, k = deserialize_xprv(xprv)
     K, cK = get_pubkeys_from_secret(k)
-    xpub = XPUB_HEADER.decode('hex') + chr(depth) + fingerprint + child_number + c + cK
-    return EncodeBase58Check(xpub)
+    return serialize_xpub(xtype, c, cK, depth, fingerprint, child_number)
 
 
-def bip32_root(seed):
+def bip32_root(seed, xtype):
     I = hmac.new("Bitcoin seed", seed, hashlib.sha512).digest()
     master_k = I[0:32]
     master_c = I[32:]
     K, cK = get_pubkeys_from_secret(master_k)
-    xprv = (XPRV_HEADER + "00" + "00000000" + "00000000").decode("hex") + master_c + chr(0) + master_k
-    xpub = (XPUB_HEADER + "00" + "00000000" + "00000000").decode("hex") + master_c + cK
-    return EncodeBase58Check(xprv), EncodeBase58Check(xpub)
+    xprv = serialize_xprv(xtype, master_c, master_k)
+    xpub = serialize_xpub(xtype, master_c, cK)
+    return xprv, xpub
 
-
-def xpub_from_pubkey(cK):
+def xpub_from_pubkey(xtype, cK):
     assert cK[0] in ['\x02','\x03']
-    master_c = chr(0)*32
-    xpub = (XPUB_HEADER + "00" + "00000000" + "00000000").decode("hex") + master_c + cK
-    return EncodeBase58Check(xpub)
+    return serialize_xpub(xtype, chr(0)*32, cK)
 
 
 def bip32_private_derivation(xprv, branch, sequence):
     assert sequence.startswith(branch)
     if branch == sequence:
         return xprv, xpub_from_xprv(xprv)
-    depth, fingerprint, child_number, c, k = deserialize_xprv(xprv)
+    xtype, depth, fingerprint, child_number, c, k = deserialize_xprv(xprv)
     sequence = sequence[len(branch):]
     for n in sequence.split('/'):
         if n == '': continue
@@ -805,13 +833,13 @@ def bip32_private_derivation(xprv, branch, sequence):
     fingerprint = hash_160(parent_cK)[0:4]
     child_number = ("%08X"%i).decode('hex')
     K, cK = get_pubkeys_from_secret(k)
-    xprv = XPRV_HEADER.decode('hex') + chr(depth) + fingerprint + child_number + c + chr(0) + k
-    xpub = XPUB_HEADER.decode('hex') + chr(depth) + fingerprint + child_number + c + cK
+    xprv = xprv_header(xtype) + chr(depth) + fingerprint + child_number + c + chr(0) + k
+    xpub = xpub_header(xtype) + chr(depth) + fingerprint + child_number + c + cK
     return EncodeBase58Check(xprv), EncodeBase58Check(xpub)
 
 
 def bip32_public_derivation(xpub, branch, sequence):
-    depth, fingerprint, child_number, c, cK = deserialize_xpub(xpub)
+    xtype, depth, fingerprint, child_number, c, cK = deserialize_xpub(xpub)
     assert sequence.startswith(branch)
     sequence = sequence[len(branch):]
     for n in sequence.split('/'):
@@ -822,7 +850,7 @@ def bip32_public_derivation(xpub, branch, sequence):
         depth += 1
     fingerprint = hash_160(parent_cK)[0:4]
     child_number = ("%08X"%i).decode('hex')
-    xpub = XPUB_HEADER.decode('hex') + chr(depth) + fingerprint + child_number + c + cK
+    xpub = xpub_header(xtype) + chr(depth) + fingerprint + child_number + c + cK
     return EncodeBase58Check(xpub)
 
 
