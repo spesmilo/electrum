@@ -625,6 +625,9 @@ class Transaction:
         redeem_script = txin.get('redeemScript')
         if self.is_segwit_input(txin):
             return push_script(redeem_script)
+        if txin['type'] == 'p2pk':
+            sig = txin['signatures'][0]
+            return push_script(sig)
         pubkeys, sig_list = self.get_siglist(txin, estimate_size)
         script = ''.join(push_script(x) for x in sig_list)
         if not pubkeys:
