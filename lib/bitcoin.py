@@ -404,7 +404,7 @@ def public_key_from_private_key(sec):
 
 def address_from_private_key(sec):
     public_key = public_key_from_private_key(sec)
-    address = public_key_to_bc_address(public_key.decode('hex'))
+    address = public_key_to_p2pkh(public_key.decode('hex'))
     return address
 
 
@@ -470,7 +470,7 @@ def verify_message(address, sig, message):
         public_key, compressed = pubkey_from_signature(sig, message)
         # check public key using the address
         pubkey = point_to_ser(public_key.pubkey.point, compressed)
-        addr = public_key_to_bc_address(pubkey)
+        addr = public_key_to_p2pkh(pubkey)
         if address != addr:
             raise Exception("Bad signature")
         # check message

@@ -619,7 +619,7 @@ class Abstract_Wallet(PrintError):
                 if _type == TYPE_ADDRESS:
                     addr = x
                 elif _type == TYPE_PUBKEY:
-                    addr = public_key_to_bc_address(x.decode('hex'))
+                    addr = bitcoin.public_key_to_p2pkh(x.decode('hex'))
                 else:
                     addr = None
                 if addr and self.is_mine(addr):

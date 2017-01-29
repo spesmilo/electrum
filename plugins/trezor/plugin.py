@@ -6,7 +6,7 @@ from binascii import hexlify, unhexlify
 from functools import partial
 
 from electrum.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
-                              public_key_to_bc_address, EncodeBase58Check,
+                              public_key_to_p2pkh, EncodeBase58Check,
                               TYPE_ADDRESS, TYPE_SCRIPT)
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
@@ -29,7 +29,7 @@ class TrezorCompatibleKeyStore(Hardware_KeyStore):
 
     def decrypt_message(self, pubkey, message, password):
         raise RuntimeError(_('Electrum and %s encryption and decryption are currently incompatible') % self.device)
-        address = public_key_to_bc_address(pubkey.decode('hex'))
+        address = public_key_to_p2pkh(pubkey.decode('hex'))
         client = self.get_client()
         address_path = self.address_id(address)
         address_n = client.expand_path(address_path)
