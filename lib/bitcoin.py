@@ -28,10 +28,11 @@ import hashlib
 import base64
 import re
 import hmac
+import os
 
 from lib.util import bfh, bh2u
 from . import version
-from .util import print_error, InvalidPassword, assert_bytes, _bytes, to_bytes
+from .util import print_error, InvalidPassword, assert_bytes, to_bytes
 
 import ecdsa
 import pyaes
@@ -206,12 +207,12 @@ def op_push(i):
 
 def sha256(x):
     x = to_bytes(x, 'utf8')
-    return _bytes(hashlib.sha256(x).digest())
+    return bytes(hashlib.sha256(x).digest())
 
 
 def Hash(x):
     x = to_bytes(x, 'utf8')
-    out = _bytes(sha256(sha256(x)))
+    out = bytes(sha256(sha256(x)))
     return out
 
 
@@ -363,7 +364,7 @@ def base_decode(v, length, base):
         chars = __b43chars
     long_value = 0
     for (i, c) in enumerate(v[::-1]):
-        long_value += chars.find(_bytes([c])) * (base**i)
+        long_value += chars.find(bytes([c])) * (base**i)
     result = bytearray()
     while long_value >= 256:
         div, mod = divmod(long_value, 256)

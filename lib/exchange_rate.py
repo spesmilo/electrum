@@ -290,7 +290,7 @@ class LocalBitcoins(ExchangeBase):
 class MercadoBitcoin(ExchangeBase):
 
     def get_rates(self, ccy):
-	json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
+        json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
         return {'BRL': Decimal(json['ticker_1h']['exchanges']['MBT']['last'])}
 
 

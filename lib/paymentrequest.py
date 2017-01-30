@@ -51,7 +51,7 @@ except ImportError:
 
 from . import bitcoin
 from . import util
-from .util import print_error
+from .util import print_error, bh2u, bfh
 from . import transaction
 from . import x509
 from . import rsakey
@@ -126,7 +126,7 @@ class PaymentRequest:
     def parse(self, r):
         if self.error:
             return
-        self.id = bitcoin.sha256(r)[0:16].encode('hex')
+        self.id = bh2u(bitcoin.sha256(r)[0:16])
         try:
             self.data = pb2.PaymentRequest()
             self.data.ParseFromString(r)
@@ -321,7 +321,7 @@ def make_unsigned_request(req):
     if amount is None:
         amount = 0
     memo = req['memo']
-    script = Transaction.pay_script(TYPE_ADDRESS, addr).decode('hex')
+    script = bfh(Transaction.pay_script(TYPE_ADDRESS, addr))
     outputs = [(script, amount)]
     pd = pb2.PaymentDetails()
     for script, amount in outputs:
@@ -445,7 +445,7 @@ def serialize_request(req):
     signature = req.get('sig')
     requestor = req.get('name')
     if requestor and signature:
-        pr.signature = signature.decode('hex')
+        pr.signature = bfh(signature)
         pr.pki_type = 'dnssec+btc'
         pr.pki_data = str(requestor)
     return pr
@@ -477,7 +477,7 @@ class InvoiceStore(object):
     def load(self, d):
         for k, v in d.items():
             try:
-                pr = PaymentRequest(v.get('hex').decode('hex'))
+                pr = bfh(PaymentRequest(v.get('hex')))
                 pr.tx = v.get('txid')
                 pr.requestor = v.get('requestor')
                 self.invoices[k] = pr
@@ -499,7 +499,7 @@ class InvoiceStore(object):
         l = {}
         for k, pr in self.invoices.items():
             l[k] = {
-                'hex': str(pr).encode('hex'),
+                'hex': bh2u(pr),
                 'requestor': pr.requestor,
                 'txid': pr.tx
             }

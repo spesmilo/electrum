@@ -22,11 +22,11 @@ class ShowQRTextEdit(ButtonsTextEdit):
         run_hook('show_text_edit', self)
 
     def qr_show(self):
-        from qrcodewidget import QRDialog
+        from .qrcodewidget import QRDialog
         try:
             s = str(self.toPlainText())
         except:
-            s = unicode(self.toPlainText())
+            s = self.toPlainText()
         QRDialog(s).exec_()
 
     def contextMenuEvent(self, e):
@@ -45,7 +45,7 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
         run_hook('scan_text_edit', self)
 
     def file_input(self):
-        fileName = unicode(QFileDialog.getOpenFileName(self, 'select file'))
+        fileName = QFileDialog.getOpenFileName(self, 'select file')
         if not fileName:
             return
         with open(fileName, "r") as f:

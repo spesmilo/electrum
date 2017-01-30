@@ -38,6 +38,9 @@ import time
 import traceback
 
 import requests
+
+from lib import print_error
+
 ca_path = requests.certs.where()
 
 from . import util
@@ -59,6 +62,7 @@ def Connection(server, queue, config_path):
     c = TcpConnection(server, queue, config_path)
     c.start()
     return c
+
 
 class TcpConnection(threading.Thread, util.PrintError):
 
@@ -131,8 +135,9 @@ class TcpConnection(threading.Thread, util.PrintError):
                     return
                 # try with CA first
                 try:
-                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv23, cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_path, do_handshake_on_connect=True)
+                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_TLSv1_1, cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_path, do_handshake_on_connect=True)
                 except ssl.SSLError as e:
+                    print_error(e)
                     s = None
                 if s and self.check_host_name(s.getpeercert(), self.host):
                     self.print_error("SSL certificate signed by CA")
@@ -143,7 +148,7 @@ class TcpConnection(threading.Thread, util.PrintError):
                 if s is None:
                     return
                 try:
-                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv23, cert_reqs=ssl.CERT_NONE, ca_certs=None)
+                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_TLSv1_1, cert_reqs=ssl.CERT_NONE, ca_certs=None)
                 except ssl.SSLError as e:
                     self.print_error("SSL error retrieving SSL certificate:", e)
                     return
@@ -166,9 +171,9 @@ class TcpConnection(threading.Thread, util.PrintError):
         if self.use_ssl:
             try:
                 s = ssl.wrap_socket(s,
-                                    ssl_version=ssl.PROTOCOL_SSLv23,
+                                    ssl_version=ssl.PROTOCOL_TLSv1_1,
                                     cert_reqs=ssl.CERT_REQUIRED,
-                                    ca_certs= (temporary_path if is_new else cert_path),
+                                    ca_certs=(temporary_path if is_new else cert_path),
                                     do_handshake_on_connect=True)
             except ssl.SSLError as e:
                 self.print_error("SSL error:", e)
@@ -196,11 +201,11 @@ class TcpConnection(threading.Thread, util.PrintError):
                         os.unlink(cert_path)
                         return
                     self.print_error("wrong certificate")
+                if e.errno == 104:
+                    return
                 return
             except BaseException as e:
                 self.print_error(e)
-                if e.errno == 104:
-                    return
                 traceback.print_exc(file=sys.stderr)
                 return
 
@@ -215,6 +220,7 @@ class TcpConnection(threading.Thread, util.PrintError):
         if socket:
             self.print_error("connected")
         self.queue.put((self.server, socket))
+
 
 class Interface(util.PrintError):
     """The Interface class handles a socket connected to a single remote
@@ -274,7 +280,7 @@ class Interface(util.PrintError):
         n = self.num_requests()
         wire_requests = self.unsent_requests[0:n]
         try:
-            self.pipe.send_all(map(make_dict, wire_requests))
+            self.pipe.send_all([make_dict(*r) for r in wire_requests])
         except socket.error as e:
             self.print_error("socket error:", e)
             return False
@@ -368,13 +374,13 @@ def _match_hostname(name, val):
 
     return val.startswith('*.') and name.endswith(val[1:])
 
+
 def test_certificates():
     from .simple_config import SimpleConfig
     config = SimpleConfig()
     mydir = os.path.join(config.path, "certs")
     certs = os.listdir(mydir)
     for c in certs:
-        print(c)
         p = os.path.join(mydir,c)
         with open(p) as f:
             cert = f.read()

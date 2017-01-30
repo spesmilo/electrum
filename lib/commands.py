@@ -243,8 +243,8 @@ class Commands:
         tx = Transaction(tx)
         if privkey:
             pubkey = bitcoin.public_key_from_private_key(privkey)
-            h160 = bitcoin.hash_160(pubkey.decode('hex'))
-            x_pubkey = 'fd' + (chr(0) + h160).encode('hex')
+            h160 = bitcoin.hash_160(bfh(pubkey))
+            x_pubkey = 'fd' + bh2u(b'\x00' + h160)
             tx.sign({x_pubkey:privkey})
         else:
             self.wallet.sign_transaction(tx, password)
@@ -266,8 +266,8 @@ class Commands:
     def createmultisig(self, num, pubkeys):
         """Create multisig address"""
         assert isinstance(pubkeys, list), (type(num), type(pubkeys))
-        redeem_script = transaction.multisig_script(pubkeys, num)
-        address = bitcoin.hash160_to_p2sh(hash_160(redeem_script.decode('hex')))
+        redeem_script = Transaction.multisig_script(pubkeys, num)
+        address = bitcoin.hash160_to_p2sh(hash_160(bfh(redeem_script)))
         return {'address':address, 'redeemScript':redeem_script}
 
     @command('w')
