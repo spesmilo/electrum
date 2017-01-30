@@ -141,7 +141,7 @@ class DaemonThread(threading.Thread, PrintError):
             for job in self.jobs:
                 try:
                     job.run()
-                except:
+                except Exception as e:
                     traceback.print_exc(file=sys.stderr)
 
     def remove_jobs(self, jobs):
@@ -170,7 +170,8 @@ class DaemonThread(threading.Thread, PrintError):
         self.print_error("stopped")
 
 
-is_verbose = False
+# TODO: disable
+is_verbose = True
 def set_verbosity(b):
     global is_verbose
     is_verbose = b
@@ -281,63 +282,8 @@ def assert_str(*args):
         assert isinstance(x, six.string_types)
 
 
-def __str(x, encoding='utf8'):
-    if six.PY3:
-        return x.decode(encoding)
 
-
-def _bytes(x=None, encoding=None, **kw):
-    """
-    py2-py3 aware wrapper to "bytes()" like constructor
-    :param x:
-    :return:
-    """
-    if encoding is not None:
-        kw['encoding'] = encoding
-    if x is None:
-        x = []
-    if six.PY3:
-        if isinstance(x, bytes):
-            return x
-        return bytes(x, **kw)
-    else:
-        return bytearray(x, **kw)
-
-
-def _to_bytes2(x, enc):
-    if isinstance(x, bytearray):
-        return bytearray(x)
-    if isinstance(x, six.text_type):
-        return bytearray(x.encode(enc))
-    elif isinstance(x, six.binary_type):
-        return bytearray(x)
-    else:
-        raise TypeError("Not a string or bytes like object")
-
-
-def _to_bytes3(x, enc):
-    if isinstance(x, bytes):
-        return x
-    if isinstance(x, str):
-        return x.encode(enc)
-    elif isinstance(x, bytearray):
-        return bytes(x)
-    else:
-        raise TypeError("Not a string or bytes like object")
-
-
-def _to_string2(x, enc):
-    if isinstance(x, (str, bytes)):
-        return x
-    if isinstance(x, unicode):
-        return x.encode(enc)
-    if isinstance(x, bytearray):
-        return x.decode(enc)
-    else:
-        raise TypeError("Not a string or bytes like object")
-
-
-def _to_string3(x, enc):
+def to_string(x, enc):
     if isinstance(x, (bytes, bytearray)):
         return x.decode(enc)
     if isinstance(x, str):
@@ -349,35 +295,16 @@ def to_bytes(something, encoding='utf8'):
     """
     cast string to bytes() like object, but for python2 support it's bytearray copy
     """
-    raise NotImplementedError("This call should be redefined")
+    if isinstance(something, bytes):
+        return something
+    if isinstance(something, str):
+        return something.encode(encoding)
+    elif isinstance(something, bytearray):
+        return bytes(something)
+    else:
+        raise TypeError("Not a string or bytes like object")
 
-def to_bytes(something, encoding='utf8'):
-    """
-    cast string to str object
-    """
-    raise NotImplementedError("This call should be redefined")
-
-if six.PY3:
-    to_bytes = _to_bytes3
-    to_string = _to_string3
-else:
-    to_bytes = _to_bytes2
-    to_string = _to_string2
-
-if six.PY3:
-    bfh_builder = lambda x: bytes.fromhex(x)
-else:
-    bfh_builder = lambda x: x.decode('hex')  # str(bytearray.fromhex(x))
-
-
-# def ufh(x):
-#     """
-#     py2-py3 aware wrapper for str.decode('hex')
-#     :param x: str
-#     :return: str
-#     """
-#     if
-#     return binascii.unhexlify(x)
+bfh_builder = lambda x: bytes.fromhex(x)
 
 
 def hfu(x):
@@ -700,18 +627,16 @@ else:
     builtins.input = raw_input
 
 
-
 def parse_json(message):
-    n = message.find('\n')
+    # TODO: check \r\n pattern
+    n = message.find(b'\n')
     if n==-1:
         return None, message
     try:
-        j = json.loads( message[0:n] )
+        j = json.loads(message[0:n].decode('utf8'))
     except:
         j = None
     return j, message[n+1:]
-
-
 
 
 class timeout(Exception):
@@ -723,11 +648,11 @@ import json
 import ssl
 import time
 
-class SocketPipe:
 
+class SocketPipe:
     def __init__(self, socket):
         self.socket = socket
-        self.message = ''
+        self.message = b''
         self.set_timeout(0.1)
         self.recv_time = time.time()
 
@@ -757,10 +682,10 @@ class SocketPipe:
                     raise timeout
                 else:
                     print_error("pipe: socket error", err)
-                    data = ''
+                    data = b''
             except:
                 traceback.print_exc(file=sys.stderr)
-                data = ''
+                data = b''
 
             if not data:  # Connection closed remotely
                 return None
@@ -769,10 +694,12 @@ class SocketPipe:
 
     def send(self, request):
         out = json.dumps(request) + '\n'
+        out = out.encode('utf8')
         self._send(out)
 
     def send_all(self, requests):
-        out = ''.join(map(lambda x: json.dumps(x) + '\n', requests))
+        print(requests)
+        out = b''.join(map(lambda x: (json.dumps(x) + '\n').encode('utf8'), requests))
         self._send(out)
 
     def _send(self, out):
@@ -796,7 +723,6 @@ class SocketPipe:
                 else:
                     traceback.print_exc(file=sys.stdout)
                     raise e
-
 
 
 class QueuePipe:
@@ -833,9 +759,8 @@ class QueuePipe:
             self.send(request)
 
 
-
 def check_www_dir(rdir):
-    import urllib, urlparse, shutil, os
+    import urllib, shutil, os
     if not os.path.exists(rdir):
         os.mkdir(rdir)
     index = os.path.join(rdir, 'index.html')
@@ -850,7 +775,7 @@ def check_www_dir(rdir):
         "https://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css"
     ]
     for URL in files:
-        path = urlparse.urlsplit(URL).path
+        path = urllib_parse.urlsplit(URL).path
         filename = os.path.basename(path)
         path = os.path.join(rdir, filename)
         if not os.path.exists(path):

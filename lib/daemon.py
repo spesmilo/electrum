@@ -33,8 +33,9 @@ import os
 import sys
 import time
 
-# import jsonrpclib
-# from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCRequestHandler
+# from jsonrpc import JSONRPCResponseManager
+import jsonrpclib
+from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCRequestHandler
 
 from .version import ELECTRUM_VERSION
 from .network import Network
@@ -47,11 +48,14 @@ from .simple_config import SimpleConfig
 from .plugins import run_hook
 from .exchange_rate import FxThread
 
+
 def get_lockfile(config):
     return os.path.join(config.path, 'daemon')
 
+
 def remove_lockfile(lockfile):
     os.unlink(lockfile)
+
 
 def get_fd_or_server(config):
     '''Tries to create the lockfile, using O_EXCL to
@@ -71,6 +75,7 @@ def get_fd_or_server(config):
         # Couldn't connect; remove lockfile and try again.
         remove_lockfile(lockfile)
 
+
 def get_server(config):
     lockfile = get_lockfile(config)
     while True:
@@ -82,7 +87,8 @@ def get_server(config):
             # Test daemon is running
             server.ping()
             return server
-        except:
+        except Exception as e:
+            print_error(e)
             pass
         if not create_time or create_time < time.time() - 1.0:
             return None
@@ -90,17 +96,17 @@ def get_server(config):
         time.sleep(1.0)
 
 
-# class RequestHandler(SimpleJSONRPCRequestHandler):
-#
-#     def do_OPTIONS(self):
-#         self.send_response(200)
-#         self.end_headers()
-#
-#     def end_headers(self):
-#         self.send_header("Access-Control-Allow-Headers",
-#                          "Origin, X-Requested-With, Content-Type, Accept")
-#         self.send_header("Access-Control-Allow-Origin", "*")
-#         SimpleJSONRPCRequestHandler.end_headers(self)
+class RequestHandler(SimpleJSONRPCRequestHandler):
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.end_headers()
+
+    def end_headers(self):
+        self.send_header("Access-Control-Allow-Headers",
+                         "Origin, X-Requested-With, Content-Type, Accept")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        SimpleJSONRPCRequestHandler.end_headers(self)
 
 
 class Daemon(DaemonThread):
@@ -129,12 +135,12 @@ class Daemon(DaemonThread):
         try:
             server = SimpleJSONRPCServer((host, port), logRequests=False,
                                          requestHandler=RequestHandler)
-        except:
-            self.print_error('Warning: cannot initialize RPC server on host', host)
+        except Exception as e:
+            self.print_error('Warning: cannot initialize RPC server on host', host, e)
             self.server = None
             os.close(fd)
             return
-        os.write(fd, repr((server.socket.getsockname(), time.time())))
+        os.write(fd, bytes(repr((server.socket.getsockname(), time.time())), 'utf8'))
         os.close(fd)
         server.timeout = 0.1
         for cmdname in known_commands:

@@ -37,7 +37,7 @@ class AmountEdit(MyLineEdit):
         return 8
 
     def numbify(self):
-        text = unicode(self.text()).strip()
+        text = self.text().strip()
         if text == '!':
             self.shortcut.emit()
             return

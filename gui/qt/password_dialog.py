@@ -44,7 +44,7 @@ def check_password_strength(password):
     :param password: password entered by user in New Password
     :return: password strength Weak or Medium or Strong
     '''
-    password = unicode(password)
+    password = password
     n = math.log(len(set(password)))
     num = re.search("[0-9]", password) is not None and re.match("^[0-9]*$", password) is None
     caps = password != password.upper() and password != password.lower()
@@ -156,11 +156,11 @@ class PasswordLayout(object):
 
     def old_password(self):
         if self.kind == PW_CHANGE:
-            return unicode(self.pw.text()) or None
+            return self.pw.text() or None
         return None
 
     def new_password(self):
-        pw = unicode(self.new_pw.text())
+        pw = self.new_pw.text()
         # Empty passphrases are fine and returned empty.
         if pw == "" and self.kind != PW_PASSPHRASE:
             pw = None

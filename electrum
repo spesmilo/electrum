@@ -48,11 +48,11 @@ if jnius:
     threading.Thread.run = thread_check_run
 
 # monkeypatch unicode constructor for py3
-if six.PY3:
-    import builtins
-    builtins.unicode = str
-    builtins.QString = str
-    builtins.long = int
+# if six.PY3:
+#     import builtins
+    # builtins.unicode = str
+    # builtins.QString = str
+    # builtins.long = int
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
