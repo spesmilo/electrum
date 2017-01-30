@@ -170,9 +170,9 @@ class Enumeration:
         for x in enumList:
             if isinstance(x, tuple):
                 x, i = x
-            if not isinstance(x, six.text_type):
+            if not isinstance(x, str):
                 raise EnumException("enum name is not a string: " + x)
-            if not isinstance(i, six.integer_types):
+            if not isinstance(i, int):
                 raise EnumException("enum value is not an integer: " + i)
             if x in uniqueNames:
                 raise EnumException("enum name is not unique: " + x)
@@ -705,15 +705,15 @@ class Transaction:
         txin = inputs[i]
         # TODO: py3 hex
         if self.is_segwit_input(txin):
-            hashPrevouts = Hash(''.join(self.serialize_outpoint(txin) for txin in inputs).decode('hex')).encode('hex')
-            hashSequence = Hash(''.join(int_to_hex(txin.get('sequence', 0xffffffff), 4) for txin in inputs).decode('hex')).encode('hex')
-            hashOutputs = Hash(''.join(self.serialize_output(o) for o in outputs).decode('hex')).encode('hex')
+            hashPrevouts = bh2u(Hash(bfh(''.join(self.serialize_outpoint(txin) for txin in inputs))))
+            hashSequence = bh2u(Hash(bfh(''.join(int_to_hex(txin.get('sequence', 0xffffffff), 4) for txin in inputs))))
+            hashOutputs = bh2u(Hash(bfh(''.join(self.serialize_output(o) for o in outputs))))
             outpoint = self.serialize_outpoint(txin)
             pubkey = txin['pubkeys'][0]
             pkh = bh2u(bitcoin.hash_160(bfh(pubkey)))
             redeemScript = '00' + push_script(pkh)
             scriptCode = push_script('76a9' + push_script(pkh) + '88ac')
-            script_hash = bitcoin.hash_160(redeemScript.decode('hex')).encode('hex')
+            script_hash = bh2u(bitcoin.hash_160(bfh(redeemScript)))
             scriptPubKey = 'a9' + push_script(script_hash) + '87'
             amount = int_to_hex(txin['value'], 8)
             nSequence = int_to_hex(txin.get('sequence', 0xffffffff), 4)

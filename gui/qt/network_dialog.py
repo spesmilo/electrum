@@ -225,7 +225,7 @@ class NetworkChoiceLayout(object):
 
     def change_protocol(self, use_ssl):
         p = 's' if use_ssl else 't'
-        host = unicode(self.server_host.text())
+        host = self.server_host.text()
         pp = self.servers.get(host, DEFAULT_PORTS)
         if p not in pp.keys():
             p = pp.keys()[0]

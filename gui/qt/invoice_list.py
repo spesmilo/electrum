@@ -67,7 +67,7 @@ class InvoiceList(MyTreeWidget):
         item = self.itemAt(position)
         if not item:
             return
-        key = str(item.data(0, 32).toString())
+        key = item.data(0, 32)
         column = self.currentColumn()        
         column_title = self.headerItem().text(column)
         column_data = item.text(column)

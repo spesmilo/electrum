@@ -120,7 +120,7 @@ class PayToEdit(ScanQRTextEdit):
         if self.is_pr:
             return
         # filter out empty lines
-        lines = filter(lambda x: x, self.lines())
+        lines = [i for i in self.lines() if i]
         outputs = []
         total = 0
         self.payto_address = None
@@ -180,7 +180,7 @@ class PayToEdit(ScanQRTextEdit):
         return self.outputs[:]
 
     def lines(self):
-        return unicode(self.toPlainText()).split('\n')
+        return self.toPlainText().split('\n')
 
     def is_multiline(self):
         return len(self.lines()) > 1
@@ -242,14 +242,14 @@ class PayToEdit(ScanQRTextEdit):
         QPlainTextEdit.keyPressEvent(self, e)
 
         ctrlOrShift = e.modifiers() and (Qt.ControlModifier or Qt.ShiftModifier)
-        if self.c is None or (ctrlOrShift and e.text().isEmpty()):
+        if self.c is None or (ctrlOrShift and not e.text()):
             return
 
-        eow = QString("~!@#$%^&*()_+{}|:\"<>?,./;'[]\\-=")
-        hasModifier = (e.modifiers() != Qt.NoModifier) and not ctrlOrShift;
+        eow = "~!@#$%^&*()_+{}|:\"<>?,./;'[]\\-="
+        hasModifier = (e.modifiers() != Qt.NoModifier) and not ctrlOrShift
         completionPrefix = self.textUnderCursor()
 
-        if hasModifier or e.text().isEmpty() or completionPrefix.length() < 1 or eow.contains(e.text().right(1)):
+        if hasModifier or not e.text() or completionPrefix.length() < 1 or eow.contains(e.text().right(1)):
             self.c.popup().hide()
             return
 

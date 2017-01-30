@@ -58,10 +58,12 @@ class BaseWizard(object):
             self.plugin, action = action
         if self.plugin and hasattr(self.plugin, action):
             f = getattr(self.plugin, action)
-            apply(f, (self,) + args)
+            # apply(f, (self,) + args)
+            f(self, *args)
         elif hasattr(self, action):
             f = getattr(self, action)
-            apply(f, args)
+            # apply(f, args)
+            f(*args)
         else:
             raise BaseException("unknown action", action)
 

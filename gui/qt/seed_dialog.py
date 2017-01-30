@@ -52,7 +52,6 @@ def seed_warning_msg(seed):
     ]) % len(seed.split())
 
 
-
 class SeedLayout(QVBoxLayout):
     #options
     is_bip39 = False
@@ -92,7 +91,6 @@ class SeedLayout(QVBoxLayout):
             return None
         self.is_ext = cb_ext.isChecked() if 'ext' in self.options else False
         self.is_bip39 = cb_bip39.isChecked() if 'bip39' in self.options else False
-
 
     def __init__(self, seed=None, title=None, icon=True, msg=None, options=None, is_seed=None, passphrase=None, parent=None):
         QVBoxLayout.__init__(self)
@@ -140,7 +138,7 @@ class SeedLayout(QVBoxLayout):
             self.addWidget(WWLabel(msg))
 
     def get_seed(self):
-        text = unicode(self.seed_e.text())
+        text = self.seed_e.text()
         return ' '.join(text.split())
 
     def on_edit(self):
@@ -151,7 +149,6 @@ class SeedLayout(QVBoxLayout):
         label = _('Seed Type') + ': ' + t if t else ''
         self.seed_type_label.setText(label)
         self.parent.next_button.setEnabled(b)
-
 
 
 class KeysLayout(QVBoxLayout):
@@ -165,7 +162,7 @@ class KeysLayout(QVBoxLayout):
         self.addWidget(self.text_e)
 
     def get_text(self):
-        return unicode(self.text_e.text())
+        return self.text_e.text()
 
     def on_edit(self):
         b = self.is_valid(self.get_text())

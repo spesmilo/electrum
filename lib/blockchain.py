@@ -97,7 +97,7 @@ class Blockchain(util.PrintError):
         return s
 
     def deserialize_header(self, s):
-        hex_to_int = lambda s: int('0x' + s[::-1].encode('hex'), 16)
+        hex_to_int = lambda s: int('0x' + bh2u(s[::-1]), 16)
         h = {}
         h['version'] = hex_to_int(s[0:4])
         h['prev_block_hash'] = hash_encode(s[4:36])
@@ -110,7 +110,7 @@ class Blockchain(util.PrintError):
     def hash_header(self, header):
         if header is None:
             return '0' * 64
-        return hash_encode(Hash(self.serialize_header(header).decode('hex')))
+        return hash_encode(Hash(bfh(self.serialize_header(header))))
 
     def path(self):
         return util.get_headers_path(self.config)
@@ -153,7 +153,7 @@ class Blockchain(util.PrintError):
     def set_local_height(self):
         name = self.path()
         if os.path.exists(name):
-            h = os.path.getsize(name)/80 - 1
+            h = int(os.path.getsize(name)//80 - 1)
             if self.local_height != h:
                 self.local_height = h
 
