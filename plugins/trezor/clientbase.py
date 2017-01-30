@@ -4,7 +4,7 @@ from struct import pack
 from electrum_ltc.i18n import _
 from electrum_ltc.util import PrintError, UserCancelled
 from electrum_ltc.keystore import bip39_normalize_passphrase
-from electrum_ltc.bitcoin import EncodeBase58Check
+from electrum_ltc.bitcoin import serialize_xpub
 
 
 class GuiMixin(object):
@@ -151,10 +151,7 @@ class TrezorClientBase(GuiMixin, PrintError):
         address_n = self.expand_path(bip32_path)
         creating = False #self.next_account_number() == 0
         node = self.get_public_node(address_n, creating).node
-        xpub = ("0488B21E".decode('hex') + chr(node.depth)
-                + self.i4b(node.fingerprint) + self.i4b(node.child_num)
-                + node.chain_code + node.public_key)
-        return EncodeBase58Check(xpub)
+        return serialize_xpub(0, node.chain_code, node.public_key, node.depth, self.i4b(node.fingerprint), self.i4b(node.child_num))
 
     #def address_from_derivation(self, derivation):
     #    return self.get_address('Litecoin', self.expand_path(derivation))
