@@ -93,7 +93,8 @@ def wizard_dialog(func):
         #    out = ()
         if type(out) is not tuple:
             out = (out,)
-        apply(run_next, out)
+        # apply(run_next, out)
+        run_next(*out)
     return func_wrapper
 
 
@@ -355,8 +356,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     @wizard_dialog
     def choice_dialog(self, title, message, choices, run_next):
-        c_values = map(lambda x: x[0], choices)
-        c_titles = map(lambda x: x[1], choices)
+        c_values = [x[0] for x in choices]
+        c_titles = [x[1] for x in choices]
         clayout = ChoicesLayout(message, c_titles)
         vbox = QVBoxLayout()
         vbox.addLayout(clayout.layout())
@@ -384,7 +385,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         vbox.addWidget(line)
         vbox.addWidget(WWLabel(warning))
         self.set_main_layout(vbox, title, next_enabled=test(default))
-        return ' '.join(unicode(line.text()).split())
+        return ' '.join(line.text().split())
 
     @wizard_dialog
     def show_xpub_dialog(self, xpub, run_next):

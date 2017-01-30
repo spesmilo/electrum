@@ -33,7 +33,7 @@ import hashlib
 
 from .bitcoin import Hash, hash_encode
 from .transaction import Transaction
-from .util import print_error, print_msg, ThreadJob
+from .util import print_error, print_msg, ThreadJob, bh2u
 
 
 class Synchronizer(ThreadJob):
@@ -89,7 +89,7 @@ class Synchronizer(ThreadJob):
         status = ''
         for tx_hash, height in h:
             status += tx_hash + ':%d:' % height
-        return hashlib.sha256(status).digest().encode('hex')
+        return bh2u(hashlib.sha256(status.encode('ascii')).digest())
 
     def addr_subscription_response(self, response):
         params, result = self.parse_response(response)
@@ -114,7 +114,7 @@ class Synchronizer(ThreadJob):
         self.print_error("receiving history", addr, len(result))
         server_status = self.requested_histories[addr]
         hashes = set(map(lambda item: item['tx_hash'], result))
-        hist = map(lambda item: (item['tx_hash'], item['height']), result)
+        hist = list(map(lambda item: (item['tx_hash'], item['height']), result))
         # tx_fees
         tx_fees = [(item['tx_hash'], item.get('fee')) for item in result]
         tx_fees = dict(filter(lambda x:x[1] is not None, tx_fees))
@@ -140,7 +140,7 @@ class Synchronizer(ThreadJob):
         if not params:
             return
         tx_hash, tx_height = params
-        #assert tx_hash == hash_encode(Hash(result.decode('hex')))
+        #assert tx_hash == hash_encode(Hash(bytes.fromhex(result)))
         tx = Transaction(result)
         try:
             tx.deserialize()

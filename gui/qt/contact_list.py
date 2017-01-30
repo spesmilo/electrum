@@ -54,7 +54,7 @@ class ContactList(MyTreeWidget):
     def on_edited(self, item, column, prior):
         if column == 0:  # Remove old contact if renamed
             self.parent.contacts.pop(prior)
-        self.parent.set_contact(unicode(item.text(0)), unicode(item.text(1)))
+        self.parent.set_contact(item.text(0), item.text(1))
 
     def create_menu(self, position):
         menu = QMenu()
@@ -62,11 +62,11 @@ class ContactList(MyTreeWidget):
         if not selected:
             menu.addAction(_("New contact"), lambda: self.parent.new_contact_dialog())
         else:
-            names = [unicode(item.text(0)) for item in selected]
-            keys = [unicode(item.text(1)) for item in selected]
+            names = [item.text(0) for item in selected]
+            keys = [item.text(1) for item in selected]
             column = self.currentColumn()
             column_title = self.headerItem().text(column)
-            column_data = '\n'.join([unicode(item.text(column)) for item in selected])
+            column_data = '\n'.join([item.text(column) for item in selected])
 
             menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(column_data))
             if column in self.editable_columns:
@@ -83,7 +83,7 @@ class ContactList(MyTreeWidget):
 
     def on_update(self):
         item = self.currentItem()
-        current_key = item.data(0, Qt.UserRole).toString() if item else None
+        current_key = item.data(0, Qt.UserRole) if item else None
         self.clear()
         for key in sorted(self.parent.contacts.keys()):
             _type, name = self.parent.contacts[key]

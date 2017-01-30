@@ -50,7 +50,7 @@ from .version import *
 from .keystore import load_keystore, Hardware_KeyStore
 from .storage import multisig_type
 
-import transaction
+from . import transaction
 from .transaction import Transaction
 from .plugins import run_hook
 from . import bitcoin
@@ -298,6 +298,7 @@ class Abstract_Wallet(PrintError):
 
     def add_unverified_tx(self, tx_hash, tx_height):
         # tx will be verified only if height > 0
+        print('unverif', tx_hash, tx_height)
         if tx_hash not in self.verified_tx:
             self.unverified_tx[tx_hash] = tx_height
 
@@ -754,7 +755,7 @@ class Abstract_Wallet(PrintError):
         return ''
 
     def get_tx_status(self, tx_hash, height, conf, timestamp):
-        from util import format_time
+        from .util import format_time
         if conf == 0:
             tx = self.transactions.get(tx_hash)
             if not tx:
@@ -1395,16 +1396,11 @@ class Imported_Wallet(Abstract_Wallet):
 
     def add_input_sig_info(self, txin, address):
         addrtype, hash160 = bc_address_to_hash_160(address)
-        if six.PY3:
-            xpubkey = 'fd' + bh2u(bytes([addrtype]) + hash160)
-        else:
-            xpubkey = 'fd' + bh2u(chr(addrtype) + hash160)
+        xpubkey = 'fd' + bh2u(bytes([addrtype]) + hash160)
         txin['x_pubkeys'] = [ xpubkey ]
         txin['pubkeys'] = [ xpubkey ]
         txin['signatures'] = [None]
         txin['type'] = 'unknown'
-
-
 
 
 class Deterministic_Wallet(Abstract_Wallet):
@@ -1490,7 +1486,7 @@ class Deterministic_Wallet(Abstract_Wallet):
             if len(addresses) < limit:
                 self.create_new_address(for_change)
                 continue
-            if map(lambda a: self.address_is_old(a), addresses[-limit:] ) == limit*[False]:
+            if list(map(lambda a: self.address_is_old(a), addresses[-limit:] )) == limit*[False]:
                 break
             else:
                 self.create_new_address(for_change)
@@ -1504,7 +1500,7 @@ class Deterministic_Wallet(Abstract_Wallet):
                 if len(self.receiving_pubkeys) != len(self.keystore.keypairs):
                     self.receiving_pubkeys = self.keystore.keypairs.keys()
                     self.save_pubkeys()
-                    self.receiving_addresses = map(self.pubkeys_to_address, self.receiving_pubkeys)
+                    self.receiving_addresses = [self.pubkeys_to_address(i) for i in self.receiving_pubkeys]
                     for addr in self.receiving_addresses:
                         self.add_address(addr)
 
@@ -1645,7 +1641,7 @@ class P2SH:
 
     def pubkeys_to_address(self, pubkey):
         redeem_script = self.pubkeys_to_redeem_script(pubkey)
-        return bitcoin.hash160_to_p2sh(hash_160(redeem_script.decode('hex')))
+        return bitcoin.hash160_to_p2sh(hash_160(bfh(redeem_script)))
 
 
 class Standard_Wallet(Simple_Deterministic_Wallet):
@@ -1657,15 +1653,12 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
 
     def pubkeys_to_address(self, pubkey):
         if not self.is_segwit:
-            return bitcoin.public_key_to_p2pkh(pubkey.decode('hex'))
+            return bitcoin.public_key_to_p2pkh(bfh(pubkey))
         elif bitcoin.TESTNET:
             redeem_script = self.pubkeys_to_redeem_script(pubkey)
-            return bitcoin.hash160_to_p2sh(hash_160(redeem_script.decode('hex')))
+            return bitcoin.hash160_to_p2sh(hash_160(bfh(redeem_script)))
         else:
             raise NotImplementedError()
-
-
-
 
 
 class Multisig_Wallet(Deterministic_Wallet, P2SH):

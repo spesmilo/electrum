@@ -77,7 +77,7 @@ class HistoryList(MyTreeWidget):
         self.wallet = self.parent.wallet
         h = self.wallet.get_history(self.get_domain())
         item = self.currentItem()
-        current_tx = item.data(0, Qt.UserRole).toString() if item else None
+        current_tx = item.data(0, Qt.UserRole) if item else None
         self.clear()
         fx = self.parent.fx
         fx.history_used_spot = False
@@ -115,7 +115,7 @@ class HistoryList(MyTreeWidget):
         child_count = root.childCount()
         for i in range(child_count):
             item = root.child(i)
-            txid = str(item.data(0, Qt.UserRole).toString())
+            txid = item.data(0, Qt.UserRole)
             label = self.wallet.get_label(txid)
             item.setText(3, label)
 
@@ -134,7 +134,7 @@ class HistoryList(MyTreeWidget):
         if not item:
             return
         column = self.currentColumn()
-        tx_hash = str(item.data(0, Qt.UserRole).toString())
+        tx_hash = item.data(0, Qt.UserRole)
         if not tx_hash:
             return
         if column is 0:

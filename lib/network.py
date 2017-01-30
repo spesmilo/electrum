@@ -63,7 +63,7 @@ DEFAULT_SERVERS = {
     'electrum.trouth.net':{'t':'50001', 's':'50002'},
     'Electrum.hsmiths.com':{'t':'8080', 's':'995'},
     'electrum3.hachre.de':{'t':'50001', 's':'50002'},
-    'elec.luggs.co':{'t':'80', 's':'443'},
+    'elec.luggs.co':{'s':'443'},
     'btc.smsys.me':{'t':'110', 's':'995'},
     'btc.mustyoshi.com':{'t':'50001', 's':'50002'},
 }
@@ -82,7 +82,7 @@ SERVER_RETRY_INTERVAL = 10
 
 def parse_servers(result):
     """ parse servers list into dict format"""
-    from version import PROTOCOL_VERSION
+    from .version import PROTOCOL_VERSION
     servers = {}
     for item in result:
         host = item[1]
@@ -102,7 +102,8 @@ def parse_servers(result):
                 if pruning_level == '': pruning_level = '0'
         try:
             is_recent = cmp(util.normalize_version(version), util.normalize_version(PROTOCOL_VERSION)) >= 0
-        except Exception:
+        except Exception as e:
+            print_error(e)
             is_recent = False
 
         if out and is_recent:
@@ -131,13 +132,15 @@ from .simple_config import SimpleConfig
 
 proxy_modes = ['socks4', 'socks5', 'http']
 
+
 def serialize_proxy(p):
-    if type(p) != dict:
+    if not isinstance(p, dict):
         return None
     return ':'.join([p.get('mode'),p.get('host'), p.get('port')])
 
+
 def deserialize_proxy(s):
-    if type(s) not in [str, unicode]:
+    if not isinstance(s, str):
         return None
     if s.lower() == 'none':
         return None
@@ -156,14 +159,17 @@ def deserialize_proxy(s):
         proxy["port"] = "8080" if proxy["mode"] == "http" else "1080"
     return proxy
 
+
 def deserialize_server(server_str):
     host, port, protocol = str(server_str).split(':')
     assert protocol in 'st'
     int(port)    # Throw if cannot be converted to int
     return host, port, protocol
 
+
 def serialize_server(host, port, protocol):
     return str(':'.join([host, port, protocol]))
+
 
 class Network(util.DaemonThread):
     """The Network class manages a set of connections to remote electrum
@@ -182,7 +188,7 @@ class Network(util.DaemonThread):
         if config is None:
             config = {}  # Do not use mutables as default values!
         util.DaemonThread.__init__(self)
-        self.config = SimpleConfig(config) if type(config) == type({}) else config
+        self.config = SimpleConfig(config) if isinstance(config, dict) else config
         self.num_server = 8 if not self.config.get('oneserver') else 0
         self.blockchain = Blockchain(self.config, self)
         # A deque of interface header requests, processed left-to-right
@@ -364,7 +370,7 @@ class Network(util.DaemonThread):
 
     def get_interfaces(self):
         '''The interfaces that are in connected state'''
-        return self.interfaces.keys()
+        return list(self.interfaces.keys())
 
     def get_servers(self):
         if self.irc_servers:
@@ -425,7 +431,7 @@ class Network(util.DaemonThread):
 
     def stop_network(self):
         self.print_error("stopping network")
-        for interface in self.interfaces.values():
+        for interface in list(self.interfaces.values()):
             self.close_interface(interface)
         assert self.interface is None
         assert not self.interfaces
@@ -549,7 +555,7 @@ class Network(util.DaemonThread):
 
     def get_index(self, method, params):
         """ hashable index for subscriptions and cache"""
-        return str(method) + (':' + str(params[0]) if params  else '')
+        return str(method) + (':' + str(params[0]) if params else '')
 
     def process_responses(self, interface):
         responses = interface.get_responses()
@@ -597,6 +603,7 @@ class Network(util.DaemonThread):
 
     def send(self, messages, callback):
         '''Messages is a list of (method, params) tuples'''
+        messages = list(messages)
         with self.lock:
             self.pending_sends.append((messages, callback))
 
@@ -670,7 +677,8 @@ class Network(util.DaemonThread):
                 self.connection_down(server)
 
         # Send pings and shut down stale interfaces
-        for interface in self.interfaces.values():
+        # must use copy of values
+        for interface in list(self.interfaces.values()):
             if interface.has_timed_out():
                 self.connection_down(interface.server)
             elif interface.ping_required():
@@ -760,7 +768,7 @@ class Network(util.DaemonThread):
         if if_height <= local_height:
             return False
         elif if_height > local_height + 50:
-            self.request_chunk(interface, data, (local_height + 1) / 2016)
+            self.request_chunk(interface, data, int((local_height + 1) // 2016))
         else:
             self.request_header(interface, data, if_height)
         return True
@@ -837,7 +845,6 @@ class Network(util.DaemonThread):
             self.switch_lagging_interface()
             self.notify('updated')
 
-
     def get_header(self, tx_height):
         return self.blockchain.read_header(tx_height)
 
@@ -845,10 +852,10 @@ class Network(util.DaemonThread):
         return self.blockchain.height()
 
     def synchronous_get(self, request, timeout=30):
-        queue = queue.Queue()
-        self.send([request], queue.put)
+        q = queue.Queue()
+        self.send([request], q.put)
         try:
-            r = queue.get(True, timeout)
+            r = q.get(True, timeout)
         except queue.Empty:
             raise BaseException('Server did not answer')
         if r.get('error'):
