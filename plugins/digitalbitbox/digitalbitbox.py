@@ -5,7 +5,7 @@
 
 try:
     import electrum
-    from electrum.bitcoin import TYPE_ADDRESS, var_int, msg_magic, Hash, verify_message, public_key_to_bc_address, EncodeAES, DecodeAES
+    from electrum.bitcoin import TYPE_ADDRESS, var_int, msg_magic, Hash, verify_message, public_key_to_p2pkh, EncodeAES, DecodeAES
     from electrum.i18n import _
     from electrum.keystore import Hardware_KeyStore
     from ..hw_wallet import HW_PluginBase
@@ -85,7 +85,8 @@ class DigitalBitbox_Client():
 
 
     def stretch_key(self, key):
-        return hashlib.pbkdf2_hmac('sha512', bytearray(key), b'Digital Bitbox', 20480).encode('hex')
+        import pbkdf2, hmac
+        return pbkdf2.PBKDF2(key, 'Digital Bitbox', iterations = 20480, macmodule = hmac, digestmodule = hashlib.sha512).read(64).encode('hex')
 
 
     def backup_password_dialog(self, confirm=False):
@@ -338,7 +339,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
             for i in range(4):
                 sig = chr(27 + i + 4) + reply['sign'][0]['sig'].decode('hex')
                 try:
-                    addr = public_key_to_bc_address(reply['sign'][0]['pubkey'].decode('hex'))
+                    addr = public_key_to_p2pkh(reply['sign'][0]['pubkey'].decode('hex'))
                     if verify_message(addr, sig, message):
                         break
                 except Exception:
