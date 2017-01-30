@@ -6,7 +6,8 @@ import sys
 import traceback
 
 import electrum
-from electrum.bitcoin import EncodeBase58Check, DecodeBase58Check, TYPE_ADDRESS, XPUB_HEADER, int_to_hex, var_int
+from electrum import bitcoin
+from electrum.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from electrum.keystore import Hardware_KeyStore, parse_xpubkey
@@ -78,15 +79,11 @@ class Ledger_Client():
                 childnum = int(lastChild[0])
             else:
                 childnum = 0x80000000 | int(lastChild[0])
-            xpub = XPUB_HEADER.decode('hex') + chr(depth) + self.i4b(fingerprint) + self.i4b(childnum) + str(nodeData['chainCode']) + str(publicKey)
-        except Exception, e:
-            #self.give_error(e, True)
+            xpub = bitcoin.serialize_xpub(0, str(nodeData['chainCode']), str(publicKey), depth, self.i4b(fingerprint), self.i4b(childnum))
+            return xpub
+        except Exception as e:
+            print_error(e)
             return None
-        finally:
-            #self.handler.clear_dialog()
-            pass
-
-        return EncodeBase58Check(xpub)
 
     def has_detached_pin_support(self, client):
         try:
