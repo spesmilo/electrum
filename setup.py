@@ -59,6 +59,7 @@ setup(
         'electrum_ltc_plugins.labels',
         'electrum_ltc_plugins.ledger',
         'electrum_ltc_plugins.trezor',
+        'electrum_ltc_plugins.digitalbitbox',
         'electrum_ltc_plugins.virtualkeyboard',
     ],
     package_dir={

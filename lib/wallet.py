@@ -1519,7 +1519,7 @@ class Simple_Wallet(Abstract_Wallet):
 
     def load_keystore(self):
         self.keystore = load_keystore(self.storage, 'keystore')
-        self.xpub_type = deserialize_xpub(self.keystore.xpub)[0]
+        self.is_segwit = self.keystore.is_segwit()
 
     def get_pubkey(self, c, i):
         pubkey_list = self.change_pubkeys if c else self.receiving_pubkeys
@@ -1635,13 +1635,13 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
     wallet_type = 'standard'
 
     def pubkeys_to_redeem_script(self, pubkey):
-        if self.xpub_type == 1:
+        if self.is_segwit:
             return transaction.segwit_script(pubkey)
 
     def pubkeys_to_address(self, pubkey):
-        if self.xpub_type == 0:
+        if not self.is_segwit:
             return bitcoin.public_key_to_p2pkh(pubkey.decode('hex'))
-        elif self.xpub_type == 1 and bitcoin.TESTNET:
+        elif bitcoin.TESTNET:
             redeem_script = self.pubkeys_to_redeem_script(pubkey)
             return bitcoin.hash160_to_p2sh(hash_160(redeem_script.decode('hex')))
         else:

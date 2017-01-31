@@ -75,6 +75,9 @@ class KeyStore(PrintError):
             return False
         return bool(self.get_tx_derivations(tx))
 
+    def is_segwit(self):
+        return False
+
 
 class Software_KeyStore(KeyStore):
 
@@ -218,7 +221,6 @@ class Deterministic_KeyStore(Software_KeyStore):
         return pw_decode(self.passphrase, password) if self.passphrase else ''
 
 
-
 class Xpub:
 
     def __init__(self):
@@ -333,6 +335,8 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         pk = bip32_private_key(sequence, k, c)
         return pk
 
+    def is_segwit(self):
+        return bool(deserialize_xpub(self.xpub)[0])
 
 
 class Old_KeyStore(Deterministic_KeyStore):
