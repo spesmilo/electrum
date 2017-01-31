@@ -19,7 +19,7 @@ class LabelsPlugin(BasePlugin):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
-        self.target_host = 'sync.bytesized-hosting.com:9090'
+        self.target_host = 'sync.bytesized-hosting.com'
         self.wallets = {}
 
     def encode(self, wallet, msg):
