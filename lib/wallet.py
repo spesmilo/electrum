@@ -436,8 +436,8 @@ class Abstract_Wallet(PrintError):
         can_bump = False
         label = ''
         height = conf = timestamp = None
+        tx_hash = tx.txid()
         if tx.is_complete():
-            tx_hash = tx.txid()
             if tx_hash in self.transactions.keys():
                 label = self.get_label(tx_hash)
                 height, conf, timestamp = self.get_tx_height(tx_hash)
@@ -461,7 +461,6 @@ class Abstract_Wallet(PrintError):
         else:
             s, r = tx.signature_count()
             status = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
-            tx_hash = None
 
         if is_relevant:
             if is_mine:
