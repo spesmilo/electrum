@@ -75,6 +75,9 @@ class KeyStore(PrintError):
             return False
         return bool(self.get_tx_derivations(tx))
 
+    def is_segwit(self):
+        return False
+
 
 class Software_KeyStore(KeyStore):
 
@@ -216,9 +219,6 @@ class Deterministic_KeyStore(Software_KeyStore):
 
     def get_passphrase(self, password):
         return pw_decode(self.passphrase, password) if self.passphrase else ''
-
-    def is_segwit(self):
-        return False
 
 
 class Xpub:
