@@ -722,6 +722,9 @@ class Transaction:
         return self.txid()
 
     def txid(self):
+        all_segwit = all(self.is_segwit_input(x) for x in self.inputs())
+        if not all_segwit and not self.is_complete():
+            return None
         ser = self.serialize(witness=False)
         return Hash(ser.decode('hex'))[::-1].encode('hex')
 
