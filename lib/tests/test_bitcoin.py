@@ -60,7 +60,7 @@ class Test_bitcoin(unittest.TestCase):
         assert xprv == "xprvA2nrNbFZABcdryreWet9Ea4LvTJcGsqrMzxHx98MMrotbir7yrKCEXw7nadnHM8Dq38EGfSh6dqA9QWTyefMLEcBYJUuekgW4BYPJcr9E7j"
 
     def _do_test_bip32(self, seed, sequence):
-        xprv, xpub = bip32_root(seed.decode('hex'))
+        xprv, xpub = bip32_root(seed.decode('hex'), 0)
         assert sequence[0:2] == "m/"
         path = 'm'
         sequence = sequence[2:]

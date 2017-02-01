@@ -55,6 +55,7 @@ class TestTransaction(unittest.TestCase):
     def test_tx_unsigned(self):
         expected = {
             'inputs': [{
+                'type': 'p2pkh',
                 'address': '1446oU3z268EeFgfcwJv6X2VBXHfoYxfuD',
                 'is_coinbase': False,
                 'num_sig': 1,
@@ -102,6 +103,7 @@ class TestTransaction(unittest.TestCase):
     def test_tx_signed(self):
         expected = {
             'inputs': [{
+                'type': 'p2pkh',
                 'address': '1446oU3z268EeFgfcwJv6X2VBXHfoYxfuD',
                 'is_coinbase': False,
                 'num_sig': 1,
@@ -143,7 +145,7 @@ class TestTransaction(unittest.TestCase):
         self.assertEquals(res, ('04ee98d63800824486a1cf5b4376f2f574d86e0a3009a6448105703453f3368e8e1d8d090aaecdd626a45cc49876709a3bbb6dc96a4311b3cac03e225df5f63dfc', '19h943e4diLc68GXW7G75QNe2KWuMu7BaJ'))
 
         res = xpubkey_to_address('fd007d260305ef27224bbcf6cf5238d2b3638b5a78d5')
-        self.assertEquals(res, (None, '1CQj15y1N7LDHp7wTt28eoD1QhHgFgxECH'))
+        self.assertEquals(res, ('fd007d260305ef27224bbcf6cf5238d2b3638b5a78d5', '1CQj15y1N7LDHp7wTt28eoD1QhHgFgxECH'))
 
 
 class NetworkMock(object):
