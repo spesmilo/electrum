@@ -2767,6 +2767,33 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
 
+    def cpfp(self, parent_tx, new_tx):
+        total_size = parent_tx.estimated_size() + new_tx.estimated_size()
+        d = WindowModalDialog(self, _('Child Pays for Parent'))
+        vbox = QVBoxLayout(d)
+        vbox.addWidget(QLabel(_('Total size') + ': %d bytes'% total_size))
+        max_fee = new_tx.output_value()
+        vbox.addWidget(QLabel(_('Max fee') + ': %s'% self.format_amount(max_fee) + ' ' + self.base_unit()))
+        vbox.addWidget(QLabel(_('Child fee' + ':')))
+        fee_e = BTCAmountEdit(self.get_decimal_point)
+        fee = self.config.fee_per_kb() * total_size / 1000
+        fee_e.setAmount(fee)
+        vbox.addWidget(fee_e)
+        def on_rate(dyn, pos, fee_rate):
+            fee = fee_rate * total_size / 1000
+            fee_e.setAmount(min(max_fee, fee))
+        fee_slider = FeeSlider(self, self.config, on_rate)
+        vbox.addWidget(fee_slider)
+        vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
+        if not d.exec_():
+            return
+        fee = fee_e.get_amount()
+        if fee > max_fee:
+            self.show_error(_('Max fee exceeded'))
+            return
+        new_tx = self.wallet.cpfp(parent_tx, fee)
+        new_tx.set_sequence(0)
+        self.show_transaction(new_tx)
 
     def bump_fee_dialog(self, tx):
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
