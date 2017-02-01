@@ -313,10 +313,11 @@ class Interface(util.PrintError):
                 response = self.pipe.get()
             except util.timeout:
                 break
-            if response is None:
+            if not type(response) is dict:
                 responses.append((None, None))
-                self.closed_remotely = True
-                self.print_error("connection closed remotely")
+                if response is None:
+                    self.closed_remotely = True
+                    self.print_error("connection closed remotely")
                 break
             if self.debug:
                 self.print_error("<--", response)
