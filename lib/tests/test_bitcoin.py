@@ -3,7 +3,7 @@ import sys
 from ecdsa.util import number_to_string
 
 from lib.bitcoin import (
-    generator_secp256k1, point_to_ser, public_key_to_bc_address, EC_KEY,
+    generator_secp256k1, point_to_ser, public_key_to_p2pkh, EC_KEY,
     bip32_root, bip32_public_derivation, bip32_private_derivation, pw_encode,
     pw_decode, Hash, public_key_from_private_key, address_from_private_key,
     is_valid, is_private_key, xpub_from_xprv, is_new_seed, is_old_seed,
@@ -29,7 +29,7 @@ class Test_bitcoin(unittest.TestCase):
         Pub = pvk*G
         pubkey_c = point_to_ser(Pub,True)
         #pubkey_u = point_to_ser(Pub,False)
-        addr_c = public_key_to_bc_address(pubkey_c)
+        addr_c = public_key_to_p2pkh(pubkey_c)
         #addr_u = public_key_to_bc_address(pubkey_u)
 
         #print "Private key            ", '%064x'%pvk
@@ -60,7 +60,7 @@ class Test_bitcoin(unittest.TestCase):
         assert xprv == "xprvA2nrNbFZABcdryreWet9Ea4LvTJcGsqrMzxHx98MMrotbir7yrKCEXw7nadnHM8Dq38EGfSh6dqA9QWTyefMLEcBYJUuekgW4BYPJcr9E7j"
 
     def _do_test_bip32(self, seed, sequence):
-        xprv, xpub = bip32_root(seed.decode('hex'))
+        xprv, xpub = bip32_root(seed.decode('hex'), 0)
         assert sequence[0:2] == "m/"
         path = 'm'
         sequence = sequence[2:]

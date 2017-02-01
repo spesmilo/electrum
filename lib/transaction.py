@@ -587,7 +587,7 @@ class Transaction:
         elif output_type == TYPE_ADDRESS:
             return get_scriptPubKey(addr)
         else:
-            raise BaseException('Unknown output type')
+            raise TypeError('Unknown output type')
         return script
 
     @classmethod

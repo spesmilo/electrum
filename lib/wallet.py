@@ -1045,6 +1045,25 @@ class Abstract_Wallet(PrintError):
             raise BaseException(_('Cannot bump fee: cound not find suitable outputs'))
         return Transaction.from_io(inputs, outputs)
 
+    def cpfp(self, tx, fee):
+        txid = tx.txid()
+        for i, o in enumerate(tx.outputs()):
+            otype, address, value = o
+            if otype == TYPE_ADDRESS and self.is_mine(address):
+                break
+        else:
+            return
+        coins = self.get_addr_utxo(address)
+        for item in coins:
+            if item['prevout_hash'] == txid and item['prevout_n'] == i:
+                break
+        else:
+            return
+        self.add_input_info(item)
+        inputs = [item]
+        outputs = [(TYPE_ADDRESS, address, value - fee)]
+        return Transaction.from_io(inputs, outputs)
+
     def add_input_info(self, txin):
         # Add address for utxo that are in wallet
         if txin.get('scriptSig') == '':
