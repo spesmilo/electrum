@@ -56,7 +56,7 @@ class KeyStore(PrintError):
             if num_sig is None:
                 continue
             x_signatures = txin['signatures']
-            signatures = filter(None, x_signatures)
+            signatures = [sig for sig in x_signatures if sig]
             if len(signatures) == num_sig:
                 # input is complete
                 continue
@@ -636,7 +636,7 @@ def is_address_list(text):
 def get_private_keys(text):
     parts = text.split('\n')
     parts = map(lambda x: ''.join(x.split()), parts)
-    parts = filter(bool, parts)
+    parts = list(filter(bool, parts))
     if bool(parts) and all(bitcoin.is_private_key(x) for x in parts):
         return parts
 

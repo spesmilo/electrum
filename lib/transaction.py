@@ -788,7 +788,7 @@ class Transaction:
         for i, txin in enumerate(self.inputs()):
             num = txin['num_sig']
             for x_pubkey in txin['x_pubkeys']:
-                signatures = filter(None, txin['signatures'])
+                signatures = list(filter(None, txin['signatures']))
                 if len(signatures) == num:
                     # txin is complete
                     break

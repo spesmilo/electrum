@@ -574,8 +574,8 @@ class Commands:
         else:
             f = None
         if f is not None:
-            out = filter(lambda x: x.get('status')==f, out)
-        return map(self._format_request, out)
+            out = list(filter(lambda x: x.get('status')==f, out))
+        return list(map(self._format_request, out))
 
     @command('w')
     def addrequest(self, amount, memo='', expiration=None, force=False):
