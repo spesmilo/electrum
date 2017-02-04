@@ -1888,7 +1888,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     @protected
     def do_sign(self, address, message, signature, password):
-        address  = str(address.text()).strip()
+        address  = address.text().strip()
         message = message.toPlainText().strip()
         if not bitcoin.is_address(address):
             self.show_message('Invalid Bitcoin address.')
@@ -1901,12 +1901,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         task = partial(self.wallet.sign_message, address, message, password)
         def show_signed_message(sig):
-            signature.setText(base64.b64encode(sig))
+            signature.setText(base64.b64encode(sig).decode('ascii'))
         self.wallet.thread.add(task, on_success=show_signed_message)
 
     def do_verify(self, address, message, signature):
-        address  = str(address.text()).strip()
-        message = message.toPlainText().strip()
+        address  = address.text().strip()
+        message = message.toPlainText().strip().encode('utf8')
         if not bitcoin.is_address(address):
             self.show_message('Invalid Bitcoin address.')
             return
@@ -1917,13 +1917,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             # This can throw on invalid base64
             sig = base64.b64decode(str(signature.toPlainText()))
             verified = bitcoin.verify_message(address, sig, message)
-        except:
+        except Exception as e:
             verified = False
         if verified:
             self.show_message(_("Signature verified"))
         else:
             self.show_error(_("Wrong signature"))
-
 
     def sign_verify_message(self, address=''):
         d = WindowModalDialog(self, _('Sign/verify Message'))
@@ -1964,23 +1963,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     @protected
     def do_decrypt(self, message_e, pubkey_e, encrypted_e, password):
-        cyphertext = str(encrypted_e.toPlainText())
-        task = partial(self.wallet.decrypt_message, str(pubkey_e.text()),
-                       cyphertext, password)
-        self.wallet.thread.add(task, on_success=message_e.setText)
+        cyphertext = encrypted_e.toPlainText()
+        task = partial(self.wallet.decrypt_message, pubkey_e.text(), cyphertext, password)
+        self.wallet.thread.add(task, on_success=lambda text: message_e.setText(text.decode('utf8')))
 
     def do_encrypt(self, message_e, pubkey_e, encrypted_e):
         message = message_e.toPlainText()
-        message = message.encode('utf-8')
+        message = message.encode('utf8')
         try:
             encrypted = bitcoin.encrypt_message(message, pubkey_e.text())
-            encrypted_e.setText(encrypted)
+            encrypted_e.setText(encrypted.decode('ascii'))
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
             self.show_warning(str(e))
 
-
-    def encrypt_message(self, address = ''):
+    def encrypt_message(self, address=''):
         d = WindowModalDialog(self, _('Encrypt/decrypt Message'))
         d.setMinimumSize(610, 490)
 
@@ -2025,7 +2022,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d = PasswordDialog(parent, msg)
         return d.run()
 
-
     def tx_from_text(self, txt):
         from electrum.transaction import tx_from_str, Transaction
         try:
@@ -2058,7 +2054,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not tx:
             return
         self.show_transaction(tx)
-
 
     def read_tx_from_file(self):
         fileName = self.getOpenFileName(_("Select your transaction file"), "*.txn")

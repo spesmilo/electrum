@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2015 Thomas Voegtlin
 #
@@ -71,7 +69,6 @@ TX_STATUS = [
     _('Unconfirmed'),
     _('Not Verified'),
 ]
-
 
 
 class Abstract_Wallet(PrintError):
@@ -297,7 +294,6 @@ class Abstract_Wallet(PrintError):
             self.verifier.merkle_roots.pop(tx_hash, None)
 
         # tx will be verified only if height > 0
-        print('unverif', tx_hash, tx_height)
         if tx_hash not in self.verified_tx:
             self.unverified_tx[tx_hash] = tx_height
 
@@ -476,7 +472,6 @@ class Abstract_Wallet(PrintError):
             amount = None
 
         return tx_hash, status, label, can_broadcast, can_bump, amount, fee, height, conf, timestamp, exp_n
-
 
     def get_addr_io(self, address):
         h = self.history.get(address, [])

@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-#!/usr/bin/env python
 #
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2011 thomasv@gitorious
@@ -100,8 +99,6 @@ except:
 
 def aes_encrypt_with_iv(key, iv, data):
     assert_bytes(key, iv, data)
-    if six.PY2:
-        key, iv, data = map(str, (key, iv, data))
     if AES:
         padlen = 16 - (len(data) % 16)
         if padlen == 0:
@@ -117,8 +114,6 @@ def aes_encrypt_with_iv(key, iv, data):
 
 def aes_decrypt_with_iv(key, iv, data):
     assert_bytes(key, iv, data)
-    if six.PY2:
-        key, iv, data = map(str, (key, iv, data))
     if AES:
         cipher = AES.new(key, AES.MODE_CBC, iv)
         data = cipher.decrypt(data)
@@ -135,7 +130,7 @@ def aes_decrypt_with_iv(key, iv, data):
 
 def EncodeAES(secret, s):
     assert_bytes(s)
-    iv = _bytes(os.urandom(16))
+    iv = bytes(os.urandom(16))
     # aes_cbc = pyaes.AESModeOfOperationCBC(secret, iv=iv)
     # aes = pyaes.Encrypter(aes_cbc)
     # e = iv + aes.feed(s) + aes.feed()
@@ -144,7 +139,7 @@ def EncodeAES(secret, s):
     return base64.b64encode(e)
 
 def DecodeAES(secret, e):
-    e = _bytes(base64.b64decode(e))
+    e = bytes(base64.b64decode(e))
     iv, e = e[:16], e[16:]
     # aes_cbc = pyaes.AESModeOfOperationCBC(secret, iv=iv)
     # aes = pyaes.Decrypter(aes_cbc)
@@ -289,6 +284,7 @@ def hash_160(public_key):
     md.update(sha256(public_key))
     return md.digest()
 
+
 def hash_160_to_bc_address(h160, addrtype, witness_program_version=1):
     s = bytes([addrtype])
     if addrtype == ADDRTYPE_P2WPKH:
@@ -302,6 +298,7 @@ def bc_address_to_hash_160(addr):
     _bytes = base_decode(addr, 25, base=58)
     return _bytes[0], _bytes[1:21]
 
+
 def hash160_to_p2pkh(h160):
     return hash_160_to_bc_address(h160, ADDRTYPE_P2PKH)
 
@@ -309,11 +306,13 @@ def hash160_to_p2pkh(h160):
 def hash160_to_p2sh(h160):
     return hash_160_to_bc_address(h160, ADDRTYPE_P2SH)
 
+
 def public_key_to_p2pkh(public_key):
     return hash160_to_p2pkh(hash_160(public_key))
 
+
 def public_key_to_p2wpkh(public_key):
-    return hash160_to_bc_address(hash_160(public_key), ADDRTYPE_P2WPKH)
+    return hash_160_to_bc_address(hash_160(public_key), ADDRTYPE_P2WPKH)
 
 
 
@@ -512,14 +511,12 @@ from ecdsa.util import string_to_number, number_to_string
 
 def msg_magic(message):
     varint = var_int(len(message))
-    if six.PY3:
-        encoded_varint = varint.encode('ascii')
-    else:
-        encoded_varint = b"".join([chr(int(varint[i:i+2], 16)) for i in range(0, len(varint), 2)])
+    encoded_varint = varint.encode('ascii')
     return b"\x18Bitcoin Signed Message:\n" + encoded_varint + message
 
 
 def verify_message(address, sig, message):
+    assert_bytes(sig, message)
     try:
         h = Hash(msg_magic(message))
         public_key, compressed = pubkey_from_signature(sig, h)
