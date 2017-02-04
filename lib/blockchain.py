@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2012 thomasv@ecdsa.org
 #
@@ -22,14 +20,6 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-import six
-
-
 import os
 from . import util
 from . import bitcoin
@@ -37,8 +27,12 @@ from .bitcoin import *
 
 MAX_TARGET = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
 
+
 class Blockchain(util.PrintError):
-    '''Manages blockchain headers and their verification'''
+    """
+    Manages blockchain headers and their verification
+    """
+
     def __init__(self, config, network):
         self.config = config
         self.network = network
@@ -54,7 +48,7 @@ class Blockchain(util.PrintError):
             self.downloading_headers = False
             return
         self.downloading_headers = True
-        t = threading.Thread(target = self.init_headers_file)
+        t = threading.Thread(target=self.init_headers_file)
         t.daemon = True
         t.start()
 
@@ -64,25 +58,26 @@ class Blockchain(util.PrintError):
         if bitcoin.TESTNET: return
         assert bits == header.get('bits'), "bits mismatch: %s vs %s" % (bits, header.get('bits'))
         _hash = self.hash_header(header)
-        assert int('0x' + _hash, 16) <= target, "insufficient proof of work: %s vs target %s" % (int('0x' + _hash, 16), target)
+        pow_value = int('0x' + _hash, 16)
+        assert pow_value <= target, "insufficient proof of work: %s vs target %s" % (pow_value, target)
 
     def verify_chain(self, chain):
         first_header = chain[0]
         prev_header = self.read_header(first_header.get('block_height') - 1)
         for header in chain:
             height = header.get('block_height')
-            bits, target = self.get_target(height / 2016, chain)
+            bits, target = self.get_target(height // 2016, chain)
             self.verify_header(header, prev_header, bits, target)
             prev_header = header
 
     def verify_chunk(self, index, data):
-        num = len(data) / 80
+        num = len(data) // 80
         prev_header = None
         if index != 0:
-            prev_header = self.read_header(index*2016 - 1)
+            prev_header = self.read_header(index * 2016 - 1)
         bits, target = self.get_target(index)
         for i in range(num):
-            raw_header = data[i*80:(i+1) * 80]
+            raw_header = data[i * 80:(i + 1) * 80]
             header = self.deserialize_header(raw_header)
             self.verify_header(header, prev_header, bits, target)
             prev_header = header
@@ -118,14 +113,16 @@ class Blockchain(util.PrintError):
     def init_headers_file(self):
         filename = self.path()
         try:
-            import urllib, socket
+            import urllib.request
+            import socket
             socket.setdefaulttimeout(30)
             self.print_error("downloading ", bitcoin.HEADERS_URL)
-            urllib.urlretrieve(bitcoin.HEADERS_URL, filename + '.tmp')
+            # urllib.urlretrieve(bitcoin.HEADERS_URL, filename + '.tmp')
+            urllib.request.urlretrieve(bitcoin.HEADERS_URL, filename + '.tmp')
             os.rename(filename + '.tmp', filename)
             self.print_error("done.")
-        except Exception:
-            self.print_error("download failed. creating file", filename)
+        except Exception as e:
+            self.print_error("download failed. creating file", filename, 'Error:', e)
             open(filename, 'wb+').close()
         self.downloading_headers = False
         self.set_local_height()
@@ -140,7 +137,7 @@ class Blockchain(util.PrintError):
         self.set_local_height()
 
     def save_header(self, header):
-        data = self.serialize_header(header).decode('hex')
+        data = bfh(self.serialize_header(header))
         assert len(data) == 80
         height = header.get('block_height')
         filename = self.path()
@@ -153,7 +150,7 @@ class Blockchain(util.PrintError):
     def set_local_height(self):
         name = self.path()
         if os.path.exists(name):
-            h = int(os.path.getsize(name)//80 - 1)
+            h = int(os.path.getsize(name) // 80 - 1)
             if self.local_height != h:
                 self.local_height = h
 
@@ -171,41 +168,41 @@ class Blockchain(util.PrintError):
     def get_target(self, index, chain=None):
         if index == 0:
             return 0x1d00ffff, MAX_TARGET
-        first = self.read_header((index-1) * 2016)
-        last = self.read_header(index*2016 - 1)
+        first = self.read_header((index - 1) * 2016)
+        last = self.read_header(index * 2016 - 1)
         if last is None:
             for h in chain:
-                if h.get('block_height') == index*2016 - 1:
+                if h.get('block_height') == index * 2016 - 1:
                     last = h
         assert last is not None
         # bits to target
         bits = last.get('bits')
         bitsN = (bits >> 24) & 0xff
-        assert bitsN >= 0x03 and bitsN <= 0x1d, "First part of bits should be in [0x03, 0x1d]"
+        assert 0x03 <= bitsN <= 0x1d, "First part of bits should be in [0x03, 0x1d]"
         bitsBase = bits & 0xffffff
-        assert bitsBase >= 0x8000 and bitsBase <= 0x7fffff, "Second part of bits should be in [0x8000, 0x7fffff]"
-        target = bitsBase << (8 * (bitsN-3))
+        assert 0x8000 <= bitsBase <= 0x7fffff, "Second part of bits should be in [0x8000, 0x7fffff]"
+        target = bitsBase << (8 * (bitsN - 3))
         # new target
         nActualTimespan = last.get('timestamp') - first.get('timestamp')
         nTargetTimespan = 14 * 24 * 60 * 60
         nActualTimespan = max(nActualTimespan, nTargetTimespan / 4)
         nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
-        new_target = min(MAX_TARGET, (target*nActualTimespan) / nTargetTimespan)
+        new_target = min(MAX_TARGET, (target * nActualTimespan) / nTargetTimespan)
         # convert new target to bits
         c = ("%064x" % new_target)[2:]
         while c[:2] == '00' and len(c) > 6:
             c = c[2:]
-        bitsN, bitsBase = len(c) / 2, int('0x' + c[:6], 16)
+        bitsN, bitsBase = len(c) // 2, int('0x' + c[:6], 16)
         if bitsBase >= 0x800000:
             bitsN += 1
             bitsBase >>= 8
         new_bits = bitsN << 24 | bitsBase
-        return new_bits, bitsBase << (8 * (bitsN-3))
+        return new_bits, bitsBase << (8 * (bitsN - 3))
 
     def connect_header(self, chain, header):
-        '''Builds a header chain until it connects.  Returns True if it has
+        """Builds a header chain until it connects.  Returns True if it has
         successfully connected, False if verification failed, otherwise the
-        height of the next header needed.'''
+        height of the next header needed."""
         chain.append(header)  # Ordered by decreasing height
         previous_height = header['block_height'] - 1
         previous_header = self.read_header(previous_height)
@@ -234,7 +231,7 @@ class Blockchain(util.PrintError):
 
     def connect_chunk(self, idx, hexdata):
         try:
-            data = hexdata.decode('hex')
+            data = bfh(hexdata)
             self.verify_chunk(idx, data)
             self.print_error("validated chunk %d" % idx)
             self.save_chunk(idx, data)

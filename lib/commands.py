@@ -104,14 +104,14 @@ class Commands:
     def _run(self, method, args, password_getter):
         cmd = known_commands[method]
         if cmd.requires_password and self.wallet.has_password():
-            self._password = apply(password_getter,())
+            self._password = password_getter()
             if self._password is None:
                 return
         f = getattr(self, method)
         result = f(*args)
         self._password = None
         if self._callback:
-            apply(self._callback, ())
+            self._callback()
         return result
 
     @command('')

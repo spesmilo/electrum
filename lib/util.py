@@ -336,7 +336,7 @@ def bfh(x):
     elif isinstance(x, (list, tuple, map)):
         return [bfh(sub) for sub in x]
     else:
-        raise TypeError('Unexpected type: ' + type(x))
+        raise TypeError('Unexpected type: ' + str(type(x)))
 
 
 def bh2u(x):
