@@ -102,7 +102,7 @@ class CoinChooserBase(PrintError):
             value = sum(coin['value'] for coin in coins)
             return Bucket(desc, size, value, coins)
 
-        return map(make_Bucket, buckets.keys(), buckets.values())
+        return list(map(make_Bucket, buckets.keys(), buckets.values()))
 
     def penalty_func(self, tx):
         def penalty(candidate):
@@ -128,7 +128,7 @@ class CoinChooserBase(PrintError):
             s = str(val)
             return len(s) - len(s.rstrip('0'))
 
-        zeroes = map(trailing_zeroes, output_amounts)
+        zeroes = [trailing_zeroes(i) for i in output_amounts]
         min_zeroes = min(zeroes)
         max_zeroes = max(zeroes)
         zeroes = range(max(0, min_zeroes - 1), (max_zeroes + 1) + 1)
@@ -137,7 +137,7 @@ class CoinChooserBase(PrintError):
         remaining = change_amount
         amounts = []
         while n > 1:
-            average = remaining // n
+            average = remaining / n
             amount = self.p.randint(int(average * 0.7), int(average * 1.3))
             precision = min(self.p.choice(zeroes), int(floor(log10(amount))))
             amount = int(round(amount, -precision))
@@ -213,6 +213,9 @@ class CoinChooserBase(PrintError):
         self.print_error("using buckets:", [bucket.desc for bucket in buckets])
 
         return tx
+
+    def choose_buckets(self, buckets, sufficient_funds, penalty_func):
+        raise NotImplemented('To be subclassed')
 
 class CoinChooserOldestFirst(CoinChooserBase):
     '''Maximize transaction priority. Select the oldest unspent

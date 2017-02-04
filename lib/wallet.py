@@ -1027,7 +1027,7 @@ class Abstract_Wallet(PrintError):
             txin['signatures'] = [None] * len(txin['signatures'])
             self.add_input_info(txin)
         # use own outputs
-        s = filter(lambda x: self.is_mine(x[1]), outputs)
+        s = list(filter(lambda x: self.is_mine(x[1]), outputs))
         # ... unless there is none
         if not s:
             s = outputs

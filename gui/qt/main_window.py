@@ -22,12 +22,6 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-import six
 import sys, time, threading
 import os, json, traceback
 import shutil
@@ -44,6 +38,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
+from lib.util import bh2u, bfh
 from . import icons_rc
 
 from electrum import keystore
@@ -846,7 +841,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if req.get('exp'):
             URI += "&exp=%d"%req.get('exp')
         if req.get('name') and req.get('sig'):
-            sig = req.get('sig').decode('hex')
+            sig = bfh(req.get('sig'))
             sig = bitcoin.base_encode(sig, base=58)
             URI += "&name=" + req['name'] + "&sig="+sig
         return str(URI)
@@ -871,7 +866,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                         return
                 else:
                     return
-
 
     def save_payment_request(self):
         addr = str(self.receive_address_e.text())
@@ -948,7 +942,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.expires_combo.show()
 
     def toggle_qr_window(self):
-        import qrwindow
+        from . import qrwindow
         if not self.qr_window:
             self.qr_window = qrwindow.QR_Window(self)
             self.qr_window.setVisible(True)
@@ -1642,7 +1636,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.contact_list.update()
         self.update_completions()
 
-
     def show_invoice(self, key):
         pr = self.invoices.get(key)
         pr.verify(self.contacts)
@@ -1719,8 +1712,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         console.updateNamespace(methods)
 
-
-
     def create_status_bar(self):
 
         sb = QStatusBar()
@@ -1757,7 +1748,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.send_button.setVisible(not self.wallet.is_watching_only())
 
     def change_password_dialog(self):
-        from password_dialog import ChangePasswordDialog
+        from .password_dialog import ChangePasswordDialog
         d = ChangePasswordDialog(self, self.wallet)
         ok, password, new_password, encrypt_file = d.run()
         if not ok:
@@ -1819,9 +1810,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if len(mpk_list) > 1:
             def label(key):
                 if isinstance(self.wallet, Multisig_Wallet):
-                    return _("cosigner") + ' ' + str(i+1)
+                    return _("cosigner") + ' ' + str(key+1)
                 return ''
-            labels = [ label(i) for i in range(len(mpk_list))]
+            labels = [label(i) for i in range(len(mpk_list))]
             on_click = lambda clayout: show_mpk(clayout.selected_index())
             labels_clayout = ChoicesLayout(_("Master Public Keys"), labels, on_click)
             vbox.addLayout(labels_clayout.layout())
@@ -1896,6 +1887,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message('Address not in wallet.')
             return
         task = partial(self.wallet.sign_message, address, message, password)
+
         def show_signed_message(sig):
             signature.setText(base64.b64encode(sig).decode('ascii'))
         self.wallet.thread.add(task, on_success=show_signed_message)
@@ -2045,7 +2037,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # transactions are binary, but qrcode seems to return utf8...
         data = data.decode('utf8')
         z = bitcoin.base_decode(data, length=None, base=43)
-        data = ''.join(chr(ord(b)) for b in z).encode('hex')
+        data = bh2u(''.join(chr(ord(b)) for b in z))
         tx = self.tx_from_text(data)
         if not tx:
             return
@@ -2161,7 +2153,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.show_message(_("Private keys exported."))
 
-
     def do_export_privkeys(self, fileName, pklist, is_csv):
         with open(fileName, "w+") as f:
             if is_csv:
@@ -2172,7 +2163,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             else:
                 import json
                 f.write(json.dumps(pklist, indent = 4))
-
 
     def do_import_labels(self):
         labelsFile = self.getOpenFileName(_("Open labels file"), "*.json")
@@ -2187,7 +2177,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         except (IOError, os.error) as reason:
             self.show_critical(_("Electrum was unable to import your labels.") + "\n" + str(reason))
 
-
     def do_export_labels(self):
         labels = self.wallet.labels
         try:
@@ -2198,7 +2187,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.show_message(_("Your labels where exported to") + " '%s'" % str(fileName))
         except (IOError, os.error) as reason:
             self.show_critical(_("Electrum was unable to export your labels.") + "\n" + str(reason))
-
 
     def export_history_dialog(self):
         d = WindowModalDialog(self, _('Export History'))
@@ -2276,7 +2264,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             else:
                 import json
                 f.write(json.dumps(lines, indent = 4))
-
 
     def sweep_key_dialog(self):
         d = WindowModalDialog(self, title=_('Sweep private keys'))
