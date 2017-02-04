@@ -249,18 +249,17 @@ class PayToEdit(ScanQRTextEdit):
         hasModifier = (e.modifiers() != Qt.NoModifier) and not ctrlOrShift
         completionPrefix = self.textUnderCursor()
 
-        if hasModifier or not e.text() or completionPrefix.length() < 1 or eow.contains(e.text().right(1)):
+        if hasModifier or not e.text() or len(completionPrefix) < 1 or eow.find(e.text()[-1]) >= 0:
             self.c.popup().hide()
             return
 
         if completionPrefix != self.c.completionPrefix():
-            self.c.setCompletionPrefix(completionPrefix);
+            self.c.setCompletionPrefix(completionPrefix)
             self.c.popup().setCurrentIndex(self.c.completionModel().index(0, 0))
 
         cr = self.cursorRect()
         cr.setWidth(self.c.popup().sizeHintForColumn(0) + self.c.popup().verticalScrollBar().sizeHint().width())
         self.c.complete(cr)
-
 
     def qr_input(self):
         data = super(PayToEdit,self).qr_input()
