@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2012 thomasv@ecdsa.org
 #
@@ -22,14 +20,6 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-import six
-
-
 import os
 import threading
 
@@ -100,8 +90,9 @@ def can_connect(header):
 
 
 class Blockchain(util.PrintError):
-
-    '''Manages blockchain headers and their verification'''
+    """
+    Manages blockchain headers and their verification
+    """
 
     def __init__(self, config, checkpoint, parent_id):
         self.config = config
@@ -165,10 +156,10 @@ class Blockchain(util.PrintError):
             raise BaseException("insufficient proof of work: %s vs target %s" % (int('0x' + _hash, 16), target))
 
     def verify_chunk(self, index, data):
-        num = len(data) / 80
+        num = len(data) // 80
         prev_header = None
         if index != 0:
-            prev_header = self.read_header(index*2016 - 1)
+            prev_header = self.read_header(index * 2016 - 1)
         bits, target = self.get_target(index)
         for i in range(num):
             raw_header = data[i*80:(i+1) * 80]
@@ -294,17 +285,17 @@ class Blockchain(util.PrintError):
         nTargetTimespan = 14 * 24 * 60 * 60
         nActualTimespan = max(nActualTimespan, nTargetTimespan / 4)
         nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
-        new_target = min(MAX_TARGET, (target*nActualTimespan) / nTargetTimespan)
+        new_target = min(MAX_TARGET, (target * nActualTimespan) / nTargetTimespan)
         # convert new target to bits
         c = ("%064x" % new_target)[2:]
         while c[:2] == '00' and len(c) > 6:
             c = c[2:]
-        bitsN, bitsBase = len(c) / 2, int('0x' + c[:6], 16)
+        bitsN, bitsBase = len(c) // 2, int('0x' + c[:6], 16)
         if bitsBase >= 0x800000:
             bitsN += 1
             bitsBase >>= 8
         new_bits = bitsN << 24 | bitsBase
-        return new_bits, bitsBase << (8 * (bitsN-3))
+        return new_bits, bitsBase << (8 * (bitsN - 3))
 
     def can_connect(self, header, check_height=True):
         height = header['block_height']
@@ -327,7 +318,7 @@ class Blockchain(util.PrintError):
 
     def connect_chunk(self, idx, hexdata):
         try:
-            data = hexdata.decode('hex')
+            data = bfh(hexdata)
             self.verify_chunk(idx, data)
             #self.print_error("validated chunk %d" % idx)
             self.save_chunk(idx, data)
