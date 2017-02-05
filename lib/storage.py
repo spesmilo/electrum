@@ -22,12 +22,6 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-import six
 import os
 import ast
 import threading
@@ -78,7 +72,6 @@ class WalletStorage(PrintError):
         l = plugin_loaders.get(t)
         if l: l()
 
-
     def read(self, path):
         """Read the contents of the wallet file."""
         try:
@@ -97,12 +90,6 @@ class WalletStorage(PrintError):
             except Exception as e:
                 raise IOError("Cannot read wallet file '%s'" % self.path)
             self.data = {}
-            # In old versions of Electrum labels were latin1 encoded, this fixes breakage.
-            for i, label in labels.items():
-                try:
-                    unicode(label)
-                except UnicodeDecodeError:
-                    d['labels'][i] = unicode(label.decode('latin1'))
             for key, value in d.items():
                 try:
                     json.dumps(key)

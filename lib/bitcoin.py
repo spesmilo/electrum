@@ -29,7 +29,7 @@ import re
 import hmac
 import os
 
-from lib.util import bfh, bh2u
+from lib.util import bfh, bh2u, to_string
 from . import version
 from .util import print_error, InvalidPassword, assert_bytes, to_bytes
 
@@ -109,7 +109,7 @@ def DecodeAES(secret, e):
 def pw_encode(s, password):
     if password:
         secret = Hash(password)
-        return EncodeAES(secret, s.encode("utf8"))
+        return EncodeAES(secret, to_bytes(s, "utf8"))
     else:
         return s
 
@@ -117,7 +117,7 @@ def pw_decode(s, password):
     if password is not None:
         secret = Hash(password)
         try:
-            d = DecodeAES(secret, s).decode("utf8")
+            d = to_string(DecodeAES(secret, s), "utf8")
         except Exception:
             raise InvalidPassword()
         return d
@@ -172,7 +172,7 @@ def Hash(x):
 
 hash_encode = lambda x: bh2u(x[::-1])
 hash_decode = lambda x: bfh(x)[::-1]
-hmac_sha_512 = lambda x, y: _bytes(hmac.new(x, y, hashlib.sha512).digest())
+hmac_sha_512 = lambda x, y: hmac.new(x, y, hashlib.sha512).digest()
 
 
 def is_new_seed(x, prefix=version.SEED_PREFIX):

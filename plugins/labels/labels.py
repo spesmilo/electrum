@@ -12,8 +12,6 @@ from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
 
 
-
-
 class LabelsPlugin(BasePlugin):
 
     def __init__(self, parent, config, name):
@@ -83,7 +81,7 @@ class LabelsPlugin(BasePlugin):
         bundle = {"labels": [],
                   "walletId": wallet_id,
                   "walletNonce": self.get_nonce(wallet)}
-        for key, value in wallet.labels.iteritems():
+        for key, value in wallet.labels.items():
             try:
                 encoded_key = self.encode(wallet, key)
                 encoded_value = self.encode(wallet, value)
@@ -135,12 +133,12 @@ class LabelsPlugin(BasePlugin):
     def start_wallet(self, wallet):
         nonce = self.get_nonce(wallet)
         self.print_error("wallet", wallet.basename(), "nonce is", nonce)
-        mpk = wallet.get_fingerprint()
+        mpk = wallet.get_fingerprint().encode('ascii')
         if not mpk:
             return
-        password = hashlib.sha1(mpk).digest().encode('hex')[:32]
+        password = hashlib.sha1(mpk).hexdigest()[:32].encode('ascii')
         iv = hashlib.sha256(password).digest()[:16]
-        wallet_id = hashlib.sha256(mpk).digest().encode('hex')
+        wallet_id = hashlib.sha256(mpk).hexdigest()
         self.wallets[wallet] = (password, iv, wallet_id)
         # If there is an auth token we can try to actually start syncing
         t = threading.Thread(target=self.pull_thread, args=(wallet, False))

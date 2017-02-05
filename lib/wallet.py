@@ -1519,8 +1519,6 @@ class Deterministic_Wallet(Abstract_Wallet):
         return self.get_master_public_key()
 
 
-
-
 class Simple_Wallet(Abstract_Wallet):
 
     """ Wallet with a single pubkey per address """
