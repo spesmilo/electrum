@@ -22,12 +22,6 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-import six
 from collections import namedtuple
 import traceback
 import sys
@@ -192,7 +186,7 @@ class Plugins(DaemonThread):
 
 
 def hook(func):
-    hook_names.add(func.func_name)
+    hook_names.add(func.__name__)
     return func
 
 def run_hook(name, *args):

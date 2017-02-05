@@ -26,7 +26,7 @@
 import socket
 import threading
 import time
-import xmlrpclib
+from xmlrpc.client import ServerProxy
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -45,7 +45,7 @@ import traceback
 
 PORT = 12344
 HOST = 'cosigner.electrum.org'
-server = xmlrpclib.ServerProxy('http://%s:%d'%(HOST,PORT), allow_none=True)
+server = ServerProxy('http://%s:%d'%(HOST,PORT), allow_none=True)
 
 
 class Listener(util.DaemonThread):

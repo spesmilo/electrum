@@ -1,1 +1,1 @@
-from plugin import HW_PluginBase
+from .plugin import HW_PluginBase
