@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- mode: python -*-
 #
 # Electrum - lightweight Bitcoin client
@@ -23,11 +23,6 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import os
 import sys
 import six
@@ -46,13 +41,6 @@ if jnius:
         finally:
             jnius.detach()
     threading.Thread.run = thread_check_run
-
-# monkeypatch unicode constructor for py3
-# if six.PY3:
-#     import builtins
-    # builtins.unicode = str
-    # builtins.QString = str
-    # builtins.long = int
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
