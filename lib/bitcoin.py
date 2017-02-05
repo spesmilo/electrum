@@ -751,8 +751,8 @@ def xprv_header(xtype):
 def xpub_header(xtype):
     return ("%08x"%(XPUB_HEADER + xtype)).decode('hex')
 
-def serialize_xprv(xtype, c, k):
-    xprv = xprv_header(xtype) + chr(0)*9 + c + chr(0) + k
+def serialize_xprv(xtype, c, k, depth=0, fingerprint=chr(0)*4, child_number=chr(0)*4):
+    xprv = xprv_header(xtype) + chr(depth) + fingerprint + child_number + c + chr(0) + k
     return EncodeBase58Check(xprv)
 
 def serialize_xpub(xtype, c, cK, depth=0, fingerprint=chr(0)*4, child_number=chr(0)*4):
@@ -828,14 +828,13 @@ def bip32_private_derivation(xprv, branch, sequence):
         parent_k = k
         k, c = CKD_priv(k, c, i)
         depth += 1
-
     _, parent_cK = get_pubkeys_from_secret(parent_k)
     fingerprint = hash_160(parent_cK)[0:4]
     child_number = ("%08X"%i).decode('hex')
     K, cK = get_pubkeys_from_secret(k)
-    xprv = xprv_header(xtype) + chr(depth) + fingerprint + child_number + c + chr(0) + k
-    xpub = xpub_header(xtype) + chr(depth) + fingerprint + child_number + c + cK
-    return EncodeBase58Check(xprv), EncodeBase58Check(xpub)
+    xpub = serialize_xpub(xtype, c, cK, depth, fingerprint, child_number)
+    xprv = serialize_xprv(xtype, c, k, depth, fingerprint, child_number)
+    return xprv, xpub
 
 
 def bip32_public_derivation(xpub, branch, sequence):
@@ -850,8 +849,7 @@ def bip32_public_derivation(xpub, branch, sequence):
         depth += 1
     fingerprint = hash_160(parent_cK)[0:4]
     child_number = ("%08X"%i).decode('hex')
-    xpub = xpub_header(xtype) + chr(depth) + fingerprint + child_number + c + cK
-    return EncodeBase58Check(xpub)
+    return serialize_xpub(xtype, c, cK, depth, fingerprint, child_number)
 
 
 def bip32_private_key(sequence, k, chain):
