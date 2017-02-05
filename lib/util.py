@@ -586,7 +586,8 @@ def parse_URI(uri, on_pr=None):
                 request = pr.PaymentRequest(s)
             else:
                 request = pr.get_payment_request(r)
-            on_pr(request)
+            if on_pr:
+                on_pr(request)
         t = threading.Thread(target=get_payment_request_thread)
         t.setDaemon(True)
         t.start()
@@ -698,7 +699,6 @@ class SocketPipe:
         self._send(out)
 
     def send_all(self, requests):
-        print(requests)
         out = b''.join(map(lambda x: (json.dumps(x) + '\n').encode('utf8'), requests))
         self._send(out)
 

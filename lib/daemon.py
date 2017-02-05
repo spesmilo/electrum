@@ -34,8 +34,8 @@ import sys
 import time
 
 # from jsonrpc import JSONRPCResponseManager
-import jsonrpclib
-from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCRequestHandler
+# import jsonrpclib
+# from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCRequestHandler
 
 from .version import ELECTRUM_VERSION
 from .network import Network
@@ -96,17 +96,17 @@ def get_server(config):
         time.sleep(1.0)
 
 
-class RequestHandler(SimpleJSONRPCRequestHandler):
-
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.end_headers()
-
-    def end_headers(self):
-        self.send_header("Access-Control-Allow-Headers",
-                         "Origin, X-Requested-With, Content-Type, Accept")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        SimpleJSONRPCRequestHandler.end_headers(self)
+# class RequestHandler(SimpleJSONRPCRequestHandler):
+#
+#     def do_OPTIONS(self):
+#         self.send_response(200)
+#         self.end_headers()
+#
+#     def end_headers(self):
+#         self.send_header("Access-Control-Allow-Headers",
+#                          "Origin, X-Requested-With, Content-Type, Accept")
+#         self.send_header("Access-Control-Allow-Origin", "*")
+#         SimpleJSONRPCRequestHandler.end_headers(self)
 
 
 class Daemon(DaemonThread):
@@ -132,24 +132,24 @@ class Daemon(DaemonThread):
     def init_server(self, config, fd):
         host = config.get('rpchost', '127.0.0.1')
         port = config.get('rpcport', 0)
-        try:
-            server = SimpleJSONRPCServer((host, port), logRequests=False,
-                                         requestHandler=RequestHandler)
-        except Exception as e:
-            self.print_error('Warning: cannot initialize RPC server on host', host, e)
-            self.server = None
-            os.close(fd)
-            return
-        os.write(fd, bytes(repr((server.socket.getsockname(), time.time())), 'utf8'))
-        os.close(fd)
-        server.timeout = 0.1
-        for cmdname in known_commands:
-            server.register_function(getattr(self.cmd_runner, cmdname), cmdname)
-        server.register_function(self.run_cmdline, 'run_cmdline')
-        server.register_function(self.ping, 'ping')
-        server.register_function(self.run_daemon, 'daemon')
-        server.register_function(self.run_gui, 'gui')
-        self.server = server
+        # try:
+        #     server = SimpleJSONRPCServer((host, port), logRequests=False, requestHandler=RequestHandler)
+        # except Exception as e:
+        #     self.print_error('Warning: cannot initialize RPC server on host', host, e)
+        #     self.server = None
+        #     os.close(fd)
+        #     return
+        # os.write(fd, bytes(repr((server.socket.getsockname(), time.time())), 'utf8'))
+        # os.close(fd)
+        # server.timeout = 0.1
+        # for cmdname in known_commands:
+        #     server.register_function(getattr(self.cmd_runner, cmdname), cmdname)
+        # server.register_function(self.run_cmdline, 'run_cmdline')
+        # server.register_function(self.ping, 'ping')
+        # server.register_function(self.run_daemon, 'daemon')
+        # server.register_function(self.run_gui, 'gui')
+        # self.server = server
+        self.server = None
 
     def ping(self):
         return True
@@ -260,9 +260,9 @@ class Daemon(DaemonThread):
         # arguments passed to function
         args = map(lambda x: config.get(x), cmd.params)
         # decode json arguments
-        args = map(json_decode, args)
+        args = [json_decode(i) for i in args]
         # options
-        args += map(lambda x: (config_options.get(x) if x in ['password', 'new_password'] else config.get(x)), cmd.options)
+        args += list(map(lambda x: (config_options.get(x) if x in ['password', 'new_password'] else config.get(x)), cmd.options))
         cmd_runner = Commands(config, wallet, self.network)
         func = getattr(cmd_runner, cmd.name)
         result = func(*args)

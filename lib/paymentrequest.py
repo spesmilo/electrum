@@ -345,7 +345,6 @@ def sign_request_with_alias(pr, alias, alias_privkey):
     pr.signature = ec_key.sign_message(message, compressed, address)
 
 
-
 def verify_cert_chain(chain):
     """ Verify a chain of certificates. The last certificate is the CA"""
     load_ca_list()
