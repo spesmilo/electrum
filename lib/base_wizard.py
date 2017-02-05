@@ -189,7 +189,7 @@ class BaseWizard(object):
             except:
                 devmgr.print_error("error", name)
                 continue
-            devices += map(lambda x: (name, x), u)
+            devices += list(map(lambda x: (name, x), u))
         if not devices:
             msg = ''.join([
                 _('No hardware device detected.') + '\n',
@@ -235,7 +235,7 @@ class BaseWizard(object):
         self.line_dialog(run_next=f, title=_('Derivation'), message=message, default=default, test=bitcoin.is_bip32_derivation)
 
     def on_hw_derivation(self, name, device_info, derivation):
-        from keystore import hardware_keystore
+        from .keystore import hardware_keystore
         xpub = self.plugin.get_xpub(device_info.device.id_, derivation, self)
         if xpub is None:
             self.show_error('Cannot read xpub from device')
@@ -286,7 +286,7 @@ class BaseWizard(object):
                 self.load_2fa()
                 self.run('on_restore_seed', seed, is_ext)
         else:
-            raise BaseException('Unknown seed type', seed_type)
+            raise BaseException('Unknown seed type', self.seed_type)
 
     def on_restore_bip39(self, seed, passphrase):
         f = lambda x: self.run('on_bip44', seed, passphrase, str(x))
@@ -334,7 +334,8 @@ class BaseWizard(object):
                 k.update_password(None, password)
         if self.wallet_type == 'standard':
             self.storage.put('seed_type', self.seed_type)
-            self.storage.put('keystore', k.dump())
+            keys = self.keystores[0].dump()
+            self.storage.put('keystore', keys)
             self.wallet = Standard_Wallet(self.storage)
             self.run('create_addresses')
         elif self.wallet_type == 'multisig':
@@ -355,7 +356,7 @@ class BaseWizard(object):
         self.on_keystore(k)
 
     def create_seed(self):
-        import mnemonic
+        from . import mnemonic
         self.seed_type = 'segwit' if bitcoin.TESTNET and self.config.get('segwit') else 'standard'
         seed = mnemonic.Mnemonic('en').make_seed(self.seed_type)
         self.opt_bip39 = False
