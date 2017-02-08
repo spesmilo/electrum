@@ -2031,6 +2031,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 file_content = f.read()
         except (ValueError, IOError, os.error) as reason:
             self.show_critical(_("Electrum was unable to open your transaction file") + "\n" + str(reason), title=_("Unable to read file or no transaction found"))
+            return
         return self.tx_from_text(file_content)
 
     def do_process_from_text(self):
