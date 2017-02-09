@@ -152,9 +152,6 @@ class BlockchainInfo(ExchangeBase):
         json = self.get_json('blockchain.info', '/ticker')
         return dict([(r, Decimal(json[r]['15m'])) for r in json])
 
-    def name(self):
-        return "Blockchain"
-
 class BTCChina(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('data.btcchina.com', '/data/ticker')
@@ -384,7 +381,7 @@ class FxThread(ThreadJob):
         self.on_quotes()
 
     def set_exchange(self, name):
-        class_ = globals()[name]
+        class_ = globals().get(name, BitcoinAverage)
         self.print_error("using exchange", name)
         if self.config_exchange() != name:
             self.config.set_key('use_exchange', name, True)
