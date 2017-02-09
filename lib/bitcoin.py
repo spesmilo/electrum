@@ -653,34 +653,26 @@ class EC_KEY(object):
 
 
     def decrypt_message(self, encrypted):
-
         encrypted = base64.b64decode(encrypted)
-
         if len(encrypted) < 85:
             raise Exception('invalid ciphertext: length')
-
         magic = encrypted[:4]
         ephemeral_pubkey = encrypted[4:37]
         ciphertext = encrypted[37:-32]
         mac = encrypted[-32:]
-
         if magic != 'BIE1':
             raise Exception('invalid ciphertext: invalid magic bytes')
-
         try:
             ephemeral_pubkey = ser_to_point(ephemeral_pubkey)
         except AssertionError, e:
             raise Exception('invalid ciphertext: invalid ephemeral pubkey')
-
         if not ecdsa.ecdsa.point_is_valid(generator_secp256k1, ephemeral_pubkey.x(), ephemeral_pubkey.y()):
             raise Exception('invalid ciphertext: invalid ephemeral pubkey')
-
         ecdh_key = point_to_ser(ephemeral_pubkey * self.privkey.secret_multiplier)
         key = hashlib.sha512(ecdh_key).digest()
         iv, key_e, key_m = key[0:16], key[16:32], key[32:]
         if mac != hmac.new(key_m, encrypted[:-32], hashlib.sha256).digest():
-            raise Exception('invalid ciphertext: invalid mac')
-
+            raise InvalidPassword()
         return aes_decrypt_with_iv(key_e, iv, ciphertext)
 
 

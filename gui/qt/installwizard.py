@@ -294,8 +294,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     def pw_layout(self, msg, kind):
         playout = PasswordLayout(None, msg, kind, self.next_button)
+        playout.encrypt_cb.setChecked(True)
         self.set_main_layout(playout.layout())
-        return playout.new_password()
+        return playout.new_password(), playout.encrypt_cb.isChecked()
 
     @wizard_dialog
     def request_password(self, run_next):

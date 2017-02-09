@@ -19,6 +19,8 @@ class ElectrumGui:
         if not storage.file_exists:
             print "Wallet not found. try 'electrum create'"
             exit()
+        password = getpass.getpass('Password:', stream=None) if storage.is_encrypted() else None
+        storage.read(password)
 
         self.done = 0
         self.last_balance = ""

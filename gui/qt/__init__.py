@@ -159,18 +159,26 @@ class ElectrumGui:
                 w.bring_to_top()
                 break
         else:
-            try:
-                wallet = self.daemon.load_wallet(path)
-            except BaseException as e:
-                QMessageBox.information(None, _('Error'), str(e), _('OK'))
-                return
-            if wallet is None:
+            if not os.path.exists(path):
                 wizard = InstallWizard(self.config, self.app, self.plugins, path)
                 wallet = wizard.run_and_get_wallet()
                 if not wallet:
                     return
                 wallet.start_threads(self.daemon.network)
                 self.daemon.add_wallet(wallet)
+            else:
+                from password_dialog import PasswordDialog
+                msg = _("The file '%s' is encrypted.") % os.path.basename(path)
+                password_getter = lambda: PasswordDialog(msg=msg).run()
+                while True:
+                    try:
+                        wallet = self.daemon.load_wallet(path, password_getter)
+                        break
+                    except UserCancelled:
+                        return
+                    except BaseException as e:
+                        QMessageBox.information(None, _('Error'), str(e), _('OK'))
+                        continue
             w = self.create_window_for_wallet(wallet)
         if uri:
             w.pay_to_URI(uri)
