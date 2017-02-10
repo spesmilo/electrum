@@ -61,7 +61,7 @@ def check_imports():
     # pure-python dependencies need to be imported here for pyinstaller
     try:
         import dns
-        import aes
+        import pyaes
         import ecdsa
         import requests
         import six
