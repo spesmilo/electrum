@@ -39,7 +39,7 @@ import traceback
 
 import requests
 
-from lib import print_error
+from .util import print_error
 
 ca_path = requests.certs.where()
 
