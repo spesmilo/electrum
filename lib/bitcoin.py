@@ -29,7 +29,7 @@ import re
 import hmac
 import os
 
-from lib.util import bfh, bh2u, to_string
+from .util import bfh, bh2u, to_string
 from . import version
 from .util import print_error, InvalidPassword, assert_bytes, to_bytes
 
