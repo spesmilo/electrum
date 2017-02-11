@@ -173,7 +173,7 @@ class Mnemonic(object):
         prefix = version.seed_prefix(seed_type)
         # increase num_bits in order to obtain a uniform distibution for the last word
         bpw = math.log(len(self.wordlist), 2)
-        num_bits = int(math.ceil(num_bits/bpw)) * bpw
+        num_bits = int(math.ceil(num_bits/bpw) * bpw)
         # handle custom entropy; make sure we add at least 16 bits
         n_custom = int(math.ceil(math.log(custom_entropy, 2)))
         n = max(16, num_bits - n_custom)
