@@ -1462,7 +1462,7 @@ class Deterministic_Wallet(Abstract_Wallet):
         # fixme: this assumes wallet is synchronized
         n = 0
         nmax = 0
-        addresses = self.account.get_receiving_addresses()
+        addresses = self.get_receiving_addresses()
         k = self.num_unused_trailing_addresses(addresses)
         for a in addresses[0:-k]:
             if self.history.get(a):

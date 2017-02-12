@@ -34,7 +34,7 @@ import version
 from util import print_error, InvalidPassword
 
 import ecdsa
-import aes
+import pyaes
 
 # Litecoin network constants
 TESTNET = False
@@ -82,47 +82,29 @@ TYPE_SCRIPT  = 2
 
 
 # AES encryption
-EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))
-DecodeAES = lambda secret, e: aes.decryptData(secret, base64.b64decode(e))
-
-def strip_PKCS7_padding(s):
-    """return s stripped of PKCS7 padding"""
-    if len(s)%16 or not s:
-        raise ValueError("String of len %d can't be PCKS7-padded" % len(s))
-    numpads = ord(s[-1])
-    if numpads > 16:
-        raise ValueError("String ending with %r can't be PCKS7-padded" % s[-1])
-    if s[-numpads:] != numpads*chr(numpads):
-        raise ValueError("Invalid PKCS7 padding")
-    return s[:-numpads]
-
-# backport padding fix to AES module
-aes.strip_PKCS7_padding = strip_PKCS7_padding
-
 def aes_encrypt_with_iv(key, iv, data):
-    mode = aes.AESModeOfOperation.modeOfOperation["CBC"]
-    key = map(ord, key)
-    iv = map(ord, iv)
-    data = aes.append_PKCS7_padding(data)
-    keysize = len(key)
-    assert keysize in aes.AES.keySize.values(), 'invalid key size: %s' % keysize
-    moo = aes.AESModeOfOperation()
-    (mode, length, ciph) = moo.encrypt(data, mode, key, keysize, iv)
-    return ''.join(map(chr, ciph))
+    aes_cbc = pyaes.AESModeOfOperationCBC(key, iv=iv)
+    aes = pyaes.Encrypter(aes_cbc)
+    e = aes.feed(data) + aes.feed()  # empty aes.feed() appends pkcs padding
+    return e
 
 def aes_decrypt_with_iv(key, iv, data):
-    mode = aes.AESModeOfOperation.modeOfOperation["CBC"]
-    key = map(ord, key)
-    iv = map(ord, iv)
-    keysize = len(key)
-    assert keysize in aes.AES.keySize.values(), 'invalid key size: %s' % keysize
-    data = map(ord, data)
-    moo = aes.AESModeOfOperation()
-    decr = moo.decrypt(data, None, mode, key, keysize, iv)
-    decr = strip_PKCS7_padding(decr)
-    return decr
+    aes_cbc = pyaes.AESModeOfOperationCBC(key, iv=iv)
+    aes = pyaes.Decrypter(aes_cbc)
+    s = aes.feed(data) + aes.feed()  # empty aes.feed() strips pkcs padding
+    return s
 
+def EncodeAES(secret, s):
+    iv = bytes(os.urandom(16))
+    ct = aes_encrypt_with_iv(secret, iv, s)
+    e = iv + ct
+    return base64.b64encode(e)
 
+def DecodeAES(secret, e):
+    e = bytes(base64.b64decode(e))
+    iv, e = e[:16], e[16:]
+    s = aes_decrypt_with_iv(secret, iv, e)
+    return s
 
 def pw_encode(s, password):
     if password:
@@ -130,7 +112,6 @@ def pw_encode(s, password):
         return EncodeAES(secret, s.encode("utf8"))
     else:
         return s
-
 
 def pw_decode(s, password):
     if password is not None:

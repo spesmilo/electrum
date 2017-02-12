@@ -14,7 +14,7 @@ if __name__ == '__main__':
 
     # copy dependencies into 'packages' directory
     deps = [
-        'aes',
+        'pyaes',
         'ecdsa',
         'pbkdf2',
         'requests', # note: requests-2.5.1 is needed to build with pyinstaller
