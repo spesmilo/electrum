@@ -34,6 +34,8 @@ from util import MyTreeWidget, pr_tooltips, pr_icons
 
 
 class RequestList(MyTreeWidget):
+    filter_columns = [0, 1, 2, 3, 4]  # Date, Account, Address, Description, Amount
+
 
     def __init__(self, parent):
         MyTreeWidget.__init__(self, parent, self.create_menu, [_('Date'), _('Address'), '', _('Description'), _('Amount'), _('Status')], 3)

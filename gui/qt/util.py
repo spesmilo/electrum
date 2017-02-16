@@ -391,6 +391,7 @@ class MyTreeWidget(QTreeWidget):
         self.setItemDelegate(ElectrumItemDelegate(self))
         self.itemDoubleClicked.connect(self.on_doubleclick)
         self.update_headers(headers)
+        self.current_filter = ""
 
     def update_headers(self, headers):
         self.setColumnCount(len(headers))
@@ -477,6 +478,8 @@ class MyTreeWidget(QTreeWidget):
             self.setUpdatesEnabled(False)
             self.on_update()
             self.setUpdatesEnabled(True)
+        if self.current_filter:
+            self.filter(self.current_filter)
 
     def on_update(self):
         pass
@@ -490,8 +493,10 @@ class MyTreeWidget(QTreeWidget):
             for x in self.get_leaves(item):
                 yield x
 
-    def filter(self, p, columns):
+    def filter(self, p):
+        columns = self.__class__.filter_columns
         p = unicode(p).lower()
+        self.current_filter = p
         for item in self.get_leaves(self.invisibleRootItem()):
             item.setHidden(all([unicode(item.text(column)).lower().find(p) == -1
                                 for column in columns]))
