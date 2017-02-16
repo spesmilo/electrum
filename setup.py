@@ -43,6 +43,7 @@ setup(
         'qrcode',
         'protobuf',
         'dnspython',
+        'jsonrpclib-pelix',
     ],
     packages=[
         'electrum',

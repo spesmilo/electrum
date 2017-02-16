@@ -89,7 +89,7 @@ class Ledger_Client():
         try:
             client.getVerifyPinRemainingAttempts()
             return True
-        except BTChipException, e:
+        except BTChipException as e:
             if e.sw == 0x6d00:
                 return False
             raise e
@@ -98,7 +98,7 @@ class Ledger_Client():
         try:
             # Invalid SET OPERATION MODE to verify the PIN status
             client.dongle.exchange(bytearray([0xe0, 0x26, 0x00, 0x00, 0x01, 0xAB]))
-        except BTChipException, e:
+        except BTChipException as e:
             if (e.sw == 0x6982):
                 return False
             if (e.sw == 0x6A80):
@@ -117,16 +117,16 @@ class Ledger_Client():
                 raise Exception("HW1 firmware version too old. Please update at https://www.ledgerwallet.com")
             try:
                 self.dongleObject.getOperationMode()
-            except BTChipException, e:
+            except BTChipException as e:
                 if (e.sw == 0x6985):
                     self.dongleObject.dongle.close()
                     self.handler.get_setup( )
                     # Acquire the new client on the next run
                 else:
                     raise e
-            if self.has_detached_pin_support(self.dongleObject) and not self.is_pin_validated(self.dongleObject) and (self.handler <> None):
+            if self.has_detached_pin_support(self.dongleObject) and not self.is_pin_validated(self.dongleObject) and (self.handler is not None):
                 remaining_attempts = self.dongleObject.getVerifyPinRemainingAttempts()
-                if remaining_attempts <> 1:
+                if remaining_attempts != 1:
                     msg = "Enter your Ledger PIN - remaining attempts : " + str(remaining_attempts)
                 else:
                     msg = "Enter your Ledger PIN - WARNING : LAST ATTEMPT. If the PIN is not correct, the dongle will be wiped."
@@ -135,7 +135,7 @@ class Ledger_Client():
                     raise Exception('Aborted by user - please unplug the dongle and plug it again before retrying')
                 pin = pin.encode()
                 self.dongleObject.verifyPin(pin)
-        except BTChipException, e:
+        except BTChipException as e:
             if (e.sw == 0x6faa):
                 raise Exception("Dongle is temporarily locked - please unplug it and replug it again")
             if ((e.sw & 0xFFF0) == 0x63c0):
@@ -221,7 +221,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     raise UserWarning(_('Cancelled by user'))
                 pin = str(pin).encode()
             signature = self.get_client().signMessageSign(pin)
-        except BTChipException, e:
+        except BTChipException as e:
             if e.sw == 0x6a80:
                 self.give_error("Unfortunately, this message cannot be signed by the Ledger wallet. Only alphanumerical messages shorter than 140 characters are supported. Please remove any extra characters (tab, carriage return) and retry.")
             else:
@@ -229,7 +229,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         except UserWarning:
             self.handler.show_error(_('Cancelled by user'))
             return ''
-        except Exception, e:
+        except Exception as e:
             self.give_error(e, True)
         finally:
             self.handler.clear_dialog()
@@ -268,7 +268,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         output = None
         outputAmount = None
         p2shTransaction = False
-    	reorganize = False
+        reorganize = False
         pin = ""
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
 
@@ -441,7 +441,7 @@ class LedgerPlugin(HW_PluginBase):
         self.handler = handler
 
         client = self.get_btchip_device(device)
-        if client <> None:
+        if client is not None:
             client = Ledger_Client(client)
         return client
 
@@ -474,6 +474,6 @@ class LedgerPlugin(HW_PluginBase):
         # returns the client for a given keystore. can use xpub
         #if client:
         #    client.used()
-        if client <> None:
+        if client is not None:
             client.checkDevice()                    
         return client

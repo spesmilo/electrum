@@ -31,7 +31,7 @@ version.filename = %(source.dir)s/contrib/versions.py
 #version = 1.9.8
 
 # (list) Application requirements
-requirements = hostpython2, android, openssl, pycrypto, pil, plyer, kivy==master
+requirements = python3crystax, android, openssl, pycrypto, pil, plyer, kivy==master
 
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
@@ -120,7 +120,7 @@ android.manifest.intent_filters = gui/kivy/tools/bitcoin_intent.xml
 android.p4a_whitelist = lib-dynload/_csv.so
 
 # local version that merges branch 866
-android.p4a_dir = /opt/python-for-android
+#android.p4a_dir = /opt/python-for-android
 
 #
 # iOS specific
