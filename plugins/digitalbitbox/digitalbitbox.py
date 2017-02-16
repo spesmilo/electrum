@@ -157,7 +157,7 @@ class DigitalBitbox_Client():
             self.isInitialized = True # Wallet exists. Electrum code later checks if the device matches the wallet
         elif not self.isInitialized:
             reply = self.hid_send_encrypt('{"device":"info"}')
-            if reply['device']['id'] <> "":
+            if reply['device']['id'] != "":
                 self.recover_or_erase_dialog() # Already seeded
             else:
                 self.seed_device_dialog() # Seed if not initialized
@@ -594,7 +594,7 @@ class DigitalBitboxPlugin(HW_PluginBase):
         handler = keystore.handler
         with devmgr.hid_lock:
             client = devmgr.client_for_keystore(self, handler, keystore, force_pair)        
-        if client <> None:
+        if client is not None:
             client.check_device_dialog()
         return client
 

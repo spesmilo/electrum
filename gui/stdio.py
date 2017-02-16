@@ -23,7 +23,7 @@ class ElectrumGui:
         self.network = daemon.network
         storage = WalletStorage(config.get_wallet_path())
         if not storage.file_exists:
-            print "Wallet not found. try 'electrum create'"
+            print("Wallet not found. try 'electrum create'")
             exit()
         if storage.is_encrypted():
             password = getpass.getpass('Password:', stream=None)
@@ -63,8 +63,8 @@ class ElectrumGui:
 
     def main_command(self):
         self.print_balance()
-        c = raw_input("enter command: ")
-        if   c == "h" : self.print_commands()
+        c = input("enter command: ")
+        if c == "h" : self.print_commands()
         elif c == "i" : self.print_history()
         elif c == "o" : self.enter_order()
         elif c == "p" : self.print_order()
@@ -144,10 +144,10 @@ class ElectrumGui:
               + "\nfee: " + self.str_fee + ", desc: " + self.str_description)
 
     def enter_order(self):
-        self.str_recipient = raw_input("Pay to: ")
-        self.str_description = raw_input("Description : ")
-        self.str_amount = raw_input("Amount: ")
-        self.str_fee = raw_input("Fee: ")
+        self.str_recipient = input("Pay to: ")
+        self.str_description = input("Description : ")
+        self.str_amount = input("Amount: ")
+        self.str_fee = input("Fee: ")
 
     def send_order(self):
         self.do_send()
@@ -192,7 +192,7 @@ class ElectrumGui:
 
         c = ""
         while c != "y":
-            c = raw_input("ok to send (y/n)?")
+            c = input("ok to send (y/n)?")
             if c == "n": return
 
         try:

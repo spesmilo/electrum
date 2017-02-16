@@ -42,7 +42,7 @@ from functools import partial
 from collections import namedtuple, defaultdict
 
 from .i18n import _
-from .util import NotEnoughFunds, PrintError, UserCancelled, profiler
+from .util import NotEnoughFunds, PrintError, UserCancelled, profiler, format_satoshis
 
 from .bitcoin import *
 from .version import *
@@ -59,6 +59,7 @@ from .verifier import SPV
 from .mnemonic import Mnemonic
 
 from . import paymentrequest
+from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 
 from .storage import WalletStorage
 
@@ -1183,12 +1184,11 @@ class Abstract_Wallet(PrintError):
         return False, None
 
     def get_payment_request(self, addr, config):
-        import util
         r = self.receive_requests.get(addr)
         if not r:
             return
         out = copy.copy(r)
-        out['URI'] = 'bitcoin:' + addr + '?amount=' + util.format_satoshis(out.get('amount'))
+        out['URI'] = 'bitcoin:' + addr + '?amount=' + format_satoshis(out.get('amount'))
         status, conf = self.get_request_status(addr)
         out['status'] = status
         if conf is not None:
@@ -1219,7 +1219,6 @@ class Abstract_Wallet(PrintError):
         return out
 
     def get_request_status(self, key):
-        from paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
         r = self.receive_requests.get(key)
         if r is None:
             return PR_UNKNOWN
