@@ -101,7 +101,7 @@ def parse_servers(result):
                     pruning_level = v[1:]
                 if pruning_level == '': pruning_level = '0'
         try:
-            is_recent = cmp(util.normalize_version(version), util.normalize_version(PROTOCOL_VERSION)) >= 0
+            is_recent = util.normalize_version(version) >= util.normalize_version(PROTOCOL_VERSION)
         except Exception as e:
             print_error(e)
             is_recent = False

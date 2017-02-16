@@ -68,7 +68,7 @@ def check_imports():
         import qrcode
         import pbkdf2
         import google.protobuf
-        # import jsonrpclib
+        import jsonrpclib
     except ImportError as e:
         sys.exit("Error: %s. Try 'sudo pip install <module-name>'"%e.message)
     # the following imports are for pyinstaller
@@ -76,7 +76,7 @@ def check_imports():
     from google.protobuf import message
     from google.protobuf import reflection
     from google.protobuf import descriptor_pb2
-    # from jsonrpclib import SimpleJSONRPCServer
+    from jsonrpclib import SimpleJSONRPCServer
     # check that we have the correct version of ecdsa
     try:
         from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
@@ -94,6 +94,7 @@ if is_bundle or is_local or is_android:
     import imp
     imp.load_module('electrum', *imp.find_module('lib'))
     imp.load_module('electrum_gui', *imp.find_module('gui'))
+
 
 from electrum import bitcoin, network
 from electrum import SimpleConfig, Network

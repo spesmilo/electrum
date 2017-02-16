@@ -90,11 +90,10 @@ class TrustedCoinCosignerClient(object):
             kwargs['headers']['content-type'] = 'application/json'
         url = urljoin(self.base_url, relative_url)
         if self.debug:
-            print '%s %s %s' % (method, url, data)
+            print('%s %s %s' % (method, url, data))
         response = requests.request(method, url, **kwargs)
         if self.debug:
-            print response.text
-            print
+            print(response.text)
         if response.status_code != 200:
             message = str(response.text)
             if response.headers.get('content-type') == 'application/json':
