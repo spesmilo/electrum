@@ -49,6 +49,7 @@ TX_ICONS = [
 
 
 class HistoryList(MyTreeWidget):
+    filter_columns = [2, 3, 4]  # Date, Description, Amount
 
     def __init__(self, parent=None):
         MyTreeWidget.__init__(self, parent, self.create_menu, [], 3)
