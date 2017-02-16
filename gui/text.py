@@ -25,7 +25,7 @@ class ElectrumGui:
         self.network = daemon.network
         storage = WalletStorage(config.get_wallet_path())
         if not storage.file_exists:
-            print "Wallet not found. try 'electrum create'"
+            print("Wallet not found. try 'electrum create'")
             exit()
         if storage.is_encrypted():
             password = getpass.getpass('Password:', stream=None)
@@ -186,8 +186,13 @@ class ElectrumGui:
             self.print_list( self.network.banner.split('\n'))
 
     def print_qr(self, data):
-        import qrcode, StringIO
-        s = StringIO.StringIO()
+        import qrcode
+        try:
+            from StringIO import StringIO
+        except ImportError:
+            from io import StringIO
+
+        s = StringIO()
         self.qr = qrcode.QRCode()
         self.qr.add_data(data)
         self.qr.print_ascii(out=s, invert=False)
@@ -218,7 +223,7 @@ class ElectrumGui:
 
     def main_command(self):
         c = self.stdscr.getch()
-        print c
+        print(c)
         if   c == curses.KEY_RIGHT: self.tab = (self.tab + 1)%self.num_tabs
         elif c == curses.KEY_LEFT: self.tab = (self.tab - 1)%self.num_tabs
         elif c == curses.KEY_DOWN: self.pos +=1

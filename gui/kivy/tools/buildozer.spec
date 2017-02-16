@@ -31,7 +31,7 @@ version.filename = %(source.dir)s/contrib/versions.py
 #version = 1.9.8
 
 # (list) Application requirements
-requirements = hostpython2, android, openssl, pycrypto, pil, plyer, kivy==master
+requirements = python3crystax, android, openssl, pycrypto, pil, plyer, kivy==master
 
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
