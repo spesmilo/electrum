@@ -232,6 +232,13 @@ class SimpleConfig(PrintError):
             fee_rate = self.get('fee_per_kb', self.max_fee_rate()/2)
         return fee_rate
 
+    def get_video_device(self):
+        device = self.get("video_device", "default")
+        if device == 'default':
+            device = ''
+        return device
+
+
 def read_system_config(path=SYSTEM_CONFIG_PATH):
     """Parse and return the system config settings in /etc/electrum.conf."""
     result = {}
