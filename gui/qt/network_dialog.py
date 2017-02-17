@@ -183,7 +183,7 @@ class NetworkChoiceLayout(object):
         self.tor_button.clicked.connect(self.use_tor_proxy)
         grid.addWidget(self.tor_button, 5, 1, 1, 2)
         self.layout_ = vbox
-        td = TorDetector()
+        self.td = td = TorDetector()
         td.found_proxy.connect(self.suggest_proxy)
         td.start()
 
