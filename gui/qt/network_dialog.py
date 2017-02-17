@@ -22,6 +22,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+import socket
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -38,7 +39,7 @@ protocol_letters = 'ts'
 class NetworkDialog(WindowModalDialog):
     def __init__(self, network, config, parent):
         WindowModalDialog.__init__(self, parent, _('Network'))
-        self.setMinimumSize(375, 20)
+        self.setMinimumSize(400, 20)
         self.nlayout = NetworkChoiceLayout(network, config)
         vbox = QVBoxLayout(self)
         vbox.addLayout(self.nlayout.layout())
@@ -56,6 +57,7 @@ class NetworkChoiceLayout(object):
         self.network = network
         self.config = config
         self.protocol = None
+        self.tor_proxy = None
 
         self.servers = network.get_servers()
         host, port, protocol, proxy_config, auto_connect = network.get_parameters()
@@ -108,7 +110,7 @@ class NetworkChoiceLayout(object):
         # use SSL
         self.ssl_cb = QCheckBox(_('Use SSL'))
         self.ssl_cb.setChecked(auto_connect)
-        grid.addWidget(self.ssl_cb, 3, 1, 1, 3)
+        grid.addWidget(self.ssl_cb, 0, 2, 1, 1, Qt.AlignRight)
         self.ssl_cb.stateChanged.connect(self.change_protocol)
 
         # auto connect
@@ -175,7 +177,15 @@ class NetworkChoiceLayout(object):
         grid.addWidget(self.proxy_mode, 4, 1)
         grid.addWidget(self.proxy_host, 4, 2)
         grid.addWidget(self.proxy_port, 4, 3)
+        self.tor_button = QPushButton("Use Tor Proxy")
+        self.tor_button.setIcon(QIcon(":icons/tor_logo.png"))
+        self.tor_button.hide()
+        self.tor_button.clicked.connect(self.use_tor_proxy)
+        grid.addWidget(self.tor_button, 5, 1, 1, 2)
         self.layout_ = vbox
+        td = TorDetector()
+        td.found_proxy.connect(self.suggest_proxy)
+        td.start()
 
     def layout(self):
         return self.layout_
@@ -250,3 +260,44 @@ class NetworkChoiceLayout(object):
         auto_connect = self.autoconnect_cb.isChecked()
 
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
+
+    def suggest_proxy(self, found_proxy):
+        self.tor_proxy = found_proxy
+        self.tor_button.setText("Use Tor proxy at port " + str(found_proxy[1]))
+        self.tor_button.show()
+
+    def use_tor_proxy(self):
+        # 2 = SOCKS5
+        self.proxy_mode.setCurrentIndex(2)
+        self.proxy_host.setText("127.0.0.1")
+        self.proxy_port.setText(str(self.tor_proxy[1]))
+        self.tor_button.hide()
+
+
+class TorDetector(QThread):
+    found_proxy = pyqtSignal(object)
+
+    def __init__(self):
+        QThread.__init__(self)
+
+    def run(self):
+        # Probable ports for Tor to listen at
+        ports = [9050, 9150]
+        for p in ports:
+            if TorDetector.is_tor_port(p):
+                self.found_proxy.emit(("127.0.0.1", p))
+                return
+
+    @staticmethod
+    def is_tor_port(port):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.1)
+            s.connect(("127.0.0.1", port))
+            # Tor responds uniquely to HTTP-like requests
+            s.send("GET\n")
+            if "Tor is not an HTTP Proxy" in s.recv(1024):
+                return True
+        except socket.error:
+            pass
+        return False
