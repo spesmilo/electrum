@@ -35,6 +35,7 @@ from util import MyTreeWidget, pr_tooltips, pr_icons
 
 
 class ContactList(MyTreeWidget):
+    filter_columns = [0, 1]  # Key, Value
 
     def __init__(self, parent):
         MyTreeWidget.__init__(self, parent, self.create_menu, [_('Name'), _('Address')], 0, [0])

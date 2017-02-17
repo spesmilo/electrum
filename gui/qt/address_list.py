@@ -34,6 +34,7 @@ from electrum_ltc.bitcoin import is_address
 
 
 class AddressList(MyTreeWidget):
+    filter_columns = [0, 1, 2]  # Address, Label, Balance
 
     def __init__(self, parent=None):
         MyTreeWidget.__init__(self, parent, self.create_menu, [ _('Address'), _('Label'), _('Balance'), _('Tx')], 1)
