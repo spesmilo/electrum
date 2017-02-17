@@ -169,15 +169,20 @@ class NetworkChoiceLayout(object):
 
         check_for_disable()
         self.proxy_mode.connect(self.proxy_mode, SIGNAL('currentIndexChanged(int)'), check_for_disable)
+
         self.proxy_mode.setCurrentIndex(self.proxy_mode.findText(str(proxy_config.get("mode").upper())))
         self.proxy_host.setText(proxy_config.get("host"))
         self.proxy_port.setText(proxy_config.get("port"))
+
+        self.proxy_mode.connect(self.proxy_mode, SIGNAL('currentIndexChanged(int)'), self.proxy_settings_changed)
+        self.proxy_host.connect(self.proxy_host, SIGNAL('textEdited(QString)'), self.proxy_settings_changed)
+        self.proxy_port.connect(self.proxy_port, SIGNAL('textEdited(QString)'), self.proxy_settings_changed)
 
         grid.addWidget(QLabel(_('Proxy') + ':'), 4, 0)
         grid.addWidget(self.proxy_mode, 4, 1)
         grid.addWidget(self.proxy_host, 4, 2)
         grid.addWidget(self.proxy_port, 4, 3)
-        self.tor_button = QPushButton("Use Tor Proxy")
+        self.tor_button = QCheckBox("Use Tor Proxy")
         self.tor_button.setIcon(QIcon(":icons/tor_logo.png"))
         self.tor_button.hide()
         self.tor_button.clicked.connect(self.use_tor_proxy)
@@ -264,14 +269,25 @@ class NetworkChoiceLayout(object):
     def suggest_proxy(self, found_proxy):
         self.tor_proxy = found_proxy
         self.tor_button.setText("Use Tor proxy at port " + str(found_proxy[1]))
+        if self.proxy_mode.currentIndex() == 2 \
+            and self.proxy_host.text() == "127.0.0.1" \
+                and self.proxy_port.text() == str(found_proxy[1]):
+            self.tor_button.setChecked(True)
         self.tor_button.show()
 
-    def use_tor_proxy(self):
+    def use_tor_proxy(self, use_it):
         # 2 = SOCKS5
-        self.proxy_mode.setCurrentIndex(2)
-        self.proxy_host.setText("127.0.0.1")
-        self.proxy_port.setText(str(self.tor_proxy[1]))
-        self.tor_button.hide()
+        if not use_it:
+            self.proxy_mode.setCurrentIndex(0)
+            self.tor_button.setChecked(False)
+        else:
+            self.proxy_mode.setCurrentIndex(2)
+            self.proxy_host.setText("127.0.0.1")
+            self.proxy_port.setText(str(self.tor_proxy[1]))
+            self.tor_button.setChecked(True)
+
+    def proxy_settings_changed(self):
+        self.tor_button.setChecked(False)
 
 
 class TorDetector(QThread):
@@ -291,7 +307,7 @@ class TorDetector(QThread):
     @staticmethod
     def is_tor_port(port):
         try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s = socket._socketobject(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(0.1)
             s.connect(("127.0.0.1", port))
             # Tor responds uniquely to HTTP-like requests
