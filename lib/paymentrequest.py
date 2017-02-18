@@ -42,7 +42,7 @@ from six.moves import urllib_parse
 
 
 try:
-    from . import paymentrequest_pb2 as pb2
+    from . import paymentrequest_pb2_py3 as pb2
 except ImportError:
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto'")
 
@@ -188,7 +188,7 @@ class PaymentRequest:
         # verify the BIP70 signature
         pubkey0 = rsakey.RSAKey(x.modulus, x.exponent)
         sig = paymntreq.signature
-        paymntreq.signature = ''
+        paymntreq.signature = b''
         s = paymntreq.SerializeToString()
         sigBytes = bytearray(sig)
         msgBytes = bytearray(s)
@@ -473,7 +473,7 @@ class InvoiceStore(object):
     def load(self, d):
         for k, v in d.items():
             try:
-                pr = bfh(PaymentRequest(v.get('hex')))
+                pr = PaymentRequest(bfh(v.get('hex')))
                 pr.tx = v.get('txid')
                 pr.requestor = v.get('requestor')
                 self.invoices[k] = pr
