@@ -1224,7 +1224,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         menu.exec_(self.from_list.viewport().mapToGlobal(position))
 
     def set_pay_from(self, coins):
-        self.pay_from = coins
+        self.pay_from = list(coins)
         self.redraw_from_list()
 
     def redraw_from_list(self):
