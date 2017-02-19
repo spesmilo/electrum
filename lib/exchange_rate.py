@@ -46,7 +46,7 @@ class ExchangeBase(PrintError):
     def get_csv(self, site, get_string):
         url = ''.join(['https://', site, get_string])
         response = requests.request('GET', url, headers={'User-Agent' : 'Electrum'})
-        reader = csv.DictReader(response.content.split('\n'))
+        reader = csv.DictReader(response.content.decode().split('\n'))
         return list(reader)
 
     def name(self):
