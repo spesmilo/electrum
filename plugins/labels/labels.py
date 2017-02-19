@@ -23,7 +23,7 @@ class LabelsPlugin(BasePlugin):
         password, iv, wallet_id = self.wallets[wallet]
         encrypted = electrum.bitcoin.aes_encrypt_with_iv(password, iv,
                                                          msg.encode('utf8'))
-        return base64.b64encode(encrypted)
+        return base64.b64encode(encrypted).decode()
 
     def decode(self, wallet, message):
         password, iv, wallet_id = self.wallets[wallet]
