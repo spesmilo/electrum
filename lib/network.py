@@ -359,7 +359,8 @@ class Network(util.DaemonThread):
 
     def get_servers(self):
         if self.irc_servers:
-            out = self.irc_servers
+            out = self.irc_servers.copy()
+            out.update(DEFAULT_SERVERS)
         else:
             out = DEFAULT_SERVERS
             for s in self.recent_servers:

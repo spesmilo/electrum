@@ -235,6 +235,7 @@ class Abstract_Wallet(PrintError):
         changed = False
         old_text = self.labels.get(name)
         if text:
+            text = text.replace("\n", " ")
             if old_text != text:
                 self.labels[name] = text
                 changed = True

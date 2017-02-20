@@ -2001,7 +2001,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def read_tx_from_qrcode(self):
         from electrum_ltc import qrscanner
         try:
-            data = qrscanner.scan_qr(self.config)
+            data = qrscanner.scan_barcode(self.config.get_video_device())
         except BaseException as e:
             self.show_error(str(e))
             return
@@ -2517,9 +2517,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         #combo.addItem("Manually specify a device", config.get("video_device"))
         index = qr_combo.findData(self.config.get("video_device"))
         qr_combo.setCurrentIndex(index)
-        msg = _("Install the zbar package to enable this.\nOn linux, type: 'apt-get install python-zbar'")
+        msg = _("Install the zbar package to enable this.")
         qr_label = HelpLabel(_('Video Device') + ':', msg)
-        qr_combo.setEnabled(qrscanner.zbar is not None)
+        qr_combo.setEnabled(qrscanner.libzbar is not None)
         on_video_device = lambda x: self.config.set_key("video_device", str(qr_combo.itemData(x).toString()), True)
         qr_combo.currentIndexChanged.connect(on_video_device)
         gui_widgets.append((qr_label, qr_combo))
