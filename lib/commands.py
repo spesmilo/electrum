@@ -754,7 +754,7 @@ def get_parser():
         epilog="Run 'electrum help <command>' to see the help for a command")
     subparsers = parser.add_subparsers(dest='cmd', metavar='<command>')
     # gui
-    parser_gui = subparsers.add_parser('gui', parents=[parent_parser], description="Run Electrum's Graphical User Interface.", help="Run GUI (default)")
+    parser_gui = subparsers.add_parser('gui', description="Run Electrum's Graphical User Interface.", help="Run GUI (default)")
     parser_gui.add_argument("url", nargs='?', default=None, help="bitcoin URI (or bip70 file)")
     #parser_gui.set_defaults(func=run_gui)
     parser_gui.add_argument("-g", "--gui", dest="gui", help="select graphical user interface", choices=['qt', 'kivy', 'text', 'stdio'])
@@ -763,14 +763,14 @@ def get_parser():
     parser_gui.add_argument("-L", "--lang", dest="language", default=None, help="default language used in GUI")
     add_network_options(parser_gui)
     # daemon
-    parser_daemon = subparsers.add_parser('daemon', parents=[parent_parser], help="Run Daemon")
+    parser_daemon = subparsers.add_parser('daemon', help="Run Daemon")
     parser_daemon.add_argument("subcommand", choices=['start', 'status', 'stop'], nargs='?')
     #parser_daemon.set_defaults(func=run_daemon)
     add_network_options(parser_daemon)
     # commands
     for cmdname in sorted(known_commands.keys()):
         cmd = known_commands[cmdname]
-        p = subparsers.add_parser(cmdname, parents=[parent_parser], help=cmd.help, description=cmd.description)
+        p = subparsers.add_parser(cmdname, help=cmd.help, description=cmd.description)
         if cmdname == 'restore':
             p.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
         #p.set_defaults(func=run_cmdline)
