@@ -45,6 +45,12 @@ from paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 import contacts
 known_commands = {}
 
+
+def satoshis(amount):
+    # satoshi conversion must not be performed by the parser
+    return int(COIN*Decimal(amount)) if amount not in ['!', None] else amount
+
+
 class Command:
 
     def __init__(self, func, s):
@@ -216,7 +222,7 @@ class Commands:
             else:
                 raise BaseException('No redeem script')
 
-        outputs = map(lambda x: (TYPE_ADDRESS, x[0], int(COIN*Decimal(x[1]))), outputs)
+        outputs = map(lambda x: (TYPE_ADDRESS, x[0], satoshis(x[1])), outputs)
         tx = Transaction.from_io(inputs, outputs, locktime=locktime)
         tx.sign(keypairs)
         return tx.as_dict()
@@ -378,6 +384,7 @@ class Commands:
         """Sweep private keys. Returns a transaction that spends UTXOs from
         privkey to a destination address. The transaction is not
         broadcasted."""
+        tx_fee = satoshis(tx_fee)
         privkeys = privkey if type(privkey) is list else [privkey]
         self.nocheck = nocheck
         dest = self._resolver(destination)
@@ -404,8 +411,7 @@ class Commands:
         final_outputs = []
         for address, amount in outputs:
             address = self._resolver(address)
-            if amount != '!':
-                amount = int(COIN*Decimal(amount))
+            amount = satoshis(amount)
             final_outputs.append((TYPE_ADDRESS, address, amount))
 
         coins = self.wallet.get_spendable_coins(domain)
@@ -419,6 +425,7 @@ class Commands:
     @command('wp')
     def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False):
         """Create a transaction. """
+        tx_fee = satoshis(tx_fee)
         domain = [from_addr] if from_addr else None
         tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, rbf)
         return tx.as_dict()
@@ -426,6 +433,7 @@ class Commands:
     @command('wp')
     def paytomany(self, outputs, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False):
         """Create a multi-output transaction. """
+        tx_fee = to_satoshis(tx_fee)
         domain = [from_addr] if from_addr else None
         tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, rbf)
         return tx.as_dict()
@@ -572,7 +580,7 @@ class Commands:
                 addr = self.wallet.create_new_address(False)
             else:
                 return False
-        amount = int(COIN*Decimal(amount))
+        amount = satoshis(amount)
         expiration = int(expiration) if expiration else None
         req = self.wallet.make_payment_request(addr, amount, memo, expiration)
         self.wallet.add_payment_request(req, self.config)
@@ -688,8 +696,8 @@ arg_types = {
     'jsontx': json_loads,
     'inputs': json_loads,
     'outputs': json_loads,
-    'tx_fee': lambda x: int(COIN*Decimal(x)) if x is not None else None,
-    'amount': lambda x: str(Decimal(x)) if x!='!' else '!',
+    'tx_fee': lambda x: str(Decimal(x)) if x is not None else None,
+    'amount': lambda x: str(Decimal(x)) if x != '!' else '!',
 }
 
 config_variables = {
