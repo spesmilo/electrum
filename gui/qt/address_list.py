@@ -125,6 +125,15 @@ class AddressList(MyTreeWidget):
             if addr_URL:
                 menu.addAction(_("View on block explorer"), lambda: webbrowser.open(addr_URL))
 
+            if not self.wallet.is_frozen(addr):
+                menu.addAction(_("Freeze"), lambda: self.parent.set_frozen_state([addr], True))
+            else:
+                menu.addAction(_("Unfreeze"), lambda: self.parent.set_frozen_state([addr], False))
+
+        coins = self.wallet.get_utxos(addrs)
+        if coins:
+            menu.addAction(_("Spend from"), lambda: self.parent.spend_coins(coins))
+
         run_hook('receive_menu', menu, addrs, self.wallet)
         menu.exec_(self.viewport().mapToGlobal(position))
 
