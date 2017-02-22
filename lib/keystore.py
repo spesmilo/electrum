@@ -586,6 +586,9 @@ def xpubkey_to_address(x_pubkey):
         address = public_key_to_p2pkh(pubkey.decode('hex'))
     return pubkey, address
 
+def xpubkey_to_pubkey(x_pubkey):
+    pubkey, address = xpubkey_to_address(x_pubkey)
+    return pubkey
 
 hw_keystores = {}
 
