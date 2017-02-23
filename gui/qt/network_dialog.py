@@ -28,7 +28,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 from electrum.i18n import _
-from electrum.network import DEFAULT_PORTS
+from electrum.network import DEFAULT_PORTS, Network
 from electrum.network import serialize_server, deserialize_server
 
 from util import *
@@ -300,20 +300,6 @@ class TorDetector(QThread):
         # Probable ports for Tor to listen at
         ports = [9050, 9150]
         for p in ports:
-            if TorDetector.is_tor_port(p):
+            if Network.is_tor_port(p):
                 self.found_proxy.emit(("127.0.0.1", p))
                 return
-
-    @staticmethod
-    def is_tor_port(port):
-        try:
-            s = socket._socketobject(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(0.1)
-            s.connect(("127.0.0.1", port))
-            # Tor responds uniquely to HTTP-like requests
-            s.send("GET\n")
-            if "Tor is not an HTTP Proxy" in s.recv(1024):
-                return True
-        except socket.error:
-            pass
-        return False
