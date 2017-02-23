@@ -303,7 +303,7 @@ class BaseWizard(object):
         k = keystore.BIP32_KeyStore({})
         bip32_seed = keystore.bip39_to_seed(seed, passphrase)
         derivation = "m/44'/2'/%d'"%account_id
-        k.add_xprv_from_seed(bip32_seed, derivation)
+        k.add_xprv_from_seed(bip32_seed, 0, derivation)
         self.on_keystore(k)
 
     def on_keystore(self, k):
