@@ -53,7 +53,14 @@ REQUEST_HEADERS = {'Accept': 'application/bitcoin-paymentrequest', 'User-Agent':
 ACK_HEADERS = {'Content-Type':'application/bitcoin-payment','Accept':'application/bitcoin-paymentack','User-Agent':'Electrum'}
 
 ca_path = requests.certs.where()
-ca_list, ca_keyID = x509.load_certificates(ca_path)
+ca_list = None
+ca_keyID = None
+
+def load_ca_list():
+    global ca_list, ca_keyID
+    if ca_list is None:
+        ca_list, ca_keyID = x509.load_certificates(ca_path)
+
 
 
 # status of payment requests
@@ -155,6 +162,7 @@ class PaymentRequest:
             return False
 
     def verify_x509(self, paymntreq):
+        load_ca_list()
         if not ca_list:
             self.error = "Trusted certificate authorities list not found"
             return False
@@ -334,6 +342,7 @@ def sign_request_with_alias(pr, alias, alias_privkey):
 
 def verify_cert_chain(chain):
     """ Verify a chain of certificates. The last certificate is the CA"""
+    load_ca_list()
     # parse the chain
     cert_num = len(chain)
     x509_chain = []
