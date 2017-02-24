@@ -189,7 +189,7 @@ class Blockchain(util.PrintError):
         nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
         new_target = min(MAX_TARGET, (target * nActualTimespan) / nTargetTimespan)
         # convert new target to bits
-        c = ("%064x" % new_target)[2:]
+        c = ("%064x" % int(new_target))[2:]
         while c[:2] == '00' and len(c) > 6:
             c = c[2:]
         bitsN, bitsBase = len(c) // 2, int('0x' + c[:6], 16)
