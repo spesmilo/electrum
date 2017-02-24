@@ -26,6 +26,7 @@
     <file>icons/preferences.png</file>
     <file>icons/seed.png</file>
     <file>icons/status_connected.png</file>
+    <file>icons/status_connected_proxy.png</file>
     <file>icons/status_disconnected.png</file>
     <file>icons/status_waiting.png</file>
     <file>icons/status_lagging.png</file>

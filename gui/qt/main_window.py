@@ -660,7 +660,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 # append fiat balance and price
                 if self.fx.is_enabled():
                     text += self.fx.get_fiat_status_text(c + u + x) or ''
-                icon = QIcon(":icons/status_connected.png")
+                if not self.network.proxy:
+                    icon = QIcon(":icons/status_connected.png")
+                else:
+                    icon = QIcon(":icons/status_connected_proxy.png")
         else:
             text = _("Not connected")
             icon = QIcon(":icons/status_disconnected.png")
