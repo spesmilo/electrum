@@ -27,14 +27,13 @@ from __future__ import unicode_literals
 
 import binascii
 import os, sys, re, json
-import platform
-import shutil
 from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
 import traceback
 import urllib
 import threading
+
 from .i18n import _
 
 import six
@@ -590,7 +589,7 @@ def create_URI(addr, amount, message):
     if amount:
         query.append('amount=%s'%format_satoshis_plain(amount))
     if message:
-        if type(message) == unicode:
+        if six.PY2 and type(message) == unicode:
             message = message.encode('utf8')
         query.append('message=%s'%urllib.quote(message))
     p = urllib_parse.ParseResult(scheme='bitcoin', netloc='', path=addr, params='', query='&'.join(query), fragment='')
@@ -715,14 +714,14 @@ class SocketPipe:
 class QueuePipe:
 
     def __init__(self, send_queue=None, get_queue=None):
-        self.send_queue = send_queue if send_queue else Queue.Queue()
-        self.get_queue = get_queue if get_queue else Queue.Queue()
+        self.send_queue = send_queue if send_queue else queue.Queue()
+        self.get_queue = get_queue if get_queue else queue.Queue()
         self.set_timeout(0.1)
 
     def get(self):
         try:
             return self.get_queue.get(timeout=self.timeout)
-        except Queue.Empty:
+        except queue.Empty:
             raise timeout
 
     def get_all(self):
@@ -731,7 +730,7 @@ class QueuePipe:
             try:
                 r = self.get_queue.get_nowait()
                 responses.append(r)
-            except Queue.Empty:
+            except queue.Empty:
                 break
         return responses
 
@@ -796,4 +795,4 @@ def check_www_dir(rdir):
         path = os.path.join(rdir, filename)
         if not os.path.exists(path):
             print_error("downloading ", URL)
-            urllib.urlretrieve(URL, path)
+            urllib.request.urlretrieve(URL, path)
