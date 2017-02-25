@@ -374,7 +374,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     if x_pubkey in derivations:
                         index = derivations.get(x_pubkey)
                         inputPath = "%s/%d/%d" % (self.get_derivation(), index[0], index[1])
-                        inputHash = Hash(tx.tx_for_sig(i).decode('hex')).encode('hex')
+                        inputHash = Hash(tx.serialize_preimage(i).decode('hex')).encode('hex')
                         hasharray_i = {'hash': inputHash, 'keypath': inputPath}
                         hasharray.append(hasharray_i)
                         break
@@ -431,10 +431,10 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     signatures = filter(None, txin['signatures'])
                     if len(signatures) == num:
                         break # txin is complete
-                
                     ii = txin['pubkeys'].index(pubkey)
                     signed = reply['sign'][i]
-                    assert signed['pubkey'] == pubkey
+                    if signed['pubkey'] != pubkey:
+                        continue
                     sig_r = int(signed['sig'][:64], 16)
                     sig_s = int(signed['sig'][64:], 16)
                     sig = sigencode_der(sig_r, sig_s, generator_secp256k1.order())

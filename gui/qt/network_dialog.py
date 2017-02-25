@@ -155,15 +155,17 @@ class NetworkChoiceLayout(object):
         self.proxy_port = QLineEdit()
         self.proxy_port.setFixedWidth(60)
         self.proxy_mode.addItems(['NONE', 'SOCKS4', 'SOCKS5', 'HTTP'])
+        self.proxy_user = QLineEdit()
+        self.proxy_user.setPlaceholderText(_("Proxy user"))
+        self.proxy_password = QLineEdit()
+        self.proxy_password.setPlaceholderText(_("Password"))
+        self.proxy_password.setEchoMode(QLineEdit.Password)
+        self.proxy_password.setFixedWidth(60)
 
         def check_for_disable(index = False):
             if self.config.is_modifiable('proxy'):
-                if self.proxy_mode.currentText() != 'NONE':
-                    self.proxy_host.setEnabled(True)
-                    self.proxy_port.setEnabled(True)
-                else:
-                    self.proxy_host.setEnabled(False)
-                    self.proxy_port.setEnabled(False)
+                for w in [self.proxy_host, self.proxy_port, self.proxy_user, self.proxy_password]:
+                    w.setEnabled(self.proxy_mode.currentText() != 'NONE')
             else:
                 for w in [self.proxy_host, self.proxy_port, self.proxy_mode]: w.setEnabled(False)
 
@@ -173,20 +175,26 @@ class NetworkChoiceLayout(object):
         self.proxy_mode.setCurrentIndex(self.proxy_mode.findText(str(proxy_config.get("mode").upper())))
         self.proxy_host.setText(proxy_config.get("host"))
         self.proxy_port.setText(proxy_config.get("port"))
+        self.proxy_user.setText(proxy_config.get("user", ""))
+        self.proxy_password.setText(proxy_config.get("password", ""))
 
         self.proxy_mode.connect(self.proxy_mode, SIGNAL('currentIndexChanged(int)'), self.proxy_settings_changed)
         self.proxy_host.connect(self.proxy_host, SIGNAL('textEdited(QString)'), self.proxy_settings_changed)
         self.proxy_port.connect(self.proxy_port, SIGNAL('textEdited(QString)'), self.proxy_settings_changed)
+        self.proxy_user.connect(self.proxy_user, SIGNAL('textEdited(QString)'), self.proxy_settings_changed)
+        self.proxy_password.connect(self.proxy_password, SIGNAL('textEdited(QString)'), self.proxy_settings_changed)
 
         grid.addWidget(QLabel(_('Proxy') + ':'), 4, 0)
         grid.addWidget(self.proxy_mode, 4, 1)
         grid.addWidget(self.proxy_host, 4, 2)
         grid.addWidget(self.proxy_port, 4, 3)
-        self.tor_button = QCheckBox("Use Tor Proxy")
+        grid.addWidget(self.proxy_user, 5, 2)
+        grid.addWidget(self.proxy_password, 5, 3)
+        self.tor_button = QCheckBox(_("Use Tor Proxy"))
         self.tor_button.setIcon(QIcon(":icons/tor_logo.png"))
         self.tor_button.hide()
         self.tor_button.clicked.connect(self.use_tor_proxy)
-        grid.addWidget(self.tor_button, 5, 1, 1, 2)
+        grid.addWidget(self.tor_button, 6, 2, 1, 2)
         self.layout_ = vbox
         self.td = td = TorDetector()
         td.found_proxy.connect(self.suggest_proxy)
@@ -258,7 +266,9 @@ class NetworkChoiceLayout(object):
         if self.proxy_mode.currentText() != 'NONE':
             proxy = { 'mode':str(self.proxy_mode.currentText()).lower(),
                       'host':str(self.proxy_host.text()),
-                      'port':str(self.proxy_port.text()) }
+                      'port':str(self.proxy_port.text()),
+                      'user':str(self.proxy_user.text()),
+                      'password':str(self.proxy_password.text())}
         else:
             proxy = None
 
@@ -284,6 +294,8 @@ class NetworkChoiceLayout(object):
             self.proxy_mode.setCurrentIndex(2)
             self.proxy_host.setText("127.0.0.1")
             self.proxy_port.setText(str(self.tor_proxy[1]))
+            self.proxy_user.setText("")
+            self.proxy_password.setText("")
             self.tor_button.setChecked(True)
 
     def proxy_settings_changed(self):
