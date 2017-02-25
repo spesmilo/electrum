@@ -40,7 +40,7 @@ from threading import Lock
 import socket
 import json
 
-from . import socks
+import socks
 from . import util
 from . import bitcoin
 from .bitcoin import *
@@ -423,13 +423,16 @@ class Network(util.DaemonThread):
                                   # socks.py seems to want either None or a non-empty string
                                   username=(proxy.get("user", "") or None),
                                   password=(proxy.get("password", "") or None))
+	    # Store these somewhere so we can un-monkey-patch
+            if not hasattr(socket, "_socketobject"):
+                socket._socketobject = socket.socket
+                socket._getaddrinfo = socket.getaddrinfo
             socket.socket = socks.socksocket
             # prevent dns leaks, see http://stackoverflow.com/questions/13184205/dns-over-proxy
             socket.getaddrinfo = lambda *args: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
         else:
-            if six.PY2:
-                socket.socket = socket._socketobject
-                socket.getaddrinfo = socket._socket.getaddrinfo
+            socket.socket = socket._socketobject
+            socket.getaddrinfo = socket._getaddrinfo
 
     def start_network(self, protocol, proxy):
         assert not self.interface and not self.interfaces

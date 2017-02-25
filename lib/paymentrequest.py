@@ -42,7 +42,7 @@ from six.moves import urllib_parse
 
 
 try:
-    from . import paymentrequest_pb2_py3 as pb2
+    from . import paymentrequest_pb2 as pb2
 except ImportError:
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto'")
 
