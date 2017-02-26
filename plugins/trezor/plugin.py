@@ -27,11 +27,10 @@ class TrezorCompatibleKeyStore(Hardware_KeyStore):
     def get_client(self, force_pair=True):
         return self.plugin.get_client(self, force_pair)
 
-    def decrypt_message(self, pubkey, message, password):
+    def decrypt_message(self, sequence, message, password):
         raise RuntimeError(_('Electrum and %s encryption and decryption are currently incompatible') % self.device)
-        address = public_key_to_p2pkh(pubkey.decode('hex'))
         client = self.get_client()
-        address_path = self.address_id(address)
+        address_path = self.get_derivation() + "/%d/%d"%sequence
         address_n = client.expand_path(address_path)
         payload = base64.b64decode(message)
         nonce, message, msg_hmac = payload[:33], payload[33:-8], payload[-8:]
