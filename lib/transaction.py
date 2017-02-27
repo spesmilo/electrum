@@ -42,7 +42,7 @@ import struct
 import struct
 import StringIO
 import random
-from keystore import xpubkey_to_address
+from keystore import xpubkey_to_address, xpubkey_to_pubkey
 
 NO_SIGNATURE = 'ff'
 
@@ -364,7 +364,7 @@ def parse_scriptSig(d, bytes):
         print_error("cannot find address in input script", bytes.encode('hex'))
         return
     x_pubkeys = map(lambda x: x[1].encode('hex'), dec2[1:-2])
-    pubkeys = [xpubkey_to_address(x)[0] for x in x_pubkeys]
+    pubkeys = [xpubkey_to_pubkey(x) for x in x_pubkeys]
     redeemScript = multisig_script(pubkeys, m)
     # write result in d
     d['type'] = 'p2sh'
@@ -531,10 +531,23 @@ class Transaction:
             self.deserialize()
         return self._outputs
 
+    @classmethod
+    def get_sorted_pubkeys(self, txin):
+        # sort pubkeys and x_pubkeys, using the order of pubkeys
+        x_pubkeys = txin['x_pubkeys']
+        pubkeys = txin.get('pubkeys')
+        if pubkeys is None:
+            pubkeys = [xpubkey_to_pubkey(x) for x in x_pubkeys]
+            pubkeys, x_pubkeys = zip(*sorted(zip(pubkeys, x_pubkeys)))
+            txin['pubkeys'] = pubkeys = list(pubkeys)
+            txin['x_pubkeys'] = x_pubkeys = list(x_pubkeys)
+        return pubkeys, x_pubkeys
+
     def update_signatures(self, raw):
         """Add new signatures to a transaction"""
         d = deserialize(raw)
         for i, txin in enumerate(self.inputs()):
+            pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
             sigs1 = txin.get('signatures')
             sigs2 = d['inputs'][i].get('signatures')
             for sig in sigs2:
@@ -545,7 +558,6 @@ class Transaction:
                 order = ecdsa.ecdsa.generator_secp256k1.order()
                 r, s = ecdsa.util.sigdecode_der(sig.decode('hex'), order)
                 sig_string = ecdsa.util.sigencode_string(r, s, order)
-                pubkeys = txin.get('pubkeys')
                 compressed = True
                 for recid in range(4):
                     public_key = MyVerifyingKey.from_signature(sig_string, recid, pre_hash, curve = SECP256k1)
@@ -563,7 +575,8 @@ class Transaction:
 
     def deserialize(self):
         if self.raw is None:
-            self.raw = self.serialize()
+            return
+            #self.raw = self.serialize()
         if self._inputs is not None:
             return
         d = deserialize(self.raw)
@@ -595,20 +608,22 @@ class Transaction:
         # if we have enough signatures, we use the actual pubkeys
         # otherwise, use extended pubkeys (with bip32 derivation)
         num_sig = txin.get('num_sig', 1)
-        x_signatures = txin['signatures']
-        signatures = filter(None, x_signatures)
-        is_complete = len(signatures) == num_sig
         if estimate_size:
             # we assume that signature will be 0x48 bytes long
-            pubkeys = txin['pubkeys']
+            pk_list = [ "00" * 0x21 ] * num_sig
             sig_list = [ "00" * 0x48 ] * num_sig
-        elif is_complete:
-            pubkeys = txin['pubkeys']
-            sig_list = [(sig + '01') for sig in signatures]
         else:
-            pubkeys = txin['x_pubkeys']
-            sig_list = [(sig + '01') if sig else NO_SIGNATURE for sig in x_signatures]
-        return pubkeys, sig_list
+            pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
+            x_signatures = txin['signatures']
+            signatures = filter(None, x_signatures)
+            is_complete = len(signatures) == num_sig
+            if is_complete:
+                pk_list = pubkeys
+                sig_list = [(sig + '01') for sig in signatures]
+            else:
+                pk_list = x_pubkeys
+                sig_list = [(sig + '01') if sig else NO_SIGNATURE for sig in x_signatures]
+        return pk_list, sig_list
 
     @classmethod
     def serialize_witness(self, txin):
@@ -622,23 +637,35 @@ class Transaction:
 
     @classmethod
     def input_script(self, txin, estimate_size=False):
-        redeem_script = txin.get('redeemScript')
-        if self.is_segwit_input(txin):
-            return push_script(redeem_script)
-        if txin['type'] == 'p2pk':
-            sig = txin['signatures'][0]
-            return push_script(sig)
+        _type = txin['type']
         pubkeys, sig_list = self.get_siglist(txin, estimate_size)
         script = ''.join(push_script(x) for x in sig_list)
-        if not pubkeys:
+        if _type == 'p2pk':
             pass
-        elif redeem_script:
+        elif _type == 'p2sh':
             # put op_0 before script
             script = '00' + script
+            redeem_script = multisig_script(pubkeys, txin['num_sig'])
             script += push_script(redeem_script)
-        else:
+        elif _type == 'p2pkh':
             script += push_script(pubkeys[0])
+        elif _type == 'p2wpkh-p2sh':
+            redeem_script = segwit_script(pubkeys[0])
+            return push_script(redeem_script)
+        else:
+            raise TypeError('Unknown txin type', _type)
         return script
+
+    @classmethod
+    def get_preimage_script(self, txin):
+        # only for non-segwit
+        if txin['type'] == 'p2pkh':
+            return get_scriptPubKey(txin['address'])
+        elif txin['type'] == 'p2sh':
+            pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
+            return multisig_script(pubkeys, txin['num_sig'])
+        else:
+            raise TypeError('Unknown txin type', _type)
 
     @classmethod
     def serialize_outpoint(self, txin):
@@ -693,8 +720,7 @@ class Transaction:
             nSequence = int_to_hex(txin.get('sequence', 0xffffffff), 4)
             preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
         else:
-            txin_script = lambda txin: txin.get('redeemScript') or get_scriptPubKey(txin['address'])
-            txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, txin_script(txin) if i==k else '') for k, txin in enumerate(inputs))
+            txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.get_preimage_script(txin) if i==k else '') for k, txin in enumerate(inputs))
             txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
             preimage = nVersion + txins + txouts + nLocktime + nHashType
         return preimage
@@ -787,24 +813,19 @@ class Transaction:
 
 
     def sign(self, keypairs):
-        for i, txin in enumerate(self.inputs()):
+        for i, txin in enumerate(self._inputs):
             num = txin['num_sig']
-            for x_pubkey in txin['x_pubkeys']:
+            pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
+            for j, x_pubkey in enumerate(x_pubkeys):
                 signatures = filter(None, txin['signatures'])
                 if len(signatures) == num:
                     # txin is complete
                     break
                 if x_pubkey in keypairs.keys():
                     print_error("adding signature for", x_pubkey)
-                    # add pubkey to txin
-                    txin = self._inputs[i]
-                    x_pubkeys = txin['x_pubkeys']
-                    ii = x_pubkeys.index(x_pubkey)
                     sec = keypairs[x_pubkey]
                     pubkey = public_key_from_private_key(sec)
-                    txin['x_pubkeys'][ii] = pubkey
-                    txin['pubkeys'][ii] = pubkey
-                    self._inputs[i] = txin
+                    assert pubkey == pubkeys[j]
                     # add signature
                     pre_hash = Hash(self.serialize_preimage(i).decode('hex'))
                     pkey = regenerate_key(sec)
@@ -813,11 +834,11 @@ class Transaction:
                     public_key = private_key.get_verifying_key()
                     sig = private_key.sign_digest_deterministic(pre_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
                     assert public_key.verify_digest(sig, pre_hash, sigdecode = ecdsa.util.sigdecode_der)
-                    txin['signatures'][ii] = sig.encode('hex')
+                    txin['signatures'][j] = sig.encode('hex')
+                    txin['x_pubkeys'][j] = pubkey
                     self._inputs[i] = txin
         print_error("is_complete", self.is_complete())
         self.raw = self.serialize()
-
 
     def get_outputs(self):
         """convert pubkeys to addresses"""
