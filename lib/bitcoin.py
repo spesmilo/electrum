@@ -74,19 +74,42 @@ TYPE_ADDRESS = 0
 TYPE_PUBKEY  = 1
 TYPE_SCRIPT  = 2
 
-
 # AES encryption
+try:
+    from Crypto.Cipher import AES
+except:
+    AES = None
+
 def aes_encrypt_with_iv(key, iv, data):
-    aes_cbc = pyaes.AESModeOfOperationCBC(key, iv=iv)
-    aes = pyaes.Encrypter(aes_cbc)
-    e = aes.feed(data) + aes.feed()  # empty aes.feed() appends pkcs padding
-    return e
+    if AES:
+        AES.block_size = 16
+        AES.key_size = 32
+        padlen = 16 - (len(data) % 16)
+        if padlen == 0:
+            padlen = 16
+        data += chr(padlen) * padlen
+        e = AES.new(key, AES.MODE_CBC, iv).encrypt(data)
+        return e
+    else:
+        aes_cbc = pyaes.AESModeOfOperationCBC(key, iv=iv)
+        aes = pyaes.Encrypter(aes_cbc)
+        e = aes.feed(data) + aes.feed()  # empty aes.feed() appends pkcs padding
+        return e
 
 def aes_decrypt_with_iv(key, iv, data):
-    aes_cbc = pyaes.AESModeOfOperationCBC(key, iv=iv)
-    aes = pyaes.Decrypter(aes_cbc)
-    s = aes.feed(data) + aes.feed()  # empty aes.feed() strips pkcs padding
-    return s
+    if AES:
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        data = cipher.decrypt(data)
+        padlen = ord(data[-1])
+        for i in data[-padlen:]:
+            if ord(i) != padlen:
+                raise InvalidPassword()
+        return data[0:-padlen]
+    else:
+        aes_cbc = pyaes.AESModeOfOperationCBC(key, iv=iv)
+        aes = pyaes.Decrypter(aes_cbc)
+        s = aes.feed(data) + aes.feed()  # empty aes.feed() strips pkcs padding
+        return s
 
 def EncodeAES(secret, s):
     iv = bytes(os.urandom(16))
