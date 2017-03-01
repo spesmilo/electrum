@@ -434,6 +434,10 @@ class Network(util.DaemonThread):
 
     def set_proxy(self, proxy):
         self.proxy = proxy
+        # Store these somewhere so we can un-monkey-patch
+        if not hasattr(socket, "_socketobject"):
+            socket._socketobject = socket.socket
+            socket._getaddrinfo = socket.getaddrinfo
         if proxy:
             self.print_error('setting proxy', proxy)
             proxy_mode = proxy_modes.index(proxy["mode"]) + 1
@@ -443,10 +447,6 @@ class Network(util.DaemonThread):
                                   # socks.py seems to want either None or a non-empty string
                                   username=(proxy.get("user", "") or None),
                                   password=(proxy.get("password", "") or None))
-	    # Store these somewhere so we can un-monkey-patch
-            if not hasattr(socket, "_socketobject"):
-                socket._socketobject = socket.socket
-                socket._getaddrinfo = socket.getaddrinfo
             socket.socket = socks.socksocket
             # prevent dns leaks, see http://stackoverflow.com/questions/13184205/dns-over-proxy
             socket.getaddrinfo = lambda *args: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
