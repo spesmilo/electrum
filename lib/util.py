@@ -187,7 +187,7 @@ def json_encode(obj):
 
 def json_decode(x):
     try:
-        return json.loads(x, parse_float=decimal.Decimal)
+        return json.loads(x, parse_float=Decimal)
     except:
         return x
 

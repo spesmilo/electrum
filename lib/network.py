@@ -747,7 +747,7 @@ class Network(util.DaemonThread):
                         self.notify('updated')
                     else:
                         interface.print_error("header didn't connect, dismissing interface")
-                        interface.stop()
+                        interface.close()
                 else:
                     self.request_header(interface, data, next_height)
 
