@@ -1,4 +1,7 @@
 # Release 2.8.0
+  * Asymmetric wallet file encryption: A keypair is derived from the
+    wallet password. Once the wallet is decrypted, only the public key
+    is retained in memory, in order to write the encrypted file.
   * Segregated Witness support (testnet only).
   * Child Pays For Parent (CPFP) dialog in the GUI.
   * Plugin for Digital Bitbox hardware.
