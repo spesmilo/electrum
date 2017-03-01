@@ -5,6 +5,8 @@
   * Segregated Witness support (testnet only).
   * Child Pays For Parent (CPFP) dialog in the GUI.
   * Plugin for Digital Bitbox hardware.
+  * The GUI uses a blue icon when connected using a proxy.
+
 
 # Release 2.7.18
   * enforce https on exchange rate APIs
