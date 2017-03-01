@@ -43,7 +43,7 @@ from electrum.paymentrequest import InvoiceStore
 from electrum.contacts import Contacts
 from electrum.synchronizer import Synchronizer
 from electrum.verifier import SPV
-from electrum.util import DebugMem, UserCancelled
+from electrum.util import DebugMem, UserCancelled, InvalidPassword
 from electrum.wallet import Abstract_Wallet
 from installwizard import InstallWizard, GoBack
 
@@ -176,9 +176,13 @@ class ElectrumGui:
                         break
                     except UserCancelled:
                         return
-                    except BaseException as e:
+                    except InvalidPassword as e:
                         QMessageBox.information(None, _('Error'), str(e), _('OK'))
                         continue
+                    except BaseException as e:
+                        traceback.print_exc(file=sys.stdout)
+                        QMessageBox.information(None, _('Error'), str(e), _('OK'))
+                        return
             w = self.create_window_for_wallet(wallet)
         if uri:
             w.pay_to_URI(uri)
