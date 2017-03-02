@@ -47,7 +47,7 @@ class Ledger_Handler(QtHandlerBase):
         try:
             from .auth2fa import LedgerAuthDialog
         except ImportError as e:
-            self.message_dialog(e)
+            self.message_dialog(str(e))
             return
         dialog = LedgerAuthDialog(self, data)
         dialog.exec_()
