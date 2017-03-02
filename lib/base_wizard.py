@@ -329,10 +329,10 @@ class BaseWizard(object):
         if any(k.may_have_password() for k in self.keystores):
             self.request_password(run_next=self.on_password)
         else:
-            self.on_password(None)
+            self.on_password(None, False)
 
-    def on_password(self, password):
-        self.storage.put('use_encryption', bool(password))
+    def on_password(self, password, encrypt):
+        self.storage.set_password(password, encrypt)
         for k in self.keystores:
             if k.may_have_password():
                 k.update_password(None, password)

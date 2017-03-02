@@ -179,7 +179,27 @@ def run_non_RPC(config):
     sys.exit(0)
 
 
-def init_cmdline(config_options):
+def init_daemon(config_options):
+    config = SimpleConfig(config_options)
+    storage = WalletStorage(config.get_wallet_path())
+    if not storage.file_exists:
+        print_msg("Error: Wallet file not found.")
+        print_msg("Type 'electrum-ltc create' to create a new wallet, or provide a path to a wallet with the -w option")
+        sys.exit(0)
+    if storage.is_encrypted():
+        if config.get('password'):
+            password = config.get('password')
+        else:
+            password = prompt_password('Password:', False)
+            if not password:
+                print_msg("Error: Password required")
+                sys.exit(1)
+    else:
+        password = None
+    config_options['password'] = password
+
+
+def init_cmdline(config_options, server):
     config = SimpleConfig(config_options)
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
@@ -208,8 +228,11 @@ def init_cmdline(config_options):
         print_stderr("Exposing a single private key can compromise your entire wallet!")
         print_stderr("In particular, DO NOT use 'redeem private key' services proposed by third parties.")
 
+    if not storage.is_encrypted():
+        storage.read(None)
     # commands needing password
-    if cmd.requires_password and storage.get('use_encryption'):
+    if (storage.is_encrypted() and server is None)\
+       or (cmd.requires_password and (storage.get('use_encryption') or storage.is_encrypted())):
         if config.get('password'):
             password = config.get('password')
         else:
@@ -232,18 +255,19 @@ def init_cmdline(config_options):
 def run_offline_command(config, config_options):
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
+    password = config_options.get('password')
     storage = WalletStorage(config.get_wallet_path())
+    storage.read(password if storage.is_encrypted() else None)
     wallet = Wallet(storage) if cmd.requires_wallet else None
     # check password
     if cmd.requires_password and storage.get('use_encryption'):
-        password = config_options.get('password')
         try:
             seed = wallet.check_password(password)
         except InvalidPassword:
             print_msg("Error: This password does not decode this wallet.")
             sys.exit(1)
     if cmd.requires_network:
-        print_stderr("Warning: running command offline")
+        print_msg("Warning: running command offline")
     # arguments passed to function
     args = map(lambda x: config.get(x), cmd.params)
     # decode json arguments
@@ -347,7 +371,9 @@ if __name__ == '__main__':
 
     elif cmdname == 'daemon':
         subcommand = config.get('subcommand')
-        assert subcommand in [None, 'start', 'stop', 'status']
+        if subcommand in ['open']:
+            init_daemon(config_options)
+
         if subcommand in [None, 'start']:
             fd, server = daemon.get_fd_or_server(config)
             if fd is not None:
@@ -377,8 +403,8 @@ if __name__ == '__main__':
                 sys.exit(1)
     else:
         # command line
-        init_cmdline(config_options)
         server = daemon.get_server(config)
+        init_cmdline(config_options, server)
         if server is not None:
             result = server.run_cmdline(config_options)
         else:

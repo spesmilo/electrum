@@ -30,6 +30,8 @@ from util import *
 import re
 import math
 
+from electrum_ltc.plugins import run_hook
+
 def check_password_strength(password):
 
     '''
@@ -92,7 +94,7 @@ class PasswordLayout(object):
             logo_grid.addWidget(label, 0, 1, 1, 2)
             vbox.addLayout(logo_grid)
 
-            m1 = _('New Password:') if kind == PW_NEW else _('Password:')
+            m1 = _('New Password:') if kind == PW_CHANGE else _('Password:')
             msgs = [m1, _('Confirm Password:')]
             if wallet and wallet.has_password():
                 grid.addWidget(QLabel(_('Current Password:')), 0, 0)
@@ -115,8 +117,15 @@ class PasswordLayout(object):
             grid.addWidget(self.pw_strength, 3, 0, 1, 2)
             self.new_pw.textChanged.connect(self.pw_changed)
 
+        self.encrypt_cb = QCheckBox(_('Encrypt wallet file'))
+        self.encrypt_cb.setEnabled(False)
+        grid.addWidget(self.encrypt_cb, 4, 0, 1, 2)
+        self.encrypt_cb.setVisible(kind != PW_PASSPHRASE)
+
         def enable_OK():
-            OK_button.setEnabled(self.new_pw.text() == self.conf_pw.text())
+            ok = self.new_pw.text() == self.conf_pw.text()
+            OK_button.setEnabled(ok)
+            self.encrypt_cb.setEnabled(ok and bool(self.new_pw.text()))
         self.new_pw.textChanged.connect(enable_OK)
         self.conf_pw.textChanged.connect(enable_OK)
 
@@ -153,20 +162,54 @@ class PasswordLayout(object):
         return pw
 
 
-class PasswordDialog(WindowModalDialog):
+class ChangePasswordDialog(WindowModalDialog):
 
-    def __init__(self, parent, wallet, msg, kind):
+    def __init__(self, parent, wallet):
         WindowModalDialog.__init__(self, parent)
+        is_encrypted = wallet.storage.is_encrypted()
+        if not wallet.has_password():
+            msg = _('Your wallet is not protected.')
+            msg += ' ' + _('Use this dialog to add a password to your wallet.')
+        else:
+            if not is_encrypted:
+                msg = _('Your litecoins are password protected. However, your wallet file is not encrypted.')
+            else:
+                msg = _('Your wallet is password protected and encrypted.')
+            msg += ' ' + _('Use this dialog to change your password.')
         OK_button = OkButton(self)
-        self.playout = PasswordLayout(wallet, msg, kind, OK_button)
+        self.playout = PasswordLayout(wallet, msg, PW_CHANGE, OK_button)
         self.setWindowTitle(self.playout.title())
         vbox = QVBoxLayout(self)
         vbox.addLayout(self.playout.layout())
         vbox.addStretch(1)
         vbox.addLayout(Buttons(CancelButton(self), OK_button))
+        self.playout.encrypt_cb.setChecked(is_encrypted or not wallet.has_password())
 
     def run(self):
         if not self.exec_():
-            return False, None, None
+            return False, None, None, None
+        return True, self.playout.old_password(), self.playout.new_password(), self.playout.encrypt_cb.isChecked()
 
-        return True, self.playout.old_password(), self.playout.new_password()
+
+class PasswordDialog(WindowModalDialog):
+
+    def __init__(self, parent=None, msg=None):
+        msg = msg or _('Please enter your password')
+        WindowModalDialog.__init__(self, parent, _("Enter Password"))
+        self.pw = pw = QLineEdit()
+        pw.setEchoMode(2)
+        vbox = QVBoxLayout()
+        vbox.addWidget(QLabel(msg))
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        grid.addWidget(QLabel(_('Password')), 1, 0)
+        grid.addWidget(pw, 1, 1)
+        vbox.addLayout(grid)
+        vbox.addLayout(Buttons(CancelButton(self), OkButton(self)))
+        self.setLayout(vbox)
+        run_hook('password_dialog', pw, grid, 1)
+
+    def run(self):
+        if not self.exec_():
+            return
+        return unicode(self.pw.text())

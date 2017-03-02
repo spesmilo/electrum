@@ -43,7 +43,7 @@ from electrum_ltc.paymentrequest import InvoiceStore
 from electrum_ltc.contacts import Contacts
 from electrum_ltc.synchronizer import Synchronizer
 from electrum_ltc.verifier import SPV
-from electrum_ltc.util import DebugMem, UserCancelled
+from electrum_ltc.util import DebugMem, UserCancelled, InvalidPassword
 from electrum_ltc.wallet import Abstract_Wallet
 from installwizard import InstallWizard, GoBack
 
@@ -159,18 +159,30 @@ class ElectrumGui:
                 w.bring_to_top()
                 break
         else:
-            try:
-                wallet = self.daemon.load_wallet(path)
-            except BaseException as e:
-                QMessageBox.information(None, _('Error'), str(e), _('OK'))
-                return
-            if wallet is None:
+            if not os.path.exists(path):
                 wizard = InstallWizard(self.config, self.app, self.plugins, path)
                 wallet = wizard.run_and_get_wallet()
                 if not wallet:
                     return
                 wallet.start_threads(self.daemon.network)
                 self.daemon.add_wallet(wallet)
+            else:
+                from password_dialog import PasswordDialog
+                msg = _("The file '%s' is encrypted.") % os.path.basename(path)
+                password_getter = lambda: PasswordDialog(msg=msg).run()
+                while True:
+                    try:
+                        wallet = self.daemon.load_wallet(path, password_getter)
+                        break
+                    except UserCancelled:
+                        return
+                    except InvalidPassword as e:
+                        QMessageBox.information(None, _('Error'), str(e), _('OK'))
+                        continue
+                    except BaseException as e:
+                        traceback.print_exc(file=sys.stdout)
+                        QMessageBox.information(None, _('Error'), str(e), _('OK'))
+                        return
             w = self.create_window_for_wallet(wallet)
         if uri:
             w.pay_to_URI(uri)

@@ -34,7 +34,7 @@ from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCReq
 from version import ELECTRUM_VERSION
 from network import Network
 from util import json_decode, DaemonThread
-from util import print_msg, print_error, print_stderr
+from util import print_msg, print_error, print_stderr, UserCancelled
 from wallet import WalletStorage, Wallet
 from commands import known_commands, Commands
 from simple_config import SimpleConfig
@@ -115,8 +115,7 @@ class Daemon(DaemonThread):
         self.gui = None
         self.wallets = {}
         # Setup JSONRPC server
-        path = config.get_wallet_path()
-        default_wallet = self.load_wallet(path)
+        default_wallet = None
         self.cmd_runner = Commands(self.config, default_wallet, self.network)
         self.init_server(config, fd)
 
@@ -145,11 +144,24 @@ class Daemon(DaemonThread):
     def ping(self):
         return True
 
-    def run_daemon(self, config):
+    def run_daemon(self, config_options):
+        config = SimpleConfig(config_options)
         sub = config.get('subcommand')
-        assert sub in [None, 'start', 'stop', 'status']
+        assert sub in [None, 'start', 'stop', 'status', 'open', 'close']
         if sub in [None, 'start']:
             response = "Daemon already running"
+        elif sub == 'open':
+            path = config.get_wallet_path()
+            self.load_wallet(path, lambda: config.get('password'))
+            response = True
+        elif sub == 'close':
+            path = config.get_wallet_path()
+            if path in self.wallets:
+                wallet = self.wallets.pop(path)
+                wallet.stop_threads()
+                response = True
+            else:
+                response = False
         elif sub == 'status':
             if self.network:
                 p = self.network.get_parameters()
@@ -185,7 +197,7 @@ class Daemon(DaemonThread):
             response = "Error: Electrum is running in daemon mode. Please stop the daemon first."
         return response
 
-    def load_wallet(self, path):
+    def load_wallet(self, path, password_getter):
         # wizard will be launched if we return
         if path in self.wallets:
             wallet = self.wallets[path]
@@ -193,6 +205,13 @@ class Daemon(DaemonThread):
         storage = WalletStorage(path)
         if not storage.file_exists:
             return
+        if storage.is_encrypted():
+            password = password_getter()
+            if not password:
+                raise UserCancelled()
+        else:
+            password = None
+        storage.read(password)
         if storage.requires_split():
             return
         if storage.requires_upgrade():
@@ -214,20 +233,25 @@ class Daemon(DaemonThread):
         wallet.stop_threads()
 
     def run_cmdline(self, config_options):
+        password = config_options.get('password')
+        new_password = config_options.get('new_password')
         config = SimpleConfig(config_options)
         cmdname = config.get('cmd')
         cmd = known_commands[cmdname]
-        path = config.get_wallet_path()
-        wallet = self.load_wallet(path) if cmd.requires_wallet else None
+        if cmd.requires_wallet:
+            path = config.get_wallet_path()
+            wallet = self.wallets.get(path)
+            if wallet is None:
+                return {'error': 'Wallet not open. Use "electrum-ltc daemon open -w wallet"'}
+        else:
+            wallet = None
         # arguments passed to function
         args = map(lambda x: config.get(x), cmd.params)
         # decode json arguments
         args = map(json_decode, args)
         # options
         args += map(lambda x: config.get(x), cmd.options)
-        cmd_runner = Commands(config, wallet, self.network,
-                              password=config_options.get('password'),
-                              new_password=config_options.get('new_password'))
+        cmd_runner = Commands(config, wallet, self.network, password=password, new_password=new_password)
         func = getattr(cmd_runner, cmd.name)
         result = func(*args)
         return result

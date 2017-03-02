@@ -875,6 +875,7 @@ class Abstract_Wallet(PrintError):
             for item in u:
                 if len(inputs) >= imax:
                     break
+                item['type'] = 'p2pkh'
                 item['scriptPubKey'] = pay_script
                 item['redeemPubkey'] = pubkey
                 item['address'] = address
@@ -1580,10 +1581,10 @@ class Simple_Deterministic_Wallet(Deterministic_Wallet, Simple_Wallet):
     def check_password(self, password):
         self.keystore.check_password(password)
 
-    def update_password(self, old_pw, new_pw):
+    def update_password(self, old_pw, new_pw, encrypt=False):
         self.keystore.update_password(old_pw, new_pw)
         self.save_keystore()
-        self.storage.put('use_encryption', (new_pw is not None))
+        self.storage.set_password(new_pw, encrypt)
         self.storage.write()
 
     def save_keystore(self):
@@ -1689,7 +1690,7 @@ class Multisig_Wallet(Deterministic_Wallet, P2SH):
             if keystore.can_change_password():
                 keystore.update_password(old_pw, new_pw)
                 self.storage.put(name, keystore.dump())
-        self.storage.put('use_encryption', (new_pw is not None))
+        self.storage.set_password(new_pw)
 
     def check_password(self, password):
         self.keystore.check_password(password)

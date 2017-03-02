@@ -80,19 +80,42 @@ TYPE_ADDRESS = 0
 TYPE_PUBKEY  = 1
 TYPE_SCRIPT  = 2
 
-
 # AES encryption
+try:
+    from Crypto.Cipher import AES
+except:
+    AES = None
+
 def aes_encrypt_with_iv(key, iv, data):
-    aes_cbc = pyaes.AESModeOfOperationCBC(key, iv=iv)
-    aes = pyaes.Encrypter(aes_cbc)
-    e = aes.feed(data) + aes.feed()  # empty aes.feed() appends pkcs padding
-    return e
+    if AES:
+        AES.block_size = 16
+        AES.key_size = 32
+        padlen = 16 - (len(data) % 16)
+        if padlen == 0:
+            padlen = 16
+        data += chr(padlen) * padlen
+        e = AES.new(key, AES.MODE_CBC, iv).encrypt(data)
+        return e
+    else:
+        aes_cbc = pyaes.AESModeOfOperationCBC(key, iv=iv)
+        aes = pyaes.Encrypter(aes_cbc)
+        e = aes.feed(data) + aes.feed()  # empty aes.feed() appends pkcs padding
+        return e
 
 def aes_decrypt_with_iv(key, iv, data):
-    aes_cbc = pyaes.AESModeOfOperationCBC(key, iv=iv)
-    aes = pyaes.Decrypter(aes_cbc)
-    s = aes.feed(data) + aes.feed()  # empty aes.feed() strips pkcs padding
-    return s
+    if AES:
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        data = cipher.decrypt(data)
+        padlen = ord(data[-1])
+        for i in data[-padlen:]:
+            if ord(i) != padlen:
+                raise InvalidPassword()
+        return data[0:-padlen]
+    else:
+        aes_cbc = pyaes.AESModeOfOperationCBC(key, iv=iv)
+        aes = pyaes.Decrypter(aes_cbc)
+        s = aes.feed(data) + aes.feed()  # empty aes.feed() strips pkcs padding
+        return s
 
 def EncodeAES(secret, s):
     iv = bytes(os.urandom(16))
@@ -636,34 +659,26 @@ class EC_KEY(object):
 
 
     def decrypt_message(self, encrypted):
-
         encrypted = base64.b64decode(encrypted)
-
         if len(encrypted) < 85:
             raise Exception('invalid ciphertext: length')
-
         magic = encrypted[:4]
         ephemeral_pubkey = encrypted[4:37]
         ciphertext = encrypted[37:-32]
         mac = encrypted[-32:]
-
         if magic != 'BIE1':
             raise Exception('invalid ciphertext: invalid magic bytes')
-
         try:
             ephemeral_pubkey = ser_to_point(ephemeral_pubkey)
         except AssertionError, e:
             raise Exception('invalid ciphertext: invalid ephemeral pubkey')
-
         if not ecdsa.ecdsa.point_is_valid(generator_secp256k1, ephemeral_pubkey.x(), ephemeral_pubkey.y()):
             raise Exception('invalid ciphertext: invalid ephemeral pubkey')
-
         ecdh_key = point_to_ser(ephemeral_pubkey * self.privkey.secret_multiplier)
         key = hashlib.sha512(ecdh_key).digest()
         iv, key_e, key_m = key[0:16], key[16:32], key[32:]
         if mac != hmac.new(key_m, encrypted[:-32], hashlib.sha256).digest():
-            raise Exception('invalid ciphertext: invalid mac')
-
+            raise InvalidPassword()
         return aes_decrypt_with_iv(key_e, iv, ciphertext)
 
 

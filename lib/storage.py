@@ -32,11 +32,15 @@ import json
 import copy
 import re
 import stat
+import pbkdf2, hmac, hashlib
+import base64
+import zlib
 
 from i18n import _
 from util import NotEnoughFunds, PrintError, profiler
 from plugins import run_hook, plugin_loaders
 from keystore import bip44_derivation
+import bitcoin
 
 
 # seed_version is now used for the version of the wallet file
@@ -63,50 +67,57 @@ class WalletStorage(PrintError):
         self.lock = threading.RLock()
         self.data = {}
         self.path = path
-        self.file_exists = False
+        self.file_exists = os.path.exists(self.path)
         self.modified = False
-        self.print_error("wallet path", self.path)
-        if self.path:
-            self.read(self.path)
+        self.pubkey = None
         # check here if I need to load a plugin
         t = self.get('wallet_type')
         l = plugin_loaders.get(t)
         if l: l()
 
+    def decrypt(self, s, password):
+        # Note: hardware wallets should use a seed-derived key and not require a password.
+        # Thus, we need to expose keystore metadata
+        if password is None:
+            self.pubkey = None
+            return s
+        secret = pbkdf2.PBKDF2(password, '', iterations = 1024, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
+        ec_key = bitcoin.EC_KEY(secret)
+        self.pubkey = ec_key.get_public_key()
+        return zlib.decompress(ec_key.decrypt_message(s)) if s else None
 
-    def read(self, path):
-        """Read the contents of the wallet file."""
+    def set_password(self, pw, encrypt):
+        """Set self.pubkey"""
+        self.put('use_encryption', (pw is not None))
+        self.decrypt(None, pw if encrypt else None)
+
+    def is_encrypted(self):
         try:
             with open(self.path, "r") as f:
-                data = f.read()
+                s = f.read(8)
         except IOError:
             return
-        if not data:
-            return
         try:
-            self.data = json.loads(data)
+            return base64.b64decode(s).startswith('BIE1')
         except:
-            try:
-                d = ast.literal_eval(data)  #parse raw data from reading wallet file
-                labels = d.get('labels', {})
-            except Exception as e:
-                raise IOError("Cannot read wallet file '%s'" % self.path)
-            self.data = {}
-            # In old versions of Electrum labels were latin1 encoded, this fixes breakage.
-            for i, label in labels.items():
-                try:
-                    unicode(label)
-                except UnicodeDecodeError:
-                    d['labels'][i] = unicode(label.decode('latin1'))
-            for key, value in d.items():
-                try:
-                    json.dumps(key)
-                    json.dumps(value)
-                except:
-                    self.print_error('Failed to convert label to json format', key)
-                    continue
-                self.data[key] = value
-        self.file_exists = True
+            return False
+
+    def read(self, password):
+        """Read the contents of the wallet file."""
+        self.print_error("wallet path", self.path)
+        try:
+            with open(self.path, "r") as f:
+                s = f.read()
+        except IOError:
+            return
+        if not s:
+            return
+        # Decrypt wallet.
+        s = self.decrypt(s, password)
+        try:
+            self.data = json.loads(s)
+        except:
+            raise IOError("Cannot read wallet file '%s'" % self.path)
 
     def get(self, key, default=None):
         with self.lock:
@@ -133,6 +144,7 @@ class WalletStorage(PrintError):
                 self.modified = True
                 self.data.pop(key)
 
+    @profiler
     def write(self):
         # this ensures that previous versions of electrum won't open the wallet
         self.put('seed_version', FINAL_SEED_VERSION)
@@ -147,6 +159,9 @@ class WalletStorage(PrintError):
         if not self.modified:
             return
         s = json.dumps(self.data, indent=4, sort_keys=True)
+        if self.pubkey:
+            s = bitcoin.encrypt_message(zlib.compress(s), self.pubkey)
+
         temp_path = "%s.tmp.%s" % (self.path, os.getpid())
         with open(temp_path, "w") as f:
             f.write(s)

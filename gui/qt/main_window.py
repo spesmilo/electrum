@@ -277,6 +277,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         elif event == 'fee':
             if self.config.is_dynfee():
                 self.fee_slider.update()
+                self.do_update_fee()
         else:
             self.print_error("unexpected network_qt signal:", event, args)
 
@@ -1114,6 +1115,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         '''Recalculate the fee.  If the fee was manually input, retain it, but
         still build the TX to see if there are enough funds.
         '''
+        if self.config.is_dynfee() and not self.config.has_fee_estimates():
+            self.statusBar().showMessage(_('Waiting for fee estimates...'))
+            return False
         freeze_fee = (self.fee_e.isModified()
                       and (self.fee_e.text() or self.fee_e.hasFocus()))
         amount = '!' if self.is_max else self.amount_e.get_amount()
@@ -1680,19 +1684,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.send_button.setVisible(not self.wallet.is_watching_only())
 
     def change_password_dialog(self):
-        from password_dialog import PasswordDialog, PW_CHANGE
-
-        msg = (_('Your wallet is encrypted. Use this dialog to change your '
-                 'password. To disable wallet encryption, enter an empty new '
-                 'password.') if self.wallet.has_password()
-               else _('Your wallet keys are not encrypted'))
-        d = PasswordDialog(self, self.wallet, msg, PW_CHANGE)
-        ok, password, new_password = d.run()
+        from password_dialog import ChangePasswordDialog
+        d = ChangePasswordDialog(self, self.wallet)
+        ok, password, new_password, encrypt_file = d.run()
         if not ok:
             return
-
         try:
-            self.wallet.update_password(password, new_password)
+            self.wallet.update_password(password, new_password, encrypt_file)
         except BaseException as e:
             self.show_error(str(e))
             return
@@ -1700,8 +1698,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             traceback.print_exc(file=sys.stdout)
             self.show_error(_('Failed to update password'))
             return
-
-        msg = _('Password was updated successfully') if new_password else _('This wallet is not encrypted')
+        msg = _('Password was updated successfully') if new_password else _('Password is disabled, this wallet is not protected')
         self.show_message(msg, title=_("Success"))
         self.update_lock_icon()
 
@@ -1972,24 +1969,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d.exec_()
 
     def password_dialog(self, msg=None, parent=None):
+        from password_dialog import PasswordDialog
         parent = parent or self
-        d = WindowModalDialog(parent, _("Enter Password"))
-        pw = QLineEdit()
-        pw.setEchoMode(2)
-        vbox = QVBoxLayout()
-        if not msg:
-            msg = _('Please enter your password')
-        vbox.addWidget(QLabel(msg))
-        grid = QGridLayout()
-        grid.setSpacing(8)
-        grid.addWidget(QLabel(_('Password')), 1, 0)
-        grid.addWidget(pw, 1, 1)
-        vbox.addLayout(grid)
-        vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
-        d.setLayout(vbox)
-        run_hook('password_dialog', pw, grid, 1)
-        if not d.exec_(): return
-        return unicode(pw.text())
+        d = PasswordDialog(parent, msg)
+        return d.run()
 
 
     def tx_from_text(self, txt):

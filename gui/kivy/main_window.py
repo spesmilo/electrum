@@ -426,7 +426,7 @@ class ElectrumWindow(App):
     def load_wallet_by_name(self, path):
         if not path:
             return
-        wallet = self.daemon.load_wallet(path)
+        wallet = self.daemon.load_wallet(path, None)
         if wallet:
             if wallet != self.wallet:
                 self.stop_wallet()
