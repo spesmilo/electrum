@@ -278,10 +278,11 @@ class Ledger_KeyStore(Hardware_KeyStore):
             if txin.get('is_coinbase'):
                 self.give_error("Coinbase not supported")     # should never happen
 
-            if len(txin['pubkeys']) > 1:
+            if txin['type'] in ['p2sh']:
                 p2shTransaction = True
 
-            for i, x_pubkey in enumerate(txin['x_pubkeys']):
+            pubkeys, x_pubkeys = tx.get_sorted_pubkeys(txin)
+            for i, x_pubkey in enumerate(x_pubkeys):
                 if x_pubkey in derivations:
                     signingPos = i
                     s = derivations.get(x_pubkey)
@@ -292,12 +293,12 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
             inputs.append([txin['prev_tx'].raw, txin['prevout_n'], txin.get('redeemScript'), txin['prevout_hash'], signingPos ])
             inputsPaths.append(hwAddress)
-            pubKeys.append(txin['pubkeys'])
+            pubKeys.append(pubkeys)
 
         # Sanity check
         if p2shTransaction:
-            for txinput in tx.inputs():
-                if len(txinput['pubkeys']) < 2:
+            for txin in tx.inputs():
+                if txin['type'] != 'p2sh':
                     self.give_error("P2SH / regular input mixed in same transaction not supported") # should never happen
 
         txOutput = var_int(len(tx.outputs()))
