@@ -872,6 +872,7 @@ class Abstract_Wallet(PrintError):
             for item in u:
                 if len(inputs) >= imax:
                     break
+                item['type'] = 'p2pkh'
                 item['scriptPubKey'] = pay_script
                 item['redeemPubkey'] = pubkey
                 item['address'] = address
