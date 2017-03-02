@@ -277,6 +277,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         elif event == 'fee':
             if self.config.is_dynfee():
                 self.fee_slider.update()
+                self.do_update_fee()
         else:
             self.print_error("unexpected network_qt signal:", event, args)
 
@@ -1114,6 +1115,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         '''Recalculate the fee.  If the fee was manually input, retain it, but
         still build the TX to see if there are enough funds.
         '''
+        if self.config.is_dynfee() and not self.config.has_fee_estimates():
+            self.statusBar().showMessage(_('Waiting for fee estimates...'))
+            return False
         freeze_fee = (self.fee_e.isModified()
                       and (self.fee_e.text() or self.fee_e.hasFocus()))
         amount = '!' if self.is_max else self.amount_e.get_amount()
