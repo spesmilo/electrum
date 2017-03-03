@@ -97,7 +97,7 @@ if is_bundle or is_local or is_android:
 
 from electrum import bitcoin, network
 from electrum import SimpleConfig, Network
-from electrum.wallet import Wallet
+from electrum.wallet import Wallet, Imported_Wallet
 from electrum.storage import WalletStorage
 from electrum.util import print_msg, print_stderr, json_encode, json_decode
 from electrum.util import set_verbosity, InvalidPassword, check_www_dir
@@ -134,19 +134,24 @@ def run_non_RPC(config):
         text = config.get('text').strip()
         passphrase = config.get('passphrase', '')
         password = password_dialog() if keystore.is_private(text) else None
-        if keystore.is_seed(text):
-            k = keystore.from_seed(text, passphrase)
-        elif keystore.is_any_key(text):
-            k = keystore.from_keys(text)
+        if keystore.is_address_list(text):
+            wallet = Imported_Wallet(storage)
+            for x in text.split():
+                wallet.import_address(x)
         else:
-            sys.exit("Error: Seed or key not recognized")
-        if password:
-            k.update_password(None, password)
-        storage.put('keystore', k.dump())
-        storage.put('wallet_type', 'standard')
-        storage.put('use_encryption', bool(password))
-        storage.write()
-        wallet = Wallet(storage)
+            if keystore.is_seed(text):
+                k = keystore.from_seed(text, passphrase)
+            elif keystore.is_any_key(text):
+                k = keystore.from_keys(text)
+            else:
+                sys.exit("Error: Seed or key not recognized")
+            if password:
+                k.update_password(None, password)
+            storage.put('keystore', k.dump())
+            storage.put('wallet_type', 'standard')
+            storage.put('use_encryption', bool(password))
+            storage.write()
+            wallet = Wallet(storage)
         if not config.get('offline'):
             network = Network(config)
             network.start()
