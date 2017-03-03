@@ -97,7 +97,7 @@ if is_bundle or is_local or is_android:
 
 from electrum_ltc import bitcoin, network
 from electrum_ltc import SimpleConfig, Network
-from electrum_ltc.wallet import Wallet
+from electrum_ltc.wallet import Wallet, Imported_Wallet
 from electrum_ltc.storage import WalletStorage
 from electrum_ltc.util import print_msg, print_stderr, json_encode, json_decode
 from electrum_ltc.util import set_verbosity, InvalidPassword, check_www_dir
@@ -134,19 +134,24 @@ def run_non_RPC(config):
         text = config.get('text').strip()
         passphrase = config.get('passphrase', '')
         password = password_dialog() if keystore.is_private(text) else None
-        if keystore.is_seed(text):
-            k = keystore.from_seed(text, passphrase)
-        elif keystore.is_any_key(text):
-            k = keystore.from_keys(text)
+        if keystore.is_address_list(text):
+            wallet = Imported_Wallet(storage)
+            for x in text.split():
+                wallet.import_address(x)
         else:
-            sys.exit("Error: Seed or key not recognized")
-        if password:
-            k.update_password(None, password)
-        storage.put('keystore', k.dump())
-        storage.put('wallet_type', 'standard')
-        storage.put('use_encryption', bool(password))
-        storage.write()
-        wallet = Wallet(storage)
+            if keystore.is_seed(text):
+                k = keystore.from_seed(text, passphrase)
+            elif keystore.is_any_key(text):
+                k = keystore.from_keys(text)
+            else:
+                sys.exit("Error: Seed or key not recognized")
+            if password:
+                k.update_password(None, password)
+            storage.put('keystore', k.dump())
+            storage.put('wallet_type', 'standard')
+            storage.put('use_encryption', bool(password))
+            storage.write()
+            wallet = Wallet(storage)
         if not config.get('offline'):
             network = Network(config)
             network.start()
@@ -231,7 +236,7 @@ def init_cmdline(config_options, server):
     if not storage.is_encrypted():
         storage.read(None)
     # commands needing password
-    if (storage.is_encrypted() and server is None)\
+    if (cmd.requires_wallet and storage.is_encrypted() and server is None)\
        or (cmd.requires_password and (storage.get('use_encryption') or storage.is_encrypted())):
         if config.get('password'):
             password = config.get('password')
@@ -256,9 +261,12 @@ def run_offline_command(config, config_options):
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
     password = config_options.get('password')
-    storage = WalletStorage(config.get_wallet_path())
-    storage.read(password if storage.is_encrypted() else None)
-    wallet = Wallet(storage) if cmd.requires_wallet else None
+    if cmd.requires_wallet:
+        storage = WalletStorage(config.get_wallet_path())
+        storage.read(password if storage.is_encrypted() else None)
+        wallet = Wallet(storage)
+    else:
+        wallet = None
     # check password
     if cmd.requires_password and storage.get('use_encryption'):
         try:

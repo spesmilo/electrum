@@ -70,10 +70,6 @@ class WalletStorage(PrintError):
         self.file_exists = os.path.exists(self.path)
         self.modified = False
         self.pubkey = None
-        # check here if I need to load a plugin
-        t = self.get('wallet_type')
-        l = plugin_loaders.get(t)
-        if l: l()
 
     def decrypt(self, s, password):
         # Note: hardware wallets should use a seed-derived key and not require a password.
@@ -118,6 +114,10 @@ class WalletStorage(PrintError):
             self.data = json.loads(s)
         except:
             raise IOError("Cannot read wallet file '%s'" % self.path)
+        # check here if I need to load a plugin
+        t = self.get('wallet_type')
+        l = plugin_loaders.get(t)
+        if l: l()
 
     def get(self, key, default=None):
         with self.lock:
