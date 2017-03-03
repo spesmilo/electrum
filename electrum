@@ -236,7 +236,7 @@ def init_cmdline(config_options, server):
     if not storage.is_encrypted():
         storage.read(None)
     # commands needing password
-    if (storage.is_encrypted() and server is None)\
+    if (cmd.requires_wallet and storage.is_encrypted() and server is None)\
        or (cmd.requires_password and (storage.get('use_encryption') or storage.is_encrypted())):
         if config.get('password'):
             password = config.get('password')
@@ -261,9 +261,12 @@ def run_offline_command(config, config_options):
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
     password = config_options.get('password')
-    storage = WalletStorage(config.get_wallet_path())
-    storage.read(password if storage.is_encrypted() else None)
-    wallet = Wallet(storage) if cmd.requires_wallet else None
+    if cmd.requires_wallet:
+        storage = WalletStorage(config.get_wallet_path())
+        storage.read(password if storage.is_encrypted() else None)
+        wallet = Wallet(storage)
+    else:
+        wallet = None
     # check password
     if cmd.requires_password and storage.get('use_encryption'):
         try:
