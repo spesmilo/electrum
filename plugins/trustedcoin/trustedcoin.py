@@ -442,8 +442,8 @@ class TrustedCoinPlugin(BasePlugin):
         long_user_id, short_id = get_user_id(storage)
         xpub3 = make_xpub(signing_xpub, long_user_id)
         k3 = keystore.from_xpub(xpub3)
-        storage.put('use_encryption', bool(password))
         storage.put('x3/', k3.dump())
+        storage.set_password(password, encrypt)
         wizard.wallet = Wallet_2fa(storage)
         wizard.create_addresses()
 

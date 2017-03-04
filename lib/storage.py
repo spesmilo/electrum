@@ -84,7 +84,7 @@ class WalletStorage(PrintError):
 
     def set_password(self, pw, encrypt):
         """Set self.pubkey"""
-        self.put('use_encryption', (pw is not None))
+        self.put('use_encryption', bool(pw))
         self.decrypt(None, pw if encrypt else None)
 
     def is_encrypted(self):
