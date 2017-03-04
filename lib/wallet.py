@@ -1685,12 +1685,12 @@ class Multisig_Wallet(Deterministic_Wallet, P2SH):
     def get_keystores(self):
         return [self.keystores[i] for i in sorted(self.keystores.keys())]
 
-    def update_password(self, old_pw, new_pw):
+    def update_password(self, old_pw, new_pw, encrypt=False):
         for name, keystore in self.keystores.items():
             if keystore.can_change_password():
                 keystore.update_password(old_pw, new_pw)
                 self.storage.put(name, keystore.dump())
-        self.storage.set_password(new_pw)
+        self.storage.set_password(new_pw, encrypt)
 
     def check_password(self, password):
         self.keystore.check_password(password)

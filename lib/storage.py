@@ -67,7 +67,7 @@ class WalletStorage(PrintError):
         self.lock = threading.RLock()
         self.data = {}
         self.path = path
-        self.file_exists = os.path.exists(self.path)
+        self.file_exists = self.path and os.path.exists(self.path)
         self.modified = False
         self.pubkey = None
 
@@ -84,7 +84,7 @@ class WalletStorage(PrintError):
 
     def set_password(self, pw, encrypt):
         """Set self.pubkey"""
-        self.put('use_encryption', (pw is not None))
+        self.put('use_encryption', bool(pw))
         self.decrypt(None, pw if encrypt else None)
 
     def is_encrypted(self):
