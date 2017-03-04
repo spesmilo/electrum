@@ -195,7 +195,9 @@ class Commands:
 
     @command('')
     def serialize(self, jsontx):
-        """Create a transaction from json inputs. Inputs must have a redeemPubkey. Outputs must be a list of (address, value).
+        """Create a transaction from json inputs.
+        Inputs must have a redeemPubkey.
+        Outputs must be a list of {'address':address, 'value':satoshi_amount}.
         """
         keypairs = {}
         inputs = jsontx.get('inputs')
@@ -206,23 +208,18 @@ class Commands:
                 prevout_hash, prevout_n = txin['output'].split(':')
                 txin['prevout_n'] = int(prevout_n)
                 txin['prevout_hash'] = prevout_hash
-            else:
-                raise BaseException('Output point missing', txin)
             if txin.get('redeemPubkey'):
                 pubkey = txin['redeemPubkey']
-                txin['pubkeys'] = [pubkey]
+                txin['type'] = 'p2pkh'
                 txin['x_pubkeys'] = [pubkey]
                 txin['signatures'] = [None]
                 txin['num_sig'] = 1
-                privkey = txin.get('privkey')
-                if privkey:
-                    keypairs[pubkey] = privkey
+                if txin.get('privkey'):
+                    keypairs[pubkey] = txin['privkey']
             elif txin.get('redeemScript'):
                 raise BaseException('Not implemented')
-            else:
-                raise BaseException('No redeem script')
 
-        outputs = map(lambda x: (TYPE_ADDRESS, x[0], satoshis(x[1])), outputs)
+        outputs = map(lambda x: (TYPE_ADDRESS, x['address'], int(x['value'])), outputs)
         tx = Transaction.from_io(inputs, outputs, locktime=locktime)
         tx.sign(keypairs)
         return tx.as_dict()
