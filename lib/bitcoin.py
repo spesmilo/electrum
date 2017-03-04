@@ -38,6 +38,7 @@ import pyaes
 
 # Bitcoin network constants
 TESTNET = False
+NOLNET = False
 ADDRTYPE_P2PKH = 0
 ADDRTYPE_P2SH = 5
 ADDRTYPE_P2WPKH = 6
@@ -57,6 +58,17 @@ def set_testnet():
     XPUB_HEADER = 0x043587cf
     HEADERS_URL = "https://headers.electrum.org/testnet_headers"
 
+def set_nolnet():
+    global ADDRTYPE_P2PKH, ADDRTYPE_P2SH, ADDRTYPE_P2WPKH
+    global XPRV_HEADER, XPUB_HEADER
+    global NOLNET, HEADERS_URL
+    NOLNET = True
+    ADDRTYPE_P2PKH = 0
+    ADDRTYPE_P2SH = 5
+    ADDRTYPE_P2WPKH = 6
+    XPRV_HEADER = 0x0488ade4
+    XPUB_HEADER = 0x0488b21e
+    HEADERS_URL = "https://headers.electrum.org/nolnet_headers"
 
 
 

@@ -82,6 +82,8 @@ class SimpleConfig(PrintError):
 
         if self.get('testnet'):
             path = os.path.join(path, 'testnet')
+        elif self.get('nolnet'):
+            path = os.path.join(path, 'nolnet')
 
         # Make directory if it does not yet exist.
         if not os.path.exists(path):
@@ -89,7 +91,7 @@ class SimpleConfig(PrintError):
                 raise BaseException('Dangling link: ' + path)
             os.mkdir(path)
 
-        print_error("electrum directory", path)
+        self.print_error("electrum directory", path)
         return path
 
     def fixup_config_keys(self, config, keypairs):
