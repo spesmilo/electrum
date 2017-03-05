@@ -379,7 +379,7 @@ if __name__ == '__main__':
 
     elif cmdname == 'daemon':
         subcommand = config.get('subcommand')
-        if subcommand in ['open']:
+        if subcommand in ['open_wallet']:
             init_daemon(config_options)
 
         if subcommand in [None, 'start']:

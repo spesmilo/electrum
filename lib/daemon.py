@@ -147,18 +147,17 @@ class Daemon(DaemonThread):
     def run_daemon(self, config_options):
         config = SimpleConfig(config_options)
         sub = config.get('subcommand')
-        assert sub in [None, 'start', 'stop', 'status', 'open', 'close']
+        assert sub in [None, 'start', 'stop', 'status', 'open_wallet', 'close_wallet']
         if sub in [None, 'start']:
             response = "Daemon already running"
-        elif sub == 'open':
+        elif sub == 'open_wallet':
             path = config.get_wallet_path()
             self.load_wallet(path, lambda: config.get('password'))
             response = True
-        elif sub == 'close':
+        elif sub == 'close_wallet':
             path = config.get_wallet_path()
             if path in self.wallets:
-                wallet = self.wallets.pop(path)
-                wallet.stop_threads()
+                self.stop_wallet(path)
                 response = True
             else:
                 response = False
@@ -176,6 +175,7 @@ class Daemon(DaemonThread):
                     'version': ELECTRUM_VERSION,
                     'wallets': {k: w.is_up_to_date()
                                 for k, w in self.wallets.items()},
+                    'fee_per_kb': self.config.fee_per_kb(),
                 }
             else:
                 response = "Daemon offline"
@@ -227,6 +227,9 @@ class Daemon(DaemonThread):
     def add_wallet(self, wallet):
         path = wallet.storage.path
         self.wallets[path] = wallet
+
+    def get_wallet(self, path):
+        return self.wallets.get(path)
 
     def stop_wallet(self, path):
         wallet = self.wallets.pop(path)
