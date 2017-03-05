@@ -824,7 +824,7 @@ class Transaction:
                 fd_key = 'fd00' + bitcoin.hash_160(pubkeys[j].decode('hex')).encode('hex')
                 if x_pubkey in keypairs.keys() or fd_key in keypairs.keys():
                     print_error("adding signature for", x_pubkey)
-                    sec = keypairs.get(x_pubkey) or keypairs.get(fd)
+                    sec = keypairs.get(x_pubkey) or keypairs.get(fd_key)
                     pubkey = public_key_from_private_key(sec)
                     assert pubkey == pubkeys[j]
                     # add signature
