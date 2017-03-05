@@ -12,7 +12,6 @@ class FeeSlider(QSlider):
     def __init__(self, window, config, callback):
         QSlider.__init__(self, Qt.Horizontal)
         self.config = config
-        self.fee_step = self.config.max_fee_rate() / 10
         self.window = window
         self.callback = callback
         self.dyn = False
@@ -49,6 +48,7 @@ class FeeSlider(QSlider):
                 self.setRange(0, 4)
                 self.setValue(pos)
             else:
+                self.fee_step = self.config.max_fee_rate() / 10
                 fee_rate = self.config.fee_per_kb()
                 pos = min(fee_rate / self.fee_step, 10)
                 self.setRange(1, 10)
