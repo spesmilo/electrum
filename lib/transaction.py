@@ -813,7 +813,7 @@ class Transaction:
 
 
     def sign(self, keypairs):
-        for i, txin in enumerate(self._inputs):
+        for i, txin in enumerate(self.inputs()):
             num = txin['num_sig']
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
             for j, x_pubkey in enumerate(x_pubkeys):
@@ -821,9 +821,10 @@ class Transaction:
                 if len(signatures) == num:
                     # txin is complete
                     break
-                if x_pubkey in keypairs.keys():
+                fd_key = 'fd00' + bitcoin.hash_160(pubkeys[j].decode('hex')).encode('hex')
+                if x_pubkey in keypairs.keys() or fd_key in keypairs.keys():
                     print_error("adding signature for", x_pubkey)
-                    sec = keypairs[x_pubkey]
+                    sec = keypairs.get(x_pubkey) or keypairs.get(fd)
                     pubkey = public_key_from_private_key(sec)
                     assert pubkey == pubkeys[j]
                     # add signature
