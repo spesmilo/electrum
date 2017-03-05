@@ -239,6 +239,7 @@ class Daemon(DaemonThread):
         password = config_options.get('password')
         new_password = config_options.get('new_password')
         config = SimpleConfig(config_options)
+        config.fee_estimates = self.network.config.fee_estimates.copy()
         cmdname = config.get('cmd')
         cmd = known_commands[cmdname]
         if cmd.requires_wallet:
