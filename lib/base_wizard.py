@@ -32,10 +32,10 @@ from plugins import run_hook
 
 class BaseWizard(object):
 
-    def __init__(self, config, path):
+    def __init__(self, config, storage):
         super(BaseWizard, self).__init__()
         self.config = config
-        self.storage = WalletStorage(path)
+        self.storage = storage
         self.wallet = None
         self.stack = []
         self.plugin = None
@@ -72,9 +72,8 @@ class BaseWizard(object):
 
     def new(self):
         name = os.path.basename(self.storage.path)
-        title = _("Welcome to the Electrum installation wizard.")
+        title = _("Create '%s'"%name)
         message = '\n'.join([
-            _("The wallet '%s' does not exist.") % name,
             _("What kind of wallet do you want to create?")
         ])
         wallet_kinds = [

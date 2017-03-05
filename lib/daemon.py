@@ -228,6 +228,9 @@ class Daemon(DaemonThread):
         path = wallet.storage.path
         self.wallets[path] = wallet
 
+    def get_wallet(self, path):
+        return self.wallets.get(path)
+
     def stop_wallet(self, path):
         wallet = self.wallets.pop(path)
         wallet.stop_threads()

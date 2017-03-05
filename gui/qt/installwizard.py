@@ -6,8 +6,8 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
 import electrum
-from electrum.wallet import Wallet
-from electrum.util import UserCancelled
+from electrum.wallet import Wallet, WalletStorage
+from electrum.util import UserCancelled, InvalidPassword
 from electrum.base_wizard import BaseWizard
 from electrum.i18n import _
 
@@ -147,6 +147,78 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     def run_and_get_wallet(self):
 
+        def on_filename():
+            wallet_folder = os.path.dirname(self.storage.path)
+            path = unicode(QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder))
+            if path:
+                self.name_e.setText(path)
+                self.storage = WalletStorage(path)
+                update_layout()
+        def update_layout():
+            name = os.path.basename(self.storage.path)
+            vbox = QVBoxLayout()
+            hbox = QHBoxLayout()
+            hbox.addWidget(QLabel(_('Wallet') + ':'))
+            self.name_e = QLineEdit(text=name)
+            hbox.addWidget(self.name_e)
+            button = QPushButton(_('Choose...'))
+            button.clicked.connect(on_filename)
+            hbox.addWidget(button)
+            vbox.addLayout(hbox)
+            self.pw_e = None
+
+            if not self.storage.file_exists:
+                msg = _("This file does not exist.") + '\n' \
+                      + _("Press 'Next' to create this wallet, or chose another file.")
+                vbox.addWidget(QLabel(msg))
+
+            elif self.storage.file_exists and self.storage.is_encrypted():
+                msg = _("This file is encrypted.") + '\n' + _('Enter your password or choose another file.')
+                vbox.addWidget(QLabel(msg))
+                hbox2 = QHBoxLayout()
+                self.pw_e = QLineEdit('', self)
+                self.pw_e.setFixedWidth(150)
+                self.pw_e.setEchoMode(2)
+                hbox2.addWidget(QLabel(_('Password') + ':'))
+                hbox2.addWidget(self.pw_e)
+                hbox2.addStretch()
+                vbox.addLayout(hbox2)
+            else:
+                msg = _("Press 'Next' to open this wallet.")
+                vbox.addWidget(QLabel(msg))
+
+            self.set_layout(vbox, title=_('Electrum wallet'))
+            if self.pw_e:
+                self.pw_e.show()
+                self.pw_e.setFocus()
+
+        while True:
+            update_layout()
+
+            if self.storage.file_exists and not self.storage.is_encrypted():
+                self.storage.read(None)
+                break
+
+            if not self.loop.exec_():
+                return
+
+            if not self.storage.file_exists:
+                break
+
+            if self.storage.file_exists and self.storage.is_encrypted():
+                password = unicode(self.pw_e.text())
+                try:
+                    self.storage.read(password)
+                    break
+                except InvalidPassword as e:
+                    QMessageBox.information(None, _('Error'), str(e), _('OK'))
+                    continue
+                except BaseException as e:
+                    traceback.print_exc(file=sys.stdout)
+                    QMessageBox.information(None, _('Error'), str(e), _('OK'))
+                    return
+
+
         path = self.storage.path
         if self.storage.requires_split():
             self.hide()
@@ -188,6 +260,11 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             self.run(action)
             return self.wallet
 
+        self.wallet = Wallet(self.storage)
+        self.terminate()
+        return self.wallet
+
+
 
     def finished(self):
         """Called in hardware client wrapper, in order to close popups."""
@@ -203,7 +280,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.logo.setPixmap(QPixmap(filename).scaledToWidth(60))
         return prior_filename
 
-    def set_main_layout(self, layout, title=None, raise_on_cancel=True,
+    def set_layout(self, layout, title=None, raise_on_cancel=True,
                         next_enabled=True):
         self.title.setText("<b>%s</b>"%title if title else "")
         self.title.setVisible(bool(title))
@@ -218,6 +295,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             self.next_button.setFocus()
         self.main_widget.setVisible(True)
         self.please_wait.setVisible(False)
+
+    def exec_layout(self, layout, title=None, raise_on_cancel=True,
+                        next_enabled=True):
+        self.set_layout(layout, title, next_enabled)
         result = self.loop.exec_()
         if not result and raise_on_cancel:
             raise UserCancelled
@@ -241,12 +322,12 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     def text_input(self, title, message, is_valid):
         slayout = KeysLayout(parent=self, title=message, is_valid=is_valid)
-        self.set_main_layout(slayout, title, next_enabled=False)
+        self.exec_layout(slayout, title, next_enabled=False)
         return slayout.get_text()
 
     def seed_input(self, title, message, is_seed, options):
         slayout = SeedLayout(title=message, is_seed=is_seed, options=options, parent=self)
-        self.set_main_layout(slayout, title, next_enabled=False)
+        self.exec_layout(slayout, title, next_enabled=False)
         return slayout.get_seed(), slayout.is_bip39, slayout.is_ext
 
     @wizard_dialog
@@ -289,13 +370,13 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def show_seed_dialog(self, run_next, seed_text):
         title =  _("Your wallet generation seed is:")
         slayout = SeedLayout(seed=seed_text, title=title, msg=True, options=['ext'])
-        self.set_main_layout(slayout)
+        self.exec_layout(slayout)
         return slayout.is_ext
 
     def pw_layout(self, msg, kind):
         playout = PasswordLayout(None, msg, kind, self.next_button)
         playout.encrypt_cb.setChecked(True)
-        self.set_main_layout(playout.layout())
+        self.exec_layout(playout.layout())
         return playout.new_password(), playout.encrypt_cb.isChecked()
 
     @wizard_dialog
@@ -332,7 +413,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def confirm(self, message, title):
         vbox = QVBoxLayout()
         vbox.addWidget(WWLabel(message))
-        self.set_main_layout(vbox, title)
+        self.exec_layout(vbox, title)
 
     @wizard_dialog
     def action_dialog(self, action, run_next):
@@ -355,7 +436,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         clayout = ChoicesLayout(message, c_titles)
         vbox = QVBoxLayout()
         vbox.addLayout(clayout.layout())
-        self.set_main_layout(vbox, title)
+        self.exec_layout(vbox, title)
         action = c_values[clayout.selected_index()]
         return action
 
@@ -364,7 +445,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         clayout = ChoicesLayout(msg, choices)
         vbox = QVBoxLayout()
         vbox.addLayout(clayout.layout())
-        self.set_main_layout(vbox, '')
+        self.exec_layout(vbox, '')
         return clayout.selected_index()
 
     @wizard_dialog
@@ -378,7 +459,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         line.textEdited.connect(f)
         vbox.addWidget(line)
         vbox.addWidget(WWLabel(warning))
-        self.set_main_layout(vbox, title, next_enabled=test(default))
+        self.exec_layout(vbox, title, next_enabled=test(default))
         return ' '.join(unicode(line.text()).split())
 
     @wizard_dialog
@@ -390,7 +471,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         vbox = QVBoxLayout()
         layout = SeedLayout(xpub, title=msg, icon=False)
         vbox.addLayout(layout.layout())
-        self.set_main_layout(vbox, _('Master Public Key'))
+        self.exec_layout(vbox, _('Master Public Key'))
         return None
 
     def init_network(self, network):
@@ -404,14 +485,14 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         title = _("How do you want to connect to a server? ")
         clayout = ChoicesLayout(message, choices)
         self.back_button.setText(_('Cancel'))
-        self.set_main_layout(clayout.layout(), title)
+        self.exec_layout(clayout.layout(), title)
         r = clayout.selected_index()
         if r == 0:
             auto_connect = True
         elif r == 1:
             auto_connect = True
             nlayout = NetworkChoiceLayout(network, self.config, wizard=True)
-            if self.set_main_layout(nlayout.layout()):
+            if self.exec_layout(nlayout.layout()):
                 auto_connect = False
         else:
             auto_connect = True
@@ -451,7 +532,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         vbox.addWidget(cw)
         vbox.addWidget(WWLabel(_("Choose the number of signatures needed to unlock funds in your wallet:")))
         vbox.addLayout(grid)
-        self.set_main_layout(vbox, _("Multi-Signature Wallet"))
+        self.exec_layout(vbox, _("Multi-Signature Wallet"))
         m = int(m_edit.value())
         n = int(n_edit.value())
         return (m, n)
