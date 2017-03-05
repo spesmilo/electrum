@@ -147,10 +147,10 @@ class Daemon(DaemonThread):
     def run_daemon(self, config_options):
         config = SimpleConfig(config_options)
         sub = config.get('subcommand')
-        assert sub in [None, 'start', 'stop', 'status', 'open_wallet', 'close_wallet']
+        assert sub in [None, 'start', 'stop', 'status', 'load_wallet', 'close_wallet']
         if sub in [None, 'start']:
             response = "Daemon already running"
-        elif sub == 'open_wallet':
+        elif sub == 'load_wallet':
             path = config.get_wallet_path()
             self.load_wallet(path, lambda: config.get('password'))
             response = True
@@ -245,7 +245,7 @@ class Daemon(DaemonThread):
             path = config.get_wallet_path()
             wallet = self.wallets.get(path)
             if wallet is None:
-                return {'error': 'Wallet not open. Use "electrum daemon open -w wallet"'}
+                return {'error': 'Wallet not open. Use "electrum daemon load_wallet"'}
         else:
             wallet = None
         # arguments passed to function
