@@ -175,6 +175,7 @@ class Daemon(DaemonThread):
                     'version': ELECTRUM_VERSION,
                     'wallets': {k: w.is_up_to_date()
                                 for k, w in self.wallets.items()},
+                    'fee_per_kb': self.config.fee_per_kb(),
                 }
             else:
                 response = "Daemon offline"
