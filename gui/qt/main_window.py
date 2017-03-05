@@ -601,7 +601,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             edit.setStyleSheet(BLACK_FG)
             fiat_e.is_last_edited = (edit == fiat_e)
             amount = edit.get_amount()
-            rate = self.fx.exchange_rate()
+            rate = self.fx.exchange_rate() if self.fx else None
             if rate is None or amount is None:
                 if edit is fiat_e:
                     btc_e.setText("")
@@ -729,8 +729,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.addWidget(self.receive_amount_e, 2, 1)
         self.receive_amount_e.textChanged.connect(self.update_receive_qr)
 
-        self.fiat_receive_e = AmountEdit(self.fx.get_currency)
-        if not self.fx.is_enabled():
+        self.fiat_receive_e = AmountEdit(self.fx.get_currency if self.fx else '')
+        if not self.fx or not self.fx.is_enabled():
             self.fiat_receive_e.setVisible(False)
         grid.addWidget(self.fiat_receive_e, 2, 2, Qt.AlignLeft)
         self.connect_fields(self, self.receive_amount_e, self.fiat_receive_e, None)
@@ -988,8 +988,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.addWidget(amount_label, 4, 0)
         grid.addWidget(self.amount_e, 4, 1)
 
-        self.fiat_send_e = AmountEdit(self.fx.get_currency)
-        if not self.fx.is_enabled():
+        self.fiat_send_e = AmountEdit(self.fx.get_currency if self.fx else '')
+        if not self.fx or not self.fx.is_enabled():
             self.fiat_send_e.setVisible(False)
         grid.addWidget(self.fiat_send_e, 4, 2)
         self.amount_e.frozen.connect(
@@ -1115,7 +1115,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         '''Recalculate the fee.  If the fee was manually input, retain it, but
         still build the TX to see if there are enough funds.
         '''
-        if self.config.is_dynfee() and not self.config.has_fee_estimates():
+        if not self.config.get('offline') and self.config.is_dynfee() and not self.config.has_fee_estimates():
             self.statusBar().showMessage(_('Waiting for fee estimates...'))
             return False
         freeze_fee = (self.fee_e.isModified()
@@ -2315,7 +2315,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self._do_import(title, msg, lambda x: self.wallet.import_key(x, password))
 
     def update_fiat(self):
-        b = self.fx.is_enabled()
+        b = self.fx and self.fx.is_enabled()
         self.fiat_send_e.setVisible(b)
         self.fiat_receive_e.setVisible(b)
         self.history_list.refresh_headers()
@@ -2566,6 +2566,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         ex_combo = QComboBox()
 
         def update_currencies():
+            if not self.fx: return
             currencies = sorted(self.fx.get_currencies(self.fx.get_history_config()))
             ccy_combo.clear()
             ccy_combo.addItems([_('None')] + currencies)
@@ -2573,10 +2574,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 ccy_combo.setCurrentIndex(ccy_combo.findText(self.fx.get_currency()))
 
         def update_history_cb():
+            if not self.fx: return
             hist_checkbox.setChecked(self.fx.get_history_config())
             hist_checkbox.setEnabled(self.fx.is_enabled())
 
         def update_exchanges():
+            if not self.fx: return
             b = self.fx.is_enabled()
             ex_combo.setEnabled(b)
             if b:
@@ -2590,6 +2593,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             ex_combo.setCurrentIndex(ex_combo.findText(self.fx.config_exchange()))
 
         def on_currency(hh):
+            if not self.fx: return
             b = bool(ccy_combo.currentIndex())
             ccy = str(ccy_combo.currentText()) if b else None
             self.fx.set_enabled(b)
@@ -2601,10 +2605,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         def on_exchange(idx):
             exchange = str(ex_combo.currentText())
-            if self.fx.is_enabled() and exchange and exchange != self.fx.exchange.name():
+            if self.fx and self.fx.is_enabled() and exchange and exchange != self.fx.exchange.name():
                 self.fx.set_exchange(exchange)
 
         def on_history(checked):
+            if not self.fx: return
             self.fx.set_history_config(checked)
             update_exchanges()
             self.history_list.refresh_headers()

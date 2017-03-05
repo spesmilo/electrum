@@ -57,10 +57,10 @@ class HistoryList(MyTreeWidget):
         self.setColumnHidden(1, True)
 
     def refresh_headers(self):
-        ccy = self.parent.fx.ccy
         headers = ['', '', _('Date'), _('Description') , _('Amount'), _('Balance')]
-        if self.parent.fx.show_history():
-            headers.extend(['%s '%ccy + _('Amount'), '%s '%ccy + _('Balance')])
+        fx = self.parent.fx
+        if fx and fx.show_history():
+            headers.extend(['%s '%fx.ccy + _('Amount'), '%s '%fx.ccy + _('Balance')])
         self.update_headers(headers)
 
     def get_domain(self):
@@ -75,7 +75,7 @@ class HistoryList(MyTreeWidget):
         current_tx = item.data(0, Qt.UserRole).toString() if item else None
         self.clear()
         fx = self.parent.fx
-        fx.history_used_spot = False
+        if fx: fx.history_used_spot = False
         for h_item in h:
             tx_hash, height, conf, timestamp, value, balance = h_item
             status, status_str = self.wallet.get_tx_status(tx_hash, height, conf, timestamp)
@@ -84,7 +84,7 @@ class HistoryList(MyTreeWidget):
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             label = self.wallet.get_label(tx_hash)
             entry = ['', tx_hash, status_str, label, v_str, balance_str]
-            if fx.show_history():
+            if fx and fx.show_history():
                 date = timestamp_to_datetime(time.time() if conf <= 0 else timestamp)
                 for amount in [value, balance]:
                     text = fx.historical_value_str(amount, date)
