@@ -162,13 +162,12 @@ class ElectrumGui:
             wallet = self.daemon.get_wallet(path)
             if not wallet:
                 storage = WalletStorage(path)
-                if not storage.file_exists or storage.is_encrypted():
+                if not storage.file_exists() or storage.is_encrypted():
                     wizard = InstallWizard(self.config, self.app, self.plugins, storage)
                     wallet = wizard.run_and_get_wallet()
                     if not wallet:
                         return
                 else:
-                    storage.read(None)
                     wallet = Wallet(storage)
                 wallet.start_threads(self.daemon.network)
                 self.daemon.add_wallet(wallet)

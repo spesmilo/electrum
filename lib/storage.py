@@ -64,52 +64,19 @@ def multisig_type(wallet_type):
 class WalletStorage(PrintError):
 
     def __init__(self, path):
+        self.print_error("wallet path", path)
         self.lock = threading.RLock()
         self.data = {}
         self.path = path
-        self.file_exists = self.path and os.path.exists(self.path)
         self.modified = False
         self.pubkey = None
-
-    def decrypt(self, s, password):
-        # Note: hardware wallets should use a seed-derived key and not require a password.
-        # Thus, we need to expose keystore metadata
-        if password is None:
-            self.pubkey = None
-            return s
-        secret = pbkdf2.PBKDF2(password, '', iterations = 1024, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
-        ec_key = bitcoin.EC_KEY(secret)
-        self.pubkey = ec_key.get_public_key()
-        return zlib.decompress(ec_key.decrypt_message(s)) if s else None
-
-    def set_password(self, pw, encrypt):
-        """Set self.pubkey"""
-        self.put('use_encryption', bool(pw))
-        self.decrypt(None, pw if encrypt else None)
-
-    def is_encrypted(self):
-        try:
+        if self.file_exists():
             with open(self.path, "r") as f:
-                s = f.read(8)
-        except IOError:
-            return
-        try:
-            return base64.b64decode(s).startswith('BIE1')
-        except:
-            return False
+                self.raw = f.read()
+            if not self.is_encrypted():
+                self.load_data(self.raw)
 
-    def read(self, password):
-        """Read the contents of the wallet file."""
-        self.print_error("wallet path", self.path)
-        try:
-            with open(self.path, "r") as f:
-                s = f.read()
-        except IOError:
-            return
-        if not s:
-            return
-        # Decrypt wallet.
-        s = self.decrypt(s, password)
+    def load_data(self, s):
         try:
             self.data = json.loads(s)
         except:
@@ -118,6 +85,33 @@ class WalletStorage(PrintError):
         t = self.get('wallet_type')
         l = plugin_loaders.get(t)
         if l: l()
+
+    def is_encrypted(self):
+        try:
+            return base64.b64decode(self.raw).startswith('BIE1')
+        except:
+            return False
+
+    def file_exists(self):
+        return self.path and os.path.exists(self.path)
+
+    def get_key(self, password):
+        secret = pbkdf2.PBKDF2(password, '', iterations = 1024, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
+        ec_key = bitcoin.EC_KEY(secret)
+        return ec_key
+
+    def decrypt(self, password):
+        ec_key = self.get_key(password)
+        s = zlib.decompress(ec_key.decrypt_message(self.raw)) if self.raw else None
+        self.load_data(s)
+
+    def set_password(self, password, encrypt):
+        self.put('use_encryption', bool(password))
+        if encrypt and password:
+            ec_key = self.get_key(password)
+            self.pubkey = ec_key.get_public_key()
+        else:
+            self.pubkey = None
 
     def get(self, key, default=None):
         with self.lock:
@@ -150,7 +144,6 @@ class WalletStorage(PrintError):
         self.put('seed_version', FINAL_SEED_VERSION)
         with self.lock:
             self._write()
-        self.file_exists = True
 
     def _write(self):
         if threading.currentThread().isDaemon():
@@ -230,7 +223,7 @@ class WalletStorage(PrintError):
         return result
 
     def requires_upgrade(self):
-        return self.file_exists and self.get_seed_version() != FINAL_SEED_VERSION
+        return self.file_exists() and self.get_seed_version() != FINAL_SEED_VERSION
 
     def upgrade(self):
         self.convert_imported()
@@ -371,7 +364,7 @@ class WalletStorage(PrintError):
         action = run_hook('get_action', self)
         if action:
             return action
-        if not self.file_exists:
+        if not self.file_exists():
             return 'new'
 
     def get_seed_version(self):

@@ -63,7 +63,6 @@ from mnemonic import Mnemonic
 
 import paymentrequest
 
-from storage import WalletStorage
 
 TX_STATUS = [
     _('Replaceable'),
