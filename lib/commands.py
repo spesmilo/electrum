@@ -569,6 +569,19 @@ class Commands:
         return map(self._format_request, out)
 
     @command('w')
+    def getunusedaddress(self,force=False):
+        """Returns the first unused address."""
+        addr = self.wallet.get_unused_address()
+        if addr is None and force:
+            addr = self.wallet.create_new_address(False)
+
+        if addr:
+            return addr
+        else:
+            return False
+
+
+    @command('w')
     def addrequest(self, amount, memo='', expiration=None, force=False):
         """Create a payment request."""
         addr = self.wallet.get_unused_address()
