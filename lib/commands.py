@@ -569,6 +569,19 @@ class Commands:
         return map(self._format_request, out)
 
     @command('w')
+    def getunusedaddress(self,force=False):
+        """Returns the first unused address."""
+        addr = self.wallet.get_unused_address()
+        if addr is None and force:
+            addr = self.wallet.create_new_address(False)
+
+        if addr:
+            return addr
+        else:
+            return False
+
+
+    @command('w')
     def addrequest(self, amount, memo='', expiration=None, force=False):
         """Create a payment request."""
         addr = self.wallet.get_unused_address()
@@ -775,6 +788,7 @@ def add_global_options(parser):
     group.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
     group.add_argument("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
     group.add_argument("--segwit", action="store_true", dest="segwit", default=False, help="The Wizard will create Segwit seed phrases (Testnet only).")
+    group.add_argument("--nolnet", action="store_true", dest="nolnet", default=False, help="Use Nolnet")
 
 def get_parser():
     # create main parser

@@ -1242,11 +1242,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.show_error(_('Invalid Amount'))
                 return
 
-        fee = self.fee_e.get_amount()
-        if fee is None:
-            self.show_error(_('Invalid Fee'))
-            return
-
+        freeze_fee = (self.fee_e.isModified() and (self.fee_e.text() or self.fee_e.hasFocus()))
+        fee = self.fee_e.get_amount() if freeze_fee else None
         coins = self.get_coins()
         return outputs, fee, label, coins
 
@@ -1271,12 +1268,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
 
         amount = tx.output_value() if self.is_max else sum(map(lambda x:x[2], outputs))
+        fee = tx.get_fee()
 
         use_rbf = self.rbf_checkbox.isChecked()
         if use_rbf:
             tx.set_sequence(0)
 
-        if tx.get_fee() < tx.required_fee(self.wallet):
+        if fee < tx.required_fee(self.wallet):
             self.show_error(_("This transaction requires a higher fee, or it will not be propagated by the network"))
             return
 
@@ -1296,7 +1294,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             msg.append( _("Additional fees") + ": " + self.format_amount_and_units(extra_fee) )
 
         confirm_rate = 2 * self.config.max_fee_rate()
-        if tx.get_fee() > confirm_rate * tx.estimated_size() / 1000:
+        if fee > confirm_rate * tx.estimated_size() / 1000:
             msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
 
         if self.wallet.has_password():

@@ -64,7 +64,16 @@ def set_testnet():
     DEFAULT_PORTS = {'t':'51001', 's':'51002'}
     DEFAULT_SERVERS = {
         '14.3.140.101': DEFAULT_PORTS,
-        'testnet.not.fyi': DEFAULT_PORTS
+        'testnet.hsmiths.com': {'t':'53011', 's':'53012'},
+        'electrum.akinbo.org': DEFAULT_PORTS,
+        'ELEX05.blackpole.online': {'t':'52011', 's':'52002'},
+    }
+
+def set_nolnet():
+    global DEFAULT_PORTS, DEFAULT_SERVERS
+    DEFAULT_PORTS = {'t':'52001', 's':'52002'}
+    DEFAULT_SERVERS = {
+        '14.3.140.101': DEFAULT_PORTS,
     }
 
 NODES_RETRY_INTERVAL = 60
@@ -321,14 +330,14 @@ class Network(util.DaemonThread):
         for request in requests:
             message_id = self.queue_request(request[0], request[1])
             self.unanswered_requests[message_id] = request
-        for addr in self.subscribed_addresses:
-            self.queue_request('blockchain.address.subscribe', [addr])
         self.queue_request('server.banner', [])
         self.queue_request('server.donation_address', [])
         self.queue_request('server.peers.subscribe', [])
         for i in bitcoin.FEE_TARGETS:
             self.queue_request('blockchain.estimatefee', [i])
         self.queue_request('blockchain.relayfee', [])
+        for addr in self.subscribed_addresses:
+            self.queue_request('blockchain.address.subscribe', [addr])
 
     def get_status_value(self, key):
         if key == 'status':
@@ -428,6 +437,8 @@ class Network(util.DaemonThread):
         self.print_error("stopping network")
         for interface in self.interfaces.values():
             self.close_interface(interface)
+        if self.interface:
+            self.close_interface(self.interface)
         assert self.interface is None
         assert not self.interfaces
         self.connecting = set()
@@ -665,7 +676,8 @@ class Network(util.DaemonThread):
         # Responses to connection attempts?
         while not self.socket_queue.empty():
             server, socket = self.socket_queue.get()
-            self.connecting.remove(server)
+            if server in self.connecting:
+                self.connecting.remove(server)
             if socket:
                 self.new_interface(server, socket)
             else:

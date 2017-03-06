@@ -38,6 +38,7 @@ import pyaes
 
 # Litecoin network constants
 TESTNET = False
+NOLNET = False
 ADDRTYPE_P2PKH = 48
 ADDRTYPE_P2SH = 5
 ADDRTYPE_P2WPKH = 6
@@ -61,6 +62,17 @@ def set_testnet():
     XPUB_HEADER_ALT = 0x0436f6e1
     HEADERS_URL = "https://electrum-ltc.org/testnet_headers"
 
+def set_nolnet():
+    global ADDRTYPE_P2PKH, ADDRTYPE_P2SH, ADDRTYPE_P2WPKH
+    global XPRV_HEADER, XPUB_HEADER
+    global NOLNET, HEADERS_URL
+    NOLNET = True
+    ADDRTYPE_P2PKH = 0
+    ADDRTYPE_P2SH = 5
+    ADDRTYPE_P2WPKH = 6
+    XPRV_HEADER = 0x0488ade4
+    XPUB_HEADER = 0x0488b21e
+    HEADERS_URL = "https://electrum-ltc.org/nolnet_headers"
 
 
 
