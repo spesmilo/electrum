@@ -212,7 +212,8 @@ class SimpleConfig(PrintError):
 
     def reverse_dynfee(self, fee_per_kb):
         import operator
-        dist = map(lambda x: (x[0], abs(x[1] - fee_per_kb)), self.fee_estimates.items())
+        l = self.fee_estimates.items() + [(1, self.dynfee(4))]
+        dist = map(lambda x: (x[0], abs(x[1] - fee_per_kb)), l)
         min_target, min_value = min(dist, key=operator.itemgetter(1))
         if fee_per_kb < self.fee_estimates.get(25)/2:
             min_target = -1
