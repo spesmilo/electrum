@@ -1,7 +1,7 @@
 from decimal import Decimal
 _ = lambda x:x
 #from i18n import _
-from electrum_ltc.wallet import WalletStorage, Wallet
+from electrum_ltc import WalletStorage, Wallet
 from electrum_ltc.util import format_satoshis, set_verbosity, StoreDict
 from electrum_ltc.bitcoin import is_valid, COIN, TYPE_ADDRESS
 from electrum_ltc.network import filter_protocol
@@ -19,8 +19,9 @@ class ElectrumGui:
         if not storage.file_exists:
             print "Wallet not found. try 'electrum-ltc create'"
             exit()
-        password = getpass.getpass('Password:', stream=None) if storage.is_encrypted() else None
-        storage.read(password)
+        if storage.is_encrypted():
+            password = getpass.getpass('Password:', stream=None)
+            storage.decrypt(password)
 
         self.done = 0
         self.last_balance = ""

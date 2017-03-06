@@ -35,7 +35,8 @@ from version import ELECTRUM_VERSION
 from network import Network
 from util import json_decode, DaemonThread
 from util import print_msg, print_error, print_stderr, UserCancelled
-from wallet import WalletStorage, Wallet
+from wallet import Wallet
+from storage import WalletStorage
 from commands import known_commands, Commands
 from simple_config import SimpleConfig
 from plugins import run_hook
@@ -203,15 +204,13 @@ class Daemon(DaemonThread):
             wallet = self.wallets[path]
             return wallet
         storage = WalletStorage(path)
-        if not storage.file_exists:
+        if not storage.file_exists():
             return
         if storage.is_encrypted():
             password = password_getter()
             if not password:
                 raise UserCancelled()
-        else:
-            password = None
-        storage.read(password)
+            storage.decrypt(password)
         if storage.requires_split():
             return
         if storage.requires_upgrade():

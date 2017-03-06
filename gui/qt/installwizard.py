@@ -6,7 +6,7 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
 import electrum_ltc as electrum
-from electrum_ltc.wallet import Wallet, WalletStorage
+from electrum_ltc import Wallet, WalletStorage
 from electrum_ltc.util import UserCancelled, InvalidPassword
 from electrum_ltc.base_wizard import BaseWizard
 from electrum_ltc.i18n import _
@@ -167,12 +167,12 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             vbox.addLayout(hbox)
             self.pw_e = None
 
-            if not self.storage.file_exists:
+            if not self.storage.file_exists():
                 msg = _("This file does not exist.") + '\n' \
                       + _("Press 'Next' to create this wallet, or chose another file.")
                 vbox.addWidget(QLabel(msg))
 
-            elif self.storage.file_exists and self.storage.is_encrypted():
+            elif self.storage.file_exists() and self.storage.is_encrypted():
                 msg = _("This file is encrypted.") + '\n' + _('Enter your password or choose another file.')
                 vbox.addWidget(QLabel(msg))
                 hbox2 = QHBoxLayout()
@@ -195,20 +195,19 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         while True:
             update_layout()
 
-            if self.storage.file_exists and not self.storage.is_encrypted():
-                self.storage.read(None)
+            if self.storage.file_exists() and not self.storage.is_encrypted():
                 break
 
             if not self.loop.exec_():
                 return
 
-            if not self.storage.file_exists:
+            if not self.storage.file_exists():
                 break
 
-            if self.storage.file_exists and self.storage.is_encrypted():
+            if self.storage.file_exists() and self.storage.is_encrypted():
                 password = unicode(self.pw_e.text())
                 try:
-                    self.storage.read(password)
+                    self.storage.decrypt(password)
                     break
                 except InvalidPassword as e:
                     QMessageBox.information(None, _('Error'), str(e), _('OK'))

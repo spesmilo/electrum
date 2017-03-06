@@ -124,7 +124,7 @@ def run_non_RPC(config):
     cmdname = config.get('cmd')
 
     storage = WalletStorage(config.get_wallet_path())
-    if storage.file_exists:
+    if storage.file_exists():
         sys.exit("Error: Remove the existing wallet first!")
 
     def password_dialog():
@@ -187,7 +187,7 @@ def run_non_RPC(config):
 def init_daemon(config_options):
     config = SimpleConfig(config_options)
     storage = WalletStorage(config.get_wallet_path())
-    if not storage.file_exists:
+    if not storage.file_exists():
         print_msg("Error: Wallet file not found.")
         print_msg("Type 'electrum-ltc create' to create a new wallet, or provide a path to a wallet with the -w option")
         sys.exit(0)
@@ -222,7 +222,7 @@ def init_cmdline(config_options, server):
     # instanciate wallet for command-line
     storage = WalletStorage(config.get_wallet_path())
 
-    if cmd.requires_wallet and not storage.file_exists:
+    if cmd.requires_wallet and not storage.file_exists():
         print_msg("Error: Wallet file not found.")
         print_msg("Type 'electrum-ltc create' to create a new wallet, or provide a path to a wallet with the -w option")
         sys.exit(0)
@@ -233,8 +233,6 @@ def init_cmdline(config_options, server):
         print_stderr("Exposing a single private key can compromise your entire wallet!")
         print_stderr("In particular, DO NOT use 'redeem private key' services proposed by third parties.")
 
-    if not storage.is_encrypted():
-        storage.read(None)
     # commands needing password
     if (cmd.requires_wallet and storage.is_encrypted() and server is None)\
        or (cmd.requires_password and (storage.get('use_encryption') or storage.is_encrypted())):
@@ -263,7 +261,8 @@ def run_offline_command(config, config_options):
     password = config_options.get('password')
     if cmd.requires_wallet:
         storage = WalletStorage(config.get_wallet_path())
-        storage.read(password if storage.is_encrypted() else None)
+        if storage.is_encrypted():
+            storage.decrypt(password)
         wallet = Wallet(storage)
     else:
         wallet = None

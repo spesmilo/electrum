@@ -42,7 +42,7 @@ class TestWalletStorage(WalletTestCase):
     def test_read_dictionnary_from_file(self):
 
         some_dict = {"a":"b", "c":"d"}
-        contents = repr(some_dict)
+        contents = json.dumps(some_dict)
         with open(self.wallet_path, "w") as f:
             contents = f.write(contents)
 

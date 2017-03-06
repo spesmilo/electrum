@@ -26,7 +26,7 @@
 import os
 import bitcoin
 import keystore
-from wallet import Wallet, Imported_Wallet, Standard_Wallet, Multisig_Wallet, WalletStorage, wallet_types
+from wallet import Wallet, Imported_Wallet, Standard_Wallet, Multisig_Wallet, wallet_types
 from i18n import _
 from plugins import run_hook
 

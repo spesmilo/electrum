@@ -22,8 +22,9 @@ class ElectrumGui:
         if not storage.file_exists:
             print "Wallet not found. try 'electrum-ltc create'"
             exit()
-        password = getpass.getpass('Password:', stream=None) if storage.is_encrypted() else None
-        storage.read(password)
+        if storage.is_encrypted():
+            password = getpass.getpass('Password:', stream=None)
+            storage.decrypt(password)
         self.wallet = Wallet(storage)
         self.wallet.start_threads(self.network)
         self.contacts = StoreDict(self.config, 'contacts')
