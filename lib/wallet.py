@@ -789,10 +789,6 @@ class Abstract_Wallet(PrintError):
         # Change <= dust threshold is added to the tx fee
         return 182 * 3 * self.relayfee() / 1000
 
-    def get_tx_fee(self, tx):
-        # this method can be overloaded
-        return tx.get_fee()
-
     def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None, change_addr=None):
         # check outputs
         i_max = None

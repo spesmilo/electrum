@@ -1152,18 +1152,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             except BaseException:
                 return
             if not freeze_fee:
-                fee = None if self.not_enough_funds else self.wallet.get_tx_fee(tx)
+                fee = None if self.not_enough_funds else tx.get_fee()
                 self.fee_e.setAmount(fee)
 
             if self.is_max:
                 amount = tx.output_value()
                 self.amount_e.setAmount(amount)
 
+            if fee is None:
+                return
             rbf_policy = self.config.get('rbf_policy', 1)
             if rbf_policy == 0:
                 b = True
             elif rbf_policy == 1:
-                fee_rate = tx.get_fee() * 1000 / tx.estimated_size()
+                fee_rate = fee * 1000 / tx.estimated_size()
                 try:
                     c = self.config.reverse_dynfee(fee_rate)
                     b = c in [-1, 25]
