@@ -29,6 +29,7 @@ from electrum.bitcoin import is_address
 
 
 class UTXOList(MyTreeWidget):
+    filter_columns = [0, 2]  # Address, Label
 
     def __init__(self, parent=None):
         MyTreeWidget.__init__(self, parent, self.create_menu, [ _('Address'), _('Output point'), _('Label'), _('Amount'), ''], 2)
