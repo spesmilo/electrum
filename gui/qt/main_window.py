@@ -433,19 +433,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         file_menu.addAction(_("&Quit"), self.close)
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
-        wallet_menu.addAction(_("&New contact"), self.new_contact_dialog)
-        wallet_menu.addAction(_("Import invoices"), lambda: self.invoice_list.import_invoices())
-        wallet_menu.addAction(_("Import contacts"), lambda: self.contact_list.import_contacts())
-        wallet_menu.addSeparator()
 
         self.password_menu = wallet_menu.addAction(_("&Password"), self.change_password_dialog)
         self.seed_menu = wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
         self.mpk_menu = wallet_menu.addAction(_("&Master Public Keys"), self.show_master_public_keys)
-
-        wallet_menu.addSeparator()
-        labels_menu = wallet_menu.addMenu(_("&Labels"))
-        labels_menu.addAction(_("&Import"), self.do_import_labels)
-        labels_menu.addAction(_("&Export"), self.do_export_labels)
 
         self.private_keys_menu = wallet_menu.addMenu(_("&Private keys"))
         self.private_keys_menu.addAction(_("&Sweep"), self.sweep_key_dialog)
@@ -453,10 +444,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.export_menu = self.private_keys_menu.addAction(_("&Export"), self.export_privkeys_dialog)
         self.import_address_menu = wallet_menu.addAction(_("Import addresses"), self.import_addresses)
 
+        wallet_menu.addSeparator()
+
+        labels_menu = wallet_menu.addMenu(_("&Labels"))
+        labels_menu.addAction(_("&Import"), self.do_import_labels)
+        labels_menu.addAction(_("&Export"), self.do_export_labels)
+        contacts_menu = wallet_menu.addMenu(_("Contacts"))
+        contacts_menu.addAction(_("&New"), self.new_contact_dialog)
+        contacts_menu.addAction(_("Import"), lambda: self.contact_list.import_contacts())
+        invoices_menu = wallet_menu.addMenu(_("Invoices"))
+        invoices_menu.addAction(_("Import"), lambda: self.invoice_list.import_invoices())
         hist_menu = wallet_menu.addMenu(_("&History"))
         hist_menu.addAction("Plot", self.plot_history_dialog)
         hist_menu.addAction("Export", self.export_history_dialog)
 
+        wallet_menu.addSeparator()
         wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
         wallet_menu.addAction(_("Addresses"), self.toggle_addresses_tab).setShortcut(QKeySequence("Ctrl+A"))
         wallet_menu.addAction(_("Coins"), self.toggle_utxo_tab)
