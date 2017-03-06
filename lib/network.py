@@ -68,7 +68,16 @@ def set_testnet():
     DEFAULT_PORTS = {'t':'51001', 's':'51002'}
     DEFAULT_SERVERS = {
         '14.3.140.101': DEFAULT_PORTS,
-        'testnet.not.fyi': DEFAULT_PORTS
+        'testnet.hsmiths.com': {'t':'53011', 's':'53012'},
+        'electrum.akinbo.org': DEFAULT_PORTS,
+        'ELEX05.blackpole.online': {'t':'52011', 's':'52002'},
+    }
+
+def set_nolnet():
+    global DEFAULT_PORTS, DEFAULT_SERVERS
+    DEFAULT_PORTS = {'t':'52001', 's':'52002'}
+    DEFAULT_SERVERS = {
+        '14.3.140.101': DEFAULT_PORTS,
     }
 
 NODES_RETRY_INTERVAL = 60
