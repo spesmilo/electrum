@@ -4,7 +4,6 @@ from decimal import Decimal
 import getpass
 
 from electrum.util import format_satoshis, set_verbosity
-from electrum.util import StoreDict
 from electrum.bitcoin import is_valid, COIN, TYPE_ADDRESS
 from electrum import Wallet, WalletStorage
 
@@ -27,7 +26,7 @@ class ElectrumGui:
             storage.decrypt(password)
         self.wallet = Wallet(storage)
         self.wallet.start_threads(self.network)
-        self.contacts = StoreDict(self.config, 'contacts')
+        self.contacts = self.wallet.contacts
 
         locale.setlocale(locale.LC_ALL, '')
         self.encoding = locale.getpreferredencoding()

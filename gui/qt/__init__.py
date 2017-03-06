@@ -39,8 +39,6 @@ import PyQt4.QtCore as QtCore
 from electrum.i18n import _, set_language
 from electrum.plugins import run_hook
 from electrum import SimpleConfig, Wallet, WalletStorage
-from electrum.paymentrequest import InvoiceStore
-from electrum.contacts import Contacts
 from electrum.synchronizer import Synchronizer
 from electrum.verifier import SPV
 from electrum.util import DebugMem, UserCancelled, InvalidPassword
@@ -89,9 +87,6 @@ class ElectrumGui:
         self.app = QApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
         self.timer = Timer()
-        # shared objects
-        self.invoices = InvoiceStore(self.config)
-        self.contacts = Contacts(self.config)
         # init tray
         self.dark_icon = self.config.get("dark_icon", False)
         self.tray = QSystemTrayIcon(self.tray_icon(), None)

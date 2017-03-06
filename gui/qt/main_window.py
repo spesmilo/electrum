@@ -47,7 +47,7 @@ from electrum.plugins import run_hook
 from electrum.i18n import _
 from electrum.util import (block_explorer, block_explorer_info, format_time,
                            block_explorer_URL, format_satoshis, PrintError,
-                           format_satoshis_plain, NotEnoughFunds, StoreDict,
+                           format_satoshis_plain, NotEnoughFunds,
                            UserCancelled)
 from electrum import Transaction, mnemonic
 from electrum import util, bitcoin, commands, coinchooser
@@ -99,8 +99,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.config = config = gui_object.config
         self.network = gui_object.daemon.network
         self.fx = gui_object.daemon.fx
-        self.invoices = gui_object.invoices
-        self.contacts = gui_object.contacts
+        self.invoices = wallet.invoices
+        self.contacts = wallet.contacts
         self.tray = gui_object.tray
         self.app = gui_object.app
         self.cleaned_up = False
@@ -434,6 +434,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
         wallet_menu.addAction(_("&New contact"), self.new_contact_dialog)
+        wallet_menu.addAction(_("Import invoices"), lambda: self.invoice_list.import_invoices())
+        wallet_menu.addAction(_("Import contacts"), lambda: self.contact_list.import_contacts())
         wallet_menu.addSeparator()
 
         self.password_menu = wallet_menu.addAction(_("&Password"), self.change_password_dialog)

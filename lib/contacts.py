@@ -24,17 +24,21 @@
 import sys
 import re
 import dns
+import os
+import json
 
 import bitcoin
 import dnssec
-from util import StoreDict, print_error
+from util import print_error
 from i18n import _
 
 
-class Contacts(StoreDict):
+class Contacts(dict):
 
-    def __init__(self, config):
-        StoreDict.__init__(self, config, 'contacts')
+    def __init__(self, storage):
+        self.storage = storage
+        d = self.storage.get('contacts', {})
+        self.update(d)
         # backward compatibility
         for k, v in self.items():
             _type, n = v
@@ -42,6 +46,26 @@ class Contacts(StoreDict):
                 self.pop(k)
                 self[n] = ('address', k)
 
+    def save(self):
+        self.storage.put('contacts', dict(self))
+
+    def import_file(self, path):
+        try:
+            with open(path, 'r') as f:
+                d = json.loads(f.read())
+        except:
+            return
+        self.update(d)
+        self.save()
+
+    def __setitem__(self, key, value):
+        dict.__setitem__(self, key, value)
+        self.save()
+
+    def pop(self, key):
+        if key in self.keys():
+            dict.pop(self, key)
+            self.save()
 
     def resolve(self, k):
         if bitcoin.is_address(k):

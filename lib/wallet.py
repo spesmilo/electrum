@@ -62,6 +62,8 @@ from verifier import SPV
 from mnemonic import Mnemonic
 
 import paymentrequest
+from paymentrequest import InvoiceStore
+from contacts import Contacts
 
 
 TX_STATUS = [
@@ -126,6 +128,11 @@ class Abstract_Wallet(PrintError):
         # save wallet type the first time
         if self.storage.get('wallet_type') is None:
             self.storage.put('wallet_type', self.wallet_type)
+
+        # invoices and contacts
+        self.invoices = InvoiceStore(self.storage)
+        self.contacts = Contacts(self.storage)
+
 
     def diagnostic_name(self):
         return self.basename()
