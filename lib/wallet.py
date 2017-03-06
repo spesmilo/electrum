@@ -804,6 +804,9 @@ class Abstract_Wallet(PrintError):
         if not inputs:
             raise NotEnoughFunds()
 
+        if fixed_fee is None and config.fee_per_kb() is None:
+            raise BaseException('Dynamic fee estimates not available')
+
         for item in inputs:
             self.add_input_info(item)
 
