@@ -433,19 +433,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         file_menu.addAction(_("&Quit"), self.close)
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
-        wallet_menu.addAction(_("&New contact"), self.new_contact_dialog)
-        wallet_menu.addAction(_("Import invoices"), lambda: self.invoice_list.import_invoices())
-        wallet_menu.addAction(_("Import contacts"), lambda: self.contact_list.import_contacts())
-        wallet_menu.addSeparator()
 
         self.password_menu = wallet_menu.addAction(_("&Password"), self.change_password_dialog)
         self.seed_menu = wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
         self.mpk_menu = wallet_menu.addAction(_("&Master Public Keys"), self.show_master_public_keys)
-
-        wallet_menu.addSeparator()
-        labels_menu = wallet_menu.addMenu(_("&Labels"))
-        labels_menu.addAction(_("&Import"), self.do_import_labels)
-        labels_menu.addAction(_("&Export"), self.do_export_labels)
 
         self.private_keys_menu = wallet_menu.addMenu(_("&Private keys"))
         self.private_keys_menu.addAction(_("&Sweep"), self.sweep_key_dialog)
@@ -453,10 +444,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.export_menu = self.private_keys_menu.addAction(_("&Export"), self.export_privkeys_dialog)
         self.import_address_menu = wallet_menu.addAction(_("Import addresses"), self.import_addresses)
 
+        wallet_menu.addSeparator()
+
+        labels_menu = wallet_menu.addMenu(_("&Labels"))
+        labels_menu.addAction(_("&Import"), self.do_import_labels)
+        labels_menu.addAction(_("&Export"), self.do_export_labels)
+        contacts_menu = wallet_menu.addMenu(_("Contacts"))
+        contacts_menu.addAction(_("&New"), self.new_contact_dialog)
+        contacts_menu.addAction(_("Import"), lambda: self.contact_list.import_contacts())
+        invoices_menu = wallet_menu.addMenu(_("Invoices"))
+        invoices_menu.addAction(_("Import"), lambda: self.invoice_list.import_invoices())
         hist_menu = wallet_menu.addMenu(_("&History"))
         hist_menu.addAction("Plot", self.plot_history_dialog)
         hist_menu.addAction("Export", self.export_history_dialog)
 
+        wallet_menu.addSeparator()
         wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
         wallet_menu.addAction(_("Addresses"), self.toggle_addresses_tab).setShortcut(QKeySequence("Ctrl+A"))
         wallet_menu.addAction(_("Coins"), self.toggle_utxo_tab)
@@ -1042,7 +1044,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                _('and you will have the possiblity, while it is unconfirmed, to replace it with a transaction that pays a higher fee.'),
                _('Note that some merchants do not accept non-final transactions until they are confirmed.')]
         self.rbf_checkbox.setToolTip('<p>' + ' '.join(msg) + '</p>')
-        self.rbf_checkbox.setVisible(self.config.get('use_rbf', False))
+        self.rbf_checkbox.setVisible(False)
 
         grid.addWidget(self.fee_e_label, 5, 0)
         grid.addWidget(self.fee_slider, 5, 1)
@@ -1149,13 +1151,33 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.not_enough_funds = False
             except NotEnoughFunds:
                 self.not_enough_funds = True
+            except BaseException:
+                return
             if not freeze_fee:
-                fee = None if self.not_enough_funds else self.wallet.get_tx_fee(tx)
+                fee = None if self.not_enough_funds else tx.get_fee()
                 self.fee_e.setAmount(fee)
 
             if self.is_max:
                 amount = tx.output_value()
                 self.amount_e.setAmount(amount)
+
+            if fee is None:
+                return
+            rbf_policy = self.config.get('rbf_policy', 1)
+            if rbf_policy == 0:
+                b = True
+            elif rbf_policy == 1:
+                fee_rate = fee * 1000 / tx.estimated_size()
+                try:
+                    c = self.config.reverse_dynfee(fee_rate)
+                    b = c in [-1, 25]
+                except:
+                    b = False
+            elif rbf_policy == 2:
+                b = False
+            self.rbf_checkbox.setVisible(b)
+            self.rbf_checkbox.setChecked(b)
+
 
     def from_list_delete(self, item):
         i = self.from_list.indexOfTopLevelItem(item)
@@ -2407,17 +2429,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         feebox_cb.stateChanged.connect(on_feebox)
         fee_widgets.append((feebox_cb, None))
 
-        use_rbf = self.config.get('use_rbf', False)
-        rbf_cb = QCheckBox(_('Enable Replace-By-Fee'))
-        rbf_cb.setChecked(use_rbf)
+        rbf_policy = self.config.get('rbf_policy', 1)
+        rbf_label = HelpLabel(_('Propose Replace-By-Fee') + ':', '')
+        rbf_combo = QComboBox()
+        rbf_combo.addItems([_('Always'), _('If the fee is low'), _('Never')])
+        rbf_combo.setCurrentIndex(rbf_policy)
         def on_rbf(x):
-            rbf_result = x == Qt.Checked
-            self.config.set_key('use_rbf', rbf_result)
-            self.rbf_checkbox.setVisible(rbf_result)
-            self.rbf_checkbox.setChecked(False)
-        rbf_cb.stateChanged.connect(on_rbf)
-        rbf_cb.setToolTip(_('Enable RBF'))
-        fee_widgets.append((rbf_cb, None))
+            self.config.set_key('rbf_policy', x)
+        rbf_combo.currentIndexChanged.connect(on_rbf)
+        fee_widgets.append((rbf_label, rbf_combo))
 
         msg = _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n'\
               + _('The following alias providers are available:') + '\n'\
