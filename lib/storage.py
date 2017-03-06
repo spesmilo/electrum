@@ -229,17 +229,7 @@ class WalletStorage(PrintError):
         self.convert_imported()
         self.convert_wallet_type()
         self.convert_account()
-        self.convert_pubkeys()
         self.write()
-
-    def convert_pubkeys(self):
-        # version 12 had a bug in pubkey ordering
-        # it is fixed by forcing pubkey regeneration
-        if self.get_seed_version() != 12:
-            return
-        if self.get('wallet_type') in ['standard', 'imported']:
-            return
-        self.put('pubkeys', {})
 
     def convert_wallet_type(self):
         wallet_type = self.get('wallet_type')
@@ -354,11 +344,8 @@ class WalletStorage(PrintError):
             raise BaseException('no addresses or privkeys')
 
     def convert_account(self):
-        d = self.get('accounts', {}).get('0', {})
-        if not d:
-            return False
         self.put('accounts', None)
-        self.put('pubkeys', d)
+        self.put('pubkeys', None)
 
     def get_action(self):
         action = run_hook('get_action', self)

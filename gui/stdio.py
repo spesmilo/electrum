@@ -2,7 +2,7 @@ from decimal import Decimal
 _ = lambda x:x
 #from i18n import _
 from electrum_ltc import WalletStorage, Wallet
-from electrum_ltc.util import format_satoshis, set_verbosity, StoreDict
+from electrum_ltc.util import format_satoshis, set_verbosity
 from electrum_ltc.bitcoin import is_valid, COIN, TYPE_ADDRESS
 from electrum_ltc.network import filter_protocol
 import sys, getpass, datetime
@@ -35,7 +35,7 @@ class ElectrumGui:
 
         self.wallet = Wallet(storage)
         self.wallet.start_threads(self.network)
-        self.contacts = StoreDict(self.config, 'contacts')
+        self.contacts = self.wallet.contacts
 
         self.network.register_callback(self.on_network, ['updated', 'banner'])
         self.commands = [_("[h] - displays this help text"), \

@@ -457,18 +457,13 @@ def make_request(config, req):
 
 class InvoiceStore(object):
 
-    def __init__(self, config):
-        self.config = config
+    def __init__(self, storage):
+        self.storage = storage
         self.invoices = {}
-        self.load_invoices()
+        d = self.storage.get('invoices', {})
+        self.load(d)
 
-    def load_invoices(self):
-        path = os.path.join(self.config.path, 'invoices')
-        try:
-            with open(path, 'r') as f:
-                d = json.loads(f.read())
-        except:
-            return
+    def load(self, d):
         for k, v in d.items():
             try:
                 pr = PaymentRequest(v.get('hex').decode('hex'))
@@ -478,6 +473,15 @@ class InvoiceStore(object):
             except:
                 continue
 
+    def import_file(self, path):
+        try:
+            with open(path, 'r') as f:
+                d = json.loads(f.read())
+                self.load(d)
+        except:
+            return
+        self.save()
+
     def save(self):
         l = {}
         for k, pr in self.invoices.items():
@@ -486,10 +490,7 @@ class InvoiceStore(object):
                 'requestor': pr.requestor,
                 'txid': pr.tx
             }
-        path = os.path.join(self.config.path, 'invoices')
-        with open(path, 'w') as f:
-            s = json.dumps(l, indent=4, sort_keys=True)
-            r = f.write(s)
+        self.storage.put('invoices', l)
 
     def get_status(self, key):
         pr = self.get(key)

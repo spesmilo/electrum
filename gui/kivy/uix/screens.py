@@ -224,7 +224,7 @@ class SendScreen(CScreen):
         req['amount'] = amount
         pr = make_unsigned_request(req).SerializeToString()
         pr = PaymentRequest(pr)
-        self.app.invoices.add(pr)
+        self.app.wallet.invoices.add(pr)
         self.app.update_tab('invoices')
         self.app.show_info(_("Invoice saved"))
         if pr.is_pr():
@@ -449,7 +449,7 @@ class InvoicesScreen(CScreen):
         self.menu_actions = [('Pay', self.do_pay), ('Details', self.do_view), ('Delete', self.do_delete)]
         invoices_list = self.screen.ids.invoices_container
         invoices_list.clear_widgets()
-        _list = self.app.invoices.sorted_list()
+        _list = self.app.wallet.invoices.sorted_list()
         for pr in _list:
             ci = self.get_card(pr)
             invoices_list.add_widget(ci)
@@ -458,19 +458,19 @@ class InvoicesScreen(CScreen):
             invoices_list.add_widget(EmptyLabel(text=msg))
 
     def do_pay(self, obj):
-        pr = self.app.invoices.get(obj.key)
+        pr = self.app.wallet.invoices.get(obj.key)
         self.app.on_pr(pr)
 
     def do_view(self, obj):
-        pr = self.app.invoices.get(obj.key)
-        pr.verify(self.app.contacts)
+        pr = self.app.wallet.invoices.get(obj.key)
+        pr.verify(self.app.wallet.contacts)
         self.app.show_pr_details(pr.get_dict(), obj.status, True)
 
     def do_delete(self, obj):
         from dialogs.question import Question
         def cb(result):
             if result:
-                self.app.invoices.remove(obj.key)
+                self.app.wallet.invoices.remove(obj.key)
                 self.app.update_tab('invoices')
         d = Question(_('Delete invoice?'), cb)
         d.open()

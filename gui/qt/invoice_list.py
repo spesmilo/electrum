@@ -58,17 +58,23 @@ class InvoiceList(MyTreeWidget):
         self.setVisible(len(inv_list))
         self.parent.invoices_label.setVisible(len(inv_list))
 
-    def create_menu(self, position):
-        item = self.itemAt(position)
-        if not item:
+    def import_invoices(self):
+        wallet_folder = self.parent.get_wallet_folder()
+        filename = unicode(QFileDialog.getOpenFileName(self.parent, "Select your wallet file", wallet_folder))
+        if not filename:
             return
+        self.parent.invoices.import_file(filename)
+        self.on_update()
+
+    def create_menu(self, position):
+        menu = QMenu()
+        item = self.itemAt(position)
         key = str(item.data(0, 32).toString())
-        column = self.currentColumn()        
+        column = self.currentColumn()
         column_title = self.headerItem().text(column)
         column_data = item.text(column)
         pr = self.parent.invoices.get(key)
         status = self.parent.invoices.get_status(key)
-        menu = QMenu()
         if column_data:
             menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(column_data))
         menu.addAction(_("Details"), lambda: self.parent.show_invoice(key))

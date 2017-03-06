@@ -11,7 +11,6 @@ import electrum_ltc as electrum
 from electrum_ltc.bitcoin import TYPE_ADDRESS
 from electrum_ltc import WalletStorage, Wallet
 from electrum_ltc_gui.kivy.i18n import _
-from electrum_ltc.contacts import Contacts
 from electrum_ltc.paymentrequest import InvoiceStore
 from electrum_ltc.util import profiler, InvalidPassword
 from electrum_ltc.plugins import run_hook
@@ -201,9 +200,6 @@ class ElectrumWindow(App):
         self.daemon = self.gui_object.daemon
         self.fx = self.daemon.fx
 
-        self.contacts = Contacts(self.electrum_config)
-        self.invoices = InvoiceStore(self.electrum_config)
-
         # create triggers so as to minimize updation a max of 2 times a sec
         self._trigger_update_wallet =\
             Clock.create_trigger(self.update_wallet, .5)
@@ -217,11 +213,11 @@ class ElectrumWindow(App):
         return os.path.basename(self.wallet.storage.path) if self.wallet else ' '
 
     def on_pr(self, pr):
-        if pr.verify(self.contacts):
-            key = self.invoices.add(pr)
+        if pr.verify(self.wallet.contacts):
+            key = self.wallet.invoices.add(pr)
             if self.invoices_screen:
                 self.invoices_screen.update()
-            status = self.invoices.get_status(key)
+            status = self.wallet.invoices.get_status(key)
             if status == PR_PAID:
                 self.show_error("invoice already paid")
                 self.send_screen.do_clear()
@@ -731,7 +727,7 @@ class ElectrumWindow(App):
             self.show_info(txid)
             if ok and pr:
                 pr.set_paid(tx.hash())
-                self.invoices.save()
+                self.wallet.invoices.save()
                 self.update_tab('invoices')
 
         if self.network and self.network.is_connected():

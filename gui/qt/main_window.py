@@ -47,7 +47,7 @@ from electrum_ltc.plugins import run_hook
 from electrum_ltc.i18n import _
 from electrum_ltc.util import (block_explorer, block_explorer_info, format_time,
                                block_explorer_URL, format_satoshis, PrintError,
-                               format_satoshis_plain, NotEnoughFunds, StoreDict,
+                               format_satoshis_plain, NotEnoughFunds,
                                UserCancelled)
 from electrum_ltc import Transaction, mnemonic
 from electrum_ltc import util, bitcoin, commands, coinchooser
@@ -99,8 +99,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.config = config = gui_object.config
         self.network = gui_object.daemon.network
         self.fx = gui_object.daemon.fx
-        self.invoices = gui_object.invoices
-        self.contacts = gui_object.contacts
+        self.invoices = wallet.invoices
+        self.contacts = wallet.contacts
         self.tray = gui_object.tray
         self.app = gui_object.app
         self.cleaned_up = False
@@ -123,13 +123,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.completions = QStringListModel()
 
         self.tabs = tabs = QTabWidget(self)
-        tabs.addTab(self.create_history_tab(), _('History') )
-        tabs.addTab(self.create_send_tab(), _('Send') )
-        tabs.addTab(self.create_receive_tab(), _('Receive') )
+        self.send_tab = self.create_send_tab()
+        self.receive_tab = self.create_receive_tab()
         self.addresses_tab = self.create_addresses_tab()
+        self.utxo_tab = self.create_utxo_tab()
+        tabs.addTab(self.create_history_tab(), _('History') )
+        tabs.addTab(self.send_tab, _('Send') )
+        tabs.addTab(self.receive_tab, _('Receive') )
         if self.config.get('show_addresses_tab', False):
             tabs.addTab(self.addresses_tab, _('Addresses'))
-        self.utxo_tab = self.create_utxo_tab()
         if self.config.get('show_utxo_tab', False):
             tabs.addTab(self.utxo_tab, _('Coins'))
         tabs.addTab(self.create_contacts_tab(), _('Contacts') )
@@ -432,6 +434,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
         wallet_menu.addAction(_("&New contact"), self.new_contact_dialog)
+        wallet_menu.addAction(_("Import invoices"), lambda: self.invoice_list.import_invoices())
+        wallet_menu.addAction(_("Import contacts"), lambda: self.contact_list.import_contacts())
         wallet_menu.addSeparator()
 
         self.password_menu = wallet_menu.addAction(_("&Password"), self.change_password_dialog)
@@ -691,6 +695,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def create_history_tab(self):
         from history_list import HistoryList
         self.history_list = l = HistoryList(self)
+        l.searchable_list = l
         return l
 
     def show_address(self, addr):
@@ -785,6 +790,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         hbox.addWidget(self.receive_qr)
 
         w = QWidget()
+        w.searchable_list = self.request_list
         vbox = QVBoxLayout(w)
         vbox.addLayout(hbox)
         vbox.addStretch(1)
@@ -926,11 +932,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.qr_window.setVisible(False)
         self.update_receive_qr()
 
+    def show_send_tab(self):
+        self.tabs.setCurrentIndex(self.tabs.indexOf(self.send_tab))
+
+    def show_receive_tab(self):
+        self.tabs.setCurrentIndex(self.tabs.indexOf(self.receive_tab))
 
     def receive_at(self, addr):
         if not bitcoin.is_address(addr):
             return
-        self.tabs.setCurrentIndex(2)
+        self.show_receive_tab()
         self.receive_address_e.setText(addr)
         self.new_request_button.setEnabled(True)
 
@@ -1092,6 +1103,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addWidget(self.invoices_label)
         vbox.addWidget(self.invoice_list)
         vbox.setStretchFactor(self.invoice_list, 1000)
+        w.searchable_list = self.invoice_list
         run_hook('create_send_tab', grid)
         return w
 
@@ -1393,7 +1405,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.max_button.setEnabled(not b)
 
     def prepare_for_payment_request(self):
-        self.tabs.setCurrentIndex(1)
+        self.show_send_tab()
         self.payto_e.is_pr = True
         for e in [self.payto_e, self.amount_e, self.message_e]:
             e.setFrozen(True)
@@ -1445,7 +1457,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         except BaseException as e:
             self.show_error(_('Invalid litecoin URI:') + '\n' + str(e))
             return
-        self.tabs.setCurrentIndex(1)
+        self.show_send_tab()
         r = out.get('r')
         sig = out.get('sig')
         name = out.get('name')
@@ -1489,6 +1501,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def create_list_tab(self, l):
         w = QWidget()
+        w.searchable_list = l
         vbox = QVBoxLayout()
         w.setLayout(vbox)
         vbox.setMargin(0)
@@ -1528,11 +1541,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def spend_coins(self, coins):
         self.set_pay_from(coins)
-        self.tabs.setCurrentIndex(1)
+        self.show_send_tab()
         self.update_fee()
 
     def paytomany(self):
-        self.tabs.setCurrentIndex(1)
+        self.show_send_tab()
         self.payto_e.paytomany()
         msg = '\n'.join([
             _('Enter a list of outputs in the \'Pay to\' field.'),
@@ -1544,7 +1557,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def payto_contacts(self, labels):
         paytos = [self.get_contact_payto(label) for label in labels]
-        self.tabs.setCurrentIndex(1)
+        self.show_send_tab()
         if len(paytos) == 1:
             self.payto_e.setText(paytos[0])
             self.amount_e.setFocus()
@@ -1708,18 +1721,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.do_search('')
 
     def do_search(self, t):
-        i = self.tabs.currentIndex()
-        if i == 0:
-            self.history_list.filter(t)
-        elif i == 1:
-            self.invoice_list.filter(t)
-        elif i == 2:
-            self.request_list.filter(t)
-        elif i == 3:
-            self.address_list.filter(t)
-        elif i == 4:
-            self.contact_list.filter(t)
-
+        tab = self.tabs.currentWidget()
+        if hasattr(tab, 'searchable_list'):
+            tab.searchable_list.filter(t)
 
     def new_contact_dialog(self):
         d = WindowModalDialog(self, _("New Contact"))

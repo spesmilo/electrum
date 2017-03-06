@@ -93,7 +93,6 @@ class Commands:
         self._callback = callback
         self._password = password
         self.new_password = new_password
-        self.contacts = contacts.Contacts(self.config)
 
     def _run(self, method, args, password_getter):
         cmd = known_commands[method]
@@ -371,7 +370,7 @@ class Commands:
     def _resolver(self, x):
         if x is None:
             return None
-        out = self.contacts.resolve(x)
+        out = self.wallet.contacts.resolve(x)
         if out.get('type') == 'openalias' and self.nocheck is False and out.get('validated') is False:
             raise BaseException('cannot verify alias', x)
         return out['address']
@@ -464,21 +463,21 @@ class Commands:
         transaction ID"""
         self.wallet.set_label(key, label)
 
-    @command('')
+    @command('w')
     def listcontacts(self):
         """Show your list of contacts"""
-        return self.contacts
+        return self.wallet.contacts
 
-    @command('')
+    @command('w')
     def getalias(self, key):
         """Retrieve alias. Lookup in your list of contacts, and for an OpenAlias DNS record."""
-        return self.contacts.resolve(key)
+        return self.wallet.contacts.resolve(key)
 
-    @command('')
+    @command('w')
     def searchcontacts(self, query):
         """Search through contacts, return matching entries. """
         results = {}
-        for key, value in self.contacts.items():
+        for key, value in self.wallet.contacts.items():
             if query.lower() in key.lower():
                 results[key] = value
         return results
@@ -603,7 +602,7 @@ class Commands:
         alias = self.config.get('alias')
         if not alias:
             raise BaseException('No alias in your configuration')
-        alias_addr = self.contacts.resolve(alias)['address']
+        alias_addr = self.wallet.contacts.resolve(alias)['address']
         self.wallet.sign_payment_request(address, alias, alias_addr, self._password)
 
     @command('w')
