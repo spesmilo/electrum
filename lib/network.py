@@ -508,7 +508,8 @@ class Network(util.DaemonThread):
 
     def close_interface(self, interface):
         if interface:
-            self.interfaces.pop(interface.server)
+            if interface.server in self.interfaces:
+                self.interfaces.pop(interface.server)
             if interface.server == self.default_server:
                 self.interface = None
             interface.close()
