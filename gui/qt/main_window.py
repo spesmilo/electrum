@@ -2586,7 +2586,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         choosers = sorted(coinchooser.COIN_CHOOSERS.keys())
         chooser_name = coinchooser.get_name(self.config)
         msg = _('Choose coin (UTXO) selection method.  The following are available:\n\n')
-        msg += '\n\n'.join(fmt_docs(*item) for item in coinchooser.COIN_CHOOSERS.items())
+        #msg += '\n\n'.join(fmt_docs(*item) for item in coinchooser.COIN_CHOOSERS.items())
         chooser_label = HelpLabel(_('Coin selection') + ':', msg)
         chooser_combo = QComboBox()
         chooser_combo.addItems(choosers)

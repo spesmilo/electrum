@@ -30,7 +30,7 @@ from ctypes import cdll, c_char_p
 if sys.platform == 'darwin':
     name = 'libzbar.dylib'
 elif sys.platform == 'windows':
-    name = 'libzbar.dll'
+    name = 'libzbar-0.dll'
 else:
     name = 'libzbar.so.0'
 
