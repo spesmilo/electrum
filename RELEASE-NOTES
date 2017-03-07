@@ -1,12 +1,21 @@
-# Release 2.8.0
-  * Asymmetric wallet file encryption: A keypair is derived from the
-    wallet password. Once the wallet is decrypted, only the public key
-    is retained in memory, in order to write the encrypted file.
-  * Segregated Witness support (testnet only).
-  * Child Pays For Parent (CPFP) dialog in the GUI.
-  * Plugin for Digital Bitbox hardware.
-  * The GUI uses a blue icon when connected using a proxy.
-
+# Release 2.8.0 (March 7, 2017)
+  * Wallet file encryption: A keypair is derived from the wallet
+    password. Once the wallet is decrypted, only the public key is
+    retained in memory, in order to save the encrypted file.
+  * The daemon requires wallets to be explicitly loaded before
+    commands can use them. Wallets can be loaded using: 'electrum
+    daemon load_wallet [-w path]'. This command will require a
+    password if the wallet is encrypted.
+  * Invoices and contacts are stored in the wallet file and are no
+    longer shared between wallets. Previously created invoices and
+    contacts files may be imported from the menu.
+  * Fees improvements:
+    - Dynamic fees are enabled by default.
+    - Child Pays For Parent (CPFP) dialog in the GUI.
+    - RBF is automatically proposed for low fee transactions.
+  * Support for Segregated Witness (testnet only).
+  * Support for Digital Bitbox hardware wallet.
+  * The GUI shows a blue icon when connected using a proxy.
 
 # Release 2.7.18
   * enforce https on exchange rate APIs
