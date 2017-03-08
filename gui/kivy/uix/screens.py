@@ -435,7 +435,7 @@ class InvoicesScreen(CScreen):
         amount = pr.get_amount()
         if amount:
             ci.amount = self.app.format_amount_and_units(amount)
-            status = self.app.invoices.get_status(ci.key)
+            status = self.app.wallet.invoices.get_status(ci.key)
             ci.status = invoice_text[status]
             ci.icon = pr_icon[status]
         else:
