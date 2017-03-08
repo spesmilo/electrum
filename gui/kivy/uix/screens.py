@@ -333,7 +333,7 @@ class ReceiveScreen(CScreen):
         self.clear()
         addr = self.app.wallet.get_unused_address()
         if addr is None:
-            addr = self.app.wallet.get_receiving_address()
+            addr = self.app.wallet.get_receiving_address() or ''
             b = False
         else:
             b = True
