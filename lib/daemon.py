@@ -153,7 +153,7 @@ class Daemon(DaemonThread):
             response = "Daemon already running"
         elif sub == 'load_wallet':
             path = config.get_wallet_path()
-            self.load_wallet(path, lambda: config.get('password'))
+            self.load_wallet(path, config.get('password'))
             response = True
         elif sub == 'close_wallet':
             path = config.get_wallet_path()
@@ -198,7 +198,7 @@ class Daemon(DaemonThread):
             response = "Error: Electrum is running in daemon mode. Please stop the daemon first."
         return response
 
-    def load_wallet(self, path, password_getter):
+    def load_wallet(self, path, password):
         # wizard will be launched if we return
         if path in self.wallets:
             wallet = self.wallets[path]
@@ -207,9 +207,8 @@ class Daemon(DaemonThread):
         if not storage.file_exists():
             return
         if storage.is_encrypted():
-            password = password_getter()
             if not password:
-                raise UserCancelled()
+                return
             storage.decrypt(password)
         if storage.requires_split():
             return

@@ -154,16 +154,13 @@ class ElectrumGui:
                 w.bring_to_top()
                 break
         else:
-            wallet = self.daemon.get_wallet(path)
+            wallet = self.daemon.load_wallet(path, None)
             if not wallet:
                 storage = WalletStorage(path)
-                if not storage.file_exists() or storage.is_encrypted():
-                    wizard = InstallWizard(self.config, self.app, self.plugins, storage)
-                    wallet = wizard.run_and_get_wallet()
-                    if not wallet:
-                        return
-                else:
-                    wallet = Wallet(storage)
+                wizard = InstallWizard(self.config, self.app, self.plugins, storage)
+                wallet = wizard.run_and_get_wallet()
+                if not wallet:
+                    return
                 wallet.start_threads(self.daemon.network)
                 self.daemon.add_wallet(wallet)
             w = self.create_window_for_wallet(wallet)
