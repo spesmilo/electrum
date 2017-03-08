@@ -35,7 +35,7 @@ fi
 cd electrum-git
 VERSION=`git describe --tags`
 echo "Last commit: $VERSION"
-
+$PYTHON setup.py install
 cd ..
 
 rm -rf $WINEPREFIX/drive_c/electrum
@@ -59,6 +59,7 @@ rm -rf dist/
 # build standalone version
 $PYTHON "C:/pyinstaller/pyinstaller.py" --noconfirm --ascii --name $NAME_ROOT-$VERSION.exe -w deterministic.spec
 
+exit
 # build NSIS installer
 # $VERSION could be passed to the electrum.nsi script, but this would require some rewriting in the script iself.
 wine "$WINEPREFIX/drive_c/Program Files (x86)/NSIS/makensis.exe" /DPRODUCT_VERSION=$VERSION electrum.nsi

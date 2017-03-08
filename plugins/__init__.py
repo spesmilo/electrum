@@ -23,4 +23,19 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import audio_modem
 
+names = [
+    'audio_modem',
+    'cosigner_pool',
+    'digitalbitbox',
+    'email_requests',
+    'greenaddress_instant',
+    'hw_wallet',
+    'keepkey',
+    'labels',
+    'ledger',
+    'trezor',
+    'trustedcoin',
+    'virtualkeyboard',
+]

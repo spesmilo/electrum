@@ -11,6 +11,19 @@ else:
 
 home = 'C:\\electrum\\'
 
+dlls = ['libiconv-2.dll',
+        'libjpeg-7.dll',
+        'libMagickCore-2.dll',
+        'libMagickWand-2.dll',
+        'libpng12-0.dll',
+        'libtiff-3.dll',
+        'libxml2-2.dll',
+        'libzbar-0.dll',
+        'zlib1.dll']
+
+zbar_dlls = [('C:\\Program Files (x86)\\Zbar\\bin\\'+x, x) for x in dlls]
+
+
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([home+'electrum',
               home+'gui/qt/main_window.py',
@@ -21,6 +34,9 @@ a = Analysis([home+'electrum',
               home+'lib/bitcoin.py',
               home+'lib/dnssec.py',
               home+'lib/commands.py',
+              home+'lib/daemon.py',
+              home+'lib/plugins.py',
+              home+'lib/qrscanner.py',
               home+'plugins/cosigner_pool/qt.py',
               home+'plugins/email_requests/qt.py',
               home+'plugins/trezor/client.py',
@@ -29,45 +45,12 @@ a = Analysis([home+'electrum',
               home+'plugins/ledger/qt.py',
               home+'packages/requests/utils.py'
               ],
-             pathex=[home+'lib', home+'gui', home+'plugins', home+'packages'],
-             hiddenimports=['lib', 'gui'],
+             datas = [
+                 (home+'lib/currencies.json', 'electrum'),
+                 (home+'lib/wordlist/english.txt', 'electrum/wordlist')],
+             binaries= zbar_dlls,
              hookspath=[])
 
-##### include folder in distribution #######
-def extra_datas(mydir):
-    def rec_glob(p, files):
-        import os
-        import glob
-        for d in glob.glob(p):
-            if os.path.isfile(d):
-                files.append(d)
-            rec_glob("%s/*" % d, files)
-    files = []
-    rec_glob("%s/*" % mydir, files)
-    extra_datas = []
-    for f in files:
-        d = f.split('\\')
-        t = ''
-        for a in d[2:]:
-            if len(t)==0:
-                t = a
-            else:
-                t = t+'\\'+a
-        extra_datas.append((t, f, 'DATA'))
-
-    return extra_datas
-###########################################
-
-# append dirs
-
-# cacert.pem
-a.datas += [ ('requests/cacert.pem', home+'packages/requests/cacert.pem', 'DATA') ]
-
-# Py folders that are needed because of the magic import finding
-a.datas += extra_datas(home+'gui')
-a.datas += extra_datas(home+'lib')
-a.datas += extra_datas(home+'plugins')
-a.datas += extra_datas(home+'packages')
 
 # http://stackoverflow.com/questions/19055089/pyinstaller-onefile-warning-pyconfig-h-when-importing-scipy-or-scipy-signal
 for d in a.datas:
