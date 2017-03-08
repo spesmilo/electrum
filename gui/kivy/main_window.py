@@ -430,7 +430,8 @@ class ElectrumWindow(App):
                 self.on_resume()
         else:
             Logger.debug('Electrum: Wallet not found. Launching install wizard')
-            wizard = Factory.InstallWizard(self.electrum_config, path)
+            storage = WalletStorage(path)
+            wizard = Factory.InstallWizard(self.electrum_config, storage)
             wizard.bind(on_wizard_complete=self.on_wizard_complete)
             action = wizard.storage.get_action()
             wizard.run(action)

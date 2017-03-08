@@ -811,7 +811,7 @@ class InstallWizard(BaseWizard, Widget):
     def confirm_password(self, pin, run_next):
         def callback(conf):
             if conf == pin:
-                run_next(pin)
+                run_next(pin, False)
             else:
                 self.show_error(_('PIN mismatch'))
                 self.run('request_password', run_next)
