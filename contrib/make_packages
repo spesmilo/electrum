@@ -23,6 +23,7 @@ if __name__ == '__main__':
         'dns',
         'six',
         'jsonrpclib',
+	'socks',
     ]
     for module in deps:
         f, pathname, descr = imp.find_module(module)
