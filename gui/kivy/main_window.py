@@ -575,7 +575,7 @@ class ElectrumWindow(App):
         else:
             status = _("Not connected")
         n = self.wallet.basename()
-        self.status = '[size=15dp]%s[/size]\n%s' %(n, status) if n !='default_wallet' else status
+        self.status = '[size=15dp]%s[/size]\n%s' %(n, status)
 
     def get_max_amount(self):
         inputs = self.wallet.get_spendable_coins(None)
