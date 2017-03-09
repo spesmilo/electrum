@@ -254,6 +254,9 @@ class ElectrumWindow(App):
         # show error
         self.show_error("Unable to decode QR data")
 
+    def update_history_tab(self):
+        Clock.schedule_once(lambda dt: self.update_tab('history'))
+
     def update_tab(self, name):
         s = getattr(self, name + '_screen', None)
         if s:
