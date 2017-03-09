@@ -254,6 +254,9 @@ class ElectrumWindow(App):
         # show error
         self.show_error("Unable to decode QR data")
 
+    def update_history_tab(self):
+        Clock.schedule_once(lambda dt: self.update_tab('history'))
+
     def update_tab(self, name):
         s = getattr(self, name + '_screen', None)
         if s:
@@ -572,7 +575,7 @@ class ElectrumWindow(App):
         else:
             status = _("Not connected")
         n = self.wallet.basename()
-        self.status = '[size=15dp]%s[/size]\n%s' %(n, status) if n !='default_wallet' else status
+        self.status = '[size=15dp]%s[/size]\n%s' %(n, status)
 
     def get_max_amount(self):
         inputs = self.wallet.get_spendable_coins(None)

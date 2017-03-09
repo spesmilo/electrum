@@ -1,7 +1,7 @@
-# Release 2.8.0 (March 7, 2017)
-  * Wallet file encryption: A keypair is derived from the wallet
-    password. Once the wallet is decrypted, only the public key is
-    retained in memory, in order to save the encrypted file.
+# Release 2.8.0 (March 9, 2017)
+  * Wallet file encryption using ECIES: A keypair is derived from the
+    wallet password. Once the wallet is decrypted, only the public key
+    is retained in memory, in order to save the encrypted file.
   * The daemon requires wallets to be explicitly loaded before
     commands can use them. Wallets can be loaded using: 'electrum
     daemon load_wallet [-w path]'. This command will require a
