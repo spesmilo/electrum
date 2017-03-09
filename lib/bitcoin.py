@@ -94,14 +94,12 @@ TYPE_SCRIPT  = 2
 
 # AES encryption
 try:
-    from Crypto.Cipher import AES
+    from Cryptodome.Cipher import AES
 except:
     AES = None
 
 def aes_encrypt_with_iv(key, iv, data):
     if AES:
-        AES.block_size = 16
-        AES.key_size = 32
         padlen = 16 - (len(data) % 16)
         if padlen == 0:
             padlen = 16

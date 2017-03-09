@@ -103,6 +103,7 @@ class WalletStorage(PrintError):
     def decrypt(self, password):
         ec_key = self.get_key(password)
         s = zlib.decompress(ec_key.decrypt_message(self.raw)) if self.raw else None
+        self.pubkey = ec_key.get_public_key()
         self.load_data(s)
 
     def set_password(self, password, encrypt):

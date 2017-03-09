@@ -338,9 +338,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.print_error("using default geometry")
             self.setGeometry(100, 100, 840, 400)
 
+    def wallet_name(self):
+        return self.wallet.basename().decode('utf8')
+
     def watching_only_changed(self):
-        title = 'Electrum-LTC %s  -  %s' % (self.wallet.electrum_version,
-                                            self.wallet.basename())
+        title = 'Electrum-LTC %s  -  %s' % (self.wallet.electrum_version, self.wallet_name())
         extra = [self.wallet.storage.get('wallet_type', '?')]
         if self.wallet.is_watching_only():
             self.warn_if_watching_only()
@@ -385,6 +387,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.show_critical(_("Electrum was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
 
     def update_recently_visited(self, filename):
+        filename = filename.decode('utf8')
         recent = self.config.get('recently_open', [])
         if filename in recent:
             recent.remove(filename)
@@ -675,7 +678,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             text = _("Not connected")
             icon = QIcon(":icons/status_disconnected.png")
 
-        self.tray.setToolTip("%s (%s)" % (text, self.wallet.basename()))
+        self.tray.setToolTip("%s (%s)" % (text, self.wallet_name()))
         self.balance_label.setText(text)
         self.status_button.setIcon( icon )
 

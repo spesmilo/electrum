@@ -57,17 +57,14 @@ cd ..
 rm -rf dist/
 
 # build standalone version
-$PYTHON "C:/pyinstaller/pyinstaller.py" --noconfirm --ascii -w deterministic.spec
+$PYTHON "C:/pyinstaller/pyinstaller.py" --noconfirm --ascii --name $NAME_ROOT-$VERSION.exe -w deterministic.spec
 
 # build NSIS installer
 # $VERSION could be passed to the electrum.nsi script, but this would require some rewriting in the script iself.
 wine "$WINEPREFIX/drive_c/Program Files (x86)/NSIS/makensis.exe" /DPRODUCT_VERSION=$VERSION electrum.nsi
 
 cd dist
-mv electrum-ltc.exe $NAME_ROOT-$VERSION.exe
 mv electrum-ltc-setup.exe $NAME_ROOT-$VERSION-setup.exe
-mv electrum-ltc $NAME_ROOT-$VERSION
-zip -r $NAME_ROOT-$VERSION.zip $NAME_ROOT-$VERSION
 cd ..
 
 # build portable version
@@ -75,9 +72,6 @@ cp portable.patch $WINEPREFIX/drive_c/electrum-ltc
 pushd $WINEPREFIX/drive_c/electrum-ltc
 patch < portable.patch 
 popd
-$PYTHON "C:/pyinstaller/pyinstaller.py" --noconfirm --ascii -w deterministic.spec
-cd dist
-mv electrum-ltc.exe $NAME_ROOT-$VERSION-portable.exe
-cd ..
+$PYTHON "C:/pyinstaller/pyinstaller.py" --noconfirm --ascii --name $NAME_ROOT-$VERSION-portable.exe -w deterministic.spec
 
 echo "Done."

@@ -1,5 +1,14 @@
 # -*- mode: python -*-
 
+import sys
+for i, x in enumerate(sys.argv):
+    if x == '--name':
+        cmdline_name = sys.argv[i+1]
+        break
+else:
+    raise BaseException('no name')
+
+
 home = 'C:\\electrum-ltc\\'
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
@@ -61,12 +70,18 @@ a.datas += extra_datas(home+'lib')
 a.datas += extra_datas(home+'plugins')
 a.datas += extra_datas(home+'packages')
 
+# http://stackoverflow.com/questions/19055089/pyinstaller-onefile-warning-pyconfig-h-when-importing-scipy-or-scipy-signal
+for d in a.datas:
+    if 'pyconfig' in d[0]: 
+        a.datas.remove(d)
+        break
+
 pyz = PYZ(a.pure)
 exe = EXE(pyz,
           a.scripts,
           a.binaries,
           a.datas,
-          name=os.path.join('build\\pyi.win32\\electrum-ltc', 'electrum-ltc.exe'),
+          name=os.path.join('build\\pyi.win32\\electrum-ltc', cmdline_name),
           debug=False,
           strip=None,
           upx=False,

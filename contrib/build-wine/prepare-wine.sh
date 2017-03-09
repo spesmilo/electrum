@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Please update these links carefully, some versions won't work under Wine
-PYTHON_URL=http://www.python.org/ftp/python/2.7.12/python-2.7.12.msi
+PYTHON_URL=https://www.python.org/ftp/python/2.7.13/python-2.7.13.msi
 PYQT4_URL=http://sourceforge.net/projects/pyqt/files/PyQt4/PyQt-4.11.1/PyQt4-4.11.1-gpl-Py2.7-Qt4.8.6-x32.exe
 PYWIN32_URL=http://sourceforge.net/projects/pywin32/files/pywin32/Build%20219/pywin32-219.win32-py2.7.exe/download
 PYINSTALLER_URL=https://pypi.python.org/packages/source/P/PyInstaller/PyInstaller-2.1.zip
@@ -54,6 +54,9 @@ mv PyInstaller-2.1 $WINEPREFIX/drive_c/pyinstaller
 # Install ZBar
 #wget -q -O zbar.exe "http://sourceforge.net/projects/zbar/files/zbar/0.10/zbar-0.10-setup.exe/download"
 #wine zbar.exe
+
+# install Cryptodome
+$PYTHON -m pip install pycryptodomex
 
 # Install setuptools
 #wget -O setuptools.exe "$SETUPTOOLS_URL"
