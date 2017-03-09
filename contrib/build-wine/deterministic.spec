@@ -60,6 +60,12 @@ a.datas += extra_datas(home+'lib')
 a.datas += extra_datas(home+'plugins')
 a.datas += extra_datas(home+'packages')
 
+# http://stackoverflow.com/questions/19055089/pyinstaller-onefile-warning-pyconfig-h-when-importing-scipy-or-scipy-signal
+for d in a.datas:
+    if 'pyconfig' in d[0]: 
+        a.datas.remove(d)
+        break
+
 pyz = PYZ(a.pure)
 exe = EXE(pyz,
           a.scripts,
