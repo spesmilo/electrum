@@ -367,7 +367,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 if txin.get('is_coinbase'):
                     self.give_error("Coinbase not supported") # should never happen
                 
-                if len(txin['pubkeys']) > 1:
+                if txin['type'] in ['p2sh']:
                     p2shTransaction = True
                 
                 for x_pubkey in txin['x_pubkeys']:
@@ -384,7 +384,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
             # Sanity check
             if p2shTransaction:
                 for txinput in tx.inputs():
-                    if len(txinput['pubkeys']) < 2:
+                    if txinput['type'] != 'p2sh':
                         self.give_error("P2SH / regular input mixed in same transaction not supported") # should never happen
             
             # Build pubkeyarray from outputs (unused because echo for smart verification not implemented)
