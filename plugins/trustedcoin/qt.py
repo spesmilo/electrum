@@ -232,7 +232,7 @@ class Plugin(TrustedCoinPlugin):
         email_e.textChanged.connect(set_enabled)
         email_e.setFocus(True)
 
-        window.set_main_layout(vbox, next_enabled=False)
+        window.exec_layout(vbox, next_enabled=False)
         next_button.setText(prior_button_text)
         return str(email_e.text())
 
@@ -275,7 +275,7 @@ class Plugin(TrustedCoinPlugin):
         pw.textChanged.connect(set_enabled)
         cb_lost.toggled.connect(set_enabled)
 
-        window.set_main_layout(vbox, next_enabled=False,
+        window.exec_layout(vbox, next_enabled=False,
                                raise_on_cancel=False)
         return pw.get_amount(), cb_lost.isChecked()
 

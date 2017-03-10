@@ -377,11 +377,11 @@ class TrustedCoinPlugin(BasePlugin):
         xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(seed, passphrase)
         k1 = keystore.from_xprv(xprv1)
         k2 = keystore.from_xpub(xpub2)
-        wizard.request_password(run_next=lambda pw: self.on_password(wizard, pw, k1, k2))
+        wizard.request_password(run_next=lambda pw, encrypt: self.on_password(wizard, pw, encrypt, k1, k2))
 
-    def on_password(self, wizard, password, k1, k2):
+    def on_password(self, wizard, password, encrypt, k1, k2):
         k1.update_password(None, password)
-        wizard.storage.put('use_encryption', bool(password))
+        wizard.storage.set_password(password, encrypt)
         wizard.storage.put('x1/', k1.dump())
         wizard.storage.put('x2/', k2.dump())
         wizard.storage.write()
@@ -424,12 +424,12 @@ class TrustedCoinPlugin(BasePlugin):
 
     def on_choice(self, wizard, seed, passphrase, x):
         if x == 'disable':
-            f = lambda pw: wizard.run('on_restore_pw', seed, passphrase, pw)
+            f = lambda pw, encrypt: wizard.run('on_restore_pw', seed, passphrase, pw, encrypt)
             wizard.request_password(run_next=f)
         else:
             self.create_keystore(wizard, seed, passphrase)
 
-    def on_restore_pw(self, wizard, seed, passphrase, password):
+    def on_restore_pw(self, wizard, seed, passphrase, password, encrypt):
         storage = wizard.storage
         xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(seed, passphrase)
         k1 = keystore.from_xprv(xprv1)
