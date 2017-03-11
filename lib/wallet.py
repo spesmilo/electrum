@@ -220,6 +220,7 @@ class Abstract_Wallet(PrintError):
 
     def load_addresses(self):
         d = self.storage.get('addresses', {})
+        if type(d) != dict: d={}
         self.receiving_addresses = d.get('receiving', [])
         self.change_addresses = d.get('change', [])
 
