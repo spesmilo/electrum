@@ -332,7 +332,7 @@ class TrustedCoinPlugin(BasePlugin):
         return True
 
     def make_seed(self):
-        return Mnemonic('english').make_seed(num_bits=128, prefix=SEED_PREFIX)
+        return Mnemonic('english').make_seed(seed_type='2fa', num_bits=128)
 
     @hook
     def do_clear(self, window):

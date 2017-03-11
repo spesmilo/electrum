@@ -12,5 +12,5 @@ def seed_prefix(seed_type):
         return SEED_PREFIX
     elif seed_type == 'segwit':
         return SEED_PREFIX_SW
-    elif seed_type == '2Fa':
+    elif seed_type == '2fa':
         return SEED_PREFIX_2FA
