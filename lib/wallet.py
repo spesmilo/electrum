@@ -1584,6 +1584,8 @@ class Simple_Deterministic_Wallet(Deterministic_Wallet, Simple_Wallet):
         self.keystore.check_password(password)
 
     def update_password(self, old_pw, new_pw, encrypt=False):
+        if old_pw is None and self.has_password():
+            raise InvalidPassword()
         self.keystore.update_password(old_pw, new_pw)
         self.save_keystore()
         self.storage.set_password(new_pw, encrypt)
@@ -1688,11 +1690,14 @@ class Multisig_Wallet(Deterministic_Wallet, P2SH):
         return [self.keystores[i] for i in sorted(self.keystores.keys())]
 
     def update_password(self, old_pw, new_pw, encrypt=False):
+        if old_pw is None and self.has_password():
+            raise InvalidPassword()
         for name, keystore in self.keystores.items():
             if keystore.can_change_password():
                 keystore.update_password(old_pw, new_pw)
                 self.storage.put(name, keystore.dump())
         self.storage.set_password(new_pw, encrypt)
+        self.storage.write()
 
     def check_password(self, password):
         self.keystore.check_password(password)
