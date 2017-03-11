@@ -294,7 +294,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
 
 
     def get_derivation(self):
-        return self.derivation        
+        return str(self.derivation)
 
 
     def give_error(self, message, clear_client = False):
