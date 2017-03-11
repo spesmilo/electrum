@@ -1,3 +1,9 @@
+# Release 2.8.1
+  * fix Digital Bitbox plugin
+  * fix daemon jsonrpc
+  * fix trustedcoin wallet creation
+  * other minor bugfixes
+
 # Release 2.8.0 (March 9, 2017)
   * Wallet file encryption using ECIES: A keypair is derived from the
     wallet password. Once the wallet is decrypted, only the public key
