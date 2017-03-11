@@ -1,4 +1,4 @@
-ELECTRUM_VERSION = '2.8.0'  # version of the client package
+ELECTRUM_VERSION = '2.8.1'  # version of the client package
 PROTOCOL_VERSION = '0.10'   # protocol version requested
 
 # The hash of the mnemonic seed must begin with this
@@ -12,5 +12,5 @@ def seed_prefix(seed_type):
         return SEED_PREFIX
     elif seed_type == 'segwit':
         return SEED_PREFIX_SW
-    elif seed_type == '2Fa':
+    elif seed_type == '2fa':
         return SEED_PREFIX_2FA

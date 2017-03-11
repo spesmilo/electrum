@@ -116,8 +116,7 @@ class Daemon(DaemonThread):
         self.gui = None
         self.wallets = {}
         # Setup JSONRPC server
-        default_wallet = None
-        self.cmd_runner = Commands(self.config, default_wallet, self.network)
+        self.cmd_runner = Commands(self.config, None, self.network)
         self.init_server(config, fd)
 
     def init_server(self, config, fd):
@@ -153,7 +152,8 @@ class Daemon(DaemonThread):
             response = "Daemon already running"
         elif sub == 'load_wallet':
             path = config.get_wallet_path()
-            self.load_wallet(path, config.get('password'))
+            wallet = self.load_wallet(path, config.get('password'))
+            self.cmd_runner.wallet = wallet
             response = True
         elif sub == 'close_wallet':
             path = config.get_wallet_path()
