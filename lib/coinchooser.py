@@ -223,7 +223,7 @@ class CoinChooserOldestFirst(CoinChooserBase):
     def choose_buckets(self, buckets, sufficient_funds, penalty_func):
         '''Spend the oldest buckets first.'''
         # Unconfirmed coins are young, not old
-        adj_height = lambda height: 99999999 if height == 0 else height
+        adj_height = lambda height: 99999999 if height <= 0 else height
         buckets.sort(key = lambda b: max(adj_height(coin['height'])
                                          for coin in b.coins))
         selected = []
