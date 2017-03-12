@@ -61,6 +61,9 @@ DEFAULT_SERVERS = {
     'elec.luggs.co':{'t':'80', 's':'443'},
     'btc.smsys.me':{'t':'110', 's':'995'},
     'btc.mustyoshi.com':{'t':'50001', 's':'50002'},
+    'bauerjhejlv6di7s.onion': DEFAULT_PORTS,
+    'hsmiths4fyqlw5xw.onion': DEFAULT_PORTS,
+    'fdkbwjykvl2f3hup.onion': DEFAULT_PORTS,
 }
 
 def set_testnet():
@@ -389,6 +392,8 @@ class Network(util.DaemonThread):
                     continue
                 if host not in out:
                     out[host] = { protocol:port }
+        if self.onion_only:
+            out = {s: p for s, p in out.iteritems() if s.endswith(".onion")}
         return out
 
     def start_interface(self, server):
@@ -414,6 +419,13 @@ class Network(util.DaemonThread):
         self.proxy = proxy
         if proxy:
             self.print_error('setting proxy', proxy)
+            if Network.is_tor_port(int(proxy["port"])):
+                self.onion_only = True
+                # If we are connected to clearnet servers, disconnect
+                self.default_server = pick_random_server()
+                for server, interface in self.interfaces.iteritems():
+                    if not server.endswith(".onion"):
+                        self.close_interface(interface)
             proxy_mode = proxy_modes.index(proxy["mode"]) + 1
             socks.setdefaultproxy(proxy_mode,
                                   proxy["host"],
@@ -425,6 +437,7 @@ class Network(util.DaemonThread):
             # prevent dns leaks, see http://stackoverflow.com/questions/13184205/dns-over-proxy
             socket.getaddrinfo = lambda *args: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
         else:
+            self.onion_only = False
             socket.socket = socket._socketobject
             socket.getaddrinfo = socket._socket.getaddrinfo
 
@@ -881,3 +894,17 @@ class Network(util.DaemonThread):
         if out != tx_hash:
             return False, "error: " + out
         return True, out
+
+    @staticmethod
+    def is_tor_port(port):
+        try:
+            s = socket._socketobject(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.1)
+            s.connect(("127.0.0.1", port))
+            # Tor responds uniquely to HTTP-like requests
+            s.send("GET\n")
+            if "Tor is not an HTTP Proxy" in s.recv(1024):
+                return True
+        except socket.error:
+            pass
+        return False
