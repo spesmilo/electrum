@@ -43,7 +43,7 @@ from interface import Connection, Interface
 from blockchain import Blockchain
 from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 
-DEFAULT_PORTS = DEFAULT_PORTS
+DEFAULT_PORTS = {'t':'50001', 's':'50002'}
 
 DEFAULT_SERVERS = {
     'erbium1.sytes.net':DEFAULT_PORTS,
