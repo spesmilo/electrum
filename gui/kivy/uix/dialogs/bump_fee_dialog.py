@@ -3,7 +3,6 @@ from kivy.factory import Factory
 from kivy.properties import ObjectProperty
 from kivy.lang import Builder
 
-from electrum.bitcoin import FEE_STEP, RECOMMENDED_FEE
 from electrum.util import fee_levels
 from electrum_gui.kivy.i18n import _
 
@@ -73,6 +72,7 @@ class BumpFeeDialog(Factory.Popup):
         self.tx_size = size
         self.callback = callback
         self.config = app.electrum_config
+        self.fee_step = self.config.max_fee_rate() / 10
         self.dynfees = self.config.get('dynamic_fees', True) and self.app.network
         self.ids.old_fee.value = self.app.format_amount_and_units(self.init_fee)
         self.update_slider()
@@ -90,20 +90,21 @@ class BumpFeeDialog(Factory.Popup):
         if self.dynfees:
             slider.range = (0, 4)
             slider.step = 1
-            slider.value = 0
+            slider.value = 3
         else:
-            slider.range = (FEE_STEP, 2*RECOMMENDED_FEE)
-            slider.step = FEE_STEP
-            slider.value = self.init_fee*1.5
+            slider.range = (1, 10)
+            slider.step = 1
+            rate = self.init_fee*1000//self.tx_size
+            slider.value = min( rate * 2 // self.fee_step, 10)
 
     def get_fee(self):
         value = int(self.ids.slider.value)
         if self.dynfees:
-            dynfee = self.app.network.dynfee(value)
-            if dynfee:
-                return dynfee*self.tx_size/1000
+            if self.config.has_fee_estimates():
+                dynfee = self.config.dynfee(value)
+                return dynfee * self.tx_size // 1000
         else:
-            return value*self.tx_size/1000
+            return value*self.fee_step * self.tx_size // 1000
 
     def on_ok(self):
         new_fee = self.get_fee()
