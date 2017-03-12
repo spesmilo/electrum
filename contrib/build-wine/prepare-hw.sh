@@ -53,11 +53,12 @@ wine "$PYHOME\\Scripts\\pip.exe" install hidapi
 #cd ..
 
 # trezor
-if ! [ -d "trezor-0.7.4" ]; then
-    wget "https://pypi.python.org/packages/16/f1/e30d601857ab48f80ab73d15cda957528b5fa3b90bd8168f1e5a1fdd5b1d/trezor-0.7.4.tar.gz"
-    tar -xvzf trezor-0.7.4.tar.gz
+TREZOR_URL="https://pypi.python.org/packages/26/80/26c9676cbee58e50e7f7dd6a797931203cf198ff7590f55842d620cd60a8/trezor-0.7.12.tar.gz"
+if ! [ -d "trezor-0.7.12" ]; then
+    wget $TREZOR_URL
+    tar -xvzf trezor-0.7.12.tar.gz
 fi
-cd trezor-0.7.4
+cd trezor-0.7.12
 $PYTHON setup.py install
 cd ..
 

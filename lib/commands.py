@@ -506,11 +506,12 @@ class Commands:
             out.append(item)
         return out
 
-    @command('w')
+    @command('n')
     def gettransaction(self, txid):
         """Retrieve a transaction. """
-        tx = self.wallet.transactions.get(txid) if self.wallet else None
-        if tx is None and self.network:
+        if self.wallet and txid in self.wallet.transactions:
+            tx = self.wallet.transactions[txid]
+        else:
             raw = self.network.synchronous_get(('blockchain.transaction.get', [txid]))
             if raw:
                 tx = Transaction(raw)
