@@ -43,24 +43,24 @@ from interface import Connection, Interface
 from blockchain import Blockchain
 from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 
-DEFAULT_PORTS = {'t':'50001', 's':'50002'}
+DEFAULT_PORTS = DEFAULT_PORTS
 
 DEFAULT_SERVERS = {
-    'erbium1.sytes.net':{'t':'50001', 's':'50002'},
+    'erbium1.sytes.net':DEFAULT_PORTS,
     'ecdsa.net':{'t':'50001', 's':'110'},
-    'gh05.geekhosters.com':{'t':'50001', 's':'50002'},
-    'VPS.hsmiths.com':{'t':'50001', 's':'50002'},
-    'electrum.anduck.net':{'t':'50001', 's':'50002'},
-    'electrum.no-ip.org':{'t':'50001', 's':'50002'},
+    'gh05.geekhosters.com':DEFAULT_PORTS,
+    'VPS.hsmiths.com':DEFAULT_PORTS,
+    'electrum.anduck.net':DEFAULT_PORTS,
+    'electrum.no-ip.org':DEFAULT_PORTS,
     'us.electrum.be':DEFAULT_PORTS,
-    'electrum.villocq.com':{'t':'50001', 's':'50002'},
-    'us10.einfachmalnettsein.de':{'t':'50001', 's':'50002'},
-    'electrum.trouth.net':{'t':'50001', 's':'50002'},
+    'electrum.villocq.com':DEFAULT_PORTS,
+    'us11.einfachmalnettsein.de':DEFAULT_PORTS,
+    'electrum.trouth.net':DEFAULT_PORTS,
     'Electrum.hsmiths.com':{'t':'8080', 's':'995'},
-    'electrum3.hachre.de':{'t':'50001', 's':'50002'},
+    'electrum3.hachre.de':DEFAULT_PORTS,
     'elec.luggs.co':{'t':'80', 's':'443'},
     'btc.smsys.me':{'t':'110', 's':'995'},
-    'btc.mustyoshi.com':{'t':'50001', 's':'50002'},
+    'btc.mustyoshi.com':DEFAULT_PORTS,
 }
 
 def set_testnet():
