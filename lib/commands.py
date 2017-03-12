@@ -430,7 +430,7 @@ class Commands:
     @command('wp')
     def paytomany(self, outputs, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False):
         """Create a multi-output transaction. """
-        tx_fee = to_satoshis(tx_fee)
+        tx_fee = satoshis(tx_fee)
         domain = [from_addr] if from_addr else None
         tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, rbf)
         return tx.as_dict()
