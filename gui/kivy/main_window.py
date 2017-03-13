@@ -90,15 +90,17 @@ class ElectrumWindow(App):
         Logger.info('language: {}'.format(language))
         _.switch_lang(language)
 
+    def update_history(self, *dt):
+        if self.history_screen:
+            self.history_screen.update()
+
     def on_quotes(self, d):
         Logger.info("on_quotes")
-        if self.history_screen:
-            Clock.schedule_once(lambda dt: self.history_screen.update())
+        self._trigger_update_history()
 
     def on_history(self, d):
         Logger.info("on_history")
-        if self.history_screen:
-            Clock.schedule_once(lambda dt: self.history_screen.update())
+        self._trigger_update_history()
 
     def _get_bu(self):
         return self.electrum_config.get('base_unit', 'LTC')
@@ -106,17 +108,15 @@ class ElectrumWindow(App):
     def _set_bu(self, value):
         assert value in base_units.keys()
         self.electrum_config.set_key('base_unit', value, True)
-        self.update_status()
-        if self.history_screen:
-            self.history_screen.update()
+        self._trigger_update_status()
+        self._trigger_update_history()
 
     base_unit = AliasProperty(_get_bu, _set_bu)
     status = StringProperty('')
     fiat_unit = StringProperty('')
 
     def on_fiat_unit(self, a, b):
-        if self.history_screen:
-            self.history_screen.update()
+        self._trigger_update_history()
 
     def decimal_point(self):
         return base_units[self.base_unit]
@@ -201,10 +201,9 @@ class ElectrumWindow(App):
         self.fx = self.daemon.fx
 
         # create triggers so as to minimize updation a max of 2 times a sec
-        self._trigger_update_wallet =\
-            Clock.create_trigger(self.update_wallet, .5)
-        self._trigger_update_status =\
-            Clock.create_trigger(self.update_status, .5)
+        self._trigger_update_wallet = Clock.create_trigger(self.update_wallet, .5)
+        self._trigger_update_status = Clock.create_trigger(self.update_status, .5)
+        self._trigger_update_history = Clock.create_trigger(self.update_history, .5)
         # cached dialogs
         self._settings_dialog = None
         self._password_dialog = None
@@ -253,9 +252,6 @@ class ElectrumWindow(App):
             return
         # show error
         self.show_error("Unable to decode QR data")
-
-    def update_history_tab(self):
-        Clock.schedule_once(lambda dt: self.update_tab('history'))
 
     def update_tab(self, name):
         s = getattr(self, name + '_screen', None)
@@ -727,12 +723,17 @@ class ElectrumWindow(App):
         Clock.schedule_once(lambda dt: on_complete(ok, txid))
 
     def broadcast(self, tx, pr=None):
-        def on_complete(ok, txid):
-            self.show_info(txid)
-            if ok and pr:
-                pr.set_paid(tx.hash())
-                self.wallet.invoices.save()
-                self.update_tab('invoices')
+        def on_complete(ok, msg):
+            if ok:
+                self.show_info(_('Payment sent.'))
+                if self.send_screen:
+                    self.send_screen.do_clear()
+                if pr:
+                    pr.set_paid(tx.txid())
+                    self.wallet.invoices.save()
+                    self.update_tab('invoices')
+            else:
+                self.show_error(msg)
 
         if self.network and self.network.is_connected():
             self.show_info(_('Sending'))
