@@ -1306,7 +1306,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         use_rbf = self.rbf_checkbox.isChecked()
         if use_rbf:
-            tx.set_sequence(0)
+            tx.set_rbf(True)
 
         if fee < self.wallet.relayfee() * tx.estimated_size() / 1000 and tx.requires_fee(self.wallet):
             self.show_error(_("This transaction requires a higher fee, or it will not be propagated by the network"))
@@ -2823,7 +2823,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(_('Max fee exceeded'))
             return
         new_tx = self.wallet.cpfp(parent_tx, fee)
-        new_tx.set_sequence(0)
+        new_tx.set_rbf(True)
         self.show_transaction(new_tx)
 
     def bump_fee_dialog(self, tx):
@@ -2860,5 +2860,5 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(str(e))
             return
         if is_final:
-            new_tx.set_sequence(0xffffffff)
+            new_tx.set_rbf(False)
         self.show_transaction(new_tx)

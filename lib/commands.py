@@ -414,7 +414,7 @@ class Commands:
         coins = self.wallet.get_spendable_coins(domain)
         tx = self.wallet.make_unsigned_transaction(coins, final_outputs, self.config, fee, change_addr)
         if rbf:
-            tx.set_sequence(0)
+            tx.set_rbf(True)
         if not unsigned:
             self.wallet.sign_transaction(tx, self._password)
         return tx

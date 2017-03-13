@@ -148,7 +148,7 @@ class TxDialog(Factory.Popup):
             self.app.show_error(str(e))
             return
         if is_final:
-            new_tx.set_sequence(0xffffffff)
+            new_tx.set_rbf(False)
         self.tx = new_tx
         self.update()
         self.do_sign()
