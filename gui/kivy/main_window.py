@@ -727,12 +727,17 @@ class ElectrumWindow(App):
         Clock.schedule_once(lambda dt: on_complete(ok, txid))
 
     def broadcast(self, tx, pr=None):
-        def on_complete(ok, txid):
-            self.show_info(txid)
-            if ok and pr:
-                pr.set_paid(tx.hash())
-                self.wallet.invoices.save()
-                self.update_tab('invoices')
+        def on_complete(ok, msg):
+            if ok:
+                self.show_info(_('Payment sent.'))
+                if self.send_screen:
+                    self.send_screen.do_clear()
+                if pr:
+                    pr.set_paid(tx.txid())
+                    self.wallet.invoices.save()
+                    self.update_tab('invoices')
+            else:
+                self.show_error(msg)
 
         if self.network and self.network.is_connected():
             self.show_info(_('Sending'))
