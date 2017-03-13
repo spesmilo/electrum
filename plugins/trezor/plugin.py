@@ -7,7 +7,8 @@ from functools import partial
 
 from electrum.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
                               public_key_to_p2pkh, EncodeBase58Check,
-                              TYPE_ADDRESS, TYPE_SCRIPT)
+                              TYPE_ADDRESS, TYPE_SCRIPT,
+                              TESTNET, ADDRTYPE_P2PKH, ADDRTYPE_P2SH)
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from electrum.transaction import deserialize, Transaction
@@ -41,7 +42,7 @@ class TrezorCompatibleKeyStore(Hardware_KeyStore):
         client = self.get_client()
         address_path = self.get_derivation() + "/%d/%d"%sequence
         address_n = client.expand_path(address_path)
-        msg_sig = client.sign_message('Bitcoin', address_n, message)
+        msg_sig = client.sign_message(self.get_coin_name(), address_n, message)
         return msg_sig.signature
 
     def sign_transaction(self, tx, password):
@@ -143,6 +144,12 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             client.used()
         return client
 
+    def get_coin_name(self):
+        if TESTNET:
+            return "Testnet"
+        else:
+            return "Bitcoin"
+
     def initialize_device(self, device_id, wizard, handler):
         # Initialization method
         msg = _("Choose how you want to initialize your %s.\n\n"
@@ -233,7 +240,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         client = self.get_client(keystore)
         inputs = self.tx_inputs(tx, True)
         outputs = self.tx_outputs(keystore.get_derivation(), tx)
-        signed_tx = client.sign_tx('Bitcoin', inputs, outputs)[1]
+        signed_tx = client.sign_tx(self.get_coin_name(), inputs, outputs)[1]
         raw = signed_tx.encode('hex')
         tx.update_signatures(raw)
 
@@ -246,7 +253,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         derivation = wallet.keystore.derivation
         address_path = "%s/%d/%d"%(derivation, change, index)
         address_n = client.expand_path(address_path)
-        client.get_address('Bitcoin', address_n, True)
+        client.get_address(self.get_coin_name(), address_n, True)
 
     def tx_inputs(self, tx, for_sig=False):
         inputs = []
@@ -319,14 +326,14 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                 has_change = True # no more than one change address
                 addrtype, hash_160 = bc_address_to_hash_160(address)
                 index, xpubs, m = info
-                if addrtype == 0:
+                if addrtype == ADDRTYPE_P2PKH:
                     address_n = self.client_class.expand_path(derivation + "/%d/%d"%index)
                     txoutputtype = self.types.TxOutputType(
                         amount = amount,
                         script_type = self.types.PAYTOADDRESS,
                         address_n = address_n,
                     )
-                elif addrtype == 5:
+                elif addrtype == ADDRTYPE_P2SH:
                     address_n = self.client_class.expand_path("/%d/%d"%index)
                     nodes = map(self.ckd_public.deserialize, xpubs)
                     pubkeys = [ self.types.HDNodePathType(node=node, address_n=address_n) for node in nodes]
@@ -346,9 +353,9 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                     txoutputtype.op_return_data = address[2:]
                 elif _type == TYPE_ADDRESS:
                     addrtype, hash_160 = bc_address_to_hash_160(address)
-                    if addrtype == 0:
+                    if addrtype == ADDRTYPE_P2PKH:
                         txoutputtype.script_type = self.types.PAYTOADDRESS
-                    elif addrtype == 5:
+                    elif addrtype == ADDRTYPE_P2SH:
                         txoutputtype.script_type = self.types.PAYTOSCRIPTHASH
                     else:
                         raise BaseException('addrtype')
