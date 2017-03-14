@@ -161,6 +161,8 @@ class SimpleConfig(PrintError):
         # default path
         dirpath = os.path.join(self.path, "wallets")
         if not os.path.exists(dirpath):
+            if os.path.islink(dirpath):
+                raise BaseException('Dangling link: ' + dirpath)
             os.mkdir(dirpath)
 
         new_path = os.path.join(self.path, "wallets", "default_wallet")
