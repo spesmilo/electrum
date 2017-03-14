@@ -89,10 +89,10 @@ class DigitalBitbox_Client():
         return pbkdf2.PBKDF2(key, 'Digital Bitbox', iterations = 20480, macmodule = hmac, digestmodule = hashlib.sha512).read(64).encode('hex')
 
 
-    def backup_password_dialog(self, confirm=False):
+    def backup_password_dialog(self):
         msg = _("Enter the password used when the backup was created:")
         while True:
-            password = self.handler.get_passphrase(msg, confirm)
+            password = self.handler.get_passphrase(msg, False)
             if password is None:
                 return None
             if len(password) < 4:
@@ -103,9 +103,9 @@ class DigitalBitbox_Client():
                 return str(password)
 
 
-    def password_dialog(self, msg, confirm=False):
+    def password_dialog(self, msg):
         while True:
-            password = self.handler.get_passphrase(msg, confirm)
+            password = self.handler.get_passphrase(msg, False)
             if password is None:
                 return False
             if len(password) < 4:
@@ -126,7 +126,7 @@ class DigitalBitbox_Client():
                     "Enter a new password below.\r\n\r\n REMEMBER THE PASSWORD!\r\n\r\n" \
                     "You cannot access your coins or a backup without the password.\r\n" \
                     "A backup is saved automatically when generating a new wallet.")
-            if self.password_dialog(msg, True):
+            if self.password_dialog(msg):
                 reply = self.hid_send_plain('{"password":"' + self.password + '"}')
             else:
                 return False
