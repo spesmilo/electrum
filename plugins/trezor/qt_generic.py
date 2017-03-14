@@ -272,7 +272,7 @@ class QtPlugin(QtPluginBase):
         vbox.addWidget(passphrase_warning)
         vbox.addWidget(cb_phrase)
 
-        wizard.set_main_layout(vbox, next_enabled=next_enabled)
+        wizard.exec_layout(vbox, next_enabled=next_enabled)
 
         if method in [TIM_NEW, TIM_RECOVER]:
             item = bg.checkedId()

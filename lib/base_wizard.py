@@ -26,6 +26,7 @@
 import os
 import bitcoin
 import keystore
+from keystore import bip44_derivation
 from wallet import Wallet, Imported_Wallet, Standard_Wallet, Multisig_Wallet, wallet_types
 from i18n import _
 from plugins import run_hook
@@ -219,7 +220,6 @@ class BaseWizard(object):
             # This is partially compatible with BIP45; assumes index=0
             self.on_hw_derivation(name, device_info, "m/45'/0")
         else:
-            from keystore import bip44_derivation
             f = lambda x: self.run('on_hw_derivation', name, device_info, bip44_derivation(int(x)))
             self.account_id_dialog(f)
 
@@ -301,7 +301,7 @@ class BaseWizard(object):
     def on_bip44(self, seed, passphrase, account_id):
         k = keystore.BIP32_KeyStore({})
         bip32_seed = keystore.bip39_to_seed(seed, passphrase)
-        derivation = "m/44'/2'/%d'"%account_id
+        derivation = bip44_derivation(account_id)
         k.add_xprv_from_seed(bip32_seed, 0, derivation)
         self.on_keystore(k)
 
