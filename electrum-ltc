@@ -353,6 +353,7 @@ if __name__ == '__main__':
             sys.exit(1)
         config_options['url'] = uri
 
+    # todo: defer this to gui
     config = SimpleConfig(config_options)
     cmdname = config.get('cmd')
 

@@ -2802,19 +2802,43 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         total_size = parent_tx.estimated_size() + new_tx.estimated_size()
         d = WindowModalDialog(self, _('Child Pays for Parent'))
         vbox = QVBoxLayout(d)
-        vbox.addWidget(QLabel(_('Total size') + ': %d bytes'% total_size))
+        msg = (
+            "A CPFP is a transaction that sends an unconfirmed output back to "
+            "yourself, with a high fee. The goal is to have miners confirm "
+            "the parent transaction in order to get the fee attached to the "
+            "child transaction.")
+        vbox.addWidget(WWLabel(_(msg)))
+        msg2 = ("The proposed fee is computed using your "
+            "fee/kB settings, applied to the total size of both child and "
+            "parent transactions. After you broadcast a CPFP transaction, "
+            "it is normal to see a new unconfirmed transaction in your history.")
+        vbox.addWidget(WWLabel(_(msg2)))
+        grid = QGridLayout()
+        grid.addWidget(QLabel(_('Total size') + ':'), 0, 0)
+        grid.addWidget(QLabel('%d bytes'% total_size), 0, 1)
         max_fee = new_tx.output_value()
-        vbox.addWidget(QLabel(_('Max fee') + ': %s'% self.format_amount(max_fee) + ' ' + self.base_unit()))
-        vbox.addWidget(QLabel(_('Child fee' + ':')))
+        grid.addWidget(QLabel(_('Input amount') + ':'), 1, 0)
+        grid.addWidget(QLabel(self.format_amount(max_fee) + ' ' + self.base_unit()), 1, 1)
+        output_amount = QLabel('')
+        grid.addWidget(QLabel(_('Output amount') + ':'), 2, 0)
+        grid.addWidget(output_amount, 2, 1)
         fee_e = BTCAmountEdit(self.get_decimal_point)
+        def f(x):
+            a = max_fee - fee_e.get_amount()
+            output_amount.setText((self.format_amount(a) + ' ' + self.base_unit()) if a else '')
+        fee_e.textChanged.connect(f)
         fee = self.config.fee_per_kb() * total_size / 1000
         fee_e.setAmount(fee)
-        vbox.addWidget(fee_e)
+        grid.addWidget(QLabel(_('Fee' + ':')), 3, 0)
+        grid.addWidget(fee_e, 3, 1)
         def on_rate(dyn, pos, fee_rate):
             fee = fee_rate * total_size / 1000
-            fee_e.setAmount(min(max_fee, fee))
+            fee = min(max_fee, fee)
+            fee_e.setAmount(fee)
         fee_slider = FeeSlider(self, self.config, on_rate)
-        vbox.addWidget(fee_slider)
+        fee_slider.update()
+        grid.addWidget(fee_slider, 4, 1)
+        vbox.addLayout(grid)
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         if not d.exec_():
             return
