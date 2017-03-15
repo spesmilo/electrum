@@ -729,7 +729,7 @@ class ElectrumWindow(App):
                 if self.send_screen:
                     self.send_screen.do_clear()
                 if pr:
-                    pr.set_paid(tx.txid())
+                    self.wallet.invoices.set_paid(pr, tx.txid())
                     self.wallet.invoices.save()
                     self.update_tab('invoices')
             else:

@@ -1383,7 +1383,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 return False, _("Payment request has expired")
             status, msg =  self.network.broadcast(tx)
             if pr and status is True:
-                pr.set_paid(tx.txid())
+                self.invoices.set_paid(pr, tx.txid())
                 self.invoices.save()
                 self.payment_request = None
                 refund_address = self.wallet.get_receiving_addresses()[0]
@@ -1621,27 +1621,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid = QGridLayout()
         grid.addWidget(QLabel(_("Requestor") + ':'), 0, 0)
         grid.addWidget(QLabel(pr.get_requestor()), 0, 1)
-        grid.addWidget(QLabel(_("Expires") + ':'), 1, 0)
-        grid.addWidget(QLabel(format_time(pr.get_expiration_date())), 1, 1)
-        grid.addWidget(QLabel(_("Memo") + ':'), 2, 0)
-        grid.addWidget(QLabel(pr.get_memo()), 2, 1)
-        grid.addWidget(QLabel(_("Signature") + ':'), 3, 0)
-        grid.addWidget(QLabel(pr.get_verify_status()), 3, 1)
-        grid.addWidget(QLabel(_("Payment URL") + ':'), 4, 0)
-        grid.addWidget(QLabel(pr.payment_url), 4, 1)
-        grid.addWidget(QLabel(_("Outputs") + ':'), 5, 0)
-        outputs_str = '\n'.join(map(lambda x: x[1] + ' ' + self.format_amount(x[2])+ self.base_unit(), pr.get_outputs()))
-        grid.addWidget(QLabel(outputs_str), 5, 1)
-        if pr.tx:
-            grid.addWidget(QLabel(_("Transaction ID") + ':'), 6, 0)
-            l = QLineEdit(pr.tx)
-            l.setReadOnly(True)
-            grid.addWidget(l, 6, 1)
+        grid.addWidget(QLabel(_("Amount") + ':'), 1, 0)
+        outputs_str = '\n'.join(map(lambda x: self.format_amount(x[2])+ self.base_unit() + ' @ ' + x[1], pr.get_outputs()))
+        grid.addWidget(QLabel(outputs_str), 1, 1)
+        grid.addWidget(QLabel(_("Expires") + ':'), 2, 0)
+        grid.addWidget(QLabel(format_time(pr.get_expiration_date())), 2, 1)
+        grid.addWidget(QLabel(_("Memo") + ':'), 3, 0)
+        grid.addWidget(QLabel(pr.get_memo()), 3, 1)
+        grid.addWidget(QLabel(_("Signature") + ':'), 4, 0)
+        grid.addWidget(QLabel(pr.get_verify_status()), 4, 1)
         vbox.addLayout(grid)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
-        return
-
 
     def do_pay_invoice(self, key):
         pr = self.invoices.get(key)
