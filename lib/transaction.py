@@ -286,7 +286,7 @@ def match_decoded(decoded, to_match):
 
 
 def parse_sig(x_sig):
-    return map(lambda x: None if x == NO_SIGNATURE else x, x_sig)
+    return [None if x == NO_SIGNATURE else x for x in x_sig]
 
 def safe_parse_pubkey(x):
     try:
@@ -488,7 +488,7 @@ def multisig_script(public_keys, m):
     assert m <= n
     op_m = format(opcodes.OP_1 + m - 1, 'x')
     op_n = format(opcodes.OP_1 + n - 1, 'x')
-    keylist = [op_push(len(k)/2) + k for k in public_keys]
+    keylist = [op_push(len(k)//2) + k for k in public_keys]
     return op_m + ''.join(keylist) + op_n + 'ae'
 
 

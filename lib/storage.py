@@ -39,7 +39,7 @@ from .i18n import _
 from .util import NotEnoughFunds, PrintError, profiler
 from .plugins import run_hook, plugin_loaders
 from .keystore import bip44_derivation
-import .bitcoin
+from . import bitcoin
 
 
 # seed_version is now used for the version of the wallet file

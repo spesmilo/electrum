@@ -229,7 +229,7 @@ class Commands:
             elif txin.get('redeemScript'):
                 raise BaseException('Not implemented')
 
-        outputs = map(lambda x: (TYPE_ADDRESS, x['address'], int(x['value'])), outputs)
+        outputs = [(TYPE_ADDRESS, x['address'], int(x['value'])) for x in outputs]
         tx = Transaction.from_io(inputs, outputs, locktime=locktime)
         tx.sign(keypairs)
         return tx.as_dict()
