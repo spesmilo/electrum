@@ -181,8 +181,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 self.name_e.setText(path)
 
         def on_filename(filename):
-            filename = unicode(filename)
-            path = os.path.join(wallet_folder, filename.encode('utf8'))
+            path = os.path.join(wallet_folder, filename)
             try:
                 self.storage = WalletStorage(path)
             except IOError:
@@ -213,7 +212,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         button.clicked.connect(on_choose)
         self.name_e.textChanged.connect(on_filename)
         n = os.path.basename(self.storage.path)
-        self.name_e.setText(n.decode('utf8'))
+        self.name_e.setText(n)
 
         while True:
             if self.storage.file_exists() and not self.storage.is_encrypted():

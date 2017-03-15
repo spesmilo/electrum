@@ -217,4 +217,4 @@ class PasswordDialog(WindowModalDialog):
     def run(self):
         if not self.exec_():
             return
-        return unicode(self.pw.text())
+        return self.pw.text()

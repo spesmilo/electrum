@@ -10,7 +10,7 @@ from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 
 from electrum.i18n import _
 from electrum.plugins import hook, DeviceMgr
-from electrum.util import PrintError, UserCancelled
+from electrum.util import PrintError, UserCancelled, bh2u
 from electrum.wallet import Wallet, Standard_Wallet
 
 PASSPHRASE_HELP_SHORT =_(
@@ -320,7 +320,7 @@ class SettingsDialog(WindowModalDialog):
         def update(features):
             self.features = features
             set_label_enabled()
-            bl_hash = features.bootloader_hash.encode('hex')
+            bl_hash = bh2u(features.bootloader_hash)
             bl_hash = "\n".join([bl_hash[:32], bl_hash[32:]])
             noyes = [_("No"), _("Yes")]
             endis = [_("Enable Passphrases"), _("Disable Passphrases")]

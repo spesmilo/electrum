@@ -544,7 +544,7 @@ class Hardware_KeyStore(KeyStore, Xpub):
 
 
 def bip39_normalize_passphrase(passphrase):
-    return normalize('NFKD', unicode(passphrase or ''))
+    return normalize('NFKD', passphrase or '')
 
 def bip39_to_seed(mnemonic, passphrase):
     import pbkdf2, hashlib, hmac

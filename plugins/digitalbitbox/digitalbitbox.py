@@ -504,7 +504,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 dbb_signatures.extend(reply['sign'])
             
             # Fill signatures
-            if len(dbb_signatures) <> len(tx.inputs()):
+            if len(dbb_signatures) != len(tx.inputs()):
                 raise Exception("Incorrect number of transactions signed.") # Should never occur
             for i, txin in enumerate(tx.inputs()):
                 num = txin['num_sig']
@@ -564,7 +564,7 @@ class DigitalBitboxPlugin(HW_PluginBase):
         if device.interface_number == 0 or device.usage_page == 0xffff:
             self.handler = handler
             client = self.get_dbb_device(device)
-            if client <> None:
+            if client is not None:
                 client = DigitalBitbox_Client(client)
             return client
         else:

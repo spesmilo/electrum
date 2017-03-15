@@ -57,6 +57,7 @@ except Exception as e:
 
 from .util import *   # * needed for plugins
 from .main_window import ElectrumWindow
+from .network_dialog import NetworkDialog
 
 
 class OpenFileEventFilter(QObject):
@@ -142,7 +143,6 @@ class ElectrumGui:
         self.app.emit(SIGNAL('new_window'), path, uri)
 
     def show_network_dialog(self, parent):
-        from network_dialog import NetworkDialog
         if not self.daemon.network:
             parent.show_warning(_('You are using Electrum in offline mode; restart Electrum if you want to get connected'), title=_('Offline'))
             return

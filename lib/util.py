@@ -65,7 +65,7 @@ class UserCancelled(Exception):
 
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
-        from transaction import Transaction
+        from .transaction import Transaction
         if isinstance(obj, Transaction):
             return obj.as_dict()
         return super(MyEncoder, self).default(obj)
@@ -497,7 +497,7 @@ testnet_block_explorers = {
 }
 
 def block_explorer_info():
-    import bitcoin
+    from . import bitcoin
     return testnet_block_explorers if bitcoin.TESTNET else mainnet_block_explorers
 
 def block_explorer(config):

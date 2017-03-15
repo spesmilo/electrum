@@ -64,7 +64,7 @@ class InvoiceList(MyTreeWidget):
 
     def import_invoices(self):
         wallet_folder = self.parent.get_wallet_folder()
-        filename = unicode(QFileDialog.getOpenFileName(self.parent, "Select your wallet file", wallet_folder))
+        filename = QFileDialog.getOpenFileName(self.parent, "Select your wallet file", wallet_folder)
         if not filename:
             return
         self.parent.invoices.import_file(filename)
