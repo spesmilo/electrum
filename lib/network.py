@@ -548,10 +548,11 @@ class Network(util.DaemonThread):
             if error is None:
                 self.donation_address = result
         elif method == 'blockchain.estimatefee':
-            if error is None:
+            if error is None and result > 0:
                 i = params[0]
-                self.config.fee_estimates[i] = int(result * COIN)
-                self.print_error("fee_estimates[%d]" % i, self.config.fee_estimates[i])
+                fee = int(result*COIN)
+                self.config.fee_estimates[i] = fee
+                self.print_error("fee_estimates[%d]" % i, fee)
                 self.notify('fee')
         elif method == 'blockchain.relayfee':
             if error is None:
