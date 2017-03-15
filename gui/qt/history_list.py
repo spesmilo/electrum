@@ -79,6 +79,7 @@ class HistoryList(MyTreeWidget):
         for h_item in h:
             tx_hash, height, conf, timestamp, value, balance = h_item
             status, status_str = self.wallet.get_tx_status(tx_hash, height, conf, timestamp)
+            has_invoice = self.wallet.invoices.paid.get(tx_hash)
             icon = QIcon(":icons/" + TX_ICONS[status])
             v_str = self.parent.format_amount(value, True, whitespaces=True)
             balance_str = self.parent.format_amount(balance, whitespaces=True)
@@ -91,6 +92,8 @@ class HistoryList(MyTreeWidget):
                     entry.append(text)
             item = QTreeWidgetItem(entry)
             item.setIcon(0, icon)
+            if has_invoice:
+                item.setIcon(3, QIcon(":icons/seal"))
             for i in range(len(entry)):
                 if i>3:
                     item.setTextAlignment(i, Qt.AlignRight)
@@ -144,6 +147,8 @@ class HistoryList(MyTreeWidget):
         tx = self.wallet.transactions.get(tx_hash)
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
         is_unconfirmed = height <= 0
+        pr_key = self.wallet.invoices.paid.get(tx_hash)
+
         menu = QMenu()
 
         menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(column_data))
@@ -159,6 +164,8 @@ class HistoryList(MyTreeWidget):
                 child_tx = self.wallet.cpfp(tx, 0)
                 if child_tx:
                     menu.addAction(_("Child pays for parent"), lambda: self.parent.cpfp(tx, child_tx))
+        if pr_key:
+            menu.addAction(QIcon(":icons/seal"), _("View invoice"), lambda: self.parent.show_invoice(pr_key))
         if tx_URL:
             menu.addAction(_("View on block explorer"), lambda: webbrowser.open(tx_URL))
         menu.exec_(self.viewport().mapToGlobal(position))

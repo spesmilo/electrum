@@ -298,9 +298,6 @@ class PaymentRequest:
         print "PaymentACK message received: %s" % paymntack.memo
         return True, paymntack.memo
 
-    def set_paid(self, tx_hash):
-        self.tx = tx_hash
-
 
 def make_unsigned_request(req):
     from transaction import Transaction
@@ -460,8 +457,13 @@ class InvoiceStore(object):
     def __init__(self, storage):
         self.storage = storage
         self.invoices = {}
+        self.paid = {}
         d = self.storage.get('invoices', {})
         self.load(d)
+
+    def set_paid(self, pr, txid):
+        pr.tx = txid
+        self.paid[txid] = pr.get_id()
 
     def load(self, d):
         for k, v in d.items():
@@ -470,6 +472,8 @@ class InvoiceStore(object):
                 pr.tx = v.get('txid')
                 pr.requestor = v.get('requestor')
                 self.invoices[k] = pr
+                if pr.tx:
+                    self.paid[pr.tx] = k
             except:
                 continue
 
@@ -517,3 +521,5 @@ class InvoiceStore(object):
         # sort
         return self.invoices.values()
 
+    def unpaid_invoices(self):
+        return [ self.invoices[k] for k in filter(lambda x: self.get_status(x)!=PR_PAID, self.invoices.keys())]

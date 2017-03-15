@@ -272,7 +272,7 @@ class Commands:
         """Get private keys of addresses. You may pass a single wallet address, or a list of wallet addresses."""
         if is_address(address):
             return self.wallet.get_private_key(address, self._password)
-        domain = json_loads(address)
+        domain = address
         return [self.wallet.get_private_key(address, self._password) for address in domain]
 
     @command('w')

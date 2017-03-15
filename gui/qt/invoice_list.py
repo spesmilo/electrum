@@ -29,7 +29,6 @@ from electrum_ltc.i18n import _
 from electrum_ltc.util import block_explorer_URL, format_satoshis, format_time
 from electrum_ltc.plugins import run_hook
 
-
 class InvoiceList(MyTreeWidget):
     filter_columns = [0, 1, 2, 3]  # Date, Requestor, Description, Amount
 
@@ -40,7 +39,7 @@ class InvoiceList(MyTreeWidget):
         self.setColumnWidth(1, 200)
 
     def on_update(self):
-        inv_list = self.parent.invoices.sorted_list()
+        inv_list = self.parent.invoices.unpaid_invoices()
         self.clear()
         for pr in inv_list:
             key = pr.get_id()
