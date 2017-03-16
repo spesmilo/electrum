@@ -347,7 +347,7 @@ class Abstract_Wallet(PrintError):
             elif y > 0:
                 return y, 0
             else:
-                return 1e12, 0
+                return 1e12 - y, 0
 
     def is_found(self):
         return self.history.values() != [[]] * len(self.history)
