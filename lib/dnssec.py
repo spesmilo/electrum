@@ -185,9 +185,13 @@ dns.dnssec.validate = dns.dnssec._validate
 from util import print_error
 
 
-# hard-coded root KSK
-root_KSK = dns.rrset.from_text('.', 15202, 'IN', 'DNSKEY', '257 3 8 AwEAAagAIKlVZrpC6Ia7gEzahOR+9W29euxhJhVVLOyQbSEW0O8gcCjF FVQUTf6v58fLjwBd0YI0EzrAcQqBGCzh/RStIoO8g0NfnfL2MTJRkxoX bfDaUeVPQuYEhg37NZWAJQ9VnMVDxP/VHL496M/QZxkjf5/Efucp2gaD X6RS6CXpoY68LsvPVjR0ZSwzz1apAzvN9dlzEheX7ICJBBtuA6G3LQpz W5hOA2hzCTMjJPJ8LbqF6dsV6DoBQzgul0sGIcGOYl7OyQdXfZ57relS Qageu+ipAdTTJ25AsRTAoub8ONGcLmqrAmRLKBP1dfwhYB4N7knNnulq QxA+Uk1ihz0=')
-
+# hard-coded trust anchors (root KSKs)
+trust_anchors = [
+    # KSK-2017:
+    dns.rrset.from_text('.', 1    , 'IN', 'DNSKEY', '257 3 8 AwEAAaz/tAm8yTn4Mfeh5eyI96WSVexTBAvkMgJzkKTOiW1vkIbzxeF3+/4RgWOq7HrxRixHlFlExOLAJr5emLvN7SWXgnLh4+B5xQlNVz8Og8kvArMtNROxVQuCaSnIDdD5LKyWbRd2n9WGe2R8PzgCmr3EgVLrjyBxWezF0jLHwVN8efS3rCj/EWgvIWgb9tarpVUDK/b58Da+sqqls3eNbuv7pr+eoZG+SrDK6nWeL3c6H5Apxz7LjVc1uTIdsIXxuOLYA4/ilBmSVIzuDWfdRUfhHdY6+cn8HFRm+2hM8AnXGXws9555KrUB5qihylGa8subX2Nn6UwNR1AkUTV74bU='),
+    # KSK-2010:
+    dns.rrset.from_text('.', 15202, 'IN', 'DNSKEY', '257 3 8 AwEAAagAIKlVZrpC6Ia7gEzahOR+9W29euxhJhVVLOyQbSEW0O8gcCjF FVQUTf6v58fLjwBd0YI0EzrAcQqBGCzh/RStIoO8g0NfnfL2MTJRkxoX bfDaUeVPQuYEhg37NZWAJQ9VnMVDxP/VHL496M/QZxkjf5/Efucp2gaD X6RS6CXpoY68LsvPVjR0ZSwzz1apAzvN9dlzEheX7ICJBBtuA6G3LQpz W5hOA2hzCTMjJPJ8LbqF6dsV6DoBQzgul0sGIcGOYl7OyQdXfZ57relS Qageu+ipAdTTJ25AsRTAoub8ONGcLmqrAmRLKBP1dfwhYB4N7knNnulq QxA+Uk1ihz0='),
+]
 
 
 def check_query(ns, sub, _type, keys):
@@ -210,8 +214,18 @@ def check_query(ns, sub, _type, keys):
 
 
 def get_and_validate(ns, url, _type):
-    # get trusted root keys
-    root_rrset = check_query(ns, '', dns.rdatatype.DNSKEY, {dns.name.root: root_KSK})
+    # get trusted root key
+    root_rrset = None
+    for dnskey_rr in trust_anchors:
+        try:
+            # Check if there is a valid signature for the root dnskey
+            root_rrset = check_query(ns, '', dns.rdatatype.DNSKEY, {dns.name.root: dnskey_rr})
+            break
+        except dns.dnssec.ValidationFailure:
+            # It's OK as long as one key validates
+            continue
+    if not root_rrset:
+        raise dns.dnssec.ValidationFailure('None of the trust anchors found in DNS')
     keys = {dns.name.root: root_rrset}
     # top-down verification
     parts = url.split('.')
