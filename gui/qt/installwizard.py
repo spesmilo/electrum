@@ -279,8 +279,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.logo.setPixmap(QPixmap(filename).scaledToWidth(60))
         return prior_filename
 
-    def set_layout(self, layout, title=None, raise_on_cancel=True,
-                        next_enabled=True):
+    def set_layout(self, layout, title=None, next_enabled=True):
         self.title.setText("<b>%s</b>"%title if title else "")
         self.title.setVisible(bool(title))
         # Get rid of any prior layout by assigning it to a temporary widget
