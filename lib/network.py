@@ -46,27 +46,22 @@ from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 DEFAULT_PORTS = {'t':'50001', 's':'50002'}
 
 DEFAULT_SERVERS = {
-    'einfachmalnettsein.de': {'t':'40001', 's':'40002'},
-    'electrum.cryptomachine.com': DEFAULT_PORTS,
-    'electrum-ltc.alexcos.ro': {'t':'50003', 's':'50004'},
+    'elec.luggs.co': {'s':'444'},
     'electrum-ltc.bysh.me': DEFAULT_PORTS,
-    'electrum-ltc.neocrypto.io': {'t':'50003', 's':'50004'},
+    'electrum-ltc.ddns.net': DEFAULT_PORTS,
     'electrum-ltc.petrkr.net': {'t':'60001', 's':'60002'},
+    'electrum.cryptomachine.com': DEFAULT_PORTS,
     'electrum.ltc.xurious.com': DEFAULT_PORTS,
-    'electrum.site2.me': DEFAULT_PORTS,
     'electrum.snicter.com': DEFAULT_PORTS,
-    'electrum.wikit.me': DEFAULT_PORTS,
-    'ltc-westus.electrum-servers.com': DEFAULT_PORTS,
+    'us11.einfachmalnettsein.de': {'t':'50007', 's':'50008'},
 }
 
 def set_testnet():
     global DEFAULT_PORTS, DEFAULT_SERVERS
     DEFAULT_PORTS = {'t':'51001', 's':'51002'}
     DEFAULT_SERVERS = {
-        '14.3.140.101': DEFAULT_PORTS,
-        'testnet.hsmiths.com': {'t':'53011', 's':'53012'},
-        'electrum.akinbo.org': DEFAULT_PORTS,
-        'ELEX05.blackpole.online': {'t':'52011', 's':'52002'},
+        'electrum-ltc.bysh.me': DEFAULT_PORTS,
+        'electrum.ltc.xurious.com': DEFAULT_PORTS,
     }
 
 def set_nolnet():
