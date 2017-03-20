@@ -275,7 +275,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                             if is_xpubkey(x_pubkey):
                                 xpub, s = parse_xpubkey(x_pubkey)
                             else:
-                                xpub = xpub_from_pubkey(x_pubkey.decode('hex'))
+                                xpub = xpub_from_pubkey(0, x_pubkey.decode('hex'))
                                 s = []
                             node = self.ckd_public.deserialize(xpub)
                             return self.types.HDNodePathType(node=node, address_n=s)
