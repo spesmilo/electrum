@@ -1616,6 +1616,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.show_pr_details(pr)
 
     def show_pr_details(self, pr):
+        key = pr.get_id()
         d = WindowModalDialog(self, _("Invoice"))
         vbox = QVBoxLayout(d)
         grid = QGridLayout()
@@ -1624,14 +1625,30 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.addWidget(QLabel(_("Amount") + ':'), 1, 0)
         outputs_str = '\n'.join(map(lambda x: self.format_amount(x[2])+ self.base_unit() + ' @ ' + x[1], pr.get_outputs()))
         grid.addWidget(QLabel(outputs_str), 1, 1)
-        grid.addWidget(QLabel(_("Expires") + ':'), 2, 0)
-        grid.addWidget(QLabel(format_time(pr.get_expiration_date())), 2, 1)
-        grid.addWidget(QLabel(_("Memo") + ':'), 3, 0)
-        grid.addWidget(QLabel(pr.get_memo()), 3, 1)
-        grid.addWidget(QLabel(_("Signature") + ':'), 4, 0)
-        grid.addWidget(QLabel(pr.get_verify_status()), 4, 1)
+        expires = pr.get_expiration_date()
+        grid.addWidget(QLabel(_("Memo") + ':'), 2, 0)
+        grid.addWidget(QLabel(pr.get_memo()), 2, 1)
+        grid.addWidget(QLabel(_("Signature") + ':'), 3, 0)
+        grid.addWidget(QLabel(pr.get_verify_status()), 3, 1)
+        if expires:
+            grid.addWidget(QLabel(_("Expires") + ':'), 4, 0)
+            grid.addWidget(QLabel(format_time(expires)), 4, 1)
         vbox.addLayout(grid)
-        vbox.addLayout(Buttons(CloseButton(d)))
+        def do_export():
+            fn = self.getOpenFileName(_("Save invoice to file"), "*.bip70")
+            if not fn:
+                return
+            with open(fn, 'w') as f:
+                data = f.write(pr.raw)
+            self.show_message(_('Invoice saved as' + ' ' + fn))
+        exportButton = EnterButton(_('Save'), do_export)
+        def do_delete():
+            if self.question(_('Delete invoice?')):
+                self.invoices.remove(key)
+                self.history_list.update()
+                d.close()
+        deleteButton = EnterButton(_('Delete'), do_delete)
+        vbox.addLayout(Buttons(exportButton, deleteButton, CloseButton(d)))
         d.exec_()
 
     def do_pay_invoice(self, key):
