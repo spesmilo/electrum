@@ -652,6 +652,8 @@ class Transaction:
         elif _type == 'p2wpkh-p2sh':
             redeem_script = segwit_script(pubkeys[0])
             return push_script(redeem_script)
+        elif _type == 'address':
+            script += push_script(pubkeys[0])
         else:
             raise TypeError('Unknown txin type', _type)
         return script
@@ -822,12 +824,10 @@ class Transaction:
                 if len(signatures) == num:
                     # txin is complete
                     break
-                fd_key = 'fd00' + bitcoin.hash_160(pubkeys[j].decode('hex')).encode('hex')
-                if x_pubkey in keypairs.keys() or fd_key in keypairs.keys():
+                if x_pubkey in keypairs.keys():
                     print_error("adding signature for", x_pubkey)
-                    sec = keypairs.get(x_pubkey) or keypairs.get(fd_key)
+                    sec = keypairs.get(x_pubkey)
                     pubkey = public_key_from_private_key(sec)
-                    assert pubkey == pubkeys[j]
                     # add signature
                     pre_hash = Hash(self.serialize_preimage(i).decode('hex'))
                     pkey = regenerate_key(sec)

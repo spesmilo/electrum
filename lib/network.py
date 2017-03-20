@@ -45,6 +45,11 @@ from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 
 DEFAULT_PORTS = {'t':'50001', 's':'50002'}
 
+#There is a schedule to move the default list to e-x (electrumx) by Jan 2018
+#Schedule is as follows:
+#move ~3/4 to e-x by 1.4.17
+#then gradually switch remaining nodes to e-x nodes
+
 DEFAULT_SERVERS = {
     'elec.luggs.co': {'s':'444'},
     'electrum-ltc.bysh.me': DEFAULT_PORTS,

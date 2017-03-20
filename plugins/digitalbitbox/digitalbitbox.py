@@ -14,6 +14,7 @@ try:
     import time
     import hid
     import json
+    import math
     import hashlib
     from ecdsa.ecdsa import generator_secp256k1
     from ecdsa.util import sigencode_der
@@ -212,8 +213,8 @@ class DigitalBitbox_Client():
 
     def dbb_erase(self):
         self.handler.show_message(_("Are you sure you want to erase the Digital Bitbox?\r\n\r\n" \
-                                    "To continue, touch the Digital Bitbox's blinking light for 3 seconds.\r\n\r\n" \
-                                    "To cancel, briefly touch the blinking light or wait for the timeout."))
+                                    "To continue, touch the Digital Bitbox's light for 3 seconds.\r\n\r\n" \
+                                    "To cancel, briefly touch the light or wait for the timeout."))
         hid_reply = self.hid_send_encrypt('{"reset":"__ERASE__"}')
         self.handler.clear_dialog()
         if 'error' in hid_reply:
@@ -237,8 +238,8 @@ class DigitalBitbox_Client():
         key = self.stretch_key(key)
         if show_msg:
             self.handler.show_message(_("Loading backup...\r\n\r\n" \
-                                        "To continue, touch the Digital Bitbox's blinking light for 3 seconds.\r\n\r\n" \
-                                        "To cancel, briefly touch the blinking light or wait for the timeout."))
+                                        "To continue, touch the Digital Bitbox's light for 3 seconds.\r\n\r\n" \
+                                        "To cancel, briefly touch the light or wait for the timeout."))
         msg = '{"seed":{"source": "backup", "key": "%s", "filename": "%s"}}' % (key, backups['backup'][f])
         hid_reply = self.hid_send_encrypt(msg)
         self.handler.clear_dialog()
@@ -291,6 +292,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
     def __init__(self, d):
         Hardware_KeyStore.__init__(self, d)
         self.force_watching_only = False
+        self.maxInputs = 14 # maximum inputs per single sign command
 
 
     def get_derivation(self):
@@ -398,33 +400,53 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                         changePubkey = self.derive_pubkey(index[0], index[1])
                         pubkeyarray_i = {'pubkey': changePubkey, 'keypath': changePath}
                         pubkeyarray.append(pubkeyarray_i)
-           
+            
             # Build sign command
-            msg = '{"sign": {"meta":"%s", "data":%s, "checkpub":%s} }' % \
-                   (Hash(tx.serialize()).encode('hex'), json.dumps(hasharray), json.dumps(pubkeyarray))
+            dbb_signatures = []
+            steps = math.ceil(1.0 * len(hasharray) / self.maxInputs)
+            for step in range(int(steps)):
+                hashes = hasharray[step * self.maxInputs : (step + 1) * self.maxInputs]
+                
+                msg = '{"sign": {"meta":"%s", "data":%s, "checkpub":%s} }' % \
+                       (Hash(tx.serialize()).encode('hex'), json.dumps(hashes), json.dumps(pubkeyarray))
+                
+                dbb_client = self.plugin.get_client(self)
+                
+                if not dbb_client.is_paired():
+                    raise Exception("Could not sign transaction.")
+                
+                reply = dbb_client.hid_send_encrypt(msg)
+                
+                if 'error' in reply:
+                    raise Exception(reply['error']['message'])
+                
+                if 'echo' not in reply:
+                    raise Exception("Could not sign transaction.")
+                
+                if steps > 1:
+                    self.handler.show_message(_("Signing large transaction. Please be patient ...\r\n\r\n" \
+                                                "To continue, touch the Digital Bitbox's blinking light for 3 seconds. " \
+                                                "(Touch " + str(step + 1) + " of " + str(int(steps)) + ")\r\n\r\n" \
+                                                "To cancel, briefly touch the blinking light or wait for the timeout.\r\n\r\n"))
+                else:
+                    self.handler.show_message(_("Signing transaction ...\r\n\r\n" \
+                                                "To continue, touch the Digital Bitbox's blinking light for 3 seconds.\r\n\r\n" \
+                                                "To cancel, briefly touch the blinking light or wait for the timeout."))
+                
+                reply = dbb_client.hid_send_encrypt(msg) # Send twice, first returns an echo for smart verification (not implemented)
+                self.handler.clear_dialog()
+                
+                if 'error' in reply:
+                    raise Exception(reply['error']['message'])
+                
+                if 'sign' not in reply:
+                    raise Exception("Could not sign transaction.")
+                
+                dbb_signatures.extend(reply['sign'])
             
-            dbb_client = self.plugin.get_client(self)
-            
-            if not dbb_client.is_paired():
-                raise Exception("Could not sign transaction.")
-            
-            reply = dbb_client.hid_send_encrypt(msg)
-            self.handler.show_message(_("Signing transaction ...\r\n\r\n" \
-                                        "To continue, touch the Digital Bitbox's blinking light for 3 seconds.\r\n\r\n" \
-                                        "To cancel, briefly touch the blinking light or wait for the timeout."))
-            reply = dbb_client.hid_send_encrypt(msg) # Send twice, first returns an echo for smart verification (not implemented)
-            self.handler.clear_dialog()
-            
-            if 'error' in reply:
-                raise Exception(reply['error']['message'])
-          
-            if 'sign' not in reply:
-                raise Exception("Could not sign transaction.")
-            
-            if len(reply['sign']) <> len(tx.inputs()):
-                raise Exception("Incorrect number of transactions signed.") # Should never occur
-
             # Fill signatures
+            if len(dbb_signatures) <> len(tx.inputs()):
+                raise Exception("Incorrect number of transactions signed.") # Should never occur
             for i, txin in enumerate(tx.inputs()):
                 num = txin['num_sig']
                 for pubkey in txin['pubkeys']:
@@ -432,7 +454,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     if len(signatures) == num:
                         break # txin is complete
                     ii = txin['pubkeys'].index(pubkey)
-                    signed = reply['sign'][i]
+                    signed = dbb_signatures[i]
                     if signed['pubkey'] != pubkey:
                         continue
                     sig_r = int(signed['sig'][:64], 16)
