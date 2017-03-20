@@ -1,3 +1,9 @@
+# Release 2.8.2
+  * show paid invoices in history tab
+  * improve CPFP dialog
+  * fixes for trezor, keepkey
+  * other minor bugfixes
+
 # Release 2.8.1
   * fix Digital Bitbox plugin
   * fix daemon jsonrpc
