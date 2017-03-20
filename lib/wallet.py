@@ -1320,7 +1320,7 @@ class Imported_Wallet(Abstract_Wallet):
     # wallet made of imported addresses
 
     wallet_type = 'imported'
-    txin_type = 'unknown'
+    txin_type = 'address'
 
     def __init__(self, storage):
         Abstract_Wallet.__init__(self, storage)
