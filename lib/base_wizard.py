@@ -190,9 +190,11 @@ class BaseWizard(object):
                 continue
             devices += map(lambda x: (name, x), u)
         if not devices:
-            msg = '\n'.join([
-                _('No hardware device detected.'),
-                _('To trigger a rescan, press \'next\'.'),
+            msg = ''.join([
+                _('No hardware device detected.') + '\n',
+                _('To trigger a rescan, press \'Next\'.') + '\n\n',
+                _('If your device is not detected on Windows, go to "Settings", "Devices", "Connected devices", and do "Remove device". Then, plug your device again.') + ' ',
+                _('On Linux, you might have to add a new permission to your udev rules.'),
             ])
             self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device())
             return
