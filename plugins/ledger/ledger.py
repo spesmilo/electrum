@@ -275,7 +275,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         # Fetch inputs of the transaction to sign
         derivations = self.get_tx_derivations(tx)
         for txin in tx.inputs():
-            if txin.get('is_coinbase'):
+            if txin['type'] == 'coinbase':
                 self.give_error("Coinbase not supported")     # should never happen
 
             if txin['type'] in ['p2sh']:
