@@ -86,9 +86,6 @@ class TestTransaction(unittest.TestCase):
         self.assertTrue(tx.has_address('1446oU3z268EeFgfcwJv6X2VBXHfoYxfuD'))
         self.assertFalse(tx.has_address('1CQj15y1N7LDHp7wTt28eoD1QhHgFgxECH'))
 
-        # Commenting out broken test until we know why inputs_without_script() is not returnng anything.
-        #self.assertEquals(tx.inputs_without_script(), set(x_pubkey for i in expected['inputs'] for x_pubkey in i['x_pubkeys']))
-
         self.assertEquals(tx.serialize(), unsigned_blob)
 
         tx.update_signatures(signed_blob)
@@ -126,7 +123,6 @@ class TestTransaction(unittest.TestCase):
         self.assertEquals(tx.deserialize(), None)
         self.assertEquals(tx.as_dict(), {'hex': signed_blob, 'complete': True, 'final': True})
 
-        self.assertEquals(tx.inputs_without_script(), set())
         self.assertEquals(tx.serialize(), signed_blob)
 
         tx.update_signatures(signed_blob)

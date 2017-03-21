@@ -636,9 +636,9 @@ class Transaction:
 
     @classmethod
     def input_script(self, txin, estimate_size=False):
-        if txin.get('scriptSig'):
-            return txin['scriptSig']
         _type = txin['type']
+        if _type == 'coinbase':
+            return txin['scriptSig']
         pubkeys, sig_list = self.get_siglist(txin, estimate_size)
         script = ''.join(push_script(x) for x in sig_list)
         if _type == 'p2pk':
@@ -651,7 +651,7 @@ class Transaction:
         elif _type == 'p2pkh':
             script += push_script(pubkeys[0])
         elif _type == 'p2wpkh-p2sh':
-            redeem_script = segwit_script(pubkeys[0])
+            redeem_script = txin.get('redeemScript') or segwit_script(pubkeys[0])
             return push_script(redeem_script)
         elif _type == 'address':
             script += push_script(pubkeys[0])
@@ -807,14 +807,6 @@ class Transaction:
     def is_complete(self):
         s, r = self.signature_count()
         return r == s
-
-    def inputs_without_script(self):
-        out = set()
-        for i, txin in enumerate(self.inputs()):
-            if txin.get('scriptSig') == '':
-                out.add(i)
-        return out
-
 
     def sign(self, keypairs):
         for i, txin in enumerate(self.inputs()):
