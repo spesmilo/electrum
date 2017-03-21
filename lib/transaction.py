@@ -409,15 +409,14 @@ def parse_input(vds):
     prevout_hash = hash_encode(vds.read_bytes(32))
     prevout_n = vds.read_uint32()
     scriptSig = vds.read_bytes(vds.read_compact_size())
-    d['scriptSig'] = scriptSig.encode('hex')
     sequence = vds.read_uint32()
+    d['scriptSig'] = scriptSig.encode('hex')
+    d['prevout_hash'] = prevout_hash
+    d['prevout_n'] = prevout_n
+    d['sequence'] = sequence
     if prevout_hash == '00'*32:
-        d['is_coinbase'] = True
+        d['type'] = 'coinbase'
     else:
-        d['is_coinbase'] = False
-        d['prevout_hash'] = prevout_hash
-        d['prevout_n'] = prevout_n
-        d['sequence'] = sequence
         d['pubkeys'] = []
         d['signatures'] = {}
         d['address'] = None
@@ -637,6 +636,8 @@ class Transaction:
 
     @classmethod
     def input_script(self, txin, estimate_size=False):
+        if txin.get('scriptSig'):
+            return txin['scriptSig']
         _type = txin['type']
         pubkeys, sig_list = self.get_siglist(txin, estimate_size)
         script = ''.join(push_script(x) for x in sig_list)
@@ -796,7 +797,7 @@ class Transaction:
         r = 0
         s = 0
         for txin in self.inputs():
-            if txin.get('is_coinbase'):
+            if txin['type'] == 'coinbase':
                 continue
             signatures = filter(None, txin.get('signatures',[]))
             s += len(signatures)

@@ -242,7 +242,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         i_text.setMaximumHeight(100)
         cursor = i_text.textCursor()
         for x in self.tx.inputs():
-            if x.get('is_coinbase'):
+            if x['type'] == 'coinbase':
                 cursor.insertText('coinbase')
             else:
                 prevout_hash = x.get('prevout_hash')

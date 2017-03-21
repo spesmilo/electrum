@@ -366,7 +366,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
             
             # Build hasharray from inputs
             for i, txin in enumerate(tx.inputs()):
-                if txin.get('is_coinbase'):
+                if txin['type'] == 'coinbase':
                     self.give_error("Coinbase not supported") # should never happen
                 
                 if txin['type'] in ['p2sh']:
