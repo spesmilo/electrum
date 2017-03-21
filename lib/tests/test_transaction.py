@@ -57,7 +57,6 @@ class TestTransaction(unittest.TestCase):
             'inputs': [{
                 'type': 'p2pkh',
                 'address': '1446oU3z268EeFgfcwJv6X2VBXHfoYxfuD',
-                'is_coinbase': False,
                 'num_sig': 1,
                 'prevout_hash': '3140eb24b43386f35ba69e3875eb6c93130ac66201d01c58f598defc949a5c2a',
                 'prevout_n': 0,
@@ -105,7 +104,6 @@ class TestTransaction(unittest.TestCase):
             'inputs': [{
                 'type': 'p2pkh',
                 'address': '1446oU3z268EeFgfcwJv6X2VBXHfoYxfuD',
-                'is_coinbase': False,
                 'num_sig': 1,
                 'prevout_hash': '3140eb24b43386f35ba69e3875eb6c93130ac66201d01c58f598defc949a5c2a',
                 'prevout_n': 0,
