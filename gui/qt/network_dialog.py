@@ -220,7 +220,7 @@ class NetworkChoiceLayout(object):
             except:
                 height = 0
             self.cph.setText('%d'%height)
-            if height == self.config.get('checkpoint_height', 0):
+            if height == self.checkpoint_height:
                 return
             try:
                 self.network.print_error("fetching header")
