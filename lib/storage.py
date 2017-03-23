@@ -80,7 +80,27 @@ class WalletStorage(PrintError):
         try:
             self.data = json.loads(s)
         except:
-            raise IOError("Cannot read wallet file '%s'" % self.path)
+            try:
+                d = ast.literal_eval(s)
+                labels = d.get('labels', {})
+            except Exception as e:
+                raise IOError("Cannot read wallet file '%s'" % self.path)
+            self.data = {}
+            # In old versions of Electrum labels were latin1 encoded, this fixes breakage.
+            for i, label in labels.items():
+                try:
+                    unicode(label)
+                except UnicodeDecodeError:
+                    d['labels'][i] = unicode(label.decode('latin1'))
+            for key, value in d.items():
+                try:
+                    json.dumps(key)
+                    json.dumps(value)
+                except:
+                    self.print_error('Failed to convert label to json format', key)
+                    continue
+                self.data[key] = value
+
         # check here if I need to load a plugin
         t = self.get('wallet_type')
         l = plugin_loaders.get(t)

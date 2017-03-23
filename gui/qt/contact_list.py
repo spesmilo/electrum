@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import webbrowser
 
 from electrum_ltc.i18n import _
 from electrum_ltc.bitcoin import is_address
