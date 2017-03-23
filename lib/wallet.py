@@ -858,9 +858,9 @@ class Abstract_Wallet(PrintError):
         return tx
 
     def estimate_fee(self, config, size, outputs=[]):
-        fee = int(config.fee_per_kb() * size / 1000.)
+        fee = int(config.fee_per_kb() * (1 + size / 1000))
         for _, _, value in outputs:
-            if value < DUST_SOFT_LIMIT:
+            if value > 0 and value < DUST_SOFT_LIMIT:
                 fee += DUST_SOFT_LIMIT
         return fee
 
