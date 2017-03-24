@@ -224,8 +224,8 @@ class NetworkChoiceLayout(object):
                 self.checkpoint_value = _hash
         self.cph.editingFinished.connect(on_cph)
 
-        msg =  ''.join([
-            _("Electrum connects to several nodes in order to download block headers and find out the longest blockchain."), " "
+        msg =  ' '.join([
+            _("Electrum connects to several nodes in order to download block headers and find out the longest blockchain."),
             _("This blockchain is used to verify the transactions sent by your transaction server.")
         ])
         grid.addWidget(QLabel(_('Status') + ':'), 0, 0)
