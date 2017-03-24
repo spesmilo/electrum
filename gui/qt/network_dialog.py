@@ -100,19 +100,18 @@ class NetworkChoiceLayout(object):
         self.autoconnect_cb.setChecked(auto_connect)
         self.autoconnect_cb.setEnabled(self.config.is_modifiable('auto_connect'))
 
-        msg = _("Electrum sends your wallet addresses to a single server, in order to receive your transaction history.") + "\n\n" \
-            + _("In addition, Electrum connects to several nodes in order to download block headers and find out the longest blockchain.") + " " \
-            + _("This blockchain is used to verify the transactions sent by the address server.")
-        msg2 = _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain.") + " " \
-               + _("If it is disabled, you have to choose a server you want to use. Electrum will warn you if your server is lagging.")
-
+        msg = _("Electrum sends your wallet addresses to a single server, in order to receive your transaction history.")
         grid.addWidget(QLabel(_('Server') + ':'), 0, 0)
         grid.addWidget(self.server_host, 0, 1, 1, 2)
         grid.addWidget(self.server_port, 0, 3)
         grid.addWidget(HelpButton(msg), 0, 4)
+        msg = ' '.join([
+            _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain."),
+            _("If it is disabled, you have to choose a server you want to use. Electrum will warn you if your server is lagging.")
+        ])
         grid.addWidget(self.ssl_cb, 1, 1, 1, 3)
         grid.addWidget(self.autoconnect_cb, 2, 1, 1, 3)
-        grid.addWidget(HelpButton(msg2), 2, 4)
+        grid.addWidget(HelpButton(msg), 2, 4)
         label = _('Active Servers') if network.is_connected() else _('Default Servers')
         self.servers_list_widget = QTreeWidget()
         self.servers_list_widget.setHeaderLabels( [ label, _('Limit') ] )
@@ -195,11 +194,6 @@ class NetworkChoiceLayout(object):
         height_str = "%d "%(network.get_local_height()) + _("blocks")
         self.checkpoint_height = self.config.get('checkpoint_height', 0)
         self.checkpoint_value = self.config.get('checkpoint_value', bitcoin.GENESIS)
-        grid.addWidget(QLabel(_("Height") + ':'), 0, 0)
-        grid.addWidget(QLabel(height_str), 0, 1)
-        grid.addWidget(QLabel(_('Status') + ':'), 1, 0)
-        grid.addWidget(QLabel(status), 1, 1, 1, 3)
-
         self.cph_label = QLabel(_('Height'))
         self.cph = QLineEdit("%d"%self.checkpoint_height)
         self.cph.setFixedWidth(80)
@@ -229,7 +223,27 @@ class NetworkChoiceLayout(object):
                 self.checkpoint_height = height
                 self.checkpoint_value = _hash
         self.cph.editingFinished.connect(on_cph)
+
+        msg =  ''.join([
+            _("Electrum connects to several nodes in order to download block headers and find out the longest blockchain."), " "
+            _("This blockchain is used to verify the transactions sent by your transaction server.")
+        ])
+        grid.addWidget(QLabel(_('Status') + ':'), 0, 0)
+        grid.addWidget(QLabel(status), 0, 1, 1, 3)
+        grid.addWidget(HelpButton(msg), 0, 4)
+        msg = _('This is the height of your local copy of the blockchain.')
+        grid.addWidget(QLabel(_("Height") + ':'), 1, 0)
+        grid.addWidget(QLabel(height_str), 1, 1)
+        grid.addWidget(HelpButton(msg), 1, 4)
+        msg = ''.join([
+            _('A checkpoint can be used to verify that you are on the correct blockchain.'), ' ',
+            _('By default, your checkpoint is the genesis block.'), '\n\n',
+            _('If you edit the height field, the corresponding block hash will be fetched from your current server.'), ' ',
+            _('If you press OK, the checkpoint will be saved, and Electrum will only accept headers from nodes that pass this checkpoint.'), '\n\n',
+            _('If there is a hard fork, you will have to check the block hash from an independent source, in order to be sure that you are on the desired side of the fork.'),
+        ])
         grid.addWidget(QLabel(_('Checkpoint') +':'), 3, 0, 1, 2)
+        grid.addWidget(HelpButton(msg), 3, 4)
         grid.addWidget(self.cph_label, 4, 0)
         grid.addWidget(self.cph, 4, 1)
         grid.addWidget(self.cpv_label, 5, 0)
