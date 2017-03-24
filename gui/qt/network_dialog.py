@@ -74,13 +74,11 @@ class NetworkChoiceLayout(object):
 
         tabs = QTabWidget()
         server_tab = QWidget()
-        protocol_tab = QWidget()
+        proxy_tab = QWidget()
         blockchain_tab = QWidget()
         tabs.addTab(server_tab, _('Server'))
-        tabs.addTab(protocol_tab, _('Protocol'))
+        tabs.addTab(proxy_tab, _('Proxy'))
         tabs.addTab(blockchain_tab, _('Blockchain'))
-
-        vbox = QVBoxLayout()
 
         # server tab
         grid = QGridLayout(server_tab)
@@ -92,6 +90,11 @@ class NetworkChoiceLayout(object):
         self.server_port = QLineEdit()
         self.server_port.setFixedWidth(60)
 
+        # use SSL
+        self.ssl_cb = QCheckBox(_('Use SSL'))
+        self.ssl_cb.setChecked(auto_connect)
+        self.ssl_cb.stateChanged.connect(self.change_protocol)
+
         # auto connect
         self.autoconnect_cb = QCheckBox(_('Select server automatically'))
         self.autoconnect_cb.setChecked(auto_connect)
@@ -100,23 +103,22 @@ class NetworkChoiceLayout(object):
         msg = _("Electrum sends your wallet addresses to a single server, in order to receive your transaction history.") + "\n\n" \
             + _("In addition, Electrum connects to several nodes in order to download block headers and find out the longest blockchain.") + " " \
             + _("This blockchain is used to verify the transactions sent by the address server.")
+        msg2 = _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain.") + " " \
+               + _("If it is disabled, you have to choose a server you want to use. Electrum will warn you if your server is lagging.")
 
         grid.addWidget(QLabel(_('Server') + ':'), 0, 0)
         grid.addWidget(self.server_host, 0, 1, 1, 2)
         grid.addWidget(self.server_port, 0, 3)
         grid.addWidget(HelpButton(msg), 0, 4)
-        grid.addWidget(self.autoconnect_cb, 1, 1, 1, 3)
-        msg = _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain.") + " " \
-            + _("If it is disabled, you have to choose a server you want to use. Electrum will warn you if your server is lagging.")
-        grid.addWidget(HelpButton(msg), 1, 4)
-
+        grid.addWidget(self.ssl_cb, 1, 1, 1, 3)
+        grid.addWidget(self.autoconnect_cb, 2, 1, 1, 3)
+        grid.addWidget(HelpButton(msg2), 2, 4)
         label = _('Active Servers') if network.is_connected() else _('Default Servers')
         self.servers_list_widget = QTreeWidget()
         self.servers_list_widget.setHeaderLabels( [ label, _('Limit') ] )
         self.servers_list_widget.setMaximumHeight(150)
         self.servers_list_widget.setColumnWidth(0, 240)
-
-        grid.addWidget(self.servers_list_widget, 2, 0, 1, 5)
+        grid.addWidget(self.servers_list_widget, 3, 0, 1, 5)
 
         def enable_set_server():
             if config.is_modifiable('server'):
@@ -131,14 +133,9 @@ class NetworkChoiceLayout(object):
         self.autoconnect_cb.clicked.connect(enable_set_server)
         enable_set_server()
 
-        # protocol_tab
-        grid = QGridLayout(protocol_tab)
+        # Proxy tab
+        grid = QGridLayout(proxy_tab)
         grid.setSpacing(8)
-
-        # use SSL
-        self.ssl_cb = QCheckBox(_('Use SSL'))
-        self.ssl_cb.setChecked(auto_connect)
-        self.ssl_cb.stateChanged.connect(self.change_protocol)
 
         # proxy setting
         self.proxy_mode = QComboBox()
@@ -181,10 +178,7 @@ class NetworkChoiceLayout(object):
         self.tor_cb.hide()
         self.tor_cb.clicked.connect(self.use_tor_proxy)
 
-        grid.addWidget(self.ssl_cb, 0, 0, 1, 3)
         grid.addWidget(self.tor_cb, 1, 0, 1, 3)
-
-        grid.addWidget(QLabel(_('Proxy') + ':'), 4, 0)
         grid.addWidget(self.proxy_mode, 4, 1)
         grid.addWidget(self.proxy_host, 4, 2)
         grid.addWidget(self.proxy_port, 4, 3)
@@ -241,8 +235,10 @@ class NetworkChoiceLayout(object):
         grid.addWidget(self.cpv_label, 5, 0)
         grid.addWidget(self.cpv, 5, 1)
         grid.setRowStretch(7, 1)
+        vbox = QVBoxLayout()
         vbox.addWidget(tabs)
         self.layout_ = vbox
+        # tor detector
         self.td = td = TorDetector()
         td.found_proxy.connect(self.suggest_proxy)
         td.start()
