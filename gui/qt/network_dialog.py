@@ -247,7 +247,7 @@ class NetworkChoiceLayout(object):
         grid.addWidget(self.cph_label, 4, 0)
         grid.addWidget(self.cph, 4, 1)
         grid.addWidget(self.cpv_label, 5, 0)
-        grid.addWidget(self.cpv, 5, 1)
+        grid.addWidget(self.cpv, 5, 1, 1, 4)
         grid.setRowStretch(7, 1)
         vbox = QVBoxLayout()
         vbox.addWidget(tabs)
