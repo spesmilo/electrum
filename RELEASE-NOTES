@@ -1,3 +1,7 @@
+# Release 2.8.3
+  * Blockchain checkpoints can be added and configured from the GUI.
+  * Fix crash on reading older wallet formats.
+
 # Release 2.8.2
   * show paid invoices in history tab
   * improve CPFP dialog

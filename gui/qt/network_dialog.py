@@ -65,37 +65,24 @@ class NetworkChoiceLayout(object):
             proxy_config = { "mode":"none", "host":"localhost", "port":"9050"}
 
         if not wizard:
-            n = len(network.get_interfaces())
-            if n:
-                status = _("Blockchain") + ": " + "%d "%(network.get_local_height()) + _("blocks") +  ".\n" + _("Getting block headers from %d nodes.")%n
-            else:
-                status = _("Not connected")
             if network.is_connected():
-                status += "\n" + _("Server") + ": %s"%(host)
+                status = _("Server") + ": %s"%(host)
             else:
-                status += "\n" + _("Disconnected from server")
+                status = _("Disconnected from server")
         else:
             status = _("Please choose a server.") + "\n" + _("Press 'Next' if you are offline.")
 
-        vbox = QVBoxLayout()
-        hbox = QHBoxLayout()
-        l = QLabel()
-        l.setPixmap(QPixmap(":icons/network.png"))
-        hbox.addStretch(10)
-        hbox.addWidget(l)
-        hbox.addWidget(QLabel(status))
-        hbox.addStretch(50)
-        msg = _("Electrum sends your wallet addresses to a single server, in order to receive your transaction history.") + "\n\n" \
-            + _("In addition, Electrum connects to several nodes in order to download block headers and find out the longest blockchain.") + " " \
-            + _("This blockchain is used to verify the transactions sent by the address server.")
-        hbox.addWidget(HelpButton(msg))
-        vbox.addLayout(hbox)
-        vbox.addSpacing(15)
+        tabs = QTabWidget()
+        server_tab = QWidget()
+        proxy_tab = QWidget()
+        blockchain_tab = QWidget()
+        tabs.addTab(server_tab, _('Server'))
+        tabs.addTab(proxy_tab, _('Proxy'))
+        tabs.addTab(blockchain_tab, _('Blockchain'))
 
-        # grid layout
-        grid = QGridLayout()
+        # server tab
+        grid = QGridLayout(server_tab)
         grid.setSpacing(8)
-        vbox.addLayout(grid)
 
         # server
         self.server_host = QLineEdit()
@@ -103,37 +90,34 @@ class NetworkChoiceLayout(object):
         self.server_port = QLineEdit()
         self.server_port.setFixedWidth(60)
 
-        grid.addWidget(QLabel(_('Server') + ':'), 0, 0)
-        grid.addWidget(self.server_host, 0, 1, 1, 2)
-        grid.addWidget(self.server_port, 0, 3)
-
         # use SSL
         self.ssl_cb = QCheckBox(_('Use SSL'))
         self.ssl_cb.setChecked(auto_connect)
-        grid.addWidget(self.ssl_cb, 0, 2, 1, 1, Qt.AlignRight)
         self.ssl_cb.stateChanged.connect(self.change_protocol)
 
         # auto connect
         self.autoconnect_cb = QCheckBox(_('Select server automatically'))
         self.autoconnect_cb.setChecked(auto_connect)
-        grid.addWidget(self.autoconnect_cb, 1, 1, 1, 3)
         self.autoconnect_cb.setEnabled(self.config.is_modifiable('auto_connect'))
-        msg = _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain.") + "\n" \
-            + _("If it is disabled, Electrum will warn you if your server is lagging.")
-        self.autoconnect_cb.setToolTip(msg)
 
+        msg = _("Electrum sends your wallet addresses to a single server, in order to receive your transaction history.")
+        grid.addWidget(QLabel(_('Server') + ':'), 0, 0)
+        grid.addWidget(self.server_host, 0, 1, 1, 2)
+        grid.addWidget(self.server_port, 0, 3)
+        grid.addWidget(HelpButton(msg), 0, 4)
+        msg = ' '.join([
+            _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain."),
+            _("If it is disabled, you have to choose a server you want to use. Electrum will warn you if your server is lagging.")
+        ])
+        grid.addWidget(self.ssl_cb, 1, 1, 1, 3)
+        grid.addWidget(self.autoconnect_cb, 2, 1, 1, 3)
+        grid.addWidget(HelpButton(msg), 2, 4)
         label = _('Active Servers') if network.is_connected() else _('Default Servers')
         self.servers_list_widget = QTreeWidget()
         self.servers_list_widget.setHeaderLabels( [ label, _('Limit') ] )
         self.servers_list_widget.setMaximumHeight(150)
         self.servers_list_widget.setColumnWidth(0, 240)
-
-        self.change_server(host, protocol)
-        self.set_protocol(protocol)
-        self.servers_list_widget.connect(self.servers_list_widget,
-                                         SIGNAL('currentItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)'),
-                                         lambda x,y: self.server_changed(x))
-        grid.addWidget(self.servers_list_widget, 2, 1, 1, 3)
+        grid.addWidget(self.servers_list_widget, 3, 0, 1, 5)
 
         def enable_set_server():
             if config.is_modifiable('server'):
@@ -147,6 +131,10 @@ class NetworkChoiceLayout(object):
 
         self.autoconnect_cb.clicked.connect(enable_set_server)
         enable_set_server()
+
+        # Proxy tab
+        grid = QGridLayout(proxy_tab)
+        grid.setSpacing(8)
 
         # proxy setting
         self.proxy_mode = QComboBox()
@@ -184,21 +172,96 @@ class NetworkChoiceLayout(object):
         self.proxy_user.connect(self.proxy_user, SIGNAL('textEdited(QString)'), self.proxy_settings_changed)
         self.proxy_password.connect(self.proxy_password, SIGNAL('textEdited(QString)'), self.proxy_settings_changed)
 
-        grid.addWidget(QLabel(_('Proxy') + ':'), 4, 0)
+        self.tor_cb = QCheckBox(_("Use Tor Proxy"))
+        self.tor_cb.setIcon(QIcon(":icons/tor_logo.png"))
+        self.tor_cb.hide()
+        self.tor_cb.clicked.connect(self.use_tor_proxy)
+
+        grid.addWidget(self.tor_cb, 1, 0, 1, 3)
         grid.addWidget(self.proxy_mode, 4, 1)
         grid.addWidget(self.proxy_host, 4, 2)
         grid.addWidget(self.proxy_port, 4, 3)
         grid.addWidget(self.proxy_user, 5, 2)
         grid.addWidget(self.proxy_password, 5, 3)
-        self.tor_button = QCheckBox(_("Use Tor Proxy"))
-        self.tor_button.setIcon(QIcon(":icons/tor_logo.png"))
-        self.tor_button.hide()
-        self.tor_button.clicked.connect(self.use_tor_proxy)
-        grid.addWidget(self.tor_button, 6, 2, 1, 2)
+        grid.setRowStretch(6, 1)
+
+        # Blockchain Tab
+        from electrum_ltc import bitcoin
+        from amountedit import AmountEdit
+        grid = QGridLayout(blockchain_tab)
+        n = len(network.get_interfaces())
+        status = _("Connected to %d nodes.")%n if n else _("Not connected")
+        height_str = "%d "%(network.get_local_height()) + _("blocks")
+        self.checkpoint_height = self.config.get('checkpoint_height', 0)
+        self.checkpoint_value = self.config.get('checkpoint_value', bitcoin.GENESIS)
+        self.cph_label = QLabel(_('Height'))
+        self.cph = QLineEdit("%d"%self.checkpoint_height)
+        self.cph.setFixedWidth(80)
+        self.cpv_label = QLabel(_('Hash'))
+        self.cpv = QLineEdit(self.checkpoint_value)
+        self.cpv.setCursorPosition(0)
+        self.cpv.setFocusPolicy(Qt.NoFocus)
+        self.cpv.setReadOnly(True)
+        def on_cph():
+            try:
+                height = int(self.cph.text())
+            except:
+                height = 0
+            self.cph.setText('%d'%height)
+            if height == self.checkpoint_height:
+                return
+            try:
+                self.network.print_error("fetching header")
+                header = self.network.synchronous_get(('blockchain.block.get_header', [height]), 5)
+                _hash = self.network.blockchain.hash_header(header)
+            except BaseException as e:
+                self.network.print_error(str(e))
+                _hash = ''
+            self.cpv.setText(_hash)
+            self.cpv.setCursorPosition(0)
+            if _hash:
+                self.checkpoint_height = height
+                self.checkpoint_value = _hash
+        self.cph.editingFinished.connect(on_cph)
+
+        msg =  ' '.join([
+            _("Electrum connects to several nodes in order to download block headers and find out the longest blockchain."),
+            _("This blockchain is used to verify the transactions sent by your transaction server.")
+        ])
+        grid.addWidget(QLabel(_('Status') + ':'), 0, 0)
+        grid.addWidget(QLabel(status), 0, 1, 1, 3)
+        grid.addWidget(HelpButton(msg), 0, 4)
+        msg = _('This is the height of your local copy of the blockchain.')
+        grid.addWidget(QLabel(_("Height") + ':'), 1, 0)
+        grid.addWidget(QLabel(height_str), 1, 1)
+        grid.addWidget(HelpButton(msg), 1, 4)
+        msg = ''.join([
+            _('A checkpoint can be used to verify that you are on the correct blockchain.'), ' ',
+            _('By default, your checkpoint is the genesis block.'), '\n\n',
+            _('If you edit the height field, the corresponding block hash will be fetched from your current server.'), ' ',
+            _('If you press OK, the checkpoint will be saved, and Electrum will only accept headers from nodes that pass this checkpoint.'), '\n\n',
+            _('If there is a hard fork, you will have to check the block hash from an independent source, in order to be sure that you are on the desired side of the fork.'),
+        ])
+        grid.addWidget(QLabel(_('Checkpoint') +':'), 3, 0, 1, 2)
+        grid.addWidget(HelpButton(msg), 3, 4)
+        grid.addWidget(self.cph_label, 4, 0)
+        grid.addWidget(self.cph, 4, 1)
+        grid.addWidget(self.cpv_label, 5, 0)
+        grid.addWidget(self.cpv, 5, 1, 1, 4)
+        grid.setRowStretch(7, 1)
+        vbox = QVBoxLayout()
+        vbox.addWidget(tabs)
         self.layout_ = vbox
+        # tor detector
         self.td = td = TorDetector()
         td.found_proxy.connect(self.suggest_proxy)
         td.start()
+        self.change_server(host, protocol)
+        self.set_protocol(protocol)
+        self.servers_list_widget.connect(
+            self.servers_list_widget,
+            SIGNAL('currentItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)'),
+            lambda x,y: self.server_changed(x))
 
     def layout(self):
         return self.layout_
@@ -209,7 +272,6 @@ class NetworkChoiceLayout(object):
             if d.get(self.protocol):
                 pruning_level = d.get('pruning','')
                 self.servers_list_widget.addTopLevelItem(QTreeWidgetItem( [ _host, pruning_level ] ))
-
 
     def set_protocol(self, protocol):
         if protocol != self.protocol:
@@ -275,31 +337,33 @@ class NetworkChoiceLayout(object):
         auto_connect = self.autoconnect_cb.isChecked()
 
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
+        self.config.set_key('checkpoint_height', self.checkpoint_height)
+        self.config.set_key('checkpoint_value', self.checkpoint_value)
 
     def suggest_proxy(self, found_proxy):
         self.tor_proxy = found_proxy
-        self.tor_button.setText("Use Tor proxy at port " + str(found_proxy[1]))
+        self.tor_cb.setText("Use Tor proxy at port " + str(found_proxy[1]))
         if self.proxy_mode.currentIndex() == 2 \
             and self.proxy_host.text() == "127.0.0.1" \
                 and self.proxy_port.text() == str(found_proxy[1]):
-            self.tor_button.setChecked(True)
-        self.tor_button.show()
+            self.tor_cb.setChecked(True)
+        self.tor_cb.show()
 
     def use_tor_proxy(self, use_it):
         # 2 = SOCKS5
         if not use_it:
             self.proxy_mode.setCurrentIndex(0)
-            self.tor_button.setChecked(False)
+            self.tor_cb.setChecked(False)
         else:
             self.proxy_mode.setCurrentIndex(2)
             self.proxy_host.setText("127.0.0.1")
             self.proxy_port.setText(str(self.tor_proxy[1]))
             self.proxy_user.setText("")
             self.proxy_password.setText("")
-            self.tor_button.setChecked(True)
+            self.tor_cb.setChecked(True)
 
     def proxy_settings_changed(self):
-        self.tor_button.setChecked(False)
+        self.tor_cb.setChecked(False)
 
 
 class TorDetector(QThread):
