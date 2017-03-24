@@ -4,12 +4,12 @@
 [Desktop Entry]
 Comment=Lightweight Litecoin Client
 Exec=electrum-ltc %u
-GenericName[en_US]=Electrum-LTC
-GenericName=Electrum-LTC
+GenericName[en_US]=Litecoin Wallet
+GenericName=Litecoin Wallet
 Icon=electrum-ltc
 Name[en_US]=Electrum Litecoin Wallet
 Name=Electrum Litecoin Wallet
-Categories=Network;
+Categories=Finance;Network;
 StartupNotify=false
 Terminal=false
 Type=Application
