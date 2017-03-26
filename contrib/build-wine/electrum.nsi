@@ -104,6 +104,11 @@ FunctionEnd
 Section
   SetOutPath $INSTDIR
 
+  ;Uninstall previous version files
+  RMDir /r "$INSTDIR\*.*"
+  Delete "$DESKTOP\${PRODUCT_NAME}.lnk"
+  Delete "$SMPROGRAMS\${PRODUCT_NAME}\*.*"
+  
   ;Files to pack into the installer
   File /r "dist\electrum\*.*"
   File "..\..\icons\electrum.ico"
