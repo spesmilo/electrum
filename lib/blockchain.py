@@ -191,7 +191,7 @@ class Blockchain(util.PrintError):
             return
         self.print_error('Truncating headers file at height %d'%self.checkpoint_height)
         name = self.path()
-        f = open(name, 'rwb+')
+        f = open(name, 'rb+')
         f.seek(self.checkpoint_height * 80)
         f.truncate()
         f.close()
