@@ -185,6 +185,14 @@ class Blockchain(util.PrintError):
                 h = self.deserialize_header(h, block_height)
                 return h
 
+    def BIP9(self, height, flag):
+        v = self.read_header(height)['version']
+        return ((v & 0xE0000000) == 0x20000000) and ((v & flag) == flag)
+
+    def segwit_support(self, N=576):
+        h = self.local_height
+        return sum([self.BIP9(h-i, 2) for i in range(N)])*10000/N/100.
+
     def check_truncate_headers(self):
         checkpoint = self.read_header(self.checkpoint_height)
         if checkpoint is None:
