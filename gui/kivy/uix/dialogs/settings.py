@@ -121,10 +121,10 @@ Builder.load_string('''
                     action: partial(root.coinselect_dialog, self)
                 CardSeparator
                 SettingsItem:
-                    status: root.checkpoint_status()
-                    title: _('Checkpoint') + ': ' + self.status
-                    description: _("Configure blockchain checkpoint")
-                    action: partial(root.checkpoint_dialog, self)
+                    status: root.blockchain_status()
+                    title: _('Blockchain') + ': ' + self.status
+                    description: _("Configure checkpoints")
+                    action: partial(root.blockchain_dialog, self)
 ''')
 
 
@@ -147,7 +147,7 @@ class SettingsDialog(Factory.Popup):
         self._language_dialog = None
         self._unit_dialog = None
         self._coinselect_dialog = None
-        self._checkpoint_dialog = None
+        self._blockchain_dialog = None
 
     def update(self):
         self.wallet = self.app.wallet
@@ -191,19 +191,19 @@ class SettingsDialog(Factory.Popup):
             self._coinselect_dialog = ChoiceDialog(_('Coin selection'), choosers, chooser_name, cb)
         self._coinselect_dialog.open()
 
-    def checkpoint_status(self):
-        height, value = self.app.network.blockchain.get_checkpoint()
-        return "Block %d"% height if height else _("Genesis block")
+    def blockchain_status(self):
+        height = self.app.network.get_local_height()
+        return "%d blocks"% height
 
-    def checkpoint_dialog(self, item, dt):
+    def blockchain_dialog(self, item, dt):
         from checkpoint_dialog import CheckpointDialog
-        if self._checkpoint_dialog is None:
+        if self._blockchain_dialog is None:
             def callback(height, value):
                 if value:
                     self.app.network.blockchain.set_checkpoint(height, value)
                     item.status = self.checkpoint_status()
-            self._checkpoint_dialog = CheckpointDialog(self.app.network, callback)
-        self._checkpoint_dialog.open()
+            self._blockchain_dialog = CheckpointDialog(self.app.network, callback)
+        self._blockchain_dialog.open()
 
     def proxy_status(self):
         server, port, protocol, proxy, auto_connect = self.app.network.get_parameters()
