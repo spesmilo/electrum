@@ -37,8 +37,7 @@ class Blockchain(util.PrintError):
     def __init__(self, config, network):
         self.config = config
         self.network = network
-        self.checkpoint_height = self.config.get('checkpoint_height', 0)
-        self.checkpoint_hash = self.config.get('checkpoint_value', bitcoin.GENESIS)
+        self.checkpoint_height, self.checkpoint_hash = self.get_checkpoint()
         self.check_truncate_headers()
         self.set_local_height()
 
@@ -189,6 +188,7 @@ class Blockchain(util.PrintError):
             return
         if self.hash_header(checkpoint) == self.checkpoint_hash:
             return
+        self.print_error('checkpoint mismatch:', self.hash_header(checkpoint), self.checkpoint_hash)
         self.print_error('Truncating headers file at height %d'%self.checkpoint_height)
         name = self.path()
         f = open(name, 'rb+')
@@ -274,3 +274,15 @@ class Blockchain(util.PrintError):
         except BaseException as e:
             self.print_error('verify_chunk failed', str(e))
             return idx - 1
+
+    def get_checkpoint(self):
+        height = self.config.get('checkpoint_height', 0)
+        value = self.config.get('checkpoint_value', bitcoin.GENESIS)
+        return (height, value)
+
+    def set_checkpoint(self, height, value):
+        self.checkpoint_height = height
+        self.checkpoint_hash = value
+        self.config.set_key('checkpoint_height', height)
+        self.config.set_key('checkpoint_value', value)
+        self.check_truncate_headers()
