@@ -447,13 +447,20 @@ class Network(util.DaemonThread):
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
         proxy_str = serialize_proxy(proxy)
         server = serialize_server(host, port, protocol)
+        # sanitize parameters
+        try:
+            deserialize_server(serialize_server(host, port, protocol))
+            if proxy:
+                proxy_modes.index(proxy["mode"]) + 1
+                int(proxy['port'])
+        except:
+            return
         self.config.set_key('auto_connect', auto_connect, False)
         self.config.set_key("proxy", proxy_str, False)
         self.config.set_key("server", server, True)
         # abort if changes were not allowed by config
         if self.config.get('server') != server or self.config.get('proxy') != proxy_str:
             return
-
         self.auto_connect = auto_connect
         if self.proxy != proxy or self.protocol != protocol:
             # Restart the network defaulting to the given server

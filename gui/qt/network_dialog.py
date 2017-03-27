@@ -192,8 +192,7 @@ class NetworkChoiceLayout(object):
         n = len(network.get_interfaces())
         status = _("Connected to %d nodes.")%n if n else _("Not connected")
         height_str = "%d "%(network.get_local_height()) + _("blocks")
-        self.checkpoint_height = self.config.get('checkpoint_height', 0)
-        self.checkpoint_value = self.config.get('checkpoint_value', bitcoin.GENESIS)
+        self.checkpoint_height, self.checkpoint_value = network.blockchain.get_checkpoint()
         self.cph_label = QLabel(_('Height'))
         self.cph = QLineEdit("%d"%self.checkpoint_height)
         self.cph.setFixedWidth(80)
@@ -319,12 +318,6 @@ class NetworkChoiceLayout(object):
         host = str(self.server_host.text())
         port = str(self.server_port.text())
         protocol = 's' if self.ssl_cb.isChecked() else 't'
-        # sanitize
-        try:
-            deserialize_server(serialize_server(host, port, protocol))
-        except:
-            return
-
         if self.proxy_mode.currentText() != 'NONE':
             proxy = { 'mode':str(self.proxy_mode.currentText()).lower(),
                       'host':str(self.proxy_host.text()),
@@ -333,12 +326,9 @@ class NetworkChoiceLayout(object):
                       'password':str(self.proxy_password.text())}
         else:
             proxy = None
-
         auto_connect = self.autoconnect_cb.isChecked()
-
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
-        self.config.set_key('checkpoint_height', self.checkpoint_height)
-        self.config.set_key('checkpoint_value', self.checkpoint_value)
+        self.network.blockchain.set_checkpoint(self.checkpoint_height, self.checkpoint_value)
 
     def suggest_proxy(self, found_proxy):
         self.tor_proxy = found_proxy
