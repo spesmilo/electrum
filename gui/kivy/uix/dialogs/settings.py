@@ -97,6 +97,12 @@ Builder.load_string('''
                     action: partial(root.network_dialog, self)
                 CardSeparator
                 SettingsItem:
+                    status: root.proxy_status()
+                    title: _('Proxy') + ': ' + self.status
+                    description: _("Proxy configuration.")
+                    action: partial(root.proxy_dialog, self)
+                CardSeparator
+                SettingsItem:
                     status: 'ON' if bool(app.plugins.get('labels')) else 'OFF'
                     title: _('Labels Sync') + ': ' + self.status
                     description: _("Save and synchronize your labels.")
@@ -137,6 +143,7 @@ class SettingsDialog(Factory.Popup):
         self._fee_dialog = None
         self._rbf_dialog = None
         self._network_dialog = None
+        self._proxy_dialog = None
         self._language_dialog = None
         self._unit_dialog = None
         self._coinselect_dialog = None
@@ -195,9 +202,38 @@ class SettingsDialog(Factory.Popup):
                 if value:
                     self.app.network.blockchain.set_checkpoint(height, value)
                     item.status = self.checkpoint_status()
-
             self._checkpoint_dialog = CheckpointDialog(self.app.network, callback)
         self._checkpoint_dialog.open()
+
+    def proxy_status(self):
+        server, port, protocol, proxy, auto_connect = self.app.network.get_parameters()
+        return proxy.get('host') +':' + proxy.get('port') if proxy else _('None')
+
+    def proxy_dialog(self, item, dt):
+        if self._proxy_dialog is None:
+            server, port, protocol, proxy, auto_connect = self.app.network.get_parameters()
+            def callback(popup):
+                if popup.ids.mode.text != 'None':
+                    proxy = {
+                        'mode':popup.ids.mode.text,
+                        'host':popup.ids.host.text,
+                        'port':popup.ids.port.text,
+                        'user':popup.ids.user.text,
+                        'password':popup.ids.password.text
+                    }
+                else:
+                    proxy = None
+                self.app.network.set_parameters(server, port, protocol, proxy, auto_connect)
+                item.status = self.proxy_status()
+            popup = Builder.load_file('gui/kivy/uix/ui_screens/proxy.kv')
+            popup.ids.mode.text = proxy.get('mode') if proxy else 'None'
+            popup.ids.host.text = proxy.get('host') if proxy else ''
+            popup.ids.port.text = proxy.get('port') if proxy else ''
+            popup.ids.user.text = proxy.get('user') if proxy else ''
+            popup.ids.password.text = proxy.get('password') if proxy else ''
+            popup.on_dismiss = lambda: callback(popup)
+            self._proxy_dialog = popup
+        self._proxy_dialog.open()
 
     def network_dialog(self, item, dt):
         if self._network_dialog is None:
