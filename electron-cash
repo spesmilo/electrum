@@ -94,7 +94,7 @@ if is_local or is_android:
     imp.load_module('electroncash_gui', *imp.find_module('gui'))
     imp.load_module('electroncash_plugins', *imp.find_module('plugins'))
 
-from electroncash import bitcoin
+from electroncash import bitcoin, util
 from electroncash import SimpleConfig, Network
 from electroncash.networks import NetworkConstants
 from electroncash.wallet import Wallet, ImportedPrivkeyWallet, ImportedAddressWallet
@@ -297,8 +297,10 @@ def init_plugins(config, gui_name):
     from electroncash.plugins import Plugins
     return Plugins(config, is_local or is_android, gui_name)
 
-if __name__ == '__main__':
 
+if __name__ == '__main__':
+    # The hook will only be used in the Qt GUI right now
+    util.setup_thread_excepthook()
     # on osx, delete Process Serial Number arg generated for apps launched in Finder
     sys.argv = list(filter(lambda x: not x.startswith('-psn'), sys.argv))
 
