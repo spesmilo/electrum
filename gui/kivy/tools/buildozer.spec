@@ -35,7 +35,7 @@ requirements = hostpython2, android, openssl, pycrypto, pil, plyer, kivy==master
 
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
-presplash.filename = %(source.dir)s/icons/electrum.png
+presplash.filename = %(source.dir)s/icons/electrum_presplash.png
 
 # (str) Icon of the application
 #icon.filename = %(source.dir)s/icons/electrum_android_launcher_icon.png
