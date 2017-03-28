@@ -100,7 +100,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         BaseWizard.__init__(self, config, storage)
         QDialog.__init__(self, None)
 
-        self.setWindowTitle('Electrum  -  ' + _('Install Wizard'))
+        self.setWindowTitle('Electrum-LTC  -  ' + _('Install Wizard'))
         self.app = app
         self.config = config
 
