@@ -8,7 +8,7 @@ Popup:
         padding: '10dp'
         spacing: '10dp'
         TopLabel:
-            text: _("Electrum retrieves your transaction history from a single server. The history is then checked against blockchain headers sent by other nodes, using Simple Payment Verification (SPV).")
+            text: _("Electrum requests your transaction history from a single server. The returned history is then checked against blockchain headers sent by other nodes, using Simple Payment Verification (SPV).")
             font_size: '6pt'
         Widget:
             size_hint: 1, 0.8
@@ -21,6 +21,7 @@ Popup:
                 text: _('Host') + ':'
             TextInput:
                 id: host
+                multiline: False
                 height: '36dp'
                 size_hint_x: 3
                 size_hint_y: None
@@ -40,6 +41,7 @@ Popup:
                 text: _('Port') + ':'
             TextInput:
                 id: port
+                multiline: False
                 input_type: 'number'
                 height: '36dp'
                 size_hint_x: 3
