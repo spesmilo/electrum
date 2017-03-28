@@ -43,10 +43,11 @@ Builder.load_string('''
                 height: '36dp'
             TextInput:
                 id: height_input
+                multiline: False
+                input_type: 'number'
                 height: '36dp'
                 size_hint_y: None
                 text: '%d'%root.cp_height
-                input_type: 'number'
                 on_focus: root.on_height_str()
             TopLabel:
                 text: _('Block hash') + ':'

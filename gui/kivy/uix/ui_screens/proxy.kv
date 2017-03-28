@@ -19,6 +19,7 @@ Popup:
                 text: _('Host')
             TextInput:
                 id: host
+                multiline: False
                 height: '48dp'
                 size_hint_y: None
                 text: ''
@@ -27,6 +28,8 @@ Popup:
                 text: _('Port')
             TextInput:
                 id: port
+                multiline: False
+                input_type: 'number'
                 height: '48dp'
                 size_hint_y: None
                 text: ''
@@ -35,6 +38,7 @@ Popup:
                 text: _('Username')
             TextInput:
                 id: user
+                multiline: False
                 height: '48dp'
                 size_hint_y: None
                 text: ''
@@ -43,6 +47,8 @@ Popup:
                 text: _('Password')
             TextInput:
                 id: password
+                multiline: False
+                password: True
                 height: '48dp'
                 size_hint_y: None
                 text: ''
