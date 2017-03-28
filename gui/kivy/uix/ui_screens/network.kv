@@ -1,33 +1,57 @@
 Popup:
     id: nd
-    title: _('Network')
+    title: _('Server')
     is_connected: app.network.is_connected()
-    server: app.network.interface.host
 
     BoxLayout:
         orientation: 'vertical'
         padding: '10dp'
         spacing: '10dp'
         TopLabel:
-            text: _("Connected to %s.")%root.server if root.is_connected else _("Not connected?")
+            text: _("Electrum retrieves your transaction history from a single server. The history is then checked against blockchain headers sent by other nodes, using Simple Payment Verification (SPV).")
+            font_size: '6pt'
+        Widget:
+            size_hint: 1, 0.8
+        GridLayout:
+            cols: 3
+            Label:
+                height: '36dp'
+                size_hint_x: 1
+                size_hint_y: None
+                text: _('Host') + ':'
+            TextInput:
+                id: host
+                height: '36dp'
+                size_hint_x: 3
+                size_hint_y: None
+                text: ''
+                disabled: auto_connect.active
+            Button:
+                id: chooser
+                text:'v'
+                height: '36dp'
+                size_hint_x: 0.5
+                size_hint_y: None
+                disabled: auto_connect.active
+            Label:
+                height: '36dp'
+                size_hint_x: 1
+                size_hint_y: None
+                text: _('Port') + ':'
+            TextInput:
+                id: port
+                input_type: 'number'
+                height: '36dp'
+                size_hint_x: 3
+                size_hint_y: None
+                text: ''
+                disabled: auto_connect.active
         Widget:
             size_hint: 1, 0.1
         TopLabel:
-            text: _("Electrum retrieves your wallet information from a single server. In addition, it connects to a number of extra nodes, in order to fetch block headers. Block headers are used to verify the information sent by the address server, using Simple Payment Verification (SPV).")
+            text: _("If auto-connect is checked, your history server will be selected automatically.")
             font_size: '6pt'
-        Widget:
-            size_hint: 1, 0.1
-        GridLayout:
-            cols: 2
-            Label:
-                text: _('Server')
-            Spinner:
-                id: host
-                height: '48dp'
-                size_hint_y: None
-                text: ''
-                values: sorted(app.network.get_servers())
-                disabled: auto_connect.active
+        BoxLayout:
             Label:
                 text: _('Auto-connect')
             CheckBox:
@@ -35,12 +59,6 @@ Popup:
                 size_hint_y: None
         Widget:
             size_hint: 1, 0.1
-        TopLabel:
-            text: _("If auto-connect is checked, the address server will be selected automatically.")
-            font_size: '6pt'
-        Widget:
-            size_hint: 1, 0.1
-
         BoxLayout:
             Widget:
                 size_hint: 0.5, None
