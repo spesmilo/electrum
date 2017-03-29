@@ -485,17 +485,13 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.back_button.setText(_('Cancel'))
         self.exec_layout(clayout.layout(), title)
         r = clayout.selected_index()
-        if r == 0:
-            auto_connect = True
-        elif r == 1:
-            auto_connect = True
+        if r == 1:
             nlayout = NetworkChoiceLayout(network, self.config, wizard=True)
             if self.exec_layout(nlayout.layout()):
-                auto_connect = False
+                nlayout.accept()
         else:
-            auto_connect = True
-        network.auto_connect = auto_connect
-        self.config.set_key('auto_connect', auto_connect, True)
+            network.auto_connect = True
+            self.config.set_key('auto_connect', True, True)
 
     @wizard_dialog
     def multisig_dialog(self, run_next):

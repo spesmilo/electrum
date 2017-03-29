@@ -201,7 +201,7 @@ class SettingsDialog(Factory.Popup):
             def callback(height, value):
                 if value:
                     self.app.network.blockchain.set_checkpoint(height, value)
-                    item.status = self.checkpoint_status()
+                    item.status = self.blockchain_status()
             self._blockchain_dialog = CheckpointDialog(self.app.network, callback)
         self._blockchain_dialog.open()
 

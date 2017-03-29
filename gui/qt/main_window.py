@@ -2860,6 +2860,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def bump_fee_dialog(self, tx):
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
+        tx_label = wallet.get_label(tx.txid())
         tx_size = tx.estimated_size()
         d = WindowModalDialog(self, _('Bump Fee'))
         vbox = QVBoxLayout(d)
@@ -2893,4 +2894,4 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         if is_final:
             new_tx.set_rbf(False)
-        self.show_transaction(new_tx)
+        self.show_transaction(new_tx, desc=tx_label)
