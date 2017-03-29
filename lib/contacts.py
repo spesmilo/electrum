@@ -38,7 +38,10 @@ class Contacts(dict):
     def __init__(self, storage):
         self.storage = storage
         d = self.storage.get('contacts', {})
-        self.update(d)
+        try:
+            self.update(d)
+        except:
+            return
         # backward compatibility
         for k, v in self.items():
             _type, n = v
