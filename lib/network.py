@@ -693,6 +693,7 @@ class Network(util.DaemonThread):
     def new_interface(self, server, socket):
         self.add_recent_server(server)
         self.interfaces[server] = interface = Interface(server, socket)
+        self.queue_request('blockchain.block.get_header', [self.blockchain.checkpoint_height], interface)
         self.queue_request('blockchain.headers.subscribe', [], interface)
         if server == self.default_server:
             self.switch_to_interface(server)
@@ -774,6 +775,11 @@ class Network(util.DaemonThread):
 
     def on_get_header(self, interface, response):
         '''Handle receiving a single block header'''
+        # close connection if header does not pass checkpoint
+        if not self.blockchain.pass_checkpoint(response['result']):
+            interface.print_error("header did not pass checkpoint, dismissing interface", interface.host)
+            self.connection_down(interface.server)
+            return
         if self.blockchain.downloading_headers:
             return
         if self.bc_requests:
@@ -790,7 +796,7 @@ class Network(util.DaemonThread):
                         self.notify('updated')
                     else:
                         interface.print_error("header didn't connect, dismissing interface")
-                        interface.close()
+                        self.connection_down(interface.server)
                 else:
                     self.request_header(interface, data, next_height)
 

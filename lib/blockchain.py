@@ -54,12 +54,17 @@ class Blockchain(util.PrintError):
         t.daemon = True
         t.start()
 
+    def pass_checkpoint(self, header):
+        if header.get('block_height') != self.checkpoint_height:
+            return True
+        return self.hash_header(header) == self.checkpoint_hash
+
     def verify_header(self, header, prev_header, bits, target):
         prev_hash = self.hash_header(prev_header)
         _hash = self.hash_header(header)
         if prev_hash != header.get('prev_block_hash'):
             raise BaseException("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
-        if self.checkpoint_height == header.get('block_height') and self.checkpoint_hash != _hash:
+        if not self.pass_checkpoint(header):
             raise BaseException('failed checkpoint')
         if self.checkpoint_height == header.get('block_height'):
             self.print_error("validated checkpoint", self.checkpoint_height)
