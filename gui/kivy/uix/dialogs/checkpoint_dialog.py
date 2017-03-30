@@ -98,7 +98,8 @@ class CheckpointDialog(Factory.Popup):
         try:
             new_height = int(self.ids.height_input.text)
         except:
-            new_height = 0
+            new_height = self.cp_height
+        self.ids.height_input.text = '%d'%new_height
         if new_height == self.cp_height:
             return
         try:
