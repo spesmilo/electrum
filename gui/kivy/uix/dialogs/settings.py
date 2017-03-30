@@ -121,7 +121,7 @@ Builder.load_string('''
                     action: partial(root.coinselect_dialog, self)
                 CardSeparator
                 SettingsItem:
-                    status: root.blockchain_status()
+                    status: "%d blocks"% app.num_blocks
                     title: _('Blockchain') + ': ' + self.status
                     description: _("Configure checkpoints")
                     action: partial(root.blockchain_dialog, self)
@@ -191,17 +191,12 @@ class SettingsDialog(Factory.Popup):
             self._coinselect_dialog = ChoiceDialog(_('Coin selection'), choosers, chooser_name, cb)
         self._coinselect_dialog.open()
 
-    def blockchain_status(self):
-        height = self.app.network.get_local_height()
-        return "%d blocks"% height
-
     def blockchain_dialog(self, item, dt):
         from checkpoint_dialog import CheckpointDialog
         if self._blockchain_dialog is None:
             def callback(height, value):
                 if value:
                     self.app.network.blockchain.set_checkpoint(height, value)
-                    item.status = self.blockchain_status()
             self._blockchain_dialog = CheckpointDialog(self.app.network, callback)
         self._blockchain_dialog.open()
 

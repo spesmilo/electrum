@@ -22,11 +22,11 @@ Builder.load_string('''
         TopLabel:
             height: '48dp'
             id: bc_height
-            text: ''
+            text: _("Verified headers: %d blocks.")% app.num_blocks
         TopLabel:
             height: '48dp'
             id: bc_status
-            text: ''
+            text: _("Connected to %d nodes.")% app.num_nodes if app.num_nodes else _("Not connected?")
         Widget:
             size_hint: 1, 0.1
         TopLabel:
@@ -87,12 +87,6 @@ class CheckpointDialog(Factory.Popup):
         self.network = network
         self.cp_height, self.cp_value = self.network.blockchain.get_checkpoint()
         self.callback = callback
-
-        n_nodes = len(network.get_interfaces())
-        n_blocks = network.get_local_height()
-        self.ids.bc_height.text = _("Verified headers: %d blocks.")%n_blocks
-        self.ids.bc_status.text = _("Connected to %d nodes.")%n_nodes if n_nodes else _("Not connected?")
-
 
     def on_height_str(self):
         try:
