@@ -2894,4 +2894,4 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         if is_final:
             new_tx.set_rbf(False)
-        self.show_transaction(new_tx, desc=tx_label)
+        self.show_transaction(new_tx, tx_label)
