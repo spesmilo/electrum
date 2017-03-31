@@ -22,7 +22,7 @@ from kivy.core.window import Window
 from kivy.logger import Logger
 from kivy.utils import platform
 from kivy.properties import (OptionProperty, AliasProperty, ObjectProperty,
-                             StringProperty, ListProperty, BooleanProperty)
+                             StringProperty, ListProperty, BooleanProperty, NumericProperty)
 from kivy.cache import Cache
 from kivy.clock import Clock
 from kivy.factory import Factory
@@ -75,6 +75,8 @@ class ElectrumWindow(App):
     electrum_config = ObjectProperty(None)
 
     language = StringProperty('en')
+    num_blocks = NumericProperty(0)
+    num_nodes = NumericProperty(0)
 
     def set_URI(self, uri):
         self.switch_to('send')
@@ -532,6 +534,8 @@ class ElectrumWindow(App):
 
     def on_network(self, event, *args):
         if event == 'updated':
+            self.num_blocks = self.network.get_local_height()
+            self.num_nodes = len(self.network.get_interfaces())
             self._trigger_update_wallet()
         elif event == 'status':
             self._trigger_update_status()
