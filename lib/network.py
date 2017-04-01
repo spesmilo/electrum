@@ -679,6 +679,7 @@ class Network(util.DaemonThread):
     def new_interface(self, server, socket):
         self.add_recent_server(server)
         self.interfaces[server] = interface = Interface(server, socket)
+        interface.failed_checkpoint = False
         self.queue_request('blockchain.block.get_header', [self.blockchain.checkpoint_height], interface)
         self.queue_request('blockchain.headers.subscribe', [], interface)
         if server == self.default_server:
@@ -750,6 +751,7 @@ class Network(util.DaemonThread):
                     self.notify('updated')
                 else:
                     self.request_chunk(interface, data, idx)
+                    self.notify('updated')
 
     def request_header(self, interface, data, height):
         interface.print_error("requesting header %d" % height)
@@ -763,8 +765,11 @@ class Network(util.DaemonThread):
         '''Handle receiving a single block header'''
         # close connection if header does not pass checkpoint
         if not self.blockchain.pass_checkpoint(response['result']):
-            interface.print_error("header did not pass checkpoint, dismissing interface", interface.host)
-            self.connection_down(interface.server)
+            if interface == self.interface and not auto_connect:
+                interface.failed_checkpoint = True
+            else:
+                interface.print_error("header did not pass checkpoint, dismissing interface")
+                self.connection_down(interface.server)
             return
         if self.blockchain.downloading_headers:
             return
@@ -773,6 +778,9 @@ class Network(util.DaemonThread):
             req_height = data.get('header_height', -1)
             # Ignore unsolicited headers
             if req_if == interface and req_height == response['params'][0]:
+                if interface.failed_checkpoint:
+                    self.bc_requests.popleft()
+                    return
                 next_height = self.blockchain.connect_header(data['chain'], response['result'])
                 # If not finished, get the next header
                 if next_height in [True, False]:
