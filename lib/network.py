@@ -779,12 +779,12 @@ class Network(util.DaemonThread):
         '''Handle receiving a single block header'''
         # close connection if header does not pass checkpoint
         if not self.blockchain.pass_checkpoint(response['result']):
-            if interface == self.interface and not auto_connect:
+            if interface == self.interface and not self.auto_connect:
                 interface.failed_checkpoint = True
             else:
                 interface.print_error("header did not pass checkpoint, dismissing interface")
                 self.connection_down(interface.server)
-            return
+                return
         if self.blockchain.downloading_headers:
             return
         if self.bc_requests:
