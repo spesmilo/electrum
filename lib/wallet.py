@@ -1466,7 +1466,8 @@ class Deterministic_Wallet(Abstract_Wallet):
                 if n > nmax: nmax = n
         return nmax + 1
 
-    def create_new_address(self, for_change):
+    def create_new_address(self, for_change=False):
+        assert type(for_change) is bool
         addr_list = self.change_addresses if for_change else self.receiving_addresses
         n = len(addr_list)
         x = self.derive_pubkeys(for_change, n)
