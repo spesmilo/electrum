@@ -20,12 +20,12 @@ Electrum - Lightweight Bitcoin client
 Getting started
 ===============
 
-Electrum is a pure python application. However, if you want to use the
-Qt interface, then you need to install the Qt dependencies::
+Electrum is a pure python application. If you want to use the
+Qt interface, install the Qt dependencies::
 
     sudo apt-get install python-qt4
 
-If you downloaded the official package (tar.gz), then you can run
+If you downloaded the official package (tar.gz), you can run
 Electrum from its root directory, without installing it on your
 system; all the python dependencies are included in the 'packages'
 directory. To run Electrum from its root directory, just do::
@@ -39,7 +39,7 @@ You can also install Electrum on your system, by running this command::
 This will download and install the Python dependencies used by
 Electrum, instead of using the 'packages' directory.
 
-If you cloned the git repository, then you need to compile extra files
+If you cloned the git repository, you need to compile extra files
 before you can run Electrum. Read the next section, "Development
 Version".
 
@@ -79,7 +79,7 @@ Creating Binaries
 =================
 
 
-In order to create binaries, you must create the 'packages' directory::
+To create binaries, create the 'packages' directory::
 
     ./contrib/make_packages
 
