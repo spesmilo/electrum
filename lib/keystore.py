@@ -650,7 +650,7 @@ is_private_key = lambda x: is_xprv(x) or is_private_key_list(x)
 is_bip32_key = lambda x: is_xprv(x) or is_xpub(x)
 
 def bip44_derivation(account_id):
-    if TESTNET:
+    if bitcoin.TESTNET:
         return "m/44'/1'/%d'"% int(account_id)
     else:
         return "m/44'/2'/%d'"% int(account_id)

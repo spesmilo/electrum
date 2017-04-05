@@ -895,13 +895,19 @@ class Abstract_Wallet(PrintError):
             keypairs[pubkey] = privkey
 
         if not inputs:
-            return
+            raise BaseException(_('No inputs found. (Note that inputs need to be confirmed)'))
 
         total = sum(i.get('value') for i in inputs)
         if fee is None:
             outputs = [(TYPE_ADDRESS, recipient, total)]
             tx = Transaction.from_io(inputs, outputs)
             fee = self.estimate_fee(config, tx.estimated_size())
+
+        if total - fee < 0:
+            raise BaseException(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d'%(total, fee))
+
+        if total - fee < self.dust_threshold():
+            raise BaseException(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d\nDust Threshold: %d'%(total, fee, self.dust_threshold()))
 
         outputs = [(TYPE_ADDRESS, recipient, total - fee)]
         tx = Transaction.from_io(inputs, outputs)
@@ -1469,7 +1475,8 @@ class Deterministic_Wallet(Abstract_Wallet):
                 if n > nmax: nmax = n
         return nmax + 1
 
-    def create_new_address(self, for_change):
+    def create_new_address(self, for_change=False):
+        assert type(for_change) is bool
         addr_list = self.change_addresses if for_change else self.receiving_addresses
         n = len(addr_list)
         x = self.derive_pubkeys(for_change, n)
