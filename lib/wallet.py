@@ -901,7 +901,7 @@ class Abstract_Wallet(PrintError):
             fee = self.estimate_fee(config, tx.estimated_size())
 
         if total - fee < 0:
-            raise BaseException(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d\nDust Threshold: %d'%(total, fee))
+            raise BaseException(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d'%(total, fee))
 
         if total - fee < self.dust_threshold():
             raise BaseException(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d\nDust Threshold: %d'%(total, fee, self.dust_threshold()))
