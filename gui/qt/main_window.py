@@ -2306,9 +2306,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not d.exec_():
             return
 
-        tx = self.wallet.sweep(get_pk(), self.network, self.config, get_address(), None)
-        if not tx:
-            self.show_message(_('No inputs found. (Note that inputs need to be confirmed)'))
+        try:
+            tx = self.wallet.sweep(get_pk(), self.network, self.config, get_address(), None)
+        except BaseException as e:
+            self.show_message(str(e))
             return
         self.warn_if_watching_only()
         self.show_transaction(tx)
