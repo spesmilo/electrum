@@ -74,4 +74,6 @@ patch < portable.patch
 popd
 $PYTHON "C:/pyinstaller/pyinstaller.py" --noconfirm --ascii --name $NAME_ROOT-$VERSION-portable.exe -w deterministic.spec
 
+wine "$PYHOME\\Scripts\\pip.exe" install win_inet_pton
+
 echo "Done."
