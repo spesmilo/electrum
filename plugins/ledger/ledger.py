@@ -304,7 +304,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 pkh = bitcoin.hash_160(pubkeys[0].decode('hex')).encode('hex')
                 redeemScript = '76a9' + push_script(pkh) + '88ac'
 
-            inputs.append([txin['prev_tx'].raw, txin['prevout_n'], redeemScript, txin['prevout_hash'], signingPos ])
+            inputs.append([txin['prev_tx'].raw, txin['prevout_n'], redeemScript, txin['prevout_hash'], signingPos, txin['sequence'] ])
             inputsPaths.append(hwAddress)
             pubKeys.append(pubkeys)
 
@@ -343,21 +343,24 @@ class Ledger_KeyStore(Hardware_KeyStore):
         try:
             # Get trusted inputs from the original transactions
             for utxo in inputs:                
+                sequence = int_to_hex(utxo[5], 4)
                 if segwitTransaction:
                     txtmp = bitcoinTransaction(bytearray(utxo[0].decode('hex')))
                     tmp = utxo[3].decode('hex')[::-1].encode('hex')
                     tmp += int_to_hex(utxo[1], 4)                    
                     tmp += str(txtmp.outputs[utxo[1]].amount).encode('hex')
-                    chipInputs.append({'value' : tmp.decode('hex'), 'witness' : True})
+                    chipInputs.append({'value' : tmp.decode('hex'), 'witness' : True, 'sequence' : sequence})
                     redeemScripts.append(bytearray(utxo[2].decode('hex')))
                 elif not p2shTransaction:
                     txtmp = bitcoinTransaction(bytearray(utxo[0].decode('hex')))             
-                    chipInputs.append(self.get_client().getTrustedInput(txtmp, utxo[1]))
+                    trustedInput = self.get_client().getTrustedInput(txtmp, utxo[1])
+                    trustedInput['sequence'] = sequence
+                    chipInputs.append(trustedInput)
                     redeemScripts.append(txtmp.outputs[utxo[1]].script)                    
                 else:
                     tmp = utxo[3].decode('hex')[::-1].encode('hex')
                     tmp += int_to_hex(utxo[1], 4)
-                    chipInputs.append({'value' : tmp.decode('hex')})
+                    chipInputs.append({'value' : tmp.decode('hex'), 'sequence' : sequence})
                     redeemScripts.append(bytearray(utxo[2].decode('hex')))
 
             # Sign all inputs
