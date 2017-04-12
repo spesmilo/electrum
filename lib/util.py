@@ -632,10 +632,19 @@ def check_www_dir(rdir):
         src = os.path.join(os.path.dirname(__file__), 'www', 'index.html')
         shutil.copy(src, index)
     files = [
-        "https://code.jquery.com/jquery-1.9.1.min.js",
-        "https://raw.githubusercontent.com/davidshimjs/qrcodejs/master/qrcode.js",
-        "https://code.jquery.com/ui/1.10.3/jquery-ui.js",
-        "https://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css"
+        "https://code.jquery.com/jquery-3.2.1.min.js"
+        "https://raw.githubusercontent.com/neocotic/qrious/master/dist/umd/qrious.min.js",
+        "https://raw.githubusercontent.com/minddust/bootstrap-progressbar/master/bootstrap-progressbar.min.js"
+        "https://raw.githubusercontent.com/minddust/bootstrap-progressbar/master/css/bootstrap-progressbar-3.3.4.min.css"
+        "https://raw.githubusercontent.com/rmm5t/jquery-timeago/master/jquery.timeago.js"
+        "https://maxcdn.bootstrapcdn.com/bootswatch/3.3.7/sandstone/bootstrap.min.css"
+        "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"
+        "https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css"
+        "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/fonts/fontawesome-webfont.eot"
+        "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/fonts/fontawesome-webfont.woff"
+        "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/fonts/fontawesome-webfont.woff2"
+        "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/fonts/fontawesome-webfont.ttf"
+        "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/fonts/fontawesome-webfont.svg"
     ]
     for URL in files:
         path = urlparse.urlsplit(URL).path
