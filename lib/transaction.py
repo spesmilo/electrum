@@ -293,6 +293,12 @@ def parse_sig(x_sig):
     return s
 
 
+def safe_parse_pubkey(x):
+    try:
+        return xpubkey_to_pubkey(x)
+    except:
+        return x
+
 
 def parse_scriptSig(d, bytes):
     try:
@@ -363,12 +369,7 @@ def parse_scriptSig(d, bytes):
         print_error("cannot find address in input script", bytes.encode('hex'))
         return
     x_pubkeys = map(lambda x: x[1].encode('hex'), dec2[1:-2])
-    def safe_parse(x):
-        try:
-            return xpubkey_to_pubkey(x)
-        except:
-            return x
-    pubkeys = [safe_parse(x) for x in x_pubkeys]
+    pubkeys = [safe_parse_pubkey(x) for x in x_pubkeys]
     redeemScript = multisig_script(pubkeys, m)
     # write result in d
     d['type'] = 'p2sh'
@@ -486,6 +487,7 @@ def get_scriptPubKey(addr):
     return script
 
 def segwit_script(pubkey):
+    pubkey = safe_parse_pubkey(pubkey)
     pkh = hash_160(pubkey.decode('hex')).encode('hex')
     return '00' + push_script(pkh)
 
