@@ -286,11 +286,10 @@ def match_decoded(decoded, to_match):
 def parse_sig(x_sig):
     s = []
     for sig in x_sig:
-        if sig[-2:] == '01':
-            s.append(sig[:-2])
-        else:
-            assert sig == NO_SIGNATURE
+        if sig == NO_SIGNATURE:
             s.append(None)
+        else:
+            s.append(sig[:-2])
     return s
 
 
@@ -364,7 +363,12 @@ def parse_scriptSig(d, bytes):
         print_error("cannot find address in input script", bytes.encode('hex'))
         return
     x_pubkeys = map(lambda x: x[1].encode('hex'), dec2[1:-2])
-    pubkeys = [xpubkey_to_pubkey(x) for x in x_pubkeys]
+    def safe_parse(x):
+        try:
+            return xpubkey_to_pubkey(x)
+        except:
+            return x
+    pubkeys = [safe_parse(x) for x in x_pubkeys]
     redeemScript = multisig_script(pubkeys, m)
     # write result in d
     d['type'] = 'p2sh'
@@ -420,6 +424,8 @@ def parse_input(vds):
         d['pubkeys'] = []
         d['signatures'] = {}
         d['address'] = None
+        d['type'] = 'unknown'
+        d['num_sig'] = 0
         if scriptSig:
             parse_scriptSig(d, scriptSig)
     return d
@@ -618,10 +624,10 @@ class Transaction:
             is_complete = len(signatures) == num_sig
             if is_complete:
                 pk_list = pubkeys
-                sig_list = [(sig + '01') for sig in signatures]
+                sig_list = signatures
             else:
                 pk_list = x_pubkeys
-                sig_list = [(sig + '01') if sig else NO_SIGNATURE for sig in x_signatures]
+                sig_list = [sig if sig else NO_SIGNATURE for sig in x_signatures]
         return pk_list, sig_list
 
     @classmethod
@@ -829,7 +835,7 @@ class Transaction:
                     public_key = private_key.get_verifying_key()
                     sig = private_key.sign_digest_deterministic(pre_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
                     assert public_key.verify_digest(sig, pre_hash, sigdecode = ecdsa.util.sigdecode_der)
-                    txin['signatures'][j] = sig.encode('hex')
+                    txin['signatures'][j] = sig.encode('hex') + '01'
                     txin['x_pubkeys'][j] = pubkey
                     self._inputs[i] = txin
         print_error("is_complete", self.is_complete())
