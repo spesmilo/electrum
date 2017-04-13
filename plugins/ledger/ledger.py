@@ -272,7 +272,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         output = None
         outputAmount = None
         p2shTransaction = False
-        segwitTransaction = True
+        segwitTransaction = False
     	reorganize = False
         pin = ""
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
