@@ -11,6 +11,7 @@ from electrum_ltc.bitcoin import TYPE_ADDRESS, int_to_hex, var_int, bc_address_t
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.keystore import Hardware_KeyStore, parse_xpubkey
+from electrum_ltc.transaction import push_script
 from ..hw_wallet import HW_PluginBase
 from electrum_ltc.util import format_satoshis_plain, print_error, is_verbose
 
@@ -181,6 +182,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
         self.force_watching_only = False
         self.signing = False
         self.cfg = d.get('cfg', {'mode':0,'pair':''})
+
+    def is_segwit(self):
+        return self.plugin.segwit
         
     def dump(self):
         obj = Hardware_KeyStore.dump(self)
@@ -278,6 +282,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         output = None
         outputAmount = None
         p2shTransaction = False
+        segwitTransaction = False
     	reorganize = False
         pin = ""
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
@@ -291,6 +296,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
             if txin['type'] in ['p2sh']:
                 p2shTransaction = True
 
+            if txin['type'] in ['p2wpkh-p2sh']:
+                segwitTransaction = True
+
             pubkeys, x_pubkeys = tx.get_sorted_pubkeys(txin)
             for i, x_pubkey in enumerate(x_pubkeys):
                 if x_pubkey in derivations:
@@ -301,7 +309,12 @@ class Ledger_KeyStore(Hardware_KeyStore):
             else:
                 self.give_error("No matching x_key for sign_transaction") # should never happen
 
-            inputs.append([txin['prev_tx'].raw, txin['prevout_n'], txin.get('redeemScript'), txin['prevout_hash'], signingPos ])
+            redeemScript = txin.get('redeemScript')
+            if segwitTransaction and not redeemScript:
+                pkh = bitcoin.hash_160(pubkeys[0].decode('hex')).encode('hex')
+                redeemScript = '76a9' + push_script(pkh) + '88ac'
+
+            inputs.append([txin['prev_tx'].raw, txin['prevout_n'], redeemScript, txin['prevout_hash'], signingPos, txin['sequence'] ])
             inputsPaths.append(hwAddress)
             pubKeys.append(pubkeys)
 
@@ -344,14 +357,24 @@ class Ledger_KeyStore(Hardware_KeyStore):
         try:
             # Get trusted inputs from the original transactions
             for utxo in inputs:                
-                if not p2shTransaction:
+                sequence = int_to_hex(utxo[5], 4)
+                if segwitTransaction:
+                    txtmp = bitcoinTransaction(bytearray(utxo[0].decode('hex')))
+                    tmp = utxo[3].decode('hex')[::-1].encode('hex')
+                    tmp += int_to_hex(utxo[1], 4)                    
+                    tmp += str(txtmp.outputs[utxo[1]].amount).encode('hex')
+                    chipInputs.append({'value' : tmp.decode('hex'), 'witness' : True, 'sequence' : sequence})
+                    redeemScripts.append(bytearray(utxo[2].decode('hex')))
+                elif not p2shTransaction:
                     txtmp = bitcoinTransaction(bytearray(utxo[0].decode('hex')))             
-                    chipInputs.append(self.get_client().getTrustedInput(txtmp, utxo[1]))
+                    trustedInput = self.get_client().getTrustedInput(txtmp, utxo[1])
+                    trustedInput['sequence'] = sequence
+                    chipInputs.append(trustedInput)
                     redeemScripts.append(txtmp.outputs[utxo[1]].script)                    
                 else:
                     tmp = utxo[3].decode('hex')[::-1].encode('hex')
                     tmp += int_to_hex(utxo[1], 4)
-                    chipInputs.append({'value' : tmp.decode('hex')})
+                    chipInputs.append({'value' : tmp.decode('hex'), 'sequence' : sequence})
                     redeemScripts.append(bytearray(utxo[2].decode('hex')))
 
             # Sign all inputs
@@ -359,19 +382,12 @@ class Ledger_KeyStore(Hardware_KeyStore):
             inputIndex = 0
             rawTx = tx.serialize()
             self.get_client().enableAlternate2fa(False)
-            while inputIndex < len(inputs):
-                self.get_client().startUntrustedTransaction(firstTransaction, inputIndex,
+            if segwitTransaction:
+                self.get_client().startUntrustedTransaction(True, inputIndex,
                                                             chipInputs, redeemScripts[inputIndex])
-                if not p2shTransaction:
-                    outputData = self.get_client().finalizeInput(output, format_satoshis_plain(outputAmount),
-                        format_satoshis_plain(tx.get_fee()), changePath, bytearray(rawTx.decode('hex')))
-                    reorganize = True
-                else:
-                    outputData = self.get_client().finalizeInputFull(txOutput)
-                    outputData['outputData'] = txOutput
-
-                if firstTransaction:
-                    transactionOutput = outputData['outputData']
+                outputData = self.get_client().finalizeInputFull(txOutput)
+                outputData['outputData'] = txOutput
+                transactionOutput = outputData['outputData']
                 if outputData['confirmationNeeded']:
                     outputData['address'] = output
                     self.handler.clear_dialog()
@@ -380,14 +396,44 @@ class Ledger_KeyStore(Hardware_KeyStore):
                         raise UserWarning()
                     if pin != 'paired':
                         self.handler.show_message(_("Confirmed. Signing Transaction..."))
-                else:
-                    # Sign input with the provided PIN
+                while inputIndex < len(inputs):                
+                    singleInput = [ chipInputs[inputIndex] ]
+                    self.get_client().startUntrustedTransaction(False, 0,
+                                                            singleInput, redeemScripts[inputIndex])
                     inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex], pin)
                     inputSignature[0] = 0x30 # force for 1.4.9+
                     signatures.append(inputSignature)
                     inputIndex = inputIndex + 1
-                if pin != 'paired':
-                    firstTransaction = False
+            else:
+                while inputIndex < len(inputs):
+                    self.get_client().startUntrustedTransaction(firstTransaction, inputIndex,
+                                                            chipInputs, redeemScripts[inputIndex])
+                    if not p2shTransaction:
+                        outputData = self.get_client().finalizeInput(output, format_satoshis_plain(outputAmount),
+                            format_satoshis_plain(tx.get_fee()), changePath, bytearray(rawTx.decode('hex')))
+                        reorganize = True
+                    else:
+                        outputData = self.get_client().finalizeInputFull(txOutput)
+                        outputData['outputData'] = txOutput
+
+                    if firstTransaction:
+                        transactionOutput = outputData['outputData']
+                    if outputData['confirmationNeeded']:
+                        outputData['address'] = output
+                        self.handler.clear_dialog()
+                        pin = self.handler.get_auth( outputData ) # does the authenticate dialog and returns pin
+                        if not pin:
+                            raise UserWarning()
+                        if pin != 'paired':
+                            self.handler.show_message(_("Confirmed. Signing Transaction..."))
+                    else:
+                        # Sign input with the provided PIN
+                        inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex], pin)
+                        inputSignature[0] = 0x30 # force for 1.4.9+
+                        signatures.append(inputSignature)
+                        inputIndex = inputIndex + 1
+                    if pin != 'paired':
+                        firstTransaction = False
         except UserWarning:
             self.handler.show_error(_('Cancelled by user'))
             return
@@ -399,22 +445,27 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
         # Reformat transaction
         inputIndex = 0
-        while inputIndex < len(inputs):
-            if p2shTransaction:
-                signaturesPack = [signatures[inputIndex]] * len(pubKeys[inputIndex])
-                inputScript = get_p2sh_input_script(redeemScripts[inputIndex], signaturesPack)
-                preparedTrustedInputs.append([ ("\x00" * 4) + chipInputs[inputIndex]['value'], inputScript ])                
-            else:
-                inputScript = get_regular_input_script(signatures[inputIndex], pubKeys[inputIndex][0].decode('hex'))
-                preparedTrustedInputs.append([ chipInputs[inputIndex]['value'], inputScript ])
-            inputIndex = inputIndex + 1
-        updatedTransaction = format_transaction(transactionOutput, preparedTrustedInputs)
-        updatedTransaction = hexlify(updatedTransaction)
-
-        if reorganize:
-           tx.update(updatedTransaction)
+        if segwitTransaction:
+            for txin in tx.inputs():
+                txin['signatures'] = [str(signatures[inputIndex][0:-1]).encode('hex')]
+                inputIndex = inputIndex + 1
         else:
-           tx.update_signatures(updatedTransaction)
+            while inputIndex < len(inputs):
+                if p2shTransaction:
+                    signaturesPack = [signatures[inputIndex]] * len(pubKeys[inputIndex])
+                    inputScript = get_p2sh_input_script(redeemScripts[inputIndex], signaturesPack)
+                    preparedTrustedInputs.append([ ("\x00" * 4) + chipInputs[inputIndex]['value'], inputScript ])                
+                else:
+                    inputScript = get_regular_input_script(signatures[inputIndex], pubKeys[inputIndex][0].decode('hex'))
+                    preparedTrustedInputs.append([ chipInputs[inputIndex]['value'], inputScript ])
+                inputIndex = inputIndex + 1
+            updatedTransaction = format_transaction(transactionOutput, preparedTrustedInputs)
+            updatedTransaction = hexlify(updatedTransaction)
+
+            if reorganize:
+                tx.update(updatedTransaction)
+            else:
+                tx.update_signatures(updatedTransaction)
         self.signing = False
 
 
@@ -432,6 +483,7 @@ class LedgerPlugin(HW_PluginBase):
                  ]
 
     def __init__(self, parent, config, name):
+        self.segwit = config.get("segwit")
         HW_PluginBase.__init__(self, parent, config, name)
         if self.libraries_available:
             self.device_manager().register_devices(self.DEVICE_IDS)
@@ -482,7 +534,6 @@ class LedgerPlugin(HW_PluginBase):
         # All client interaction should not be in the main GUI thread
         #assert self.main_thread != threading.current_thread()
         devmgr = self.device_manager()
-        handler = keystore.handler
         handler = keystore.handler
         with devmgr.hid_lock:
             client = devmgr.client_for_keystore(self, handler, keystore, force_pair)        
