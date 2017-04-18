@@ -724,10 +724,7 @@ class Transaction:
             outpoint = self.serialize_outpoint(txin)
             pubkey = txin['pubkeys'][0]
             pkh = bitcoin.hash_160(pubkey.decode('hex')).encode('hex')
-            redeemScript = '00' + push_script(pkh)
             scriptCode = push_script('76a9' + push_script(pkh) + '88ac')
-            script_hash = bitcoin.hash_160(redeemScript.decode('hex')).encode('hex')
-            scriptPubKey = 'a9' + push_script(script_hash) + '87'
             amount = int_to_hex(txin['value'], 8)
             nSequence = int_to_hex(txin.get('sequence', 0xffffffff), 4)
             preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType

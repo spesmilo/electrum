@@ -273,7 +273,6 @@ class Ledger_KeyStore(Hardware_KeyStore):
         outputAmount = None
         p2shTransaction = False
         segwitTransaction = False
-    	reorganize = False
         pin = ""
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
 
@@ -400,7 +399,6 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     if not p2shTransaction:
                         outputData = self.get_client().finalizeInput(output, format_satoshis_plain(outputAmount),
                             format_satoshis_plain(tx.get_fee()), changePath, bytearray(rawTx.decode('hex')))
-                        reorganize = True
                     else:
                         outputData = self.get_client().finalizeInputFull(txOutput)
                         outputData['outputData'] = txOutput
