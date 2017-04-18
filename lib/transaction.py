@@ -284,14 +284,7 @@ def match_decoded(decoded, to_match):
 
 
 def parse_sig(x_sig):
-    s = []
-    for sig in x_sig:
-        if sig == NO_SIGNATURE:
-            s.append(None)
-        else:
-            s.append(sig[:-2])
-    return s
-
+    return map(lambda x: None if x == NO_SIGNATURE else x, x_sig)
 
 def safe_parse_pubkey(x):
     try:
