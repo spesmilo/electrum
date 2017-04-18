@@ -11,7 +11,7 @@ from electrum_ltc.bitcoin import TYPE_ADDRESS, int_to_hex, var_int, bc_address_t
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.keystore import Hardware_KeyStore, parse_xpubkey
-from electrum_ltc.transaction import push_script
+from electrum_ltc.transaction import push_script, Transaction
 from ..hw_wallet import HW_PluginBase
 from electrum_ltc.util import format_satoshis_plain, print_error, is_verbose
 
@@ -283,7 +283,6 @@ class Ledger_KeyStore(Hardware_KeyStore):
         outputAmount = None
         p2shTransaction = False
         segwitTransaction = False
-    	reorganize = False
         pin = ""
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
 
@@ -309,12 +308,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
             else:
                 self.give_error("No matching x_key for sign_transaction") # should never happen
 
-            redeemScript = txin.get('redeemScript')
-            if segwitTransaction and not redeemScript:
-                pkh = bitcoin.hash_160(pubkeys[0].decode('hex')).encode('hex')
-                redeemScript = '76a9' + push_script(pkh) + '88ac'
-
-            inputs.append([txin['prev_tx'].raw, txin['prevout_n'], redeemScript, txin['prevout_hash'], signingPos, txin['sequence'] ])
+            redeemScript = Transaction.get_preimage_script(txin)
+            inputs.append([txin['prev_tx'].raw, txin['prevout_n'], redeemScript, txin['prevout_hash'], signingPos, txin.get('sequence', 0xffffffff) ])
             inputsPaths.append(hwAddress)
             pubKeys.append(pubkeys)
 
@@ -411,7 +406,6 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     if not p2shTransaction:
                         outputData = self.get_client().finalizeInput(output, format_satoshis_plain(outputAmount),
                             format_satoshis_plain(tx.get_fee()), changePath, bytearray(rawTx.decode('hex')))
-                        reorganize = True
                     else:
                         outputData = self.get_client().finalizeInputFull(txOutput)
                         outputData['outputData'] = txOutput
@@ -443,29 +437,10 @@ class Ledger_KeyStore(Hardware_KeyStore):
         finally:
             self.handler.clear_dialog()
 
-        # Reformat transaction
-        inputIndex = 0
-        if segwitTransaction:
-            for txin in tx.inputs():
-                txin['signatures'] = [str(signatures[inputIndex][0:-1]).encode('hex')]
-                inputIndex = inputIndex + 1
-        else:
-            while inputIndex < len(inputs):
-                if p2shTransaction:
-                    signaturesPack = [signatures[inputIndex]] * len(pubKeys[inputIndex])
-                    inputScript = get_p2sh_input_script(redeemScripts[inputIndex], signaturesPack)
-                    preparedTrustedInputs.append([ ("\x00" * 4) + chipInputs[inputIndex]['value'], inputScript ])                
-                else:
-                    inputScript = get_regular_input_script(signatures[inputIndex], pubKeys[inputIndex][0].decode('hex'))
-                    preparedTrustedInputs.append([ chipInputs[inputIndex]['value'], inputScript ])
-                inputIndex = inputIndex + 1
-            updatedTransaction = format_transaction(transactionOutput, preparedTrustedInputs)
-            updatedTransaction = hexlify(updatedTransaction)
-
-            if reorganize:
-                tx.update(updatedTransaction)
-            else:
-                tx.update_signatures(updatedTransaction)
+        for i, txin in enumerate(tx.inputs()):
+            signingPos = inputs[i][4]
+            txin['signatures'][signingPos] = str(signatures[i]).encode('hex')
+        tx.raw = tx.serialize()
         self.signing = False
 
 

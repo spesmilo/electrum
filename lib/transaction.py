@@ -675,6 +675,10 @@ class Transaction:
         elif txin['type'] == 'p2sh':
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
             return multisig_script(pubkeys, txin['num_sig'])
+        elif txin['type'] == 'p2wpkh-p2sh':
+            pubkey = txin['pubkeys'][0]
+            pkh = bitcoin.hash_160(pubkey.decode('hex')).encode('hex')
+            return '76a9' + push_script(pkh) + '88ac'
         else:
             raise TypeError('Unknown txin type', _type)
 
@@ -722,12 +726,7 @@ class Transaction:
             hashSequence = Hash(''.join(int_to_hex(txin.get('sequence', 0xffffffff), 4) for txin in inputs).decode('hex')).encode('hex')
             hashOutputs = Hash(''.join(self.serialize_output(o) for o in outputs).decode('hex')).encode('hex')
             outpoint = self.serialize_outpoint(txin)
-            pubkey = txin['pubkeys'][0]
-            pkh = bitcoin.hash_160(pubkey.decode('hex')).encode('hex')
-            redeemScript = '00' + push_script(pkh)
-            scriptCode = push_script('76a9' + push_script(pkh) + '88ac')
-            script_hash = bitcoin.hash_160(redeemScript.decode('hex')).encode('hex')
-            scriptPubKey = 'a9' + push_script(script_hash) + '87'
+            scriptCode = push_script(self.get_preimage_script(txin))
             amount = int_to_hex(txin['value'], 8)
             nSequence = int_to_hex(txin.get('sequence', 0xffffffff), 4)
             preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
