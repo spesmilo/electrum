@@ -298,14 +298,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
             else:
                 self.give_error("No matching x_key for sign_transaction") # should never happen
 
-            redeemScript = txin.get('redeemScript')
-            if not redeemScript:
-                if segwitTransaction:
-                    pkh = bitcoin.hash_160(pubkeys[0].decode('hex')).encode('hex')
-                    redeemScript = '76a9' + push_script(pkh) + '88ac'
-                elif p2shTransaction:
-                    redeemScript = Transaction.get_preimage_script(txin)
-
+            redeemScript = Transaction.get_preimage_script(txin)
             inputs.append([txin['prev_tx'].raw, txin['prevout_n'], redeemScript, txin['prevout_hash'], signingPos, txin.get('sequence', 0xffffffff) ])
             inputsPaths.append(hwAddress)
             pubKeys.append(pubkeys)
