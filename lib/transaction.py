@@ -556,7 +556,7 @@ class Transaction:
                 pre_hash = Hash(self.serialize_preimage(i).decode('hex'))
                 # der to string
                 order = ecdsa.ecdsa.generator_secp256k1.order()
-                r, s = ecdsa.util.sigdecode_der(sig.decode('hex'), order)
+                r, s = ecdsa.util.sigdecode_der(sig.decode('hex')[:-1], order)
                 sig_string = ecdsa.util.sigencode_string(r, s, order)
                 compressed = True
                 for recid in range(4):

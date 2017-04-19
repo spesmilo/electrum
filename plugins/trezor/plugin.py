@@ -240,7 +240,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         client = self.get_client(keystore)
         inputs = self.tx_inputs(tx, True)
         outputs = self.tx_outputs(keystore.get_derivation(), tx)
-        signed_tx = client.sign_tx(self.get_coin_name(), inputs, outputs)[1]
+        signed_tx = client.sign_tx(self.get_coin_name(), inputs, outputs, lock_time=tx.locktime)[1]
         raw = signed_tx.encode('hex')
         tx.update_signatures(raw)
 

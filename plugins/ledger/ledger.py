@@ -422,7 +422,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                             self.handler.show_message(_("Confirmed. Signing Transaction..."))
                     else:
                         # Sign input with the provided PIN
-                        inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex], pin)
+                        inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex], pin, lockTime=tx.locktime)
                         inputSignature[0] = 0x30 # force for 1.4.9+
                         signatures.append(inputSignature)
                         inputIndex = inputIndex + 1

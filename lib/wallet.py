@@ -446,7 +446,7 @@ class Abstract_Wallet(PrintError):
                     status = _('Unconfirmed')
                     if fee is None:
                         fee = self.tx_fees.get(tx_hash)
-                    if fee:
+                    if fee and self.network.config.has_fee_estimates():
                         size = tx.estimated_size()
                         fee_per_kb = fee * 1000 / size
                         exp_n = self.network.config.reverse_dynfee(fee_per_kb)
@@ -853,7 +853,8 @@ class Abstract_Wallet(PrintError):
 
         # Sort the inputs and outputs deterministically
         tx.BIP_LI01_sort()
-
+        # Timelock tx to current height.
+        tx.locktime = self.get_local_height()
         run_hook('make_unsigned_transaction', self, tx)
         return tx
 
