@@ -534,7 +534,7 @@ class SocketPipe:
                 raise timeout
             except ssl.SSLError:
                 raise timeout
-            except socket.error, err:
+            except socket.error as err:
                 if err.errno == 60:
                     raise timeout
                 elif err.errno in [11, 35, 10035]:
