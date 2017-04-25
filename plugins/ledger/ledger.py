@@ -7,7 +7,7 @@ import traceback
 
 import electrum_ltc as electrum
 from electrum_ltc import bitcoin
-from electrum_ltc.bitcoin import TYPE_ADDRESS, int_to_hex, var_int, bc_address_to_hash_160, hash_160_to_bc_address 
+from electrum_ltc.bitcoin import TYPE_ADDRESS, int_to_hex, var_int, bc_address_to_hash_160, hash_160_to_bc_address, ADDRTYPE_P2PKH, ADDRTYPE_P2SH, ADDRTYPE_P2SH_ALT
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.keystore import Hardware_KeyStore, parse_xpubkey
@@ -145,7 +145,7 @@ class Ledger_Client():
                 pin = pin.encode()
                 self.dongleObject.verifyPin(pin)
                 if self.canAlternateCoinVersions:
-                    self.dongleObject.setAlternateCoinVersions(48, 5)
+                    self.dongleObject.setAlternateCoinVersions(ADDRTYPE_P2PKH, ADDRTYPE_P2SH)
         except BTChipException, e:
             if (e.sw == 0x6faa):
                 raise Exception("Dongle is temporarily locked - please unplug it and replug it again")
@@ -344,7 +344,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     output = address
                     if not self.canAlternateCoinVersions:
                         v, h = bc_address_to_hash_160(address)
-                        if v == 48:
+                        if v == ADDRTYPE_P2PKH:
                             output = hash_160_to_bc_address(h, 0)
                     outputAmount = amount
 

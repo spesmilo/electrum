@@ -8,7 +8,7 @@ from functools import partial
 from electrum_ltc.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
                               public_key_to_p2pkh, EncodeBase58Check,
                               TYPE_ADDRESS, TYPE_SCRIPT,
-                              TESTNET, ADDRTYPE_P2PKH, ADDRTYPE_P2SH)
+                              TESTNET, ADDRTYPE_P2PKH, ADDRTYPE_P2SH, ADDRTYPE_P2SH_ALT)
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.transaction import deserialize, Transaction
@@ -333,7 +333,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                         script_type = self.types.PAYTOADDRESS,
                         address_n = address_n,
                     )
-                elif addrtype == ADDRTYPE_P2SH:
+                elif addrtype in [ADDRTYPE_P2SH, ADDRTYPE_P2SH_ALT]:
                     address_n = self.client_class.expand_path("/%d/%d"%index)
                     nodes = map(self.ckd_public.deserialize, xpubs)
                     pubkeys = [ self.types.HDNodePathType(node=node, address_n=address_n) for node in nodes]
@@ -355,7 +355,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                     addrtype, hash_160 = bc_address_to_hash_160(address)
                     if addrtype == ADDRTYPE_P2PKH:
                         txoutputtype.script_type = self.types.PAYTOADDRESS
-                    elif addrtype == ADDRTYPE_P2SH:
+                    elif addrtype in [ADDRTYPE_P2SH, ADDRTYPE_P2SH_ALT]:
                         txoutputtype.script_type = self.types.PAYTOSCRIPTHASH
                     else:
                         raise BaseException('addrtype')

@@ -40,7 +40,8 @@ import pyaes
 TESTNET = False
 NOLNET = False
 ADDRTYPE_P2PKH = 48
-ADDRTYPE_P2SH = 5
+ADDRTYPE_P2SH = 50
+ADDRTYPE_P2SH_ALT = 5
 ADDRTYPE_P2WPKH = 6
 XPRV_HEADER = 0x0488ade4
 XPUB_HEADER = 0x0488b21e
@@ -50,13 +51,14 @@ HEADERS_URL = "https://electrum-ltc.org/blockchain_headers"
 GENESIS = "12a765e31ffd4059bada1e25190f6e98c99d9714d334efa41a195a7e7e04bfe2"
 
 def set_testnet():
-    global ADDRTYPE_P2PKH, ADDRTYPE_P2SH, ADDRTYPE_P2WPKH
-    global XPRV_HEADER, XPUB_HEADER
+    global ADDRTYPE_P2PKH, ADDRTYPE_P2SH, ADDRTYPE_P2SH_ALT, ADDRTYPE_P2WPKH
+    global XPRV_HEADER, XPUB_HEADER, XPRV_HEADER_ALT, XPUB_HEADER_ALT
     global TESTNET, HEADERS_URL
     global GENESIS
     TESTNET = True
     ADDRTYPE_P2PKH = 111
-    ADDRTYPE_P2SH = 196
+    ADDRTYPE_P2SH = 58
+    ADDRTYPE_P2SH_ALT = 196
     ADDRTYPE_P2WPKH = 3
     XPRV_HEADER = 0x04358394
     XPUB_HEADER = 0x043587cf
@@ -442,7 +444,7 @@ def is_address(addr):
         addrtype, h = bc_address_to_hash_160(addr)
     except Exception:
         return False
-    if addrtype not in [ADDRTYPE_P2PKH, ADDRTYPE_P2SH]:
+    if addrtype not in [ADDRTYPE_P2PKH, ADDRTYPE_P2SH, ADDRTYPE_P2SH_ALT]:
         return False
     return addr == hash_160_to_bc_address(h, addrtype)
 
@@ -454,7 +456,7 @@ def is_p2pkh(addr):
 def is_p2sh(addr):
     if is_address(addr):
         addrtype, h = bc_address_to_hash_160(addr)
-        return addrtype == ADDRTYPE_P2SH
+        return addrtype in [ADDRTYPE_P2SH, ADDRTYPE_P2SH_ALT]
 
 def is_private_key(key):
     try:
