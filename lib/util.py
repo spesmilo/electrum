@@ -368,6 +368,8 @@ block_explorer_info = {
                         {'tx': 'tx', 'addr': 'address'}),
     'TradeBlock.com': ('https://tradeblock.com/blockchain',
                         {'tx': 'tx', 'addr': 'address'}),
+    'BlockCypher.com': ('https://live.blockcypher.com/btc',
+                        {'tx': 'tx', 'addr': 'address'}),
     'system default': ('blockchain:',
                         {'tx': 'tx', 'addr': 'address'}),
 }
