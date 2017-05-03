@@ -20,8 +20,22 @@ Electrum - Lightweight Bitcoin client
 Getting started
 ===============
 
-Electrum is a pure python application. If you want to use the
-Qt interface, install the Qt dependencies::
+Electrum is a pure python application. Electrum is available for
+`Ubuntu and other snap supported Linux distributions
+<https://snapcraft.io/docs/core/install>`_ in the snap store and
+can be simply installed with:
+
+    snap install electrum
+
+Installing a snap is very quick. Snaps are secure. They are
+isolated with all of their dependencies. Snaps also auto update
+when a new version is released.
+
+Tarball
+-------
+
+If you want to use the Qt interface, install the Qt
+dependencies::
 
     sudo apt-get install python-qt4
 
