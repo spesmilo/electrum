@@ -197,7 +197,7 @@ class OKCoin(ExchangeBase):
 class MercadoBitcoin(ExchangeBase):
     def get_rates(self,ccy):
         json = self.get_json('mercadobitcoin.net',
-                                "/api/ticker_litecoin")
+                                "/api/v2/ticker_litecoin")
         return {'BRL': Decimal(json['ticker']['last'])}
 
     def history_ccys(self):
