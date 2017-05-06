@@ -1,0 +1,4 @@
+Copyright (c) 2010-2011, Jeff Bell [www.randombell.com] | [jeffbell@randombell.com].
+This font may be distributed freely however must retain this document as well as the Readme.txt file.
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is available with a FAQ at: http://scripts.sil.org/OFL

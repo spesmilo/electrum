@@ -1,254 +1,283 @@
 #!/usr/bin/env python
 #
 # Electrum - lightweight Bitcoin client
-# Copyright (C) 2014 Thomas Voegtlin
+# Copyright (C) 2015 Thomas Voegtlin
 #
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
-import socket
-import time
-import sys
+import ast
 import os
-import threading
-import traceback
-import json
-import Queue
-from collections import defaultdict
+import sys
+import time
 
-import util
+import jsonrpclib
+from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCRequestHandler
+
+from version import ELECTRUM_VERSION
 from network import Network
-from util import print_error, print_stderr, parse_json
+from util import json_decode, DaemonThread
+from util import print_msg, print_error, print_stderr, UserCancelled
+from wallet import Wallet
+from storage import WalletStorage
+from commands import known_commands, Commands
 from simple_config import SimpleConfig
+from plugins import run_hook
+from exchange_rate import FxThread
 
-DAEMON_SOCKET = 'daemon.sock'
+def get_lockfile(config):
+    return os.path.join(config.path, 'daemon')
 
+def remove_lockfile(lockfile):
+    os.unlink(lockfile)
 
-def do_start_daemon(config):
-    import subprocess
-    args = [sys.executable, __file__, config.path]
-    logfile = open(os.path.join(config.path, 'daemon.log'),'w')
-    p = subprocess.Popen(args, stderr=logfile, stdout=logfile, close_fds=(os.name=="posix"))
-    print_stderr("starting daemon (PID %d)"%p.pid)
-
-
-
-def get_daemon(config, start_daemon):
-    import socket
-    daemon_socket = os.path.join(config.path, DAEMON_SOCKET)
-    daemon_started = False
+def get_fd_or_server(config):
+    '''Tries to create the lockfile, using O_EXCL to
+    prevent races.  If it succeeds it returns the FD.
+    Otherwise try and connect to the server specified in the lockfile.
+    If this succeeds, the server is returned.  Otherwise remove the
+    lockfile and try again.'''
+    lockfile = get_lockfile(config)
     while True:
         try:
-            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            s.connect(daemon_socket)
-            return s
-        except socket.error:
-            if not start_daemon:
-                return False
-            elif not daemon_started:
-                do_start_daemon(config)
-                daemon_started = True
-            else:
-                time.sleep(0.1)
-        except:
-            # do not use daemon if AF_UNIX is not available (windows)
-            return False
+            return os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY), None
+        except OSError:
+            pass
+        server = get_server(config)
+        if server is not None:
+            return None, server
+        # Couldn't connect; remove lockfile and try again.
+        remove_lockfile(lockfile)
 
-
-
-class ClientThread(util.DaemonThread):
-
-    def __init__(self, server, s):
-        util.DaemonThread.__init__(self)
-        self.server = server
-        self.client_pipe = util.SocketPipe(s)
-        self.response_queue = Queue.Queue()
-        self.server.add_client(self)
-        self.subscriptions = defaultdict(list)
-
-    def reading_thread(self):
-        while self.is_running():
-            try:
-                request = self.client_pipe.get()
-            except util.timeout:
-                continue
-            if request is None:
-                self.running = False
-                break
-            method = request.get('method')
-            params = request.get('params')
-            if method == 'daemon.stop':
-                self.server.stop()
-                continue
-            if method[-10:] == '.subscribe':
-                self.subscriptions[method].append(params)
-            self.server.send_request(self, request)
-
-    def run(self):
-        threading.Thread(target=self.reading_thread).start()
-        while self.is_running():
-            try:
-                response = self.response_queue.get(timeout=0.1)
-            except Queue.Empty:
-                continue
-            try:
-                self.client_pipe.send(response)
-            except socket.error:
-                self.running = False
-                break
-        self.server.remove_client(self)
-
-
-
-
-
-class NetworkServer(util.DaemonThread):
-
-    def __init__(self, config):
-        util.DaemonThread.__init__(self)
-        self.debug = False
-        self.config = config
-        self.pipe = util.QueuePipe()
-        self.network = Network(self.pipe, config)
-        self.lock = threading.RLock()
-        # each GUI is a client of the daemon
-        self.clients = []
-        self.request_id = 0
-        self.requests = {}
-
-    def add_client(self, client):
-        for key in ['fee', 'status', 'banner', 'updated', 'servers', 'interfaces']:
-            value = self.network.get_status_value(key)
-            client.response_queue.put({'method':'network.status', 'params':[key, value]})
-        with self.lock:
-            self.clients.append(client)
-            print_error("new client:", len(self.clients))
-
-    def remove_client(self, client):
-        with self.lock:
-            self.clients.remove(client)
-            print_error("client quit:", len(self.clients))
-
-    def send_request(self, client, request):
-        with self.lock:
-            self.request_id += 1
-            self.requests[self.request_id] = (request['id'], client)
-            request['id'] = self.request_id
-        if self.debug:
-            print_error("-->", request)
-        self.pipe.send(request)
-
-    def run(self):
-        self.network.start()
-        while self.is_running():
-            try:
-                response = self.pipe.get()
-            except util.timeout:
-                continue
-            if self.debug:
-                print_error("<--", response)
-            response_id = response.get('id')
-            if response_id:
-                with self.lock:
-                    client_id, client = self.requests.pop(response_id)
-                response['id'] = client_id
-                client.response_queue.put(response)
-            else:
-                # notification
-                m = response.get('method')
-                v = response.get('params')
-                for client in self.clients:
-                    if m == 'network.status' or v in client.subscriptions.get(m, []):
-                        client.response_queue.put(response)
-        self.network.stop()
-        print_error("server exiting")
-
-
-def daemon_loop(server):
-    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    daemon_socket = os.path.join(server.config.path, DAEMON_SOCKET)
-    if os.path.exists(daemon_socket):
-        os.remove(daemon_socket)
-    daemon_timeout = server.config.get('daemon_timeout', None)
-    s.bind(daemon_socket)
-    s.listen(5)
-    s.settimeout(1)
-    t = time.time()
-    while server.running:
+def get_server(config):
+    lockfile = get_lockfile(config)
+    while True:
+        create_time = None
         try:
-            connection, address = s.accept()
-        except socket.timeout:
-            if daemon_timeout is None:
-                continue
-            if not server.clients:
-                if time.time() - t > daemon_timeout:
-                    print_error("Daemon timeout")
-                    break
+            with open(lockfile) as f:
+                (host, port), create_time = ast.literal_eval(f.read())
+                server = jsonrpclib.Server('http://%s:%d' % (host, port))
+            # Test daemon is running
+            server.ping()
+            return server
+        except:
+            pass
+        if not create_time or create_time < time.time() - 1.0:
+            return None
+        # Sleep a bit and try again; it might have just been started
+        time.sleep(1.0)
+
+
+
+class RequestHandler(SimpleJSONRPCRequestHandler):
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.end_headers()
+
+    def end_headers(self):
+        self.send_header("Access-Control-Allow-Headers",
+                         "Origin, X-Requested-With, Content-Type, Accept")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        SimpleJSONRPCRequestHandler.end_headers(self)
+
+
+class Daemon(DaemonThread):
+
+    def __init__(self, config, fd):
+        DaemonThread.__init__(self)
+        self.config = config
+        if config.get('offline'):
+            self.network = None
+            self.fx = None
+        else:
+            self.network = Network(config)
+            self.network.start()
+            self.fx = FxThread(config, self.network)
+            self.network.add_jobs([self.fx])
+
+        self.gui = None
+        self.wallets = {}
+        # Setup JSONRPC server
+        self.cmd_runner = Commands(self.config, None, self.network)
+        self.init_server(config, fd)
+
+    def init_server(self, config, fd):
+        host = config.get('rpchost', '127.0.0.1')
+        port = config.get('rpcport', 0)
+        try:
+            server = SimpleJSONRPCServer((host, port), logRequests=False,
+                                         requestHandler=RequestHandler)
+        except:
+            self.print_error('Warning: cannot initialize RPC server on host', host)
+            self.server = None
+            os.close(fd)
+            return
+        os.write(fd, repr((server.socket.getsockname(), time.time())))
+        os.close(fd)
+        server.timeout = 0.1
+        for cmdname in known_commands:
+            server.register_function(getattr(self.cmd_runner, cmdname), cmdname)
+        server.register_function(self.run_cmdline, 'run_cmdline')
+        server.register_function(self.ping, 'ping')
+        server.register_function(self.run_daemon, 'daemon')
+        server.register_function(self.run_gui, 'gui')
+        self.server = server
+
+    def ping(self):
+        return True
+
+    def run_daemon(self, config_options):
+        config = SimpleConfig(config_options)
+        sub = config.get('subcommand')
+        assert sub in [None, 'start', 'stop', 'status', 'load_wallet', 'close_wallet']
+        if sub in [None, 'start']:
+            response = "Daemon already running"
+        elif sub == 'load_wallet':
+            path = config.get_wallet_path()
+            wallet = self.load_wallet(path, config.get('password'))
+            self.cmd_runner.wallet = wallet
+            response = True
+        elif sub == 'close_wallet':
+            path = config.get_wallet_path()
+            if path in self.wallets:
+                self.stop_wallet(path)
+                response = True
             else:
-                t = time.time()
-            continue
-        t = time.time()
-        client = ClientThread(server, connection)
-        client.start()
-    server.stop()
-    # sleep so that other threads can terminate cleanly
-    time.sleep(0.5)
-    print_error("Daemon exiting")
+                response = False
+        elif sub == 'status':
+            if self.network:
+                p = self.network.get_parameters()
+                response = {
+                    'path': self.network.config.path,
+                    'server': p[0],
+                    'blockchain_height': self.network.get_local_height(),
+                    'server_height': self.network.get_server_height(),
+                    'spv_nodes': len(self.network.get_interfaces()),
+                    'connected': self.network.is_connected(),
+                    'auto_connect': p[4],
+                    'version': ELECTRUM_VERSION,
+                    'wallets': {k: w.is_up_to_date()
+                                for k, w in self.wallets.items()},
+                    'fee_per_kb': self.config.fee_per_kb(),
+                }
+            else:
+                response = "Daemon offline"
+        elif sub == 'stop':
+            self.stop()
+            response = "Daemon stopped"
+        return response
 
+    def run_gui(self, config_options):
+        config = SimpleConfig(config_options)
+        if self.gui:
+            if hasattr(self.gui, 'new_window'):
+                path = config.get_wallet_path()
+                self.gui.new_window(path, config.get('url'))
+                response = "ok"
+            else:
+                response = "error: current GUI does not support multiple windows"
+        else:
+            response = "Error: Electrum is running in daemon mode. Please stop the daemon first."
+        return response
 
+    def load_wallet(self, path, password):
+        # wizard will be launched if we return
+        if path in self.wallets:
+            wallet = self.wallets[path]
+            return wallet
+        storage = WalletStorage(path)
+        if not storage.file_exists():
+            return
+        if storage.is_encrypted():
+            if not password:
+                return
+            storage.decrypt(password)
+        if storage.requires_split():
+            return
+        if storage.requires_upgrade():
+            self.print_error('upgrading wallet format')
+            storage.upgrade()
+        if storage.get_action():
+            return
+        wallet = Wallet(storage)
+        wallet.start_threads(self.network)
+        self.wallets[path] = wallet
+        return wallet
 
-def check_www_dir(rdir):
-    # rewrite index.html every time
-    import urllib, urlparse, shutil, os
-    if not os.path.exists(rdir):
-        os.mkdir(rdir)
-    index = os.path.join(rdir, 'index.html')
-    src = os.path.join(os.path.dirname(__file__), 'www', 'index.html')
-    shutil.copy(src, index)
-    files = [
-        "https://code.jquery.com/jquery-1.9.1.min.js",
-        "https://raw.githubusercontent.com/davidshimjs/qrcodejs/master/qrcode.js",
-        "https://code.jquery.com/ui/1.10.3/jquery-ui.js",
-        "https://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css"
-    ]
-    for URL in files:
-        path = urlparse.urlsplit(URL).path
-        filename = os.path.basename(path)
-        path = os.path.join(rdir, filename)
-        if not os.path.exists(path):
-            print_error("downloading ", URL)
-            urllib.urlretrieve(URL, path)
+    def add_wallet(self, wallet):
+        path = wallet.storage.path
+        self.wallets[path] = wallet
 
+    def get_wallet(self, path):
+        return self.wallets.get(path)
 
-if __name__ == '__main__':
-    import simple_config, util
-    _config = {}
-    if len(sys.argv) > 1:
-        _config['electrum_path'] = sys.argv[1]
-    config = simple_config.SimpleConfig(_config)
-    util.set_verbosity(True)
-    server = NetworkServer(config)
-    server.start()
-    if config.get('websocket_server'):
-        import websockets
-        websockets.WebSocketServer(config, server).start()
-    if config.get('requests_dir'):
-        check_www_dir(config.get('requests_dir'))
+    def stop_wallet(self, path):
+        wallet = self.wallets.pop(path)
+        wallet.stop_threads()
 
-    try:
-        daemon_loop(server)
-    except KeyboardInterrupt:
-        print "Ctrl C - Stopping daemon"
-        server.stop()
-        sys.exit(1)
+    def run_cmdline(self, config_options):
+        password = config_options.get('password')
+        new_password = config_options.get('new_password')
+        config = SimpleConfig(config_options)
+        config.fee_estimates = self.network.config.fee_estimates.copy()
+        cmdname = config.get('cmd')
+        cmd = known_commands[cmdname]
+        if cmd.requires_wallet:
+            path = config.get_wallet_path()
+            wallet = self.wallets.get(path)
+            if wallet is None:
+                return {'error': 'Wallet not open. Use "electrum daemon load_wallet"'}
+        else:
+            wallet = None
+        # arguments passed to function
+        args = map(lambda x: config.get(x), cmd.params)
+        # decode json arguments
+        args = map(json_decode, args)
+        # options
+        args += map(lambda x: config.get(x), cmd.options)
+        cmd_runner = Commands(config, wallet, self.network, password=password, new_password=new_password)
+        func = getattr(cmd_runner, cmd.name)
+        result = func(*args)
+        return result
+
+    def run(self):
+        while self.is_running():
+            self.server.handle_request() if self.server else time.sleep(0.1)
+        for k, wallet in self.wallets.items():
+            wallet.stop_threads()
+        if self.network:
+            self.print_error("shutting down network")
+            self.network.stop()
+            self.network.join()
+        self.on_stop()
+
+    def stop(self):
+        self.print_error("stopping, removing lockfile")
+        remove_lockfile(get_lockfile(self.config))
+        DaemonThread.stop(self)
+
+    def init_gui(self, config, plugins):
+        gui_name = config.get('gui', 'qt')
+        if gui_name in ['lite', 'classic']:
+            gui_name = 'qt'
+        gui = __import__('electrum_gui.' + gui_name, fromlist=['electrum_gui'])
+        self.gui = gui.ElectrumGui(config, self, plugins)
+        self.gui.main()

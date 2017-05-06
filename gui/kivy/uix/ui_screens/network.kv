@@ -1,0 +1,72 @@
+Popup:
+    id: nd
+    title: _('Server')
+    is_connected: app.network.is_connected()
+
+    BoxLayout:
+        orientation: 'vertical'
+        padding: '10dp'
+        spacing: '10dp'
+        TopLabel:
+            text: _("Electrum requests your transaction history from a single server. The returned history is then checked against blockchain headers sent by other nodes, using Simple Payment Verification (SPV).")
+            font_size: '6pt'
+        Widget:
+            size_hint: 1, 0.8
+        GridLayout:
+            cols: 3
+            Label:
+                height: '36dp'
+                size_hint_x: 1
+                size_hint_y: None
+                text: _('Host') + ':'
+            TextInput:
+                id: host
+                multiline: False
+                height: '36dp'
+                size_hint_x: 3
+                size_hint_y: None
+                text: ''
+                disabled: auto_connect.active
+            Button:
+                id: chooser
+                text:'v'
+                height: '36dp'
+                size_hint_x: 0.5
+                size_hint_y: None
+                disabled: auto_connect.active
+            Label:
+                height: '36dp'
+                size_hint_x: 1
+                size_hint_y: None
+                text: _('Port') + ':'
+            TextInput:
+                id: port
+                multiline: False
+                input_type: 'number'
+                height: '36dp'
+                size_hint_x: 3
+                size_hint_y: None
+                text: ''
+                disabled: auto_connect.active
+        Widget:
+            size_hint: 1, 0.1
+        TopLabel:
+            text: _("If auto-connect is checked, your history server will be selected automatically.")
+            font_size: '6pt'
+        BoxLayout:
+            Label:
+                text: _('Auto-connect')
+            CheckBox:
+                id: auto_connect
+                size_hint_y: None
+        Widget:
+            size_hint: 1, 0.1
+        BoxLayout:
+            Widget:
+                size_hint: 0.5, None
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('OK')
+                on_release:
+                    nd.dismiss()

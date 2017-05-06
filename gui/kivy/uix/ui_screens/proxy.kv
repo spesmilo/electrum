@@ -1,0 +1,66 @@
+Popup:
+    id: nd
+    title: _('Proxy')
+    BoxLayout:
+        orientation: 'vertical'
+        padding: '10dp'
+        spacing: '10dp'
+        GridLayout:
+            cols: 2
+            Label:
+                text: _('Proxy mode')
+            Spinner:
+                id: mode
+                height: '48dp'
+                size_hint_y: None
+                text: ''
+                values: ['None', 'socks4', 'socks5', 'http']
+            Label:
+                text: _('Host')
+            TextInput:
+                id: host
+                multiline: False
+                height: '48dp'
+                size_hint_y: None
+                text: ''
+                disabled: mode.text == 'None'
+            Label:
+                text: _('Port')
+            TextInput:
+                id: port
+                multiline: False
+                input_type: 'number'
+                height: '48dp'
+                size_hint_y: None
+                text: ''
+                disabled: mode.text == 'None'
+            Label:
+                text: _('Username')
+            TextInput:
+                id: user
+                multiline: False
+                height: '48dp'
+                size_hint_y: None
+                text: ''
+                disabled: mode.text == 'None'
+            Label:
+                text: _('Password')
+            TextInput:
+                id: password
+                multiline: False
+                password: True
+                height: '48dp'
+                size_hint_y: None
+                text: ''
+                disabled: mode.text == 'None'
+        Widget:
+            size_hint: 1, 0.1
+        BoxLayout:
+            Widget:
+                size_hint: 0.5, None
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('OK')
+                on_release:
+                    nd.dismiss()

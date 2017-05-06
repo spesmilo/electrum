@@ -3,28 +3,36 @@
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2014 Thomas Voegtlin
 #
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 
 from threading import Lock
+import hashlib
 
 from bitcoin import Hash, hash_encode
 from transaction import Transaction
-from util import print_error, print_msg
+from util import print_error, print_msg, ThreadJob
 
 
-class WalletSynchronizer():
+class Synchronizer(ThreadJob):
     '''The synchronizer keeps the wallet up-to-date with its set of
     addresses and their transactions.  It subscribes over the network
     to wallet addresses, gets the wallet to generate new addresses
@@ -46,12 +54,6 @@ class WalletSynchronizer():
         self.lock = Lock()
         self.initialize()
 
-    def print_error(self, *msg):
-        print_error("[Synchronizer]", *msg)
-
-    def print_msg(self, *msg):
-        print_msg("[Synchronizer]", *msg)
-
     def parse_response(self, response):
         if response.get('error'):
             self.print_error("response error:", response)
@@ -61,6 +63,9 @@ class WalletSynchronizer():
     def is_up_to_date(self):
         return (not self.requested_tx and not self.requested_histories
                 and not self.requested_addrs)
+
+    def release(self):
+        self.network.unsubscribe(self.addr_subscription_response)
 
     def add(self, address):
         '''This can be called from the proxy or GUI threads.'''
@@ -74,19 +79,28 @@ class WalletSynchronizer():
                        addresses)
             self.network.send(msgs, self.addr_subscription_response)
 
+    def get_status(self, h):
+        if not h:
+            return None
+        status = ''
+        for tx_hash, height in h:
+            status += tx_hash + ':%d:' % height
+        return hashlib.sha256(status).digest().encode('hex')
+
     def addr_subscription_response(self, response):
         params, result = self.parse_response(response)
         if not params:
             return
         addr = params[0]
-        if addr in self.requested_addrs:  # Notifications won't be in
-            self.requested_addrs.remove(addr)
         history = self.wallet.get_address_history(addr)
-        if self.wallet.get_status(history) != result:
+        if self.get_status(history) != result:
             if self.requested_histories.get(addr) is None:
+                self.requested_histories[addr] = result
                 self.network.send([('blockchain.address.get_history', [addr])],
                                   self.addr_history_response)
-                self.requested_histories[addr] = result
+        # remove addr from list only after it is added to requested_histories
+        if addr in self.requested_addrs:  # Notifications won't be in
+            self.requested_addrs.remove(addr)
 
     def addr_history_response(self, response):
         params, result = self.parse_response(response)
@@ -94,32 +108,35 @@ class WalletSynchronizer():
             return
         addr = params[0]
         self.print_error("receiving history", addr, len(result))
-        server_status = self.requested_histories.pop(addr)
-
-        # Check that txids are unique
+        server_status = self.requested_histories[addr]
         hashes = set(map(lambda item: item['tx_hash'], result))
+        hist = map(lambda item: (item['tx_hash'], item['height']), result)
+        # tx_fees
+        tx_fees = [(item['tx_hash'], item.get('fee')) for item in result]
+        tx_fees = dict(filter(lambda x:x[1] is not None, tx_fees))
+        # Note if the server hasn't been patched to sort the items properly
+        if hist != sorted(hist, key=lambda x:x[1]):
+            self.network.interface.print_error("serving improperly sorted address histories")
+        # Check that txids are unique
         if len(hashes) != len(result):
             self.print_error("error: server history has non-unique txids: %s"% addr)
-            return
-
         # Check that the status corresponds to what was announced
-        hist = map(lambda item: (item['tx_hash'], item['height']), result)
-        if self.wallet.get_status(hist) != server_status:
+        elif self.get_status(hist) != server_status:
             self.print_error("error: status mismatch: %s" % addr)
-            return
-
-        # Store received history
-        self.wallet.receive_history_callback(addr, hist)
-
-        # Request transactions we don't have
-        self.request_missing_txs(hist)
+        else:
+            # Store received history
+            self.wallet.receive_history_callback(addr, hist, tx_fees)
+            # Request transactions we don't have
+            self.request_missing_txs(hist)
+        # Remove request; this allows up_to_date to be True
+        self.requested_histories.pop(addr)
 
     def tx_response(self, response):
         params, result = self.parse_response(response)
         if not params:
             return
         tx_hash, tx_height = params
-        assert tx_hash == hash_encode(Hash(result.decode('hex')))
+        #assert tx_hash == hash_encode(Hash(result.decode('hex')))
         tx = Transaction(result)
         try:
             tx.deserialize()
@@ -128,9 +145,10 @@ class WalletSynchronizer():
             return
         self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
         self.requested_tx.remove((tx_hash, tx_height))
-        self.print_error("received tx:", tx_hash, len(tx.raw))
+        self.print_error("received tx %s height: %d bytes: %d" %
+                         (tx_hash, tx_height, len(tx.raw)))
         # callbacks
-        self.network.trigger_callback('new_transaction', (tx,))
+        self.network.trigger_callback('new_transaction', tx)
         if not self.requested_tx:
             self.network.trigger_callback('updated')
 
@@ -162,9 +180,9 @@ class WalletSynchronizer():
 
         if self.requested_tx:
             self.print_error("missing tx", self.requested_tx)
-        self.subscribe_to_addresses(set(self.wallet.addresses(True)))
+        self.subscribe_to_addresses(set(self.wallet.get_addresses()))
 
-    def main_loop(self):
+    def run(self):
         '''Called from the network proxy thread main loop.'''
         # 1. Create new addresses
         self.wallet.synchronize()
@@ -179,6 +197,4 @@ class WalletSynchronizer():
         up_to_date = self.is_up_to_date()
         if up_to_date != self.wallet.is_up_to_date():
             self.wallet.set_up_to_date(up_to_date)
-            if up_to_date:
-                self.wallet.save_transactions()
             self.network.trigger_callback('updated')

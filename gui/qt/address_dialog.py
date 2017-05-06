@@ -3,43 +3,39 @@
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2012 thomasv@gitorious
 #
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
-import sys, time, datetime, re, threading
-from electrum.i18n import _, set_language
-from electrum.util import print_error, print_msg
-import os.path, json, ast, traceback
-import shutil
-import StringIO
+from electrum.i18n import _
 
-
-try:
-    import PyQt4
-except Exception:
-    sys.exit("Error: Could not import PyQt4 on Linux systems, you may try 'sudo apt-get install python-qt4'")
-
+import PyQt4
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-import PyQt4.QtCore as QtCore
-
 
 from util import *
-from history_widget import HistoryWidget
+from history_list import HistoryList
 
-class AddressDialog(QDialog):
+class AddressDialog(WindowModalDialog):
 
-    def __init__(self, address, parent):
+    def __init__(self, parent, address):
+        WindowModalDialog.__init__(self, parent, _("Address"))
         self.address = address
         self.parent = parent
         self.config = parent.config
@@ -47,10 +43,7 @@ class AddressDialog(QDialog):
         self.app = parent.app
         self.saved = True
 
-        QDialog.__init__(self)
         self.setMinimumWidth(700)
-        self.setWindowTitle(_("Address"))
-        self.setModal(1)
         vbox = QVBoxLayout()
         self.setLayout(vbox)
 
@@ -62,17 +55,17 @@ class AddressDialog(QDialog):
         vbox.addWidget(self.addr_e)
 
         vbox.addWidget(QLabel(_("History")))
-        self.hw = HistoryWidget(self.parent)
+        self.hw = HistoryList(self.parent)
+        self.hw.get_domain = self.get_domain
         vbox.addWidget(self.hw)
 
         vbox.addStretch(1)
         vbox.addLayout(Buttons(CloseButton(self)))
         self.format_amount = self.parent.format_amount
+        self.hw.update()
 
-        h = self.wallet.get_history([self.address])
-        self.hw.update(h)
-
-
+    def get_domain(self):
+        return [self.address]
 
     def show_qr(self):
         text = self.address
@@ -80,6 +73,3 @@ class AddressDialog(QDialog):
             self.parent.show_qrcode(text, 'Address')
         except Exception as e:
             self.show_message(str(e))
-
-
-

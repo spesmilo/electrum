@@ -3,12 +3,12 @@
 # A simple script that connects to a server and displays block headers
 
 import time
-import electrum
+from electrum import SimpleConfig, Network
+from electrum.util import print_msg, json_encode
 
 # start network
-c = electrum.SimpleConfig()
-s = electrum.daemon.get_daemon(c,True)
-network = electrum.NetworkProxy(s,c)
+c = SimpleConfig()
+network = Network(c)
 network.start()
 
 # wait until connected
@@ -20,10 +20,9 @@ if not network.is_connected():
     sys.exit(1)
 
 # 2. send the subscription
-callback = lambda response: electrum.print_json(response.get('result'))
+callback = lambda response: print_msg(json_encode(response.get('result')))
 network.send([('blockchain.headers.subscribe',[])], callback)
 
 # 3. wait for results
 while network.is_connected():
     time.sleep(1)
-

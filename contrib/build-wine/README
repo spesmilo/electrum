@@ -1,10 +1,10 @@
 These scripts can be used for cross-compilation of Windows Electrum executables from Linux/Wine.
 
 Usage:
-1. Copy content of this directory to /build-wine.
-2. Install Wine (version 1.4 or 1.5+ works fine, 1.4.1 has bug).
-3. Run "./prepare-wine.sh", it will download all dependencies. When you'll be asked, always leave default settings and press "Next >".
-4. By running "./build-electrum.sh", sources will be packed into three separate versions to dist/ directory:
+1. Install Wine (tested with wine-1.7.18)
+2. Run "./prepare-wine.sh", it will download all dependencies. When you'll be asked, always leave default settings and press "Next >".
+3. Run "./prepare-hw.sh" to build support for hardware wallets (TREZOR)
+4. Run "./build-electrum-git.sh". Sources will be packed into three separate versions to dist/ directory:
   * Standalone compressed executable is "dist/electrum.exe"
   * Uncompressed binaries are in "dist/electrum". They're useful for comparsion with other builds.
   * NSIS-based installer of Electrum is "electrum-setup.exe"

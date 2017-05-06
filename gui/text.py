@@ -1,29 +1,32 @@
+import tty, sys
 import curses, datetime, locale
 from decimal import Decimal
-_ = lambda x:x
-from electrum.util import format_satoshis, set_verbosity
-from electrum.util import StoreDict
-from electrum.bitcoin import is_valid, COIN
+import getpass
 
+from electrum.util import format_satoshis, set_verbosity
+from electrum.bitcoin import is_valid, COIN, TYPE_ADDRESS
 from electrum import Wallet, WalletStorage
 
-import tty, sys
+_ = lambda x:x
+
 
 
 class ElectrumGui:
 
-    def __init__(self, config, network):
+    def __init__(self, config, daemon, plugins):
 
         self.config = config
-        self.network = network
+        self.network = daemon.network
         storage = WalletStorage(config.get_wallet_path())
         if not storage.file_exists:
             print "Wallet not found. try 'electrum create'"
             exit()
-
+        if storage.is_encrypted():
+            password = getpass.getpass('Password:', stream=None)
+            storage.decrypt(password)
         self.wallet = Wallet(storage)
         self.wallet.start_threads(self.network)
-        self.contacts = StoreDict(self.config, 'contacts')
+        self.contacts = self.wallet.contacts
 
         locale.setlocale(locale.LC_ALL, '')
         self.encoding = locale.getpreferredencoding()
@@ -35,6 +38,7 @@ class ElectrumGui:
         curses.use_default_colors()
         curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLUE)
         curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_CYAN)
+        curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_WHITE);
         self.stdscr.keypad(1)
         self.stdscr.border(0)
         self.maxy, self.maxx = self.stdscr.getmaxyx()
@@ -51,14 +55,11 @@ class ElectrumGui:
         self.str_amount = ""
         self.str_fee = ""
         self.history = None
-       
-        if self.network: 
-            self.network.register_callback('updated', self.update)
-            self.network.register_callback('connected', self.refresh)
-            self.network.register_callback('disconnected', self.refresh)
-            self.network.register_callback('disconnecting', self.refresh)
 
-        self.tab_names = [_("History"), _("Send"), _("Receive"), _("Contacts"), _("Wall")]
+        if self.network:
+            self.network.register_callback(self.update, ['updated'])
+
+        self.tab_names = [_("History"), _("Send"), _("Receive"), _("Addresses"), _("Contacts"), _("Banner")]
         self.num_tabs = len(self.tab_names)
 
 
@@ -73,7 +74,7 @@ class ElectrumGui:
 
     def verify_seed(self):
         pass
-    
+
     def get_string(self, y, x):
         self.set_cursor(1)
         curses.echo()
@@ -83,9 +84,9 @@ class ElectrumGui:
         self.set_cursor(0)
         return s
 
-    def update(self):
+    def update(self, event):
         self.update_history()
-        if self.tab == 0: 
+        if self.tab == 0:
             self.print_history()
         self.refresh()
 
@@ -105,20 +106,19 @@ class ElectrumGui:
         delta = (self.maxx - sum(width) - 4)/3
         format_str = "%"+"%d"%width[0]+"s"+"%"+"%d"%(width[1]+delta)+"s"+"%"+"%d"%(width[2]+delta)+"s"+"%"+"%d"%(width[3]+delta)+"s"
 
-        b = 0 
+        b = 0
         self.history = []
-
         for item in self.wallet.get_history():
-            tx_hash, conf, value, timestamp, balance = item
+            tx_hash, height, conf, timestamp, value, balance = item
             if conf:
                 try:
                     time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
                 except Exception:
                     time_str = "------"
             else:
-                time_str = 'pending'
+                time_str = 'unconfirmed'
 
-            label, is_default_label = self.wallet.get_label(tx_hash)
+            label = self.wallet.get_label(tx_hash)
             if len(label) > 40:
                 label = label[0:37] + '...'
             self.history.append( format_str%( time_str, label, format_satoshis(value, whitespaces=True), format_satoshis(balance, whitespaces=True) ) )
@@ -130,7 +130,7 @@ class ElectrumGui:
         elif self.network.is_connected():
             if not self.wallet.up_to_date:
                 msg = _("Synchronizing...")
-            else: 
+            else:
                 c, u, x =  self.wallet.get_balance()
                 msg = _("Balance")+": %f  "%(Decimal(c) / COIN)
                 if u:
@@ -139,22 +139,26 @@ class ElectrumGui:
                     msg += "  [%f unmatured]"%(Decimal(x) / COIN)
         else:
             msg = _("Not connected")
-            
+
         self.stdscr.addstr( self.maxy -1, 3, msg)
 
         for i in range(self.num_tabs):
             self.stdscr.addstr( 0, 2 + 2*i + len(''.join(self.tab_names[0:i])), ' '+self.tab_names[i]+' ', curses.A_BOLD if self.tab == i else 0)
-            
-        self.stdscr.addstr( self.maxy -1, self.maxx-30, ' '.join([_("Settings"), _("Network"), _("Quit")]))
 
+        self.stdscr.addstr(self.maxy -1, self.maxx-30, ' '.join([_("Settings"), _("Network"), _("Quit")]))
+
+    def print_receive(self):
+        addr = self.wallet.get_receiving_address()
+        self.stdscr.addstr(2, 1, "Address: "+addr)
+        self.print_qr(addr)
 
     def print_contacts(self):
         messages = map(lambda x: "%20s   %45s "%(x[0], x[1][1]), self.contacts.items())
         self.print_list(messages, "%19s  %15s "%("Key", "Value"))
 
-    def print_receive(self):
+    def print_addresses(self):
         fmt = "%-35s  %-30s"
-        messages = map(lambda addr: fmt % (addr, self.wallet.labels.get(addr,"")), self.wallet.addresses())
+        messages = map(lambda addr: fmt % (addr, self.wallet.labels.get(addr,"")), self.wallet.get_addresses())
         self.print_list(messages,   fmt % ("Address", "Label"))
 
     def print_edit_line(self, y, label, text, index, size):
@@ -174,6 +178,18 @@ class ElectrumGui:
     def print_banner(self):
         if self.network:
             self.print_list( self.network.banner.split('\n'))
+
+    def print_qr(self, data):
+        import qrcode, StringIO
+        s = StringIO.StringIO()
+        self.qr = qrcode.QRCode()
+        self.qr.add_data(data)
+        self.qr.print_ascii(out=s, invert=False)
+        msg = s.getvalue()
+        lines = msg.split('\n')
+        for i, l in enumerate(lines):
+            l = l.encode("utf-8")
+            self.stdscr.addstr(i+5, 5, l, curses.color_pair(3))
 
     def print_list(self, list, firstline = None):
         self.maxpos = len(list)
@@ -221,7 +237,7 @@ class ElectrumGui:
     def run_history_tab(self, c):
         if c == 10:
             out = self.run_popup('',["blah","foo"])
-            
+
 
     def edit_str(self, target, c, is_num=False):
         # detect backspace
@@ -246,11 +262,11 @@ class ElectrumGui:
         elif self.pos%6==5:
             if c == 10: self.do_clear()
 
-            
+
     def run_receive_tab(self, c):
         if c == 10:
             out = self.run_popup('Address', ["Edit label", "Freeze", "Prioritize"])
-            
+
     def run_contacts_tab(self, c):
         if c == 10 and self.contacts:
             out = self.run_popup('Adress', ["Copy", "Pay to", "Edit label", "Delete"]).get('button')
@@ -263,20 +279,21 @@ class ElectrumGui:
                 s = self.get_string(6 + self.pos, 18)
                 if s:
                     self.wallet.labels[address] = s
-            
+
     def run_banner_tab(self, c):
         self.show_message(repr(c))
         pass
 
-    def main(self,url):
+    def main(self):
 
         tty.setraw(sys.stdin)
         while self.tab != -1:
             self.run_tab(0, self.print_history, self.run_history_tab)
             self.run_tab(1, self.print_send_tab, self.run_send_tab)
             self.run_tab(2, self.print_receive, self.run_receive_tab)
-            self.run_tab(3, self.print_contacts, self.run_contacts_tab)
-            self.run_tab(4, self.print_banner, self.run_banner_tab)
+            self.run_tab(3, self.print_addresses, self.run_banner_tab)
+            self.run_tab(4, self.print_contacts, self.run_contacts_tab)
+            self.run_tab(5, self.print_banner, self.run_banner_tab)
 
         tty.setcbreak(sys.stdin)
         curses.nocbreak()
@@ -306,26 +323,23 @@ class ElectrumGui:
             self.show_message(_('Invalid Fee'))
             return
 
-        if self.wallet.use_encryption:
+        if self.wallet.has_password():
             password = self.password_dialog()
             if not password:
                 return
         else:
             password = None
-
         try:
-            tx = self.wallet.mktx( [(self.str_recipient, amount)], password, self.config, fee)
+            tx = self.wallet.mktx([(TYPE_ADDRESS, self.str_recipient, amount)], password, self.config, fee)
         except Exception as e:
             self.show_message(str(e))
             return
-            
-        if self.str_description: 
+
+        if self.str_description:
             self.wallet.labels[tx.hash()] = self.str_description
 
-        h = self.wallet.send_tx(tx)
         self.show_message(_("Please wait..."), getchar=False)
-        self.wallet.tx_event.wait()
-        status, msg = self.wallet.receive_tx( h, tx )
+        status, msg = self.network.broadcast(tx)
 
         if status:
             self.show_message(_('Payment sent.'))
@@ -344,16 +358,15 @@ class ElectrumGui:
         w.refresh()
         if getchar: c = self.stdscr.getch()
 
-
     def run_popup(self, title, items):
         return self.run_dialog(title, map(lambda x: {'type':'button','label':x}, items), interval=1, y_pos = self.pos+3)
 
-
     def network_dialog(self):
-        if not self.network: return
-        host, port, protocol, proxy_config, auto_connect = self.network.get_parameters()
+        if not self.network:
+            return
+        params = self.network.get_parameters()
+        host, port, protocol, proxy_config, auto_connect = params
         srv = 'auto-connect' if auto_connect else self.network.default_server
-
         out = self.run_dialog('Network', [
             {'label':'server', 'type':'str', 'value':srv},
             {'label':'proxy', 'type':'str', 'value':self.config.get('proxy', '')},
@@ -368,24 +381,15 @@ class ElectrumGui:
                     except Exception:
                         self.show_message("Error:" + server + "\nIn doubt, type \"auto-connect\"")
                         return False
-
-                if out.get('proxy'):
-                    proxy = self.parse_proxy_options(out.get('proxy'))
-                else:
-                    proxy = None
-
+                proxy = self.parse_proxy_options(out.get('proxy')) if out.get('proxy') else None
                 self.network.set_parameters(host, port, protocol, proxy, auto_connect)
-                
-
 
     def settings_dialog(self):
+        fee = str(Decimal(self.wallet.fee_per_kb(self.config)) / COIN)
         out = self.run_dialog('Settings', [
-            {'label':'Default GUI', 'type':'list', 'choices':['classic','lite','gtk','text'], 'value':self.config.get('gui')},
-            {'label':'Default fee', 'type':'satoshis', 'value': format_satoshis(self.wallet.fee_per_kb).strip() }
+            {'label':'Default fee', 'type':'satoshis', 'value': fee }
             ], buttons = 1)
         if out:
-            if out.get('Default GUI'):
-                self.config.set_key('gui', out['Default GUI'], True)
             if out.get('Default fee'):
                 fee = int(Decimal(out['Default fee']) * COIN)
                 self.config.set_key('fee_per_kb', fee, True)
@@ -396,11 +400,11 @@ class ElectrumGui:
             {'label':'Password', 'type':'password', 'value':''}
             ], buttons = 1)
         return out.get('Password')
-        
+
 
     def run_dialog(self, title, items, interval=2, buttons=None, y_pos=3):
         self.popup_pos = 0
-        
+
         self.w = curses.newwin( 5 + len(items)*interval + (2 if buttons else 0), 50, y_pos, 5)
         w = self.w
         out = {}
@@ -439,9 +443,9 @@ class ElectrumGui:
                     w.addstr( 2+interval*i, 2, label, curses.A_REVERSE if self.popup_pos%numpos==i else 0)
 
             if buttons:
-                w.addstr( 5+interval*i, 10, "[  ok  ]",     curses.A_REVERSE if self.popup_pos%numpos==(numpos-2) else curses.color_pair(2))
+                w.addstr( 5+interval*i, 10, "[  ok  ]", curses.A_REVERSE if self.popup_pos%numpos==(numpos-2) else curses.color_pair(2))
                 w.addstr( 5+interval*i, 25, "[cancel]", curses.A_REVERSE if self.popup_pos%numpos==(numpos-1) else curses.color_pair(2))
-                
+
             w.refresh()
 
             c = self.stdscr.getch()
@@ -480,10 +484,9 @@ class ElectrumGui:
                     new_choice = choices[(j + 1)% len(choices)]
                     item['value'] = new_choice
                     out[item.get('label')] = item.get('value')
-                    
+
                 elif _type == 'button':
                     out['button'] = item.get('label')
                     break
 
         return out
-

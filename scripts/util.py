@@ -1,71 +1,80 @@
-import time, electrum, Queue
-from electrum import Interface, SimpleConfig
+import select, time, electrum, Queue
+from electrum import Connection, Interface, SimpleConfig
 from electrum.network import filter_protocol, parse_servers
+from collections import defaultdict
 
 # electrum.util.set_verbosity(1)
+def get_interfaces(servers, timeout=10):
+    '''Returns a map of servers to connected interfaces.  If any
+    connections fail or timeout, they will be missing from the map.
+    '''
+    socket_queue = Queue.Queue()
+    config = SimpleConfig()
+    connecting = {}
+    for server in servers:
+        if server not in connecting:
+            connecting[server] = Connection(server, socket_queue, config.path)
+    interfaces = {}
+    timeout = time.time() + timeout
+    count = 0
+    while time.time() < timeout and count < len(servers):
+        try:
+            server, socket = socket_queue.get(True, 0.3)
+        except Queue.Empty:
+            continue
+        if socket:
+            interfaces[server] = Interface(server, socket)
+        count += 1
+    return interfaces
+
+def wait_on_interfaces(interfaces, timeout=10):
+    '''Return a map of servers to a list of (request, response) tuples.
+    Waits timeout seconds, or until each interface has a response'''
+    result = defaultdict(list)
+    timeout = time.time() + timeout
+    while len(result) < len(interfaces) and time.time() < timeout:
+        rin = [i for i in interfaces.values()]
+        win = [i for i in interfaces.values() if i.unsent_requests]
+        rout, wout, xout = select.select(rin, win, [], 1)
+        for interface in wout:
+            interface.send_requests()
+        for interface in rout:
+            responses = interface.get_responses()
+            if responses:
+                result[interface.server].extend(responses)
+    return result
 
 def get_peers():
-    # 1. start interface and wait for connection
-    q = Queue.Queue()
-    interface = electrum.Interface('ecdsa.net:110:s', q)
-    interface.start()
-    i, r = q.get()
-    if not interface.is_connected():
-        raise BaseException("not connected")
+    peers = []
+    # 1. get connected interfaces
+    server = 'ecdsa.net:110:s'
+    interfaces = get_interfaces([server])
+    if not interfaces:
+        print "No connection to", server
+        return []
     # 2. get list of peers
-    interface.send_request({'id':0, 'method':'server.peers.subscribe','params':[]})
-    i, r = q.get(timeout=10000)
-    peers = parse_servers(r.get('result'))
-    peers = filter_protocol(peers,'s')
-    i.stop()
+    interface = interfaces[server]
+    interface.queue_request('server.peers.subscribe', [], 0)
+    responses = wait_on_interfaces(interfaces).get(server)
+    if responses:
+        response = responses[0][1]  # One response, (req, response) tuple
+        peers = parse_servers(response.get('result'))
+        peers = filter_protocol(peers,'s')
     return peers
 
-def send_request(peers, request):
+def send_request(peers, method, params):
     print "Contacting %d servers"%len(peers)
-    # start interfaces
-    q2 = Queue.Queue()
-    config = SimpleConfig()
-    interfaces = map(lambda server: Interface(server, q2, config), peers)
-    reached_servers = []
-    for i in interfaces:
-        i.start()
-    t0 = time.time()
-    while peers:
-        try:
-            i, r = q2.get(timeout=1)
-        except:
-            if time.time() - t0 > 10:
-                print "timeout"
-                break
-            else:
-                continue
-        if i.server in peers:
-            peers.remove(i.server)
-        if i.is_connected():
-            reached_servers.append(i)
-        else:
-            print "Connection failed:", i.server
-
-    print "%d servers could be reached"%len(reached_servers)
-
-    results_queue = Queue.Queue()
-    for i in reached_servers:
-        i.send_request(request, results_queue)
-    results = {}
-    t0 = time.time()
-    while reached_servers:
-        try:
-            i, r = results_queue.get(timeout=1)
-        except:
-            if time.time() - t0 > 10:
-                break
-            else:
-                continue
-        results[i.server] = r.get('result')
-        reached_servers.remove(i)
-        i.stop()
-
-    for i in reached_servers:
-        print i.server, "did not answer"
+    interfaces = get_interfaces(peers)
+    print "%d servers could be reached" % len(interfaces)
+    for peer in peers:
+        if not peer in interfaces:
+            print "Connection failed:", peer
+    for msg_id, i in enumerate(interfaces.values()):
+        i.queue_request(method, params, msg_id)
+    responses = wait_on_interfaces(interfaces)
+    for peer in interfaces:
+        if not peer in responses:
+            print peer, "did not answer"
+    results = dict(zip(responses.keys(), [t[0][1].get('result') for t in responses.values()]))
     print "%d answers"%len(results)
     return results

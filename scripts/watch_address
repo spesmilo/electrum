@@ -2,7 +2,8 @@
 
 import sys
 import time
-import electrum
+from electrum import SimpleConfig, Network
+from electrum.util import print_msg, json_encode
 
 try:
     addr = sys.argv[1]
@@ -11,9 +12,8 @@ except Exception:
     sys.exit(1)
 
 # start network
-c = electrum.SimpleConfig()
-s = electrum.daemon.get_daemon(c,True)
-network = electrum.NetworkProxy(s,c)
+c = SimpleConfig()
+network = Network(c)
 network.start()
 
 # wait until connected
@@ -25,10 +25,9 @@ if not network.is_connected():
     sys.exit(1)
 
 # 2. send the subscription
-callback = lambda response: electrum.print_json(response.get('result'))
+callback = lambda response: print_msg(json_encode(response.get('result')))
 network.send([('blockchain.address.subscribe',[addr])], callback)
 
 # 3. wait for results
 while network.is_connected():
     time.sleep(1)
-

@@ -3,18 +3,25 @@
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2014 Thomas Voegtlin
 #
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 import os
 import hmac
@@ -71,7 +78,7 @@ def is_CJK(c):
     return False
 
 
-def prepare_seed(seed):
+def normalize_text(seed):
     # normalize
     seed = unicodedata.normalize('NFKD', unicode(seed))
     # lower
@@ -90,6 +97,7 @@ filenames = {
     'es':'spanish.txt',
     'ja':'japanese.txt',
     'pt':'portuguese.txt',
+    'zh':'chinese_simplified.txt'
 }
 
 
@@ -99,8 +107,7 @@ class Mnemonic(object):
     # Mnemonic phrase uses a hash based checksum, instead of a wordlist-dependent checksum
 
     def __init__(self, lang=None):
-        if lang in [None, '']:
-            lang = i18n.language.info().get('language', 'en')
+        lang = lang or 'en'
         print_error('language', lang)
         filename = filenames.get(lang[0:2], 'english.txt')
         path = os.path.join(os.path.dirname(__file__), 'wordlist', filename)
@@ -119,7 +126,8 @@ class Mnemonic(object):
     @classmethod
     def mnemonic_to_seed(self, mnemonic, passphrase):
         PBKDF2_ROUNDS = 2048
-        mnemonic = prepare_seed(mnemonic)
+        mnemonic = normalize_text(mnemonic)
+        passphrase = normalize_text(passphrase)
         return pbkdf2.PBKDF2(mnemonic, 'electrum' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
 
     def mnemonic_encode(self, i):
@@ -130,6 +138,11 @@ class Mnemonic(object):
             i = i/n
             words.append(self.wordlist[x])
         return ' '.join(words)
+
+    def get_suggestions(self, prefix):
+        for w in self.wordlist:
+            if w.startswith(prefix):
+                yield w
 
     def mnemonic_decode(self, seed):
         n = len(self.wordlist)
@@ -146,14 +159,17 @@ class Mnemonic(object):
         i = self.mnemonic_decode(seed)
         return i % custom_entropy == 0
 
-    def make_seed(self, num_bits=128, prefix=version.SEED_PREFIX, custom_entropy=1):
-        n = int(math.ceil(math.log(custom_entropy,2)))
-        # bits of entropy used by the prefix
-        k = len(prefix)*4
-        # we add at least 16 bits
-        n_added = max(16, k + num_bits - n)
-        print_error("make_seed", prefix, "adding %d bits"%n_added)
-        my_entropy = ecdsa.util.randrange( pow(2, n_added) )
+    def make_seed(self, seed_type='standard', num_bits=132, custom_entropy=1):
+        import version
+        prefix = version.seed_prefix(seed_type)
+        # increase num_bits in order to obtain a uniform distibution for the last word
+        bpw = math.log(len(self.wordlist), 2)
+        num_bits = int(math.ceil(num_bits/bpw)) * bpw
+        # handle custom entropy; make sure we add at least 16 bits
+        n_custom = int(math.ceil(math.log(custom_entropy, 2)))
+        n = max(16, num_bits - n_custom)
+        print_error("make_seed", prefix, "adding %d bits"%n)
+        my_entropy = ecdsa.util.randrange(pow(2, n))
         nonce = 0
         while True:
             nonce += 1

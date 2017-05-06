@@ -1,14 +1,13 @@
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 
 import os
 import qrcode
 
 import electrum
-from electrum import bmp
 from electrum.i18n import _
+from util import WindowModalDialog
 
 
 class QRCodeWidget(QWidget):
@@ -83,13 +82,11 @@ class QRCodeWidget(QWidget):
 
 
 
-class QRDialog(QDialog):
+class QRDialog(WindowModalDialog):
 
     def __init__(self, data, parent=None, title = "", show_text=False):
-        QDialog.__init__(self, parent)
+        WindowModalDialog.__init__(self, parent, title)
 
-        d = self
-        d.setWindowTitle(title)
         vbox = QVBoxLayout()
         qrw = QRCodeWidget(data)
         vbox.addWidget(qrw, 1)
@@ -103,16 +100,18 @@ class QRDialog(QDialog):
 
         config = electrum.get_config()
         if config:
-            filename = os.path.join(config.path, "qrcode.bmp")
+            filename = os.path.join(config.path, "qrcode.png")
 
             def print_qr():
-                bmp.save_qrcode(qrw.qr, filename)
-                QMessageBox.information(None, _('Message'), _("QR code saved to file") + " " + filename, _('OK'))
+                p = QPixmap.grabWindow(qrw.winId())
+                p.save(filename, 'png')
+                self.show_message(_("QR code saved to file") + " " + filename)
 
             def copy_to_clipboard():
-                bmp.save_qrcode(qrw.qr, filename)
+                p = QPixmap.grabWindow(qrw.winId())
+                p.save(filename, 'png')
                 QApplication.clipboard().setImage(QImage(filename))
-                QMessageBox.information(None, _('Message'), _("QR code saved to clipboard"), _('OK'))
+                self.show_message(_("QR code copied to clipboard"))
 
             b = QPushButton(_("Copy"))
             hbox.addWidget(b)
@@ -124,8 +123,8 @@ class QRDialog(QDialog):
 
         b = QPushButton(_("Close"))
         hbox.addWidget(b)
-        b.clicked.connect(d.accept)
+        b.clicked.connect(self.accept)
         b.setDefault(True)
 
         vbox.addLayout(hbox)
-        d.setLayout(vbox)
+        self.setLayout(vbox)

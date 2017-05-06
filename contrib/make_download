@@ -1,10 +1,10 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 import sys
 import re
 import hashlib
 import os
 
-from versions import version, version_win, version_mac
+from versions import version, version_win, version_mac, version_android, version_apk
 from versions import download_template, download_page
 
 with open(download_template) as f:
@@ -13,6 +13,8 @@ with open(download_template) as f:
 string = string.replace("##VERSION##", version)
 string = string.replace("##VERSION_WIN##", version_win)
 string = string.replace("##VERSION_MAC##", version_mac)
+string = string.replace("##VERSION_ANDROID##", version_android)
+string = string.replace("##VERSION_APK##", version_apk)
 
 files = {
     'tgz': "Electrum-%s.tar.gz" % version,
@@ -24,8 +26,8 @@ files = {
 }
 
 for k, n in files.items():
-    path = "binaries/%s"%n
-    link = "https://download.electrum.org/%s"%n
+    path = "dist/%s"%n
+    link = "https://download.electrum.org/%s/%s"%(version,n)
     if not os.path.exists(path):
         os.system("wget -q %s -O %s" % (link, path))
     if not os.path.getsize(path):
@@ -49,15 +51,3 @@ with open(download_page,'w') as f:
     f.write(string)
 
 
-# android
-
-from versions import android_template, android_page
-with open(android_template) as f:
-    string = f.read()
-
-e4a_zipname = "e4a-%s.zip"%version
-string = string.replace("##VERSION##", version)
-string = string.replace("##ZIPNAME##", e4a_zipname)
-
-with open(android_page,'w') as f:
-    f.write(string)

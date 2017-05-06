@@ -3,18 +3,25 @@
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2013 ecdsa@github
 #
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -23,83 +30,7 @@ from util import *
 import re
 import math
 
-
-
-def make_password_dialog(self, wallet, msg, new_pass=True):
-
-    self.pw = QLineEdit()
-    self.pw.setEchoMode(2)
-    self.new_pw = QLineEdit()
-    self.new_pw.setEchoMode(2)
-    self.conf_pw = QLineEdit()
-    self.conf_pw.setEchoMode(2)
-
-    vbox = QVBoxLayout()
-    label = QLabel(msg)
-    label.setWordWrap(True)
-
-    grid = QGridLayout()
-    grid.setSpacing(8)
-    grid.setColumnMinimumWidth(0, 70)
-    grid.setColumnStretch(1,1)
-
-    logo = QLabel()
-    lockfile = ":icons/lock.png" if wallet and wallet.use_encryption else ":icons/unlock.png"
-    logo.setPixmap(QPixmap(lockfile).scaledToWidth(36))
-    logo.setAlignment(Qt.AlignCenter)
-
-    grid.addWidget(logo,  0, 0)
-    grid.addWidget(label, 0, 1, 1, 2)
-    vbox.addLayout(grid)
-
-    grid = QGridLayout()
-    grid.setSpacing(8)
-    grid.setColumnMinimumWidth(0, 250)
-    grid.setColumnStretch(1,1)
-
-    if wallet and wallet.use_encryption:
-        grid.addWidget(QLabel(_('Password')), 0, 0)
-        grid.addWidget(self.pw, 0, 1)
-
-    grid.addWidget(QLabel(_('New Password') if new_pass else _('Password')), 1, 0)
-    grid.addWidget(self.new_pw, 1, 1)
-
-    grid.addWidget(QLabel(_('Confirm Password')), 2, 0)
-    grid.addWidget(self.conf_pw, 2, 1)
-    vbox.addLayout(grid)
-
-    #Password Strength Label
-    self.pw_strength = QLabel()
-    grid.addWidget(self.pw_strength, 3, 0, 1, 2)
-    self.new_pw.textChanged.connect(lambda: update_password_strength(self.pw_strength, self.new_pw.text()))
-
-    vbox.addStretch(1)
-    vbox.addLayout(Buttons(CancelButton(self), OkButton(self)))
-    return vbox
-
-
-def run_password_dialog(self, wallet, parent):
-
-    if wallet and wallet.is_watching_only():
-        QMessageBox.information(parent, _('Error'), _('This is a watching-only wallet'), _('OK'))
-        return False, None, None
-
-    if not self.exec_():
-        return False, None, None
-
-    password = unicode(self.pw.text()) if wallet and wallet.use_encryption else None
-    new_password = unicode(self.new_pw.text())
-    new_password2 = unicode(self.conf_pw.text())
-
-    if new_password != new_password2:
-        QMessageBox.warning(parent, _('Error'), _('Passwords do not match'), _('OK'))
-        # Retry
-        return run_password_dialog(self, wallet, parent)
-
-    if not new_password:
-        new_password = None
-
-    return True, password, new_password
+from electrum.plugins import run_hook
 
 def check_password_strength(password):
 
@@ -118,58 +49,167 @@ def check_password_strength(password):
     return password_strength[min(3, int(score))]
 
 
-def update_password_strength(pw_strength_label,password):
-
-    '''
-    call the function check_password_strength and update the label pw_strength interactively as the user is typing the password
-    :param pw_strength_label: the label pw_strength
-    :param password: password entered in New Password text box
-    :return: None
-    '''
-    if password:
-        colors = {"Weak":"Red","Medium":"Blue","Strong":"Green", "Very Strong":"Green"}
-        strength = check_password_strength(password)
-        label = _("Password Strength")+ ": "+"<font color=" + colors[strength] + ">" + strength + "</font>"
-    else:
-        label = ""
-    pw_strength_label.setText(label)
+PW_NEW, PW_CHANGE, PW_PASSPHRASE = range(0, 3)
 
 
+class PasswordLayout(object):
 
-class PasswordDialog(QDialog):
+    titles = [_("Enter Password"), _("Change Password"), _("Enter Passphrase")]
 
-    def __init__(self, wallet, parent):
-        QDialog.__init__(self, parent)
-        self.setModal(1)
+    def __init__(self, wallet, msg, kind, OK_button):
         self.wallet = wallet
-        self.parent = parent
-        self.setWindowTitle(_("Set Password"))
-        msg = (_('Your wallet is encrypted. Use this dialog to change your password.') + ' '\
-               +_('To disable wallet encryption, enter an empty new password.')) \
-               if wallet.use_encryption else _('Your wallet keys are not encrypted')
-        self.setLayout(make_password_dialog(self, wallet, msg))
 
+        self.pw = QLineEdit()
+        self.pw.setEchoMode(2)
+        self.new_pw = QLineEdit()
+        self.new_pw.setEchoMode(2)
+        self.conf_pw = QLineEdit()
+        self.conf_pw.setEchoMode(2)
+        self.kind = kind
+        self.OK_button = OK_button
+
+        vbox = QVBoxLayout()
+        label = QLabel(msg + "\n")
+        label.setWordWrap(True)
+
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        grid.setColumnMinimumWidth(0, 150)
+        grid.setColumnMinimumWidth(1, 100)
+        grid.setColumnStretch(1,1)
+
+        if kind == PW_PASSPHRASE:
+            vbox.addWidget(label)
+            msgs = [_('Passphrase:'), _('Confirm Passphrase:')]
+        else:
+            logo_grid = QGridLayout()
+            logo_grid.setSpacing(8)
+            logo_grid.setColumnMinimumWidth(0, 70)
+            logo_grid.setColumnStretch(1,1)
+
+            logo = QLabel()
+            logo.setAlignment(Qt.AlignCenter)
+
+            logo_grid.addWidget(logo,  0, 0)
+            logo_grid.addWidget(label, 0, 1, 1, 2)
+            vbox.addLayout(logo_grid)
+
+            m1 = _('New Password:') if kind == PW_CHANGE else _('Password:')
+            msgs = [m1, _('Confirm Password:')]
+            if wallet and wallet.has_password():
+                grid.addWidget(QLabel(_('Current Password:')), 0, 0)
+                grid.addWidget(self.pw, 0, 1)
+                lockfile = ":icons/lock.png"
+            else:
+                lockfile = ":icons/unlock.png"
+            logo.setPixmap(QPixmap(lockfile).scaledToWidth(36))
+
+        grid.addWidget(QLabel(msgs[0]), 1, 0)
+        grid.addWidget(self.new_pw, 1, 1)
+
+        grid.addWidget(QLabel(msgs[1]), 2, 0)
+        grid.addWidget(self.conf_pw, 2, 1)
+        vbox.addLayout(grid)
+
+        # Password Strength Label
+        if kind != PW_PASSPHRASE:
+            self.pw_strength = QLabel()
+            grid.addWidget(self.pw_strength, 3, 0, 1, 2)
+            self.new_pw.textChanged.connect(self.pw_changed)
+
+        self.encrypt_cb = QCheckBox(_('Encrypt wallet file'))
+        self.encrypt_cb.setEnabled(False)
+        grid.addWidget(self.encrypt_cb, 4, 0, 1, 2)
+        self.encrypt_cb.setVisible(kind != PW_PASSPHRASE)
+
+        def enable_OK():
+            ok = self.new_pw.text() == self.conf_pw.text()
+            OK_button.setEnabled(ok)
+            self.encrypt_cb.setEnabled(ok and bool(self.new_pw.text()))
+        self.new_pw.textChanged.connect(enable_OK)
+        self.conf_pw.textChanged.connect(enable_OK)
+
+        self.vbox = vbox
+
+    def title(self):
+        return self.titles[self.kind]
+
+    def layout(self):
+        return self.vbox
+
+    def pw_changed(self):
+        password = self.new_pw.text()
+        if password:
+            colors = {"Weak":"Red", "Medium":"Blue", "Strong":"Green",
+                      "Very Strong":"Green"}
+            strength = check_password_strength(password)
+            label = (_("Password Strength") + ": " + "<font color="
+                     + colors[strength] + ">" + strength + "</font>")
+        else:
+            label = ""
+        self.pw_strength.setText(label)
+
+    def old_password(self):
+        if self.kind == PW_CHANGE:
+            return unicode(self.pw.text()) or None
+        return None
+
+    def new_password(self):
+        pw = unicode(self.new_pw.text())
+        # Empty passphrases are fine and returned empty.
+        if pw == "" and self.kind != PW_PASSPHRASE:
+            pw = None
+        return pw
+
+
+class ChangePasswordDialog(WindowModalDialog):
+
+    def __init__(self, parent, wallet):
+        WindowModalDialog.__init__(self, parent)
+        is_encrypted = wallet.storage.is_encrypted()
+        if not wallet.has_password():
+            msg = _('Your wallet is not protected.')
+            msg += ' ' + _('Use this dialog to add a password to your wallet.')
+        else:
+            if not is_encrypted:
+                msg = _('Your bitcoins are password protected. However, your wallet file is not encrypted.')
+            else:
+                msg = _('Your wallet is password protected and encrypted.')
+            msg += ' ' + _('Use this dialog to change your password.')
+        OK_button = OkButton(self)
+        self.playout = PasswordLayout(wallet, msg, PW_CHANGE, OK_button)
+        self.setWindowTitle(self.playout.title())
+        vbox = QVBoxLayout(self)
+        vbox.addLayout(self.playout.layout())
+        vbox.addStretch(1)
+        vbox.addLayout(Buttons(CancelButton(self), OK_button))
+        self.playout.encrypt_cb.setChecked(is_encrypted or not wallet.has_password())
 
     def run(self):
-        ok, password, new_password = run_password_dialog(self, self.wallet, self.parent)
-        if not ok:
+        if not self.exec_():
+            return False, None, None, None
+        return True, self.playout.old_password(), self.playout.new_password(), self.playout.encrypt_cb.isChecked()
+
+
+class PasswordDialog(WindowModalDialog):
+
+    def __init__(self, parent=None, msg=None):
+        msg = msg or _('Please enter your password')
+        WindowModalDialog.__init__(self, parent, _("Enter Password"))
+        self.pw = pw = QLineEdit()
+        pw.setEchoMode(2)
+        vbox = QVBoxLayout()
+        vbox.addWidget(QLabel(msg))
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        grid.addWidget(QLabel(_('Password')), 1, 0)
+        grid.addWidget(pw, 1, 1)
+        vbox.addLayout(grid)
+        vbox.addLayout(Buttons(CancelButton(self), OkButton(self)))
+        self.setLayout(vbox)
+        run_hook('password_dialog', pw, grid, 1)
+
+    def run(self):
+        if not self.exec_():
             return
-
-        try:
-            self.wallet.check_password(password)
-        except BaseException as e:
-            QMessageBox.warning(self.parent, _('Error'), str(e), _('OK'))
-            return False, None, None
-
-        try:
-            self.wallet.update_password(password, new_password)
-        except:
-            import traceback, sys
-            traceback.print_exc(file=sys.stdout)
-            QMessageBox.warning(self.parent, _('Error'), _('Failed to update password'), _('OK'))
-            return
-
-        if new_password:
-            QMessageBox.information(self.parent, _('Success'), _('Password was updated successfully'), _('OK'))
-        else:
-            QMessageBox.information(self.parent, _('Success'), _('This wallet is not encrypted'), _('OK'))
+        return unicode(self.pw.text())

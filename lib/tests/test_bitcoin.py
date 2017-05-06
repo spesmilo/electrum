@@ -3,7 +3,7 @@ import sys
 from ecdsa.util import number_to_string
 
 from lib.bitcoin import (
-    generator_secp256k1, point_to_ser, public_key_to_bc_address, EC_KEY,
+    generator_secp256k1, point_to_ser, public_key_to_p2pkh, EC_KEY,
     bip32_root, bip32_public_derivation, bip32_private_derivation, pw_encode,
     pw_decode, Hash, public_key_from_private_key, address_from_private_key,
     is_valid, is_private_key, xpub_from_xprv, is_new_seed, is_old_seed,
@@ -29,7 +29,7 @@ class Test_bitcoin(unittest.TestCase):
         Pub = pvk*G
         pubkey_c = point_to_ser(Pub,True)
         #pubkey_u = point_to_ser(Pub,False)
-        addr_c = public_key_to_bc_address(pubkey_c)
+        addr_c = public_key_to_p2pkh(pubkey_c)
         #addr_u = public_key_to_bc_address(pubkey_u)
 
         #print "Private key            ", '%064x'%pvk
@@ -45,39 +45,30 @@ class Test_bitcoin(unittest.TestCase):
         dec2 = eck.decrypt_message(enc)
         assert dec2 == message
 
-        signature = eck.sign_message(message, True, addr_c)
+        signature = eck.sign_message(message, True)
         #print signature
-        EC_KEY.verify_message(addr_c, signature, message)
+        EC_KEY.verify_message(eck, signature, message)
 
     def test_bip32(self):
         # see https://en.bitcoin.it/wiki/BIP_0032_TestVectors
-        xpub, xprv = self._do_test_bip32("000102030405060708090a0b0c0d0e0f", "m/0'/1/2'/2/1000000000", testnet=False)
+        xpub, xprv = self._do_test_bip32("000102030405060708090a0b0c0d0e0f", "m/0'/1/2'/2/1000000000")
         assert xpub == "xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy"
         assert xprv == "xprvA41z7zogVVwxVSgdKUHDy1SKmdb533PjDz7J6N6mV6uS3ze1ai8FHa8kmHScGpWmj4WggLyQjgPie1rFSruoUihUZREPSL39UNdE3BBDu76"
 
-        xpub, xprv = self._do_test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","m/0/2147483647'/1/2147483646'/2", testnet=False)
+        xpub, xprv = self._do_test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","m/0/2147483647'/1/2147483646'/2")
         assert xpub == "xpub6FnCn6nSzZAw5Tw7cgR9bi15UV96gLZhjDstkXXxvCLsUXBGXPdSnLFbdpq8p9HmGsApME5hQTZ3emM2rnY5agb9rXpVGyy3bdW6EEgAtqt"
         assert xprv == "xprvA2nrNbFZABcdryreWet9Ea4LvTJcGsqrMzxHx98MMrotbir7yrKCEXw7nadnHM8Dq38EGfSh6dqA9QWTyefMLEcBYJUuekgW4BYPJcr9E7j"
 
-    def test_bip32_testnet(self):
-        xpub, xprv = self._do_test_bip32("000102030405060708090a0b0c0d0e0f", "m/0'/1/2'/2/1000000000", testnet=True)
-        assert xpub == "tpubDHNy3kAG39ThyiwwsgoKY4iRenXDRtce8qdCFJZXPMCJg5dsCUHayp84raLTpvyiNA9sXPob5rgqkKvkN8S7MMyXbnEhGJMW64Cf4vFAoaF"
-        assert xprv == "tprv8kgvuL81tmn36Fv9z38j8f4K5m1HGZRjZY2QxnXDy5PuqbP6a5TzoKWCgTcGHBu66W3TgSbAu2yX6sPza5FkHmy564Sh6gmCPUNeUt4yj2x"
-
-        xpub, xprv = self._do_test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","m/0/2147483647'/1/2147483646'/2", testnet=True)
-        assert xpub == "tpubDG9qJLc8hq8PMG7y4sQEodLSocEkfj4mGrUC75b7G76mDoqybcUXvmvRsruvLeF14mhixobZwZP6LwqeFePKU83Sv8ZnxWdHBb6VzE6zbvC"
-        assert xprv == "tprv8jTo9vZtZTSiTo6BBDjeQDgLEaipWPsrhYsQpZYoqqJNPKbCyDewkHJZhkoSHiWYCUf1Gm4TFzQxcG4D6s1J9Hsn4whDK7QYyHHokJeUuac"
-
-    def _do_test_bip32(self, seed, sequence, testnet):
-        xprv, xpub = bip32_root(seed.decode('hex'), testnet)
+    def _do_test_bip32(self, seed, sequence):
+        xprv, xpub = bip32_root(seed.decode('hex'), 0)
         assert sequence[0:2] == "m/"
         path = 'm'
         sequence = sequence[2:]
         for n in sequence.split('/'):
             child_path = path + '/' + n
             if n[-1] != "'":
-                xpub2 = bip32_public_derivation(xpub, path, child_path, testnet)
-            xprv, xpub = bip32_private_derivation(xprv, path, child_path, testnet)
+                xpub2 = bip32_public_derivation(xpub, path, child_path)
+            xprv, xpub = bip32_private_derivation(xprv, path, child_path)
             if n[-1] != "'":
                 assert xpub == xpub2
             path = child_path
@@ -127,13 +118,6 @@ class Test_bitcoin(unittest.TestCase):
         xprv = "xprvA41z7zogVVwxVSgdKUHDy1SKmdb533PjDz7J6N6mV6uS3ze1ai8FHa8kmHScGpWmj4WggLyQjgPie1rFSruoUihUZREPSL39UNdE3BBDu76"
 
         result = xpub_from_xprv(xprv)
-        self.assertEqual(result, xpub)
-
-    def test_xpub_from_xprv_testnet(self):
-        """We can derive the xpub key from a xprv using testnet headers."""
-        xpub = "tpubDHNy3kAG39ThyiwwsgoKY4iRenXDRtce8qdCFJZXPMCJg5dsCUHayp84raLTpvyiNA9sXPob5rgqkKvkN8S7MMyXbnEhGJMW64Cf4vFAoaF"
-        xprv = "tprv8kgvuL81tmn36Fv9z38j8f4K5m1HGZRjZY2QxnXDy5PuqbP6a5TzoKWCgTcGHBu66W3TgSbAu2yX6sPza5FkHmy564Sh6gmCPUNeUt4yj2x"
-        result = xpub_from_xprv(xprv, testnet=True)
         self.assertEqual(result, xpub)
 
     def test_var_int(self):

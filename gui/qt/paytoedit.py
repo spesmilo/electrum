@@ -3,18 +3,25 @@
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2012 thomasv@gitorious
 #
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
@@ -53,12 +60,6 @@ class PayToEdit(ScanQRTextEdit):
 
         self.previous_payto = ''
 
-    def lock_amount(self):
-        self.amount_edit.setFrozen(True)
-
-    def unlock_amount(self):
-        self.amount_edit.setFrozen(False)
-
     def setFrozen(self, b):
         self.setReadOnly(b)
         self.setStyleSheet(frozen_style if b else normal_style)
@@ -73,17 +74,32 @@ class PayToEdit(ScanQRTextEdit):
 
     def parse_address_and_amount(self, line):
         x, y = line.split(',')
-        n = re.match('^SCRIPT\s+([0-9a-fA-F]+)$', x.strip())
-        if n:
-            script = str(n.group(1)).decode('hex')
-            amount = self.parse_amount(y)
-            return 'script', script, amount
-        else:
+        out_type, out = self.parse_output(x)
+        amount = self.parse_amount(y)
+        return out_type, out, amount
+
+    def parse_output(self, x):
+        try:
             address = self.parse_address(x)
-            amount = self.parse_amount(y)
-            return 'address', address, amount
+            return bitcoin.TYPE_ADDRESS, address
+        except:
+            script = self.parse_script(x)
+            return bitcoin.TYPE_SCRIPT, script
+
+    def parse_script(self, x):
+        from electrum.transaction import opcodes, push_script
+        script = ''
+        for word in x.split():
+            if word[0:3] == 'OP_':
+                assert word in opcodes.lookup
+                script += chr(opcodes.lookup[word])
+            else:
+                script += push_script(word).decode('hex')
+        return script
 
     def parse_amount(self, x):
+        if x.strip() == '!':
+            return '!'
         p = pow(10, self.amount_edit.decimal_point())
         return int(p * Decimal(x.strip()))
 
@@ -109,13 +125,14 @@ class PayToEdit(ScanQRTextEdit):
                 self.scan_f(data)
                 return
             try:
-                self.payto_address = self.parse_address(data)
+                self.payto_address = self.parse_output(data)
             except:
                 pass
             if self.payto_address:
-                self.unlock_amount()
+                self.win.lock_amount(False)
                 return
 
+        is_max = False
         for i, line in enumerate(lines):
             try:
                 _type, to_address, amount = self.parse_address_and_amount(line)
@@ -124,32 +141,36 @@ class PayToEdit(ScanQRTextEdit):
                 continue
 
             outputs.append((_type, to_address, amount))
-            total += amount
+            if amount == '!':
+                is_max = True
+            else:
+                total += amount
 
+        self.win.is_max = is_max
         self.outputs = outputs
         self.payto_address = None
 
-        if outputs:
-            self.amount_edit.setAmount(total)
+        if self.win.is_max:
+            self.win.do_update_fee()
         else:
-            self.amount_edit.setText("")
-
-        if total or len(lines)>1:
-            self.lock_amount()
-        else:
-            self.unlock_amount()
-
+            self.amount_edit.setAmount(total if outputs else None)
+            self.win.lock_amount(total or len(lines)>1)
 
     def get_errors(self):
         return self.errors
 
-    def get_outputs(self):
+    def get_recipient(self):
+        return self.payto_address
+
+    def get_outputs(self, is_max):
         if self.payto_address:
-            try:
+            if is_max:
+                amount = '!'
+            else:
                 amount = self.amount_edit.get_amount()
-            except:
-                amount = None
-            self.outputs = [('address', self.payto_address, amount)]
+
+            _type, addr = self.payto_address
+            self.outputs = [(_type, addr, amount)]
 
         return self.outputs[:]
 
@@ -160,16 +181,8 @@ class PayToEdit(ScanQRTextEdit):
         return len(self.lines()) > 1
 
     def paytomany(self):
-        from electrum.i18n import _
         self.setText("\n\n\n")
         self.update_size()
-        msg = '\n'.join([
-            _('Enter a list of outputs in the \'Pay to\' field.'),
-            _('One output per line.'),
-            _('Format: address, amount.'),
-            _('You may load a CSV file using the file icon.')
-        ])
-        QMessageBox.warning(self, _('Pay to many'), msg, _('OK'))
 
     def update_size(self):
         docHeight = self.document().size().height()
@@ -280,7 +293,7 @@ class PayToEdit(ScanQRTextEdit):
 
         #if self.win.config.get('openalias_autoadd') == 'checked':
         self.win.contacts[key] = ('openalias', name)
-        self.win.update_contacts_tab()
+        self.win.contact_list.on_update()
 
         self.setFrozen(True)
         if data.get('type') == 'openalias':
