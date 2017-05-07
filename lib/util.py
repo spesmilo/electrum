@@ -350,8 +350,8 @@ def time_difference(distance_in_time, include_seconds):
 block_explorer_info = {
     'explorer.litecoin.net': ('http://explorer.litecoin.net',
                         {'tx': 'tx', 'addr': 'address'}),
-    'block-explorer.com': ('https://block-explorer.com',
-                        {'tx': 'tx', 'addr': 'address'}),
+    'BlockCypher': ('https://live.blockcypher.com',
+                        {'tx': 'ltc/tx', 'addr': 'ltc/address'}),
     'Blockr.io': ('https://ltc.blockr.io',
                         {'tx': 'tx/info', 'addr': 'address/info'}),
     'SoChain': ('https://chain.so',
