@@ -464,7 +464,8 @@ class TrustedCoinPlugin(BasePlugin):
             if e.status_code == 409:
                 r = None
             else:
-                raise e
+                wizard.show_message(str(e))
+                return
         if r is None:
             otp_secret = None
         else:
