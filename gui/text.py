@@ -385,7 +385,7 @@ class ElectrumGui:
                 self.network.set_parameters(host, port, protocol, proxy, auto_connect)
 
     def settings_dialog(self):
-        fee = str(Decimal(self.wallet.fee_per_kb(self.config)) / COIN)
+        fee = str(Decimal(self.config.fee_per_kb()) / COIN)
         out = self.run_dialog('Settings', [
             {'label':'Default fee', 'type':'satoshis', 'value': fee }
             ], buttons = 1)
