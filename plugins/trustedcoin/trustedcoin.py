@@ -209,7 +209,7 @@ class Wallet_2fa(Multisig_Wallet):
         sendable = sum(map(lambda x:x['value'], inputs))
         for i in inputs:
             self.add_input_info(i)
-        xf = self.extra_fee()
+        xf = self.extra_fee(config)
         _type, addr = recipient
         if xf and sendable >= xf:
             billing_address = self.billing_info['billing_address']
@@ -224,22 +224,33 @@ class Wallet_2fa(Multisig_Wallet):
         amount = max(0, sendable - fee)
         return amount, fee
 
-    def extra_fee(self):
+    def min_prepay(self):
+        return min(self.price_per_tx.keys())
+
+    def num_prepay(self, config):
+        default = self.min_prepay()
+        n = config.get('trustedcoin_prepay', default)
+        if n not in self.price_per_tx:
+            n = default
+        return n
+
+    def extra_fee(self, config):
         if self.can_sign_without_server():
             return 0
         if self.billing_info.get('tx_remaining'):
             return 0
         if self.is_billing:
             return 0
-        price = int(self.price_per_tx.get(1))
-        assert price <= 100000
+        n = self.num_prepay(config)
+        price = int(self.price_per_tx[n])
+        assert price <= 100000 * n
         return price
 
     def make_unsigned_transaction(self, coins, outputs, config,
                                   fixed_fee=None, change_addr=None):
         mk_tx = lambda o: Multisig_Wallet.make_unsigned_transaction(
             self, coins, o, config, fixed_fee, change_addr)
-        fee = self.extra_fee()
+        fee = self.extra_fee(config)
         if fee:
             address = self.billing_info['billing_address']
             fee_output = (TYPE_ADDRESS, address, fee)
@@ -329,6 +340,7 @@ class TrustedCoinPlugin(BasePlugin):
         assert billing_address == billing_info['billing_address']
         wallet.billing_info = billing_info
         wallet.price_per_tx = dict(billing_info['price_per_tx'])
+        wallet.price_per_tx.pop(1)
         return True
 
     def make_seed(self):
