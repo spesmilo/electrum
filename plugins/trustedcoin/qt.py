@@ -142,7 +142,7 @@ class Plugin(TrustedCoinPlugin):
         vbox.addLayout(hbox)
         vbox.addStretch(10)
 
-        msg = _('TrustedCoin charges a fee per co-signed transaction. You may pay on each transaction (an extra output will be added to your transaction), or you may purchase prepaid transaction using this dialog.') + '<br/>'
+        msg = _('TrustedCoin charges a small fee to co-sign transactions. The fee depends on how many prepaid transactions you buy. An extra output is added to your transaction everytime you run out of prepaid transactions.') + '<br/>'
         label = QLabel(msg)
         label.setWordWrap(1)
         vbox.addWidget(label)
@@ -152,35 +152,21 @@ class Plugin(TrustedCoinPlugin):
         vbox.addLayout(grid)
 
         price_per_tx = wallet.price_per_tx
-        v = price_per_tx.get(1)
-        grid.addWidget(QLabel(_("Price per transaction (not prepaid):")), 0, 0)
-        grid.addWidget(QLabel(window.format_amount(v) + ' ' + window.base_unit()), 0, 1)
-
-        i = 1
-
+        n_prepay = wallet.num_prepay(self.config)
+        i = 0
         for k, v in sorted(price_per_tx.items()):
             if k == 1:
                 continue
-            grid.addWidget(QLabel("Price for %d prepaid transactions:"%k), i, 0)
-            grid.addWidget(QLabel("%d x "%k + window.format_amount(v/k) + ' ' + window.base_unit()), i, 1)
-            b = QPushButton(_("Buy"))
-            b.clicked.connect(lambda b, k=k, v=v: self.on_buy(window, k, v, d))
+            grid.addWidget(QLabel("Pay every %d transactions:"%k), i, 0)
+            grid.addWidget(QLabel(window.format_amount(v/k) + ' ' + window.base_unit() + "/tx"), i, 1)
+            b = QRadioButton()
+            b.setChecked(k == n_prepay)
+            b.clicked.connect(lambda b, k=k: self.config.set_key('trustedcoin_prepay', k, True))
             grid.addWidget(b, i, 2)
             i += 1
 
         n = wallet.billing_info.get('tx_remaining', 0)
         grid.addWidget(QLabel(_("Your wallet has %d prepaid transactions.")%n), i, 0)
-
-        # tranfer button
-        #def on_transfer():
-        #    server.transfer_credit(self.user_id, recipient, otp, signature_callback)
-        #    pass
-        #b = QPushButton(_("Transfer"))
-        #b.clicked.connect(on_transfer)
-        #grid.addWidget(b, 1, 2)
-
-        #grid.addWidget(QLabel(_("Next Billing Address:")), i, 0)
-        #grid.addWidget(QLabel(self.billing_info['billing_address']), i, 1)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
 
