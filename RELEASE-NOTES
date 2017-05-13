@@ -1,5 +1,6 @@
-# Release 2.8.3
-  * Blockchain checkpoints can be added and configured from the GUI.
+# Release 2.9
+  * SPV: use binary search to locate connection point
+  * SPV: add blockchain checkpoints, configurable by user
   * Fix crash on reading older wallet formats.
 
 # Release 2.8.2
