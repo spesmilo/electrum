@@ -790,7 +790,7 @@ class Abstract_Wallet(PrintError):
         # Change <= dust threshold is added to the tx fee
         return 182 * 3 * self.relayfee() / 1000
 
-    def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None, change_addr=None):
+    def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None, change_addr=None, locktime=None):
         # check outputs
         i_max = None
         for i, o in enumerate(outputs):
@@ -854,7 +854,10 @@ class Abstract_Wallet(PrintError):
         # Sort the inputs and outputs deterministically
         tx.BIP_LI01_sort()
         # Timelock tx to current height.
-        tx.locktime = self.get_local_height()
+        if locktime:
+            tx.locktime = locktime
+        else:
+            tx.locktime = self.get_local_height()
         run_hook('make_unsigned_transaction', self, tx)
         return tx
 

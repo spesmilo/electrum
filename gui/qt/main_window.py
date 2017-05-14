@@ -1051,6 +1051,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.addWidget(self.fee_e, 5, 2)
         grid.addWidget(self.rbf_checkbox, 5, 3)
 
+        msg = _('The transaction will only be valid after this time (in your local timezone).')
+        locktime_label = HelpLabel(_('Valid from'), msg)
+        grid.addWidget(locktime_label, 6, 0)
+        self.locktime_disable = QCheckBox(_("Immediately"))
+        self.locktime_disable.setChecked(True)
+        self.locktime_disable.stateChanged.connect(self.toggle_locktime)
+        grid.addWidget(self.locktime_disable, 6, 1)
+        self.locktime_date = QDateTimeEdit()
+        self.locktime_date.setDateTime(QDateTime.currentDateTime())
+        self.locktime_date.setVisible(not self.locktime_disable.isChecked())
+        grid.addWidget(self.locktime_date, 6, 2)
+
         self.preview_button = EnterButton(_("Preview"), self.do_preview)
         self.preview_button.setToolTip(_('Display the details of your transactions before signing it.'))
         self.send_button = EnterButton(_("Send"), self.do_send)
@@ -1060,7 +1072,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         buttons.addWidget(self.clear_button)
         buttons.addWidget(self.preview_button)
         buttons.addWidget(self.send_button)
-        grid.addLayout(buttons, 6, 1, 1, 3)
+        grid.addLayout(buttons, 7, 1, 1, 3)
 
         self.amount_e.shortcut.connect(self.spend_max)
         self.payto_e.textChanged.connect(self.update_fee)
@@ -1120,6 +1132,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def update_fee(self):
         self.require_fee_update = True
+
+    def toggle_locktime(self, off):
+        self.locktime_date.setVisible(not off)
 
     def get_payto_or_dummy(self):
         r = self.payto_e.get_recipient()
@@ -1281,7 +1296,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         freeze_fee = self.fee_e.isVisible() and self.fee_e.isModified() and (self.fee_e.text() or self.fee_e.hasFocus())
         fee = self.fee_e.get_amount() if freeze_fee else None
         coins = self.get_coins()
-        return outputs, fee, label, coins
+
+        locktime = None
+        if not self.locktime_disable.isChecked():
+            locktime = self.locktime_date.dateTime().toPyDateTime()
+            locktime = int(time.mktime(locktime.timetuple()))
+
+        return outputs, fee, label, coins, locktime
 
     def do_preview(self):
         self.do_send(preview = True)
@@ -1292,9 +1313,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         r = self.read_send_tab()
         if not r:
             return
-        outputs, fee, tx_desc, coins = r
+        outputs, fee, tx_desc, coins, locktime = r
         try:
-            tx = self.wallet.make_unsigned_transaction(coins, outputs, self.config, fee)
+            tx = self.wallet.make_unsigned_transaction(coins, outputs, self.config, fee, locktime=locktime)
         except NotEnoughFunds:
             self.show_message(_("Insufficient funds"))
             return
