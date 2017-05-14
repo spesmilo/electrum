@@ -217,7 +217,11 @@ class TxDialog(QDialog, MessageBoxMixin):
 
     def add_io(self, vbox):
         if self.tx.locktime > 0:
-            vbox.addWidget(QLabel("LockTime: %d\n" % self.tx.locktime))
+            if self.tx.locktime < 500000000:
+                locktime = "Block {}".format(self.tx.locktime)
+            else:
+                locktime = "{} ({})".format(self.tx.locktime, datetime.datetime.fromtimestamp(self.tx.locktime))
+            vbox.addWidget(QLabel("LockTime: {}\n".format(locktime)))
 
         vbox.addWidget(QLabel(_("Inputs") + ' (%d)'%len(self.tx.inputs())))
         ext = QTextCharFormat()
