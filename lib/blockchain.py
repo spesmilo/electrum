@@ -258,35 +258,21 @@ class Blockchain(util.PrintError):
         new_bits = bitsN << 24 | bitsBase
         return new_bits, bitsBase << (8 * (bitsN-3))
 
-    def connect_header(self, chain, header):
-        '''Builds a header chain until it connects.  Returns True if it has
-        successfully connected, False if verification failed, otherwise the
-        height of the next header needed.'''
-        chain.append(header)  # Ordered by decreasing height
+    def can_connect(self, header):
         previous_height = header['block_height'] - 1
         previous_header = self.read_header(previous_height)
-
-        # Missing header, request it
         if not previous_header:
-            return previous_height
-
-        # Does it connect to my chain?
+            return False
         prev_hash = self.hash_header(previous_header)
         if prev_hash != header.get('prev_block_hash'):
-            self.print_error("reorg")
-            return previous_height
-
-        # The chain is complete.  Reverse to order by increasing height
-        chain.reverse()
-        try:
-            self.verify_chain(chain)
-            self.print_error("new height:", previous_height + len(chain))
-            for header in chain:
-                self.save_header(header)
-            return True
-        except BaseException as e:
-            self.print_error(str(e))
             return False
+        height = header.get('block_height')
+        bits, target = self.get_target(height / 2016)
+        try:
+            self.verify_header(header, previous_header, bits, target)
+        except:
+            return False
+        return True
 
     def connect_chunk(self, idx, hexdata):
         try:
@@ -294,10 +280,10 @@ class Blockchain(util.PrintError):
             self.verify_chunk(idx, data)
             self.print_error("validated chunk %d" % idx)
             self.save_chunk(idx, data)
-            return idx + 1
+            return True
         except BaseException as e:
             self.print_error('verify_chunk failed', str(e))
-            return idx - 1
+            return False
 
     def get_checkpoint(self):
         height = self.config.get('checkpoint_height', 0)
