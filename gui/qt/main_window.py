@@ -1314,6 +1314,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not r:
             return
         outputs, fee, tx_desc, coins, locktime = r
+
+        if not preview and locktime > time.time():
+            self.show_error(_("The transaction is not valid yet (it's timelocked)."))
+            return
+
         try:
             tx = self.wallet.make_unsigned_transaction(coins, outputs, self.config, fee, locktime=locktime)
         except NotEnoughFunds:
@@ -1535,6 +1540,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             e.setFrozen(False)
         self.set_pay_from([])
         self.rbf_checkbox.setChecked(False)
+        self.locktime_disable.setChecked(True)
         self.update_status()
         run_hook('do_clear', self)
 

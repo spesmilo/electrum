@@ -128,6 +128,9 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.update()
 
     def do_broadcast(self):
+        if self.tx.locktime > time.time():
+            self.show_error(_("The transaction is not valid yet (it's timelocked)."))
+            return
         self.main_window.push_top_level_window(self)
         try:
             self.main_window.broadcast_transaction(self.tx, self.desc)
