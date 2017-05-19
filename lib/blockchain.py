@@ -202,10 +202,13 @@ class Blockchain(util.PrintError):
         if self.hash_header(checkpoint) == self.checkpoint_hash:
             return
         self.print_error('checkpoint mismatch:', self.hash_header(checkpoint), self.checkpoint_hash)
-        self.print_error('Truncating headers file at height %d'%self.checkpoint_height)
+        self.truncate_headers(self.checkpoint_height)
+
+    def truncate_headers(self, height):
+        self.print_error('Truncating headers file at height %d'%height)
         name = self.path()
         f = open(name, 'rb+')
-        f.seek(self.checkpoint_height * 80)
+        f.seek(height * 80)
         f.truncate()
         f.close()
 
