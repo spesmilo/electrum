@@ -432,7 +432,7 @@ def parse_URI(uri, on_pr=None):
     r = out.get('r')
     sig = out.get('sig')
     name = out.get('name')
-    if r or (name and sig):
+    if on_pr and (r or (name and sig)):
         def get_payment_request_thread():
             import paymentrequest as pr
             if name and sig:

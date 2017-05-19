@@ -207,6 +207,7 @@ class Network(util.DaemonThread):
         self.debug = False
         self.irc_servers = {} # returned by interface (list from irc)
         self.recent_servers = self.read_recent_servers()
+        self.catch_up = None # interface catching up
 
         self.banner = ''
         self.donation_address = ''
@@ -673,6 +674,8 @@ class Network(util.DaemonThread):
             self.close_interface(self.interfaces[server])
             self.headers.pop(server, None)
             self.notify('interfaces')
+        if server == self.catch_up:
+            self.catch_up = None
 
     def new_interface(self, server, socket):
         self.add_recent_server(server)
@@ -837,6 +840,7 @@ class Network(util.DaemonThread):
                     self.request_header(interface, next_height)
         else:
             interface.request = None
+            self.catch_up = None
 
     def maintain_requests(self):
         for interface in self.interfaces.values():
@@ -891,7 +895,8 @@ class Network(util.DaemonThread):
                 self.blockchain.save_header(header)
                 self.notify('updated')
             # otherwise trigger a search
-            elif i.request is None:
+            elif self.catch_up is None:
+                self.catch_up = i.server
                 self.on_header(i, header)
 
         if i == self.interface:
