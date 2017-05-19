@@ -19,8 +19,12 @@ crowdin_identifier = 'electrum'
 crowdin_file_name = 'electrum-client/messages.pot'
 locale_file_name = 'locale/messages.pot'
 
+crowdin_api_key = None
 if os.path.exists('../contrib/crowdin_api_key.txt'):
     crowdin_api_key = open('../contrib/crowdin_api_key.txt').read().strip()
+if "crowdin_api_key" in os.environ:
+    crowdin_api_key = os.environ["crowdin_api_key"]
+if crowdin_api_key:
     # Push to Crowdin
     print 'Push to Crowdin'
     url = ('https://api.crowdin.com/api/project/' + crowdin_identifier + '/update-file?key=' + crowdin_api_key)
