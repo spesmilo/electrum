@@ -42,7 +42,7 @@ class TrezorCompatibleKeyStore(Hardware_KeyStore):
         client = self.get_client()
         address_path = self.get_derivation() + "/%d/%d"%sequence
         address_n = client.expand_path(address_path)
-        msg_sig = client.sign_message(self.get_coin_name(), address_n, message)
+        msg_sig = client.sign_message(self.plugin.get_coin_name(), address_n, message)
         return msg_sig.signature
 
     def sign_transaction(self, tx, password):
@@ -145,10 +145,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         return client
 
     def get_coin_name(self):
-        if TESTNET:
-            return "Testnet"
-        else:
-            return "Litecoin"
+        return "Testnet" if TESTNET else "Litecoin"
 
     def initialize_device(self, device_id, wizard, handler):
         # Initialization method
