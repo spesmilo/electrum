@@ -2221,15 +2221,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def plot_history_dialog(self):
         try:
             from electrum_ltc.plot import plot_history
-        except ImportError as e:
+            wallet = self.wallet
+            history = wallet.get_history()
+            if len(history) > 0:
+                plt = plot_history(self.wallet, history)
+                plt.show()
+        except BaseException as e:
             self.show_error(str(e))
             return
-        wallet = self.wallet
-        history = wallet.get_history()
-        if len(history) > 0:
-            plt = plot_history(self.wallet, history)
-            plt.show()
-
 
     def do_export_history(self, wallet, fileName, is_csv):
         history = wallet.get_history()
