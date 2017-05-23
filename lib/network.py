@@ -833,9 +833,8 @@ class Network(util.DaemonThread):
             if interface.mode != 'default':
                 self.request_header(interface, next_height)
             else:
-                local_height = self.get_local_height()
-                if interface.tip > local_height + 50:
-                    self.request_chunk(interface, (local_height + 1) // 2016)
+                if interface.tip > next_height + 50:
+                    self.request_chunk(interface, next_height // 2016)
                 else:
                     self.request_header(interface, next_height)
         else:
