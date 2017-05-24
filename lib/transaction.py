@@ -686,11 +686,11 @@ class Transaction:
         # Script length, script, sequence
         s += var_int(len(script)/2)
         s += script
-        s += int_to_hex(txin.get('sequence', 0xffffffff), 4)
+        s += int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
         return s
 
     def set_rbf(self, rbf):
-        nSequence = 0xffffffff - (2 if rbf else 0)
+        nSequence = 0xffffffff - (2 if rbf else 1)
         for txin in self.inputs():
             txin['sequence'] = nSequence
 
@@ -716,12 +716,12 @@ class Transaction:
         txin = inputs[i]
         if self.is_segwit_input(txin):
             hashPrevouts = Hash(''.join(self.serialize_outpoint(txin) for txin in inputs).decode('hex')).encode('hex')
-            hashSequence = Hash(''.join(int_to_hex(txin.get('sequence', 0xffffffff), 4) for txin in inputs).decode('hex')).encode('hex')
+            hashSequence = Hash(''.join(int_to_hex(txin.get('sequence', 0xffffffff - 1), 4) for txin in inputs).decode('hex')).encode('hex')
             hashOutputs = Hash(''.join(self.serialize_output(o) for o in outputs).decode('hex')).encode('hex')
             outpoint = self.serialize_outpoint(txin)
             scriptCode = push_script(self.get_preimage_script(txin))
             amount = int_to_hex(txin['value'], 8)
-            nSequence = int_to_hex(txin.get('sequence', 0xffffffff), 4)
+            nSequence = int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
             preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
         else:
             txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.get_preimage_script(txin) if i==k else '') for k, txin in enumerate(inputs))
@@ -780,7 +780,7 @@ class Transaction:
         return self.input_value() - self.output_value()
 
     def is_final(self):
-        return not any([x.get('sequence', 0xffffffff) < 0xffffffff - 1 for x in self.inputs()])
+        return not any([x.get('sequence', 0xffffffff - 1) < 0xffffffff - 1 for x in self.inputs()])
 
     @profiler
     def estimated_size(self):
