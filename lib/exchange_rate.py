@@ -406,10 +406,10 @@ class FxThread(ThreadJob):
         rate = self.exchange_rate()
         return '' if rate is None else "%s %s" % (self.value_str(btc_balance, rate), self.ccy)
 
-    def get_fiat_status_text(self, btc_balance):
+    def get_fiat_status_text(self, btc_balance, base_unit, decimal_point):
         rate = self.exchange_rate()
-        return _("  (No FX rate available)") if rate is None else " 1 BTC~%s %s" % (self.value_str(COIN, rate), self.ccy)
-
+        return _("  (No FX rate available)") if rate is None else " 1 %s~%s %s" % (base_unit,
+            self.value_str(COIN / (10**(8 - decimal_point)), rate), self.ccy)
 
     def value_str(self, satoshis, rate):
         if satoshis is None:  # Can happen with incomplete history
