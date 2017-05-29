@@ -59,7 +59,6 @@ class AddressDialog(WindowModalDialog):
         self.hw.get_domain = self.get_domain
         vbox.addWidget(self.hw)
 
-        vbox.addStretch(1)
         vbox.addLayout(Buttons(CloseButton(self)))
         self.format_amount = self.parent.format_amount
         self.hw.update()
