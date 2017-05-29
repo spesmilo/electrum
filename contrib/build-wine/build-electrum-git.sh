@@ -23,8 +23,8 @@ if [ -d "electrum-ltc-git" ]; then
     # GIT repository found, update it
     echo "Pull"
     cd electrum-ltc-git
-    git checkout master
     git pull
+    git checkout $BRANCH
     cd ..
 else
     # GIT repository not found, clone it
