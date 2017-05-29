@@ -48,7 +48,6 @@ Builder.load_string('''
                 height: '36dp'
                 size_hint_y: None
                 text: '%d'%root.cp_height
-                on_focus: root.on_height_str()
             TopLabel:
                 text: _('Block hash') + ':'
             TxHashLabel:
@@ -85,23 +84,5 @@ class CheckpointDialog(Factory.Popup):
     def __init__(self, network, callback):
         Factory.Popup.__init__(self)
         self.network = network
-        self.cp_height, self.cp_value = self.network.blockchain.get_checkpoint()
         self.callback = callback
-
-    def on_height_str(self):
-        try:
-            new_height = int(self.ids.height_input.text)
-        except:
-            new_height = self.cp_height
-        self.ids.height_input.text = '%d'%new_height
-        if new_height == self.cp_height:
-            return
-        try:
-            header = self.network.synchronous_get(('blockchain.block.get_header', [new_height]), 5)
-            new_value = self.network.blockchain.hash_header(header)
-        except BaseException as e:
-            self.network.print_error(str(e))
-            new_value = ''
-        if new_value:
-            self.cp_height = new_height
-            self.cp_value = new_value
+        self.is_split = len(self.network.blockchains) > 1

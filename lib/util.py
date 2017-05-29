@@ -213,12 +213,11 @@ def android_data_dir():
     PythonActivity = jnius.autoclass('org.kivy.android.PythonActivity')
     return PythonActivity.mActivity.getFilesDir().getPath() + '/data'
 
-def android_headers_path():
-    path = android_ext_dir() + '/org.electrum.electrum/blockchain_headers'
-    d = os.path.dirname(path)
+def android_headers_dir():
+    d = android_ext_dir() + '/org.electrum.electrum'
     if not os.path.exists(d):
         os.mkdir(d)
-    return path
+    return d
 
 def android_check_data_dir():
     """ if needed, move old directory to sandbox """
@@ -227,7 +226,7 @@ def android_check_data_dir():
     old_electrum_dir = ext_dir + '/electrum'
     if not os.path.exists(data_dir) and os.path.exists(old_electrum_dir):
         import shutil
-        new_headers_path = android_headers_path()
+        new_headers_path = android_headers_dir() + '/blockchain_headers'
         old_headers_path = old_electrum_dir + '/blockchain_headers'
         if not os.path.exists(new_headers_path) and os.path.exists(old_headers_path):
             print_error("Moving headers file to", new_headers_path)
@@ -236,11 +235,8 @@ def android_check_data_dir():
         shutil.move(old_electrum_dir, data_dir)
     return data_dir
 
-def get_headers_path(config):
-    if 'ANDROID_DATA' in os.environ:
-        return android_headers_path()
-    else:
-        return os.path.join(config.path, 'blockchain_headers')
+def get_headers_dir(config):
+    return android_headers_dir() if 'ANDROID_DATA' in os.environ else config.path
 
 def user_dir():
     if 'ANDROID_DATA' in os.environ:

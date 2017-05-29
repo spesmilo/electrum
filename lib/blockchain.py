@@ -32,50 +32,56 @@ from bitcoin import *
 
 MAX_TARGET = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
 
+def serialize_header(res):
+    s = int_to_hex(res.get('version'), 4) \
+        + rev_hex(res.get('prev_block_hash')) \
+        + rev_hex(res.get('merkle_root')) \
+        + int_to_hex(int(res.get('timestamp')), 4) \
+        + int_to_hex(int(res.get('bits')), 4) \
+        + int_to_hex(int(res.get('nonce')), 4)
+    return s
+
+def deserialize_header(s, height):
+    hex_to_int = lambda s: int('0x' + s[::-1].encode('hex'), 16)
+    h = {}
+    h['version'] = hex_to_int(s[0:4])
+    h['prev_block_hash'] = hash_encode(s[4:36])
+    h['merkle_root'] = hash_encode(s[36:68])
+    h['timestamp'] = hex_to_int(s[68:72])
+    h['bits'] = hex_to_int(s[72:76])
+    h['nonce'] = hex_to_int(s[76:80])
+    h['block_height'] = height
+    return h
+
+def hash_header(header):
+    if header is None:
+        return '0' * 64
+    if header.get('prev_block_hash') is None:
+        header['prev_block_hash'] = '00'*32
+    return hash_encode(Hash(serialize_header(header).decode('hex')))
+
+
 class Blockchain(util.PrintError):
     '''Manages blockchain headers and their verification'''
-    def __init__(self, config, network):
+    def __init__(self, config, checkpoint):
         self.config = config
-        self.network = network
-        self.checkpoint_height, self.checkpoint_hash = self.get_checkpoint()
-        self.check_truncate_headers()
+        self.checkpoint = checkpoint
+        self.filename = 'blockchain_headers' if checkpoint == 0 else 'blockchain_fork_%d'%checkpoint
         self.set_local_height()
+        self.catch_up = None # interface catching up
 
     def height(self):
         return self.local_height
 
-    def init(self):
-        import threading
-        if os.path.exists(self.path()):
-            self.downloading_headers = False
-            return
-        self.downloading_headers = True
-        t = threading.Thread(target = self.init_headers_file)
-        t.daemon = True
-        t.start()
-
-    def pass_checkpoint(self, header):
-        if type(header) is not dict:
-            return False
-        if header.get('block_height') != self.checkpoint_height:
-            return True
-        if header.get('prev_block_hash') is None:
-            header['prev_block_hash'] = '00'*32
-        try:
-            _hash = self.hash_header(header)
-        except:
-            return False
-        return _hash == self.checkpoint_hash
-
     def verify_header(self, header, prev_header, bits, target):
-        prev_hash = self.hash_header(prev_header)
-        _hash = self.hash_header(header)
+        prev_hash = hash_header(prev_header)
+        _hash = hash_header(header)
         if prev_hash != header.get('prev_block_hash'):
             raise BaseException("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
-        if not self.pass_checkpoint(header):
-            raise BaseException('failed checkpoint')
-        if self.checkpoint_height == header.get('block_height'):
-            self.print_error("validated checkpoint", self.checkpoint_height)
+        #if not self.pass_checkpoint(header):
+        #    raise BaseException('failed checkpoint')
+        #if self.checkpoint_height == header.get('block_height'):
+        #    self.print_error("validated checkpoint", self.checkpoint_height)
         if bitcoin.TESTNET:
             return
         if bits != header.get('bits'):
@@ -100,70 +106,31 @@ class Blockchain(util.PrintError):
         bits, target = self.get_target(index)
         for i in range(num):
             raw_header = data[i*80:(i+1) * 80]
-            header = self.deserialize_header(raw_header, index*2016 + i)
+            header = deserialize_header(raw_header, index*2016 + i)
             self.verify_header(header, prev_header, bits, target)
             prev_header = header
 
-    def serialize_header(self, res):
-        s = int_to_hex(res.get('version'), 4) \
-            + rev_hex(res.get('prev_block_hash')) \
-            + rev_hex(res.get('merkle_root')) \
-            + int_to_hex(int(res.get('timestamp')), 4) \
-            + int_to_hex(int(res.get('bits')), 4) \
-            + int_to_hex(int(res.get('nonce')), 4)
-        return s
-
-    def deserialize_header(self, s, height):
-        hex_to_int = lambda s: int('0x' + s[::-1].encode('hex'), 16)
-        h = {}
-        h['version'] = hex_to_int(s[0:4])
-        h['prev_block_hash'] = hash_encode(s[4:36])
-        h['merkle_root'] = hash_encode(s[36:68])
-        h['timestamp'] = hex_to_int(s[68:72])
-        h['bits'] = hex_to_int(s[72:76])
-        h['nonce'] = hex_to_int(s[76:80])
-        h['block_height'] = height
-        return h
-
-    def hash_header(self, header):
-        if header is None:
-            return '0' * 64
-        return hash_encode(Hash(self.serialize_header(header).decode('hex')))
-
     def path(self):
-        return util.get_headers_path(self.config)
-
-    def init_headers_file(self):
-        filename = self.path()
-        try:
-            import urllib, socket
-            socket.setdefaulttimeout(30)
-            self.print_error("downloading ", bitcoin.HEADERS_URL)
-            urllib.urlretrieve(bitcoin.HEADERS_URL, filename + '.tmp')
-            os.rename(filename + '.tmp', filename)
-            self.print_error("done.")
-        except Exception:
-            self.print_error("download failed. creating file", filename)
-            open(filename, 'wb+').close()
-        self.downloading_headers = False
-        self.set_local_height()
-        self.print_error("%d blocks" % self.local_height)
+        d = util.get_headers_dir(self.config)
+        return os.path.join(d, self.filename)
 
     def save_chunk(self, index, chunk):
         filename = self.path()
         f = open(filename, 'rb+')
         f.seek(index * 2016 * 80)
+        f.truncate()
         h = f.write(chunk)
         f.close()
         self.set_local_height()
 
     def save_header(self, header):
-        data = self.serialize_header(header).decode('hex')
+        data = serialize_header(header).decode('hex')
         assert len(data) == 80
         height = header.get('block_height')
         filename = self.path()
         f = open(filename, 'rb+')
         f.seek(height * 80)
+        f.truncate()
         h = f.write(data)
         f.close()
         self.set_local_height()
@@ -184,8 +151,11 @@ class Blockchain(util.PrintError):
             h = f.read(80)
             f.close()
             if len(h) == 80:
-                h = self.deserialize_header(h, block_height)
+                h = deserialize_header(h, block_height)
                 return h
+
+    def get_hash(self, height):
+        return bitcoin.GENESIS if height == 0 else hash_header(self.read_header(height))
 
     def BIP9(self, height, flag):
         v = self.read_header(height)['version']
@@ -195,15 +165,6 @@ class Blockchain(util.PrintError):
         h = self.local_height
         return sum([self.BIP9(h-i, 2) for i in range(N)])*10000/N/100.
 
-    def check_truncate_headers(self):
-        checkpoint = self.read_header(self.checkpoint_height)
-        if checkpoint is None:
-            return
-        if self.hash_header(checkpoint) == self.checkpoint_hash:
-            return
-        self.print_error('checkpoint mismatch:', self.hash_header(checkpoint), self.checkpoint_hash)
-        self.truncate_headers(self.checkpoint_height)
-
     def truncate_headers(self, height):
         self.print_error('Truncating headers file at height %d'%height)
         name = self.path()
@@ -211,6 +172,17 @@ class Blockchain(util.PrintError):
         f.seek(height * 80)
         f.truncate()
         f.close()
+
+    def fork(self, height):
+        import shutil
+        filename = "blockchain_fork_%d"%height
+        new_path = os.path.join(util.get_headers_dir(self.config), filename)
+        shutil.copy(self.path(), new_path)
+        with open(new_path, 'rb+') as f:
+            f.seek((height) * 80)
+            f.truncate()
+            f.close()
+        return filename
 
     def get_target(self, index, chain=None):
         if bitcoin.TESTNET:
@@ -255,7 +227,7 @@ class Blockchain(util.PrintError):
         previous_header = self.read_header(previous_height)
         if not previous_header:
             return False
-        prev_hash = self.hash_header(previous_header)
+        prev_hash = hash_header(previous_header)
         if prev_hash != header.get('prev_block_hash'):
             return False
         height = header.get('block_height')
@@ -270,21 +242,9 @@ class Blockchain(util.PrintError):
         try:
             data = hexdata.decode('hex')
             self.verify_chunk(idx, data)
-            self.print_error("validated chunk %d" % idx)
+            #self.print_error("validated chunk %d" % idx)
             self.save_chunk(idx, data)
             return True
         except BaseException as e:
             self.print_error('verify_chunk failed', str(e))
             return False
-
-    def get_checkpoint(self):
-        height = self.config.get('checkpoint_height', 0)
-        value = self.config.get('checkpoint_value', bitcoin.GENESIS)
-        return (height, value)
-
-    def set_checkpoint(self, height, value):
-        self.checkpoint_height = height
-        self.checkpoint_hash = value
-        self.config.set_key('checkpoint_height', height)
-        self.config.set_key('checkpoint_value', value)
-        self.check_truncate_headers()

@@ -190,39 +190,10 @@ class NetworkChoiceLayout(object):
         from amountedit import AmountEdit
         grid = QGridLayout(blockchain_tab)
         n = len(network.get_interfaces())
-        status = _("Connected to %d nodes.")%n if n else _("Not connected")
-        height_str = "%d "%(network.get_local_height()) + _("blocks")
-        self.checkpoint_height, self.checkpoint_value = network.blockchain.get_checkpoint()
-        self.cph_label = QLabel(_('Height'))
-        self.cph = QLineEdit("%d"%self.checkpoint_height)
-        self.cph.setFixedWidth(80)
-        self.cpv_label = QLabel(_('Hash'))
-        self.cpv = QLineEdit(self.checkpoint_value)
-        self.cpv.setCursorPosition(0)
-        self.cpv.setFocusPolicy(Qt.NoFocus)
-        self.cpv.setReadOnly(True)
-        def on_cph():
-            try:
-                height = int(self.cph.text())
-            except:
-                height = 0
-            self.cph.setText('%d'%height)
-            if height == self.checkpoint_height:
-                return
-            try:
-                self.network.print_error("fetching header")
-                header = self.network.synchronous_get(('blockchain.block.get_header', [height]), 5)
-                _hash = self.network.blockchain.hash_header(header)
-            except BaseException as e:
-                self.network.print_error(str(e))
-                _hash = ''
-            self.cpv.setText(_hash)
-            self.cpv.setCursorPosition(0)
-            if _hash:
-                self.checkpoint_height = height
-                self.checkpoint_value = _hash
-        self.cph.editingFinished.connect(on_cph)
+        n_chains = len(network.blockchains)
+        self.checkpoint_height = network.get_checkpoint()
 
+        status = _("Connected to %d nodes.")%n if n else _("Not connected")
         msg =  ' '.join([
             _("Electrum connects to several nodes in order to download block headers and find out the longest blockchain."),
             _("This blockchain is used to verify the transactions sent by your transaction server.")
@@ -230,23 +201,26 @@ class NetworkChoiceLayout(object):
         grid.addWidget(QLabel(_('Status') + ':'), 0, 0)
         grid.addWidget(QLabel(status), 0, 1, 1, 3)
         grid.addWidget(HelpButton(msg), 0, 4)
-        msg = _('This is the height of your local copy of the blockchain.')
-        grid.addWidget(QLabel(_("Height") + ':'), 1, 0)
-        grid.addWidget(QLabel(height_str), 1, 1)
-        grid.addWidget(HelpButton(msg), 1, 4)
-        msg = ''.join([
-            _('A checkpoint can be used to verify that you are on the correct blockchain.'), ' ',
-            _('By default, your checkpoint is the genesis block.'), '\n\n',
-            _('If you edit the height field, the corresponding block hash will be fetched from your current server.'), ' ',
-            _('If you press OK, the checkpoint will be saved, and Electrum will only accept headers from nodes that pass this checkpoint.'), '\n\n',
-            _('If there is a hard fork, you will have to check the block hash from an independent source, in order to be sure that you are on the desired side of the fork.'),
-        ])
-        grid.addWidget(QLabel(_('Checkpoint') +':'), 3, 0, 1, 2)
-        grid.addWidget(HelpButton(msg), 3, 4)
-        grid.addWidget(self.cph_label, 4, 0)
-        grid.addWidget(self.cph, 4, 1)
-        grid.addWidget(self.cpv_label, 5, 0)
-        grid.addWidget(self.cpv, 5, 1, 1, 4)
+        if n_chains == 1:
+            height_str = "%d "%(network.get_local_height()) + _("blocks")
+            msg = _('This is the height of your local copy of the blockchain.')
+            grid.addWidget(QLabel(_("Height") + ':'), 1, 0)
+            grid.addWidget(QLabel(height_str), 1, 1)
+            grid.addWidget(HelpButton(msg), 1, 4)
+        else:
+            checkpoint = network.get_checkpoint()
+            self.cph_label = QLabel(_('Chain split detected'))
+            grid.addWidget(self.cph_label, 4, 0)
+            chains_list_widget = QTreeWidget()
+            chains_list_widget.setHeaderLabels( [ _('Nodes'), _('Blocks'), _('Checkpoint'), _('Hash') ] )
+            chains_list_widget.setMaximumHeight(150)
+            grid.addWidget(chains_list_widget, 5, 0, 1, 5)
+            for b in network.blockchains.values():
+                _hash = b.get_hash(checkpoint)
+                height = b.height()
+                count = sum([i.blockchain == b for i in network.interfaces.values()])
+                chains_list_widget.addTopLevelItem(QTreeWidgetItem( [ '%d'%count, '%d'%height, '%d'%checkpoint, _hash ] ))
+
         grid.setRowStretch(7, 1)
         vbox = QVBoxLayout()
         vbox.addWidget(tabs)
@@ -328,7 +302,7 @@ class NetworkChoiceLayout(object):
             proxy = None
         auto_connect = self.autoconnect_cb.isChecked()
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
-        self.network.blockchain.set_checkpoint(self.checkpoint_height, self.checkpoint_value)
+        #self.network.blockchain.set_checkpoint(self.checkpoint_height, self.checkpoint_value)
 
     def suggest_proxy(self, found_proxy):
         self.tor_proxy = found_proxy
