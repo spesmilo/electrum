@@ -515,6 +515,7 @@ class Transaction:
         self._inputs = None
         self._outputs = None
         self.locktime = 0
+        self.version = 1
 
     def update(self, raw):
         self.raw = raw
@@ -583,6 +584,7 @@ class Transaction:
         self._inputs = d['inputs']
         self._outputs = [(x['type'], x['address'], x['value']) for x in d['outputs']]
         self.locktime = d['lockTime']
+        self.version = d['version']
         return d
 
     @classmethod
@@ -708,7 +710,7 @@ class Transaction:
         return s
 
     def serialize_preimage(self, i):
-        nVersion = int_to_hex(1, 4)
+        nVersion = int_to_hex(self.version, 4)
         nHashType = int_to_hex(1, 4)
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
@@ -733,7 +735,7 @@ class Transaction:
         return any(self.is_segwit_input(x) for x in self.inputs())
 
     def serialize(self, estimate_size=False, witness=True):
-        nVersion = int_to_hex(1, 4)
+        nVersion = int_to_hex(self.version, 4)
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
