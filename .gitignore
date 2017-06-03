@@ -16,3 +16,7 @@ env/
 .tox/
 .buildozer/
 bin/
+
+# tox files
+.cache/
+.coverage
