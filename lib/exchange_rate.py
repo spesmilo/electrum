@@ -157,6 +157,15 @@ class BTCChina(ExchangeBase):
         json = self.get_json('data.btcchina.com', '/data/ticker')
         return {'CNY': Decimal(json['ticker']['last'])}
 
+class BTCe(ExchangeBase):
+    def get_rates(self, ccy):
+        json_eur = self.get_json('btc-e.nz', '/api/3/ticker/btc_eur')
+        json_rub = self.get_json('btc-e.nz', '/api/3/ticker/btc_rur')
+        json_usd = self.get_json('btc-e.nz', '/api/3/ticker/btc_usd')
+        return {'EUR': Decimal(json_eur['btc_eur']['last']),
+                'RUB': Decimal(json_rub['btc_rur']['last']),
+                'USD': Decimal(json_usd['btc_usd']['last'])}
+
 class Coinbase(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('coinbase.com',
