@@ -1,4 +1,9 @@
 {
+    "BTCe": [
+        "EUR",
+        "RUB",
+        "USD"
+    ],
     "BTCChina": [
         "CNY"
     ], 
