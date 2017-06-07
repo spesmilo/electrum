@@ -32,6 +32,7 @@ class Console(QtGui.QPlainTextEdit):
 
         self.updateNamespace({'run':self.run_script})
         self.set_json(False)
+        self.hook_exceptions()
 
     def set_json(self, b):
         self.is_json = b
@@ -303,6 +304,13 @@ class Console(QtGui.QPlainTextEdit):
                 self.setCommand(beginning + p)
             else:
                 self.show_completions(completions)
+
+    def hook_exceptions(self):
+        def console_excepthook(exctype, value, tb):
+            self.appendPlainText("\n".join(traceback.format_exception(exctype, value, tb)))
+            self.newPrompt()
+            sys.__excepthook__(exctype, value, tb)
+        sys.excepthook = console_excepthook
 
 
 welcome_message = '''
