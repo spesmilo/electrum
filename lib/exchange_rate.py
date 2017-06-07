@@ -89,8 +89,8 @@ class ExchangeBase(PrintError):
 
 class BitcoinAverage(ExchangeBase):
     def get_rates(self, ccy):
-        json = self.get_json('api.bitcoinaverage.com', '/ticker/global/all')
-        return dict([(r, Decimal(json[r]['last']))
+        json = self.get_json('apiv2.bitcoinaverage.com', '/indices/global/ticker/short')
+        return dict([(r.replace("BTC", ""), Decimal(json[r]['last']))
                      for r in json if r != 'timestamp'])
 
     def history_ccys(self):
@@ -99,8 +99,8 @@ class BitcoinAverage(ExchangeBase):
                 'ZAR']
 
     def historical_rates(self, ccy):
-        history = self.get_csv('api.bitcoinaverage.com',
-                               "/history/%s/per_day_all_time_history.csv" % ccy)
+        history = self.get_csv('apiv2.bitcoinaverage.com',
+                               "/indices/global/history/BTC%s?period=alltime&format=csv" % ccy)
         return dict([(h['DateTime'][:10], h['Average'])
                      for h in history])
 
