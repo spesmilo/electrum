@@ -5,6 +5,9 @@ import time
 import sys
 import traceback
 
+from PyQt4.QtGui import *
+from PyQt4.QtCore import *
+
 import electrum
 from electrum import bitcoin
 from electrum.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
