@@ -22,10 +22,13 @@ Tumble your bitcoins:
 ## Screenshots
 
 ![electrum_step1.png](images/electrum_step1.png)
+
 Step 1: Deposit of funds
 
 ![electrum_step2.png](images/electrum_step2.png)
+
 Step 2: Splitting and merging chips
 
 ![electrum_step3.png](images/electrum_step3.png)
+
 Step 3: New wallet funded with chips
