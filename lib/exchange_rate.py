@@ -94,8 +94,9 @@ class Bit2C(ExchangeBase):
 
 class BitcoinAverage(ExchangeBase):
     def get_rates(self, ccy):
-        json = self.get_json('apiv2.bitcoinaverage.com', '/indices/global/ticker/LTC%s' % ccy)
-        return {ccy: Decimal(json['last'])}
+        json = self.get_json('apiv2.bitcoinaverage.com', '/indices/global/ticker/short')
+        return dict([(r.replace("LTC", ""), Decimal(json[r]['last']))
+                     for r in json if r != 'timestamp'])
 
     def history_ccys(self):
         return ['AUD', 'BRL', 'CAD', 'CHF', 'CNY', 'EUR', 'GBP', 'IDR', 'ILS',
@@ -104,7 +105,7 @@ class BitcoinAverage(ExchangeBase):
 
     def historical_rates(self, ccy):
         history = self.get_csv('apiv2.bitcoinaverage.com',
-                               "/indices/global/history/LTC%s?format=csv" % ccy)
+                               "/indices/global/history/LTC%s?period=alltime&format=csv" % ccy)
         return dict([(h['DateTime'][:10], h['Average'])
                      for h in history])
 
