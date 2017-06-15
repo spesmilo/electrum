@@ -10,7 +10,7 @@ confinement: strict
 apps:
   electrum:
     command: desktop-launch electrum
-    plugs: [network, network-bind]
+    plugs: [network, network-bind, x11, unity7]
 
 parts:
   electrum:
