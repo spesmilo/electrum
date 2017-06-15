@@ -1,0 +1,21 @@
+name: electrum
+version: master
+summary: Bitcoin thin client
+description: |
+  Lightweight Bitcoin client
+
+grade: devel # must be 'stable' to release into candidate/stable channels
+confinement: strict
+
+apps:
+  electrum:
+    command: desktop-launch electrum
+    plugs: [network, network-bind]
+
+parts:
+  electrum:
+    source: .
+    plugin: python
+    python-version: python2
+    stage-packages: [python-qt4]
+    after: [desktop-qt4]
