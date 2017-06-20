@@ -494,14 +494,14 @@ def msg_magic(message):
 
 def verify_message(address, sig, message):
     try:
-        public_key, compressed = pubkey_from_signature(sig, message)
+        h = Hash(msg_magic(message))
+        public_key, compressed = pubkey_from_signature(sig, h)
         # check public key using the address
         pubkey = point_to_ser(public_key.pubkey.point, compressed)
         addr = public_key_to_p2pkh(pubkey)
         if address != addr:
             raise Exception("Bad signature")
         # check message
-        h = Hash(msg_magic(message))
         public_key.verify_digest(sig[1:], h, sigdecode = ecdsa.util.sigdecode_string)
         return True
     except Exception as e:
@@ -583,7 +583,7 @@ class MyVerifyingKey(ecdsa.VerifyingKey):
         return klass.from_public_point( Q, curve )
 
 
-def pubkey_from_signature(sig, message):
+def pubkey_from_signature(sig, h):
     if len(sig) != 65:
         raise Exception("Wrong encoding")
     nV = ord(sig[0])
@@ -595,7 +595,6 @@ def pubkey_from_signature(sig, message):
     else:
         compressed = False
     recid = nV - 27
-    h = Hash(msg_magic(message))
     return MyVerifyingKey.from_signature(sig[1:], recid, h, curve = SECP256k1), compressed
 
 
@@ -644,12 +643,12 @@ class EC_KEY(object):
 
 
     def verify_message(self, sig, message):
-        public_key, compressed = pubkey_from_signature(sig, message)
+        h = Hash(msg_magic(message))
+        public_key, compressed = pubkey_from_signature(sig, h)
         # check public key
         if point_to_ser(public_key.pubkey.point, compressed) != point_to_ser(self.pubkey.point, compressed):
             raise Exception("Bad signature")
         # check message
-        h = Hash(msg_magic(message))
         public_key.verify_digest(sig[1:], h, sigdecode = ecdsa.util.sigdecode_string)
 
 
@@ -828,6 +827,21 @@ def xpub_from_pubkey(xtype, cK):
     assert cK[0] in ['\x02','\x03']
     return serialize_xpub(xtype, chr(0)*32, cK)
 
+
+def bip32_derivation(s):
+    assert s.startswith('m/')
+    s = s[2:]
+    for n in s.split('/'):
+        if n == '': continue
+        i = int(n[:-1]) + BIP32_PRIME if n[-1] == "'" else int(n)
+        yield i
+
+def is_bip32_derivation(x):
+    try:
+        [ i for i in bip32_derivation(x)]
+        return True
+    except :
+        return False
 
 def bip32_private_derivation(xprv, branch, sequence):
     assert sequence.startswith(branch)

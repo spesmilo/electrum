@@ -1,0 +1,23 @@
+name: electrum-ltc
+version: master
+summary: Litecoin thin client
+description: |
+  Lightweight Litecoin client
+
+grade: devel # must be 'stable' to release into candidate/stable channels
+confinement: strict
+
+apps:
+  electrum-ltc:
+    command: desktop-launch electrum-ltc
+    plugs: [network, network-bind, x11, unity7]
+
+parts:
+  electrum-ltc:
+    source: .
+    plugin: python
+    python-version: python2
+    stage-packages: [python-qt4]
+    build-packages: [pyqt4-dev-tools]
+    install: pyrcc4 icons.qrc -o $SNAPCRAFT_PART_INSTALL/lib/python2.7/site-packages/electrum_ltc_gui/qt/icons_rc.py
+    after: [desktop-qt4]

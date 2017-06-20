@@ -222,21 +222,16 @@ class BaseWizard(object):
             # This is partially compatible with BIP45; assumes index=0
             self.on_hw_derivation(name, device_info, "m/45'/0")
         else:
-            f = lambda x: self.run('on_hw_derivation', name, device_info, bip44_derivation(int(x)))
-            self.account_id_dialog(f)
+            f = lambda x: self.run('on_hw_derivation', name, device_info, str(x))
+            self.derivation_dialog(f)
 
-    def account_id_dialog(self, f):
+    def derivation_dialog(self, f):
+        default = bip44_derivation(0)
         message = '\n'.join([
-            _('Enter your BIP44 account number here.'),
-            _('If you are not sure what this is, leave this field to zero.')
+            _('Enter your wallet derivation here.'),
+            _('If you are not sure what this is, leave this field unchanged.')
         ])
-        def is_int(x):
-            try:
-                int(x)
-                return True
-            except:
-                return False
-        self.line_dialog(run_next=f, title=_('Account Number'), message=message, default='0', test=is_int)
+        self.line_dialog(run_next=f, title=_('Derivation'), message=message, default=default, test=bitcoin.is_bip32_derivation)
 
     def on_hw_derivation(self, name, device_info, derivation):
         from keystore import hardware_keystore
@@ -293,17 +288,16 @@ class BaseWizard(object):
             raise BaseException('Unknown seed type', seed_type)
 
     def on_restore_bip39(self, seed, passphrase):
-        f = lambda x: self.run('on_bip44', seed, passphrase, int(x))
-        self.account_id_dialog(f)
+        f = lambda x: self.run('on_bip44', seed, passphrase, str(x))
+        self.derivation_dialog(f)
 
     def create_keystore(self, seed, passphrase):
         k = keystore.from_seed(seed, passphrase)
         self.on_keystore(k)
 
-    def on_bip44(self, seed, passphrase, account_id):
+    def on_bip44(self, seed, passphrase, derivation):
         k = keystore.BIP32_KeyStore({})
         bip32_seed = keystore.bip39_to_seed(seed, passphrase)
-        derivation = bip44_derivation(account_id)
         k.add_xprv_from_seed(bip32_seed, 0, derivation)
         self.on_keystore(k)
 

@@ -453,7 +453,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         line = QLineEdit()
         line.setText(default)
         def f(text):
-            self.next_button.setEnabled(test(text))
+            self.next_button.setEnabled(test(unicode(text)))
         line.textEdited.connect(f)
         vbox.addWidget(line)
         vbox.addWidget(WWLabel(warning))
