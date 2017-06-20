@@ -820,6 +820,21 @@ def xpub_from_pubkey(xtype, cK):
     return serialize_xpub(xtype, chr(0)*32, cK)
 
 
+def bip32_derivation(s):
+    assert s.startswith('m/')
+    s = s[2:]
+    for n in s.split('/'):
+        if n == '': continue
+        i = int(n[:-1]) + BIP32_PRIME if n[-1] == "'" else int(n)
+        yield i
+
+def is_bip32_derivation(x):
+    try:
+        [ i for i in bip32_derivation(x)]
+        return True
+    except :
+        return False
+
 def bip32_private_derivation(xprv, branch, sequence):
     assert sequence.startswith(branch)
     if branch == sequence:
