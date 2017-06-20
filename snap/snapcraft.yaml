@@ -1,0 +1,23 @@
+name: electrum
+version: master
+summary: Bitcoin thin client
+description: |
+  Lightweight Bitcoin client
+
+grade: devel # must be 'stable' to release into candidate/stable channels
+confinement: strict
+
+apps:
+  electrum:
+    command: desktop-launch electrum
+    plugs: [network, network-bind, x11, unity7]
+
+parts:
+  electrum:
+    source: .
+    plugin: python
+    python-version: python2
+    stage-packages: [python-qt4]
+    build-packages: [pyqt4-dev-tools]
+    install: pyrcc4 icons.qrc -o $SNAPCRAFT_PART_INSTALL/lib/python2.7/site-packages/electrum_gui/qt/icons_rc.py
+    after: [desktop-qt4]
