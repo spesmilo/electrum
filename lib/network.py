@@ -610,7 +610,10 @@ class Network(util.DaemonThread):
                     assert interface == self.interface
                     callbacks = [client_req[2]]
                 else:
-                    callbacks = []
+                    # fixme: will only work for subscriptions
+                    k = self.get_index(method, params)
+                    callbacks = self.subscriptions.get(k, [])
+
                 # Copy the request method and params to the response
                 response['method'] = method
                 response['params'] = params
