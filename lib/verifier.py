@@ -64,7 +64,7 @@ class SPV(ThreadJob):
         tx_height = merkle.get('block_height')
         pos = merkle.get('pos')
         merkle_root = self.hash_merkle_root(merkle['merkle'], tx_hash, pos)
-        header = self.network.get_header(tx_height)
+        header = self.network.blockchain().read_header(tx_height)
         if not header or header.get('merkle_root') != merkle_root:
             # FIXME: we should make a fresh connection to a server to
             # recover from this, as this TX will now never verify

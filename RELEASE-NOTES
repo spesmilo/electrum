@@ -1,3 +1,10 @@
+# Release 2.9 - Independence
+  * Blockchain fork detection and management:
+    - The SPV module will download and verify block headers from
+      multiple branches
+    - Branching points are located using binary search
+    - The desired branch of a fork can be selected using the network dialog
+
 # Release 2.8.3
   * Fix crash on reading older wallet formats.
   * TrustedCoin: remove pay-per-tx option
