@@ -263,7 +263,7 @@ class DeviceNotFoundError(Exception):
 class DeviceUnpairableError(Exception):
     pass
 
-Device = namedtuple("Device", "path interface_number id_ product_key")
+Device = namedtuple("Device", "path interface_number id_ product_key usage_page")
 DeviceInfo = namedtuple("DeviceInfo", "device label initialized")
 
 class DeviceMgr(ThreadJob, PrintError):
@@ -504,12 +504,14 @@ class DeviceMgr(ThreadJob, PrintError):
             product_key = (d['vendor_id'], d['product_id'])
             if product_key in self.recognised_hardware:
                 # Older versions of hid don't provide interface_number
-                interface_number = d.get('interface_number', 0)
-                serial = d['serial_number']
-                if len(serial) == 0:
-                    serial = d['path']
+                interface_number = d.get('interface_number', -1)
+                usage_page = d['usage_page']
+                id_ = d['serial_number']
+                if len(id_) == 0:
+                    id_ = d['path']
+                id_ += str(interface_number) + str(usage_page)
                 devices.append(Device(d['path'], interface_number,
-                                      serial, product_key))
+                                      id_, product_key, usage_page))
 
         # Now find out what was disconnected
         pairs = [(dev.path, dev.id_) for dev in devices]

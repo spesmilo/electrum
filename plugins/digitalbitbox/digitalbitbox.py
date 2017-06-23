@@ -5,7 +5,7 @@
 
 try:
     import electrum_ltc as electrum
-    from electrum_ltc.bitcoin import TYPE_ADDRESS, var_int, msg_magic, Hash, verify_message, public_key_to_p2pkh, EncodeAES, DecodeAES
+    from electrum_ltc.bitcoin import TYPE_ADDRESS, var_int, msg_magic, Hash, verify_message, pubkey_from_signature, point_to_ser, public_key_to_p2pkh, EncodeAES, DecodeAES, MyVerifyingKey
     from electrum_ltc.i18n import _
     from electrum_ltc.keystore import Hardware_KeyStore
     from ..hw_wallet import HW_PluginBase
@@ -15,9 +15,11 @@ try:
     import hid
     import json
     import math
+    import struct
     import hashlib
     from ecdsa.ecdsa import generator_secp256k1
     from ecdsa.util import sigencode_der
+    from ecdsa.curves import SECP256k1
     DIGIBOX = True
 except ImportError as e:
     DIGIBOX = False
@@ -36,7 +38,7 @@ class DigitalBitbox_Client():
         self.password = None
         self.isInitialized = False
         self.setupRunning = False
-        self.hidBufSize = 4096
+        self.usbReportSize = 64 # firmware > v2.0.0
 
 
     def close(self):
@@ -248,13 +250,56 @@ class DigitalBitbox_Client():
         return True
 
 
+    def hid_send_frame(self, data):
+        HWW_CID = 0xFF000000
+        HWW_CMD = 0x80 + 0x40 + 0x01
+        data = bytearray(data)
+        data_len = len(data)
+        seq = 0;
+        idx = 0;
+        write = []
+        while idx < data_len:
+            if idx == 0:
+                # INIT frame
+                write = data[idx : idx + min(data_len, self.usbReportSize - 7)]
+                self.dbb_hid.write('\0' + struct.pack(">IBH", HWW_CID, HWW_CMD, data_len & 0xFFFF) + write + '\xEE' * (self.usbReportSize - 7 - len(write)))
+            else: 
+                # CONT frame
+                write = data[idx : idx + min(data_len, self.usbReportSize - 5)]
+                self.dbb_hid.write('\0' + struct.pack(">IB", HWW_CID, seq) + write + '\xEE' * (self.usbReportSize - 5 - len(write)))
+                seq += 1
+            idx += len(write)
+
+
+    def hid_read_frame(self):
+        # INIT response
+        read = self.dbb_hid.read(self.usbReportSize)
+        cid = ((read[0] * 256 + read[1]) * 256 + read[2]) * 256 + read[3]
+        cmd = read[4]
+        data_len = read[5] * 256 + read[6]
+        data = read[7:]
+        idx = len(read) - 7;
+        while idx < data_len:
+            # CONT response
+            read = self.dbb_hid.read(self.usbReportSize)
+            data += read[5:]
+            idx += len(read) - 5
+        return data
+
+
     def hid_send_plain(self, msg):
         reply = ""
         try:
-            self.dbb_hid.write('\0' + bytearray(msg) + '\0' * (self.hidBufSize - len(msg)))
-            r = []
-            while len(r) < self.hidBufSize:
-                r = r + self.dbb_hid.read(self.hidBufSize)
+            serial_number = self.dbb_hid.get_serial_number_string()
+            if "v2.0." in serial_number or "v1." in serial_number:
+                hidBufSize = 4096
+                self.dbb_hid.write('\0' + bytearray(msg) + '\0' * (hidBufSize - len(msg)))
+                r = []
+                while len(r) < hidBufSize:
+                    r = r + self.dbb_hid.read(hidBufSize)
+            else:
+                self.hid_send_frame(msg)
+                r = self.hid_read_frame()
             r = str(bytearray(r)).rstrip(' \t\r\n\0')
             r = r.replace("\0", '')
             reply = json.loads(r)
@@ -338,16 +383,28 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
             if 'sign' not in reply:
                 raise Exception("Could not sign message.")
 
-            for i in range(4):
-                sig = chr(27 + i + 4) + reply['sign'][0]['sig'].decode('hex')
-                try:
-                    addr = public_key_to_p2pkh(reply['sign'][0]['pubkey'].decode('hex'))
-                    if verify_message(addr, sig, message):
-                        break
-                except Exception:
-                    continue
-            else:
-                raise Exception("Could not sign message")
+            if 'recid' in reply['sign'][0]:
+                # firmware > v2.1.1
+                sig = chr(27 + int(reply['sign'][0]['recid'], 16) + 4) + reply['sign'][0]['sig'].decode('hex')
+                h = Hash(msg_magic(message))
+                pk, compressed = pubkey_from_signature(sig, h)
+                pk = point_to_ser(pk.pubkey.point, compressed)
+                addr = public_key_to_p2pkh(pk)
+                if verify_message(addr, sig, message) is False:
+                    raise Exception("Could not sign message")
+            elif 'pubkey' in reply['sign'][0]:
+                # firmware <= v2.1.1
+                for i in range(4):
+                    sig = chr(27 + i + 4) + reply['sign'][0]['sig'].decode('hex')
+                    try:
+                        addr = public_key_to_p2pkh(reply['sign'][0]['pubkey'].decode('hex'))
+                        if verify_message(addr, sig, message):
+                            break
+                    except Exception:
+                        continue
+                else:
+                    raise Exception("Could not sign message")
+            
             
         except BaseException as e:
             self.give_error(e)
@@ -361,6 +418,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
         try:
             p2shTransaction = False
             derivations = self.get_tx_derivations(tx)
+            inputhasharray = []
             hasharray = []
             pubkeyarray = []
             
@@ -376,9 +434,10 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     if x_pubkey in derivations:
                         index = derivations.get(x_pubkey)
                         inputPath = "%s/%d/%d" % (self.get_derivation(), index[0], index[1])
-                        inputHash = Hash(tx.serialize_preimage(i).decode('hex')).encode('hex')
-                        hasharray_i = {'hash': inputHash, 'keypath': inputPath}
+                        inputHash = Hash(tx.serialize_preimage(i).decode('hex'))
+                        hasharray_i = {'hash': inputHash.encode('hex'), 'keypath': inputPath}
                         hasharray.append(hasharray_i)
+                        inputhasharray.append(inputHash)
                         break
                 else:
                     self.give_error("No matching x_key for sign_transaction") # should never happen
@@ -432,7 +491,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     self.handler.show_message(_("Signing transaction ...\r\n\r\n" \
                                                 "To continue, touch the Digital Bitbox's blinking light for 3 seconds.\r\n\r\n" \
                                                 "To cancel, briefly touch the blinking light or wait for the timeout."))
-                
+               
                 reply = dbb_client.hid_send_encrypt(msg) # Send twice, first returns an echo for smart verification (not implemented)
                 self.handler.clear_dialog()
                 
@@ -455,12 +514,22 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                         break # txin is complete
                     ii = txin['pubkeys'].index(pubkey)
                     signed = dbb_signatures[i]
-                    if signed['pubkey'] != pubkey:
+                    if 'recid' in signed:
+                        # firmware > v2.1.1
+                        recid = int(signed['recid'], 16)
+                        s = signed['sig'].decode('hex')
+                        h = inputhasharray[i]
+                        pk = MyVerifyingKey.from_signature(s, recid, h, curve = SECP256k1)
+                        pk = point_to_ser(pk.pubkey.point, True).encode('hex')
+                    elif 'pubkey' in signed:
+                        # firmware <= v2.1.1
+                        pk = signed['pubkey']
+                    if pk != pubkey:
                         continue
                     sig_r = int(signed['sig'][:64], 16)
                     sig_s = int(signed['sig'][64:], 16)
                     sig = sigencode_der(sig_r, sig_s, generator_secp256k1.order())
-                    txin['signatures'][ii] = sig.encode('hex')
+                    txin['signatures'][ii] = sig.encode('hex') + '01'
                     tx._inputs[i] = txin
 
         except BaseException as e:
@@ -468,7 +537,6 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
         else:
             print_error("Transaction is_complete", tx.is_complete())
             tx.raw = tx.serialize()
-      
 
 
 class DigitalBitboxPlugin(HW_PluginBase):
@@ -493,11 +561,14 @@ class DigitalBitboxPlugin(HW_PluginBase):
 
 
     def create_client(self, device, handler):
-        self.handler = handler
-        client = self.get_dbb_device(device)
-        if client <> None:
-            client = DigitalBitbox_Client(client)
-        return client
+        if device.interface_number == 0 or device.usage_page == 0xffff:
+            self.handler = handler
+            client = self.get_dbb_device(device)
+            if client <> None:
+                client = DigitalBitbox_Client(client)
+            return client
+        else:
+            return None
 
 
     def setup_device(self, device_info, wizard):        
