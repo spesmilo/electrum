@@ -719,6 +719,7 @@ class Network(util.DaemonThread):
         self.add_recent_server(server)
         interface = Interface(server, socket)
         interface.blockchain = None
+        interface.tip = 0
         interface.mode = 'checkpoint'
         self.interfaces[server] = interface
         self.request_header(interface, self.get_checkpoint())

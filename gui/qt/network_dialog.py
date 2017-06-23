@@ -208,18 +208,26 @@ class NetworkChoiceLayout(object):
             grid.addWidget(QLabel(height_str), 1, 1)
             grid.addWidget(HelpButton(msg), 1, 4)
         else:
-            checkpoint = network.get_checkpoint()
             self.cph_label = QLabel(_('Chain split detected'))
             grid.addWidget(self.cph_label, 4, 0)
-            chains_list_widget = QTreeWidget()
-            chains_list_widget.setHeaderLabels( [ _('Nodes'), _('Blocks'), _('Checkpoint'), _('Hash') ] )
-            chains_list_widget.setMaximumHeight(150)
-            grid.addWidget(chains_list_widget, 5, 0, 1, 5)
+
+        chains_list_widget = QTreeWidget()
+        chains_list_widget.setHeaderLabels( [ _('Height'), _('Server') ] )
+        grid.addWidget(chains_list_widget, 5, 0, 1, 5)
+        if n_chains> 1:
+            checkpoint = network.get_checkpoint()
             for b in network.blockchains.values():
                 _hash = b.get_hash(checkpoint)
-                height = b.height()
-                count = sum([i.blockchain == b for i in network.interfaces.values()])
-                chains_list_widget.addTopLevelItem(QTreeWidgetItem( [ '%d'%count, '%d'%height, '%d'%checkpoint, _hash ] ))
+                x = QTreeWidgetItem([ '%d'%checkpoint, _hash ])
+                for i in network.interfaces.values():
+                    if i.blockchain == b:
+                        x.addChild(QTreeWidgetItem(['%d'%i.tip, i.host]))
+                chains_list_widget.addTopLevelItem(x)
+                x.setExpanded(True)
+        else:
+            for i in network.interfaces.values():
+                chains_list_widget.addTopLevelItem(QTreeWidgetItem(['%d'%i.tip, i.host]))
+        chains_list_widget.header().setResizeMode(0, QHeaderView.ResizeToContents)
 
         grid.setRowStretch(7, 1)
         vbox = QVBoxLayout()
