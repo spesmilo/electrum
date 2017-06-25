@@ -47,10 +47,13 @@ a = Analysis([home+'electrum',
               ],
              datas = [
                  (home+'lib/currencies.json', 'electrum'),
-                 (home+'lib/wordlist/english.txt', 'electrum/wordlist')],
+                 (home+'lib/wordlist/english.txt', 'electrum/wordlist'),
+                 (home+'packages/requests/cacert.pem', 'requests/cacert.pem')
+             ],
              binaries= zbar_dlls,
-             hookspath=[])
-
+             hookspath=[],
+             hiddenimports=["lib", "gui", "plugins", "electrum_gui.qt.icons_rc"]
+             )
 
 # http://stackoverflow.com/questions/19055089/pyinstaller-onefile-warning-pyconfig-h-when-importing-scipy-or-scipy-signal
 for d in a.datas:
@@ -59,6 +62,7 @@ for d in a.datas:
         break
 
 pyz = PYZ(a.pure)
+
 exe = EXE(pyz,
           a.scripts,
           a.binaries,
@@ -68,7 +72,7 @@ exe = EXE(pyz,
           strip=None,
           upx=False,
           icon=home+'icons/electrum.ico',
-          console=False)
+          console=True)
           # The console True makes an annoying black box pop up, but it does make Electrum output command line commands, with this turned off no output will be given but commands can still be used
 
 coll = COLLECT(exe,
@@ -79,5 +83,6 @@ coll = COLLECT(exe,
                upx=True,
                debug=False,
                icon=home+'icons/electrum.ico',
-               console=False,
+               console=True,
                name=os.path.join('dist', 'electrum'))
+
