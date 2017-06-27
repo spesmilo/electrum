@@ -53,6 +53,7 @@ class TrezorCompatibleKeyStore(Hardware_KeyStore):
         # path of the xpubs that are involved
         xpub_path = {}
         for txin in tx.inputs():
+            pubkeys, x_pubkeys = tx.get_sorted_pubkeys(txin)
             tx_hash = txin['prevout_hash']
             prev_tx[tx_hash] = txin['prev_tx'] 
             for x_pubkey in txin['x_pubkeys']:
