@@ -333,9 +333,7 @@ def parse_scriptSig(d, bytes):
         try:
             signatures = parse_sig([sig])
             pubkey, address = xpubkey_to_address(x_pubkey)
-        except:
-            import traceback
-            traceback.print_exc(file=sys.stdout)
+        except BaseException:
             print_error("cannot find address in input script", bytes.encode('hex'))
             return
         d['type'] = 'p2pkh'
