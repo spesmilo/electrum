@@ -411,14 +411,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 i += 1
             else:
                 break
-        filename = line_dialog(self, _('New Wallet'), _('Enter file name')
-                               + ':', _('OK'), filename)
-        if not filename:
-            return
         full_path = os.path.join(wallet_folder, filename)
-        if os.path.exists(full_path):
-            self.show_critical(_("File exists"))
-            return
         self.gui_object.start_new_window(full_path, None)
 
     def init_menubar(self):
