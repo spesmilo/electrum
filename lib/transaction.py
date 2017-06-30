@@ -333,9 +333,7 @@ def parse_scriptSig(d, bytes):
         try:
             signatures = parse_sig([sig])
             pubkey, address = xpubkey_to_address(x_pubkey)
-        except:
-            import traceback
-            traceback.print_exc(file=sys.stdout)
+        except BaseException:
             print_error("cannot find address in input script", bytes.encode('hex'))
             return
         d['type'] = 'p2pkh'
@@ -833,6 +831,7 @@ class Transaction:
                     assert public_key.verify_digest(sig, pre_hash, sigdecode = ecdsa.util.sigdecode_der)
                     txin['signatures'][j] = sig.encode('hex') + '01'
                     txin['x_pubkeys'][j] = pubkey
+                    txin['pubkeys'][j] = pubkey # needed for fd keys
                     self._inputs[i] = txin
         print_error("is_complete", self.is_complete())
         self.raw = self.serialize()

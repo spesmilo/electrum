@@ -343,24 +343,35 @@ def time_difference(distance_in_time, include_seconds):
     else:
         return "over %d years" % (round(distance_in_minutes / 525600))
 
-block_explorer_info = {
+mainnet_block_explorers = {
     'explorer.litecoin.net': ('http://explorer.litecoin.net',
                         {'tx': 'tx', 'addr': 'address'}),
     'Blockr.io': ('https://ltc.blockr.io',
                         {'tx': 'tx/info', 'addr': 'address/info'}),
-    'SoChain': ('https://chain.so',
-                        {'tx': 'tx/LTC', 'addr': 'address/LTC'}),
     'BlockCypher.com': ('https://live.blockcypher.com/ltc',
                         {'tx': 'tx', 'addr': 'address'}),
+    'SoChain': ('https://chain.so',
+                        {'tx': 'tx/LTC', 'addr': 'address/LTC'}),
     'system default': ('blockchain:',
                         {'tx': 'tx', 'addr': 'address'}),
 }
 
+testnet_block_explorers = {
+    'SoChain': ('https://chain.so',
+                        {'tx': 'tx/LTCTEST', 'addr': 'address/LTCTEST'}),
+    'system default': ('blockchain:',
+                       {'tx': 'tx', 'addr': 'address'}),
+}
+
+def block_explorer_info():
+    import bitcoin
+    return testnet_block_explorers if bitcoin.TESTNET else mainnet_block_explorers
+
 def block_explorer(config):
-    return config.get('block_explorer', 'explorer.litecoin.net')
+    return config.get('block_explorer', 'SoChain')
 
 def block_explorer_tuple(config):
-    return block_explorer_info.get(block_explorer(config))
+    return block_explorer_info().get(block_explorer(config))
 
 def block_explorer_URL(config, kind, item):
     be_tuple = block_explorer_tuple(config)

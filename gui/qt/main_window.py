@@ -45,8 +45,7 @@ from electrum_ltc import keystore
 from electrum_ltc.bitcoin import COIN, is_valid, TYPE_ADDRESS
 from electrum_ltc.plugins import run_hook
 from electrum_ltc.i18n import _
-from electrum_ltc.util import (block_explorer, block_explorer_info, format_time,
-                               block_explorer_URL, format_satoshis, PrintError,
+from electrum_ltc.util import (format_time, format_satoshis, PrintError,
                                format_satoshis_plain, NotEnoughFunds,
                                UserCancelled)
 from electrum_ltc import Transaction, mnemonic
@@ -411,14 +410,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 i += 1
             else:
                 break
-        filename = line_dialog(self, _('New Wallet'), _('Enter file name')
-                               + ':', _('OK'), filename)
-        if not filename:
-            return
         full_path = os.path.join(wallet_folder, filename)
-        if os.path.exists(full_path):
-            self.show_critical(_("File exists"))
-            return
         self.gui_object.start_new_window(full_path, None)
 
     def init_menubar(self):
@@ -667,7 +659,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
                 # append fiat balance and price
                 if self.fx.is_enabled():
-                    text += self.fx.get_fiat_status_text(c + u + x) or ''
+                    text += self.fx.get_fiat_status_text(c + u + x,
+                        self.base_unit(), self.get_decimal_point()) or ''
                 if not self.network.proxy:
                     icon = QIcon(":icons/status_connected.png")
                 else:
@@ -1870,6 +1863,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d.setLayout(vbox)
         d.exec_()
 
+    msg_sign = ("Signing with an address actually means signing with the corresponding "
+                "private key, and verifying with the corresponding public key. The "
+                "address you have entered does not have a unique public key, so these "
+                "operations cannot be performed.")
+
     @protected
     def do_sign(self, address, message, signature, password):
         address  = str(address.text()).strip()
@@ -1878,7 +1876,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message('Invalid Litecoin address.')
             return
         if not bitcoin.is_p2pkh(address):
-            self.show_message('Cannot sign messages with this type of address.')
+            self.show_message('Cannot sign messages with this type of address.' + '\n\n' + self.msg_sign)
             return
         if not self.wallet.is_mine(address):
             self.show_message('Address not in wallet.')
@@ -1895,7 +1893,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message('Invalid Litecoin address.')
             return
         if not bitcoin.is_p2pkh(address):
-            self.show_message('Cannot verify messages with this type of address.')
+            self.show_message('Cannot verify messages with this type of address.' + '\n\n' + self.msg_sign)
             return
         try:
             # This can throw on invalid base64
@@ -2532,12 +2530,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         unit_combo.currentIndexChanged.connect(on_unit)
         gui_widgets.append((unit_label, unit_combo))
 
-        block_explorers = sorted(block_explorer_info.keys())
+        block_explorers = sorted(util.block_explorer_info().keys())
         msg = _('Choose which online block explorer to use for functions that open a web browser')
         block_ex_label = HelpLabel(_('Online Block Explorer') + ':', msg)
         block_ex_combo = QComboBox()
         block_ex_combo.addItems(block_explorers)
-        block_ex_combo.setCurrentIndex(block_ex_combo.findText(block_explorer(self.config)))
+        block_ex_combo.setCurrentIndex(block_ex_combo.findText(util.block_explorer(self.config)))
         def on_be(x):
             be_result = block_explorers[block_ex_combo.currentIndex()]
             self.config.set_key('block_explorer', be_result, True)

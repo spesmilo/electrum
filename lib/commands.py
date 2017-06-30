@@ -361,6 +361,8 @@ class Commands:
     @command('wp')
     def importprivkey(self, privkey):
         """Import a private key. """
+        if not self.wallet.can_import_privkey():
+            return "Error: This type of wallet cannot import private keys. Try to create a new wallet with that key."
         try:
             addr = self.wallet.import_key(privkey, self._password)
             out = "Keypair imported: " + addr

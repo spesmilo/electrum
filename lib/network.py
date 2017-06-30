@@ -763,14 +763,17 @@ class Network(util.DaemonThread):
 
     def on_get_chunk(self, interface, response):
         '''Handle receiving a chunk of block headers'''
-        if response.get('error'):
-            interface.print_error(response.get('error'))
+        error = response.get('error')
+        result = response.get('result')
+        params = response.get('params')
+        if result is None or params is None or error is not None:
+            interface.print_error(error or 'bad response')
             return
         # Ignore unsolicited chunks
-        index = response['params'][0]
+        index = params[0]
         if interface.request != index:
             return
-        connect = interface.blockchain.connect_chunk(index, response['result'])
+        connect = interface.blockchain.connect_chunk(index, result)
         # If not finished, get the next chunk
         if not connect:
             return
