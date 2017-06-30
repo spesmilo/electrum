@@ -1730,9 +1730,13 @@ class Multisig_Wallet(Deterministic_Wallet, P2SH):
         return ''.join(sorted(self.get_master_public_keys()))
 
     def add_input_sig_info(self, txin, address):
-        derivation = self.get_address_index(address)
-        # extended pubkeys
-        txin['x_pubkeys'] = [k.get_xpubkey(*derivation) for k in self.get_keystores()]
+        # x_pubkeys are not sorted here because it would be too slow
+        # they are sorted in transaction.get_sorted_pubkeys
+        # pubkeys is set to None to signal that x_pubkeys are unsorted
+        if txin.get('x_pubkeys') is None:
+            derivation = self.get_address_index(address)
+            txin['x_pubkeys'] = [k.get_xpubkey(*derivation) for k in self.get_keystores()]
+            txin['pubkeys'] = None
         # we need n place holders
         txin['signatures'] = [None] * self.n
         txin['num_sig'] = self.m
