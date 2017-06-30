@@ -1733,10 +1733,9 @@ class Multisig_Wallet(Deterministic_Wallet, P2SH):
         # x_pubkeys are not sorted here because it would be too slow
         # they are sorted in transaction.get_sorted_pubkeys
         # pubkeys is set to None to signal that x_pubkeys are unsorted
-        if txin.get('x_pubkeys') is None:
-            derivation = self.get_address_index(address)
-            txin['x_pubkeys'] = [k.get_xpubkey(*derivation) for k in self.get_keystores()]
-            txin['pubkeys'] = None
+        derivation = self.get_address_index(address)
+        txin['x_pubkeys'] = [k.get_xpubkey(*derivation) for k in self.get_keystores()]
+        txin['pubkeys'] = None
         # we need n place holders
         txin['signatures'] = [None] * self.n
         txin['num_sig'] = self.m
