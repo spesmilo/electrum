@@ -1863,6 +1863,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d.setLayout(vbox)
         d.exec_()
 
+    msg_sign = ("Signing with an address actually means signing with the corresponding "
+                "private key, and verifying with the corresponding public key. The "
+                "address you have entered does not have a unique public key, so these "
+                "operations cannot be performed.")
+
     @protected
     def do_sign(self, address, message, signature, password):
         address  = str(address.text()).strip()
@@ -1871,7 +1876,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message('Invalid Bitcoin address.')
             return
         if not bitcoin.is_p2pkh(address):
-            self.show_message('Cannot sign messages with this type of address.')
+            self.show_message('Cannot sign messages with this type of address.' + '\n\n' + self.msg_sign)
             return
         if not self.wallet.is_mine(address):
             self.show_message('Address not in wallet.')
@@ -1888,7 +1893,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message('Invalid Bitcoin address.')
             return
         if not bitcoin.is_p2pkh(address):
-            self.show_message('Cannot verify messages with this type of address.')
+            self.show_message('Cannot verify messages with this type of address.' + '\n\n' + self.msg_sign)
             return
         try:
             # This can throw on invalid base64
