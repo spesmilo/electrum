@@ -343,7 +343,7 @@ def time_difference(distance_in_time, include_seconds):
     else:
         return "over %d years" % (round(distance_in_minutes / 525600))
 
-block_explorer_info = {
+mainnet_block_explorers = {
     'Biteasy.com': ('https://www.biteasy.com/blockchain',
                         {'tx': 'transactions', 'addr': 'addresses'}),
     'Bitflyer.jp': ('https://chainflyer.bitflyer.jp',
@@ -370,11 +370,22 @@ block_explorer_info = {
                         {'tx': 'tx', 'addr': 'address'}),
 }
 
+testnet_block_explorers = {
+    'Blocktrail.com': ('https://www.blocktrail.com/tBTC',
+                       {'tx': 'tx', 'addr': 'address'}),
+    'system default': ('blockchain:',
+                       {'tx': 'tx', 'addr': 'address'}),
+}
+
+def block_explorer_info():
+    import bitcoin
+    return testnet_block_explorers if bitcoin.TESTNET else mainnet_block_explorers
+
 def block_explorer(config):
-    return config.get('block_explorer', 'Blockchain.info')
+    return config.get('block_explorer', 'Blocktrail.com')
 
 def block_explorer_tuple(config):
-    return block_explorer_info.get(block_explorer(config))
+    return block_explorer_info().get(block_explorer(config))
 
 def block_explorer_URL(config, kind, item):
     be_tuple = block_explorer_tuple(config)

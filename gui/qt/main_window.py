@@ -45,8 +45,7 @@ from electrum import keystore
 from electrum.bitcoin import COIN, is_valid, TYPE_ADDRESS
 from electrum.plugins import run_hook
 from electrum.i18n import _
-from electrum.util import (block_explorer, block_explorer_info, format_time,
-                           block_explorer_URL, format_satoshis, PrintError,
+from electrum.util import (format_time, format_satoshis, PrintError,
                            format_satoshis_plain, NotEnoughFunds,
                            UserCancelled)
 from electrum import Transaction, mnemonic
@@ -2526,12 +2525,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         unit_combo.currentIndexChanged.connect(on_unit)
         gui_widgets.append((unit_label, unit_combo))
 
-        block_explorers = sorted(block_explorer_info.keys())
+        block_explorers = sorted(util.block_explorer_info().keys())
         msg = _('Choose which online block explorer to use for functions that open a web browser')
         block_ex_label = HelpLabel(_('Online Block Explorer') + ':', msg)
         block_ex_combo = QComboBox()
         block_ex_combo.addItems(block_explorers)
-        block_ex_combo.setCurrentIndex(block_ex_combo.findText(block_explorer(self.config)))
+        block_ex_combo.setCurrentIndex(block_ex_combo.findText(util.block_explorer(self.config)))
         def on_be(x):
             be_result = block_explorers[block_ex_combo.currentIndex()]
             self.config.set_key('block_explorer', be_result, True)
