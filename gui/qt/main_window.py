@@ -126,6 +126,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.receive_tab = self.create_receive_tab()
         self.addresses_tab = self.create_addresses_tab()
         self.utxo_tab = self.create_utxo_tab()
+        self.console_tab = self.create_console_tab()
+        self.contacts_tab = self.create_contacts_tab()
         tabs.addTab(self.create_history_tab(), _('History') )
         tabs.addTab(self.send_tab, _('Send') )
         tabs.addTab(self.receive_tab, _('Receive') )
@@ -133,8 +135,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             tabs.addTab(self.addresses_tab, _('Addresses'))
         if self.config.get('show_utxo_tab', False):
             tabs.addTab(self.utxo_tab, _('Coins'))
-        tabs.addTab(self.create_contacts_tab(), _('Contacts') )
-        tabs.addTab(self.create_console_tab(), _('Console') )
+        if self.config.get('show_contacts_tab', False):
+            tabs.addTab(self.contacts_tab, _('Contacts') )
+        if self.config.get('show_console_tab', False):
+            tabs.addTab(self.console_tab, _('Console') )
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
 
@@ -202,22 +206,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.fx.history_used_spot:
             self.history_list.update()
 
-    def toggle_addresses_tab(self):
-        show = not self.config.get('show_addresses_tab', False)
-        self.config.set_key('show_addresses_tab', show)
+    def toggle_tab(self, tab):
+        show = not self.config.get('show_{}_tab'.format(tab.name), False)
+        self.config.set_key('show_{}_tab'.format(tab.name), show)
+        item_text = (_("Hide") if show else _("Show")) + " " + tab.description
+        tab.menu_action.setText(item_text)
         if show:
-            self.tabs.insertTab(3, self.addresses_tab, _('Addresses'))
+            self.tabs.insertTab(3, tab, tab.description)
         else:
-            i = self.tabs.indexOf(self.addresses_tab)
-            self.tabs.removeTab(i)
-
-    def toggle_utxo_tab(self):
-        show = not self.config.get('show_utxo_tab', False)
-        self.config.set_key('show_utxo_tab', show)
-        if show:
-            self.tabs.insertTab(3, self.utxo_tab, _('Coins'))
-        else:
-            i = self.tabs.indexOf(self.utxo_tab)
+            i = self.tabs.indexOf(tab)
             self.tabs.removeTab(i)
 
     def push_top_level_window(self, window):
@@ -452,8 +449,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         wallet_menu.addSeparator()
         wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
-        wallet_menu.addAction(_("Addresses"), self.toggle_addresses_tab).setShortcut(QKeySequence("Ctrl+A"))
-        wallet_menu.addAction(_("Coins"), self.toggle_utxo_tab)
+
+        def add_toggle_action(view_menu, target_tab, tab_description, tab_name):
+            is_shown = self.config.get('show_{}_tab'.format(tab_name), False)
+            item_name = (_("Hide") if is_shown else _("Show")) + " " + tab_description
+            target_tab = getattr(self, "{}_tab".format(tab_name))
+            target_tab.name = tab_name
+            target_tab.description = tab_description
+            target_tab.menu_action = view_menu.addAction(item_name, lambda: self.toggle_tab(target_tab))
+
+        view_menu = menubar.addMenu(_("&View"))
+        add_toggle_action(view_menu, self.addresses_tab, "Addresses", "addresses")
+        add_toggle_action(view_menu, self.utxo_tab, "Coins", "utxo")
+        add_toggle_action(view_menu, self.console_tab, "Console", "console")
+        add_toggle_action(view_menu, self.contacts_tab, "Contacts", "contacts")
 
         tools_menu = menubar.addMenu(_("&Tools"))
 
