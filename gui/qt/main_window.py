@@ -212,7 +212,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         item_text = (_("Hide") if show else _("Show")) + " " + tab.description
         tab.menu_action.setText(item_text)
         if show:
-            self.tabs.insertTab(3, tab, tab.description)
+            # Find out where to place the tab
+            index = len(self.tabs)
+            for i in range(len(self.tabs)):
+                try:
+                    if tab.tab_pos < self.tabs.widget(i).tab_pos:
+                        index = i
+                        break
+                except AttributeError:
+                    pass
+            self.tabs.insertTab(index, tab, tab.description)
         else:
             i = self.tabs.indexOf(tab)
             self.tabs.removeTab(i)
@@ -450,18 +459,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         wallet_menu.addSeparator()
         wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
 
-        def add_toggle_action(view_menu, target_tab, tab_description, tab_name):
+        def add_toggle_action(view_menu, target_tab, tab_description, tab_name, tab_pos):
             is_shown = self.config.get('show_{}_tab'.format(tab_name), False)
             item_name = (_("Hide") if is_shown else _("Show")) + " " + tab_description
             target_tab.name = tab_name
             target_tab.description = tab_description
+            target_tab.tab_pos = tab_pos
             target_tab.menu_action = view_menu.addAction(item_name, lambda: self.toggle_tab(target_tab))
 
         view_menu = menubar.addMenu(_("&View"))
-        add_toggle_action(view_menu, self.addresses_tab, "Addresses", "addresses")
-        add_toggle_action(view_menu, self.utxo_tab, "Coins", "utxo")
-        add_toggle_action(view_menu, self.console_tab, "Console", "console")
-        add_toggle_action(view_menu, self.contacts_tab, "Contacts", "contacts")
+        add_toggle_action(view_menu, self.addresses_tab, "Addresses", "addresses", 1)
+        add_toggle_action(view_menu, self.utxo_tab, "Coins", "utxo", 2)
+        add_toggle_action(view_menu, self.contacts_tab, "Contacts", "contacts", 3)
+        add_toggle_action(view_menu, self.console_tab, "Console", "console", 4)
 
         tools_menu = menubar.addMenu(_("&Tools"))
 
