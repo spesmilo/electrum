@@ -299,6 +299,8 @@ def parse_scriptSig(d, bytes):
     except Exception:
         # coinbase transactions raise an exception
         print_error("cannot find address in input script", bytes.encode('hex'))
+        d['type'] = '(unknown)'
+        d['address'] = '(unknown)'
         return
 
     match = [ opcodes.OP_PUSHDATA4 ]
@@ -335,6 +337,8 @@ def parse_scriptSig(d, bytes):
             pubkey, address = xpubkey_to_address(x_pubkey)
         except BaseException:
             print_error("cannot find address in input script", bytes.encode('hex'))
+            d['type'] = '(unknown)'
+            d['address'] = '(unknown)'
             return
         d['type'] = 'p2pkh'
         d['signatures'] = signatures
@@ -348,6 +352,8 @@ def parse_scriptSig(d, bytes):
     match = [ opcodes.OP_0 ] + [ opcodes.OP_PUSHDATA4 ] * (len(decoded) - 1)
     if not match_decoded(decoded, match):
         print_error("cannot find address in input script", bytes.encode('hex'))
+        d['type'] = '(unknown)'
+        d['address'] = '(unknown)'
         return
     x_sig = [x[1].encode('hex') for x in decoded[1:-1]]
     dec2 = [ x for x in script_GetOp(decoded[-1][1]) ]
@@ -358,6 +364,8 @@ def parse_scriptSig(d, bytes):
     match_multisig = [ op_m ] + [opcodes.OP_PUSHDATA4]*n + [ op_n, opcodes.OP_CHECKMULTISIG ]
     if not match_decoded(dec2, match_multisig):
         print_error("cannot find address in input script", bytes.encode('hex'))
+        d['type'] = '(unknown)'
+        d['address'] = '(unknown)'
         return
     x_pubkeys = map(lambda x: x[1].encode('hex'), dec2[1:-2])
     pubkeys = [safe_parse_pubkey(x) for x in x_pubkeys]
