@@ -425,7 +425,7 @@ class Commands:
     def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False):
         """Create a transaction. """
         tx_fee = satoshis(tx_fee)
-        domain = [from_addr] if from_addr else None
+        domain = from_addr.split(',') if from_addr else None
         tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, rbf)
         return tx.as_dict()
 
@@ -433,7 +433,7 @@ class Commands:
     def paytomany(self, outputs, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False):
         """Create a multi-output transaction. """
         tx_fee = satoshis(tx_fee)
-        domain = [from_addr] if from_addr else None
+        domain = from_addr.split(',') if from_addr else None
         tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, rbf)
         return tx.as_dict()
 
