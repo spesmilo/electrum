@@ -453,7 +453,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def add_toggle_action(view_menu, target_tab, tab_description, tab_name):
             is_shown = self.config.get('show_{}_tab'.format(tab_name), False)
             item_name = (_("Hide") if is_shown else _("Show")) + " " + tab_description
-            target_tab = getattr(self, "{}_tab".format(tab_name))
             target_tab.name = tab_name
             target_tab.description = tab_description
             target_tab.menu_action = view_menu.addAction(item_name, lambda: self.toggle_tab(target_tab))
