@@ -528,10 +528,11 @@ class Abstract_Wallet(PrintError):
                     u -= v
         return c, u, x
 
-    def get_spendable_coins(self, domain = None):
-        return self.get_utxos(domain, exclude_frozen=True, mature=True)
+    def get_spendable_coins(self, domain, config):
+        confirmed_only = config.get('confirmed_only', True)
+        return self.get_utxos(domain, exclude_frozen=True, mature=True, confirmed_only=confirmed_only)
 
-    def get_utxos(self, domain = None, exclude_frozen = False, mature = False):
+    def get_utxos(self, domain = None, exclude_frozen = False, mature = False, confirmed_only = False):
         coins = []
         if domain is None:
             domain = self.get_addresses()
@@ -540,6 +541,8 @@ class Abstract_Wallet(PrintError):
         for addr in domain:
             utxos = self.get_addr_utxo(addr)
             for x in utxos:
+                if confirmed_only and x['height'] <= 0:
+                    continue
                 if mature and x['coinbase'] and x['height'] + COINBASE_MATURITY > self.get_local_height():
                     continue
                 coins.append(x)
@@ -863,7 +866,7 @@ class Abstract_Wallet(PrintError):
         return fee
 
     def mktx(self, outputs, password, config, fee=None, change_addr=None, domain=None):
-        coins = self.get_spendable_coins(domain)
+        coins = self.get_spendable_coins(domain, config)
         tx = self.make_unsigned_transaction(coins, outputs, config, fee, change_addr)
         self.sign_transaction(tx, password)
         return tx
@@ -1068,7 +1071,7 @@ class Abstract_Wallet(PrintError):
         txin['type'] = self.txin_type
         # Add address for utxo that are in wallet
         if txin.get('scriptSig') == '':
-            coins = self.get_spendable_coins()
+            coins = self.get_utxos()
             for item in coins:
                 if txin.get('prevout_hash') == item.get('prevout_hash') and txin.get('prevout_n') == item.get('prevout_n'):
                     txin['address'] = item.get('address')

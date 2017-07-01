@@ -411,7 +411,7 @@ class Commands:
             amount = satoshis(amount)
             final_outputs.append((TYPE_ADDRESS, address, amount))
 
-        coins = self.wallet.get_spendable_coins(domain)
+        coins = self.wallet.get_spendable_coins(domain, self.config)
         tx = self.wallet.make_unsigned_transaction(coins, final_outputs, self.config, fee, change_addr)
         if rbf:
             tx.set_rbf(True)

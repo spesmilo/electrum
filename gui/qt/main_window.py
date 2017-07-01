@@ -1165,8 +1165,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.not_enough_funds = False
             except NotEnoughFunds:
                 self.not_enough_funds = True
+                if not freeze_fee:
+                    self.fee_e.setAmount(None)
+                return
             except BaseException:
                 return
+
             if not freeze_fee:
                 fee = None if self.not_enough_funds else tx.get_fee()
                 self.fee_e.setAmount(fee)
@@ -1572,8 +1576,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.pay_from:
             return self.pay_from
         else:
-            domain = self.wallet.get_addresses()
-            return self.wallet.get_spendable_coins(domain)
+            return self.wallet.get_spendable_coins(None, self.config)
 
     def spend_coins(self, coins):
         self.set_pay_from(coins)
@@ -2624,6 +2627,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.config.set_key('coin_chooser', chooser_name)
         chooser_combo.currentIndexChanged.connect(on_chooser)
         tx_widgets.append((chooser_label, chooser_combo))
+
+        def on_unconf(x):
+            self.config.set_key('confirmed_only', bool(x))
+        conf_only = self.config.get('confirmed_only', True)
+        unconf_cb = QCheckBox(_('Spend only confirmed coins'))
+        unconf_cb.setToolTip(_('Spend only confirmed inputs.'))
+        unconf_cb.setChecked(conf_only)
+        unconf_cb.stateChanged.connect(on_unconf)
+        tx_widgets.append((unconf_cb, None))
 
         # Fiat Currency
         hist_checkbox = QCheckBox()
