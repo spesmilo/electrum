@@ -280,10 +280,8 @@ def run_offline_command(config, config_options):
     # decode json arguments
     args = map(json_decode, args)
     # options
-    args += map(lambda x: config.get(x), cmd.options)
-    cmd_runner = Commands(config, wallet, None,
-                          password=config_options.get('password'),
-                          new_password=config_options.get('new_password'))
+    args += map(lambda x: (config_options.get(x) if x in ['password', 'new_password'] else config.get(x)), cmd.options)
+    cmd_runner = Commands(config, wallet, None)
     func = getattr(cmd_runner, cmd.name)
     result = func(*args)
     # save wallet

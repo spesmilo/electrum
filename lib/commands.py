@@ -87,23 +87,21 @@ def command(s):
 
 class Commands:
 
-    def __init__(self, config, wallet, network, callback = None, password=None, new_password=None):
+    def __init__(self, config, wallet, network, callback = None):
         self.config = config
         self.wallet = wallet
         self.network = network
         self._callback = callback
-        self._password = password
-        self.new_password = new_password
 
     def _run(self, method, args, password_getter):
+        # this wrapper is called from the python console
         cmd = known_commands[method]
         if cmd.requires_password and self.wallet.has_password():
-            self._password = apply(password_getter,())
-            if self._password is None:
+            password = apply(password_getter, ())
+            if password is None:
                 return
         f = getattr(self, method)
-        result = f(*args)
-        self._password = None
+        result = f(*args, **{'password':password})
         if self._callback:
             apply(self._callback, ())
         return result
@@ -127,11 +125,11 @@ class Commands:
         raise BaseException('Not a JSON-RPC command')
 
     @command('wp')
-    def password(self):
+    def password(self, password=None, new_password=None):
         """Change wallet password. """
-        self.wallet.update_password(self._password, self.new_password)
+        self.wallet.update_password(password, new_password)
         self.wallet.storage.write()
-        return {'password':self.wallet.use_encryption}
+        return {'password':self.wallet.has_password()}
 
     @command('')
     def getconfig(self, key):
@@ -225,7 +223,7 @@ class Commands:
         return tx.as_dict()
 
     @command('wp')
-    def signtransaction(self, tx, privkey=None):
+    def signtransaction(self, tx, privkey=None, password=None):
         """Sign a transaction. The wallet keys will be used unless a private key is provided."""
         tx = Transaction(tx)
         if privkey:
@@ -234,7 +232,7 @@ class Commands:
             x_pubkey = 'fd' + (chr(0) + h160).encode('hex')
             tx.sign({x_pubkey:privkey})
         else:
-            self.wallet.sign_transaction(tx, self._password)
+            self.wallet.sign_transaction(tx, password)
         return tx.as_dict()
 
     @command('')
@@ -268,12 +266,12 @@ class Commands:
         return self.wallet.set_frozen_state([address], False)
 
     @command('wp')
-    def getprivatekeys(self, address):
+    def getprivatekeys(self, address, password=None):
         """Get private keys of addresses. You may pass a single wallet address, or a list of wallet addresses."""
         if is_address(address):
-            return self.wallet.get_private_key(address, self._password)
+            return self.wallet.get_private_key(address, password)
         domain = address
-        return [self.wallet.get_private_key(address, self._password) for address in domain]
+        return [self.wallet.get_private_key(address, password) for address in domain]
 
     @command('w')
     def ismine(self, address):
@@ -348,23 +346,23 @@ class Commands:
         return self.wallet.get_master_public_key()
 
     @command('wp')
-    def getmasterprivate(self):
+    def getmasterprivate(self, password=None):
         """Get master private key. Return your wallet\'s master private key"""
-        return str(self.wallet.keystore.get_master_private_key(self._password))
+        return str(self.wallet.keystore.get_master_private_key(password))
 
     @command('wp')
-    def getseed(self):
+    def getseed(self, password=None):
         """Get seed phrase. Print the generation seed of your wallet."""
-        s = self.wallet.get_seed(self._password)
+        s = self.wallet.get_seed(password)
         return s.encode('utf8')
 
     @command('wp')
-    def importprivkey(self, privkey):
+    def importprivkey(self, privkey, password=None):
         """Import a private key. """
         if not self.wallet.can_import_privkey():
             return "Error: This type of wallet cannot import private keys. Try to create a new wallet with that key."
         try:
-            addr = self.wallet.import_key(privkey, self._password)
+            addr = self.wallet.import_key(privkey, password)
             out = "Keypair imported: " + addr
         except BaseException as e:
             out = "Error: " + str(e)
@@ -391,10 +389,10 @@ class Commands:
         return tx.as_dict() if tx else None
 
     @command('wp')
-    def signmessage(self, address, message):
+    def signmessage(self, address, message, password=None):
         """Sign a message with a key. Use quotes if your message contains
         whitespaces"""
-        sig = self.wallet.sign_message(address, message, self._password)
+        sig = self.wallet.sign_message(address, message, password)
         return base64.b64encode(sig)
 
     @command('')
@@ -403,7 +401,7 @@ class Commands:
         sig = base64.b64decode(signature)
         return bitcoin.verify_message(address, sig, message)
 
-    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned, rbf):
+    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned, rbf, password):
         self.nocheck = nocheck
         change_addr = self._resolver(change_addr)
         domain = None if domain is None else map(self._resolver, domain)
@@ -418,23 +416,23 @@ class Commands:
         if rbf:
             tx.set_rbf(True)
         if not unsigned:
-            self.wallet.sign_transaction(tx, self._password)
+            self.wallet.sign_transaction(tx, password)
         return tx
 
     @command('wp')
-    def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False):
+    def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None):
         """Create a transaction. """
         tx_fee = satoshis(tx_fee)
         domain = [from_addr] if from_addr else None
-        tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, rbf)
+        tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, rbf, password)
         return tx.as_dict()
 
     @command('wp')
-    def paytomany(self, outputs, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False):
+    def paytomany(self, outputs, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None):
         """Create a multi-output transaction. """
         tx_fee = satoshis(tx_fee)
         domain = [from_addr] if from_addr else None
-        tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, rbf)
+        tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, rbf, password)
         return tx.as_dict()
 
     @command('w')
@@ -546,9 +544,9 @@ class Commands:
         return bitcoin.encrypt_message(message, pubkey)
 
     @command('wp')
-    def decrypt(self, pubkey, encrypted):
+    def decrypt(self, pubkey, encrypted, password=None):
         """Decrypt a message encrypted with a public key."""
-        return self.wallet.decrypt_message(pubkey, encrypted, self._password)
+        return self.wallet.decrypt_message(pubkey, encrypted, password)
 
     def _format_request(self, out):
         pr_str = {
@@ -620,13 +618,13 @@ class Commands:
         return self._format_request(out)
 
     @command('wp')
-    def signrequest(self, address):
+    def signrequest(self, address, password=None):
         "Sign payment request with an OpenAlias"
         alias = self.config.get('alias')
         if not alias:
             raise BaseException('No alias in your configuration')
         alias_addr = self.wallet.contacts.resolve(alias)['address']
-        self.wallet.sign_payment_request(address, alias, alias_addr, self._password)
+        self.wallet.sign_payment_request(address, alias, alias_addr, password)
 
     @command('w')
     def rmrequest(self, address):
@@ -685,6 +683,7 @@ param_descriptions = {
 
 command_options = {
     'password':    ("-W", "--password",    "Password"),
+    'new_password':(None, "--new_password","New Password"),
     'receiving':   (None, "--receiving",   "Show only receiving addresses"),
     'change':      (None, "--change",      "Show only change addresses"),
     'frozen':      (None, "--frozen",      "Show only frozen addresses"),
@@ -840,9 +839,6 @@ def get_parser():
         add_global_options(p)
         if cmdname == 'restore':
             p.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
-        #p.set_defaults(func=run_cmdline)
-        if cmd.requires_password:
-            p.add_argument("-W", "--password", dest="password", default=None, help="password")
         for optname, default in zip(cmd.options, cmd.defaults):
             a, b, help = command_options[optname]
             action = "store_true" if type(default) is bool else 'store'
