@@ -1833,32 +1833,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d = SeedDialog(self, seed, passphrase)
         d.exec_()
 
-
-
     def show_qrcode(self, data, title = _("QR code"), parent=None):
         if not data:
             return
         d = QRDialog(data, parent or self, title)
-        d.exec_()
-
-    def show_public_keys(self, address):
-        if not address: return
-        try:
-            pubkey_list = self.wallet.get_public_keys(address)
-        except Exception as e:
-            traceback.print_exc(file=sys.stdout)
-            self.show_message(str(e))
-            return
-        d = WindowModalDialog(self, _("Public key"))
-        d.setMinimumSize(600, 200)
-        vbox = QVBoxLayout()
-        vbox.addWidget( QLabel(_("Address") + ': ' + address))
-        vbox.addWidget(QLabel(_("Public key") + ':'))
-        keys_e = ShowQRTextEdit(text='\n'.join(pubkey_list))
-        keys_e.addCopyButton(self.app)
-        vbox.addWidget(keys_e)
-        vbox.addLayout(Buttons(CloseButton(d)))
-        d.setLayout(vbox)
         d.exec_()
 
     @protected
