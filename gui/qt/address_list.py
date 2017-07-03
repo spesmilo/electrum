@@ -109,11 +109,10 @@ class AddressList(MyTreeWidget):
         if not multi_select:
             column_title = self.headerItem().text(col)
             menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(item.text(col)))
+            menu.addAction(_('Details'), lambda: self.parent.show_address(addr))
             if col in self.editable_columns:
                 menu.addAction(_("Edit %s")%column_title, lambda: self.editItem(item, col))
             menu.addAction(_("Request payment"), lambda: self.parent.receive_at(addr))
-            menu.addAction(_('History'), lambda: self.parent.show_address(addr))
-            menu.addAction(_('Public Keys'), lambda: self.parent.show_public_keys(addr))
             if self.wallet.can_export():
                 menu.addAction(_("Private key"), lambda: self.parent.show_private_key(addr))
             if not is_multisig and not self.wallet.is_watching_only():

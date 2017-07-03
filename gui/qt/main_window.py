@@ -126,6 +126,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.receive_tab = self.create_receive_tab()
         self.addresses_tab = self.create_addresses_tab()
         self.utxo_tab = self.create_utxo_tab()
+        self.console_tab = self.create_console_tab()
+        self.contacts_tab = self.create_contacts_tab()
         tabs.addTab(self.create_history_tab(), _('History') )
         tabs.addTab(self.send_tab, _('Send') )
         tabs.addTab(self.receive_tab, _('Receive') )
@@ -133,8 +135,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             tabs.addTab(self.addresses_tab, _('Addresses'))
         if self.config.get('show_utxo_tab', False):
             tabs.addTab(self.utxo_tab, _('Coins'))
-        tabs.addTab(self.create_contacts_tab(), _('Contacts') )
-        tabs.addTab(self.create_console_tab(), _('Console') )
+        if self.config.get('show_contacts_tab', False):
+            tabs.addTab(self.contacts_tab, _('Contacts') )
+        if self.config.get('show_console_tab', False):
+            tabs.addTab(self.console_tab, _('Console') )
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
 
@@ -202,22 +206,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.fx.history_used_spot:
             self.history_list.update()
 
-    def toggle_addresses_tab(self):
-        show = not self.config.get('show_addresses_tab', False)
-        self.config.set_key('show_addresses_tab', show)
+    def toggle_tab(self, tab):
+        show = not self.config.get('show_{}_tab'.format(tab.name), False)
+        self.config.set_key('show_{}_tab'.format(tab.name), show)
+        item_text = (_("Hide") if show else _("Show")) + " " + tab.description
+        tab.menu_action.setText(item_text)
         if show:
-            self.tabs.insertTab(3, self.addresses_tab, _('Addresses'))
+            # Find out where to place the tab
+            index = len(self.tabs)
+            for i in range(len(self.tabs)):
+                try:
+                    if tab.tab_pos < self.tabs.widget(i).tab_pos:
+                        index = i
+                        break
+                except AttributeError:
+                    pass
+            self.tabs.insertTab(index, tab, tab.description)
         else:
-            i = self.tabs.indexOf(self.addresses_tab)
-            self.tabs.removeTab(i)
-
-    def toggle_utxo_tab(self):
-        show = not self.config.get('show_utxo_tab', False)
-        self.config.set_key('show_utxo_tab', show)
-        if show:
-            self.tabs.insertTab(3, self.utxo_tab, _('Coins'))
-        else:
-            i = self.tabs.indexOf(self.utxo_tab)
+            i = self.tabs.indexOf(tab)
             self.tabs.removeTab(i)
 
     def push_top_level_window(self, window):
@@ -452,8 +458,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         wallet_menu.addSeparator()
         wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
-        wallet_menu.addAction(_("Addresses"), self.toggle_addresses_tab).setShortcut(QKeySequence("Ctrl+A"))
-        wallet_menu.addAction(_("Coins"), self.toggle_utxo_tab)
+
+        def add_toggle_action(view_menu, target_tab, tab_description, tab_name, tab_pos):
+            is_shown = self.config.get('show_{}_tab'.format(tab_name), False)
+            item_name = (_("Hide") if is_shown else _("Show")) + " " + tab_description
+            target_tab.name = tab_name
+            target_tab.description = tab_description
+            target_tab.tab_pos = tab_pos
+            target_tab.menu_action = view_menu.addAction(item_name, lambda: self.toggle_tab(target_tab))
+
+        view_menu = menubar.addMenu(_("&View"))
+        add_toggle_action(view_menu, self.addresses_tab, "Addresses", "addresses", 1)
+        add_toggle_action(view_menu, self.utxo_tab, "Coins", "utxo", 2)
+        add_toggle_action(view_menu, self.contacts_tab, "Contacts", "contacts", 3)
+        add_toggle_action(view_menu, self.console_tab, "Console", "console", 4)
 
         tools_menu = menubar.addMenu(_("&Tools"))
 
@@ -1147,8 +1165,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.not_enough_funds = False
             except NotEnoughFunds:
                 self.not_enough_funds = True
+                if not freeze_fee:
+                    self.fee_e.setAmount(None)
+                return
             except BaseException:
                 return
+
             if not freeze_fee:
                 fee = None if self.not_enough_funds else tx.get_fee()
                 self.fee_e.setAmount(fee)
@@ -1554,8 +1576,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.pay_from:
             return self.pay_from
         else:
-            domain = self.wallet.get_addresses()
-            return self.wallet.get_spendable_coins(domain)
+            return self.wallet.get_spendable_coins(None, self.config)
 
     def spend_coins(self, coins):
         self.set_pay_from(coins)
@@ -1812,32 +1833,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d = SeedDialog(self, seed, passphrase)
         d.exec_()
 
-
-
     def show_qrcode(self, data, title = _("QR code"), parent=None):
         if not data:
             return
         d = QRDialog(data, parent or self, title)
-        d.exec_()
-
-    def show_public_keys(self, address):
-        if not address: return
-        try:
-            pubkey_list = self.wallet.get_public_keys(address)
-        except Exception as e:
-            traceback.print_exc(file=sys.stdout)
-            self.show_message(str(e))
-            return
-        d = WindowModalDialog(self, _("Public key"))
-        d.setMinimumSize(600, 200)
-        vbox = QVBoxLayout()
-        vbox.addWidget( QLabel(_("Address") + ': ' + address))
-        vbox.addWidget(QLabel(_("Public key") + ':'))
-        keys_e = ShowQRTextEdit(text='\n'.join(pubkey_list))
-        keys_e.addCopyButton(self.app)
-        vbox.addWidget(keys_e)
-        vbox.addLayout(Buttons(CloseButton(d)))
-        d.setLayout(vbox)
         d.exec_()
 
     @protected
@@ -2606,6 +2605,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.config.set_key('coin_chooser', chooser_name)
         chooser_combo.currentIndexChanged.connect(on_chooser)
         tx_widgets.append((chooser_label, chooser_combo))
+
+        def on_unconf(x):
+            self.config.set_key('confirmed_only', bool(x))
+        conf_only = self.config.get('confirmed_only', True)
+        unconf_cb = QCheckBox(_('Spend only confirmed coins'))
+        unconf_cb.setToolTip(_('Spend only confirmed inputs.'))
+        unconf_cb.setChecked(conf_only)
+        unconf_cb.stateChanged.connect(on_unconf)
+        tx_widgets.append((unconf_cb, None))
 
         # Fiat Currency
         hist_checkbox = QCheckBox()
