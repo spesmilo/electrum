@@ -77,6 +77,7 @@ def set_testnet():
     global DEFAULT_PORTS, DEFAULT_SERVERS
     DEFAULT_PORTS = {'t':'51001', 's':'51002'}
     DEFAULT_SERVERS = {
+        'testnet1.bauerj.eu': DEFAULT_PORTS,
         '14.3.140.101': DEFAULT_PORTS,
         'testnet.hsmiths.com': {'t':'53011', 's':'53012'},
         'electrum.akinbo.org': DEFAULT_PORTS,
