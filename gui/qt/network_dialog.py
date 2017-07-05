@@ -52,6 +52,44 @@ class NetworkDialog(WindowModalDialog):
         return result
 
 
+class NodesListWidget(QTreeWidget):
+
+    def __init__(self, parent):
+        QTreeWidget.__init__(self)
+        self.parent = parent
+        self.setHeaderLabels([_('Node'), _('Height')])
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.create_menu)
+
+    def create_menu(self, position):
+        item = self.currentItem()
+        if not item:
+            return
+        is_server = not bool(item.data(0, Qt.UserRole).toInt()[0])
+        menu = QMenu()
+        if is_server:
+            server = unicode(item.data(1, Qt.UserRole).toString())
+            menu.addAction(_("Use as server"), lambda: self.parent.network.switch_to_interface(server))
+        else:
+            index = item.data(1, Qt.UserRole).toInt()[0]
+            menu.addAction(_("Follow this branch"), lambda: self.parent.network.follow_chain(index))
+        menu.exec_(self.viewport().mapToGlobal(position))
+
+    def keyPressEvent(self, event):
+        if event.key() in [ Qt.Key_F2, Qt.Key_Return ]:
+            self.on_activated(self.currentItem(), self.currentColumn())
+        else:
+            QTreeWidget.keyPressEvent(self, event)
+
+    def on_activated(self, item, column):
+        # on 'enter' we show the menu
+        pt = self.visualItemRect(item).bottomLeft()
+        pt.setX(50)
+        self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), pt)
+
+
+
+
 class NetworkChoiceLayout(object):
     def __init__(self, network, config, wizard=False):
         self.network = network
@@ -201,6 +239,7 @@ class NetworkChoiceLayout(object):
         grid.addWidget(QLabel(_('Status') + ':'), 0, 0)
         grid.addWidget(QLabel(status), 0, 1, 1, 3)
         grid.addWidget(HelpButton(msg), 0, 4)
+        def short_hash(h): return h.lstrip('00')[0:10]
         if n_chains == 1:
             height_str = "%d "%(network.get_local_height()) + _("blocks")
             msg = _('This is the height of your local copy of the blockchain.')
@@ -208,26 +247,38 @@ class NetworkChoiceLayout(object):
             grid.addWidget(QLabel(height_str), 1, 1)
             grid.addWidget(HelpButton(msg), 1, 4)
         else:
-            self.cph_label = QLabel(_('Chain split detected'))
-            grid.addWidget(self.cph_label, 4, 0)
-
-        chains_list_widget = QTreeWidget()
-        chains_list_widget.setHeaderLabels( [ _('Height'), _('Server') ] )
-        grid.addWidget(chains_list_widget, 5, 0, 1, 5)
-        if n_chains> 1:
             checkpoint = network.get_checkpoint()
+            _hash = network.blockchain().get_hash(checkpoint)
+            grid.addWidget(QLabel(_('Chain split detected at block %d')%checkpoint), 1, 0, 1, 3)
+            grid.addWidget(QLabel(_('You are on branch') + ' ' + short_hash(_hash)), 2, 0, 1, 3)
+
+        nodes_list_widget = NodesListWidget(self)
+        grid.addWidget(nodes_list_widget, 5, 0, 1, 5)
+        if n_chains > 1:
             for b in network.blockchains.values():
                 _hash = b.get_hash(checkpoint)
-                x = QTreeWidgetItem([ '%d'%checkpoint, _hash ])
+                x = QTreeWidgetItem([short_hash(_hash), '%d'%checkpoint])
+                x.setData(0, Qt.UserRole, 1)
+                x.setData(1, Qt.UserRole, b.checkpoint)
                 for i in network.interfaces.values():
                     if i.blockchain == b:
-                        x.addChild(QTreeWidgetItem(['%d'%i.tip, i.host]))
-                chains_list_widget.addTopLevelItem(x)
+                        item = QTreeWidgetItem([i.host, '%d'%i.tip])
+                        item.setData(0, Qt.UserRole, 0)
+                        item.setData(1, Qt.UserRole, i.server)
+                        x.addChild(item)
+                nodes_list_widget.addTopLevelItem(x)
                 x.setExpanded(True)
         else:
             for i in network.interfaces.values():
-                chains_list_widget.addTopLevelItem(QTreeWidgetItem(['%d'%i.tip, i.host]))
-        chains_list_widget.header().setResizeMode(0, QHeaderView.ResizeToContents)
+                item = QTreeWidgetItem([i.host, '%d'%i.tip])
+                item.setData(0, Qt.UserRole, 0)
+                item.setData(1, Qt.UserRole, i.server)
+                nodes_list_widget.addTopLevelItem(item)
+
+        h = nodes_list_widget.header()
+        h.setStretchLastSection(False)
+        h.setResizeMode(0, QHeaderView.Stretch)
+        h.setResizeMode(1, QHeaderView.ResizeToContents)
 
         grid.setRowStretch(7, 1)
         vbox = QVBoxLayout()

@@ -1335,7 +1335,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
 
         # confirmation dialog
-        confirm_amount = self.config.get('confirm_amount', 10*COIN)
         msg = [
             _("Amount to be sent") + ": " + self.format_amount_and_units(amount),
             _("Mining fee") + ": " + self.format_amount_and_units(fee),

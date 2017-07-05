@@ -1001,6 +1001,18 @@ class Network(util.DaemonThread):
 
         return self.blockchains[self.blockchain_index]
 
+    def follow_chain(self, index):
+        blockchain = self.blockchains.get(index)
+        if blockchain:
+            self.blockchain_index = index
+            self.config.set_key('blockchain_index', index)
+            for i in self.interfaces.values():
+                if i.blockchain == blockchain:
+                    self.switch_to_interface(i.server)
+                    break
+        else:
+            raise BaseException('blockchain not found', index)
+
     def get_local_height(self):
         return self.blockchain().height()
 
