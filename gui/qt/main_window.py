@@ -1340,9 +1340,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             _("Mining fee") + ": " + self.format_amount_and_units(fee),
         ]
 
-        extra_fee = run_hook('get_additional_fee', self.wallet, tx)
-        if extra_fee:
-            msg.append( _("Additional fees") + ": " + self.format_amount_and_units(extra_fee) )
+        x_fee = run_hook('get_tx_extra_fee', self.wallet, tx)
+        if x_fee:
+            x_fee_address, x_fee_amount = x_fee
+            msg.append( _("Additional fees") + ": " + self.format_amount_and_units(x_fee_amount) )
 
         confirm_rate = 2 * self.config.max_fee_rate()
         if fee > confirm_rate * tx.estimated_size() / 1000:

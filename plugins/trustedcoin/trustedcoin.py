@@ -237,6 +237,9 @@ class Wallet_2fa(Multisig_Wallet):
     def extra_fee(self, config):
         if self.can_sign_without_server():
             return 0
+        if self.billing_info is None:
+            self.plugin.start_request_thread(self)
+            return 0
         if self.billing_info.get('tx_remaining'):
             return 0
         if self.is_billing:
@@ -282,6 +285,8 @@ class Wallet_2fa(Multisig_Wallet):
             raw_tx = r.get('transaction')
             tx.update(raw_tx)
         self.print_error("twofactor: is complete", tx.is_complete())
+        # reset billing_info
+        self.billing_info = None
 
 
 # Utility functions
@@ -314,6 +319,7 @@ class TrustedCoinPlugin(BasePlugin):
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
         self.wallet_class.plugin = self
+        self.requesting = False
 
     @staticmethod
     def is_valid_seed(seed):
@@ -326,22 +332,33 @@ class TrustedCoinPlugin(BasePlugin):
         return True
 
     @hook
-    def get_additional_fee(self, wallet, tx):
+    def get_tx_extra_fee(self, wallet, tx):
         if type(wallet) != Wallet_2fa:
             return
         address = wallet.billing_info['billing_address']
         for _type, addr, amount in tx.outputs():
             if _type == TYPE_ADDRESS and addr == address:
-                return amount
+                return address, amount
 
     def request_billing_info(self, wallet):
+        self.print_error("request billing info")
         billing_info = server.get(wallet.get_user_id()[1])
         billing_address = make_billing_address(wallet, billing_info['billing_index'])
         assert billing_address == billing_info['billing_address']
         wallet.billing_info = billing_info
         wallet.price_per_tx = dict(billing_info['price_per_tx'])
         wallet.price_per_tx.pop(1)
+        self.requesting = False
         return True
+
+    def start_request_thread(self, wallet):
+        from threading import Thread
+        if self.requesting is False:
+            self.requesting = True
+            t = Thread(target=self.request_billing_info, args=(wallet,))
+            t.setDaemon(True)
+            t.start()
+            return t
 
     def make_seed(self):
         return Mnemonic('english').make_seed(seed_type='2fa', num_bits=128)

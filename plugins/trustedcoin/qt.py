@@ -58,9 +58,7 @@ class Plugin(TrustedCoinPlugin):
         button = StatusBarButton(QIcon(":icons/trustedcoin-status.png"),
                                  _("TrustedCoin"), action)
         window.statusBar().addPermanentWidget(button)
-        t = Thread(target=self.request_billing_info, args=(wallet,))
-        t.setDaemon(True)
-        t.start()
+        self.start_request_thread(window.wallet)
 
     def auth_dialog(self, window):
         d = WindowModalDialog(window, _("Authorization"))
@@ -102,13 +100,10 @@ class Plugin(TrustedCoinPlugin):
         wallet = window.wallet
         if not isinstance(wallet, self.wallet_class):
             return
-        if not wallet.can_sign_without_server():
-            if wallet.billing_info is None:
-                # request billing info before forming the transaction
-                waiting_dialog(self, window).wait()
-                if wallet.billing_info is None:
-                    window.show_message('Could not contact server')
-                    return True
+        if wallet.can_sign_without_server():
+            return
+        if wallet.billing_info is None:
+            return True
         return False
 
 
