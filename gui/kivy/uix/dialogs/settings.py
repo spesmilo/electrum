@@ -123,7 +123,7 @@ Builder.load_string('''
                 SettingsItem:
                     status: "%d blocks"% app.num_blocks
                     title: _('Blockchain') + ': ' + self.status
-                    description: _("Configure checkpoints")
+                    description: _("Blockchain status")
                     action: partial(root.blockchain_dialog, self)
 ''')
 
@@ -192,12 +192,12 @@ class SettingsDialog(Factory.Popup):
         self._coinselect_dialog.open()
 
     def blockchain_dialog(self, item, dt):
-        from checkpoint_dialog import CheckpointDialog
+        from blockchain_dialog import BlockchainDialog
         if self._blockchain_dialog is None:
             def callback(height, value):
                 if value:
                     self.app.network.blockchain.set_checkpoint(height, value)
-            self._blockchain_dialog = CheckpointDialog(self.app.network, callback)
+            self._blockchain_dialog = BlockchainDialog(self.app.network, callback)
         self._blockchain_dialog.open()
 
     def proxy_status(self):

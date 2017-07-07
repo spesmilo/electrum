@@ -77,6 +77,7 @@ def set_testnet():
     global DEFAULT_PORTS, DEFAULT_SERVERS
     DEFAULT_PORTS = {'t':'51001', 's':'51002'}
     DEFAULT_SERVERS = {
+        'testnetnode.arihanc.com': DEFAULT_PORTS,
         'testnet1.bauerj.eu': DEFAULT_PORTS,
         '14.3.140.101': DEFAULT_PORTS,
         'testnet.hsmiths.com': {'t':'53011', 's':'53012'},
@@ -527,7 +528,8 @@ class Network(util.DaemonThread):
         if self.interface != i:
             self.print_error("switching to", server)
             # stop any current interface in order to terminate subscriptions
-            self.close_interface(self.interface)
+            # fixme: we don't want to close headers sub
+            #self.close_interface(self.interface)
             self.interface = i
             self.send_subscriptions()
             self.set_status('connected')
@@ -1015,6 +1017,11 @@ class Network(util.DaemonThread):
             self.config.set_key('blockchain_index', self.blockchain_index)
 
         return self.blockchains[self.blockchain_index]
+
+    def get_blockchain_name(self, blockchain):
+        checkpoint = self.get_checkpoint()
+        _hash = blockchain.get_hash(checkpoint)
+        return _hash.lstrip('00')[0:10]
 
     def follow_chain(self, index):
         blockchain = self.blockchains.get(index)

@@ -8,7 +8,7 @@ from electrum.i18n import _
 Builder.load_string('''
 #:import _ electrum_gui.kivy.i18n._
 
-<CheckpointDialog@Popup>
+<BlockchainDialog@Popup>
     id: popup
     title: _('Blockchain')
     size_hint: 1, 1
@@ -30,39 +30,12 @@ Builder.load_string('''
         Widget:
             size_hint: 1, 0.1
         TopLabel:
-            text: _("In order to verify the history returned by your main server, Electrum downloads block headers from random nodes. These headers are then used to check that transactions sent by the server really are in the blockchain.")
+            text: _("Electrum connects to several nodes in order to download block headers and find out the longest blockchain.") + _("This blockchain is used to verify the transactions sent by your transaction server.")
             font_size: '6pt'
         Widget:
             size_hint: 1, 0.1
-        GridLayout:
-            orientation: 'horizontal'
-            cols: 2
-            height: '36dp'
-            TopLabel:
-                text: _('Checkpoint') + ':'
-                height: '36dp'
-            TextInput:
-                id: height_input
-                multiline: False
-                input_type: 'number'
-                height: '36dp'
-                size_hint_y: None
-                text: '%d'%root.cp_height
-            TopLabel:
-                text: _('Block hash') + ':'
-            TxHashLabel:
-                data: root.cp_value
         Widget:
             size_hint: 1, 0.1
-        Label:
-            font_size: '6pt'
-            text: _('If there is a fork of the blockchain, you need to configure your checkpoint in order to make sure that you are on the correct side of the fork. Enter a block number to fetch a checkpoint from your main server, and check its value from independent sources.')
-            halign: 'left'
-            text_size: self.width, None
-            size: self.texture_size
-
-        Widget:
-            size_hint: 1, 0.3
         BoxLayout:
             orientation: 'horizontal'
             size_hint: 1, 0.2
@@ -80,9 +53,11 @@ Builder.load_string('''
                     popup.dismiss()
 ''')
 
-class CheckpointDialog(Factory.Popup):
+class BlockchainDialog(Factory.Popup):
     def __init__(self, network, callback):
         Factory.Popup.__init__(self)
         self.network = network
         self.callback = callback
         self.is_split = len(self.network.blockchains) > 1
+
+        self.checkpoint_height = network.get_checkpoint()
