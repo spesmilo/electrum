@@ -38,21 +38,20 @@ protocol_names = ['TCP', 'SSL']
 protocol_letters = 'ts'
 
 class NetworkDialog(QDialog):
-    def __init__(self, network, config, parent):
-        QDialog.__init__(self, parent)
+    def __init__(self, network, config):
+        QDialog.__init__(self)
         self.setWindowTitle(_('Network'))
         self.setMinimumSize(400, 20)
         self.nlayout = NetworkChoiceLayout(network, config)
         vbox = QVBoxLayout(self)
         vbox.addLayout(self.nlayout.layout())
         vbox.addLayout(Buttons(CloseButton(self)))
-        self.connect(parent, QtCore.SIGNAL('updated'), self.on_update)
 
-    def do_exec(self):
-        result = self.exec_()
-        #if result:
-        #    self.nlayout.accept()
-        return result
+        self.connect(self, QtCore.SIGNAL('updated'), self.on_update)
+        network.register_callback(self.on_network, ['updated'])
+
+    def on_network(self, event, *args):
+        self.emit(QtCore.SIGNAL('updated'), event, *args)
 
     def on_update(self):
         self.nlayout.update()

@@ -478,7 +478,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         # Settings / Preferences are all reserved keywords in OSX using this as work around
         tools_menu.addAction(_("Electrum preferences") if sys.platform == 'darwin' else _("Preferences"), self.settings_dialog)
-        tools_menu.addAction(_("&Network"), lambda: self.gui_object.show_network_dialog(self))
+        tools_menu.addAction(_("&Network"), self.gui_object.show_network_dialog)
         tools_menu.addAction(_("&Plugins"), self.plugins_dialog)
         tools_menu.addSeparator()
         tools_menu.addAction(_("&Sign/verify message"), self.sign_verify_message)
@@ -1728,7 +1728,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         sb.addPermanentWidget(StatusBarButton(QIcon(":icons/preferences.png"), _("Preferences"), self.settings_dialog ) )
         self.seed_button = StatusBarButton(QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog )
         sb.addPermanentWidget(self.seed_button)
-        self.status_button = StatusBarButton(QIcon(":icons/status_disconnected.png"), _("Network"), lambda: self.gui_object.show_network_dialog(self))
+        self.status_button = StatusBarButton(QIcon(":icons/status_disconnected.png"), _("Network"), self.gui_object.show_network_dialog)
         sb.addPermanentWidget(self.status_button)
         run_hook('create_status_bar', sb)
         self.setStatusBar(sb)
