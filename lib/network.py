@@ -867,7 +867,8 @@ class Network(util.DaemonThread):
                 interface.print_error("found connection at %d"% interface.good)
                 delta1 = interface.blockchain.height() - interface.good
                 delta2 = interface.tip - interface.good
-                if delta1 > 10 and delta2 > 10:
+                threshold = self.config.get('fork_threshold', 5)
+                if delta1 > threshold and delta2 > threshold:
                     interface.print_error("chain split detected: %d (%d %d)"% (interface.good, delta1, delta2))
                     interface.blockchain.fork(interface.bad)
                     interface.blockchain = Blockchain(self.config, interface.bad)
@@ -886,7 +887,9 @@ class Network(util.DaemonThread):
                 self.notify('updated')
                 next_height = height + 1 if height < interface.tip else None
             else:
-                # go back, reorg
+                # go back
+                interface.mode = 'backward'
+                interface.bad = height
                 next_height = height - 1
 
             if next_height is None:
