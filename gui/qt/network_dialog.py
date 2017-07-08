@@ -155,8 +155,8 @@ class NetworkChoiceLayout(object):
 
         self.server_host.editingFinished.connect(self.set_server)
         self.server_port.editingFinished.connect(self.set_server)
-        self.ssl_cb.stateChanged.connect(self.change_protocol)
-        self.autoconnect_cb.stateChanged.connect(self.set_server)
+        self.ssl_cb.clicked.connect(self.change_protocol)
+        self.autoconnect_cb.clicked.connect(self.set_server)
         self.autoconnect_cb.clicked.connect(self.enable_set_server)
 
         msg = _("Electrum sends your wallet addresses to a single server, in order to receive your transaction history.")
@@ -282,9 +282,9 @@ class NetworkChoiceLayout(object):
             proxy_config = { "mode":"none", "host":"localhost", "port":"9050"}
         self.server_host.setText(host)
         self.server_port.setText(port)
+        self.ssl_cb.setChecked(protocol=='s')
         self.autoconnect_cb.setChecked(auto_connect)
-        #self.ssl_cb.setChecked(auto_connect)
-        #self.change_server(host, protocol)
+
         self.set_protocol(protocol)
         self.update_servers_list()
         self.enable_set_server()
