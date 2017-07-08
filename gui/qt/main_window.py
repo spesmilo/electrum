@@ -87,7 +87,7 @@ class StatusBarButton(QPushButton):
             self.func()
 
 
-from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+from electrum_grs.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 
 
 class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
@@ -2008,7 +2008,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
     def tx_from_text(self, txt):
-        from electrum.transaction import tx_from_str, Transaction
+        from electrum_grs.transaction import tx_from_str, Transaction
         try:
             tx = tx_from_str(txt)
             return Transaction(tx)
@@ -2218,7 +2218,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def plot_history_dialog(self):
         try:
-            from electrum.plot import plot_history
+            from electrum_grs.plot import plot_history
         except ImportError as e:
             self.show_error(str(e))
             return

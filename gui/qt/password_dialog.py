@@ -30,7 +30,7 @@ from util import *
 import re
 import math
 
-from electrum.plugins import run_hook
+from electrum_grs.plugins import run_hook
 
 def check_password_strength(password):
 

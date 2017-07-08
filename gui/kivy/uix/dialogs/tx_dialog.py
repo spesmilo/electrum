@@ -5,9 +5,9 @@ from kivy.lang import Builder
 from kivy.clock import Clock
 from kivy.uix.label import Label
 
-from electrum_gui.kivy.i18n import _
+from electrum_grs_gui.kivy.i18n import _
 from datetime import datetime
-from electrum.util import InvalidPassword
+from electrum_grs.util import InvalidPassword
 
 Builder.load_string('''
 
@@ -171,7 +171,7 @@ class TxDialog(Factory.Popup):
         self.app.broadcast(self.tx)
 
     def show_qr(self):
-        from electrum.bitcoin import base_encode
+        from electrum_grs.bitcoin import base_encode
         text = str(self.tx).decode('hex')
         text = base_encode(text, base=43)
         self.app.qr_dialog(_("Raw Transaction"), text)

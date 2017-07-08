@@ -6,7 +6,7 @@ import os
 import json
 
 from StringIO import StringIO
-from electrum.storage import WalletStorage, FINAL_SEED_VERSION
+from electrum_grs.storage import WalletStorage, FINAL_SEED_VERSION
 
 
 class FakeSynchronizer(object):

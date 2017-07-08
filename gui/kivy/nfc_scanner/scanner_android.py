@@ -10,7 +10,7 @@ if platform != 'android':
     raise ImportError
 import threading
 
-from electrum_gui.kivy.nfc_scanner import NFCBase
+from electrum_grs_gui.kivy.nfc_scanner import NFCBase
 from jnius import autoclass, cast
 from android.runnable import run_on_ui_thread
 from android import activity

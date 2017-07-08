@@ -27,11 +27,11 @@
 import threading
 
 from PyQt4.Qt import QVBoxLayout, QLabel, SIGNAL
-from electrum_gui.qt.password_dialog import PasswordDialog, PW_PASSPHRASE
-from electrum_gui.qt.util import *
+from electrum_grs_gui.qt.password_dialog import PasswordDialog, PW_PASSPHRASE
+from electrum_grs_gui.qt.util import *
 
-from electrum.i18n import _
-from electrum.util import PrintError
+from electrum_grs.i18n import _
+from electrum_grs.util import PrintError
 
 # The trickiest thing about this handler was getting windows properly
 # parented on MacOSX.
@@ -171,9 +171,9 @@ class QtHandlerBase(QObject, PrintError):
 
 
 
-from electrum.plugins import hook
-from electrum.util import UserCancelled
-from electrum_gui.qt.main_window import StatusBarButton
+from electrum_grs.plugins import hook
+from electrum_grs.util import UserCancelled
+from electrum_grs_gui.qt.main_window import StatusBarButton
 
 class QtPluginBase(object):
 

@@ -5,14 +5,14 @@ import time
 import sys
 import traceback
 
-import electrum
-from electrum import bitcoin
-from electrum.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
-from electrum.i18n import _
-from electrum.plugins import BasePlugin, hook
-from electrum.keystore import Hardware_KeyStore, parse_xpubkey
+import electrum_grs
+from electrum_grs import bitcoin
+from electrum_grs.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
+from electrum_grs.i18n import _
+from electrum_grs.plugins import BasePlugin, hook
+from electrum_grs.keystore import Hardware_KeyStore, parse_xpubkey
 from ..hw_wallet import HW_PluginBase
-from electrum.util import format_satoshis_plain, print_error, is_verbose
+from electrum_grs.util import format_satoshis_plain, print_error, is_verbose
 
 try:
     import hid

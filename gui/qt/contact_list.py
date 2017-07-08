@@ -24,11 +24,11 @@
 # SOFTWARE.
 
 
-from electrum.i18n import _
-from electrum.bitcoin import is_address
-from electrum.util import block_explorer_URL, format_satoshis, format_time, age
-from electrum.plugins import run_hook
-from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+from electrum_grs.i18n import _
+from electrum_grs.bitcoin import is_address
+from electrum_grs.util import block_explorer_URL, format_satoshis, format_time, age
+from electrum_grs.plugins import run_hook
+from electrum_grs.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 from util import MyTreeWidget, pr_tooltips, pr_icons

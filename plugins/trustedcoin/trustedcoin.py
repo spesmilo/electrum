@@ -32,16 +32,16 @@ from hashlib import sha256
 from urlparse import urljoin
 from urllib import quote
 
-import electrum
-from electrum import bitcoin
-from electrum import keystore
-from electrum.bitcoin import *
-from electrum.mnemonic import Mnemonic
-from electrum import version
-from electrum.wallet import Multisig_Wallet, Deterministic_Wallet, Wallet
-from electrum.i18n import _
-from electrum.plugins import BasePlugin, run_hook, hook
-from electrum.util import NotEnoughFunds
+import electrum_grs
+from electrum_grs import bitcoin
+from electrum_grs import keystore
+from electrum_grs.bitcoin import *
+from electrum_grs.mnemonic import Mnemonic
+from electrum_grs import version
+from electrum_grs.wallet import Multisig_Wallet, Deterministic_Wallet, Wallet
+from electrum_grs.i18n import _
+from electrum_grs.plugins import BasePlugin, run_hook, hook
+from electrum_grs.util import NotEnoughFunds
 
 # signing_xpub is hardcoded so that the wallet can be restored from seed, without TrustedCoin's server
 signing_xpub = "xpub661MyMwAqRbcGnMkaTx2594P9EDuiEqMq25PM2aeG6UmwzaohgA6uDmNsvSUV8ubqwA3Wpste1hg69XHgjUuCD5HLcEp2QPzyV1HMrPppsL"
@@ -205,7 +205,7 @@ class Wallet_2fa(Multisig_Wallet):
         return get_user_id(self.storage)
 
     def get_max_amount(self, config, inputs, recipient, fee):
-        from electrum.transaction import Transaction
+        from electrum_grs.transaction import Transaction
         sendable = sum(map(lambda x:x['value'], inputs))
         for i in inputs:
             self.add_input_info(i)

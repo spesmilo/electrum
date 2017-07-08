@@ -2,7 +2,7 @@ from kivy.app import App
 from kivy.factory import Factory
 from kivy.lang import Builder
 
-Factory.register('QRScanner', module='electrum_gui.kivy.qr_scanner')
+Factory.register('QRScanner', module='electrum_grs_gui.kivy.qr_scanner')
 
 class QrScannerDialog(Factory.AnimatedPopup):
 

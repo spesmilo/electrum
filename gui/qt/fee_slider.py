@@ -1,4 +1,4 @@
-from electrum.i18n import _
+from electrum_grs.i18n import _
 
 import PyQt4
 from PyQt4.QtGui import *
@@ -28,7 +28,7 @@ class FeeSlider(QSlider):
             self.callback(self.dyn, pos, fee_rate)
 
     def get_tooltip(self, pos, fee_rate):
-        from electrum.util import fee_levels
+        from electrum_grs.util import fee_levels
         rate_str = self.window.format_amount(fee_rate) + ' ' + self.window.base_unit() + '/kB'
         if self.dyn:
             tooltip = fee_levels[pos] + '\n' + rate_str
