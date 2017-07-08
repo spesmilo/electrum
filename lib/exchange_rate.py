@@ -84,7 +84,7 @@ class ExchangeBase(PrintError):
 
     def get_currencies(self):
         rates = self.get_rates('')
-        return [str(a) for (a, b) in rates.iteritems() if b is not None]
+        return sorted([str(a) for (a, b) in rates.iteritems() if b is not None and len(a)==3])
 
 
 class BitcoinAverage(ExchangeBase):
