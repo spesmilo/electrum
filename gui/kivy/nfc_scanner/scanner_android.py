@@ -17,7 +17,7 @@ from android import activity
 
 BUILDVERSION = autoclass('android.os.Build$VERSION').SDK_INT
 NfcAdapter = autoclass('android.nfc.NfcAdapter')
-PythonActivity = autoclass('org.renpy.android.PythonActivity')
+PythonActivity = autoclass('org.kivy.android.PythonActivity')
 JString = autoclass('java.lang.String')
 Charset = autoclass('java.nio.charset.Charset')
 locale = autoclass('java.util.Locale')
@@ -115,7 +115,6 @@ class ScannerAndroid(NFCBase):
             #print 'length', length
             # will contain the NDEF record types
             recTypes = []
-            self.
             for record in ndefrecords:
                 recTypes.append({
                     'type': ''.join(map(unichr, record.getType())),

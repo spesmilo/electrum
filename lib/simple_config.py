@@ -4,7 +4,9 @@ import threading
 import os
 
 from copy import deepcopy
-from util import user_dir, print_error, print_msg, print_stderr
+from util import user_dir, print_error, print_msg, print_stderr, PrintError
+
+from bitcoin import MAX_FEE_RATE, FEE_TARGETS
 
 SYSTEM_CONFIG_PATH = "/etc/electrum.conf"
 
@@ -21,7 +23,7 @@ def set_config(c):
     config = c
 
 
-class SimpleConfig(object):
+class SimpleConfig(PrintError):
     """
     The SimpleConfig class is responsible for handling operations involving
     configuration files.
@@ -39,6 +41,8 @@ class SimpleConfig(object):
         # This lock needs to be acquired for updating and reading the config in
         # a thread-safe way.
         self.lock = threading.RLock()
+
+        self.fee_estimates = {}
 
         # The following two functions are there for dependency injection when
         # testing.
@@ -76,11 +80,18 @@ class SimpleConfig(object):
         if path is None:
             path = self.user_dir()
 
+        if self.get('testnet'):
+            path = os.path.join(path, 'testnet')
+        elif self.get('nolnet'):
+            path = os.path.join(path, 'nolnet')
+
         # Make directory if it does not yet exist.
         if not os.path.exists(path):
+            if os.path.islink(path):
+                raise BaseException('Dangling link: ' + path)
             os.mkdir(path)
 
-        print_error("electrum directory", path)
+        self.print_error("electrum directory", path)
         return path
 
     def fixup_config_keys(self, config, keypairs):
@@ -131,7 +142,7 @@ class SimpleConfig(object):
         f = open(path, "w")
         f.write(s)
         f.close()
-        if self.get('gui') != 'android':
+        if 'ANDROID_DATA' not in os.environ:
             import stat
             os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
 
@@ -139,9 +150,8 @@ class SimpleConfig(object):
         """Set the path of the wallet."""
 
         # command line -w option
-        path = self.get('wallet_path')
-        if path:
-            return path
+        if self.get('wallet_path'):
+            return os.path.join(self.get('cwd'), self.get('wallet_path'))
 
         # path in config file
         path = self.get('default_wallet_path')
@@ -151,6 +161,8 @@ class SimpleConfig(object):
         # default path
         dirpath = os.path.join(self.path, "wallets")
         if not os.path.exists(dirpath):
+            if os.path.islink(dirpath):
+                raise BaseException('Dangling link: ' + dirpath)
             os.mkdir(dirpath)
 
         new_path = os.path.join(self.path, "wallets", "default_wallet")
@@ -162,6 +174,74 @@ class SimpleConfig(object):
 
         return new_path
 
+    def remove_from_recently_open(self, filename):
+        recent = self.get('recently_open', [])
+        if filename in recent:
+            recent.remove(filename)
+            self.set_key('recently_open', recent)
+
+    def set_session_timeout(self, seconds):
+        self.print_error("session timeout -> %d seconds" % seconds)
+        self.set_key('session_timeout', seconds)
+
+    def get_session_timeout(self):
+        return self.get('session_timeout', 300)
+
+    def open_last_wallet(self):
+        if self.get('wallet_path') is None:
+            last_wallet = self.get('gui_last_wallet')
+            if last_wallet is not None and os.path.exists(last_wallet):
+                self.cmdline_options['default_wallet_path'] = last_wallet
+
+    def save_last_wallet(self, wallet):
+        if self.get('wallet_path') is None:
+            path = wallet.storage.path
+            self.set_key('gui_last_wallet', path)
+
+    def max_fee_rate(self):
+        return self.get('max_fee_rate', MAX_FEE_RATE)
+
+    def dynfee(self, i):
+        if i < 4:
+            j = FEE_TARGETS[i]
+            fee = self.fee_estimates.get(j)
+        else:
+            assert i == 4
+            fee = self.fee_estimates.get(2)
+            if fee is not None:
+                fee += fee/2
+        if fee is not None:
+            fee = min(5*MAX_FEE_RATE, fee)
+        return fee
+
+    def reverse_dynfee(self, fee_per_kb):
+        import operator
+        l = self.fee_estimates.items() + [(1, self.dynfee(4))]
+        dist = map(lambda x: (x[0], abs(x[1] - fee_per_kb)), l)
+        min_target, min_value = min(dist, key=operator.itemgetter(1))
+        if fee_per_kb < self.fee_estimates.get(25)/2:
+            min_target = -1
+        return min_target
+
+    def has_fee_estimates(self):
+        return len(self.fee_estimates)==4
+
+    def is_dynfee(self):
+        return self.get('dynamic_fees', True)
+
+    def fee_per_kb(self):
+        dyn = self.is_dynfee()
+        if dyn:
+            fee_rate = self.dynfee(self.get('fee_level', 2))
+        else:
+            fee_rate = self.get('fee_per_kb', self.max_fee_rate()/2)
+        return fee_rate
+
+    def get_video_device(self):
+        device = self.get("video_device", "default")
+        if device == 'default':
+            device = ''
+        return device
 
 
 def read_system_config(path=SYSTEM_CONFIG_PATH):
@@ -189,20 +269,15 @@ def read_user_config(path):
     if not path:
         return {}
     config_path = os.path.join(path, "config")
+    if not os.path.exists(config_path):
+        return {}
     try:
         with open(config_path, "r") as f:
             data = f.read()
-    except IOError:
-        print_msg("Error: Cannot read config file.", path)
-        return {}
-    try:
         result = json.loads(data)
     except:
-        try:
-            result = ast.literal_eval(data)
-        except:
-            print_msg("Error: Cannot read config file.")
-            return {}
+        print_msg("Warning: Cannot read config file.", config_path)
+        return {}
     if not type(result) is dict:
         return {}
     return result

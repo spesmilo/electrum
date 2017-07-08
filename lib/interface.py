@@ -3,18 +3,25 @@
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2011 thomasv@gitorious
 #
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 
 import os
@@ -53,7 +60,6 @@ class TcpConnection(threading.Thread, util.PrintError):
 
     def __init__(self, server, queue, config_path):
         threading.Thread.__init__(self)
-        self.daemon = True
         self.config_path = config_path
         self.queue = queue
         self.server = server
@@ -61,6 +67,7 @@ class TcpConnection(threading.Thread, util.PrintError):
         self.host = str(self.host)
         self.port = int(self.port)
         self.use_ssl = (self.protocol == 's')
+        self.daemon = True
 
     def diagnostic_name(self):
         return self.host
@@ -98,6 +105,7 @@ class TcpConnection(threading.Thread, util.PrintError):
         for res in l:
             try:
                 s = socket.socket(res[0], socket.SOCK_STREAM)
+                s.settimeout(10)
                 s.connect(res[4])
                 s.settimeout(2)
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
@@ -123,7 +131,6 @@ class TcpConnection(threading.Thread, util.PrintError):
                 if s and self.check_host_name(s.getpeercert(), self.host):
                     self.print_error("SSL certificate signed by CA")
                     return s
-
                 # get server certificate.
                 # Do not use ssl.get_server_certificate because it does not work with proxy
                 s = self.get_simple_socket()
@@ -237,7 +244,10 @@ class Interface(util.PrintError):
 
     def close(self):
         if not self.closed_remotely:
-            self.socket.shutdown(socket.SHUT_RDWR)
+            try:
+                self.socket.shutdown(socket.SHUT_RDWR)
+            except socket.error:
+                pass
         self.socket.close()
 
     def queue_request(self, *args):  # method, params, _id
@@ -247,20 +257,26 @@ class Interface(util.PrintError):
         self.request_time = time.time()
         self.unsent_requests.append(args)
 
+    def num_requests(self):
+        '''Keep unanswered requests below 100'''
+        n = 100 - len(self.unanswered_requests)
+        return min(n, len(self.unsent_requests))
+
     def send_requests(self):
-        '''Sends all queued requests.  Returns False on failure.'''
+        '''Sends queued requests.  Returns False on failure.'''
         make_dict = lambda (m, p, i): {'method': m, 'params': p, 'id': i}
-        wire_requests = map(make_dict, self.unsent_requests)
+        n = self.num_requests()
+        wire_requests = self.unsent_requests[0:n]
         try:
-            self.pipe.send_all(wire_requests)
+            self.pipe.send_all(map(make_dict, wire_requests))
         except socket.error, e:
             self.print_error("socket error:", e)
             return False
-        for request in self.unsent_requests:
+        self.unsent_requests = self.unsent_requests[n:]
+        for request in wire_requests:
             if self.debug:
                 self.print_error("-->", request)
             self.unanswered_requests[request[2]] = request
-        self.unsent_requests = []
         return True
 
     def ping_required(self):
@@ -297,10 +313,11 @@ class Interface(util.PrintError):
                 response = self.pipe.get()
             except util.timeout:
                 break
-            if response is None:
+            if not type(response) is dict:
                 responses.append((None, None))
-                self.closed_remotely = True
-                self.print_error("connection closed remotely")
+                if response is None:
+                    self.closed_remotely = True
+                    self.print_error("connection closed remotely")
                 break
             if self.debug:
                 self.print_error("<--", response)
@@ -313,7 +330,7 @@ class Interface(util.PrintError):
                     responses.append((request, response))
                 else:
                     self.print_error("unknown wire ID", wire_id)
-                    responses.append(None, None) # Signal
+                    responses.append((None, None)) # Signal
                     break
 
         return responses

@@ -1,43 +1,55 @@
 Popup:
     id: nd
     title: _('Network')
-
-    on_open:
-        host.text, nd.port, nd.protocol, nd.proxy, auto_connect.active = app.network.get_parameters()
+    n_nodes: len(app.network.get_interfaces())
+    blockchain_height: app.network.get_local_height()
+    is_connected: app.network.is_connected()
 
     BoxLayout:
-
         orientation: 'vertical'
-
+        padding: '10dp'
+        spacing: '10dp'
+        TopLabel:
+            s1: _("Connected to %d nodes.")%root.n_nodes if root.n_nodes else _("Not connected?")
+            s2: _("Blockchain length") + ": %d "%root.blockchain_height + _("blocks")
+            text: self.s1 + '\n' + self.s2
+        Widget:
+            size_hint: 1, 0.1
         GridLayout:
             cols: 2
+            Label:
+                text: _('Server')
+            Spinner:
+                id: host
+                height: '48dp'
+                size_hint_y: None
+                text: ''
+                values: sorted(app.network.get_servers())
+                disabled: auto_connect.active
             Label:
                 text: _('Auto-connect')
             CheckBox:
                 id: auto_connect
                 size_hint_y: None
-            Label:
-                text: _('Server')
-            Spinner:
-                id: host
-                text: ''
-                values: app.network.get_servers()
-
+        Widget:
+            size_hint: 1, 0.1
+        TopLabel:
+            text: _("Electrum retrieves your wallet information from a single node (address server). In addition, it connects to a number of extra nodes, in order to fetch block headers. Block headers are used to verify the information sent by the address server, using Simple Payment Verification (SPV).")
+            font_size: '6pt'
+        Widget:
+            size_hint: 1, 0.1
+        TopLabel:
+            text: _("If auto-connect is checked, the address server will be selected automatically.")
+            font_size: '6pt'
+        Widget:
+            size_hint: 1, 0.1
 
         BoxLayout:
-            Button:
+            Widget:
                 size_hint: 0.5, None
-                height: '48dp'
-                text: _('Cancel')
-                on_release:
-                    nd.dismiss()
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
                 text: _('OK')
                 on_release:
-                    app.network.set_parameters(host.text, nd.port, nd.protocol, nd.proxy, auto_connect.active)
                     nd.dismiss()
-
-        Widget:
-            size_hint: 1, 1

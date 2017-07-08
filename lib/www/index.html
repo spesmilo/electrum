@@ -25,7 +25,8 @@ function getUrlParameter(sParam)
 var id = getUrlParameter('id');
 
 if (id) {
-    var jqxhr = $.getJSON(id + ".json", function() {
+        var uri_path = location.pathname;
+        var jqxhr = $.getJSON(uri_path.replace("index.html", "req/"+  id[0] + "/"+ id[1] + "/"+ id + "/"+ id + ".json"), function() {
 	console.log("getJSON:success");
     })
         .done( function(data) {
@@ -34,17 +35,20 @@ if (id) {
             $("<p />").text(data.amount/100000000 + "GRS").appendTo($("p#amount"));
 	    $("a").attr("href", data.URI);
             $("<p />").text("Powered by Electrum-GRS").appendTo($("p#powered"));
+            var websocket_server = data.websocket_server;
+            var websocket_port = data.websocket_port;
 	    $(function () {
 		var current;
 		var max = 100;
 		var initial = data.time;
-		var duration = data.exp;
-  		var current = 100 * (Math.floor(Date.now()/1000) - initial)/duration;
-		$("#progressbar").progressbar({
+                var duration = data.exp;
+                if(duration){
+     		  var current = 100 * (Math.floor(Date.now()/1000) - initial)/duration;
+		  $("#progressbar").progressbar({
 		    value: current,
 		    max: max
-		});
-		function update() {
+		  });
+		  function update() {
         	    current = 100 * (Math.floor(Date.now()/1000) - initial)/duration;
 		    $("#progressbar").progressbar({
 			value: current
@@ -52,28 +56,32 @@ if (id) {
 		    if (current >= max) {
 			$("#container").html("This invoice has expired");
 		    }
-		};
-		var interval = setInterval(update, 1000);
+		  };
+		  var interval = setInterval(update, 1000);
+                 }
             });
+
+            var wss_address = "wss://" + websocket_server + ":" + websocket_port +"/";
+            console.log("Opening WSS: " + wss_address)
+            var ws = new WebSocket(wss_address);
+
+            ws.onopen = function() {
+                        ws.send('id:' + id);
+            };
+            ws.onmessage = function (evt) {
+                        var received_msg = evt.data;
+                        if(received_msg == 'paid'){
+                            $("#container").html("This invoice has been paid.");
+                        }
+                        else alert("Message is received:"+ received_msg);
+            };
+
 	    })
 	.fail(function() {
 	    console.log("error fail");
             $("<p />").text("error").appendTo($("p#error"));
         });
 };
-
-var ws = new WebSocket("wss://" + window.location.hostname + ":9999/");
-ws.onopen = function() {
-            ws.send('id:' + id);
-};
-ws.onmessage = function (evt) {
-	    var received_msg = evt.data;
-	    if(received_msg == 'paid'){
-	        $("#container").html("This invoice has been paid.");
-	    }
-	    else alert("Message is received:"+ received_msg);
-};
-
 
 // See http://stackoverflow.com/questions/29186154/chrome-clicking-mailto-links-closes-websocket-connection
 $(document).on('click', 'a[href^="groestlcoin:"]', function (e) {

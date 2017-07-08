@@ -1,126 +1,151 @@
+#:import Clock kivy.clock.Clock
 #:import Window kivy.core.window.Window
 #:import Factory kivy.factory.Factory
-#:import _ electrum.i18n._
+#:import _ electrum_gui.kivy.i18n._
+
+
+###########################
+#     Global Defaults
+###########################
+
+<Label>
+    markup: True
+    font_name: 'Roboto'
+    font_size: '16sp'
+    bound: False
+    on_text: if isinstance(self.text, _) and not self.bound: self.bound=True; _.bind(self)
+
+<TextInput>
+    on_focus: app._focused_widget = root
+
+<Button>
+    on_parent: self.MIN_STATE_TIME = 0.1
+
+<ListItemButton>
+    font_size: '12sp'
+
+<Carousel>:
+    canvas.before:
+        Color:
+            rgba: 0.1, 0.1, 0.1, 1
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
+<ActionView>:
+    canvas.before:
+        Color:
+            rgba: 0.1, 0.1, 0.1, 1
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
 
 # Custom Global Widgets
+
+<TopLabel@Label>
+    size_hint_y: None
+    text_size: self.width, None
+    height: self.texture_size[1]
+
+<EmptyLabel@Label>
+    color: (0.8, 0.8, 0.8, 1)
+    size_hint_y: None
+    text_size: self.width, None
+    height: self.texture_size[1]
 
 <VGridLayout@GridLayout>:
     rows: 1
     size_hint: 1, None
     height: self.minimum_height
 
-<LightOptions@SpinnerOption>
-    font_size: '14sp'
-    border: 4, 4, 4, 4
-    color: 0.439, 0.439, 0.439, .8
-    background_normal: 'atlas://gui/kivy/theming/light/action_button_group'
-    background_down: 'atlas://gui/kivy/theming/light/overflow_btn_dn'
-    size_hint_y: None
-    height: '48dp'
-    text_size: self.size[0] - dp(20), self.size[1]
-    halign: 'left'
-    valign: 'middle'
-    shorten: True
-    on_press:
-        ddn = self.parent.parent
-        Factory.Animation(opacity=0, d=.25).start(ddn)
-
-<OppositeDropDown@DropDown>
-    #auto_width: False
-    size_hint: None, None
-    size: self.container.minimum_size if self.container else (0, 0)
-    on_container: if args[1]: self.container.padding = '4dp', '4dp', '4dp', '4dp'
-    canvas.before:
-        Color:
-            rgba: 1, 1, 1, 1
-        BorderImage:
-            pos:self.pos
-            border: 20, 20, 20, 20
-            source: 'atlas://gui/kivy/theming/light/dropdown_background'
-            size: self.size
-
-<OppositeSpinner@CSpinner>
-    dropdown_cls: Factory.OppositeDropDown
-    option_cls: Factory.LightOptions
-    border: 20, 20, 9, 9
-    background_normal: 'atlas://gui/kivy/theming/light/action_group_dark'
-    background_down: self.background_normal
-    values: ('Copy to clipboard', 'Send Payment')
-    size_hint: None, 1
-    width: '12dp'
-    on_release:
-        ddn = self._dropdown
-        ddn.opacity = 0
-        Factory.Animation(opacity=1, d=.25).start(ddn)
 
 
-<BlueSpinner@BoxLayout>
-    foreground_color: 1, 1, 1, 1
-    spacing: '9dp'
-    text: ''
-    values: ('', )
+<IconButton@Button>:
     icon: ''
-    Image:
-        source: root.icon
-        size_hint: None, None
-        size: '22dp', '22dp'
-        pos_hint: {'center_y': .5}
-    OppositeSpinner:
-        color: root.foreground_color
-        background_normal: 'atlas://gui/kivy/theming/light/action_group_light'
-        markup: False
-        shorten: True
-        font_size: '16dp'
-        size_hint: 1, .7
-        pos_hint: {'center_y': .5}
-        text: root.text
-        text_size: self.size
-        halign: 'left'
-        valign: 'middle'
-        on_text:
-            root.text = args[1]
-        values: root.values
+    AnchorLayout:
+        pos: self.parent.pos
+        size: self.parent.size
+        orientation: 'lr-tb'
+        Image:
+            source: self.parent.parent.icon
+            size_hint_x: None
+            size: '30dp', '30dp'
 
 
-<IconButton@ButtonBehavior+Image>
-    allow_stretch: True
-    size_hint_x: None
-    width: self.height
-    canvas:
-        BorderImage:
-            border: (10, 10, 10, 10)
-            source:
-                'atlas://gui/kivy/theming/light/' + ('tab_btn'\
-                if root.state == 'normal' else 'icon_border')
-            size: root.size
-            pos: root.pos
-
-
-<ELTextInput>
-    padding: '10dp', '4dp'
-    background_color: (0.238, 0.589, .996, 1) if self.focus else self.foreground_color
-    foreground_color: 0.531, 0.531, 0.531, 1
-    background_active: 'atlas://gui/kivy/theming/light/textinput_active'
-    background_normal: 'atlas://gui/kivy/theming/light/textinput_active'
-
-
-###########################
-#     Global Defaults
-###########################
-<TextInput>
-    on_focus: app._focused_widget = root
-
-<Label>
-    markup: True
-    font_name: 'Roboto'
-    font_size: '16sp'
-
-<ListItemButton>
-    font_size: '12sp'
 
 #########################
 #       Dialogs
 #########################
+<BoxLabel@BoxLayout>
+    text: ''
+    value: ''
+    size_hint_y: None
+    height: max(lbl1.height, lbl2.height)
+    TopLabel
+        id: lbl1
+        text: root.text
+        pos_hint: {'top':1}
+    TopLabel
+        id: lbl2
+        text: root.value
+
+<OutputItem>
+    address: ''
+    value: ''
+    size_hint_y: None
+    height: max(lbl1.height, lbl2.height)
+    TopLabel
+        id: lbl1
+        text: '[ref=%s]%s[/ref]'%(root.address, root.address)
+        font_size: '6pt'
+        shorten: True
+        size_hint_x: 0.65
+        on_ref_press:
+            app._clipboard.copy(root.address)
+            app.show_info(_('Address copied to clipboard') + ' ' + root.address)
+    TopLabel
+        id: lbl2
+        text: root.value
+        font_size: '6pt'
+        size_hint_x: 0.35
+        halign: 'right'
+
+
+<OutputList>
+    height: self.minimum_height
+    size_hint_y: None
+    cols: 1
+    spacing: '10dp'
+    padding: '10dp'
+    canvas.before:
+        Color:
+            rgb: .3, .3, .3
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
+<RefLabel@TopLabel>
+    font_size: '6pt'
+    name: ''
+    data: ''
+    text: self.data
+    touched: False
+    padding: '10dp', '10dp'
+    on_touch_down:
+        touch = args[1]
+        if self.collide_point(*touch.pos): app.on_ref_label(self, touch)
+        else: self.touched = False
+    canvas.before:
+        Color:
+            rgb: .3, .3, .3
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
+<TxHashLabel@RefLabel>
+    data: ''
+    text: ' '.join(map(''.join, zip(*[iter(self.data)]*4))) if self.data else ''
 
 <InfoBubble>
     size_hint: None, None
@@ -151,29 +176,19 @@
             width: 0 if root.fs else (root.width - img.width)
 
 
-
-<WalletActionPrevious@ActionPrevious>
-    app_icon: 'atlas://gui/kivy/theming/light/' + ('wallets' if app.ui_mode[0] != 't' else 'tab_btn')
-    with_previous: False
-    size_hint: None, 1
-    mipmap: True
-    on_release: app.root.children[0].toggle_drawer()
-
-
 <SendReceiveBlueBottom@GridLayout>
-    canvas.before:
-        Color:
-            rgba: .238, .585, .878, 1
-        BorderImage:
-            border: 9, 9, 9, 9
-            source: 'atlas://gui/kivy/theming/light/card_bottom'
-            size: self.size
-            pos: self.pos
-
     item_height: dp(42)
     foreground_color: .843, .914, .972, 1
     cols: 1
     padding: '12dp', 0
+    canvas.before:
+        Color:
+            rgba: 0.192, .498, 0.745, 1
+        BorderImage:
+            source: 'atlas://gui/kivy/theming/light/card_bottom'
+            size: self.size
+            pos: self.pos
+
 
 
 <CardSeparator@Widget>
@@ -187,52 +202,75 @@
             size: self.size
             pos: self.pos
 
-<AddressSelector@BlueSpinner>
-    icon: 'atlas://gui/kivy/theming/light/globe'
-    values: [] #app.wallet.addresses() if app.wallet else []
-    text: _("Select Your address")
-
-<TextInputBlue@TextInput>
-    padding: '5dp'
+<CardItem@ToggleButtonBehavior+BoxLayout>
     size_hint: 1, None
-    height: '27dp'
-    pos_hint: {'center_y':.5}
-    multiline: False
-    hint_text_color: self.foreground_color
-    foreground_color: .843, .914, .972, 1
-    background_color: 1, 1, 1, 1
-    background_normal: 'atlas://gui/kivy/theming/light/tab_btn'
-    background_active: 'atlas://gui/kivy/theming/light/textinput_active'
+    height: '65dp'
+    group: 'requests'
+    padding: dp(12)
+    spacing: dp(5)
+    screen: None
+    on_release:
+        self.screen.show_menu(args[0]) if self.state == 'down' else self.screen.hide_menu()
+    canvas.before:
+        Color:
+            rgba: (0.192, .498, 0.745, 1) if self.state == 'down' else (0.3, 0.3, 0.3, 1)
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
+<BlueButton@Button>:
+    background_color: 1, .585, .878, 0
+    halign: 'left'
+    text_size: (self.width-10, None)
+    size_hint: 0.5, None
+    default_text: ''
+    text: self.default_text
+    padding: '5dp', '5dp'
+    height: '40dp'
+    text_color: self.foreground_color
+    disabled_color: 1, 1, 1, 1
+    foreground_color: 1, 1, 1, 1
+    canvas.before:
+        Color:
+            rgba: (0.9, .498, 0.745, 1) if self.state == 'down' else self.background_color
+        Rectangle:
+            size: self.size
+            pos: self.pos
 
 
 <KButton@Button>:
     size_hint: 1, None
     height: '48dp'
-    on_release: self.label.amount = app.update_amount(self.label.amount, self.text)
+    on_release:
+        self.parent.update_amount(self.text)
 
+
+<StripLayout>
+    padding: 0, 0, 0, 0
 
 <TabbedPanelStrip>:
     on_parent:
         if self.parent: self.parent.bar_width = 0
+        if self.parent: self.parent.scroll_x = 0.5
 
 
 <TabbedCarousel>
     carousel: carousel
     do_default_tab: False
     Carousel:
-        scroll_timeout: 190
+        scroll_timeout: 250
+        scroll_distance: '100dp'
         anim_type: 'out_quart'
         min_move: .05
         anim_move_duration: .1
         anim_cancel_duration: .54
-        scroll_distance: '10dp'
         on_index: root.on_index(*args)
         id: carousel
 
 
 
 <CleanHeader@TabbedPanelHeader>
-    border: 0, 0, 16, 0
+    border: 16, 0, 16, 0
     markup: False
     text_size: self.size
     halign: 'center'
@@ -240,15 +278,7 @@
     bold: True
     font_size: '12.5sp'
     background_normal: 'atlas://gui/kivy/theming/light/tab_btn'
-    background_disabled_normal: 'atlas://gui/kivy/theming/light/tab_btn_disabled'
     background_down: 'atlas://gui/kivy/theming/light/tab_btn_pressed'
-    #canvas.before:
-    #    Color:
-    #        rgba: .6, .6, .6, .7
-    #    Rectangle:
-    #        size: self.size
-    #        pos: self.x + 1, self.y - 1
-    #        texture: self.texture
 
 
 <ColoredLabel@Label>:
@@ -267,44 +297,55 @@
     TabbedCarousel:
         id: panel
         tab_height: '48dp'
-        #default_tab: send_tab
+        tab_width: panel.width/3
         strip_border: 0, 0, 0, 0
-        HistoryScreen:
-            id: history_screen
-            tab: history_tab
+        InvoicesScreen:
+            id: invoices_screen
+            tab: invoices_tab
         SendScreen:
             id: send_screen
             tab: send_tab
+        HistoryScreen:
+            id: history_screen
+            tab: history_tab
         ReceiveScreen:
             id: receive_screen
             tab: receive_tab
-        ContactsScreen:
-            id: contacts_screen
-            tab: contacts_tab
+        RequestsScreen:
+            id: requests_screen
+            tab: requests_tab
         CleanHeader:
-            id: history_tab
-            text: _('History')
+            id: invoices_tab
+            text: _('Invoices')
             slide: 0
         CleanHeader:
             id: send_tab
             text: _('Send')
             slide: 1
         CleanHeader:
-            id: receive_tab
-            text: _('Receive')
+            id: history_tab
+            text: _('History')
             slide: 2
         CleanHeader:
-            id: contacts_tab
-            text: _('Contacts')
+            id: receive_tab
+            text: _('Receive')
             slide: 3
+        CleanHeader:
+            id: requests_tab
+            text: _('Requests')
+            slide: 4
+
 
 <ActionOvrButton@ActionButton>
-    on_release:
-        if self.parent: self.parent.parent.dismiss()
-        app.popup_dialog(self.text.lower())
+    #on_release:
+        # fixme: the following line was commented out because it does no seem to do what it is intended
+        # Clock.schedule_once(lambda dt: self.parent.parent.dismiss() if self.parent else None, 0.05)
+    on_press:
+        Clock.schedule_once(lambda dt: app.popup_dialog(self.name), 0.05)
+        self.state = 'normal'
+
 
 BoxLayout:
-
     orientation: 'vertical'
 
     canvas.before:
@@ -318,44 +359,39 @@ BoxLayout:
 
         ActionView:
             id: av
-
             ActionPrevious:
                 app_icon: 'atlas://gui/kivy/theming/light/logo'
+                app_icon_width: '100dp'
                 with_previous: False
-                on_release: app.on_back()
                 size_hint_x: None
-                width: ao.width
+                on_release: app.popup_dialog('status')
 
             ActionButton:
                 id: action_status
                 important: True
                 size_hint: 1, 1
-                markup: True
-                mipmap: True
                 bold: True
-                markup: True
-                color: 1, 1, 1, 1
-                text:
-                    "[color=#777777]{}[/color]"\
-                    .format(app.status)
+                color: 0.7, 0.7, 0.7, 1
+                text: app.status
                 font_size: '22dp'
-                minimum_width: '1dp'
+                #minimum_width: '1dp'
+                on_release: app.popup_dialog('status')
 
             ActionOverflow:
                 id: ao
                 ActionOvrButton:
-                    text: _('Network')
+                    name: 'about'
+                    text: _('About')
+                ActionOvrButton:
+                    name: 'wallets'
+                    text: _('Wallets')
+                ActionOvrButton:
+                    name: 'settings'
+                    text: _('Settings')
                     on_parent:
                         # when widget overflow drop down is shown, adjust the width
                         parent = args[1]
                         if parent: ao._dropdown.width = sp(200)
-                ActionOvrButton:
-                    text: _('Settings')
-                ActionOvrButton:
-                    text: _('Wallets')
-                ActionOvrButton:
-                    text: _('Plugins')
-
     ScreenManager:
         id: manager
         ScreenTabs:

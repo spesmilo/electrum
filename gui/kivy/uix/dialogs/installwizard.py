@@ -1,28 +1,733 @@
-from electrum import Wallet
-from electrum.i18n import _
+
+from functools import partial
+import threading
 
 from kivy.app import App
+from kivy.clock import Clock
+from kivy.lang import Builder
+from kivy.properties import ObjectProperty, StringProperty, OptionProperty
+from kivy.core.window import Window
+from kivy.uix.button import Button
+from kivy.utils import platform
 from kivy.uix.widget import Widget
 from kivy.core.window import Window
 from kivy.clock import Clock
-from kivy.factory import Factory
+from kivy.utils import platform
 
-Factory.register('CreateRestoreDialog',
-                 module='electrum_gui.kivy.uix.dialogs.create_restore')
+from electrum_gui.kivy.uix.dialogs import EventsDialog
+from electrum_gui.kivy.i18n import _
+from electrum.base_wizard import BaseWizard
 
-import sys
-import threading
-from functools import partial
-import weakref
+from password_dialog import PasswordDialog
 
 # global Variables
 app = App.get_running_app()
 
+is_test = (platform == "linux")
+test_seed = "time taxi field recycle tiny license olive virus report rare steel portion achieve"
+test_xpub = "xpub661MyMwAqRbcEbvVtRRSjqxVnaWVUMewVzMiURAKyYratih4TtBpMypzzefmv8zUNebmNVzB3PojdC5sV2P9bDgMoo9B3SARw1MXUUfU1GL"
 
-class InstallWizard(Widget):
-    '''Installation Wizard. Responsible for instantiating the
-    creation/restoration of wallets.
+Builder.load_string('''
+#:import Window kivy.core.window.Window
+#:import _ electrum_gui.kivy.i18n._
 
+
+<WizardTextInput@TextInput>
+    border: 4, 4, 4, 4
+    font_size: '15sp'
+    padding: '15dp', '15dp'
+    background_color: (1, 1, 1, 1) if self.focus else (0.454, 0.698, 0.909, 1)
+    foreground_color: (0.31, 0.31, 0.31, 1) if self.focus else (0.835, 0.909, 0.972, 1)
+    hint_text_color: self.foreground_color
+    background_active: 'atlas://gui/kivy/theming/light/create_act_text_active'
+    background_normal: 'atlas://gui/kivy/theming/light/create_act_text_active'
+    size_hint_y: None
+    height: '48sp'
+
+<WizardButton@Button>:
+    root: None
+    size_hint: 1, None
+    height: '48sp'
+    on_press: if self.root: self.root.dispatch('on_press', self)
+    on_release: if self.root: self.root.dispatch('on_release', self)
+
+<BigLabel@Label>
+    color: .854, .925, .984, 1
+    size_hint: 1, None
+    text_size: self.width, None
+    height: self.texture_size[1]
+    bold: True
+
+<-WizardDialog>
+    text_color: .854, .925, .984, 1
+    value: ''
+    #auto_dismiss: False
+    size_hint: None, None
+    canvas.before:
+        Color:
+            rgba: 0, 0, 0, .9
+        Rectangle:
+            size: Window.size
+        Color:
+            rgba: .239, .588, .882, 1
+        Rectangle:
+            size: Window.size
+
+    crcontent: crcontent
+    # add electrum icon
+    BoxLayout:
+        orientation: 'vertical' if self.width < self.height else 'horizontal'
+        padding:
+            min(dp(27), self.width/32), min(dp(27), self.height/32),\
+            min(dp(27), self.width/32), min(dp(27), self.height/32)
+        spacing: '10dp'
+        GridLayout:
+            id: grid_logo
+            cols: 1
+            pos_hint: {'center_y': .5}
+            size_hint: 1, None
+            height: self.minimum_height
+            Label:
+                color: root.text_color
+                text: 'ELECTRUM'
+                size_hint: 1, None
+                height: self.texture_size[1] if self.opacity else 0
+                font_size: '33sp'
+                font_name: 'gui/kivy/data/fonts/tron/Tr2n.ttf'
+        GridLayout:
+            cols: 1
+            id: crcontent
+            spacing: '1dp'
+        Widget:
+            size_hint: 1, 0.3
+        GridLayout:
+            rows: 1
+            spacing: '12dp'
+            size_hint: 1, None
+            height: self.minimum_height
+            WizardButton:
+                id: back
+                text: _('Back')
+                root: root
+            WizardButton:
+                id: next
+                text: _('Next')
+                root: root
+                disabled: root.value == ''
+
+
+<WizardMultisigDialog>
+    value: 'next'
+    Widget
+        size_hint: 1, 1
+    Label:
+        color: root.text_color
+        size_hint: 1, None
+        text_size: self.width, None
+        height: self.texture_size[1]
+        text: _("Choose the number of signatures needed to unlock funds in your wallet")
+    Widget
+        size_hint: 1, 1
+    GridLayout:
+        orientation: 'vertical'
+        cols: 2
+        spacing: '14dp'
+        size_hint: 1, 1
+        height: self.minimum_height
+        Label:
+            color: root.text_color
+            text: _('From %d cosigners')%n.value
+        Slider:
+            id: n
+            range: 2, 5
+            step: 1
+            value: 2
+        Label:
+            color: root.text_color
+            text: _('Require %d signatures')%m.value
+        Slider:
+            id: m
+            range: 1, n.value
+            step: 1
+            value: 2
+
+
+<WizardChoiceDialog>
+    message : ''
+    Widget:
+        size_hint: 1, 1
+    Label:
+        color: root.text_color
+        size_hint: 1, None
+        text_size: self.width, None
+        height: self.texture_size[1]
+        text: root.message
+    Widget
+        size_hint: 1, 1
+    GridLayout:
+        row_default_height: '48dp'
+        orientation: 'vertical'
+        id: choices
+        cols: 1
+        spacing: '14dp'
+        size_hint: 1, None
+
+<MButton@Button>:
+    size_hint: 1, None
+    height: '33dp'
+    on_release:
+        self.parent.update_amount(self.text)
+
+<WordButton@Button>:
+    size_hint: None, None
+    padding: '5dp', '5dp'
+    text_size: None, self.height
+    width: self.texture_size[0]
+    height: '30dp'
+    on_release:
+        self.parent.new_word(self.text)
+
+
+<SeedButton@Button>:
+    height: dp(100)
+    border: 4, 4, 4, 4
+    halign: 'justify'
+    valign: 'top'
+    font_size: '18dp'
+    text_size: self.width - dp(24), self.height - dp(12)
+    color: .1, .1, .1, 1
+    background_normal: 'atlas://gui/kivy/theming/light/white_bg_round_top'
+    background_down: self.background_normal
+    size_hint_y: None
+
+
+<SeedLabel@Label>:
+    font_size: '12sp'
+    text_size: self.width, None
+    size_hint: 1, None
+    height: self.texture_size[1]
+    halign: 'justify'
+    valign: 'middle'
+    border: 4, 4, 4, 4
+
+
+<RestoreSeedDialog>
+    message: ''
+    word: ''
+    BigLabel:
+        text: "ENTER YOUR SEED PHRASE"
+    GridLayout
+        cols: 1
+        padding: 0, '12dp'
+        orientation: 'vertical'
+        spacing: '12dp'
+        size_hint: 1, None
+        height: self.minimum_height
+        SeedButton:
+            id: text_input_seed
+            text: ''
+            on_text: Clock.schedule_once(root.on_text)
+            on_release: root.options_dialog()
+        SeedLabel:
+            text: root.message
+        BoxLayout:
+            id: suggestions
+            height: '35dp'
+            size_hint: 1, None
+            new_word: root.on_word
+        BoxLayout:
+            id: line1
+            update_amount: root.update_text
+            size_hint: 1, None
+            height: '30dp'
+            MButton:
+                text: 'Q'
+            MButton:
+                text: 'W'
+            MButton:
+                text: 'E'
+            MButton:
+                text: 'R'
+            MButton:
+                text: 'T'
+            MButton:
+                text: 'Y'
+            MButton:
+                text: 'U'
+            MButton:
+                text: 'I'
+            MButton:
+                text: 'O'
+            MButton:
+                text: 'P'
+        BoxLayout:
+            id: line2
+            update_amount: root.update_text
+            size_hint: 1, None
+            height: '30dp'
+            Widget:
+                size_hint: 0.5, None
+                height: '33dp'
+            MButton:
+                text: 'A'
+            MButton:
+                text: 'S'
+            MButton:
+                text: 'D'
+            MButton:
+                text: 'F'
+            MButton:
+                text: 'G'
+            MButton:
+                text: 'H'
+            MButton:
+                text: 'J'
+            MButton:
+                text: 'K'
+            MButton:
+                text: 'L'
+            Widget:
+                size_hint: 0.5, None
+                height: '33dp'
+        BoxLayout:
+            id: line3
+            update_amount: root.update_text
+            size_hint: 1, None
+            height: '30dp'
+            Widget:
+                size_hint: 1, None
+            MButton:
+                text: 'Z'
+            MButton:
+                text: 'X'
+            MButton:
+                text: 'C'
+            MButton:
+                text: 'V'
+            MButton:
+                text: 'B'
+            MButton:
+                text: 'N'
+            MButton:
+                text: 'M'
+            MButton:
+                text: ' '
+            MButton:
+                text: '<'
+
+<AddXpubDialog>
+    title: ''
+    message: ''
+    BigLabel:
+        text: root.title
+    GridLayout
+        cols: 1
+        padding: 0, '12dp'
+        orientation: 'vertical'
+        spacing: '12dp'
+        size_hint: 1, None
+        height: self.minimum_height
+        SeedButton:
+            id: text_input
+            text: ''
+            on_text: Clock.schedule_once(root.check_text)
+        SeedLabel:
+            text: root.message
+    GridLayout
+        rows: 1
+        spacing: '12dp'
+        size_hint: 1, None
+        height: self.minimum_height
+        IconButton:
+            id: scan
+            height: '48sp'
+            on_release: root.scan_xpub()
+            icon: 'atlas://gui/kivy/theming/light/camera'
+            size_hint: 1, None
+        WizardButton:
+            text: _('Paste')
+            on_release: root.do_paste()
+        WizardButton:
+            text: _('Clear')
+            on_release: root.do_clear()
+
+
+<ShowXpubDialog>
+    xpub: ''
+    message: _('Here is your master public key. Share it with your cosigners.')
+    BigLabel:
+        text: "MASTER PUBLIC KEY"
+    GridLayout
+        cols: 1
+        padding: 0, '12dp'
+        orientation: 'vertical'
+        spacing: '12dp'
+        size_hint: 1, None
+        height: self.minimum_height
+        SeedButton:
+            id: text_input
+            text: root.xpub
+        SeedLabel:
+            text: root.message
+    GridLayout
+        rows: 1
+        spacing: '12dp'
+        size_hint: 1, None
+        height: self.minimum_height
+        WizardButton:
+            text: _('QR code')
+            on_release: root.do_qr()
+        WizardButton:
+            text: _('Copy')
+            on_release: root.do_copy()
+        WizardButton:
+            text: _('Share')
+            on_release: root.do_share()
+
+
+<ShowSeedDialog>
+    spacing: '12dp'
+    value: 'next'
+    BigLabel:
+        text: "PLEASE WRITE DOWN YOUR SEED PHRASE"
+    GridLayout:
+        id: grid
+        cols: 1
+        pos_hint: {'center_y': .5}
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: 'vertical'
+        spacing: '12dp'
+        SeedButton:
+            text: root.seed_text
+            on_release: root.options_dialog()
+        SeedLabel:
+            text: root.message
+
+
+<LineDialog>
+
+    BigLabel:
+        text: root.title
+    SeedLabel:
+        text: root.message
+    TextInput:
+        id: passphrase_input
+        multiline: False
+        size_hint: 1, None
+        height: '27dp'
+    SeedLabel:
+        text: root.warning
+
+''')
+
+
+
+class WizardDialog(EventsDialog):
+    ''' Abstract dialog to be used as the base for all Create Account Dialogs
+    '''
+    crcontent = ObjectProperty(None)
+
+    def __init__(self, wizard, **kwargs):
+        super(WizardDialog, self).__init__(**kwargs)
+        self.wizard = wizard
+        self.ids.back.disabled = not wizard.can_go_back()
+        self.app = App.get_running_app()
+        self.run_next = kwargs['run_next']
+        _trigger_size_dialog = Clock.create_trigger(self._size_dialog)
+        Window.bind(size=_trigger_size_dialog,
+                    rotation=_trigger_size_dialog)
+        _trigger_size_dialog()
+        self._on_release = False
+
+    def _size_dialog(self, dt):
+        app = App.get_running_app()
+        if app.ui_mode[0] == 'p':
+            self.size = Window.size
+        else:
+            #tablet
+            if app.orientation[0] == 'p':
+                #portrait
+                self.size = Window.size[0]/1.67, Window.size[1]/1.4
+            else:
+                self.size = Window.size[0]/2.5, Window.size[1]
+
+    def add_widget(self, widget, index=0):
+        if not self.crcontent:
+            super(WizardDialog, self).add_widget(widget)
+        else:
+            self.crcontent.add_widget(widget, index=index)
+
+    def on_dismiss(self):
+        app = App.get_running_app()
+        if app.wallet is None and not self._on_release:
+            app.stop()
+
+    def get_params(self, button):
+        return (None,)
+
+    def on_release(self, button):
+        self._on_release = True
+        self.close()
+        if not button:
+            self.parent.dispatch('on_wizard_complete', None)
+            return
+        if button is self.ids.back:
+            self.wizard.go_back()
+            return
+        params = self.get_params(button)
+        self.run_next(*params)
+
+
+class WizardMultisigDialog(WizardDialog):
+
+    def get_params(self, button):
+        m = self.ids.m.value
+        n = self.ids.n.value
+        return m, n
+
+class WizardChoiceDialog(WizardDialog):
+
+    def __init__(self, wizard, **kwargs):
+        super(WizardChoiceDialog, self).__init__(wizard, **kwargs)
+        self.message = kwargs.get('message', '')
+        choices = kwargs.get('choices', [])
+        layout = self.ids.choices
+        layout.bind(minimum_height=layout.setter('height'))
+        for action, text in choices:
+            l = WizardButton(text=text)
+            l.action = action
+            l.height = '48dp'
+            l.root = self
+            layout.add_widget(l)
+
+    def on_parent(self, instance, value):
+        if value:
+            app = App.get_running_app()
+            self._back = _back = partial(app.dispatch, 'on_back')
+
+    def get_params(self, button):
+        return (button.action,)
+
+
+
+class LineDialog(WizardDialog):
+    title = StringProperty('')
+    message = StringProperty('')
+    warning = StringProperty('')
+
+    def __init__(self, wizard, **kwargs):
+        WizardDialog.__init__(self, wizard, **kwargs)
+        self.ids.next.disabled = False
+
+    def get_params(self, b):
+        return (self.ids.passphrase_input.text,)
+
+class ShowSeedDialog(WizardDialog):
+    seed_text = StringProperty('')
+    message = _("If you forget your PIN or lose your device, your seed phrase will be the only way to recover your funds.")
+    ext = False
+
+    def on_parent(self, instance, value):
+        if value:
+            app = App.get_running_app()
+            self._back = _back = partial(self.ids.back.dispatch, 'on_release')
+
+    def options_dialog(self):
+        from seed_options import SeedOptionsDialog
+        def callback(status):
+            self.ext = status
+        d = SeedOptionsDialog(self.ext, callback)
+        d.open()
+
+    def get_params(self, b):
+        return (self.ext,)
+
+
+class WordButton(Button):
+    pass
+
+class WizardButton(Button):
+    pass
+
+
+class RestoreSeedDialog(WizardDialog):
+
+    def __init__(self, wizard, **kwargs):
+        super(RestoreSeedDialog, self).__init__(wizard, **kwargs)
+        self._test = kwargs['test']
+        from electrum.mnemonic import Mnemonic
+        from electrum.old_mnemonic import words as old_wordlist
+        self.words = set(Mnemonic('en').wordlist).union(set(old_wordlist))
+        self.ids.text_input_seed.text = test_seed if is_test else ''
+        self.message = _('Please type your seed phrase using the virtual keyboard.')
+        self.title = _('Enter Seed')
+        self.ext = False
+
+    def options_dialog(self):
+        from seed_options import SeedOptionsDialog
+        def callback(status):
+            self.ext = status
+        d = SeedOptionsDialog(self.ext, callback)
+        d.open()
+
+    def get_suggestions(self, prefix):
+        for w in self.words:
+            if w.startswith(prefix):
+                yield w
+
+    def on_text(self, dt):
+        self.ids.next.disabled = not bool(self._test(self.get_text()))
+
+        text = self.ids.text_input_seed.text
+        if not text:
+            last_word = ''
+        elif text[-1] == ' ':
+            last_word = ''
+        else:
+            last_word = text.split(' ')[-1]
+
+        enable_space = False
+        self.ids.suggestions.clear_widgets()
+        suggestions = [x for x in self.get_suggestions(last_word)]
+
+        if last_word in suggestions:
+            b = WordButton(text=last_word)
+            self.ids.suggestions.add_widget(b)
+            enable_space = True
+
+        for w in suggestions:
+            if w != last_word and len(suggestions) < 10:
+                b = WordButton(text=w)
+                self.ids.suggestions.add_widget(b)
+
+        i = len(last_word)
+        p = set()
+        for x in suggestions:
+            if len(x)>i: p.add(x[i])
+
+        for line in [self.ids.line1, self.ids.line2, self.ids.line3]:
+            for c in line.children:
+                if isinstance(c, Button):
+                    if c.text in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
+                        c.disabled = (c.text.lower() not in p) and last_word
+                    elif c.text == ' ':
+                        c.disabled = not enable_space
+
+    def on_word(self, w):
+        text = self.get_text()
+        words = text.split(' ')
+        words[-1] = w
+        text = ' '.join(words)
+        self.ids.text_input_seed.text = text + ' '
+        self.ids.suggestions.clear_widgets()
+
+    def get_text(self):
+        ti = self.ids.text_input_seed
+        text = unicode(ti.text).strip()
+        text = ' '.join(text.split())
+        return text
+
+    def update_text(self, c):
+        c = c.lower()
+        text = self.ids.text_input_seed.text
+        if c == '<':
+            text = text[:-1]
+        else:
+            text += c
+        self.ids.text_input_seed.text = text
+
+    def on_parent(self, instance, value):
+        if value:
+            tis = self.ids.text_input_seed
+            tis.focus = True
+            #tis._keyboard.bind(on_key_down=self.on_key_down)
+            self._back = _back = partial(self.ids.back.dispatch,
+                                         'on_release')
+            app = App.get_running_app()
+
+    def on_key_down(self, keyboard, keycode, key, modifiers):
+        if keycode[0] in (13, 271):
+            self.on_enter()
+            return True
+
+    def on_enter(self):
+        #self._remove_keyboard()
+        # press next
+        next = self.ids.next
+        if not next.disabled:
+            next.dispatch('on_release')
+
+    def _remove_keyboard(self):
+        tis = self.ids.text_input_seed
+        if tis._keyboard:
+            tis._keyboard.unbind(on_key_down=self.on_key_down)
+            tis.focus = False
+
+    def get_params(self, b):
+        return (self.get_text(), False, self.ext)
+
+
+class ConfirmSeedDialog(RestoreSeedDialog):
+    def get_params(self, b):
+        return (self.get_text(),)
+    def options_dialog(self):
+        pass
+
+
+class ShowXpubDialog(WizardDialog):
+
+    def __init__(self, wizard, **kwargs):
+        WizardDialog.__init__(self, wizard, **kwargs)
+        self.xpub = kwargs['xpub']
+        self.ids.next.disabled = False
+
+    def do_copy(self):
+        self.app._clipboard.copy(self.xpub)
+
+    def do_share(self):
+        self.app.do_share(self.xpub, _("Master Public Key"))
+
+    def do_qr(self):
+        from qr_dialog import QRDialog
+        popup = QRDialog(_("Master Public Key"), self.xpub, True)
+        popup.open()
+
+
+class AddXpubDialog(WizardDialog):
+
+    def __init__(self, wizard, **kwargs):
+        WizardDialog.__init__(self, wizard, **kwargs)
+        self.is_valid = kwargs['is_valid']
+        self.title = kwargs['title']
+        self.message = kwargs['message']
+
+    def check_text(self, dt):
+        self.ids.next.disabled = not bool(self.is_valid(self.get_text()))
+
+    def get_text(self):
+        ti = self.ids.text_input
+        return unicode(ti.text).strip()
+
+    def get_params(self, button):
+        return (self.get_text(),)
+
+    def scan_xpub(self):
+        def on_complete(text):
+            self.ids.text_input.text = text
+        self.app.scan_qr(on_complete)
+
+    def do_paste(self):
+        self.ids.text_input.text = test_xpub if is_test else unicode(self.app._clipboard.paste())
+
+    def do_clear(self):
+        self.ids.text_input.text = ''
+
+
+
+
+class InstallWizard(BaseWizard, Widget):
+    '''
     events::
         `on_wizard_complete` Fired when the wizard is done creating/ restoring
         wallet/s.
@@ -30,34 +735,22 @@ class InstallWizard(Widget):
 
     __events__ = ('on_wizard_complete', )
 
-    def __init__(self, config, network, storage):
-        super(InstallWizard, self).__init__()
-        self.config  = config
-        self.network = network
-        self.storage = storage
+    def on_wizard_complete(self, wallet):
+        """overriden by main_window"""
+        pass
 
-    def waiting_dialog(self, task,
-                       msg= _("Electrum is generating your addresses,"
-                              " please wait."),
-                       on_complete=None):
+    def waiting_dialog(self, task, msg):
         '''Perform a blocking task in the background by running the passed
         method in a thread.
         '''
-
         def target():
-
             # run your threaded function
             try:
                 task()
             except Exception as err:
-                Clock.schedule_once(lambda dt: app.show_error(str(err)))
-
+                self.show_error(str(err))
             # on  completion hide message
             Clock.schedule_once(lambda dt: app.info_bubble.hide(now=True), -1)
-
-            # call completion routine
-            if on_complete:
-                Clock.schedule_once(lambda dt: on_complete())
 
         app.show_info_bubble(
             text=msg, icon='atlas://gui/kivy/theming/light/important',
@@ -65,291 +758,65 @@ class InstallWizard(Widget):
         t = threading.Thread(target = target)
         t.start()
 
-    def get_seed_text(self, ti_seed):
-        text = unicode(ti_seed.text.lower()).strip()
-        text = ' '.join(text.split())
-        return text
+    def terminate(self, **kwargs):
+        self.dispatch('on_wizard_complete', self.wallet)
 
-    def is_any(self, seed_e):
-        text = self.get_seed_text(seed_e)
-        return (Wallet.is_seed(text) or
-                Wallet.is_mpk(text) or
-                Wallet.is_address(text) or
-                Wallet.is_private_key(text))
-
-    def run(self, action):
-        '''Entry point of our Installation wizard
-        '''
-        if not action:
-            return
-
-        Factory.CreateRestoreDialog(
-            on_release=self.on_creatrestore_complete,
-            action=action).open()
-
-    def on_creatrestore_complete(self, dialog, button):
-        if not button:
-            # soft back or escape button pressed
-            return self.dispatch('on_wizard_complete', None)
-        dialog.close()
-
-        action = dialog.action
-        if button == dialog.ids.create:
-            wallet = Wallet(self.storage)
-            self.password_dialog(wallet=wallet, mode='create')
-
-        elif button == dialog.ids.restore:
-            wallet = None
-            self.restore_seed_dialog(wallet)
-
+    def choice_dialog(self, **kwargs):
+        choices = kwargs['choices']
+        if len(choices) > 1:
+            WizardChoiceDialog(self, **kwargs).open()
         else:
-            self.dispatch('on_wizard_complete', None)
+            f = kwargs['run_next']
+            apply(f, (choices[0][0],))
 
-    def restore_seed_dialog(self, wallet):
-        from electrum_gui.kivy.uix.dialogs.create_restore import\
-            RestoreSeedDialog
-        RestoreSeedDialog(
-            on_release=partial(self.on_verify_restore_ok, wallet),
-            wizard=weakref.proxy(self)).open()
+    def multisig_dialog(self, **kwargs): WizardMultisigDialog(self, **kwargs).open()
+    def show_seed_dialog(self, **kwargs): ShowSeedDialog(self, **kwargs).open()
+    def line_dialog(self, **kwargs): LineDialog(self, **kwargs).open()
 
+    def confirm_seed_dialog(self, **kwargs):
+        kwargs['title'] = _('Confirm Seed')
+        kwargs['message'] = _('Please retype your seed phrase, to confirm that you properly saved it')
+        ConfirmSeedDialog(self, **kwargs).open()
 
-    def on_verify_restore_ok(self, wallet, _dlg, btn, restore=False):
-        if btn in (_dlg.ids.back, _dlg.ids.but_close) :
-            _dlg.close()
-            Factory.CreateRestoreDialog(
-                on_release=self.on_creatrestore_complete).open()
-            return
+    def restore_seed_dialog(self, **kwargs):
+        RestoreSeedDialog(self, **kwargs).open()
 
-        seed = self.get_seed_text(_dlg.ids.text_input_seed)
-        if not seed:
-            return app.show_error(_("No seed!"), duration=.5)
+    def add_xpub_dialog(self, **kwargs):
+        kwargs['message'] += ' ' + _('Use the camera button to scan a QR code.')
+        AddXpubDialog(self, **kwargs).open()
 
-        _dlg.close()
+    def add_cosigner_dialog(self, **kwargs):
+        kwargs['title'] = _("Add Cosigner") + " %d"%kwargs['index']
+        kwargs['message'] = _('Please paste your cosigners master public key, or scan it using the camera button.')
+        AddXpubDialog(self, **kwargs).open()
 
-        if Wallet.is_seed(seed):
-            return self.password_dialog(wallet=wallet, mode='restore',
-                                        seed=seed)
-        elif Wallet.is_mpk(seed):
-            wallet = Wallet.from_mpk(seed, self.storage)
-        elif Wallet.is_address(seed):
-            wallet = Wallet.from_address(seed, self.storage)
-        elif Wallet.is_private_key(seed):
-            wallet = Wallet.from_private_key(seed, self.storage)
-        else:
-            return app.show_error(_('Not a valid seed. App will now exit'),
-                                  exit=True, modal=True, duration=.5)
-        return
+    def show_xpub_dialog(self, **kwargs): ShowXpubDialog(self, **kwargs).open()
 
+    def show_error(self, msg):
+        Clock.schedule_once(lambda dt: app.show_error(msg))
 
-    def show_seed(self, wallet=None, instance=None, password=None,
-                         wallet_name=None, mode='create', seed=''):
-        if instance and (not wallet or not wallet.seed):
-            return app.show_error(_('No seed'))
+    def password_dialog(self, message, callback):
+        popup = PasswordDialog()
+        popup.init(message, callback)
+        popup.open()
 
-        if not seed:
-            try:
-                seed = self.wallet.get_seed(password)
-            except Exception:
-                return app.show_error(_('Incorrect Password'))
-
-        brainwallet = seed
-
-        msg2 = _("[color=#414141]"+\
-                "[b]PLEASE WRITE DOWN YOUR SEED PASS[/b][/color]"+\
-                "[size=9]\n\n[/size]" +\
-                "[color=#929292]If you ever forget your pincode, your seed" +\
-                " phrase will be the [color=#EB984E]"+\
-                "[b]only way to recover[/b][/color] your wallet. Your " +\
-                " [color=#EB984E][b]Bitcoins[/b][/color] will otherwise be" +\
-                " [color=#EB984E][b]lost forever![/b][/color]")
-
-        if wallet.imported_keys:
-            msg2 += "[b][color=#ff0000ff]" + _("WARNING") + "[/color]:[/b] " +\
-                    _("Your wallet contains imported keys. These keys cannot" +\
-                    " be recovered from seed.")
-
-        def on_ok_press(_dlg, _btn):
-            _dlg.close()
-            mode = _dlg.mode
-            if _btn != _dlg.ids.confirm:
-                if not instance:
-                    self.password_dialog(wallet, mode=mode)
-                return
-            # confirm
-            if instance is None:
-                # in initial phase create mode
-                # save seed with password
-
-                def create(password):
-                    wallet.add_seed(seed, password)
-                    wallet.create_master_keys(password)
-                    wallet.create_main_account(password)
-                    wallet.synchronize()  # generate first addresses offline
-
-                self.waiting_dialog(partial(create, password),
-                                    on_complete=partial(self.load_network,
-                                                        wallet, mode=mode))
-
-
-        from electrum_gui.kivy.uix.dialogs.create_restore import InitSeedDialog
-        InitSeedDialog(message=msg2,
-            seed_msg=brainwallet, on_release=on_ok_press, mode=mode).open()
-
-    def password_dialog(self, wallet=None, instance=None, mode='create',
-                        seed=''):
-        """Can be called directly (instance is None)
-        or from a callback (instance is not None)"""
-        app = App.get_running_app()
-
-        if mode != 'create' and wallet and wallet.is_watching_only():
-            return app.show_error('This is a watching only wallet')
-
-        if instance and not wallet.seed:
-            return app.show_error('No seed !!', exit=True, modal=True)
-
-        if instance is not None:
-            if wallet.use_encryption:
-                msg = (
-                    _('Your wallet is encrypted. Use this dialog to change" + \
-                    " your password.') + '\n' + _('To disable wallet" + \
-                    " encryption, enter an empty new password.'))
-                mode = 'confirm'
+    def request_password(self, run_next):
+        def callback(pin):
+            if pin:
+                self.run('confirm_password', pin, run_next)
             else:
-               msg = _('Your wallet keys are not encrypted')
-            mode = 'new'
-        else:
-            msg = _("Please choose a password to encrypt your wallet keys.") +\
-                '\n' + _("Leave these fields empty if you want to disable" + \
-                         " encryption.")
+                run_next(None)
+        self.password_dialog('Choose a PIN code', callback)
 
-        def on_release(wallet, seed, _dlg, _btn):
-            ti_password = _dlg.ids.ti_password
-            ti_new_password = _dlg.ids.ti_new_password
-            ti_confirm_password = _dlg.ids.ti_confirm_password
-            if _btn != _dlg.ids.next:
-                if mode == 'restore':
-                    # back is disabled cause seed is already set
-                    return
-                _dlg.close()
-                if not instance:
-                    # back on create
-                    Factory.CreateRestoreDialog(
-                        on_release=self.on_creatrestore_complete).open()
-                return
-
-            # Confirm
-            wallet_name = _dlg.ids.ti_wallet_name.text
-            new_password = unicode(ti_new_password.text)
-            new_password2 = unicode(ti_confirm_password.text)
-
-            if new_password != new_password2:
-                # passwords don't match
-                ti_password.text = ""
-                ti_new_password.text = ""
-                ti_confirm_password.text = ""
-                if ti_password.disabled:
-                    ti_new_password.focus = True
-                else:
-                    ti_password.focus = True
-                return app.show_error(_('Passwords do not match'), duration=.5)
-
-            if not new_password:
-                new_password = None
-
-            if mode == 'restore':
-                wallet = Wallet.from_seed(seed, self.storage)
-                password = (unicode(ti_password.text)
-                            if wallet and wallet.use_encryption else
-                            None)
-
-                def on_complete(*l):
-                    wallet.create_accounts(new_password)
-                    self.load_network(wallet, mode='restore')
-                    _dlg.close()
-
-                self.waiting_dialog(lambda: wallet.add_seed(seed, new_password),
-                                    msg=_("saving seed"),
-                                    on_complete=on_complete)
-                return
-
-            if not instance:
-                # create mode
-                _dlg.close()
-                seed = wallet.make_seed()
-
-                return self.show_seed(password=new_password, wallet=wallet,
-                                      wallet_name=wallet_name, mode=mode,
-                                      seed=seed)
-
-            # change password mode
-            try:
-                seed = wallet.decode_seed(password)
-            except BaseException:
-                return app.show_error(_('Incorrect Password'), duration=.5)
-
-            # test carefully
-            try:
-                wallet.update_password(seed, password, new_password)
-            except BaseException:
-                return app.show_error(_('Failed to update password'), exit=True)
+    def confirm_password(self, pin, run_next):
+        def callback(conf):
+            if conf == pin:
+                run_next(pin, False)
             else:
-                app.show_info_bubble(
-                    text=_('Password successfully updated'), duration=1,
-                    pos=_btn.pos)
-            _dlg.close()
+                self.show_error(_('PIN mismatch'))
+                self.run('request_password', run_next)
+        self.password_dialog('Confirm your PIN code', callback)
 
-            if instance is None:  # in initial phase
-                self.load_wallet()
-            self.app.update_wallet()
-
-        from electrum_gui.kivy.uix.dialogs.create_restore import ChangePasswordDialog
-        cpd = ChangePasswordDialog(
-                             message=msg,
-                             mode=mode,
-                             on_release=partial(on_release,
-                                                wallet, seed)).open()
-
-    def load_network(self, wallet, mode='create'):
-        #if not self.config.get('server'):
-        if self.network:
-            if self.network.interfaces:
-                if mode not in ('restore', 'create'):
-                    self.network_dialog()
-            else:
-                app.show_error(_('You are offline'))
-                self.network.stop()
-                self.network = None
-
-        if mode in ('restore', 'create'):
-            # auto cycle
-            self.config.set_key('auto_cycle', True, True)
-
-        # start wallet threads
-        wallet.start_threads(self.network)
-
-        if not mode == 'restore':
-            return self.dispatch('on_wizard_complete', wallet)
-
-        def get_text(text):
-            def set_text(*l): app.info_bubble.ids.lbl.text=text
-            Clock.schedule_once(set_text)
-
-        def on_complete(*l):
-            if not self.network:
-                app.show_info(
-                    _("This wallet was restored offline. It may contain more"
-                      " addresses than displayed."), duration=.5)
-                return self.dispatch('on_wizard_complete', wallet)
-
-            if wallet.is_found():
-                app.show_info(_("Recovery successful"), duration=.5)
-            else:
-                app.show_info(_("No transactions found for this seed"),
-                              duration=.5)
-            return self.dispatch('on_wizard_complete', wallet)
-
-        self.waiting_dialog(lambda: wallet.restore(get_text),
-                            on_complete=on_complete)
-
-    def on_wizard_complete(self, wallet):
-        pass
+    def action_dialog(self, action, run_next):
+        f = getattr(self, action)
+        f()

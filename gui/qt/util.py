@@ -1,12 +1,16 @@
-from electrum_grs.i18n import _
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
 import os.path
 import time
 import traceback
 import sys
 import threading
 import platform
+import Queue
+from collections import namedtuple
+from functools import partial
+
+from electrum_grs.i18n import _
+from PyQt4.QtGui import *
+from PyQt4.QtCore import *
 
 if platform.system() == 'Windows':
     MONOSPACE_FONT = 'Lucida Console'
@@ -21,51 +25,41 @@ RED_FG = "QWidget {color:red;}"
 BLUE_FG = "QWidget {color:blue;}"
 BLACK_FG = "QWidget {color:black;}"
 
+dialogs = []
 
-class WaitingDialog(QThread):
-    def __init__(self, parent, message, run_task, on_success=None, on_complete=None):
-        QThread.__init__(self)
-        self.parent = parent
-        self.d = QDialog(parent)
-        self.d.setWindowTitle('Please wait')
-        l = QLabel(message)
-        vbox = QVBoxLayout(self.d)
-        vbox.addWidget(l)
-        self.run_task = run_task
-        self.on_success = on_success
-        self.on_complete = on_complete
-        self.d.connect(self.d, SIGNAL('done'), self.close)
-        self.d.show()
+from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 
-    def run(self):
-        self.error = None
-        try:
-            self.result = self.run_task()
-        except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
-            self.error = str(e)
-        self.d.emit(SIGNAL('done'))
+pr_icons = {
+    PR_UNPAID:":icons/unpaid.png",
+    PR_PAID:":icons/confirmed.png",
+    PR_EXPIRED:":icons/expired.png"
+}
 
-    def close(self):
-        self.d.accept()
-        if self.error:
-            QMessageBox.warning(self.parent, _('Error'), self.error, _('OK'))
-        else:
-            if self.on_success:
-                if type(self.result) is not tuple:
-                    self.result = (self.result,)
-                self.on_success(*self.result)
+pr_tooltips = {
+    PR_UNPAID:_('Pending'),
+    PR_PAID:_('Paid'),
+    PR_EXPIRED:_('Expired')
+}
 
-        if self.on_complete:
-            self.on_complete()
+expiration_values = [
+    (_('1 hour'), 60*60),
+    (_('1 day'), 24*60*60),
+    (_('1 week'), 7*24*60*60),
+    (_('Never'), None)
+]
 
 
 class Timer(QThread):
+    stopped = False
+
     def run(self):
-        while True:
+        while not self.stopped:
             self.emit(SIGNAL('timersignal'))
             time.sleep(0.5)
 
+    def stop(self):
+        self.stopped = True
+        self.wait()
 
 class EnterButton(QPushButton):
     def __init__(self, text, func):
@@ -79,41 +73,27 @@ class EnterButton(QPushButton):
 
 
 class ThreadedButton(QPushButton):
-    def __init__(self, text, func, on_success=None, before=None):
+    def __init__(self, text, task, on_success=None, on_error=None):
         QPushButton.__init__(self, text)
-        self.before = before
-        self.run_task = func
+        self.task = task
         self.on_success = on_success
-        self.clicked.connect(self.do_exec)
-        self.connect(self, SIGNAL('done'), self.done)
-        self.connect(self, SIGNAL('error'), self.on_error)
+        self.on_error = on_error
+        self.clicked.connect(self.run_task)
+
+    def run_task(self):
+        self.setEnabled(False)
+        self.thread = TaskThread(self)
+        self.thread.add(self.task, self.on_success, self.done, self.on_error)
 
     def done(self):
-        if self.on_success:
-            self.on_success()
         self.setEnabled(True)
+        self.thread.stop()
 
-    def on_error(self):
-        QMessageBox.information(None, _("Error"), self.error)
-        self.setEnabled(True)
 
-    def do_func(self):
-        self.setEnabled(False)
-        try:
-            self.result = self.run_task()
-        except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
-            self.error = str(e.message)
-            self.emit(SIGNAL('error'))
-            return
-        self.emit(SIGNAL('done'))
-
-    def do_exec(self):
-        if self.before:
-            self.before()
-        t = threading.Thread(target=self.do_func)
-        t.setDaemon(True)
-        t.start()
+class WWLabel(QLabel):
+    def __init__ (self, text="", parent=None):
+        QLabel.__init__(self, text, parent)
+        self.setWordWrap(True)
 
 
 class HelpLabel(QLabel):
@@ -187,12 +167,84 @@ class CancelButton(QPushButton):
         QPushButton.__init__(self, label or _("Cancel"))
         self.clicked.connect(dialog.reject)
 
+class MessageBoxMixin(object):
+    def top_level_window_recurse(self, window=None):
+        window = window or self
+        classes = (WindowModalDialog, QMessageBox)
+        for n, child in enumerate(window.children()):
+            # Test for visibility as old closed dialogs may not be GC-ed
+            if isinstance(child, classes) and child.isVisible():
+                return self.top_level_window_recurse(child)
+        return window
+
+    def top_level_window(self):
+        return self.top_level_window_recurse()
+
+    def question(self, msg, parent=None, title=None, icon=None):
+        Yes, No = QMessageBox.Yes, QMessageBox.No
+        return self.msg_box(icon or QMessageBox.Question,
+                            parent, title or '',
+                            msg, buttons=Yes|No, defaultButton=No) == Yes
+
+    def show_warning(self, msg, parent=None, title=None):
+        return self.msg_box(QMessageBox.Warning, parent,
+                            title or _('Warning'), msg)
+
+    def show_error(self, msg, parent=None):
+        return self.msg_box(QMessageBox.Warning, parent,
+                            _('Error'), msg)
+
+    def show_critical(self, msg, parent=None, title=None):
+        return self.msg_box(QMessageBox.Critical, parent,
+                            title or _('Critical Error'), msg)
+
+    def show_message(self, msg, parent=None, title=None):
+        return self.msg_box(QMessageBox.Information, parent,
+                            title or _('Information'), msg)
+
+    def msg_box(self, icon, parent, title, text, buttons=QMessageBox.Ok,
+                defaultButton=QMessageBox.NoButton):
+        parent = parent or self.top_level_window()
+        d = QMessageBox(icon, title, text, buttons, parent)
+        d.setWindowModality(Qt.WindowModal)
+        d.setDefaultButton(defaultButton)
+        return d.exec_()
+
+class WindowModalDialog(QDialog, MessageBoxMixin):
+    '''Handy wrapper; window modal dialogs are better for our multi-window
+    daemon model as other wallet windows can still be accessed.'''
+    def __init__(self, parent, title=None):
+        QDialog.__init__(self, parent)
+        self.setWindowModality(Qt.WindowModal)
+        if title:
+            self.setWindowTitle(title)
+
+
+class WaitingDialog(WindowModalDialog):
+    '''Shows a please wait dialog whilst runnning a task.  It is not
+    necessary to maintain a reference to this dialog.'''
+    def __init__(self, parent, message, task, on_success=None, on_error=None):
+        assert parent
+        if isinstance(parent, MessageBoxMixin):
+            parent = parent.top_level_window()
+        WindowModalDialog.__init__(self, parent, _("Please wait"))
+        vbox = QVBoxLayout(self)
+        vbox.addWidget(QLabel(message))
+        self.accepted.connect(self.on_accepted)
+        self.show()
+        self.thread = TaskThread(self)
+        self.thread.add(task, on_success, self.accept, on_error)
+
+    def wait(self):
+        self.thread.wait()
+
+    def on_accepted(self):
+        self.thread.stop()
+
 
 def line_dialog(parent, title, label, ok_label, default=None):
-    dialog = QDialog(parent)
+    dialog = WindowModalDialog(parent, title)
     dialog.setMinimumWidth(500)
-    dialog.setWindowTitle(title)
-    dialog.setModal(1)
     l = QVBoxLayout()
     dialog.setLayout(l)
     l.addWidget(QLabel(label))
@@ -206,10 +258,8 @@ def line_dialog(parent, title, label, ok_label, default=None):
 
 def text_dialog(parent, title, label, ok_label, default=None):
     from qrtextedit import ScanQRTextEdit
-    dialog = QDialog(parent)
+    dialog = WindowModalDialog(parent, title)
     dialog.setMinimumWidth(500)
-    dialog.setWindowTitle(title)
-    dialog.setModal(1)
     l = QVBoxLayout()
     dialog.setLayout(l)
     l.addWidget(QLabel(label))
@@ -221,8 +271,38 @@ def text_dialog(parent, title, label, ok_label, default=None):
     if dialog.exec_():
         return unicode(txt.toPlainText())
 
-def question(msg):
-    return QMessageBox.question(None, _('Message'), msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes
+class ChoicesLayout(object):
+    def __init__(self, msg, choices, on_clicked=None, checked_index=0):
+        vbox = QVBoxLayout()
+        if len(msg) > 50:
+            vbox.addWidget(WWLabel(msg))
+            msg = ""
+        gb2 = QGroupBox(msg)
+        vbox.addWidget(gb2)
+
+        vbox2 = QVBoxLayout()
+        gb2.setLayout(vbox2)
+
+        self.group = group = QButtonGroup()
+        for i,c in enumerate(choices):
+            button = QRadioButton(gb2)
+            button.setText(c)
+            vbox2.addWidget(button)
+            group.addButton(button)
+            group.setId(button, i)
+            if i==checked_index:
+                button.setChecked(True)
+
+        if on_clicked:
+            group.buttonClicked.connect(partial(on_clicked, self))
+
+        self.vbox = vbox
+
+    def layout(self):
+        return self.vbox
+
+    def selected_index(self):
+        return self.group.checkedId()
 
 def address_field(addresses):
     hbox = QHBoxLayout()
@@ -293,6 +373,7 @@ class MyTreeWidget(QTreeWidget):
                  editable_columns=None):
         QTreeWidget.__init__(self, parent)
         self.parent = parent
+        self.config = self.parent.config
         self.stretch_column = stretch_column
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(create_menu)
@@ -308,8 +389,9 @@ class MyTreeWidget(QTreeWidget):
             editable_columns = [stretch_column]
         self.editable_columns = editable_columns
         self.setItemDelegate(ElectrumItemDelegate(self))
-        self.itemActivated.connect(self.on_activated)
+        self.itemDoubleClicked.connect(self.on_doubleclick)
         self.update_headers(headers)
+        self.current_filter = ""
 
     def update_headers(self, headers):
         self.setColumnCount(len(headers))
@@ -328,7 +410,7 @@ class MyTreeWidget(QTreeWidget):
             item.setFlags(item.flags() & ~Qt.ItemIsEditable)
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_F2:
+        if event.key() in [ Qt.Key_F2, Qt.Key_Return ] and self.editor is None:
             self.on_activated(self.currentItem(), self.currentColumn())
         else:
             QTreeWidget.keyPressEvent(self, event)
@@ -340,13 +422,15 @@ class MyTreeWidget(QTreeWidget):
     def on_permit_edit(self, item, column):
         return True
 
-    def on_activated(self, item, column):
+    def on_doubleclick(self, item, column):
         if self.permit_edit(item, column):
             self.editItem(item, column)
-        else:
-            pt = self.visualItemRect(item).bottomLeft()
-            pt.setX(50)
-            self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), pt)
+
+    def on_activated(self, item, column):
+        # on 'enter' we show the menu
+        pt = self.visualItemRect(item).bottomLeft()
+        pt.setX(50)
+        self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), pt)
 
     def createEditor(self, parent, option, index):
         self.editor = QStyledItemDelegate.createEditor(self.itemDelegate(),
@@ -383,13 +467,7 @@ class MyTreeWidget(QTreeWidget):
         key = str(item.data(0, Qt.UserRole).toString())
         text = unicode(item.text(column))
         self.parent.wallet.set_label(key, text)
-        if text:
-            item.setForeground(column, QBrush(QColor('black')))
-        else:
-            text = self.parent.wallet.get_default_label(key)
-            item.setText(column, text)
-            item.setForeground(column, QBrush(QColor('gray')))
-        self.parent.history_list.update()
+        self.parent.history_list.update_labels()
         self.parent.update_completions()
 
     def update(self):
@@ -397,7 +475,11 @@ class MyTreeWidget(QTreeWidget):
         if self.editor:
             self.pending_update = True
         else:
+            self.setUpdatesEnabled(False)
             self.on_update()
+            self.setUpdatesEnabled(True)
+        if self.current_filter:
+            self.filter(self.current_filter)
 
     def on_update(self):
         pass
@@ -411,8 +493,10 @@ class MyTreeWidget(QTreeWidget):
             for x in self.get_leaves(item):
                 yield x
 
-    def filter(self, p, columns):
+    def filter(self, p):
+        columns = self.__class__.filter_columns
         p = unicode(p).lower()
+        self.current_filter = p
         for item in self.get_leaves(self.invisibleRootItem()):
             item.setHidden(all([unicode(item.text(column)).lower().find(p) == -1
                                 for column in columns]))
@@ -446,7 +530,7 @@ class ButtonsWidget(QWidget):
     def addCopyButton(self, app):
         self.app = app
         f = lambda: self.app.clipboard().setText(str(self.text()))
-        self.addButton(":icons/copy.png", f, _("Copy to Clipboard"))
+        self.addButton(":icons/copy.png", f, _("Copy to clipboard"))
 
 class ButtonsLineEdit(QLineEdit, ButtonsWidget):
     def __init__(self, text=None):
@@ -469,6 +553,46 @@ class ButtonsTextEdit(QPlainTextEdit, ButtonsWidget):
         o = QPlainTextEdit.resizeEvent(self, e)
         self.resizeButtons()
         return o
+
+
+class TaskThread(QThread):
+    '''Thread that runs background tasks.  Callbacks are guaranteed
+    to happen in the context of its parent.'''
+
+    Task = namedtuple("Task", "task cb_success cb_done cb_error")
+    doneSig = pyqtSignal(object, object, object)
+
+    def __init__(self, parent, on_error=None):
+        super(TaskThread, self).__init__(parent)
+        self.on_error = on_error
+        self.tasks = Queue.Queue()
+        self.doneSig.connect(self.on_done)
+        self.start()
+
+    def add(self, task, on_success=None, on_done=None, on_error=None):
+        on_error = on_error or self.on_error
+        self.tasks.put(TaskThread.Task(task, on_success, on_done, on_error))
+
+    def run(self):
+        while True:
+            task = self.tasks.get()
+            if not task:
+                break
+            try:
+                result = task.task()
+                self.doneSig.emit(result, task.cb_done, task.cb_success)
+            except BaseException:
+                self.doneSig.emit(sys.exc_info(), task.cb_done, task.cb_error)
+
+    def on_done(self, result, cb_done, cb):
+        # This runs in the parent's thread.
+        if cb_done:
+            cb_done()
+        if cb:
+            cb(result)
+
+    def stop(self):
+        self.tasks.put(None)
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ BTCHIP_GIT_URL=git://github.com/LedgerHQ/btchip-python.git
 BRANCH=master
 
 # These settings probably don't need any change
-export WINEPREFIX=/opt/electrum/wine64
+export WINEPREFIX=/opt/wine64
 
 PYHOME=c:/python27
 PYTHON="wine $PYHOME/python.exe "
@@ -50,34 +50,36 @@ cd tmp
 #$PYTHON setup.py install
 #cd ..
 
-
-
-if [ -d "trezor-git" ]; then
-    cd trezor-git
-    git pull
-    cd ..
-else
-    git clone -b $BRANCH $TREZOR_GIT_URL trezor-git
+# trezor
+TREZOR_URL="https://pypi.python.org/packages/26/80/26c9676cbee58e50e7f7dd6a797931203cf198ff7590f55842d620cd60a8/trezor-0.7.12.tar.gz"
+if ! [ -d "trezor-0.7.12" ]; then
+    wget $TREZOR_URL
+    tar -xvzf trezor-0.7.12.tar.gz
 fi
-cd trezor-git
+cd trezor-0.7.12
 $PYTHON setup.py install
 cd ..
 
 #keepkey
 if [ -d "keepkey-git" ]; then
     cd keepkey-git
+    git checkout master
     git pull
     cd ..
 else
     git clone -b $BRANCH $KEEPKEY_GIT_URL keepkey-git
 fi
 cd keepkey-git
-# fails $PYTHON setup.py install
+# checkout 2 commits before v0.7.3, because it fails to build
+# git checkout v0.7.3
+git checkout 7abe0f0c9026907e9a8db1d231e084df2c175817
+$PYTHON setup.py install
 cd ..
 
 #btchip
 if [ -d "btchip-git" ]; then
     cd btchip-git
+    git checkout master
     git pull
     cd ..
 else

@@ -3,18 +3,25 @@
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2012 thomasv@gitorious
 #
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 import sys
 import os
@@ -30,19 +37,21 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
 from electrum_grs.i18n import _, set_language
-from electrum_grs.util import print_error, print_msg
 from electrum_grs.plugins import run_hook
-from electrum_grs import SimpleConfig, WalletStorage, Wallet
-from electrum_grs.bitcoin import MIN_RELAY_TX_FEE
-from electrum_grs.paymentrequest import InvoiceStore
-from electrum_grs.contacts import Contacts
-from installwizard import InstallWizard
+from electrum_grs import SimpleConfig, Wallet, WalletStorage
+from electrum_grs.synchronizer import Synchronizer
+from electrum_grs.verifier import SPV
+from electrum_grs.util import DebugMem, UserCancelled, InvalidPassword
+from electrum_grs.wallet import Abstract_Wallet
+from installwizard import InstallWizard, GoBack
 
 
 try:
     import icons_rc
 except Exception:
-    sys.exit("Error: Could not import icons_rc.py, please generate it with: 'pyrcc4 icons.qrc -o gui/qt/icons_rc.py'")
+    print "Error: Could not find icons file."
+    print "Please run 'pyrcc4 icons.qrc -o gui/qt/icons_rc.py', and reinstall Electrum"
+    sys.exit(1)
 
 from util import *   # * needed for plugins
 from main_window import ElectrumWindow
@@ -64,19 +73,20 @@ class OpenFileEventFilter(QObject):
 
 class ElectrumGui:
 
-    def __init__(self, config, network, plugins):
+    def __init__(self, config, daemon, plugins):
         set_language(config.get('language'))
-        self.network = network
+        # Uncomment this call to verify objects are being properly
+        # GC-ed when windows are closed
+        #network.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,
+        #                            ElectrumWindow], interval=5)])
         self.config = config
+        self.daemon = daemon
         self.plugins = plugins
         self.windows = []
         self.efilter = OpenFileEventFilter(self.windows)
         self.app = QApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
         self.timer = Timer()
-        # shared objects
-        self.invoices = InvoiceStore(self.config)
-        self.contacts = Contacts(self.config)
         # init tray
         self.dark_icon = self.config.get("dark_icon", False)
         self.tray = QSystemTrayIcon(self.tray_icon(), None)
@@ -85,6 +95,7 @@ class ElectrumGui:
         self.build_tray_menu()
         self.tray.show()
         self.app.connect(self.app, QtCore.SIGNAL('new_window'), self.start_new_window)
+        run_hook('init_qt', self)
 
     def build_tray_menu(self):
         # Avoid immediate GC of old menu when window closed via its action
@@ -123,125 +134,77 @@ class ElectrumGui:
         for window in self.windows:
             window.close()
 
-    def load_wallet_file(self, filename):
-        try:
-            storage = WalletStorage(filename)
-        except Exception as e:
-            QMessageBox.information(None, _('Error'), str(e), _('OK'))
-            return
-        if not storage.file_exists:
-            recent = self.config.get('recently_open', [])
-            if filename in recent:
-                recent.remove(filename)
-                self.config.set_key('recently_open', recent)
-            action = 'new'
-        else:
-            try:
-                wallet = Wallet(storage)
-            except BaseException as e:
-                traceback.print_exc(file=sys.stdout)
-                QMessageBox.warning(None, _('Warning'), str(e), _('OK'))
-                return
-            action = wallet.get_action()
-        # run wizard
-        if action is not None:
-            wizard = InstallWizard(self.app, self.config, self.network, storage)
-            wallet = wizard.run(action)
-            # keep current wallet
-            if not wallet:
-                return
-        else:
-            wallet.start_threads(self.network)
-
-        return wallet
-
-    def get_wallet_folder(self):
-        #return os.path.dirname(os.path.abspath(self.wallet.storage.path if self.wallet else self.wallet.storage.path))
-        return os.path.dirname(os.path.abspath(self.config.get_wallet_path()))
-
-    def new_wallet(self):
-        wallet_folder = self.get_wallet_folder()
-        i = 1
-        while True:
-            filename = "wallet_%d"%i
-            if filename in os.listdir(wallet_folder):
-                i += 1
-            else:
-                break
-        filename = line_dialog(None, _('New Wallet'), _('Enter file name') + ':', _('OK'), filename)
-        if not filename:
-            return
-        full_path = os.path.join(wallet_folder, filename)
-        storage = WalletStorage(full_path)
-        if storage.file_exists:
-            QMessageBox.critical(None, "Error", _("File exists"))
-            return
-        wizard = InstallWizard(self.app, self.config, self.network, storage)
-        wallet = wizard.run('new')
-        if wallet:
-            self.new_window(full_path)
-
     def new_window(self, path, uri=None):
         # Use a signal as can be called from daemon thread
         self.app.emit(SIGNAL('new_window'), path, uri)
 
+    def create_window_for_wallet(self, wallet):
+        w = ElectrumWindow(self, wallet)
+        self.windows.append(w)
+        self.build_tray_menu()
+        # FIXME: Remove in favour of the load_wallet hook
+        run_hook('on_new_window', w)
+        return w
+
     def start_new_window(self, path, uri):
+        '''Raises the window for the wallet if it is open.  Otherwise
+        opens the wallet and creates a new window for it.'''
         for w in self.windows:
             if w.wallet.storage.path == path:
                 w.bring_to_top()
                 break
         else:
-            wallet = self.load_wallet_file(path)
+            wallet = self.daemon.load_wallet(path, None)
             if not wallet:
-                return
-            w = ElectrumWindow(self.config, self.network, self)
-            w.connect_slots(self.timer)
-
-            # load new wallet in gui
-            w.load_wallet(wallet)
-            # save path
-            if self.config.get('wallet_path') is None:
-                self.config.set_key('gui_last_wallet', path)
-            # add to recently visited
-            w.update_recently_visited(path)
-            # initial configuration
-            if self.config.get('hide_gui') is True and self.tray.isVisible():
-                w.hide()
-            else:
-                w.show()
-            self.windows.append(w)
-            self.build_tray_menu()
-            self.plugins.on_new_window(w)
-
+                storage = WalletStorage(path)
+                wizard = InstallWizard(self.config, self.app, self.plugins, storage)
+                wallet = wizard.run_and_get_wallet()
+                if not wallet:
+                    return
+                wallet.start_threads(self.daemon.network)
+                self.daemon.add_wallet(wallet)
+            w = self.create_window_for_wallet(wallet)
         if uri:
             w.pay_to_URI(uri)
-
         return w
 
     def close_window(self, window):
         self.windows.remove(window)
         self.build_tray_menu()
-        self.plugins.on_close_window(window)
+        # save wallet path of last open window
+        if not self.windows:
+            self.config.save_last_wallet(window.wallet)
+        run_hook('on_close_window', window)
+
+    def init_network(self):
+        # Show network dialog if config does not exist
+        if self.daemon.network:
+            if self.config.get('auto_connect') is None:
+                wizard = InstallWizard(self.config, self.app, self.plugins, None)
+                wizard.init_network(self.daemon.network)
+                wizard.terminate()
 
     def main(self):
-        self.timer.start()
-
-        last_wallet = self.config.get('gui_last_wallet')
-        if last_wallet is not None and self.config.get('wallet_path') is None:
-            if os.path.exists(last_wallet):
-                self.config.cmdline_options['default_wallet_path'] = last_wallet
-
-        if not self.start_new_window(self.config.get_wallet_path(),
-                                     self.config.get('url')):
+        try:
+            self.init_network()
+        except UserCancelled:
             return
-
+        except GoBack:
+            return
+        except:
+            traceback.print_exc(file=sys.stdout)
+            return
+        self.timer.start()
+        self.config.open_last_wallet()
+        path = self.config.get_wallet_path()
+        if not self.start_new_window(path, self.config.get('url')):
+            return
         signal.signal(signal.SIGINT, lambda *args: self.app.quit())
-
         # main loop
         self.app.exec_()
-
+        # Shut down the timer cleanly
+        self.timer.stop()
         # clipboard persistence. see http://www.mail-archive.com/pyqt@riverbankcomputing.com/msg17328.html
         event = QtCore.QEvent(QtCore.QEvent.Clipboard)
         self.app.sendEvent(self.app.clipboard(), event)
-
         self.tray.hide()

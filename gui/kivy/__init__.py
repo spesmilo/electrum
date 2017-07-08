@@ -3,30 +3,30 @@
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2012 thomasv@gitorious
 #
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 #
 # Kivy GUI
 
 import sys
-#, time, datetime, re, threading
-#from electrum.i18n import _, set_language
-from electrum.util import print_error, print_msg
-
-#:TODO: replace this with kivy's own plugin managment
-#from electrum.plugins import run_hook
-#import os.path, json, ast, traceback
-#import shutil
+import os
 
 try:
     sys.argv = ['']
@@ -39,49 +39,26 @@ except ImportError:
 # minimum required version for kivy
 kivy.require('1.8.0')
 from kivy.logger import Logger
-
-from electrum.bitcoin import MIN_RELAY_TX_FEE
-
 from main_window import ElectrumWindow
-#from electrum.plugins import init_plugins
 
-#:TODO find a equivalent method to register to `bitcoin:` uri
-#: ref: http://stackoverflow.com/questions/30931/register-file-extensions-mime-types-in-linux
-#class OpenFileEventFilter(object):
-#    def __init__(self, windows):
-#        self.windows = windows
-#        super(OpenFileEventFilter, self).__init__()
-#
-#    def eventFilter(self, obj, event):
-#        if event.type() == QtCore.QEvent.FileOpen:
-#            if len(self.windows) >= 1:
-#                self.windows[0].set_url(event.url().toEncoded())
-#                return True
-#        return False
+
+
 
 class ElectrumGui:
 
-    def __init__(self, config, network, plugins, app=None):
+    def __init__(self, config, daemon, plugins):
         Logger.debug('ElectrumGUI: initialising')
-        self.network = network
+        self.daemon = daemon
+        self.network = daemon.network
         self.config = config
         self.plugins = plugins
 
-        #:TODO
-        # implement kivy plugin mechanism that needs to be more extensible
-        # and integrated into the ui so can't be common with existing plugin
-        # base
-        #init_plugins(self)
-
     def main(self):
-        ''' The main entry point of the kivy ux
-        :param url: 'bitcoin:' uri as mentioned in bip0021
-        :type url: str
-        :ref: https://github.com/bitcoin/bips/blob/master/bip-0021.mediawiki
-        '''
-
-        self.main_window = w = ElectrumWindow(config=self.config,
-                                              network=self.network,
-                                              plugins = self.plugins,
-                                              gui_object=self)
+        self.config.open_last_wallet()
+        w = ElectrumWindow(config=self.config,
+                           network=self.network,
+                           plugins = self.plugins,
+                           gui_object=self)
         w.run()
+        if w.wallet:
+            self.config.save_last_wallet(w.wallet)

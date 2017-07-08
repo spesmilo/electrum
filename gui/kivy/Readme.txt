@@ -10,4 +10,5 @@ Commands::
 If something in included modules like kivy or any other module changes
 then you need to rebuild the distribution. To do so:
 
-   `rm -rf electrum/.buildozer/android/platform/python-for-android/dist`
+  rm -rf .buildozer/android/platform/python-for-android/dist
+

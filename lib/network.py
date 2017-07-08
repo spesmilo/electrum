@@ -1,6 +1,30 @@
+# Electrum - Lightweight Bitcoin Client
+# Copyright (c) 2011-2016 Thomas Voegtlin
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import time
 import Queue
 import os
+import errno
 import sys
 import random
 import select
@@ -13,20 +37,41 @@ import socket
 import json
 
 import util
+import bitcoin
 from bitcoin import *
 from interface import Connection, Interface
 from blockchain import Blockchain
 from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 
-DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
+DEFAULT_PORTS = {'t':'50001', 's':'50002'}
+
+#There is a schedule to move the default list to e-x (electrumx) by Jan 2018
+#Schedule is as follows:
+#move ~3/4 to e-x by 1.4.17
+#then gradually switch remaining nodes to e-x nodes
 
 DEFAULT_SERVERS = {
     'electrum1.groestlcoin.org':DEFAULT_PORTS,
     'electrum2.groestlcoin.org':DEFAULT_PORTS,
 }
 
+def set_testnet():
+    global DEFAULT_PORTS, DEFAULT_SERVERS
+    DEFAULT_PORTS = {'t':'51001', 's':'51002'}
+    DEFAULT_SERVERS = {
+        '127.0.0.1': DEFAULT_PORTS,
+    }
+
+def set_nolnet():
+    global DEFAULT_PORTS, DEFAULT_SERVERS
+    DEFAULT_PORTS = {'t':'52001', 's':'52002'}
+    DEFAULT_SERVERS = {
+        '127.0.0.1': DEFAULT_PORTS,
+    }
+
 NODES_RETRY_INTERVAL = 60
 SERVER_RETRY_INTERVAL = 10
+BLOCKCHAIN_REQUEST_TIMEOUT = 60
 
 
 def parse_servers(result):
@@ -40,7 +85,7 @@ def parse_servers(result):
         pruning_level = '-'
         if len(item) > 2:
             for v in item[2]:
-                if re.match("[stgh]\d*", v):
+                if re.match("[st]\d*", v):
                     protocol, port = v[0], v[1:]
                     if port == '': port = DEFAULT_PORTS[protocol]
                     out[protocol] = port
@@ -60,7 +105,7 @@ def parse_servers(result):
 
     return servers
 
-def filter_protocol(hostmap = DEFAULT_SERVERS, protocol = 's'):
+def filter_protocol(hostmap, protocol = 's'):
     '''Filters the hostmap for those implementing protocol.
     The result is a list in serialized form.'''
     eligible = []
@@ -70,7 +115,9 @@ def filter_protocol(hostmap = DEFAULT_SERVERS, protocol = 's'):
             eligible.append(serialize_server(host, port, protocol))
     return eligible
 
-def pick_random_server(hostmap = DEFAULT_SERVERS, protocol = 's', exclude_set = set()):
+def pick_random_server(hostmap = None, protocol = 's', exclude_set = set()):
+    if hostmap is None:
+        hostmap = DEFAULT_SERVERS
     eligible = list(set(filter_protocol(hostmap, protocol)) - exclude_set)
     return random.choice(eligible) if eligible else None
 
@@ -81,7 +128,7 @@ proxy_modes = ['socks4', 'socks5', 'http']
 def serialize_proxy(p):
     if type(p) != dict:
         return None
-    return ':'.join([p.get('mode'),p.get('host'), p.get('port')])
+    return ':'.join([p.get('mode'),p.get('host'), p.get('port'), p.get('user'), p.get('password')])
 
 def deserialize_proxy(s):
     if type(s) not in [str, unicode]:
@@ -99,8 +146,14 @@ def deserialize_proxy(s):
         n += 1
     if len(args) > n:
         proxy["port"] = args[n]
+        n += 1
     else:
         proxy["port"] = "8080" if proxy["mode"] == "http" else "1080"
+    if len(args) > n:
+        proxy["user"] = args[n]
+        n += 1
+    if len(args) > n:
+        proxy["password"] = args[n]
     return proxy
 
 def deserialize_server(server_str):
@@ -122,11 +175,10 @@ class Network(util.DaemonThread):
 
     - Member functions get_header(), get_interfaces(), get_local_height(),
           get_parameters(), get_server_height(), get_status_value(),
-          is_connected(), new_blockchain_height(), set_parameters(),
-          stop()
+          is_connected(), set_parameters(), stop()
     """
 
-    def __init__(self, config=None, plugins=None):
+    def __init__(self, config=None):
         if config is None:
             config = {}  # Do not use mutables as default values!
         util.DaemonThread.__init__(self)
@@ -153,11 +205,15 @@ class Network(util.DaemonThread):
         self.recent_servers = self.read_recent_servers()
 
         self.banner = ''
-        self.fee = None
+        self.donation_address = ''
+        self.relay_fee = None
         self.heights = {}
         self.merkle_roots = {}
         self.utxo_roots = {}
+        # callbacks passed with subscriptions
         self.subscriptions = defaultdict(list)
+        self.sub_cache = {}
+        # callbacks set by the GUI
         self.callbacks = defaultdict(list)
 
         dir_path = os.path.join( self.config.path, 'certs')
@@ -176,23 +232,27 @@ class Network(util.DaemonThread):
         # to or have an ongoing connection with
         self.interface = None
         self.interfaces = {}
-        self.auto_connect = self.config.get('auto_connect', False)
+        self.auto_connect = self.config.get('auto_connect', True)
         self.connecting = set()
         self.socket_queue = Queue.Queue()
         self.start_network(deserialize_server(self.default_server)[2],
                            deserialize_proxy(self.config.get('proxy')))
-        self.plugins = plugins
-        if self.plugins:
-            self.plugins.set_network(self)
 
-    def register_callback(self, event, callback):
+    def register_callback(self, callback, events):
         with self.lock:
-            self.callbacks[event].append(callback)
+            for event in events:
+                self.callbacks[event].append(callback)
+
+    def unregister_callback(self, callback):
+        with self.lock:
+            for callbacks in self.callbacks.values():
+                if callback in callbacks:
+                    callbacks.remove(callback)
 
     def trigger_callback(self, event, *args):
         with self.lock:
             callbacks = self.callbacks[event][:]
-        [callback(*args) for callback in callbacks]
+        [callback(event, *args) for callback in callbacks]
 
     def read_recent_servers(self):
         if not self.config.path:
@@ -223,7 +283,7 @@ class Network(util.DaemonThread):
         sh = self.get_server_height()
         if not sh:
             self.print_error('no height for main interface')
-            return False
+            return True
         lh = self.get_local_height()
         result = (lh - sh) > 1
         if result:
@@ -257,17 +317,21 @@ class Network(util.DaemonThread):
 
     def send_subscriptions(self):
         self.print_error('sending subscriptions to', self.interface.server, len(self.unanswered_requests), len(self.subscribed_addresses))
+        self.sub_cache.clear()
         # Resend unanswered requests
         requests = self.unanswered_requests.values()
         self.unanswered_requests = {}
         for request in requests:
             message_id = self.queue_request(request[0], request[1])
             self.unanswered_requests[message_id] = request
+        self.queue_request('server.banner', [])
+        self.queue_request('server.donation_address', [])
+        self.queue_request('server.peers.subscribe', [])
+        for i in bitcoin.FEE_TARGETS:
+            self.queue_request('blockchain.estimatefee', [i])
+        self.queue_request('blockchain.relayfee', [])
         for addr in self.subscribed_addresses:
             self.queue_request('blockchain.address.subscribe', [addr])
-        self.queue_request('server.banner', [])
-        self.queue_request('server.peers.subscribe', [])
-        self.queue_request('blockchain.estimatefee', [2])
 
     def get_status_value(self, key):
         if key == 'status':
@@ -275,7 +339,7 @@ class Network(util.DaemonThread):
         elif key == 'banner':
             value = self.banner
         elif key == 'fee':
-            value = self.fee
+            value = self.config.fee_estimates
         elif key == 'updated':
             value = (self.get_local_height(), self.get_server_height())
         elif key == 'servers':
@@ -294,13 +358,18 @@ class Network(util.DaemonThread):
         host, port, protocol = deserialize_server(self.default_server)
         return host, port, protocol, self.proxy, self.auto_connect
 
+    def get_donation_address(self):
+        if self.is_connected():
+            return self.donation_address
+
     def get_interfaces(self):
         '''The interfaces that are in connected state'''
         return self.interfaces.keys()
 
     def get_servers(self):
         if self.irc_servers:
-            out = self.irc_servers
+            out = self.irc_servers.copy()
+            out.update(DEFAULT_SERVERS)
         else:
             out = DEFAULT_SERVERS
             for s in self.recent_servers:
@@ -334,8 +403,14 @@ class Network(util.DaemonThread):
     def set_proxy(self, proxy):
         self.proxy = proxy
         if proxy:
+            self.print_error('setting proxy', proxy)
             proxy_mode = proxy_modes.index(proxy["mode"]) + 1
-            socks.setdefaultproxy(proxy_mode, proxy["host"], int(proxy["port"]))
+            socks.setdefaultproxy(proxy_mode,
+                                  proxy["host"],
+                                  int(proxy["port"]),
+                                  # socks.py seems to want either None or a non-empty string
+                                  username=(proxy.get("user", "") or None),
+                                  password=(proxy.get("password", "") or None))
             socket.socket = socks.socksocket
             # prevent dns leaks, see http://stackoverflow.com/questions/13184205/dns-over-proxy
             socket.getaddrinfo = lambda *args: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
@@ -356,6 +431,8 @@ class Network(util.DaemonThread):
         self.print_error("stopping network")
         for interface in self.interfaces.values():
             self.close_interface(interface)
+        if self.interface:
+            self.close_interface(self.interface)
         assert self.interface is None
         assert not self.interfaces
         self.connecting = set()
@@ -421,7 +498,8 @@ class Network(util.DaemonThread):
 
     def close_interface(self, interface):
         if interface:
-            self.interfaces.pop(interface.server)
+            if interface.server in self.interfaces:
+                self.interfaces.pop(interface.server)
             if interface.server == self.default_server:
                 self.interface = None
             interface.close()
@@ -434,16 +512,13 @@ class Network(util.DaemonThread):
         self.recent_servers = self.recent_servers[0:20]
         self.save_recent_servers()
 
-    def new_blockchain_height(self, blockchain_height, i):
-        self.switch_lagging_interface(i.server)
-        self.notify('updated')
-
-    def process_response(self, interface, response, callback):
+    def process_response(self, interface, response, callbacks):
         if self.debug:
             self.print_error("<--", response)
         error = response.get('error')
         result = response.get('result')
         method = response.get('method')
+        params = response.get('params')
 
         # We handle some responses; return the rest to the client.
         if method == 'server.version':
@@ -459,43 +534,47 @@ class Network(util.DaemonThread):
             if error is None:
                 self.banner = result
                 self.notify('banner')
-        elif method == 'blockchain.estimatefee':
+        elif method == 'server.donation_address':
             if error is None:
-                self.fee = int(result * COIN)
-                self.print_error("recommended fee", self.fee)
+                self.donation_address = result
+        elif method == 'blockchain.estimatefee':
+            if error is None and result > 0:
+                i = params[0]
+                fee = int(result*COIN)
+                self.config.fee_estimates[i] = fee
+                self.print_error("fee_estimates[%d]" % i, fee)
                 self.notify('fee')
+        elif method == 'blockchain.relayfee':
+            if error is None:
+                self.relay_fee = int(result * COIN)
+                self.print_error("relayfee", self.relay_fee)
         elif method == 'blockchain.block.get_chunk':
             self.on_get_chunk(interface, response)
         elif method == 'blockchain.block.get_header':
             self.on_get_header(interface, response)
-        else:
-            if callback is None:
-                params = response['params']
-                with self.lock:
-                    for k,v in self.subscriptions.items():
-                        if (method, params) in v:
-                            callback = k
-                            break
-            if callback is None:
-                self.print_error("received unexpected notification",
-                                 method, params)
-            else:
-                callback(response)
+
+        for callback in callbacks:
+            callback(response)
+
+    def get_index(self, method, params):
+        """ hashable index for subscriptions and cache"""
+        return str(method) + (':' + str(params[0]) if params  else '')
 
     def process_responses(self, interface):
         responses = interface.get_responses()
-
         for request, response in responses:
-            callback = None
             if request:
                 method, params, message_id = request
+                k = self.get_index(method, params)
                 # client requests go through self.send() with a
                 # callback, are only sent to the current interface,
                 # and are placed in the unanswered_requests dictionary
                 client_req = self.unanswered_requests.pop(message_id, None)
                 if client_req:
                     assert interface == self.interface
-                    callback = client_req[2]
+                    callbacks = [client_req[2]]
+                else:
+                    callbacks = []
                 # Copy the request method and params to the response
                 response['method'] = method
                 response['params'] = params
@@ -510,18 +589,23 @@ class Network(util.DaemonThread):
                 # Rewrite response shape to match subscription request response
                 method = response.get('method')
                 params = response.get('params')
+                k = self.get_index(method, params)
                 if method == 'blockchain.headers.subscribe':
                     response['result'] = params[0]
                     response['params'] = []
                 elif method == 'blockchain.address.subscribe':
                     response['params'] = [params[0]]  # addr
                     response['result'] = params[1]
+                callbacks = self.subscriptions.get(k, [])
 
+            # update cache if it's a subscription
+            if method.endswith('.subscribe'):
+                self.sub_cache[k] = response
             # Response is now in canonical form
-            self.process_response(interface, response, callback)
+            self.process_response(interface, response, callbacks)
 
     def send(self, messages, callback):
-        '''Messages is a list of (method, value) tuples'''
+        '''Messages is a list of (method, params) tuples'''
         with self.lock:
             self.pending_sends.append((messages, callback))
 
@@ -536,22 +620,33 @@ class Network(util.DaemonThread):
             self.pending_sends = []
 
         for messages, callback in sends:
-            subs = filter(lambda (m,v): m.endswith('.subscribe'), messages)
-            with self.lock:
-                for sub in subs:
-                    if sub not in self.subscriptions[callback]:
-                        self.subscriptions[callback].append(sub)
-
             for method, params in messages:
-                message_id = self.queue_request(method, params)
-                self.unanswered_requests[message_id] = method, params, callback
+                r = None
+                if method.endswith('.subscribe'):
+                    k = self.get_index(method, params)
+                    # add callback to list
+                    l = self.subscriptions.get(k, [])
+                    if callback not in l:
+                        l.append(callback)
+                    self.subscriptions[k] = l
+                    # check cached response for subscriptions
+                    r = self.sub_cache.get(k)
+                if r is not None:
+                    util.print_error("cache hit", k)
+                    callback(r)
+                else:
+                    message_id = self.queue_request(method, params)
+                    self.unanswered_requests[message_id] = method, params, callback
 
     def unsubscribe(self, callback):
         '''Unsubscribe a callback to free object references to enable GC.'''
         # Note: we can't unsubscribe from the server, so if we receive
         # subsequent notifications process_response() will emit a harmless
         # "received unexpected notification" warning
-        self.subscriptions.pop(callback, None)
+        with self.lock:
+            for v in self.subscriptions.values():
+                if callback in v:
+                    v.remove(callback)
 
     def connection_down(self, server):
         '''A connection to server either went down, or was never made.
@@ -577,7 +672,8 @@ class Network(util.DaemonThread):
         # Responses to connection attempts?
         while not self.socket_queue.empty():
             server, socket = self.socket_queue.get()
-            self.connecting.remove(server)
+            if server in self.connecting:
+                self.connecting.remove(server)
             if socket:
                 self.new_interface(server, socket)
             else:
@@ -644,6 +740,8 @@ class Network(util.DaemonThread):
 
     def on_get_header(self, interface, response):
         '''Handle receiving a single block header'''
+        if self.blockchain.downloading_headers:
+            return
         if self.bc_requests:
             req_if, data = self.bc_requests[0]
             req_height = data.get('header_height', -1)
@@ -654,10 +752,11 @@ class Network(util.DaemonThread):
                 if next_height in [True, False]:
                     self.bc_requests.popleft()
                     if next_height:
+                        self.switch_lagging_interface(interface.server)
                         self.notify('updated')
                     else:
                         interface.print_error("header didn't connect, dismissing interface")
-                        interface.stop()
+                        interface.close()
                 else:
                     self.request_header(interface, data, next_height)
 
@@ -665,6 +764,8 @@ class Network(util.DaemonThread):
         '''Send a request for the next header, or a chunk of them,
         if necessary.
         '''
+        if self.blockchain.downloading_headers:
+            return False
         local_height, if_height = self.get_local_height(), data['if_height']
         if if_height <= local_height:
             return False
@@ -683,14 +784,13 @@ class Network(util.DaemonThread):
             # If the connection was lost move on
             if not interface in self.interfaces.values():
                 continue
-
             req_time = data.get('req_time')
             if not req_time:
                 # No requests sent yet.  This interface has a new height.
                 # Request headers if it is ahead of our blockchain
                 if not self.bc_request_headers(interface, data):
                     continue
-            elif time.time() - req_time > 60:
+            elif time.time() - req_time > BLOCKCHAIN_REQUEST_TIMEOUT:
                 interface.print_error("blockchain request timed out")
                 self.connection_down(interface.server)
                 continue
@@ -705,8 +805,13 @@ class Network(util.DaemonThread):
             time.sleep(0.1)
             return
         rin = [i for i in self.interfaces.values()]
-        win = [i for i in self.interfaces.values() if i.unsent_requests]
-        rout, wout, xout = select.select(rin, win, [], 0.1)
+        win = [i for i in self.interfaces.values() if i.num_requests()]
+        try:
+            rout, wout, xout = select.select(rin, win, [], 0.1)
+        except socket.error as (code, msg):
+            if code == errno.EINTR:
+                return
+            raise
         assert not xout
         for interface in wout:
             interface.send_requests()
@@ -723,9 +828,7 @@ class Network(util.DaemonThread):
             self.process_pending_sends()
 
         self.stop_network()
-        if self.plugins:
-            self.plugins.set_network(None)
-        self.print_error("stopped")
+        self.on_stop()
 
     def on_header(self, i, header):
         height = header.get('block_height')
@@ -749,10 +852,23 @@ class Network(util.DaemonThread):
     def get_local_height(self):
         return self.blockchain.height()
 
-    def synchronous_get(self, request, timeout=100000000):
+    def synchronous_get(self, request, timeout=30):
         queue = Queue.Queue()
         self.send([request], queue.put)
-        r = queue.get(True, timeout)
+        try:
+            r = queue.get(True, timeout)
+        except Queue.Empty:
+            raise BaseException('Server did not answer')
         if r.get('error'):
             raise BaseException(r.get('error'))
         return r.get('result')
+
+    def broadcast(self, tx, timeout=30):
+        tx_hash = tx.txid()
+        try:
+            out = self.synchronous_get(('blockchain.transaction.broadcast', [str(tx)]), timeout)
+        except BaseException as e:
+            return False, "error: " + str(e)
+        if out != tx_hash:
+            return False, "error: " + out
+        return True, out

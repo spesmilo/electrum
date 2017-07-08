@@ -3,18 +3,25 @@
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2015 Thomas Voegtlin
 #
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 import threading, Queue, os, json, time
 from collections import defaultdict
@@ -32,7 +39,7 @@ class ElectrumWebSocket(WebSocket):
 
     def handleMessage(self):
         assert self.data[0:3] == 'id:'
-        print "message received", self.data
+        util.print_error("message received", self.data)
         request_id = self.data[3:]
         request_queue.put((self, request_id))
 
@@ -46,20 +53,17 @@ class ElectrumWebSocket(WebSocket):
 
 class WsClientThread(util.DaemonThread):
 
-    def __init__(self, config, server):
+    def __init__(self, config, network):
         util.DaemonThread.__init__(self)
-        self.server = server
+        self.network = network
         self.config = config
         self.response_queue = Queue.Queue()
-        self.server.add_client(self)
         self.subscriptions = defaultdict(list)
-        self.sub_ws = defaultdict(list)
-        self.counter = 0
 
     def make_request(self, request_id):
         # read json file
         rdir = self.config.get('requests_dir')
-        n = os.path.join(rdir, request_id + '.json')
+        n = os.path.join(rdir, 'req', request_id[0], request_id[1], request_id, request_id + '.json')
         with open(n) as f:
             s = f.read()
         d = json.loads(s)
@@ -77,13 +81,11 @@ class WsClientThread(util.DaemonThread):
                 addr, amount = self.make_request(request_id)
             except:
                 continue
-            method = 'blockchain.address.subscribe'
-            params = [addr]
-            request = {'method':method, 'params':params, 'id':self.counter}
-            self.subscriptions[method].append(params)
-            self.sub_ws[self.counter] = ws, amount, request
-            self.counter += 1
-            self.server.send_request(self, request)
+            l = self.subscriptions.get(addr, [])
+            l.append((ws, amount))
+            self.subscriptions[addr] = l
+            self.network.send([('blockchain.address.subscribe', [addr])], self.response_queue.put)
+
 
     def run(self):
         threading.Thread(target=self.reading_thread).start()
@@ -92,32 +94,22 @@ class WsClientThread(util.DaemonThread):
                 r = self.response_queue.get(timeout=0.1)
             except Queue.Empty:
                 continue
-            id = r.get('id')
-            if id is None:
-                method = r.get('method')
-                params = r.get('params')
-            else:
-                ws, amount, rr = self.sub_ws[id]
-                method = rr.get('method')
-                params = rr.get('params')
-
+            util.print_error('response', r)
+            method = r.get('method')
+            params = r.get('params')
             result = r.get('result')
-
+            if result is None:
+                continue    
             if method == 'blockchain.address.subscribe':
-                util.print_error('response', r)
-                if result is not None:
-                    request = {'method':'blockchain.address.get_balance', 'params':params, 'id':self.counter}
-                    self.server.send_request(self, request)
-                    self.sub_ws[self.counter] = ws, amount, request
-                    self.counter += 1
+                self.network.send([('blockchain.address.get_balance', params)], self.response_queue.put)
+            elif method == 'blockchain.address.get_balance':
+                addr = params[0]
+                l = self.subscriptions.get(addr, [])
+                for ws, amount in l:
+                    if not ws.closed:
+                        if sum(result.values()) >=amount:
+                            ws.sendMessage(unicode('paid'))
 
-            if r.get('method') == 'blockchain.address.get_balance':
-                util.print_error('response', r)
-                if not ws.closed:
-                    if sum(result.values()) >=amount:
-                        ws.sendMessage(unicode('paid'))
-
-        self.server.remove_client(self)
 
 
 class WebSocketServer(threading.Thread):

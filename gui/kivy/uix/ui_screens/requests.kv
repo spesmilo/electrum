@@ -1,0 +1,66 @@
+<RequestLabel@Label>
+    #color: .305, .309, .309, 1
+    text_size: self.width, None
+    halign: 'left'
+    valign: 'top'
+
+<RequestItem@CardItem>
+    address: ''
+    memo: ''
+    amount: ''
+    status: ''
+    date: ''
+    icon: 'atlas://gui/kivy/theming/light/important'
+    Image:
+        id: icon
+        source: root.icon
+        size_hint: None, 1
+        width: self.height *.54
+        mipmap: True
+    BoxLayout:
+        spacing: '8dp'
+        height: '32dp'
+        orientation: 'vertical'
+        Widget
+        RequestLabel:
+            text: root.address
+            shorten: True
+        Widget
+        RequestLabel:
+            text: root.memo
+            color: .699, .699, .699, 1
+            font_size: '13sp'
+            shorten: True
+        Widget
+    BoxLayout:
+        spacing: '8dp'
+        height: '32dp'
+        orientation: 'vertical'
+        Widget
+        RequestLabel:
+            text: root.amount
+            halign: 'right'
+            font_size: '15sp'
+        Widget
+        RequestLabel:
+            text: root.status
+            halign: 'right'
+            font_size: '13sp'
+            color: .699, .699, .699, 1
+        Widget
+
+
+
+RequestsScreen:
+    name: 'requests'
+    BoxLayout:
+        orientation: 'vertical'
+        spacing: '1dp'
+        ScrollView:
+            GridLayout:
+                cols: 1
+                id: requests_container
+                size_hint_y: None
+                height: self.minimum_height
+                spacing: '2dp'
+                padding: '12dp'

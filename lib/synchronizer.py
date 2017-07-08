@@ -3,21 +3,29 @@
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2014 Thomas Voegtlin
 #
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 
 from threading import Lock
+import hashlib
 
 from bitcoin import Hash, hash_encode, sha256
 from transaction import Transaction
@@ -71,13 +79,21 @@ class Synchronizer(ThreadJob):
                        addresses)
             self.network.send(msgs, self.addr_subscription_response)
 
+    def get_status(self, h):
+        if not h:
+            return None
+        status = ''
+        for tx_hash, height in h:
+            status += tx_hash + ':%d:' % height
+        return hashlib.sha256(status).digest().encode('hex')
+
     def addr_subscription_response(self, response):
         params, result = self.parse_response(response)
         if not params:
             return
         addr = params[0]
         history = self.wallet.get_address_history(addr)
-        if self.wallet.get_status(history) != result:
+        if self.get_status(history) != result:
             if self.requested_histories.get(addr) is None:
                 self.requested_histories[addr] = result
                 self.network.send([('blockchain.address.get_history', [addr])],
@@ -95,6 +111,9 @@ class Synchronizer(ThreadJob):
         server_status = self.requested_histories[addr]
         hashes = set(map(lambda item: item['tx_hash'], result))
         hist = map(lambda item: (item['tx_hash'], item['height']), result)
+        # tx_fees
+        tx_fees = [(item['tx_hash'], item.get('fee')) for item in result]
+        tx_fees = dict(filter(lambda x:x[1] is not None, tx_fees))
         # Note if the server hasn't been patched to sort the items properly
         if hist != sorted(hist, key=lambda x:x[1]):
             self.network.interface.print_error("serving improperly sorted address histories")
@@ -102,11 +121,11 @@ class Synchronizer(ThreadJob):
         if len(hashes) != len(result):
             self.print_error("error: server history has non-unique txids: %s"% addr)
         # Check that the status corresponds to what was announced
-        elif self.wallet.get_status(hist) != server_status:
+        elif self.get_status(hist) != server_status:
             self.print_error("error: status mismatch: %s" % addr)
         else:
             # Store received history
-            self.wallet.receive_history_callback(addr, hist)
+            self.wallet.receive_history_callback(addr, hist, tx_fees)
             # Request transactions we don't have
             self.request_missing_txs(hist)
         # Remove request; this allows up_to_date to be True
@@ -117,7 +136,7 @@ class Synchronizer(ThreadJob):
         if not params:
             return
         tx_hash, tx_height = params
-        assert tx_hash == hash_encode(sha256(result.decode('hex')))
+        #assert tx_hash == hash_encode(sha256(result.decode('hex')))
         tx = Transaction(result)
         try:
             tx.deserialize()
@@ -161,7 +180,7 @@ class Synchronizer(ThreadJob):
 
         if self.requested_tx:
             self.print_error("missing tx", self.requested_tx)
-        self.subscribe_to_addresses(set(self.wallet.addresses(True)))
+        self.subscribe_to_addresses(set(self.wallet.get_addresses()))
 
     def run(self):
         '''Called from the network proxy thread main loop.'''
@@ -178,6 +197,4 @@ class Synchronizer(ThreadJob):
         up_to_date = self.is_up_to_date()
         if up_to_date != self.wallet.is_up_to_date():
             self.wallet.set_up_to_date(up_to_date)
-            if up_to_date:
-                self.wallet.save_transactions()
             self.network.trigger_callback('updated')

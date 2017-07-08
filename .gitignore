@@ -1,6 +1,4 @@
 ####-*.patch
-gui/icons_rc.py
-lib/icons_rc.py
 *.pyc
 *.swp
 build/
@@ -21,3 +19,5 @@ packages
 *.pip/
 env/
 .tox/
+.buildozer/
+bin/

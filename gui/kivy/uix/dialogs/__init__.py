@@ -4,7 +4,7 @@ from kivy.factory import Factory
 from kivy.properties import NumericProperty, StringProperty, BooleanProperty
 from kivy.core.window import Window
 
-from electrum.i18n import _
+from electrum_gui.kivy.i18n import _
 
 
 
@@ -56,7 +56,7 @@ class AnimatedPopup(Factory.Popup):
         anim.bind(on_complete=on_complete)
         anim.start(self)
 
-class EventsDialog(AnimatedPopup):
+class EventsDialog(Factory.Popup):
     ''' Abstract Popup that provides the following events
     .. events::
         `on_release`
@@ -67,7 +67,6 @@ class EventsDialog(AnimatedPopup):
 
     def __init__(self, **kwargs):
         super(EventsDialog, self).__init__(**kwargs)
-        self._on_release = kwargs.get('on_release')
 
     def on_release(self, instance):
         pass
@@ -76,7 +75,6 @@ class EventsDialog(AnimatedPopup):
         pass
 
     def close(self):
-        self._on_release = None
         self.dismiss()
 
 
@@ -144,6 +142,7 @@ class InfoBubble(Factory.Bubble):
             m.add_widget(self)
         else:
             Window.add_widget(self)
+
         # wait for the bubble to adjust it's size according to text then animate
         Clock.schedule_once(lambda dt: self._show(pos, duration))
 
@@ -181,6 +180,9 @@ class InfoBubble(Factory.Bubble):
                 App.get_running_app().stop()
                 import sys
                 sys.exit()
+            else:
+                App.get_running_app().is_exit = False
+
         if now:
             return on_stop()
 
@@ -188,3 +190,26 @@ class InfoBubble(Factory.Bubble):
         anim.bind(on_complete=on_stop)
         anim.cancel_all(self)
         anim.start(self)
+
+
+
+class OutputItem(Factory.BoxLayout):
+    pass
+
+class OutputList(Factory.GridLayout):
+
+    def __init__(self, **kwargs):
+        super(Factory.GridLayout, self).__init__(**kwargs)
+        self.app = App.get_running_app()
+
+    def update(self, outputs):
+        self.clear_widgets()
+        for (type, address, amount) in outputs:
+            self.add_output(address, amount)
+
+    def add_output(self, address, amount):
+        b = Factory.OutputItem()
+        b.address = address
+        b.value = self.app.format_amount_and_units(amount)
+        self.add_widget(b)
+

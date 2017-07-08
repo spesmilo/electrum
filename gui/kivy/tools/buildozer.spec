@@ -4,7 +4,7 @@
 title = Electrum
 
 # (str) Package name
-package.name = kivy
+package.name = Electrum
 
 # (str) Package domain (needed for android/ios packaging)
 package.domain = org.electrum
@@ -13,32 +13,33 @@ package.domain = org.electrum
 source.dir = .
 
 # (list) Source files to include (let empty to include all the files)
-source.include_exts = py,png,jpg,kv,atlas,ttf,*,txt, gif, pem
+source.include_exts = py,png,jpg,kv,atlas,ttf,txt,gif,pem,mo,vs,fs,json
 
 # (list) Source files to exclude (let empty to not exclude anything)
 source.exclude_exts = spec
 
 # (list) List of directory to exclude (let empty to not exclude anything)
-#source.exclude_dirs =
-
+source.exclude_dirs = bin, build, dist, contrib, gui/qt, gui/kivy/tools, gui/kivy/theming/light
 # (list) List of exclusions using pattern matching
-#source.exclude_patterns = license,images/*/*.jpg
+source.exclude_patterns = Makefile,setup*
 
 # (str) Application versioning (method 1)
-version.regex = ELECTRUM_VERSION = '(.*)'
-version.filename = %(source.dir)s/lib/version.py
+version.regex = version_apk = '(.*)'
+version.filename = %(source.dir)s/contrib/versions.py
 
 # (str) Application versioning (method 2)
 #version = 1.9.8
 
 # (list) Application requirements
-requirements = openssl, pil, plyer==master, kivy==master
+requirements = hostpython2, android, openssl, pycrypto, pil, plyer, kivy==master
 
 # (str) Presplash of the application
-presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
+#presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
+presplash.filename = %(source.dir)s/icons/electrum.png
 
 # (str) Icon of the application
-icon.filename = %(source.dir)s/icons/electrum_android_launcher_icon.png
+#icon.filename = %(source.dir)s/icons/electrum_android_launcher_icon.png
+icon.filename = %(source.dir)s/icons/electrum_launcher.png
 
 # (str) Supported orientation (one of landscape, portrait or all)
 orientation = portrait
@@ -52,7 +53,7 @@ fullscreen = False
 #
 
 # (list) Permissions
-android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE, CAMERA, NFC
+android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
 # (int) Android API to use
 #android.api = 14
 
@@ -66,7 +67,7 @@ android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE, C
 #android.ndk = 9
 
 # (bool) Use --private data storage (True) or --dir public storage (False)
-android.private_storage = False
+android.private_storage = True
 
 # (str) Android NDK directory (if empty, it will be automatically downloaded.)
 #android.ndk_path =
@@ -82,7 +83,7 @@ android.private_storage = False
 # down the build process. Allows wildcards matching, for example:
 # OUYA-ODK/libs/*.jar
 #android.add_jars = foo.jar,bar.jar,path/to/more/*.jar
-android.add_jars = lib/android/zbar.jar
+#android.add_jars = lib/android/zbar.jar
 
 # (list) List of Java files to add to the android project (can be java or a
 # directory containing the files)
@@ -100,10 +101,10 @@ android.add_jars = lib/android/zbar.jar
 #android.ouya.icon.filename = %(source.dir)s/data/ouya_icon.png
 
 # (str) XML file to include as an intent filters in <activity> tag
-#android.manifest.intent_filters = nfc_filter.xml
+android.manifest.intent_filters = gui/kivy/tools/bitcoin_intent.xml
 
 # (list) Android additionnal libraries to copy into libs/armeabi
-android.add_libs_armeabi = lib/android/*.so
+#android.add_libs_armeabi = lib/android/*.so
 
 # (bool) Indicate whether the screen should stay on
 # Don't forget to add the WAKE_LOCK permission if you set this to True
@@ -116,6 +117,11 @@ android.add_libs_armeabi = lib/android/*.so
 # project.properties automatically.)
 #android.library_references =
 
+android.p4a_whitelist = lib-dynload/_csv.so
+
+# local version that merges branch 866
+android.p4a_dir = /opt/python-for-android
+
 #
 # iOS specific
 #
@@ -126,6 +132,7 @@ android.add_libs_armeabi = lib/android/*.so
 
 # (str) Name of the certificate to use for signing the release version
 #ios.codesign.release = %(ios.codesign.debug)s
+
 
 
 [buildozer]

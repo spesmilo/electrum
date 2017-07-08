@@ -3,57 +3,24 @@
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2015 Thomas Voegtlin
 #
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
-import electrum_grs
-from electrum_grs.i18n import _
 
-descriptions = [
-    {
-        'name': 'cosigner_pool',
-        'fullname': _('Cosigner Pool'),
-        'description': ' '.join([
-            _("This plugin facilitates the use of multi-signatures wallets."),
-            _("It sends and receives partially signed transactions from/to your cosigner wallet."),
-            _("Transactions are encrypted and stored on a remote server.")
-        ]),
-        'requires_wallet_type': ['2of2', '2of3'],
-        'available_for': ['qt'],
-    },
-    {
-        'name': 'email_requests',
-        'fullname': 'Email',
-        'description': _("Send and receive payment request with an email account"),
-        'available_for': ['qt'],
-    },
-    {
-        'name': 'exchange_rate',
-        'fullname': _("Exchange rates"),
-        'description': _("Exchange rates and currency conversion tools."),
-        'available_for': ['qt','kivy'],
-    },
-    {
-        'name': 'plot',
-        'fullname': 'Plot History',
-        'description': _("Ability to plot transaction history in graphical mode."),
-        'requires': [('matplotlib', 'matplotlib')],
-        'available_for': ['qt'],
-    },
-    {
-        'name': 'virtualkeyboard',
-        'fullname': 'Virtual Keyboard',
-        'description': '%s\n%s' % (_("Add an optional virtual keyboard to the password dialog."), _("Warning: do not use this if it makes you pick a weaker password.")),
-        'available_for': ['qt'],
-    }
-]
