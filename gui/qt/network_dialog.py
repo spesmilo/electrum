@@ -74,10 +74,10 @@ class NodesListWidget(QTreeWidget):
         menu = QMenu()
         if is_server:
             server = unicode(item.data(1, Qt.UserRole).toString())
-            menu.addAction(_("Use as server"), lambda: self.parent.network.switch_to_interface(server))
+            menu.addAction(_("Use as server"), lambda: self.parent.follow_server(server))
         else:
             index = item.data(1, Qt.UserRole).toInt()[0]
-            menu.addAction(_("Follow this branch"), lambda: self.parent.network.follow_chain(index))
+            menu.addAction(_("Follow this branch"), lambda: self.parent.follow_branch(index))
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def keyPressEvent(self, event):
@@ -99,7 +99,7 @@ class NodesListWidget(QTreeWidget):
         if n_chains > 1:
             for b in network.blockchains.values():
                 name = network.get_blockchain_name(b)
-                x = QTreeWidgetItem([name, '%d'%checkpoint])
+                x = QTreeWidgetItem([name + '@%d'%checkpoint, '%d'%b.height()])
                 x.setData(0, Qt.UserRole, 1)
                 x.setData(1, Qt.UserRole, b.checkpoint)
                 for i in network.interfaces.values():
@@ -296,7 +296,7 @@ class NetworkChoiceLayout(object):
         self.proxy_user.setText(proxy_config.get("user", ""))
         self.proxy_password.setText(proxy_config.get("password", ""))
 
-        height_str = "%d "%(self.network.get_local_height()) + _("blocks")
+        height_str = "%d "%(self.network.get_local_height())
         self.height_label.setText(height_str)
         n = len(self.network.get_interfaces())
         status = _("Connected to %d nodes.")%n if n else _("Not connected")
@@ -304,7 +304,8 @@ class NetworkChoiceLayout(object):
         if len(self.network.blockchains)>1:
             checkpoint = self.network.get_checkpoint()
             name = self.network.get_blockchain_name(self.network.blockchain())
-            msg = _('Chain split detected at block %d')%checkpoint + '\n' + _('You are on branch') + ' ' + name
+            msg = _('Chain split detected at block %d')%checkpoint
+            msg += '\n' + _('Your server is on branch') + ' ' + name
         else:
             msg = ''
         self.split_label.setText(msg)
@@ -336,6 +337,19 @@ class NetworkChoiceLayout(object):
         self.server_port.setText( port )
         self.set_protocol(p)
         self.set_server()
+
+    def follow_branch(self, index):
+        self.network.follow_chain(index)
+        host, port, protocol, proxy, auto_connect = self.network.get_parameters()
+        auto_connect = True
+        self.network.set_parameters(host, port, protocol, proxy, auto_connect)
+
+    def follow_server(self, server):
+        self.network.switch_to_interface(server)
+        host, port, protocol, proxy, auto_connect = self.network.get_parameters()
+        host, port, protocol = server.split(':')
+        auto_connect = False
+        self.network.set_parameters(host, port, protocol, proxy, auto_connect)
 
     def server_changed(self, x):
         if x:
