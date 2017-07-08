@@ -87,6 +87,7 @@ class ElectrumGui:
         self.app = QApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
         self.timer = Timer()
+        self.nd = None
         # init tray
         self.dark_icon = self.config.get("dark_icon", False)
         self.tray = QSystemTrayIcon(self.tray_icon(), None)
@@ -137,6 +138,18 @@ class ElectrumGui:
     def new_window(self, path, uri=None):
         # Use a signal as can be called from daemon thread
         self.app.emit(SIGNAL('new_window'), path, uri)
+
+    def show_network_dialog(self, parent):
+        from network_dialog import NetworkDialog
+        if not self.daemon.network:
+            parent.show_warning(_('You are using Electrum in offline mode; restart Electrum if you want to get connected'), title=_('Offline'))
+            return
+        if self.nd:
+            self.nd.show()
+            self.nd.raise_()
+            return
+        self.nd = NetworkDialog(self.daemon.network, self.config, parent)
+        self.nd.show()
 
     def create_window_for_wallet(self, wallet):
         w = ElectrumWindow(self, wallet)

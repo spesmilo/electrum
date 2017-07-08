@@ -37,9 +37,10 @@ from util import *
 protocol_names = ['TCP', 'SSL']
 protocol_letters = 'ts'
 
-class NetworkDialog(WindowModalDialog):
+class NetworkDialog(QDialog):
     def __init__(self, network, config, parent):
-        WindowModalDialog.__init__(self, parent, _('Network'))
+        QDialog.__init__(self, parent)
+        self.setWindowTitle(_('Network'))
         self.setMinimumSize(400, 20)
         self.nlayout = NetworkChoiceLayout(network, config)
         vbox = QVBoxLayout(self)
