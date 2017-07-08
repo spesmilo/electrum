@@ -1033,6 +1033,11 @@ class Abstract_Wallet(PrintError):
         # ... unless there is none
         if not s:
             s = outputs
+            x_fee = run_hook('get_tx_extra_fee', self, tx)
+            if x_fee:
+                x_fee_address, x_fee_amount = x_fee
+                s = filter(lambda x: x[1]!=x_fee_address, s)
+
         # prioritize low value outputs, to get rid of dust
         s = sorted(s, key=lambda x: x[2])
         for o in s:

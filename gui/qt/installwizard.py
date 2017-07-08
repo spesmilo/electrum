@@ -96,14 +96,11 @@ def wizard_dialog(func):
 class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     def __init__(self, config, app, plugins, storage):
-
         BaseWizard.__init__(self, config, storage)
         QDialog.__init__(self, None)
-
         self.setWindowTitle('Electrum-LTC  -  ' + _('Install Wizard'))
         self.app = app
         self.config = config
-
         # Set for base base class
         self.plugins = plugins
         self.language_for_seed = config.get('language')
@@ -169,15 +166,17 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         vbox.addLayout(hbox2)
         self.set_layout(vbox, title=_('Electrum-LTC wallet'))
 
+        wallet_folder = os.path.dirname(self.storage.path)
+
         def on_choose():
-            wallet_folder = os.path.dirname(self.storage.path)
             path = unicode(QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder))
             if path:
                 self.name_e.setText(path)
 
-        def on_filename(path):
+        def on_filename(filename):
+            path = os.path.join(wallet_folder, unicode(filename))
             try:
-                self.storage = WalletStorage(unicode(path))
+                self.storage = WalletStorage(path)
             except IOError:
                 self.storage = None
             if self.storage:

@@ -512,7 +512,8 @@ class Network(util.DaemonThread):
         if self.interface != i:
             self.print_error("switching to", server)
             # stop any current interface in order to terminate subscriptions
-            self.close_interface(self.interface)
+            # fixme: we don't want to close headers sub
+            #self.close_interface(self.interface)
             self.interface = i
             self.send_subscriptions()
             self.set_status('connected')
@@ -1000,6 +1001,11 @@ class Network(util.DaemonThread):
             self.config.set_key('blockchain_index', self.blockchain_index)
 
         return self.blockchains[self.blockchain_index]
+
+    def get_blockchain_name(self, blockchain):
+        checkpoint = self.get_checkpoint()
+        _hash = blockchain.get_hash(checkpoint)
+        return _hash.lstrip('00')[0:10]
 
     def follow_chain(self, index):
         blockchain = self.blockchains.get(index)
