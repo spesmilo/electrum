@@ -304,8 +304,8 @@ class NetworkChoiceLayout(object):
         if len(self.network.blockchains)>1:
             checkpoint = self.network.get_checkpoint()
             name = self.network.get_blockchain_name(self.network.blockchain())
-            msg = _('Chain split detected at block %d')%checkpoint
-            msg += '\n' + _('Your server is on branch') + ' ' + name
+            msg = _('Chain split detected at block %d')%checkpoint + '\n'
+            msg += (_('You are following branch') if auto_connect else _('Your server is on branch'))+ ' ' + name
         else:
             msg = ''
         self.split_label.setText(msg)
@@ -343,6 +343,7 @@ class NetworkChoiceLayout(object):
         host, port, protocol, proxy, auto_connect = self.network.get_parameters()
         auto_connect = True
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
+        self.update()
 
     def follow_server(self, server):
         self.network.switch_to_interface(server)
@@ -350,6 +351,7 @@ class NetworkChoiceLayout(object):
         host, port, protocol = server.split(':')
         auto_connect = False
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
+        self.update()
 
     def server_changed(self, x):
         if x:
