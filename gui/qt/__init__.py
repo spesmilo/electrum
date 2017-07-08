@@ -145,6 +145,7 @@ class ElectrumGui:
             parent.show_warning(_('You are using Electrum in offline mode; restart Electrum if you want to get connected'), title=_('Offline'))
             return
         if self.nd:
+            self.nd.on_update()
             self.nd.show()
             self.nd.raise_()
             return
