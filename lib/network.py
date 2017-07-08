@@ -799,7 +799,7 @@ class Network(util.DaemonThread):
         else:
             interface.request = None
             interface.mode = 'default'
-            interface.print_error('catch up done')
+            interface.print_error('catch up done', interface.blockchain.height())
             interface.blockchain.catch_up = None
         self.notify('updated')
 
@@ -886,13 +886,14 @@ class Network(util.DaemonThread):
                 self.notify('updated')
                 next_height = height + 1 if height < interface.tip else None
             else:
-                next_height = None
+                # go back, reorg
+                next_height = height - 1
 
             if next_height is None:
                 # exit catch_up state
                 interface.request = None
                 interface.mode = 'default'
-                interface.print_error('catch up done', interface.blockchain.catch_up)
+                interface.print_error('catch up done', interface.blockchain.height())
                 interface.blockchain.catch_up = None
 
         elif interface.mode == 'default':
@@ -1002,6 +1003,7 @@ class Network(util.DaemonThread):
                 self.request_header(interface, local_height)
         else:
             if not interface.blockchain.can_connect(header):
+                self.print_error("backward", height)
                 interface.mode = 'backward'
                 interface.bad = height
                 self.request_header(interface, height - 1)
