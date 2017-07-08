@@ -783,7 +783,7 @@ class Network(util.DaemonThread):
         else:
             interface.request = None
             interface.mode = 'default'
-            interface.print_error('catch up done')
+            interface.print_error('catch up done', interface.blockchain.height())
             interface.blockchain.catch_up = None
         self.notify('updated')
 
@@ -851,7 +851,8 @@ class Network(util.DaemonThread):
                 interface.print_error("found connection at %d"% interface.good)
                 delta1 = interface.blockchain.height() - interface.good
                 delta2 = interface.tip - interface.good
-                if delta1 > 10 and delta2 > 10:
+                threshold = self.config.get('fork_threshold', 5)
+                if delta1 > threshold and delta2 > threshold:
                     interface.print_error("chain split detected: %d (%d %d)"% (interface.good, delta1, delta2))
                     interface.blockchain.fork(interface.bad)
                     interface.blockchain = Blockchain(self.config, interface.bad)
@@ -870,13 +871,16 @@ class Network(util.DaemonThread):
                 self.notify('updated')
                 next_height = height + 1 if height < interface.tip else None
             else:
-                next_height = None
+                # go back
+                interface.mode = 'backward'
+                interface.bad = height
+                next_height = height - 1
 
             if next_height is None:
                 # exit catch_up state
                 interface.request = None
                 interface.mode = 'default'
-                interface.print_error('catch up done', interface.blockchain.catch_up)
+                interface.print_error('catch up done', interface.blockchain.height())
                 interface.blockchain.catch_up = None
 
         elif interface.mode == 'default':
@@ -986,6 +990,7 @@ class Network(util.DaemonThread):
                 self.request_header(interface, local_height)
         else:
             if not interface.blockchain.can_connect(header):
+                self.print_error("backward", height)
                 interface.mode = 'backward'
                 interface.bad = height
                 self.request_header(interface, height - 1)

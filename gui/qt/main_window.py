@@ -54,7 +54,6 @@ from electrum_ltc import SimpleConfig, paymentrequest
 from electrum_ltc.wallet import Wallet, Multisig_Wallet
 
 from amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit
-from network_dialog import NetworkDialog
 from qrcodewidget import QRCodeWidget, QRDialog
 from qrtextedit import ShowQRTextEdit
 from transaction_dialog import show_transaction
@@ -479,7 +478,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         # Settings / Preferences are all reserved keywords in OSX using this as work around
         tools_menu.addAction(_("Electrum preferences") if sys.platform == 'darwin' else _("Preferences"), self.settings_dialog)
-        tools_menu.addAction(_("&Network"), self.run_network_dialog)
+        tools_menu.addAction(_("&Network"), self.gui_object.show_network_dialog)
         tools_menu.addAction(_("&Plugins"), self.plugins_dialog)
         tools_menu.addSeparator()
         tools_menu.addAction(_("&Sign/verify message"), self.sign_verify_message)
@@ -1729,7 +1728,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         sb.addPermanentWidget(StatusBarButton(QIcon(":icons/preferences.png"), _("Preferences"), self.settings_dialog ) )
         self.seed_button = StatusBarButton(QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog )
         sb.addPermanentWidget(self.seed_button)
-        self.status_button = StatusBarButton(QIcon(":icons/status_disconnected.png"), _("Network"), self.run_network_dialog )
+        self.status_button = StatusBarButton(QIcon(":icons/status_disconnected.png"), _("Network"), self.gui_object.show_network_dialog)
         sb.addPermanentWidget(self.status_button)
         run_hook('create_status_bar', sb)
         self.setStatusBar(sb)
@@ -2724,14 +2723,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.need_restart:
             self.show_warning(_('Please restart Electrum to activate the new GUI settings'), title=_('Success'))
 
-
-
-
-    def run_network_dialog(self):
-        if not self.network:
-            self.show_warning(_('You are using Electrum in offline mode; restart Electrum if you want to get connected'), title=_('Offline'))
-            return
-        NetworkDialog(self.wallet.network, self.config, self).do_exec()
 
     def closeEvent(self, event):
         # It seems in some rare cases this closeEvent() is called twice

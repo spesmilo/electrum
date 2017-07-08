@@ -37,21 +37,21 @@ from util import *
 protocol_names = ['TCP', 'SSL']
 protocol_letters = 'ts'
 
-class NetworkDialog(WindowModalDialog):
-    def __init__(self, network, config, parent):
-        WindowModalDialog.__init__(self, parent, _('Network'))
+class NetworkDialog(QDialog):
+    def __init__(self, network, config):
+        QDialog.__init__(self)
+        self.setWindowTitle(_('Network'))
         self.setMinimumSize(400, 20)
         self.nlayout = NetworkChoiceLayout(network, config)
         vbox = QVBoxLayout(self)
         vbox.addLayout(self.nlayout.layout())
         vbox.addLayout(Buttons(CloseButton(self)))
-        self.connect(parent, QtCore.SIGNAL('updated'), self.on_update)
 
-    def do_exec(self):
-        result = self.exec_()
-        #if result:
-        #    self.nlayout.accept()
-        return result
+        self.connect(self, QtCore.SIGNAL('updated'), self.on_update)
+        network.register_callback(self.on_network, ['updated'])
+
+    def on_network(self, event, *args):
+        self.emit(QtCore.SIGNAL('updated'), event, *args)
 
     def on_update(self):
         self.nlayout.update()
@@ -74,10 +74,10 @@ class NodesListWidget(QTreeWidget):
         menu = QMenu()
         if is_server:
             server = unicode(item.data(1, Qt.UserRole).toString())
-            menu.addAction(_("Use as server"), lambda: self.parent.network.switch_to_interface(server))
+            menu.addAction(_("Use as server"), lambda: self.parent.follow_server(server))
         else:
             index = item.data(1, Qt.UserRole).toInt()[0]
-            menu.addAction(_("Follow this branch"), lambda: self.parent.network.follow_chain(index))
+            menu.addAction(_("Follow this branch"), lambda: self.parent.follow_branch(index))
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def keyPressEvent(self, event):
@@ -99,7 +99,7 @@ class NodesListWidget(QTreeWidget):
         if n_chains > 1:
             for b in network.blockchains.values():
                 name = network.get_blockchain_name(b)
-                x = QTreeWidgetItem([name, '%d'%checkpoint])
+                x = QTreeWidgetItem([name + '@%d'%checkpoint, '%d'%b.height()])
                 x.setData(0, Qt.UserRole, 1)
                 x.setData(1, Qt.UserRole, b.checkpoint)
                 for i in network.interfaces.values():
@@ -155,8 +155,8 @@ class NetworkChoiceLayout(object):
 
         self.server_host.editingFinished.connect(self.set_server)
         self.server_port.editingFinished.connect(self.set_server)
-        self.ssl_cb.stateChanged.connect(self.change_protocol)
-        self.autoconnect_cb.stateChanged.connect(self.set_server)
+        self.ssl_cb.clicked.connect(self.change_protocol)
+        self.autoconnect_cb.clicked.connect(self.set_server)
         self.autoconnect_cb.clicked.connect(self.enable_set_server)
 
         msg = _("Electrum sends your wallet addresses to a single server, in order to receive your transaction history.")
@@ -282,9 +282,9 @@ class NetworkChoiceLayout(object):
             proxy_config = { "mode":"none", "host":"localhost", "port":"9050"}
         self.server_host.setText(host)
         self.server_port.setText(port)
+        self.ssl_cb.setChecked(protocol=='s')
         self.autoconnect_cb.setChecked(auto_connect)
-        #self.ssl_cb.setChecked(auto_connect)
-        #self.change_server(host, protocol)
+
         self.set_protocol(protocol)
         self.update_servers_list()
         self.enable_set_server()
@@ -296,7 +296,7 @@ class NetworkChoiceLayout(object):
         self.proxy_user.setText(proxy_config.get("user", ""))
         self.proxy_password.setText(proxy_config.get("password", ""))
 
-        height_str = "%d "%(self.network.get_local_height()) + _("blocks")
+        height_str = "%d "%(self.network.get_local_height())
         self.height_label.setText(height_str)
         n = len(self.network.get_interfaces())
         status = _("Connected to %d nodes.")%n if n else _("Not connected")
@@ -304,7 +304,8 @@ class NetworkChoiceLayout(object):
         if len(self.network.blockchains)>1:
             checkpoint = self.network.get_checkpoint()
             name = self.network.get_blockchain_name(self.network.blockchain())
-            msg = _('Chain split detected at block %d')%checkpoint + '\n' + _('You are on branch') + ' ' + name
+            msg = _('Chain split detected at block %d')%checkpoint + '\n'
+            msg += (_('You are following branch') if auto_connect else _('Your server is on branch'))+ ' ' + name
         else:
             msg = ''
         self.split_label.setText(msg)
@@ -336,6 +337,21 @@ class NetworkChoiceLayout(object):
         self.server_port.setText( port )
         self.set_protocol(p)
         self.set_server()
+
+    def follow_branch(self, index):
+        self.network.follow_chain(index)
+        host, port, protocol, proxy, auto_connect = self.network.get_parameters()
+        auto_connect = True
+        self.network.set_parameters(host, port, protocol, proxy, auto_connect)
+        self.update()
+
+    def follow_server(self, server):
+        self.network.switch_to_interface(server)
+        host, port, protocol, proxy, auto_connect = self.network.get_parameters()
+        host, port, protocol = server.split(':')
+        auto_connect = False
+        self.network.set_parameters(host, port, protocol, proxy, auto_connect)
+        self.update()
 
     def server_changed(self, x):
         if x:
