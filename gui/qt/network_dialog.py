@@ -159,22 +159,22 @@ class NetworkChoiceLayout(object):
         self.autoconnect_cb.clicked.connect(self.set_server)
         self.autoconnect_cb.clicked.connect(self.enable_set_server)
 
-        msg = _("Electrum sends your wallet addresses to a single server, in order to receive your transaction history.")
-        grid.addWidget(QLabel(_('Server') + ':'), 0, 0)
-        grid.addWidget(self.server_host, 0, 1, 1, 2)
-        grid.addWidget(self.server_port, 0, 3)
-        grid.addWidget(HelpButton(msg), 0, 4)
         msg = ' '.join([
             _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain."),
             _("If it is disabled, you have to choose a server you want to use. Electrum will warn you if your server is lagging.")
         ])
-        grid.addWidget(self.ssl_cb, 1, 1, 1, 3)
-        grid.addWidget(self.autoconnect_cb, 2, 1, 1, 3)
-        grid.addWidget(HelpButton(msg), 2, 4)
+        grid.addWidget(self.autoconnect_cb, 0, 0, 1, 3)
+        grid.addWidget(HelpButton(msg), 0, 4)
+
+        msg = _("Electrum sends your wallet addresses to a single server, in order to receive your transaction history.")
+        grid.addWidget(QLabel(_('Server') + ':'), 1, 0)
+        grid.addWidget(self.server_host, 1, 1, 1, 2)
+        grid.addWidget(self.server_port, 1, 3)
+        grid.addWidget(HelpButton(msg), 1, 4)
+
         label = _('Active Servers') if network.is_connected() else _('Default Servers')
         self.servers_list_widget = QTreeWidget()
         self.servers_list_widget.setHeaderLabels( [ label, _('Limit') ] )
-        self.servers_list_widget.setMaximumHeight(150)
         self.servers_list_widget.setColumnWidth(0, 240)
         grid.addWidget(self.servers_list_widget, 3, 0, 1, 5)
 
@@ -217,6 +217,7 @@ class NetworkChoiceLayout(object):
         self.tor_cb.hide()
         self.tor_cb.clicked.connect(self.use_tor_proxy)
 
+        grid.addWidget(self.ssl_cb, 0, 0, 1, 3)
         grid.addWidget(self.tor_cb, 1, 0, 1, 3)
         grid.addWidget(self.proxy_mode, 4, 1)
         grid.addWidget(self.proxy_host, 4, 2)
@@ -240,6 +241,7 @@ class NetworkChoiceLayout(object):
         grid.addWidget(QLabel(_("Height") + ':'), 1, 0)
         grid.addWidget(self.height_label, 1, 1)
         grid.addWidget(HelpButton(msg), 1, 4)
+
         self.split_label = QLabel('')
         grid.addWidget(self.split_label, 2, 0, 1, 3)
         self.nodes_list_widget = NodesListWidget(self)
@@ -316,8 +318,11 @@ class NetworkChoiceLayout(object):
 
     def update_servers_list(self):
         self.servers = self.network.get_servers()
+        use_tor = self.tor_cb.isChecked()
         self.servers_list_widget.clear()
         for _host, d in sorted(self.servers.items()):
+            if _host.endswith('.onion') and not use_tor:
+                continue
             if d.get(self.protocol):
                 pruning_level = d.get('pruning','')
                 self.servers_list_widget.addTopLevelItem(QTreeWidgetItem( [ _host, pruning_level ] ))
