@@ -157,7 +157,7 @@ class NetworkChoiceLayout(object):
         self.server_port.editingFinished.connect(self.set_server)
         self.ssl_cb.clicked.connect(self.change_protocol)
         self.autoconnect_cb.clicked.connect(self.set_server)
-        self.autoconnect_cb.clicked.connect(self.enable_set_server)
+        self.autoconnect_cb.clicked.connect(self.update)
 
         msg = ' '.join([
             _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain."),
@@ -345,8 +345,9 @@ class NetworkChoiceLayout(object):
 
     def follow_branch(self, index):
         self.network.follow_chain(index)
+        server = self.network.interface.server
         host, port, protocol, proxy, auto_connect = self.network.get_parameters()
-        auto_connect = True
+        host, port, protocol = server.split(':')
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
         self.update()
 
@@ -354,7 +355,6 @@ class NetworkChoiceLayout(object):
         self.network.switch_to_interface(server)
         host, port, protocol, proxy, auto_connect = self.network.get_parameters()
         host, port, protocol = server.split(':')
-        auto_connect = False
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
         self.update()
 
