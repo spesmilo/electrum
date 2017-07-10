@@ -995,7 +995,7 @@ class Abstract_Wallet(PrintError):
             self.synchronize()
 
     def can_export(self):
-        return not self.is_watching_only()
+        return not self.is_watching_only() and hasattr(self.keystore, 'get_private_key')
 
     def is_used(self, address):
         h = self.history.get(address,[])
