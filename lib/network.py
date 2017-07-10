@@ -1040,6 +1040,13 @@ class Network(util.DaemonThread):
         else:
             raise BaseException('blockchain not found', index)
 
+        if self.interface:
+            server = self.interface.server
+            host, port, protocol, proxy, auto_connect = self.get_parameters()
+            host, port, protocol = server.split(':')
+            self.set_parameters(host, port, protocol, proxy, auto_connect)
+
+
     def get_local_height(self):
         return self.blockchain().height()
 

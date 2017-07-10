@@ -1,72 +1,53 @@
 Popup:
     id: nd
-    title: _('Server')
-    is_connected: app.network.is_connected()
-
+    title: _('Network')
     BoxLayout:
         orientation: 'vertical'
-        padding: '10dp'
-        spacing: '10dp'
-        TopLabel:
-            text: _("Electrum requests your transaction history from a single server. The returned history is then checked against blockchain headers sent by other nodes, using Simple Payment Verification (SPV).")
-            font_size: '6pt'
-        Widget:
-            size_hint: 1, 0.8
-        GridLayout:
-            cols: 3
-            Label:
-                height: '36dp'
-                size_hint_x: 1
-                size_hint_y: None
-                text: _('Host') + ':'
-            TextInput:
-                id: host
-                multiline: False
-                height: '36dp'
-                size_hint_x: 3
-                size_hint_y: None
-                text: ''
-                disabled: auto_connect.active
-            Button:
-                id: chooser
-                text:'v'
-                height: '36dp'
-                size_hint_x: 0.5
-                size_hint_y: None
-                disabled: auto_connect.active
-            Label:
-                height: '36dp'
-                size_hint_x: 1
-                size_hint_y: None
-                text: _('Port') + ':'
-            TextInput:
-                id: port
-                multiline: False
-                input_type: 'number'
-                height: '36dp'
-                size_hint_x: 3
-                size_hint_y: None
-                text: ''
-                disabled: auto_connect.active
-        Widget:
-            size_hint: 1, 0.1
-        TopLabel:
-            text: _("If auto-connect is checked, your history server will be selected automatically.")
-            font_size: '6pt'
-        BoxLayout:
-            Label:
-                text: _('Auto-connect')
-            CheckBox:
-                id: auto_connect
-                size_hint_y: None
-        Widget:
-            size_hint: 1, 0.1
-        BoxLayout:
-            Widget:
-                size_hint: 0.5, None
-            Button:
-                size_hint: 0.5, None
-                height: '48dp'
-                text: _('OK')
-                on_release:
-                    nd.dismiss()
+        ScrollView:
+            GridLayout:
+                id: scrollviewlayout
+                cols:1
+                size_hint: 1, None
+                height: self.minimum_height
+                padding: '10dp'
+                SettingsItem:
+                    value: _("%d connections.")% app.num_nodes if app.num_nodes else _("Not connected")
+                    title: _("Status") + ': ' + self.value
+                    description: _("Connections with Electrum servers")
+                    action: lambda x: x
+
+                CardSeparator
+                SettingsItem:
+                    title: _("Server") + ': ' + app.server_host
+                    description: _("Server used to request your history.")
+                    action: lambda x: app.popup_dialog('server')
+
+                CardSeparator
+                SettingsItem:
+                    title: _("Auto-connect") + ': ' + ('ON' if app.auto_connect else 'OFF')
+                    description: _("Find a server automatically")
+                    action: app.toggle_auto_connect
+
+                CardSeparator
+                SettingsItem:
+                    value: "%d blocks" % app.num_blocks
+                    title: _("Blockchain") + ': ' + self.value
+                    description: _("Verified block headers.")
+                    action: lambda x: x
+
+                CardSeparator
+                SettingsItem:
+                    title: _("Checkpoint") + ': ' + app.blockchain_status()
+                    description: app.blockchain_info()
+                    action: app.choose_blockchain_dialog
+
+                CardSeparator
+                SettingsItem:
+                    proxy: app.proxy_config.get('mode')
+                    host: app.proxy_config.get('host')
+                    port: app.proxy_config.get('port')
+                    title: _("Proxy") + ': ' + ((self.host +':' + self.port) if self.proxy else _('None'))
+                    description: _('Proxy configuration')
+                    action: lambda x: app.popup_dialog('proxy')
+
+
