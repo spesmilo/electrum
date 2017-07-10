@@ -646,7 +646,7 @@ class Commands:
             data = {'address':address, 'status':x.get('result')}
             try:
                 req = urllib2.Request(URL, json.dumps(data), headers)
-                response_stream = urllib2.urlopen(req)
+                response_stream = urllib2.urlopen(req, timeout=5)
                 util.print_error('Got Response for %s' % address)
             except BaseException as e:
                 util.print_error(str(e))

@@ -342,7 +342,8 @@ class NetworkChoiceLayout(object):
         self.ssl_cb.setChecked(protocol=='s')
         self.autoconnect_cb.setChecked(auto_connect)
 
-        self.server_label.setText(self.network.interface.host)
+        host = self.network.interface.host if self.network.interface else _('None')
+        self.server_label.setText(host)
 
         self.set_protocol(protocol)
         self.servers = self.network.get_servers()
