@@ -80,6 +80,7 @@ class ElectrumWindow(App):
     num_nodes = NumericProperty(0)
     server_host = StringProperty('')
     server_port = StringProperty('')
+    blockchain_name = StringProperty('')
 
     auto_connect = BooleanProperty(False)
     def on_auto_connect(self, instance, x):
@@ -593,18 +594,19 @@ class ElectrumWindow(App):
         if len(self.network.blockchains)>1:
             msg = self.network.get_blockchain_name(self.network.blockchain())
         else:
-            msg = _('Genesis block')
+            msg = _('Genesis')
         return msg
 
     def blockchain_info(self):
         if len(self.network.blockchains)>1:
             checkpoint = self.network.get_checkpoint()
-            msg = _('Chain split detected at block %d')%checkpoint
+            msg = _('Fork detected at block %d')%checkpoint
         else:
-            msg = _('No chain split detected')
+            msg = _('The blockchain appears to be one')
         return msg
 
     def on_network(self, event, *args):
+        self.blockchain_name = self.blockchain_status()
         if self.network.interface:
             self.server_host = self.network.interface.host
         if event == 'updated':

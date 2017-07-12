@@ -14,32 +14,13 @@ Popup:
                     value: _("%d connections.")% app.num_nodes if app.num_nodes else _("Not connected")
                     title: _("Status") + ': ' + self.value
                     description: _("Connections with Electrum servers")
-                    action: lambda x: x
+                    action: lambda x: None
 
                 CardSeparator
                 SettingsItem:
                     title: _("Server") + ': ' + app.server_host
-                    description: _("Server used to request your history.")
+                    description: _("Server used to query your history.")
                     action: lambda x: app.popup_dialog('server')
-
-                CardSeparator
-                SettingsItem:
-                    title: _("Auto-connect") + ': ' + ('ON' if app.auto_connect else 'OFF')
-                    description: _("Find a server automatically")
-                    action: app.toggle_auto_connect
-
-                CardSeparator
-                SettingsItem:
-                    value: "%d blocks" % app.num_blocks
-                    title: _("Blockchain") + ': ' + self.value
-                    description: _("Verified block headers.")
-                    action: lambda x: x
-
-                CardSeparator
-                SettingsItem:
-                    title: _("Checkpoint") + ': ' + app.blockchain_status()
-                    description: app.blockchain_info()
-                    action: app.choose_blockchain_dialog
 
                 CardSeparator
                 SettingsItem:
@@ -50,4 +31,24 @@ Popup:
                     description: _('Proxy configuration')
                     action: lambda x: app.popup_dialog('proxy')
 
+                CardSeparator
+                SettingsItem:
+                    title: _("Auto-connect") + ': ' + ('ON' if app.auto_connect else 'OFF')
+                    description: _("Select your server automatically")
+                    action: app.toggle_auto_connect
+
+                CardSeparator
+                SettingsItem:
+                    value: "%d blocks" % app.num_blocks
+                    title: _("Blockchain") + ': ' + self.value
+                    description: _('Verified block headers')
+                    action: lambda x: x
+
+                CardSeparator
+                SettingsItem:
+                    title: app.blockchain_info()
+                    fork_description: (_('You are following branch') if app.auto_connect else _("Your server is on branch")) + ' ' + app.blockchain_name
+                    description: _('Everything is fine') if self.disabled else self.fork_description
+                    action: app.choose_blockchain_dialog
+                    disabled: len(app.network.blockchains) == 1
 
