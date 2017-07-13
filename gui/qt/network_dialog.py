@@ -193,7 +193,7 @@ class NetworkChoiceLayout(object):
         proxy_tab = QWidget()
         blockchain_tab = QWidget()
         tabs.addTab(blockchain_tab, _('Overview'))
-        tabs.addTab(proxy_tab, _('Protocol'))
+        tabs.addTab(proxy_tab, _('Proxy'))
         tabs.addTab(server_tab, _('Server'))
 
         # server tab
