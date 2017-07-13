@@ -205,7 +205,7 @@ class Network(util.DaemonThread):
             config = {}  # Do not use mutables as default values!
         util.DaemonThread.__init__(self)
         self.config = SimpleConfig(config) if type(config) == type({}) else config
-        self.num_server = 18 if not self.config.get('oneserver') else 0
+        self.num_server = 10 if not self.config.get('oneserver') else 0
         self.blockchains = { 0:Blockchain(self.config, 'blockchain_headers', None) }
         for x in os.listdir(self.config.path):
             if x.startswith('blockchain_fork_'):
@@ -215,7 +215,6 @@ class Network(util.DaemonThread):
         self.blockchain_index = config.get('blockchain_index', 0)
         if self.blockchain_index not in self.blockchains.keys():
             self.blockchain_index = 0
-
         # Server for addresses and transactions
         self.default_server = self.config.get('server')
         # Sanitize default server
@@ -512,6 +511,7 @@ class Network(util.DaemonThread):
             if filtered:
                 choice = random.choice(filtered)
                 self.switch_to_interface(choice)
+                self.notify('updated')
 
     def switch_to_interface(self, server):
         '''Switch to server as our interface.  If no connection exists nor
@@ -1004,9 +1004,8 @@ class Network(util.DaemonThread):
                 self.request_header(interface, height - 1)
             else:
                 pass
-        if interface == self.interface:
-            self.switch_lagging_interface()
-            self.notify('updated')
+        self.switch_lagging_interface()
+        self.notify('interfaces')
 
     def blockchain(self):
         if self.interface and self.interface.blockchain is not None:

@@ -46,9 +46,8 @@ class NetworkDialog(QDialog):
         vbox = QVBoxLayout(self)
         vbox.addLayout(self.nlayout.layout())
         vbox.addLayout(Buttons(CloseButton(self)))
-
         self.connect(self, QtCore.SIGNAL('updated'), self.on_update)
-        network.register_callback(self.on_network, ['updated'])
+        network.register_callback(self.on_network, ['updated', 'interfaces'])
 
     def on_network(self, event, *args):
         self.emit(QtCore.SIGNAL('updated'), event, *args)
