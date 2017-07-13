@@ -361,7 +361,7 @@ class BaseWizard(object):
 
     def create_seed(self):
         import mnemonic
-        self.seed_type = 'segwit' if bitcoin.TESTNET and self.config.get('segwit') else 'standard'
+        self.seed_type = 'segwit' if self.config.get('segwit') else 'standard'
         seed = mnemonic.Mnemonic('en').make_seed(self.seed_type)
         self.opt_bip39 = False
         f = lambda x: self.request_passphrase(seed, x)

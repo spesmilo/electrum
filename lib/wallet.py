@@ -1640,11 +1640,9 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
     def pubkeys_to_address(self, pubkey):
         if not self.is_segwit:
             return bitcoin.public_key_to_p2pkh(pubkey.decode('hex'))
-        elif bitcoin.TESTNET:
+        else:
             redeem_script = self.pubkeys_to_redeem_script(pubkey)
             return bitcoin.hash160_to_p2sh(hash_160(redeem_script.decode('hex')))
-        else:
-            raise NotImplementedError()
 
 
 

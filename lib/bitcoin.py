@@ -231,7 +231,7 @@ def seed_type(x):
         return 'old'
     elif is_new_seed(x):
         return 'standard'
-    elif TESTNET and is_new_seed(x, version.SEED_PREFIX_SW):
+    elif is_new_seed(x, version.SEED_PREFIX_SW):
         return 'segwit'
     elif is_new_seed(x, version.SEED_PREFIX_2FA):
         return '2fa'
@@ -775,7 +775,7 @@ def deserialize_xkey(xkey, prv):
     c = xkey[13:13+32]
     header = XPRV_HEADER if prv else XPUB_HEADER
     xtype = int('0x' + xkey[0:4].encode('hex'), 16) - header
-    if xtype not in ([0, 1] if TESTNET else [0]):
+    if xtype not in [0, 1]:
         raise BaseException('Invalid header')
     n = 33 if prv else 32
     K_or_k = xkey[13+n:]
