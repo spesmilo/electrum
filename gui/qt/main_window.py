@@ -137,12 +137,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             tab.tab_pos = len(tabs)
             tab.tab_name = name
             if self.config.get('show_{}_tab'.format(name), False):
-                tabs.addTab(tab, icon, description)
+                tabs.addTab(tab, icon, description.replace("&", ""))
 
-        add_optional_tab(tabs, self.addresses_tab, QIcon(":icons/tab_addresses.png"), _("Addresses"), "addresses")
-        add_optional_tab(tabs, self.utxo_tab, QIcon(":icons/tab_coins.png"), _("Coins"), "utxo")
-        add_optional_tab(tabs, self.contacts_tab, QIcon(":icons/tab_contacts.png"), _("Contacts"), "contacts")
-        add_optional_tab(tabs, self.console_tab, QIcon(":icons/tab_console.png"), _("Console"), "console")
+        add_optional_tab(tabs, self.addresses_tab, QIcon(":icons/tab_addresses.png"), _("&Addresses"), "addresses")
+        add_optional_tab(tabs, self.utxo_tab, QIcon(":icons/tab_coins.png"), _("Co&ins"), "utxo")
+        add_optional_tab(tabs, self.contacts_tab, QIcon(":icons/tab_contacts.png"), _("Con&tacts"), "contacts")
+        add_optional_tab(tabs, self.console_tab, QIcon(":icons/tab_console.png"), _("Con&sole"), "console")
 
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
@@ -226,7 +226,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                         break
                 except AttributeError:
                     pass
-            self.tabs.insertTab(index, tab, tab.tab_icon, tab.tab_description)
+            self.tabs.insertTab(index, tab, tab.tab_icon, tab.tab_description.replace("&", ""))
         else:
             i = self.tabs.indexOf(tab)
             self.tabs.removeTab(i)
