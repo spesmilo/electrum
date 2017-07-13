@@ -205,13 +205,12 @@ class Network(util.DaemonThread):
             config = {}  # Do not use mutables as default values!
         util.DaemonThread.__init__(self)
         self.config = SimpleConfig(config) if type(config) == type({}) else config
-        self.num_server = 8 if not self.config.get('oneserver') else 0
-        self.blockchains = { 0:Blockchain(self.config, 0) }
+        self.num_server = 18 if not self.config.get('oneserver') else 0
+        self.blockchains = { 0:Blockchain(self.config, 'blockchain_headers', None) }
         for x in os.listdir(self.config.path):
             if x.startswith('blockchain_fork_'):
-                n = int(x[16:])
-                b = Blockchain(self.config, n)
-                self.blockchains[n] = b
+                b = Blockchain(self.config, x, None)
+                self.blockchains[b.checkpoint] = b
         self.print_error("blockchains", self.blockchains.keys())
         self.blockchain_index = config.get('blockchain_index', 0)
         if self.blockchain_index not in self.blockchains.keys():
@@ -864,23 +863,16 @@ class Network(util.DaemonThread):
             if interface.bad != interface.good + 1:
                 next_height = (interface.bad + interface.good) // 2
             else:
-                interface.print_error("found connection at %d"% interface.good)
                 delta1 = interface.blockchain.height() - interface.good
                 delta2 = interface.tip - interface.good
-                threshold = self.config.get('fork_threshold', 5)
-                if delta1 > threshold and delta2 > threshold:
-                    interface.print_error("chain split detected: %d (%d %d)"% (interface.good, delta1, delta2))
-                    interface.blockchain.fork(interface.bad)
-                    interface.blockchain = Blockchain(self.config, interface.bad)
-                    self.blockchains[interface.bad] = interface.blockchain
-                if interface.blockchain.catch_up is None:
-                    interface.blockchain.catch_up = interface.server
-                    interface.print_error("catching up")
-                    interface.mode = 'catch_up'
-                    next_height = interface.good
-                else:
-                    # todo: if current catch_up is too slow, queue others
-                    next_height = None
+                interface.print_error("chain split detected at %d"%interface.good, delta1, delta2)
+                interface.blockchain = Blockchain(self.config, False, interface.bad)
+                interface.blockchain.catch_up = interface.server
+                self.blockchains[interface.bad] = interface.blockchain
+                interface.print_error("catching up")
+                interface.mode = 'catch_up'
+                next_height = interface.good
+
         elif interface.mode == 'catch_up':
             if can_connect:
                 interface.blockchain.save_header(header)
