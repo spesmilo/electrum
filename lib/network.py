@@ -819,7 +819,6 @@ class Network(util.DaemonThread):
             if b:
                 interface.mode = 'default'
                 interface.blockchain = b
-                #interface.print_error('passed checkpoint', b.filename)
                 self.queue_request('blockchain.headers.subscribe', [], interface)
             else:
                 interface.print_error("checkpoint failed")
@@ -834,12 +833,13 @@ class Network(util.DaemonThread):
                 interface.print_error("binary search")
                 next_height = (interface.bad + interface.good) // 2
             else:
-                interface.bad = height
-                delta = interface.tip - height
-                next_height = interface.tip - 2 * delta
-                if next_height < 0:
-                    interface.print_error("header didn't connect, dismissing interface")
+                if height == 0:
                     self.connection_down(interface.server)
+                    next_height = None
+                else:
+                    interface.bad = height
+                    delta = interface.tip - height
+                    next_height = max(0, interface.tip - 2 * delta)
         elif interface.mode == 'binary':
             if can_connect:
                 interface.good = height
@@ -1023,6 +1023,13 @@ class Network(util.DaemonThread):
                     break
         else:
             raise BaseException('blockchain not found', index)
+
+        if self.interface:
+            server = self.interface.server
+            host, port, protocol, proxy, auto_connect = self.get_parameters()
+            host, port, protocol = server.split(':')
+            self.set_parameters(host, port, protocol, proxy, auto_connect)
+
 
     def get_local_height(self):
         return self.blockchain().height()

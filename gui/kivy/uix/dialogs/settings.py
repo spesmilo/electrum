@@ -16,35 +16,6 @@ Builder.load_string('''
 #:import partial functools.partial
 #:import _ electrum_ltc_gui.kivy.i18n._
 
-<SettingsItem@ButtonBehavior+BoxLayout>
-    orientation: 'vertical'
-    title: ''
-    description: ''
-    size_hint: 1, None
-    height: '60dp'
-
-    canvas.before:
-        Color:
-            rgba: (0.192, .498, 0.745, 1) if self.state == 'down' else (0.3, 0.3, 0.3, 0)
-        Rectangle:
-            size: self.size
-            pos: self.pos
-    on_release:
-        Clock.schedule_once(self.action)
-
-    Widget
-    TopLabel:
-        id: title
-        text: self.parent.title
-        bold: True
-        halign: 'left'
-    TopLabel:
-        text: self.parent.description
-        color: 0.8, 0.8, 0.8, 1
-        halign: 'left'
-    Widget
-
-
 <SettingsDialog@Popup>
     id: settings
     title: _('Electrum Settings')
@@ -91,40 +62,40 @@ Builder.load_string('''
                     action: partial(root.fx_dialog, self)
                 CardSeparator
                 SettingsItem:
-                    status: root.network_status()
-                    title: _('Server') + ': ' + self.status
-                    description: _("Select your history server.")
-                    action: partial(root.network_dialog, self)
-                CardSeparator
-                SettingsItem:
-                    status: root.proxy_status()
-                    title: _('Proxy') + ': ' + self.status
-                    description: _("Proxy configuration.")
-                    action: partial(root.proxy_dialog, self)
-                CardSeparator
-                SettingsItem:
                     status: 'ON' if bool(app.plugins.get('labels')) else 'OFF'
                     title: _('Labels Sync') + ': ' + self.status
                     description: _("Save and synchronize your labels.")
                     action: partial(root.plugin_dialog, 'labels', self)
                 CardSeparator
                 SettingsItem:
-                    status: root.rbf_status()
+                    status: 'ON' if app.use_rbf else 'OFF'
                     title: _('Replace-by-fee') + ': ' + self.status
                     description: _("Create replaceable transactions.")
-                    action: partial(root.rbf_dialog, self)
+                    message:
+                        _('If you check this box, your transactions will be marked as non-final,') \
+                        + ' ' + _('and you will have the possiblity, while they are unconfirmed, to replace them with transactions that pays higher fees.') \
+                        + ' ' + _('Note that some merchants do not accept non-final transactions until they are confirmed.')
+                    action: partial(root.boolean_dialog, 'use_rbf', _('Replace by fee'), self.message)
+                CardSeparator
+                SettingsItem:
+                    status: _('Yes') if app.use_unconfirmed else _('No')
+                    title: _('Spend unconfirmed') + ': ' + self.status
+                    description: _("Use unconfirmed coins in transactions.")
+                    message: _('Spend unconfirmed coins')
+                    action: partial(root.boolean_dialog, 'use_unconfirmed', _('Use unconfirmed'), self.message)
+                CardSeparator
+                SettingsItem:
+                    status: _('Yes') if app.use_change else _('No')
+                    title: _('Use change addresses') + ': ' + self.status
+                    description: _("Send your change to separate addresses.")
+                    message: _('Send excess coins to change addresses')
+                    action: partial(root.boolean_dialog, 'use_change', _('Use change addresses'), self.message)
                 CardSeparator
                 SettingsItem:
                     status: root.coinselect_status()
                     title: _('Coin selection') + ': ' + self.status
                     description: "Coin selection method"
                     action: partial(root.coinselect_dialog, self)
-                CardSeparator
-                SettingsItem:
-                    status: "%d blocks"% app.num_blocks
-                    title: _('Blockchain') + ': ' + self.status
-                    description: _("Blockchain status")
-                    action: partial(root.blockchain_dialog, self)
 ''')
 
 
@@ -141,13 +112,10 @@ class SettingsDialog(Factory.Popup):
         # cached dialogs
         self._fx_dialog = None
         self._fee_dialog = None
-        self._rbf_dialog = None
-        self._network_dialog = None
         self._proxy_dialog = None
         self._language_dialog = None
         self._unit_dialog = None
         self._coinselect_dialog = None
-        self._blockchain_dialog = None
 
     def update(self):
         self.wallet = self.app.wallet
@@ -191,15 +159,6 @@ class SettingsDialog(Factory.Popup):
             self._coinselect_dialog = ChoiceDialog(_('Coin selection'), choosers, chooser_name, cb)
         self._coinselect_dialog.open()
 
-    def blockchain_dialog(self, item, dt):
-        from blockchain_dialog import BlockchainDialog
-        if self._blockchain_dialog is None:
-            def callback(height, value):
-                if value:
-                    self.app.network.blockchain.set_checkpoint(height, value)
-            self._blockchain_dialog = BlockchainDialog(self.app.network, callback)
-        self._blockchain_dialog.open()
-
     def proxy_status(self):
         server, port, protocol, proxy, auto_connect = self.app.network.get_parameters()
         return proxy.get('host') +':' + proxy.get('port') if proxy else _('None')
@@ -230,44 +189,11 @@ class SettingsDialog(Factory.Popup):
             self._proxy_dialog = popup
         self._proxy_dialog.open()
 
-    def network_dialog(self, item, dt):
-        host, port, protocol, proxy, auto_connect = self.app.network.get_parameters()
-        servers = self.app.network.get_servers()
-        if self._network_dialog is None:
-            def cb1(popup):
-                host = str(popup.ids.host.text)
-                port = str(popup.ids.port.text)
-                auto_connect = popup.ids.auto_connect.active
-                self.app.network.set_parameters(host, port, protocol, proxy, auto_connect)
-                item.status = self.network_status()
-            def cb2(host):
-                from electrum.network import DEFAULT_PORTS
-                pp = servers.get(host, DEFAULT_PORTS)
-                port = pp.get(protocol, '')
-                popup.ids.host.text = host
-                popup.ids.port.text = port
-            def cb3():
-                ChoiceDialog(_('Choose a server'), sorted(servers), popup.ids.host.text, cb2).open()
-            popup = Builder.load_file('gui/kivy/uix/ui_screens/network.kv')
-            popup.ids.chooser.on_release = cb3
-            popup.on_dismiss = lambda: cb1(popup)
-            self._network_dialog = popup
-
-        self._network_dialog.ids.auto_connect.active = auto_connect
-        self._network_dialog.ids.host.text = host
-        self._network_dialog.ids.port.text = port
-        self._network_dialog.open()
-
-    def network_status(self):
-        server, port, protocol, proxy, auto_connect = self.app.network.get_parameters()
-        return 'auto-connect' if auto_connect else server
-
     def plugin_dialog(self, name, label, dt):
         from checkbox_dialog import CheckBoxDialog
         def callback(status):
             self.plugins.enable(name) if status else self.plugins.disable(name)
             label.status = 'ON' if status else 'OFF'
-
         status = bool(self.plugins.get(name))
         dd = self.plugins.descriptions.get(name)
         descr = dd.get('description')
@@ -289,21 +215,9 @@ class SettingsDialog(Factory.Popup):
             self._fee_dialog = FeeDialog(self.app, self.config, cb)
         self._fee_dialog.open()
 
-    def rbf_status(self):
-        return 'ON' if self.config.get('use_rbf') else 'OFF'
-
-    def rbf_dialog(self, label, dt):
-        if self._rbf_dialog is None:
-            from checkbox_dialog import CheckBoxDialog
-            def cb(x):
-                self.config.set_key('use_rbf', x, True)
-                label.status = self.rbf_status()
-            msg = [_('If you check this box, your transactions will be marked as non-final,'),
-                   _('and you will have the possiblity, while they are unconfirmed, to replace them with transactions that pays higher fees.'),
-                   _('Note that some merchants do not accept non-final transactions until they are confirmed.')]
-            fullname = _('Replace by fee')
-            self._rbf_dialog = CheckBoxDialog(fullname, ' '.join(msg), self.config.get('use_rbf', False), cb)
-        self._rbf_dialog.open()
+    def boolean_dialog(self, name, title, message, dt):
+        from checkbox_dialog import CheckBoxDialog
+        CheckBoxDialog(title, message, getattr(self.app, name), lambda x: setattr(self.app, name, x)).open()
 
     def fx_status(self):
         fx = self.app.fx

@@ -193,7 +193,7 @@ class NetworkChoiceLayout(object):
         proxy_tab = QWidget()
         blockchain_tab = QWidget()
         tabs.addTab(blockchain_tab, _('Overview'))
-        tabs.addTab(proxy_tab, _('Protocol'))
+        tabs.addTab(proxy_tab, _('Proxy'))
         tabs.addTab(server_tab, _('Server'))
 
         # server tab
@@ -393,10 +393,6 @@ class NetworkChoiceLayout(object):
 
     def follow_branch(self, index):
         self.network.follow_chain(index)
-        server = self.network.interface.server
-        host, port, protocol, proxy, auto_connect = self.network.get_parameters()
-        host, port, protocol = server.split(':')
-        self.network.set_parameters(host, port, protocol, proxy, auto_connect)
         self.update()
 
     def follow_server(self, server):

@@ -293,6 +293,34 @@
             size: self.width - sp(4), self.height - sp(4)
 
 
+<SettingsItem@ButtonBehavior+BoxLayout>
+    orientation: 'vertical'
+    title: ''
+    description: ''
+    size_hint: 1, None
+    height: '60dp'
+    canvas.before:
+        Color:
+            rgba: (0.192, .498, 0.745, 1) if self.state == 'down' else (0.3, 0.3, 0.3, 0)
+        Rectangle:
+            size: self.size
+            pos: self.pos
+    on_release:
+        Clock.schedule_once(self.action)
+    Widget
+    TopLabel:
+        id: title
+        text: self.parent.title
+        bold: True
+        halign: 'left'
+    TopLabel:
+        text: self.parent.description
+        color: 0.8, 0.8, 0.8, 1
+        halign: 'left'
+    Widget
+
+
+
 
 <ScreenTabs@Screen>
     TabbedCarousel:
@@ -365,7 +393,7 @@ BoxLayout:
                 app_icon_width: '100dp'
                 with_previous: False
                 size_hint_x: None
-                on_release: app.popup_dialog('status')
+                on_release: app.popup_dialog('network')
 
             ActionButton:
                 id: action_status
@@ -386,6 +414,9 @@ BoxLayout:
                 ActionOvrButton:
                     name: 'wallets'
                     text: _('Wallets')
+                ActionOvrButton:
+                    name: 'network'
+                    text: _('Network')
                 ActionOvrButton:
                     name: 'settings'
                     text: _('Settings')

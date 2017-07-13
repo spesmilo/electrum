@@ -127,17 +127,23 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.utxo_tab = self.create_utxo_tab()
         self.console_tab = self.create_console_tab()
         self.contacts_tab = self.create_contacts_tab()
-        tabs.addTab(self.create_history_tab(), _('History') )
-        tabs.addTab(self.send_tab, _('Send') )
-        tabs.addTab(self.receive_tab, _('Receive') )
-        if self.config.get('show_addresses_tab', False):
-            tabs.addTab(self.addresses_tab, _('Addresses'))
-        if self.config.get('show_utxo_tab', False):
-            tabs.addTab(self.utxo_tab, _('Coins'))
-        if self.config.get('show_contacts_tab', False):
-            tabs.addTab(self.contacts_tab, _('Contacts') )
-        if self.config.get('show_console_tab', False):
-            tabs.addTab(self.console_tab, _('Console') )
+        tabs.addTab(self.create_history_tab(), QIcon(":icons/tab_history.png"), _('History'))
+        tabs.addTab(self.send_tab, QIcon(":icons/tab_send.png"), _('Send'))
+        tabs.addTab(self.receive_tab, QIcon(":icons/tab_receive.png"), _('Receive'))
+
+        def add_optional_tab(tabs, tab, icon, description, name):
+            tab.tab_icon = icon
+            tab.tab_description = description
+            tab.tab_pos = len(tabs)
+            tab.tab_name = name
+            if self.config.get('show_{}_tab'.format(name), False):
+                tabs.addTab(tab, icon, description.replace("&", ""))
+
+        add_optional_tab(tabs, self.addresses_tab, QIcon(":icons/tab_addresses.png"), _("&Addresses"), "addresses")
+        add_optional_tab(tabs, self.utxo_tab, QIcon(":icons/tab_coins.png"), _("Co&ins"), "utxo")
+        add_optional_tab(tabs, self.contacts_tab, QIcon(":icons/tab_contacts.png"), _("Con&tacts"), "contacts")
+        add_optional_tab(tabs, self.console_tab, QIcon(":icons/tab_console.png"), _("Con&sole"), "console")
+
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
 
@@ -206,9 +212,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.history_list.update()
 
     def toggle_tab(self, tab):
-        show = not self.config.get('show_{}_tab'.format(tab.name), False)
-        self.config.set_key('show_{}_tab'.format(tab.name), show)
-        item_text = (_("Hide") if show else _("Show")) + " " + tab.description
+        show = not self.config.get('show_{}_tab'.format(tab.tab_name), False)
+        self.config.set_key('show_{}_tab'.format(tab.tab_name), show)
+        item_text = (_("Hide") if show else _("Show")) + " " + tab.tab_description
         tab.menu_action.setText(item_text)
         if show:
             # Find out where to place the tab
@@ -220,7 +226,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                         break
                 except AttributeError:
                     pass
-            self.tabs.insertTab(index, tab, tab.description)
+            self.tabs.insertTab(index, tab, tab.tab_icon, tab.tab_description.replace("&", ""))
         else:
             i = self.tabs.indexOf(tab)
             self.tabs.removeTab(i)
@@ -460,19 +466,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         wallet_menu.addSeparator()
         wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
 
-        def add_toggle_action(view_menu, target_tab, tab_description, tab_name, tab_pos):
-            is_shown = self.config.get('show_{}_tab'.format(tab_name), False)
-            item_name = (_("Hide") if is_shown else _("Show")) + " " + tab_description
-            target_tab.name = tab_name
-            target_tab.description = tab_description
-            target_tab.tab_pos = tab_pos
-            target_tab.menu_action = view_menu.addAction(item_name, lambda: self.toggle_tab(target_tab))
+        def add_toggle_action(view_menu, tab):
+            is_shown = self.config.get('show_{}_tab'.format(tab.tab_name), False)
+            item_name = (_("Hide") if is_shown else _("Show")) + " " + tab.tab_description
+            tab.menu_action = view_menu.addAction(item_name, lambda: self.toggle_tab(tab))
 
         view_menu = menubar.addMenu(_("&View"))
-        add_toggle_action(view_menu, self.addresses_tab, "Addresses", "addresses", 1)
-        add_toggle_action(view_menu, self.utxo_tab, "Coins", "utxo", 2)
-        add_toggle_action(view_menu, self.contacts_tab, "Contacts", "contacts", 3)
-        add_toggle_action(view_menu, self.console_tab, "Console", "console", 4)
+        add_toggle_action(view_menu, self.addresses_tab)
+        add_toggle_action(view_menu, self.utxo_tab)
+        add_toggle_action(view_menu, self.contacts_tab)
+        add_toggle_action(view_menu, self.console_tab)
 
         tools_menu = menubar.addMenu(_("&Tools"))
 
@@ -516,7 +519,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def show_about(self):
         QMessageBox.about(self, "Electrum-LTC",
-            _("Version")+" %s" % (self.wallet.electrum_version) + "\n\n" + _("Electrum's focus is speed, with low resource usage and simplifying Litecoin. You do not need to perform regular backups, because your wallet can be recovered from a secret phrase that you can memorize or write on paper. Startup times are instant because it operates in conjunction with high-performance servers that handle the most complicated parts of the Litecoin system."))
+            _("Version")+" %s" % (self.wallet.electrum_version) + "\n\n" +
+                _("Electrum's focus is speed, with low resource usage and simplifying Litecoin. You do not need to perform regular backups, because your wallet can be recovered from a secret phrase that you can memorize or write on paper. Startup times are instant because it operates in conjunction with high-performance servers that handle the most complicated parts of the Litecoin system."  + "\n\n" +
+                _("Uses icons from the Icons8 icon pack (icons8.com).")))
 
     def show_report_bug(self):
         msg = ' '.join([

@@ -73,10 +73,56 @@ from electrum_ltc.util import base_units
 class ElectrumWindow(App):
 
     electrum_config = ObjectProperty(None)
-
     language = StringProperty('en')
+
+    # properties might be updated by the network
     num_blocks = NumericProperty(0)
     num_nodes = NumericProperty(0)
+    server_host = StringProperty('')
+    server_port = StringProperty('')
+    blockchain_name = StringProperty('')
+
+    auto_connect = BooleanProperty(False)
+    def on_auto_connect(self, instance, x):
+        host, port, protocol, proxy, auto_connect = self.network.get_parameters()
+        self.network.set_parameters(host, port, protocol, proxy, self.auto_connect)
+    def toggle_auto_connect(self, x):
+        self.auto_connect = not self.auto_connect
+
+    def choose_server_dialog(self, popup):
+        from uix.dialogs.choice_dialog import ChoiceDialog
+        protocol = 's'
+        def cb2(host):
+            from electrum_ltc.network import DEFAULT_PORTS
+            pp = servers.get(host, DEFAULT_PORTS)
+            port = pp.get(protocol, '')
+            popup.ids.host.text = host
+            popup.ids.port.text = port
+        servers = self.network.get_servers()
+        ChoiceDialog(_('Choose a server'), sorted(servers), popup.ids.host.text, cb2).open()
+
+    def choose_blockchain_dialog(self, dt):
+        from uix.dialogs.choice_dialog import ChoiceDialog
+        def cb(name):
+            for index, b in self.network.blockchains.items():
+                if name == self.network.get_blockchain_name(b):
+                    self.network.follow_chain(index)
+                    #self.block
+        names = [self.network.get_blockchain_name(b) for b in self.network.blockchains.values()]
+        if len(names) >1:
+            ChoiceDialog(_('Choose your chain'), names, '', cb).open()
+
+    use_rbf = BooleanProperty(False)
+    def on_use_rbf(self, instance, x):
+        self.electrum_config.set_key('use_rbf', self.use_rbf, True)
+
+    use_change = BooleanProperty(False)
+    def on_use_change(self, instance, x):
+        self.electrum_config.set_key('use_change', self.use_change, True)
+
+    use_unconfirmed = BooleanProperty(False)
+    def on_use_unconfirmed(self, instance, x):
+        self.electrum_config.set_key('confirmed_only', not self.use_unconfirmed, True)
 
     def set_URI(self, uri):
         self.switch_to('send')
@@ -195,12 +241,25 @@ class ElectrumWindow(App):
         title = _('Electrum-LTC App')
         self.electrum_config = config = kwargs.get('config', None)
         self.language = config.get('language', 'en')
-        self.network = network = kwargs.get('network', None)
-        self.plugins = kwargs.get('plugins', [])
 
+        self.network = network = kwargs.get('network', None)
+        if self.network:
+            self.num_blocks = self.network.get_local_height()
+            self.num_nodes = len(self.network.get_interfaces())
+            host, port, protocol, proxy_config, auto_connect = self.network.get_parameters()
+            self.server_host = host
+            self.server_port = port
+            self.auto_connect = auto_connect
+            self.proxy_config = proxy_config if proxy_config else {}
+
+        self.plugins = kwargs.get('plugins', [])
         self.gui_object = kwargs.get('gui_object', None)
         self.daemon = self.gui_object.daemon
         self.fx = self.daemon.fx
+
+        self.use_rbf = config.get('use_rbf', False)
+        self.use_change = config.get('use_change', True)
+        self.use_unconfirmed = not config.get('confirmed_only', True)
 
         # create triggers so as to minimize updation a max of 2 times a sec
         self._trigger_update_wallet = Clock.create_trigger(self.update_wallet, .5)
@@ -529,14 +588,32 @@ class ElectrumWindow(App):
         if self.network:
             interests = ['updated', 'status', 'new_transaction', 'verified']
             self.network.register_callback(self.on_network, interests)
-
         self.tabs = self.root.ids['tabs']
 
+    def blockchain_status(self):
+        if len(self.network.blockchains)>1:
+            msg = self.network.get_blockchain_name(self.network.blockchain())
+        else:
+            msg = _('Genesis')
+        return msg
+
+    def blockchain_info(self):
+        if len(self.network.blockchains)>1:
+            checkpoint = self.network.get_checkpoint()
+            msg = _('Fork detected at block %d')%checkpoint
+        else:
+            msg = _('The blockchain appears to be one')
+        return msg
+
     def on_network(self, event, *args):
+        self.blockchain_name = self.blockchain_status()
+        if self.network.interface:
+            self.server_host = self.network.interface.host
         if event == 'updated':
             self.num_blocks = self.network.get_local_height()
             self.num_nodes = len(self.network.get_interfaces())
             self._trigger_update_wallet()
+            self._trigger_update_status()
         elif event == 'status':
             self._trigger_update_status()
         elif event == 'new_transaction':
@@ -573,9 +650,11 @@ class ElectrumWindow(App):
                 text = self.format_amount(c+x+u)
                 status = str(text.strip() + ' ' + self.base_unit)
         else:
-            status = _("Not connected")
+            status = _("Disconnected")
+
         n = self.wallet.basename()
         self.status = '[size=15dp]%s[/size]\n%s' %(n, status)
+        #fiat_balance = self.fx.format_amount_and_units(c+u+x) or ''
 
     def get_max_amount(self):
         inputs = self.wallet.get_spendable_coins(None, self.electrum_config)
