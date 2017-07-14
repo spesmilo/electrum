@@ -352,7 +352,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def watching_only_changed(self):
         title = 'Electrum %s  -  %s' % (self.wallet.electrum_version,
-                                        self.wallet.basename())
+                                        self.wallet.basename().decode('utf8'))
         extra = [self.wallet.storage.get('wallet_type', '?')]
         if self.wallet.is_watching_only():
             self.warn_if_watching_only()
@@ -397,7 +397,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.show_critical(_("Electrum was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
 
     def update_recently_visited(self, filename):
+        filename = filename.decode('utf8')
         recent = self.config.get('recently_open', [])
+        try:
+            sorted(recent)
+        except:
+            recent = []
         if filename in recent:
             recent.remove(filename)
         recent.insert(0, filename)
@@ -407,7 +412,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         for i, k in enumerate(sorted(recent)):
             b = os.path.basename(k)
             def loader(k):
-                return lambda: self.gui_object.new_window(k)
+                return lambda: self.gui_object.new_window(k.encode('utf8'))
             self.recently_visited_menu.addAction(b, loader(k)).setShortcut(QKeySequence("Ctrl+%d"%(i+1)))
         self.recently_visited_menu.setEnabled(len(recent))
 
@@ -693,7 +698,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             text = _("Not connected")
             icon = QIcon(":icons/status_disconnected.png")
 
-        self.tray.setToolTip("%s (%s)" % (text, self.wallet.basename()))
+        self.tray.setToolTip("%s (%s)" % (text, self.wallet.basename().decode('utf8')))
         self.balance_label.setText(text)
         self.status_button.setIcon( icon )
 
