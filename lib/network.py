@@ -840,7 +840,7 @@ class Network(util.DaemonThread):
                 self.connection_down(interface.server)
             interface.request = None
             return
-        can_connect = self.can_connect(header)
+        can_connect = interface.blockchain.can_connect(header)
         if interface.mode == 'backward':
             if can_connect:
                 interface.good = height
@@ -863,23 +863,21 @@ class Network(util.DaemonThread):
             if interface.bad != interface.good + 1:
                 next_height = (interface.bad + interface.good) // 2
             else:
-                delta1 = interface.blockchain.height() - interface.good
-                delta2 = interface.tip - interface.good
-                interface.print_error("chain split detected at %d"%interface.good, delta1, delta2)
-                interface.blockchain = Blockchain(self.config, False, interface.bad)
+                interface.print_error("can connect at %d"% interface.good)
+                interface.blockchain = Blockchain(self.config, interface.blockchain.filename, interface.good)
                 interface.blockchain.catch_up = interface.server
-                self.blockchains[interface.bad] = interface.blockchain
-                interface.print_error("catching up")
+                self.blockchains[interface.good] = interface.blockchain
+                interface.print_error("catching up with new chain")
                 interface.mode = 'catch_up'
                 next_height = interface.good
 
         elif interface.mode == 'catch_up':
             if can_connect:
                 interface.blockchain.save_header(header)
-                self.notify('updated')
                 next_height = height + 1 if height < interface.tip else None
             else:
                 # go back
+                interface.print_error("cannot connect", height)
                 interface.mode = 'backward'
                 interface.bad = height
                 next_height = height - 1
@@ -890,6 +888,7 @@ class Network(util.DaemonThread):
                 interface.mode = 'default'
                 interface.print_error('catch up done', interface.blockchain.height())
                 interface.blockchain.catch_up = None
+                self.notify('updated')
 
         elif interface.mode == 'default':
             assert not can_connect

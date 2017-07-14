@@ -147,7 +147,7 @@ class Blockchain(util.PrintError):
     def save_header(self, header):
         height = header.get('block_height')
         if not self.is_saved:
-            assert height == self.checkpoint + len(self.headers) + 1
+            assert height == self.checkpoint + len(self.headers)
             self.headers.append(header)
             if len(self.headers) > 10:
                 self.fork_and_save()
