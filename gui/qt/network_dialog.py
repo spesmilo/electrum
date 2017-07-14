@@ -98,19 +98,20 @@ class NodesListWidget(QTreeWidget):
         n_chains = len(network.blockchains)
         if n_chains > 1:
             for b in network.blockchains.values():
-                name = network.get_blockchain_name(b)
-                x = QTreeWidgetItem([name + '@%d'%checkpoint, '%d'%b.height()])
-                x.setData(0, Qt.UserRole, 1)
-                x.setData(1, Qt.UserRole, b.checkpoint)
-                for i in network.interfaces.values():
-                    if i.blockchain == b:
+                items = filter(lambda i: i.blockchain==b, network.interfaces.values())
+                if items:
+                    name = network.get_blockchain_name(b)
+                    x = QTreeWidgetItem([name + '@%d'%checkpoint, '%d'%b.height()])
+                    x.setData(0, Qt.UserRole, 1)
+                    x.setData(1, Qt.UserRole, b.checkpoint)
+                    for i in items:
                         star = ' *' if i == network.interface else ''
                         item = QTreeWidgetItem([i.host + star, '%d'%i.tip])
                         item.setData(0, Qt.UserRole, 0)
                         item.setData(1, Qt.UserRole, i.server)
                         x.addChild(item)
-                self.addTopLevelItem(x)
-                x.setExpanded(True)
+                    self.addTopLevelItem(x)
+                    x.setExpanded(True)
         else:
             for i in network.interfaces.values():
                 star = ' *' if i == network.interface else ''
