@@ -71,16 +71,24 @@ def pow_hash_header(self, header):
 
 
 class Blockchain(util.PrintError):
+
     '''Manages blockchain headers and their verification'''
-    def __init__(self, config, checkpoint):
+
+    def __init__(self, config, filename, fork_point):
         self.config = config
-        self.checkpoint = checkpoint
-        self.filename = 'blockchain_headers' if checkpoint == 0 else 'blockchain_fork_%d'%checkpoint
-        self.set_local_height()
+        self.filename = filename
         self.catch_up = None # interface catching up
+        if fork_point is None:
+            self.is_saved = True
+            self.checkpoint = int(filename[16:]) if filename.startswith('blockchain_fork_') else 0
+        else:
+            self.is_saved = False
+            self.checkpoint = fork_point
+        self.headers = []
+        self.set_local_height()
 
     def height(self):
-        return self.local_height
+        return self.local_height + len(self.headers)
 
     def verify_header(self, header, prev_header, bits, target):
         prev_hash = hash_header(prev_header)
@@ -88,10 +96,6 @@ class Blockchain(util.PrintError):
         _powhash = pow_hash_header(header)
         if prev_hash != header.get('prev_block_hash'):
             raise BaseException("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
-        #if not self.pass_checkpoint(header):
-        #    raise BaseException('failed checkpoint')
-        #if self.checkpoint_height == header.get('block_height'):
-        #    self.print_error("validated checkpoint", self.checkpoint_height)
         if bitcoin.TESTNET:
             return
         if bits != header.get('bits'):
@@ -125,24 +129,50 @@ class Blockchain(util.PrintError):
         return os.path.join(d, self.filename)
 
     def save_chunk(self, index, chunk):
+        if not self.is_saved:
+            self.fork_and_save()
         filename = self.path()
-        f = open(filename, 'rb+')
-        f.seek(index * 2016 * 80)
-        f.truncate()
-        h = f.write(chunk)
-        f.close()
+        with open(filename, 'rb+') as f:
+            f.seek(index * 2016 * 80)
+            f.truncate()
+            h = f.write(chunk)
         self.set_local_height()
 
+    def fork_and_save(self):
+        import shutil
+        self.print_error("save fork")
+        height = self.checkpoint
+        filename = "blockchain_fork_%d"%height
+        new_path = os.path.join(util.get_headers_dir(self.config), filename)
+        shutil.copy(self.path(), new_path)
+        with open(new_path, 'rb+') as f:
+            f.seek((height) * 80)
+            f.truncate()
+        self.filename = filename
+        self.is_saved = True
+        for h in self.headers:
+            self.write_header(h)
+        self.headers = []
+
     def save_header(self, header):
+        height = header.get('block_height')
+        if not self.is_saved:
+            assert height == self.checkpoint + len(self.headers)
+            self.headers.append(header)
+            if len(self.headers) > 10:
+                self.fork_and_save()
+            return
+        self.write_header(header)
+
+    def write_header(self, header):
+        height = header.get('block_height')
         data = serialize_header(header).decode('hex')
         assert len(data) == 80
-        height = header.get('block_height')
         filename = self.path()
-        f = open(filename, 'rb+')
-        f.seek(height * 80)
-        f.truncate()
-        h = f.write(data)
-        f.close()
+        with open(filename, 'rb+') as f:
+            f.seek(height * 80)
+            f.truncate()
+            h = f.write(data)
         self.set_local_height()
 
     def set_local_height(self):
@@ -153,15 +183,22 @@ class Blockchain(util.PrintError):
             if self.local_height != h:
                 self.local_height = h
 
-    def read_header(self, block_height):
+    def read_header(self, height):
+        if not self.is_saved and height >= self.checkpoint:
+            i = height - self.checkpoint
+            if i >= len(self.headers):
+                return None
+            header = self.headers[i]
+            assert header.get('block_height') == height
+            return header
         name = self.path()
         if os.path.exists(name):
             f = open(name, 'rb')
-            f.seek(block_height * 80)
+            f.seek(height * 80)
             h = f.read(80)
             f.close()
             if len(h) == 80:
-                h = deserialize_header(h, block_height)
+                h = deserialize_header(h, height)
                 return h
 
     def get_hash(self, height):
@@ -182,17 +219,6 @@ class Blockchain(util.PrintError):
         f.seek(height * 80)
         f.truncate()
         f.close()
-
-    def fork(self, height):
-        import shutil
-        filename = "blockchain_fork_%d"%height
-        new_path = os.path.join(util.get_headers_dir(self.config), filename)
-        shutil.copy(self.path(), new_path)
-        with open(new_path, 'rb+') as f:
-            f.seek((height) * 80)
-            f.truncate()
-            f.close()
-        return filename
 
     def get_target(self, index, chain=None):
         if bitcoin.TESTNET:

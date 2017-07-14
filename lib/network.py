@@ -189,18 +189,16 @@ class Network(util.DaemonThread):
             config = {}  # Do not use mutables as default values!
         util.DaemonThread.__init__(self)
         self.config = SimpleConfig(config) if type(config) == type({}) else config
-        self.num_server = 8 if not self.config.get('oneserver') else 0
-        self.blockchains = { 0:Blockchain(self.config, 0) }
+        self.num_server = 10 if not self.config.get('oneserver') else 0
+        self.blockchains = { 0:Blockchain(self.config, 'blockchain_headers', None) }
         for x in os.listdir(self.config.path):
             if x.startswith('blockchain_fork_'):
-                n = int(x[16:])
-                b = Blockchain(self.config, n)
-                self.blockchains[n] = b
+                b = Blockchain(self.config, x, None)
+                self.blockchains[b.checkpoint] = b
         self.print_error("blockchains", self.blockchains.keys())
         self.blockchain_index = config.get('blockchain_index', 0)
         if self.blockchain_index not in self.blockchains.keys():
             self.blockchain_index = 0
-
         # Server for addresses and transactions
         self.default_server = self.config.get('server')
         # Sanitize default server
@@ -497,6 +495,7 @@ class Network(util.DaemonThread):
             if filtered:
                 choice = random.choice(filtered)
                 self.switch_to_interface(choice)
+                self.notify('updated')
 
     def switch_to_interface(self, server):
         '''Switch to server as our interface.  If no connection exists nor
@@ -825,7 +824,7 @@ class Network(util.DaemonThread):
                 self.connection_down(interface.server)
             interface.request = None
             return
-        can_connect = self.can_connect(header)
+        can_connect = interface.blockchain.can_connect(header)
         if interface.mode == 'backward':
             if can_connect:
                 interface.good = height
@@ -848,30 +847,21 @@ class Network(util.DaemonThread):
             if interface.bad != interface.good + 1:
                 next_height = (interface.bad + interface.good) // 2
             else:
-                interface.print_error("found connection at %d"% interface.good)
-                delta1 = interface.blockchain.height() - interface.good
-                delta2 = interface.tip - interface.good
-                threshold = self.config.get('fork_threshold', 5)
-                if delta1 > threshold and delta2 > threshold:
-                    interface.print_error("chain split detected: %d (%d %d)"% (interface.good, delta1, delta2))
-                    interface.blockchain.fork(interface.bad)
-                    interface.blockchain = Blockchain(self.config, interface.bad)
-                    self.blockchains[interface.bad] = interface.blockchain
-                if interface.blockchain.catch_up is None:
-                    interface.blockchain.catch_up = interface.server
-                    interface.print_error("catching up")
-                    interface.mode = 'catch_up'
-                    next_height = interface.good
-                else:
-                    # todo: if current catch_up is too slow, queue others
-                    next_height = None
+                interface.print_error("can connect at %d"% interface.good)
+                interface.blockchain = Blockchain(self.config, interface.blockchain.filename, interface.good)
+                interface.blockchain.catch_up = interface.server
+                self.blockchains[interface.good] = interface.blockchain
+                interface.print_error("catching up with new chain")
+                interface.mode = 'catch_up'
+                next_height = interface.good
+
         elif interface.mode == 'catch_up':
             if can_connect:
                 interface.blockchain.save_header(header)
-                self.notify('updated')
                 next_height = height + 1 if height < interface.tip else None
             else:
                 # go back
+                interface.print_error("cannot connect", height)
                 interface.mode = 'backward'
                 interface.bad = height
                 next_height = height - 1
@@ -882,6 +872,7 @@ class Network(util.DaemonThread):
                 interface.mode = 'default'
                 interface.print_error('catch up done', interface.blockchain.height())
                 interface.blockchain.catch_up = None
+                self.notify('updated')
 
         elif interface.mode == 'default':
             assert not can_connect
@@ -996,9 +987,8 @@ class Network(util.DaemonThread):
                 self.request_header(interface, height - 1)
             else:
                 pass
-        if interface == self.interface:
-            self.switch_lagging_interface()
-            self.notify('updated')
+        self.switch_lagging_interface()
+        self.notify('interfaces')
 
     def blockchain(self):
         if self.interface and self.interface.blockchain is not None:
