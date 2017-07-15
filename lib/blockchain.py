@@ -79,7 +79,9 @@ class Blockchain(util.PrintError):
         self.set_local_height()
 
     def height(self):
-        return self.local_height + len(self.headers)
+        if self.headers:
+            return self.checkpoint + len(self.headers) - 1
+        return self.local_height
 
     def verify_header(self, header, prev_header, bits, target):
         prev_hash = hash_header(prev_header)
