@@ -40,7 +40,7 @@ import util
 import bitcoin
 from bitcoin import *
 from interface import Connection, Interface
-from blockchain import Blockchain
+from blockchain import read_blockchains, get_blockchain
 from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 
 DEFAULT_PORTS = {'t':'50001', 's':'50002'}
@@ -206,11 +206,7 @@ class Network(util.DaemonThread):
         util.DaemonThread.__init__(self)
         self.config = SimpleConfig(config) if type(config) == type({}) else config
         self.num_server = 10 if not self.config.get('oneserver') else 0
-        self.blockchains = { 0:Blockchain(self.config, 'blockchain_headers') }
-        for x in os.listdir(self.config.path):
-            if x.startswith('blockchain_fork_'):
-                b = Blockchain(self.config, x)
-                self.blockchains[b.checkpoint] = b
+        self.blockchains = read_blockchains(self.config)
         self.print_error("blockchains", self.blockchains.keys())
         self.blockchain_index = config.get('blockchain_index', 0)
         if self.blockchain_index not in self.blockchains.keys():
@@ -706,18 +702,8 @@ class Network(util.DaemonThread):
     def get_checkpoint(self):
         return max(self.blockchains.keys())
 
-    def get_blockchain(self, header):
-        from blockchain import hash_header
-        if type(header) is not dict:
-            return False
-        header_hash = hash_header(header)
-        height = header.get('block_height')
-        for b in self.blockchains.values():
-            if header_hash == b.get_hash(height):
-                return b
-        return False
-
     def new_interface(self, server, socket):
+        # todo: get tip first, then decide which checkpoint to use.
         self.add_recent_server(server)
         interface = Interface(server, socket)
         interface.blockchain = None
@@ -830,7 +816,7 @@ class Network(util.DaemonThread):
     def on_header(self, interface, header):
         height = header.get('block_height')
         if interface.mode == 'checkpoint':
-            b = self.get_blockchain(header)
+            b = get_blockchain(header)
             if b:
                 interface.mode = 'default'
                 interface.blockchain = b
