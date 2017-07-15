@@ -272,8 +272,8 @@ class SendScreen(CScreen):
 
     def _do_send(self, amount, message, outputs, rbf):
         # make unsigned transaction
-        coins = self.app.wallet.get_spendable_coins()
         config = self.app.electrum_config
+        coins = self.app.wallet.get_spendable_coins(None, config)
         try:
             tx = self.app.wallet.make_unsigned_transaction(coins, outputs, config, None)
         except NotEnoughFunds:
