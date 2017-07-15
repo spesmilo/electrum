@@ -206,10 +206,10 @@ class Network(util.DaemonThread):
         util.DaemonThread.__init__(self)
         self.config = SimpleConfig(config) if type(config) == type({}) else config
         self.num_server = 10 if not self.config.get('oneserver') else 0
-        self.blockchains = { 0:Blockchain(self.config, 'blockchain_headers', None) }
+        self.blockchains = { 0:Blockchain(self.config, 'blockchain_headers') }
         for x in os.listdir(self.config.path):
             if x.startswith('blockchain_fork_'):
-                b = Blockchain(self.config, x, None)
+                b = Blockchain(self.config, x)
                 self.blockchains[b.checkpoint] = b
         self.print_error("blockchains", self.blockchains.keys())
         self.blockchain_index = config.get('blockchain_index', 0)
@@ -864,12 +864,17 @@ class Network(util.DaemonThread):
                 next_height = (interface.bad + interface.good) // 2
             else:
                 interface.print_error("can connect at %d"% interface.good)
-                interface.blockchain = Blockchain(self.config, interface.blockchain.filename, interface.good)
-                interface.blockchain.catch_up = interface.server
-                self.blockchains[interface.good] = interface.blockchain
-                interface.print_error("catching up with new chain")
+                b = self.blockchains.get(interface.good)
+                if b is None:
+                    b = interface.blockchain.fork(interface.good)
+                    b.catch_up = interface.server
+                    interface.print_error("catching up with new chain")
+                    self.blockchains[interface.good] = b
                 interface.mode = 'catch_up'
                 next_height = interface.good
+                interface.blockchain = b
+                # todo: garbage collect blockchain objects
+                self.notify('updated')
 
         elif interface.mode == 'catch_up':
             if can_connect:
@@ -906,6 +911,8 @@ class Network(util.DaemonThread):
                 self.request_chunk(interface, next_height // 2016)
             else:
                 self.request_header(interface, next_height)
+        # refresh network dialog
+        self.notify('interfaces')
 
     def maintain_requests(self):
         for interface in self.interfaces.values():

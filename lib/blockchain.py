@@ -65,18 +65,26 @@ class Blockchain(util.PrintError):
 
     '''Manages blockchain headers and their verification'''
 
-    def __init__(self, config, filename, fork_point):
+    def __init__(self, config, filename):
         self.config = config
         self.filename = filename
         self.catch_up = None # interface catching up
-        if fork_point is None:
-            self.is_saved = True
-            self.checkpoint = int(filename[16:]) if filename.startswith('blockchain_fork_') else 0
-        else:
-            self.is_saved = False
-            self.checkpoint = fork_point
+        self.is_saved = True
+        self.checkpoint = int(filename[16:]) if filename.startswith('blockchain_fork_') else 0
         self.headers = []
         self.set_local_height()
+
+    def fork(parent, fork_point):
+        self = Blockchain(parent.config, parent.filename)
+        self.is_saved = False
+        if parent.is_saved:
+            self.checkpoint = fork_point
+        else:
+            if fork_point > parent.checkpoint:
+                self.headers = parent.headers[0: fork_point - parent.checkpoint]
+            else:
+                self.headers = []
+        return self
 
     def height(self):
         if self.headers:
@@ -122,7 +130,7 @@ class Blockchain(util.PrintError):
 
     def save_chunk(self, index, chunk):
         if not self.is_saved:
-            self.fork_and_save()
+            self.save()
         filename = self.path()
         with open(filename, 'rb+') as f:
             f.seek(index * 2016 * 80)
@@ -130,7 +138,7 @@ class Blockchain(util.PrintError):
             h = f.write(chunk)
         self.set_local_height()
 
-    def fork_and_save(self):
+    def save(self):
         import shutil
         self.print_error("save fork")
         height = self.checkpoint
@@ -152,7 +160,7 @@ class Blockchain(util.PrintError):
             assert height == self.checkpoint + len(self.headers)
             self.headers.append(header)
             if len(self.headers) > 10:
-                self.fork_and_save()
+                self.save()
             return
         self.write_header(header)
 
