@@ -165,7 +165,7 @@ class Blockchain(util.PrintError):
 
     def save(self):
         # recursively save parents if they have not been saved
-        if self.parent and not self.parent.is_saved():
+        if self.parent and not self.parent.is_saved:
             self.parent.save()
         open(self.path(), 'w+').close()
         for h in self.headers:
