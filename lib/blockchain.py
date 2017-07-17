@@ -72,7 +72,7 @@ def read_blockchains(config):
         blockchains[b.checkpoint] = b
     return blockchains
 
-def get_blockchain(header):
+def check_header(header):
     if type(header) is not dict:
         return False
     for b in blockchains.values():
@@ -80,6 +80,11 @@ def get_blockchain(header):
             return b
     return False
 
+def can_connect(header):
+    for b in blockchains.values():
+        if b.can_connect(header):
+            return b
+    return False
 
 
 class Blockchain(util.PrintError):
