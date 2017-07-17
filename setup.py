@@ -82,7 +82,7 @@ setup(
     description="Lightweight Bitcoin Wallet",
     author="Thomas Voegtlin",
     author_email="thomasv@electrum.org",
-    license="MIT Licence",
+    license="MIT License",
     url="https://electrum.org",
     long_description="""Lightweight Bitcoin Wallet"""
 )

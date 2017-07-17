@@ -206,7 +206,7 @@
  * kivy: support old-type seed phrases in wizard
 
 # Release 2.6
- * The source code is relicensed under the MIT Licence
+ * The source code is relicensed under the MIT License
  * First official release of the Kivy GUI, with android APK
  * The old 'android' and 'gtk' GUIs are deprecated
  * Separation between plugins and GUIs
