@@ -847,7 +847,7 @@ class Network(util.DaemonThread):
                     next_height = None
                 else:
                     if interface.blockchain.height() > interface.good:
-                        self.blockchains[interface.bad] = interface.blockchain.fork(interface.bad)
+                        self.blockchains[interface.bad] = b = interface.blockchain.fork(interface.bad)
                         interface.blockchain = b
                         interface.print_error("new chain", b.filename)
                     else:
