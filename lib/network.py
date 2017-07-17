@@ -231,7 +231,6 @@ class Network(util.DaemonThread):
         self.banner = ''
         self.donation_address = ''
         self.relay_fee = None
-        self.headers = {}
         # callbacks passed with subscriptions
         self.subscriptions = defaultdict(list)
         self.sub_cache = {}
@@ -299,8 +298,7 @@ class Network(util.DaemonThread):
             pass
 
     def get_server_height(self):
-        h = self.headers.get(self.default_server)
-        return h['block_height'] if h else 0
+        return self.interface.tip if self.interface else 0
 
     def server_is_lagging(self):
         sh = self.get_server_height()
@@ -503,7 +501,7 @@ class Network(util.DaemonThread):
         if self.server_is_lagging() and self.auto_connect:
             # switch to one that has the correct header (not height)
             header = self.blockchain().read_header(self.get_local_height())
-            filtered = map(lambda x:x[0], filter(lambda x: x[1]==header, self.headers.items()))
+            filtered = map(lambda x:x[0], filter(lambda x: x[1].tip_header==header, self.interfaces.items()))
             if filtered:
                 choice = random.choice(filtered)
                 self.switch_to_interface(choice)
@@ -693,7 +691,6 @@ class Network(util.DaemonThread):
             self.set_status('disconnected')
         if server in self.interfaces:
             self.close_interface(self.interfaces[server])
-            self.headers.pop(server, None)
             self.notify('interfaces')
         for b in self.blockchains.values():
             if b.catch_up == server:
@@ -707,6 +704,7 @@ class Network(util.DaemonThread):
         self.add_recent_server(server)
         interface = Interface(server, socket)
         interface.blockchain = None
+        interface.tip_header = None
         interface.tip = 0
         interface.mode = 'checkpoint'
         self.interfaces[server] = interface
@@ -974,7 +972,7 @@ class Network(util.DaemonThread):
         height = header.get('block_height')
         if not height:
             return
-        self.headers[interface.server] = header
+        interface.tip_header = header
         interface.tip = height
         local_height = interface.blockchain.height()
         if interface.mode != 'default':
