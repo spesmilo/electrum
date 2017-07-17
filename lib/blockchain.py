@@ -66,7 +66,7 @@ def hash_header(header):
         header['prev_block_hash'] = '00'*32
     return hash_encode(Hash(serialize_header(header).decode('hex')))
 
-def pow_hash_header(self, header):
+def pow_hash_header(header):
     return rev_hex(getPoWHash(serialize_header(header).decode('hex')).encode('hex'))
 
 
@@ -81,7 +81,7 @@ def read_blockchains(config):
         blockchains[b.checkpoint] = b
     return blockchains
 
-def get_blockchain(header):
+def check_header(header):
     if type(header) is not dict:
         return False
     for b in blockchains.values():
@@ -89,6 +89,11 @@ def get_blockchain(header):
             return b
     return False
 
+def can_connect(header):
+    for b in blockchains.values():
+        if b.can_connect(header):
+            return b
+    return False
 
 
 class Blockchain(util.PrintError):

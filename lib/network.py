@@ -40,7 +40,7 @@ import util
 import bitcoin
 from bitcoin import *
 from interface import Connection, Interface
-from blockchain import read_blockchains, get_blockchain
+import blockchain
 from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 
 DEFAULT_PORTS = {'t':'50001', 's':'50002'}
@@ -190,7 +190,7 @@ class Network(util.DaemonThread):
         util.DaemonThread.__init__(self)
         self.config = SimpleConfig(config) if type(config) == type({}) else config
         self.num_server = 10 if not self.config.get('oneserver') else 0
-        self.blockchains = read_blockchains(self.config)
+        self.blockchains = blockchain.read_blockchains(self.config)
         self.print_error("blockchains", self.blockchains.keys())
         self.blockchain_index = config.get('blockchain_index', 0)
         if self.blockchain_index not in self.blockchains.keys():
@@ -690,12 +690,13 @@ class Network(util.DaemonThread):
         interface.blockchain = None
         interface.tip_header = None
         interface.tip = 0
-        interface.mode = 'checkpoint'
+        interface.mode = 'default'
+        interface.request = None
         self.interfaces[server] = interface
-        self.request_header(interface, self.get_checkpoint())
+        self.queue_request('blockchain.headers.subscribe', [], interface)
         if server == self.default_server:
             self.switch_to_interface(server)
-        self.notify('interfaces')
+        #self.notify('interfaces')
 
     def maintain_sockets(self):
         '''Socket maintenance.'''
@@ -788,24 +789,14 @@ class Network(util.DaemonThread):
             interface.print_error("unsolicited header",interface.request, height)
             self.connection_down(interface.server)
             return
-        if interface.mode == 'checkpoint':
-            b = get_blockchain(header)
-            if b:
-                interface.mode = 'default'
-                interface.blockchain = b
-                self.queue_request('blockchain.headers.subscribe', [], interface)
-            else:
-                interface.print_error("checkpoint failed")
-                self.connection_down(interface.server)
-            interface.request = None
-            return
 
-        ok = interface.blockchain.check_header(header)
+        chain = blockchain.check_header(header)
         if interface.mode == 'backward':
-            if ok:
-                interface.good = height
-                interface.mode = 'binary'
+            if chain:
                 interface.print_error("binary search")
+                interface.mode = 'binary'
+                interface.blockchain = chain
+                interface.good = height
                 next_height = (interface.bad + interface.good) // 2
             else:
                 if height == 0:
@@ -816,35 +807,43 @@ class Network(util.DaemonThread):
                     delta = interface.tip - height
                     next_height = max(0, interface.tip - 2 * delta)
         elif interface.mode == 'binary':
-            if ok:
+            if chain:
                 interface.good = height
+                interface.blockchain = chain
             else:
                 interface.bad = height
             if interface.bad != interface.good + 1:
                 next_height = (interface.bad + interface.good) // 2
             else:
                 interface.print_error("can connect at %d"% interface.bad)
-                b = self.blockchains.get(interface.bad)
-                if b is not None:
-                    if b.check_header(header):
+                branch = self.blockchains.get(interface.bad)
+                if branch is not None:
+                    # should check bad_header. test doesnt work if header == good
+                    if branch.check_header(header):
                         interface.print_error('joining chain', interface.bad)
-                        interface.blockchain = b
-                    elif b.parent.check_header(header):
+                    elif branch.parent.check_header(header):
                         interface.print_error('reorg', interface.bad, interface.tip)
-                        interface.blockchain = b.parent
+                        interface.blockchain = branch.parent
                     else:
                         # should not happen
                         raise BaseException('error')
                     # todo: we should check the tip once catch up is nor
                     next_height = None
                 else:
-                    b = interface.blockchain.fork(interface.bad)
-                    self.blockchains[interface.bad] = b
-                    interface.print_error("new chain", b.filename)
-                    b.catch_up = interface.server
-                    interface.blockchain = b
-                    interface.mode = 'catch_up'
-                    next_height = interface.bad
+                    if interface.blockchain.height() > interface.good:
+                        self.blockchains[interface.bad] = b = interface.blockchain.fork(interface.bad)
+                        interface.blockchain = b
+                        interface.print_error("new chain", b.filename)
+                    else:
+                        assert interface.blockchain.height() == interface.good
+
+                    if interface.blockchain.catch_up is None:
+                        interface.mode = 'catch_up'
+                        next_height = interface.bad
+                        interface.blockchain.catch_up = interface.server
+                    else:
+                        interface.print_error('already catching up')
+                        next_height = None
                 # todo: garbage collect blockchain objects
                 self.notify('updated')
 
@@ -886,6 +885,7 @@ class Network(util.DaemonThread):
         else:
             interface.mode = 'default'
             interface.request = None
+            self.notify('updated')
         # refresh network dialog
         self.notify('interfaces')
 
@@ -957,35 +957,25 @@ class Network(util.DaemonThread):
             return
         interface.tip_header = header
         interface.tip = height
-        local_height = interface.blockchain.height()
         if interface.mode != 'default':
             return
-        if interface.tip > local_height + 1:
-            if interface.blockchain.catch_up is None:
-                interface.blockchain.catch_up = interface.server
-                interface.mode = 'catch_up' # must transition to search if it does not connect
-                self.request_header(interface, local_height + 1)
-            else:
-                # another interface is catching up
-                pass
-        elif interface.tip == local_height + 1:
-            if interface.blockchain.can_connect(header):
-                interface.blockchain.save_header(header)
-                self.notify('updated')
-            else:
-                interface.mode = 'backward'
-                interface.bad = height 
-                self.request_header(interface, local_height)
-        else:
-            if not interface.blockchain.check_header(header):
-                self.print_error("backward", height)
-                interface.mode = 'backward'
-                interface.bad = height
-                self.request_header(interface, height - 1)
-            else:
-                pass
-        self.switch_lagging_interface()
-        self.notify('interfaces')
+        b = blockchain.check_header(header)
+        if b:
+            interface.blockchain = b
+            self.notify('interfaces')
+            self.switch_lagging_interface()
+            return
+        b = blockchain.can_connect(header)
+        if b:
+            interface.blockchain = b
+            b.save_header(header)
+            self.notify('updated')
+            self.notify('interfaces')
+            self.switch_lagging_interface()
+            return
+        interface.mode = 'backward'
+        interface.bad = height
+        self.request_header(interface, height - 1) # should be max(heights)
 
     def blockchain(self):
         if self.interface and self.interface.blockchain is not None:
