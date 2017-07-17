@@ -217,11 +217,12 @@ class NetworkChoiceLayout(object):
         grid.addWidget(QLabel(_('Server') + ':'), 1, 0)
         grid.addWidget(self.server_host, 1, 1, 1, 2)
         grid.addWidget(self.server_port, 1, 3)
+        grid.addWidget(self.ssl_cb, 2, 0, 1, 3)
 
         label = _('Server peers') if network.is_connected() else _('Default Servers')
-        grid.addWidget(QLabel(label), 2, 0, 1, 5)
+        grid.addWidget(QLabel(label), 3, 0, 1, 5)
         self.servers_list = ServerListWidget(self)
-        grid.addWidget(self.servers_list, 3, 0, 1, 5)
+        grid.addWidget(self.servers_list, 4, 0, 1, 5)
 
         # Proxy tab
         grid = QGridLayout(proxy_tab)
@@ -261,7 +262,6 @@ class NetworkChoiceLayout(object):
         self.tor_cb.hide()
         self.tor_cb.clicked.connect(self.use_tor_proxy)
 
-        grid.addWidget(self.ssl_cb, 0, 0, 1, 3)
         grid.addWidget(self.tor_cb, 1, 0, 1, 3)
         grid.addWidget(self.proxy_mode, 4, 1)
         grid.addWidget(self.proxy_host, 4, 2)
