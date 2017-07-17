@@ -885,8 +885,6 @@ class Network(util.DaemonThread):
             interface.print_error("cannot connect %d"% height)
             interface.mode = 'backward'
             interface.bad = height
-            # save height where we failed
-            interface.blockchain_height = interface.blockchain.height()
             next_height = height - 1
         else:
             raise BaseException(interface.mode)
