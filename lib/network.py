@@ -815,9 +815,10 @@ class Network(util.DaemonThread):
                 self.connection_down(interface.server)
             interface.request = None
             return
-        can_connect = interface.blockchain.can_connect(header)
+
+        ok = interface.blockchain.check_header(header)
         if interface.mode == 'backward':
-            if can_connect:
+            if ok:
                 interface.good = height
                 interface.mode = 'binary'
                 interface.print_error("binary search")
@@ -831,7 +832,7 @@ class Network(util.DaemonThread):
                     delta = interface.tip - height
                     next_height = max(0, interface.tip - 2 * delta)
         elif interface.mode == 'binary':
-            if can_connect:
+            if ok:
                 interface.good = height
             else:
                 interface.bad = height
@@ -848,18 +849,19 @@ class Network(util.DaemonThread):
                     next_height = interface.tip
                 else:
                     if b is None:
-                        b = interface.blockchain.fork(interface.good)
-                        self.blockchains[interface.good] = b
+                        b = interface.blockchain.fork(interface.bad)
+                        self.blockchains[interface.bad] = b
                         interface.print_error("catching up on new blockchain", b.filename)
                     if b.catch_up is None:
                         b.catch_up = interface.server
                         interface.blockchain = b
                         interface.mode = 'catch_up'
-                        next_height = interface.good
+                        next_height = interface.bad
                 # todo: garbage collect blockchain objects
                 self.notify('updated')
 
         elif interface.mode == 'catch_up':
+            can_connect = interface.blockchain.can_connect(header)
             if can_connect:
                 interface.blockchain.save_header(header)
                 next_height = height + 1 if height < interface.tip else None
@@ -985,7 +987,7 @@ class Network(util.DaemonThread):
                 interface.bad = height 
                 self.request_header(interface, local_height)
         else:
-            if not interface.blockchain.can_connect(header):
+            if not interface.blockchain.check_header(header):
                 self.print_error("backward", height)
                 interface.mode = 'backward'
                 interface.bad = height
