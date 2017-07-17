@@ -804,15 +804,6 @@ class Network(util.DaemonThread):
             interface.print_error("unsolicited header",interface.request, height)
             self.connection_down(interface.server)
             return
-        self.on_header(interface, header)
-    
-    def can_connect(self, header):
-        for blockchain in self.blockchains.values():
-            if blockchain.can_connect(header):
-                return blockchain
-
-    def on_header(self, interface, header):
-        height = header.get('block_height')
         if interface.mode == 'checkpoint':
             b = get_blockchain(header)
             if b:
