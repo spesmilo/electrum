@@ -75,19 +75,17 @@ blockchains = {}
 def read_blockchains(config):
     blockchains[0] = Blockchain(config, 'blockchain_headers')
     # fixme: sort
-    for x in os.listdir(config.path):
-        if x.startswith('fork_'):
-            b = Blockchain(config, x)
-            blockchains[b.checkpoint] = b
+    l = sorted(filter(lambda x: x.startswith('fork_'), os.listdir(config.path)))
+    for x in l:
+        b = Blockchain(config, x)
+        blockchains[b.checkpoint] = b
     return blockchains
 
 def get_blockchain(header):
     if type(header) is not dict:
         return False
-    header_hash = hash_header(header)
-    height = header.get('block_height')
     for b in blockchains.values():
-        if header_hash == b.get_hash(height):
+        if b.check_header(header):
             return b
     return False
 
@@ -111,19 +109,27 @@ class Blockchain(util.PrintError):
             self.checkpoint = int(filename.split('_')[2])
         else:
             raise BaseException('')
-        self.set_local_height()
+
+    def check_header(self, header):
+        header_hash = hash_header(header)
+        height = header.get('block_height')
+        return header_hash == self.get_hash(height)
 
     def fork(parent, checkpoint):
         filename = 'fork_%d_%d'%(parent.checkpoint, checkpoint)
         self = Blockchain(parent.config, filename)
         self.is_saved = False
-        self.parent = parent
-        self.checkpoint = checkpoint
         return self
 
     def height(self):
-        local = self.local_height if self.is_saved else len(self.headers) - 1
-        return self.checkpoint + local
+        return self.checkpoint + self.size() - 1
+
+    def size(self):
+        if self.is_saved:
+            p = self.path()
+            return os.path.getsize(p)/80 if os.path.exists(p) else 0
+        else:
+            return len(self.headers)
 
     def verify_header(self, header, prev_header, bits, target):
         prev_hash = hash_header(prev_header)
@@ -167,11 +173,13 @@ class Blockchain(util.PrintError):
         if not self.is_saved:
             self.save()
         filename = self.path()
+        d = (index * 2016 - self.checkpoint) * 80
+        if d < 0:
+            chunk = chunk[-d:]
+            d = 0
         with open(filename, 'rb+') as f:
-            f.seek(index * 2016 * 80)
-            f.truncate()
-            h = f.write(chunk)
-        self.set_local_height()
+            f.seek(d)
+            f.write(chunk)
 
     def save(self):
         # recursively save parents if they have not been saved
@@ -189,28 +197,20 @@ class Blockchain(util.PrintError):
         if not self.is_saved:
             assert height == self.checkpoint + len(self.headers)
             self.headers.append(header)
-            if len(self.headers) > 10:
+            if len(self.headers) > 10 and self.parent.size() > 10:
                 self.save()
             return
         self.write_header(header)
 
     def write_header(self, header):
+        filename = self.path()
         delta = header.get('block_height') - self.checkpoint
         data = serialize_header(header).decode('hex')
+        assert delta * 80 == os.path.getsize(filename)
         assert len(data) == 80
-        filename = self.path()
         with open(filename, 'rb+') as f:
             f.seek(delta * 80)
-            f.truncate()
-            h = f.write(data)
-        self.set_local_height()
-
-    def set_local_height(self):
-        self.local_height = 0
-        name = self.path()
-        if os.path.exists(name):
-            h = os.path.getsize(name)/80 - 1
-            self.local_height = h
+            f.write(data)
 
     def read_header(self, height):
         if height < self.checkpoint:
@@ -229,7 +229,7 @@ class Blockchain(util.PrintError):
             h = f.read(80)
             f.close()
             if len(h) == 80:
-                h = deserialize_header(h, delta)
+                h = deserialize_header(h, height)
                 return h
 
     def get_hash(self, height):
