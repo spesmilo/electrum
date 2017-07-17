@@ -851,14 +851,22 @@ class Network(util.DaemonThread):
             else:
                 interface.print_error("can connect at %d"% interface.good)
                 b = self.blockchains.get(interface.good)
-                if b is None:
-                    b = interface.blockchain.fork(interface.good)
-                    b.catch_up = interface.server
-                    interface.print_error("catching up with new chain")
-                    self.blockchains[interface.good] = b
-                interface.mode = 'catch_up'
-                next_height = interface.good
-                interface.blockchain = b
+                # if there is a reorg we connect to the parent
+                if b is not None and interface.good == b.checkpoint:
+                    interface.print_error('reorg', interface.good, interface.tip)
+                    interface.blockchain = b.parent
+                    interface.mode = 'default'
+                    next_height = interface.tip
+                else:
+                    if b is None:
+                        b = interface.blockchain.fork(interface.good)
+                        self.blockchains[interface.good] = b
+                        interface.print_error("catching up on new blockchain", b.filename)
+                    if b.catch_up is None:
+                        b.catch_up = interface.server
+                        interface.blockchain = b
+                        interface.mode = 'catch_up'
+                        next_height = interface.good
                 # todo: garbage collect blockchain objects
                 self.notify('updated')
 
@@ -944,7 +952,6 @@ class Network(util.DaemonThread):
                 self.print_error("download failed. creating file", filename)
                 open(filename, 'wb+').close()
             self.downloading_headers = False
-            self.blockchains[0].set_local_height()
         self.downloading_headers = True
         t = threading.Thread(target = download_thread)
         t.daemon = True
