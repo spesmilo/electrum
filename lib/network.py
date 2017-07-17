@@ -839,24 +839,28 @@ class Network(util.DaemonThread):
             if interface.bad != interface.good + 1:
                 next_height = (interface.bad + interface.good) // 2
             else:
-                interface.print_error("can connect at %d"% interface.good)
-                b = self.blockchains.get(interface.good)
-                # if there is a reorg we connect to the parent
-                if b is not None and interface.good == b.checkpoint:
-                    interface.print_error('reorg', interface.good, interface.tip)
-                    interface.blockchain = b.parent
-                    interface.mode = 'default'
-                    next_height = interface.tip
-                else:
-                    if b is None:
-                        b = interface.blockchain.fork(interface.bad)
-                        self.blockchains[interface.bad] = b
-                        interface.print_error("catching up on new blockchain", b.filename)
-                    if b.catch_up is None:
-                        b.catch_up = interface.server
+                interface.print_error("can connect at %d"% interface.bad)
+                b = self.blockchains.get(interface.bad)
+                if b is not None:
+                    if b.check_header(header):
+                        interface.print_error('joining chain', interface.bad)
                         interface.blockchain = b
-                        interface.mode = 'catch_up'
-                        next_height = interface.bad
+                    elif b.parent.check_header(header):
+                        interface.print_error('reorg', interface.bad, interface.tip)
+                        interface.blockchain = b.parent
+                    else:
+                        # should not happen
+                        raise BaseException('error')
+                    # todo: we should check the tip once catch up is nor
+                    next_height = None
+                else:
+                    b = interface.blockchain.fork(interface.bad)
+                    self.blockchains[interface.bad] = b
+                    interface.print_error("new chain", b.filename)
+                    b.catch_up = interface.server
+                    interface.blockchain = b
+                    interface.mode = 'catch_up'
+                    next_height = interface.bad
                 # todo: garbage collect blockchain objects
                 self.notify('updated')
 
@@ -874,18 +878,19 @@ class Network(util.DaemonThread):
 
             if next_height is None:
                 # exit catch_up state
-                interface.request = None
-                interface.mode = 'default'
                 interface.print_error('catch up done', interface.blockchain.height())
                 interface.blockchain.catch_up = None
                 self.notify('updated')
 
         elif interface.mode == 'default':
-            assert not can_connect
-            interface.print_error("cannot connect %d"% height)
-            interface.mode = 'backward'
-            interface.bad = height
-            next_height = height - 1
+            if not ok:
+                interface.print_error("default: cannot connect %d"% height)
+                interface.mode = 'backward'
+                interface.bad = height
+                next_height = height - 1
+            else:
+                interface.print_error("we are ok", height, interface.request)
+                next_height = None
         else:
             raise BaseException(interface.mode)
         # If not finished, get the next header
@@ -894,6 +899,9 @@ class Network(util.DaemonThread):
                 self.request_chunk(interface, next_height // 2016)
             else:
                 self.request_header(interface, next_height)
+        else:
+            interface.mode = 'default'
+            interface.request = None
         # refresh network dialog
         self.notify('interfaces')
 
