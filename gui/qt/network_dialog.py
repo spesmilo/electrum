@@ -94,31 +94,28 @@ class NodesListWidget(QTreeWidget):
 
     def update(self, network):
         self.clear()
+        self.addChild = self.addTopLevelItem
         checkpoint = network.get_checkpoint()
-        n_chains = len(network.blockchains)
-        if n_chains > 1:
-            for b in network.blockchains.values():
-                items = filter(lambda i: i.blockchain==b, network.interfaces.values())
-                if items:
-                    name = network.get_blockchain_name(b)
-                    x = QTreeWidgetItem([name + '@%d'%checkpoint, '%d'%b.height()])
-                    x.setData(0, Qt.UserRole, 1)
-                    x.setData(1, Qt.UserRole, b.checkpoint)
-                    for i in items:
-                        star = ' *' if i == network.interface else ''
-                        item = QTreeWidgetItem([i.host + star, '%d'%i.tip])
-                        item.setData(0, Qt.UserRole, 0)
-                        item.setData(1, Qt.UserRole, i.server)
-                        x.addChild(item)
-                    self.addTopLevelItem(x)
-                    x.setExpanded(True)
-        else:
-            for i in network.interfaces.values():
+        chains = network.get_blockchains()
+        n_chains = len(chains)
+        for k, items in chains.items():
+            b = network.blockchains[k]
+            name = network.get_blockchain_name(b)
+            if n_chains >1:
+                x = QTreeWidgetItem([name + '@%d'%checkpoint, '%d'%b.height()])
+                x.setData(0, Qt.UserRole, 1)
+                x.setData(1, Qt.UserRole, b.checkpoint)
+            else:
+                x = self
+            for i in items:
                 star = ' *' if i == network.interface else ''
                 item = QTreeWidgetItem([i.host + star, '%d'%i.tip])
                 item.setData(0, Qt.UserRole, 0)
                 item.setData(1, Qt.UserRole, i.server)
-                self.addTopLevelItem(item)
+                x.addChild(item)
+            if n_chains>1:
+                self.addTopLevelItem(x)
+                x.setExpanded(True)
 
         h = self.header()
         h.setStretchLastSection(False)
@@ -361,7 +358,8 @@ class NetworkChoiceLayout(object):
         n = len(self.network.get_interfaces())
         status = _("Connected to %d nodes.")%n if n else _("Not connected")
         self.status_label.setText(status)
-        if len(self.network.blockchains)>1:
+        chains = self.network.get_blockchains()
+        if len(chains)>1:
             chain = self.network.blockchain()
             checkpoint = self.network.get_checkpoint()
             name = self.network.get_blockchain_name(self.network.blockchain())

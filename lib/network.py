@@ -1001,8 +1001,15 @@ class Network(util.DaemonThread):
         if self.interface and self.interface.blockchain is not None:
             self.blockchain_index = self.interface.blockchain.checkpoint
             self.config.set_key('blockchain_index', self.blockchain_index)
-
         return self.blockchains[self.blockchain_index]
+
+    def get_blockchains(self):
+        out = {}
+        for k, b in self.blockchains.items():
+            r = filter(lambda i: i.blockchain==b, self.interfaces.values())
+            if r:
+                out[k] = r
+        return out
 
     def get_blockchain_name(self, blockchain):
         checkpoint = self.get_checkpoint()
