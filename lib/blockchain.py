@@ -319,14 +319,15 @@ class Blockchain(util.PrintError):
         return new_bits, bitsBase << (8 * (bitsN-3))
 
     def can_connect(self, header):
-        previous_height = header['block_height'] - 1
-        previous_header = self.read_header(previous_height)
+        height = header['block_height']
+        if self.height() != height - 1:
+            return False
+        previous_header = self.read_header(height -1)
         if not previous_header:
             return False
         prev_hash = hash_header(previous_header)
         if prev_hash != header.get('prev_block_hash'):
             return False
-        height = header.get('block_height')
         bits, target = self.get_target(height / 2016)
         try:
             self.verify_header(header, previous_header, bits, target)
