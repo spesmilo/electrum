@@ -302,10 +302,9 @@ class NetworkChoiceLayout(object):
         ])
         grid.addWidget(self.autoconnect_cb, 4, 0, 1, 3)
         grid.addWidget(HelpButton(msg), 4, 4)
-
         self.nodes_list_widget = NodesListWidget(self)
         grid.addWidget(self.nodes_list_widget, 5, 0, 1, 5)
-        grid.setRowStretch(7, 1)
+
         vbox = QVBoxLayout()
         vbox.addWidget(tabs)
         self.layout_ = vbox
