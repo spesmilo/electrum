@@ -362,10 +362,12 @@ class NetworkChoiceLayout(object):
         status = _("Connected to %d nodes.")%n if n else _("Not connected")
         self.status_label.setText(status)
         if len(self.network.blockchains)>1:
+            chain = self.network.blockchain()
             checkpoint = self.network.get_checkpoint()
             name = self.network.get_blockchain_name(self.network.blockchain())
             msg = _('Chain split detected at block %d')%checkpoint + '\n'
             msg += (_('You are following branch') if auto_connect else _('Your server is on branch'))+ ' ' + name
+            msg += ' (%d %s)' % (chain.get_branch_size(), _('blocks'))
         else:
             msg = ''
         self.split_label.setText(msg)
