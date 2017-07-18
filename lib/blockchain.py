@@ -65,8 +65,8 @@ blockchains = {}
 
 def read_blockchains(config):
     blockchains[0] = Blockchain(config, 'blockchain_headers')
-    # fixme: sort
-    l = sorted(filter(lambda x: x.startswith('fork_'), os.listdir(config.path)))
+    l = filter(lambda x: x.startswith('fork_'), os.listdir(config.path))
+    l = sorted(l, key = lambda x: int(x.split('_')[1]))
     for x in l:
         b = Blockchain(config, x)
         blockchains[b.checkpoint] = b
@@ -105,6 +105,15 @@ class Blockchain(util.PrintError):
             self.checkpoint = int(filename.split('_')[2])
         else:
             raise BaseException('')
+
+    def get_max_child(self):
+        children = filter(lambda y: y.parent==self, blockchains.values())
+        return max([x.checkpoint for x in children]) if children else None
+
+    def get_branch_size(self):
+        mc = self.get_max_child()
+        checkpoint = mc if mc is not None else self.checkpoint
+        return self.height() - checkpoint
 
     def check_header(self, header):
         header_hash = hash_header(header)
@@ -187,13 +196,38 @@ class Blockchain(util.PrintError):
         self.is_saved = True
         self.print_error("saved", self.filename)
 
+    def swap_with_parent(self):
+        self.print_error("swap")
+        parent = self.parent
+        checkpoint = self.checkpoint
+        # copy headers
+        parent.headers = [parent.read_header(h) for h in range(checkpoint, checkpoint + parent.get_branch_size())]
+        # truncate parent file
+        with open(parent.path(), 'rb+') as f:
+            f.seek(checkpoint*80)
+            f.truncate()
+        parent.is_saved = False
+        # swap chains
+        fn = self.filename; self.filename = parent.filename; parent.filename = fn
+        self.parent = parent.parent; parent.parent = parent
+        self.checkpoint = parent.checkpoint; parent.checkpoint = checkpoint
+        # write my headers
+        for h in self.headers:
+            self.write_header(h)
+        self.headers = []
+        self.is_saved = True
+
     def save_header(self, header):
+        N = 10
         height = header.get('block_height')
         if not self.is_saved:
             assert height == self.checkpoint + len(self.headers)
             self.headers.append(header)
-            if len(self.headers) > 10 and self.parent.size() > 10:
-                self.save()
+            if len(self.headers) > N:
+                if self.parent.get_branch_size() <= N:
+                    self.swap_with_parent()
+                else:
+                    self.save()
             return
         self.write_header(header)
 

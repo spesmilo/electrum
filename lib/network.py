@@ -862,7 +862,6 @@ class Network(util.DaemonThread):
                     else:
                         interface.print_error('already catching up')
                         next_height = None
-                # todo: garbage collect blockchain objects
                 self.notify('updated')
 
         elif interface.mode == 'catch_up':
