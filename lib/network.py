@@ -820,6 +820,7 @@ class Network(util.DaemonThread):
                     next_height = None
                 else:
                     interface.bad = height
+                    interface.bad_header = header
                     delta = interface.tip - height
                     next_height = max(0, interface.tip - 2 * delta)
         elif interface.mode == 'binary':
@@ -828,14 +829,14 @@ class Network(util.DaemonThread):
                 interface.blockchain = chain
             else:
                 interface.bad = height
+                interface.bad_header = header
             if interface.bad != interface.good + 1:
                 next_height = (interface.bad + interface.good) // 2
             else:
                 interface.print_error("can connect at %d"% interface.bad)
                 branch = self.blockchains.get(interface.bad)
                 if branch is not None:
-                    # should check bad_header. test doesnt work if header == good
-                    if branch.check_header(header):
+                    if branch.check_header(interface.bad_header):
                         interface.print_error('joining chain', interface.bad)
                     elif branch.parent.check_header(header):
                         interface.print_error('reorg', interface.bad, interface.tip)
@@ -843,19 +844,19 @@ class Network(util.DaemonThread):
                     else:
                         # should not happen
                         raise BaseException('error')
-                    # todo: we should check the tip once catch up is nor
                     next_height = None
                 else:
                     if interface.blockchain.height() > interface.good:
-                        self.blockchains[interface.bad] = b = interface.blockchain.fork(interface.bad)
-                        interface.blockchain = b
-                        interface.print_error("new chain", b.filename)
+                        if not interface.blockchain.check_header(interface.bad_header):
+                            self.blockchains[interface.bad] = b = interface.blockchain.fork(interface.bad)
+                            interface.blockchain = b
+                            interface.print_error("new chain", b.filename)
                     else:
                         assert interface.blockchain.height() == interface.good
 
                     if interface.blockchain.catch_up is None:
                         interface.mode = 'catch_up'
-                        next_height = interface.bad
+                        next_height = interface.blockchain.height() + 1
                         interface.blockchain.catch_up = interface.server
                     else:
                         interface.print_error('already catching up')
@@ -873,6 +874,7 @@ class Network(util.DaemonThread):
                 interface.print_error("cannot connect", height)
                 interface.mode = 'backward'
                 interface.bad = height
+                interface.bad_header = header
                 next_height = height - 1
 
             if next_height is None:
@@ -886,6 +888,7 @@ class Network(util.DaemonThread):
                 interface.print_error("default: cannot connect %d"% height)
                 interface.mode = 'backward'
                 interface.bad = height
+                interface.bad_header = header
                 next_height = height - 1
             else:
                 interface.print_error("we are ok", height, interface.request)
@@ -991,6 +994,7 @@ class Network(util.DaemonThread):
             return
         interface.mode = 'backward'
         interface.bad = height
+        interface.bad_header = header
         self.request_header(interface, height - 1) # should be max(heights)
 
     def blockchain(self):
