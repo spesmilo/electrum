@@ -32,7 +32,7 @@ class UTXOList(MyTreeWidget):
     filter_columns = [0, 2]  # Address, Label
 
     def __init__(self, parent=None):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [ _('Address'), _('Output point'), _('Label'), _('Amount'), ''], 2)
+        MyTreeWidget.__init__(self, parent, self.create_menu, [ _('Address'), _('Output point'), _('Label'), _('Amount'), _('Height')], 2)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
 
     def get_name(self, x):
@@ -45,10 +45,11 @@ class UTXOList(MyTreeWidget):
         self.utxos = self.wallet.get_utxos()
         for x in self.utxos:
             address = x.get('address')
+            height = x.get('height')
             name = self.get_name(x)
             label = self.wallet.get_label(x.get('prevout_hash'))
             amount = self.parent.format_amount(x['value'])
-            utxo_item = QTreeWidgetItem([address, name[0:10] + '...' + name[-2:], label, amount])
+            utxo_item = QTreeWidgetItem([address, name[0:10] + '...' + name[-2:], label, amount, '%d'%height])
             utxo_item.setFont(0, QFont(MONOSPACE_FONT))
             utxo_item.setFont(1, QFont(MONOSPACE_FONT))
             utxo_item.setData(0, Qt.UserRole, name)
