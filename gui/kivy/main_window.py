@@ -80,7 +80,9 @@ class ElectrumWindow(App):
     num_nodes = NumericProperty(0)
     server_host = StringProperty('')
     server_port = StringProperty('')
+    num_chains = NumericProperty(0)
     blockchain_name = StringProperty('')
+    blockchain_checkpoint = NumericProperty(0)
 
     auto_connect = BooleanProperty(False)
     def on_auto_connect(self, instance, x):
@@ -103,12 +105,13 @@ class ElectrumWindow(App):
 
     def choose_blockchain_dialog(self, dt):
         from uix.dialogs.choice_dialog import ChoiceDialog
+        chains = self.network.get_blockchains()
         def cb(name):
             for index, b in self.network.blockchains.items():
                 if name == self.network.get_blockchain_name(b):
                     self.network.follow_chain(index)
                     #self.block
-        names = [self.network.get_blockchain_name(b) for b in self.network.blockchains.values()]
+        names = [self.network.blockchains[b].get_name() for b in chains]
         if len(names) >1:
             ChoiceDialog(_('Choose your chain'), names, '', cb).open()
 
@@ -590,23 +593,11 @@ class ElectrumWindow(App):
             self.network.register_callback(self.on_network, interests)
         self.tabs = self.root.ids['tabs']
 
-    def blockchain_status(self):
-        if len(self.network.blockchains)>1:
-            msg = self.network.get_blockchain_name(self.network.blockchain())
-        else:
-            msg = _('Genesis')
-        return msg
-
-    def blockchain_info(self):
-        if len(self.network.blockchains)>1:
-            checkpoint = self.network.get_checkpoint()
-            msg = _('Fork detected at block %d')%checkpoint
-        else:
-            msg = _('The blockchain appears to be one')
-        return msg
-
     def on_network(self, event, *args):
-        self.blockchain_name = self.blockchain_status()
+        chain = self.network.blockchain()
+        self.num_chains = len(self.network.get_blockchains())
+        self.blockchain_checkpoint = chain.get_checkpoint()
+        self.blockchain_name = chain.get_name()
         if self.network.interface:
             self.server_host = self.network.interface.host
         if event == 'updated':

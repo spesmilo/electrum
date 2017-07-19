@@ -119,10 +119,15 @@ class Blockchain(util.PrintError):
         children = filter(lambda y: y.parent==self, blockchains.values())
         return max([x.checkpoint for x in children]) if children else None
 
-    def get_branch_size(self):
+    def get_checkpoint(self):
         mc = self.get_max_child()
-        checkpoint = mc if mc is not None else self.checkpoint
-        return self.height() - checkpoint
+        return mc if mc is not None else self.checkpoint
+
+    def get_branch_size(self):
+        return self.height() - self.get_checkpoint() + 1
+
+    def get_name(self):
+        return self.get_hash(self.get_checkpoint()).lstrip('00')[0:10]
 
     def check_header(self, header):
         header_hash = hash_header(header)
@@ -207,14 +212,14 @@ class Blockchain(util.PrintError):
         self.print_error("saved", self.filename)
 
     def swap_with_parent(self):
-        self.print_error("swap")
+        self.print_error("swap", self.filename, self.parent.filename)
         parent = self.parent
         checkpoint = self.checkpoint
         # copy headers
         parent.headers = [parent.read_header(h) for h in range(checkpoint, checkpoint + parent.get_branch_size())]
         # truncate parent file
         with open(parent.path(), 'rb+') as f:
-            f.seek(checkpoint*80)
+            f.seek((checkpoint - parent.checkpoint)*80)
             f.truncate()
         parent.is_saved = False
         # swap chains
@@ -226,6 +231,9 @@ class Blockchain(util.PrintError):
             self.write_header(h)
         self.headers = []
         self.is_saved = True
+        # update pointers
+        blockchains[self.checkpoint] = self
+        blockchains[parent.checkpoint] = parent
 
     def save_header(self, header):
         N = 10
@@ -281,14 +289,6 @@ class Blockchain(util.PrintError):
     def segwit_support(self, N=576):
         h = self.local_height
         return sum([self.BIP9(h-i, 2) for i in range(N)])*10000/N/100.
-
-    def truncate_headers(self, height):
-        self.print_error('Truncating headers file at height %d'%height)
-        name = self.path()
-        f = open(name, 'rb+')
-        f.seek(height * 80)
-        f.truncate()
-        f.close()
 
     def get_target(self, index, chain=None):
         if bitcoin.TESTNET:

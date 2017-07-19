@@ -680,9 +680,6 @@ class Network(util.DaemonThread):
             if b.catch_up == server:
                 b.catch_up = None
 
-    def get_checkpoint(self):
-        return max(self.blockchains.keys())
-
     def new_interface(self, server, socket):
         # todo: get tip first, then decide which checkpoint to use.
         self.add_recent_server(server)
@@ -807,6 +804,7 @@ class Network(util.DaemonThread):
                     interface.bad_header = header
                     delta = interface.tip - height
                     next_height = max(0, interface.tip - 2 * delta)
+
         elif interface.mode == 'binary':
             if chain:
                 interface.good = height
@@ -994,11 +992,6 @@ class Network(util.DaemonThread):
             if r:
                 out[k] = r
         return out
-
-    def get_blockchain_name(self, blockchain):
-        checkpoint = self.get_checkpoint()
-        _hash = blockchain.get_hash(checkpoint)
-        return _hash.lstrip('00')[0:10]
 
     def follow_chain(self, index):
         blockchain = self.blockchains.get(index)
