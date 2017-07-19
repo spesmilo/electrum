@@ -471,6 +471,7 @@ class Network(util.DaemonThread):
             self.switch_to_interface(server)
         else:
             self.switch_lagging_interface()
+            self.notify('updated')
 
     def switch_to_random_interface(self):
         '''Switch to a random connected server other than the current one'''
@@ -489,7 +490,6 @@ class Network(util.DaemonThread):
             if filtered:
                 choice = random.choice(filtered)
                 self.switch_to_interface(choice)
-                self.notify('updated')
 
     def switch_to_interface(self, server):
         '''Switch to server as our interface.  If no connection exists nor
@@ -831,7 +831,7 @@ class Network(util.DaemonThread):
                         if not interface.blockchain.check_header(interface.bad_header):
                             self.blockchains[interface.bad] = b = interface.blockchain.fork(interface.bad)
                             interface.blockchain = b
-                            interface.print_error("new chain", b.filename)
+                            interface.print_error("new chain", b.checkpoint)
                     else:
                         assert interface.blockchain.height() == interface.good
 
@@ -863,6 +863,7 @@ class Network(util.DaemonThread):
                 # exit catch_up state
                 interface.print_error('catch up done', interface.blockchain.height())
                 interface.blockchain.catch_up = None
+                self.switch_lagging_interface()
                 self.notify('updated')
 
         elif interface.mode == 'default':
@@ -963,21 +964,30 @@ class Network(util.DaemonThread):
         b = blockchain.check_header(header)
         if b:
             interface.blockchain = b
-            self.notify('interfaces')
             self.switch_lagging_interface()
+            self.notify('interfaces')
             return
         b = blockchain.can_connect(header)
         if b:
             interface.blockchain = b
             b.save_header(header)
+            self.switch_lagging_interface()
             self.notify('updated')
             self.notify('interfaces')
-            self.switch_lagging_interface()
             return
-        interface.mode = 'backward'
-        interface.bad = height
-        interface.bad_header = header
-        self.request_header(interface, height - 1) # should be max(heights)
+        tip = max([x.height() for x in self.blockchains.values()])
+        if tip >=0:
+            interface.mode = 'backward'
+            interface.bad = height
+            interface.bad_header = header
+            self.request_header(interface, min(tip, height - 1))
+        else:
+            chain = self.blockchains[0]
+            if chain.catch_up is None:
+                chain.catch_up = interface
+                interface.mode = 'catch_up'
+                interface.blockchain = chain
+                self.request_header(interface, 0)
 
     def blockchain(self):
         if self.interface and self.interface.blockchain is not None:
