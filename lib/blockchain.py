@@ -216,6 +216,9 @@ class Blockchain(util.PrintError):
             self.write_header(h)
         self.headers = []
         self.is_saved = True
+        # update pointers
+        blockchains[self.checkpoint] = self
+        blockchains[parent.checkpoint] = parent
 
     def save_header(self, header):
         N = 10
