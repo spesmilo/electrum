@@ -113,7 +113,7 @@ class Blockchain(util.PrintError):
     def get_branch_size(self):
         mc = self.get_max_child()
         checkpoint = mc if mc is not None else self.checkpoint
-        return self.height() - checkpoint
+        return self.height() - checkpoint + 1
 
     def check_header(self, header):
         header_hash = hash_header(header)
