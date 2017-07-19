@@ -119,7 +119,7 @@ class Blockchain(util.PrintError):
         return header_hash == self.get_hash(height)
 
     def fork(parent, checkpoint):
-        self = Blockchain(parent.config, checkpoint, blockchains[parent.checkpoint])
+        self = Blockchain(parent.config, checkpoint, parent)
         # create file
         open(self.path(), 'w+').close()
         return self
@@ -199,7 +199,7 @@ class Blockchain(util.PrintError):
             f.seek((checkpoint - parent.checkpoint)*80)
             f.write(my_data)
         # swap parameters
-        self.parent = parent.parent; parent.parent = parent
+        self.parent = parent.parent; parent.parent = self
         self.checkpoint = parent.checkpoint; parent.checkpoint = checkpoint
         # update pointers
         blockchains[self.checkpoint] = self
@@ -219,8 +219,11 @@ class Blockchain(util.PrintError):
             self.swap_with_parent()
 
     def read_header(self, height):
+        assert self.parent != self
         if height < self.checkpoint:
             return self.parent.read_header(height)
+        if height > self.height():
+            return
         delta = height - self.checkpoint
         name = self.path()
         if os.path.exists(name):
@@ -228,9 +231,7 @@ class Blockchain(util.PrintError):
             f.seek(delta * 80)
             h = f.read(80)
             f.close()
-            if len(h) == 80:
-                h = deserialize_header(h, height)
-                return h
+        return deserialize_header(h, height)
 
     def get_hash(self, height):
         return bitcoin.GENESIS if height == 0 else hash_header(self.read_header(height))
