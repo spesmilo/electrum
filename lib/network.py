@@ -847,7 +847,7 @@ class Network(util.DaemonThread):
                         if not interface.blockchain.check_header(interface.bad_header):
                             self.blockchains[interface.bad] = b = interface.blockchain.fork(interface.bad)
                             interface.blockchain = b
-                            interface.print_error("new chain", b.filename)
+                            interface.print_error("new chain", b.checkpoint)
                     else:
                         assert interface.blockchain.height() == interface.good
 
