@@ -197,14 +197,14 @@ class Blockchain(util.PrintError):
         self.print_error("saved", self.filename)
 
     def swap_with_parent(self):
-        self.print_error("swap")
+        self.print_error("swap", self.filename, self.parent.filename)
         parent = self.parent
         checkpoint = self.checkpoint
         # copy headers
         parent.headers = [parent.read_header(h) for h in range(checkpoint, checkpoint + parent.get_branch_size())]
         # truncate parent file
         with open(parent.path(), 'rb+') as f:
-            f.seek(checkpoint*80)
+            f.seek((checkpoint - parent.checkpoint)*80)
             f.truncate()
         parent.is_saved = False
         # swap chains
@@ -271,14 +271,6 @@ class Blockchain(util.PrintError):
     def segwit_support(self, N=144):
         h = self.local_height
         return sum([self.BIP9(h-i, 2) for i in range(N)])*10000/N/100.
-
-    def truncate_headers(self, height):
-        self.print_error('Truncating headers file at height %d'%height)
-        name = self.path()
-        f = open(name, 'rb+')
-        f.seek(height * 80)
-        f.truncate()
-        f.close()
 
     def get_target(self, index, chain=None):
         if bitcoin.TESTNET:
