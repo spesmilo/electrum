@@ -990,11 +990,19 @@ class Network(util.DaemonThread):
             self.notify('interfaces')
             self.switch_lagging_interface()
             return
-        interface.mode = 'backward'
-        interface.bad = height
-        interface.bad_header = header
         tip = max([x.height() for x in self.blockchains.values()])
-        self.request_header(interface, tip)
+        if tip >=0:
+            interface.mode = 'backward'
+            interface.bad = height
+            interface.bad_header = header
+            self.request_header(interface, tip)
+        else:
+            chain = self.blockchains[0]
+            if chain.catch_up is None:
+                chain.catch_up = interface
+                interface.mode = 'catch_up'
+                interface.blockchain = chain
+                self.request_header(interface, 0)
 
     def blockchain(self):
         if self.interface and self.interface.blockchain is not None:
