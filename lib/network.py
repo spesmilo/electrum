@@ -993,7 +993,8 @@ class Network(util.DaemonThread):
         interface.mode = 'backward'
         interface.bad = height
         interface.bad_header = header
-        self.request_header(interface, height - 1) # should be max(heights)
+        tip = max([x.height() for x in self.blockchains.values()])
+        self.request_header(interface, tip)
 
     def blockchain(self):
         if self.interface and self.interface.blockchain is not None:
