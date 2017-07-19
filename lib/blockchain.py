@@ -110,10 +110,15 @@ class Blockchain(util.PrintError):
         children = filter(lambda y: y.parent==self, blockchains.values())
         return max([x.checkpoint for x in children]) if children else None
 
-    def get_branch_size(self):
+    def get_checkpoint(self):
         mc = self.get_max_child()
-        checkpoint = mc if mc is not None else self.checkpoint
-        return self.height() - checkpoint + 1
+        return mc if mc is not None else self.checkpoint
+
+    def get_branch_size(self):
+        return self.height() - self.get_checkpoint() + 1
+
+    def get_name(self):
+        return self.get_hash(self.get_checkpoint()).lstrip('00')[0:10]
 
     def check_header(self, header):
         header_hash = hash_header(header)
