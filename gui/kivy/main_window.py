@@ -80,6 +80,7 @@ class ElectrumWindow(App):
     num_nodes = NumericProperty(0)
     server_host = StringProperty('')
     server_port = StringProperty('')
+    num_chains = NumericProperty(0)
     blockchain_name = StringProperty('')
     blockchain_checkpoint = NumericProperty(0)
 
@@ -594,6 +595,7 @@ class ElectrumWindow(App):
 
     def on_network(self, event, *args):
         chain = self.network.blockchain()
+        self.num_chains = len(self.network.get_blockchains())
         self.blockchain_checkpoint = chain.get_checkpoint()
         self.blockchain_name = chain.get_name()
         if self.network.interface:
