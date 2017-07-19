@@ -995,7 +995,7 @@ class Network(util.DaemonThread):
             interface.mode = 'backward'
             interface.bad = height
             interface.bad_header = header
-            self.request_header(interface, tip)
+            self.request_header(interface, min(tip, height - 1))
         else:
             chain = self.blockchains[0]
             if chain.catch_up is None:
