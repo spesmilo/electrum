@@ -95,8 +95,6 @@ class Blockchain(util.PrintError):
         self.config = config
         self.filename = filename
         self.catch_up = None # interface catching up
-        self.is_saved = True
-        self.headers = []
         if filename == 'blockchain_headers':
             self.parent = None
             self.checkpoint = 0
@@ -128,18 +126,16 @@ class Blockchain(util.PrintError):
     def fork(parent, checkpoint):
         filename = 'fork_%d_%d'%(parent.checkpoint, checkpoint)
         self = Blockchain(parent.config, filename)
-        self.is_saved = False
+        # create file
+        open(self.path(), 'w+').close()
         return self
 
     def height(self):
         return self.checkpoint + self.size() - 1
 
     def size(self):
-        if self.is_saved:
-            p = self.path()
-            return os.path.getsize(p)/80 if os.path.exists(p) else 0
-        else:
-            return len(self.headers)
+        p = self.path()
+        return os.path.getsize(p)/80 if os.path.exists(p) else 0
 
     def verify_header(self, header, prev_header, bits, target):
         prev_hash = hash_header(prev_header)
@@ -179,8 +175,6 @@ class Blockchain(util.PrintError):
         return os.path.join(d, self.filename)
 
     def save_chunk(self, index, chunk):
-        if not self.is_saved:
-            self.save()
         filename = self.path()
         d = (index * 2016 - self.checkpoint) * 80
         if d < 0:
@@ -190,75 +184,50 @@ class Blockchain(util.PrintError):
             f.seek(d)
             f.write(chunk)
 
-    def save(self):
-        # recursively save parents if they have not been saved
-        if self.parent and not self.parent.is_saved:
-            self.parent.save()
-        open(self.path(), 'w+').close()
-        for h in self.headers:
-            self.write_header(h)
-        self.headers = []
-        self.is_saved = True
-        self.print_error("saved", self.filename)
-
     def swap_with_parent(self):
         self.print_error("swap", self.filename, self.parent.filename)
+        assert self.size() == self.get_branch_size()
         parent = self.parent
         checkpoint = self.checkpoint
-        # copy headers
-        parent.headers = [parent.read_header(h) for h in range(checkpoint, checkpoint + parent.get_branch_size())]
-        # truncate parent file
+        size = parent.get_branch_size()
         with open(parent.path(), 'rb+') as f:
             f.seek((checkpoint - parent.checkpoint)*80)
+            parent_data = f.read(size*80)
+            f.seek((checkpoint - parent.checkpoint)*80)
             f.truncate()
-        parent.is_saved = False
-        # swap chains
+        with open(self.path(), 'rb+') as f:
+            my_data = f.read()
+            f.seek(0)
+            f.truncate()
+            f.write(parent_data)
+        with open(parent.path(), 'rb+') as f:
+            f.seek((checkpoint - parent.checkpoint)*80)
+            f.write(my_data)
+        # swap parameters
         fn = self.filename; self.filename = parent.filename; parent.filename = fn
         self.parent = parent.parent; parent.parent = parent
         self.checkpoint = parent.checkpoint; parent.checkpoint = checkpoint
-        # write my headers
-        for h in self.headers:
-            self.write_header(h)
-        self.headers = []
-        self.is_saved = True
         # update pointers
         blockchains[self.checkpoint] = self
         blockchains[parent.checkpoint] = parent
 
     def save_header(self, header):
-        N = 10
-        height = header.get('block_height')
-        if not self.is_saved:
-            assert height == self.checkpoint + len(self.headers)
-            self.headers.append(header)
-            if len(self.headers) > N:
-                if self.parent.get_branch_size() <= N:
-                    self.swap_with_parent()
-                else:
-                    self.save()
-            return
-        self.write_header(header)
-
-    def write_header(self, header):
         filename = self.path()
         delta = header.get('block_height') - self.checkpoint
         data = serialize_header(header).decode('hex')
-        assert delta * 80 == os.path.getsize(filename)
+        assert delta == self.size()
         assert len(data) == 80
         with open(filename, 'rb+') as f:
             f.seek(delta * 80)
             f.write(data)
+        # order files
+        if self.parent and self.parent.get_branch_size() < self.get_branch_size():
+            self.swap_with_parent()
 
     def read_header(self, height):
         if height < self.checkpoint:
             return self.parent.read_header(height)
         delta = height - self.checkpoint
-        if not self.is_saved:
-            if delta >= len(self.headers):
-                return None
-            header = self.headers[delta]
-            assert header.get('block_height') == height
-            return header
         name = self.path()
         if os.path.exists(name):
             f = open(name, 'rb')
