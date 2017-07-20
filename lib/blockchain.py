@@ -178,6 +178,9 @@ class Blockchain(util.PrintError):
         with open(filename, 'rb+') as f:
             f.seek(d)
             f.write(chunk)
+        # order files
+        if self.parent and self.parent.get_branch_size() < self.get_branch_size():
+            self.swap_with_parent()
 
     def swap_with_parent(self):
         self.print_error("swap", self.checkpoint, self.parent.checkpoint)
