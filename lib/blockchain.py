@@ -65,7 +65,10 @@ blockchains = {}
 
 def read_blockchains(config):
     blockchains[0] = Blockchain(config, 0, None)
-    l = filter(lambda x: x.startswith('fork_'), os.listdir(config.path))
+    fdir = os.path.join(config.path, 'forks')
+    if not os.path.exists(fdir):
+        os.mkdir(fdir)
+    l = filter(lambda x: x.startswith('fork_'), os.listdir(fdir))
     l = sorted(l, key = lambda x: int(x.split('_')[1]))
     for filename in l:
         checkpoint = int(filename.split('_')[2])
@@ -169,7 +172,7 @@ class Blockchain(util.PrintError):
 
     def path(self):
         d = util.get_headers_dir(self.config)
-        filename = 'blockchain_headers' if self.parent_id is None else 'fork_%d_%d'%(self.parent_id, self.checkpoint)
+        filename = 'blockchain_headers' if self.parent_id is None else os.path.join('forks', 'fork_%d_%d'%(self.parent_id, self.checkpoint))
         return os.path.join(d, filename)
 
     def save_chunk(self, index, chunk):
