@@ -323,7 +323,8 @@ class TrustedCoinPlugin(BasePlugin):
         return True
 
     def is_enabled(self):
-        return True
+        # Not available for GRS.
+        return False
 
     @hook
     def get_additional_fee(self, wallet, tx):

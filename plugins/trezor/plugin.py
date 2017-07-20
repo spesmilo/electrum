@@ -81,6 +81,10 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         if self.libraries_available:
             self.device_manager().register_devices(self.DEVICE_IDS)
 
+    def is_enabled(self):
+        # Not available for GRS.
+        return False
+
     def _try_hid(self, device):
         self.print_error("Trying to connect over USB...")
         if device.interface_number == 1:
@@ -148,7 +152,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         if TESTNET:
             return "Testnet"
         else:
-            return "Bitcoin"
+            return "Groestlcoin"
 
     def initialize_device(self, device_id, wizard, handler):
         # Initialization method

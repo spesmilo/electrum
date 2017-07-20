@@ -39,6 +39,10 @@ class Plugin(BasePlugin):
 
     button_label = _("Verify GA instant")
 
+    def is_enabled(self):
+        # Not available for GRS.
+        return False
+
     @hook
     def transaction_dialog(self, d):
         d.verify_button = QPushButton(self.button_label)

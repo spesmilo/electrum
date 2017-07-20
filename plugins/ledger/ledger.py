@@ -422,6 +422,10 @@ class LedgerPlugin(HW_PluginBase):
         if self.libraries_available:
             self.device_manager().register_devices(self.DEVICE_IDS)
 
+    def is_enabled(self):
+        # Not available for GRS.
+        return False
+
     def btchip_is_connected(self, keystore):
         try:
             self.get_client(keystore).getFirmwareVersion()

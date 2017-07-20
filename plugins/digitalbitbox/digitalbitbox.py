@@ -485,6 +485,9 @@ class DigitalBitboxPlugin(HW_PluginBase):
         if self.libraries_available:
             self.device_manager().register_devices(self.DEVICE_IDS)
 
+    def is_enabled(self):
+        # Not available for GRS.
+        return False
 
     def get_dbb_device(self, device):
         dev = hid.device()
