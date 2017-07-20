@@ -314,15 +314,18 @@ class Abstract_Wallet(PrintError):
         '''Returns a map from tx hash to transaction height'''
         return self.unverified_tx
 
-    def undo_verifications(self, height):
+    def undo_verifications(self, blockchain, height):
         '''Used by the verifier when a reorg has happened'''
-        txs = []
+        txs = set()
         with self.lock:
-            for tx_hash, item in self.verified_tx:
+            for tx_hash, item in self.verified_tx.items():
                 tx_height, timestamp, pos = item
                 if tx_height >= height:
-                    self.verified_tx.pop(tx_hash, None)
-                    txs.append(tx_hash)
+                    header = blockchain.read_header(tx_height)
+                    # fixme: use block hash, not timestamp
+                    if not header or header.get('timestamp') != timestamp:
+                        self.verified_tx.pop(tx_hash, None)
+                        txs.add(tx_hash)
         return txs
 
     def get_local_height(self):

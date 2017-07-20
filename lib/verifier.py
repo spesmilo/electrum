@@ -34,6 +34,7 @@ class SPV(ThreadJob):
     def __init__(self, network, wallet):
         self.wallet = wallet
         self.network = network
+        self.blockchain = network.blockchain()
         # Keyed by tx hash.  Value is None if the merkle branch was
         # requested, and the merkle root once it has been verified
         self.merkle_roots = {}
@@ -50,14 +51,16 @@ class SPV(ThreadJob):
                 self.print_error('requested merkle', tx_hash)
                 self.merkle_roots[tx_hash] = None
 
+        if self.network.blockchain() != self.blockchain:
+            self.blockchain = self.network.blockchain()
+            self.undo_verifications()
+
     def verify_merkle(self, r):
         if r.get('error'):
             self.print_error('received an error:', r)
             return
-
         params = r['params']
         merkle = r['result']
-
         # Verify the hash of the server-provided merkle branch to a
         # transaction matches the merkle root of its block
         tx_hash = params[0]
@@ -70,12 +73,10 @@ class SPV(ThreadJob):
             # recover from this, as this TX will now never verify
             self.print_error("merkle verification failed for", tx_hash)
             return
-
         # we passed all the tests
         self.merkle_roots[tx_hash] = merkle_root
         self.print_error("verified %s" % tx_hash)
         self.wallet.add_verified_tx(tx_hash, (tx_height, header.get('timestamp'), pos))
-
 
     def hash_merkle_root(self, merkle_s, target_hash, pos):
         h = hash_decode(target_hash)
@@ -84,9 +85,9 @@ class SPV(ThreadJob):
             h = Hash( hash_decode(item) + h ) if ((pos >> i) & 1) else Hash( h + hash_decode(item) )
         return hash_encode(h)
 
-
-    def undo_verifications(self, height):
-        tx_hashes = self.wallet.undo_verifications(height)
+    def undo_verifications(self):
+        height = self.blockchain.get_checkpoint()
+        tx_hashes = self.wallet.undo_verifications(self.blockchain, height)
         for tx_hash in tx_hashes:
             self.print_error("redoing", tx_hash)
             self.merkle_roots.pop(tx_hash, None)
