@@ -835,9 +835,9 @@ class Network(util.DaemonThread):
                 if branch is not None:
                     if branch.check_header(interface.bad_header):
                         interface.print_error('joining chain', interface.bad)
-                    elif branch.parent.check_header(header):
+                    elif branch.parent().check_header(header):
                         interface.print_error('reorg', interface.bad, interface.tip)
-                        interface.blockchain = branch.parent
+                        interface.blockchain = branch.parent()
                     else:
                         # should not happen
                         raise BaseException('error')
