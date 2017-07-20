@@ -184,7 +184,6 @@ class Blockchain(util.PrintError):
 
     def swap_with_parent(self):
         self.print_error("swap", self.checkpoint, self.parent.checkpoint)
-        assert self.size() == self.get_branch_size()
         parent = self.parent
         checkpoint = self.checkpoint
         size = parent.get_branch_size()
@@ -201,9 +200,18 @@ class Blockchain(util.PrintError):
         with open(parent.path(), 'rb+') as f:
             f.seek((checkpoint - parent.checkpoint)*80)
             f.write(my_data)
+        # store file path
+        for b in blockchains.values():
+            b.old_path = b.path()
         # swap parameters
         self.parent = parent.parent; parent.parent = self
         self.checkpoint = parent.checkpoint; parent.checkpoint = checkpoint
+        # move files
+        for b in blockchains.values():
+            if b in [self, parent]: continue
+            if b.old_path != b.path():
+                self.print_error("renaming", b.old_path, b.path())
+                os.rename(b.old_path, b.path())
         # update pointers
         blockchains[self.checkpoint] = self
         blockchains[parent.checkpoint] = parent
