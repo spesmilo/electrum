@@ -37,8 +37,17 @@ class AddressList(MyTreeWidget):
     filter_columns = [0, 1, 2]  # Address, Label, Balance
 
     def __init__(self, parent=None):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [ _('Address'), _('Label'), _('Balance'), _('Tx')], 1)
+        MyTreeWidget.__init__(self, parent, self.create_menu, [], 1)
+        self.refresh_headers()
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+
+    def refresh_headers(self):
+        headers = [ _('Address'), _('Label'), _('Balance')]
+        fx = self.parent.fx
+        if fx and fx.get_fiat_address_config():
+            headers.extend([_(fx.get_currency()+' Balance')])
+        headers.extend([_('Tx')])
+        self.update_headers(headers)
 
     def on_update(self):
         self.wallet = self.parent.wallet
@@ -68,7 +77,15 @@ class AddressList(MyTreeWidget):
                     label = self.wallet.labels.get(address,'')
                     c, u, x = self.wallet.get_addr_balance(address)
                     balance = self.parent.format_amount(c + u + x)
-                    address_item = QTreeWidgetItem([address, label, balance, "%d"%num])
+                    fx = self.parent.fx
+                    if fx and fx.get_fiat_address_config():
+                        rate = fx.exchange_rate()
+                        fiat_balance = fx.value_str(c + u + x, rate)
+                        address_item = QTreeWidgetItem([address, label, balance, fiat_balance, "%d"%num])
+                        address_item.setTextAlignment(3, Qt.AlignRight)
+                    else:
+                        address_item = QTreeWidgetItem([address, label, balance, "%d"%num])
+                    address_item.setTextAlignment(2, Qt.AlignRight)
                     address_item.setFont(0, QFont(MONOSPACE_FONT))
                     address_item.setData(0, Qt.UserRole, address)
                     address_item.setData(0, Qt.UserRole+1, True) # label can be edited

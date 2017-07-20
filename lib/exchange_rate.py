@@ -412,6 +412,12 @@ class FxThread(ThreadJob):
     def set_history_config(self, b):
         self.config.set_key('history_rates', bool(b))
 
+    def get_fiat_address_config(self):
+        return bool(self.config.get('fiat_address'))
+
+    def set_fiat_address_config(self, b):
+        self.config.set_key('fiat_address', bool(b))
+
     def get_currency(self):
         '''Use when dynamic fetching is needed'''
         return self.config.get("currency", "EUR")
