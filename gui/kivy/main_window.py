@@ -268,6 +268,7 @@ class ElectrumWindow(App):
         self._trigger_update_wallet = Clock.create_trigger(self.update_wallet, .5)
         self._trigger_update_status = Clock.create_trigger(self.update_status, .5)
         self._trigger_update_history = Clock.create_trigger(self.update_history, .5)
+        self._trigger_update_interfaces = Clock.create_trigger(self.update_interfaces, .5)
         # cached dialogs
         self._settings_dialog = None
         self._password_dialog = None
@@ -447,12 +448,8 @@ class ElectrumWindow(App):
         self.load_wallet_by_name(self.electrum_config.get_wallet_path())
         # init plugins
         run_hook('init_kivy', self)
-
         # fiat currency
         self.fiat_unit = self.fx.ccy if self.fx.is_enabled() else ''
-        self.network.register_callback(self.on_quotes, ['on_quotes'])
-        self.network.register_callback(self.on_history, ['on_history'])
-
         # default tab
         self.switch_to('history')
         # bind intent for bitcoin: URI scheme
@@ -463,11 +460,17 @@ class ElectrumWindow(App):
             mactivity = PythonActivity.mActivity
             self.on_new_intent(mactivity.getIntent())
             activity.bind(on_new_intent=self.on_new_intent)
-
+        # connect callbacks
+        if self.network:
+            interests = ['updated', 'status', 'new_transaction', 'verified', 'interfaces']
+            self.network.register_callback(self.on_network_event, interests)
+            self.network.register_callback(self.on_quotes, ['on_quotes'])
+            self.network.register_callback(self.on_history, ['on_history'])
         # URI passed in config
         uri = self.electrum_config.get('url')
         if uri:
             self.set_URI(uri)
+
 
     def get_wallet_path(self):
         if self.wallet:
@@ -584,25 +587,23 @@ class ElectrumWindow(App):
         self.invoices_screen = None
         self.receive_screen = None
         self.requests_screen = None
-
         self.icon = "icons/electrum-ltc.png"
-
-        # connect callbacks
-        if self.network:
-            interests = ['updated', 'status', 'new_transaction', 'verified']
-            self.network.register_callback(self.on_network, interests)
         self.tabs = self.root.ids['tabs']
 
-    def on_network(self, event, *args):
-        chain = self.network.blockchain()
+    def update_interfaces(self, dt):
+        self.num_nodes = len(self.network.get_interfaces())
         self.num_chains = len(self.network.get_blockchains())
+        chain = self.network.blockchain()
         self.blockchain_checkpoint = chain.get_checkpoint()
         self.blockchain_name = chain.get_name()
         if self.network.interface:
             self.server_host = self.network.interface.host
-        if event == 'updated':
-            self.num_blocks = self.network.get_local_height()
-            self.num_nodes = len(self.network.get_interfaces())
+
+    def on_network_event(self, event, *args):
+        Logger.info('network event: '+ event)
+        if event == 'interfaces':
+            self._trigger_update_interfaces()
+        elif event == 'updated':
             self._trigger_update_wallet()
             self._trigger_update_status()
         elif event == 'status':
@@ -624,6 +625,7 @@ class ElectrumWindow(App):
         run_hook('load_wallet', wallet, self)
 
     def update_status(self, *dt):
+        self.num_blocks = self.network.get_local_height()
         if not self.wallet:
             self.status = _("No Wallet")
             return
