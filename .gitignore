@@ -20,3 +20,7 @@ bin/
 # tox files
 .cache/
 .coverage
+
+# MacOSX
+.DS_Store/
+icons/.DS_Store/
