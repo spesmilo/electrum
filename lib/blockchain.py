@@ -184,19 +184,21 @@ class Blockchain(util.PrintError):
         with open(filename, 'rb+') as f:
             f.seek(d)
             f.write(chunk)
-        # order files
-        if self.parent_id is not None and self.parent().get_branch_size() < self.size():
-            self.swap_with_parent()
+        self.swap_with_parent()
 
     def swap_with_parent(self):
+        if self.parent_id is None:
+            return
+        parent_branch_size = self.parent().height() - self.checkpoint + 1
+        if parent_branch_size >= self.size():
+            return
         self.print_error("swap", self.checkpoint, self.parent_id)
         parent_id = self.parent_id
         checkpoint = self.checkpoint
         parent = self.parent()
-        size = parent.get_branch_size()
         with open(parent.path(), 'rb+') as f:
             f.seek((checkpoint - parent.checkpoint)*80)
-            parent_data = f.read(size*80)
+            parent_data = f.read(parent_branch_size*80)
             f.seek((checkpoint - parent.checkpoint)*80)
             f.truncate()
         with open(self.path(), 'rb+') as f:
@@ -233,8 +235,7 @@ class Blockchain(util.PrintError):
             f.seek(delta * 80)
             f.write(data)
         # order files
-        if self.parent_id is not None and self.parent().get_branch_size() < self.size():
-            self.swap_with_parent()
+        self.swap_with_parent()
 
     def read_header(self, height):
         assert self.parent_id != self.checkpoint
