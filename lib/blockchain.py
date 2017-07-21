@@ -300,9 +300,9 @@ class Blockchain(util.PrintError):
         new_bits = bitsN << 24 | bitsBase
         return new_bits, bitsBase << (8 * (bitsN-3))
 
-    def can_connect(self, header):
+    def can_connect(self, header, check_height=True):
         height = header['block_height']
-        if self.height() != height - 1:
+        if check_height and self.height() != height - 1:
             return False
         if height == 0:
             return hash_header(header) == bitcoin.GENESIS

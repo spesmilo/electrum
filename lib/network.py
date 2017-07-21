@@ -843,23 +843,27 @@ class Network(util.DaemonThread):
                         raise BaseException('error')
                     next_height = None
                 else:
-                    if interface.blockchain.height() > interface.good:
-                        if not interface.blockchain.check_header(interface.bad_header):
-                            self.blockchains[interface.bad] = b = interface.blockchain.fork(interface.bad)
-                            interface.blockchain = b
-                            interface.print_error("new chain", b.checkpoint)
-                    else:
-                        assert interface.blockchain.height() == interface.good
-
                     bh = interface.blockchain.height()
-                    if interface.blockchain.catch_up is None and bh < interface.tip:
-                        interface.print_error("catching up from %d"% (bh + 1))
-                        interface.mode = 'catch_up'
-                        next_height = bh + 1
-                        interface.blockchain.catch_up = interface.server
+                    next_height = None
+                    if bh > interface.good:
+                        if not interface.blockchain.check_header(interface.bad_header):
+                            if interface.blockchain.can_connect(interface.bad_header, check_height=False):
+                                b = interface.blockchain.fork(interface.bad)
+                                b.save_header(interface.bad_header)
+                                self.blockchains[interface.bad] = b
+                                interface.blockchain = b
+                                interface.print_error("new chain", b.checkpoint)
+                                interface.mode = 'catch_up'
+                                next_height = interface.bad + 1
+                                interface.blockchain.catch_up = interface.server
                     else:
-                        interface.print_error('already catching up')
-                        next_height = None
+                        assert bh == interface.good
+                        if interface.blockchain.catch_up is None and bh < interface.tip:
+                            interface.print_error("catching up from %d"% (bh + 1))
+                            interface.mode = 'catch_up'
+                            next_height = bh + 1
+                            interface.blockchain.catch_up = interface.server
+
                 self.notify('updated')
 
         elif interface.mode == 'catch_up':
