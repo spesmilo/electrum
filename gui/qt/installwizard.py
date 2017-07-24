@@ -109,6 +109,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.title = QLabel()
         self.main_widget = QWidget()
         self.back_button = QPushButton(_("Back"), self)
+        self.back_button.setText(_('Back') if self.can_go_back() else _('Cancel'))
         self.next_button = QPushButton(_("Next"), self)
         self.next_button.setDefault(True)
         self.logo = QLabel()
@@ -211,7 +212,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         while True:
             if self.storage.file_exists() and not self.storage.is_encrypted():
                 break
-            if not self.loop.exec_():
+            if self.loop.exec_() != 2:  # 2 = next
                 return
             if not self.storage.file_exists():
                 break
@@ -250,7 +251,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             self.storage.upgrade()
             self.show_warning(_('Your wallet was upgraded successfully'))
             self.wallet = Wallet(self.storage)
-            self.terminate()
             return self.wallet
 
         action = self.storage.get_action()
@@ -270,7 +270,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             return self.wallet
 
         self.wallet = Wallet(self.storage)
-        self.terminate()
         return self.wallet
 
 

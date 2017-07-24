@@ -819,21 +819,26 @@ class Network(util.DaemonThread):
                 if branch is not None:
                     if branch.check_header(interface.bad_header):
                         interface.print_error('joining chain', interface.bad)
+                        next_height = None
                     elif branch.parent().check_header(header):
                         interface.print_error('reorg', interface.bad, interface.tip)
                         interface.blockchain = branch.parent()
+                        next_height = None
                     else:
-                        # should not happen
-                        raise BaseException('error')
-                    next_height = None
+                        interface.print_error('checkpoint conflicts with existing fork', branch.path())
+                        open(branch.path(), 'w+').close()
+                        branch.save_header(interface.bad_header)
+                        interface.mode = 'catch_up'
+                        interface.blockchain = branch
+                        next_height = interface.bad + 1
+                        interface.blockchain.catch_up = interface.server
                 else:
                     bh = interface.blockchain.height()
                     next_height = None
                     if bh > interface.good:
                         if not interface.blockchain.check_header(interface.bad_header):
                             if interface.blockchain.can_connect(interface.bad_header, check_height=False):
-                                b = interface.blockchain.fork(interface.bad)
-                                b.save_header(interface.bad_header)
+                                b = interface.blockchain.fork(interface.bad_header)
                                 self.blockchains[interface.bad] = b
                                 interface.blockchain = b
                                 interface.print_error("new chain", b.checkpoint)

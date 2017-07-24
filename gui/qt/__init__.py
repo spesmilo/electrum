@@ -173,6 +173,7 @@ class ElectrumGui:
                 storage = WalletStorage(path)
                 wizard = InstallWizard(self.config, self.app, self.plugins, storage)
                 wallet = wizard.run_and_get_wallet()
+                wizard.terminate()
                 if not wallet:
                     return
                 wallet.start_threads(self.daemon.network)
