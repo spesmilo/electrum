@@ -413,6 +413,7 @@ def parse_input(vds):
     if prevout_hash == '00'*32:
         d['type'] = 'coinbase'
     else:
+        d['x_pubkeys'] = []
         d['pubkeys'] = []
         d['signatures'] = {}
         d['address'] = None
@@ -656,8 +657,8 @@ class Transaction:
             return push_script(redeem_script)
         elif _type == 'address':
             script += push_script(pubkeys[0])
-        else:
-            raise TypeError('Unknown txin type', _type)
+        elif _type == 'unknown':
+            return txin['scriptSig']
         return script
 
     @classmethod
