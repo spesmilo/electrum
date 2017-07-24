@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import locale
 
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
@@ -31,19 +32,20 @@ class AmountEdit(MyLineEdit):
         return 8
 
     def numbify(self):
+        dec_sep = self.get_decimal_seperator()
         text = unicode(self.text()).strip()
         if text == '!':
             self.shortcut.emit()
             return
         pos = self.cursorPosition()
         chars = '0123456789'
-        if not self.is_int: chars +='.'
+        if not self.is_int: chars += dec_sep
         s = ''.join([i for i in text if i in chars])
         if not self.is_int:
-            if '.' in s:
-                p = s.find('.')
-                s = s.replace('.','')
-                s = s[:p] + '.' + s[p:p+self.decimal_point()]
+            if dec_sep in s:
+                p = s.find(dec_sep)
+                s = s.replace(dec_sep, '')
+                s = s[:p] + dec_sep + s[p:p+self.decimal_point()]
         self.setText(s)
         # setText sets Modified to False.  Instead we want to remember
         # if updates were because of user modification.
@@ -63,9 +65,20 @@ class AmountEdit(MyLineEdit):
 
     def get_amount(self):
         try:
-            return (int if self.is_int else Decimal)(str(self.text()))
+            text = str(self.text()).replace(self.get_decimal_seperator(), '.')
+            return (int if self.is_int else Decimal)(text)
         except:
             return None
+
+    def get_decimal_seperator(self):
+        try:
+            return locale.localeconv()["decimal_point"]
+        except KeyError:
+            return '.'
+
+    def setText(self, text):
+        text = text.replace('.', self.get_decimal_seperator())
+        MyLineEdit.setText(self, text)
 
 
 class BTCAmountEdit(AmountEdit):
@@ -86,9 +99,8 @@ class BTCAmountEdit(AmountEdit):
         raise Exception('Unknown base unit')
 
     def get_amount(self):
-        try:
-            x = Decimal(str(self.text()))
-        except:
+        x = AmountEdit.get_amount(self)
+        if not x:
             return None
         p = pow(10, self.decimal_point())
         return int( p * x )
