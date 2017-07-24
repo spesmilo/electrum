@@ -213,7 +213,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             if self.storage.file_exists() and not self.storage.is_encrypted():
                 break
             if self.loop.exec_() != 2:  # 2 = next
-                self.close()
+                return
             if not self.storage.file_exists():
                 break
             if self.storage.file_exists() and self.storage.is_encrypted():
