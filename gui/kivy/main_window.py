@@ -330,7 +330,7 @@ class ElectrumWindow(App):
 
     def switch_to(self, name):
         s = getattr(self, name + '_screen', None)
-        if self.send_screen is None:
+        if s is None:
             s = self.tabs.ids[name + '_screen']
             s.load_screen()
         panel = self.tabs.ids.panel
