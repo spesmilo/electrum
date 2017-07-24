@@ -854,8 +854,7 @@ class Network(util.DaemonThread):
                     if bh > interface.good:
                         if not interface.blockchain.check_header(interface.bad_header):
                             if interface.blockchain.can_connect(interface.bad_header, check_height=False):
-                                b = interface.blockchain.fork(interface.bad)
-                                b.save_header(interface.bad_header)
+                                b = interface.blockchain.fork(interface.bad_header)
                                 self.blockchains[interface.bad] = b
                                 interface.blockchain = b
                                 interface.print_error("new chain", b.checkpoint)

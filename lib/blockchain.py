@@ -27,6 +27,8 @@
 
 import os
 import util
+import threading
+
 import bitcoin
 from bitcoin import *
 
@@ -101,6 +103,9 @@ class Blockchain(util.PrintError):
         self.catch_up = None # interface catching up
         self.checkpoint = checkpoint
         self.parent_id = parent_id
+        self.lock = threading.Lock()
+        with self.lock:
+            self.update_size()
 
     def parent(self):
         return blockchains[self.parent_id]
@@ -124,18 +129,23 @@ class Blockchain(util.PrintError):
         height = header.get('block_height')
         return header_hash == self.get_hash(height)
 
-    def fork(parent, checkpoint):
+    def fork(parent, header):
+        checkpoint = header.get('block_height')
         self = Blockchain(parent.config, checkpoint, parent.checkpoint)
-        # create file
         open(self.path(), 'w+').close()
+        self.save_header(header)
         return self
 
     def height(self):
         return self.checkpoint + self.size() - 1
 
     def size(self):
+        with self.lock:
+            return self._size
+
+    def update_size(self):
         p = self.path()
-        return os.path.getsize(p)/80 if os.path.exists(p) else 0
+        self._size = os.path.getsize(p)/80 if os.path.exists(p) else 0
 
     def verify_header(self, header, prev_header, bits, target):
         prev_hash = hash_header(prev_header)
@@ -181,9 +191,11 @@ class Blockchain(util.PrintError):
         if d < 0:
             chunk = chunk[-d:]
             d = 0
-        with open(filename, 'rb+') as f:
-            f.seek(d)
-            f.write(chunk)
+        with self.lock:
+            with open(filename, 'rb+') as f:
+                f.seek(d)
+                f.write(chunk)
+            self.update_size()
         self.swap_with_parent()
 
     def swap_with_parent(self):
@@ -199,16 +211,20 @@ class Blockchain(util.PrintError):
         with open(parent.path(), 'rb+') as f:
             f.seek((checkpoint - parent.checkpoint)*80)
             parent_data = f.read(parent_branch_size*80)
-            f.seek((checkpoint - parent.checkpoint)*80)
-            f.truncate()
-        with open(self.path(), 'rb+') as f:
-            my_data = f.read()
-            f.seek(0)
-            f.truncate()
-            f.write(parent_data)
-        with open(parent.path(), 'rb+') as f:
-            f.seek((checkpoint - parent.checkpoint)*80)
-            f.write(my_data)
+        with self.lock:
+            with open(self.path(), 'rb+') as f:
+                my_data = f.read()
+                f.seek(0)
+                f.truncate()
+                f.write(parent_data)
+            self.update_size()
+        with parent.lock:
+            with open(parent.path(), 'rb+') as f:
+                f.seek((checkpoint - parent.checkpoint)*80)
+                f.truncate()
+                f.seek((checkpoint - parent.checkpoint)*80)
+                f.write(my_data)
+            parent.update_size()
         # store file path
         for b in blockchains.values():
             b.old_path = b.path()
@@ -231,9 +247,11 @@ class Blockchain(util.PrintError):
         data = serialize_header(header).decode('hex')
         assert delta == self.size()
         assert len(data) == 80
-        with open(filename, 'rb+') as f:
-            f.seek(delta * 80)
-            f.write(data)
+        with self.lock:
+            with open(filename, 'rb+') as f:
+                f.seek(delta * 80)
+                f.write(data)
+            self.update_size()
         # order files
         self.swap_with_parent()
 
