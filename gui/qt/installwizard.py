@@ -251,7 +251,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             self.storage.upgrade()
             self.show_warning(_('Your wallet was upgraded successfully'))
             self.wallet = Wallet(self.storage)
-            self.terminate()
             return self.wallet
 
         action = self.storage.get_action()
@@ -271,7 +270,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             return self.wallet
 
         self.wallet = Wallet(self.storage)
-        self.terminate()
         return self.wallet
 
 
