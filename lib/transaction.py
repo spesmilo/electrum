@@ -497,6 +497,9 @@ def multisig_script(public_keys, m):
 
 class Transaction:
 
+    SIGHASH_FORKID = 0x40
+    FORKID = 0x000000
+
     def __str__(self):
         if self.raw is None:
             self.raw = self.serialize()
@@ -708,14 +711,18 @@ class Transaction:
         s += script
         return s
 
+    def nHashType(self):
+        '''Hash type in hex.'''
+        return 0x01 | (self.SIGHASH_FORKID + (self.FORKID << 8))
+
     def serialize_preimage(self, i):
         nVersion = int_to_hex(self.version, 4)
-        nHashType = int_to_hex(1, 4)
+        nHashType = int_to_hex(self.nHashType(), 4)
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
         txin = inputs[i]
-        if self.is_segwit_input(txin):
+        if True or self.is_segwit_input(txin):
             hashPrevouts = Hash(''.join(self.serialize_outpoint(txin) for txin in inputs).decode('hex')).encode('hex')
             hashSequence = Hash(''.join(int_to_hex(txin.get('sequence', 0xffffffff - 1), 4) for txin in inputs).decode('hex')).encode('hex')
             hashOutputs = Hash(''.join(self.serialize_output(o) for o in outputs).decode('hex')).encode('hex')
@@ -830,7 +837,7 @@ class Transaction:
                     public_key = private_key.get_verifying_key()
                     sig = private_key.sign_digest_deterministic(pre_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
                     assert public_key.verify_digest(sig, pre_hash, sigdecode = ecdsa.util.sigdecode_der)
-                    txin['signatures'][j] = sig.encode('hex') + '01'
+                    txin['signatures'][j] = sig.encode('hex') + int_to_hex(self.nHashType() & 255, 1)
                     txin['x_pubkeys'][j] = pubkey
                     txin['pubkeys'][j] = pubkey # needed for fd keys
                     self._inputs[i] = txin
