@@ -217,6 +217,7 @@ class Blockchain(util.PrintError):
         # swap parameters
         self.parent_id = parent.parent_id; parent.parent_id = parent_id
         self.checkpoint = parent.checkpoint; parent.checkpoint = checkpoint
+        self._size = parent._size; parent._size = parent_branch_size
         # move files
         for b in blockchains.values():
             if b in [self, parent]: continue
