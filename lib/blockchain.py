@@ -191,11 +191,7 @@ class Blockchain(util.PrintError):
         if d < 0:
             chunk = chunk[-d:]
             d = 0
-        with self.lock:
-            with open(filename, 'rb+') as f:
-                f.seek(d)
-                f.write(chunk)
-            self.update_size()
+        self.write(chunk, d)
         self.swap_with_parent()
 
     def swap_with_parent(self):
@@ -208,23 +204,13 @@ class Blockchain(util.PrintError):
         parent_id = self.parent_id
         checkpoint = self.checkpoint
         parent = self.parent()
-        with open(parent.path(), 'rb+') as f:
+        with open(self.path(), 'rb') as f:
+            my_data = f.read()
+        with open(parent.path(), 'rb') as f:
             f.seek((checkpoint - parent.checkpoint)*80)
             parent_data = f.read(parent_branch_size*80)
-        with self.lock:
-            with open(self.path(), 'rb+') as f:
-                my_data = f.read()
-                f.seek(0)
-                f.truncate()
-                f.write(parent_data)
-            self.update_size()
-        with parent.lock:
-            with open(parent.path(), 'rb+') as f:
-                f.seek((checkpoint - parent.checkpoint)*80)
-                f.truncate()
-                f.seek((checkpoint - parent.checkpoint)*80)
-                f.write(my_data)
-            parent.update_size()
+        self.write(parent_data, 0)
+        parent.write(my_data, (checkpoint - parent.checkpoint)*80)
         # store file path
         for b in blockchains.values():
             b.old_path = b.path()
@@ -241,18 +227,25 @@ class Blockchain(util.PrintError):
         blockchains[self.checkpoint] = self
         blockchains[parent.checkpoint] = parent
 
-    def save_header(self, header):
+    def write(self, data, offset):
         filename = self.path()
+        with self.lock:
+            with open(filename, 'rb+') as f:
+                if offset != self._size*80:
+                    f.seek(offset)
+                    f.truncate()
+                f.seek(offset)
+                f.write(data)
+                f.flush()
+                os.fsync(f.fileno())
+            self.update_size()
+
+    def save_header(self, header):
         delta = header.get('block_height') - self.checkpoint
         data = serialize_header(header).decode('hex')
         assert delta == self.size()
         assert len(data) == 80
-        with self.lock:
-            with open(filename, 'rb+') as f:
-                f.seek(delta * 80)
-                f.write(data)
-            self.update_size()
-        # order files
+        self.write(data, delta*80)
         self.swap_with_parent()
 
     def read_header(self, height):
