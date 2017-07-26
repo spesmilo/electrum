@@ -59,7 +59,7 @@ class Blockchain(util.PrintError):
     def verify_header(self, header, prev_header, bits, target, height):
         prev_hash = self.hash_header(prev_header)
         assert prev_hash == header.get('prev_block_hash'), "prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash'))
-        if bitcoin.TESTNET or bitcoin.NOLNET or height < DGW3_START_HEIGHT: return
+        if bitcoin.TESTNET or bitcoin.NOLNET or not USE_DIFF_RETARGET or height < DGW3_START_HEIGHT: return
         assert bits == header.get('bits'), "bits mismatch: %s vs %s" % (bits, header.get('bits'))
         _hash = self.hash_header(header)
         assert int('0x' + _hash, 16) <= target, "insufficient proof of work: %s vs target %s" % (int('0x' + _hash, 16), target)
@@ -79,18 +79,19 @@ class Blockchain(util.PrintError):
         if index != 0:
             prev_header = self.read_header(index*2016 - 1)
 
+        chain = []
         for i in range(num):
             height = index*2016 + i
             raw_header = data[i*80:(i+1) * 80]
             header = self.deserialize_header(raw_header)
-            bits, target = None, None
-            # If using diff retarget, calculate/verify bits
+            header['block_height'] = height
+            # DGW3 requires access to recent (unsaved) headers.
             if USE_DIFF_RETARGET:
-                bits, target = self.get_target(height)
+                chain.append(header)
+                if not len(chain) % 100:
+                    chain = chain[-100:]
+            bits, target = self.get_target(height, chain)
             self.verify_header(header, prev_header, bits, target, height)
-            # Save every header because they're needed for DGW3.
-            if USE_DIFF_RETARGET:
-                self.save_header(header, height=height)
 
             prev_header = header
 
@@ -277,7 +278,7 @@ class Blockchain(util.PrintError):
             chain = []  # Do not use mutables as default values!
 
         # Enforce DGW3_START_HEIGHT.
-        if height < DGW3_START_HEIGHT:
+        if not USE_DIFF_RETARGET or block_height < DGW3_START_HEIGHT:
             return None, None
         return self.get_target_dgw3(block_height, chain)
 
@@ -316,9 +317,7 @@ class Blockchain(util.PrintError):
             data = hexdata.decode('hex')
             self.verify_chunk(idx, data)
             self.print_error("validated chunk %d" % idx)
-            # If using difficulty, every header is saved during chunk verify_chunk().
-            if not USE_DIFF_RETARGET:
-                self.save_chunk(idx, data)
+            self.save_chunk(idx, data)
             return idx + 1
         except BaseException as e:
             self.print_error('verify_chunk failed', str(e))
