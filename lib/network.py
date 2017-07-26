@@ -814,6 +814,9 @@ class Network(util.DaemonThread):
                 interface.bad_header = header
             if interface.bad != interface.good + 1:
                 next_height = (interface.bad + interface.good) // 2
+            elif not interface.blockchain.can_connect(interface.bad_header, check_height=False):
+                self.connection_down(interface.server)
+                next_height = None
             else:
                 branch = self.blockchains.get(interface.bad)
                 if branch is not None:
@@ -837,14 +840,13 @@ class Network(util.DaemonThread):
                     next_height = None
                     if bh > interface.good:
                         if not interface.blockchain.check_header(interface.bad_header):
-                            if interface.blockchain.can_connect(interface.bad_header, check_height=False):
-                                b = interface.blockchain.fork(interface.bad_header)
-                                self.blockchains[interface.bad] = b
-                                interface.blockchain = b
-                                interface.print_error("new chain", b.checkpoint)
-                                interface.mode = 'catch_up'
-                                next_height = interface.bad + 1
-                                interface.blockchain.catch_up = interface.server
+                            b = interface.blockchain.fork(interface.bad_header)
+                            self.blockchains[interface.bad] = b
+                            interface.blockchain = b
+                            interface.print_error("new chain", b.checkpoint)
+                            interface.mode = 'catch_up'
+                            next_height = interface.bad + 1
+                            interface.blockchain.catch_up = interface.server
                     else:
                         assert bh == interface.good
                         if interface.blockchain.catch_up is None and bh < interface.tip:
