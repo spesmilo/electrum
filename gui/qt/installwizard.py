@@ -22,7 +22,7 @@ from .password_dialog import PasswordLayout, PW_NEW
 class GoBack(Exception):
     pass
 
-MSG_GENERATING_WAIT = _("Electrum is generating your addresses, please wait...")
+MSG_GENERATING_WAIT = _("Electron Cash is generating your addresses, please wait...")
 MSG_ENTER_ANYTHING = _("Please enter a seed phrase, a master key, a list of "
                        "Bitcoin addresses, or a list of private keys")
 MSG_ENTER_SEED_OR_MPK = _("Please enter a seed phrase or a master key (xpub or xprv):")
@@ -102,7 +102,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def __init__(self, config, app, plugins, storage):
         BaseWizard.__init__(self, config, storage)
         QDialog.__init__(self, None)
-        self.setWindowTitle('Electrum  -  ' + _('Install Wizard'))
+        self.setWindowTitle('Electron Cash  -  ' + _('Install Wizard'))
         self.app = app
         self.config = config
         # Set for base base class
@@ -174,7 +174,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         hbox2.addWidget(self.pw_e)
         hbox2.addStretch()
         vbox.addLayout(hbox2)
-        self.set_layout(vbox, title=_('Electrum wallet'))
+        self.set_layout(vbox, title=_('Electron Cash wallet'))
 
         wallet_folder = os.path.dirname(self.storage.path)
 
@@ -252,6 +252,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             return
 
         if self.storage.requires_upgrade():
+            self.hide()
+            msg = _("The format of your wallet '%s' must be upgraded for Electron Cash. This change will not be backward compatible"%path)
+            if not self.question(msg):
+                return
             self.storage.upgrade()
             self.wallet = Wallet(self.storage)
             return self.wallet
@@ -486,10 +490,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return None
 
     def init_network(self, network):
-        message = _("Electrum communicates with remote servers to get "
+        message = _("Electron Cash communicates with remote servers to get "
                   "information about your transactions and addresses. The "
-                  "servers all fulfill the same purpose only differing in "
-                  "hardware. In most cases you simply want to let Electrum "
+                  "servers all fulfil the same purpose only differing in "
+                  "hardware. In most cases you simply want to let Electron Cash "
                   "pick one at random.  However if you prefer feel free to "
                   "select a server manually.")
         choices = [_("Auto connect"), _("Select server manually")]

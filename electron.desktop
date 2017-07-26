@@ -1,0 +1,17 @@
+# If you want electrum to appear in a linux app launcher ("start menu"), install this by doing:
+# sudo desktop-file-install ElectronCash.desktop
+
+[Desktop Entry]
+Comment=Lightweight Bitcoin Cash Client
+Exec=electron-cash %u
+GenericName[en_US]=Bitcoin Cash Wallet
+GenericName=Bitcoin Cash Wallet
+Icon=electron
+Name[en_US]=electron.desktop
+Name=Electron Cash Bitcoin Cash Wallet
+Categories=Finance;Network;
+StartupNotify=false
+Terminal=false
+Type=Application
+MimeType=x-scheme-handler/bitcoin;
+
