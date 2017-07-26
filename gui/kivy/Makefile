@@ -18,11 +18,11 @@ prepare:
 	fi
 apk:
 	@make prepare
-	@-cd ../..; buildozer android_new debug deploy run
+	@-cd ../..; buildozer android debug deploy run
 	@make clean
 release:
 	@make prepare
-	@-cd ../..; buildozer android_new release
+	@-cd ../..; buildozer android release
 	@make clean
 clean:
 	# Cleaning up

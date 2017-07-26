@@ -1,13 +1,13 @@
 [app]
 
 # (str) Title of your application
-title = Electrum
+title = Electron-Cash
 
 # (str) Package name
-package.name = Electrum
+package.name = Electron-Cash
 
 # (str) Package domain (needed for android/ios packaging)
-package.domain = org.electrum
+package.domain = org.electroncash
 
 # (str) Source code where the main.py live
 source.dir = .
@@ -24,11 +24,11 @@ source.exclude_dirs = bin, build, dist, contrib, gui/qt, gui/kivy/tools, gui/kiv
 source.exclude_patterns = Makefile,setup*
 
 # (str) Application versioning (method 1)
-version.regex = version_apk = '(.*)'
-version.filename = %(source.dir)s/contrib/versions.py
+#version.regex = version_apk = '(.*)'
+#version.filename = %(source.dir)s/contrib/versions.py
 
 # (str) Application versioning (method 2)
-#version = 1.9.8
+version = 2.8.2
 
 # (list) Application requirements
 requirements = hostpython2, android, openssl, pycrypto, pil, plyer, kivy==master
@@ -117,10 +117,10 @@ android.manifest.intent_filters = gui/kivy/tools/bitcoin_intent.xml
 # project.properties automatically.)
 #android.library_references =
 
-android.p4a_whitelist = lib-dynload/_csv.so
+#android.p4a_whitelist = lib-dynload/_csv.so
 
 # local version that merges branch 866
-android.p4a_dir = /opt/python-for-android
+p4a.source_dir = /home/ubuntu/Downloads/python-for-android-master
 
 #
 # iOS specific
