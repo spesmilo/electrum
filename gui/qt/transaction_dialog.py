@@ -175,7 +175,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         desc = self.desc
         base_unit = self.main_window.base_unit()
         format_amount = self.main_window.format_amount
-        tx_hash, status, label, can_broadcast, can_rbf, amount, fee, height, conf, timestamp, exp_n = self.wallet.get_tx_info(self.tx)
+        tx_hash, status, label, can_broadcast, amount, fee, height, conf, timestamp, exp_n = self.wallet.get_tx_info(self.tx)
         size = self.tx.estimated_size()
         self.broadcast_button.setEnabled(can_broadcast)
         can_sign = not self.tx.is_complete() and \

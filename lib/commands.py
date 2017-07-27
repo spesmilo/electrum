@@ -409,7 +409,7 @@ class Commands:
         sig = base64.b64decode(signature)
         return bitcoin.verify_message(address, sig, message)
 
-    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime=None):
+    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned, password, locktime=None):
         self.nocheck = nocheck
         change_addr = self._resolver(change_addr)
         domain = None if domain is None else map(self._resolver, domain)
@@ -421,29 +421,27 @@ class Commands:
 
         coins = self.wallet.get_spendable_coins(domain, self.config)
         tx = self.wallet.make_unsigned_transaction(coins, final_outputs, self.config, fee, change_addr)
-        if locktime != None: 
+        if locktime != None:
             tx.locktime = locktime
-        if rbf:
-            tx.set_rbf(True)
         if not unsigned:
             run_hook('sign_tx', self.wallet, tx)
             self.wallet.sign_transaction(tx, password)
         return tx
 
     @command('wp')
-    def payto(self, destination, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None, locktime=None):
+    def payto(self, destination, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, password=None, locktime=None):
         """Create a transaction. """
         tx_fee = satoshis(fee)
         domain = from_addr.split(',') if from_addr else None
-        tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime)
+        tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, password, locktime)
         return tx.as_dict()
 
     @command('wp')
-    def paytomany(self, outputs, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None, locktime=None):
+    def paytomany(self, outputs, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, password=None, locktime=None):
         """Create a multi-output transaction. """
         tx_fee = satoshis(fee)
         domain = from_addr.split(',') if from_addr else None
-        tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime)
+        tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, password, locktime)
         return tx.as_dict()
 
     @command('w')
@@ -716,7 +714,6 @@ command_options = {
     'language':    ("-L", "Default language for wordlist"),
     'privkey':     (None, "Private key. Set to '?' to get a prompt."),
     'unsigned':    ("-u", "Do not sign transaction"),
-    'rbf':         (None, "Replace-by-fee transaction"),
     'locktime':    (None, "Set locktime block number"),
     'domain':      ("-D", "List of addresses"),
     'memo':        ("-m", "Description of the request"),
