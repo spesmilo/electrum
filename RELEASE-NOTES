@@ -1,9 +1,30 @@
-# Release 2.9 - Independence
-  * Blockchain fork detection and management:
-    - The SPV module will download and verify block headers from
-      multiple branches
-    - Branching points are located using binary search
-    - The desired branch of a fork can be selected using the network dialog
+# Release 2.9 - Independence (July 27th, 2017)
+  * Multiple Chain Validation: Electrum will download and validate
+    block headers sent by servers that may follow different branches
+    of a fork in the Bitcoin blockchain. Instead of a linear sequence,
+    block headers are organized in a tree structure. Branching points
+    are located efficiently using binary search. The purpose of MCV is
+    to detect and handle blockchain forks that are invisible to the
+    classical SPV model.
+  * The desired branch of a blockchain fork can be selected using the
+    network dialog. Branches are identified by the hash and height of
+    the diverging block. Coin splitting is possible using RBF
+    transaction (a tutorial will be added).
+  * Multibit support: If the user enters a BIP39 seed (or uses a
+    hardware wallet), the full derivation path is configurable in the
+    install wizard.
+  * Option to send only confirmed coins
+  * Qt GUI:
+    - Network dialog uses tabs and gets updated by network events.
+    - The gui tabs use icons
+  * Kivy GUI:
+    - separation between network dialog and wallet settings dialog.
+    - option for manual server entry
+    - proxy configuration
+  * Daemon: The wallet password can be passed as parameter to the
+    JSONRPC API.
+  * Various other bugfixes and improvements.
+
 
 # Release 2.8.3
   * Fix crash on reading older wallet formats.
