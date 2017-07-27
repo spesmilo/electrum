@@ -263,14 +263,9 @@ class SendScreen(CScreen):
             outputs = [(bitcoin.TYPE_ADDRESS, address, amount)]
         message = unicode(self.screen.message)
         amount = sum(map(lambda x:x[2], outputs))
-        if self.app.electrum_config.get('use_rbf'):
-            from dialogs.question import Question
-            d = Question(_('Should this transaction be replaceable?'), lambda b: self._do_send(amount, message, outputs, b))
-            d.open()
-        else:
-            self._do_send(amount, message, outputs, False)
+        self._do_send(amount, message, outputs)
 
-    def _do_send(self, amount, message, outputs, rbf):
+    def _do_send(self, amount, message, outputs):
         # make unsigned transaction
         config = self.app.electrum_config
         coins = self.app.wallet.get_spendable_coins(None, config)
@@ -283,8 +278,6 @@ class SendScreen(CScreen):
             traceback.print_exc(file=sys.stdout)
             self.app.show_error(str(e))
             return
-        if rbf:
-            tx.set_rbf(True)
         fee = tx.get_fee()
         msg = [
             _("Amount to be sent") + ": " + self.app.format_amount_and_units(amount),

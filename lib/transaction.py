@@ -693,11 +693,6 @@ class Transaction:
         s += int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
         return s
 
-    def set_rbf(self, rbf):
-        nSequence = 0xffffffff - (2 if rbf else 1)
-        for txin in self.inputs():
-            txin['sequence'] = nSequence
-
     def BIP_LI01_sort(self):
         # See https://github.com/kristovatlas/rfc/blob/master/bips/bip-li01.mediawiki
         self._inputs.sort(key = lambda i: (i['prevout_hash'], i['prevout_n']))

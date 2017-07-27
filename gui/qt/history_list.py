@@ -157,13 +157,9 @@ class HistoryList(MyTreeWidget):
 
         menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx))
         if is_unconfirmed and tx:
-            rbf = is_mine and not tx.is_final()
-            if rbf:
-                menu.addAction(_("Increase fee"), lambda: self.parent.bump_fee_dialog(tx))
-            else:
-                child_tx = self.wallet.cpfp(tx, 0)
-                if child_tx:
-                    menu.addAction(_("Child pays for parent"), lambda: self.parent.cpfp(tx, child_tx))
+            child_tx = self.wallet.cpfp(tx, 0)
+            if child_tx:
+                menu.addAction(_("Child pays for parent"), lambda: self.parent.cpfp(tx, child_tx))
         if pr_key:
             menu.addAction(QIcon(":icons/seal"), _("View invoice"), lambda: self.parent.show_invoice(pr_key))
         if tx_URL:
