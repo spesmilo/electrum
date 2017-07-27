@@ -227,7 +227,7 @@ class SimpleConfig(PrintError):
         return len(self.fee_estimates)==4
 
     def is_dynfee(self):
-        return self.get('dynamic_fees', True)
+        return self.get('dynamic_fees', False)
 
     def fee_per_kb(self):
         dyn = self.is_dynfee()
