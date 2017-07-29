@@ -101,7 +101,11 @@ class Commands:
             if password is None:
                 return
         f = getattr(self, method)
-        result = f(*args, **{'password':password})
+        if cmd.requires_password:
+            result = f(*args, **{'password':password})
+        else:
+            result = f(*args)
+        
         if self._callback:
             apply(self._callback, ())
         return result
