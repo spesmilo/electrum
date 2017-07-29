@@ -9,7 +9,7 @@ from .util import user_dir, print_error, print_stderr, PrintError
 
 from .bitcoin import MAX_FEE_RATE, FEE_TARGETS
 
-SYSTEM_CONFIG_PATH = "/etc/electrum.conf"
+SYSTEM_CONFIG_PATH = "/etc/electron-cash.conf"
 
 config = None
 
@@ -79,9 +79,9 @@ class SimpleConfig(PrintError):
         set_config(self)
 
     def electrum_path(self):
-        # Read electrum_path from command line / system configuration
+        # Read electrum_cash_path from command line / system configuration
         # Otherwise use the user's default data directory.
-        path = self.get('electrum_path')
+        path = self.get('electron_cash_path')
         if path is None:
             path = self.user_dir()
 
@@ -95,7 +95,7 @@ class SimpleConfig(PrintError):
             os.mkdir(path)
             os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
-        self.print_error("electrum directory", path)
+        self.print_error("electron-cash directory", path)
         return path
 
     def fixup_config_keys(self, config, keypairs):
@@ -293,7 +293,7 @@ def read_system_config(path=SYSTEM_CONFIG_PATH):
     return result
 
 def read_user_config(path):
-    """Parse and store the user config settings in electrum.conf into user_config[]."""
+    """Parse and store the user config settings in electron-cash.conf into user_config[]."""
     if not path:
         return {}
     config_path = os.path.join(path, "config")
