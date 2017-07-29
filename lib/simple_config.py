@@ -2,13 +2,14 @@ import ast
 import json
 import threading
 import os
+import shutil
 
 from copy import deepcopy
 from util import user_dir, print_error, print_msg, print_stderr, PrintError
 
 from bitcoin import MAX_FEE_RATE, FEE_TARGETS
 
-SYSTEM_CONFIG_PATH = "/etc/electrum.conf"
+SYSTEM_CONFIG_PATH = "/etc/electron-cash.conf"
 
 config = None
 
@@ -74,9 +75,9 @@ class SimpleConfig(PrintError):
         set_config(self)
 
     def electrum_path(self):
-        # Read electrum_path from command line / system configuration
+        # Read electrum_cash_path from command line / system configuration
         # Otherwise use the user's default data directory.
-        path = self.get('electrum_path')
+        path = self.get('electron_cash_path')
         if path is None:
             path = self.user_dir()
 
@@ -89,9 +90,17 @@ class SimpleConfig(PrintError):
         if not os.path.exists(path):
             if os.path.islink(path):
                 raise BaseException('Dangling link: ' + path)
-            os.mkdir(path)
-
-        self.print_error("electrum directory", path)
+            self.print_error("Making directory {} and copying wallets".format(path))
+            os.makedirs(path)
+            electrum_path = user_dir(True)
+	    if self.get('testnet'):
+                electrum_path = os.path.join(electrum_path, 'testnet')
+            elif self.get('nolnet'):
+                electrum_path = os.path.join(electrum_path, 'nolnet')
+            if os.path.exists(electrum_path):
+                # Deliberately don't copy config
+                shutil.copytree(os.path.join(electrum_path, 'wallets'), os.path.join(path, 'wallets'))
+	self.print_error("electron-cash directory", path)
         return path
 
     def fixup_config_keys(self, config, keypairs):
@@ -251,7 +260,7 @@ def read_system_config(path=SYSTEM_CONFIG_PATH):
         try:
             import ConfigParser
         except ImportError:
-            print "cannot parse electrum.conf. please install ConfigParser"
+            print "cannot parse electron-cash.conf. please install ConfigParser"
             return
 
         p = ConfigParser.ConfigParser()
@@ -265,7 +274,7 @@ def read_system_config(path=SYSTEM_CONFIG_PATH):
     return result
 
 def read_user_config(path):
-    """Parse and store the user config settings in electrum.conf into user_config[]."""
+    """Parse and store the user config settings in electron-cash.conf into user_config[]."""
     if not path:
         return {}
     config_path = os.path.join(path, "config")
