@@ -366,6 +366,10 @@ mainnet_block_explorers = {
                         {'tx': 'tx', 'addr': 'address'}),
     'BlockCypher.com': ('https://live.blockcypher.com/btc',
                         {'tx': 'tx', 'addr': 'address'}),
+    'Blockchair.com': ('https://blockchair.com/bitcoin',
+                        {'tx': 'transaction', 'addr': 'address'}),
+    'Blockchair.com (Bitcoin Cash)': ('https://blockchair.com/bitcoin-cash',
+                        {'tx': 'transaction', 'addr': 'address'}),
     'system default': ('blockchain:',
                         {'tx': 'tx', 'addr': 'address'}),
 }
