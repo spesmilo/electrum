@@ -32,7 +32,7 @@ if (id) {
         .done( function(data) {
 	    new QRCode(document.getElementById("qrcode"), data.URI);
             $("<p />").text(data.memo).appendTo($("p#reason"));
-            $("<p />").text(data.amount/100000000 + "BTC").appendTo($("p#amount"));
+            $("<p />").text(data.amount/100000000 + "BCC").appendTo($("p#amount"));
 	    $("a").attr("href", data.URI);
             $("<p />").text("Powered by Electrum").appendTo($("p#powered"));
             var websocket_server = data.websocket_server;
