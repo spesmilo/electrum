@@ -93,14 +93,14 @@ class SimpleConfig(PrintError):
             self.print_error("Making directory {} and copying wallets".format(path))
             os.makedirs(path)
             electrum_path = user_dir(True)
-        if self.get('testnet'):
+	    if self.get('testnet'):
                 electrum_path = os.path.join(electrum_path, 'testnet')
             elif self.get('nolnet'):
                 electrum_path = os.path.join(electrum_path, 'nolnet')
             if os.path.exists(electrum_path):
                 # Deliberately don't copy config
                 shutil.copytree(os.path.join(electrum_path, 'wallets'), os.path.join(path, 'wallets'))
-    self.print_error("electron-cash directory", path)
+	self.print_error("electron-cash directory", path)
         return path
 
     def fixup_config_keys(self, config, keypairs):
