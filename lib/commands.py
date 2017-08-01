@@ -97,7 +97,7 @@ class Commands:
         # this wrapper is called from the python console
         cmd = known_commands[method]
         if cmd.requires_password and self.wallet.has_password():
-            password = apply(password_getter, ())
+            password = password_getter()
             if password is None:
                 return
         f = getattr(self, method)
@@ -105,9 +105,9 @@ class Commands:
             result = f(*args, **{'password':password})
         else:
             result = f(*args)
-        
+
         if self._callback:
-            apply(self._callback, ())
+            self._callback()
         return result
 
     @command('')
