@@ -116,6 +116,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.need_update = threading.Event()
 
         self.decimal_point = config.get('decimal_point', 5)
+        self.fee_unit = config.get('fee_unit', 0)
         self.num_zeros     = int(config.get('num_zeros',0))
 
         self.completions = QStringListModel()
@@ -2457,6 +2458,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.config.set_key('rbf_policy', x)
         rbf_combo.currentIndexChanged.connect(on_rbf)
         fee_widgets.append((rbf_label, rbf_combo))
+        
+        self.fee_unit = self.config.get('fee_unit', 0)
+        fee_unit_label = HelpLabel(_('Fee Unit') + ':', '')
+        fee_unit_combo = QComboBox()
+        fee_unit_combo.addItems([_('sat/byte'), _('mBTC/kB')])
+        fee_unit_combo.setCurrentIndex(self.fee_unit)
+        def on_fee_unit(x):
+            self.fee_unit = x
+            self.config.set_key('fee_unit', x)
+            self.fee_slider.update()
+        fee_unit_combo.currentIndexChanged.connect(on_fee_unit)
+        fee_widgets.append((fee_unit_label, fee_unit_combo))
 
         msg = _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n'\
               + _('The following alias providers are available:') + '\n'\
