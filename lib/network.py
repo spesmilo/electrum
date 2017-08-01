@@ -56,6 +56,7 @@ DEFAULT_SERVERS = {
     '180.235.49.196': DEFAULT_PORTS,
     '35.185.209.69': DEFAULT_PORTS,
     '35.197.25.235': DEFAULT_PORTS,
+    'bcc.arihanc.com': {'t':'52001', 's':'52002'},
 }
 
 def set_testnet():
