@@ -303,6 +303,9 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             txinputtype.prev_hash = prev_hash
             txinputtype.prev_index = prev_index
 
+            if 'value' in txin:
+                txinputtype.amount = txin['value']
+
             if 'scriptSig' in txin:
                 script_sig = txin['scriptSig'].decode('hex')
                 txinputtype.script_sig = script_sig
