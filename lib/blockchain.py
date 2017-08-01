@@ -242,6 +242,8 @@ class Blockchain(util.PrintError):
 
     def read_header(self, height):
         assert self.parent_id != self.checkpoint
+        if height < 0:
+            return
         if height < self.checkpoint:
             return self.parent().read_header(height)
         if height > self.height():
