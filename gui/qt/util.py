@@ -69,7 +69,7 @@ class EnterButton(QPushButton):
 
     def keyPressEvent(self, e):
         if e.key() == Qt.Key_Return:
-            apply(self.func,())
+            self.func()
 
 
 class ThreadedButton(QPushButton):
