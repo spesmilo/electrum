@@ -767,7 +767,7 @@ class InstallWizard(BaseWizard, Widget):
             WizardChoiceDialog(self, **kwargs).open()
         else:
             f = kwargs['run_next']
-            apply(f, (choices[0][0],))
+            f(choices[0][0])
 
     def multisig_dialog(self, **kwargs): WizardMultisigDialog(self, **kwargs).open()
     def show_seed_dialog(self, **kwargs): ShowSeedDialog(self, **kwargs).open()
