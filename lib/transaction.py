@@ -722,7 +722,8 @@ class Transaction:
             hashSequence = Hash(''.join(int_to_hex(txin.get('sequence', 0xffffffff - 1), 4) for txin in inputs).decode('hex')).encode('hex')
             hashOutputs = Hash(''.join(self.serialize_output(o) for o in outputs).decode('hex')).encode('hex')
             outpoint = self.serialize_outpoint(txin)
-            scriptCode = push_script(self.get_preimage_script(txin))
+            preimage_script = self.get_preimage_script(txin)
+            scriptCode = var_int(len(preimage_script) / 2) + preimage_script
             amount = int_to_hex(txin['value'], 8)
             nSequence = int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
             preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
