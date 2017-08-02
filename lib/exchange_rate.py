@@ -33,12 +33,12 @@ class ExchangeBase(PrintError):
     def get_json(self, site, get_string):
         # APIs must have https
         url = ''.join(['https://', site, get_string])
-        response = requests.request('GET', url, headers={'User-Agent' : 'Electrum'})
+        response = requests.request('GET', url, headers={'User-Agent' : 'Electron Cash'})
         return response.json()
 
     def get_csv(self, site, get_string):
         url = ''.join(['https://', site, get_string])
-        response = requests.request('GET', url, headers={'User-Agent' : 'Electrum'})
+        response = requests.request('GET', url, headers={'User-Agent' : 'Electron Cash'})
         reader = csv.DictReader(response.content.split('\n'))
         return list(reader)
 
@@ -264,8 +264,8 @@ class itBit(ExchangeBase):
 class Kraken(ExchangeBase):
 
     def get_rates(self, ccy):
-        ccys = ['EUR', 'USD', 'CAD', 'GBP', 'JPY']
-        pairs = ['XBT%s' % c for c in ccys]
+        ccys = ['EUR', 'USD']
+        pairs = ['BCH%s' % c for c in ccys]
         json = self.get_json('api.kraken.com',
                              '/0/public/Ticker?pair=%s' % ','.join(pairs))
         return dict((k[-3:], Decimal(float(v['c'][0])))
@@ -417,7 +417,7 @@ class FxThread(ThreadJob):
         return self.config.get("currency", "EUR")
 
     def config_exchange(self):
-        return self.config.get('use_exchange', 'BitcoinAverage')
+        return self.config.get('use_exchange', 'Kraken')
 
     def show_history(self):
         return self.is_enabled() and self.get_history_config() and self.ccy in self.exchange.history_ccys()
@@ -429,7 +429,7 @@ class FxThread(ThreadJob):
         self.on_quotes()
 
     def set_exchange(self, name):
-        class_ = globals().get(name, BitcoinAverage)
+        class_ = globals().get(name, Kraken)
         self.print_error("using exchange", name)
         if self.config_exchange() != name:
             self.config.set_key('use_exchange', name, True)
