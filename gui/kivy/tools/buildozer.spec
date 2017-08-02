@@ -117,10 +117,10 @@ android.manifest.intent_filters = gui/kivy/tools/bitcoin_intent.xml
 # project.properties automatically.)
 #android.library_references =
 
-android.p4a_whitelist = lib-dynload/_csv.so
+android.whitelist = lib-dynload/_csv.so
 
 # local version that merges branch 866
-android.p4a_dir = /opt/python-for-android
+p4a.source_dir = /opt/python-for-android
 
 #
 # iOS specific
