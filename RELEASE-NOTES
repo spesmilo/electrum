@@ -1,3 +1,7 @@
+# Release 2.9.2
+  * force headers download if headers file is corrupted
+  * add websocket to windows builds
+
 # Release 2.9.1
   * fix initial headers download
   * validate contacts on import

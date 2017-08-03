@@ -268,7 +268,7 @@ class Blockchain(util.PrintError):
         return deserialize_header(h, height)
 
     def get_hash(self, height):
-        return bitcoin.GENESIS if height == 0 else hash_header(self.read_header(height))
+        return hash_header(self.read_header(height))
 
     def BIP9(self, height, flag):
         v = self.read_header(height)['version']
