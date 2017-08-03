@@ -945,6 +945,8 @@ class Network(util.DaemonThread):
             except Exception:
                 self.print_error("download failed. creating file", filename)
                 open(filename, 'wb+').close()
+            b = self.blockchains[0]
+            with b.lock: b.update_size()
             self.downloading_headers = False
         self.downloading_headers = True
         t = threading.Thread(target = download_thread)
