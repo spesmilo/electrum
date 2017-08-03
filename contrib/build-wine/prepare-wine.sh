@@ -61,6 +61,9 @@ $PYTHON -m pip install pycryptodomex
 # install PySocks
 $PYTHON -m pip install win_inet_pton
 
+# install websocket (python2)
+$PYTHON -m pip install websocket-client
+
 
 # Install setuptools
 wget -O setuptools.exe "$SETUPTOOLS_URL"
