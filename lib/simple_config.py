@@ -2,7 +2,9 @@ import ast
 import json
 import threading
 import os
+import sys
 
+from itertools import starmap, product
 from copy import deepcopy
 from util import user_dir, print_error, print_msg, print_stderr, PrintError
 
@@ -70,8 +72,34 @@ class SimpleConfig(PrintError):
         self.user_config = read_user_config_function(self.path)
         # Upgrade obsolete keys
         self.fixup_keys({'auto_cycle': 'auto_connect'})
+
+        try:
+            from PyQt4.QtGui import QSystemTrayIcon
+        except:  # GUI may not be used
+            self.tray_fired_simple = None
+            self.tray_fired_double = None
+        else:
+            self.tray_fired_double = QSystemTrayIcon.DoubleClick
+            self.tray_fired_simple = QSystemTrayIcon.Trigger
+        finally:
+            self.tray_kde_fix()
+
         # Make a singleton instance of 'self'
         set_config(self)
+
+    BUGGY_TRAY_WM = ('KDE', 'LXQT')  # tested not buggy are GNOME, GNOME Classic, Cinnamon, LXDE, MATE, XFCE
+    def tray_kde_fix(self):
+        # KDE tray icon quirk
+        if self.get('tray_simpleclick') is None:  # value not initialized yet
+            # we don't set the variable if not on KDE/LXQt
+            if sys.platform.startswith('linux') and any(starmap(str.startswith, product(os.environ, SimpleConfig.BUGGY_TRAY_WM))):
+                self.set_key('tray_simpleclick', True)
+
+    def tray_fired_reason(self):
+        if self.get('tray_simpleclick'):
+            return self.tray_fired_simple
+        else:
+            return self.tray_fired_double
 
     def electrum_path(self):
         # Read electrum_path from command line / system configuration

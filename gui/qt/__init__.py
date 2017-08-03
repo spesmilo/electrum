@@ -123,7 +123,7 @@ class ElectrumGui:
         self.tray.setIcon(self.tray_icon())
 
     def tray_activated(self, reason):
-        if reason == QSystemTrayIcon.DoubleClick:
+        if reason == self.config.tray_fired_reason():
             if all([w.is_hidden() for w in self.windows]):
                 for w in self.windows:
                     w.bring_to_top()
