@@ -2046,7 +2046,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tx_file_dict = json.loads(str(file_content))
         tx = self.tx_from_text(file_content)
         if len(tx_file_dict['input_values']) >= len(tx.inputs()):
-            for i in len(tx.inputs()):
+            for i in range(len(tx.inputs())):
                 tx._inputs[i]['value'] = tx_file_dict['input_values'][i]
         return tx
 
