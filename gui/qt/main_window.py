@@ -2417,7 +2417,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def on_trayclick(x):
             self.config.set_key('tray_simpleclick', x ==  Qt.Checked)
         trayclick = QCheckBox(_('Hiding with simple-click on tray instead of double-click'))
-        trayclick.setChecked(self.config.get('tray_simpleclick'))
+        trayclick.setChecked(self.config.get('tray_simpleclick', False))
         trayclick.setToolTip(_("A quirk for window managers that report two simple-clicks instead of a double-click"))
         gui_widgets.append((trayclick, None))
         trayclick.stateChanged.connect(on_trayclick)
