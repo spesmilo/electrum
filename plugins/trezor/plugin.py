@@ -147,7 +147,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         return client
 
     def get_coin_name(self):
-        return "Testnet" if TESTNET else "Bitcoin"
+        return "Bcash Testnet" if TESTNET else "Bcash"
 
     def initialize_device(self, device_id, wizard, handler):
         # Initialization method
@@ -302,6 +302,9 @@ class TrezorCompatiblePlugin(HW_PluginBase):
 
             txinputtype.prev_hash = prev_hash
             txinputtype.prev_index = prev_index
+
+            if 'value' in txin:
+                txinputtype.amount = txin['value']
 
             if 'scriptSig' in txin:
                 script_sig = txin['scriptSig'].decode('hex')
