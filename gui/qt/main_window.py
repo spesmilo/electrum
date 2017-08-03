@@ -1991,8 +1991,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def tx_from_text(self, txt):
         from electrum.transaction import tx_from_str, Transaction
         try:
-            tx = tx_from_str(txt)
-            return Transaction(tx)
+            txt_tx = tx_from_str(txt)
+            tx = Transaction(txt_tx)
+            tx.deserialize()
+            if self.wallet:
+                my_coins = self.wallet.get_spendable_coins(None, self.config)
+                my_outpoints = [vin['prevout_hash'] + ':' + str(vin['prevout_n']) for vin in my_coins]
+                for i, txin in enumerate(tx.inputs()):
+                    outpoint = txin['prevout_hash'] + ':' + str(txin['prevout_n'])
+                    if outpoint in my_outpoints:
+                        my_index = my_outpoints.index(outpoint)
+                        tx._inputs[i]['value'] = my_coins[my_index]['value']
+            return tx
         except:
             traceback.print_exc(file=sys.stdout)
             self.show_critical(_("Electron Cash was unable to parse your transaction"))
