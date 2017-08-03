@@ -169,8 +169,11 @@ class TxDialog(QDialog, MessageBoxMixin):
         name = 'signed_%s.txn' % (self.tx.hash()[0:8]) if self.tx.is_complete() else 'unsigned.txn'
         fileName = self.main_window.getSaveFileName(_("Select where to save your signed transaction"), name, "*.txn")
         if fileName:
+            tx_dict = self.tx.as_dict()
+            input_values = [x['value'] for x in self.tx.inputs()]
+            tx_dict['input_values'] = input_values
             with open(fileName, "w+") as f:
-                f.write(json.dumps(self.tx.as_dict(), indent=4) + '\n')
+                f.write(json.dumps(tx_dict, indent=4) + '\n')
             self.show_message(_("Transaction saved successfully"))
             self.saved = True
 
