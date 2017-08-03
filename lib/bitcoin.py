@@ -44,7 +44,7 @@ ADDRTYPE_P2SH = 5
 ADDRTYPE_P2WPKH = 6
 XPRV_HEADER = 0x0488ade4
 XPUB_HEADER = 0x0488b21e
-HEADERS_URL = ""
+HEADERS_URL = "http://bitcoincash.com/files/blockchain_headers"
 GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
 
 def set_testnet():
