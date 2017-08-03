@@ -284,6 +284,8 @@ class Blockchain(util.PrintError):
             h = self.cur_chunk[n * 80: (n + 1) * 80]
             return deserialize_header(h, height)
         assert self.parent_id != self.checkpoint
+        if height < 0:
+            return
         if height < self.checkpoint:
             return self.parent().read_header(height)
         if height > self.height():
@@ -298,7 +300,7 @@ class Blockchain(util.PrintError):
         return deserialize_header(h, height)
 
     def get_hash(self, height):
-        return bitcoin.GENESIS if height == 0 else hash_header(self.read_header(height))
+        return hash_header(self.read_header(height))
 
     def BIP9(self, height, flag):
         v = self.read_header(height)['version']

@@ -344,10 +344,8 @@ def time_difference(distance_in_time, include_seconds):
         return "over %d years" % (round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
-     
     'Blockchair.com': ('https://blockchair.com/bitcoin-cash',
                         {'tx': 'transaction', 'addr': 'address'}),
-    
     'system default': ('blockchain:',
                         {'tx': 'tx', 'addr': 'address'}),
 }

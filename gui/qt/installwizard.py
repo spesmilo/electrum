@@ -87,7 +87,7 @@ def wizard_dialog(func):
         #    out = ()
         if type(out) is not tuple:
             out = (out,)
-        apply(run_next, out)
+        run_next(*out)
     return func_wrapper
 
 

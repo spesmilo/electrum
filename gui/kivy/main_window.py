@@ -836,7 +836,7 @@ class ElectrumWindow(App):
         if self.wallet.has_password():
             self.password_dialog(msg, f, args)
         else:
-            apply(f, args + (None,))
+            f(*(args + (None,)))
 
     def delete_wallet(self):
         from uix.dialogs.question import Question
@@ -913,7 +913,7 @@ class ElectrumWindow(App):
 
     def password_dialog(self, msg, f, args):
         def callback(pw):
-            Clock.schedule_once(lambda x: apply(f, args + (pw,)), 0.1)
+            Clock.schedule_once(lambda _: f(*(args + (pw,))), 0.1)
         if self._password_dialog is None:
             from uix.dialogs.password_dialog import PasswordDialog
             self._password_dialog = PasswordDialog()

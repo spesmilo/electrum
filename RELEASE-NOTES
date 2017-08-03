@@ -93,3 +93,11 @@ bugs and problems.  Since this package forks that code it will contain those iss
 If you have problems syncing to the correct chain fork (take a look at the Overview Tab in the "Network" window (in
 Menu "Tools") to see information about chain forks your client knows about), you can try to remove everything except
 "wallets" directory and "config" file from your Electron Cash directory.
+
+
+# Release 2.9.2
+  * force headers download if headers file is corrupted
+  * add websocket to windows builds
+  * fix initial headers download
+  * validate contacts on import
+  * command-line option for locktime

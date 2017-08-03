@@ -928,10 +928,11 @@ class Network(util.DaemonThread):
             self.process_responses(interface)
 
     def init_headers_file(self):
-        filename = self.blockchains[0].path()
-        if os.path.exists(filename):
+        b = self.blockchains[0]
+        if b.get_hash(0) == bitcoin.GENESIS:
             self.downloading_headers = False
             return
+        filename = b.path()
         def download_thread():
             try:
                 import urllib, socket
@@ -943,6 +944,8 @@ class Network(util.DaemonThread):
             except Exception:
                 self.print_error("download failed. creating file", filename)
                 open(filename, 'wb+').close()
+            b = self.blockchains[0]
+            with b.lock: b.update_size()
             self.downloading_headers = False
         self.downloading_headers = True
         t = threading.Thread(target = download_thread)

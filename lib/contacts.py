@@ -55,7 +55,7 @@ class Contacts(dict):
     def import_file(self, path):
         try:
             with open(path, 'r') as f:
-                d = json.loads(f.read())
+                d = self._validate(json.loads(f.read()))
         except:
             return
         self.update(d)
@@ -116,4 +116,16 @@ class Contacts(dict):
             return regex.search(haystack).groups()[0]
         except AttributeError:
             return None
+            
+    def _validate(self, data):
+        for k,v in data.items():
+            if k == 'contacts':
+                return self._validate(v)
+            if not bitcoin.is_address(k):
+                data.pop(k)
+            else:
+                _type,_ = v
+                if _type != 'address':
+                    data.pop(k)
+        return data
 
