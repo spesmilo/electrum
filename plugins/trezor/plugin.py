@@ -281,7 +281,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                         pubkeys = map(f, x_pubkeys)
                         multisig = self.types.MultisigRedeemScriptType(
                             pubkeys=pubkeys,
-                            signatures=map(lambda x: x.decode('hex') if x else '', txin.get('signatures')),
+                            signatures=map(lambda x: x.decode('hex')[:-1] if x else '', txin.get('signatures')),
                             m=txin.get('num_sig'),
                         )
                         txinputtype = self.types.TxInputType(
