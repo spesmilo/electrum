@@ -758,6 +758,7 @@ class Network(util.DaemonThread):
         connect = interface.blockchain.connect_chunk(index, result)
         # If not finished, get the next chunk
         if not connect:
+            self.connection_down(interface.server)
             return
         if interface.blockchain.height() < interface.tip:
             self.request_chunk(interface, index+1)
