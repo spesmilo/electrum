@@ -100,6 +100,9 @@ class Commands:
             password = password_getter()
             if password is None:
                 return
+        else:
+            password = None
+
         f = getattr(self, method)
         if cmd.requires_password:
             result = f(*args, **{'password':password})
