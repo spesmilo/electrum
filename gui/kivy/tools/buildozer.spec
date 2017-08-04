@@ -4,7 +4,7 @@
 title = Electron-Cash
 
 # (str) Package name
-package.name = Electron-Cash
+package.name = ElectronCash
 
 # (str) Package domain (needed for android/ios packaging)
 package.domain = org.electroncash
@@ -28,7 +28,7 @@ source.exclude_patterns = Makefile,setup*
 #version.filename = %(source.dir)s/contrib/versions.py
 
 # (str) Application versioning (method 2)
-version = 2.8.2
+version = 2.9.2
 
 # (list) Application requirements
 requirements = hostpython2, android, openssl, pycrypto, pil, plyer, kivy==master
@@ -117,7 +117,7 @@ android.manifest.intent_filters = gui/kivy/tools/bitcoin_intent.xml
 # project.properties automatically.)
 #android.library_references =
 
-#android.p4a_whitelist = lib-dynload/_csv.so
+android.whitelist = lib-dynload/_csv.so
 
 # local version that merges branch 866
 p4a.source_dir = /home/ubuntu/Downloads/python-for-android-master

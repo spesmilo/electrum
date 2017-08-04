@@ -89,10 +89,10 @@ Builder.load_string('''
             height: self.minimum_height
             Label:
                 color: root.text_color
-                text: 'ELECTRUM'
+                text: 'ELECTRON CASH'
                 size_hint: 1, None
                 height: self.texture_size[1] if self.opacity else 0
-                font_size: '33sp'
+                font_size: '31sp'
                 font_name: 'gui/kivy/data/fonts/tron/Tr2n.ttf'
         GridLayout:
             cols: 1
