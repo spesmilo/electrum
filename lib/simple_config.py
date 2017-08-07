@@ -279,7 +279,7 @@ def read_user_config(path):
             data = f.read()
         result = json.loads(data)
     except:
-        print_msg("Warning: Cannot read config file.", config_path)
+        print_error("Warning: Cannot read config file.", config_path)
         return {}
     if not type(result) is dict:
         return {}
