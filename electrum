@@ -90,7 +90,7 @@ if not is_android:
     check_imports()
 
 # load local module as electrum
-if is_bundle or is_local or is_android:
+if is_local or is_android:
     import imp
     imp.load_module('electrum', *imp.find_module('lib'))
     imp.load_module('electrum_gui', *imp.find_module('gui'))
