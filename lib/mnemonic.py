@@ -86,10 +86,7 @@ def is_CJK(c):
 
 def normalize_text(seed):
     # normalize
-    if six.PY2:
-        seed = unicodedata.normalize('NFKD', unicode(seed))
-    else:
-        seed = unicodedata.normalize('NFKD', str(seed))
+    seed = unicodedata.normalize('NFKD', str(seed))
     # lower
     seed = seed.lower()
     # remove accents
