@@ -536,7 +536,7 @@ class Abstract_Wallet(PrintError):
         return c, u, x
 
     def get_spendable_coins(self, domain, config):
-        confirmed_only = config.get('confirmed_only', True)
+        confirmed_only = config.get('confirmed_only', False)
         return self.get_utxos(domain, exclude_frozen=True, mature=True, confirmed_only=confirmed_only)
 
     def get_utxos(self, domain = None, exclude_frozen = False, mature = False, confirmed_only = False):
