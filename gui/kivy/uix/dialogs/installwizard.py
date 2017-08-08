@@ -704,7 +704,7 @@ class AddXpubDialog(WizardDialog):
 
     def get_text(self):
         ti = self.ids.text_input
-        return unicode(ti.text).strip()
+        return ti.text.strip()
 
     def get_params(self, button):
         return (self.get_text(),)
@@ -715,7 +715,7 @@ class AddXpubDialog(WizardDialog):
         self.app.scan_qr(on_complete)
 
     def do_paste(self):
-        self.ids.text_input.text = test_xpub if is_test else unicode(self.app._clipboard.paste())
+        self.ids.text_input.text = test_xpub if is_test else self.app._clipboard.paste()
 
     def do_clear(self):
         self.ids.text_input.text = ''

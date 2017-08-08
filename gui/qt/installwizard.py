@@ -176,7 +176,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         wallet_folder = os.path.dirname(self.storage.path)
 
         def on_choose():
-            path = unicode(QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder))
+            path = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder)
             if path:
                 self.name_e.setText(path)
 
@@ -222,7 +222,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             if not self.storage.file_exists():
                 break
             if self.storage.file_exists() and self.storage.is_encrypted():
-                password = unicode(self.pw_e.text())
+                password = self.pw_e.text()
                 try:
                     self.storage.decrypt(password)
                     break
@@ -467,7 +467,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         line = QLineEdit()
         line.setText(default)
         def f(text):
-            self.next_button.setEnabled(test(unicode(text)))
+            self.next_button.setEnabled(test(text))
         line.textEdited.connect(f)
         vbox.addWidget(line)
         vbox.addWidget(WWLabel(warning))

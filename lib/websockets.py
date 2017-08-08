@@ -114,7 +114,7 @@ class WsClientThread(util.DaemonThread):
                 for ws, amount in l:
                     if not ws.closed:
                         if sum(result.values()) >=amount:
-                            ws.sendMessage(unicode('paid'))
+                            ws.sendMessage('paid')
 
 
 
