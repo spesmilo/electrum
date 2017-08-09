@@ -5,6 +5,7 @@ import threading
 from binascii import hexlify, unhexlify
 from functools import partial
 
+from electrum.util import bfh, bh2u
 from electrum.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
                               public_key_to_p2pkh, EncodeBase58Check,
                               TYPE_ADDRESS, TYPE_SCRIPT,
@@ -240,7 +241,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         inputs = self.tx_inputs(tx, True)
         outputs = self.tx_outputs(keystore.get_derivation(), tx)
         signed_tx = client.sign_tx(self.get_coin_name(), inputs, outputs, lock_time=tx.locktime)[1]
-        raw = signed_tx.encode('hex')
+        raw = bh2u(signed_tx)
         tx.update_signatures(raw)
 
     def show_address(self, wallet, address):
@@ -274,14 +275,14 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                             if is_xpubkey(x_pubkey):
                                 xpub, s = parse_xpubkey(x_pubkey)
                             else:
-                                xpub = xpub_from_pubkey(0, x_pubkey.decode('hex'))
+                                xpub = xpub_from_pubkey(0, bfh(x_pubkey))
                                 s = []
                             node = self.ckd_public.deserialize(xpub)
                             return self.types.HDNodePathType(node=node, address_n=s)
                         pubkeys = map(f, x_pubkeys)
                         multisig = self.types.MultisigRedeemScriptType(
                             pubkeys=pubkeys,
-                            signatures=map(lambda x: x.decode('hex')[:-1] if x else '', txin.get('signatures')),
+                            signatures=map(lambda x: bfh(x)[:-1] if x else '', txin.get('signatures')),
                             m=txin.get('num_sig'),
                         )
                         txinputtype = self.types.TxInputType(
@@ -304,7 +305,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             txinputtype.prev_index = prev_index
 
             if 'scriptSig' in txin:
-                script_sig = txin['scriptSig'].decode('hex')
+                script_sig = bfh(txin['scriptSig'])
                 txinputtype.script_sig = script_sig
 
             txinputtype.sequence = txin.get('sequence', 0xffffffff - 1)
@@ -372,7 +373,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         for vout in d['outputs']:
             o = t.bin_outputs.add()
             o.amount = vout['value']
-            o.script_pubkey = vout['scriptPubKey'].decode('hex')
+            o.script_pubkey = bfh(vout['scriptPubKey'])
         return t
 
     # This function is called from the trezor libraries (via tx_api)
