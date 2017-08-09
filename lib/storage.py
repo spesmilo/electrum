@@ -101,7 +101,7 @@ class WalletStorage(PrintError):
 
     def is_encrypted(self):
         try:
-            return base64.b64decode(self.raw).startswith('BIE1')
+            return base64.b64decode(self.raw)[0:4] == b'BIE1'
         except:
             return False
 
@@ -117,6 +117,7 @@ class WalletStorage(PrintError):
         ec_key = self.get_key(password)
         s = zlib.decompress(ec_key.decrypt_message(self.raw)) if self.raw else None
         self.pubkey = ec_key.get_public_key()
+        s = s.decode('utf8')
         self.load_data(s)
 
     def set_password(self, password, encrypt):
@@ -167,7 +168,10 @@ class WalletStorage(PrintError):
             return
         s = json.dumps(self.data, indent=4, sort_keys=True)
         if self.pubkey:
-            s = bitcoin.encrypt_message(zlib.compress(s), self.pubkey)
+            s = bytes(s, 'utf8')
+            c = zlib.compress(s)
+            s = bitcoin.encrypt_message(c, self.pubkey)
+            s = s.decode('utf8')
 
         temp_path = "%s.tmp.%s" % (self.path, os.getpid())
         with open(temp_path, "w") as f:
