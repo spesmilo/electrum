@@ -36,7 +36,7 @@ if sys.platform == 'darwin':
         app=[mainscript],
         options=dict(py2app=dict(argv_emulation=False,
                                  includes=['PyQt4.QtCore', 'PyQt4.QtGui', 'PyQt4.QtWebKit', 'PyQt4.QtNetwork', 'sip'],
-                                 packages=['lib', 'gui', 'plugins'],
+                                 packages=['lib', 'gui.qt', 'plugins'],
                                  iconfile='electrum.icns',
                                  plist=plist,
                                  resources=["icons"])),
