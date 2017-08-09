@@ -137,14 +137,16 @@ class SimpleConfig(PrintError):
     def save_user_config(self):
         if not self.path:
             return
-        path = os.path.join(self.path, "config")
+        tmp_path = os.path.join(self.path, ".config.tmp")
+        real_path = os.path.join(self.path, "config")
         s = json.dumps(self.user_config, indent=4, sort_keys=True)
-        f = open(path, "w")
+        f = open(tmp_path, "w")
         f.write(s)
         f.close()
         if 'ANDROID_DATA' not in os.environ:
             import stat
-            os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
+            os.chmod(tmp_path, stat.S_IREAD | stat.S_IWRITE)
+        os.rename(tmp_path, real_path)
 
     def get_wallet_path(self):
         """Set the path of the wallet."""
