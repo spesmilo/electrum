@@ -150,7 +150,7 @@ def DecodeAES(secret, e):
 def pw_encode(s, password):
     if password:
         secret = Hash(password)
-        return EncodeAES(secret, to_bytes(s, "utf8"))
+        return EncodeAES(secret, to_bytes(s, "utf8")).decode('utf8')
     else:
         return s
 

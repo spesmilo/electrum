@@ -149,7 +149,7 @@ class Imported_KeyStore(Software_KeyStore):
         except Exception:
             raise BaseException('Invalid private key')
         # allow overwrite
-        self.keypairs[pubkey] = pw_encode(sec, password).decode('ascii')
+        self.keypairs[pubkey] = pw_encode(sec, password)
         return pubkey
 
     def delete_imported_key(self, key):
@@ -179,7 +179,7 @@ class Imported_KeyStore(Software_KeyStore):
             new_password = None
         for k, v in self.keypairs.items():
             b = pw_decode(v, old_password)
-            c = pw_encode(b, new_password).decode('ascii')
+            c = pw_encode(b, new_password)
             self.keypairs[k] = c
 
 
@@ -309,13 +309,13 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
             new_password = None
         if self.has_seed():
             decoded = self.get_seed(old_password)
-            self.seed = pw_encode(decoded, new_password).decode('ascii')
+            self.seed = pw_encode(decoded, new_password)
         if self.passphrase:
             decoded = self.get_passphrase(old_password)
-            self.passphrase = pw_encode(decoded, new_password).decode('ascii')
+            self.passphrase = pw_encode(decoded, new_password)
         if self.xprv is not None:
             b = pw_decode(self.xprv, old_password)
-            self.xprv = pw_encode(b, new_password).decode('ascii')
+            self.xprv = pw_encode(b, new_password)
 
     def is_watching_only(self):
         return self.xprv is None
@@ -478,7 +478,7 @@ class Old_KeyStore(Deterministic_KeyStore):
             new_password = None
         if self.has_seed():
             decoded = self.get_hex_seed(old_password)
-            self.seed = pw_encode(decoded, new_password).decode('ascii')
+            self.seed = pw_encode(decoded, new_password)
 
 
 class Hardware_KeyStore(KeyStore, Xpub):
