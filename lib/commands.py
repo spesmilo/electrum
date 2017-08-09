@@ -420,7 +420,7 @@ class Commands:
 
         coins = self.wallet.get_spendable_coins(domain, self.config)
         tx = self.wallet.make_unsigned_transaction(coins, final_outputs, self.config, fee, change_addr)
-        if locktime != None: 
+        if locktime != None:
             tx.locktime = locktime
         if rbf:
             tx.set_rbf(True)
@@ -609,6 +609,15 @@ class Commands:
         else:
             return False
 
+    @command('w')
+    def getnewaddress(self):
+        """Returns a fresh new address."""
+        addr = self.wallet.create_new_address(False)
+
+        if addr:
+            return addr
+        else:
+            return False
 
     @command('w')
     def addrequest(self, amount, memo='', expiration=None, force=False):
