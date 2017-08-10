@@ -1,3 +1,8 @@
+# Release 2.9.3
+  * fix configuration file issue #2719
+  * fix ledger signing of non-RBF transactions
+  * disable 'spend confirmed only' option by default
+
 # Release 2.9.2
   * force headers download if headers file is corrupted
   * add websocket to windows builds

@@ -117,6 +117,8 @@ class SimpleConfig(PrintError):
             return
 
         with self.lock:
+            if key in self.user_config and self.user_config[key] == value:
+                return
             self.user_config[key] = value
             if save:
                 self.save_user_config()
