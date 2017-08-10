@@ -53,8 +53,7 @@ os.environ['KIVY_DATA_DIR'] = os.path.abspath(os.path.dirname(__file__)) + '/gui
 if is_local or is_android:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
 elif is_bundle and sys.platform=='darwin':
-    # TODO: py3
-    sys.path.insert(0, os.getcwd() + "/lib/python2.7/packages")
+    is_local = True
 
 
 def check_imports():
@@ -77,12 +76,9 @@ def check_imports():
     from google.protobuf import reflection
     from google.protobuf import descriptor_pb2
     from jsonrpclib import SimpleJSONRPCServer
-    # check that we have the correct version of ecdsa
-    try:
-        from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
-    except Exception:
-        sys.exit("cannot import ecdsa.curve_secp256k1. You probably need to upgrade ecdsa.\nTry: sudo pip install --upgrade ecdsa")
     # make sure that certificates are here
+    if is_bundle and sys.platform=='darwin':
+        requests.utils.DEFAULT_CA_BUNDLE_PATH = os.path.join(os.path.dirname(__file__), 'cacert.pem')
     assert os.path.exists(requests.utils.DEFAULT_CA_BUNDLE_PATH)
 
 
