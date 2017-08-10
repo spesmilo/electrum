@@ -28,18 +28,17 @@ if sys.platform == 'darwin':
     from plistlib import Plist
     plist = Plist.fromFile('Info.plist')
     plist.update(dict(CFBundleIconFile='electrum.icns'))
-
-    shutil.copy(mainscript, mainscript + '.py')
-    mainscript += '.py'
+    shutil.copy(mainscript, 'run_electrum.py')
+    mainscript = 'run_electrum.py'
     extra_options = dict(
         setup_requires=['py2app'],
         app=[mainscript],
         options=dict(py2app=dict(argv_emulation=False,
                                  includes=['PyQt4.QtCore', 'PyQt4.QtGui', 'PyQt4.QtWebKit', 'PyQt4.QtNetwork', 'sip'],
-                                 packages=['lib', 'gui.qt', 'plugins'],
+                                 packages=['lib', 'gui', 'plugins'],
                                  iconfile='electrum.icns',
                                  plist=plist,
-                                 resources=["icons"])),
+                                 resources=['icons', 'cacert.pem'])),
     )
 elif sys.platform == 'win32':
     extra_options = dict(
