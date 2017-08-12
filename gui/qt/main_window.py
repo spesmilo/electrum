@@ -52,6 +52,10 @@ from electrum_ltc import Transaction, mnemonic
 from electrum_ltc import util, bitcoin, commands, coinchooser
 from electrum_ltc import SimpleConfig, paymentrequest
 from electrum_ltc.wallet import Wallet, Multisig_Wallet
+try:
+    from electrum_ltc.plot import plot_history
+except:
+    plot_history = None
 
 from amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit
 from qrcodewidget import QRCodeWidget, QRDialog
@@ -465,7 +469,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         invoices_menu = wallet_menu.addMenu(_("Invoices"))
         invoices_menu.addAction(_("Import"), lambda: self.invoice_list.import_invoices())
         hist_menu = wallet_menu.addMenu(_("&History"))
-        hist_menu.addAction("Plot", self.plot_history_dialog)
+        hist_menu.addAction("Plot", self.plot_history_dialog).setEnabled(plot_history is not None)
         hist_menu.addAction("Export", self.export_history_dialog)
 
         wallet_menu.addSeparator()
@@ -2187,7 +2191,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message(_("Your labels were imported from") + " '%s'" % str(labelsFile))
         except (IOError, os.error) as reason:
             self.show_critical(_("Electrum was unable to import your labels.") + "\n" + str(reason))
-
+        self.address_list.update()
+        self.history_list.update()
 
     def do_export_labels(self):
         labels = self.wallet.labels
@@ -2228,16 +2233,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.show_message(_("Your wallet history has been successfully exported."))
 
     def plot_history_dialog(self):
-        try:
-            from electrum_ltc.plot import plot_history
-            wallet = self.wallet
-            history = wallet.get_history()
-            if len(history) > 0:
-                plt = plot_history(self.wallet, history)
-                plt.show()
-        except BaseException as e:
-            self.show_error(str(e))
+        if plot_history is None:
             return
+        wallet = self.wallet
+        history = wallet.get_history()
+        if len(history) > 0:
+            plt = plot_history(self.wallet, history)
+            plt.show()
 
     def do_export_history(self, wallet, fileName, is_csv):
         history = wallet.get_history()
