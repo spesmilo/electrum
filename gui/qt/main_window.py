@@ -2416,6 +2416,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         nz.valueChanged.connect(on_nz)
         gui_widgets.append((nz_label, nz))
 
+        def on_trayclick(x):
+            self.config.set_key('tray_simpleclick', x ==  Qt.Checked)
+        trayclick = QCheckBox(_('Hiding with simple-click on tray instead of double-click'))
+        trayclick.setChecked(self.config.get('tray_simpleclick', False))
+        trayclick.setToolTip(_("A quirk for window managers that report two simple-clicks instead of a double-click"))
+        gui_widgets.append((trayclick, None))
+        trayclick.stateChanged.connect(on_trayclick)
+
         def on_dynfee(x):
             self.config.set_key('dynamic_fees', x == Qt.Checked)
             self.fee_slider.update()
