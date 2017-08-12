@@ -68,7 +68,7 @@ class PRNG:
         return seq[self.randint(0, len(seq))]
 
     def shuffle(self, x):
-        for i in reversed(xrange(1, len(x))):
+        for i in reversed(range(1, len(x))):
             # pick an element in x[:i+1] with which to exchange x[i]
             j = self.randint(0, i+1)
             x[i], x[j] = x[j], x[i]
