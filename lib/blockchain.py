@@ -184,6 +184,11 @@ class Blockchain(util.PrintError):
             raise BaseException("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
         if bitcoin.NetworkConstants.TESTNET:
             return
+        # checkpoint BitcoinCash fork block
+        if ( header.get('block_height') == BITCOIN_CASH_FORK_BLOCK_HEIGHT and hash_header(header) != BITCOIN_CASH_FORK_BLOCK_HASH ):
+            err_str = "block at height %i is not cash chain fork block. hash %s" % (header.get('block_height'), hash_header(header))
+            self.print_error(err_str)
+            raise BaseException(err_str)
         if bits != header.get('bits'):
             raise BaseException("bits mismatch: %s vs %s" % (bits, header.get('bits')))
         target = bits_to_target(bits)
@@ -364,6 +369,7 @@ class Blockchain(util.PrintError):
         try:
             self.verify_header(header, previous_header, bits)
         except:
+            #self.print_error('can_connect: verify_header failed');
             return False
         return True
 
