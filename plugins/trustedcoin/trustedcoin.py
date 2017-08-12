@@ -29,8 +29,8 @@ import re
 import requests
 import json
 from hashlib import sha256
-from urlparse import urljoin
-from urllib import quote
+from urllib.parse import urljoin
+from urllib.parse import quote
 
 import electrum
 from electrum import bitcoin
