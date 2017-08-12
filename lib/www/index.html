@@ -84,7 +84,7 @@ if (id) {
 };
 
 // See http://stackoverflow.com/questions/29186154/chrome-clicking-mailto-links-closes-websocket-connection
-$(document).on('click', 'a[href^="bitcoin:"]', function (e) {
+$(document).on('click', 'a[href^="bitcoincash:"]', function (e) {
     e.preventDefault();
     var btcWindow = window.open($(e.currentTarget).attr('href'));
     btcWindow.close();
@@ -99,7 +99,7 @@ $(document).on('click', 'a[href^="bitcoin:"]', function (e) {
             <p id="reason"></p>
             <p id="amount"></p>
 	    <div style="background-color:#7777aa; border-radius: 5px; padding:10px;">
-		<a style="color:#ffffff; text-decoration:none;" id="paylink" target="_blank">Pay with Bitcoin</a>
+		<a style="color:#ffffff; text-decoration:none;" id="paylink" target="_blank">Pay with Bitcoin Cash</a>
 	    </div>
 	    <br/>
 	    <div id="qrcode" align="center"></div>
