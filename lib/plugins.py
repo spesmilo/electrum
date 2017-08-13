@@ -508,7 +508,7 @@ class DeviceMgr(ThreadJob, PrintError):
                 usage_page = d['usage_page']
                 id_ = d['serial_number']
                 if len(id_) == 0:
-                    id_ = d['path']
+                    id_ = str(d['path'])
                 id_ += str(interface_number) + str(usage_page)
                 devices.append(Device(d['path'], interface_number,
                                       id_, product_key, usage_page))
