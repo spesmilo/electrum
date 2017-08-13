@@ -13,7 +13,7 @@ from electrum.plugins import BasePlugin, hook
 from electrum.keystore import Hardware_KeyStore, parse_xpubkey
 from electrum.transaction import push_script, Transaction
 from ..hw_wallet import HW_PluginBase
-from electrum.util import format_satoshis_plain, print_error, is_verbose
+from electrum.util import format_satoshis_plain, print_error, is_verbose, bfh, bh2u
 
 try:
     import hid
@@ -80,10 +80,11 @@ class Ledger_Client():
                 childnum = int(lastChild[0])
             else:
                 childnum = 0x80000000 | int(lastChild[0])
-            xpub = bitcoin.serialize_xpub(0, str(nodeData['chainCode']), str(publicKey), depth, self.i4b(fingerprint), self.i4b(childnum))
+            xpub = bitcoin.serialize_xpub(0, nodeData['chainCode'], publicKey, depth, self.i4b(fingerprint), self.i4b(childnum))
             return xpub
         except Exception as e:
-            print_error(e)
+            traceback.print_exc(file=sys.stdout)
+            #print_error(e)
             return None
 
     def has_detached_pin_support(self, client):
@@ -314,9 +315,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
             output_type, addr, amount = txout
             txOutput += int_to_hex(amount, 8)
             script = tx.pay_script(output_type, addr)
-            txOutput += var_int(len(script)/2)
+            txOutput += var_int(len(script)//2)
             txOutput += script
-        txOutput = txOutput.decode('hex')
+        txOutput = bfh(txOutput)
 
         # Recognize outputs - only one output and one change is authorized
         if not p2shTransaction:
@@ -340,23 +341,23 @@ class Ledger_KeyStore(Hardware_KeyStore):
             for utxo in inputs:                
                 sequence = int_to_hex(utxo[5], 4)
                 if segwitTransaction:
-                    txtmp = bitcoinTransaction(bytearray(utxo[0].decode('hex')))
-                    tmp = utxo[3].decode('hex')[::-1].encode('hex')
-                    tmp += int_to_hex(utxo[1], 4)                    
-                    tmp += str(txtmp.outputs[utxo[1]].amount).encode('hex')
-                    chipInputs.append({'value' : tmp.decode('hex'), 'witness' : True, 'sequence' : sequence})
-                    redeemScripts.append(bytearray(utxo[2].decode('hex')))
+                    txtmp = bitcoinTransaction(bfh(utxo[0]))
+                    tmp = bfh(utxo[3])[::-1]
+                    tmp += bfh(int_to_hex(utxo[1], 4))
+                    tmp += str(txtmp.outputs[utxo[1]].amount)
+                    chipInputs.append({'value' : tmp, 'witness' : True, 'sequence' : sequence})
+                    redeemScripts.append(bfh(utxo[2]))
                 elif not p2shTransaction:
-                    txtmp = bitcoinTransaction(bytearray(utxo[0].decode('hex')))             
+                    txtmp = bitcoinTransaction(bfh(utxo[0]))
                     trustedInput = self.get_client().getTrustedInput(txtmp, utxo[1])
                     trustedInput['sequence'] = sequence
                     chipInputs.append(trustedInput)
                     redeemScripts.append(txtmp.outputs[utxo[1]].script)                    
                 else:
-                    tmp = utxo[3].decode('hex')[::-1].encode('hex')
-                    tmp += int_to_hex(utxo[1], 4)
-                    chipInputs.append({'value' : tmp.decode('hex'), 'sequence' : sequence})
-                    redeemScripts.append(bytearray(utxo[2].decode('hex')))
+                    tmp = bfh(utxo[3])[::-1]
+                    tmp += bfh(int_to_hex(utxo[1], 4))
+                    chipInputs.append({'value' : tmp, 'sequence' : sequence})
+                    redeemScripts.append(bfh(utxo[2]))
 
             # Sign all inputs
             firstTransaction = True
@@ -391,7 +392,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                                                             chipInputs, redeemScripts[inputIndex])
                     if not p2shTransaction:
                         outputData = self.get_client().finalizeInput(output, format_satoshis_plain(outputAmount),
-                            format_satoshis_plain(tx.get_fee()), changePath, bytearray(rawTx.decode('hex')))
+                            format_satoshis_plain(tx.get_fee()), changePath, bfh(rawTx))
                     else:
                         outputData = self.get_client().finalizeInputFull(txOutput)
                         outputData['outputData'] = txOutput
@@ -425,7 +426,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
         for i, txin in enumerate(tx.inputs()):
             signingPos = inputs[i][4]
-            txin['signatures'][signingPos] = str(signatures[i]).encode('hex')
+            txin['signatures'][signingPos] = bh2u(signatures[i])
         tx.raw = tx.serialize()
         self.signing = False
 

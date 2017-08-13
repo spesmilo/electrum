@@ -267,20 +267,16 @@ class PaymentRequest:
         return self.outputs[:]
 
     def send_ack(self, raw_tx, refund_addr):
-
         pay_det = self.details
         if not self.details.payment_url:
             return False, "no url"
-
         paymnt = pb2.Payment()
         paymnt.merchant_data = pay_det.merchant_data
-        paymnt.transactions.append(raw_tx)
-
+        paymnt.transactions.append(bfh(raw_tx))
         ref_out = paymnt.refund_to.add()
         ref_out.script = transaction.Transaction.pay_script(TYPE_ADDRESS, refund_addr)
         paymnt.memo = "Paid using Electrum"
         pm = paymnt.SerializeToString()
-
         payurl = urllib_parse.urlparse(pay_det.payment_url)
         try:
             r = requests.post(payurl.geturl(), data=pm, headers=ACK_HEADERS, verify=ca_path)
@@ -291,16 +287,13 @@ class PaymentRequest:
             except Exception as e:
                 print(e)
                 return False, "Payment Message/PaymentACK Failed"
-
         if r.status_code >= 500:
             return False, r.reason
-
         try:
             paymntack = pb2.PaymentACK()
             paymntack.ParseFromString(r.content)
         except Exception:
             return False, "PaymentACK could not be processed. Payment was sent; please manually verify that payment was received."
-
         print("PaymentACK message received: %s" % paymntack.memo)
         return True, paymntack.memo
 
@@ -495,7 +488,7 @@ class InvoiceStore(object):
         l = {}
         for k, pr in self.invoices.items():
             l[k] = {
-                'hex': bh2u(pr),
+                'hex': bh2u(pr.raw),
                 'requestor': pr.requestor,
                 'txid': pr.tx
             }
