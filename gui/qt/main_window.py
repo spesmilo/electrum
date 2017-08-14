@@ -2201,7 +2201,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if fileName:
                 with open(fileName, 'w+') as f:
                     json.dump(labels, f, indent=4, sort_keys=True)
-                self.show_message(_("Your labels where exported to") + " '%s'" % str(fileName))
+                self.show_message(_("Your labels were exported to") + " '%s'" % str(fileName))
         except (IOError, os.error), reason:
             self.show_critical(_("Electrum was unable to export your labels.") + "\n" + str(reason))
 
