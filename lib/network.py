@@ -471,12 +471,14 @@ class Network(util.DaemonThread):
                 int(proxy['port'])
         except:
             return
-        self.config.set_key('auto_connect', auto_connect, False)
-        self.config.set_key("proxy", proxy_str, False)
-        self.config.set_key("server", server, True)
+        unsaved_config_changes  = bool(self.config.set_key('auto_connect', auto_connect, False))
+        unsaved_config_changes |= bool(self.config.set_key("proxy", proxy_str, False))
+        unsaved_config_changes |= bool(self.config.set_key("server", server, False))
         # abort if changes were not allowed by config
         if self.config.get('server') != server or self.config.get('proxy') != proxy_str:
             return
+        if unsaved_config_changes:
+            self.config.take_lock_and_save_user_config()
         self.auto_connect = auto_connect
         if self.proxy != proxy or self.protocol != protocol:
             # Restart the network defaulting to the given server
