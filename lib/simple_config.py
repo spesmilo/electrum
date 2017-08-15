@@ -122,6 +122,8 @@ class SimpleConfig(PrintError):
             self.user_config[key] = value
             if save:
                 self.save_user_config()
+            else:
+                return True  # unsaved user_config changes
         return
 
     def get(self, key, default=None):
@@ -147,6 +149,10 @@ class SimpleConfig(PrintError):
         if 'ANDROID_DATA' not in os.environ:
             import stat
             os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
+
+    def take_lock_and_save_user_config(self):
+        with self.lock:
+            self.save_user_config()
 
     def get_wallet_path(self):
         """Set the path of the wallet."""
