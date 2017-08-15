@@ -344,6 +344,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                     txoutputtype = self.types.TxOutputType(
                         multisig = multisig,
                         amount = amount,
+                        address_n = self.client_class.expand_path(derivation + "/%d/%d"%index),
                         script_type = self.types.PAYTOMULTISIG)
             else:
                 txoutputtype = self.types.TxOutputType()
