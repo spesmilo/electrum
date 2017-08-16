@@ -259,7 +259,9 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         derivation = wallet.keystore.derivation
         address_path = "%s/%d/%d"%(derivation, change, index)
         address_n = client.expand_path(address_path)
-        client.get_address(self.get_coin_name(), address_n, True)
+        segwit = wallet.keystore.is_segwit()
+        script_type = self.types.SPENDP2SHWITNESS if segwit else self.types.SPENDADDRESS
+        client.get_address(self.get_coin_name(), address_n, True, script_type=script_type)
 
     def tx_inputs(self, tx, for_sig=False, segwit=False):
         inputs = []
