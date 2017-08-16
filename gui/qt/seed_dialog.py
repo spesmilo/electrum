@@ -52,6 +52,7 @@ class SeedLayout(QVBoxLayout):
     #options
     is_bip39 = False
     is_ext = False
+    do_validate = False
 
     def seed_options(self):
         dialog = QDialog()
@@ -61,6 +62,7 @@ class SeedLayout(QVBoxLayout):
             cb_ext.setChecked(self.is_ext)
             vbox.addWidget(cb_ext)
         if 'bip39' in self.options:
+            cb_valid = QCheckBox(_('Validate checksum'))
             def f(b):
                 if b:
                     msg = ' '.join([
@@ -76,17 +78,27 @@ class SeedLayout(QVBoxLayout):
                     ])
                     #self.parent.show_warning(msg)
                 self.seed_type_label.setVisible(not b)
+                cb_valid.setVisible(b)
                 self.is_seed = (lambda x: bool(x)) if b else self.saved_is_seed
+                self.on_edit()
+            def v(b):
+                self.is_seed = (lambda x: bool(x)) if not b else self.validate
+                self.do_validate = b
                 self.on_edit()
             cb_bip39 = QCheckBox(_('BIP39 seed'))
             cb_bip39.toggled.connect(f)
             cb_bip39.setChecked(self.is_bip39)
             vbox.addWidget(cb_bip39)
+            cb_valid.setVisible(self.is_bip39)
+            cb_valid.toggled.connect(v)
+            cb_valid.setChecked(self.do_validate)
+            vbox.addWidget(cb_valid)
         vbox.addLayout(Buttons(OkButton(dialog)))
         if not dialog.exec_():
             return None
         self.is_ext = cb_ext.isChecked() if 'ext' in self.options else False
         self.is_bip39 = cb_bip39.isChecked() if 'bip39' in self.options else False
+        self.do_validate = cb_valid.isChecked() if 'bip39' in self.options else False
 
 
     def __init__(self, seed=None, title=None, icon=True, msg=None, options=None, is_seed=None, passphrase=None, parent=None):
@@ -146,7 +158,26 @@ class SeedLayout(QVBoxLayout):
         label = _('Seed Type') + ': ' + t if t else ''
         self.seed_type_label.setText(label)
         self.parent.next_button.setEnabled(b)
-
+    
+    def validate(self, text):
+        from electrum.mnemonic import Mnemonic, normalize_text, filenames
+        from hashlib import sha256
+        words = text.split()
+        count = len(words)
+        if count not in [12,15,18,21,24]:
+            return False
+        chkbits = count*11//32
+        seed = None
+        for lang in filenames:
+            try:
+                seed = Mnemonic(lang).mnemonic_decode(' '.join(words[::-1]))
+                break
+            except ValueError:
+                continue
+        if seed == None:
+            return False
+        entropy = '%0*X' % ((count*11-chkbits)/4, seed >> chkbits)
+        return ( seed % (1 << chkbits)) == ( ord(sha256(entropy.decode('hex')).digest()[0]) >> ( 8-chkbits ))
 
 
 class KeysLayout(QVBoxLayout):
