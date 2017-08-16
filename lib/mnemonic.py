@@ -91,6 +91,20 @@ def normalize_text(seed):
     seed = u''.join([seed[i] for i in range(len(seed)) if not (seed[i] in string.whitespace and is_CJK(seed[i-1]) and is_CJK(seed[i+1]))])
     return seed
 
+def load_wordlist(filename):
+    path = os.path.join(os.path.dirname(__file__), 'wordlist', filename)
+    s = open(path,'r').read().strip()
+    s = unicodedata.normalize('NFKD', s.decode('utf8'))
+    lines = s.split('\n')
+    wordlist = []
+    for line in lines:
+        line = line.split('#')[0]
+        line = line.strip(' \r')
+        assert ' ' not in line
+        if line:
+            wordlist.append(line)
+    return wordlist
+
 
 filenames = {
     'en':'english.txt',
@@ -110,17 +124,7 @@ class Mnemonic(object):
         lang = lang or 'en'
         print_error('language', lang)
         filename = filenames.get(lang[0:2], 'english.txt')
-        path = os.path.join(os.path.dirname(__file__), 'wordlist', filename)
-        s = open(path,'r').read().strip()
-        s = unicodedata.normalize('NFKD', s.decode('utf8'))
-        lines = s.split('\n')
-        self.wordlist = []
-        for line in lines:
-            line = line.split('#')[0]
-            line = line.strip(' \r')
-            assert ' ' not in line
-            if line:
-                self.wordlist.append(line)
+        self.wordlist = load_wordlist(filename)
         print_error("wordlist has %d words"%len(self.wordlist))
 
     @classmethod

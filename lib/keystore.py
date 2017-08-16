@@ -24,6 +24,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import struct
 
 from unicodedata import normalize
 
@@ -35,7 +36,7 @@ from bitcoin import *
 
 from bitcoin import is_old_seed, is_new_seed, is_seed
 from util import PrintError, InvalidPassword
-from mnemonic import Mnemonic
+from mnemonic import Mnemonic, load_wordlist
 
 
 class KeyStore(PrintError):
@@ -555,7 +556,34 @@ def bip39_to_seed(mnemonic, passphrase):
                          iterations = PBKDF2_ROUNDS, macmodule = hmac,
                          digestmodule = hashlib.sha512).read(64)
 
-
+# returns tuple (is_checksum_valid, is_wordlist_valid)
+def bip39_is_checksum_valid(mnemonic):
+    words = [ normalize('NFKD', word) for word in mnemonic.split() ]
+    words_len = len(words)
+    wordlist = load_wordlist("english.txt")
+    n = len(wordlist)
+    checksum_length = 11*words_len//33
+    entropy_length = 32*checksum_length
+    i = 0
+    words.reverse()
+    while words:
+        w = words.pop()
+        try:
+            k = wordlist.index(w)
+        except ValueError:
+            return False, False
+        i = i*n + k
+    if words_len not in [12, 15, 18, 21, 24]:
+        return False, True
+    entropy = i >> checksum_length
+    checksum = i % 2**checksum_length
+    h = '{:x}'.format(entropy)
+    while len(h) < entropy_length/4:
+        h = '0'+h
+    b = bytearray.fromhex(h)
+    hashed = int(hashlib.sha256(b).digest().encode('hex'), 16)
+    calculated_checksum = hashed >> (256 - checksum_length)
+    return checksum == calculated_checksum, True
 
 # extended pubkeys
 
