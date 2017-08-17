@@ -41,6 +41,7 @@ import json
 import copy
 import re
 import stat
+import errno
 from functools import partial
 from collections import namedtuple, defaultdict
 

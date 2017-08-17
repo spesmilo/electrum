@@ -80,6 +80,9 @@ def command(s):
         known_commands[name] = Command(func, s)
         @wraps(func)
         def func_wrapper(*args, **kwargs):
+            c = known_commands[func.__name__]
+            if c.requires_wallet and args[0].wallet is None:
+                raise BaseException("wallet not loaded. Use 'electrum-ltc daemon load_wallet'")
             return func(*args, **kwargs)
         return func_wrapper
     return decorator
