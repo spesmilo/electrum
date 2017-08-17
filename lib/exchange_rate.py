@@ -96,17 +96,16 @@ class BlockchainInfo(ExchangeBase):
     def name(self):
         return "Blockchain"
 
-class Poloniex(ExchangeBase):
+class Bittrex(ExchangeBase):
     def get_rates(self, ccy):
         quote_currencies = {}
-        tickers = self.get_json('poloniex.com', '/public?command=returnTicker')
-        grs_ticker = tickers.get('BTC_GRS')
-        grs_btc_rate = quote_currencies['BTC'] = Decimal(grs_ticker['last'])
+        resp = self.get_json('bittrex.com', '/api/v1.1/public/getticker?market=BTC-GRS')
+        grs_btc_rate = quote_currencies['BTC'] = Decimal(resp['result']['Last'])
 
-        blockchain_tickers = BlockchainInfo(self.sig).get_rates(ccy)
+        # Get BTC/fiat rates from BlockchainInfo.
+        blockchain_tickers = BlockchainInfo(None, None).get_rates(ccy)
         for currency, btc_rate in blockchain_tickers.items():
             quote_currencies[currency] = grs_btc_rate * btc_rate
-
         return quote_currencies
 
 class GRSTicker(ExchangeBase):
@@ -133,9 +132,10 @@ def get_exchanges_and_currencies():
     except:
         pass
     d = {}
+    # BlockchainInfo is used for BTC/fiat rates, so it is excluded.
     is_exchange = lambda obj: (inspect.isclass(obj)
                                and issubclass(obj, ExchangeBase)
-                               and obj != ExchangeBase)
+                               and obj not in [ExchangeBase, BlockchainInfo])
     exchanges = dict(inspect.getmembers(sys.modules[__name__], is_exchange))
     for name, klass in exchanges.items():
         exchange = klass(None, None)
