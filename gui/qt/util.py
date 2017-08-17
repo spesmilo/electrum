@@ -263,7 +263,7 @@ def line_dialog(parent, title, label, ok_label, default=None):
         return txt.text()
 
 def text_dialog(parent, title, label, ok_label, default=None):
-    from qrtextedit import ScanQRTextEdit
+    from .qrtextedit import ScanQRTextEdit
     dialog = WindowModalDialog(parent, title)
     dialog.setMinimumWidth(500)
     l = QVBoxLayout()
