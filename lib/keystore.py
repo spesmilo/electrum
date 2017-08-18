@@ -356,7 +356,8 @@ class Old_KeyStore(Deterministic_KeyStore):
 
     def add_seed(self, seedphrase):
         Deterministic_KeyStore.add_seed(self, seedphrase)
-        self.mpk = self.mpk_from_seed(self.seed)
+        s = self.get_hex_seed(None)
+        self.mpk = self.mpk_from_seed(s)
 
     def add_master_public_key(self, mpk):
         self.mpk = mpk
@@ -477,7 +478,7 @@ class Old_KeyStore(Deterministic_KeyStore):
         if new_password == '':
             new_password = None
         if self.has_seed():
-            decoded = self.get_hex_seed(old_password)
+            decoded = pw_decode(self.seed, old_password)
             self.seed = pw_encode(decoded, new_password)
 
 

@@ -175,6 +175,9 @@ class TcpConnection(threading.Thread, util.PrintError):
                                     cert_reqs=ssl.CERT_REQUIRED,
                                     ca_certs=(temporary_path if is_new else cert_path),
                                     do_handshake_on_connect=True)
+            except socket.timeout:
+                self.print_error('timeout')
+                return
             except ssl.SSLError as e:
                 self.print_error("SSL error:", e)
                 if e.errno != 1:
