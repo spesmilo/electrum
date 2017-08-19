@@ -502,13 +502,12 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.back_button.setText(_('Cancel'))
         self.exec_layout(clayout.layout(), title)
         r = clayout.selected_index()
+        network.auto_connect = (r == 0)
+        self.config.set_key('auto_connect', network.auto_connect, True)
         if r == 1:
             nlayout = NetworkChoiceLayout(network, self.config, wizard=True)
             if self.exec_layout(nlayout.layout()):
                 nlayout.accept()
-        else:
-            network.auto_connect = True
-            self.config.set_key('auto_connect', True, True)
 
     @wizard_dialog
     def multisig_dialog(self, run_next):

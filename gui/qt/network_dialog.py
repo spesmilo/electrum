@@ -195,6 +195,8 @@ class NetworkChoiceLayout(object):
         tabs.addTab(blockchain_tab, _('Overview'))
         tabs.addTab(proxy_tab, _('Connection'))
         tabs.addTab(server_tab, _('Server'))
+        if wizard:
+            tabs.setCurrentIndex(2)
 
         # server tab
         grid = QGridLayout(server_tab)
