@@ -8,6 +8,7 @@ import traceback
 import csv
 from decimal import Decimal
 
+import bitcoin
 from bitcoin import COIN
 from i18n import _
 from util import PrintError, ThreadJob
@@ -198,7 +199,7 @@ class FxThread(ThreadJob):
                 self.exchange.update(self.ccy)
 
     def is_enabled(self):
-        return bool(self.config.get('use_exchange_rate'))
+        return bool(self.config.get('use_exchange_rate')) and not bitcoin.TESTNET
 
     def set_enabled(self, b):
         return self.config.set_key('use_exchange_rate', bool(b))
