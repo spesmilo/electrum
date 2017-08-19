@@ -94,7 +94,9 @@ class SimpleConfig(PrintError):
                 raise BaseException('Dangling link: ' + path)
             os.mkdir(path)
             os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
-
+        obsolete_file = os.path.join(path, 'recent_servers')
+        if os.path.exists(obsolete_file):
+            os.remove(obsolete_file)
         self.print_error("electron-cash directory", path)
         return path
 

@@ -237,12 +237,14 @@ class Network(util.DaemonThread):
             callbacks = self.callbacks[event][:]
         [callback(event, *args) for callback in callbacks]
 
+    def recent_servers_file(self):
+        return os.path.join(self.config.path, "recent-servers")
+
     def read_recent_servers(self):
         if not self.config.path:
             return []
-        path = os.path.join(self.config.path, "recent_servers")
         try:
-            with open(path, "r") as f:
+            with open(self.recent_servers_file(), "r") as f:
                 data = f.read()
                 return json.loads(data)
         except:
@@ -251,10 +253,9 @@ class Network(util.DaemonThread):
     def save_recent_servers(self):
         if not self.config.path:
             return
-        path = os.path.join(self.config.path, "recent_servers")
         s = json.dumps(self.recent_servers, indent=4, sort_keys=True)
         try:
-            with open(path, "w") as f:
+            with open(self.recent_servers_file(), "w") as f:
                 f.write(s)
         except:
             pass
