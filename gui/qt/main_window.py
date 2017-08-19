@@ -302,9 +302,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         elif event == 'verified':
             self.history_list.update_item(*args)
         elif event == 'fee':
-            if self.config.is_dynfee():
-                self.fee_slider.update()
-                self.do_update_fee()
+            pass
         else:
             self.print_error("unexpected network_qt signal:", event, args)
 
@@ -1163,9 +1161,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         '''Recalculate the fee.  If the fee was manually input, retain it, but
         still build the TX to see if there are enough funds.
         '''
-        if not self.config.get('offline') and self.config.is_dynfee() and not self.config.has_fee_estimates():
-            self.statusBar().showMessage(_('Waiting for fee estimates...'))
-            return False
         freeze_fee = (self.fee_e.isModified()
                       and (self.fee_e.text() or self.fee_e.hasFocus()))
         amount = '!' if self.is_max else self.amount_e.get_amount()
@@ -2462,10 +2457,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         nz.valueChanged.connect(on_nz)
         gui_widgets.append((nz_label, nz))
 
-        def on_dynfee(x):
-            self.config.set_key('dynamic_fees', x == Qt.Checked)
+        def on_maxfee(x):
+            m = maxfee_e.get_amount()
+            if m: self.config.set_key('max_fee_rate', m)
             self.fee_slider.update()
-            update_maxfee()
+        def update_maxfee():
+            maxfee_e.setDisabled(False)
+            maxfee_label.setDisabled(False)
+        maxfee_label = HelpLabel(_('Max static fee'), _('Max value of the static fee slider'))
+        maxfee_e = BTCkBEdit(self.get_decimal_point)
+        maxfee_e.setAmount(self.config.max_fee_rate())
+        maxfee_e.textChanged.connect(on_maxfee)
+        update_maxfee()
+        fee_widgets.append((maxfee_label, maxfee_e))
 
         feebox_cb = QCheckBox(_('Edit fees manually'))
         feebox_cb.setChecked(self.config.get('show_fee', False))

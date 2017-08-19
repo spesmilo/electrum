@@ -41,16 +41,10 @@ class FeeSlider(QSlider):
 
     def update(self):
         with self.lock:
-            self.dyn = self.config.is_dynfee()
-            if self.dyn:
-                pos = self.config.get('fee_level', 2)
-                fee_rate = self.config.dynfee(pos)
-                self.setRange(0, 4)
-                self.setValue(pos)
-            else:
-                fee_rate = self.config.fee_per_kb()
-                pos = self.config.static_fee_index(fee_rate)
-                self.setRange(0, 9)
-                self.setValue(pos)
+            self.fee_step = self.config.max_fee_rate() / 10
+            fee_rate = self.config.fee_per_kb()
+            pos = min(fee_rate / self.fee_step, 10)
+            self.setRange(1, 10)
+            self.setValue(pos)
             tooltip = self.get_tooltip(pos, fee_rate)
             self.setToolTip(tooltip)
