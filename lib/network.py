@@ -59,7 +59,8 @@ def set_testnet():
     global DEFAULT_PORTS, DEFAULT_SERVERS
     DEFAULT_PORTS = {'t':'51001', 's':'51002'}
     DEFAULT_SERVERS = {
-        '127.0.0.1': DEFAULT_PORTS,
+        'electrum-test1.groestlcoin.org':DEFAULT_PORTS,
+        'electrum-test2.groestlcoin.org':DEFAULT_PORTS,
     }
 
 def set_nolnet():
