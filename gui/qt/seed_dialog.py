@@ -52,6 +52,7 @@ class SeedLayout(QVBoxLayout):
     #options
     is_bip39 = False
     is_ext = False
+    is_bip39_145 = False
 
     def seed_options(self):
         dialog = QDialog()
@@ -80,11 +81,38 @@ class SeedLayout(QVBoxLayout):
             cb_bip39.toggled.connect(f)
             cb_bip39.setChecked(self.is_bip39)
             vbox.addWidget(cb_bip39)
+
+
+
+	if 'bip39_145' in self.options:
+            def f(b):
+                self.is_seed = (lambda x: bool(x)) if b else self.saved_is_seed
+                self.on_edit()
+                self.is_bip39 = b
+                if b:
+                    msg = ' '.join([
+                        '<b>' + _('Warning') + ': BIP39 seeds are dangerous!' + '</b><br/><br/>',
+                        _('BIP39 seeds can be imported in Electrum so that users can access funds locked in other wallets.'),
+                        _('However, BIP39 seeds do not include a version number, which compromises compatibility with future wallet software.'),
+                        '<br/><br/>',
+                        _('We do not guarantee that BIP39 imports will always be supported in Electrum.'),
+                        _('In addition, Electrum does not verify the checksum of BIP39 seeds; make sure you type your seed correctly.'),
+                    ])
+                else:
+                    msg = ''
+                self.seed_warning.setText(msg)
+            cb_bip39_145 = QCheckBox(_('Use Coin Type 145 with bip39'))
+            cb_bip39_145.toggled.connect(f)
+            cb_bip39_145.setChecked(self.is_bip39_145)
+            vbox.addWidget(cb_bip39_145)
+
+
         vbox.addLayout(Buttons(OkButton(dialog)))
         if not dialog.exec_():
             return None
         self.is_ext = cb_ext.isChecked() if 'ext' in self.options else False
         self.is_bip39 = cb_bip39.isChecked() if 'bip39' in self.options else False
+        self.is_bip39_145 = cb_bip39_145.isChecked() if 'bip39_145' in self.options else False
 
     def __init__(self, seed=None, title=None, icon=True, msg=None, options=None, is_seed=None, passphrase=None, parent=None):
         QVBoxLayout.__init__(self)
