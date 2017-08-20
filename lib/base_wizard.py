@@ -228,13 +228,15 @@ class BaseWizard(object):
             self.on_hw_derivation(name, device_info, "m/45'/0")
         else:
             f = lambda x: self.run('on_hw_derivation', name, device_info, str(x))
-            self.derivation_dialog(f)
+            self.derivation_dialog_145(f)
 
     def derivation_dialog(self, f):
         default = bip44_derivation(0, False)
         message = '\n'.join([
             _('Enter your wallet derivation here.'),
-            _('If you are not sure what this is, leave this field unchanged.')
+            _('If you are not sure what this is, leave this field unchanged.'),
+	    _("If you want the wallet to use legacy Bitcoin addresses use m/44'/0'/0'"),
+	    _("If you want the wallet to use Bitcoin Cash addresses use m/44'/145'/0'")
         ])
         self.line_dialog(run_next=f, title=_('Derivation'), message=message, default=default, test=bitcoin.is_bip32_derivation)
 
