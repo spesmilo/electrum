@@ -350,6 +350,8 @@ def time_difference(distance_in_time, include_seconds):
 block_explorer_info = {
     'cryptoID.info': ('https://chainz.cryptoid.info/grs/',
                         {'tx': 'tx.dws?', 'addr': 'address.dws?'}),
+    'groestlsight': ('http://groestlsight.groestlcoin.org/',
+                        {'tx': '/tx/', 'addr': '/address/'}),
 }
 
 def block_explorer(config):
