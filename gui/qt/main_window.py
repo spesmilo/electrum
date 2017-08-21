@@ -2595,7 +2595,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def update_history_cb():
             if not self.fx: return
             hist_checkbox.setChecked(self.fx.get_history_config())
-            hist_checkbox.setEnabled(self.fx.is_enabled())
+            # There are currently no history rates exchanges.
+            hist_checkbox.setEnabled(False and self.fx.is_enabled())
 
         def update_exchanges():
             if not self.fx: return

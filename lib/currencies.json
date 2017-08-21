@@ -25,6 +25,28 @@
         "PLN"
     ], 
     "GRSTicker": [
-        "BTC"
+        "USD", 
+        "TWD", 
+        "ISK", 
+        "GBP", 
+        "DKK", 
+        "CAD", 
+        "SEK", 
+        "SGD", 
+        "HKD", 
+        "AUD", 
+        "CHF", 
+        "KRW", 
+        "CNY", 
+        "NZD", 
+        "CLP", 
+        "THB", 
+        "EUR", 
+        "RUB", 
+        "INR", 
+        "JPY", 
+        "BRL", 
+        "BTC", 
+        "PLN"
     ]
 }

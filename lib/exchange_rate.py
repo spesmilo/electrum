@@ -114,7 +114,14 @@ class GRSTicker(ExchangeBase):
         url = 'http://groestlcoin.org/grsticker.php'
         response = requests.request('GET', url,
                                     headers={'User-Agent' : 'Electrum'})
-        return {'BTC': Decimal(response.content)}
+
+        quote_currencies = {}
+        grs_btc_rate = quote_currencies['BTC'] = Decimal(response.content)
+        # Get BTC/fiat rates from BlockchainInfo.
+        blockchain_tickers = BlockchainInfo(None, None).get_rates(ccy)
+        for currency, btc_rate in blockchain_tickers.items():
+            quote_currencies[currency] = grs_btc_rate * btc_rate
+        return quote_currencies
 
 
 def dictinvert(d):
@@ -205,7 +212,8 @@ class FxThread(ThreadJob):
         return self.config.set_key('use_exchange_rate', bool(b))
 
     def get_history_config(self):
-        return bool(self.config.get('history_rates'))
+        # There are currently no history rates exchanges.
+        return False and bool(self.config.get('history_rates'))
 
     def set_history_config(self, b):
         self.config.set_key('history_rates', bool(b))
