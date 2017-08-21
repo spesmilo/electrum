@@ -356,7 +356,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.wallet.is_watching_only():
             msg = ' '.join([
                 _("This wallet is watching-only."),
-                _("This means you will not be able to spend Bitcoins with it."),
+                _("This means you will not be able to spend Groestlcoins with it."),
                 _("Make sure you own the seed phrase or the private keys, before you request Bitcoins to be sent to this wallet.")
             ])
             self.show_warning(msg, title=_('Information'))
@@ -749,8 +749,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         msg = ' '.join([
             _('Expiration date of your request.'),
             _('This information is seen by the recipient if you send them a signed payment request.'),
-            _('Expired requests have to be deleted manually from your list, in order to free the corresponding Bitcoin addresses.'),
-            _('The bitcoin address never expires and will always be part of this electrum wallet.'),
+            _('Expired requests have to be deleted manually from your list, in order to free the corresponding Groestlcoin addresses.'),
+            _('The groestlcoin address never expires and will always be part of this Electrum-GRS wallet.'),
         ])
         grid.addWidget(HelpLabel(_('Request expires'), msg), 3, 0)
         grid.addWidget(self.expires_combo, 3, 1)
