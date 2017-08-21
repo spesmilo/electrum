@@ -43,18 +43,20 @@ NOLNET = False
 ADDRTYPE_P2PKH = 36
 ADDRTYPE_P2SH = 5
 ADDRTYPE_P2WPKH = 6
+ADDRTYPE_WIF = 128
 XPRV_HEADER = 0x0488ade4
 XPUB_HEADER = 0x0488b21e
 HEADERS_URL = ""
 
 def set_testnet():
-    global ADDRTYPE_P2PKH, ADDRTYPE_P2SH, ADDRTYPE_P2WPKH
+    global ADDRTYPE_P2PKH, ADDRTYPE_P2SH, ADDRTYPE_P2WPKH, ADDRTYPE_WIF
     global XPRV_HEADER, XPUB_HEADER
     global TESTNET, HEADERS_URL
     TESTNET = True
     ADDRTYPE_P2PKH = 111
     ADDRTYPE_P2SH = 196
     ADDRTYPE_P2WPKH = 3
+    ADDRTYPE_WIF = 239
     XPRV_HEADER = 0x04358394
     XPUB_HEADER = 0x043587cf
 
@@ -375,15 +377,13 @@ def PrivKeyToSecret(privkey):
 
 
 def SecretToASecret(secret, compressed=False):
-    addrtype = ADDRTYPE_P2PKH
-    vchIn = chr((addrtype+128)&255) + secret
+    vchIn = chr(ADDRTYPE_WIF) + secret
     if compressed: vchIn += '\01'
     return EncodeBase58Check(vchIn)
 
 def ASecretToSecret(key):
-    addrtype = ADDRTYPE_P2PKH
     vch = DecodeBase58Check(key)
-    if vch and vch[0] == chr((addrtype+128)&255):
+    if vch and vch[0] == chr(ADDRTYPE_WIF):
         return vch[1:]
     elif is_minikey(key):
         return minikey_to_private_key(key)

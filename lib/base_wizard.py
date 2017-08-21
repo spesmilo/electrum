@@ -79,7 +79,8 @@ class BaseWizard(object):
         ])
         wallet_kinds = [
             ('standard',  _("Standard wallet")),
-            ('2fa', _("Wallet with two-factor authentication")),
+            # Uncomment if 2FA becomes available.
+            #('2fa', _("Wallet with two-factor authentication")),
             ('multisig',  _("Multi-signature wallet")),
             ('imported',  _("Watch Groestlcoin addresses")),
         ]
