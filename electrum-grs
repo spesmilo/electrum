@@ -95,7 +95,7 @@ if is_bundle or is_local or is_android:
     imp.load_module('electrum_grs', *imp.find_module('lib'))
     imp.load_module('electrum_grs_gui', *imp.find_module('gui'))
 
-from electrum_grs import bitcoin, network
+from electrum_grs import bitcoin, network, util
 from electrum_grs import SimpleConfig, Network
 from electrum_grs.wallet import Wallet, Imported_Wallet
 from electrum_grs.storage import WalletStorage
@@ -360,6 +360,7 @@ if __name__ == '__main__':
     if config.get('testnet'):
         bitcoin.set_testnet()
         network.set_testnet()
+        util.set_testnet()
 
     if config.get('nolnet'):
         bitcoin.set_nolnet()

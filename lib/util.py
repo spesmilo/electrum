@@ -351,8 +351,15 @@ block_explorer_info = {
     'cryptoID.info': ('https://chainz.cryptoid.info/grs/',
                         {'tx': 'tx.dws?', 'addr': 'address.dws?'}),
     'groestlsight': ('http://groestlsight.groestlcoin.org/',
-                        {'tx': '/tx/', 'addr': '/address/'}),
+                        {'tx': 'tx/', 'addr': 'address/'}),
 }
+
+def set_testnet():
+    global block_explorer_info
+    block_explorer_info = {
+        'cryptoID.info': ('https://chainz.cryptoid.info/grs-test/',
+                            {'tx': 'tx.dws?', 'addr': 'address.dws?'}),
+    }
 
 def block_explorer(config):
     return config.get('block_explorer', 'cryptoID.info')
