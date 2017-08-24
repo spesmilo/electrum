@@ -527,13 +527,17 @@ class ShowSeedDialog(WizardDialog):
     message = _("If you forget your PIN or lose your device, your seed phrase will be the only way to recover your funds.")
     ext = False
 
+    def __init__(self, wizard, **kwargs):
+        super(ShowSeedDialog, self).__init__(wizard, **kwargs)
+        self.seed_text = kwargs['seed_text']
+
     def on_parent(self, instance, value):
         if value:
             app = App.get_running_app()
             self._back = _back = partial(self.ids.back.dispatch, 'on_release')
 
     def options_dialog(self):
-        from seed_options import SeedOptionsDialog
+        from .seed_options import SeedOptionsDialog
         def callback(status):
             self.ext = status
         d = SeedOptionsDialog(self.ext, callback)
@@ -564,7 +568,7 @@ class RestoreSeedDialog(WizardDialog):
         self.ext = False
 
     def options_dialog(self):
-        from seed_options import SeedOptionsDialog
+        from .seed_options import SeedOptionsDialog
         def callback(status):
             self.ext = status
         d = SeedOptionsDialog(self.ext, callback)
