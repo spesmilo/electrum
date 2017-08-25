@@ -896,6 +896,8 @@ def tx_from_str(txt):
     "json or raw hexadecimal"
     import json
     txt = txt.strip()
+    if not txt:
+        raise ValueError("empty string")
     try:
         bfh(txt)
         is_hex = True
