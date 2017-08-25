@@ -2014,9 +2014,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         try:
             tx = tx_from_str(txt)
             return Transaction(tx)
-        except:
-            traceback.print_exc(file=sys.stdout)
-            self.show_critical(_("Electrum was unable to parse your transaction"))
+        except BaseException as e:
+            self.show_critical(_("Electrum was unable to parse your transaction") + ":\n" + str(e))
             return
 
     def read_tx_from_qrcode(self):
