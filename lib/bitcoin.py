@@ -275,14 +275,15 @@ def i2o_ECPublicKey(pubkey, compressed=False):
 
 ############ functions from pywallet #####################
 def hash_160(public_key):
-    if 'ANDROID_DATA' in os.environ:
-        from Crypto.Hash import RIPEMD
-        md = RIPEMD.new()
-    else:
-        md = hashlib.new('ripemd')
-    public_key = to_bytes(public_key, 'ascii')
-    md.update(sha256(public_key))
-    return md.digest()
+    try:
+        md = hashlib.new('ripemd160')
+        md.update(sha256(public_key))
+        return md.digest()
+    except Exception:
+        # not available in Android SL4a
+        import ripemd
+        md = ripemd.new(sha256(public_key))
+        return md.digest()
 
 
 def hash_160_to_bc_address(h160, addrtype, witness_program_version=1):
