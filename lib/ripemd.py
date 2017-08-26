@@ -37,12 +37,6 @@
 ## * ftp://ftp.rsasecurity.com/pub/cryptobytes/crypto3n2.pdf
 ## */
 
-try:
-    import psyco
-    psyco.full()
-except ImportError:
-    pass
-
 #block_size = 1
 digest_size = 20
 digestsize = 20
@@ -77,7 +71,7 @@ class RIPEMD160:
         dig = self.digest()
         hex_digest = ''
         for d in dig:
-            hex_digest += '%02x' % ord(d)
+            hex_digest += '%02x' % d
         return hex_digest
 
     def copy(self):
@@ -155,7 +149,7 @@ import struct
 def RMD160Transform(state, block): #uint32 state[5], uchar block[64]
     x = [0]*16
     if sys.byteorder == 'little':
-        x = struct.unpack('<16L', ''.join([chr(x) for x in block[0:64]]))
+        x = struct.unpack('<16L', bytes([x for x in block[0:64]]))
     else:
         raise "Error!!"
     a = state[0]
@@ -362,13 +356,13 @@ def RMD160Update(ctx, inp, inplen):
     if type(inp) == str:
         inp = [ord(i)&0xff for i in inp]
 
-    have = (ctx.count / 8) % 64
+    have = (ctx.count // 8) % 64
     need = 64 - have
     ctx.count += 8 * inplen
     off = 0
     if inplen >= need:
         if have:
-            for i in xrange(need):
+            for i in range(need):
                 ctx.buffer[have+i] = inp[i]
             RMD160Transform(ctx.state, ctx.buffer)
             off = need
@@ -378,12 +372,12 @@ def RMD160Update(ctx, inp, inplen):
             off += 64
     if off < inplen:
         # memcpy(ctx->buffer + have, input+off, len-off);
-        for i in xrange(inplen - off):
+        for i in range(inplen - off):
             ctx.buffer[have+i] = inp[off+i]
 
 def RMD160Final(ctx):
     size = struct.pack("<Q", ctx.count)
-    padlen = 64 - ((ctx.count / 8) % 64)
+    padlen = 64 - ((ctx.count // 8) % 64)
     if padlen < 1+8:
         padlen += 64
     RMD160Update(ctx, PADDING, padlen-8)
@@ -392,8 +386,8 @@ def RMD160Final(ctx):
 
 
 assert '37f332f68db77bd9d7edd4969571ad671cf9dd3b' == \
-       new('The quick brown fox jumps over the lazy dog').hexdigest()
+       new(b'The quick brown fox jumps over the lazy dog').hexdigest()
 assert '132072df690933835eb8b6ad0b77e7b6f14acad7' == \
-       new('The quick brown fox jumps over the lazy cog').hexdigest()
+       new(b'The quick brown fox jumps over the lazy cog').hexdigest()
 assert '9c1185a5c5e9fc54612808977ee8f548b2258d31' == \
        new('').hexdigest()
