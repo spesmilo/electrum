@@ -13,7 +13,7 @@ from btchip.btchip import *
 
 DEBUG = False
 
-helpTxt = [_("Your Ledger Wallet wants tell you a one-time PIN code.<br><br>" \
+helpTxt = [_("Your Ledger Wallet wants to tell you a one-time PIN code.<br><br>" \
             "For best security you should unplug your device, open a text editor on another computer, " \
             "put your cursor into it, and plug your device into that computer. " \
             "It will output a summary of the transaction being signed and a one-time PIN.<br><br>" \
