@@ -86,7 +86,7 @@ def is_CJK(c):
 
 def normalize_text(seed):
     # normalize
-    seed = unicodedata.normalize('NFKD', str(seed))
+    seed = unicodedata.normalize('NFKD', seed)
     # lower
     seed = seed.lower()
     # remove accents
@@ -100,7 +100,7 @@ def normalize_text(seed):
 def load_wordlist(filename):
     path = os.path.join(os.path.dirname(__file__), 'wordlist', filename)
     s = open(path,'r').read().strip()
-    s = unicodedata.normalize('NFKD', s.decode('utf8'))
+    s = unicodedata.normalize('NFKD', s)
     lines = s.split('\n')
     wordlist = []
     for line in lines:
