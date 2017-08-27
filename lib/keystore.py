@@ -140,7 +140,7 @@ class Imported_KeyStore(Software_KeyStore):
         return True
 
     def check_password(self, password):
-        pubkey = self.keypairs.keys()[0]
+        pubkey = list(self.keypairs.keys())[0]
         self.get_private_key(pubkey, password)
 
     def import_key(self, sec, password):
