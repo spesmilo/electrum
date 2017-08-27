@@ -35,7 +35,7 @@ from .bitcoin import public_key_from_private_key, public_key_to_p2pkh
 from .bitcoin import *
 
 from .bitcoin import is_old_seed, is_new_seed, is_seed
-from .util import PrintError, InvalidPassword
+from .util import PrintError, InvalidPassword, hfu
 from .mnemonic import Mnemonic, load_wordlist
 
 
@@ -581,7 +581,7 @@ def bip39_is_checksum_valid(mnemonic):
     while len(h) < entropy_length/4:
         h = '0'+h
     b = bytearray.fromhex(h)
-    hashed = int(hashlib.sha256(b).digest().encode('hex'), 16)
+    hashed = int(hfu(hashlib.sha256(b).digest()), 16)
     calculated_checksum = hashed >> (256 - checksum_length)
     return checksum == calculated_checksum, True
 
