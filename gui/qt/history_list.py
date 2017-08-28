@@ -119,7 +119,7 @@ class HistoryList(MyTreeWidget):
         if self.permit_edit(item, column):
             super(HistoryList, self).on_doubleclick(item, column)
         else:
-            tx_hash = str(item.data(0, Qt.UserRole).toString())
+            tx_hash = item.data(0, Qt.UserRole)
             tx = self.wallet.transactions.get(tx_hash)
             self.parent.show_transaction(tx)
 
