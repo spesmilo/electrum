@@ -39,6 +39,7 @@ class UTXOList(MyTreeWidget):
 
     def on_update(self):
         self.wallet = self.parent.wallet
+        min_utxo = int(self.parent.config.get('min_utxo_value', 0))
         item = self.currentItem()
         self.clear()
         self.utxos = self.wallet.get_utxos()
@@ -54,6 +55,8 @@ class UTXOList(MyTreeWidget):
             utxo_item.setData(0, Qt.UserRole, name)
             if self.wallet.is_frozen(address):
                 utxo_item.setBackgroundColor(0, QColor('lightblue'))
+            if min_utxo > 0 and x['value'] <= min_utxo:
+                utxo_item.setBackgroundColor(0, QColor('pink'))
             self.addChild(utxo_item)
 
     def create_menu(self, position):
