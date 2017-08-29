@@ -456,23 +456,8 @@ def deserialize(raw):
 
 # pay & redeem scripts
 
-def push_script(x):
-    return op_push(len(x)//2) + x
 
 
-def get_scriptPubKey(addr):
-    addrtype, hash_160 = bc_address_to_hash_160(addr)
-    if addrtype == bitcoin.ADDRTYPE_P2PKH:
-        script = '76a9'                                      # op_dup, op_hash_160
-        script += push_script(bh2u(hash_160))
-        script += '88ac'                                     # op_equalverify, op_checksig
-    elif addrtype == bitcoin.ADDRTYPE_P2SH:
-        script = 'a9'                                        # op_hash_160
-        script += push_script(bh2u(hash_160))
-        script += '87'                                       # op_equal
-    else:
-        raise BaseException('unknown address type')
-    return script
 
 
 def segwit_script(pubkey):
@@ -601,7 +586,7 @@ class Transaction:
         if output_type == TYPE_SCRIPT:
             return bh2u(addr)
         elif output_type == TYPE_ADDRESS:
-            return get_scriptPubKey(addr)
+            return bitcoin.address_to_script(addr)
         else:
             raise TypeError('Unknown output type')
         return script
@@ -667,7 +652,7 @@ class Transaction:
     def get_preimage_script(self, txin):
         # only for non-segwit
         if txin['type'] == 'p2pkh':
-            return get_scriptPubKey(txin['address'])
+            return bitcoin.address_to_script(txin['address'])
         elif txin['type'] == 'p2sh':
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
             return multisig_script(pubkeys, txin['num_sig'])

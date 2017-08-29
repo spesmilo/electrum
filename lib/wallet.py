@@ -883,7 +883,7 @@ class Abstract_Wallet(PrintError):
             pubkey = public_key_from_private_key(privkey)
             address = address_from_private_key(privkey)
             u = network.synchronous_get(('blockchain.address.listunspent', [address]))
-            pay_script = transaction.get_scriptPubKey(address)
+            pay_script = bitcoin.address_to_script(address)
             for item in u:
                 if len(inputs) >= imax:
                     break

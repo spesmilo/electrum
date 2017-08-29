@@ -199,6 +199,9 @@ def op_push(i):
     else:
         return '4e' + int_to_hex(i,4)
 
+def push_script(x):
+    return op_push(len(x)//2) + x
+
 
 def sha256(x):
     x = to_bytes(x, 'utf8')
@@ -314,7 +317,24 @@ def public_key_to_p2pkh(public_key):
 def public_key_to_p2wpkh(public_key):
     return hash_160_to_bc_address(hash_160(public_key), ADDRTYPE_P2WPKH)
 
+def address_to_script(addr):
+    addrtype, hash_160 = bc_address_to_hash_160(addr)
+    if addrtype == ADDRTYPE_P2PKH:
+        script = '76a9'                                      # op_dup, op_hash_160
+        script += push_script(bh2u(hash_160))
+        script += '88ac'                                     # op_equalverify, op_checksig
+    elif addrtype == ADDRTYPE_P2SH:
+        script = 'a9'                                        # op_hash_160
+        script += push_script(bh2u(hash_160))
+        script += '87'                                       # op_equal
+    else:
+        raise BaseException('unknown address type')
+    return script
 
+def address_to_scripthash(addr):
+    script = address_to_script(addr)
+    h = sha256(bytes.fromhex(script))[0:32]
+    return bytes(reversed(h)).hex()
 
 
 __b58chars = b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
