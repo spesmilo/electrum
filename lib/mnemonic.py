@@ -115,6 +115,8 @@ def load_wordlist(filename):
 filenames = {
     'en':'english.txt',
     'es':'spanish.txt',
+    'fr':'french.txt',
+    'it':'italian.txt',
     'ja':'japanese.txt',
     'pt':'portuguese.txt',
     'zh':'chinese_simplified.txt'
