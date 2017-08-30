@@ -10,7 +10,7 @@ from electrum_ltc.plugins import run_hook
 from electrum_ltc import coinchooser
 from electrum_ltc.util import fee_levels
 
-from choice_dialog import ChoiceDialog
+from .choice_dialog import ChoiceDialog
 
 Builder.load_string('''
 #:import partial functools.partial

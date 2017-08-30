@@ -23,22 +23,33 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
-import gettext, os
+import gettext, os, six
 
 LOCALE_DIR = os.path.join(os.path.dirname(__file__), 'locale')
 language = gettext.translation('electrum', LOCALE_DIR, fallback = True)
 
-
-def _(x):
-    global language
-    dic = [('Bitcoin', 'Litecoin'), ('bitcoin', 'litecoin'), (u'比特币', u'莱特币')]
+def _ltc(x, gettext):
+    dic = [('Bitcoin', 'Litecoin'), ('bitcoin', 'litecoin'), ('比特币', '莱特币')]
     for b, l in dic:
         x = x.replace(l, b)
-    t = language.ugettext(x)
+    t = gettext(x)
     for b, l in dic:
         t = t.replace(b, l)
     return t
+
+if six.PY2:
+    def _(x):
+        global language
+        return _ltc(x, language.ugettext)
+else:
+    def _(x):
+        global language
+        return _ltc(x, language.gettext)
 
 def set_language(x):
     global language

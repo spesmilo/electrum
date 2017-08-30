@@ -28,47 +28,17 @@ a = Analysis([home+'electrum-ltc',
               home+'plugins/trezor/qt.py',
               home+'plugins/keepkey/qt.py',
               home+'plugins/ledger/qt.py',
-              home+'packages/requests/utils.py'
+              #home+'packages/requests/utils.py'
               ],
-             pathex=[home+'lib', home+'gui', home+'plugins', home+'packages'],
-             hiddenimports=['lib', 'gui'],
+             datas = [
+                 (home+'lib/currencies.json', 'electrum-ltc'),
+                 (home+'lib/wordlist/english.txt', 'electrum-ltc/wordlist'),
+                 #(home+'packages/requests/cacert.pem', 'requests/cacert.pem')
+             ],
+             #pathex=[home+'lib', home+'gui', home+'plugins'],
+             #hiddenimports=["lib", "gui", "plugins", "electrum_ltc_gui.qt.icons_rc"],
              hookspath=[])
 
-##### include folder in distribution #######
-def extra_datas(mydir):
-    def rec_glob(p, files):
-        import os
-        import glob
-        for d in glob.glob(p):
-            if os.path.isfile(d):
-                files.append(d)
-            rec_glob("%s/*" % d, files)
-    files = []
-    rec_glob("%s/*" % mydir, files)
-    extra_datas = []
-    for f in files:
-        d = f.split('\\')
-        t = ''
-        for a in d[2:]:
-            if len(t)==0:
-                t = a
-            else:
-                t = t+'\\'+a
-        extra_datas.append((t, f, 'DATA'))
-
-    return extra_datas
-###########################################
-
-# append dirs
-
-# cacert.pem
-a.datas += [ ('requests/cacert.pem', home+'packages/requests/cacert.pem', 'DATA') ]
-
-# Py folders that are needed because of the magic import finding
-a.datas += extra_datas(home+'gui')
-a.datas += extra_datas(home+'lib')
-a.datas += extra_datas(home+'plugins')
-a.datas += extra_datas(home+'packages')
 
 # http://stackoverflow.com/questions/19055089/pyinstaller-onefile-warning-pyconfig-h-when-importing-scipy-or-scipy-signal
 for d in a.datas:
@@ -86,7 +56,7 @@ exe = EXE(pyz,
           strip=None,
           upx=False,
           icon=home+'icons/electrum.ico',
-          console=False)
+          console=True)
           # The console True makes an annoying black box pop up, but it does make Electrum output command line commands, with this turned off no output will be given but commands can still be used
 
 coll = COLLECT(exe,

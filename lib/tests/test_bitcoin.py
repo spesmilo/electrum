@@ -1,3 +1,9 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import six
 import unittest
 import sys
 from ecdsa.util import number_to_string
@@ -8,6 +14,7 @@ from lib.bitcoin import (
     pw_decode, Hash, public_key_from_private_key, address_from_private_key,
     is_valid, is_private_key, xpub_from_xprv, is_new_seed, is_old_seed,
     var_int, op_push)
+from lib.util import bfh
 
 try:
     import ecdsa
@@ -18,7 +25,7 @@ except ImportError:
 class Test_bitcoin(unittest.TestCase):
 
     def test_crypto(self):
-        for message in ["Chancellor on brink of second bailout for banks", chr(255)*512]:
+        for message in [b"Chancellor on brink of second bailout for banks", b'\xff'*512]:
             self._do_test_crypto(message)
 
     def _do_test_crypto(self, message):
@@ -60,7 +67,7 @@ class Test_bitcoin(unittest.TestCase):
         assert xprv == "xprvA2nrNbFZABcdryreWet9Ea4LvTJcGsqrMzxHx98MMrotbir7yrKCEXw7nadnHM8Dq38EGfSh6dqA9QWTyefMLEcBYJUuekgW4BYPJcr9E7j"
 
     def _do_test_bip32(self, seed, sequence):
-        xprv, xpub = bip32_root(seed.decode('hex'), 0)
+        xprv, xpub = bip32_root(bfh(seed), 0)
         assert sequence[0:2] == "m/"
         path = 'm'
         sequence = sequence[2:]
@@ -106,7 +113,7 @@ class Test_bitcoin(unittest.TestCase):
     def test_hash(self):
         """Make sure the Hash function does sha256 twice"""
         payload = u"test"
-        expected = '\x95MZI\xfdp\xd9\xb8\xbc\xdb5\xd2R&x)\x95\x7f~\xf7\xfalt\xf8\x84\x19\xbd\xc5\xe8"\t\xf4'
+        expected = b'\x95MZI\xfdp\xd9\xb8\xbc\xdb5\xd2R&x)\x95\x7f~\xf7\xfalt\xf8\x84\x19\xbd\xc5\xe8"\t\xf4'
 
         result = Hash(payload)
         self.assertEqual(expected, result)

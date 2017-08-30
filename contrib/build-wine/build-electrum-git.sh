@@ -5,11 +5,16 @@ ELECTRUM_GIT_URL=git://github.com/pooler/electrum-ltc.git
 BRANCH=master
 NAME_ROOT=electrum-ltc
 
+if [ "$#" -gt 0 ]; then
+    BRANCH="$1"
+fi
 
 # These settings probably don't need any change
 export WINEPREFIX=/opt/wine64
+export PYTHONHASHSEED=22
 
-PYHOME=c:/python27
+
+PYHOME=c:/python34
 PYTHON="wine $PYHOME/python.exe -OO -B"
 
 
@@ -42,22 +47,23 @@ rm -rf $WINEPREFIX/drive_c/electrum-ltc
 cp -r electrum-ltc-git $WINEPREFIX/drive_c/electrum-ltc
 cp electrum-ltc-git/LICENCE .
 
-# add python packages (built with make_packages)
-cp -r ../../../packages $WINEPREFIX/drive_c/electrum-ltc/
-
 # add locale dir
 cp -r ../../../lib/locale $WINEPREFIX/drive_c/electrum-ltc/lib/
 
 # Build Qt resources
-wine $WINEPREFIX/drive_c/Python27/Lib/site-packages/PyQt4/pyrcc4.exe C:/electrum-ltc/icons.qrc -o C:/electrum-ltc/lib/icons_rc.py
-wine $WINEPREFIX/drive_c/Python27/Lib/site-packages/PyQt4/pyrcc4.exe C:/electrum-ltc/icons.qrc -o C:/electrum-ltc/gui/qt/icons_rc.py
+wine $WINEPREFIX/drive_c/Python34/Lib/site-packages/PyQt4/pyrcc4.exe C:/electrum-ltc/icons.qrc -o C:/electrum-ltc/gui/qt/icons_rc.py -py3
+
+
+pushd $WINEPREFIX/drive_c/electrum-ltc
+$PYTHON setup.py install
+popd
 
 cd ..
 
 rm -rf dist/
 
 # build standalone version
-$PYTHON "C:/pyinstaller/pyinstaller.py" --noconfirm --ascii --name $NAME_ROOT-$VERSION.exe -w deterministic.spec
+wine "C:/python34/scripts/pyinstaller.exe" --noconfirm --ascii --name $NAME_ROOT-$VERSION.exe -w deterministic.spec 
 
 # build NSIS installer
 # $VERSION could be passed to the electrum.nsi script, but this would require some rewriting in the script iself.
@@ -72,6 +78,6 @@ cp portable.patch $WINEPREFIX/drive_c/electrum-ltc
 pushd $WINEPREFIX/drive_c/electrum-ltc
 patch < portable.patch 
 popd
-$PYTHON "C:/pyinstaller/pyinstaller.py" --noconfirm --ascii --name $NAME_ROOT-$VERSION-portable.exe -w deterministic.spec
+wine "C:/python34/scripts/pyinstaller.exe" --noconfirm --ascii --name $NAME_ROOT-$VERSION-portable.exe -w deterministic.spec
 
 echo "Done."

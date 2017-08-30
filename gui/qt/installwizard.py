@@ -1,3 +1,9 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import six
 import sys
 import os
 
@@ -11,10 +17,10 @@ from electrum_ltc.util import UserCancelled, InvalidPassword
 from electrum_ltc.base_wizard import BaseWizard
 from electrum_ltc.i18n import _
 
-from seed_dialog import SeedLayout, KeysLayout
-from network_dialog import NetworkChoiceLayout
-from util import *
-from password_dialog import PasswordLayout, PW_NEW
+from .seed_dialog import SeedLayout, KeysLayout
+from .network_dialog import NetworkChoiceLayout
+from .util import *
+from .password_dialog import PasswordLayout, PW_NEW
 
 
 class GoBack(Exception):
@@ -170,13 +176,12 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         wallet_folder = os.path.dirname(self.storage.path)
 
         def on_choose():
-            path = unicode(QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder))
+            path = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder)
             if path:
                 self.name_e.setText(path)
 
         def on_filename(filename):
-            filename = unicode(filename)
-            path = os.path.join(wallet_folder, filename.encode('utf8'))
+            path = os.path.join(wallet_folder, filename)
             try:
                 self.storage = WalletStorage(path)
             except IOError:
@@ -207,7 +212,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         button.clicked.connect(on_choose)
         self.name_e.textChanged.connect(on_filename)
         n = os.path.basename(self.storage.path)
-        self.name_e.setText(n.decode('utf8'))
+        self.name_e.setText(n)
 
         while True:
             if self.storage.file_exists() and not self.storage.is_encrypted():
@@ -217,7 +222,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             if not self.storage.file_exists():
                 break
             if self.storage.file_exists() and self.storage.is_encrypted():
-                password = unicode(self.pw_e.text())
+                password = self.pw_e.text()
                 try:
                     self.storage.decrypt(password)
                     break
@@ -438,8 +443,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     @wizard_dialog
     def choice_dialog(self, title, message, choices, run_next):
-        c_values = map(lambda x: x[0], choices)
-        c_titles = map(lambda x: x[1], choices)
+        c_values = [x[0] for x in choices]
+        c_titles = [x[1] for x in choices]
         clayout = ChoicesLayout(message, c_titles)
         vbox = QVBoxLayout()
         vbox.addLayout(clayout.layout())
@@ -462,12 +467,12 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         line = QLineEdit()
         line.setText(default)
         def f(text):
-            self.next_button.setEnabled(test(unicode(text)))
+            self.next_button.setEnabled(test(text))
         line.textEdited.connect(f)
         vbox.addWidget(line)
         vbox.addWidget(WWLabel(warning))
         self.exec_layout(vbox, title, next_enabled=test(default))
-        return ' '.join(unicode(line.text()).split())
+        return ' '.join(line.text().split())
 
     @wizard_dialog
     def show_xpub_dialog(self, xpub, run_next):

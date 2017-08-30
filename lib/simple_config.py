@@ -1,12 +1,18 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import six
 import ast
 import json
 import threading
 import os
 
 from copy import deepcopy
-from util import user_dir, print_error, print_msg, print_stderr, PrintError
+from .util import user_dir, print_error, print_msg, print_stderr, PrintError
 
-from bitcoin import MAX_FEE_RATE, FEE_TARGETS
+from .bitcoin import MAX_FEE_RATE, FEE_TARGETS
 
 SYSTEM_CONFIG_PATH = "/etc/electrum-ltc.conf"
 
@@ -96,7 +102,7 @@ class SimpleConfig(PrintError):
 
     def fixup_config_keys(self, config, keypairs):
         updated = False
-        for old_key, new_key in keypairs.iteritems():
+        for old_key, new_key in keypairs.items():
             if old_key in config:
                 if not new_key in config:
                     config[new_key] = config[old_key]
@@ -219,7 +225,7 @@ class SimpleConfig(PrintError):
 
     def reverse_dynfee(self, fee_per_kb):
         import operator
-        l = self.fee_estimates.items() + [(1, self.dynfee(4))]
+        l = list(self.fee_estimates.items()) + [(1, self.dynfee(4))]
         dist = map(lambda x: (x[0], abs(x[1] - fee_per_kb)), l)
         min_target, min_value = min(dist, key=operator.itemgetter(1))
         if fee_per_kb < self.fee_estimates.get(25)/2:
@@ -252,17 +258,18 @@ def read_system_config(path=SYSTEM_CONFIG_PATH):
     result = {}
     if os.path.exists(path):
         try:
-            import ConfigParser
+            from six.moves import configparser
+            # import ConfigParser
         except ImportError:
-            print "cannot parse electrum-ltc.conf. please install ConfigParser"
+            print("cannot parse electrum-ltc.conf. please install ConfigParser")
             return
 
-        p = ConfigParser.ConfigParser()
+        p = configparser.ConfigParser()
         try:
             p.read(path)
             for k, v in p.items('client'):
                 result[k] = v
-        except (ConfigParser.NoSectionError, ConfigParser.MissingSectionHeaderError):
+        except (configparser.NoSectionError, configparser.MissingSectionHeaderError):
             pass
 
     return result

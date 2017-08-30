@@ -23,8 +23,6 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from __future__ import absolute_import
-
 import time
 import threading
 import base64
@@ -33,9 +31,9 @@ from functools import partial
 import smtplib
 import imaplib
 import email
-from email.MIMEMultipart import MIMEMultipart
-from email.MIMEBase import MIMEBase
-from email import Encoders
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.encoders import encode_base64
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -47,7 +45,6 @@ from electrum_ltc.paymentrequest import PaymentRequest
 from electrum_ltc.i18n import _
 from electrum_ltc_gui.qt.util import EnterButton, Buttons, CloseButton
 from electrum_ltc_gui.qt.util import OkButton, WindowModalDialog
-
 
 
 class Processor(threading.Thread):
@@ -96,7 +93,7 @@ class Processor(threading.Thread):
         msg['From'] = self.username
         part = MIMEBase('application', "litecoin-paymentrequest")
         part.set_payload(payment_request)
-        Encoders.encode_base64(part)
+        encode_base64(part)
         part.add_header('Content-Disposition', 'attachment; filename="payreq.ltc"')
         msg.attach(part)
         s = smtplib.SMTP_SSL(self.imap_server, timeout=2)

@@ -1,6 +1,7 @@
-#!/usr/bin/env python2
-from StringIO import StringIO
-import os, zipfile, pycurl
+#!/usr/bin/env python3
+import os
+import io
+import zipfile
 import requests
 
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
@@ -10,7 +11,7 @@ os.chdir('..')
 if not os.path.exists('lib/locale'):
     os.mkdir('lib/locale')
 cmd = 'xgettext -s --no-wrap -f app.fil --output=lib/locale/messages.pot'
-print 'Generate template'
+print('Generate template')
 os.system(cmd)
 
 os.chdir('lib')
@@ -18,32 +19,32 @@ os.chdir('lib')
 crowdin_identifier = 'electrum'
 crowdin_file_name = 'electrum-client/messages.pot'
 locale_file_name = 'locale/messages.pot'
-
 crowdin_api_key = None
-if os.path.exists('../contrib/crowdin_api_key.txt'):
-    crowdin_api_key = open('../contrib/crowdin_api_key.txt').read().strip()
+
+filename = '~/.crowdin_api_key'
+if os.path.exists(filename):
+    crowdin_api_key = open(filename).read().strip()
+
 if "crowdin_api_key" in os.environ:
     crowdin_api_key = os.environ["crowdin_api_key"]
+
 if crowdin_api_key:
     # Push to Crowdin
-    print 'Push to Crowdin'
+    print('Push to Crowdin')
     url = ('https://api.crowdin.com/api/project/' + crowdin_identifier + '/update-file?key=' + crowdin_api_key)
-    c = pycurl.Curl()
-    c.setopt(c.URL, url)
-    c.setopt(c.POST, 1)
-    fields = [('files[' + crowdin_file_name + ']', (pycurl.FORM_FILE, locale_file_name))]
-    c.setopt(c.HTTPPOST, fields)
-    c.perform()
+    files = {crowdin_file_name: open(locale_file_name,'rb')}
+    requests.request('POST', url, files=files)
     # Build translations
-    print 'Build translations'
+    print('Build translations')
     response = requests.request('GET', 'http://api.crowdin.com/api/project/' + crowdin_identifier + '/export?key=' + crowdin_api_key).content
-    print response
+    print(response)
 
 # Download & unzip
-print 'Download translations'
-zfobj = zipfile.ZipFile(StringIO(requests.request('GET', 'http://crowdin.com/download/project/' + crowdin_identifier + '.zip').content))
+print('Download translations')
+s = requests.request('GET', 'http://crowdin.com/download/project/' + crowdin_identifier + '.zip').content
+zfobj = zipfile.ZipFile(io.BytesIO(s))
 
-print 'Unzip translations'
+print('Unzip translations')
 for name in zfobj.namelist():
     if not name.startswith('electrum-client/locale'):
         continue
@@ -51,12 +52,12 @@ for name in zfobj.namelist():
         if not os.path.exists(name[16:]):
             os.mkdir(name[16:])
     else:
-        output = open(name[16:],'w')
+        output = open(name[16:], 'wb')
         output.write(zfobj.read(name))
         output.close()
 
 # Convert .po to .mo
-print 'Installing'
+print('Installing')
 for lang in os.listdir('locale'):
     if lang.startswith('messages'):
         continue
@@ -65,5 +66,5 @@ for lang in os.listdir('locale'):
     if not os.path.exists(mo_dir):
         os.mkdir(mo_dir)
     cmd = 'msgfmt --output-file="%s/electrum.mo" "locale/%s/electrum.po"' % (mo_dir,lang)
-    print 'Installing',lang
+    print('Installing', lang)
     os.system(cmd)

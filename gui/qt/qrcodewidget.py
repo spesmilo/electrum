@@ -1,3 +1,9 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import six
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtGui as QtGui
@@ -7,7 +13,7 @@ import qrcode
 
 import electrum_ltc
 from electrum_ltc.i18n import _
-from util import WindowModalDialog
+from .util import WindowModalDialog
 
 
 class QRCodeWidget(QWidget):

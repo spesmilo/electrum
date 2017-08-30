@@ -13,7 +13,7 @@ from btchip.btchip import *
 
 DEBUG = False
 
-helpTxt = [_("Your Ledger Wallet wants tell you a one-time PIN code.<br><br>" \
+helpTxt = [_("Your Ledger Wallet wants to tell you a one-time PIN code.<br><br>" \
             "For best security you should unplug your device, open a text editor on another computer, " \
             "put your cursor into it, and plug your device into that computer. " \
             "It will output a summary of the transaction being signed and a one-time PIN.<br><br>" \
@@ -225,7 +225,7 @@ class LedgerAuthDialog(QDialog):
         try:
             mode = self.dongle.exchange( bytearray(apdu) )
             return mode
-        except BTChipException, e:
+        except BTChipException as e:
             debug_msg('Device getMode Failed')
         return 0x11
     
@@ -274,7 +274,7 @@ class LedgerWebSocket(QThread):
                 challenge = self.dongle.exchange( bytearray(apdu) )
                 ws.send( '{"type":"challenge","data":"%s" }' % str(challenge).encode('hex') )
                 self.data = data
-            except BTChipException, e:
+            except BTChipException as e:
                 debug_msg('Identify Failed')
                 
         if data['type'] == 'challenge':
@@ -287,7 +287,7 @@ class LedgerWebSocket(QThread):
                 ws.send( '{"type":"pairing","is_successful":"true"}' )
                 self.data['pairid'] = self.pairID
                 self.pairing_done.emit(self.data)
-            except BTChipException, e:
+            except BTChipException as e:
                 debug_msg('Pairing Failed')
                 ws.send( '{"type":"pairing","is_successful":"false"}' ) 
                 self.pairing_done.emit(None)

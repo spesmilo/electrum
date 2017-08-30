@@ -22,8 +22,15 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import socket
 
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import socket
+import six
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
@@ -32,7 +39,7 @@ from electrum_ltc.i18n import _
 from electrum_ltc.network import DEFAULT_PORTS
 from electrum_ltc.network import serialize_server, deserialize_server
 
-from util import *
+from .util import *
 
 protocol_names = ['TCP', 'SSL']
 protocol_letters = 'ts'
@@ -70,13 +77,13 @@ class NodesListWidget(QTreeWidget):
         item = self.currentItem()
         if not item:
             return
-        is_server = not bool(item.data(0, Qt.UserRole).toInt()[0])
+        is_server = not bool(item.data(0, Qt.UserRole))
         menu = QMenu()
         if is_server:
-            server = unicode(item.data(1, Qt.UserRole).toString())
+            server = item.data(1, Qt.UserRole)
             menu.addAction(_("Use as server"), lambda: self.parent.follow_server(server))
         else:
-            index = item.data(1, Qt.UserRole).toInt()[0]
+            index = item.data(1, Qt.UserRole)
             menu.addAction(_("Follow this branch"), lambda: self.parent.follow_branch(index))
         menu.exec_(self.viewport().mapToGlobal(position))
 
@@ -136,7 +143,7 @@ class ServerListWidget(QTreeWidget):
         if not item:
             return
         menu = QMenu()
-        server = unicode(item.data(1, Qt.UserRole).toString())
+        server = item.data(1, Qt.UserRole)
         menu.addAction(_("Use as server"), lambda: self.set_server(server))
         menu.exec_(self.viewport().mapToGlobal(position))
 
@@ -379,7 +386,7 @@ class NetworkChoiceLayout(object):
 
     def change_protocol(self, use_ssl):
         p = 's' if use_ssl else 't'
-        host = unicode(self.server_host.text())
+        host = self.server_host.text()
         pp = self.servers.get(host, DEFAULT_PORTS)
         if p not in pp.keys():
             p = pp.keys()[0]
@@ -490,12 +497,12 @@ class TorDetector(QThread):
     @staticmethod
     def is_tor_port(port):
         try:
-            s = socket._socketobject(socket.AF_INET, socket.SOCK_STREAM)
+            s = (socket._socketobject if hasattr(socket, "_socketobject") else socket.socket)(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(0.1)
             s.connect(("127.0.0.1", port))
             # Tor responds uniquely to HTTP-like requests
-            s.send("GET\n")
-            if "Tor is not an HTTP Proxy" in s.recv(1024):
+            s.send(b"GET\n")
+            if b"Tor is not an HTTP Proxy" in s.recv(1024):
                 return True
         except socket.error:
             pass

@@ -14,15 +14,14 @@ from kivy.core.window import Window
 from kivy.clock import Clock
 from kivy.utils import platform
 
-from electrum_ltc_gui.kivy.uix.dialogs import EventsDialog
-from electrum_ltc_gui.kivy.i18n import _
 from electrum_ltc.base_wizard import BaseWizard
 
-from password_dialog import PasswordDialog
+
+from . import EventsDialog
+from ...i18n import _
+from .password_dialog import PasswordDialog
 
 # global Variables
-app = App.get_running_app()
-
 is_test = (platform == "linux")
 test_seed = "time taxi field recycle tiny license olive virus report rare steel portion achieve"
 test_xpub = "xpub661MyMwAqRbcEbvVtRRSjqxVnaWVUMewVzMiURAKyYratih4TtBpMypzzefmv8zUNebmNVzB3PojdC5sV2P9bDgMoo9B3SARw1MXUUfU1GL"
@@ -429,7 +428,7 @@ class WizardDialog(EventsDialog):
     crcontent = ObjectProperty(None)
 
     def __init__(self, wizard, **kwargs):
-        super(WizardDialog, self).__init__(**kwargs)
+        super(WizardDialog, self).__init__()
         self.wizard = wizard
         self.ids.back.disabled = not wizard.can_go_back()
         self.app = App.get_running_app()
@@ -528,13 +527,17 @@ class ShowSeedDialog(WizardDialog):
     message = _("If you forget your PIN or lose your device, your seed phrase will be the only way to recover your funds.")
     ext = False
 
+    def __init__(self, wizard, **kwargs):
+        super(ShowSeedDialog, self).__init__(wizard, **kwargs)
+        self.seed_text = kwargs['seed_text']
+
     def on_parent(self, instance, value):
         if value:
             app = App.get_running_app()
             self._back = _back = partial(self.ids.back.dispatch, 'on_release')
 
     def options_dialog(self):
-        from seed_options import SeedOptionsDialog
+        from .seed_options import SeedOptionsDialog
         def callback(status):
             self.ext = status
         d = SeedOptionsDialog(self.ext, callback)
@@ -565,7 +568,7 @@ class RestoreSeedDialog(WizardDialog):
         self.ext = False
 
     def options_dialog(self):
-        from seed_options import SeedOptionsDialog
+        from .seed_options import SeedOptionsDialog
         def callback(status):
             self.ext = status
         d = SeedOptionsDialog(self.ext, callback)
@@ -624,9 +627,7 @@ class RestoreSeedDialog(WizardDialog):
 
     def get_text(self):
         ti = self.ids.text_input_seed
-        text = unicode(ti.text).strip()
-        text = ' '.join(text.split())
-        return text
+        return ' '.join(ti.text.strip().split())
 
     def update_text(self, c):
         c = c.lower()
@@ -707,7 +708,7 @@ class AddXpubDialog(WizardDialog):
 
     def get_text(self):
         ti = self.ids.text_input
-        return unicode(ti.text).strip()
+        return ti.text.strip()
 
     def get_params(self, button):
         return (self.get_text(),)
@@ -718,7 +719,7 @@ class AddXpubDialog(WizardDialog):
         self.app.scan_qr(on_complete)
 
     def do_paste(self):
-        self.ids.text_input.text = test_xpub if is_test else unicode(self.app._clipboard.paste())
+        self.ids.text_input.text = test_xpub if is_test else self.app._clipboard.paste()
 
     def do_clear(self):
         self.ids.text_input.text = ''
@@ -752,6 +753,7 @@ class InstallWizard(BaseWizard, Widget):
             # on  completion hide message
             Clock.schedule_once(lambda dt: app.info_bubble.hide(now=True), -1)
 
+        app = App.get_running_app()
         app.show_info_bubble(
             text=msg, icon='atlas://gui/kivy/theming/light/important',
             pos=Window.center, width='200sp', arrow_pos=None, modal=True)
@@ -793,6 +795,7 @@ class InstallWizard(BaseWizard, Widget):
     def show_xpub_dialog(self, **kwargs): ShowXpubDialog(self, **kwargs).open()
 
     def show_error(self, msg):
+        app = App.get_running_app()
         Clock.schedule_once(lambda dt: app.show_error(msg))
 
     def password_dialog(self, message, callback):
@@ -805,7 +808,7 @@ class InstallWizard(BaseWizard, Widget):
             if pin:
                 self.run('confirm_password', pin, run_next)
             else:
-                run_next(None)
+                run_next(None, None)
         self.password_dialog('Choose a PIN code', callback)
 
     def confirm_password(self, pin, run_next):

@@ -22,13 +22,18 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
+import six
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 from electrum_ltc.i18n import _
 
-from util import *
-from qrtextedit import ShowQRTextEdit, ScanQRTextEdit
+from .util import *
+from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 
 
 def seed_warning_msg(seed):
@@ -45,7 +50,6 @@ def seed_warning_msg(seed):
         "<li>" + _("Do not store it electronically.") + "</li>",
         "</ul>"
     ]) % len(seed.split())
-
 
 
 class SeedLayout(QVBoxLayout):
@@ -86,7 +90,6 @@ class SeedLayout(QVBoxLayout):
             return None
         self.is_ext = cb_ext.isChecked() if 'ext' in self.options else False
         self.is_bip39 = cb_bip39.isChecked() if 'bip39' in self.options else False
-
 
     def __init__(self, seed=None, title=None, icon=True, msg=None, options=None, is_seed=None, passphrase=None, parent=None):
         QVBoxLayout.__init__(self)
@@ -135,7 +138,7 @@ class SeedLayout(QVBoxLayout):
         self.addWidget(self.seed_warning)
 
     def get_seed(self):
-        text = unicode(self.seed_e.text())
+        text = self.seed_e.text()
         return ' '.join(text.split())
 
     def on_edit(self):
@@ -154,7 +157,6 @@ class SeedLayout(QVBoxLayout):
         self.parent.next_button.setEnabled(b)
 
 
-
 class KeysLayout(QVBoxLayout):
     def __init__(self, parent=None, title=None, is_valid=None):
         QVBoxLayout.__init__(self)
@@ -166,7 +168,7 @@ class KeysLayout(QVBoxLayout):
         self.addWidget(self.text_e)
 
     def get_text(self):
-        return unicode(self.text_e.text())
+        return self.text_e.text()
 
     def on_edit(self):
         b = self.is_valid(self.get_text())

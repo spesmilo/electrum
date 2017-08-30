@@ -26,7 +26,7 @@
 import socket
 import threading
 import time
-import xmlrpclib
+from xmlrpc.client import ServerProxy
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -36,6 +36,7 @@ from electrum_ltc import transaction
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.i18n import _
 from electrum_ltc.wallet import Multisig_Wallet
+from electrum_ltc.util import bh2u
 
 from electrum_ltc_gui.qt.transaction_dialog import show_transaction
 
@@ -45,7 +46,7 @@ import traceback
 
 PORT = 12344
 HOST = 'cosigner.electrum.org'
-server = xmlrpclib.ServerProxy('http://%s:%d'%(HOST,PORT), allow_none=True)
+server = ServerProxy('http://%s:%d'%(HOST,PORT), allow_none=True)
 
 
 class Listener(util.DaemonThread):
@@ -129,8 +130,8 @@ class Plugin(BasePlugin):
         self.cosigner_list = []
         for key, keystore in wallet.keystores.items():
             xpub = keystore.get_master_public_key()
-            K = bitcoin.deserialize_xpub(xpub)[-1].encode('hex')
-            _hash = bitcoin.Hash(K).encode('hex')
+            K = bitcoin.deserialize_xpub(xpub)[-1]
+            _hash = bh2u(bitcoin.Hash(K))
             if not keystore.is_watching_only():
                 self.keys.append((key, _hash, window))
             else:

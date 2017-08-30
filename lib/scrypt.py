@@ -1,7 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # scrypt.py - basic implementation of Litecoin's proof-of-work algorithm
-# Copyright (C) 2014 pooler@litecoinpool.org
+# Copyright (C) 2014, 2017 pooler@litecoinpool.org
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,42 +20,42 @@ import hashlib
 import hmac
 
 def scrypt_1024_1_1_80(header):
-    if not isinstance(header, str) or len(header) != 80:
-        raise ValueError('header must be an 80-byte string')
+    if not isinstance(header, bytes) or len(header) != 80:
+        raise ValueError('header must be 80 bytes')
 
     mac = hmac.new(header, digestmod=hashlib.sha256)
 
     V = [0]*32*1024
     X = [0]*32
 
-    B = list(header[:]) + ['\0']*4
-    for i in xrange(4):
-        B[83] = chr(i + 1)
+    B = list(header[:]) + [0]*4
+    for i in range(4):
+        B[83] = i + 1
         m = mac.copy()
-        m.update(''.join(B))
+        m.update(bytes(B))
         H = m.digest()
-        for j in xrange(8):
-            X[i*8 + j] = (ord(H[j*4 + 0]) << 0 | ord(H[j*4 + 1]) << 8 |
-                          ord(H[j*4 + 2]) << 16 | ord(H[j*4 + 3]) << 24)
+        for j in range(8):
+            X[i*8 + j] = (H[j*4 + 0] << 0 | H[j*4 + 1] << 8 |
+                          H[j*4 + 2] << 16 | H[j*4 + 3] << 24)
 
-    for i in xrange(1024):
+    for i in range(1024):
         V[i*32:i*32+32] = X
         _xor_salsa8_2(X)
 
-    for i in xrange(1024):
+    for i in range(1024):
         k = (X[16] & 1023) * 32
-        for j in xrange(32):
+        for j in range(32):
             X[j] ^= V[k+j]
         _xor_salsa8_2(X)
 
-    B = ['\0']*(128+3) + ['\x01']
-    for i in xrange(32):
-        B[i*4 + 0] = chr(X[i] >> 0 & 0xff)
-        B[i*4 + 1] = chr(X[i] >> 8 & 0xff)
-        B[i*4 + 2] = chr(X[i] >> 16 & 0xff)
-        B[i*4 + 3] = chr(X[i] >> 24 & 0xff)
+    B = [0]*(128+3) + [1]
+    for i in range(32):
+        B[i*4 + 0] = X[i] >> 0 & 0xff
+        B[i*4 + 1] = X[i] >> 8 & 0xff
+        B[i*4 + 2] = X[i] >> 16 & 0xff
+        B[i*4 + 3] = X[i] >> 24 & 0xff
 
-    mac.update(''.join(B))
+    mac.update(bytes(B))
     return mac.digest()
 
 def _xor_salsa8_2(X):
@@ -100,7 +100,7 @@ def _xor_salsa8_2(X):
     t14 = x14
     t15 = x15
 
-    for j in xrange(4):
+    for j in range(4):
         t = t00+t12 & 0xffffffff; t04 ^= (t >> 25) | (t << 7)
         t = t04+t00 & 0xffffffff; t08 ^= (t >> 23) | (t << 9)
         t = t08+t04 & 0xffffffff; t12 ^= (t >> 19) | (t << 13)
@@ -185,7 +185,7 @@ def _xor_salsa8_2(X):
     t14 = x30
     t15 = x31
 
-    for j in xrange(4):
+    for j in range(4):
         t = t00+t12 & 0xffffffff; t04 ^= (t >> 25) | (t << 7)
         t = t04+t00 & 0xffffffff; t08 ^= (t >> 23) | (t << 9)
         t = t08+t04 & 0xffffffff; t12 ^= (t >> 19) | (t << 13)
@@ -246,6 +246,7 @@ def _xor_salsa8_2(X):
 
 
 if __name__ == '__main__':
+    from binascii import unhexlify
 
     vectors = [
         ("00"*80, "161d0876f3b93b1048cda1bdeaa7332ee210f7131b42013cb43913a6553a4b69"),
@@ -259,8 +260,8 @@ if __name__ == '__main__':
     t0 = default_timer()
 
     for header, hash in vectors:
-        assert scrypt_1024_1_1_80(header.decode('hex')) == hash.decode('hex')
+        assert scrypt_1024_1_1_80(unhexlify(header)) == unhexlify(hash)
 
     dt = (default_timer() - t0) / len(vectors)
-    print "%.1f ms/hash" % (dt*1000)
-    print "%.2f hash/s" % (1.0 / dt)
+    print("%.1f ms/hash" % (dt*1000))
+    print("%.2f hash/s" % (1.0 / dt))

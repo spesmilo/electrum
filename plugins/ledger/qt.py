@@ -9,7 +9,7 @@ from .ledger import LedgerPlugin
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from electrum_ltc_gui.qt.util import *
 
-from btchip.btchipPersoWizard import StartBTChipPersoDialog
+#from btchip.btchipPersoWizard import StartBTChipPersoDialog
 
 class Plugin(LedgerPlugin, QtPluginBase):
     icon_unpaired = ":icons/ledger_unpaired.png"

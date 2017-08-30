@@ -22,6 +22,12 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import six
 
 import os
 import hmac
@@ -33,10 +39,10 @@ import string
 import ecdsa
 import pbkdf2
 
-from util import print_error
-from bitcoin import is_old_seed, is_new_seed
-import version
-import i18n
+from .util import print_error
+from .bitcoin import is_old_seed, is_new_seed
+from . import version
+from . import i18n
 
 # http://www.asahi-net.or.jp/~ax2s-kmtn/ref/unicode/e_asia.html
 CJK_INTERVALS = [
@@ -80,7 +86,7 @@ def is_CJK(c):
 
 def normalize_text(seed):
     # normalize
-    seed = unicodedata.normalize('NFKD', unicode(seed))
+    seed = unicodedata.normalize('NFKD', seed)
     # lower
     seed = seed.lower()
     # remove accents
@@ -94,7 +100,7 @@ def normalize_text(seed):
 def load_wordlist(filename):
     path = os.path.join(os.path.dirname(__file__), 'wordlist', filename)
     s = open(path,'r').read().strip()
-    s = unicodedata.normalize('NFKD', s.decode('utf8'))
+    s = unicodedata.normalize('NFKD', s)
     lines = s.split('\n')
     wordlist = []
     for line in lines:
@@ -139,7 +145,7 @@ class Mnemonic(object):
         words = []
         while i:
             x = i%n
-            i = i/n
+            i = i//n
             words.append(self.wordlist[x])
         return ' '.join(words)
 
@@ -164,11 +170,11 @@ class Mnemonic(object):
         return i % custom_entropy == 0
 
     def make_seed(self, seed_type='standard', num_bits=132, custom_entropy=1):
-        import version
+        from . import version
         prefix = version.seed_prefix(seed_type)
         # increase num_bits in order to obtain a uniform distibution for the last word
         bpw = math.log(len(self.wordlist), 2)
-        num_bits = int(math.ceil(num_bits/bpw)) * bpw
+        num_bits = int(math.ceil(num_bits/bpw) * bpw)
         # handle custom entropy; make sure we add at least 16 bits
         n_custom = int(math.ceil(math.log(custom_entropy, 2)))
         n = max(16, num_bits - n_custom)

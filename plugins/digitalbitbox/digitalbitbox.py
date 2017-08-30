@@ -157,7 +157,7 @@ class DigitalBitbox_Client():
             self.isInitialized = True # Wallet exists. Electrum code later checks if the device matches the wallet
         elif not self.isInitialized:
             reply = self.hid_send_encrypt('{"device":"info"}')
-            if reply['device']['id'] <> "":
+            if reply['device']['id'] != "":
                 self.recover_or_erase_dialog() # Already seeded
             else:
                 self.seed_device_dialog() # Seed if not initialized
@@ -504,7 +504,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 dbb_signatures.extend(reply['sign'])
             
             # Fill signatures
-            if len(dbb_signatures) <> len(tx.inputs()):
+            if len(dbb_signatures) != len(tx.inputs()):
                 raise Exception("Incorrect number of transactions signed.") # Should never occur
             for i, txin in enumerate(tx.inputs()):
                 num = txin['num_sig']
@@ -564,7 +564,7 @@ class DigitalBitboxPlugin(HW_PluginBase):
         if device.interface_number == 0 or device.usage_page == 0xffff:
             self.handler = handler
             client = self.get_dbb_device(device)
-            if client <> None:
+            if client is not None:
                 client = DigitalBitbox_Client(client)
             return client
         else:
@@ -594,7 +594,7 @@ class DigitalBitboxPlugin(HW_PluginBase):
         handler = keystore.handler
         with devmgr.hid_lock:
             client = devmgr.client_for_keystore(self, handler, keystore, force_pair)        
-        if client <> None:
+        if client is not None:
             client.check_device_dialog()
         return client
 

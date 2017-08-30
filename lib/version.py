@@ -1,10 +1,10 @@
-ELECTRUM_VERSION = '2.9.3.1' # version of the client package
-PROTOCOL_VERSION = '0.10'   # protocol version requested
+ELECTRUM_VERSION = '2.10.0'  # version of the client package
+PROTOCOL_VERSION = '0.10'    # protocol version requested
 
 # The hash of the mnemonic seed must begin with this
-SEED_PREFIX      = '01'      # Electrum standard wallet
-SEED_PREFIX_SW   = '02'      # Electrum segwit wallet
-SEED_PREFIX_2FA  = '101'     # extended seed for two-factor authentication
+SEED_PREFIX      = '01'      # Standard wallet
+SEED_PREFIX_2FA  = '101'     # Two-factor authentication
+SEED_PREFIX_SW   = '100'     # Segwit wallet
 
 
 def seed_prefix(seed_type):

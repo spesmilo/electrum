@@ -22,11 +22,16 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
+import six
 
 import webbrowser
 
-from util import *
+from .util import *
 from electrum_ltc.i18n import _
 from electrum_ltc.util import block_explorer_URL, format_satoshis, format_time
 from electrum_ltc.plugins import run_hook
@@ -43,7 +48,7 @@ class AddressList(MyTreeWidget):
     def on_update(self):
         self.wallet = self.parent.wallet
         item = self.currentItem()
-        current_address = item.data(0, Qt.UserRole).toString() if item else None
+        current_address = item.data(0, Qt.UserRole) if item else None
         self.clear()
         receiving_addresses = self.wallet.get_receiving_addresses()
         change_addresses = self.wallet.get_change_addresses()
@@ -92,7 +97,7 @@ class AddressList(MyTreeWidget):
         can_delete = self.wallet.can_delete_address()
         selected = self.selectedItems()
         multi_select = len(selected) > 1
-        addrs = [unicode(item.text(0)) for item in selected]
+        addrs = [item.text(0) for item in selected]
         if not addrs:
             return
         if not multi_select:

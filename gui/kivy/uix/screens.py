@@ -22,7 +22,7 @@ from electrum_ltc import bitcoin
 from electrum_ltc.util import timestamp_to_datetime
 from electrum_ltc.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 
-from context_menu import ContextMenu
+from .context_menu import ContextMenu
 
 
 from electrum_ltc_gui.kivy.i18n import _
@@ -235,7 +235,7 @@ class SendScreen(CScreen):
             self.payment_request = None
 
     def do_paste(self):
-        contents = unicode(self.app._clipboard.paste())
+        contents = self.app._clipboard.paste()
         if not contents:
             self.app.show_info(_("Clipboard is empty"))
             return
@@ -261,7 +261,7 @@ class SendScreen(CScreen):
                 self.app.show_error(_('Invalid amount') + ':\n' + self.screen.amount)
                 return
             outputs = [(bitcoin.TYPE_ADDRESS, address, amount)]
-        message = unicode(self.screen.message)
+        message = self.screen.message
         amount = sum(map(lambda x:x[2], outputs))
         if self.app.electrum_config.get('use_rbf'):
             from dialogs.question import Question
@@ -344,7 +344,7 @@ class ReceiveScreen(CScreen):
         req = self.app.wallet.get_payment_request(addr, self.app.electrum_config)
         self.screen.status = ''
         if req:
-            self.screen.message = unicode(req.get('memo', ''))
+            self.screen.message = req.get('memo', '')
             amount = req.get('amount')
             self.screen.amount = self.app.format_amount_and_units(amount) if amount else ''
             status = req.get('status', PR_UNKNOWN)
@@ -376,9 +376,9 @@ class ReceiveScreen(CScreen):
         self.app.show_info(_('Request copied to clipboard'))
 
     def save_request(self):
-        addr = str(self.screen.address)
-        amount = str(self.screen.amount)
-        message = unicode(self.screen.message)
+        addr = self.screen.address
+        amount = self.screen.amount
+        message = self.screen.message
         amount = self.app.get_amount(amount) if amount else 0
         req = self.app.wallet.make_payment_request(addr, amount, message, None)
         self.app.wallet.add_payment_request(req, self.app.electrum_config)

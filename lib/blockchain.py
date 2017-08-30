@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2012 thomasv@ecdsa.org
 #
@@ -22,21 +20,19 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
-
-
 import os
-import util
 import threading
 
-import bitcoin
-from bitcoin import *
+from . import util
+from . import bitcoin
+from .bitcoin import *
 
 try:
-    from ltc_scrypt import getPoWHash
+    import scrypt
+    getPoWHash = lambda x: scrypt.hash(x, x, N=1024, r=1, p=1, buflen=32)
 except ImportError:
-    util.print_msg("Warning: ltc_scrypt not available, using fallback")
-    from scrypt import scrypt_1024_1_1_80 as getPoWHash
+    util.print_msg("Warning: package scrypt not available, using fallback")
+    from .scrypt import scrypt_1024_1_1_80 as getPoWHash
 
 MAX_TARGET = 0x00000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 
@@ -50,7 +46,7 @@ def serialize_header(res):
     return s
 
 def deserialize_header(s, height):
-    hex_to_int = lambda s: int('0x' + s[::-1].encode('hex'), 16)
+    hex_to_int = lambda s: int('0x' + bh2u(s[::-1]), 16)
     h = {}
     h['version'] = hex_to_int(s[0:4])
     h['prev_block_hash'] = hash_encode(s[4:36])
@@ -66,10 +62,10 @@ def hash_header(header):
         return '0' * 64
     if header.get('prev_block_hash') is None:
         header['prev_block_hash'] = '00'*32
-    return hash_encode(Hash(serialize_header(header).decode('hex')))
+    return hash_encode(Hash(bfh(serialize_header(header))))
 
 def pow_hash_header(header):
-    return rev_hex(getPoWHash(serialize_header(header).decode('hex')).encode('hex'))
+    return hash_encode(getPoWHash(bfh(serialize_header(header))))
 
 
 blockchains = {}
@@ -104,8 +100,9 @@ def can_connect(header):
 
 
 class Blockchain(util.PrintError):
-
-    '''Manages blockchain headers and their verification'''
+    """
+    Manages blockchain headers and their verification
+    """
 
     def __init__(self, config, checkpoint, parent_id):
         self.config = config
@@ -120,7 +117,7 @@ class Blockchain(util.PrintError):
         return blockchains[self.parent_id]
 
     def get_max_child(self):
-        children = filter(lambda y: y.parent_id==self.checkpoint, blockchains.values())
+        children = list(filter(lambda y: y.parent_id==self.checkpoint, blockchains.values()))
         return max([x.checkpoint for x in children]) if children else None
 
     def get_checkpoint(self):
@@ -154,7 +151,7 @@ class Blockchain(util.PrintError):
 
     def update_size(self):
         p = self.path()
-        self._size = os.path.getsize(p)/80 if os.path.exists(p) else 0
+        self._size = os.path.getsize(p)//80 if os.path.exists(p) else 0
 
     def verify_header(self, header, prev_header, bits, target):
         prev_hash = hash_header(prev_header)
@@ -170,10 +167,10 @@ class Blockchain(util.PrintError):
             raise BaseException("insufficient proof of work: %s vs target %s" % (int('0x' + _powhash, 16), target))
 
     def verify_chunk(self, index, data):
-        num = len(data) / 80
+        num = len(data) // 80
         prev_header = None
         if index != 0:
-            prev_header = self.read_header(index*2016 - 1)
+            prev_header = self.read_header(index * 2016 - 1)
         bits, target = self.get_target(index)
         for i in range(num):
             raw_header = data[i*80:(i+1) * 80]
@@ -244,7 +241,7 @@ class Blockchain(util.PrintError):
 
     def save_header(self, header):
         delta = header.get('block_height') - self.checkpoint
-        data = serialize_header(header).decode('hex')
+        data = bfh(serialize_header(header))
         assert delta == self.size()
         assert len(data) == 80
         self.write(data, delta*80)
@@ -298,19 +295,19 @@ class Blockchain(util.PrintError):
         # new target
         nActualTimespan = last.get('timestamp') - first.get('timestamp')
         nTargetTimespan = 84 * 60 * 60
-        nActualTimespan = max(nActualTimespan, nTargetTimespan / 4)
+        nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
         nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
-        new_target = min(MAX_TARGET, (target*nActualTimespan) / nTargetTimespan)
+        new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
         # convert new target to bits
         c = ("%064x" % new_target)[2:]
         while c[:2] == '00' and len(c) > 6:
             c = c[2:]
-        bitsN, bitsBase = len(c) / 2, int('0x' + c[:6], 16)
+        bitsN, bitsBase = len(c) // 2, int('0x' + c[:6], 16)
         if bitsBase >= 0x800000:
             bitsN += 1
             bitsBase >>= 8
         new_bits = bitsN << 24 | bitsBase
-        return new_bits, bitsBase << (8 * (bitsN-3))
+        return new_bits, bitsBase << (8 * (bitsN - 3))
 
     def can_connect(self, header, check_height=True):
         height = header['block_height']
@@ -324,7 +321,7 @@ class Blockchain(util.PrintError):
         prev_hash = hash_header(previous_header)
         if prev_hash != header.get('prev_block_hash'):
             return False
-        bits, target = self.get_target(height / 2016)
+        bits, target = self.get_target(height // 2016)
         try:
             self.verify_header(header, previous_header, bits, target)
         except:
@@ -333,7 +330,7 @@ class Blockchain(util.PrintError):
 
     def connect_chunk(self, idx, hexdata):
         try:
-            data = hexdata.decode('hex')
+            data = bfh(hexdata)
             self.verify_chunk(idx, data)
             #self.print_error("validated chunk %d" % idx)
             self.save_chunk(idx, data)

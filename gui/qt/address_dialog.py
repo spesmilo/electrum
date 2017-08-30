@@ -22,16 +22,22 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
+import six
 from electrum_ltc.i18n import _
 
 import PyQt4
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
-from util import *
-from history_list import HistoryList
-from qrtextedit import ShowQRTextEdit
+from .util import *
+from .history_list import HistoryList
+from .qrtextedit import ShowQRTextEdit
+
 
 class AddressDialog(WindowModalDialog):
 
