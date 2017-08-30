@@ -706,7 +706,7 @@ def from_seed(seed, passphrase):
 
 def from_private_key_list(text):
     keystore = Imported_KeyStore({})
-    for x in text.split():
+    for x in get_private_keys(text):
         keystore.import_key(x, None)
     return keystore
 
