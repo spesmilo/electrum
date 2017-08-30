@@ -421,8 +421,7 @@ def parse_input(vds):
 
 def parse_witness(vds):
     n = vds.read_compact_size()
-    for i in range(n):
-        x = vds.read_bytes(vds.read_compact_size())
+    return list(vds.read_bytes(vds.read_compact_size()).encode('hex') for i in xrange(n))
 
 def parse_output(vds, i):
     d = {}
@@ -548,7 +547,12 @@ class Transaction:
         for i, txin in enumerate(self.inputs()):
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
             sigs1 = txin.get('signatures')
-            sigs2 = d['inputs'][i].get('signatures')
+            if d.get('witness') is None:
+                sigs2 = d['inputs'][i].get('signatures')
+            else:
+                # signatures are in the witnesses.  But the last item is
+                # the pubkey or the multisig script, so skip that.
+                sigs2 = d['witness'][i][:-1]
             for sig in sigs2:
                 if sig in sigs1:
                     continue

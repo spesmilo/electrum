@@ -684,11 +684,10 @@ is_private_key = lambda x: is_xprv(x) or is_private_key_list(x)
 is_bip32_key = lambda x: is_xprv(x) or is_xpub(x)
 
 
-def bip44_derivation(account_id):
-    if bitcoin.TESTNET:
-        return "m/44'/1'/%d'"% int(account_id)
-    else:
-        return "m/44'/2'/%d'"% int(account_id)
+def bip44_derivation(account_id, segwit=False):
+    bip  = 49 if segwit else 44
+    coin = 1 if bitcoin.TESTNET else 2
+    return "m/%d'/%d'/%d'" % (bip, coin, int(account_id))
 
 def from_seed(seed, passphrase):
     t = seed_type(seed)
@@ -706,7 +705,7 @@ def from_seed(seed, passphrase):
 
 def from_private_key_list(text):
     keystore = Imported_KeyStore({})
-    for x in text.split():
+    for x in get_private_keys(text):
         keystore.import_key(x, None)
     return keystore
 
