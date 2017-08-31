@@ -10,7 +10,7 @@ from decimal import Decimal
 import getpass
 
 from electrum_ltc.util import format_satoshis, set_verbosity
-from electrum_ltc.bitcoin import is_valid, COIN, TYPE_ADDRESS
+from electrum_ltc.bitcoin import is_address, COIN, TYPE_ADDRESS
 from electrum_ltc import Wallet, WalletStorage
 
 _ = lambda x:x
@@ -320,7 +320,7 @@ class ElectrumGui:
         self.str_description = ''
 
     def do_send(self):
-        if not is_valid(self.str_recipient):
+        if not is_address(self.str_recipient):
             self.show_message(_('Invalid Litecoin address'))
             return
         try:

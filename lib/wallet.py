@@ -886,7 +886,7 @@ class Abstract_Wallet(PrintError):
             pubkey = public_key_from_private_key(privkey)
             address = address_from_private_key(privkey)
             u = network.synchronous_get(('blockchain.address.listunspent', [address]))
-            pay_script = transaction.get_scriptPubKey(address)
+            pay_script = bitcoin.address_to_script(address)
             for item in u:
                 if len(inputs) >= imax:
                     break
@@ -1416,7 +1416,7 @@ class Imported_Wallet(Abstract_Wallet):
         return []
 
     def add_input_sig_info(self, txin, address):
-        addrtype, hash160 = bc_address_to_hash_160(address)
+        addrtype, hash160 = b58_address_to_hash160(address)
         x_pubkey = 'fd' + bh2u(bytes([addrtype]) + hash160)
         txin['x_pubkeys'] = [x_pubkey]
         txin['signatures'] = [None]

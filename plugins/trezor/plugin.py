@@ -6,7 +6,7 @@ from binascii import hexlify, unhexlify
 from functools import partial
 
 from electrum_ltc.util import bfh, bh2u
-from electrum_ltc.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
+from electrum_ltc.bitcoin import (b58_address_to_hash160, xpub_from_pubkey,
                                   public_key_to_p2pkh, EncodeBase58Check,
                                   TYPE_ADDRESS, TYPE_SCRIPT,
                                   TESTNET, ADDRTYPE_P2PKH, ADDRTYPE_P2SH, ADDRTYPE_P2SH_ALT)
@@ -334,7 +334,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             info = tx.output_info.get(address)
             if info is not None and not has_change:
                 has_change = True # no more than one change address
-                addrtype, hash_160 = bc_address_to_hash_160(address)
+                addrtype, hash_160 = b58_address_to_hash160(address)
                 index, xpubs, m = info
                 if len(xpubs) == 1:
                     script_type = self.types.PAYTOP2SHWITNESS if segwit else self.types.PAYTOADDRESS
@@ -365,7 +365,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                     txoutputtype.script_type = self.types.PAYTOOPRETURN
                     txoutputtype.op_return_data = address[2:]
                 elif _type == TYPE_ADDRESS:
-                    addrtype, hash_160 = bc_address_to_hash_160(address)
+                    addrtype, hash_160 = b58_address_to_hash160(address)
                     if addrtype == ADDRTYPE_P2PKH:
                         txoutputtype.script_type = self.types.PAYTOADDRESS
                     elif addrtype in [ADDRTYPE_P2SH, ADDRTYPE_P2SH_ALT]:

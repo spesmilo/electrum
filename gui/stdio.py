@@ -9,7 +9,7 @@ _ = lambda x:x
 #from i18n import _
 from electrum_ltc import WalletStorage, Wallet
 from electrum_ltc.util import format_satoshis, set_verbosity
-from electrum_ltc.bitcoin import is_valid, COIN, TYPE_ADDRESS
+from electrum_ltc.bitcoin import is_address, COIN, TYPE_ADDRESS
 from electrum_ltc.network import filter_protocol
 import sys, getpass, datetime
 
@@ -169,7 +169,7 @@ class ElectrumGui:
         while self.done == 0: self.main_command()
 
     def do_send(self):
-        if not is_valid(self.str_recipient):
+        if not is_address(self.str_recipient):
             print(_('Invalid Litecoin address'))
             return
         try:
