@@ -476,11 +476,6 @@ def address_from_private_key(sec):
     address = public_key_to_p2pkh(bfh(public_key))
     return address
 
-
-def is_valid(addr):
-    return is_address(addr)
-
-
 def is_address(addr):
     try:
         addrtype, h = bc_address_to_hash_160(addr)

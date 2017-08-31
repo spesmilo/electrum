@@ -9,7 +9,7 @@ _ = lambda x:x
 #from i18n import _
 from electrum import WalletStorage, Wallet
 from electrum.util import format_satoshis, set_verbosity
-from electrum.bitcoin import is_valid, COIN, TYPE_ADDRESS
+from electrum.bitcoin import is_address, COIN, TYPE_ADDRESS
 from electrum.network import filter_protocol
 import sys, getpass, datetime
 
@@ -169,7 +169,7 @@ class ElectrumGui:
         while self.done == 0: self.main_command()
 
     def do_send(self):
-        if not is_valid(self.str_recipient):
+        if not is_address(self.str_recipient):
             print(_('Invalid Bitcoin address'))
             return
         try:

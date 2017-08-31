@@ -42,7 +42,7 @@ from electrum.util import bh2u, bfh
 from . import icons_rc
 
 from electrum import keystore
-from electrum.bitcoin import COIN, is_valid, TYPE_ADDRESS
+from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS
 from electrum.plugins import run_hook
 from electrum.i18n import _
 from electrum.util import (format_time, format_satoshis, PrintError,
@@ -1619,7 +1619,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.payto_e.setFocus()
 
     def set_contact(self, label, address):
-        if not is_valid(address):
+        if not is_address(address):
             self.show_error(_('Invalid Address'))
             self.contact_list.update()  # Displays original unchanged value
             return False
