@@ -288,7 +288,7 @@ def hash_160(public_key):
         return md.digest()
 
 
-def hash_160_to_bc_address(h160, addrtype, witness_program_version=1):
+def hash160_to_b58_address(h160, addrtype, witness_program_version=1):
     s = bytes([addrtype])
     if addrtype == ADDRTYPE_P2WPKH:
         s += bytes([witness_program_version]) + b'\x00'
@@ -296,18 +296,18 @@ def hash_160_to_bc_address(h160, addrtype, witness_program_version=1):
     return base_encode(s+Hash(s)[0:4], base=58)
 
 
-def bc_address_to_hash_160(addr):
+def b58_address_to_hash160(addr):
     addr = to_bytes(addr, 'ascii')
     _bytes = base_decode(addr, 25, base=58)
     return _bytes[0], _bytes[1:21]
 
 
 def hash160_to_p2pkh(h160):
-    return hash_160_to_bc_address(h160, ADDRTYPE_P2PKH)
+    return hash160_to_b58_address(h160, ADDRTYPE_P2PKH)
 
 
 def hash160_to_p2sh(h160):
-    return hash_160_to_bc_address(h160, ADDRTYPE_P2SH)
+    return hash160_to_b58_address(h160, ADDRTYPE_P2SH)
 
 
 def public_key_to_p2pkh(public_key):
@@ -315,10 +315,10 @@ def public_key_to_p2pkh(public_key):
 
 
 def public_key_to_p2wpkh(public_key):
-    return hash_160_to_bc_address(hash_160(public_key), ADDRTYPE_P2WPKH)
+    return hash160_to_b58_address(hash_160(public_key), ADDRTYPE_P2WPKH)
 
 def address_to_script(addr):
-    addrtype, hash_160 = bc_address_to_hash_160(addr)
+    addrtype, hash_160 = b58_address_to_hash160(addr)
     if addrtype == ADDRTYPE_P2PKH:
         script = '76a9'                                      # op_dup, op_hash_160
         script += push_script(bh2u(hash_160))
@@ -478,21 +478,21 @@ def address_from_private_key(sec):
 
 def is_address(addr):
     try:
-        addrtype, h = bc_address_to_hash_160(addr)
+        addrtype, h = b58_address_to_hash160(addr)
     except Exception as e:
         return False
     if addrtype not in [ADDRTYPE_P2PKH, ADDRTYPE_P2SH]:
         return False
-    return addr == hash_160_to_bc_address(h, addrtype)
+    return addr == hash160_to_b58_address(h, addrtype)
 
 def is_p2pkh(addr):
     if is_address(addr):
-        addrtype, h = bc_address_to_hash_160(addr)
+        addrtype, h = b58_address_to_hash160(addr)
         return addrtype == ADDRTYPE_P2PKH
 
 def is_p2sh(addr):
     if is_address(addr):
-        addrtype, h = bc_address_to_hash_160(addr)
+        addrtype, h = b58_address_to_hash160(addr)
         return addrtype == ADDRTYPE_P2SH
 
 def is_private_key(key):

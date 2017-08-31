@@ -1413,7 +1413,7 @@ class Imported_Wallet(Abstract_Wallet):
         return []
 
     def add_input_sig_info(self, txin, address):
-        addrtype, hash160 = bc_address_to_hash_160(address)
+        addrtype, hash160 = b58_address_to_hash160(address)
         x_pubkey = 'fd' + bh2u(bytes([addrtype]) + hash160)
         txin['x_pubkeys'] = [x_pubkey]
         txin['signatures'] = [None]

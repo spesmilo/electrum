@@ -601,7 +601,7 @@ def xpubkey_to_address(x_pubkey):
         # TODO: check that ord() is OK here
         addrtype = ord(bfh(x_pubkey[2:4]))
         hash160 = bfh(x_pubkey[4:])
-        address = bitcoin.hash_160_to_bc_address(hash160, addrtype)
+        address = bitcoin.hash160_to_b58_address(hash160, addrtype)
         return x_pubkey, address
     if x_pubkey[0:2] in ['02', '03', '04']:
         pubkey = x_pubkey
