@@ -29,47 +29,49 @@ import re
 import hmac
 import os
 
+import ecdsa
+import pyaes
+
 from .util import bfh, bh2u, to_string
 from . import version
 from .util import print_error, InvalidPassword, assert_bytes, to_bytes
+from . import segwit_addr
 
-import ecdsa
-import pyaes
 
 # Bitcoin network constants
 TESTNET = False
 NOLNET = False
 ADDRTYPE_P2PKH = 0
 ADDRTYPE_P2SH = 5
-ADDRTYPE_P2WPKH = 6
+SEGWIT_HRP = "bc"
 XPRV_HEADER = 0x0488ade4
 XPUB_HEADER = 0x0488b21e
 HEADERS_URL = "https://headers.electrum.org/blockchain_headers"
 GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
 
 def set_testnet():
-    global ADDRTYPE_P2PKH, ADDRTYPE_P2SH, ADDRTYPE_P2WPKH
+    global ADDRTYPE_P2PKH, ADDRTYPE_P2SH
     global XPRV_HEADER, XPUB_HEADER
     global TESTNET, HEADERS_URL
     global GENESIS
+    global SEGWIT_HRP
     TESTNET = True
     ADDRTYPE_P2PKH = 111
     ADDRTYPE_P2SH = 196
-    ADDRTYPE_P2WPKH = 3
+    SEGWIT_HRP = "tb"
     XPRV_HEADER = 0x04358394
     XPUB_HEADER = 0x043587cf
     HEADERS_URL = "https://headers.electrum.org/testnet_headers"
     GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
 
 def set_nolnet():
-    global ADDRTYPE_P2PKH, ADDRTYPE_P2SH, ADDRTYPE_P2WPKH
+    global ADDRTYPE_P2PKH, ADDRTYPE_P2SH
     global XPRV_HEADER, XPUB_HEADER
     global NOLNET, HEADERS_URL
     global GENESIS
     TESTNET = True
     ADDRTYPE_P2PKH = 0
     ADDRTYPE_P2SH = 5
-    ADDRTYPE_P2WPKH = 6
     XPRV_HEADER = 0x0488ade4
     XPUB_HEADER = 0x0488b21e
     HEADERS_URL = "https://headers.electrum.org/nolnet_headers"
@@ -290,8 +292,6 @@ def hash_160(public_key):
 
 def hash160_to_b58_address(h160, addrtype, witness_program_version=1):
     s = bytes([addrtype])
-    if addrtype == ADDRTYPE_P2WPKH:
-        s += bytes([witness_program_version]) + b'\x00'
     s += h160
     return base_encode(s+Hash(s)[0:4], base=58)
 
@@ -313,11 +313,14 @@ def hash160_to_p2sh(h160):
 def public_key_to_p2pkh(public_key):
     return hash160_to_p2pkh(hash_160(public_key))
 
-
-def public_key_to_p2wpkh(public_key):
-    return hash160_to_b58_address(hash_160(public_key), ADDRTYPE_P2WPKH)
+def hash160_to_segwit_addr(h160):
+    return segwit_addr.encode(SEGWIT_HRP, 0, h160)
 
 def address_to_script(addr):
+    if is_segwit_address(addr):
+        witver, witprog = segwit_addr.decode(SEGWIT_HRP, addr)
+        script = bytes([witver]).hex() + push_script(bytes(witprog).hex())
+        return script
     addrtype, hash_160 = b58_address_to_hash160(addr)
     if addrtype == ADDRTYPE_P2PKH:
         script = '76a9'                                      # op_dup, op_hash_160
@@ -476,7 +479,11 @@ def address_from_private_key(sec):
     address = public_key_to_p2pkh(bfh(public_key))
     return address
 
-def is_address(addr):
+def is_segwit_address(addr):
+    witver, witprog = segwit_addr.decode(SEGWIT_HRP, addr)
+    return witprog is not None
+
+def is_b58_address(addr):
     try:
         addrtype, h = b58_address_to_hash160(addr)
     except Exception as e:
@@ -484,6 +491,10 @@ def is_address(addr):
     if addrtype not in [ADDRTYPE_P2PKH, ADDRTYPE_P2SH]:
         return False
     return addr == hash160_to_b58_address(h, addrtype)
+
+def is_address(addr):
+    return is_segwit_address(addr) or is_b58_address(addr)
+
 
 def is_p2pkh(addr):
     if is_address(addr):

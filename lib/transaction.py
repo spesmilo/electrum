@@ -393,6 +393,11 @@ def get_address_from_output_script(_bytes):
     if match_decoded(decoded, match):
         return TYPE_ADDRESS, hash160_to_p2sh(decoded[1][1])
 
+    # segwit address
+    match = [ opcodes.OP_0, opcodes.OP_PUSHDATA4 ]
+    if match_decoded(decoded, match):
+        return TYPE_ADDRESS, hash160_to_segwit_addr(decoded[1][1])
+
     return TYPE_SCRIPT, bh2u(_bytes)
 
 
@@ -584,7 +589,7 @@ class Transaction:
     @classmethod
     def pay_script(self, output_type, addr):
         if output_type == TYPE_SCRIPT:
-            return bh2u(addr)
+            return addr
         elif output_type == TYPE_ADDRESS:
             return bitcoin.address_to_script(addr)
         else:
@@ -835,7 +840,7 @@ class Transaction:
             elif type == TYPE_PUBKEY:
                 addr = bitcoin.public_key_to_p2pkh(bfh(x))
             else:
-                addr = 'SCRIPT ' + bh2u(x)
+                addr = 'SCRIPT ' + x
             o.append((addr,v))      # consider using yield (addr, v)
         return o
 
