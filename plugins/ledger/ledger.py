@@ -389,13 +389,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 while inputIndex < len(inputs):
                     self.get_client().startUntrustedTransaction(firstTransaction, inputIndex,
                                                             chipInputs, redeemScripts[inputIndex])
-                    if not p2shTransaction:
-                        outputData = self.get_client().finalizeInput(output, format_satoshis_plain(outputAmount),
-                            format_satoshis_plain(tx.get_fee()), changePath, bfh(rawTx))
-                    else:
-                        outputData = self.get_client().finalizeInputFull(txOutput)
-                        outputData['outputData'] = txOutput
-
+                    outputData = self.get_client().finalizeInputFull(txOutput)
+                    outputData['outputData'] = txOutput
                     if firstTransaction:
                         transactionOutput = outputData['outputData']
                     if outputData['confirmationNeeded']:
