@@ -27,6 +27,8 @@ from .context_menu import ContextMenu
 
 from electrum_gui.kivy.i18n import _
 
+from kivy.logger import Logger
+
 class EmptyLabel(Factory.Label):
     pass
 
@@ -40,6 +42,7 @@ class CScreen(Factory.Screen):
     app = App.get_running_app()
 
     def _change_action_view(self):
+        Logger.info("CS - change")
         app = App.get_running_app()
         action_bar = app.root.manager.current_screen.ids.action_bar
         _action_view = self.action_view
@@ -50,38 +53,49 @@ class CScreen(Factory.Screen):
         action_bar.add_widget(_action_view)
 
     def on_enter(self):
+        Logger.info("CS - enter")
         # FIXME: use a proper event don't use animation time of screen
         Clock.schedule_once(lambda dt: self.dispatch('on_activate'), .25)
         pass
 
-    def update(self):
-        pass
+#    def update(self):
+#        Logger.info("CS - update")
+#        pass
 
     @profiler
     def load_screen(self):
+        Logger.info("CS - load")
+        Logger.info('gui/kivy/uix/ui_screens/' + self.kvname + '.kv')
         self.screen = Builder.load_file('gui/kivy/uix/ui_screens/' + self.kvname + '.kv')
         self.add_widget(self.screen)
         self.loaded = True
+        Logger.info("before update") 
         self.update()
+        Logger.info("before update") 
         setattr(self.app, self.kvname + '_screen', self)
 
     def on_activate(self):
+        Logger.info("CS - activate")
         if self.kvname and not self.loaded:
             self.load_screen()
         #Clock.schedule_once(lambda dt: self._change_action_view())
 
     def on_leave(self):
+        Logger.info("CS - leave")
         self.dispatch('on_deactivate')
 
     def on_deactivate(self):
+        Logger.info("CS - deactivate")
         self.hide_menu()
 
     def hide_menu(self):
+        Logger.info("CS - hide")
         if self.context_menu is not None:
             self.remove_widget(self.context_menu)
             self.context_menu = None
 
     def show_menu(self, obj):
+        Logger.info("CS - show")
         self.hide_menu()
         self.context_menu = ContextMenu(obj, self.menu_actions)
         self.add_widget(self.context_menu)
@@ -316,6 +330,7 @@ class ReceiveScreen(CScreen):
     kvname = 'receive'
 
     def update(self):
+        Logger.info("Receive - update")
         if not self.screen.address:
             self.get_new_address()
         else:
@@ -323,11 +338,13 @@ class ReceiveScreen(CScreen):
             self.screen.status = _('Payment received') if status == PR_PAID else ''
 
     def clear(self):
+        Logger.info("Receive - clear")
         self.screen.address = ''
         self.screen.amount = ''
         self.screen.message = ''
 
     def get_new_address(self):
+        Logger.info("Receive - get new address")
         if not self.app.wallet:
             return False
         self.clear()
@@ -341,6 +358,7 @@ class ReceiveScreen(CScreen):
         return b
 
     def on_address(self, addr):
+        Logger.info("Receive - address")
         req = self.app.wallet.get_payment_request(addr, self.app.electrum_config)
         self.screen.status = ''
         if req:
@@ -352,6 +370,7 @@ class ReceiveScreen(CScreen):
         Clock.schedule_once(lambda dt: self.update_qr())
 
     def get_URI(self):
+        Logger.info("Receive - get URI")
         from electrum.util import create_URI
         amount = self.screen.amount
         if amount:
@@ -362,20 +381,24 @@ class ReceiveScreen(CScreen):
 
     @profiler
     def update_qr(self):
+        Logger.info("Receive - update")
         uri = self.get_URI()
         qr = self.screen.ids.qr
         qr.set_data(uri)
 
     def do_share(self):
+        Logger.info("Receive - share")
         uri = self.get_URI()
         self.app.do_share(uri, _("Share Bitcoin Request"))
 
     def do_copy(self):
+        Logger.info("Receive - copy")
         uri = self.get_URI()
         self.app._clipboard.copy(uri)
         self.app.show_info(_('Request copied to clipboard'))
 
     def save_request(self):
+        Logger.info("Receive - save")
         addr = self.screen.address
         amount = self.screen.amount
         message = self.screen.message
@@ -385,10 +408,12 @@ class ReceiveScreen(CScreen):
         self.app.update_tab('requests')
 
     def on_amount_or_message(self):
+        Logger.info("Receive - amount")
         self.save_request()
         Clock.schedule_once(lambda dt: self.update_qr())
 
     def do_new(self):
+        Logger.info("Receive - new")
         addr = self.get_new_address()
         if not addr:
             self.app.show_info(_('Please use the existing requests first.'))
@@ -481,6 +506,7 @@ class RequestsScreen(CScreen):
     cards = {}
 
     def get_card(self, req):
+        Logger.info("Request - card")
         address = req['address']
         timestamp = req.get('time', 0)
         amount = req.get('amount')
@@ -508,6 +534,7 @@ class RequestsScreen(CScreen):
         return ci
 
     def update(self):
+        Logger.info("Request - update")
         self.menu_actions = [('Show', self.do_show), ('Details', self.do_view), ('Delete', self.do_delete)]
         requests_list = self.screen.ids.requests_container
         requests_list.clear_widgets()
@@ -520,9 +547,11 @@ class RequestsScreen(CScreen):
             requests_list.add_widget(EmptyLabel(text=msg))
 
     def do_show(self, obj):
+        Logger.info("Request - show")
         self.app.show_request(obj.address)
 
     def do_view(self, obj):
+        Logger.info("Request - view")
         req = self.app.wallet.get_payment_request(obj.address, self.app.electrum_config)
         status = req.get('status')
         amount = req.get('amount')
@@ -537,6 +566,7 @@ class RequestsScreen(CScreen):
         self.app.show_pr_details(req, status, False)
 
     def do_delete(self, obj):
+        Logger.info("Request - delete")
         from dialogs.question import Question
         def cb(result):
             if result:
@@ -544,6 +574,13 @@ class RequestsScreen(CScreen):
                 self.update()
         d = Question(_('Delete request?'), cb)
         d.open()
+
+
+class AddressScreen(CScreen):
+    kvname = 'requests'
+
+    def update(self):
+        Logger.info("Address - update")
 
 
 
