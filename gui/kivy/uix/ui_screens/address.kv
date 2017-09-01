@@ -5,17 +5,28 @@
 #:set font_light 'gui/kivy/data/fonts/Roboto-Condensed.ttf'
 
 AddressScreen:
+	id: add_screen
     name: 'address'
 
-    BoxLayout
-        orientation: 'vertical'
-        padding: '12dp', '12dp', '12dp', '12dp'
-        spacing: '1dp'
-        ScrollView:
-            GridLayout:
-                cols: 1
-                id: address_container
-                size_hint_y: None
-                height: self.minimum_height
-                spacing: '2dp'
-                padding: '12dp'
+
+	BoxLayout
+		padding: '12dp', '12dp', '12dp', '430dp'
+		spacing: '12dp'
+		orientation: 'vertical'
+		size_hint: 1, 1			
+
+		SearchBox:
+			id: search_box
+			size_hint: 1, None
+			height: '60dp'
+			BoxLayout:
+				id: message_selection
+				opacity: 1			
+				size_hint: 1, None
+				height: search_box.item_height
+				spacing: '5dp'
+				BlueButton:
+					id: address_search
+					text: add_screen.search if add_screen.search else _('Search')
+					shorten: True
+					on_release: Clock.schedule_once(lambda dt: app.search_dialog(add_screen))

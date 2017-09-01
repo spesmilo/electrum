@@ -28,6 +28,7 @@ from .context_menu import ContextMenu
 from electrum_gui.kivy.i18n import _
 
 from kivy.logger import Logger
+import inspect
 
 class EmptyLabel(Factory.Label):
     pass
@@ -75,7 +76,7 @@ class CScreen(Factory.Screen):
         setattr(self.app, self.kvname + '_screen', self)
 
     def on_activate(self):
-        Logger.info("CS - activate")
+        Logger.info("CS - activate :" + self.kvname)
         if self.kvname and not self.loaded:
             self.load_screen()
         #Clock.schedule_once(lambda dt: self._change_action_view())
@@ -408,7 +409,13 @@ class ReceiveScreen(CScreen):
         self.app.update_tab('requests')
 
     def on_amount_or_message(self):
-        Logger.info("Receive - amount")
+        import inspect 
+        curframe = inspect.currentframe()
+        calframe = inspect.getouterframes(curframe)
+        for f in calframe:
+            Logger.info(f[1] + " " + f[3])
+        sys.exit(0)
+        Logger.info("Receive - amount or message")
         self.save_request()
         Clock.schedule_once(lambda dt: self.update_qr())
 
@@ -577,11 +584,17 @@ class RequestsScreen(CScreen):
 
 
 class AddressScreen(CScreen):
-    kvname = 'requests'
+
+    kvname = 'address'
+    search = ''
 
     def update(self):
         Logger.info("Address - update")
-
+        #address_list = self.screen.ids.address_container
+        # msg = "Hello world"
+        #address_list.add_widget(EmptyLabel(text=msg))
+    
+    
 
 
 
@@ -610,22 +623,29 @@ class TabbedCarousel(Factory.TabbedPanel):
     def on_current_tab(self, instance, value):
         self.animate_tab_to_center(value)
 
+    #more legible
     def on_index(self, instance, value):
+        Logger.info("Tabbed - on_index")
         current_slide = instance.current_slide
         if not hasattr(current_slide, 'tab'):
             return
         tab = current_slide.tab
-        ct = self.current_tab
+        current = self.current_tab
+        #to look on
+        Logger.info("Carousel - " + current.text)
+        Logger.info("Carousel - " + tab.text)
         try:
-            if ct.text != tab.text:
+            if current.text != tab.text:
                 carousel = self.carousel
-                carousel.slides[ct.slide].dispatch('on_leave')
+                carousel.slides[current.slide].dispatch('on_leave')
+                Logger.info("before switch to")
                 self.switch_to(tab)
                 carousel.slides[tab.slide].dispatch('on_enter')
         except AttributeError:
             current_slide.dispatch('on_enter')
 
     def switch_to(self, header):
+        Logger.info("Tabbed - switch")
         # we have to replace the functionality of the original switch_to
         if not header:
             return
@@ -646,6 +666,7 @@ class TabbedCarousel(Factory.TabbedPanel):
         self._current_tab = header
         # set the carousel to load  the appropriate slide
         # saved in the screen attribute of the tab head
+        Logger.info(header.slide)
         slide = carousel.slides[header.slide]
         if carousel.current_slide != slide:
             carousel.current_slide.dispatch('on_leave')
