@@ -5,7 +5,7 @@
 
 try:
     import electrum
-    from electrum.bitcoin import TYPE_ADDRESS, push_script, var_int, msg_magic, Hash, verify_message, pubkey_from_signature, point_to_ser, public_key_to_p2pkh, EncodeAES, DecodeAES, MyVerifyingKey
+    from electrum.bitcoin import TYPE_ADDRESS, push_script, var_int, msg_magic, Hash, verify_message, pubkey_from_signature, point_to_ser, public_key_to_p2pkh, EncodeAES, DecodeAES, MyVerifyingKey, int_to_hex
     from electrum.bitcoin import serialize_xpub, deserialize_xpub
     from electrum.transaction import Transaction
     from electrum.i18n import _
@@ -624,7 +624,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     sig_r = int(signed['sig'][:64], 16)
                     sig_s = int(signed['sig'][64:], 16)
                     sig = sigencode_der(sig_r, sig_s, generator_secp256k1.order())
-                    txin['signatures'][ii] = to_hexstr(sig) + '01'
+                    txin['signatures'][ii] = to_hexstr(sig) + int_to_hex(Transaction.nHashType() & 255, 1)
                     tx._inputs[i] = txin
         except UserCancelled:
             raise

@@ -772,9 +772,10 @@ class Transaction:
         s += script
         return s
 
-    def nHashType(self):
+    @classmethod
+    def nHashType(cls):
         '''Hash type in hex.'''
-        return 0x01 | (self.SIGHASH_FORKID + (self.FORKID << 8))
+        return 0x01 | (cls.SIGHASH_FORKID + (cls.FORKID << 8))
 
     def serialize_preimage(self, i):
         nVersion = int_to_hex(self.version, 4)
