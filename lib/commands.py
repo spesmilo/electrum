@@ -163,7 +163,8 @@ class Commands:
     def make_seed(self, nbits=132, entropy=1, language=None):
         """Create a seed"""
         from .mnemonic import Mnemonic
-        s = Mnemonic(language).make_seed('standard', nbits, custom_entropy=entropy)
+        t = 'segwit' if self.config.get('segwit') else 'standard'
+        s = Mnemonic(language).make_seed(t, nbits, custom_entropy=entropy)
         return s
 
     @command('')

@@ -701,6 +701,8 @@ def from_seed(seed, passphrase):
         bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
         xtype = 0 if t == 'standard' else 1
         keystore.add_xprv_from_seed(bip32_seed, xtype, "m/")
+    else:
+        raise BaseException(t)
     return keystore
 
 def from_private_key_list(text):

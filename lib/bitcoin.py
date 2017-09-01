@@ -251,7 +251,7 @@ def seed_type(x):
         return 'old'
     elif is_new_seed(x):
         return 'standard'
-    elif TESTNET and is_new_seed(x, version.SEED_PREFIX_SW):
+    elif is_new_seed(x, version.SEED_PREFIX_SW):
         return 'segwit'
     elif is_new_seed(x, version.SEED_PREFIX_2FA):
         return '2fa'
@@ -307,16 +307,21 @@ def b58_address_to_hash160(addr):
 def hash160_to_p2pkh(h160):
     return hash160_to_b58_address(h160, ADDRTYPE_P2PKH)
 
-
 def hash160_to_p2sh(h160):
     return hash160_to_b58_address(h160, ADDRTYPE_P2SH)
-
 
 def public_key_to_p2pkh(public_key):
     return hash160_to_p2pkh(hash_160(public_key))
 
-def hash160_to_segwit_addr(h160):
-    return segwit_addr.encode(SEGWIT_HRP, 0, h160)
+def hash_to_segwit_addr(h):
+    return segwit_addr.encode(SEGWIT_HRP, 0, h)
+
+def public_key_to_p2wpkh(public_key):
+    return hash_to_segwit_addr(hash_160(public_key))
+
+def script_to_p2wsh(script):
+    return hash_to_segwit_addr(sha256(bfh(script)))
+
 
 def address_to_script(addr):
     if is_segwit_address(addr):
@@ -838,7 +843,7 @@ def deserialize_xkey(xkey, prv):
     c = xkey[13:13+32]
     header = XPRV_HEADER if prv else XPUB_HEADER
     xtype = int('0x' + bh2u(xkey[0:4]), 16) - header
-    if xtype not in ([0, 1] if TESTNET else [0]):
+    if xtype not in [0, 1]:
         raise BaseException('Invalid header')
     n = 33 if prv else 32
     K_or_k = xkey[13+n:]
