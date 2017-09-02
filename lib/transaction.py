@@ -426,7 +426,7 @@ def parse_input(vds):
 
 def parse_witness(vds):
     n = vds.read_compact_size()
-    return list(vds.read_bytes(vds.read_compact_size()).encode('hex') for i in xrange(n))
+    return list(vds.read_bytes(vds.read_compact_size()) for i in range(n))
 
 def parse_output(vds, i):
     d = {}
@@ -448,7 +448,7 @@ def deserialize(raw):
     is_segwit = (n_vin == 0)
     if is_segwit:
         marker = vds.read_bytes(1)
-        assert marker == 1
+        assert marker == b'\x01'
         n_vin = vds.read_compact_size()
     d['inputs'] = [parse_input(vds) for i in range(n_vin)]
     n_vout = vds.read_compact_size()
@@ -714,7 +714,7 @@ class Transaction:
             hashOutputs = bh2u(Hash(bfh(''.join(self.serialize_output(o) for o in outputs))))
             outpoint = self.serialize_outpoint(txin)
             preimage_script = self.get_preimage_script(txin)
-            scriptCode = var_int(len(preimage_script)/2) + preimage_script
+            scriptCode = var_int(len(preimage_script) // 2) + preimage_script
             amount = int_to_hex(txin['value'], 8)
             nSequence = int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
             preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
