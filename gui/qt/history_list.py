@@ -106,7 +106,7 @@ class HistoryList(MyTreeWidget):
                 if i!=2:
                     item.setFont(i, QFont(MONOSPACE_FONT))
                     item.setTextAlignment(i, Qt.AlignVCenter)
-            if value < 0:
+            if value and value < 0:
                 item.setForeground(3, QBrush(QColor("#BC1E1E")))
                 item.setForeground(4, QBrush(QColor("#BC1E1E")))
             if tx_hash:
