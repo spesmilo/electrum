@@ -454,8 +454,8 @@ def parse_witness(vds, txin):
         txin['witnessScript'] = witnessScript
     else:
         txin['num_sig'] = 1
-        txin['pubkeys'] = [ w[-1] ]
-        txin['signatures'] = parse_sig([w[:-1]])
+        txin['pubkeys'] = [w[1]]
+        txin['signatures'] = parse_sig([w[0]])
 
 
 def parse_output(vds, i):
