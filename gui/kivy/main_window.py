@@ -828,16 +828,6 @@ class ElectrumWindow(App):
             screen.message = text
         d = LabelDialog(_('Enter description'), text, callback)
         d.open()
-        
-    def search_dialog(self, screen):
-        Logger.info("search dialog")
-        from .uix.dialogs.label_dialog import LabelDialog
-        text = screen.search
-        def callback(text):
-            screen.search = text
-            Logger.info("search callback")
-        d = LabelDialog(_('Enter description'), text, callback)
-        d.open()
 
     @profiler
     def amount_dialog(self, screen, show_max):

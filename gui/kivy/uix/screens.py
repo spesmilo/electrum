@@ -409,12 +409,6 @@ class ReceiveScreen(CScreen):
         self.app.update_tab('requests')
 
     def on_amount_or_message(self):
-        import inspect 
-        curframe = inspect.currentframe()
-        calframe = inspect.getouterframes(curframe)
-        for f in calframe:
-            Logger.info(f[1] + " " + f[3])
-        sys.exit(0)
         Logger.info("Receive - amount or message")
         self.save_request()
         Clock.schedule_once(lambda dt: self.update_qr())
@@ -586,16 +580,16 @@ class RequestsScreen(CScreen):
 class AddressScreen(CScreen):
 
     kvname = 'address'
-    search = ''
 
     def update(self):
         Logger.info("Address - update")
         #address_list = self.screen.ids.address_container
         # msg = "Hello world"
         #address_list.add_widget(EmptyLabel(text=msg))
-    
-    
 
+    def do_search(self):
+        Logger.info("Address - search: " + self.screen.message)
+    
 
 
 class TabbedCarousel(Factory.TabbedPanel):
