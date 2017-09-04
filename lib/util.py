@@ -602,7 +602,7 @@ def create_URI(addr, amount, message):
     if message:
         if six.PY2 and type(message) == unicode:
             message = message.encode('utf8')
-        query.append('message=%s'%urllib.quote(message))
+        query.append('message=%s'%urllib.parse.quote(message))
     p = urllib_parse.ParseResult(scheme='bitcoin', netloc='', path=addr, params='', query='&'.join(query), fragment='')
     return urllib_parse.urlunparse(p)
 
