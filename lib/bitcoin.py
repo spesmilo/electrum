@@ -28,13 +28,6 @@ import base64
 import re
 import hmac
 import os
-<<<<<<< HEAD
-
-from .util import bfh, bh2u, to_string
-from . import version
-from .util import print_error, InvalidPassword, assert_bytes, to_bytes
-=======
->>>>>>> 5e61ff18ac29ae303fbb0d9479d2824d7fcaf6ec
 
 import ecdsa
 import pyaes
@@ -287,22 +280,6 @@ def i2o_ECPublicKey(pubkey, compressed=False):
 
 ############ functions from pywallet #####################
 def hash_160(public_key):
-<<<<<<< HEAD
-    if 'ANDROID_DATA' in os.environ:
-        from Crypto.Hash import RIPEMD
-        md = RIPEMD.new()
-    else:
-        md = hashlib.new('ripemd')
-    public_key = to_bytes(public_key, 'ascii')
-    md.update(sha256(public_key))
-    return md.digest()
-
-
-def hash_160_to_bc_address(h160, addrtype, witness_program_version=1):
-    s = bytes([addrtype])
-    if addrtype == ADDRTYPE_P2WPKH:
-        s += bytes([witness_program_version]) + b'\x00'
-=======
     try:
         md = hashlib.new('ripemd160')
         md.update(sha256(public_key))
@@ -315,16 +292,11 @@ def hash_160_to_bc_address(h160, addrtype, witness_program_version=1):
 
 def hash160_to_b58_address(h160, addrtype, witness_program_version=1):
     s = bytes([addrtype])
->>>>>>> 5e61ff18ac29ae303fbb0d9479d2824d7fcaf6ec
     s += h160
     return base_encode(s+Hash(s)[0:4], base=58)
 
 
-<<<<<<< HEAD
-def bc_address_to_hash_160(addr):
-=======
 def b58_address_to_hash160(addr):
->>>>>>> 5e61ff18ac29ae303fbb0d9479d2824d7fcaf6ec
     addr = to_bytes(addr, 'ascii')
     _bytes = base_decode(addr, 25, base=58)
     return _bytes[0], _bytes[1:21]
@@ -343,12 +315,6 @@ def hash160_to_p2sh(h160):
 def public_key_to_p2pkh(public_key):
     return hash160_to_p2pkh(hash_160(public_key))
 
-<<<<<<< HEAD
-
-def public_key_to_p2wpkh(public_key):
-    return hash_160_to_bc_address(hash_160(public_key), ADDRTYPE_P2WPKH)
-
-=======
 def hash160_to_segwit_addr(h160):
     return segwit_addr.encode(SEGWIT_HRP, 0, h160)
 
@@ -369,7 +335,6 @@ def address_to_script(addr):
     else:
         raise BaseException('unknown address type')
     return script
->>>>>>> 5e61ff18ac29ae303fbb0d9479d2824d7fcaf6ec
 
 def address_to_scripthash(addr):
     script = address_to_script(addr)
@@ -522,11 +487,7 @@ def is_segwit_address(addr):
 
 def is_b58_address(addr):
     try:
-<<<<<<< HEAD
-        addrtype, h = bc_address_to_hash_160(addr)
-=======
         addrtype, h = b58_address_to_hash160(addr)
->>>>>>> 5e61ff18ac29ae303fbb0d9479d2824d7fcaf6ec
     except Exception as e:
         return False
     if addrtype not in [ADDRTYPE_P2PKH, ADDRTYPE_P2SH]:

@@ -8,6 +8,10 @@ AddressScreen:
 	id: add_screen
     name: 'address'
 
+	message: ''
+
+	on_message:
+		self.parent.do_search()
 
 	BoxLayout
 		padding: '12dp', '12dp', '12dp', '430dp'
@@ -27,6 +31,6 @@ AddressScreen:
 				spacing: '5dp'
 				BlueButton:
 					id: address_search
-					text: add_screen.search if add_screen.search else _('Search')
+					text: add_screen.message if add_screen.message else _('Search')
 					shorten: True
-					on_release: Clock.schedule_once(lambda dt: app.search_dialog(add_screen))
+					on_release: Clock.schedule_once(lambda dt: app.description_dialog(add_screen))
