@@ -151,7 +151,8 @@ class TrezorClientBase(GuiMixin, PrintError):
         address_n = self.expand_path(bip32_path)
         creating = False #self.next_account_number() == 0
         node = self.get_public_node(address_n, creating).node
-        return serialize_xpub(0, node.chain_code, node.public_key, node.depth, self.i4b(node.fingerprint), self.i4b(node.child_num))
+        xtype = 'segwit_p2sh' if bip32_path.startswith("m/49'/") else 'standard'
+        return serialize_xpub(xtype, node.chain_code, node.public_key, node.depth, self.i4b(node.fingerprint), self.i4b(node.child_num))
 
     #def address_from_derivation(self, derivation):
     #    return self.get_address('Bitcoin', self.expand_path(derivation))

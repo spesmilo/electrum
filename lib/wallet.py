@@ -1544,8 +1544,15 @@ class Simple_Wallet(Abstract_Wallet):
 
     def load_keystore(self):
         self.keystore = load_keystore(self.storage, 'keystore')
-        self.is_segwit = self.keystore.is_segwit()
-        self.txin_type = 'p2wpkh' if self.is_segwit else 'p2pkh'
+        xtype = deserialize_xpub(self.keystore.xpub)[0]
+        if xtype == 'standard':
+            self.txin_type = 'p2pkh'
+        elif xtype == 'segwit':
+            self.txin_type = 'p2wpkh'
+        elif xtype == 'segwit_p2sh':
+            self.txin_type = 'p2wpkh-p2sh'
+        else:
+            raise BaseException('unknown txin_type', xtype)
 
     def get_pubkey(self, c, i):
         return self.derive_pubkeys(c, i)
@@ -1640,8 +1647,7 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
     wallet_type = 'standard'
 
     def pubkeys_to_redeem_script(self, pubkey):
-        if self.is_segwit:
-            return transaction.segwit_script(pubkey)
+        return transaction.segwit_script(pubkey)
 
     def pubkeys_to_address(self, pubkey):
         if self.txin_type == 'p2pkh':
@@ -1652,7 +1658,7 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
             redeem_script = self.pubkeys_to_redeem_script(pubkey)
             return bitcoin.hash160_to_p2sh(hash_160(bfh(redeem_script)))
         else:
-            raise NotImplementedError()
+            raise NotImplementedError(self.txin_type)
 
 
 class Multisig_Wallet(Deterministic_Wallet):
@@ -1693,8 +1699,13 @@ class Multisig_Wallet(Deterministic_Wallet):
             name = 'x%d/'%(i+1)
             self.keystores[name] = load_keystore(self.storage, name)
         self.keystore = self.keystores['x1/']
-        self.is_segwit = self.keystore.is_segwit()
-        self.txin_type = 'p2wsh' if self.is_segwit else 'p2sh'
+        xtype = deserialize_xpub(self.keystore.xpub)[0]
+        if xtype == 'standard':
+            self.txin_type = 'p2sh'
+        elif xtype == 'segwit':
+            self.txin_type = 'p2wsh'
+        elif xtype == 'segwit_p2sh':
+            self.txin_type = 'p2wsh-p2sh'
 
     def save_keystore(self):
         for name, k in self.keystores.items():
