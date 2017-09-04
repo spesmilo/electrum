@@ -28,48 +28,57 @@ import base64
 import re
 import hmac
 import os
+<<<<<<< HEAD
 
 from .util import bfh, bh2u, to_string
 from . import version
 from .util import print_error, InvalidPassword, assert_bytes, to_bytes
+=======
+>>>>>>> 5e61ff18ac29ae303fbb0d9479d2824d7fcaf6ec
 
 import ecdsa
 import pyaes
+
+from .util import bfh, bh2u, to_string
+from . import version
+from .util import print_error, InvalidPassword, assert_bytes, to_bytes
+from . import segwit_addr
+
 
 # Bitcoin network constants
 TESTNET = False
 NOLNET = False
 ADDRTYPE_P2PKH = 0
 ADDRTYPE_P2SH = 5
-ADDRTYPE_P2WPKH = 6
+SEGWIT_HRP = "bc"
 XPRV_HEADER = 0x0488ade4
 XPUB_HEADER = 0x0488b21e
 HEADERS_URL = "https://headers.electrum.org/blockchain_headers"
 GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
 
 def set_testnet():
-    global ADDRTYPE_P2PKH, ADDRTYPE_P2SH, ADDRTYPE_P2WPKH
+    global ADDRTYPE_P2PKH, ADDRTYPE_P2SH
     global XPRV_HEADER, XPUB_HEADER
     global TESTNET, HEADERS_URL
     global GENESIS
+    global SEGWIT_HRP
     TESTNET = True
     ADDRTYPE_P2PKH = 111
     ADDRTYPE_P2SH = 196
-    ADDRTYPE_P2WPKH = 3
+    SEGWIT_HRP = "tb"
     XPRV_HEADER = 0x04358394
     XPUB_HEADER = 0x043587cf
     HEADERS_URL = "https://headers.electrum.org/testnet_headers"
     GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
 
 def set_nolnet():
-    global ADDRTYPE_P2PKH, ADDRTYPE_P2SH, ADDRTYPE_P2WPKH
+    global ADDRTYPE_P2PKH, ADDRTYPE_P2SH
     global XPRV_HEADER, XPUB_HEADER
     global NOLNET, HEADERS_URL
     global GENESIS
     TESTNET = True
     ADDRTYPE_P2PKH = 0
     ADDRTYPE_P2SH = 5
-    ADDRTYPE_P2WPKH = 6
     XPRV_HEADER = 0x0488ade4
     XPUB_HEADER = 0x0488b21e
     HEADERS_URL = "https://headers.electrum.org/nolnet_headers"
@@ -199,6 +208,9 @@ def op_push(i):
     else:
         return '4e' + int_to_hex(i,4)
 
+def push_script(x):
+    return op_push(len(x)//2) + x
+
 
 def sha256(x):
     x = to_bytes(x, 'utf8')
@@ -275,6 +287,7 @@ def i2o_ECPublicKey(pubkey, compressed=False):
 
 ############ functions from pywallet #####################
 def hash_160(public_key):
+<<<<<<< HEAD
     if 'ANDROID_DATA' in os.environ:
         from Crypto.Hash import RIPEMD
         md = RIPEMD.new()
@@ -289,32 +302,79 @@ def hash_160_to_bc_address(h160, addrtype, witness_program_version=1):
     s = bytes([addrtype])
     if addrtype == ADDRTYPE_P2WPKH:
         s += bytes([witness_program_version]) + b'\x00'
+=======
+    try:
+        md = hashlib.new('ripemd160')
+        md.update(sha256(public_key))
+        return md.digest()
+    except BaseException:
+        from . import ripemd
+        md = ripemd.new(sha256(public_key))
+        return md.digest()
+
+
+def hash160_to_b58_address(h160, addrtype, witness_program_version=1):
+    s = bytes([addrtype])
+>>>>>>> 5e61ff18ac29ae303fbb0d9479d2824d7fcaf6ec
     s += h160
     return base_encode(s+Hash(s)[0:4], base=58)
 
 
+<<<<<<< HEAD
 def bc_address_to_hash_160(addr):
+=======
+def b58_address_to_hash160(addr):
+>>>>>>> 5e61ff18ac29ae303fbb0d9479d2824d7fcaf6ec
     addr = to_bytes(addr, 'ascii')
     _bytes = base_decode(addr, 25, base=58)
     return _bytes[0], _bytes[1:21]
 
 
 def hash160_to_p2pkh(h160):
-    return hash_160_to_bc_address(h160, ADDRTYPE_P2PKH)
+    return hash160_to_b58_address(h160, ADDRTYPE_P2PKH)
+
 
 
 def hash160_to_p2sh(h160):
-    return hash_160_to_bc_address(h160, ADDRTYPE_P2SH)
+    return hash160_to_b58_address(h160, ADDRTYPE_P2SH)
+
 
 
 def public_key_to_p2pkh(public_key):
     return hash160_to_p2pkh(hash_160(public_key))
 
+<<<<<<< HEAD
 
 def public_key_to_p2wpkh(public_key):
     return hash_160_to_bc_address(hash_160(public_key), ADDRTYPE_P2WPKH)
 
+=======
+def hash160_to_segwit_addr(h160):
+    return segwit_addr.encode(SEGWIT_HRP, 0, h160)
 
+def address_to_script(addr):
+    if is_segwit_address(addr):
+        witver, witprog = segwit_addr.decode(SEGWIT_HRP, addr)
+        script = bytes([witver]).hex() + push_script(bytes(witprog).hex())
+        return script
+    addrtype, hash_160 = b58_address_to_hash160(addr)
+    if addrtype == ADDRTYPE_P2PKH:
+        script = '76a9'                                      # op_dup, op_hash_160
+        script += push_script(bh2u(hash_160))
+        script += '88ac'                                     # op_equalverify, op_checksig
+    elif addrtype == ADDRTYPE_P2SH:
+        script = 'a9'                                        # op_hash_160
+        script += push_script(bh2u(hash_160))
+        script += '87'                                       # op_equal
+    else:
+        raise BaseException('unknown address type')
+    return script
+>>>>>>> 5e61ff18ac29ae303fbb0d9479d2824d7fcaf6ec
+
+def address_to_scripthash(addr):
+    script = address_to_script(addr)
+    h = sha256(bytes.fromhex(script))[0:32]
+    return bytes(reversed(h)).hex()
 
 
 __b58chars = b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
@@ -456,28 +516,35 @@ def address_from_private_key(sec):
     address = public_key_to_p2pkh(bfh(public_key))
     return address
 
+def is_segwit_address(addr):
+    witver, witprog = segwit_addr.decode(SEGWIT_HRP, addr)
+    return witprog is not None
 
-def is_valid(addr):
-    return is_address(addr)
-
-
-def is_address(addr):
+def is_b58_address(addr):
     try:
+<<<<<<< HEAD
         addrtype, h = bc_address_to_hash_160(addr)
+=======
+        addrtype, h = b58_address_to_hash160(addr)
+>>>>>>> 5e61ff18ac29ae303fbb0d9479d2824d7fcaf6ec
     except Exception as e:
         return False
     if addrtype not in [ADDRTYPE_P2PKH, ADDRTYPE_P2SH]:
         return False
-    return addr == hash_160_to_bc_address(h, addrtype)
+    return addr == hash160_to_b58_address(h, addrtype)
+
+def is_address(addr):
+    return is_segwit_address(addr) or is_b58_address(addr)
+
 
 def is_p2pkh(addr):
     if is_address(addr):
-        addrtype, h = bc_address_to_hash_160(addr)
+        addrtype, h = b58_address_to_hash160(addr)
         return addrtype == ADDRTYPE_P2PKH
 
 def is_p2sh(addr):
     if is_address(addr):
-        addrtype, h = bc_address_to_hash_160(addr)
+        addrtype, h = b58_address_to_hash160(addr)
         return addrtype == ADDRTYPE_P2SH
 
 def is_private_key(key):

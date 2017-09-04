@@ -97,6 +97,7 @@ class HistoryList(MyTreeWidget):
                     entry.append(text)
             item = QTreeWidgetItem(entry)
             item.setIcon(0, icon)
+            item.setToolTip(0, str(conf) + " confirmation" + ("s" if conf != 1 else ""))
             if has_invoice:
                 item.setIcon(3, QIcon(":icons/seal"))
             for i in range(len(entry)):
@@ -104,7 +105,8 @@ class HistoryList(MyTreeWidget):
                     item.setTextAlignment(i, Qt.AlignRight)
                 if i!=2:
                     item.setFont(i, QFont(MONOSPACE_FONT))
-            if value < 0:
+                    item.setTextAlignment(i, Qt.AlignVCenter)
+            if value and value < 0:
                 item.setForeground(3, QBrush(QColor("#BC1E1E")))
                 item.setForeground(4, QBrush(QColor("#BC1E1E")))
             if tx_hash:
@@ -112,6 +114,14 @@ class HistoryList(MyTreeWidget):
             self.insertTopLevelItem(0, item)
             if current_tx == tx_hash:
                 self.setCurrentItem(item)
+
+    def on_doubleclick(self, item, column):
+        if self.permit_edit(item, column):
+            super(HistoryList, self).on_doubleclick(item, column)
+        else:
+            tx_hash = item.data(0, Qt.UserRole)
+            tx = self.wallet.transactions.get(tx_hash)
+            self.parent.show_transaction(tx)
 
     def update_labels(self):
         root = self.invisibleRootItem()

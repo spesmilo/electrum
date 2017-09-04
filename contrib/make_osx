@@ -1,0 +1,6 @@
+#!/bin/bash
+rm -rf dist
+VERSION=`git describe --tags`
+python2 setup-release.py py2app
+hdiutil create -fs HFS+ -volname "Electrum" -srcfolder dist/Electrum.app dist/electrum-$VERSION.dmg
+

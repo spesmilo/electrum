@@ -12,7 +12,7 @@ from lib.bitcoin import (
     generator_secp256k1, point_to_ser, public_key_to_p2pkh, EC_KEY,
     bip32_root, bip32_public_derivation, bip32_private_derivation, pw_encode,
     pw_decode, Hash, public_key_from_private_key, address_from_private_key,
-    is_valid, is_private_key, xpub_from_xprv, is_new_seed, is_old_seed,
+    is_address, is_private_key, xpub_from_xprv, is_new_seed, is_old_seed,
     var_int, op_push)
 from lib.util import bfh
 
@@ -37,7 +37,6 @@ class Test_bitcoin(unittest.TestCase):
         pubkey_c = point_to_ser(Pub,True)
         #pubkey_u = point_to_ser(Pub,False)
         addr_c = public_key_to_p2pkh(pubkey_c)
-        #addr_u = public_key_to_bc_address(pubkey_u)
 
         #print "Private key            ", '%064x'%pvk
         eck = EC_KEY(number_to_string(pvk,_r))
@@ -174,8 +173,8 @@ class Test_keyImport(unittest.TestCase):
         self.assertEqual(self.main_address, result)
 
     def test_is_valid_address(self):
-        self.assertTrue(is_valid(self.main_address))
-        self.assertFalse(is_valid("not an address"))
+        self.assertTrue(is_address(self.main_address))
+        self.assertFalse(is_address("not an address"))
 
     def test_is_private_key(self):
         self.assertTrue(is_private_key(self.private_key))

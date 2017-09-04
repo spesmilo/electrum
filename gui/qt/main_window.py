@@ -42,7 +42,7 @@ from electrum.util import bh2u, bfh
 from . import icons_rc
 
 from electrum import keystore
-from electrum.bitcoin import COIN, is_valid, TYPE_ADDRESS
+from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS
 from electrum.plugins import run_hook
 from electrum.i18n import _
 from electrum.util import (format_time, format_satoshis, PrintError,
@@ -52,6 +52,10 @@ from electrum import Transaction, mnemonic
 from electrum import util, bitcoin, commands, coinchooser
 from electrum import SimpleConfig, paymentrequest
 from electrum.wallet import Wallet, Multisig_Wallet
+try:
+    from electrum.plot import plot_history
+except:
+    plot_history = None
 
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
@@ -196,6 +200,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def on_fx_history(self):
         self.history_list.refresh_headers()
         self.history_list.update()
+        self.address_list.update()
 
     def on_quotes(self, b):
         self.emit(SIGNAL('new_fx_quotes'))
@@ -464,7 +469,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         invoices_menu = wallet_menu.addMenu(_("Invoices"))
         invoices_menu.addAction(_("Import"), lambda: self.invoice_list.import_invoices())
         hist_menu = wallet_menu.addMenu(_("&History"))
-        hist_menu.addAction("Plot", self.plot_history_dialog)
+        hist_menu.addAction("Plot", self.plot_history_dialog).setEnabled(plot_history is not None)
         hist_menu.addAction("Export", self.export_history_dialog)
 
         wallet_menu.addSeparator()
@@ -1615,7 +1620,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.payto_e.setFocus()
 
     def set_contact(self, label, address):
-        if not is_valid(address):
+        if not is_address(address):
             self.show_error(_('Invalid Address'))
             self.contact_list.update()  # Displays original unchanged value
             return False
@@ -2174,6 +2179,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message(_("Your labels were imported from") + " '%s'" % str(labelsFile))
         except (IOError, os.error) as reason:
             self.show_critical(_("Electrum was unable to import your labels.") + "\n" + str(reason))
+        self.address_list.update()
+        self.history_list.update()
 
     def do_export_labels(self):
         labels = self.wallet.labels
@@ -2182,7 +2189,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if fileName:
                 with open(fileName, 'w+') as f:
                     json.dump(labels, f, indent=4, sort_keys=True)
-                self.show_message(_("Your labels where exported to") + " '%s'" % str(fileName))
+                self.show_message(_("Your labels were exported to") + " '%s'" % str(fileName))
         except (IOError, os.error) as reason:
             self.show_critical(_("Electrum was unable to export your labels.") + "\n" + str(reason))
 
@@ -2213,16 +2220,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.show_message(_("Your wallet history has been successfully exported."))
 
     def plot_history_dialog(self):
-        try:
-            from electrum.plot import plot_history
-            wallet = self.wallet
-            history = wallet.get_history()
-            if len(history) > 0:
-                plt = plot_history(self.wallet, history)
-                plt.show()
-        except BaseException as e:
-            self.show_error(str(e))
+        if plot_history is None:
             return
+        wallet = self.wallet
+        history = wallet.get_history()
+        if len(history) > 0:
+            plt = plot_history(self.wallet, history)
+            plt.show()
 
     def do_export_history(self, wallet, fileName, is_csv):
         history = wallet.get_history()
@@ -2347,6 +2351,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fiat_receive_e.setVisible(b)
         self.history_list.refresh_headers()
         self.history_list.update()
+        self.address_list.update()
         self.update_status()
 
     def settings_dialog(self):
@@ -2603,7 +2608,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         def on_unconf(x):
             self.config.set_key('confirmed_only', bool(x))
-        conf_only = self.config.get('confirmed_only', True)
+        conf_only = self.config.get('confirmed_only', False)
         unconf_cb = QCheckBox(_('Spend only confirmed coins'))
         unconf_cb.setToolTip(_('Spend only confirmed inputs.'))
         unconf_cb.setChecked(conf_only)
@@ -2612,6 +2617,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         # Fiat Currency
         hist_checkbox = QCheckBox()
+        fiat_address_checkbox = QCheckBox()
         ccy_combo = QComboBox()
         ex_combo = QComboBox()
 
@@ -2627,6 +2633,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if not self.fx: return
             hist_checkbox.setChecked(self.fx.get_history_config())
             hist_checkbox.setEnabled(self.fx.is_enabled())
+
+        def update_fiat_address_cb():
+            if not self.fx: return
+            fiat_address_checkbox.setChecked(self.fx.get_fiat_address_config())
 
         def update_exchanges():
             if not self.fx: return
@@ -2667,16 +2677,25 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 # reset timeout to get historical rates
                 self.fx.timeout = 0
 
+        def on_fiat_address(checked):
+            if not self.fx: return
+            self.fx.set_fiat_address_config(checked)
+            self.address_list.refresh_headers()
+            self.address_list.update()
+
         update_currencies()
         update_history_cb()
+        update_fiat_address_cb()
         update_exchanges()
         ccy_combo.currentIndexChanged.connect(on_currency)
         hist_checkbox.stateChanged.connect(on_history)
+        fiat_address_checkbox.stateChanged.connect(on_fiat_address)
         ex_combo.currentIndexChanged.connect(on_exchange)
 
         fiat_widgets = []
         fiat_widgets.append((QLabel(_('Fiat currency')), ccy_combo))
         fiat_widgets.append((QLabel(_('Show history rates')), hist_checkbox))
+        fiat_widgets.append((QLabel(_('Show Fiat balance for addresses')), fiat_address_checkbox))
         fiat_widgets.append((QLabel(_('Source')), ex_combo))
 
         tabs_info = [

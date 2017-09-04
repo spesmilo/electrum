@@ -25,7 +25,7 @@
 
 import os
 import sys
-from ctypes import cdll, c_char_p
+import ctypes
 
 if sys.platform == 'darwin':
     name = 'libzbar.dylib'
@@ -35,7 +35,7 @@ else:
     name = 'libzbar.so.0'
 
 try:
-    libzbar = cdll.LoadLibrary(name)
+    libzbar = ctypes.cdll.LoadLibrary(name)
 except OSError:
     libzbar = None
 
@@ -43,7 +43,10 @@ except OSError:
 def scan_barcode(device='', timeout=-1, display=True, threaded=False):
     if libzbar is None:
         raise RuntimeError("Cannot start QR scanner; zbar not available.")
-    libzbar.zbar_symbol_get_data.restype = c_char_p
+    libzbar.zbar_symbol_get_data.restype = ctypes.c_char_p
+    libzbar.zbar_processor_create.restype = ctypes.POINTER(ctypes.c_int)
+    libzbar.zbar_processor_get_results.restype = ctypes.POINTER(ctypes.c_int)
+    libzbar.zbar_symbol_set_first_symbol.restype = ctypes.POINTER(ctypes.c_int)
     proc = libzbar.zbar_processor_create(threaded)
     libzbar.zbar_processor_request_size(proc, 640, 480)
     libzbar.zbar_processor_init(proc, device, display)

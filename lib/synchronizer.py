@@ -69,7 +69,7 @@ class Synchronizer(ThreadJob):
                 and not self.requested_addrs)
 
     def release(self):
-        self.network.unsubscribe(self.addr_subscription_response)
+        self.network.unsubscribe(self.on_address_status)
 
     def add(self, address):
         '''This can be called from the proxy or GUI threads.'''
@@ -79,9 +79,7 @@ class Synchronizer(ThreadJob):
     def subscribe_to_addresses(self, addresses):
         if addresses:
             self.requested_addrs |= addresses
-            msgs = map(lambda addr: ('blockchain.address.subscribe', [addr]),
-                       addresses)
-            self.network.send(msgs, self.addr_subscription_response)
+            self.network.subscribe_to_addresses(addresses, self.on_address_status)
 
     def get_status(self, h):
         if not h:
@@ -91,7 +89,7 @@ class Synchronizer(ThreadJob):
             status += tx_hash + ':%d:' % height
         return bh2u(hashlib.sha256(status.encode('ascii')).digest())
 
-    def addr_subscription_response(self, response):
+    def on_address_status(self, response):
         params, result = self.parse_response(response)
         if not params:
             return
@@ -100,13 +98,12 @@ class Synchronizer(ThreadJob):
         if self.get_status(history) != result:
             if self.requested_histories.get(addr) is None:
                 self.requested_histories[addr] = result
-                self.network.send([('blockchain.address.get_history', [addr])],
-                                  self.addr_history_response)
+                self.network.request_address_history(addr, self.on_address_history)
         # remove addr from list only after it is added to requested_histories
         if addr in self.requested_addrs:  # Notifications won't be in
             self.requested_addrs.remove(addr)
 
-    def addr_history_response(self, response):
+    def on_address_history(self, response):
         params, result = self.parse_response(response)
         if not params:
             return

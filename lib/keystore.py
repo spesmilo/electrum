@@ -24,6 +24,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import struct
 
 from unicodedata import normalize
 
@@ -34,8 +35,8 @@ from .bitcoin import public_key_from_private_key, public_key_to_p2pkh
 from .bitcoin import *
 
 from .bitcoin import is_old_seed, is_new_seed, is_seed
-from .util import PrintError, InvalidPassword
-from .mnemonic import Mnemonic
+from .util import PrintError, InvalidPassword, hfu
+from .mnemonic import Mnemonic, load_wordlist
 
 
 class KeyStore(PrintError):
@@ -139,7 +140,7 @@ class Imported_KeyStore(Software_KeyStore):
         return True
 
     def check_password(self, password):
-        pubkey = self.keypairs.keys()[0]
+        pubkey = list(self.keypairs.keys())[0]
         self.get_private_key(pubkey, password)
 
     def import_key(self, sec, password):
@@ -555,7 +556,34 @@ def bip39_to_seed(mnemonic, passphrase):
                          iterations = PBKDF2_ROUNDS, macmodule = hmac,
                          digestmodule = hashlib.sha512).read(64)
 
-
+# returns tuple (is_checksum_valid, is_wordlist_valid)
+def bip39_is_checksum_valid(mnemonic):
+    words = [ normalize('NFKD', word) for word in mnemonic.split() ]
+    words_len = len(words)
+    wordlist = load_wordlist("english.txt")
+    n = len(wordlist)
+    checksum_length = 11*words_len//33
+    entropy_length = 32*checksum_length
+    i = 0
+    words.reverse()
+    while words:
+        w = words.pop()
+        try:
+            k = wordlist.index(w)
+        except ValueError:
+            return False, False
+        i = i*n + k
+    if words_len not in [12, 15, 18, 21, 24]:
+        return False, True
+    entropy = i >> checksum_length
+    checksum = i % 2**checksum_length
+    h = '{:x}'.format(entropy)
+    while len(h) < entropy_length/4:
+        h = '0'+h
+    b = bytearray.fromhex(h)
+    hashed = int(hfu(hashlib.sha256(b).digest()), 16)
+    calculated_checksum = hashed >> (256 - checksum_length)
+    return checksum == calculated_checksum, True
 
 # extended pubkeys
 
@@ -573,7 +601,7 @@ def xpubkey_to_address(x_pubkey):
         # TODO: check that ord() is OK here
         addrtype = ord(bfh(x_pubkey[2:4]))
         hash160 = bfh(x_pubkey[4:])
-        address = bitcoin.hash_160_to_bc_address(hash160, addrtype)
+        address = bitcoin.hash160_to_b58_address(hash160, addrtype)
         return x_pubkey, address
     if x_pubkey[0:2] in ['02', '03', '04']:
         pubkey = x_pubkey
@@ -656,11 +684,10 @@ is_private_key = lambda x: is_xprv(x) or is_private_key_list(x)
 is_bip32_key = lambda x: is_xprv(x) or is_xpub(x)
 
 
-def bip44_derivation(account_id):
-    if bitcoin.TESTNET:
-        return "m/44'/1'/%d'"% int(account_id)
-    else:
-        return "m/44'/0'/%d'"% int(account_id)
+def bip44_derivation(account_id, segwit=False):
+    bip  = 49 if segwit else 44
+    coin = 1 if bitcoin.TESTNET else 0
+    return "m/%d'/%d'/%d'" % (bip, coin, int(account_id))
 
 def from_seed(seed, passphrase):
     t = seed_type(seed)
@@ -678,7 +705,7 @@ def from_seed(seed, passphrase):
 
 def from_private_key_list(text):
     keystore = Imported_KeyStore({})
-    for x in text.split():
+    for x in get_private_keys(text):
         keystore.import_key(x, None)
     return keystore
 

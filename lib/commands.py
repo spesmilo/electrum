@@ -85,6 +85,9 @@ def command(s):
         known_commands[name] = Command(func, s)
         @wraps(func)
         def func_wrapper(*args, **kwargs):
+            c = known_commands[func.__name__]
+            if c.requires_wallet and args[0].wallet is None:
+                raise BaseException("wallet not loaded. Use 'electrum daemon load_wallet'")
             return func(*args, **kwargs)
         return func_wrapper
     return decorator
@@ -161,9 +164,9 @@ class Commands:
     @command('')
     def make_seed(self, nbits=132, entropy=1, language=None):
         """Create a seed"""
-        from mnemonic import Mnemonic
+        from .mnemonic import Mnemonic
         s = Mnemonic(language).make_seed('standard', nbits, custom_entropy=entropy)
-        return s.encode('utf8')
+        return s
 
     @command('')
     def check_seed(self, seed, entropy=1, language=None):
@@ -366,7 +369,7 @@ class Commands:
     def getseed(self, password=None):
         """Get seed phrase. Print the generation seed of your wallet."""
         s = self.wallet.get_seed(password)
-        return s.encode('utf8')
+        return s
 
     @command('wp')
     def importprivkey(self, privkey, password=None):

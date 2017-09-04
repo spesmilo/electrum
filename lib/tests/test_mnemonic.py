@@ -5,6 +5,7 @@ from __future__ import unicode_literals
 
 import six
 import unittest
+from lib import keystore
 from lib import mnemonic
 from lib import old_mnemonic
 from lib.util import bh2u
@@ -35,3 +36,11 @@ class Test_OldMnemonic(unittest.TestCase):
         words = 'hardly point goal hallway patience key stone difference ready caught listen fact'
         self.assertEquals(result, words.split())
         self.assertEquals(old_mnemonic.mn_decode(result), seed)
+
+class Test_BIP39Checksum(unittest.TestCase):
+
+    def test(self):
+        mnemonic = u'gravity machine north sort system female filter attitude volume fold club stay feature office ecology stable narrow fog'
+        is_checksum_valid, is_wordlist_valid = keystore.bip39_is_checksum_valid(mnemonic)
+        self.assertTrue(is_wordlist_valid)
+        self.assertTrue(is_checksum_valid)

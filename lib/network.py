@@ -654,6 +654,13 @@ class Network(util.DaemonThread):
             # Response is now in canonical form
             self.process_response(interface, response, callbacks)
 
+    def subscribe_to_addresses(self, addresses, callback):
+        msgs = [('blockchain.address.subscribe', [x]) for x in addresses]
+        self.send(msgs, callback)
+
+    def request_address_history(self, address, callback):
+        self.send([('blockchain.address.get_history', [address])], callback)
+
     def send(self, messages, callback):
         '''Messages is a list of (method, params) tuples'''
         messages = list(messages)
@@ -1042,7 +1049,6 @@ class Network(util.DaemonThread):
     def blockchain(self):
         if self.interface and self.interface.blockchain is not None:
             self.blockchain_index = self.interface.blockchain.checkpoint
-            self.config.set_key('blockchain_index', self.blockchain_index)
         return self.blockchains[self.blockchain_index]
 
     def get_blockchains(self):

@@ -30,7 +30,7 @@ import signal
 try:
     import PyQt4
 except Exception:
-    sys.exit("Error: Could not import PyQt4 on Linux systems, you may try 'sudo apt-get install python-qt4'")
+    sys.exit("Error: Could not import PyQt4 on Linux systems, you may try 'sudo apt-get install python3-pyqt4'")
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -82,6 +82,7 @@ class ElectrumGui:
         # GC-ed when windows are closed
         #network.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,
         #                            ElectrumWindow], interval=5)])
+        QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_X11InitThreads)
         self.config = config
         self.daemon = daemon
         self.plugins = plugins

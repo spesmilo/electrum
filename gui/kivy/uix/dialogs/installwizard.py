@@ -808,7 +808,7 @@ class InstallWizard(BaseWizard, Widget):
             if pin:
                 self.run('confirm_password', pin, run_next)
             else:
-                run_next(None)
+                run_next(None, None)
         self.password_dialog('Choose a PIN code', callback)
 
     def confirm_password(self, pin, run_next):

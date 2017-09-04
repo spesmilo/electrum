@@ -393,7 +393,12 @@ def get_address_from_output_script(_bytes):
     if match_decoded(decoded, match):
         return TYPE_ADDRESS, hash160_to_p2sh(decoded[1][1])
 
-    return TYPE_SCRIPT, _bytes
+    # segwit address
+    match = [ opcodes.OP_0, opcodes.OP_PUSHDATA4 ]
+    if match_decoded(decoded, match):
+        return TYPE_ADDRESS, hash160_to_segwit_addr(decoded[1][1])
+
+    return TYPE_SCRIPT, bh2u(_bytes)
 
 
 def parse_input(vds):
@@ -421,8 +426,7 @@ def parse_input(vds):
 
 def parse_witness(vds):
     n = vds.read_compact_size()
-    for i in range(n):
-        x = vds.read_bytes(vds.read_compact_size())
+    return list(vds.read_bytes(vds.read_compact_size()) for i in range(n))
 
 def parse_output(vds, i):
     d = {}
@@ -444,7 +448,7 @@ def deserialize(raw):
     is_segwit = (n_vin == 0)
     if is_segwit:
         marker = vds.read_bytes(1)
-        assert marker == 1
+        assert marker == b'\x01'
         n_vin = vds.read_compact_size()
     d['inputs'] = [parse_input(vds) for i in range(n_vin)]
     n_vout = vds.read_compact_size()
@@ -456,24 +460,6 @@ def deserialize(raw):
 
 
 # pay & redeem scripts
-
-def push_script(x):
-    return op_push(len(x)//2) + x
-
-
-def get_scriptPubKey(addr):
-    addrtype, hash_160 = bc_address_to_hash_160(addr)
-    if addrtype == bitcoin.ADDRTYPE_P2PKH:
-        script = '76a9'                                      # op_dup, op_hash_160
-        script += push_script(bh2u(hash_160))
-        script += '88ac'                                     # op_equalverify, op_checksig
-    elif addrtype == bitcoin.ADDRTYPE_P2SH:
-        script = 'a9'                                        # op_hash_160
-        script += push_script(bh2u(hash_160))
-        script += '87'                                       # op_equal
-    else:
-        raise BaseException('unknown address type')
-    return script
 
 
 def segwit_script(pubkey):
@@ -548,7 +534,12 @@ class Transaction:
         for i, txin in enumerate(self.inputs()):
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
             sigs1 = txin.get('signatures')
-            sigs2 = d['inputs'][i].get('signatures')
+            if d.get('witness') is None:
+                sigs2 = d['inputs'][i].get('signatures')
+            else:
+                # signatures are in the witnesses.  But the last item is
+                # the pubkey or the multisig script, so skip that.
+                sigs2 = d['witness'][i][:-1]
             for sig in sigs2:
                 if sig in sigs1:
                     continue
@@ -566,7 +557,7 @@ class Transaction:
                         j = pubkeys.index(pubkey)
                         print_error("adding sig", i, j, pubkey, sig)
                         self._inputs[i]['signatures'][j] = sig
-                        self._inputs[i]['x_pubkeys'][j] = pubkey
+                        #self._inputs[i]['x_pubkeys'][j] = pubkey
                         break
         # redo raw
         self.raw = self.serialize()
@@ -595,9 +586,9 @@ class Transaction:
     @classmethod
     def pay_script(self, output_type, addr):
         if output_type == TYPE_SCRIPT:
-            return bh2u(addr)
+            return addr
         elif output_type == TYPE_ADDRESS:
-            return get_scriptPubKey(addr)
+            return bitcoin.address_to_script(addr)
         else:
             raise TypeError('Unknown output type')
         return script
@@ -663,7 +654,7 @@ class Transaction:
     def get_preimage_script(self, txin):
         # only for non-segwit
         if txin['type'] == 'p2pkh':
-            return get_scriptPubKey(txin['address'])
+            return bitcoin.address_to_script(txin['address'])
         elif txin['type'] == 'p2sh':
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
             return multisig_script(pubkeys, txin['num_sig'])
@@ -720,7 +711,7 @@ class Transaction:
             hashOutputs = bh2u(Hash(bfh(''.join(self.serialize_output(o) for o in outputs))))
             outpoint = self.serialize_outpoint(txin)
             preimage_script = self.get_preimage_script(txin)
-            scriptCode = var_int(len(preimage_script)/2) + preimage_script
+            scriptCode = var_int(len(preimage_script) // 2) + preimage_script
             amount = int_to_hex(txin['value'], 8)
             nSequence = int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
             preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
@@ -831,7 +822,7 @@ class Transaction:
                     sig = private_key.sign_digest_deterministic(pre_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
                     assert public_key.verify_digest(sig, pre_hash, sigdecode = ecdsa.util.sigdecode_der)
                     txin['signatures'][j] = bh2u(sig) + '01'
-                    txin['x_pubkeys'][j] = pubkey
+                    #txin['x_pubkeys'][j] = pubkey
                     txin['pubkeys'][j] = pubkey # needed for fd keys
                     self._inputs[i] = txin
         print_error("is_complete", self.is_complete())
@@ -846,7 +837,7 @@ class Transaction:
             elif type == TYPE_PUBKEY:
                 addr = bitcoin.public_key_to_p2pkh(bfh(x))
             else:
-                addr = 'SCRIPT ' + bh2u(x)
+                addr = 'SCRIPT ' + x
             o.append((addr,v))      # consider using yield (addr, v)
         return o
 

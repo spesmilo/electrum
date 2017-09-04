@@ -1,4 +1,3 @@
-from binascii import hexlify
 from struct import pack, unpack
 import hashlib
 import time
@@ -175,8 +174,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
         self.cfg = d.get('cfg', {'mode':0,'pair':''})
 
     def is_segwit(self):
-        return self.plugin.segwit
-        
+        return self.derivation.startswith("m/49'/")
+
     def dump(self):
         obj = Hardware_KeyStore.dump(self)
         obj['cfg'] = self.cfg
@@ -300,7 +299,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 self.give_error("No matching x_key for sign_transaction") # should never happen
 
             redeemScript = Transaction.get_preimage_script(txin)
-            inputs.append([txin['prev_tx'].raw, txin['prevout_n'], redeemScript, txin['prevout_hash'], signingPos, txin.get('sequence', 0xffffffff) ])
+            inputs.append([txin['prev_tx'].raw, txin['prevout_n'], redeemScript, txin['prevout_hash'], signingPos, txin.get('sequence', 0xffffffff - 1) ])
             inputsPaths.append(hwAddress)
             pubKeys.append(pubkeys)
 
@@ -341,10 +340,10 @@ class Ledger_KeyStore(Hardware_KeyStore):
             for utxo in inputs:                
                 sequence = int_to_hex(utxo[5], 4)
                 if segwitTransaction:
-                    txtmp = bitcoinTransaction(bfh(utxo[0]))
+                    txtmp = bitcoinTransaction(bfh(utxo[0]))                    
                     tmp = bfh(utxo[3])[::-1]
                     tmp += bfh(int_to_hex(utxo[1], 4))
-                    tmp += str(txtmp.outputs[utxo[1]].amount)
+                    tmp += txtmp.outputs[utxo[1]].amount
                     chipInputs.append({'value' : tmp, 'witness' : True, 'sequence' : sequence})
                     redeemScripts.append(bfh(utxo[2]))
                 elif not p2shTransaction:
@@ -390,6 +389,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 while inputIndex < len(inputs):
                     self.get_client().startUntrustedTransaction(firstTransaction, inputIndex,
                                                             chipInputs, redeemScripts[inputIndex])
+<<<<<<< HEAD
                     if not p2shTransaction:
                         outputData = self.get_client().finalizeInput(output, format_satoshis_plain(outputAmount),
                             format_satoshis_plain(tx.get_fee()), changePath, bfh(rawTx))
@@ -397,6 +397,10 @@ class Ledger_KeyStore(Hardware_KeyStore):
                         outputData = self.get_client().finalizeInputFull(txOutput)
                         outputData['outputData'] = txOutput
 
+=======
+                    outputData = self.get_client().finalizeInputFull(txOutput)
+                    outputData['outputData'] = txOutput
+>>>>>>> 5e61ff18ac29ae303fbb0d9479d2824d7fcaf6ec
                     if firstTransaction:
                         transactionOutput = outputData['outputData']
                     if outputData['confirmationNeeded']:

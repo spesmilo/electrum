@@ -474,6 +474,7 @@ class NetworkChoiceLayout(object):
             self.proxy_user.setText("")
             self.proxy_password.setText("")
             self.tor_cb.setChecked(True)
+        self.set_proxy()
 
     def proxy_settings_changed(self):
         self.tor_cb.setChecked(False)
