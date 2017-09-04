@@ -27,7 +27,6 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-import six
 
 
 # Check DNSSEC trust chain.
@@ -75,7 +74,7 @@ def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
     from dns.dnssec import ValidationFailure, ECDSAP256SHA256, ECDSAP384SHA384
     from dns.dnssec import _find_candidate_keys, _make_hash, _is_ecdsa, _is_rsa, _to_rdata, _make_algorithm_id
 
-    if isinstance(origin, six.text_type):
+    if isinstance(origin, str):
         origin = dns.name.from_text(origin, dns.name.root)
 
     for candidate_key in _find_candidate_keys(keys, rrsig):

@@ -41,7 +41,6 @@ import struct
 # Workalike python implementation of Bitcoin's CDataStream class.
 #
 import struct
-from six import StringIO
 import random
 from .keystore import xpubkey_to_address, xpubkey_to_pubkey
 
