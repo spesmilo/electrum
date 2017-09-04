@@ -73,7 +73,7 @@ Builder.load_string('''
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
-                text: _('Sign') if root.can_sign else _('Broadcast') if root.can_broadcast else else ''
+                text: _('Sign') if root.can_sign else _('Broadcast') if root.can_broadcast else ''
                 disabled: not(root.can_sign or root.can_broadcast)
                 opacity: 0 if self.disabled else 1
                 on_release:
