@@ -3,7 +3,6 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-import six
 import ast
 import json
 import threading
@@ -257,13 +256,7 @@ def read_system_config(path=SYSTEM_CONFIG_PATH):
     """Parse and return the system config settings in /etc/electrum-ltc.conf."""
     result = {}
     if os.path.exists(path):
-        try:
-            from six.moves import configparser
-            # import ConfigParser
-        except ImportError:
-            print("cannot parse electrum-ltc.conf. please install ConfigParser")
-            return
-
+        import configparser
         p = configparser.ConfigParser()
         try:
             p.read(path)

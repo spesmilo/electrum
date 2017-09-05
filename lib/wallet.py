@@ -643,7 +643,7 @@ class Abstract_Wallet(PrintError):
         with self.transaction_lock:
             self.print_error("removing tx from history", tx_hash)
             #tx = self.transactions.pop(tx_hash)
-            for ser, hh in self.pruned_txo.items():
+            for ser, hh in list(self.pruned_txo.items()):
                 if hh == tx_hash:
                     self.pruned_txo.pop(ser)
             # add tx to pruned_txo, and undo the txi addition

@@ -27,7 +27,6 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-import six
 import os
 import sys
 import datetime
@@ -48,8 +47,7 @@ from .transaction import Transaction
 from .import paymentrequest
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .import contacts
-if six.PY3:
-    long = int
+
 known_commands = {}
 
 
@@ -739,7 +737,7 @@ arg_types = {
     'num': int,
     'nbits': int,
     'imax': int,
-    'entropy': long,
+    'entropy': int,
     'tx': tx_from_str,
     'pubkeys': json_loads,
     'jsontx': json_loads,
