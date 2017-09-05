@@ -779,28 +779,53 @@ def check_www_dir(rdir):
             print_error("downloading ", URL)
             urllib.request.urlretrieve(URL, path)
 
-def parse_search(search):
-
-    _list = list()
-    patterns = search.split() 
-
-    def is_amount(p, next_p):
-
-
-    for i, p in enumerate(patterns):
-        if re.search('[a-zA-z]', p):
-            
-
-
-        if p.isdigit():
-            if patterns[i + 1] and is_amount(p, patterns[i + 1]) == True:
-                form = 'amount'
-            except IndexError:
-                pass
-            if is_date(p) == True:
-                form = 'date'
-            except IndexError:
-                pass
-            
-
-
+#def parse_search(search):
+#
+#    _list = list()
+#    patterns = search.split() 
+#
+#    def is_amount(p, next_p):
+#
+#
+#    def is_date(p0, p1=None, p2=None):
+#        date = p0 + " " + p1 + " " + p2
+#        try:
+#            parse(date)
+#            if p2:
+#                return 
+#        except ValueError:
+#            return 0
+#
+#    def is_label():
+#        pass
+#
+#    def is_status():
+#        pass
+#
+#    i = -1;
+#    it = iter(patterns)
+#    while 1:
+#        p = it.next()
+#        i += 1
+#        if re.search('[a-zA-z]', p):
+#            if is_date() == True:
+#                form = 'date'
+#            if is_label() == True:
+#                form = 'label'
+#            if is_status() == True:
+#                form = 'status'
+#
+#        if p.isdigit():
+#            if is_amount() == True:
+#                form = 'amount'
+#            except IndexError:
+#                pass
+#            if is_date() == True
+#                form = 'date'
+#            except IndexError:
+#                pass
+#        
+#        func = gen_func(form, pattern)
+#        _list.append(func)
+#
+#    return _list

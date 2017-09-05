@@ -9,29 +9,93 @@ AddressScreen:
     name: 'address'
 
 	message: ''
+    address: ''
+    amount: ''
+    status: ''
 
-	on_message:
-		self.parent.do_search()
+    BoxLayout
+        padding: '12dp', '12dp', '12dp', '12dp'
+        spacing: '12dp'
+        orientation: 'vertical'
+        size_hint: 1, 1.1
 
-	BoxLayout:
-		spacing: '12dp'
-		padding: '12dp', '12dp', '12dp', '12dp'
-		orientation: 'vertical'
-		SearchBox:
-			id: search_box
+		BoxLayout:
+			spacing: '6dp'
 			size_hint: 1, None
-			height: '60dp'
-			BoxLayout:
-				id: message_selection
-				opacity: 1			
-				size_hint: 1, None
-				height: search_box.item_height
-				spacing: '5dp'
-				BlueButton:
-					id: address_search
-					text: addr_screen.message if addr_screen.message else _('Search')
-					shorten: True
-					on_release: Clock.schedule_once(lambda dt: app.description_dialog(addr_screen))
+			orientation: 'horizontal'
+			AddressButton:
+				canvas.before:
+					Color:
+						rgba: 0.9, .498, 0.745, 1
+					BorderImage:
+						source: 'atlas://gui/kivy/theming/light/card_bottom'
+						size: self.size
+						pos: self.pos
+				id: white
+				opacity: 1
+				height: '50dp'
+				text: _('White')
+			AddressButton:
+				canvas.before:
+					Color:
+						rgba: 0.9, .498, 0.745, 1
+					BorderImage:
+						source: 'atlas://gui/kivy/theming/light/card_bottom'
+						size: self.size
+						pos: self.pos
+				id: change
+				opacity: 1
+				height: '50dp'
+				text: _('Change')
+			AddressButton:
+				canvas.before:
+					Color:
+						rgba: 0.9, .498, 0.745, 1
+					BorderImage:
+						source: 'atlas://gui/kivy/theming/light/card_bottom'
+						size: self.size
+						pos: self.pos
+				id: used
+				height: '50dp'
+				text: _('Used')
+			AddressButton:
+				canvas.before:
+					Color:
+						rgba: 0.9, .498, 0.745, 1
+					BorderImage:
+						source: 'atlas://gui/kivy/theming/light/card_bottom'
+						size: self.size
+						pos: self.pos
+				id: paid
+				height: '50dp'
+				text: _('Paid')
+			AddressButton:
+				canvas.before:
+					Color:
+						rgba: 0.9, .498, 0.745, 1
+					BorderImage:
+						source: 'atlas://gui/kivy/theming/light/card_bottom'
+						size: self.size
+						pos: self.pos
+				id: pending
+				height: '50dp'
+				text: _('Pending')
+		
+#		SearchBox:
+#			id: search_box
+#			size_hint: 1, None
+#			height: '60dp'
+#			BoxLayout:
+#				id: message_selection
+#				opacity: 1			
+#				size_hint: 1, None
+#				height: search_box.item_height
+#				spacing: '5dp'
+#				BlueButton:
+#					id: address_search
+#					text: addr_screen.message if addr_screen.message else _('Search')
+#					shorten: True
+#					on_release: Clock.schedule_once(lambda dt: app.description_dialog(addr_screen))
 
 		ScrollView:
 			GridLayout:

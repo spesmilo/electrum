@@ -1334,7 +1334,7 @@ class Abstract_Wallet(PrintError):
         return self.storage.get('use_encryption', False)
 
     def search_list_requests(self, search):
-        from .util import print_msg, parse_search
+        from .util import print_msg #, parse_search
 #        list_test = parse_search(search)
         _list = list()
 
@@ -1345,13 +1345,6 @@ class Abstract_Wallet(PrintError):
             out = copy.copy(r)
             status, conf = self.get_request_status(addr)
             out['status'] = status
-
-#            def do_test(out, list_test):
-#                for func_test in list_test:
-#                    if search_select(out) == False:
-#                        return False
-#                return True
-#            if do_test(out, list_test) == True:
 
             _list.append(out)
             print_msg(out)
