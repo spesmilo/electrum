@@ -1,15 +1,14 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from electrum import SimpleConfig, set_verbosity
 from electrum.network import filter_protocol
-import time, Queue
 from collections import defaultdict
 
 import util, json
 set_verbosity(False)
 
 config = SimpleConfig()
-servers = filter_protocol(protocol = 't')
+servers = util.get_peers()
 results = util.send_request(servers, 'blockchain.headers.subscribe', [])
 
 d = defaultdict(int)
@@ -18,11 +17,10 @@ for k, r in results.items():
     blocks = r.get('block_height')
     d[blocks] += 1
 
-
-
 for k, v in results.items():
-    print k, v.get('block_height')
+    print(k, v.get('block_height'))
 
-v = d.values()
-numblocks = d.keys()[v.index(max(v))]
-print "blocks:",numblocks
+v = list(d.values())
+k = list(d.keys())
+numblocks = k[v.index(max(v))]
+print("blocks:", numblocks)
