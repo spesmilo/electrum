@@ -1333,6 +1333,30 @@ class Abstract_Wallet(PrintError):
     def has_password(self):
         return self.storage.get('use_encryption', False)
 
+    def search_list_requests(self, search):
+        from .util import print_msg, parse_search
+#        list_test = parse_search(search)
+        _list = list()
+
+        for addr in self.receive_requests:
+            r = self.receive_requests.get(addr)
+            if not r:
+                continue
+            out = copy.copy(r)
+            status, conf = self.get_request_status(addr)
+            out['status'] = status
+
+#            def do_test(out, list_test):
+#                for func_test in list_test:
+#                    if search_select(out) == False:
+#                        return False
+#                return True
+#            if do_test(out, list_test) == True:
+
+            _list.append(out)
+            print_msg(out)
+        return _list
+
 
 class Imported_Wallet(Abstract_Wallet):
     # wallet made of imported addresses

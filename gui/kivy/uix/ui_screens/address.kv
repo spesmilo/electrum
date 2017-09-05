@@ -5,7 +5,7 @@
 #:set font_light 'gui/kivy/data/fonts/Roboto-Condensed.ttf'
 
 AddressScreen:
-	id: add_screen
+	id: addr_screen
     name: 'address'
 
 	message: ''
@@ -13,12 +13,10 @@ AddressScreen:
 	on_message:
 		self.parent.do_search()
 
-	BoxLayout
-		padding: '12dp', '12dp', '12dp', '430dp'
+	BoxLayout:
 		spacing: '12dp'
+		padding: '12dp', '12dp', '12dp', '12dp'
 		orientation: 'vertical'
-		size_hint: 1, 1			
-
 		SearchBox:
 			id: search_box
 			size_hint: 1, None
@@ -31,6 +29,15 @@ AddressScreen:
 				spacing: '5dp'
 				BlueButton:
 					id: address_search
-					text: add_screen.message if add_screen.message else _('Search')
+					text: addr_screen.message if addr_screen.message else _('Search')
 					shorten: True
-					on_release: Clock.schedule_once(lambda dt: app.description_dialog(add_screen))
+					on_release: Clock.schedule_once(lambda dt: app.description_dialog(addr_screen))
+
+		ScrollView:
+			GridLayout:
+				cols: 1
+				id: search_container
+				size_hint_y: None
+				height: self.minimum_height
+				spacing: '2dp'
+				padding: '12dp'

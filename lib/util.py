@@ -778,3 +778,29 @@ def check_www_dir(rdir):
         if not os.path.exists(path):
             print_error("downloading ", URL)
             urllib.request.urlretrieve(URL, path)
+
+def parse_search(search):
+
+    _list = list()
+    patterns = search.split() 
+
+    def is_amount(p, next_p):
+
+
+    for i, p in enumerate(patterns):
+        if re.search('[a-zA-z]', p):
+            
+
+
+        if p.isdigit():
+            if patterns[i + 1] and is_amount(p, patterns[i + 1]) == True:
+                form = 'amount'
+            except IndexError:
+                pass
+            if is_date(p) == True:
+                form = 'date'
+            except IndexError:
+                pass
+            
+
+

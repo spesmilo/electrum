@@ -135,7 +135,7 @@ class HistoryScreen(CScreen):
         self.app.tx_dialog(tx)
 
     def label_dialog(self, obj):
-        from dialogs.label_dialog import LabelDialog
+        from .dialogs.label_dialog import LabelDialog
         key = obj.tx_hash
         text = self.app.wallet.get_label(key)
         def callback(text):
@@ -493,7 +493,7 @@ class InvoicesScreen(CScreen):
         self.app.show_pr_details(pr.get_dict(), obj.status, True)
 
     def do_delete(self, obj):
-        from dialogs.question import Question
+        from .dialogs.question import Question
         def cb(result):
             if result:
                 self.app.wallet.invoices.remove(obj.key)
@@ -535,7 +535,8 @@ class RequestsScreen(CScreen):
         return ci
 
     def update(self):
-        Logger.info("Request - update")
+        import time
+        Logger.info("Request - update : " + str(time.clock()))
         self.menu_actions = [('Show', self.do_show), ('Details', self.do_view), ('Delete', self.do_delete)]
         requests_list = self.screen.ids.requests_container
         requests_list.clear_widgets()
@@ -568,7 +569,7 @@ class RequestsScreen(CScreen):
 
     def do_delete(self, obj):
         Logger.info("Request - delete")
-        from dialogs.question import Question
+        from .dialogs.question import Question
         def cb(result):
             if result:
                 self.app.wallet.remove_payment_request(obj.address, self.app.electrum_config)
@@ -580,6 +581,7 @@ class RequestsScreen(CScreen):
 class AddressScreen(CScreen):
 
     kvname = 'address'
+    cards = {}
 
     def update(self):
         Logger.info("Address - update")
@@ -587,9 +589,46 @@ class AddressScreen(CScreen):
         # msg = "Hello world"
         #address_list.add_widget(EmptyLabel(text=msg))
 
+    def get_card(self, req):
+        Logger.info("Request - card")
+        address = req['address']
+        timestamp = req.get('time', 0)
+        amount = req.get('amount')
+        expiration = req.get('exp', None)
+        status = req.get('status')
+#        signature = req.get('sig')
+
+        ci = self.cards.get(address)
+        if ci is None:
+            ci = Factory.RequestItem()
+            ci.screen = self
+            ci.address = address
+            self.cards[address] = ci
+
+        ci.memo = self.app.wallet.get_label(address)
+        if amount:
+            status = req.get('status')
+            ci.status = request_text[status]
+        else:
+            received = self.app.wallet.get_addr_received(address)
+            ci.status = self.app.format_amount_and_units(amount)
+        ci.icon = pr_icon[status]
+        ci.amount = self.app.format_amount_and_units(amount) if amount else _('No Amount')
+        ci.date = format_time(timestamp)
+        return ci
+
     def do_search(self):
         Logger.info("Address - search: " + self.screen.message)
-    
+        _list = self.app.wallet.search_list_requests(self.screen.message)
+
+        search_list = self.screen.ids.search_container
+        search_list.clear_widgets()
+        for req in _list:
+            card = self.get_card(req)
+            search_list.add_widget(card)
+        if not _list:
+            msg = _('No requests matching your search')
+            search_list.add_widget(EmptyLabel(text=msg))
 
 
 class TabbedCarousel(Factory.TabbedPanel):
