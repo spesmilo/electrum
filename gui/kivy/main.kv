@@ -190,6 +190,19 @@
             size: self.size
             pos: self.pos
 
+<AddressFilter@GridLayout>
+	item_height: dp(42)
+	foreground_color: .843, .914, .972, 1
+	cols: 1
+	padding: '12dp', 0
+	canvas.before:
+		Color:
+			rgba: 0.192, .498, 0.745, 1
+		BorderImage:
+			source: 'atlas://gui/kivy/theming/light/card_bottom'
+			size: self.size
+			pos: self.pos
+
 <SearchBox@GridLayout>
 	item_height: dp(42)
 	foreground_color: .843, .914, .972, 1

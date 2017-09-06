@@ -70,9 +70,7 @@ class CScreen(Factory.Screen):
         self.screen = Builder.load_file('gui/kivy/uix/ui_screens/' + self.kvname + '.kv')
         self.add_widget(self.screen)
         self.loaded = True
-        Logger.info("before update") 
         self.update()
-        Logger.info("before update") 
         setattr(self.app, self.kvname + '_screen', self)
 
     def on_activate(self):
@@ -589,32 +587,48 @@ class AddressScreen(CScreen):
         # msg = "Hello world"
         #address_list.add_widget(EmptyLabel(text=msg))
 
-    def get_card(self, req):
-        Logger.info("Request - card")
-        address = req['address']
-        timestamp = req.get('time', 0)
-        amount = req.get('amount')
-        expiration = req.get('exp', None)
-        status = req.get('status')
-#        signature = req.get('sig')
+#    def get_card(self, req):
+#        Logger.info("Request - card")
+#        address = req['address']
+#        timestamp = req.get('time', 0)
+#        amount = req.get('amount')
+#        expiration = req.get('exp', None)
+#        status = req.get('status')
+##        signature = req.get('sig')
+#
+#        ci = self.cards.get(address)
+#        if ci is None:
+#            ci = Factory.RequestItem()
+#            ci.screen = self
+#            ci.address = address
+#            self.cards[address] = ci
+#
+#        ci.memo = self.app.wallet.get_label(address)
+#        if amount:
+#            status = req.get('status')
+#            ci.status = request_text[status]
+#        else:
+#            received = self.app.wallet.get_addr_received(address)
+#            ci.status = self.app.format_amount_and_units(amount)
+#        ci.icon = pr_icon[status]
+#        ci.amount = self.app.format_amount_and_units(amount) if amount else _('No Amount')
+#        ci.date = format_time(timestamp)
+#        return ci
 
-        ci = self.cards.get(address)
+    def get_card(self, addr, status):
+        
+        ci = self.cards.get(addr)
         if ci is None:
             ci = Factory.RequestItem()
             ci.screen = self
-            ci.address = address
-            self.cards[address] = ci
+            ci.address = addr
+            self.cards[addr] = ci
 
-        ci.memo = self.app.wallet.get_label(address)
-        if amount:
-            status = req.get('status')
-            ci.status = request_text[status]
-        else:
-            received = self.app.wallet.get_addr_received(address)
-            ci.status = self.app.format_amount_and_units(amount)
-        ci.icon = pr_icon[status]
-        ci.amount = self.app.format_amount_and_units(amount) if amount else _('No Amount')
-        ci.date = format_time(timestamp)
+        ci.memo = self.app.wallet.get_label(addr)
+        try:
+            ci.icon = pr_icon[status]
+        except KeyError:
+            pass
         return ci
 
     def do_search(self):
@@ -629,6 +643,16 @@ class AddressScreen(CScreen):
         if not _list:
             msg = _('No requests matching your search')
             search_list.add_widget(EmptyLabel(text=msg))
+
+    def search(self, status):
+        Logger.info("Address - search")
+        _list = self.app.wallet.addr_search(status)
+
+        search_list = self.screen.ids.search_container
+        search_list.clear_widgets()
+        for addr in _list:
+            card = self.get_card(addr, status)
+            search_list.add_widget(card)
 
 
 class TabbedCarousel(Factory.TabbedPanel):

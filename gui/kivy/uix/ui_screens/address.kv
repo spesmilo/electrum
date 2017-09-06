@@ -8,10 +8,8 @@ AddressScreen:
 	id: addr_screen
     name: 'address'
 
-	message: ''
-    address: ''
-    amount: ''
-    status: ''
+	message: ''	
+
 
     BoxLayout
         padding: '12dp', '12dp', '12dp', '12dp'
@@ -23,80 +21,66 @@ AddressScreen:
 			spacing: '6dp'
 			size_hint: 1, None
 			orientation: 'horizontal'
-			AddressButton:
-				canvas.before:
-					Color:
-						rgba: 0.9, .498, 0.745, 1
-					BorderImage:
-						source: 'atlas://gui/kivy/theming/light/card_bottom'
-						size: self.size
-						pos: self.pos
-				id: white
+			AddressFilter:
+				id: blue_bottom
 				opacity: 1
-				height: '50dp'
-				text: _('White')
-			AddressButton:
-				canvas.before:
-					Color:
-						rgba: 0.9, .498, 0.745, 1
-					BorderImage:
-						source: 'atlas://gui/kivy/theming/light/card_bottom'
-						size: self.size
-						pos: self.pos
-				id: change
+				size_hint: 1, None
+				height: self.minimum_height
+				spacing: '5dp'
+				AddressButton:
+					id: search
+					text: _('Search')
+			AddressFilter:
+				id: blue_bottom
 				opacity: 1
-				height: '50dp'
-				text: _('Change')
-			AddressButton:
-				canvas.before:
-					Color:
-						rgba: 0.9, .498, 0.745, 1
-					BorderImage:
-						source: 'atlas://gui/kivy/theming/light/card_bottom'
-						size: self.size
-						pos: self.pos
-				id: used
-				height: '50dp'
-				text: _('Used')
-			AddressButton:
-				canvas.before:
-					Color:
-						rgba: 0.9, .498, 0.745, 1
-					BorderImage:
-						source: 'atlas://gui/kivy/theming/light/card_bottom'
-						size: self.size
-						pos: self.pos
-				id: paid
-				height: '50dp'
-				text: _('Paid')
-			AddressButton:
-				canvas.before:
-					Color:
-						rgba: 0.9, .498, 0.745, 1
-					BorderImage:
-						source: 'atlas://gui/kivy/theming/light/card_bottom'
-						size: self.size
-						pos: self.pos
-				id: pending
-				height: '50dp'
-				text: _('Pending')
-		
-#		SearchBox:
-#			id: search_box
-#			size_hint: 1, None
-#			height: '60dp'
-#			BoxLayout:
-#				id: message_selection
-#				opacity: 1			
-#				size_hint: 1, None
-#				height: search_box.item_height
-#				spacing: '5dp'
-#				BlueButton:
-#					id: address_search
-#					text: addr_screen.message if addr_screen.message else _('Search')
-#					shorten: True
-#					on_release: Clock.schedule_once(lambda dt: app.description_dialog(addr_screen))
-
+				size_hint: 1, None
+				height: self.minimum_height
+				spacing: '5dp'
+				AddressButton:
+					id: new
+					text: _('New')
+					on_release: Clock.schedule_once(lambda dt: app.address_screen.search(0))
+			AddressFilter:
+				id: blue_bottom
+				opacity: 1
+				size_hint: 1, None
+				height: self.minimum_height
+				spacing: '5dp'
+				AddressButton:
+					id: pending
+					text: _('Pending')
+					on_release: Clock.schedule_once(lambda dt: app.address_screen.search(1))
+			AddressFilter:
+				id: blue_bottom
+				opacity: 1
+				size_hint: 1, None
+				height: self.minimum_height
+				spacing: '5dp'
+				AddressButton:
+					id: paid
+					text: _('Paid')
+					on_release: Clock.schedule_once(lambda dt: app.address_screen.search(2))
+			AddressFilter:
+				id: blue_bottom
+				opacity: 1
+				size_hint: 1, None
+				height: self.minimum_height
+				spacing: '5dp'
+				AddressButton:
+					id: used
+					text: _('Used')
+					on_release: Clock.schedule_once(lambda dt: app.address_screen.search(3))
+			AddressFilter:
+				id: blue_bottom
+				opacity: 1
+				size_hint: 1, None
+				height: self.minimum_height
+				spacing: '5dp'
+				AddressButton:
+					id: change
+					text: _('Change')
+					on_release: Clock.schedule_once(lambda dt: app.address_screen.search(4))
+ 
 		ScrollView:
 			GridLayout:
 				cols: 1

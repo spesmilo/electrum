@@ -1,0 +1,139 @@
+[INFO   ] [Logger      ] Record log in /home/user/.kivy/logs/kivy_17-09-06_59.txt
+[INFO   ] [Kivy        ] v1.10.0
+[INFO   ] [Python      ] v3.4.3 (default, Aug  9 2016, 15:36:17) 
+[GCC 5.3.1 20160406 (Red Hat 5.3.1-6)]
+[INFO   ] [Factory     ] 194 symbols loaded
+[INFO   ] [Image       ] Providers: img_tex, img_dds, img_pygame, img_pil, img_gif (img_ffpyplayer ignored)
+[INFO   ] [Window      ] Provider: pygame(['window_egl_rpi'] ignored)
+libpng warning: iCCP: known incorrect sRGB profile
+[WARNING] [WinPygame   ] Video: failed (multisamples=2)
+[WARNING] [WinPygame   ] trying without antialiasing
+[INFO   ] [GL          ] Using the "OpenGL" graphics system
+[INFO   ] [GL          ] Backend used <gl>
+[INFO   ] [GL          ] OpenGL version <b'2.1 Mesa 11.1.0 (git-525f3c2)'>
+[INFO   ] [GL          ] OpenGL vendor <b'VMware, Inc.'>
+[INFO   ] [GL          ] OpenGL renderer <b'Gallium 0.4 on llvmpipe (LLVM 3.7, 256 bits)'>
+[INFO   ] [GL          ] OpenGL parsed version: 2, 1
+[INFO   ] [GL          ] Shading version <b'1.30'>
+[INFO   ] [GL          ] Texture max size <8192>
+[INFO   ] [GL          ] Texture max units <18>
+[INFO   ] [Window      ] virtual keyboard not allowed, single mode, not docked
+[INFO   ] [Text        ] Provider: pygame
+[INFO   ] [Clipboard   ] Provider: gtk3(['clipboard_dbusklipper'] ignored)
+[CRITICAL] [Cutbuffer   ] Unable to find any valuable Cutbuffer provider.
+xclip - FileNotFoundError: [Errno 2] No such file or directory: 'xclip'
+  File "/home/user/.local/lib/python3.4/site-packages/kivy/core/__init__.py", line 59, in core_select_lib
+    fromlist=[modulename], level=0)
+  File "/home/user/.local/lib/python3.4/site-packages/kivy/core/clipboard/clipboard_xclip.py", line 17, in <module>
+    p = subprocess.Popen(['xclip', '-version'], stdout=subprocess.PIPE)
+  File "/usr/lib64/python3.4/subprocess.py", line 859, in __init__
+    restore_signals, start_new_session)
+  File "/usr/lib64/python3.4/subprocess.py", line 1457, in _execute_child
+    raise child_exception_type(errno_num, err_msg)
+
+xsel - FileNotFoundError: [Errno 2] No such file or directory: 'xsel'
+  File "/home/user/.local/lib/python3.4/site-packages/kivy/core/__init__.py", line 59, in core_select_lib
+    fromlist=[modulename], level=0)
+  File "/home/user/.local/lib/python3.4/site-packages/kivy/core/clipboard/clipboard_xsel.py", line 16, in <module>
+    p = subprocess.Popen(['xsel'], stdout=subprocess.PIPE)
+  File "/usr/lib64/python3.4/subprocess.py", line 859, in __init__
+    restore_signals, start_new_session)
+  File "/usr/lib64/python3.4/subprocess.py", line 1457, in _execute_child
+    raise child_exception_type(errno_num, err_msg)
+
+[INFO   ] in run
+libpng warning: iCCP: known incorrect sRGB profile
+libpng warning: iCCP: known incorrect sRGB profile
+[INFO   ] Tabbed - switch
+[INFO   ] Tabbed - on_index
+[INFO   ] [Time to on_start] 0.872972 <<<<<<<<
+[INFO   ] main - swtich to
+[INFO   ] junction screen to id thanks to name
+[INFO   ] CS - load
+[INFO   ] gui/kivy/uix/ui_screens/history.kv
+[INFO   ] Tabbed - switch
+[INFO   ] 2
+[INFO   ] CS - leave
+[INFO   ] CS - deactivate
+[INFO   ] CS - hide
+[INFO   ] CS - enter
+[INFO   ] [OSC         ] using <multiprocessing> for socket
+[INFO   ] [Base        ] Start application main loop
+[INFO   ] [GL          ] NPOT texture support is available
+[INFO   ] Tabbed - switch
+[INFO   ] [CS - activate ]history
+[INFO   ] Tabbed - on_index
+[INFO   ] Carousel - Invoices
+[INFO   ] Carousel - History
+[INFO   ] CS - leave
+[INFO   ] CS - deactivate
+[INFO   ] CS - hide
+[INFO   ] before switch to
+[INFO   ] Tabbed - switch
+[INFO   ] 2
+[INFO   ] CS - enter
+[INFO   ] [CS - activate ]history
+[INFO   ] Tabbed - switch
+[INFO   ] 4
+[INFO   ] CS - leave
+[INFO   ] CS - deactivate
+[INFO   ] CS - hide
+[INFO   ] CS - enter
+[INFO   ] Tabbed - on_index
+[INFO   ] Carousel - Requests
+[INFO   ] Carousel - Requests
+[INFO   ] [CS - activate ]requests
+[INFO   ] CS - load
+[INFO   ] gui/kivy/uix/ui_screens/requests.kv
+[INFO   ] [Request - update ] 3.805748
+[INFO   ] Request - card
+[INFO   ] Request - card
+[INFO   ] Request - card
+[INFO   ] Request - card
+[INFO   ] Request - card
+[INFO   ] Request - card
+[INFO   ] Tabbed - switch
+[INFO   ] 5
+[INFO   ] CS - leave
+[INFO   ] CS - deactivate
+[INFO   ] CS - hide
+[INFO   ] CS - enter
+[INFO   ] Tabbed - on_index
+[INFO   ] Carousel - Address
+[INFO   ] Carousel - Address
+[INFO   ] [CS - activate ]address
+[INFO   ] CS - load
+[INFO   ] gui/kivy/uix/ui_screens/address.kv
+[INFO   ] Address - update
+[INFO   ] Address - search
+[INFO   ] [Base        ] Leaving application in progress...
+ Traceback (most recent call last):
+   File "electrum", line 375, in <module>
+     d.init_gui(config, plugins)
+   File "/home/user/Projects/electrum/lib/daemon.py", line 292, in init_gui
+     self.gui.main()
+   File "/home/user/Projects/electrum/gui/kivy/__init__.py", line 62, in main
+     w.run()
+   File "/home/user/.local/lib/python3.4/site-packages/kivy/app.py", line 829, in run
+     runTouchApp()
+   File "/home/user/.local/lib/python3.4/site-packages/kivy/base.py", line 504, in runTouchApp
+     EventLoop.window.mainloop()
+   File "/home/user/.local/lib/python3.4/site-packages/kivy/core/window/window_pygame.py", line 403, in mainloop
+     self._mainloop()
+   File "/home/user/.local/lib/python3.4/site-packages/kivy/core/window/window_pygame.py", line 289, in _mainloop
+     EventLoop.idle()
+   File "/home/user/.local/lib/python3.4/site-packages/kivy/base.py", line 339, in idle
+     Clock.tick()
+   File "/home/user/.local/lib/python3.4/site-packages/kivy/clock.py", line 581, in tick
+     self._process_events()
+   File "kivy/_clock.pyx", line 367, in kivy._clock.CyClockBase._process_events
+   File "kivy/_clock.pyx", line 397, in kivy._clock.CyClockBase._process_events
+   File "kivy/_clock.pyx", line 395, in kivy._clock.CyClockBase._process_events
+   File "kivy/_clock.pyx", line 167, in kivy._clock.ClockEvent.tick
+   File "/home/user/Projects/electrum/gui/kivy/uix/ui_screens/address.kv", line 42, in <lambda>
+     on_release: Clock.schedule_once(lambda dt: app.address_screen.search(0))
+   File "/home/user/Projects/electrum/gui/kivy/uix/screens.py", line 653, in search
+     card = self.get_card(addr, status)
+   File "/home/user/Projects/electrum/gui/kivy/uix/screens.py", line 624, in get_card
+     ci.address = address
+ NameError: name 'address' is not defined

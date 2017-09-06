@@ -1333,21 +1333,51 @@ class Abstract_Wallet(PrintError):
     def has_password(self):
         return self.storage.get('use_encryption', False)
 
-    def search_list_requests(self, search):
-        from .util import print_msg #, parse_search
-#        list_test = parse_search(search)
-        _list = list()
 
-        for addr in self.receive_requests:
-            r = self.receive_requests.get(addr)
-            if not r:
-                continue
-            out = copy.copy(r)
-            status, conf = self.get_request_status(addr)
-            out['status'] = status
+    def addr_search(self, search):
+        from .util import print_msg # parse_search
 
-            _list.append(out)
-            print_msg(out)
+
+        def get_addr_new(self):
+            #using get_unused_address ?
+            _list = list()
+            for addr in self.receiving_addresses:
+                if addr not in self.receive_requests:
+                    _list.append(addr)
+            return _list
+
+        def get_addr_pending(self):
+            _list = list()
+            for addr in self.receive_requests:
+                status, conf = self.get_request_status(addr)
+                if status == PR_UNPAID or status == PR_EXPIRED:
+                    _list.append(addr)
+            return _list
+
+        def get_addr_paid(self):
+            _list = list()
+            for addr in self.receive_requests:
+                status, conf = self.get_request_status(addr)
+                if status == PR_PAID:
+                    _list.append(addr)
+            return _list
+
+        def get_addr_change(self):
+            return self.change_addresses
+
+        def get_addr_used(self):
+            _list = list()
+            for addr in self.receiving_addresses:
+                if is_used(addr):
+                    _list.append(addr)
+            return _list
+
+        addr_status = [ [0, get_addr_new], [1, get_addr_pending], [2, get_addr_paid], \
+            [3, get_addr_used], [4, get_addr_change] ]
+
+        for status in addr_status:
+            if search == status[0]:
+                _list = status[1](self)
         return _list
 
 
