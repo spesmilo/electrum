@@ -45,9 +45,10 @@ def wait_on_interfaces(interfaces, timeout=10):
     return result
 
 def get_peers():
+    config = SimpleConfig()
     peers = []
     # 1. get connected interfaces
-    server = 'h.1209k.com:50002:s'
+    server = config.get('server')
     interfaces = get_interfaces([server])
     if not interfaces:
         print("No connection to", server)

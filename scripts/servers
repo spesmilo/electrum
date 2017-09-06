@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
-from electrum import SimpleConfig, set_verbosity
+from electrum import set_verbosity
 from electrum.network import filter_protocol
 from collections import defaultdict
 
 import util, json
 set_verbosity(False)
 
-config = SimpleConfig()
+
 servers = util.get_peers()
 results = util.send_request(servers, 'blockchain.headers.subscribe', [])
 
