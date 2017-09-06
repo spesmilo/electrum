@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import sys
 import time
@@ -8,7 +8,7 @@ from electrum_ltc.util import print_msg, json_encode
 try:
     addr = sys.argv[1]
 except Exception:
-    print "usage: watch_address <litecoin_address>"
+    print("usage: watch_address <litecoin_address>")
     sys.exit(1)
 
 # start network

@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # create a BIP70 payment request signed with a certificate
 
 import tlslite
@@ -35,4 +36,4 @@ pr_string = paymentrequest.make_payment_request(amount, script, memo, rsakey)
 with open(out_file,'wb') as f:
     f.write(pr_string)
 
-print "Payment request was written to file '%s'"%out_file
+print("Payment request was written to file '%s'"%out_file)
