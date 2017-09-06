@@ -293,7 +293,7 @@ class BaseWizard(object):
         self.derivation_dialog(f)
 
     def create_keystore(self, seed, passphrase):
-        k = keystore.from_seed(seed, passphrase, self.wallet_type=='multisig')
+        k = keystore.from_seed(seed, passphrase)
         self.on_keystore(k)
 
     def on_bip44(self, seed, passphrase, derivation):
