@@ -197,14 +197,6 @@ class Commands:
         """
         return self.network.synchronous_get(('blockchain.address.listunspent', [address]))
 
-    @command('n')
-    def getutxoaddress(self, txid, pos):
-        """Get the address of a UTXO. Note: This is a walletless server query, results are
-        not checked by SPV.
-        """
-        r = self.network.synchronous_get(('blockchain.utxo.get_address', [txid, pos]))
-        return {'address': r}
-
     @command('')
     def serialize(self, jsontx):
         """Create a transaction from json inputs.
