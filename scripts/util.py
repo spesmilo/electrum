@@ -1,5 +1,6 @@
 import select, time, electrum, queue
 from electrum import Connection, Interface, SimpleConfig
+
 from electrum.network import filter_protocol, parse_servers
 from collections import defaultdict
 
@@ -60,8 +61,6 @@ def get_peers():
     if responses:
         response = responses[0][1]  # One response, (req, response) tuple
         peers = parse_servers(response.get('result'))
-        peers = filter_protocol(peers,'s')
-    #print(response)
     return peers
 
 
