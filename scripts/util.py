@@ -1,5 +1,6 @@
 import select, time, electrum_ltc as electrum, queue
 from electrum_ltc import Connection, Interface, SimpleConfig
+
 from electrum_ltc.network import filter_protocol, parse_servers
 from collections import defaultdict
 
@@ -45,9 +46,10 @@ def wait_on_interfaces(interfaces, timeout=10):
     return result
 
 def get_peers():
+    config = SimpleConfig()
     peers = []
     # 1. get connected interfaces
-    server = 'electrum-ltc.bysh.me:50002:s'
+    server = config.get('server')
     interfaces = get_interfaces([server])
     if not interfaces:
         print("No connection to", server)
@@ -59,8 +61,6 @@ def get_peers():
     if responses:
         response = responses[0][1]  # One response, (req, response) tuple
         peers = parse_servers(response.get('result'))
-        peers = filter_protocol(peers,'s')
-    #print(response)
     return peers
 
 

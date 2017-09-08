@@ -3,38 +3,13 @@
 import util, json
 from collections import defaultdict
 
-
-def analyze(results):
-    out = {}
-    dd = {}
-    for k, v in results.items():
-        height = v.get('block_height')
-        merkle = v.get('merkle_root')
-        utxo = v.get('utxo_root')
-        d = dd.get(merkle, defaultdict(int))
-        d[utxo] += 1
-        dd[merkle] = d
-    refs = {}
-    for merkle, d in dd.items():
-        v = list(d.values())
-        m = max(v)
-        dkeys = list(d.keys())
-        ref = dkeys[v.index(m)]
-        refs[merkle] = ref, m
-    for k, v in results.items():
-        height = v.get('block_height')
-        merkle = v.get('merkle_root')
-        utxo = v.get('utxo_root')
-        ref_utxo, num = refs.get(merkle)
-        if ref_utxo != utxo and num > 1:
-            out[k] = height, merkle, utxo
-    return out
-
+from electrum_ltc.network import filter_protocol
+from electrum_ltc.blockchain import hash_header
 
 peers = util.get_peers()
+peers = filter_protocol(peers, 's')
+
 results = util.send_request(peers, 'blockchain.headers.subscribe', [])
 
-errors = analyze(results).keys()
-
 for n,v in sorted(results.items(), key=lambda x:x[1].get('block_height')):
-    print("%40s"%n, v.get('block_height'), v.get('utxo_root'), "error" if n in errors else "ok")
+    print("%60s"%n, v.get('block_height'), hash_header(v))
