@@ -591,6 +591,8 @@ class Transaction:
             return addr
         elif output_type == TYPE_ADDRESS:
             return bitcoin.address_to_script(addr)
+        elif output_type == TYPE_PUBKEY:
+            return addr
         else:
             raise TypeError('Unknown output type')
         return script
