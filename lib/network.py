@@ -969,10 +969,10 @@ class Network(util.DaemonThread):
         filename = b.path()
         def download_thread():
             try:
-                import urllib, socket
+                import urllib.request, socket
                 socket.setdefaulttimeout(30)
                 self.print_error("downloading ", bitcoin.HEADERS_URL)
-                urllib.urlretrieve(bitcoin.HEADERS_URL, filename + '.tmp')
+                urllib.request.urlretrieve(bitcoin.HEADERS_URL, filename + '.tmp')
                 os.rename(filename + '.tmp', filename)
                 self.print_error("done.")
             except Exception:
