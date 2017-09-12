@@ -17,7 +17,7 @@ class QrScannerDialog(Factory.AnimatedPopup):
     def on_complete(self, x):
         ''' Default Handler for on_complete event.
         '''
-        print x
+        print(x)
 
 
 Builder.load_string('''
