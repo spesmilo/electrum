@@ -1,3 +1,4 @@
+
 # Electrum - Lightweight Bitcoin Client
 # Copyright (c) 2011-2016 Thomas Voegtlin
 #
@@ -35,7 +36,6 @@ import select
 import traceback
 from collections import defaultdict, deque
 import threading
-
 import socket
 import json
 
@@ -47,54 +47,6 @@ from .interface import Connection, Interface
 from . import blockchain
 from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
 
-DEFAULT_PORTS = {'t':'50001', 's':'50002'}
-
-#There is a schedule to move the default list to e-x (electrumx) by Jan 2018
-#Schedule is as follows:
-#move ~3/4 to e-x by 1.4.17
-#then gradually switch remaining nodes to e-x nodes
-
-DEFAULT_SERVERS = {
-    'erbium1.sytes.net':DEFAULT_PORTS,                  # core, e-x
-    'ecdsa.net':{'t':'50001', 's':'110'},               # core, e-x
-    'gh05.geekhosters.com':DEFAULT_PORTS,               # core, e-s
-    'VPS.hsmiths.com':DEFAULT_PORTS,                    # core, e-x
-    'electrum.anduck.net':DEFAULT_PORTS,                # core, e-s; banner with version pending
-    'electrum.no-ip.org':DEFAULT_PORTS,                 # core, e-s
-    'electrum.be':DEFAULT_PORTS,                        # core, e-x
-    'helicarrier.bauerj.eu':DEFAULT_PORTS,              # core, e-x
-    'elex01.blackpole.online':DEFAULT_PORTS,            # core, e-x
-    'electrumx.not.fyi':DEFAULT_PORTS,                  # core, e-x
-    'node.xbt.eu':DEFAULT_PORTS,                        # core, e-x
-    'kirsche.emzy.de':DEFAULT_PORTS,                    # core, e-x
-    'electrum.villocq.com':DEFAULT_PORTS,               # core?, e-s; banner with version recommended
-    'us11.einfachmalnettsein.de':DEFAULT_PORTS,         # core, e-x
-    'electrum.trouth.net':DEFAULT_PORTS,                # BU, e-s
-    'Electrum.hsmiths.com':{'t':'8080', 's':'995'},     # core, e-x
-    'electrum3.hachre.de':DEFAULT_PORTS,                # core, e-x
-    'b.1209k.com':DEFAULT_PORTS,                        # XT, jelectrum
-    'elec.luggs.co':{ 's':'443'},                       # core, e-x
-    'btc.smsys.me':{'t':'110', 's':'995'},              # BU, e-x
-}
-
-def set_testnet():
-    global DEFAULT_PORTS, DEFAULT_SERVERS
-    DEFAULT_PORTS = {'t':'51001', 's':'51002'}
-    DEFAULT_SERVERS = {
-        'testnetnode.arihanc.com': DEFAULT_PORTS,
-        'testnet1.bauerj.eu': DEFAULT_PORTS,
-        '14.3.140.101': DEFAULT_PORTS,
-        'testnet.hsmiths.com': {'t':'53011', 's':'53012'},
-        'electrum.akinbo.org': DEFAULT_PORTS,
-        'ELEX05.blackpole.online': {'t':'52011', 's':'52002'},
-    }
-
-def set_nolnet():
-    global DEFAULT_PORTS, DEFAULT_SERVERS
-    DEFAULT_PORTS = {'t':'52001', 's':'52002'}
-    DEFAULT_SERVERS = {
-        '14.3.140.101': DEFAULT_PORTS,
-    }
 
 NODES_RETRY_INTERVAL = 60
 SERVER_RETRY_INTERVAL = 10
@@ -401,11 +353,10 @@ class Network(util.DaemonThread):
         return list(self.interfaces.keys())
 
     def get_servers(self):
+        out = DEFAULT_SERVERS
         if self.irc_servers:
-            out = self.irc_servers.copy()
-            out.update(DEFAULT_SERVERS)
+            out.update(filter_version(self.irc_servers.copy()))
         else:
-            out = DEFAULT_SERVERS
             for s in self.recent_servers:
                 try:
                     host, port, protocol = deserialize_server(s)
@@ -510,7 +461,8 @@ class Network(util.DaemonThread):
         '''Switch to a random connected server other than the current one'''
         servers = self.get_interfaces()    # Those in connected state
         if self.default_server in servers:
-            servers.remove(self.default_server)
+            servers.remov
+            e(self.default_server)
         if servers:
             self.switch_to_interface(random.choice(servers))
 
@@ -577,7 +529,7 @@ class Network(util.DaemonThread):
                 self.on_notify_header(interface, result)
         elif method == 'server.peers.subscribe':
             if error is None:
-                self.irc_servers = filter_version(parse_servers(result))
+                self.irc_servers = parse_servers(result)
                 self.notify('servers')
         elif method == 'server.banner':
             if error is None:

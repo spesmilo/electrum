@@ -28,6 +28,7 @@ import base64
 import re
 import hmac
 import os
+import json
 
 import ecdsa
 import pyaes
@@ -36,6 +37,14 @@ from .util import bfh, bh2u, to_string
 from . import version
 from .util import print_error, InvalidPassword, assert_bytes, to_bytes
 from . import segwit_addr
+
+def read_json_dict(filename):
+    path = os.path.join(os.path.dirname(__file__), filename)
+    try:
+        r = json.loads(open(path, 'r').read())
+    except:
+        r = {}
+    return r
 
 
 # Bitcoin network constants
@@ -48,6 +57,9 @@ XPRV_HEADER = 0x0488ade4
 XPUB_HEADER = 0x0488b21e
 HEADERS_URL = "https://headers.electrum.org/blockchain_headers"
 GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
+SERVERLIST = 'servers.json'
+DEFAULT_PORTS = {'t':'50001', 's':'50002'}
+DEFAULT_SERVERS = read_json_dict('servers.json')
 
 def set_testnet():
     global ADDRTYPE_P2PKH, ADDRTYPE_P2SH
@@ -55,6 +67,7 @@ def set_testnet():
     global TESTNET, HEADERS_URL
     global GENESIS
     global SEGWIT_HRP
+    global DEFAULT_PORTS, SERVERLIST
     TESTNET = True
     ADDRTYPE_P2PKH = 111
     ADDRTYPE_P2SH = 196
@@ -63,20 +76,9 @@ def set_testnet():
     XPUB_HEADER = 0x043587cf
     HEADERS_URL = "https://headers.electrum.org/testnet_headers"
     GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
-
-def set_nolnet():
-    global ADDRTYPE_P2PKH, ADDRTYPE_P2SH
-    global XPRV_HEADER, XPUB_HEADER
-    global NOLNET, HEADERS_URL
-    global GENESIS
-    TESTNET = True
-    ADDRTYPE_P2PKH = 0
-    ADDRTYPE_P2SH = 5
-    XPRV_HEADER = 0x0488ade4
-    XPUB_HEADER = 0x0488b21e
-    HEADERS_URL = "https://headers.electrum.org/nolnet_headers"
-    GENESIS = "663c88be18d07c45f87f910b93a1a71ed9ef1946cad50eb6a6f3af4c424625c6"
-
+    SERVERLIST = 'servers_testnet.json'
+    DEFAULT_PORTS = {'t':'51001', 's':'51002'}
+    DEFAULT_SERVERS = read_json_dict('servers_testnet.json')
 
 
 ################################## transactions
