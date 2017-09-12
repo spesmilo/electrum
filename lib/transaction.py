@@ -667,7 +667,7 @@ class Transaction:
             pkh = bh2u(bitcoin.hash_160(bfh(pubkey)))
             return '76a9' + push_script(pkh) + '88ac'
         else:
-            raise TypeError('Unknown txin type', _type)
+            raise TypeError('Unknown txin type', txin['type'])
 
     @classmethod
     def serialize_outpoint(self, txin):
