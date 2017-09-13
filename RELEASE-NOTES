@@ -13,10 +13,13 @@
       0x100. Note that the wizard will not create Segwit seeds by
       default; users must opt-in with the segwit option.
     - Native segwit scripts are represented using bech32 addresses,
-      following BIP173. Note that BIP173 is still in Draft status. If
-      BIP173 is substantially modified or rejected, bech32 wallets may
-      have to be restored from seed. This will not affect funds sent
-      to bech32 addresses, and it will not affect the capacity of
+      following BIP173. Please note that BIP173 is still in draft
+      status, and that other wallets/websites may not support
+      it. Thus, you should keep a non-segwit wallet in order to be
+      able to receive bitcoins during the transition period. If BIP173
+      ends up being rejected or substantially modified, bech32 wallets
+      may have to be restored from seed. This will not affect funds
+      sent to bech32 addresses, and it will not affect the capacity of
       Electrum to spend these funds.
     - The BIP32 master keys of segwit wallets are serialized using new
       version numbers. Version numbers are user visible, with the
