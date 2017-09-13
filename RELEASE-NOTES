@@ -1,6 +1,8 @@
 # Release 3.0
 
-  * The project was migrated to Python3.
+  * The project was migrated to Python3. Python2 is no longer
+    supported. You will need to run setup.py using python3 in order to
+    install the new dependencies.
 
   * Segwit support:
     - P2SH-segwit scripts are supported and can be used with hardware
