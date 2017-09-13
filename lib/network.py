@@ -890,7 +890,8 @@ class Network(util.DaemonThread):
                 self.notify('updated')
 
         elif interface.mode == 'default':
-            if not ok:
+            can_connect = interface.blockchain.can_connect(header)
+            if not can_connect:
                 interface.print_error("default: cannot connect %d"% height)
                 interface.mode = 'backward'
                 interface.bad = height
