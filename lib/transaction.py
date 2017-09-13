@@ -591,6 +591,8 @@ class Transaction:
             return addr
         elif output_type == TYPE_ADDRESS:
             return bitcoin.address_to_script(addr)
+        elif output_type == TYPE_PUBKEY:
+            return addr
         else:
             raise TypeError('Unknown output type')
         return script
@@ -665,7 +667,7 @@ class Transaction:
             pkh = bh2u(bitcoin.hash_160(bfh(pubkey)))
             return '76a9' + push_script(pkh) + '88ac'
         else:
-            raise TypeError('Unknown txin type', _type)
+            raise TypeError('Unknown txin type', txin['type'])
 
     @classmethod
     def serialize_outpoint(self, txin):
