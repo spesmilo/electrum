@@ -10,15 +10,14 @@
       need to provide a BIP49 derivation path.
     - Native segwit scripts are supported with Electrum software
       wallets, using a new type of seed. Segwit seeds have version
-      0x100.
+      0x100. Note that the wizard will not create Segwit seeds by
+      default; users must opt-in with the segwit option.
     - Native segwit scripts are represented using bech32 addresses,
       following BIP173. Note that BIP173 is still in Draft status. If
       BIP173 is substantially modified or rejected, bech32 wallets may
       have to be restored from seed. This will not affect funds sent
       to bech32 addresses, and it will not affect the capacity of
       Electrum to spend these funds.
-    - By default, the wizard will not create Segwit seeds; users must
-      opt-in with the segwit option.
     - The BIP32 master keys of segwit wallets are serialized using new
       version numbers. Version numbers are user visible, with the
       following prefixes:
