@@ -76,8 +76,6 @@ class KeyStore(PrintError):
             return False
         return bool(self.get_tx_derivations(tx))
 
-    def is_segwit(self):
-        return False
 
 
 class Software_KeyStore(KeyStore):
@@ -335,8 +333,6 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         pk = bip32_private_key(sequence, k, c)
         return pk
 
-    def is_segwit(self):
-        return bool(deserialize_xpub(self.xpub)[0])
 
 
 class Old_KeyStore(Deterministic_KeyStore):
@@ -699,8 +695,9 @@ def from_seed(seed, passphrase):
         keystore.add_seed(seed)
         keystore.passphrase = passphrase
         bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
-        xtype = 0 if t == 'standard' else 1
-        keystore.add_xprv_from_seed(bip32_seed, xtype, "m/")
+        keystore.add_xprv_from_seed(bip32_seed, t, "m/")
+    else:
+        raise BaseException(t)
     return keystore
 
 def from_private_key_list(text):

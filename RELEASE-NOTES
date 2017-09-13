@@ -1,5 +1,37 @@
-# Release 2.10
-  * migration to Python3
+# Release 3.0
+
+  * The project was migrated to Python3. Python2 is no longer
+    supported. You will need to run setup.py using python3 in order to
+    install the new dependencies.
+
+  * Segwit support:
+    - P2SH-segwit scripts are supported and can be used with hardware
+      wallets. To create a segwit wallet, trezor/ledger users will
+      need to provide a BIP49 derivation path.
+    - Native segwit scripts are supported with Electrum software
+      wallets, using a new type of seed. Segwit seeds have version
+      0x100. Note that the wizard will not create Segwit seeds by
+      default; users must opt-in with the segwit option.
+    - Native segwit scripts are represented using bech32 addresses,
+      following BIP173. Please note that BIP173 is still in draft
+      status, and that other wallets/websites may not support
+      it. Thus, you should keep a non-segwit wallet in order to be
+      able to receive bitcoins during the transition period. If BIP173
+      ends up being rejected or substantially modified, bech32 wallets
+      may have to be restored from seed. This will not affect funds
+      sent to bech32 addresses, and it will not affect the capacity of
+      Electrum to spend these funds.
+    - The BIP32 master keys of segwit wallets are serialized using new
+      version numbers. Version numbers are user visible, with the
+      following prefixes:
+         * xpub/xprv : non-segwit wallet
+         * ypub/yprv : segwit-p2sh wallet
+         * zpub/zprv : native segwit wallet
+
+  * A new version of the Electrum protocol is required by the client
+    (version 1.1). Servers using older versions of the protocol will
+    not be visible in the GUI.
+
 
 # Release 2.9.3
   * fix configuration file issue #2719

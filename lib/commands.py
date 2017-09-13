@@ -163,7 +163,8 @@ class Commands:
     def make_seed(self, nbits=132, entropy=1, language=None):
         """Create a seed"""
         from .mnemonic import Mnemonic
-        s = Mnemonic(language).make_seed('standard', nbits, custom_entropy=entropy)
+        t = 'segwit' if self.config.get('segwit') else 'standard'
+        s = Mnemonic(language).make_seed(t, nbits, custom_entropy=entropy)
         return s
 
     @command('')
@@ -195,14 +196,6 @@ class Commands:
         is a walletless server query, results are not checked by SPV.
         """
         return self.network.synchronous_get(('blockchain.address.listunspent', [address]))
-
-    @command('n')
-    def getutxoaddress(self, txid, pos):
-        """Get the address of a UTXO. Note: This is a walletless server query, results are
-        not checked by SPV.
-        """
-        r = self.network.synchronous_get(('blockchain.utxo.get_address', [txid, pos]))
-        return {'address': r}
 
     @command('')
     def serialize(self, jsontx):
@@ -826,7 +819,6 @@ def add_global_options(parser):
     group.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
     group.add_argument("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
     group.add_argument("--segwit", action="store_true", dest="segwit", default=False, help="The Wizard will create Segwit seed phrases (Testnet only).")
-    group.add_argument("--nolnet", action="store_true", dest="nolnet", default=False, help="Use Nolnet")
 
 def get_parser():
     # create main parser

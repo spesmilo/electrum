@@ -59,6 +59,7 @@ class Ledger_Client():
         #self.get_client() # prompt for the PIN before displaying the dialog if necessary
         #self.handler.show_message("Computing master public key")
         try:
+            xtype = 'segwit_p2sh' if bip32_path.startswith("m/49'/") else 'standard'
             splitPath = bip32_path.split('/')
             if splitPath[0] == 'm':
                 splitPath = splitPath[1:]
@@ -75,11 +76,8 @@ class Ledger_Client():
             publicKey = compress_public_key(nodeData['publicKey'])
             depth = len(splitPath)
             lastChild = splitPath[len(splitPath) - 1].split('\'')
-            if len(lastChild) == 1:
-                childnum = int(lastChild[0])
-            else:
-                childnum = 0x80000000 | int(lastChild[0])
-            xpub = bitcoin.serialize_xpub(0, nodeData['chainCode'], publicKey, depth, self.i4b(fingerprint), self.i4b(childnum))
+            childnum = int(lastChild[0]) if len(lastChild) == 1 else 0x80000000 | int(lastChild[0])
+            xpub = bitcoin.serialize_xpub(xtype, nodeData['chainCode'], publicKey, depth, self.i4b(fingerprint), self.i4b(childnum))
             return xpub
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
@@ -173,9 +171,6 @@ class Ledger_KeyStore(Hardware_KeyStore):
         self.force_watching_only = False
         self.signing = False
         self.cfg = d.get('cfg', {'mode':0,'pair':''})
-
-    def is_segwit(self):
-        return self.derivation.startswith("m/49'/")
 
     def dump(self):
         obj = Hardware_KeyStore.dump(self)

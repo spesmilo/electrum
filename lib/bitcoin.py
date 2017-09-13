@@ -28,6 +28,7 @@ import base64
 import re
 import hmac
 import os
+import json
 
 import ecdsa
 import pyaes
@@ -37,6 +38,30 @@ from . import version
 from .util import print_error, InvalidPassword, assert_bytes, to_bytes
 from . import segwit_addr
 
+def read_json_dict(filename):
+    path = os.path.join(os.path.dirname(__file__), filename)
+    try:
+        r = json.loads(open(path, 'r').read())
+    except:
+        r = {}
+    return r
+
+
+# Version numbers for BIP32 extended keys
+# standard: xprv, xpub
+# segwit in p2sh: yprv, ypub
+# native segwit: zprv, zpub
+XPRV_HEADERS = {
+    'standard': 0x0488ade4,
+    'segwit_p2sh': 0x049d7878,
+    'segwit': 0x4b2430c
+}
+XPUB_HEADERS = {
+    'standard': 0x0488b21e,
+    'segwit_p2sh': 0x049d7cb2,
+    'segwit': 0x4b24746
+}
+
 
 # Litecoin network constants
 TESTNET = False
@@ -45,44 +70,28 @@ ADDRTYPE_P2PKH = 48
 ADDRTYPE_P2SH = 50
 ADDRTYPE_P2SH_ALT = 5
 SEGWIT_HRP = "ltc"
-XPRV_HEADER = 0x0488ade4
-XPUB_HEADER = 0x0488b21e
-XPRV_HEADER_ALT = 0x019d9cfe
-XPUB_HEADER_ALT = 0x019da462
 HEADERS_URL = "https://electrum-ltc.org/blockchain_headers"
 GENESIS = "12a765e31ffd4059bada1e25190f6e98c99d9714d334efa41a195a7e7e04bfe2"
+SERVERLIST = 'servers.json'
+DEFAULT_PORTS = {'t':'50001', 's':'50002'}
+DEFAULT_SERVERS = read_json_dict('servers.json')
 
 def set_testnet():
     global ADDRTYPE_P2PKH, ADDRTYPE_P2SH, ADDRTYPE_P2SH_ALT
-    global XPRV_HEADER, XPUB_HEADER, XPRV_HEADER_ALT, XPUB_HEADER_ALT
     global TESTNET, HEADERS_URL
     global GENESIS
     global SEGWIT_HRP
+    global DEFAULT_PORTS, SERVERLIST
     TESTNET = True
     ADDRTYPE_P2PKH = 111
     ADDRTYPE_P2SH = 58
     ADDRTYPE_P2SH_ALT = 196
     SEGWIT_HRP = "tltc"
-    XPRV_HEADER = 0x04358394
-    XPUB_HEADER = 0x043587cf
-    XPRV_HEADER_ALT = 0x0436ef7d
-    XPUB_HEADER_ALT = 0x0436f6e1
     HEADERS_URL = "https://electrum-ltc.org/testnet_headers"
     GENESIS = "4966625a4b2851d9fdee139e56211a0d88575f59ed816ff5e6a63deb4e3e29a0"
-
-def set_nolnet():
-    global ADDRTYPE_P2PKH, ADDRTYPE_P2SH
-    global XPRV_HEADER, XPUB_HEADER
-    global NOLNET, HEADERS_URL
-    global GENESIS
-    TESTNET = True
-    ADDRTYPE_P2PKH = 0
-    ADDRTYPE_P2SH = 5
-    XPRV_HEADER = 0x0488ade4
-    XPUB_HEADER = 0x0488b21e
-    HEADERS_URL = "https://headers.electrum.org/nolnet_headers"
-    GENESIS = "663c88be18d07c45f87f910b93a1a71ed9ef1946cad50eb6a6f3af4c424625c6"
-
+    SERVERLIST = 'servers_testnet.json'
+    DEFAULT_PORTS = {'t':'51001', 's':'51002'}
+    DEFAULT_SERVERS = read_json_dict('servers_testnet.json')
 
 
 ################################## transactions
@@ -257,7 +266,7 @@ def seed_type(x):
         return 'old'
     elif is_new_seed(x):
         return 'standard'
-    elif TESTNET and is_new_seed(x, version.SEED_PREFIX_SW):
+    elif is_new_seed(x, version.SEED_PREFIX_SW):
         return 'segwit'
     elif is_new_seed(x, version.SEED_PREFIX_2FA):
         return '2fa'
@@ -313,16 +322,21 @@ def b58_address_to_hash160(addr):
 def hash160_to_p2pkh(h160):
     return hash160_to_b58_address(h160, ADDRTYPE_P2PKH)
 
-
 def hash160_to_p2sh(h160):
     return hash160_to_b58_address(h160, ADDRTYPE_P2SH)
-
 
 def public_key_to_p2pkh(public_key):
     return hash160_to_p2pkh(hash_160(public_key))
 
-def hash160_to_segwit_addr(h160):
-    return segwit_addr.encode(SEGWIT_HRP, 0, h160)
+def hash_to_segwit_addr(h):
+    return segwit_addr.encode(SEGWIT_HRP, 0, h)
+
+def public_key_to_p2wpkh(public_key):
+    return hash_to_segwit_addr(hash_160(public_key))
+
+def script_to_p2wsh(script):
+    return hash_to_segwit_addr(sha256(bfh(script)))
+
 
 def address_to_script(addr):
     if is_segwit_address(addr):
@@ -817,11 +831,11 @@ def _CKD_pub(cK, c, s):
 
 
 def xprv_header(xtype):
-    return bfh("%08x" % (XPRV_HEADER + xtype))
+    return bfh("%08x" % XPRV_HEADERS[xtype])
 
 
 def xpub_header(xtype):
-    return bfh("%08x" % (XPUB_HEADER + xtype))
+    return bfh("%08x" % XPUB_HEADERS[xtype])
 
 
 def serialize_xprv(xtype, c, k, depth=0, fingerprint=b'\x00'*4, child_number=b'\x00'*4):
@@ -842,10 +856,11 @@ def deserialize_xkey(xkey, prv):
     fingerprint = xkey[5:9]
     child_number = xkey[9:13]
     c = xkey[13:13+32]
-    header = XPRV_HEADER if prv else XPUB_HEADER
-    xtype = int('0x' + bh2u(xkey[0:4]), 16) - header
-    if xtype not in ([0, 1] if TESTNET else [0]):
-        raise BaseException('Invalid header')
+    header = int('0x' + bh2u(xkey[0:4]), 16)
+    headers = XPRV_HEADERS if prv else XPUB_HEADERS
+    if header not in headers.values():
+        raise BaseException('Invalid xpub format', hex(header))
+    xtype = list(headers.keys())[list(headers.values()).index(header)]
     n = 33 if prv else 32
     K_or_k = xkey[13+n:]
     return xtype, depth, fingerprint, child_number, c, K_or_k
