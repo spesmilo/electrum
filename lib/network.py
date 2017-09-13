@@ -889,17 +889,6 @@ class Network(util.DaemonThread):
                 self.switch_lagging_interface()
                 self.notify('updated')
 
-        elif interface.mode == 'default':
-            can_connect = interface.blockchain.can_connect(header)
-            if not can_connect:
-                interface.print_error("default: cannot connect %d"% height)
-                interface.mode = 'backward'
-                interface.bad = height
-                interface.bad_header = header
-                next_height = height - 1
-            else:
-                interface.print_error("we are ok", height, interface.request)
-                next_height = None
         else:
             raise BaseException(interface.mode)
         # If not finished, get the next header
