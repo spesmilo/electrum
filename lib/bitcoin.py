@@ -873,6 +873,9 @@ def deserialize_xpub(xkey):
 def deserialize_xprv(xkey):
     return deserialize_xkey(xkey, True)
 
+def xpub_type(x):
+    return deserialize_xpub(x)[0]
+
 
 def is_xpub(text):
     try:
