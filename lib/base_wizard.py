@@ -120,7 +120,7 @@ class BaseWizard(object):
         if self.wallet_type =='standard' or i==0:
             message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
             choices = [
-                ('create_seed', _('Create a new seed')),
+                ('choose_seed_type', _('Create a new seed')),
                 ('restore_from_seed', _('I already have a seed')),
                 ('restore_from_key', _('Use public or private keys')),
             ]
@@ -355,9 +355,26 @@ class BaseWizard(object):
         k = keystore.from_keys(text, password)
         self.on_keystore(k)
 
-    def create_seed(self):
+    def choose_seed_type(self):
+        title = _('Choose Seed type')
+        message = ' '.join([
+            "The type of addresses used by your wallet will depend on your seed.",
+            "Segwit wallets use bech32 addresses, defined in BIP173.",
+            "Please note that websites and other wallets may not support these addresses yet.",
+            "Thus, you might want to keep using a non-segwit wallet in order to be able to receive bitcoins during the transition period."
+        ])
+        choices = [
+            ('create_standard_seed', _('Standard')),
+            ('create_segwit_seed', _('Segwit')),
+        ]
+        self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
+
+    def create_segwit_seed(self): self.create_seed('segwit')
+    def create_standard_seed(self): self.create_seed('standard')
+
+    def create_seed(self, seed_type):
         from . import mnemonic
-        self.seed_type = 'segwit' if self.config.get('segwit') else 'standard'
+        self.seed_type = seed_type
         seed = mnemonic.Mnemonic('en').make_seed(self.seed_type)
         self.opt_bip39 = False
         f = lambda x: self.request_passphrase(seed, x)
