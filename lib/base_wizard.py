@@ -160,9 +160,15 @@ class BaseWizard(object):
             ])
             self.add_xpub_dialog(title=title, message=message, run_next=self.on_restore_from_key, is_valid=v)
         else:
-            v = keystore.is_bip32_key
+            def check_xkey_type(x):
+                if keystore.is_xpub(x):
+                    return bitcoin.deserialize_xpub(x)[0] == self.seed_type
+                elif keystore.is_xprv(x):
+                    return bitcoin.deserialize_xprv(x)[0] == self.seed_type
+                else:
+                    return False
             i = len(self.keystores) + 1
-            self.add_cosigner_dialog(index=i, run_next=self.on_restore_from_key, is_valid=v)
+            self.add_cosigner_dialog(index=i, run_next=self.on_restore_from_key, is_valid=check_xkey_type)
 
     def on_restore_from_key(self, text):
         k = keystore.from_keys(text)
@@ -347,9 +353,6 @@ class BaseWizard(object):
 
     def show_xpub_and_add_cosigners(self, xpub):
         self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('choose_keystore'))
-
-    def add_cosigners(self, password, i):
-        self.add_cosigner_dialog(run_next=lambda x: self.on_cosigner(x, password, i), index=i, is_valid=keystore.is_xpub)
 
     def on_cosigner(self, text, password, i):
         k = keystore.from_keys(text, password)
