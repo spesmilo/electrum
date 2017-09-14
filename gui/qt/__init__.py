@@ -184,6 +184,11 @@ class ElectrumGui:
             w = self.create_window_for_wallet(wallet)
         if uri:
             w.pay_to_URI(uri)
+        w.bring_to_top()
+        w.setWindowState(w.windowState() & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
+
+        # this will activate the window
+        w.activateWindow()
         return w
 
     def close_window(self, window):
