@@ -70,6 +70,8 @@ setup(
     },
     package_data={
         'electrum_ltc': [
+            'servers.json',
+            'servers_testnet.json',
             'currencies.json',
             'www/index.html',
             'wordlist/*.txt',
