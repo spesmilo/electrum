@@ -80,7 +80,7 @@ def set_testnet():
     global TESTNET, HEADERS_URL
     global GENESIS
     global SEGWIT_HRP
-    global DEFAULT_PORTS, SERVERLIST
+    global DEFAULT_PORTS, SERVERLIST, DEFAULT_SERVERS
     TESTNET = True
     ADDRTYPE_P2PKH = 111
     ADDRTYPE_P2SH = 196
