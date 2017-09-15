@@ -10,7 +10,8 @@
     amount: ''
     status: ''
     date: ''
-    icon: 'atlas://gui/kivy/theming/light/important'
+    icon: ''
+	color: .699, .699, .699, 1
     Image:
         id: icon
         source: root.icon
@@ -27,7 +28,7 @@
             shorten: True
         Widget
         RequestLabel:
-            text: root.memo
+            text: root.date + "    " + root.memo
             color: .699, .699, .699, 1
             font_size: '13sp'
             shorten: True
@@ -46,9 +47,48 @@
             text: root.status
             halign: 'right'
             font_size: '13sp'
-            color: .699, .699, .699, 1
+            color: .699, .699, .699, 1 #if self.parent.parent.color == (.699, .699, .699, 1) else self.parent.parent.color
+
         Widget
 
+<RequestItemLight@CardItem>
+    address: ''
+    memo: ''
+    amount: ''
+    status: ''
+    date: ''
+	color: .699, .699, .699, 1
+    BoxLayout:
+        spacing: '8dp'
+        height: '32dp'
+        orientation: 'vertical'
+        Widget
+        RequestLabel:
+            text: root.address
+            shorten: True
+        Widget
+        RequestLabel:
+            text: root.date + "    " + root.memo
+            color: .699, .699, .699, 1
+            font_size: '13sp'
+            shorten: True
+        Widget
+    BoxLayout:
+        spacing: '8dp'
+        height: '32dp'
+        orientation: 'vertical'
+        Widget
+        RequestLabel:
+            text: root.amount
+            halign: 'right'
+            font_size: '15sp'
+        Widget
+        RequestLabel:
+            text: root.status
+            halign: 'right'
+            font_size: '13sp'
+            color: .699, .699, .699, 1 #if self.parent.parent.color == (.699, .699, .699, 1) else self.parent.parent.color
+        Widget
 
 
 RequestsScreen:

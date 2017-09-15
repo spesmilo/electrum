@@ -48,6 +48,7 @@ from electrum.i18n import _
 from electrum.util import (format_time, format_satoshis, PrintError,
                            format_satoshis_plain, NotEnoughFunds,
                            UserCancelled)
+from electrum.util import print_msg
 from electrum import Transaction, mnemonic
 from electrum import util, bitcoin, commands, coinchooser
 from electrum import SimpleConfig, paymentrequest
@@ -95,6 +96,8 @@ from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def __init__(self, gui_object, wallet):
+
+        print_msg("__init__")
         QMainWindow.__init__(self)
 
         self.gui_object = gui_object
@@ -527,6 +530,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(_('No donation address for this server'))
 
     def show_about(self):
+        import inspect
+        
+        curframe = inspect.currentframe()
+        calframe = inspect.getouterframes(curframe, 2)
+        print_msg("////")
+        for f in calframe:
+            print_msg(f[3])
         QMessageBox.about(self, "Electrum",
             _("Version")+" %s" % (self.wallet.electrum_version) + "\n\n" +
                 _("Electrum's focus is speed, with low resource usage and simplifying Bitcoin. You do not need to perform regular backups, because your wallet can be recovered from a secret phrase that you can memorize or write on paper. Startup times are instant because it operates in conjunction with high-performance servers that handle the most complicated parts of the Bitcoin system."  + "\n\n" +
@@ -1771,6 +1781,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.update_lock_icon()
 
     def toggle_search(self):
+        print_msg("toggle search")
         self.search_box.setHidden(not self.search_box.isHidden())
         if not self.search_box.isHidden():
             self.search_box.setFocus(1)

@@ -1335,11 +1335,8 @@ class Abstract_Wallet(PrintError):
 
 
     def addr_search(self, search):
-        from .util import print_msg # parse_search
-
 
         def get_addr_new(self):
-            #using get_unused_address ?
             _list = list()
             for addr in self.receiving_addresses:
                 if addr not in self.receive_requests:
@@ -1358,7 +1355,7 @@ class Abstract_Wallet(PrintError):
             _list = list()
             for addr in self.receive_requests:
                 status, conf = self.get_request_status(addr)
-                if status == PR_PAID:
+                if status == PR_PAID and self.is_used(addr) == False:
                     _list.append(addr)
             return _list
 
@@ -1368,7 +1365,7 @@ class Abstract_Wallet(PrintError):
         def get_addr_used(self):
             _list = list()
             for addr in self.receiving_addresses:
-                if is_used(addr):
+                if self.is_used(addr):
                     _list.append(addr)
             return _list
 
@@ -1380,6 +1377,29 @@ class Abstract_Wallet(PrintError):
                 _list = status[1](self)
         return _list
 
+ 
+    def ext_search(self, search):
+        from .util import print_msg
+        
+        def to_btc(amount):
+            return str(amount / 100000000)
+
+        def to_mbtc(amount):
+            return str(amount / 100000)
+
+        def to_time(time):
+            from time import gmtime, strftime
+            return strftime("%Y-%m-%d %M:%S", gmtime(time)) 
+
+        _list = []
+        for addr in self.receive_requests:
+            r = self.receive_requests.get(addr)
+            if r['memo'].find(search) >= 0 or to_btc(r['amount']).find(search) >= 0 \
+                or to_mbtc(r['amount']).find(search) >= 0 or to_time(r['time']).find(search) >= 0:
+                _list.append(addr)
+
+        return _list
+    
 
 class Imported_Wallet(Abstract_Wallet):
     # wallet made of imported addresses

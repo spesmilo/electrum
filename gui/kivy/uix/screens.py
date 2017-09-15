@@ -575,7 +575,19 @@ class RequestsScreen(CScreen):
         d = Question(_('Delete request?'), cb)
         d.open()
 
+address_text = {
+        0: _('New'),
+        1: _('Pending'),
+        2: _('Paid'),
+        3: _('Used'),
+        4: _('Change')
+}
 
+address_icon = {
+    1: 'atlas://gui/kivy/theming/light/important',
+    2: 'atlas://gui/kivy/theming/light/confirmed'
+}
+ 
 class AddressScreen(CScreen):
 
     kvname = 'address'
@@ -587,64 +599,54 @@ class AddressScreen(CScreen):
         # msg = "Hello world"
         #address_list.add_widget(EmptyLabel(text=msg))
 
-#    def get_card(self, req):
-#        Logger.info("Request - card")
-#        address = req['address']
-#        timestamp = req.get('time', 0)
-#        amount = req.get('amount')
-#        expiration = req.get('exp', None)
-#        status = req.get('status')
-##        signature = req.get('sig')
-#
-#        ci = self.cards.get(address)
-#        if ci is None:
-#            ci = Factory.RequestItem()
-#            ci.screen = self
-#            ci.address = address
-#            self.cards[address] = ci
-#
-#        ci.memo = self.app.wallet.get_label(address)
-#        if amount:
-#            status = req.get('status')
-#            ci.status = request_text[status]
-#        else:
-#            received = self.app.wallet.get_addr_received(address)
-#            ci.status = self.app.format_amount_and_units(amount)
-#        ci.icon = pr_icon[status]
-#        ci.amount = self.app.format_amount_and_units(amount) if amount else _('No Amount')
-#        ci.date = format_time(timestamp)
-#        return ci
 
     def get_card(self, addr, status):
-        
+
         ci = self.cards.get(addr)
         if ci is None:
-            ci = Factory.RequestItem()
+            if status == 1 or status == 2:
+                ci = Factory.RequestItem()
+            else:
+                ci = Factory.RequestItemLight()
             ci.screen = self
             ci.address = addr
+            ci.status = address_text[status]
             self.cards[addr] = ci
 
         ci.memo = self.app.wallet.get_label(addr)
-        try:
-            ci.icon = pr_icon[status]
-        except KeyError:
-            pass
+        if status == 1 or status == 2:
+            req = self.app.wallet.get_payment_request(addr, self.app.electrum_config)
+            timestamp = req.get('time', 0)
+            amount = req.get('amount')
+            ci.icon = address_icon[status]
+            ci.amount = self.app.format_amount_and_units(amount) if amount else _('No Amount')
+            ci.date = format_time(timestamp)
+        else:
+            ci.amount = _('No Amount')
         return ci
 
-    def do_search(self):
+    def extended_search(self):
         Logger.info("Address - search: " + self.screen.message)
-        _list = self.app.wallet.search_list_requests(self.screen.message)
+        _list = self.app.wallet.ext_search(self.screen.message)
 
         search_list = self.screen.ids.search_container
         search_list.clear_widgets()
         for req in _list:
-            card = self.get_card(req)
+            status, conf = self.app.wallet.get_request_status(req)
+            if status == PR_PAID:
+                s = 2
+            elif status == PR_UNPAID:
+                s = 1
+            else:
+                s = 3
+            card = self.get_card(req, s)
             search_list.add_widget(card)
         if not _list:
-            msg = _('No requests matching your search')
+            msg = _('No address matching your search')
             search_list.add_widget(EmptyLabel(text=msg))
 
     def search(self, status):
+        self.my_color = 1, 0.5, 0.5, 1
         Logger.info("Address - search")
         _list = self.app.wallet.addr_search(status)
 
