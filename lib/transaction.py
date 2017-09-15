@@ -425,6 +425,7 @@ def parse_input(vds):
     d['sequence'] = sequence
     if prevout_hash == '00'*32:
         d['type'] = 'coinbase'
+        d['scriptSig'] = bh2u(scriptSig)
     else:
         d['x_pubkeys'] = []
         d['pubkeys'] = []
