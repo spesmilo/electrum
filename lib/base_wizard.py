@@ -288,17 +288,18 @@ class BaseWizard(object):
             raise BaseException('Unknown seed type', self.seed_type)
 
     def on_restore_bip39(self, seed, passphrase):
-        f = lambda x: self.run('on_bip44', seed, passphrase, str(x))
+        f = lambda x: self.run('on_bip43', seed, passphrase, str(x))
         self.derivation_dialog(f)
 
     def create_keystore(self, seed, passphrase):
         k = keystore.from_seed(seed, passphrase)
         self.on_keystore(k)
 
-    def on_bip44(self, seed, passphrase, derivation):
+    def on_bip43(self, seed, passphrase, derivation):
         k = keystore.BIP32_KeyStore({})
         bip32_seed = keystore.bip39_to_seed(seed, passphrase)
-        k.add_xprv_from_seed(bip32_seed, 0, derivation)
+        t = 'segwit_p2sh' if derivation.startswith("m/49'") else 'standard'
+        k.add_xprv_from_seed(bip32_seed, t, derivation)
         self.on_keystore(k)
 
     def on_keystore(self, k):

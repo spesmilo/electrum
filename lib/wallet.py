@@ -648,7 +648,7 @@ class Abstract_Wallet(PrintError):
                     self.pruned_txo.pop(ser)
             # add tx to pruned_txo, and undo the txi addition
             for next_tx, dd in self.txi.items():
-                for addr, l in dd.items():
+                for addr, l in list(dd.items()):
                     ll = l[:]
                     for item in ll:
                         ser, v = item
