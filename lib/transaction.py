@@ -623,10 +623,9 @@ class Transaction:
         elif output_type == TYPE_ADDRESS:
             return bitcoin.address_to_script(addr)
         elif output_type == TYPE_PUBKEY:
-            return addr
+            return bitcoin.public_key_to_p2pk_script(addr)
         else:
             raise TypeError('Unknown output type')
-        return script
 
     @classmethod
     def get_siglist(self, txin, estimate_size=False):
@@ -713,6 +712,9 @@ class Transaction:
             pubkey = txin['pubkeys'][0]
             pkh = bh2u(bitcoin.hash_160(bfh(pubkey)))
             return '76a9' + push_script(pkh) + '88ac'
+        elif txin['type'] == 'p2pk':
+            pubkey = txin['pubkeys'][0]
+            return bitcoin.public_key_to_p2pk_script(pubkey)
         else:
             raise TypeError('Unknown txin type', txin['type'])
 
