@@ -506,7 +506,7 @@ def address_from_private_key(sec):
 
 def is_segwit_address(addr):
     witver, witprog = segwit_addr.decode(SEGWIT_HRP, addr)
-    return witprog is not None
+    return witver == 0
 
 def is_b58_address(addr):
     try:
