@@ -338,7 +338,7 @@ def address_to_script(addr):
     if is_segwit_address(addr):
         witver, witprog = segwit_addr.decode(SEGWIT_HRP, addr)
         assert (0 <= witver <= 16)
-        OP_n = (witver+0x50) * (witver > 0)
+        OP_n = witver + 0x50 if witver > 0 else 0
         script = bytes([OP_n]).hex()
         script += push_script(bytes(witprog).hex())
         return script
