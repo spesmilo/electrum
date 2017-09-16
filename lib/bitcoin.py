@@ -289,8 +289,6 @@ def seed_type(x):
         return 'standard'
     elif is_new_seed(x, version.SEED_PREFIX_SW):
         return 'segwit'
-    elif is_new_seed(x, version.SEED_PREFIX_2FA):
-        return '2fa'
     return ''
 
 is_seed = lambda x: bool(seed_type(x))

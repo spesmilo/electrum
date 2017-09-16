@@ -85,20 +85,12 @@ class BaseWizard(object):
         choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
 
-    def load_2fa(self):
-        self.storage.put('wallet_type', '2fa')
-        self.storage.put('use_trustedcoin', True)
-        self.plugin = self.plugins.load_plugin('trustedcoin')
-
     def on_wallet_type(self, choice):
         self.wallet_type = choice
         if choice == 'standard':
             action = 'choose_keystore'
         elif choice == 'multisig':
             action = 'choose_multisig'
-        elif choice == '2fa':
-            self.load_2fa()
-            action = self.storage.get_action()
         elif choice == 'imported':
             action = 'import_addresses_or_keys'
         self.run(action)
@@ -301,13 +293,6 @@ class BaseWizard(object):
             self.passphrase_dialog(run_next=f) if is_ext else f('')
         elif self.seed_type == 'old':
             self.run('create_keystore', seed, '')
-        elif self.seed_type == '2fa':
-            if self.is_kivy:
-                self.show_error('2FA seeds are not supported in this version')
-                self.run('restore_from_seed')
-            else:
-                self.load_2fa()
-                self.run('on_restore_seed', seed, is_ext)
         else:
             raise BaseException('Unknown seed type', self.seed_type)
 

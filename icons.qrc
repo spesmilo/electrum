@@ -43,8 +43,6 @@
     <file>icons/speaker.png</file>
     <file>icons/trezor_unpaired.png</file>
     <file>icons/trezor.png</file>
-    <file>icons/trustedcoin-status.png</file>
-    <file>icons/trustedcoin-wizard.png</file>
     <file>icons/unconfirmed.png</file>
     <file>icons/unpaid.png</file>
     <file>icons/unlock.png</file>
