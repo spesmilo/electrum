@@ -339,9 +339,12 @@ def script_to_p2wsh(script):
 
 
 def address_to_script(addr):
-    if is_segwit_address(addr):
-        witver, witprog = segwit_addr.decode(SEGWIT_HRP, addr)
-        script = bytes([witver]).hex() + push_script(bytes(witprog).hex())
+    witver, witprog = segwit_addr.decode(SEGWIT_HRP, addr)
+    if witprog is not None:
+        assert (0 <= witver <= 16)
+        OP_n = witver + 0x50 if witver > 0 else 0
+        script = bytes([OP_n]).hex()
+        script += push_script(bytes(witprog).hex())
         return script
     addrtype, hash_160 = b58_address_to_hash160(addr)
     if addrtype == ADDRTYPE_P2PKH:
@@ -507,7 +510,7 @@ def address_from_private_key(sec):
 
 def is_segwit_address(addr):
     witver, witprog = segwit_addr.decode(SEGWIT_HRP, addr)
-    return witprog is not None
+    return witprog is not None and witver == 0
 
 def is_b58_address(addr):
     try:
