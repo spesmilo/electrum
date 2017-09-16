@@ -136,9 +136,6 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             client.used()
         return client
 
-    def get_coin_name(self):
-        return "Testnet" if NetworkConstants.TESTNET else "Bitcoin"
-
     def initialize_device(self, device_id, wizard, handler):
         # Initialization method
         msg = _("Choose how you want to initialize your %s.\n\n"

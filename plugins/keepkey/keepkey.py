@@ -9,7 +9,7 @@ class KeepKey_KeyStore(TrezorCompatibleKeyStore):
 class KeepKeyPlugin(TrezorCompatiblePlugin):
     firmware_URL = 'https://www.keepkey.com'
     libraries_URL = 'https://github.com/keepkey/python-keepkey'
-    minimum_firmware = (1, 0, 0)
+    minimum_firmware = (4, 0, 0)
     keystore_class = KeepKey_KeyStore
 
     def __init__(self, *args):
@@ -33,3 +33,7 @@ class KeepKeyPlugin(TrezorCompatiblePlugin):
 
     def bridge_transport(self, d):
         raise NotImplementedError('')
+
+    def get_coin_name(self):
+        # No testnet support yet
+        return "BitcoinCash"

@@ -33,3 +33,7 @@ class TrezorPlugin(TrezorCompatiblePlugin):
     def bridge_transport(self, d):
         from trezorlib.transport_bridge import BridgeTransport
         return BridgeTransport(d)
+
+    def get_coin_name(self):
+        # No testnet support yet
+        return "Bcash"
