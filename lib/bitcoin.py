@@ -337,7 +337,10 @@ def script_to_p2wsh(script):
 def address_to_script(addr):
     if is_segwit_address(addr):
         witver, witprog = segwit_addr.decode(SEGWIT_HRP, addr)
-        script = bytes([witver]).hex() + push_script(bytes(witprog).hex())
+        assert (0 <= witver <= 16)
+        OP_n = (witver+0x50) * (witver > 0)
+        script = bytes([OP_n]).hex()
+        script += push_script(bytes(witprog).hex())
         return script
     addrtype, hash_160 = b58_address_to_hash160(addr)
     if addrtype == ADDRTYPE_P2PKH:
