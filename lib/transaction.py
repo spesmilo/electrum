@@ -650,7 +650,7 @@ class Transaction:
             n = len(sig_list) + 2
             # fixme: witness script must be decided by wallet
             witness_script = multisig_script(pubkeys, txin['num_sig'])
-            return var_int(n) + '00' + ''.join(push_script(x) for x in sig_list) + push_script(witness_script)
+            return var_int(n) + '00' + ''.join(var_int(len(x)//2) + x for x in sig_list) + var_int(len(witness_script)//2) + witness_script
 
     @classmethod
     def is_segwit_input(self, txin):
