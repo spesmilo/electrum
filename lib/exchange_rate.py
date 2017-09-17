@@ -154,17 +154,6 @@ class BTCChina(ExchangeBase):
         return {'CNY': Decimal(json['ticker']['last'])}
 
 
-class BTCe(ExchangeBase):
-
-    def get_rates(self, ccy):
-        json_eur = self.get_json('btc-e.nz', '/api/3/ticker/ltc_eur')
-        json_rub = self.get_json('btc-e.nz', '/api/3/ticker/ltc_rur')
-        json_usd = self.get_json('btc-e.nz', '/api/3/ticker/ltc_usd')
-        return {'EUR': Decimal(json_eur['ltc_eur']['last']),
-                'RUB': Decimal(json_rub['ltc_rur']['last']),
-                'USD': Decimal(json_usd['ltc_usd']['last'])}
-
-
 class CaVirtEx(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('www.cavirtex.com', '/api2/ticker.json?currencypair=LTCCAD')
@@ -233,6 +222,17 @@ class MercadoBitcoin(ExchangeBase):
         json = self.get_json('mercadobitcoin.net',
                                 "/api/v2/ticker_litecoin")
         return {'BRL': Decimal(json['ticker']['last'])}
+
+
+class WEX(ExchangeBase):
+
+    def get_rates(self, ccy):
+        json_eur = self.get_json('wex.nz', '/api/3/ticker/ltc_eur')
+        json_rub = self.get_json('wex.nz', '/api/3/ticker/ltc_rur')
+        json_usd = self.get_json('wex.nz', '/api/3/ticker/ltc_usd')
+        return {'EUR': Decimal(json_eur['ltc_eur']['last']),
+                'RUB': Decimal(json_rub['ltc_rur']['last']),
+                'USD': Decimal(json_usd['ltc_usd']['last'])}
 
 
 class Bitcointoyou(ExchangeBase):
