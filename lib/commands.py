@@ -160,10 +160,10 @@ class Commands:
         return True
 
     @command('')
-    def make_seed(self, nbits=132, entropy=1, language=None):
+    def make_seed(self, nbits=132, entropy=1, language=None, segwit=False):
         """Create a seed"""
         from .mnemonic import Mnemonic
-        t = 'segwit' if self.config.get('segwit') else 'standard'
+        t = 'segwit' if segwit else 'standard'
         s = Mnemonic(language).make_seed(t, nbits, custom_entropy=entropy)
         return s
 
@@ -818,7 +818,6 @@ def add_global_options(parser):
     group.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum_data' directory")
     group.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
     group.add_argument("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
-    group.add_argument("--segwit", action="store_true", dest="segwit", default=False, help="The Wizard will create Segwit seed phrases (Testnet only).")
 
 def get_parser():
     # create main parser
