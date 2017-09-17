@@ -116,19 +116,6 @@ class BCDataStream(object):
     def write_int64(self, val): return self._write_num('<q', val)
     def write_uint64(self, val): return self._write_num('<Q', val)
 
-    def read_push_size(self):
-        size = self.input[self.read_cursor]
-        self.read_cursor += 1
-        if size < 0x4c:
-            return size
-        if size == 0x4c:
-            nsize = self.read_bytes(1)[0]
-        elif size == 0x4d:
-            nsize = self._read_num('<H')
-        elif size == 0x4e:
-            nsize = self._read_num('<I')
-        return nsize
-
     def read_compact_size(self):
         size = self.input[self.read_cursor]
         self.read_cursor += 1
@@ -434,18 +421,21 @@ def parse_input(vds):
         d['type'] = 'unknown'
         d['num_sig'] = 0
         if scriptSig:
-            if len(scriptSig) == 8:
-                d['value'] = struct.unpack_from('<Q', scriptSig, 0)[0]
-                d['scriptSig'] = ''
-            else:
+            if scriptSig[0] == 255:
+                d['value'] = struct.unpack_from('<Q', scriptSig, 1)[0]
+                scriptSig = scriptSig[9:]
+            if scriptSig:
                 d['scriptSig'] = bh2u(scriptSig)
                 parse_scriptSig(d, scriptSig)
+            else:
+                d['scriptSig'] = ''
+
     return d
 
 
 def parse_witness(vds, txin):
     n = vds.read_compact_size()
-    w = list(bh2u(vds.read_bytes(vds.read_push_size())) for i in range(n))
+    w = list(bh2u(vds.read_bytes(vds.read_compact_size())) for i in range(n))
     if n > 2:
         txin['num_sig'] = n - 2
         txin['signatures'] = parse_sig(w[1:-1])
@@ -660,7 +650,7 @@ class Transaction:
             n = len(sig_list) + 2
             # fixme: witness script must be decided by wallet
             witness_script = multisig_script(pubkeys, txin['num_sig'])
-            return var_int(n) + '00' + ''.join(push_script(x) for x in sig_list) + push_script(witness_script)
+            return var_int(n) + '00' + ''.join(var_int(len(x)//2) + x for x in sig_list) + var_int(len(witness_script)//2) + witness_script
 
     @classmethod
     def is_segwit_input(self, txin):
@@ -673,6 +663,8 @@ class Transaction:
             return txin['scriptSig']
         pubkeys, sig_list = self.get_siglist(txin, estimate_size)
         script = ''.join(push_script(x) for x in sig_list)
+        if self.is_segwit_input(txin):
+            segwit_value = '' if self.is_txin_complete(txin) or estimate_size else 'ff' + int_to_hex(txin['value'], 8)
         if _type == 'p2pk':
             pass
         elif _type == 'p2sh':
@@ -683,11 +675,10 @@ class Transaction:
         elif _type == 'p2pkh':
             script += push_script(pubkeys[0])
         elif _type in ['p2wpkh', 'p2wsh']:
-            # if it is not complete we store the value
-            return '' if self.is_txin_complete(txin) or estimate_size else int_to_hex(txin['value'], 8)
+            return segwit_value
         elif _type in ['p2wpkh-p2sh', 'p2wsh-p2sh']:
             redeem_script = txin.get('redeemScript') or segwit_script(pubkeys[0])
-            return push_script(redeem_script)
+            return segwit_value + push_script(redeem_script)
         elif _type == 'address':
             script += push_script(pubkeys[0])
         elif _type == 'unknown':
@@ -706,7 +697,7 @@ class Transaction:
         # only for non-segwit
         if txin['type'] == 'p2pkh':
             return bitcoin.address_to_script(txin['address'])
-        elif txin['type'] in ['p2sh', 'p2wsh']:
+        elif txin['type'] in ['p2sh', 'p2wsh', 'p2wsh-p2sh']:
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
             return multisig_script(pubkeys, txin['num_sig'])
         elif txin['type'] in ['p2wpkh', 'p2wpkh-p2sh']:

@@ -226,7 +226,7 @@ class BaseWizard(object):
             self.derivation_dialog(f)
 
     def derivation_dialog(self, f):
-        default = bip44_derivation(0, self.config.get('segwit'))
+        default = bip44_derivation(0, False)
         message = '\n'.join([
             _('Enter your wallet derivation here.'),
             _('If you are not sure what this is, leave this field unchanged.')

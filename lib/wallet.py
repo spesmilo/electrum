@@ -1683,8 +1683,11 @@ class Multisig_Wallet(Deterministic_Wallet):
         elif self.txin_type == 'p2wsh':
             witness_script = self.pubkeys_to_redeem_script(pubkey)
             return bitcoin.script_to_p2wsh(witness_script)
+        elif self.txin_type == 'p2wsh-p2sh':
+            redeem_script = self.pubkeys_to_redeem_script(pubkey)
+            return bitcoin.hash160_to_p2sh(hash_160(bfh(redeem_script)))
         else:
-            raise NotImplementedError()
+            raise NotImplementedError(self.txin_type)
 
     #def redeem_script(self, c, i):
     #    pubkeys = self.get_pubkeys(c, i)

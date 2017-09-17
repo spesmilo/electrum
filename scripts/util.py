@@ -47,7 +47,7 @@ def wait_on_interfaces(interfaces, timeout=10):
 
 def get_peers():
     config = SimpleConfig()
-    peers = []
+    peers = {}
     # 1. get connected interfaces
     server = config.get('server')
     interfaces = get_interfaces([server])
