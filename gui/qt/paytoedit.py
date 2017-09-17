@@ -209,10 +209,10 @@ class PayToEdit(ScanQRTextEdit):
         if self.c.widget() != self:
             return
         tc = self.textCursor()
-        extra = completion.length() - self.c.completionPrefix().length()
+        extra = len(completion) - len(self.c.completionPrefix())
         tc.movePosition(QTextCursor.Left)
         tc.movePosition(QTextCursor.EndOfWord)
-        tc.insertText(completion.right(extra))
+        tc.insertText(completion[-extra:])
         self.setTextCursor(tc)
 
 
