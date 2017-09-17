@@ -706,6 +706,7 @@ command_options = {
     'change_addr': ("-c", "--change",      "Change address. Default is a spare address, or the source address if it's not in the wallet"),
     'nbits':       (None, "--nbits",       "Number of bits of entropy"),
     'entropy':     (None, "--entropy",     "Custom entropy"),
+    'segwit':      (None, "--segwit",      "Create segwit seed"),
     'language':    ("-L", "--lang",        "Default language for wordlist"),
     'gap_limit':   ("-G", "--gap",         "Gap limit"),
     'privkey':     (None, "--privkey",     "Private key. Set to '?' to get a prompt."),
