@@ -116,19 +116,6 @@ class BCDataStream(object):
     def write_int64(self, val): return self._write_num('<q', val)
     def write_uint64(self, val): return self._write_num('<Q', val)
 
-    def read_push_size(self):
-        size = self.input[self.read_cursor]
-        self.read_cursor += 1
-        if size < 0x4c:
-            return size
-        if size == 0x4c:
-            nsize = self.read_bytes(1)[0]
-        elif size == 0x4d:
-            nsize = self._read_num('<H')
-        elif size == 0x4e:
-            nsize = self._read_num('<I')
-        return nsize
-
     def read_compact_size(self):
         size = self.input[self.read_cursor]
         self.read_cursor += 1
@@ -445,7 +432,7 @@ def parse_input(vds):
 
 def parse_witness(vds, txin):
     n = vds.read_compact_size()
-    w = list(bh2u(vds.read_bytes(vds.read_push_size())) for i in range(n))
+    w = list(bh2u(vds.read_bytes(vds.read_compact_size())) for i in range(n))
     if n > 2:
         txin['num_sig'] = n - 2
         txin['signatures'] = parse_sig(w[1:-1])
