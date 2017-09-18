@@ -1649,17 +1649,14 @@ class Simple_Deterministic_Wallet(Deterministic_Wallet, Simple_Wallet):
 class Standard_Wallet(Simple_Deterministic_Wallet):
     wallet_type = 'standard'
 
-    def pubkeys_to_redeem_script(self, pubkey):
-        return transaction.segwit_script(pubkey)
-
     def pubkeys_to_address(self, pubkey):
         if self.txin_type == 'p2pkh':
             return bitcoin.public_key_to_p2pkh(bfh(pubkey))
         elif self.txin_type == 'p2wpkh':
             return bitcoin.hash_to_segwit_addr(hash_160(bfh(pubkey)))
         elif self.txin_type == 'p2wpkh-p2sh':
-            redeem_script = self.pubkeys_to_redeem_script(pubkey)
-            return bitcoin.hash160_to_p2sh(hash_160(bfh(redeem_script)))
+            scriptSig = transaction.p2wpkh_nested_script(pubkey)
+            return bitcoin.hash160_to_p2sh(hash_160(bfh(scriptSig)))
         else:
             raise NotImplementedError(self.txin_type)
 
@@ -1676,22 +1673,19 @@ class Multisig_Wallet(Deterministic_Wallet):
     def get_pubkeys(self, c, i):
         return self.derive_pubkeys(c, i)
 
-    def pubkeys_to_address(self, pubkey):
+    def pubkeys_to_address(self, pubkeys):
         if self.txin_type == 'p2sh':
-            redeem_script = self.pubkeys_to_redeem_script(pubkey)
+            redeem_script = self.pubkeys_to_redeem_script(pubkeys)
             return bitcoin.hash160_to_p2sh(hash_160(bfh(redeem_script)))
         elif self.txin_type == 'p2wsh':
-            witness_script = self.pubkeys_to_redeem_script(pubkey)
+            witness_script = self.pubkeys_to_redeem_script(pubkeys)
             return bitcoin.script_to_p2wsh(witness_script)
         elif self.txin_type == 'p2wsh-p2sh':
-            redeem_script = self.pubkeys_to_redeem_script(pubkey)
-            return bitcoin.hash160_to_p2sh(hash_160(bfh(redeem_script)))
+            witness_script = self.pubkeys_to_redeem_script(pubkeys)
+            scriptSig = transaction.p2wsh_nested_script(witness_script)
+            return bitcoin.hash160_to_p2sh(hash_160(bfh(scriptSig)))
         else:
             raise NotImplementedError(self.txin_type)
-
-    #def redeem_script(self, c, i):
-    #    pubkeys = self.get_pubkeys(c, i)
-    #    return transaction.multisig_script(sorted(pubkeys), self.m)
 
     def pubkeys_to_redeem_script(self, pubkeys):
         return transaction.multisig_script(sorted(pubkeys), self.m)
