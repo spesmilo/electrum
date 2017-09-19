@@ -608,7 +608,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def format_amount_and_units(self, amount):
         text = self.format_amount(amount) + ' '+ self.base_unit()
         x = self.fx.format_amount_and_units(amount)
-        if text and x:
+
+        if self.fx.is_enabled() and text and x:
             text += ' (%s)'%x
         return text
 
