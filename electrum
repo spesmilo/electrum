@@ -357,6 +357,9 @@ if __name__ == '__main__':
     if config.get('testnet'):
         bitcoin.set_testnet()
 
+    if config.get('simnet'):
+        bitcoin.set_simnet()
+
     # run non-RPC commands separately
     if cmdname in ['create', 'restore']:
         run_non_RPC(config)

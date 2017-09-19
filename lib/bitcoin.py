@@ -75,6 +75,28 @@ SERVERLIST = 'servers.json'
 DEFAULT_PORTS = {'t':'50001', 's':'50002'}
 DEFAULT_SERVERS = read_json_dict('servers.json')
 
+def set_simnet():
+    global DEFAULT_PORTS, DEFAULT_SERVERS
+    DEFAULT_PORTS = {'t':'50001', 's':'50002'}
+    DEFAULT_SERVERS = {
+        '127.0.0.1': DEFAULT_PORTS,
+    }
+
+    global ADDRTYPE_P2PKH, ADDRTYPE_P2SH
+    global XPRV_HEADER, XPUB_HEADER
+    global NOLNET, HEADERS_URL
+    global GENESIS
+    global SEGWIT_HRP
+    SEGWIT_HRP = "sb"
+    TESTNET = True
+    ADDRTYPE_P2PKH = 0x3f
+    ADDRTYPE_P2SH = 0x7b
+    XPRV_HEADER = 0x0420b900
+    XPUB_HEADER = 0x0420bd3a
+    HEADERS_URL = None
+    GENESIS = "683e86bd5c6d110d91b94b97137ba6bfe02dbbdb8e3dff722a669b5d69d77af6"
+
+
 def set_testnet():
     global ADDRTYPE_P2PKH, ADDRTYPE_P2SH
     global TESTNET, HEADERS_URL
