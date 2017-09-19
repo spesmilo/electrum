@@ -31,6 +31,7 @@ directory. To run Electrum from its root directory, just do::
 
 You can also install Electrum on your system, by running this command::
 
+    sudo apt-get install python3-setuptools
     python3 setup.py install
 
 This will download and install the Python dependencies used by
