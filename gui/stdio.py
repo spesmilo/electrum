@@ -1,9 +1,15 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import six
 from decimal import Decimal
 _ = lambda x:x
 #from i18n import _
 from electrum import WalletStorage, Wallet
 from electrum.util import format_satoshis, set_verbosity
-from electrum.bitcoin import is_valid, COIN, TYPE_ADDRESS
+from electrum.bitcoin import is_address, COIN, TYPE_ADDRESS
 from electrum.network import filter_protocol
 import sys, getpass, datetime
 
@@ -17,7 +23,7 @@ class ElectrumGui:
         self.network = daemon.network
         storage = WalletStorage(config.get_wallet_path())
         if not storage.file_exists:
-            print "Wallet not found. try 'electrum create'"
+            print("Wallet not found. try 'electrum create'")
             exit()
         if storage.is_encrypted():
             password = getpass.getpass('Password:', stream=None)
@@ -57,8 +63,8 @@ class ElectrumGui:
 
     def main_command(self):
         self.print_balance()
-        c = raw_input("enter command: ")
-        if   c == "h" : self.print_commands()
+        c = input("enter command: ")
+        if c == "h" : self.print_commands()
         elif c == "i" : self.print_history()
         elif c == "o" : self.enter_order()
         elif c == "p" : self.print_order()
@@ -138,10 +144,10 @@ class ElectrumGui:
               + "\nfee: " + self.str_fee + ", desc: " + self.str_description)
 
     def enter_order(self):
-        self.str_recipient = raw_input("Pay to: ")
-        self.str_description = raw_input("Description : ")
-        self.str_amount = raw_input("Amount: ")
-        self.str_fee = raw_input("Fee: ")
+        self.str_recipient = input("Pay to: ")
+        self.str_description = input("Description : ")
+        self.str_amount = input("Amount: ")
+        self.str_fee = input("Fee: ")
 
     def send_order(self):
         self.do_send()
@@ -163,7 +169,7 @@ class ElectrumGui:
         while self.done == 0: self.main_command()
 
     def do_send(self):
-        if not is_valid(self.str_recipient):
+        if not is_address(self.str_recipient):
             print(_('Invalid Bitcoin address'))
             return
         try:
@@ -186,7 +192,7 @@ class ElectrumGui:
 
         c = ""
         while c != "y":
-            c = raw_input("ok to send (y/n)?")
+            c = input("ok to send (y/n)?")
             if c == "n": return
 
         try:

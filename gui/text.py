@@ -1,10 +1,16 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import six
 import tty, sys
 import curses, datetime, locale
 from decimal import Decimal
 import getpass
 
 from electrum.util import format_satoshis, set_verbosity
-from electrum.bitcoin import is_valid, COIN, TYPE_ADDRESS
+from electrum.bitcoin import is_address, COIN, TYPE_ADDRESS
 from electrum import Wallet, WalletStorage
 
 _ = lambda x:x
@@ -19,7 +25,7 @@ class ElectrumGui:
         self.network = daemon.network
         storage = WalletStorage(config.get_wallet_path())
         if not storage.file_exists:
-            print "Wallet not found. try 'electrum create'"
+            print("Wallet not found. try 'electrum create'")
             exit()
         if storage.is_encrypted():
             password = getpass.getpass('Password:', stream=None)
@@ -180,8 +186,13 @@ class ElectrumGui:
             self.print_list( self.network.banner.split('\n'))
 
     def print_qr(self, data):
-        import qrcode, StringIO
-        s = StringIO.StringIO()
+        import qrcode
+        try:
+            from StringIO import StringIO
+        except ImportError:
+            from io import StringIO
+
+        s = StringIO()
         self.qr = qrcode.QRCode()
         self.qr.add_data(data)
         self.qr.print_ascii(out=s, invert=False)
@@ -212,7 +223,7 @@ class ElectrumGui:
 
     def main_command(self):
         c = self.stdscr.getch()
-        print c
+        print(c)
         if   c == curses.KEY_RIGHT: self.tab = (self.tab + 1)%self.num_tabs
         elif c == curses.KEY_LEFT: self.tab = (self.tab - 1)%self.num_tabs
         elif c == curses.KEY_DOWN: self.pos +=1
@@ -309,7 +320,7 @@ class ElectrumGui:
         self.str_description = ''
 
     def do_send(self):
-        if not is_valid(self.str_recipient):
+        if not is_address(self.str_recipient):
             self.show_message(_('Invalid Bitcoin address'))
             return
         try:

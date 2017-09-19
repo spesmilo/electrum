@@ -20,6 +20,11 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
 
 import sys
 import re
@@ -27,10 +32,10 @@ import dns
 import os
 import json
 
-import bitcoin
-import dnssec
-from util import print_error
-from i18n import _
+from . import bitcoin
+from . import dnssec
+from .util import print_error
+from .i18n import _
 
 
 class Contacts(dict):
@@ -55,7 +60,7 @@ class Contacts(dict):
     def import_file(self, path):
         try:
             with open(path, 'r') as f:
-                d = json.loads(f.read())
+                d = self._validate(json.loads(f.read()))
         except:
             return
         self.update(d)
@@ -116,4 +121,16 @@ class Contacts(dict):
             return regex.search(haystack).groups()[0]
         except AttributeError:
             return None
+            
+    def _validate(self, data):
+        for k,v in data.items():
+            if k == 'contacts':
+                return self._validate(v)
+            if not bitcoin.is_address(k):
+                data.pop(k)
+            else:
+                _type,_ = v
+                if _type != 'address':
+                    data.pop(k)
+        return data
 

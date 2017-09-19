@@ -29,8 +29,8 @@ import re
 import requests
 import json
 from hashlib import sha256
-from urlparse import urljoin
-from urllib import quote
+from urllib.parse import urljoin
+from urllib.parse import quote
 
 import electrum
 from electrum import bitcoin
@@ -90,11 +90,10 @@ class TrustedCoinCosignerClient(object):
             kwargs['headers']['content-type'] = 'application/json'
         url = urljoin(self.base_url, relative_url)
         if self.debug:
-            print '%s %s %s' % (method, url, data)
+            print('%s %s %s' % (method, url, data))
         response = requests.request(method, url, **kwargs)
         if self.debug:
-            print response.text
-            print
+            print(response.text)
         if response.status_code != 200:
             message = str(response.text)
             if response.headers.get('content-type') == 'application/json':

@@ -22,7 +22,6 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
 from collections import namedtuple
 import traceback
 import sys
@@ -30,10 +29,11 @@ import os
 import imp
 import pkgutil
 import time
+import threading
 
-from util import *
-from i18n import _
-from util import profiler, PrintError, DaemonThread, UserCancelled
+from .util import *
+from .i18n import _
+from .util import profiler, PrintError, DaemonThread, UserCancelled, ThreadJob
 
 plugin_loaders = {}
 hook_names = set()
@@ -156,7 +156,7 @@ class Plugins(DaemonThread):
         return out
 
     def register_wallet_type(self, name, gui_good, wallet_type):
-        from wallet import register_wallet_type, register_constructor
+        from .wallet import register_wallet_type, register_constructor
         self.print_error("registering wallet type", (wallet_type, name))
         def loader():
             plugin = self.get_plugin(name)
@@ -165,7 +165,7 @@ class Plugins(DaemonThread):
         plugin_loaders[wallet_type] = loader
 
     def register_keystore(self, name, gui_good, details):
-        from keystore import register_keystore
+        from .keystore import register_keystore
         def dynamic_constructor(d):
             return self.get_plugin(name).keystore_class(d)
         if details[0] == 'hardware':
@@ -186,7 +186,7 @@ class Plugins(DaemonThread):
 
 
 def hook(func):
-    hook_names.add(func.func_name)
+    hook_names.add(func.__name__)
     return func
 
 def run_hook(name, *args):
@@ -299,7 +299,7 @@ class DeviceMgr(ThreadJob, PrintError):
 
     def __init__(self, config):
         super(DeviceMgr, self).__init__()
-        # Keyed by xpub.  The value is the device id 
+        # Keyed by xpub.  The value is the device id
         # has been paired, and None otherwise.
         self.xpub_ids = {}
         # A list of clients.  The key is the client, the value is
@@ -508,7 +508,7 @@ class DeviceMgr(ThreadJob, PrintError):
                 usage_page = d['usage_page']
                 id_ = d['serial_number']
                 if len(id_) == 0:
-                    id_ = d['path']
+                    id_ = str(d['path'])
                 id_ += str(interface_number) + str(usage_page)
                 devices.append(Device(d['path'], interface_number,
                                       id_, product_key, usage_page))

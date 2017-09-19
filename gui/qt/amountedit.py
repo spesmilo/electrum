@@ -1,11 +1,19 @@
 # -*- coding: utf-8 -*-
-import locale
 
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+
+import six
+import locale
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
 from decimal import Decimal
 from electrum.util import format_satoshis_plain
+
 
 class MyLineEdit(QLineEdit):
     frozen = pyqtSignal()
@@ -33,7 +41,8 @@ class AmountEdit(MyLineEdit):
 
     def numbify(self):
         dec_sep = self.get_decimal_seperator()
-        text = unicode(self.text()).strip()
+        text = self.text().strip()
+
         if text == '!':
             self.shortcut.emit()
             return

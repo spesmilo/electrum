@@ -1,10 +1,16 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import six
 import os.path
 import time
 import traceback
 import sys
 import threading
 import platform
-import Queue
+from six.moves import queue
 from collections import namedtuple
 from functools import partial
 
@@ -69,7 +75,7 @@ class EnterButton(QPushButton):
 
     def keyPressEvent(self, e):
         if e.key() == Qt.Key_Return:
-            apply(self.func,())
+            self.func()
 
 
 class ThreadedButton(QPushButton):
@@ -254,10 +260,10 @@ def line_dialog(parent, title, label, ok_label, default=None):
     l.addWidget(txt)
     l.addLayout(Buttons(CancelButton(dialog), OkButton(dialog, ok_label)))
     if dialog.exec_():
-        return unicode(txt.text())
+        return txt.text()
 
 def text_dialog(parent, title, label, ok_label, default=None):
-    from qrtextedit import ScanQRTextEdit
+    from .qrtextedit import ScanQRTextEdit
     dialog = WindowModalDialog(parent, title)
     dialog.setMinimumWidth(500)
     l = QVBoxLayout()
@@ -269,7 +275,7 @@ def text_dialog(parent, title, label, ok_label, default=None):
     l.addWidget(txt)
     l.addLayout(Buttons(CancelButton(dialog), OkButton(dialog, ok_label)))
     if dialog.exec_():
-        return unicode(txt.toPlainText())
+        return txt.toPlainText()
 
 class ChoicesLayout(object):
     def __init__(self, msg, choices, on_clicked=None, checked_index=0):
@@ -335,15 +341,15 @@ def filename_field(parent, config, defaultname, select_msg):
 
     hbox = QHBoxLayout()
 
-    directory = config.get('io_dir', unicode(os.path.expanduser('~')))
+    directory = config.get('io_dir', os.path.expanduser('~'))
     path = os.path.join( directory, defaultname )
     filename_e = QLineEdit()
     filename_e.setText(path)
 
     def func():
-        text = unicode(filename_e.text())
+        text = filename_e.text()
         _filter = "*.csv" if text.endswith(".csv") else "*.json" if text.endswith(".json") else None
-        p = unicode( QFileDialog.getSaveFileName(None, select_msg, text, _filter))
+        p = QFileDialog.getSaveFileName(None, select_msg, text, _filter)
         if p:
             filename_e.setText(p)
 
@@ -354,7 +360,7 @@ def filename_field(parent, config, defaultname, select_msg):
     vbox.addLayout(hbox)
 
     def set_csv(v):
-        text = unicode(filename_e.text())
+        text = filename_e.text()
         text = text.replace(".json",".csv") if v else text.replace(".csv",".json")
         filename_e.setText(text)
 
@@ -403,7 +409,7 @@ class MyTreeWidget(QTreeWidget):
 
     def editItem(self, item, column):
         if column in self.editable_columns:
-            self.editing_itemcol = (item, column, unicode(item.text(column)))
+            self.editing_itemcol = (item, column, item.text(column))
             # Calling setFlags causes on_changed events for some reason
             item.setFlags(item.flags() | Qt.ItemIsEditable)
             QTreeWidget.editItem(self, item, column)
@@ -464,8 +470,8 @@ class MyTreeWidget(QTreeWidget):
 
     def on_edited(self, item, column, prior):
         '''Called only when the text actually changes'''
-        key = str(item.data(0, Qt.UserRole).toString())
-        text = unicode(item.text(column))
+        key = item.data(0, Qt.UserRole)
+        text = item.text(column)
         self.parent.wallet.set_label(key, text)
         self.parent.history_list.update_labels()
         self.parent.update_completions()
@@ -495,10 +501,10 @@ class MyTreeWidget(QTreeWidget):
 
     def filter(self, p):
         columns = self.__class__.filter_columns
-        p = unicode(p).lower()
+        p = p.lower()
         self.current_filter = p
         for item in self.get_leaves(self.invisibleRootItem()):
-            item.setHidden(all([unicode(item.text(column)).lower().find(p) == -1
+            item.setHidden(all([item.text(column).lower().find(p) == -1
                                 for column in columns]))
 
 
@@ -565,7 +571,7 @@ class TaskThread(QThread):
     def __init__(self, parent, on_error=None):
         super(TaskThread, self).__init__(parent)
         self.on_error = on_error
-        self.tasks = Queue.Queue()
+        self.tasks = queue.Queue()
         self.doneSig.connect(self.on_done)
         self.start()
 

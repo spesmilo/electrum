@@ -22,11 +22,16 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
+import six
 
 import webbrowser
 
-from util import *
+from .util import *
 from electrum.i18n import _
 from electrum.util import block_explorer_URL, format_satoshis, format_time
 from electrum.plugins import run_hook
@@ -37,13 +42,22 @@ class AddressList(MyTreeWidget):
     filter_columns = [0, 1, 2]  # Address, Label, Balance
 
     def __init__(self, parent=None):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [ _('Address'), _('Label'), _('Balance'), _('Tx')], 1)
+        MyTreeWidget.__init__(self, parent, self.create_menu, [], 1)
+        self.refresh_headers()
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+
+    def refresh_headers(self):
+        headers = [ _('Address'), _('Label'), _('Balance')]
+        fx = self.parent.fx
+        if fx and fx.get_fiat_address_config():
+            headers.extend([_(fx.get_currency()+' Balance')])
+        headers.extend([_('Tx')])
+        self.update_headers(headers)
 
     def on_update(self):
         self.wallet = self.parent.wallet
         item = self.currentItem()
-        current_address = item.data(0, Qt.UserRole).toString() if item else None
+        current_address = item.data(0, Qt.UserRole) if item else None
         self.clear()
         receiving_addresses = self.wallet.get_receiving_addresses()
         change_addresses = self.wallet.get_change_addresses()
@@ -68,7 +82,15 @@ class AddressList(MyTreeWidget):
                     label = self.wallet.labels.get(address,'')
                     c, u, x = self.wallet.get_addr_balance(address)
                     balance = self.parent.format_amount(c + u + x)
-                    address_item = QTreeWidgetItem([address, label, balance, "%d"%num])
+                    fx = self.parent.fx
+                    if fx and fx.get_fiat_address_config():
+                        rate = fx.exchange_rate()
+                        fiat_balance = fx.value_str(c + u + x, rate)
+                        address_item = QTreeWidgetItem([address, label, balance, fiat_balance, "%d"%num])
+                        address_item.setTextAlignment(3, Qt.AlignRight)
+                    else:
+                        address_item = QTreeWidgetItem([address, label, balance, "%d"%num])
+                    address_item.setTextAlignment(2, Qt.AlignRight)
                     address_item.setFont(0, QFont(MONOSPACE_FONT))
                     address_item.setData(0, Qt.UserRole, address)
                     address_item.setData(0, Qt.UserRole+1, True) # label can be edited
@@ -92,7 +114,7 @@ class AddressList(MyTreeWidget):
         can_delete = self.wallet.can_delete_address()
         selected = self.selectedItems()
         multi_select = len(selected) > 1
-        addrs = [unicode(item.text(0)) for item in selected]
+        addrs = [item.text(0) for item in selected]
         if not addrs:
             return
         if not multi_select:

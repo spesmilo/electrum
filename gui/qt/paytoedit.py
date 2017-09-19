@@ -22,16 +22,21 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
+import six
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
-from qrtextedit import ScanQRTextEdit
+from .qrtextedit import ScanQRTextEdit
 
 import re
 from decimal import Decimal
 from electrum import bitcoin
 
-import util
+from . import util
 
 RE_ADDRESS = '[1-9A-HJ-NP-Za-km-z]{26,}'
 RE_ALIAS = '(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>'
@@ -115,7 +120,7 @@ class PayToEdit(ScanQRTextEdit):
         if self.is_pr:
             return
         # filter out empty lines
-        lines = filter(lambda x: x, self.lines())
+        lines = [i for i in self.lines() if i]
         outputs = []
         total = 0
         self.payto_address = None
@@ -175,7 +180,7 @@ class PayToEdit(ScanQRTextEdit):
         return self.outputs[:]
 
     def lines(self):
-        return unicode(self.toPlainText()).split('\n')
+        return self.toPlainText().split('\n')
 
     def is_multiline(self):
         return len(self.lines()) > 1
@@ -204,10 +209,10 @@ class PayToEdit(ScanQRTextEdit):
         if self.c.widget() != self:
             return
         tc = self.textCursor()
-        extra = completion.length() - self.c.completionPrefix().length()
+        extra = len(completion) - len(self.c.completionPrefix())
         tc.movePosition(QTextCursor.Left)
         tc.movePosition(QTextCursor.EndOfWord)
-        tc.insertText(completion.right(extra))
+        tc.insertText(completion[-extra:])
         self.setTextCursor(tc)
 
 
@@ -237,25 +242,24 @@ class PayToEdit(ScanQRTextEdit):
         QPlainTextEdit.keyPressEvent(self, e)
 
         ctrlOrShift = e.modifiers() and (Qt.ControlModifier or Qt.ShiftModifier)
-        if self.c is None or (ctrlOrShift and e.text().isEmpty()):
+        if self.c is None or (ctrlOrShift and not e.text()):
             return
 
-        eow = QString("~!@#$%^&*()_+{}|:\"<>?,./;'[]\\-=")
-        hasModifier = (e.modifiers() != Qt.NoModifier) and not ctrlOrShift;
+        eow = "~!@#$%^&*()_+{}|:\"<>?,./;'[]\\-="
+        hasModifier = (e.modifiers() != Qt.NoModifier) and not ctrlOrShift
         completionPrefix = self.textUnderCursor()
 
-        if hasModifier or e.text().isEmpty() or completionPrefix.length() < 1 or eow.contains(e.text().right(1)):
+        if hasModifier or not e.text() or len(completionPrefix) < 1 or eow.find(e.text()[-1]) >= 0:
             self.c.popup().hide()
             return
 
         if completionPrefix != self.c.completionPrefix():
-            self.c.setCompletionPrefix(completionPrefix);
+            self.c.setCompletionPrefix(completionPrefix)
             self.c.popup().setCurrentIndex(self.c.completionModel().index(0, 0))
 
         cr = self.cursorRect()
         cr.setWidth(self.c.popup().sizeHintForColumn(0) + self.c.popup().verticalScrollBar().sizeHint().width())
         self.c.complete(cr)
-
 
     def qr_input(self):
         data = super(PayToEdit,self).qr_input()

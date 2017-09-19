@@ -1,12 +1,17 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
 import ast
 import json
 import threading
 import os
 
 from copy import deepcopy
-from util import user_dir, print_error, print_msg, print_stderr, PrintError
+from .util import user_dir, print_error, print_msg, print_stderr, PrintError
 
-from bitcoin import MAX_FEE_RATE, FEE_TARGETS
+from .bitcoin import MAX_FEE_RATE, FEE_TARGETS
 
 SYSTEM_CONFIG_PATH = "/etc/electrum.conf"
 
@@ -82,8 +87,6 @@ class SimpleConfig(PrintError):
 
         if self.get('testnet'):
             path = os.path.join(path, 'testnet')
-        elif self.get('nolnet'):
-            path = os.path.join(path, 'nolnet')
 
         # Make directory if it does not yet exist.
         if not os.path.exists(path):
@@ -96,7 +99,7 @@ class SimpleConfig(PrintError):
 
     def fixup_config_keys(self, config, keypairs):
         updated = False
-        for old_key, new_key in keypairs.iteritems():
+        for old_key, new_key in keypairs.items():
             if old_key in config:
                 if not new_key in config:
                     config[new_key] = config[old_key]
@@ -199,7 +202,10 @@ class SimpleConfig(PrintError):
             self.set_key('gui_last_wallet', path)
 
     def max_fee_rate(self):
-        return self.get('max_fee_rate', MAX_FEE_RATE)
+        f = self.get('max_fee_rate', MAX_FEE_RATE)
+        if f==0:
+            f = MAX_FEE_RATE
+        return f
 
     def dynfee(self, i):
         if i < 4:
@@ -216,7 +222,7 @@ class SimpleConfig(PrintError):
 
     def reverse_dynfee(self, fee_per_kb):
         import operator
-        l = self.fee_estimates.items() + [(1, self.dynfee(4))]
+        l = list(self.fee_estimates.items()) + [(1, self.dynfee(4))]
         dist = map(lambda x: (x[0], abs(x[1] - fee_per_kb)), l)
         min_target, min_value = min(dist, key=operator.itemgetter(1))
         if fee_per_kb < self.fee_estimates.get(25)/2:
@@ -248,18 +254,13 @@ def read_system_config(path=SYSTEM_CONFIG_PATH):
     """Parse and return the system config settings in /etc/electrum.conf."""
     result = {}
     if os.path.exists(path):
-        try:
-            import ConfigParser
-        except ImportError:
-            print "cannot parse electrum.conf. please install ConfigParser"
-            return
-
-        p = ConfigParser.ConfigParser()
+        import configparser
+        p = configparser.ConfigParser()
         try:
             p.read(path)
             for k, v in p.items('client'):
                 result[k] = v
-        except (ConfigParser.NoSectionError, ConfigParser.MissingSectionHeaderError):
+        except (configparser.NoSectionError, configparser.MissingSectionHeaderError):
             pass
 
     return result
@@ -276,7 +277,7 @@ def read_user_config(path):
             data = f.read()
         result = json.loads(data)
     except:
-        print_msg("Warning: Cannot read config file.", config_path)
+        print_error("Warning: Cannot read config file.", config_path)
         return {}
     if not type(result) is dict:
         return {}

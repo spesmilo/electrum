@@ -22,6 +22,10 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
 import os
 import sys
@@ -35,15 +39,15 @@ import base64
 from functools import wraps
 from decimal import Decimal
 
-import util
-from util import print_msg, format_satoshis, print_stderr
-import bitcoin
-from bitcoin import is_address, hash_160, COIN, TYPE_ADDRESS
-import transaction
-from transaction import Transaction
-import paymentrequest
-from paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
-import contacts
+from .import util
+from .util import print_msg, format_satoshis, print_stderr
+from .import bitcoin
+from .bitcoin import is_address,  hash_160, COIN, TYPE_ADDRESS
+from .transaction import Transaction
+from .import paymentrequest
+from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
+from .import contacts
+
 known_commands = {}
 
 
@@ -53,7 +57,6 @@ def satoshis(amount):
 
 
 class Command:
-
     def __init__(self, func, s):
         self.name = func.__name__
         self.requires_network = 'n' in s
@@ -61,8 +64,8 @@ class Command:
         self.requires_password = 'p' in s
         self.description = func.__doc__
         self.help = self.description.split('.')[0] if self.description else None
-        varnames = func.func_code.co_varnames[1:func.func_code.co_argcount]
-        self.defaults = func.func_defaults
+        varnames = func.__code__.co_varnames[1:func.__code__.co_argcount]
+        self.defaults = func.__defaults__
         if self.defaults:
             n = len(self.defaults)
             self.params = list(varnames[:-n])
@@ -80,6 +83,9 @@ def command(s):
         known_commands[name] = Command(func, s)
         @wraps(func)
         def func_wrapper(*args, **kwargs):
+            c = known_commands[func.__name__]
+            if c.requires_wallet and args[0].wallet is None:
+                raise BaseException("wallet not loaded. Use 'electrum daemon load_wallet'")
             return func(*args, **kwargs)
         return func_wrapper
     return decorator
@@ -97,13 +103,20 @@ class Commands:
         # this wrapper is called from the python console
         cmd = known_commands[method]
         if cmd.requires_password and self.wallet.has_password():
-            password = apply(password_getter, ())
+            password = password_getter()
             if password is None:
                 return
+        else:
+            password = None
+
         f = getattr(self, method)
-        result = f(*args, **{'password':password})
+        if cmd.requires_password:
+            result = f(*args, **{'password':password})
+        else:
+            result = f(*args)
+
         if self._callback:
-            apply(self._callback, ())
+            self._callback()
         return result
 
     @command('')
@@ -147,11 +160,12 @@ class Commands:
         return True
 
     @command('')
-    def make_seed(self, nbits=132, entropy=1, language=None):
+    def make_seed(self, nbits=132, entropy=1, language=None, segwit=False):
         """Create a seed"""
-        from mnemonic import Mnemonic
-        s = Mnemonic(language).make_seed('standard', nbits, custom_entropy=entropy)
-        return s.encode('utf8')
+        from .mnemonic import Mnemonic
+        t = 'segwit' if segwit else 'standard'
+        s = Mnemonic(language).make_seed(t, nbits, custom_entropy=entropy)
+        return s
 
     @command('')
     def check_seed(self, seed, entropy=1, language=None):
@@ -183,14 +197,6 @@ class Commands:
         """
         return self.network.synchronous_get(('blockchain.address.listunspent', [address]))
 
-    @command('n')
-    def getutxoaddress(self, txid, pos):
-        """Get the address of a UTXO. Note: This is a walletless server query, results are
-        not checked by SPV.
-        """
-        r = self.network.synchronous_get(('blockchain.utxo.get_address', [txid, pos]))
-        return {'address': r}
-
     @command('')
     def serialize(self, jsontx):
         """Create a transaction from json inputs.
@@ -217,7 +223,7 @@ class Commands:
             elif txin.get('redeemScript'):
                 raise BaseException('Not implemented')
 
-        outputs = map(lambda x: (TYPE_ADDRESS, x['address'], int(x['value'])), outputs)
+        outputs = [(TYPE_ADDRESS, x['address'], int(x['value'])) for x in outputs]
         tx = Transaction.from_io(inputs, outputs, locktime=locktime)
         tx.sign(keypairs)
         return tx.as_dict()
@@ -228,8 +234,8 @@ class Commands:
         tx = Transaction(tx)
         if privkey:
             pubkey = bitcoin.public_key_from_private_key(privkey)
-            h160 = bitcoin.hash_160(pubkey.decode('hex'))
-            x_pubkey = 'fd' + (chr(0) + h160).encode('hex')
+            h160 = bitcoin.hash_160(bfh(pubkey))
+            x_pubkey = 'fd' + bh2u(b'\x00' + h160)
             tx.sign({x_pubkey:privkey})
         else:
             self.wallet.sign_transaction(tx, password)
@@ -251,8 +257,8 @@ class Commands:
     def createmultisig(self, num, pubkeys):
         """Create multisig address"""
         assert isinstance(pubkeys, list), (type(num), type(pubkeys))
-        redeem_script = transaction.multisig_script(pubkeys, num)
-        address = bitcoin.hash160_to_p2sh(hash_160(redeem_script.decode('hex')))
+        redeem_script = Transaction.multisig_script(pubkeys, num)
+        address = bitcoin.hash160_to_p2sh(hash_160(bfh(redeem_script)))
         return {'address':address, 'redeemScript':redeem_script}
 
     @command('w')
@@ -354,7 +360,7 @@ class Commands:
     def getseed(self, password=None):
         """Get seed phrase. Print the generation seed of your wallet."""
         s = self.wallet.get_seed(password)
-        return s.encode('utf8')
+        return s
 
     @command('wp')
     def importprivkey(self, privkey, password=None):
@@ -401,7 +407,7 @@ class Commands:
         sig = base64.b64decode(signature)
         return bitcoin.verify_message(address, sig, message)
 
-    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned, rbf, password):
+    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime=None):
         self.nocheck = nocheck
         change_addr = self._resolver(change_addr)
         domain = None if domain is None else map(self._resolver, domain)
@@ -413,6 +419,8 @@ class Commands:
 
         coins = self.wallet.get_spendable_coins(domain, self.config)
         tx = self.wallet.make_unsigned_transaction(coins, final_outputs, self.config, fee, change_addr)
+        if locktime != None: 
+            tx.locktime = locktime
         if rbf:
             tx.set_rbf(True)
         if not unsigned:
@@ -420,19 +428,19 @@ class Commands:
         return tx
 
     @command('wp')
-    def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None):
+    def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None, locktime=None):
         """Create a transaction. """
         tx_fee = satoshis(tx_fee)
         domain = [from_addr] if from_addr else None
-        tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, rbf, password)
+        tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime)
         return tx.as_dict()
 
     @command('wp')
-    def paytomany(self, outputs, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None):
+    def paytomany(self, outputs, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None, locktime=None):
         """Create a multi-output transaction. """
         tx_fee = satoshis(tx_fee)
         domain = [from_addr] if from_addr else None
-        tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, rbf, password)
+        tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime)
         return tx.as_dict()
 
     @command('w')
@@ -585,8 +593,8 @@ class Commands:
         else:
             f = None
         if f is not None:
-            out = filter(lambda x: x.get('status')==f, out)
-        return map(self._format_request, out)
+            out = list(filter(lambda x: x.get('status')==f, out))
+        return list(map(self._format_request, out))
 
     @command('w')
     def getunusedaddress(self,force=False):
@@ -698,11 +706,13 @@ command_options = {
     'change_addr': ("-c", "--change",      "Change address. Default is a spare address, or the source address if it's not in the wallet"),
     'nbits':       (None, "--nbits",       "Number of bits of entropy"),
     'entropy':     (None, "--entropy",     "Custom entropy"),
+    'segwit':      (None, "--segwit",      "Create segwit seed"),
     'language':    ("-L", "--lang",        "Default language for wordlist"),
     'gap_limit':   ("-G", "--gap",         "Gap limit"),
     'privkey':     (None, "--privkey",     "Private key. Set to '?' to get a prompt."),
     'unsigned':    ("-u", "--unsigned",    "Do not sign transaction"),
     'rbf':         (None, "--rbf",         "Replace-by-fee transaction"),
+    'locktime':    (None, "--locktime",    "Set locktime block number"),
     'domain':      ("-D", "--domain",      "List of addresses"),
     'memo':        ("-m", "--memo",        "Description of the request"),
     'expiration':  (None, "--expiration",  "Time in seconds"),
@@ -715,13 +725,13 @@ command_options = {
 
 
 # don't use floats because of rounding errors
-from transaction import tx_from_str
+from .transaction import tx_from_str
 json_loads = lambda x: json.loads(x, parse_float=lambda x: str(Decimal(x)))
 arg_types = {
     'num': int,
     'nbits': int,
     'imax': int,
-    'entropy': long,
+    'entropy': int,
     'tx': tx_from_str,
     'pubkeys': json_loads,
     'jsontx': json_loads,
@@ -729,6 +739,7 @@ arg_types = {
     'outputs': json_loads,
     'tx_fee': lambda x: str(Decimal(x)) if x is not None else None,
     'amount': lambda x: str(Decimal(x)) if x != '!' else '!',
+    'locktime': int,
 }
 
 config_variables = {
@@ -808,8 +819,6 @@ def add_global_options(parser):
     group.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum_data' directory")
     group.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
     group.add_argument("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
-    group.add_argument("--segwit", action="store_true", dest="segwit", default=False, help="The Wizard will create Segwit seed phrases (Testnet only).")
-    group.add_argument("--nolnet", action="store_true", dest="nolnet", default=False, help="Use Nolnet")
 
 def get_parser():
     # create main parser

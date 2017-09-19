@@ -22,11 +22,16 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
+import six
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 from electrum.i18n import _
-from util import *
+from .util import *
 import re
 import math
 
@@ -39,7 +44,7 @@ def check_password_strength(password):
     :param password: password entered by user in New Password
     :return: password strength Weak or Medium or Strong
     '''
-    password = unicode(password)
+    password = password
     n = math.log(len(set(password)))
     num = re.search("[0-9]", password) is not None and re.match("^[0-9]*$", password) is None
     caps = password != password.upper() and password != password.lower()
@@ -151,11 +156,11 @@ class PasswordLayout(object):
 
     def old_password(self):
         if self.kind == PW_CHANGE:
-            return unicode(self.pw.text()) or None
+            return self.pw.text() or None
         return None
 
     def new_password(self):
-        pw = unicode(self.new_pw.text())
+        pw = self.new_pw.text()
         # Empty passphrases are fine and returned empty.
         if pw == "" and self.kind != PW_PASSPHRASE:
             pw = None
@@ -212,4 +217,4 @@ class PasswordDialog(WindowModalDialog):
     def run(self):
         if not self.exec_():
             return
-        return unicode(self.pw.text())
+        return self.pw.text()

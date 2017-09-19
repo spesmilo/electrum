@@ -1,3 +1,9 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import six
 import sys
 import os
 
@@ -11,10 +17,10 @@ from electrum.util import UserCancelled, InvalidPassword
 from electrum.base_wizard import BaseWizard
 from electrum.i18n import _
 
-from seed_dialog import SeedLayout, KeysLayout
-from network_dialog import NetworkChoiceLayout
-from util import *
-from password_dialog import PasswordLayout, PW_NEW
+from .seed_dialog import SeedLayout, KeysLayout
+from .network_dialog import NetworkChoiceLayout
+from .util import *
+from .password_dialog import PasswordLayout, PW_NEW
 
 
 class GoBack(Exception):
@@ -87,7 +93,7 @@ def wizard_dialog(func):
         #    out = ()
         if type(out) is not tuple:
             out = (out,)
-        apply(run_next, out)
+        run_next(*out)
     return func_wrapper
 
 
@@ -109,6 +115,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.title = QLabel()
         self.main_widget = QWidget()
         self.back_button = QPushButton(_("Back"), self)
+        self.back_button.setText(_('Back') if self.can_go_back() else _('Cancel'))
         self.next_button = QPushButton(_("Next"), self)
         self.next_button.setDefault(True)
         self.logo = QLabel()
@@ -169,13 +176,12 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         wallet_folder = os.path.dirname(self.storage.path)
 
         def on_choose():
-            path = unicode(QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder))
+            path = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder)
             if path:
                 self.name_e.setText(path)
 
         def on_filename(filename):
-            filename = unicode(filename)
-            path = os.path.join(wallet_folder, filename.encode('utf8'))
+            path = os.path.join(wallet_folder, filename)
             try:
                 self.storage = WalletStorage(path)
             except IOError:
@@ -206,17 +212,17 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         button.clicked.connect(on_choose)
         self.name_e.textChanged.connect(on_filename)
         n = os.path.basename(self.storage.path)
-        self.name_e.setText(n.decode('utf8'))
+        self.name_e.setText(n)
 
         while True:
             if self.storage.file_exists() and not self.storage.is_encrypted():
                 break
-            if not self.loop.exec_():
+            if self.loop.exec_() != 2:  # 2 = next
                 return
             if not self.storage.file_exists():
                 break
             if self.storage.file_exists() and self.storage.is_encrypted():
-                password = unicode(self.pw_e.text())
+                password = self.pw_e.text()
                 try:
                     self.storage.decrypt(password)
                     break
@@ -250,7 +256,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             self.storage.upgrade()
             self.show_warning(_('Your wallet was upgraded successfully'))
             self.wallet = Wallet(self.storage)
-            self.terminate()
             return self.wallet
 
         action = self.storage.get_action()
@@ -270,7 +275,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             return self.wallet
 
         self.wallet = Wallet(self.storage)
-        self.terminate()
         return self.wallet
 
 
@@ -439,8 +443,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     @wizard_dialog
     def choice_dialog(self, title, message, choices, run_next):
-        c_values = map(lambda x: x[0], choices)
-        c_titles = map(lambda x: x[1], choices)
+        c_values = [x[0] for x in choices]
+        c_titles = [x[1] for x in choices]
         clayout = ChoicesLayout(message, c_titles)
         vbox = QVBoxLayout()
         vbox.addLayout(clayout.layout())
@@ -463,12 +467,12 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         line = QLineEdit()
         line.setText(default)
         def f(text):
-            self.next_button.setEnabled(test(unicode(text)))
+            self.next_button.setEnabled(test(text))
         line.textEdited.connect(f)
         vbox.addWidget(line)
         vbox.addWidget(WWLabel(warning))
         self.exec_layout(vbox, title, next_enabled=test(default))
-        return ' '.join(unicode(line.text()).split())
+        return ' '.join(line.text().split())
 
     @wizard_dialog
     def show_xpub_dialog(self, xpub, run_next):
@@ -485,7 +489,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def init_network(self, network):
         message = _("Electrum communicates with remote servers to get "
                   "information about your transactions and addresses. The "
-                  "servers all fulfil the same purpose only differing in "
+                  "servers all fulfill the same purpose only differing in "
                   "hardware. In most cases you simply want to let Electrum "
                   "pick one at random.  However if you prefer feel free to "
                   "select a server manually.")

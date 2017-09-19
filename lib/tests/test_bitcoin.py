@@ -1,3 +1,9 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import six
 import unittest
 import sys
 from ecdsa.util import number_to_string
@@ -6,8 +12,9 @@ from lib.bitcoin import (
     generator_secp256k1, point_to_ser, public_key_to_p2pkh, EC_KEY,
     bip32_root, bip32_public_derivation, bip32_private_derivation, pw_encode,
     pw_decode, Hash, public_key_from_private_key, address_from_private_key,
-    is_valid, is_private_key, xpub_from_xprv, is_new_seed, is_old_seed,
-    var_int, op_push)
+    is_address, is_private_key, xpub_from_xprv, is_new_seed, is_old_seed,
+    var_int, op_push, address_to_script)
+from lib.util import bfh
 
 try:
     import ecdsa
@@ -18,7 +25,7 @@ except ImportError:
 class Test_bitcoin(unittest.TestCase):
 
     def test_crypto(self):
-        for message in ["Chancellor on brink of second bailout for banks", chr(255)*512]:
+        for message in [b"Chancellor on brink of second bailout for banks", b'\xff'*512]:
             self._do_test_crypto(message)
 
     def _do_test_crypto(self, message):
@@ -30,7 +37,6 @@ class Test_bitcoin(unittest.TestCase):
         pubkey_c = point_to_ser(Pub,True)
         #pubkey_u = point_to_ser(Pub,False)
         addr_c = public_key_to_p2pkh(pubkey_c)
-        #addr_u = public_key_to_bc_address(pubkey_u)
 
         #print "Private key            ", '%064x'%pvk
         eck = EC_KEY(number_to_string(pvk,_r))
@@ -60,7 +66,7 @@ class Test_bitcoin(unittest.TestCase):
         assert xprv == "xprvA2nrNbFZABcdryreWet9Ea4LvTJcGsqrMzxHx98MMrotbir7yrKCEXw7nadnHM8Dq38EGfSh6dqA9QWTyefMLEcBYJUuekgW4BYPJcr9E7j"
 
     def _do_test_bip32(self, seed, sequence):
-        xprv, xpub = bip32_root(seed.decode('hex'), 0)
+        xprv, xpub = bip32_root(bfh(seed), 'standard')
         assert sequence[0:2] == "m/"
         path = 'm'
         sequence = sequence[2:]
@@ -106,7 +112,7 @@ class Test_bitcoin(unittest.TestCase):
     def test_hash(self):
         """Make sure the Hash function does sha256 twice"""
         payload = u"test"
-        expected = '\x95MZI\xfdp\xd9\xb8\xbc\xdb5\xd2R&x)\x95\x7f~\xf7\xfalt\xf8\x84\x19\xbd\xc5\xe8"\t\xf4'
+        expected = b'\x95MZI\xfdp\xd9\xb8\xbc\xdb5\xd2R&x)\x95\x7f~\xf7\xfalt\xf8\x84\x19\xbd\xc5\xe8"\t\xf4'
 
         result = Hash(payload)
         self.assertEqual(expected, result)
@@ -149,6 +155,23 @@ class Test_bitcoin(unittest.TestCase):
         self.assertEqual(op_push(0x10000), '4e00000100')
         self.assertEqual(op_push(0x12345678), '4e78563412')
 
+    # TODO testnet addresses
+    def test_address_to_script(self):
+        # bech32 native segwit
+        # test vectors from BIP-0173
+        self.assertEqual(address_to_script('BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4'), '0014751e76e8199196d454941c45d1b3a323f1433bd6')
+        self.assertEqual(address_to_script('bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7k7grplx'), '5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6')
+        self.assertEqual(address_to_script('BC1SW50QA3JX3S'), '6002751e')
+        self.assertEqual(address_to_script('bc1zw508d6qejxtdg4y5r3zarvaryvg6kdaj'), '5210751e76e8199196d454941c45d1b3a323')
+
+        # base58 P2PKH
+        self.assertEqual(address_to_script('14gcRovpkCoGkCNBivQBvw7eso7eiNAbxG'), '76a91428662c67561b95c79d2257d2a93d9d151c977e9188ac')
+        self.assertEqual(address_to_script('1BEqfzh4Y3zzLosfGhw1AsqbEKVW6e1qHv'), '76a914704f4b81cadb7bf7e68c08cd3657220f680f863c88ac')
+
+        # base58 P2SH
+        self.assertEqual(address_to_script('35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT'), 'a9142a84cf00d47f699ee7bbc1dea5ec1bdecb4ac15487')
+        self.assertEqual(address_to_script('3PyjzJ3im7f7bcV724GR57edKDqoZvH7Ji'), 'a914f47c8954e421031ad04ecd8e7752c9479206b9d387')
+
 
 class Test_keyImport(unittest.TestCase):
     """ The keys used in this class are TEST keys from
@@ -167,8 +190,8 @@ class Test_keyImport(unittest.TestCase):
         self.assertEqual(self.main_address, result)
 
     def test_is_valid_address(self):
-        self.assertTrue(is_valid(self.main_address))
-        self.assertFalse(is_valid("not an address"))
+        self.assertTrue(is_address(self.main_address))
+        self.assertFalse(is_address("not an address"))
 
     def test_is_private_key(self):
         self.assertTrue(is_private_key(self.private_key))

@@ -37,7 +37,7 @@ from electrum_gui.qt.amountedit import AmountEdit
 from electrum_gui.qt.main_window import StatusBarButton
 from electrum.i18n import _
 from electrum.plugins import hook
-from trustedcoin import TrustedCoinPlugin, server
+from .trustedcoin import TrustedCoinPlugin, server
 
 
 class Plugin(TrustedCoinPlugin):

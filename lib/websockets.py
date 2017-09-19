@@ -22,8 +22,13 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
-import threading, Queue, os, json, time
+import queue
+import threading, os, json, time
 from collections import defaultdict
 try:
     from SimpleWebSocketServer import WebSocket, SimpleSSLWebSocketServer
@@ -31,9 +36,9 @@ except ImportError:
     import sys
     sys.exit("install SimpleWebSocketServer")
 
-import util
+from . import util
 
-request_queue = Queue.Queue()
+request_queue = queue.Queue()
 
 class ElectrumWebSocket(WebSocket):
 
@@ -108,7 +113,7 @@ class WsClientThread(util.DaemonThread):
                 for ws, amount in l:
                     if not ws.closed:
                         if sum(result.values()) >=amount:
-                            ws.sendMessage(unicode('paid'))
+                            ws.sendMessage('paid')
 
 
 

@@ -1,5 +1,6 @@
-import select, time, electrum, Queue
+import select, time, electrum, queue
 from electrum import Connection, Interface, SimpleConfig
+
 from electrum.network import filter_protocol, parse_servers
 from collections import defaultdict
 
@@ -8,7 +9,7 @@ def get_interfaces(servers, timeout=10):
     '''Returns a map of servers to connected interfaces.  If any
     connections fail or timeout, they will be missing from the map.
     '''
-    socket_queue = Queue.Queue()
+    socket_queue = queue.Queue()
     config = SimpleConfig()
     connecting = {}
     for server in servers:
@@ -20,7 +21,7 @@ def get_interfaces(servers, timeout=10):
     while time.time() < timeout and count < len(servers):
         try:
             server, socket = socket_queue.get(True, 0.3)
-        except Queue.Empty:
+        except queue.Empty:
             continue
         if socket:
             interfaces[server] = Interface(server, socket)
@@ -45,12 +46,13 @@ def wait_on_interfaces(interfaces, timeout=10):
     return result
 
 def get_peers():
-    peers = []
+    config = SimpleConfig()
+    peers = {}
     # 1. get connected interfaces
-    server = 'ecdsa.net:110:s'
+    server = config.get('server')
     interfaces = get_interfaces([server])
     if not interfaces:
-        print "No connection to", server
+        print("No connection to", server)
         return []
     # 2. get list of peers
     interface = interfaces[server]
@@ -59,22 +61,22 @@ def get_peers():
     if responses:
         response = responses[0][1]  # One response, (req, response) tuple
         peers = parse_servers(response.get('result'))
-        peers = filter_protocol(peers,'s')
     return peers
 
+
 def send_request(peers, method, params):
-    print "Contacting %d servers"%len(peers)
+    print("Contacting %d servers"%len(peers))
     interfaces = get_interfaces(peers)
-    print "%d servers could be reached" % len(interfaces)
+    print("%d servers could be reached" % len(interfaces))
     for peer in peers:
         if not peer in interfaces:
-            print "Connection failed:", peer
+            print("Connection failed:", peer)
     for msg_id, i in enumerate(interfaces.values()):
         i.queue_request(method, params, msg_id)
     responses = wait_on_interfaces(interfaces)
     for peer in interfaces:
         if not peer in responses:
-            print peer, "did not answer"
+            print(peer, "did not answer")
     results = dict(zip(responses.keys(), [t[0][1].get('result') for t in responses.values()]))
-    print "%d answers"%len(results)
+    print("%d answers"%len(results))
     return results

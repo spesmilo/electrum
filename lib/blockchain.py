@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2012 thomasv@ecdsa.org
 #
@@ -22,15 +20,12 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
-
-
 import os
-import util
 import threading
 
-import bitcoin
-from bitcoin import *
+from . import util
+from . import bitcoin
+from .bitcoin import *
 
 MAX_TARGET = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
 
@@ -44,7 +39,7 @@ def serialize_header(res):
     return s
 
 def deserialize_header(s, height):
-    hex_to_int = lambda s: int('0x' + s[::-1].encode('hex'), 16)
+    hex_to_int = lambda s: int('0x' + bh2u(s[::-1]), 16)
     h = {}
     h['version'] = hex_to_int(s[0:4])
     h['prev_block_hash'] = hash_encode(s[4:36])
@@ -60,7 +55,7 @@ def hash_header(header):
         return '0' * 64
     if header.get('prev_block_hash') is None:
         header['prev_block_hash'] = '00'*32
-    return hash_encode(Hash(serialize_header(header).decode('hex')))
+    return hash_encode(Hash(bfh(serialize_header(header))))
 
 
 blockchains = {}
@@ -95,8 +90,9 @@ def can_connect(header):
 
 
 class Blockchain(util.PrintError):
-
-    '''Manages blockchain headers and their verification'''
+    """
+    Manages blockchain headers and their verification
+    """
 
     def __init__(self, config, checkpoint, parent_id):
         self.config = config
@@ -111,7 +107,7 @@ class Blockchain(util.PrintError):
         return blockchains[self.parent_id]
 
     def get_max_child(self):
-        children = filter(lambda y: y.parent_id==self.checkpoint, blockchains.values())
+        children = list(filter(lambda y: y.parent_id==self.checkpoint, blockchains.values()))
         return max([x.checkpoint for x in children]) if children else None
 
     def get_checkpoint(self):
@@ -145,7 +141,7 @@ class Blockchain(util.PrintError):
 
     def update_size(self):
         p = self.path()
-        self._size = os.path.getsize(p)/80 if os.path.exists(p) else 0
+        self._size = os.path.getsize(p)//80 if os.path.exists(p) else 0
 
     def verify_header(self, header, prev_header, bits, target):
         prev_hash = hash_header(prev_header)
@@ -159,20 +155,11 @@ class Blockchain(util.PrintError):
         if int('0x' + _hash, 16) > target:
             raise BaseException("insufficient proof of work: %s vs target %s" % (int('0x' + _hash, 16), target))
 
-    def verify_chain(self, chain):
-        first_header = chain[0]
-        prev_header = self.read_header(first_header.get('block_height') - 1)
-        for header in chain:
-            height = header.get('block_height')
-            bits, target = self.get_target(height / 2016, chain)
-            self.verify_header(header, prev_header, bits, target)
-            prev_header = header
-
     def verify_chunk(self, index, data):
-        num = len(data) / 80
+        num = len(data) // 80
         prev_header = None
         if index != 0:
-            prev_header = self.read_header(index*2016 - 1)
+            prev_header = self.read_header(index * 2016 - 1)
         bits, target = self.get_target(index)
         for i in range(num):
             raw_header = data[i*80:(i+1) * 80]
@@ -191,11 +178,7 @@ class Blockchain(util.PrintError):
         if d < 0:
             chunk = chunk[-d:]
             d = 0
-        with self.lock:
-            with open(filename, 'rb+') as f:
-                f.seek(d)
-                f.write(chunk)
-            self.update_size()
+        self.write(chunk, d)
         self.swap_with_parent()
 
     def swap_with_parent(self):
@@ -208,29 +191,20 @@ class Blockchain(util.PrintError):
         parent_id = self.parent_id
         checkpoint = self.checkpoint
         parent = self.parent()
-        with open(parent.path(), 'rb+') as f:
+        with open(self.path(), 'rb') as f:
+            my_data = f.read()
+        with open(parent.path(), 'rb') as f:
             f.seek((checkpoint - parent.checkpoint)*80)
             parent_data = f.read(parent_branch_size*80)
-        with self.lock:
-            with open(self.path(), 'rb+') as f:
-                my_data = f.read()
-                f.seek(0)
-                f.truncate()
-                f.write(parent_data)
-            self.update_size()
-        with parent.lock:
-            with open(parent.path(), 'rb+') as f:
-                f.seek((checkpoint - parent.checkpoint)*80)
-                f.truncate()
-                f.seek((checkpoint - parent.checkpoint)*80)
-                f.write(my_data)
-            parent.update_size()
+        self.write(parent_data, 0)
+        parent.write(my_data, (checkpoint - parent.checkpoint)*80)
         # store file path
         for b in blockchains.values():
             b.old_path = b.path()
         # swap parameters
         self.parent_id = parent.parent_id; parent.parent_id = parent_id
         self.checkpoint = parent.checkpoint; parent.checkpoint = checkpoint
+        self._size = parent._size; parent._size = parent_branch_size
         # move files
         for b in blockchains.values():
             if b in [self, parent]: continue
@@ -241,22 +215,31 @@ class Blockchain(util.PrintError):
         blockchains[self.checkpoint] = self
         blockchains[parent.checkpoint] = parent
 
-    def save_header(self, header):
+    def write(self, data, offset):
         filename = self.path()
-        delta = header.get('block_height') - self.checkpoint
-        data = serialize_header(header).decode('hex')
-        assert delta == self.size()
-        assert len(data) == 80
         with self.lock:
             with open(filename, 'rb+') as f:
-                f.seek(delta * 80)
+                if offset != self._size*80:
+                    f.seek(offset)
+                    f.truncate()
+                f.seek(offset)
                 f.write(data)
+                f.flush()
+                os.fsync(f.fileno())
             self.update_size()
-        # order files
+
+    def save_header(self, header):
+        delta = header.get('block_height') - self.checkpoint
+        data = bfh(serialize_header(header))
+        assert delta == self.size()
+        assert len(data) == 80
+        self.write(data, delta*80)
         self.swap_with_parent()
 
     def read_header(self, height):
         assert self.parent_id != self.checkpoint
+        if height < 0:
+            return
         if height < self.checkpoint:
             return self.parent().read_header(height)
         if height > self.height():
@@ -271,7 +254,7 @@ class Blockchain(util.PrintError):
         return deserialize_header(h, height)
 
     def get_hash(self, height):
-        return bitcoin.GENESIS if height == 0 else hash_header(self.read_header(height))
+        return hash_header(self.read_header(height))
 
     def BIP9(self, height, flag):
         v = self.read_header(height)['version']
@@ -281,18 +264,13 @@ class Blockchain(util.PrintError):
         h = self.local_height
         return sum([self.BIP9(h-i, 2) for i in range(N)])*10000/N/100.
 
-    def get_target(self, index, chain=None):
+    def get_target(self, index):
         if bitcoin.TESTNET:
             return 0, 0
         if index == 0:
             return 0x1d00ffff, MAX_TARGET
         first = self.read_header((index-1) * 2016)
         last = self.read_header(index*2016 - 1)
-        if last is None:
-            for h in chain:
-                if h.get('block_height') == index*2016 - 1:
-                    last = h
-        assert last is not None
         # bits to target
         bits = last.get('bits')
         bitsN = (bits >> 24) & 0xff
@@ -305,19 +283,19 @@ class Blockchain(util.PrintError):
         # new target
         nActualTimespan = last.get('timestamp') - first.get('timestamp')
         nTargetTimespan = 14 * 24 * 60 * 60
-        nActualTimespan = max(nActualTimespan, nTargetTimespan / 4)
+        nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
         nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
-        new_target = min(MAX_TARGET, (target*nActualTimespan) / nTargetTimespan)
+        new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
         # convert new target to bits
         c = ("%064x" % new_target)[2:]
         while c[:2] == '00' and len(c) > 6:
             c = c[2:]
-        bitsN, bitsBase = len(c) / 2, int('0x' + c[:6], 16)
+        bitsN, bitsBase = len(c) // 2, int('0x' + c[:6], 16)
         if bitsBase >= 0x800000:
             bitsN += 1
             bitsBase >>= 8
         new_bits = bitsN << 24 | bitsBase
-        return new_bits, bitsBase << (8 * (bitsN-3))
+        return new_bits, bitsBase << (8 * (bitsN - 3))
 
     def can_connect(self, header, check_height=True):
         height = header['block_height']
@@ -331,7 +309,7 @@ class Blockchain(util.PrintError):
         prev_hash = hash_header(previous_header)
         if prev_hash != header.get('prev_block_hash'):
             return False
-        bits, target = self.get_target(height / 2016)
+        bits, target = self.get_target(height // 2016)
         try:
             self.verify_header(header, previous_header, bits, target)
         except:
@@ -340,7 +318,7 @@ class Blockchain(util.PrintError):
 
     def connect_chunk(self, idx, hexdata):
         try:
-            data = hexdata.decode('hex')
+            data = bfh(hexdata)
             self.verify_chunk(idx, data)
             #self.print_error("validated chunk %d" % idx)
             self.save_chunk(idx, data)

@@ -1,3 +1,8 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
 from datetime import datetime
 import inspect
 import requests
@@ -8,10 +13,10 @@ import traceback
 import csv
 from decimal import Decimal
 
-from bitcoin import COIN
-from i18n import _
-from util import PrintError, ThreadJob
-from util import format_satoshis
+from .bitcoin import COIN
+from .i18n import _
+from .util import PrintError, ThreadJob
+from .util import format_satoshis
 
 
 # See https://en.wikipedia.org/wiki/ISO_4217
@@ -21,6 +26,7 @@ CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
                   'LYD': 3, 'MGA': 1, 'MRO': 1, 'OMR': 3, 'PYG': 0,
                   'RWF': 0, 'TND': 3, 'UGX': 0, 'UYI': 0, 'VND': 0,
                   'VUV': 0, 'XAF': 0, 'XAU': 4, 'XOF': 0, 'XPF': 0}
+
 
 class ExchangeBase(PrintError):
 
@@ -39,7 +45,7 @@ class ExchangeBase(PrintError):
     def get_csv(self, site, get_string):
         url = ''.join(['https://', site, get_string])
         response = requests.request('GET', url, headers={'User-Agent' : 'Electrum'})
-        reader = csv.DictReader(response.content.split('\n'))
+        reader = csv.DictReader(response.content.decode().split('\n'))
         return list(reader)
 
     def name(self):
@@ -163,7 +169,7 @@ class BitStamp(ExchangeBase):
 class Bitvalor(ExchangeBase):
 
     def get_rates(self,ccy):
-	json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
+        json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
         return {'BRL': Decimal(json['ticker_1h']['total']['last'])}
 
 
@@ -179,17 +185,6 @@ class BTCChina(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('data.btcchina.com', '/data/ticker')
         return {'CNY': Decimal(json['ticker']['last'])}
-
-
-class BTCe(ExchangeBase):
-
-    def get_rates(self, ccy):
-        json_eur = self.get_json('btc-e.nz', '/api/3/ticker/btc_eur')
-        json_rub = self.get_json('btc-e.nz', '/api/3/ticker/btc_rur')
-        json_usd = self.get_json('btc-e.nz', '/api/3/ticker/btc_usd')
-        return {'EUR': Decimal(json_eur['btc_eur']['last']),
-                'RUB': Decimal(json_rub['btc_rur']['last']),
-                'USD': Decimal(json_usd['btc_usd']['last'])}
 
 
 class BTCParalelo(ExchangeBase):
@@ -246,7 +241,7 @@ class Coinsecure(ExchangeBase):
 class Foxbit(ExchangeBase):
 
     def get_rates(self,ccy):
-	json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
+        json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
         return {'BRL': Decimal(json['ticker_1h']['exchanges']['FOX']['last'])}
 
 
@@ -283,14 +278,14 @@ class LocalBitcoins(ExchangeBase):
 class MercadoBitcoin(ExchangeBase):
 
     def get_rates(self, ccy):
-	json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
+        json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
         return {'BRL': Decimal(json['ticker_1h']['exchanges']['MBT']['last'])}
 
 
 class NegocieCoins(ExchangeBase):
 
     def get_rates(self,ccy):
-	json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
+        json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
         return {'BRL': Decimal(json['ticker_1h']['exchanges']['NEG']['last'])}
 
     def history_ccys(self):
@@ -302,6 +297,17 @@ class Unocoin(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('www.unocoin.com', 'trade?buy')
         return {'INR': Decimal(json)}
+
+
+class WEX(ExchangeBase):
+
+    def get_rates(self, ccy):
+        json_eur = self.get_json('wex.nz', '/api/3/ticker/btc_eur')
+        json_rub = self.get_json('wex.nz', '/api/3/ticker/btc_rur')
+        json_usd = self.get_json('wex.nz', '/api/3/ticker/btc_usd')
+        return {'EUR': Decimal(json_eur['btc_eur']['last']),
+                'RUB': Decimal(json_rub['btc_rur']['last']),
+                'USD': Decimal(json_usd['btc_usd']['last'])}
 
 
 class Winkdex(ExchangeBase):
@@ -323,7 +329,7 @@ class Winkdex(ExchangeBase):
 
 def dictinvert(d):
     inv = {}
-    for k, vlist in d.iteritems():
+    for k, vlist in d.items():
         for v in vlist:
             keys = inv.setdefault(v, [])
             keys.append(k)
@@ -411,6 +417,12 @@ class FxThread(ThreadJob):
 
     def set_history_config(self, b):
         self.config.set_key('history_rates', bool(b))
+
+    def get_fiat_address_config(self):
+        return bool(self.config.get('fiat_address'))
+
+    def set_fiat_address_config(self, b):
+        self.config.set_key('fiat_address', bool(b))
 
     def get_currency(self):
         '''Use when dynamic fetching is needed'''
