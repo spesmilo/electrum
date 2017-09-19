@@ -205,20 +205,41 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.date_label.show()
         else:
             self.date_label.hide()
+
         if amount is None:
             amount_str = _("Transaction unrelated to your wallet")
         elif amount > 0:
             amount_str = _("Amount received:") + ' %s'% format_amount(amount) + ' ' + base_unit
         else:
             amount_str = _("Amount sent:") + ' %s'% format_amount(-amount) + ' ' + base_unit
+        
+        fiat_amount = self.get_fiat_value(amount)
+        amount_str += " / " + fiat_amount if fiat_amount else ""
+
         size_str = _("Size:") + ' %d bytes'% size
         fee_str = _("Fee") + ': %s'% (format_amount(fee) + ' ' + base_unit if fee is not None else _('unknown'))
+
+        fiat_fee = self.get_fiat_value(fee)
+        fee_str += " / " + fiat_fee if fiat_fee else ""
+
         if fee is not None:
             fee_str += '  ( %s )' % (format_amount(fee * 1000 / size) + ' ' + base_unit + '/kB')
+
         self.amount_label.setText(amount_str)
         self.fee_label.setText(fee_str)
         self.size_label.setText(size_str)
         run_hook('transaction_dialog_update', self)
+
+    def get_fiat_value(self, btc):
+        fx = self.main_window.fx
+        if not fx.is_enabled():
+            return None
+
+        fiat = fx.format_amount_and_units(btc)
+        if fiat.lower().startswith("unknown"):
+            fiat = None
+
+        return fiat
 
     def add_io(self, vbox):
         if self.tx.locktime > 0:
