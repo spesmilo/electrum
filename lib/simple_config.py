@@ -6,6 +6,7 @@ from __future__ import unicode_literals
 import ast
 import json
 import threading
+import time
 import os
 
 from copy import deepcopy
@@ -48,6 +49,8 @@ class SimpleConfig(PrintError):
         self.lock = threading.RLock()
 
         self.fee_estimates = {}
+        self.fee_estimates_last_updated = {}
+        self.last_time_fee_estimates_requested = 0  # zero ensures immediate fees
 
         # The following two functions are there for dependency injection when
         # testing.
@@ -242,6 +245,24 @@ class SimpleConfig(PrintError):
         else:
             fee_rate = self.get('fee_per_kb', self.max_fee_rate()/2)
         return fee_rate
+
+    def update_fee_estimates(self, key, value):
+        self.fee_estimates[key] = value
+        self.fee_estimates_last_updated[key] = time.time()
+
+    def is_fee_estimates_update_required(self):
+        """Checks time since last requested and updated fee estimates.
+        Returns True if an update should be requested.
+        """
+        now = time.time()
+        prev_updates = self.fee_estimates_last_updated.values()
+        oldest_fee_time = min(prev_updates) if prev_updates else 0
+        stale_fees = now - oldest_fee_time > 7200
+        old_request = now - self.last_time_fee_estimates_requested > 60
+        return stale_fees and old_request
+
+    def requested_fee_estimates(self):
+        self.last_time_fee_estimates_requested = time.time()
 
     def get_video_device(self):
         device = self.get("video_device", "default")
