@@ -30,10 +30,10 @@ class TestBCDataStream(unittest.TestCase):
         with self.assertRaises(transaction.SerializationError):
             s.write_compact_size(-1)
 
-        self.assertEquals(bh2u(s.input),
+        self.assertEqual(bh2u(s.input),
                           '0001fcfdfd00fdfffffe00000100feffffffffff0000000001000000ffffffffffffffffff')
         for v in values:
-            self.assertEquals(s.read_compact_size(), v)
+            self.assertEqual(s.read_compact_size(), v)
 
         with self.assertRaises(IndexError):
             s.read_compact_size()
@@ -47,7 +47,7 @@ class TestBCDataStream(unittest.TestCase):
         for msg in msgs:
             s.write_string(msg)
         for msg in msgs:
-            self.assertEquals(s.read_string(), msg)
+            self.assertEqual(s.read_string(), msg)
 
         with self.assertRaises(transaction.SerializationError):
             s.read_string()
@@ -55,10 +55,10 @@ class TestBCDataStream(unittest.TestCase):
     def test_bytes(self):
         s = transaction.BCDataStream()
         s.write(b'foobar')
-        self.assertEquals(s.read_bytes(3), b'foo')
-        self.assertEquals(s.read_bytes(2), b'ba')
-        self.assertEquals(s.read_bytes(4), b'r')
-        self.assertEquals(s.read_bytes(1), b'')
+        self.assertEqual(s.read_bytes(3), b'foo')
+        self.assertEqual(s.read_bytes(2), b'ba')
+        self.assertEqual(s.read_bytes(4), b'r')
+        self.assertEqual(s.read_bytes(1), b'')
 
 class TestTransaction(unittest.TestCase):
 
@@ -85,26 +85,26 @@ class TestTransaction(unittest.TestCase):
                 'version': 1
         }
         tx = transaction.Transaction(unsigned_blob)
-        self.assertEquals(tx.deserialize(), expected)
-        self.assertEquals(tx.deserialize(), None)
+        self.assertEqual(tx.deserialize(), expected)
+        self.assertEqual(tx.deserialize(), None)
 
-        self.assertEquals(tx.as_dict(), {'hex': unsigned_blob, 'complete': False, 'final': True})
-        self.assertEquals(tx.get_outputs(), [('LNREont24PYd5kkxTKoxVNhbugLowNb7H8', 1000000)])
-        self.assertEquals(tx.get_output_addresses(), ['LNREont24PYd5kkxTKoxVNhbugLowNb7H8'])
+        self.assertEqual(tx.as_dict(), {'hex': unsigned_blob, 'complete': False, 'final': True})
+        self.assertEqual(tx.get_outputs(), [('LNREont24PYd5kkxTKoxVNhbugLowNb7H8', 1000000)])
+        self.assertEqual(tx.get_output_addresses(), ['LNREont24PYd5kkxTKoxVNhbugLowNb7H8'])
 
         self.assertTrue(tx.has_address('LNREont24PYd5kkxTKoxVNhbugLowNb7H8'))
         self.assertTrue(tx.has_address('LNH44gMp6kNHu4Npo5JDNY6FPjewvMKDnz'))
         self.assertFalse(tx.has_address('LWdgGJGqSmaGYcp6e21RvpGmcuexJorNEH'))
 
-        self.assertEquals(tx.serialize(), unsigned_blob)
+        self.assertEqual(tx.serialize(), unsigned_blob)
 
         tx.update_signatures(signed_blob)
-        self.assertEquals(tx.raw, signed_blob)
+        self.assertEqual(tx.raw, signed_blob)
 
         tx.update(unsigned_blob)
         tx.raw = None
         blob = str(tx)
-        self.assertEquals(transaction.deserialize(blob), expected)
+        self.assertEqual(transaction.deserialize(blob), expected)
 
     def test_tx_signed(self):
         expected = {
@@ -129,11 +129,11 @@ class TestTransaction(unittest.TestCase):
             'version': 1
         }
         tx = transaction.Transaction(signed_blob)
-        self.assertEquals(tx.deserialize(), expected)
-        self.assertEquals(tx.deserialize(), None)
-        self.assertEquals(tx.as_dict(), {'hex': signed_blob, 'complete': True, 'final': True})
+        self.assertEqual(tx.deserialize(), expected)
+        self.assertEqual(tx.deserialize(), None)
+        self.assertEqual(tx.as_dict(), {'hex': signed_blob, 'complete': True, 'final': True})
 
-        self.assertEquals(tx.serialize(), signed_blob)
+        self.assertEqual(tx.serialize(), signed_blob)
 
         tx.update_signatures(signed_blob)
 
@@ -146,14 +146,14 @@ class TestTransaction(unittest.TestCase):
 
     def test_parse_xpub(self):
         res = xpubkey_to_address('fe4e13b0f311a55b8a5db9a32e959da9f011b131019d4cebe6141b9e2c93edcbfc0954c358b062a9f94111548e50bde5847a3096b8b7872dcffadb0e9579b9017b01000200')
-        self.assertEquals(res, ('04ee98d63800824486a1cf5b4376f2f574d86e0a3009a6448105703453f3368e8e1d8d090aaecdd626a45cc49876709a3bbb6dc96a4311b3cac03e225df5f63dfc', 'LTv6KFwtiNafLvxggFFQMRSQEXtBUru9eG'))
+        self.assertEqual(res, ('04ee98d63800824486a1cf5b4376f2f574d86e0a3009a6448105703453f3368e8e1d8d090aaecdd626a45cc49876709a3bbb6dc96a4311b3cac03e225df5f63dfc', 'LTv6KFwtiNafLvxggFFQMRSQEXtBUru9eG'))
 
         res = xpubkey_to_address('fd307d260305ef27224bbcf6cf5238d2b3638b5a78d5')
-        self.assertEquals(res, ('fd307d260305ef27224bbcf6cf5238d2b3638b5a78d5', 'LWdgGJGqSmaGYcp6e21RvpGmcuexJorNEH'))
+        self.assertEqual(res, ('fd307d260305ef27224bbcf6cf5238d2b3638b5a78d5', 'LWdgGJGqSmaGYcp6e21RvpGmcuexJorNEH'))
 
     def test_version_field(self):
         tx = transaction.Transaction(v2_blob)
-        self.assertEquals(tx.txid(), "b97f9180173ab141b61b9f944d841e60feec691d6daab4d4d932b24dd36606fe")
+        self.assertEqual(tx.txid(), "b97f9180173ab141b61b9f944d841e60feec691d6daab4d4d932b24dd36606fe")
 
 
 class NetworkMock(object):
