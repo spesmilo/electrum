@@ -142,8 +142,8 @@ class TestTransaction(unittest.TestCase):
         self.assertEqual(tx.estimated_base_size(), 193)
         self.assertEqual(tx.estimated_witness_size(), 0)
         self.assertEqual(tx.estimated_weight(), 772)
-        self.assertEqual(tx.estimated_virtual_size(True), 193)
-        self.assertEqual(tx.estimated_virtual_size(False), 193)
+        self.assertEqual(tx.estimated_virtual_size(), 193)
+        self.assertEqual(tx.estimated_size(), 193)
 
     # TODO other tests for segwit tx
     def test_tx_signed_segwit(self):
@@ -153,8 +153,8 @@ class TestTransaction(unittest.TestCase):
         self.assertEqual(tx.estimated_base_size(), 113)
         self.assertEqual(tx.estimated_witness_size(), 109)
         self.assertEqual(tx.estimated_weight(), 561)
-        self.assertEqual(tx.estimated_virtual_size(True), 141)
-        self.assertEqual(tx.estimated_virtual_size(False), 140.25)
+        self.assertEqual(tx.estimated_virtual_size(), 141)
+        self.assertEqual(tx.estimated_size(), 141)
 
     def test_errors(self):
         with self.assertRaises(TypeError):

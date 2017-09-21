@@ -826,8 +826,7 @@ class Transaction:
     @profiler
     def estimated_size(self):
         '''Return an estimated tx size in bytes.'''
-        print_error("warning: deprecated tx.estimated_size()")
-        return self.estimated_total_size()
+        return self.estimated_virtual_size()
 
     @classmethod
     def estimated_input_size(self, txin):
@@ -858,18 +857,15 @@ class Transaction:
         base_tx_size = self.estimated_base_size()
         return 3 * base_tx_size + total_tx_size
 
-    def estimated_virtual_size(self, round_up=True):
-        """Return an estimated tx size in vbytes.
+    def estimated_virtual_size(self):
+        """Return an estimated virtual tx size in vbytes.
         BIP-0141 defines 'Virtual transaction size' to be weight/4 rounded up.
         This definition is only for humans, and has little meaning otherwise.
-        Fee calculation should use transaction weight instead, or this method
-        without rounding, with the factor of four in mind.
+        If we wanted sub-byte precision, fee calculation should use transaction
+        weights, but for simplicity we approximate that with (virtual_size)x4
         """
         weight = self.estimated_weight()
-        if round_up:
-            return weight // 4 + (weight % 4 > 0)
-        else:
-            return weight / 4
+        return weight // 4 + (weight % 4 > 0)
 
     def signature_count(self):
         r = 0

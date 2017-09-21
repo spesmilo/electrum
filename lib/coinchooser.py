@@ -184,7 +184,7 @@ class CoinChooserBase(PrintError):
         # Copy the ouputs so when adding change we don't modify "outputs"
         tx = Transaction.from_io([], outputs[:])
         # Size of the transaction with no inputs and no change
-        base_size = tx.estimated_virtual_size()
+        base_size = tx.estimated_size()
         spent_amount = tx.output_value()
 
         def sufficient_funds(buckets):

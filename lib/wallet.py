@@ -452,7 +452,7 @@ class Abstract_Wallet(PrintError):
                     if fee is None:
                         fee = self.tx_fees.get(tx_hash)
                     if fee and self.network.config.has_fee_estimates():
-                        size = tx.estimated_virtual_size(False)
+                        size = tx.estimated_size()
                         fee_per_kb = fee * 1000 / size
                         exp_n = self.network.config.reverse_dynfee(fee_per_kb)
                     can_bump = is_mine and not tx.is_final()
@@ -853,7 +853,7 @@ class Abstract_Wallet(PrintError):
             _type, data, value = outputs[i_max]
             outputs[i_max] = (_type, data, 0)
             tx = Transaction.from_io(inputs, outputs[:])
-            fee = fee_estimator(tx.estimated_virtual_size(False))
+            fee = fee_estimator(tx.estimated_size())
             amount = max(0, sendable - tx.output_value() - fee)
             outputs[i_max] = (_type, data, amount)
             tx = Transaction.from_io(inputs, outputs[:])
@@ -907,7 +907,7 @@ class Abstract_Wallet(PrintError):
         if fee is None:
             outputs = [(TYPE_ADDRESS, recipient, total)]
             tx = Transaction.from_io(inputs, outputs)
-            fee = self.estimate_fee(config, tx.estimated_virtual_size(False))
+            fee = self.estimate_fee(config, tx.estimated_size())
 
         if total - fee < 0:
             raise BaseException(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d'%(total, fee))

@@ -131,7 +131,7 @@ class TxDialog(Factory.Popup):
     def do_rbf(self):
         from bump_fee_dialog import BumpFeeDialog
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
-        size = self.tx.estimated_virtual_size()
+        size = self.tx.estimated_size()
         d = BumpFeeDialog(self.app, fee, size, self._do_rbf)
         d.open()
 

@@ -24,7 +24,6 @@
 # SOFTWARE.
 import sys, time, threading
 import os, json, traceback
-import math
 import shutil
 import socket
 import weakref
@@ -1200,7 +1199,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if rbf_policy == 0:
                 b = True
             elif rbf_policy == 1:
-                fee_rate = fee * 1000 / tx.estimated_virtual_size(False)
+                fee_rate = fee * 1000 / tx.estimated_size()
                 try:
                     c = self.config.reverse_dynfee(fee_rate)
                     b = c in [-1, 25]
@@ -1341,7 +1340,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if use_rbf:
             tx.set_rbf(True)
 
-        if fee < self.wallet.relayfee() * tx.estimated_virtual_size(False) / 1000 and tx.requires_fee(self.wallet):
+        if fee < self.wallet.relayfee() * tx.estimated_size() / 1000 and tx.requires_fee(self.wallet):
             self.show_error(_("This transaction requires a higher fee, or it will not be propagated by the network"))
             return
 
@@ -1361,7 +1360,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             msg.append( _("Additional fees") + ": " + self.format_amount_and_units(x_fee_amount) )
 
         confirm_rate = 2 * self.config.max_fee_rate()
-        if fee > confirm_rate * tx.estimated_virtual_size(False) / 1000:
+        if fee > confirm_rate * tx.estimated_size() / 1000:
             msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
 
         if self.wallet.has_password():
@@ -2823,7 +2822,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d.exec_()
 
     def cpfp(self, parent_tx, new_tx):
-        total_size = parent_tx.estimated_virtual_size(False) + new_tx.estimated_virtual_size(False)
+        total_size = parent_tx.estimated_size() + new_tx.estimated_size()
         d = WindowModalDialog(self, _('Child Pays for Parent'))
         vbox = QVBoxLayout(d)
         msg = (
@@ -2839,7 +2838,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addWidget(WWLabel(_(msg2)))
         grid = QGridLayout()
         grid.addWidget(QLabel(_('Total size') + ':'), 0, 0)
-        grid.addWidget(QLabel('%d vbytes'% math.ceil(total_size)), 0, 1)
+        grid.addWidget(QLabel('%d vbytes'% total_size), 0, 1)
         max_fee = new_tx.output_value()
         grid.addWidget(QLabel(_('Input amount') + ':'), 1, 0)
         grid.addWidget(QLabel(self.format_amount(max_fee) + ' ' + self.base_unit()), 1, 1)
@@ -2877,7 +2876,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def bump_fee_dialog(self, tx):
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
         tx_label = self.wallet.get_label(tx.txid())
-        tx_size = tx.estimated_virtual_size(False)
+        tx_size = tx.estimated_size()
         d = WindowModalDialog(self, _('Bump Fee'))
         vbox = QVBoxLayout(d)
         vbox.addWidget(QLabel(_('Current fee') + ': %s'% self.format_amount(fee) + ' ' + self.base_unit()))
