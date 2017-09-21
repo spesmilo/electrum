@@ -2,6 +2,7 @@ from struct import pack, unpack
 import hashlib
 import time
 import sys
+import os
 import traceback
 
 import electrum
@@ -59,7 +60,14 @@ class Ledger_Client():
         #self.get_client() # prompt for the PIN before displaying the dialog if necessary
         #self.handler.show_message("Computing master public key")
         try:
-            xtype = 'segwit_p2sh' if bip32_path.startswith("m/49'/") else 'standard'
+            if (os.getenv("LEDGER_NATIVE_SEGWIT") is not None) and self.supports_native_segwit():
+                xtype = 'segwit'
+            elif bip32_path.startswith("m/49'/"):
+                if not self.supports_segwit():
+                    raise Exception("Firmware version too old for Segwit support. Please update at https://www.ledgerwallet.com")
+                xtype = 'segwit_p2sh'
+            else:
+                xtype = 'standard'
             splitPath = bip32_path.split('/')
             if splitPath[0] == 'm':
                 splitPath = splitPath[1:]
@@ -107,10 +115,20 @@ class Ledger_Client():
     def supports_multi_output(self):
         return self.multiOutputSupported
 
+    def supports_segwit(self):
+        return self.segwitSupported
+
+    def supports_native_segwit(self):
+        return self.nativeSegwitSupported
+
     def perform_hw1_preflight(self):
         try:
-            firmware = self.dongleObject.getFirmwareVersion()['version'].split(".")
+            firmwareInfo = self.dongleObject.getFirmwareVersion()
+            firmware = firmwareInfo['version'].split(".")
             self.multiOutputSupported = int(firmware[0]) >= 1 and int(firmware[1]) >= 1 and int(firmware[2]) >= 4
+            self.segwitSupported = (int(firmware[0]) >= 1 and int(firmware[1]) >= 1 and int(firmware[2]) >= 10) or (firmwareInfo['specialVersion'] == 0x20 and int(firmware[0]) == 1 and int(firmware[1]) == 0 and int(firmware[2]) >= 4)
+            self.nativeSegwitSupported = int(firmware[0]) >= 1 and int(firmware[1]) >= 1 and int(firmware[2]) >= 10
+
             if not checkFirmware(firmware):
                 self.dongleObject.dongle.close()
                 raise Exception("HW1 firmware version too old. Please update at https://www.ledgerwallet.com")
@@ -280,7 +298,14 @@ class Ledger_KeyStore(Hardware_KeyStore):
             if txin['type'] in ['p2sh']:
                 p2shTransaction = True
 
-            if txin['type'] in ['p2wpkh-p2sh']:
+            if txin['type'] in ['p2wpkh-p2sh', 'p2wsh-p2sh']:
+                if not self.get_client_electrum().supports_segwit():
+                    self.give_error("Firmware version too old to support segwit. Please update at https://www.ledgerwallet.com")
+                segwitTransaction = True
+
+            if txin['type'] in ['p2wpkh', 'p2wsh']:
+                if not self.get_client_electrum().supports_native_segwit():
+                    self.give_error("Firmware version too old to support native segwit. Please update at https://www.ledgerwallet.com")
                 segwitTransaction = True
 
             pubkeys, x_pubkeys = tx.get_sorted_pubkeys(txin)
