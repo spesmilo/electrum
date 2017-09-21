@@ -826,13 +826,46 @@ class Transaction:
     @profiler
     def estimated_size(self):
         '''Return an estimated tx size in bytes.'''
-        return len(self.serialize(True)) // 2 if not self.is_complete() or self.raw is None else len(self.raw) / 2 # ASCII hex string
+        return self.estimated_virtual_size()
 
     @classmethod
     def estimated_input_size(self, txin):
         '''Return an estimated of serialized input size in bytes.'''
         script = self.input_script(txin, True)
         return len(self.serialize_input(txin, script)) // 2
+
+    def estimated_total_size(self):
+        """Return an estimated total transaction size in bytes."""
+        return len(self.serialize(True)) // 2 if not self.is_complete() or self.raw is None else len(self.raw) // 2  # ASCII hex string
+
+    def estimated_witness_size(self):
+        """Return an estimate of witness size in bytes."""
+        if not self.is_segwit():
+            return 0
+        inputs = self.inputs()
+        witness = ''.join(self.serialize_witness(x) for x in inputs)
+        witness_size = len(witness) // 2 + 2  # include marker and flag
+        return witness_size
+
+    def estimated_base_size(self):
+        """Return an estimated base transaction size in bytes."""
+        return self.estimated_total_size() - self.estimated_witness_size()
+
+    def estimated_weight(self):
+        """Return an estimate of transaction weight."""
+        total_tx_size = self.estimated_total_size()
+        base_tx_size = self.estimated_base_size()
+        return 3 * base_tx_size + total_tx_size
+
+    def estimated_virtual_size(self):
+        """Return an estimated virtual tx size in vbytes.
+        BIP-0141 defines 'Virtual transaction size' to be weight/4 rounded up.
+        This definition is only for humans, and has little meaning otherwise.
+        If we wanted sub-byte precision, fee calculation should use transaction
+        weights, but for simplicity we approximate that with (virtual_size)x4
+        """
+        weight = self.estimated_weight()
+        return weight // 4 + (weight % 4 > 0)
 
     def signature_count(self):
         r = 0

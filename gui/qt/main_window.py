@@ -2838,7 +2838,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addWidget(WWLabel(_(msg2)))
         grid = QGridLayout()
         grid.addWidget(QLabel(_('Total size') + ':'), 0, 0)
-        grid.addWidget(QLabel('%d bytes'% total_size), 0, 1)
+        grid.addWidget(QLabel('%d vbytes'% total_size), 0, 1)
         max_fee = new_tx.output_value()
         grid.addWidget(QLabel(_('Input amount') + ':'), 1, 0)
         grid.addWidget(QLabel(self.format_amount(max_fee) + ' ' + self.base_unit()), 1, 1)
