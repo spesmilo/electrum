@@ -31,6 +31,7 @@ import six
 import copy
 import datetime
 import json
+import math
 
 import PyQt4
 from PyQt4.QtGui import *
@@ -184,7 +185,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         base_unit = self.main_window.base_unit()
         format_amount = self.main_window.format_amount
         tx_hash, status, label, can_broadcast, can_rbf, amount, fee, height, conf, timestamp, exp_n = self.wallet.get_tx_info(self.tx)
-        size = self.tx.estimated_size()
+        virtual_size = self.tx.estimated_virtual_size(False)
         self.broadcast_button.setEnabled(can_broadcast)
         self.sign_button.setEnabled(self.wallet.can_sign(self.tx))
         self.tx_hash_e.setText(tx_hash or _('Unknown'))
@@ -211,10 +212,10 @@ class TxDialog(QDialog, MessageBoxMixin):
             amount_str = _("Amount received:") + ' %s'% format_amount(amount) + ' ' + base_unit
         else:
             amount_str = _("Amount sent:") + ' %s'% format_amount(-amount) + ' ' + base_unit
-        size_str = _("Size:") + ' %d bytes'% size
+        size_str = _("Size:") + ' %d vbytes'% math.ceil(virtual_size)
         fee_str = _("Fee") + ': %s'% (format_amount(fee) + ' ' + base_unit if fee is not None else _('unknown'))
         if fee is not None:
-            fee_str += '  ( %s )' % (format_amount(fee * 1000 / size) + ' ' + base_unit + '/kB')
+            fee_str += '  ( %s )' % (format_amount(fee * 1000 / virtual_size) + ' ' + base_unit + '/kB')
         self.amount_label.setText(amount_str)
         self.fee_label.setText(fee_str)
         self.size_label.setText(size_str)

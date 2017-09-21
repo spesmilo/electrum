@@ -18,6 +18,7 @@ from lib.util import bh2u
 unsigned_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000005701ff4c53ff0488b21e03ef2afea18000000089689bff23e1e7fb2f161daa37270a97a3d8c2e537584b2d304ecb47b86d21fc021b010d3bd425f8cf2e04824bfdf1f1f5ff1d51fadd9a41f9e3fb8dd3403b1bfe00000000ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
 signed_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000006c493046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d985012102e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
 v2_blob = "0200000001191601a44a81e061502b7bfbc6eaa1cef6d1e6af5308ef96c9342f71dbf4b9b5000000006b483045022100a6d44d0a651790a477e75334adfb8aae94d6612d01187b2c02526e340a7fd6c8022028bdf7a64a54906b13b145cd5dab21a26bd4b85d6044e9b97bceab5be44c2a9201210253e8e0254b0c95776786e40984c1aa32a7d03efa6bdacdea5f421b774917d346feffffff026b20fa04000000001976a914024db2e87dd7cfd0e5f266c5f212e21a31d805a588aca0860100000000001976a91421919b94ae5cefcdf0271191459157cdb41c4cbf88aca6240700"
+signed_segwit_blob = "01000000000101b66d722484f2db63e827ebf41d02684fed0c6550e85015a6c9d41ef216a8a6f00000000000fdffffff0280c3c90100000000160014b65ce60857f7e7892b983851c2a8e3526d09e4ab64bac30400000000160014c478ebbc0ab2097706a98e10db7cf101839931c4024730440220789c7d47f876638c58d98733c30ae9821c8fa82b470285dcdf6db5994210bf9f02204163418bbc44af701212ad42d884cc613f3d3d831d2d0cc886f767cca6e0235e012103083a6dc250816d771faa60737bfe78b23ad619f6b458e0a1f1688e3a0605e79c00000000"
 
 class TestBCDataStream(unittest.TestCase):
 
@@ -136,6 +137,24 @@ class TestTransaction(unittest.TestCase):
         self.assertEquals(tx.serialize(), signed_blob)
 
         tx.update_signatures(signed_blob)
+
+        self.assertEqual(tx.estimated_total_size(), 193)
+        self.assertEqual(tx.estimated_base_size(), 193)
+        self.assertEqual(tx.estimated_witness_size(), 0)
+        self.assertEqual(tx.estimated_weight(), 772)
+        self.assertEqual(tx.estimated_virtual_size(True), 193)
+        self.assertEqual(tx.estimated_virtual_size(False), 193)
+
+    # TODO other tests for segwit tx
+    def test_tx_signed_segwit(self):
+        tx = transaction.Transaction(signed_segwit_blob)
+
+        self.assertEqual(tx.estimated_total_size(), 222)
+        self.assertEqual(tx.estimated_base_size(), 113)
+        self.assertEqual(tx.estimated_witness_size(), 109)
+        self.assertEqual(tx.estimated_weight(), 561)
+        self.assertEqual(tx.estimated_virtual_size(True), 141)
+        self.assertEqual(tx.estimated_virtual_size(False), 140.25)
 
     def test_errors(self):
         with self.assertRaises(TypeError):
