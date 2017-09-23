@@ -306,7 +306,7 @@ def parse_scriptSig(d, _bytes):
         item = decoded[0][1]
         if item[0] == 0:
             d['address'] = bitcoin.hash160_to_p2sh(bitcoin.hash_160(item))
-            d['type'] = 'p2wpkh-p2sh' if len(item) == 21 else 'p2wsh-p2sh'
+            d['type'] = 'p2wpkh-p2sh' if len(item) == 22 else 'p2wsh-p2sh'
         else:
             # payto_pubkey
             d['type'] = 'p2pk'
