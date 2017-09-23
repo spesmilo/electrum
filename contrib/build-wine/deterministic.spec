@@ -32,6 +32,7 @@ a = Analysis([home+'electrum-ltc',
               ],
              datas = [
                  (home+'lib/currencies.json', 'electrum-ltc'),
+                 (home+'lib/servers.json', 'electrum-ltc'),
                  (home+'lib/wordlist/english.txt', 'electrum-ltc/wordlist'),
                  #(home+'packages/requests/cacert.pem', 'requests/cacert.pem')
              ],
