@@ -97,6 +97,7 @@ class QRDialog(WindowModalDialog):
 
         vbox = QVBoxLayout()
         qrw = QRCodeWidget(data)
+        qscreen = QApplication.primaryScreen()
         vbox.addWidget(qrw, 1)
         if show_text:
             text = QTextEdit()
@@ -111,12 +112,12 @@ class QRDialog(WindowModalDialog):
             filename = os.path.join(config.path, "qrcode.png")
 
             def print_qr():
-                p = QScreen.grabWindow(qrw.winId())
+                p = qscreen.grabWindow(qrw.winId())
                 p.save(filename, 'png')
                 self.show_message(_("QR code saved to file") + " " + filename)
 
             def copy_to_clipboard():
-                p = QScreen.grabWindow(qrw.winId())
+                p = qscreen.grabWindow(qrw.winId())
                 p.save(filename, 'png')
                 QApplication.clipboard().setImage(QImage(filename))
                 self.show_message(_("QR code copied to clipboard"))
