@@ -2,11 +2,6 @@
     "BTCChina": [
         "CNY"
     ], 
-    "BTCe": [
-        "EUR", 
-        "RUB", 
-        "USD"
-    ], 
     "BitPay": [
         "AED", 
         "AFN", 
@@ -631,5 +626,10 @@
     "Winkdex": [
         "USD"
     ], 
+    "WEX": [
+        "EUR",
+        "RUB",
+        "USD"
+    ],
     "itBit": []
 }
