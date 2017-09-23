@@ -180,6 +180,9 @@ class Imported_KeyStore(Software_KeyStore):
             c = pw_encode(b, new_password)
             self.keypairs[k] = c
 
+    def txin_type(self):
+        return 'standard'
+
 
 class Deterministic_KeyStore(Software_KeyStore):
 
@@ -273,6 +276,17 @@ class Xpub:
         if self.xpub != xpub:
             return
         return derivation
+
+    def txin_type(self):
+        xtype = deserialize_xpub(self.xpub)[0]
+        if xtype == 'standard':
+            return 'p2pkh'
+        elif xtype == 'segwit':
+            return 'p2wpkh'
+        elif xtype == 'segwit_p2sh':
+            return 'p2wpkh-p2sh'
+        else:
+            raise BaseException('unknown txin_type', xtype)
 
 
 class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
@@ -476,6 +490,9 @@ class Old_KeyStore(Deterministic_KeyStore):
         if self.has_seed():
             decoded = pw_decode(self.seed, old_password)
             self.seed = pw_encode(decoded, new_password)
+
+    def txin_type(self):
+        return 'standard'
 
 
 class Hardware_KeyStore(KeyStore, Xpub):

@@ -1547,15 +1547,7 @@ class Simple_Wallet(Abstract_Wallet):
 
     def load_keystore(self):
         self.keystore = load_keystore(self.storage, 'keystore')
-        xtype = deserialize_xpub(self.keystore.xpub)[0]
-        if xtype == 'standard':
-            self.txin_type = 'p2pkh'
-        elif xtype == 'segwit':
-            self.txin_type = 'p2wpkh'
-        elif xtype == 'segwit_p2sh':
-            self.txin_type = 'p2wpkh-p2sh'
-        else:
-            raise BaseException('unknown txin_type', xtype)
+        self.txin_type = self.keystore.txin_type()
 
     def get_pubkey(self, c, i):
         return self.derive_pubkeys(c, i)
@@ -1699,13 +1691,7 @@ class Multisig_Wallet(Deterministic_Wallet):
             name = 'x%d/'%(i+1)
             self.keystores[name] = load_keystore(self.storage, name)
         self.keystore = self.keystores['x1/']
-        xtype = deserialize_xpub(self.keystore.xpub)[0]
-        if xtype == 'standard':
-            self.txin_type = 'p2sh'
-        elif xtype == 'segwit':
-            self.txin_type = 'p2wsh'
-        elif xtype == 'segwit_p2sh':
-            self.txin_type = 'p2wsh-p2sh'
+        self.txin_type = self.keystore.txin_type()
 
     def save_keystore(self):
         for name, k in self.keystores.items():
