@@ -230,11 +230,11 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                     self.storage.decrypt(password)
                     break
                 except InvalidPassword as e:
-                    QMessageBox.information(None, _('Error'), str(e), _('OK'))
+                    QMessageBox.information(None, _('Error'), str(e))
                     continue
                 except BaseException as e:
                     traceback.print_exc(file=sys.stdout)
-                    QMessageBox.information(None, _('Error'), str(e), _('OK'))
+                    QMessageBox.information(None, _('Error'), str(e))
                     return
 
         path = self.storage.path
