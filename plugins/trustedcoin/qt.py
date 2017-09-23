@@ -49,7 +49,7 @@ class Plugin(TrustedCoinPlugin):
             return
         if wallet.can_sign_without_server():
             msg = ' '.join([
-                _('This wallet is was restored from seed, and it contains two master private keys.'),
+                _('This wallet was restored from seed, and it contains two master private keys.'),
                 _('Therefore, two-factor authentication is disabled.')
             ])
             action = lambda: window.show_message(msg)
