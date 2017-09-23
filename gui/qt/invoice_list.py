@@ -40,7 +40,7 @@ class InvoiceList(MyTreeWidget):
     def __init__(self, parent):
         MyTreeWidget.__init__(self, parent, self.create_menu, [_('Expires'), _('Requestor'), _('Description'), _('Amount'), _('Status')], 2)
         self.setSortingEnabled(True)
-        self.header().setResizeMode(1, QHeaderView.Interactive)
+        self.header().setSectionResizeMode(1, QHeaderView.Interactive)
         self.setColumnWidth(1, 200)
 
     def on_update(self):
