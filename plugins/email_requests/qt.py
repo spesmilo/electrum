@@ -127,7 +127,7 @@ class Plugin(BasePlugin):
             self.processor = Processor(self.imap_server, self.username, self.password, self.on_receive)
             self.processor.start()
         self.obj = QEmailSignalObject()
-        self.obj.email_new_invoice_signal(self.new_invoice)
+        self.obj.email_new_invoice_signal.connect(self.new_invoice)
 
     def on_receive(self, pr_str):
         self.print_error('received payment request')
