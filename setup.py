@@ -11,8 +11,8 @@ import argparse
 
 version = imp.load_source('version', 'lib/version.py')
 
-if sys.version_info[:3] < (3, 4, 0):
-    sys.exit("Error: Electrum requires Python version >= 3.4.0...")
+if sys.version_info[:3] < (3, 5, 0):
+    sys.exit("Error: Electrum requires Python version >= 3.5.0...")
 
 data_files = []
 
