@@ -87,8 +87,7 @@ def get_server(config):
             server.ping()
             return server
         except Exception as e:
-            print_error(e)
-            pass
+            print_error("[get_server]", e)
         if not create_time or create_time < time.time() - 1.0:
             return None
         # Sleep a bit and try again; it might have just been started
