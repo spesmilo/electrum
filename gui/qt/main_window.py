@@ -390,7 +390,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def open_wallet(self):
         wallet_folder = self.get_wallet_folder()
-        filename, _ = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder)
+        filename, __ = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder)
         if not filename:
             return
         self.gui_object.new_window(filename)
@@ -584,7 +584,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     # custom wrappers for getOpenFileName and getSaveFileName, that remember the path selected by the user
     def getOpenFileName(self, title, filter = ""):
         directory = self.config.get('io_dir', os.path.expanduser('~'))
-        fileName, _ = QFileDialog.getOpenFileName(self, title, directory, filter)
+        fileName, __ = QFileDialog.getOpenFileName(self, title, directory, filter)
         if fileName and directory != os.path.dirname(fileName):
             self.config.set_key('io_dir', os.path.dirname(fileName), True)
         return fileName

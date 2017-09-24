@@ -46,7 +46,7 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
         run_hook('scan_text_edit', self)
 
     def file_input(self):
-        fileName, _ = QFileDialog.getOpenFileName(self, 'select file')
+        fileName, __ = QFileDialog.getOpenFileName(self, 'select file')
         if not fileName:
             return
         with open(fileName, "r") as f:
