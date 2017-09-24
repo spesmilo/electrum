@@ -377,7 +377,7 @@ class SettingsDialog(WindowModalDialog):
         def change_homescreen():
             from PIL import Image  # FIXME
             dialog = QFileDialog(self, _("Choose Homescreen"))
-            filename = dialog.getOpenFileName()
+            filename, _ = dialog.getOpenFileName()
             if filename:
                 im = Image.open(str(filename))
                 if im.size != (hs_cols, hs_rows):
