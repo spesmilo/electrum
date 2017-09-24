@@ -1,17 +1,14 @@
 #!/bin/bash
 
-# Please update these links carefully, some versions won't work under Wine
-PYTHON_URL=https://www.python.org/ftp/python/3.4.4/python-3.4.4.amd64.msi
-PYWIN32_URL=https://sourceforge.net/projects/pywin32/files/pywin32/Build%20221/pywin32-221.win-amd64-py3.4.exe
-PYQT4_URL=https://sourceforge.net/projects/pyqt/files/PyQt4/PyQt-4.11.4/PyQt4-4.11.4-gpl-Py3.4-Qt4.8.7-x64.exe
-NSIS_URL=http://prdownloads.sourceforge.net/nsis/nsis-2.46-setup.exe?download
-
+# Please update these carefully, some versions won't work under Wine
+NSIS_URL=http://prdownloads.sourceforge.net/nsis/nsis-3.02.1-setup.exe?download
+PYTHON_VERSION=3.5.4
 
 ## These settings probably don't need change
 export WINEPREFIX=/opt/wine64
 #export WINEARCH='win32'
 
-PYHOME=c:/python34
+PYHOME=c:/python$PYTHON_VERSION
 PYTHON="wine $PYHOME/python.exe -OO -B"
 
 # Let's begin!
@@ -33,19 +30,20 @@ echo "done"
 cd tmp
 
 # Install Python
-wget -O python.msi "$PYTHON_URL"
-wine msiexec /q /i python.msi
-
-# Install PyWin32
-wget -O pywin32.exe "$PYWIN32_URL"
-wine pywin32.exe
-
-# Install PyQt4
-wget -O PyQt.exe "$PYQT4_URL"
-wine PyQt.exe
+for msifile in core dev exe lib pip tools; do
+    echo "Installing $msifile..."
+    wget "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi"
+    wine msiexec /i "${msifile}.msi" /qb TARGETDIR=C:/python$PYTHON_VERSION
+done
 
 # upgrade pip
 $PYTHON -m pip install pip --upgrade
+
+# Install PyWin32
+$PYTHON -m pip install pypiwin32
+
+# Install PyQt
+$PYTHON -m pip install PyQt5
 
 # Install pyinstaller
 $PYTHON -m pip install pyinstaller==3.2.1
@@ -82,8 +80,9 @@ wine nsis.exe
 #cp upx*/upx.exe .
 
 # add dlls needed for pyinstaller:
-cp $WINEPREFIX/drive_c/windows/system32/msvcp90.dll $WINEPREFIX/drive_c/Python34/
-cp $WINEPREFIX/drive_c/windows/system32/msvcm90.dll $WINEPREFIX/drive_c/Python34/
+cp $WINEPREFIX/drive_c/windows/system32/msvcp90.dll $WINEPREFIX/drive_c/python$PYTHON_VERSION/
+cp $WINEPREFIX/drive_c/windows/system32/msvcm90.dll $WINEPREFIX/drive_c/python$PYTHON_VERSION/
+cp $WINEPREFIX/drive_c/python$PYTHON_VERSION/Lib/site-packages/PyQt5/Qt/bin/* $WINEPREFIX/drive_c/python$PYTHON_VERSION/
 
 
 # Install MinGW
@@ -98,6 +97,6 @@ wine mingw-get install gcc
 wine mingw-get install mingw-utils
 wine mingw-get install mingw32-libz
 
-printf "[build]\ncompiler=mingw32\n" > $WINEPREFIX/drive_c/Python27/Lib/distutils/distutils.cfg
+printf "[build]\ncompiler=mingw32\n" > $WINEPREFIX/drive_c/Python$PYTHON_VERSION/Lib/distutils/distutils.cfg
 
-wine "$PYHOME\\Scripts\\pip.exe" install ltc_scrypt
+$PYTHON -m pip install scrypt

@@ -1,8 +1,9 @@
 from binascii import hexlify, unhexlify
 import threading
 
-from PyQt4.Qt import (QDialog, QInputDialog, QLineEdit, QTextEdit, QVBoxLayout, QLabel, SIGNAL)
-import PyQt4.QtCore as QtCore
+from PyQt5.Qt import (QDialog, QInputDialog, QLineEdit, QTextEdit, QVBoxLayout, QLabel)
+import PyQt5.QtCore as QtCore
+from PyQt5.QtWidgets import *
 
 from electrum_ltc.i18n import _
 from electrum_ltc.qt.util import *

@@ -20,7 +20,7 @@ Getting started
 Electrum is a pure python application. If you want to use the
 Qt interface, install the Qt dependencies::
 
-    sudo apt-get install python3-pyqt4
+    sudo apt-get install python3-pyqt5
 
 If you downloaded the official package (tar.gz), you can run
 Electrum from its root directory, without installing it on your
@@ -57,8 +57,8 @@ Run install (this should install dependencies)::
 
 Compile the icons file for Qt::
 
-    sudo apt-get install pyqt4-dev-tools
-    pyrcc4 icons.qrc -o gui/qt/icons_rc.py -py3
+    sudo apt-get install pyqt5-dev-tools
+    pyrcc5 icons.qrc -o gui/qt/icons_rc.py
 
 Compile the protobuf description file::
 

@@ -190,11 +190,6 @@
     "BTCChina": [
         "CNY"
     ],
-    "BTCe": [
-        "EUR",
-        "RUB",
-        "USD"
-    ],
     "CaVirtEx": [
         "CAD"
     ],
@@ -217,6 +212,11 @@
     ],
     "MercadoBitcoin": [
         "BRL"
+    ],
+    "WEX": [
+        "EUR",
+        "RUB",
+        "USD"
     ],
     "Bitcointoyou": [
         "BRL"

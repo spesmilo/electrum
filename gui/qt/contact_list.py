@@ -35,8 +35,10 @@ from electrum_ltc.bitcoin import is_address
 from electrum_ltc.util import block_explorer_URL, format_satoshis, format_time, age
 from electrum_ltc.plugins import run_hook
 from electrum_ltc.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import (
+    QAbstractItemView, QFileDialog, QMenu, QTreeWidgetItem)
 from .util import MyTreeWidget, pr_tooltips, pr_icons
 
 
@@ -59,7 +61,7 @@ class ContactList(MyTreeWidget):
 
     def import_contacts(self):
         wallet_folder = self.parent.get_wallet_folder()
-        filename = QFileDialog.getOpenFileName(self.parent, "Select your wallet file", wallet_folder)
+        filename, __ = QFileDialog.getOpenFileName(self.parent, "Select your wallet file", wallet_folder)
         if not filename:
             return
         self.parent.contacts.import_file(filename)

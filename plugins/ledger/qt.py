@@ -1,8 +1,8 @@
 import threading
 
-from PyQt4.Qt import (QDialog, QInputDialog, QLineEdit,
-                      QVBoxLayout, QLabel, SIGNAL)
-import PyQt4.QtCore as QtCore
+from PyQt5.Qt import (QDialog, QInputDialog, QLineEdit,
+                      QVBoxLayout, QLabel)
+import PyQt5.QtCore as QtCore
 
 from electrum_ltc.i18n import _
 from .ledger import LedgerPlugin

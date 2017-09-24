@@ -34,6 +34,7 @@ a = Analysis([home+'electrum-ltc',
                  (home+'lib/currencies.json', 'electrum-ltc'),
                  (home+'lib/servers.json', 'electrum-ltc'),
                  (home+'lib/wordlist/english.txt', 'electrum-ltc/wordlist'),
+                 (home+'lib/locale', 'electrum-ltc/locale'),
                  #(home+'packages/requests/cacert.pem', 'requests/cacert.pem')
              ],
              #pathex=[home+'lib', home+'gui', home+'plugins'],

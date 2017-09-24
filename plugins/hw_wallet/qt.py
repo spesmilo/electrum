@@ -26,7 +26,7 @@
 
 import threading
 
-from PyQt4.Qt import QVBoxLayout, QLabel, SIGNAL
+from PyQt5.Qt import QVBoxLayout, QLabel
 from electrum_ltc_gui.qt.password_dialog import PasswordDialog, PW_PASSPHRASE
 from electrum_ltc_gui.qt.util import *
 

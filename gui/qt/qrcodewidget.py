@@ -4,9 +4,11 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import six
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
-import PyQt4.QtGui as QtGui
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+import PyQt5.QtGui as QtGui
+from PyQt5.QtWidgets import (
+    QApplication, QVBoxLayout, QTextEdit, QHBoxLayout, QPushButton, QWidget)
 
 import os
 import qrcode
@@ -95,6 +97,7 @@ class QRDialog(WindowModalDialog):
 
         vbox = QVBoxLayout()
         qrw = QRCodeWidget(data)
+        qscreen = QApplication.primaryScreen()
         vbox.addWidget(qrw, 1)
         if show_text:
             text = QTextEdit()
@@ -109,12 +112,12 @@ class QRDialog(WindowModalDialog):
             filename = os.path.join(config.path, "qrcode.png")
 
             def print_qr():
-                p = QPixmap.grabWindow(qrw.winId())
+                p = qscreen.grabWindow(qrw.winId())
                 p.save(filename, 'png')
                 self.show_message(_("QR code saved to file") + " " + filename)
 
             def copy_to_clipboard():
-                p = QPixmap.grabWindow(qrw.winId())
+                p = qscreen.grabWindow(qrw.winId())
                 p.save(filename, 'png')
                 QApplication.clipboard().setImage(QImage(filename))
                 self.show_message(_("QR code copied to clipboard"))

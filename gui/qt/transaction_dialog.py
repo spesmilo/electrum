@@ -32,10 +32,10 @@ import copy
 import datetime
 import json
 
-import PyQt4
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
-import PyQt4.QtCore as QtCore
+import PyQt5
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+import PyQt5.QtCore as QtCore
 
 from electrum_ltc import transaction
 from electrum_ltc.bitcoin import base_encode
