@@ -2456,6 +2456,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.config.set_key('rbf_policy', x)
         rbf_combo.currentIndexChanged.connect(on_rbf)
         fee_widgets.append((rbf_label, rbf_combo))
+        
+        min_utxo = self.config.get('min_utxo_value', 0)
+        min_utxo_label = HelpLabel(_('Ignore Outputs Below (sat)') + ':', '')
+        min_utxo_e = QLineEdit(str(min_utxo))
+        def on_min_utxo_edit():
+            self.config.set_key('min_utxo_value', str(min_utxo_e.text()), True)
+            self.utxo_list.update()
+        min_utxo_e.editingFinished.connect(on_min_utxo_edit)
+        fee_widgets.append((min_utxo_label, min_utxo_e))
 
         msg = _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n'\
               + _('The following alias providers are available:') + '\n'\

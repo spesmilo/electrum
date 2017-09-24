@@ -534,9 +534,10 @@ class Abstract_Wallet(PrintError):
 
     def get_spendable_coins(self, domain, config):
         confirmed_only = config.get('confirmed_only', False)
-        return self.get_utxos(domain, exclude_frozen=True, mature=True, confirmed_only=confirmed_only)
+        min_value = int(config.get('min_utxo_value', 0))
+        return self.get_utxos(domain, exclude_frozen=True, mature=True, confirmed_only=confirmed_only, min_value=min_value)
 
-    def get_utxos(self, domain = None, exclude_frozen = False, mature = False, confirmed_only = False):
+    def get_utxos(self, domain = None, exclude_frozen = False, mature = False, confirmed_only = False, min_value = 0):
         coins = []
         if domain is None:
             domain = self.get_addresses()
@@ -545,6 +546,8 @@ class Abstract_Wallet(PrintError):
         for addr in domain:
             utxos = self.get_addr_utxo(addr)
             for x in utxos:
+                if min_value > 0 and x['value'] <= min_value:
+                    continue
                 if confirmed_only and x['height'] <= 0:
                     continue
                 if mature and x['coinbase'] and x['height'] + COINBASE_MATURITY > self.get_local_height():
