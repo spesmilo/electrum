@@ -1,9 +1,9 @@
 from functools import partial
 import threading
 
-from PyQt4.Qt import Qt
-from PyQt4.Qt import QGridLayout, QInputDialog, QPushButton
-from PyQt4.Qt import QVBoxLayout, QLabel, SIGNAL
+from PyQt5.Qt import Qt
+from PyQt5.Qt import QGridLayout, QInputDialog, QPushButton
+from PyQt5.Qt import QVBoxLayout, QLabel
 from electrum_gui.qt.util import *
 from .plugin import TIM_NEW, TIM_RECOVER, TIM_MNEMONIC
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
@@ -377,7 +377,7 @@ class SettingsDialog(WindowModalDialog):
         def change_homescreen():
             from PIL import Image  # FIXME
             dialog = QFileDialog(self, _("Choose Homescreen"))
-            filename = dialog.getOpenFileName()
+            filename, __ = dialog.getOpenFileName()
             if filename:
                 im = Image.open(str(filename))
                 if im.size != (hs_cols, hs_rows):

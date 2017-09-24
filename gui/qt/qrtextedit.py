@@ -6,8 +6,9 @@ from __future__ import unicode_literals
 import six
 from electrum.i18n import _
 from electrum.plugins import run_hook
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import QFileDialog
 
 from .util import ButtonsTextEdit, MessageBoxMixin
 
@@ -45,7 +46,7 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
         run_hook('scan_text_edit', self)
 
     def file_input(self):
-        fileName = QFileDialog.getOpenFileName(self, 'select file')
+        fileName, __ = QFileDialog.getOpenFileName(self, 'select file')
         if not fileName:
             return
         with open(fileName, "r") as f:

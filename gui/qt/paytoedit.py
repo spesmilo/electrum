@@ -28,8 +28,9 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import six
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import QCompleter, QPlainTextEdit
 from .qrtextedit import ScanQRTextEdit
 
 import re

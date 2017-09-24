@@ -28,8 +28,8 @@ from threading import Thread
 import re
 from decimal import Decimal
 
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
 
 from electrum_gui.qt.util import *
 from electrum_gui.qt.qrcodewidget import QRCodeWidget
@@ -40,7 +40,15 @@ from electrum.plugins import hook
 from .trustedcoin import TrustedCoinPlugin, server
 
 
+class QTOSSignalObject(QObject):
+    two_factor_tos_signal = pyqtSignal()
+
+
 class Plugin(TrustedCoinPlugin):
+
+    def __init__(self, parent, config, name):
+        super().__init__(parent, config, name)
+        self.tos_signal_obj = QTOSSignalObject()
 
     @hook
     def on_new_window(self, window):
@@ -196,7 +204,7 @@ class Plugin(TrustedCoinPlugin):
         def request_TOS():
             tos = server.get_terms_of_service()
             self.TOS = tos
-            window.emit(SIGNAL('twofactor:TOS'))
+            self.tos_signal_obj.two_factor_tos_signal.emit()
 
         def on_result():
             tos_e.setText(self.TOS)
@@ -204,7 +212,7 @@ class Plugin(TrustedCoinPlugin):
         def set_enabled():
             next_button.setEnabled(re.match(regexp,email_e.text()) is not None)
 
-        window.connect(window, SIGNAL('twofactor:TOS'), on_result)
+        self.tos_signal_obj.two_factor_tos_signal.connect(on_result)
         t = Thread(target=request_TOS)
         t.setDaemon(True)
         t.start()

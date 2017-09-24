@@ -40,7 +40,7 @@ class InvoiceList(MyTreeWidget):
     def __init__(self, parent):
         MyTreeWidget.__init__(self, parent, self.create_menu, [_('Expires'), _('Requestor'), _('Description'), _('Amount'), _('Status')], 2)
         self.setSortingEnabled(True)
-        self.header().setResizeMode(1, QHeaderView.Interactive)
+        self.header().setSectionResizeMode(1, QHeaderView.Interactive)
         self.setColumnWidth(1, 200)
 
     def on_update(self):
@@ -64,7 +64,7 @@ class InvoiceList(MyTreeWidget):
 
     def import_invoices(self):
         wallet_folder = self.parent.get_wallet_folder()
-        filename = QFileDialog.getOpenFileName(self.parent, "Select your wallet file", wallet_folder)
+        filename, __ = QFileDialog.getOpenFileName(self.parent, "Select your wallet file", wallet_folder)
         if not filename:
             return
         self.parent.invoices.import_file(filename)

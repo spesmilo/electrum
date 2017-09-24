@@ -31,9 +31,9 @@ from __future__ import unicode_literals
 
 import socket
 import six
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
-import PyQt4.QtCore as QtCore
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+import PyQt5.QtCore as QtCore
 
 from electrum.i18n import _
 from electrum.network import DEFAULT_PORTS
@@ -45,19 +45,21 @@ protocol_names = ['TCP', 'SSL']
 protocol_letters = 'ts'
 
 class NetworkDialog(QDialog):
-    def __init__(self, network, config):
+    def __init__(self, network, config, network_updated_signal_obj):
         QDialog.__init__(self)
         self.setWindowTitle(_('Network'))
         self.setMinimumSize(500, 20)
         self.nlayout = NetworkChoiceLayout(network, config)
+        self.network_updated_signal_obj = network_updated_signal_obj
         vbox = QVBoxLayout(self)
         vbox.addLayout(self.nlayout.layout())
         vbox.addLayout(Buttons(CloseButton(self)))
-        self.connect(self, QtCore.SIGNAL('updated'), self.on_update)
+        self.network_updated_signal_obj.network_updated_signal.connect(
+            self.on_update)
         network.register_callback(self.on_network, ['updated', 'interfaces'])
 
     def on_network(self, event, *args):
-        self.emit(QtCore.SIGNAL('updated'), event, *args)
+        self.network_updated_signal_obj.network_updated_signal.emit(event, args)
 
     def on_update(self):
         self.nlayout.update()
@@ -97,7 +99,7 @@ class NodesListWidget(QTreeWidget):
         # on 'enter' we show the menu
         pt = self.visualItemRect(item).bottomLeft()
         pt.setX(50)
-        self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), pt)
+        self.customContextMenuRequested.emit(pt)
 
     def update(self, network):
         self.clear()
@@ -125,8 +127,8 @@ class NodesListWidget(QTreeWidget):
 
         h = self.header()
         h.setStretchLastSection(False)
-        h.setResizeMode(0, QHeaderView.Stretch)
-        h.setResizeMode(1, QHeaderView.ResizeToContents)
+        h.setSectionResizeMode(0, QHeaderView.Stretch)
+        h.setSectionResizeMode(1, QHeaderView.ResizeToContents)
 
 
 class ServerListWidget(QTreeWidget):
@@ -163,7 +165,7 @@ class ServerListWidget(QTreeWidget):
         # on 'enter' we show the menu
         pt = self.visualItemRect(item).bottomLeft()
         pt.setX(50)
-        self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), pt)
+        self.customContextMenuRequested.emit(pt)
 
     def update(self, servers, protocol, use_tor):
         self.clear()
@@ -179,8 +181,8 @@ class ServerListWidget(QTreeWidget):
 
         h = self.header()
         h.setStretchLastSection(False)
-        h.setResizeMode(0, QHeaderView.Stretch)
-        h.setResizeMode(1, QHeaderView.ResizeToContents)
+        h.setSectionResizeMode(0, QHeaderView.Stretch)
+        h.setSectionResizeMode(1, QHeaderView.ResizeToContents)
 
 
 class NetworkChoiceLayout(object):
@@ -251,13 +253,13 @@ class NetworkChoiceLayout(object):
         self.proxy_password.editingFinished.connect(self.set_proxy)
 
         self.check_disable_proxy()
-        self.proxy_mode.connect(self.proxy_mode, SIGNAL('currentIndexChanged(int)'), self.check_disable_proxy)
+        self.proxy_mode.currentIndexChanged.connect(self.check_disable_proxy)
 
-        self.proxy_mode.connect(self.proxy_mode, SIGNAL('currentIndexChanged(int)'), self.proxy_settings_changed)
-        self.proxy_host.connect(self.proxy_host, SIGNAL('textEdited(QString)'), self.proxy_settings_changed)
-        self.proxy_port.connect(self.proxy_port, SIGNAL('textEdited(QString)'), self.proxy_settings_changed)
-        self.proxy_user.connect(self.proxy_user, SIGNAL('textEdited(QString)'), self.proxy_settings_changed)
-        self.proxy_password.connect(self.proxy_password, SIGNAL('textEdited(QString)'), self.proxy_settings_changed)
+        self.proxy_mode.currentIndexChanged.connect(self.proxy_settings_changed)
+        self.proxy_host.textEdited.connect(self.proxy_settings_changed)
+        self.proxy_port.textEdited.connect(self.proxy_settings_changed)
+        self.proxy_user.textEdited.connect(self.proxy_settings_changed)
+        self.proxy_password.textEdited.connect(self.proxy_settings_changed)
 
         self.tor_cb = QCheckBox(_("Use Tor Proxy"))
         self.tor_cb.setIcon(QIcon(":icons/tor_logo.png"))
