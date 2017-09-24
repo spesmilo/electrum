@@ -181,7 +181,7 @@ class Imported_KeyStore(Software_KeyStore):
             self.keypairs[k] = c
 
     def txin_type(self):
-        return 'standard'
+        return 'p2pkh'
 
 
 class Deterministic_KeyStore(Software_KeyStore):
@@ -492,7 +492,7 @@ class Old_KeyStore(Deterministic_KeyStore):
             self.seed = pw_encode(decoded, new_password)
 
     def txin_type(self):
-        return 'standard'
+        return 'p2phk'
 
 
 class Hardware_KeyStore(KeyStore, Xpub):
