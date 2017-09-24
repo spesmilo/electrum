@@ -54,7 +54,7 @@ class RequestList(MyTreeWidget):
     def item_changed(self, item):
         if item is None:
             return
-        if not self.isItemSelected(item):
+        if not item.isSelected():
             return
         addr = str(item.text(1))
         req = self.wallet.receive_requests[addr]
