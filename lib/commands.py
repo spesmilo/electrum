@@ -364,11 +364,11 @@ class Commands:
 
     @command('wp')
     def importprivkey(self, privkey, password=None):
-        """Import a private key. """
+        """Import a private key."""
         if not self.wallet.can_import_privkey():
             return "Error: This type of wallet cannot import private keys. Try to create a new wallet with that key."
         try:
-            addr = self.wallet.import_key(privkey, password)
+            addr = self.wallet.import_private_key(privkey, password)
             out = "Keypair imported: " + addr
         except BaseException as e:
             out = "Error: " + str(e)
@@ -687,6 +687,7 @@ param_descriptions = {
     'amount': 'Amount to be sent (in BTC). Type \'!\' to send the maximum available.',
     'requested_amount': 'Requested amount (in BTC).',
     'outputs': 'list of ["address", amount]',
+    'redeem_script': 'redeem script (hexadecimal)',
 }
 
 command_options = {
