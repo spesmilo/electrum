@@ -224,7 +224,7 @@ class Console(QtWidgets.QPlainTextEdit):
                             self.appendPlainText(repr(result))
                 except SyntaxError:
                     # exec is generally considered bad practice. use it wisely!
-                    exec(command) in self.namespace
+                    exec(command, self.namespace, self.namespace)
             except SystemExit:
                 self.close()
             except Exception:
