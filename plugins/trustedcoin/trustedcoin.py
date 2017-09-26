@@ -563,7 +563,7 @@ class TrustedCoinPlugin(BasePlugin):
             key = regenerate_key(pk)
             compressed = is_compressed(pk)
             sig = key.sign_message(message, compressed)
-            return base64.b64encode(sig)
+            return base64.b64encode(sig).decode()
 
         signatures = [f(x) for x in [xprv1, xprv2]]
         r = server.reset_auth(short_id, challenge, signatures)
