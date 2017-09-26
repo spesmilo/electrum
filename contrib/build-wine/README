@@ -1,7 +1,13 @@
 These scripts can be used for cross-compilation of Windows Electrum executables from Linux/Wine.
 
 Usage:
-1. Install Wine (tested with wine-1.7.18)
+1. Install wine (development version)
+
+  $ sudo apt-get install wine-development
+  $ sudo ln -sf /usr/bin/wine-development /usr/local/bin/wine
+  $ wine --version
+  wine-2.0 (Debian 2.0-3+b2)
+
 2. Run "./prepare-wine.sh", it will download all dependencies. When you'll be asked, always leave default settings and press "Next >".
 3. Run "./prepare-hw.sh" to build support for hardware wallets (TREZOR)
 4. Run "./build-electrum-git.sh". Sources will be packed into three separate versions to dist/ directory:
