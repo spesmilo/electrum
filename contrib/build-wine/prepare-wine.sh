@@ -97,6 +97,6 @@ wine mingw-get install gcc
 wine mingw-get install mingw-utils
 wine mingw-get install mingw32-libz
 
-printf "[build]\ncompiler=mingw32\n" > $WINEPREFIX/drive_c/Python$PYTHON_VERSION/Lib/distutils/distutils.cfg
+printf "[build]\ncompiler=mingw32\n" > $WINEPREFIX/drive_c/python$PYTHON_VERSION/Lib/distutils/distutils.cfg
 
 $PYTHON -m pip install scrypt
