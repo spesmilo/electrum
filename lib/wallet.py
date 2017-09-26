@@ -1542,9 +1542,20 @@ class Simple_Wallet(Abstract_Wallet):
 
     """ Wallet with a single pubkey per address """
 
+    def decide_txin_type(self):
+        xtype = self.keystore.get_xtype()
+        if xtype == 'standard':
+            self.txin_type = 'p2pkh'
+        elif xtype == 'segwit':
+            self.txin_type = 'p2wpkh'
+        elif xtype == 'segwit_p2sh':
+            self.txin_type = 'p2wpkh-p2sh'
+        else:
+            raise BaseException('unknown xtype', xtype)
+
     def load_keystore(self):
         self.keystore = load_keystore(self.storage, 'keystore')
-        self.txin_type = self.keystore.txin_type()
+        self.decide_txin_type()
 
     def get_pubkey(self, c, i):
         return self.derive_pubkeys(c, i)
@@ -1682,13 +1693,24 @@ class Multisig_Wallet(Deterministic_Wallet):
     def derive_pubkeys(self, c, i):
         return [k.derive_pubkey(c, i) for k in self.get_keystores()]
 
+    def decide_txin_type(self):
+        xtype = self.keystore.get_xtype()
+        if xtype == 'standard':
+            self.txin_type = 'p2sh'
+        elif xtype == 'segwit':
+            self.txin_type = 'p2wsh'
+        elif xtype == 'segwit_p2sh':
+            self.txin_type = 'p2wsh-p2sh'
+        else:
+            raise BaseException('unknown xtype', xtype)
+
     def load_keystore(self):
         self.keystores = {}
         for i in range(self.n):
             name = 'x%d/'%(i+1)
             self.keystores[name] = load_keystore(self.storage, name)
         self.keystore = self.keystores['x1/']
-        self.txin_type = self.keystore.txin_type()
+        self.decide_txin_type()
 
     def save_keystore(self):
         for name, k in self.keystores.items():
