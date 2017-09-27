@@ -88,9 +88,7 @@ class Software_KeyStore(KeyStore):
 
     def sign_message(self, sequence, message, password):
         sec = self.get_private_key(sequence, password)
-        key = regenerate_key(sec)
-        compressed = is_compressed(sec)
-        return key.sign_message(message, compressed)
+        return sign_message_with_wif_privkey(sec, message)
 
     def decrypt_message(self, sequence, message, password):
         sec = self.get_private_key(sequence, password)

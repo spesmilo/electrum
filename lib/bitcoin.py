@@ -565,9 +565,8 @@ from ecdsa.util import string_to_number, number_to_string
 
 
 def msg_magic(message):
-    varint = var_int(len(message))
-    encoded_varint = varint.encode('ascii')
-    return b"\x19Litecoin Signed Message:\n" + encoded_varint + message
+    length = bfh(var_int(len(message)))
+    return b"\x19Litecoin Signed Message:\n" + length + message
 
 
 def verify_message(address, sig, message):
@@ -587,6 +586,10 @@ def verify_message(address, sig, message):
         print_error("Verification error: {0}".format(e))
         return False
 
+def sign_message_with_wif_privkey(sec, message):
+    key = regenerate_key(sec)
+    compressed = is_compressed(sec)
+    return key.sign_message(message, compressed)
 
 def encrypt_message(message, pubkey):
     return EC_KEY.encrypt_message(message, bfh(pubkey))
