@@ -561,9 +561,8 @@ from ecdsa.util import string_to_number, number_to_string
 
 
 def msg_magic(message):
-    varint = var_int(len(message))
-    encoded_varint = varint.encode('ascii')
-    return b"\x18Bitcoin Signed Message:\n" + encoded_varint + message
+    length = bfh(var_int(len(message)))
+    return b"\x18Bitcoin Signed Message:\n" + length + message
 
 
 def verify_message(address, sig, message):
