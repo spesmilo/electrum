@@ -562,7 +562,8 @@ from ecdsa.util import string_to_number, number_to_string
 
 def msg_magic(message):
     varint = var_int(len(message))
-    encoded_varint = varint.encode('ascii')
+    encoded_varint = "".join([chr(int(varint[i:i + 2], 16)) for i in range(0, len(varint), 2)])
+    encoded_varint = encoded_varint.encode('utf-8')
     return b"\x18Bitcoin Signed Message:\n" + encoded_varint + message
 
 
