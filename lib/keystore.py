@@ -490,7 +490,7 @@ class Old_KeyStore(Deterministic_KeyStore):
             self.seed = pw_encode(decoded, new_password)
 
     def txin_type(self):
-        return 'p2phk'
+        return 'p2pkh'
 
 
 class Hardware_KeyStore(KeyStore, Xpub):
