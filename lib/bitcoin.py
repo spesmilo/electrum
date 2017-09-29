@@ -522,15 +522,14 @@ def is_compressed(sec):
 
 
 def public_key_from_private_key(pk, compressed):
-    # rebuild public key from private key, compressed or uncompressed
     pkey = regenerate_key(pk)
     public_key = GetPubKey(pkey.pubkey, compressed)
     return bh2u(public_key)
 
-
 def address_from_private_key(sec):
-    public_key = public_key_from_private_key(sec)
-    address = public_key_to_p2pkh(bfh(public_key))
+    txin_type, privkey, compressed = deserialize_privkey(sec)
+    public_key = public_key_from_private_key(privkey, compressed)
+    address = pubkey_to_address(txin_type, public_key)
     return address
 
 def is_segwit_address(addr):
@@ -612,8 +611,8 @@ def verify_message(address, sig, message):
         return False
 
 def sign_message_with_wif_privkey(sec, message):
-    key = regenerate_key(sec)
-    compressed = is_compressed(sec)
+    txin_type, privkey, compressed = deserialize_privkey(sec)
+    key = regenerate_key(privkey)
     return key.sign_message(message, compressed)
 
 def encrypt_message(message, pubkey):

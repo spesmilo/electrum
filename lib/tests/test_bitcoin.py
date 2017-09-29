@@ -15,7 +15,7 @@ from lib.bitcoin import (
     pw_decode, Hash, public_key_from_private_key, address_from_private_key,
     is_address, is_private_key, xpub_from_xprv, is_new_seed, is_old_seed,
     var_int, op_push, address_to_script, sign_message_with_wif_privkey,
-    verify_message)
+    verify_message, deserialize_privkey)
 from lib.util import bfh
 
 try:
@@ -202,7 +202,8 @@ class Test_keyImport(unittest.TestCase):
     main_address = "15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma"
 
     def test_public_key_from_private_key(self):
-        result = public_key_from_private_key(self.private_key)
+        txin_type, privkey, compressed = deserialize_privkey(self.private_key)
+        result = public_key_from_private_key(privkey, compressed)
         self.assertEqual(self.public_key_hex, result)
 
     def test_address_from_private_key(self):
