@@ -262,22 +262,24 @@ class Abstract_Wallet(PrintError):
         return address in self.change_addresses
 
     def get_address_index(self, address):
-        if self.keystore.can_import():
-            for pubkey in self.keystore.keypairs.keys():
-                if self.pubkeys_to_address(pubkey) == address:
-                    return pubkey
-        elif address in self.receiving_addresses:
+        if address in self.receiving_addresses:
             return False, self.receiving_addresses.index(address)
         if address in self.change_addresses:
             return True, self.change_addresses.index(address)
         raise Exception("Address not found", address)
 
-    def get_private_key(self, address, password):
+    def export_private_key(self, address, password):
+        """ extended WIF format """
         if self.is_watching_only():
             return []
         index = self.get_address_index(address)
         pk = self.keystore.get_private_key(index, password)
-        return [pk]
+        if self.txin_type in ['p2sh', 'p2wsh', 'p2wsh-p2sh']:
+            pubkeys = self.get_public_keys(address)
+            redeem_script = self.pubkeys_to_redeem_script(pubkeys)
+        else:
+            redeem_script = None
+        return bitcoin.serialize_privkey(pk, True, self.txin_type), redeem_script
 
     def get_public_key(self, address):
         if self.keystore.can_import():
@@ -1346,28 +1348,41 @@ class Imported_Wallet(Abstract_Wallet):
     def __init__(self, storage):
         Abstract_Wallet.__init__(self, storage)
 
-    def load_keystore(self):
-        pass
-
-    def load_addresses(self):
-        self.addresses = self.storage.get('addresses', [])
-        self.receiving_addresses = self.addresses
-        self.change_addresses = []
+    def is_watching_only(self):
+        return self.keystore is None
 
     def get_keystores(self):
-        return []
+        return [self.keystore] if self.keystore else []
 
-    def has_password(self):
-        return False
+    def check_password(self, password):
+        self.keystore.check_password(password)
+
+    def can_import_privkey(self):
+        return bool(self.keystore)
+
+    def load_keystore(self):
+        self.keystore = load_keystore(self.storage, 'keystore') if self.storage.get('keystore') else None
+
+    def save_keystore(self):
+        self.storage.put('keystore', self.keystore.dump())
+
+    def load_addresses(self):
+        self.addresses = self.storage.get('addresses', {})
+        # convert list
+        if type(self.addresses) is list:
+            self.addresses =  dict([(x, None) for x in self.addresses])
+
+    def save_addresses(self):
+        self.storage.put('addresses', self.addresses)
 
     def can_change_password(self):
-        return False
+        return not self.is_watching_only()
 
     def can_import_address(self):
-        return True
+        return self.is_watching_only()
 
-    def is_watching_only(self):
-        return True
+    def can_delete_address(self):
+        return self.is_watching_only()
 
     def has_seed(self):
         return False
@@ -1376,6 +1391,9 @@ class Imported_Wallet(Abstract_Wallet):
         return False
 
     def is_used(self, address):
+        return False
+
+    def is_change(self, address):
         return False
 
     def get_master_public_keys(self):
@@ -1388,38 +1406,84 @@ class Imported_Wallet(Abstract_Wallet):
         return ''
 
     def get_addresses(self, include_change=False):
-        return self.addresses
+        return sorted(self.addresses.keys())
+
+    def get_receiving_addresses(self):
+        return self.get_addresses()
+
+    def get_change_addresses(self):
+        return []
 
     def import_address(self, address):
         if address in self.addresses:
-            return
-        self.addresses.append(address)
+            return ''
+        self.addresses[address] = {}
         self.storage.put('addresses', self.addresses)
         self.storage.write()
         self.add_address(address)
         return address
 
-    def can_delete_address(self):
-        return True
-
     def delete_address(self, address):
         if address not in self.addresses:
             return
-        self.addresses.remove(address)
+        self.addresses.pop(address)
         self.storage.put('addresses', self.addresses)
         self.storage.write()
 
-    def get_receiving_addresses(self):
-        return self.addresses[:]
+    def get_address_index(self, address):
+        if self.keystore.can_import():
+            return self.addresses[address]['pubkey']
 
-    def get_change_addresses(self):
-        return []
+    def import_private_key(self, sec, pw, redeem_script=None):
+        try:
+            txin_type, pubkey = self.keystore.import_privkey(sec, pw)
+        except Exception:
+            raise BaseException('Invalid private key', sec)
+        if txin_type in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh']:
+            if redeem_script is not None:
+                raise BaseException('Cannot use redeem script with', txin_type, sec)
+            addr = bitcoin.pubkey_to_address(txin_type, pubkey)
+        elif txin_type in ['p2sh', 'p2wsh', 'p2wsh-p2sh']:
+            if redeem_script is None:
+                raise BaseException('Redeem script required for', txin_type, sec)
+            addr = bitcoin.redeem_script_to_address(txin_type, redeem_script)
+        else:
+            raise NotImplementedError(self.txin_type)
+        self.addresses[addr] = {'type':txin_type, 'pubkey':pubkey, 'redeem_script':redeem_script}
+        self.save_keystore()
+        self.save_addresses()
+        self.storage.write()
+        self.add_address(addr)
+        return addr
+
+    def export_private_key(self, address, password):
+        txin_type, pubkey, redeem_script = self.addresses[address]
+        sec = pw_decode(self.keystore.keypairs[pubkey], password)
+        return sec, redeem_script
 
     def add_input_sig_info(self, txin, address):
-        addrtype, hash160 = b58_address_to_hash160(address)
-        x_pubkey = 'fd' + bh2u(bytes([addrtype]) + hash160)
-        txin['x_pubkeys'] = [x_pubkey]
-        txin['signatures'] = [None]
+        if self.is_watching_only():
+            addrtype, hash160 = b58_address_to_hash160(address)
+            x_pubkey = 'fd' + bh2u(bytes([addrtype]) + hash160)
+            txin['x_pubkeys'] = [x_pubkey]
+            txin['signatures'] = [None]
+            return
+
+        txin_type = self.addresses[address]['txin_type']
+        txin['type'] = txin_type
+        if txin_type in ['p2pkh', 'p2wkh', 'p2wkh-p2sh']:
+            pubkey = self.addresses[address]['pubkey']
+            txin['num_sig'] = 1
+            txin['x_pubkeys'] = [pubkey]
+            txin['signatures'] = [None]
+        else:
+            redeem_script = self.addresses[address]['redeem_script']
+            num_sig = 2
+            num_keys = 3
+            txin['num_sig'] = num_sig
+            txin['redeem_script'] = redeem_script
+            txin['signatures'] = [None] * num_keys
+
 
 
 class Deterministic_Wallet(Abstract_Wallet):
@@ -1547,7 +1611,18 @@ class Simple_Wallet(Abstract_Wallet):
 
     def load_keystore(self):
         self.keystore = load_keystore(self.storage, 'keystore')
-        self.txin_type = self.keystore.txin_type()
+        try:
+            xtype = deserialize_xpub(self.keystore.xpub)[0]
+        except:
+            xtype = 'standard'
+        if xtype == 'standard':
+            self.txin_type = 'p2pkh'
+        elif xtype == 'segwit':
+            self.txin_type = 'p2wpkh'
+        elif xtype == 'segwit_p2sh':
+            self.txin_type = 'p2wpkh-p2sh'
+        else:
+            raise BaseException('unknown txin_type', xtype)
 
     def get_pubkey(self, c, i):
         return self.derive_pubkeys(c, i)
@@ -1626,15 +1701,6 @@ class Simple_Deterministic_Wallet(Deterministic_Wallet, Simple_Wallet):
     def can_import_privkey(self):
         return self.keystore.can_import()
 
-    def import_key(self, pk, pw):
-        pubkey = self.keystore.import_key(pk, pw)
-        self.save_keystore()
-        addr = self.pubkeys_to_address(pubkey)
-        self.receiving_addresses.append(addr)
-        self.save_addresses()
-        self.storage.write()
-        self.add_address(addr)
-        return addr
 
 
 
@@ -1642,16 +1708,7 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
     wallet_type = 'standard'
 
     def pubkeys_to_address(self, pubkey):
-        if self.txin_type == 'p2pkh':
-            return bitcoin.public_key_to_p2pkh(bfh(pubkey))
-        elif self.txin_type == 'p2wpkh':
-            return bitcoin.hash_to_segwit_addr(hash_160(bfh(pubkey)))
-        elif self.txin_type == 'p2wpkh-p2sh':
-            scriptSig = transaction.p2wpkh_nested_script(pubkey)
-            return bitcoin.hash160_to_p2sh(hash_160(bfh(scriptSig)))
-        else:
-            raise NotImplementedError(self.txin_type)
-
+        return bitcoin.pubkey_to_address(self.txin_type, pubkey)
 
 class Multisig_Wallet(Deterministic_Wallet):
     # generic m of n
@@ -1666,18 +1723,8 @@ class Multisig_Wallet(Deterministic_Wallet):
         return self.derive_pubkeys(c, i)
 
     def pubkeys_to_address(self, pubkeys):
-        if self.txin_type == 'p2sh':
-            redeem_script = self.pubkeys_to_redeem_script(pubkeys)
-            return bitcoin.hash160_to_p2sh(hash_160(bfh(redeem_script)))
-        elif self.txin_type == 'p2wsh':
-            witness_script = self.pubkeys_to_redeem_script(pubkeys)
-            return bitcoin.script_to_p2wsh(witness_script)
-        elif self.txin_type == 'p2wsh-p2sh':
-            witness_script = self.pubkeys_to_redeem_script(pubkeys)
-            scriptSig = transaction.p2wsh_nested_script(witness_script)
-            return bitcoin.hash160_to_p2sh(hash_160(bfh(scriptSig)))
-        else:
-            raise NotImplementedError(self.txin_type)
+        redeem_script = self.pubkeys_to_redeem_script(pubkeys)
+        return bitcoin.redeem_script_to_address(self.txin_type, redeem_script)
 
     def pubkeys_to_redeem_script(self, pubkeys):
         return transaction.multisig_script(sorted(pubkeys), self.m)
@@ -1691,7 +1738,15 @@ class Multisig_Wallet(Deterministic_Wallet):
             name = 'x%d/'%(i+1)
             self.keystores[name] = load_keystore(self.storage, name)
         self.keystore = self.keystores['x1/']
-        self.txin_type = self.keystore.txin_type()
+        xtype = deserialize_xpub(self.keystore.xpub)[0]
+        if xtype == 'standard':
+            self.txin_type = 'p2sh'
+        elif xtype == 'segwit':
+            self.txin_type = 'p2wsh'
+        elif xtype == 'segwit_p2sh':
+            self.txin_type = 'p2wsh-p2sh'
+        else:
+            raise BaseException('unknown txin_type', xtype)
 
     def save_keystore(self):
         for name, k in self.keystores.items():

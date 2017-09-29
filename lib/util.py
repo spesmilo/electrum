@@ -40,6 +40,10 @@ from .i18n import _
 import urllib.request, urllib.parse, urllib.error
 import queue
 
+def inv_dict(d):
+    return {v: k for k, v in d.items()}
+
+
 base_units = {'LTC':8, 'mLTC':5, 'uLTC':2}
 fee_levels = [_('Within 25 blocks'), _('Within 10 blocks'), _('Within 5 blocks'), _('Within 2 blocks'), _('In the next block')]
 

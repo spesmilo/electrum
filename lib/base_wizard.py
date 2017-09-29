@@ -82,7 +82,7 @@ class BaseWizard(object):
             ('standard',  _("Standard wallet")),
             ('2fa', _("Wallet with two-factor authentication")),
             ('multisig',  _("Multi-signature wallet")),
-            ('imported',  _("Watch Litecoin addresses")),
+            ('imported',  _("Import Litecoin addresses or private keys")),
         ]
         choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
@@ -102,7 +102,7 @@ class BaseWizard(object):
             self.load_2fa()
             action = self.storage.get_action()
         elif choice == 'imported':
-            action = 'import_addresses'
+            action = 'import_addresses_or_keys'
         self.run(action)
 
     def choose_multisig(self):
@@ -137,26 +137,32 @@ class BaseWizard(object):
 
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 
-    def import_addresses(self):
-        v = keystore.is_address_list
+    def import_addresses_or_keys(self):
+        v = lambda x: keystore.is_address_list(x) or keystore.is_private_key_list(x)
         title = _("Import Litecoin Addresses")
-        message = _("Enter a list of Litecoin addresses. This will create a watching-only wallet.")
-        self.add_xpub_dialog(title=title, message=message, run_next=self.on_import_addresses, is_valid=v)
+        message = _("Enter a list of Litecoin addresses (this will create a watching-only wallet), or a list of private keys.")
+        self.add_xpub_dialog(title=title, message=message, run_next=self.on_import, is_valid=v)
 
-    def on_import_addresses(self, text):
-        assert keystore.is_address_list(text)
-        self.wallet = Imported_Wallet(self.storage)
-        for x in text.split():
-            self.wallet.import_address(x)
+    def on_import(self, text):
+        if keystore.is_address_list(text):
+            self.wallet = Imported_Wallet(self.storage)
+            for x in text.split():
+                self.wallet.import_address(x)
+        elif keystore.is_private_key_list(text):
+            k = keystore.Imported_KeyStore({})
+            self.storage.put('keystore', k.dump())
+            self.wallet = Imported_Wallet(self.storage)
+            for x in text.split():
+                self.wallet.import_private_key(x, None)
         self.terminate()
 
     def restore_from_key(self):
         if self.wallet_type == 'standard':
-            v = keystore.is_any_key
-            title = _("Create keystore from keys")
+            v = keystore.is_master_key
+            title = _("Create keystore from a master key")
             message = ' '.join([
-                _("To create a watching-only wallet, please enter your master public key (xpub)."),
-                _("To create a spending wallet, please enter a master private key (xprv), or a list of Litecoin private keys.")
+                _("To create a watching-only wallet, please enter your master public key (xpub/ypub/zpub)."),
+                _("To create a spending wallet, please enter a master private key (xprv/yprv/zprv).")
             ])
             self.add_xpub_dialog(title=title, message=message, run_next=self.on_restore_from_key, is_valid=v)
         else:
@@ -164,7 +170,7 @@ class BaseWizard(object):
             self.add_cosigner_dialog(index=i, run_next=self.on_restore_from_key, is_valid=keystore.is_bip32_key)
 
     def on_restore_from_key(self, text):
-        k = keystore.from_keys(text)
+        k = keystore.from_master_key(text)
         self.on_keystore(k)
 
     def choose_hw_device(self):
@@ -357,7 +363,7 @@ class BaseWizard(object):
         self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('choose_keystore'))
 
     def on_cosigner(self, text, password, i):
-        k = keystore.from_keys(text, password)
+        k = keystore.from_master_key(text, password)
         self.on_keystore(k)
 
     def choose_seed_type(self):

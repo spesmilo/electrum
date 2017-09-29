@@ -35,7 +35,7 @@ import pyaes
 
 from .util import bfh, bh2u, to_string
 from . import version
-from .util import print_error, InvalidPassword, assert_bytes, to_bytes
+from .util import print_error, InvalidPassword, assert_bytes, to_bytes, inv_dict
 from . import segwit_addr
 
 def read_json_dict(filename):
@@ -65,7 +65,6 @@ XPUB_HEADERS = {
 
 # Litecoin network constants
 TESTNET = False
-NOLNET = False
 ADDRTYPE_P2PKH = 48
 ADDRTYPE_P2SH = 50
 ADDRTYPE_P2SH_ALT = 5
@@ -338,6 +337,30 @@ def script_to_p2wsh(script):
     return hash_to_segwit_addr(sha256(bfh(script)))
 
 
+def pubkey_to_address(txin_type, pubkey):
+    if txin_type == 'p2pkh':
+        return public_key_to_p2pkh(bfh(pubkey))
+    elif txin_type == 'p2wpkh':
+        return hash_to_segwit_addr(hash_160(bfh(pubkey)))
+    elif txin_type == 'p2wpkh-p2sh':
+        scriptSig = transaction.p2wpkh_nested_script(pubkey)
+        return hash160_to_p2sh(hash_160(bfh(scriptSig)))
+    else:
+        raise NotImplementedError(txin_type)
+
+def redeem_script_to_address(txin_type, redeem_script):
+    if txin_type == 'p2sh':
+        return hash160_to_p2sh(hash_160(bfh(redeem_script)))
+    elif txin_type == 'p2wsh':
+        return script_to_p2wsh(redeem_script)
+    elif txin_type == 'p2wsh-p2sh':
+        scriptSig = transaction.p2wsh_nested_script(redeem_script)
+        return hash160_to_p2sh(hash_160(bfh(scriptSig)))
+    else:
+        raise NotImplementedError(txin_type)
+
+
+
 def address_to_script(addr):
     witver, witprog = segwit_addr.decode(SEGWIT_HRP, addr)
     if witprog is not None:
@@ -452,33 +475,42 @@ def DecodeBase58Check(psz):
         return key
 
 
-def PrivKeyToSecret(privkey):
-    return privkey[9:9+32]
+
+# extended key export format for segwit
+
+SCRIPT_TYPES = {
+    'p2pkh':48,
+    'p2wpkh':1,
+    'p2wpkh-p2sh':2,
+    'p2sh':50,
+    'p2wsh':6,
+    'p2wsh-p2sh':7
+}
 
 
-def SecretToASecret(secret, compressed=False):
-    addrtype = ADDRTYPE_P2PKH
-    vchIn = bytes([(addrtype+128)&255]) + secret
-    if compressed: vchIn += b'\01'
+def serialize_privkey(secret, compressed, txin_type):
+    prefix = bytes([(SCRIPT_TYPES[txin_type]+128)&255])
+    suffix = b'\01' if compressed else b''
+    vchIn = prefix + secret + suffix
     return EncodeBase58Check(vchIn)
 
 
-def ASecretToSecret(key):
-    addrtype = ADDRTYPE_P2PKH
+def deserialize_privkey(key):
+    # whether the pubkey is compressed should be visible from the keystore
     vch = DecodeBase58Check(key)
-    if vch and vch[0] == ((addrtype+128)&255):
-        return vch[1:]
-    elif is_minikey(key):
-        return minikey_to_private_key(key)
+    if is_minikey(key):
+        return 'p2pkh', minikey_to_private_key(key), True
+    elif vch:
+        txin_type = inv_dict(SCRIPT_TYPES)[vch[0] - 128]
+        assert len(vch) in [33, 34]
+        compressed = len(vch) == 34
+        return txin_type, vch[1:33], compressed
     else:
         return False
 
-def regenerate_key(sec):
-    b = ASecretToSecret(sec)
-    if not b:
-        return False
-    b = b[0:32]
-    return EC_KEY(b)
+def regenerate_key(pk):
+    assert len(pk) == 32
+    return EC_KEY(pk)
 
 
 def GetPubKey(pubkey, compressed=False):
@@ -490,22 +522,18 @@ def GetSecret(pkey):
 
 
 def is_compressed(sec):
-    b = ASecretToSecret(sec)
-    return len(b) == 33
+    return deserialize_privkey(sec)[2]
 
 
-def public_key_from_private_key(sec):
-    # rebuild public key from private key, compressed or uncompressed
-    pkey = regenerate_key(sec)
-    assert pkey
-    compressed = is_compressed(sec)
+def public_key_from_private_key(pk, compressed):
+    pkey = regenerate_key(pk)
     public_key = GetPubKey(pkey.pubkey, compressed)
     return bh2u(public_key)
 
-
 def address_from_private_key(sec):
-    public_key = public_key_from_private_key(sec)
-    address = public_key_to_p2pkh(bfh(public_key))
+    txin_type, privkey, compressed = deserialize_privkey(sec)
+    public_key = public_key_from_private_key(privkey, compressed)
+    address = pubkey_to_address(txin_type, public_key)
     return address
 
 def is_segwit_address(addr):
@@ -537,7 +565,7 @@ def is_p2sh(addr):
 
 def is_private_key(key):
     try:
-        k = ASecretToSecret(key)
+        k = deserialize_privkey(key)
         return k is not False
     except:
         return False
@@ -587,8 +615,8 @@ def verify_message(address, sig, message):
         return False
 
 def sign_message_with_wif_privkey(sec, message):
-    key = regenerate_key(sec)
-    compressed = is_compressed(sec)
+    txin_type, privkey, compressed = deserialize_privkey(sec)
+    key = regenerate_key(privkey)
     return key.sign_message(message, compressed)
 
 def encrypt_message(message, pubkey):
@@ -978,5 +1006,4 @@ def bip32_public_derivation(xpub, branch, sequence):
 def bip32_private_key(sequence, k, chain):
     for i in sequence:
         k, chain = CKD_priv(k, chain, i)
-    return SecretToASecret(k, True)
-
+    return k

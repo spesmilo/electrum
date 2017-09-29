@@ -1864,20 +1864,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not address:
             return
         try:
-            pk_list = self.wallet.get_private_key(address, password)
+            pk, redeem_script = self.wallet.export_private_key(address, password)
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
             return
-
         d = WindowModalDialog(self, _("Private key"))
         d.setMinimumSize(600, 200)
         vbox = QVBoxLayout()
         vbox.addWidget( QLabel(_("Address") + ': ' + address))
         vbox.addWidget( QLabel(_("Private key") + ':'))
-        keys_e = ShowQRTextEdit(text='\n'.join(pk_list))
+        keys_e = ShowQRTextEdit(text=pk)
         keys_e.addCopyButton(self.app)
         vbox.addWidget(keys_e)
+        if redeem_script:
+            vbox.addWidget( QLabel(_("Redeem Script") + ':'))
+            rds_e = ShowQRTextEdit(text=redeem_script)
+            rds_e.addCopyButton(self.app)
+            vbox.addWidget(rds_e)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
         d.exec_()
@@ -2353,7 +2357,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not self.wallet.can_import_privkey():
             return
         title, msg = _('Import private keys'), _("Enter private keys")
-        self._do_import(title, msg, lambda x: self.wallet.import_key(x, password))
+        self._do_import(title, msg, lambda x: self.wallet.import_private_key(x, password))
 
     def update_fiat(self):
         b = self.fx and self.fx.is_enabled()
