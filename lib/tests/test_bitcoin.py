@@ -3,6 +3,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
+import base64
 import six
 import unittest
 import sys
@@ -13,7 +14,8 @@ from lib.bitcoin import (
     bip32_root, bip32_public_derivation, bip32_private_derivation, pw_encode,
     pw_decode, Hash, public_key_from_private_key, address_from_private_key,
     is_address, is_private_key, xpub_from_xprv, is_new_seed, is_old_seed,
-    var_int, op_push, address_to_script)
+    var_int, op_push, address_to_script, sign_message_with_wif_privkey,
+    verify_message)
 from lib.util import bfh
 
 try:
@@ -54,6 +56,24 @@ class Test_bitcoin(unittest.TestCase):
         signature = eck.sign_message(message, True)
         #print signature
         EC_KEY.verify_message(eck, signature, message)
+
+    def test_msg_signing(self):
+        msg1 = b'Chancellor on brink of second bailout for banks'
+        msg2 = b'Electrum'
+
+        sig1 = sign_message_with_wif_privkey(
+            'L1TnU2zbNaAqMoVh65Cyvmcjzbrj41Gs9iTLcWbpJCMynXuap6UN', msg1)
+        sig2 = sign_message_with_wif_privkey(
+            'KzyK8J8eQDLdFtd2Cr2K5w5YFKg6EnAudbGahzMvq5dVSpwyheCa', msg2)
+
+        sig1_b64 = base64.b64encode(sig1)
+        sig2_b64 = base64.b64encode(sig2)
+
+        self.assertEqual(sig1_b64, b'H/9jMOnj4MFbH3d7t4yCQ9i7DgZU/VZ278w3+ySv2F4yIsdqjsc5ng3kmN8OZAThgyfCZOQxZCWza9V5XzlVY0Y=')
+        self.assertEqual(sig2_b64, b'H/9tRQQ2cB/nv02yj6klatxGnrrDTfslM+0YOoUBHlkvHsAYhx+ldRNAPslSj/VI3nwjP2veNhqqidVlkr7IsFI=')
+
+        self.assertTrue(verify_message('15hETetDmcXm1mM4sEf7U2KXC9hDHFMSzz', sig1, msg1))
+        self.assertTrue(verify_message('1LcXfWmCJmvqgpFKDBRhjyN3QqzmawmEAj', sig2, msg2))
 
     def test_bip32(self):
         # see https://en.bitcoin.it/wiki/BIP_0032_TestVectors
