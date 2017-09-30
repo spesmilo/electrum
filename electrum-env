@@ -14,10 +14,10 @@ if [ -e ./env/bin/activate ]; then
 else
     virtualenv env
     source ./env/bin/activate
-    python setup.py install
+    python3 setup.py install
 fi
 
-export PYTHONPATH="/usr/local/lib/python2.7/site-packages:$PYTHONPATH"
+export PYTHONPATH="/usr/local/lib/python3.5/site-packages:$PYTHONPATH"
 
 ./electrum-ltc "$@"
 
