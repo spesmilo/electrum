@@ -10,7 +10,7 @@ import threading
 import electrum
 from electrum.bitcoin import TYPE_ADDRESS
 from electrum import WalletStorage, Wallet
-from electrum_gui.kivy.i18n import _
+from electroncash_gui.kivy.i18n import _
 from electrum.paymentrequest import InvoiceStore
 from electrum.util import profiler, InvalidPassword
 from electrum.plugins import run_hook
@@ -29,11 +29,12 @@ from kivy.factory import Factory
 from kivy.metrics import inch
 from kivy.lang import Builder
 
-## lazy imports for factory so that widgets can be used in kv
-#Factory.register('InstallWizard', module='electrum_gui.kivy.uix.dialogs.installwizard')
-#Factory.register('InfoBubble', module='electrum_gui.kivy.uix.dialogs')
-#Factory.register('OutputList', module='electrum_gui.kivy.uix.dialogs')
-#Factory.register('OutputItem', module='electrum_gui.kivy.uix.dialogs')
+# lazy imports for factory so that widgets can be used in kv
+#Factory.register('InstallWizard',
+#                 module='electroncash_gui.kivy.uix.dialogs.installwizard')
+#Factory.register('InfoBubble', module='electroncash_gui.kivy.uix.dialogs')
+#Factory.register('OutputList', module='electroncash_gui.kivy.uix.dialogs')
+#Factory.register('OutputItem', module='electroncash_gui.kivy.uix.dialogs')
 
 from .uix.dialogs.installwizard import InstallWizard
 from .uix.dialogs import InfoBubble
@@ -55,7 +56,7 @@ from kivy.uix.tabbedpanel import TabbedPanel
 from kivy.uix.label import Label
 from kivy.core.clipboard import Clipboard
 
-Factory.register('TabbedCarousel', module='electrum_gui.kivy.uix.screens')
+Factory.register('TabbedCarousel', module='electroncash_gui.kivy.uix.screens')
 
 # Register fonts without this you won't be able to use bold/italic...
 # inside markup.
@@ -589,9 +590,9 @@ class ElectrumWindow(App):
 
         #setup lazy imports for mainscreen
         Factory.register('AnimatedPopup',
-                         module='electrum_gui.kivy.uix.dialogs')
+                         module='electroncash_gui.kivy.uix.dialogs')
         Factory.register('QRCodeWidget',
-                         module='electrum_gui.kivy.uix.qrcodewidget')
+                         module='electroncash_gui.kivy.uix.qrcodewidget')
 
         # preload widgets. Remove this if you want to load the widgets on demand
         #Cache.append('electrum_widgets', 'AnimatedPopup', Factory.AnimatedPopup())

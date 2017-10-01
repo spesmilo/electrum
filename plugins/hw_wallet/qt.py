@@ -27,8 +27,8 @@
 import threading
 
 from PyQt5.Qt import QVBoxLayout, QLabel
-from electrum_gui.qt.password_dialog import PasswordDialog, PW_PASSPHRASE
-from electrum_gui.qt.util import *
+from electroncash_gui.qt.password_dialog import PasswordDialog, PW_PASSPHRASE
+from electroncash_gui.qt.util import *
 
 from electrum.i18n import _
 from electrum.util import PrintError
@@ -173,7 +173,7 @@ class QtHandlerBase(QObject, PrintError):
 
 from electrum.plugins import hook
 from electrum.util import UserCancelled
-from electrum_gui.qt.main_window import StatusBarButton
+from electroncash_gui.qt.main_window import StatusBarButton
 
 class QtPluginBase(object):
 

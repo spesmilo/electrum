@@ -37,7 +37,7 @@ from electrum.i18n import _
 from electrum.wallet import Multisig_Wallet
 from electrum.util import bh2u, bfh
 
-from electrum_gui.qt.transaction_dialog import show_transaction
+from electroncash_gui.qt.transaction_dialog import show_transaction
 
 import sys
 import traceback

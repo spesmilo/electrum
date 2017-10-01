@@ -1,6 +1,6 @@
 ''' Dummy NFC Provider to be used on desktops in case no other provider is found
 '''
-from electrum_gui.kivy.nfc_scanner import NFCBase
+from electroncash_gui.kivy.nfc_scanner import NFCBase
 from kivy.clock import Clock
 from kivy.logger import Logger
 

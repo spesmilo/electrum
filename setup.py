@@ -48,8 +48,8 @@ setup(
     ],
     packages=[
         'electrum',
-        'electrum_gui',
-        'electrum_gui.qt',
+        'electroncash_gui',
+        'electroncash_gui.qt',
         'electrum_plugins',
         'electrum_plugins.audio_modem',
         'electrum_plugins.cosigner_pool',
@@ -65,7 +65,7 @@ setup(
     ],
     package_dir={
         'electrum': 'lib',
-        'electrum_gui': 'gui',
+        'electroncash_gui': 'gui',
         'electrum_plugins': 'plugins',
     },
     package_data={

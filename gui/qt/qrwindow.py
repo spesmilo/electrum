@@ -29,7 +29,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QLabel, QWidget
 
-from electrum_gui.qt.qrcodewidget import QRCodeWidget
+from electroncash_gui.qt.qrcodewidget import QRCodeWidget
 from electrum.i18n import _
 
 if platform.system() == 'Windows':

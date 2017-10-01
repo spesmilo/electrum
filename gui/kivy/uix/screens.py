@@ -25,7 +25,7 @@ from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 from .context_menu import ContextMenu
 
 
-from electrum_gui.kivy.i18n import _
+from electroncash_gui.kivy.i18n import _
 
 class EmptyLabel(Factory.Label):
     pass

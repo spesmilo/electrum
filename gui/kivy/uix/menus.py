@@ -7,7 +7,7 @@ from kivy.uix.bubble import Bubble, BubbleButton
 from kivy.properties import ListProperty
 from kivy.uix.widget import Widget
 
-from electrum_gui.i18n import _
+from electroncash_gui.i18n import _
 
 class ContextMenuItem(Widget):
     '''abstract class
