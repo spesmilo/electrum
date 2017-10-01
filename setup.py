@@ -47,7 +47,7 @@ setup(
         'PySocks>=1.6.6',
     ],
     packages=[
-        'electrum',
+        'electroncash',
         'electroncash_gui',
         'electroncash_gui.qt',
         'electroncash_plugins',
@@ -64,12 +64,12 @@ setup(
         'electroncash_plugins.virtualkeyboard',
     ],
     package_dir={
-        'electrum': 'lib',
+        'electroncash': 'lib',
         'electroncash_gui': 'gui',
         'electroncash_plugins': 'plugins',
     },
     package_data={
-        'electrum': [
+        'electroncash': [
             'servers.json',
             'servers_testnet.json',
             'currencies.json',

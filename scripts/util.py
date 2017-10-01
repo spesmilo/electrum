@@ -1,5 +1,4 @@
 import select, time, queue
-# import electrum
 from electroncash import Connection, Interface, SimpleConfig
 
 from electroncash.network import parse_servers

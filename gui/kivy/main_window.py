@@ -7,7 +7,6 @@ import traceback
 from decimal import Decimal
 import threading
 
-import electrum
 from electroncash.bitcoin import TYPE_ADDRESS
 from electroncash import WalletStorage, Wallet
 from electroncash_gui.kivy.i18n import _
