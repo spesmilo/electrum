@@ -33,6 +33,7 @@ import json
 import ecdsa
 import pyaes
 
+import electrum
 from .util import bfh, bh2u, to_string
 from . import version
 from .util import print_error, InvalidPassword, assert_bytes, to_bytes, inv_dict
@@ -339,7 +340,7 @@ def pubkey_to_address(txin_type, pubkey):
     elif txin_type == 'p2wpkh':
         return hash_to_segwit_addr(hash_160(bfh(pubkey)))
     elif txin_type == 'p2wpkh-p2sh':
-        scriptSig = transaction.p2wpkh_nested_script(pubkey)
+        scriptSig = electrum.transaction.p2wpkh_nested_script(pubkey)
         return hash160_to_p2sh(hash_160(bfh(scriptSig)))
     else:
         raise NotImplementedError(txin_type)
@@ -350,7 +351,7 @@ def redeem_script_to_address(txin_type, redeem_script):
     elif txin_type == 'p2wsh':
         return script_to_p2wsh(redeem_script)
     elif txin_type == 'p2wsh-p2sh':
-        scriptSig = transaction.p2wsh_nested_script(redeem_script)
+        scriptSig = electrum.transaction.p2wsh_nested_script(redeem_script)
         return hash160_to_p2sh(hash_160(bfh(scriptSig)))
     else:
         raise NotImplementedError(txin_type)
