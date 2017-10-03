@@ -332,6 +332,14 @@ def public_key_to_p2wpkh(public_key):
 def script_to_p2wsh(script):
     return hash_to_segwit_addr(sha256(bfh(script)))
 
+def p2wpkh_nested_script(pubkey):
+    pubkey = safe_parse_pubkey(pubkey)
+    pkh = bh2u(hash_160(bfh(pubkey)))
+    return '00' + push_script(pkh)
+
+def p2wsh_nested_script(witness_script):
+    wsh = bh2u(sha256(bfh(witness_script)))
+    return '00' + push_script(wsh)
 
 def pubkey_to_address(txin_type, pubkey):
     if txin_type == 'p2pkh':
@@ -339,7 +347,7 @@ def pubkey_to_address(txin_type, pubkey):
     elif txin_type == 'p2wpkh':
         return hash_to_segwit_addr(hash_160(bfh(pubkey)))
     elif txin_type == 'p2wpkh-p2sh':
-        scriptSig = transaction.p2wpkh_nested_script(pubkey)
+        scriptSig = p2wpkh_nested_script(pubkey)
         return hash160_to_p2sh(hash_160(bfh(scriptSig)))
     else:
         raise NotImplementedError(txin_type)
@@ -350,7 +358,7 @@ def redeem_script_to_address(txin_type, redeem_script):
     elif txin_type == 'p2wsh':
         return script_to_p2wsh(redeem_script)
     elif txin_type == 'p2wsh-p2sh':
-        scriptSig = transaction.p2wsh_nested_script(redeem_script)
+        scriptSig = p2wsh_nested_script(redeem_script)
         return hash160_to_p2sh(hash_160(bfh(scriptSig)))
     else:
         raise NotImplementedError(txin_type)
