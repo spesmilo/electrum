@@ -181,6 +181,7 @@ class ElectrumGui:
         self.print_edit_line(9, _("Fee"), self.str_fee, 3, 15)
         self.stdscr.addstr( 12, 15, _("[Send]"), curses.A_REVERSE if self.pos%6==4 else curses.color_pair(2))
         self.stdscr.addstr( 12, 25, _("[Clear]"), curses.A_REVERSE if self.pos%6==5 else curses.color_pair(2))
+        self.maxpos = 6
 
     def print_banner(self):
         if self.network:
