@@ -1912,7 +1912,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def do_verify(self, address, message, signature):
         address  = address.text().strip()
-        message = message.toPlainText().strip().encode('utf8')
+        message = message.toPlainText().strip().encode('utf-8')
         if not bitcoin.is_address(address):
             self.show_message('Invalid Bitcoin address.')
             return
@@ -1971,11 +1971,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def do_decrypt(self, message_e, pubkey_e, encrypted_e, password):
         cyphertext = encrypted_e.toPlainText()
         task = partial(self.wallet.decrypt_message, pubkey_e.text(), cyphertext, password)
-        self.wallet.thread.add(task, on_success=lambda text: message_e.setText(text.decode('utf8')))
+        self.wallet.thread.add(task, on_success=lambda text: message_e.setText(text.decode('utf-8')))
 
     def do_encrypt(self, message_e, pubkey_e, encrypted_e):
         message = message_e.toPlainText()
-        message = message.encode('utf8')
+        message = message.encode('utf-8')
         try:
             encrypted = bitcoin.encrypt_message(message, pubkey_e.text())
             encrypted_e.setText(encrypted.decode('ascii'))
@@ -2051,8 +2051,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.pay_to_URI(data)
             return
         # else if the user scanned an offline signed tx
-        # transactions are binary, but qrcode seems to return utf8...
-        data = data.decode('utf8')
+        # transactions are binary, but qrcode seems to return utf-8...
+        data = data.decode('utf-8')
         z = bitcoin.base_decode(data, length=None, base=43)
         data = bh2u(''.join(chr(ord(b)) for b in z))
         tx = self.tx_from_text(data)
