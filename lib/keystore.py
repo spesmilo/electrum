@@ -87,7 +87,7 @@ class Software_KeyStore(KeyStore):
         return not self.is_watching_only()
 
     def sign_message(self, sequence, message, password):
-        sec = self.get_private_key(sequence, password)
+        privkey = self.get_private_key(sequence, password)
         compressed = self.use_compressed_pubkeys
         key = regenerate_key(privkey)
         return key.sign_message(message, compressed)
