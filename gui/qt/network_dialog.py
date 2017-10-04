@@ -391,7 +391,7 @@ class NetworkChoiceLayout(object):
         host = self.server_host.text()
         pp = self.servers.get(host, DEFAULT_PORTS)
         if p not in pp.keys():
-            p = pp.keys()[0]
+            p = list(pp.keys())[0]
         port = pp[p]
         self.server_host.setText(host)
         self.server_port.setText(port)
@@ -426,7 +426,7 @@ class NetworkChoiceLayout(object):
                 protocol = 's'
                 port = pp.get(protocol)
             else:
-                protocol = pp.keys()[0]
+                protocol = list(pp.keys())[0]
                 port = pp.get(protocol)
         self.server_host.setText(host)
         self.server_port.setText(port)

@@ -363,7 +363,7 @@ def parse_redeemScript(s):
     op_n = opcodes.OP_1 + n - 1
     match_multisig = [ op_m ] + [opcodes.OP_PUSHDATA4]*n + [ op_n, opcodes.OP_CHECKMULTISIG ]
     if not match_decoded(dec2, match_multisig):
-        print_error("cannot find address in input script", bh2u(_bytes))
+        print_error("cannot find address in input script", bh2u(s))
         return
     x_pubkeys = [bh2u(x[1]) for x in dec2[1:-2]]
     pubkeys = [safe_parse_pubkey(x) for x in x_pubkeys]
@@ -487,14 +487,6 @@ def deserialize(raw):
 
 # pay & redeem scripts
 
-def p2wpkh_nested_script(pubkey):
-    pubkey = safe_parse_pubkey(pubkey)
-    pkh = bh2u(hash_160(bfh(pubkey)))
-    return '00' + push_script(pkh)
-
-def p2wsh_nested_script(witness_script):
-    wsh = bh2u(sha256(bfh(witness_script)))
-    return '00' + push_script(wsh)
 
 
 def multisig_script(public_keys, m):
@@ -677,11 +669,11 @@ class Transaction:
         elif _type in ['p2wpkh', 'p2wsh']:
             return ''
         elif _type == 'p2wpkh-p2sh':
-            scriptSig = p2wpkh_nested_script(pubkeys[0])
+            scriptSig = bitcoin.p2wpkh_nested_script(pubkeys[0])
             return push_script(scriptSig)
         elif _type == 'p2wsh-p2sh':
             witness_script = self.get_preimage_script(txin)
-            scriptSig = p2wsh_nested_script(witness_script)
+            scriptSig = bitcoin.p2wsh_nested_script(witness_script)
             return push_script(scriptSig)
         elif _type == 'address':
             script += push_script(pubkeys[0])
