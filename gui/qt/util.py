@@ -26,11 +26,6 @@ elif platform.system() == 'Darwin':
 else:
     MONOSPACE_FONT = 'monospace'
 
-GREEN_BG = "QWidget {background-color:#80ff80;}"
-RED_BG = "QWidget {background-color:#ffcccc;}"
-RED_FG = "QWidget {color:red;}"
-BLUE_FG = "QWidget {color:blue;}"
-BLACK_FG = "QWidget {color:black;}"
 
 dialogs = []
 
@@ -601,6 +596,41 @@ class TaskThread(QThread):
     def stop(self):
         self.tasks.put(None)
 
+
+class ColorSchemeItem:
+    def __init__(self, fg_color, bg_color):
+        self.colors = (fg_color, bg_color)
+
+    def _get_color(self, background):
+        return self.colors[(int(background) + int(ColorScheme.dark_scheme)) % 2]
+
+    def as_stylesheet(self, background=False):
+        css_prefix = "background-" if background else ""
+        color = self._get_color(background)
+        return "QWidget {{ {}color:{}; }}".format(css_prefix, color)
+
+    def as_color(self, background=False):
+        color = self._get_color(background)
+        return QColor(color)
+
+
+class ColorScheme:
+    dark_scheme = False
+
+    GREEN = ColorSchemeItem("#117c11", "#8af296")
+    RED = ColorSchemeItem("#7c1111", "#f18c8c")
+    BLUE = ColorSchemeItem("#123b7c", "#8cb3f2")
+    DEFAULT = ColorSchemeItem("black", "white")
+
+    @staticmethod
+    def has_dark_background(widget):
+        brightness = sum(widget.palette().color(QPalette.Background).getRgb()[0:3])
+        return brightness < (255*3/2)
+
+    @staticmethod
+    def update_from_widget(widget):
+        if ColorScheme.has_dark_background(widget):
+            ColorScheme.dark_scheme = True
 
 if __name__ == "__main__":
     app = QApplication([])
