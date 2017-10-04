@@ -916,7 +916,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fileName = self.getSaveFileName(_("Select where to save your payment request"), name, "*.bip70")
         if fileName:
             with open(fileName, "wb+") as f:
-                f.write(str(pr))
+                f.write(util.to_bytes(pr))
             self.show_message(_("Request saved successfully"))
             self.saved = True
 
