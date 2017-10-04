@@ -640,7 +640,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def edit_changed(edit):
             if edit.follows:
                 return
-            edit.setStyleSheet(BLACK_FG)
+            edit.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
             fiat_e.is_last_edited = (edit == fiat_e)
             amount = edit.get_amount()
             rate = self.fx.exchange_rate() if self.fx else None
@@ -655,7 +655,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 if edit is fiat_e:
                     btc_e.follows = True
                     btc_e.setAmount(int(amount / Decimal(rate) * COIN))
-                    btc_e.setStyleSheet(BLUE_FG)
+                    btc_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
                     btc_e.follows = False
                     if fee_e:
                         window.update_fee()
@@ -663,7 +663,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     fiat_e.follows = True
                     fiat_e.setText(self.fx.ccy_amount_str(
                         amount * Decimal(rate) / COIN, False))
-                    fiat_e.setStyleSheet(BLUE_FG)
+                    fiat_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
                     fiat_e.follows = False
 
         btc_e.follows = False
@@ -1111,22 +1111,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def entry_changed():
             text = ""
             if self.not_enough_funds:
-                amt_color, fee_color = RED_FG, RED_FG
+                amt_color, fee_color = ColorScheme.RED, ColorScheme.RED
                 text = _( "Not enough funds" )
                 c, u, x = self.wallet.get_frozen_balance()
                 if c+u+x:
                     text += ' (' + self.format_amount(c+u+x).strip() + ' ' + self.base_unit() + ' ' +_("are frozen") + ')'
 
             elif self.fee_e.isModified():
-                amt_color, fee_color = BLACK_FG, BLACK_FG
+                amt_color, fee_color = ColorScheme.DEFAULT, ColorScheme.DEFAULT
             elif self.amount_e.isModified():
-                amt_color, fee_color = BLACK_FG, BLUE_FG
+                amt_color, fee_color = ColorScheme.DEFAULT, ColorScheme.BLUE
             else:
-                amt_color, fee_color = BLUE_FG, BLUE_FG
+                amt_color, fee_color = ColorScheme.BLUE, ColorScheme.BLUE
 
             self.statusBar().showMessage(text)
-            self.amount_e.setStyleSheet(amt_color)
-            self.fee_e.setStyleSheet(fee_color)
+            self.amount_e.setStyleSheet(amt_color.as_stylesheet())
+            self.fee_e.setStyleSheet(fee_color.as_stylesheet())
 
         self.amount_e.textChanged.connect(entry_changed)
         self.fee_e.textChanged.connect(entry_changed)
@@ -2311,7 +2311,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return keystore.get_private_keys(text)
 
         f = lambda: button.setEnabled(get_address() is not None and get_pk() is not None)
-        on_address = lambda text: address_e.setStyleSheet(BLACK_FG if get_address() else RED_FG)
+        on_address = lambda text: address_e.setStyleSheet((ColorScheme.DEFAULT if get_address() else ColorScheme.RED).as_stylesheet())
         keys_e.textChanged.connect(f)
         address_e.textChanged.connect(f)
         address_e.textChanged.connect(on_address)
@@ -2474,9 +2474,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 return
             if self.alias_info:
                 alias_addr, alias_name, validated = self.alias_info
-                alias_e.setStyleSheet(GREEN_BG if validated else RED_BG)
+                alias_e.setStyleSheet((ColorScheme.GREEN if validated else ColorScheme.RED).as_stylesheet(True))
             else:
-                alias_e.setStyleSheet(RED_BG)
+                alias_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
         def on_alias_edit():
             alias_e.setStyleSheet("")
             alias = str(alias_e.text())
@@ -2505,7 +2505,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             SSL_error = None
         SSL_id_label = HelpLabel(_('SSL certificate') + ':', msg)
         SSL_id_e = QLineEdit(SSL_identity)
-        SSL_id_e.setStyleSheet(RED_BG if SSL_error else GREEN_BG if SSL_identity else '')
+        SSL_id_e.setStyleSheet((ColorScheme.RED if SSL_error else ColorScheme.GREEN).as_stylesheet(True) if SSL_identity else '')
         if SSL_error:
             SSL_id_e.setToolTip(SSL_error)
         SSL_id_e.setReadOnly(True)
