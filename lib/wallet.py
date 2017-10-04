@@ -1256,7 +1256,7 @@ class Abstract_Wallet(PrintError):
 
     def sign_payment_request(self, key, alias, alias_addr, password):
         req = self.receive_requests.get(key)
-        alias_privkey = self.get_private_key(alias_addr, password)[0]
+        alias_privkey = self.export_private_key(alias_addr, password)[0]
         pr = paymentrequest.make_unsigned_request(req)
         paymentrequest.sign_request_with_alias(pr, alias, alias_privkey)
         req['name'] = pr.pki_data

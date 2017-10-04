@@ -2134,7 +2134,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 time.sleep(0.1)
                 if done:
                     break
-                private_keys[addr] = "\n".join(self.wallet.get_private_key(addr, password))
+                privkey = self.wallet.export_private_key(addr, password)[0]
+                private_keys[addr] = privkey
                 self.computing_privkeys_signal.emit()
             self.show_privkeys_signal.emit()
 
