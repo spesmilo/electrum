@@ -669,7 +669,8 @@ class Transaction:
         elif _type in ['p2wpkh', 'p2wsh']:
             return ''
         elif _type == 'p2wpkh-p2sh':
-            scriptSig = bitcoin.p2wpkh_nested_script(pubkeys[0])
+            pubkey = safe_parse_pubkey(pubkeys[0])
+            scriptSig = bitcoin.p2wpkh_nested_script(pubkey)
             return push_script(scriptSig)
         elif _type == 'p2wsh-p2sh':
             witness_script = self.get_preimage_script(txin)

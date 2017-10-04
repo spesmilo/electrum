@@ -337,7 +337,6 @@ def script_to_p2wsh(script):
     return hash_to_segwit_addr(sha256(bfh(script)))
 
 def p2wpkh_nested_script(pubkey):
-    pubkey = safe_parse_pubkey(pubkey)
     pkh = bh2u(hash_160(bfh(pubkey)))
     return '00' + push_script(pkh)
 
