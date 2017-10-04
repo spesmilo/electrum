@@ -158,3 +158,6 @@ class AddressList(MyTreeWidget):
         run_hook('receive_menu', menu, addrs, self.wallet)
         menu.exec_(self.viewport().mapToGlobal(position))
 
+    def on_permit_edit(self, item, column):
+        # labels for headings, e.g. "receiving" or "used" should not be editable
+        return item.childCount() == 0

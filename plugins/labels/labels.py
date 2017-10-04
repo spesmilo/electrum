@@ -47,6 +47,8 @@ class LabelsPlugin(BasePlugin):
     def set_label(self, wallet, item, label):
         if not wallet in self.wallets:
             return
+        if not item:
+            return
         nonce = self.get_nonce(wallet)
         wallet_id = self.wallets[wallet][2]
         bundle = {"walletId": wallet_id,
