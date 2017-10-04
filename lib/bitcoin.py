@@ -617,10 +617,6 @@ def verify_message(address, sig, message):
         print_error("Verification error: {0}".format(e))
         return False
 
-def sign_message_with_wif_privkey(sec, message):
-    txin_type, privkey, compressed = deserialize_privkey(sec)
-    key = regenerate_key(privkey)
-    return key.sign_message(message, compressed)
 
 def encrypt_message(message, pubkey):
     return EC_KEY.encrypt_message(message, bfh(pubkey))

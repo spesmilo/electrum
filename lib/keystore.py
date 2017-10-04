@@ -88,7 +88,9 @@ class Software_KeyStore(KeyStore):
 
     def sign_message(self, sequence, message, password):
         sec = self.get_private_key(sequence, password)
-        return sign_message_with_wif_privkey(sec, message)
+        compressed = self.use_compressed_pubkeys
+        key = regenerate_key(privkey)
+        return key.sign_message(message, compressed)
 
     def decrypt_message(self, sequence, message, password):
         sec = self.get_private_key(sequence, password)
@@ -277,6 +279,7 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
     def __init__(self, d):
         Xpub.__init__(self)
         Deterministic_KeyStore.__init__(self, d)
+        self.use_compressed_pubkeys = True
         self.xpub = d.get('xpub')
         self.xprv = d.get('xprv')
 
@@ -337,6 +340,7 @@ class Old_KeyStore(Deterministic_KeyStore):
     def __init__(self, d):
         Deterministic_KeyStore.__init__(self, d)
         self.mpk = d.get('mpk')
+        self.use_compressed_pubkeys = False
 
     def get_hex_seed(self, password):
         return pw_decode(self.seed, password).encode('utf8')

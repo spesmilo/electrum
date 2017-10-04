@@ -274,12 +274,13 @@ class Abstract_Wallet(PrintError):
             return []
         index = self.get_address_index(address)
         pk = self.keystore.get_private_key(index, password)
+        compressed = self.keystore.use_compressed_pubkeys
         if self.txin_type in ['p2sh', 'p2wsh', 'p2wsh-p2sh']:
             pubkeys = self.get_public_keys(address)
             redeem_script = self.pubkeys_to_redeem_script(pubkeys)
         else:
             redeem_script = None
-        return bitcoin.serialize_privkey(pk, True, self.txin_type), redeem_script
+        return bitcoin.serialize_privkey(pk, compressed, self.txin_type), redeem_script
 
     def get_public_key(self, address):
         if self.keystore.can_import():
