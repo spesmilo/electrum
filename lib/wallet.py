@@ -273,8 +273,7 @@ class Abstract_Wallet(PrintError):
         if self.is_watching_only():
             return []
         index = self.get_address_index(address)
-        pk = self.keystore.get_private_key(index, password)
-        compressed = self.keystore.use_compressed_pubkeys
+        pk, compressed = self.keystore.get_private_key(index, password)
         if self.txin_type in ['p2sh', 'p2wsh', 'p2wsh-p2sh']:
             pubkeys = self.get_public_keys(address)
             redeem_script = self.pubkeys_to_redeem_script(pubkeys)
@@ -282,13 +281,6 @@ class Abstract_Wallet(PrintError):
             redeem_script = None
         return bitcoin.serialize_privkey(pk, compressed, self.txin_type), redeem_script
 
-    def get_public_key(self, address):
-        if self.keystore.can_import():
-            pubkey = self.get_address_index(address)
-        else:
-            sequence = self.get_address_index(address)
-            pubkey = self.get_pubkey(*sequence)
-        return pubkey
 
     def get_public_keys(self, address):
         sequence = self.get_address_index(address)
@@ -1336,6 +1328,15 @@ class Abstract_Wallet(PrintError):
     def has_password(self):
         return self.storage.get('use_encryption', False)
 
+    def sign_message(self, address, message, password):
+        index = self.get_address_index(address)
+        return self.keystore.sign_message(index, message, password)
+
+    def decrypt_message(self, pubkey, message, password):
+        addr = self.pubkeys_to_address(pubkey)
+        index = self.get_address_index(addr)
+        return self.keystore.decrypt_message(index, message, password)
+
 
 class Imported_Wallet(Abstract_Wallet):
     # wallet made of imported addresses
@@ -1429,8 +1430,10 @@ class Imported_Wallet(Abstract_Wallet):
         self.storage.write()
 
     def get_address_index(self, address):
-        if self.keystore.can_import():
-            return self.addresses[address]['pubkey']
+        return self.get_public_key(address)
+
+    def get_public_key(self, address):
+        return self.addresses[address].get('pubkey')
 
     def import_private_key(self, sec, pw, redeem_script=None):
         try:
@@ -1461,7 +1464,11 @@ class Imported_Wallet(Abstract_Wallet):
         sec = pw_decode(self.keystore.keypairs[pubkey], password)
         return sec, redeem_script
 
+    def get_txin_type(self, address):
+        return self.addresses[address].get('type', 'address')
+
     def add_input_sig_info(self, txin, address):
+        txin['type'] = self.get_txin_type(address)
         if self.is_watching_only():
             addrtype, hash160 = b58_address_to_hash160(address)
             x_pubkey = 'fd' + bh2u(bytes([addrtype]) + hash160)
@@ -1469,8 +1476,6 @@ class Imported_Wallet(Abstract_Wallet):
             txin['signatures'] = [None]
             return
 
-        txin_type = self.addresses[address]['type']
-        txin['type'] = txin_type
         if txin_type in ['p2pkh', 'p2wkh', 'p2wkh-p2sh']:
             pubkey = self.addresses[address]['pubkey']
             txin['num_sig'] = 1
@@ -1484,7 +1489,10 @@ class Imported_Wallet(Abstract_Wallet):
             txin['redeem_script'] = redeem_script
             txin['signatures'] = [None] * num_keys
 
-
+    def pubkeys_to_address(self, pubkey):
+        for addr, v in self.addresses.items():
+            if v.get('pubkey') == pubkey:
+                return addr
 
 class Deterministic_Wallet(Abstract_Wallet):
 
@@ -1604,10 +1612,21 @@ class Deterministic_Wallet(Abstract_Wallet):
     def get_fingerprint(self):
         return self.get_master_public_key()
 
+    def get_txin_type(self, address):
+        return self.txin_type
 
-class Simple_Wallet(Abstract_Wallet):
 
-    """ Wallet with a single pubkey per address """
+class Simple_Deterministic_Wallet(Deterministic_Wallet):
+
+    """ Deterministic Wallet with a single pubkey per address """
+
+    def __init__(self, storage):
+        Deterministic_Wallet.__init__(self, storage)
+
+    def get_public_key(self, address):
+        sequence = self.get_address_index(address)
+        pubkey = self.get_pubkey(*sequence)
+        return pubkey
 
     def load_keystore(self):
         self.keystore = load_keystore(self.storage, 'keystore')
@@ -1631,29 +1650,11 @@ class Simple_Wallet(Abstract_Wallet):
         return [self.get_public_key(address)]
 
     def add_input_sig_info(self, txin, address):
-        if not self.keystore.can_import():
-            derivation = self.get_address_index(address)
-            x_pubkey = self.keystore.get_xpubkey(*derivation)
-        else:
-            x_pubkey = self.get_public_key(address)
+        derivation = self.get_address_index(address)
+        x_pubkey = self.keystore.get_xpubkey(*derivation)
         txin['x_pubkeys'] = [x_pubkey]
         txin['signatures'] = [None]
         txin['num_sig'] = 1
-
-    def sign_message(self, address, message, password):
-        index = self.get_address_index(address)
-        return self.keystore.sign_message(index, message, password)
-
-    def decrypt_message(self, pubkey, message, password):
-        addr = self.pubkeys_to_address(pubkey)
-        index = self.get_address_index(addr)
-        return self.keystore.decrypt_message(index, message, password)
-
-
-class Simple_Deterministic_Wallet(Deterministic_Wallet, Simple_Wallet):
-
-    def __init__(self, storage):
-        Deterministic_Wallet.__init__(self, storage)
 
     def get_master_public_key(self):
         return self.keystore.get_master_public_key()
@@ -1687,9 +1688,6 @@ class Simple_Deterministic_Wallet(Deterministic_Wallet, Simple_Wallet):
     def save_keystore(self):
         self.storage.put('keystore', self.keystore.dump())
 
-    def can_delete_address(self):
-        return self.keystore.can_import()
-
     def delete_address(self, address):
         pubkey = self.get_public_key(address)
         self.keystore.delete_imported_key(pubkey)
@@ -1697,9 +1695,6 @@ class Simple_Deterministic_Wallet(Deterministic_Wallet, Simple_Wallet):
         self.receiving_addresses.remove(address)
         self.save_addresses()
         self.storage.write()
-
-    def can_import_privkey(self):
-        return self.keystore.can_import()
 
 
 
@@ -1709,6 +1704,7 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
 
     def pubkeys_to_address(self, pubkey):
         return bitcoin.pubkey_to_address(self.txin_type, pubkey)
+
 
 class Multisig_Wallet(Deterministic_Wallet):
     # generic m of n
