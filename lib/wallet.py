@@ -1051,7 +1051,7 @@ class Abstract_Wallet(PrintError):
                 if delta > 0:
                     continue
         if delta > 0:
-            raise BaseException(_('Cannot bump fee: cound not find suitable outputs'))
+            raise BaseException(_('Cannot bump fee: could not find suitable outputs'))
         return Transaction.from_io(inputs, outputs)
 
     def cpfp(self, tx, fee):
