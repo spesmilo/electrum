@@ -874,15 +874,16 @@ class Abstract_Wallet(PrintError):
     def sweep(self, privkeys, network, config, recipient, fee=None, imax=100):
         inputs = []
         keypairs = {}
-        for privkey in privkeys:
-            pubkey = public_key_from_private_key(privkey)
-            address = address_from_private_key(privkey)
+        for sec in privkeys:
+            txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
+            pubkey = bitcoin.public_key_from_private_key(privkey, compressed)
+            address = bitcoin.pubkey_to_address(txin_type, pubkey)
             u = network.synchronous_get(('blockchain.address.listunspent', [address]))
             pay_script = bitcoin.address_to_script(address)
             for item in u:
                 if len(inputs) >= imax:
                     break
-                item['type'] = 'p2pkh'
+                item['type'] = txin_type
                 item['scriptPubKey'] = pay_script
                 item['redeemPubkey'] = pubkey
                 item['address'] = address
