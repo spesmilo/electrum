@@ -73,10 +73,10 @@ class PayToEdit(ScanQRTextEdit):
             button.setHidden(b)
 
     def setGreen(self):
-        self.setStyleSheet(util.GREEN_BG)
+        self.setStyleSheet(util.ColorScheme.GREEN.as_stylesheet(True))
 
     def setExpired(self):
-        self.setStyleSheet(util.RED_BG)
+        self.setStyleSheet(util.ColorScheme.RED.as_stylesheet(True))
 
     def parse_address_and_amount(self, line):
         x, y = line.split(',')

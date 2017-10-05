@@ -320,7 +320,7 @@ def make_unsigned_request(req):
     pd.memo = memo
     pr = pb2.PaymentRequest()
     pr.serialized_payment_details = pd.SerializeToString()
-    pr.signature = ''
+    pr.signature = util.to_bytes('')
     return pr
 
 

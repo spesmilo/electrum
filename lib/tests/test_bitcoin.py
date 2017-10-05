@@ -14,7 +14,7 @@ from lib.bitcoin import (
     bip32_root, bip32_public_derivation, bip32_private_derivation, pw_encode,
     pw_decode, Hash, public_key_from_private_key, address_from_private_key,
     is_address, is_private_key, xpub_from_xprv, is_new_seed, is_old_seed,
-    var_int, op_push, address_to_script, sign_message_with_wif_privkey,
+    var_int, op_push, address_to_script, regenerate_key,
     verify_message, deserialize_privkey)
 from lib.util import bfh
 
@@ -60,6 +60,11 @@ class Test_bitcoin(unittest.TestCase):
     def test_msg_signing(self):
         msg1 = b'Chancellor on brink of second bailout for banks'
         msg2 = b'Electrum'
+
+        def sign_message_with_wif_privkey(wif_privkey, msg):
+            txin_type, privkey, compressed = deserialize_privkey(wif_privkey)
+            key = regenerate_key(privkey)
+            return key.sign_message(msg, compressed)
 
         sig1 = sign_message_with_wif_privkey(
             'T7J3unHmmx9S8e8Zdi9r98A7wTW386HkxvMbUKEMsAY9JRWfbSe6', msg1)

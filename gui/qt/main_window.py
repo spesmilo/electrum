@@ -640,7 +640,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def edit_changed(edit):
             if edit.follows:
                 return
-            edit.setStyleSheet(BLACK_FG)
+            edit.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
             fiat_e.is_last_edited = (edit == fiat_e)
             amount = edit.get_amount()
             rate = self.fx.exchange_rate() if self.fx else None
@@ -655,7 +655,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 if edit is fiat_e:
                     btc_e.follows = True
                     btc_e.setAmount(int(amount / Decimal(rate) * COIN))
-                    btc_e.setStyleSheet(BLUE_FG)
+                    btc_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
                     btc_e.follows = False
                     if fee_e:
                         window.update_fee()
@@ -663,7 +663,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     fiat_e.follows = True
                     fiat_e.setText(self.fx.ccy_amount_str(
                         amount * Decimal(rate) / COIN, False))
-                    fiat_e.setStyleSheet(BLUE_FG)
+                    fiat_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
                     fiat_e.follows = False
 
         btc_e.follows = False
@@ -916,7 +916,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fileName = self.getSaveFileName(_("Select where to save your payment request"), name, "*.bip70")
         if fileName:
             with open(fileName, "wb+") as f:
-                f.write(str(pr))
+                f.write(util.to_bytes(pr))
             self.show_message(_("Request saved successfully"))
             self.saved = True
 
@@ -1111,22 +1111,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def entry_changed():
             text = ""
             if self.not_enough_funds:
-                amt_color, fee_color = RED_FG, RED_FG
+                amt_color, fee_color = ColorScheme.RED, ColorScheme.RED
                 text = _( "Not enough funds" )
                 c, u, x = self.wallet.get_frozen_balance()
                 if c+u+x:
                     text += ' (' + self.format_amount(c+u+x).strip() + ' ' + self.base_unit() + ' ' +_("are frozen") + ')'
 
             elif self.fee_e.isModified():
-                amt_color, fee_color = BLACK_FG, BLACK_FG
+                amt_color, fee_color = ColorScheme.DEFAULT, ColorScheme.DEFAULT
             elif self.amount_e.isModified():
-                amt_color, fee_color = BLACK_FG, BLUE_FG
+                amt_color, fee_color = ColorScheme.DEFAULT, ColorScheme.BLUE
             else:
-                amt_color, fee_color = BLUE_FG, BLUE_FG
+                amt_color, fee_color = ColorScheme.BLUE, ColorScheme.BLUE
 
             self.statusBar().showMessage(text)
-            self.amount_e.setStyleSheet(amt_color)
-            self.fee_e.setStyleSheet(fee_color)
+            self.amount_e.setStyleSheet(amt_color.as_stylesheet())
+            self.fee_e.setStyleSheet(fee_color.as_stylesheet())
 
         self.amount_e.textChanged.connect(entry_changed)
         self.fee_e.textChanged.connect(entry_changed)
@@ -1898,7 +1898,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not bitcoin.is_address(address):
             self.show_message('Invalid Litecoin address.')
             return
-        if not bitcoin.is_p2pkh(address):
+        txin_type = self.wallet.get_txin_type(address)
+        if txin_type not in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh']:
             self.show_message('Cannot sign messages with this type of address.' + '\n\n' + self.msg_sign)
             return
         if not self.wallet.is_mine(address):
@@ -1912,12 +1913,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def do_verify(self, address, message, signature):
         address  = address.text().strip()
-        message = message.toPlainText().strip().encode('utf8')
+        message = message.toPlainText().strip().encode('utf-8')
         if not bitcoin.is_address(address):
             self.show_message('Invalid Litecoin address.')
-            return
-        if not bitcoin.is_p2pkh(address):
-            self.show_message('Cannot verify messages with this type of address.' + '\n\n' + self.msg_sign)
             return
         try:
             # This can throw on invalid base64
@@ -1932,7 +1930,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def sign_verify_message(self, address=''):
         d = WindowModalDialog(self, _('Sign/verify Message'))
-        d.setMinimumSize(410, 290)
+        d.setMinimumSize(610, 290)
 
         layout = QGridLayout(d)
 
@@ -1971,11 +1969,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def do_decrypt(self, message_e, pubkey_e, encrypted_e, password):
         cyphertext = encrypted_e.toPlainText()
         task = partial(self.wallet.decrypt_message, pubkey_e.text(), cyphertext, password)
-        self.wallet.thread.add(task, on_success=lambda text: message_e.setText(text.decode('utf8')))
+        self.wallet.thread.add(task, on_success=lambda text: message_e.setText(text.decode('utf-8')))
 
     def do_encrypt(self, message_e, pubkey_e, encrypted_e):
         message = message_e.toPlainText()
-        message = message.encode('utf8')
+        message = message.encode('utf-8')
         try:
             encrypted = bitcoin.encrypt_message(message, pubkey_e.text())
             encrypted_e.setText(encrypted.decode('ascii'))
@@ -2051,8 +2049,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.pay_to_URI(data)
             return
         # else if the user scanned an offline signed tx
-        # transactions are binary, but qrcode seems to return utf8...
-        data = data.decode('utf8')
+        # transactions are binary, but qrcode seems to return utf-8...
+        data = data.decode('utf-8')
         z = bitcoin.base_decode(data, length=None, base=43)
         data = bh2u(''.join(chr(ord(b)) for b in z))
         tx = self.tx_from_text(data)
@@ -2134,7 +2132,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 time.sleep(0.1)
                 if done:
                     break
-                private_keys[addr] = "\n".join(self.wallet.get_private_key(addr, password))
+                privkey = self.wallet.export_private_key(addr, password)[0]
+                private_keys[addr] = privkey
                 self.computing_privkeys_signal.emit()
             self.show_privkeys_signal.emit()
 
@@ -2311,7 +2310,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return keystore.get_private_keys(text)
 
         f = lambda: button.setEnabled(get_address() is not None and get_pk() is not None)
-        on_address = lambda text: address_e.setStyleSheet(BLACK_FG if get_address() else RED_FG)
+        on_address = lambda text: address_e.setStyleSheet((ColorScheme.DEFAULT if get_address() else ColorScheme.RED).as_stylesheet())
         keys_e.textChanged.connect(f)
         address_e.textChanged.connect(f)
         address_e.textChanged.connect(on_address)
@@ -2474,9 +2473,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 return
             if self.alias_info:
                 alias_addr, alias_name, validated = self.alias_info
-                alias_e.setStyleSheet(GREEN_BG if validated else RED_BG)
+                alias_e.setStyleSheet((ColorScheme.GREEN if validated else ColorScheme.RED).as_stylesheet(True))
             else:
-                alias_e.setStyleSheet(RED_BG)
+                alias_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
         def on_alias_edit():
             alias_e.setStyleSheet("")
             alias = str(alias_e.text())
@@ -2505,7 +2504,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             SSL_error = None
         SSL_id_label = HelpLabel(_('SSL certificate') + ':', msg)
         SSL_id_e = QLineEdit(SSL_identity)
-        SSL_id_e.setStyleSheet(RED_BG if SSL_error else GREEN_BG if SSL_identity else '')
+        SSL_id_e.setStyleSheet((ColorScheme.RED if SSL_error else ColorScheme.GREEN).as_stylesheet(True) if SSL_identity else '')
         if SSL_error:
             SSL_id_e.setToolTip(SSL_error)
         SSL_id_e.setReadOnly(True)

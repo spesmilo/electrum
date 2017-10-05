@@ -302,10 +302,7 @@ class BaseWizard(object):
         self.on_keystore(k)
 
     def on_bip43(self, seed, passphrase, derivation):
-        k = keystore.BIP32_KeyStore({})
-        bip32_seed = keystore.bip39_to_seed(seed, passphrase)
-        t = 'segwit_p2sh' if derivation.startswith("m/49'") else 'standard'
-        k.add_xprv_from_seed(bip32_seed, t, derivation)
+        k = keystore.from_bip39_seed(seed, passphrase, derivation)
         self.on_keystore(k)
 
     def on_keystore(self, k):
