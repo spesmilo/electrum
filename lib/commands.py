@@ -343,7 +343,7 @@ class Commands:
     @command('')
     def version(self):
         """Return the version of electrum."""
-        from version import ELECTRUM_VERSION
+        from .version import ELECTRUM_VERSION
         return ELECTRUM_VERSION
 
     @command('w')
@@ -388,7 +388,7 @@ class Commands:
         privkey to a destination address. The transaction is not
         broadcasted."""
         tx_fee = satoshis(tx_fee)
-        privkeys = privkey if type(privkey) is list else [privkey]
+        privkeys = privkey.split()
         self.nocheck = nocheck
         dest = self._resolver(destination)
         tx = self.wallet.sweep(privkeys, self.network, self.config, dest, tx_fee, imax)

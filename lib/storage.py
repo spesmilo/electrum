@@ -46,7 +46,7 @@ from . import bitcoin
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 13     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 14     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -247,6 +247,7 @@ class WalletStorage(PrintError):
         self.convert_imported()
         self.convert_wallet_type()
         self.convert_account()
+        self.convert_version_14()
         self.write()
 
     def convert_wallet_type(self):
@@ -335,6 +336,27 @@ class WalletStorage(PrintError):
         self.put('keypairs', None)
         self.put('key_type', None)
 
+    def convert_version_14(self):
+        # convert imported wallets for 3.0
+        if self.get('wallet_type') =='imported':
+            addresses = self.get('addresses')
+            if type(addresses) is list:
+                addresses = dict([(x, None) for x in addresses])
+                self.put('addresses', addresses)
+        elif self.get('wallet_type') == 'standard':
+            if self.get('keystore').get('type')=='imported':
+                addresses = self.get('addresses').get('receiving')
+                pubkeys = self.get('pubkeys').get('receiving')
+                assert len(addresses) == len(pubkeys)
+                d = {}
+                for i in range(len(addresses)):
+                    addr = addresses[i]
+                    pubkey = pubkeys[i]
+                    d[addr] = { 'pubkey':pubkey, 'type':'p2pkh'}
+                self.put('addresses', d)
+                self.put('pubkeys', None)
+                self.put('wallet_type', 'imported')
+
     def convert_imported(self):
         # '/x' is the internal ID for imported accounts
         d = self.get('accounts', {}).get('/x', {}).get('imported',{})
@@ -363,7 +385,6 @@ class WalletStorage(PrintError):
 
     def convert_account(self):
         self.put('accounts', None)
-        self.put('pubkeys', None)
 
     def get_action(self):
         action = run_hook('get_action', self)

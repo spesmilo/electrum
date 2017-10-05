@@ -103,7 +103,7 @@ class Plugin(BasePlugin):
                 amodem.main.send(config=self.modem_config, src=src, dst=dst)
 
         print_msg('Sending:', repr(blob))
-        blob = zlib.compress(blob)
+        blob = zlib.compress(blob.encode('ascii'))
 
         kbps = self.modem_config.modem_bps / 1e3
         msg = 'Sending to Audio MODEM ({0:.1f} kbps)...'.format(kbps)
@@ -119,7 +119,7 @@ class Plugin(BasePlugin):
 
         def on_finished(blob):
             if blob:
-                blob = zlib.decompress(blob)
+                blob = zlib.decompress(blob).decode('ascii')
                 print_msg('Received:', repr(blob))
                 parent.setText(blob)
 
