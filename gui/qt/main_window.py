@@ -1898,7 +1898,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not bitcoin.is_address(address):
             self.show_message('Invalid Bitcoin address.')
             return
-        if not bitcoin.is_p2pkh(address):
+        if not (bitcoin.is_b58_address(address) and bitcoin.is_p2pkh(address)):
             self.show_message('Cannot sign messages with this type of address.' + '\n\n' + self.msg_sign)
             return
         if not self.wallet.is_mine(address):
