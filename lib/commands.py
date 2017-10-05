@@ -275,9 +275,9 @@ class Commands:
     def getprivatekeys(self, address, password=None):
         """Get private keys of addresses. You may pass a single wallet address, or a list of wallet addresses."""
         if is_address(address):
-            return self.wallet.get_private_key(address, password)
+            return self.wallet.export_private_key(address, password)[0]
         domain = address
-        return [self.wallet.get_private_key(address, password) for address in domain]
+        return [self.wallet.export_private_key(address, password)[0] for address in domain]
 
     @command('w')
     def ismine(self, address):
