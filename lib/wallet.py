@@ -1367,9 +1367,6 @@ class Imported_Wallet(Abstract_Wallet):
 
     def load_addresses(self):
         self.addresses = self.storage.get('addresses', {})
-        # convert list
-        if type(self.addresses) is list:
-            self.addresses =  dict([(x, None) for x in self.addresses])
 
     def save_addresses(self):
         self.storage.put('addresses', self.addresses)
