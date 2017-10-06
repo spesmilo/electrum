@@ -345,13 +345,13 @@ class WalletStorage(PrintError):
                 self.put('addresses', addresses)
         elif self.get('wallet_type') == 'standard':
             if self.get('keystore').get('type')=='imported':
-                addresses = self.get('addresses').get('receiving')
-                pubkeys = self.get('pubkeys').get('receiving')
+                addresses = set(self.get('addresses').get('receiving'))
+                pubkeys = self.get('keystore').get('keypairs').keys()
                 assert len(addresses) == len(pubkeys)
                 d = {}
-                for i in range(len(addresses)):
-                    addr = addresses[i]
-                    pubkey = pubkeys[i]
+                for pubkey in pubkeys:
+                    addr = bitcoin.pubkey_to_address('p2pkh', pubkey)
+                    assert addr in addresses
                     d[addr] = { 'pubkey':pubkey, 'type':'p2pkh'}
                 self.put('addresses', d)
                 self.put('pubkeys', None)
