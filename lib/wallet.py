@@ -881,14 +881,12 @@ class Abstract_Wallet(PrintError):
             txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
             pubkey = bitcoin.public_key_from_private_key(privkey, compressed)
             address = bitcoin.pubkey_to_address(txin_type, pubkey)
-            u = network.synchronous_get(('blockchain.address.listunspent', [address]))
-            pay_script = bitcoin.address_to_script(address)
+            sh = bitcoin.address_to_scripthash(address)
+            u = network.synchronous_get(('blockchain.scripthash.listunspent', [sh]))
             for item in u:
                 if len(inputs) >= imax:
                     break
                 item['type'] = txin_type
-                item['scriptPubKey'] = pay_script
-                item['redeemPubkey'] = pubkey
                 item['address'] = address
                 item['prevout_hash'] = item['tx_hash']
                 item['prevout_n'] = item['tx_pos']
@@ -1054,7 +1052,7 @@ class Abstract_Wallet(PrintError):
                 if delta > 0:
                     continue
         if delta > 0:
-            raise BaseException(_('Cannot bump fee: cound not find suitable outputs'))
+            raise BaseException(_('Cannot bump fee: could not find suitable outputs'))
         return Transaction.from_io(inputs, outputs)
 
     def cpfp(self, tx, fee):
