@@ -84,8 +84,12 @@ def command(s):
         @wraps(func)
         def func_wrapper(*args, **kwargs):
             c = known_commands[func.__name__]
-            if c.requires_wallet and args[0].wallet is None:
+            wallet = args[0].wallet
+            password = kwargs.get('password')
+            if c.requires_wallet and wallet is None:
                 raise BaseException("wallet not loaded. Use 'electrum daemon load_wallet'")
+            if c.requires_password and password is None and wallet.storage.get('use_encryption'):
+                return {'error': 'Password required' }
             return func(*args, **kwargs)
         return func_wrapper
     return decorator
