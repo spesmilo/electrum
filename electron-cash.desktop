@@ -4,10 +4,8 @@
 [Desktop Entry]
 Comment=Lightweight Bitcoin Cash Client
 Exec=electron-cash %u
-GenericName[en_US]=Bitcoin Cash Wallet
 GenericName=Bitcoin Cash Wallet
-Icon=electron
-Name[en_US]=electron.desktop
+Icon=electron-cash
 Name=Electron Cash Bitcoin Cash Wallet
 Categories=Finance;Network;
 StartupNotify=false
