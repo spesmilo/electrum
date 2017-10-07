@@ -1072,15 +1072,9 @@ class Abstract_Wallet(PrintError):
         return Transaction.from_io(inputs, outputs)
 
     def add_input_info(self, txin):
-        txin['type'] = self.txin_type
-        # Add address for utxo that are in wallet
-        if txin.get('scriptSig') == '':
-            coins = self.get_utxos()
-            for item in coins:
-                if txin.get('prevout_hash') == item.get('prevout_hash') and txin.get('prevout_n') == item.get('prevout_n'):
-                    txin['address'] = item.get('address')
         address = txin['address']
         if self.is_mine(address):
+            txin['type'] = self.get_txin_type(address)
             self.add_input_sig_info(txin, address)
 
     def can_sign(self, tx):
@@ -1464,15 +1458,13 @@ class Imported_Wallet(Abstract_Wallet):
         return self.addresses[address].get('type', 'address')
 
     def add_input_sig_info(self, txin, address):
-        txin['type'] = self.get_txin_type(address)
         if self.is_watching_only():
             addrtype, hash160 = b58_address_to_hash160(address)
             x_pubkey = 'fd' + bh2u(bytes([addrtype]) + hash160)
             txin['x_pubkeys'] = [x_pubkey]
             txin['signatures'] = [None]
             return
-
-        if txin_type in ['p2pkh', 'p2wkh', 'p2wkh-p2sh']:
+        if txin['type'] in ['p2pkh', 'p2wkh', 'p2wkh-p2sh']:
             pubkey = self.addresses[address]['pubkey']
             txin['num_sig'] = 1
             txin['x_pubkeys'] = [pubkey]
