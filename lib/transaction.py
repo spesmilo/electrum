@@ -474,6 +474,7 @@ def deserialize(raw):
         for i in range(n_vin):
             txin = d['inputs'][i]
             parse_witness(vds, txin)
+            # segwit-native script
             if not txin.get('scriptSig'):
                 if txin['num_sig'] == 1:
                     txin['type'] = 'p2wpkh'

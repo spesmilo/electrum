@@ -84,8 +84,12 @@ def command(s):
         @wraps(func)
         def func_wrapper(*args, **kwargs):
             c = known_commands[func.__name__]
-            if c.requires_wallet and args[0].wallet is None:
+            wallet = args[0].wallet
+            password = kwargs.get('password')
+            if c.requires_wallet and wallet is None:
                 raise BaseException("wallet not loaded. Use 'electrum-ltc daemon load_wallet'")
+            if c.requires_password and password is None and wallet.storage.get('use_encryption'):
+                return {'error': 'Password required' }
             return func(*args, **kwargs)
         return func_wrapper
     return decorator
@@ -383,11 +387,11 @@ class Commands:
         return out['address']
 
     @command('nw')
-    def sweep(self, privkey, destination, tx_fee=None, nocheck=False, imax=100):
+    def sweep(self, privkey, destination, fee=None, nocheck=False, imax=100):
         """Sweep private keys. Returns a transaction that spends UTXOs from
         privkey to a destination address. The transaction is not
         broadcasted."""
-        tx_fee = satoshis(tx_fee)
+        tx_fee = satoshis(fee)
         privkeys = privkey.split()
         self.nocheck = nocheck
         dest = self._resolver(destination)
@@ -428,18 +432,18 @@ class Commands:
         return tx
 
     @command('wp')
-    def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None, locktime=None):
+    def payto(self, destination, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None, locktime=None):
         """Create a transaction. """
-        tx_fee = satoshis(tx_fee)
-        domain = [from_addr] if from_addr else None
+        tx_fee = satoshis(fee)
+        domain = from_addr.split(',') if from_addr else None
         tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime)
         return tx.as_dict()
 
     @command('wp')
-    def paytomany(self, outputs, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None, locktime=None):
+    def paytomany(self, outputs, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None, locktime=None):
         """Create a multi-output transaction. """
-        tx_fee = satoshis(tx_fee)
-        domain = [from_addr] if from_addr else None
+        tx_fee = satoshis(fee)
+        domain = from_addr.split(',') if from_addr else None
         tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime)
         return tx.as_dict()
 
@@ -511,7 +515,7 @@ class Commands:
         return results
 
     @command('w')
-    def listaddresses(self, receiving=False, change=False, show_labels=False, frozen=False, unused=False, funded=False, show_balance=False):
+    def listaddresses(self, receiving=False, change=False, labels=False, frozen=False, unused=False, funded=False, balance=False):
         """List wallet addresses. Returns the list of all addresses in your wallet. Use optional arguments to filter the results."""
         out = []
         for addr in self.wallet.get_addresses():
@@ -526,10 +530,12 @@ class Commands:
             if funded and self.wallet.is_empty(addr):
                 continue
             item = addr
-            if show_balance:
-                item += ", "+ format_satoshis(sum(self.wallet.get_addr_balance(addr)))
-            if show_labels:
-                item += ', ' + repr(self.wallet.labels.get(addr, ''))
+            if labels or balance:
+                item = (item,)
+            if balance:
+                item += (format_satoshis(sum(self.wallet.get_addr_balance(addr))),)
+            if labels:
+                item += (repr(self.wallet.labels.get(addr, '')),)
             out.append(item)
         return out
 
@@ -691,37 +697,36 @@ param_descriptions = {
 }
 
 command_options = {
-    'password':    ("-W", "--password",    "Password"),
-    'new_password':(None, "--new_password","New Password"),
-    'receiving':   (None, "--receiving",   "Show only receiving addresses"),
-    'change':      (None, "--change",      "Show only change addresses"),
-    'frozen':      (None, "--frozen",      "Show only frozen addresses"),
-    'unused':      (None, "--unused",      "Show only unused addresses"),
-    'funded':      (None, "--funded",      "Show only funded addresses"),
-    'show_balance':("-b", "--balance",     "Show the balances of listed addresses"),
-    'show_labels': ("-l", "--labels",      "Show the labels of listed addresses"),
-    'nocheck':     (None, "--nocheck",     "Do not verify aliases"),
-    'imax':        (None, "--imax",        "Maximum number of inputs"),
-    'tx_fee':      ("-f", "--fee",         "Transaction fee (in LTC)"),
-    'from_addr':   ("-F", "--from",        "Source address. If it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet."),
-    'change_addr': ("-c", "--change",      "Change address. Default is a spare address, or the source address if it's not in the wallet"),
-    'nbits':       (None, "--nbits",       "Number of bits of entropy"),
-    'entropy':     (None, "--entropy",     "Custom entropy"),
-    'segwit':      (None, "--segwit",      "Create segwit seed"),
-    'language':    ("-L", "--lang",        "Default language for wordlist"),
-    'gap_limit':   ("-G", "--gap",         "Gap limit"),
-    'privkey':     (None, "--privkey",     "Private key. Set to '?' to get a prompt."),
-    'unsigned':    ("-u", "--unsigned",    "Do not sign transaction"),
-    'rbf':         (None, "--rbf",         "Replace-by-fee transaction"),
-    'locktime':    (None, "--locktime",    "Set locktime block number"),
-    'domain':      ("-D", "--domain",      "List of addresses"),
-    'memo':        ("-m", "--memo",        "Description of the request"),
-    'expiration':  (None, "--expiration",  "Time in seconds"),
-    'timeout':     (None, "--timeout",     "Timeout in seconds"),
-    'force':       (None, "--force",       "Create new address beyond gap limit, if no more addresses are available."),
-    'pending':     (None, "--pending",     "Show only pending requests."),
-    'expired':     (None, "--expired",     "Show only expired requests."),
-    'paid':        (None, "--paid",        "Show only paid requests."),
+    'password':    ("-W", "Password"),
+    'new_password':(None, "New Password"),
+    'receiving':   (None, "Show only receiving addresses"),
+    'change':      (None, "Show only change addresses"),
+    'frozen':      (None, "Show only frozen addresses"),
+    'unused':      (None, "Show only unused addresses"),
+    'funded':      (None, "Show only funded addresses"),
+    'balance':     ("-b", "Show the balances of listed addresses"),
+    'labels':      ("-l", "Show the labels of listed addresses"),
+    'nocheck':     (None, "Do not verify aliases"),
+    'imax':        (None, "Maximum number of inputs"),
+    'fee':         ("-f", "Transaction fee (in LTC)"),
+    'from_addr':   ("-F", "Source address. If it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet."),
+    'change_addr': ("-c", "Change address. Default is a spare address, or the source address if it's not in the wallet"),
+    'nbits':       (None, "Number of bits of entropy"),
+    'entropy':     (None, "Custom entropy"),
+    'segwit':      (None, "Create segwit seed"),
+    'language':    ("-L", "Default language for wordlist"),
+    'privkey':     (None, "Private key. Set to '?' to get a prompt."),
+    'unsigned':    ("-u", "Do not sign transaction"),
+    'rbf':         (None, "Replace-by-fee transaction"),
+    'locktime':    (None, "Set locktime block number"),
+    'domain':      ("-D", "List of addresses"),
+    'memo':        ("-m", "Description of the request"),
+    'expiration':  (None, "Time in seconds"),
+    'timeout':     (None, "Timeout in seconds"),
+    'force':       (None, "Create new address beyond gap limit, if no more addresses are available."),
+    'pending':     (None, "Show only pending requests."),
+    'expired':     (None, "Show only expired requests."),
+    'paid':        (None, "Show only paid requests."),
 }
 
 
@@ -738,7 +743,7 @@ arg_types = {
     'jsontx': json_loads,
     'inputs': json_loads,
     'outputs': json_loads,
-    'tx_fee': lambda x: str(Decimal(x)) if x is not None else None,
+    'fee': lambda x: str(Decimal(x)) if x is not None else None,
     'amount': lambda x: str(Decimal(x)) if x != '!' else '!',
     'locktime': int,
 }
@@ -850,7 +855,8 @@ def get_parser():
         if cmdname == 'restore':
             p.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
         for optname, default in zip(cmd.options, cmd.defaults):
-            a, b, help = command_options[optname]
+            a, help = command_options[optname]
+            b = '--' + optname
             action = "store_true" if type(default) is bool else 'store'
             args = (a, b) if a else (b,)
             if action == 'store':

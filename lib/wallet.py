@@ -489,7 +489,7 @@ class Abstract_Wallet(PrintError):
         coins, spent = self.get_addr_io(address)
         for txi in spent:
             coins.pop(txi)
-        out = []
+        out = {}
         for txo, v in coins.items():
             tx_height, value, is_cb = v
             prevout_hash, prevout_n = txo.split(':')
@@ -501,7 +501,7 @@ class Abstract_Wallet(PrintError):
                 'height':tx_height,
                 'coinbase':is_cb
             }
-            out.append(x)
+            out[txo] = x
         return out
 
     # return the total amount ever received by an address
@@ -539,7 +539,7 @@ class Abstract_Wallet(PrintError):
             domain = set(domain) - self.frozen_addresses
         for addr in domain:
             utxos = self.get_addr_utxo(addr)
-            for x in utxos:
+            for x in utxos.values():
                 if confirmed_only and x['height'] <= 0:
                     continue
                 if mature and x['coinbase'] and x['height'] + COINBASE_MATURITY > self.get_local_height():
@@ -1064,10 +1064,8 @@ class Abstract_Wallet(PrintError):
         else:
             return
         coins = self.get_addr_utxo(address)
-        for item in coins:
-            if item['prevout_hash'] == txid and item['prevout_n'] == i:
-                break
-        else:
+        item = coins.get(txid+':%d'%i)
+        if not item:
             return
         self.add_input_info(item)
         inputs = [item]
@@ -1075,15 +1073,15 @@ class Abstract_Wallet(PrintError):
         return Transaction.from_io(inputs, outputs)
 
     def add_input_info(self, txin):
-        txin['type'] = self.txin_type
-        # Add address for utxo that are in wallet
-        if txin.get('scriptSig') == '':
-            coins = self.get_utxos()
-            for item in coins:
-                if txin.get('prevout_hash') == item.get('prevout_hash') and txin.get('prevout_n') == item.get('prevout_n'):
-                    txin['address'] = item.get('address')
         address = txin['address']
         if self.is_mine(address):
+            txin['type'] = self.get_txin_type(address)
+            # segwit needs value to sign
+            if txin.get('value') is None and txin['type'] in ['p2wpkh', 'p2wsh', 'p2wpkh-p2sh', 'p2wsh-p2sh']:
+                received, spent = self.get_addr_io(address)
+                item = received.get(txin['prevout_hash']+':%d'%txin['prevout_n'])
+                tx_height, value, is_cb = item
+                txin['value'] = value
             self.add_input_sig_info(txin, address)
 
     def can_sign(self, tx):
@@ -1467,15 +1465,13 @@ class Imported_Wallet(Abstract_Wallet):
         return self.addresses[address].get('type', 'address')
 
     def add_input_sig_info(self, txin, address):
-        txin['type'] = self.get_txin_type(address)
         if self.is_watching_only():
             addrtype, hash160 = b58_address_to_hash160(address)
             x_pubkey = 'fd' + bh2u(bytes([addrtype]) + hash160)
             txin['x_pubkeys'] = [x_pubkey]
             txin['signatures'] = [None]
             return
-
-        if txin_type in ['p2pkh', 'p2wkh', 'p2wkh-p2sh']:
+        if txin['type'] in ['p2pkh', 'p2wkh', 'p2wkh-p2sh']:
             pubkey = self.addresses[address]['pubkey']
             txin['num_sig'] = 1
             txin['x_pubkeys'] = [pubkey]
