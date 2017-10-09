@@ -883,8 +883,7 @@ class Transaction:
                     break
                 if x_pubkey in keypairs.keys():
                     print_error("adding signature for", x_pubkey)
-                    sec = keypairs.get(x_pubkey)
-                    compressed = True
+                    sec, compressed = keypairs.get(x_pubkey)
                     pubkey = public_key_from_private_key(sec, compressed)
                     # add signature
                     pre_hash = Hash(bfh(self.serialize_preimage(i)))

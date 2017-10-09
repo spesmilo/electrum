@@ -105,7 +105,7 @@ class Software_KeyStore(KeyStore):
         # Add private keys
         keypairs = self.get_tx_derivations(tx)
         for k, v in keypairs.items():
-            keypairs[k] = self.get_private_key(v, password)[0]
+            keypairs[k] = self.get_private_key(v, password)
         # Sign
         if keypairs:
             tx.sign(keypairs)
