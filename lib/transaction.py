@@ -618,6 +618,7 @@ class Transaction:
         num_sig = txin.get('num_sig', 1)
         if estimate_size:
             # we assume that signature will be 0x48 bytes long
+            # we also assume compressed pubkeys
             pk_list = [ "00" * 0x21 ] * num_sig
             sig_list = [ "00" * 0x48 ] * num_sig
         else:
@@ -884,7 +885,7 @@ class Transaction:
                 if x_pubkey in keypairs.keys():
                     print_error("adding signature for", x_pubkey)
                     sec = keypairs.get(x_pubkey)
-                    compressed = True
+                    compressed = len(x_pubkey) == 66  # 33 bytes *2
                     pubkey = public_key_from_private_key(sec, compressed)
                     # add signature
                     pre_hash = Hash(bfh(self.serialize_preimage(i)))
