@@ -42,7 +42,7 @@ from electrum.plugins import run_hook
 from electrum import SimpleConfig, Wallet, WalletStorage
 from electrum.synchronizer import Synchronizer
 from electrum.verifier import SPV
-from electrum.util import DebugMem, UserCancelled, InvalidPassword
+from electrum.util import DebugMem, UserCancelled, InvalidPassword, print_error
 from electrum.wallet import Abstract_Wallet
 
 from .installwizard import InstallWizard, GoBack
@@ -191,7 +191,12 @@ class ElectrumGui:
             if not wallet:
                 storage = WalletStorage(path)
                 wizard = InstallWizard(self.config, self.app, self.plugins, storage)
-                wallet = wizard.run_and_get_wallet()
+                try:
+                    wallet = wizard.run_and_get_wallet()
+                except UserCancelled:
+                    pass
+                except GoBack as e:
+                    print_error('[start_new_window] Exception caught (GoBack)', e)
                 wizard.terminate()
                 if not wallet:
                     return
