@@ -259,10 +259,12 @@ class Daemon(DaemonThread):
         # decode json arguments
         args = [json_decode(i) for i in args]
         # options
-        args += list(map(lambda x: (config_options.get(x) if x in ['password', 'new_password'] else config.get(x)), cmd.options))
+        kwargs = {}
+        for x in cmd.options:
+            kwargs[x] = (config_options.get(x) if x in ['password', 'new_password'] else config.get(x))
         cmd_runner = Commands(config, wallet, self.network)
         func = getattr(cmd_runner, cmd.name)
-        result = func(*args)
+        result = func(*args, **kwargs)
         return result
 
     def run(self):

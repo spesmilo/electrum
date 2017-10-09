@@ -895,7 +895,7 @@ class Abstract_Wallet(PrintError):
                 item['signatures'] = [None]
                 item['num_sig'] = 1
                 inputs.append(item)
-            keypairs[pubkey] = privkey
+            keypairs[pubkey] = privkey, compressed
 
         if not inputs:
             raise BaseException(_('No inputs found. (Note that inputs need to be confirmed)'))

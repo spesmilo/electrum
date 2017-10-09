@@ -216,16 +216,15 @@ class Commands:
                 prevout_hash, prevout_n = txin['output'].split(':')
                 txin['prevout_n'] = int(prevout_n)
                 txin['prevout_hash'] = prevout_hash
-            if txin.get('redeemPubkey'):
-                pubkey = txin['redeemPubkey']
-                txin['type'] = 'p2pkh'
+            sec = txin.get('privkey')
+            if sec:
+                txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
+                pubkey = bitcoin.public_key_from_private_key(privkey, compressed)
+                keypairs[pubkey] = privkey, compressed
+                txin['type'] = txin_type
                 txin['x_pubkeys'] = [pubkey]
                 txin['signatures'] = [None]
                 txin['num_sig'] = 1
-                if txin.get('privkey'):
-                    keypairs[pubkey] = txin['privkey']
-            elif txin.get('redeemScript'):
-                raise BaseException('Not implemented')
 
         outputs = [(TYPE_ADDRESS, x['address'], int(x['value'])) for x in outputs]
         tx = Transaction.from_io(inputs, outputs, locktime=locktime)
@@ -237,10 +236,11 @@ class Commands:
         """Sign a transaction. The wallet keys will be used unless a private key is provided."""
         tx = Transaction(tx)
         if privkey:
-            pubkey = bitcoin.public_key_from_private_key(privkey)
+            txin_type, privkey2, compressed = bitcoin.deserialize_privkey(privkey)
+            pubkey = bitcoin.public_key_from_private_key(privkey2, compressed)
             h160 = bitcoin.hash_160(bfh(pubkey))
             x_pubkey = 'fd' + bh2u(b'\x00' + h160)
-            tx.sign({x_pubkey:privkey})
+            tx.sign({x_pubkey:(privkey2, compressed)})
         else:
             self.wallet.sign_transaction(tx, password)
         return tx.as_dict()
