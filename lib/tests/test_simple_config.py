@@ -165,7 +165,7 @@ class Test_SimpleConfig(unittest.TestCase):
                               read_user_dir_function=read_user_dir)
         config.save_user_config()
         contents = None
-        with open(os.path.join(self.electrum_dir, "config"), "r") as f:
+        with open(os.path.join(self.user_dir, "config"), "r") as f:
             contents = f.read()
         result = ast.literal_eval(contents)
         self.assertEqual({"something": "a"}, result)

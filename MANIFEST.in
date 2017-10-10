@@ -1,9 +1,9 @@
 include LICENCE RELEASE-NOTES AUTHORS
 include README.rst
 include electrum.conf.sample
-include electrum.desktop
+include electron-cash.desktop
 include *.py
-include electrum
+include electron-cash
 recursive-include lib *.py
 recursive-include gui *.py
 recursive-include plugins *.py

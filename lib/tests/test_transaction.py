@@ -6,8 +6,6 @@ from lib.keystore import xpubkey_to_address
 
 from lib.util import bh2u
 
-unsigned_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000005701ff4c53ff0488b21e03ef2afea18000000089689bff23e1e7fb2f161daa37270a97a3d8c2e537584b2d304ecb47b86d21fc021b010d3bd425f8cf2e04824bfdf1f1f5ff1d51fadd9a41f9e3fb8dd3403b1bfe00000000ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
-signed_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000006c493046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d985012102e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
 v2_blob = "0200000001191601a44a81e061502b7bfbc6eaa1cef6d1e6af5308ef96c9342f71dbf4b9b5000000006b483045022100a6d44d0a651790a477e75334adfb8aae94d6612d01187b2c02526e340a7fd6c8022028bdf7a64a54906b13b145cd5dab21a26bd4b85d6044e9b97bceab5be44c2a9201210253e8e0254b0c95776786e40984c1aa32a7d03efa6bdacdea5f421b774917d346feffffff026b20fa04000000001976a914024db2e87dd7cfd0e5f266c5f212e21a31d805a588aca0860100000000001976a91421919b94ae5cefcdf0271191459157cdb41c4cbf88aca6240700"
 signed_segwit_blob = "01000000000101b66d722484f2db63e827ebf41d02684fed0c6550e85015a6c9d41ef216a8a6f00000000000fdffffff0280c3c90100000000160014b65ce60857f7e7892b983851c2a8e3526d09e4ab64bac30400000000160014c478ebbc0ab2097706a98e10db7cf101839931c4024730440220789c7d47f876638c58d98733c30ae9821c8fa82b470285dcdf6db5994210bf9f02204163418bbc44af701212ad42d884cc613f3d3d831d2d0cc886f767cca6e0235e012103083a6dc250816d771faa60737bfe78b23ad619f6b458e0a1f1688e3a0605e79c00000000"
 
@@ -54,80 +52,57 @@ class TestBCDataStream(unittest.TestCase):
 
 class TestTransaction(unittest.TestCase):
 
-    def test_tx_unsigned(self):
-        expected = {
-            'inputs': [{
-                'type': 'p2pkh',
-                'address': '1446oU3z268EeFgfcwJv6X2VBXHfoYxfuD',
-                'num_sig': 1,
-                'prevout_hash': '3140eb24b43386f35ba69e3875eb6c93130ac66201d01c58f598defc949a5c2a',
-                'prevout_n': 0,
-                'pubkeys': ['02e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6'],
-                'scriptSig': '01ff4c53ff0488b21e03ef2afea18000000089689bff23e1e7fb2f161daa37270a97a3d8c2e537584b2d304ecb47b86d21fc021b010d3bd425f8cf2e04824bfdf1f1f5ff1d51fadd9a41f9e3fb8dd3403b1bfe00000000',
-                'sequence': 4294967295,
-                'signatures': [None],
-                'x_pubkeys': ['ff0488b21e03ef2afea18000000089689bff23e1e7fb2f161daa37270a97a3d8c2e537584b2d304ecb47b86d21fc021b010d3bd425f8cf2e04824bfdf1f1f5ff1d51fadd9a41f9e3fb8dd3403b1bfe00000000']}],
-            'lockTime': 0,
-            'outputs': [{
-                'address': '14CHYaaByjJZpx4oHBpfDMdqhTyXnZ3kVs',
-                'prevout_n': 0,
-                'scriptPubKey': '76a914230ac37834073a42146f11ef8414ae929feaafc388ac',
-                'type': TYPE_ADDRESS,
-                'value': 1000000}],
-                'version': 1
-        }
-        tx = transaction.Transaction(unsigned_blob)
-        self.assertEqual(tx.deserialize(), expected)
-        self.assertEqual(tx.deserialize(), None)
+    def test_deserialization(self):
+        for sample in sample_tx:
+            if 'raw' in sample and 'tx' in sample:
+                tx = transaction.Transaction(sample['raw'])
+                self.assertEquals(tx.deserialize(), sample['tx'])
+            if 'raw_unsigned' in sample and 'tx_unsigned' in sample:
+                tx = transaction.Transaction(sample['raw_unsigned'])
+                self.assertEquals(tx.deserialize(), sample['tx_unsigned'])
 
-        self.assertEqual(tx.as_dict(), {'hex': unsigned_blob, 'complete': False, 'final': True})
-        self.assertEqual(tx.get_outputs(), [('14CHYaaByjJZpx4oHBpfDMdqhTyXnZ3kVs', 1000000)])
-        self.assertEqual(tx.get_output_addresses(), ['14CHYaaByjJZpx4oHBpfDMdqhTyXnZ3kVs'])
+    def test_outputs(self):
+        for sample in sample_tx:
+            if 'raw' in sample and 'outputs' in sample:
+                tx = transaction.Transaction(sample['raw'])
+                self.assertEquals(tx.get_outputs(), sample['outputs'])
+            if 'raw_unsigned' in sample and 'outputs' in sample:
+                tx = transaction.Transaction(sample['raw_unsigned'])
+                self.assertEquals(tx.get_outputs(), sample['outputs'])
 
-        self.assertTrue(tx.has_address('14CHYaaByjJZpx4oHBpfDMdqhTyXnZ3kVs'))
-        self.assertTrue(tx.has_address('1446oU3z268EeFgfcwJv6X2VBXHfoYxfuD'))
-        self.assertFalse(tx.has_address('1CQj15y1N7LDHp7wTt28eoD1QhHgFgxECH'))
+    def test_outputaddresses(self):
+        for sample in sample_tx:
+            if 'raw' in sample and 'outputaddresses' in sample:
+                tx = transaction.Transaction(sample['raw'])
+                self.assertEquals(tx.get_output_addresses(), sample['outputaddresses'])
+            if 'raw_unsigned' in sample and 'outputaddresses' in sample:
+                tx = transaction.Transaction(sample['raw_unsigned'])
+                self.assertEquals(tx.get_output_addresses(), sample['outputaddresses'])
 
-        self.assertEqual(tx.serialize(), unsigned_blob)
+    def test_has_address(self):
+        for sample in sample_tx:
+            if 'raw' in sample and 'outputaddresses' in sample:
+                tx = transaction.Transaction(sample['raw'])
+                for a in sample['outputaddresses']:
+                    self.assertTrue(tx.has_address(a))
+                self.assertFalse(tx.has_address('1CQj15y1N7LDHp7wTt28eoD1QhHgFgxECH'))
+            if 'raw_unsigned' in sample and 'outputaddresses' in sample:
+                tx = transaction.Transaction(sample['raw_unsigned'])
+                for a in sample['outputaddresses']:
+                    self.assertTrue(tx.has_address(a))
+                self.assertFalse(tx.has_address('1CQj15y1N7LDHp7wTt28eoD1QhHgFgxECH'))
 
-        tx.update_signatures(signed_blob)
-        self.assertEqual(tx.raw, signed_blob)
-
-        tx.update(unsigned_blob)
-        tx.raw = None
-        blob = str(tx)
-        self.assertEqual(transaction.deserialize(blob), expected)
-
-    def test_tx_signed(self):
-        expected = {
-            'inputs': [{
-                'type': 'p2pkh',
-                'address': '1446oU3z268EeFgfcwJv6X2VBXHfoYxfuD',
-                'num_sig': 1,
-                'prevout_hash': '3140eb24b43386f35ba69e3875eb6c93130ac66201d01c58f598defc949a5c2a',
-                'prevout_n': 0,
-                'pubkeys': ['02e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6'],
-                'scriptSig': '493046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d985012102e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6',
-                'sequence': 4294967295,
-                'signatures': ['3046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d98501'],
-                'x_pubkeys': ['02e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6']}],
-            'lockTime': 0,
-            'outputs': [{
-                'address': '14CHYaaByjJZpx4oHBpfDMdqhTyXnZ3kVs',
-                'prevout_n': 0,
-                'scriptPubKey': '76a914230ac37834073a42146f11ef8414ae929feaafc388ac',
-                'type': TYPE_ADDRESS,
-                'value': 1000000}],
-            'version': 1
-        }
-        tx = transaction.Transaction(signed_blob)
-        self.assertEqual(tx.deserialize(), expected)
-        self.assertEqual(tx.deserialize(), None)
-        self.assertEqual(tx.as_dict(), {'hex': signed_blob, 'complete': True, 'final': True})
-
-        self.assertEqual(tx.serialize(), signed_blob)
-
-        tx.update_signatures(signed_blob)
+    def test_update_signatures(self):
+        # we dont have any samples for this yet
+        for sample in sample_tx:
+            if 'raw' in sample and 'raw_unsigned' in sample:
+                tx = transaction.Transaction(sample['raw_unsigned'])
+                tx.update_signatures(sample['raw'])
+                self.assertEquals(tx.raw, sample['raw'])
+            elif 'raw' in sample:
+                tx = transaction.Transaction(sample['raw'])
+                tx.update_signatures(sample['raw'])
+                self.assertEquals(tx.raw, sample['raw'])
 
         self.assertEqual(tx.estimated_total_size(), 193)
         self.assertEqual(tx.estimated_base_size(), 193)
@@ -232,3 +207,54 @@ class NetworkMock(object):
 
     def synchronous_get(self, arg):
         return self.unspent
+
+
+# sample test transactions
+# list of samples, each sample will be tested depending on supplied parameters
+# each sample is a dict of
+#       raw - signed tx blob
+#       tx - expected deserialization of 'raw'
+#       raw_unsigned - unsigned tx blob
+#       tx_unsigned - expected deserialization of 'raw_unsigned'
+#       outputs - expected output of tx.get_outputs()
+#       ouputaddresses - expected output of tx.get_output_addresses(), also used to test tx.has_address()
+sample_tx = [
+    { 'raw_unsigned': '0100000001f67f0082045b3da782a3c44ff677e8f6f711fc8bf744c85298f8f15883b0fce7000000005701ff4c53ff043587cf000000000000000000b5668482ecaab929ba9d04c358f171901398519b8c81b3ae860ed68ab0ecf01e023cc396f788f47edee48068fe79ec46cf4065d8cc3546a03648cad58aa281b56d00000000feffffff022c970000000000001976a914e045289a6ba6806055b2e9aa96dd92ad83afc18888ac50c30000000000001976a914b6d22863dfffe257f72ed5ad6daaef8ba970139e88ac00000000',
+      'tx_unsigned': {
+            "inputs": [
+                {
+                    "address": None,
+                    "num_sig": 0,
+                    "prevout_hash": "e7fcb08358f1f89852c844f78bfc11f7f6e877f64fc4a382a73d5b0482007ff6",
+                    "prevout_n": 0,
+                    "pubkeys": [],
+                    "scriptSig": "01ff4c53ff043587cf000000000000000000b5668482ecaab929ba9d04c358f171901398519b8c81b3ae860ed68ab0ecf01e023cc396f788f47edee48068fe79ec46cf4065d8cc3546a03648cad58aa281b56d00000000",
+                    "sequence": 4294967294,
+                    "signatures": {},
+                    "type": "unknown",
+                    "x_pubkeys": []
+                }
+            ],
+            "lockTime": 0,
+            "outputs": [
+                {
+                    "address": "1MSqDCGMS8XVqNUiKzy2Vg4RZNb7Q4Sx6C",
+                    "prevout_n": 0,
+                    "scriptPubKey": "76a914e045289a6ba6806055b2e9aa96dd92ad83afc18888ac",
+                    "type": 0,
+                    "value": 38700
+                },
+                {
+                    "address": "1Hffjw1mVEcsTCM6QEXBFXJUTWkwSSypxh",
+                    "prevout_n": 1,
+                    "scriptPubKey": "76a914b6d22863dfffe257f72ed5ad6daaef8ba970139e88ac",
+                    "type": 0,
+                    "value": 50000
+                }
+            ],
+            "version": 1
+        },
+      'outputs': [('1MSqDCGMS8XVqNUiKzy2Vg4RZNb7Q4Sx6C', 38700), ('1Hffjw1mVEcsTCM6QEXBFXJUTWkwSSypxh', 50000)],
+      'outputaddresses': ['1MSqDCGMS8XVqNUiKzy2Vg4RZNb7Q4Sx6C', '1Hffjw1mVEcsTCM6QEXBFXJUTWkwSSypxh']
+    }
+]
