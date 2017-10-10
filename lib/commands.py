@@ -47,6 +47,7 @@ from .transaction import Transaction
 from .import paymentrequest
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .import contacts
+from .plugins import run_hook
 
 known_commands = {}
 
@@ -428,6 +429,7 @@ class Commands:
         if rbf:
             tx.set_rbf(True)
         if not unsigned:
+            run_hook('sign_tx', self.wallet, tx)
             self.wallet.sign_transaction(tx, password)
         return tx
 
