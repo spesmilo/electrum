@@ -429,6 +429,8 @@ def parse_input(vds):
 def parse_witness(vds, txin):
     n = vds.read_compact_size()
     if n == 0:
+        return
+    if n == 0xffffffff:
         txin['value'] = vds.read_uint64()
         n = vds.read_compact_size()
     w = list(bh2u(vds.read_bytes(vds.read_compact_size())) for i in range(n))
@@ -644,7 +646,7 @@ class Transaction:
             witness = var_int(n) + '00' + ''.join(var_int(len(x)//2) + x for x in sig_list) + var_int(len(witness_script)//2) + witness_script
         else:
             raise BaseException('wrong txin type')
-        value_field = '' if self.is_txin_complete(txin) else var_int(0) + int_to_hex(txin['value'], 8)
+        value_field = '' if self.is_txin_complete(txin) else var_int(0xffffffff) + int_to_hex(txin['value'], 8)
         return value_field + witness
 
     @classmethod
