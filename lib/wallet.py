@@ -1378,7 +1378,7 @@ class Imported_Wallet(Abstract_Wallet):
         return self.is_watching_only()
 
     def can_delete_address(self):
-        return self.is_watching_only()
+        return True
 
     def has_seed(self):
         return False
@@ -1422,7 +1422,11 @@ class Imported_Wallet(Abstract_Wallet):
     def delete_address(self, address):
         if address not in self.addresses:
             return
+        pubkey = self.get_public_key(address)
         self.addresses.pop(address)
+        if pubkey:
+            self.keystore.delete_imported_key(pubkey)
+            self.save_keystore()
         self.storage.put('addresses', self.addresses)
         self.storage.write()
 
@@ -1683,13 +1687,6 @@ class Simple_Deterministic_Wallet(Deterministic_Wallet):
     def save_keystore(self):
         self.storage.put('keystore', self.keystore.dump())
 
-    def delete_address(self, address):
-        pubkey = self.get_public_key(address)
-        self.keystore.delete_imported_key(pubkey)
-        self.save_keystore()
-        self.receiving_addresses.remove(address)
-        self.save_addresses()
-        self.storage.write()
 
 
 
