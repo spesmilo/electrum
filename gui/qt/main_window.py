@@ -2234,7 +2234,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def do_export_labels(self):
         labels = self.wallet.labels
         try:
-            fileName = self.getSaveFileName(_("Select file to save your labels"), 'electrum_labels.json', "*.json")
+            fileName = self.getSaveFileName(_("Select file to save your labels"), 'electron-cash_labels.json', "*.json")
             if fileName:
                 with open(fileName, 'w+') as f:
                     json.dump(labels, f, indent=4, sort_keys=True)
