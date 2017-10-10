@@ -947,9 +947,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.receive_amount_e.setAmount(None)
 
     def clear_receive_tab(self):
-        addr = self.wallet.get_receiving_address()
-        if addr:
-            self.receive_address_e.setText(addr)
+        addr = self.wallet.get_receiving_address() or ''
+        self.receive_address_e.setText(addr)
         self.receive_message_e.setText('')
         self.receive_amount_e.setAmount(None)
         self.expires_label.hide()
@@ -1599,6 +1598,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.wallet.delete_address(addr)
             self.address_list.update()
             self.history_list.update()
+            self.clear_receive_tab()
 
     def get_coins(self):
         if self.pay_from:

@@ -1375,7 +1375,7 @@ class Imported_Wallet(Abstract_Wallet):
         return self.is_watching_only()
 
     def can_delete_address(self):
-        return self.is_watching_only()
+        return True
 
     def has_seed(self):
         return False
