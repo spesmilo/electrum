@@ -914,6 +914,7 @@ class Abstract_Wallet(PrintError):
 
         outputs = [(TYPE_ADDRESS, recipient, total - fee)]
         tx = Transaction.from_io(inputs, outputs)
+        tx.set_rbf(True)
         tx.sign(keypairs)
         return tx
 
