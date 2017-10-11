@@ -572,8 +572,8 @@ def is_minikey(text):
     # suffixed with '?' have its SHA256 hash begin with a zero byte.
     # They are widely used in Casascius physical bitoins.
     return (len(text) >= 20 and text[0] == 'S'
-            and all(c in __b58chars for c in text)
-            and ord(sha256(text + '?')[0]) == 0)
+            and all(ord(c) in __b58chars for c in text)
+            and sha256(text + '?')[0] == 0x00)
 
 def minikey_to_private_key(text):
     return sha256(text)
