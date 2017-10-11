@@ -559,16 +559,6 @@ def is_address(addr):
     return is_segwit_address(addr) or is_b58_address(addr)
 
 
-def is_p2pkh(addr):
-    if is_address(addr):
-        addrtype, h = b58_address_to_hash160(addr)
-        return addrtype == ADDRTYPE_P2PKH
-
-def is_p2sh(addr):
-    if is_address(addr):
-        addrtype, h = b58_address_to_hash160(addr)
-        return addrtype in [ADDRTYPE_P2SH, ADDRTYPE_P2SH_ALT]
-
 def is_private_key(key):
     try:
         k = deserialize_privkey(key)
