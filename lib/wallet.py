@@ -1472,7 +1472,7 @@ class Imported_Wallet(Abstract_Wallet):
             txin['x_pubkeys'] = [x_pubkey]
             txin['signatures'] = [None]
             return
-        if txin['type'] in ['p2pkh', 'p2wkh', 'p2wkh-p2sh']:
+        if txin['type'] in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh']:
             pubkey = self.addresses[address]['pubkey']
             txin['num_sig'] = 1
             txin['x_pubkeys'] = [pubkey]
