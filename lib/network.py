@@ -29,6 +29,7 @@ from __future__ import unicode_literals
 import time
 import queue
 import os
+import stat
 import errno
 import sys
 import random
