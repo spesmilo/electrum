@@ -74,6 +74,9 @@ class WalletStorage(PrintError):
                 self.raw = f.read()
             if not self.is_encrypted():
                 self.load_data(self.raw)
+        else:
+            # avoid new wallets getting 'upgraded'
+            self.put('seed_version', FINAL_SEED_VERSION)
 
     def load_data(self, s):
         try:
@@ -98,6 +101,11 @@ class WalletStorage(PrintError):
         t = self.get('wallet_type')
         l = plugin_loaders.get(t)
         if l: l()
+
+        if self.requires_split():
+            self.split_accounts()
+        if self.requires_upgrade():
+            self.upgrade()
 
     def is_encrypted(self):
         try:
@@ -155,8 +163,6 @@ class WalletStorage(PrintError):
 
     @profiler
     def write(self):
-        # this ensures that previous versions of electrum won't open the wallet
-        self.put('seed_version', FINAL_SEED_VERSION)
         with self.lock:
             self._write()
 
@@ -244,10 +250,14 @@ class WalletStorage(PrintError):
         return self.file_exists() and self.get_seed_version() != FINAL_SEED_VERSION
 
     def upgrade(self):
+        self.print_error('upgrading wallet format')
+
         self.convert_imported()
         self.convert_wallet_type()
         self.convert_account()
         self.convert_version_14()
+
+        self.put('seed_version', FINAL_SEED_VERSION)
         self.write()
 
     def convert_wallet_type(self):
@@ -338,6 +348,8 @@ class WalletStorage(PrintError):
 
     def convert_version_14(self):
         # convert imported wallets for 3.0
+        if self.get_seed_version() >= 14:
+            return
         if self.get('wallet_type') =='imported':
             addresses = self.get('addresses')
             if type(addresses) is list:
