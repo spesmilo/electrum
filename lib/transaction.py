@@ -637,6 +637,8 @@ class Transaction:
 
     @classmethod
     def serialize_witness(self, txin):
+        if not self.is_segwit_input(txin):
+            return '00'
         pubkeys, sig_list = self.get_siglist(txin)
         if txin['type'] in ['p2wpkh', 'p2wpkh-p2sh']:
             witness = var_int(2) + push_script(sig_list[0]) + push_script(pubkeys[0])
