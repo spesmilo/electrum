@@ -198,7 +198,7 @@ class NetworkChoiceLayout(object):
         proxy_tab = QWidget()
         blockchain_tab = QWidget()
         tabs.addTab(blockchain_tab, _('Overview'))
-        tabs.addTab(proxy_tab, _('Proxy'))
+        tabs.addTab(proxy_tab, _('Connection'))
         tabs.addTab(server_tab, _('Server'))
 
         # server tab
@@ -233,8 +233,12 @@ class NetworkChoiceLayout(object):
         grid.setSpacing(8)
 
         # proxy setting
+        self.proxy_cb = QCheckBox(_('Use proxy'))
+        self.proxy_cb.clicked.connect(self.check_disable_proxy)
+        self.proxy_cb.clicked.connect(self.set_proxy)
+
         self.proxy_mode = QComboBox()
-        self.proxy_mode.addItems(['NONE', 'SOCKS4', 'SOCKS5', 'HTTP'])
+        self.proxy_mode.addItems(['SOCKS4', 'SOCKS5', 'HTTP'])
         self.proxy_host = QLineEdit()
         self.proxy_host.setFixedWidth(200)
         self.proxy_port = QLineEdit()
@@ -252,9 +256,6 @@ class NetworkChoiceLayout(object):
         self.proxy_user.editingFinished.connect(self.set_proxy)
         self.proxy_password.editingFinished.connect(self.set_proxy)
 
-        self.check_disable_proxy()
-        self.proxy_mode.currentIndexChanged.connect(self.check_disable_proxy)
-
         self.proxy_mode.currentIndexChanged.connect(self.proxy_settings_changed)
         self.proxy_host.textEdited.connect(self.proxy_settings_changed)
         self.proxy_port.textEdited.connect(self.proxy_settings_changed)
@@ -267,13 +268,16 @@ class NetworkChoiceLayout(object):
         self.tor_cb.clicked.connect(self.use_tor_proxy)
 
         grid.addWidget(self.ssl_cb, 0, 0, 1, 3)
+        grid.addWidget(HelpButton(_('SSL is used to authenticate and encrypt your connections with Electrum servers.')), 0, 4)
         grid.addWidget(self.tor_cb, 1, 0, 1, 3)
+        grid.addWidget(self.proxy_cb, 2, 0, 1, 3)
+        grid.addWidget(HelpButton(_('Proxy settings apply to all connections: with Electrum servers, but also with third-party services.')), 2, 4)
         grid.addWidget(self.proxy_mode, 4, 1)
         grid.addWidget(self.proxy_host, 4, 2)
         grid.addWidget(self.proxy_port, 4, 3)
         grid.addWidget(self.proxy_user, 5, 2)
         grid.addWidget(self.proxy_password, 5, 3)
-        grid.setRowStretch(6, 1)
+        grid.setRowStretch(7, 1)
 
         # Blockchain Tab
         grid = QGridLayout(blockchain_tab)
@@ -319,12 +323,11 @@ class NetworkChoiceLayout(object):
         td.start()
         self.update()
 
-    def check_disable_proxy(self, index = False):
-        if self.config.is_modifiable('proxy'):
-            for w in [self.proxy_host, self.proxy_port, self.proxy_user, self.proxy_password]:
-                w.setEnabled(self.proxy_mode.currentText() != 'NONE')
-        else:
-            for w in [self.proxy_host, self.proxy_port, self.proxy_mode]: w.setEnabled(False)
+    def check_disable_proxy(self, b):
+        if not self.config.is_modifiable('proxy'):
+            b = False
+        for w in [self.proxy_mode, self.proxy_host, self.proxy_port, self.proxy_user, self.proxy_password]:
+            w.setEnabled(b)
 
     def enable_set_server(self):
         if self.config.is_modifiable('server'):
@@ -355,7 +358,10 @@ class NetworkChoiceLayout(object):
         self.enable_set_server()
 
         # proxy tab
-        self.proxy_mode.setCurrentIndex(self.proxy_mode.findText(str(proxy_config.get("mode").upper())))
+        b = proxy_config.get('mode') != "none"
+        self.check_disable_proxy(b)
+        if b:
+            self.proxy_mode.setCurrentIndex(self.proxy_mode.findText(str(proxy_config.get("mode").upper())))
         self.proxy_host.setText(proxy_config.get("host"))
         self.proxy_port.setText(proxy_config.get("port"))
         self.proxy_user.setText(proxy_config.get("user", ""))
@@ -445,7 +451,7 @@ class NetworkChoiceLayout(object):
 
     def set_proxy(self):
         host, port, protocol, proxy, auto_connect = self.network.get_parameters()
-        if self.proxy_mode.currentText() != 'NONE':
+        if self.proxy_cb.isChecked():
             proxy = { 'mode':str(self.proxy_mode.currentText()).lower(),
                       'host':str(self.proxy_host.text()),
                       'port':str(self.proxy_port.text()),

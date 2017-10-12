@@ -59,7 +59,7 @@ except:
 
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
-from .qrtextedit import ShowQRTextEdit
+from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider
 
@@ -2291,7 +2291,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox = QVBoxLayout(d)
         vbox.addWidget(QLabel(_("Enter private keys:")))
 
-        keys_e = QTextEdit()
+        keys_e = ScanQRTextEdit()
         keys_e.setTabChangesFocus(True)
         vbox.addWidget(keys_e)
 
