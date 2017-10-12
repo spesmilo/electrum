@@ -273,7 +273,8 @@ class NetworkChoiceLayout(object):
         grid.addWidget(self.proxy_port, 4, 3)
         grid.addWidget(self.proxy_user, 5, 2)
         grid.addWidget(self.proxy_password, 5, 3)
-        grid.setRowStretch(6, 1)
+        grid.addWidget(WWLabel(_('Proxy settings apply to all connections: with Electrum servers, but also with third-party services.')), 6, 0, 1, 3)
+        grid.setRowStretch(7, 1)
 
         # Blockchain Tab
         grid = QGridLayout(blockchain_tab)
