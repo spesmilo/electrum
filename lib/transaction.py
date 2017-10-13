@@ -44,6 +44,8 @@ NO_SIGNATURE = 'ff'
 class SerializationError(Exception):
     """ Thrown when there's a problem deserializing or serializing """
 
+class InputValueMissing(Exception):
+    """ thrown when the value of an input is needed but not present """
 
 class BCDataStream(object):
     def __init__(self):
@@ -791,7 +793,10 @@ class Transaction:
             outpoint = self.serialize_outpoint(txin)
             preimage_script = self.get_preimage_script(txin)
             scriptCode = var_int(len(preimage_script) // 2) + preimage_script
-            amount = int_to_hex(txin['value'], 8)
+            try:
+                amount = int_to_hex(txin['value'], 8)
+            except KeyError:
+                raise InputValueMissing
             nSequence = int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
             preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
         else:
