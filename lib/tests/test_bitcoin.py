@@ -15,7 +15,9 @@ from lib.bitcoin import (
     pw_decode, Hash, public_key_from_private_key, address_from_private_key,
     is_address, is_private_key, xpub_from_xprv, is_new_seed, is_old_seed,
     var_int, op_push, address_to_script, regenerate_key,
-    verify_message, deserialize_privkey)
+    verify_message, deserialize_privkey, serialize_privkey, is_segwit_address,
+    is_b58_address, address_to_scripthash, is_minikey, is_compressed, is_xpub,
+    xpub_type, is_xprv, is_bip32_derivation)
 from lib.util import bfh
 
 try:
@@ -46,12 +48,12 @@ class Test_bitcoin(unittest.TestCase):
         #print "Compressed public key  ", pubkey_c.encode('hex')
         enc = EC_KEY.encrypt_message(message, pubkey_c)
         dec = eck.decrypt_message(enc)
-        assert dec == message
+        self.assertEqual(message, dec)
 
         #print "Uncompressed public key", pubkey_u.encode('hex')
         #enc2 = EC_KEY.encrypt_message(message, pubkey_u)
         dec2 = eck.decrypt_message(enc)
-        assert dec2 == message
+        self.assertEqual(message, dec2)
 
         signature = eck.sign_message(message, True)
         #print signature
@@ -68,43 +70,22 @@ class Test_bitcoin(unittest.TestCase):
 
         sig1 = sign_message_with_wif_privkey(
             'T7J3unHmmx9S8e8Zdi9r98A7wTW386HkxvMbUKEMsAY9JRWfbSe6', msg1)
+        addr1 = 'LPvBisC3rGmpGa3E3NeQk3PHQN4VS237y2'
         sig2 = sign_message_with_wif_privkey(
-            'T6oaa3RpobKE2jFtkUyBJHcvCBKQJsBoSoAqZnzUQ3oexiXW7rWq', msg2)
+            '6uGWYKbyKLBMa1ysfq9rMANcbtYKY49vrawvaH3rBXooApLq6t2', msg2)
+        addr2 = 'LacEkfqxYsPqDuS8ZCstJUc59gxVm2DQaT'
 
         sig1_b64 = base64.b64encode(sig1)
         sig2_b64 = base64.b64encode(sig2)
 
         self.assertEqual(sig1_b64, b'IHGAMaPxjrn3CD19S7J5KAq4xF6mdLznsSL8SrqhNwficUHlK5wSth6/JiZ/pEyo92nkUoA+kL9VJpjLnKJKTmM=')
-        self.assertEqual(sig2_b64, b'IIYiI5SslM+9hBEedDjl03V51vuDgjbJ493Ygb3DfDzaHBp/AkCWeJ7EL8s6IHvTsb2CHF/y8MlVQJTs5fXCOvs=')
+        self.assertEqual(sig2_b64, b'G14KtfFZQYjyhz4PUzX/yz8eEC1BFHsaEKZOJGLeTWJoNp/umpi5zPeCvhUcgSoMtAkmw3pATrM2bcDdYi1tqIs=')
 
-        self.assertTrue(verify_message('LPvBisC3rGmpGa3E3NeQk3PHQN4VS237y2', sig1, msg1))
-        self.assertTrue(verify_message('LeqUvj52PSAtwcwUPKR11zRod4N3fEg2Lx', sig2, msg2))
+        self.assertTrue(verify_message(addr1, sig1, msg1))
+        self.assertTrue(verify_message(addr2, sig2, msg2))
 
-    def test_bip32(self):
-        # see https://en.bitcoin.it/wiki/BIP_0032_TestVectors
-        xpub, xprv = self._do_test_bip32("000102030405060708090a0b0c0d0e0f", "m/0'/1/2'/2/1000000000")
-        assert xpub == "xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy"
-        assert xprv == "xprvA41z7zogVVwxVSgdKUHDy1SKmdb533PjDz7J6N6mV6uS3ze1ai8FHa8kmHScGpWmj4WggLyQjgPie1rFSruoUihUZREPSL39UNdE3BBDu76"
-
-        xpub, xprv = self._do_test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","m/0/2147483647'/1/2147483646'/2")
-        assert xpub == "xpub6FnCn6nSzZAw5Tw7cgR9bi15UV96gLZhjDstkXXxvCLsUXBGXPdSnLFbdpq8p9HmGsApME5hQTZ3emM2rnY5agb9rXpVGyy3bdW6EEgAtqt"
-        assert xprv == "xprvA2nrNbFZABcdryreWet9Ea4LvTJcGsqrMzxHx98MMrotbir7yrKCEXw7nadnHM8Dq38EGfSh6dqA9QWTyefMLEcBYJUuekgW4BYPJcr9E7j"
-
-    def _do_test_bip32(self, seed, sequence):
-        xprv, xpub = bip32_root(bfh(seed), 'standard')
-        assert sequence[0:2] == "m/"
-        path = 'm'
-        sequence = sequence[2:]
-        for n in sequence.split('/'):
-            child_path = path + '/' + n
-            if n[-1] != "'":
-                xpub2 = bip32_public_derivation(xpub, path, child_path)
-            xprv, xpub = bip32_private_derivation(xprv, path, child_path)
-            if n[-1] != "'":
-                assert xpub == xpub2
-            path = child_path
-
-        return xpub, xprv
+        self.assertFalse(verify_message(addr1, b'wrong', msg1))
+        self.assertFalse(verify_message(addr1, sig2, msg1))
 
     def test_aes_homomorphic(self):
         """Make sure AES is homomorphic."""
@@ -141,15 +122,6 @@ class Test_bitcoin(unittest.TestCase):
 
         result = Hash(payload)
         self.assertEqual(expected, result)
-
-    def test_xpub_from_xprv(self):
-        """We can derive the xpub key from a xprv."""
-        # Taken from test vectors in https://en.bitcoin.it/wiki/BIP_0032_TestVectors
-        xpub = "xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy"
-        xprv = "xprvA41z7zogVVwxVSgdKUHDy1SKmdb533PjDz7J6N6mV6uS3ze1ai8FHa8kmHScGpWmj4WggLyQjgPie1rFSruoUihUZREPSL39UNdE3BBDu76"
-
-        result = xpub_from_xprv(xprv)
-        self.assertEqual(result, xpub)
 
     def test_var_int(self):
         for i in range(0xfd):
@@ -198,30 +170,186 @@ class Test_bitcoin(unittest.TestCase):
         self.assertEqual(address_to_script('MWBtJBTgiEWYQ7m17wFktku2dvSFZXqhWZ'), 'a914f47c8954e421031ad04ecd8e7752c9479206b9d387')
 
 
-class Test_keyImport(unittest.TestCase):
-    """ The keys used in this class are TEST keys from
-        https://en.bitcoin.it/wiki/BIP_0032_TestVectors"""
+class Test_xprv_xpub(unittest.TestCase):
 
-    private_key = "TAD8rebzCEyYBZWCqjsKxeH9YjenLqX55MNgqGyeQkHdN5T7ejYH"
-    public_key_hex = "0220d43256bdb32c7517bb0e3f086f54ec351d2299a5808b6a36c7ba434094c8ef"
-    main_address = "LYUdH72gHL4gcW8pPwaJm4uCFbkCXABAZW"
+    xprv_xpub = (
+        # Taken from test vectors in https://en.bitcoin.it/wiki/BIP_0032_TestVectors
+        {'xprv': 'xprvA41z7zogVVwxVSgdKUHDy1SKmdb533PjDz7J6N6mV6uS3ze1ai8FHa8kmHScGpWmj4WggLyQjgPie1rFSruoUihUZREPSL39UNdE3BBDu76',
+         'xpub': 'xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy',
+         'xtype': 'standard'},
+        {'xprv': 'yprvAJEYHeNEPcyBoQYM7sGCxDiNCTX65u4ANgZuSGTrKN5YCC9MP84SBayrgaMyZV7zvkHrr3HVPTK853s2SPk4EttPazBZBmz6QfDkXeE8Zr7',
+         'xpub': 'ypub6XDth9u8DzXV1tcpDtoDKMf6kVMaVMn1juVWEesTshcX4zUVvfNgjPJLXrD9N7AdTLnbHFL64KmBn3SNaTe69iZYbYCqLCCNPZKbLz9niQ4',
+         'xtype': 'segwit_p2sh'},
+        {'xprv': 'zprvAWgYBBk7JR8GkraNZJeEodAp2UR1VRWJTXyV1ywuUVs1awUgTiBS1ZTDtLA5F3MFDn1LZzu8dUpSKdT7ToDpvEG6PQu4bJs7zQY47Sd3sEZ',
+         'xpub': 'zpub6jftahH18ngZyLeqfLBFAm7YaWFVttE9pku5pNMX2qPzTjoq1FVgZMmhjecyB2nqFb31gHE9vNvbaggU6vvWpNZbXEWLLUjYjFqG95LNyT8',
+         'xtype': 'segwit'},
+    )
+
+    def _do_test_bip32(self, seed, sequence):
+        xprv, xpub = bip32_root(bfh(seed), 'standard')
+        self.assertEqual("m/", sequence[0:2])
+        path = 'm'
+        sequence = sequence[2:]
+        for n in sequence.split('/'):
+            child_path = path + '/' + n
+            if n[-1] != "'":
+                xpub2 = bip32_public_derivation(xpub, path, child_path)
+            xprv, xpub = bip32_private_derivation(xprv, path, child_path)
+            if n[-1] != "'":
+                self.assertEqual(xpub, xpub2)
+            path = child_path
+
+        return xpub, xprv
+
+    def test_bip32(self):
+        # see https://en.bitcoin.it/wiki/BIP_0032_TestVectors
+        xpub, xprv = self._do_test_bip32("000102030405060708090a0b0c0d0e0f", "m/0'/1/2'/2/1000000000")
+        self.assertEqual("xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy", xpub)
+        self.assertEqual("xprvA41z7zogVVwxVSgdKUHDy1SKmdb533PjDz7J6N6mV6uS3ze1ai8FHa8kmHScGpWmj4WggLyQjgPie1rFSruoUihUZREPSL39UNdE3BBDu76", xprv)
+
+        xpub, xprv = self._do_test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","m/0/2147483647'/1/2147483646'/2")
+        self.assertEqual("xpub6FnCn6nSzZAw5Tw7cgR9bi15UV96gLZhjDstkXXxvCLsUXBGXPdSnLFbdpq8p9HmGsApME5hQTZ3emM2rnY5agb9rXpVGyy3bdW6EEgAtqt", xpub)
+        self.assertEqual("xprvA2nrNbFZABcdryreWet9Ea4LvTJcGsqrMzxHx98MMrotbir7yrKCEXw7nadnHM8Dq38EGfSh6dqA9QWTyefMLEcBYJUuekgW4BYPJcr9E7j", xprv)
+
+    def test_xpub_from_xprv(self):
+        """We can derive the xpub key from a xprv."""
+        for xprv_details in self.xprv_xpub:
+            result = xpub_from_xprv(xprv_details['xprv'])
+            self.assertEqual(result, xprv_details['xpub'])
+
+    def test_is_xpub(self):
+        for xprv_details in self.xprv_xpub:
+            xpub = xprv_details['xpub']
+            self.assertTrue(is_xpub(xpub))
+        self.assertFalse(is_xpub('xpub1nval1d'))
+        self.assertFalse(is_xpub('xpub661MyMwAqRbcFWohJWt7PHsFEJfZAvw9ZxwQoDa4SoMgsDDM1T7WK3u9E4edkC4ugRnZ8E4xDZRpk8Rnts3Nbt97dPwT52WRONGBADWRONG'))
+
+    def test_xpub_type(self):
+        for xprv_details in self.xprv_xpub:
+            xpub = xprv_details['xpub']
+            self.assertEqual(xprv_details['xtype'], xpub_type(xpub))
+
+    def test_is_xprv(self):
+        for xprv_details in self.xprv_xpub:
+            xprv = xprv_details['xprv']
+            self.assertTrue(is_xprv(xprv))
+        self.assertFalse(is_xprv('xprv1nval1d'))
+        self.assertFalse(is_xprv('xprv661MyMwAqRbcFWohJWt7PHsFEJfZAvw9ZxwQoDa4SoMgsDDM1T7WK3u9E4edkC4ugRnZ8E4xDZRpk8Rnts3Nbt97dPwT52WRONGBADWRONG'))
+
+    def test_is_bip32_derivation(self):
+        self.assertTrue(is_bip32_derivation("m/0'/1"))
+        self.assertTrue(is_bip32_derivation("m/0'/0'"))
+        self.assertTrue(is_bip32_derivation("m/44'/0'/0'/0/0"))
+        self.assertTrue(is_bip32_derivation("m/49'/0'/0'/0/0"))
+        self.assertFalse(is_bip32_derivation("mmmmmm"))
+        self.assertFalse(is_bip32_derivation("n/"))
+        self.assertFalse(is_bip32_derivation(""))
+        self.assertFalse(is_bip32_derivation("m/q8462"))
+
+
+class Test_keyImport(unittest.TestCase):
+
+    priv_pub_addr = (
+           {'priv': 'T6BXB6VCkmZEWm9wkG4TLWrhgbTVWtSDHfj42gzdk1UKAt3qZMPk',
+            'pub': '02c6467b7e621144105ed3e4835b0b4ab7e35266a2ae1c4f8baa19e9ca93452997',
+            'address': 'LRox6fSH5krrgaCUiPiLkm458B5pyG8vxq',
+            'minikey' : False,
+            'txin_type': 'p2pkh',
+            'compressed': True,
+            'addr_encoding': 'base58',
+            'scripthash': 'c9aecd1fef8d661a42c560bf75c8163e337099800b8face5ca3d1393a30508a7'},
+           {'priv': '6uGWYKbyKLBMa1ysfq9rMANcbtYKY49vrawvaH3rBXooApLq6t2',
+            'pub': '04e5fe91a20fac945845a5518450d23405ff3e3e1ce39827b47ee6d5db020a9075422d56a59195ada0035e4a52a238849f68e7a325ba5b2247013e0481c5c7cb3f',
+            'address': 'LacEkfqxYsPqDuS8ZCstJUc59gxVm2DQaT',
+            'minikey': False,
+            'txin_type': 'p2pkh',
+            'compressed': False,
+            'addr_encoding': 'base58',
+            'scripthash': 'f5914651408417e1166f725a5829ff9576d0dbf05237055bf13abd2af7f79473'},
+           {'priv': 'LHJnnvRzsdrTX2j5QeWVsaBkabK7gfMNqNNqxnbBVRaJYfk24iJz',
+            'pub': '0279ad237ca0d812fb503ab86f25e15ebd5fa5dd95c193639a8a738dcd1acbad81',
+            'address': 'MNrdc4TmGxyFgBbKC4SsGbaHqBM7uzsjTf',
+            'minikey': False,
+            'txin_type': 'p2wpkh-p2sh',
+            'compressed': True,
+            'addr_encoding': 'base58',
+            'scripthash': 'd7b04e882fa6b13246829ac552a2b21461d9152eb00f0a6adb58457a3e63d7c5'},
+           {'priv': 'L8g5V8kFFeg2WbecahRSdobARbHz2w2STH9S8ePHVSY4fmia7Rsj',
+            'pub': '03e9f948421aaa89415dc5f281a61b60dde12aae3181b3a76cd2d849b164fc6d0b',
+            'address': 'ltc1qqmpt7u5e9hfznljta5gnvhyvfd2kdd0rpnd2yf',
+            'minikey': False,
+            'txin_type': 'p2wpkh',
+            'compressed': True,
+            'addr_encoding': 'bech32',
+            'scripthash': '1929acaaef3a208c715228e9f1ca0318e3a6b9394ab53c8d026137f847ecf97b'},
+           # from http://bitscan.com/articles/security/spotlight-on-mini-private-keys
+           {'priv': 'SzavMBLoXU6kDrqtUVmffv',
+            'pub': '02588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc9',
+            'address': 'LTVsBSEBS8oCBdpE7b6SwwrguZzMUnjsWr',
+            'minikey': True,
+            'txin_type': 'p2pkh',
+            'compressed': True,  # this is actually ambiguous... issue #2748
+            'addr_encoding': 'base58',
+            'scripthash': '60ad5a8b922f758cd7884403e90ee7e6f093f8d21a0ff24c9a865e695ccefdf1'},
+    )
 
     def test_public_key_from_private_key(self):
-        txin_type, privkey, compressed = deserialize_privkey(self.private_key)
-        result = public_key_from_private_key(privkey, compressed)
-        self.assertEqual(self.public_key_hex, result)
+        for priv_details in self.priv_pub_addr:
+            txin_type, privkey, compressed = deserialize_privkey(priv_details['priv'])
+            result = public_key_from_private_key(privkey, compressed)
+            self.assertEqual(priv_details['pub'], result)
+            self.assertEqual(priv_details['txin_type'], txin_type)
+            self.assertEqual(priv_details['compressed'], compressed)
 
     def test_address_from_private_key(self):
-        result = address_from_private_key(self.private_key)
-        self.assertEqual(self.main_address, result)
+        for priv_details in self.priv_pub_addr:
+            addr2 = address_from_private_key(priv_details['priv'])
+            self.assertEqual(priv_details['address'], addr2)
 
     def test_is_valid_address(self):
-        self.assertTrue(is_address(self.main_address))
+        for priv_details in self.priv_pub_addr:
+            addr = priv_details['address']
+            self.assertFalse(is_address(priv_details['priv']))
+            self.assertFalse(is_address(priv_details['pub']))
+            self.assertTrue(is_address(addr))
+
+            is_enc_b58 = priv_details['addr_encoding'] == 'base58'
+            self.assertEqual(is_enc_b58, is_b58_address(addr))
+
+            is_enc_bech32 = priv_details['addr_encoding'] == 'bech32'
+            self.assertEqual(is_enc_bech32, is_segwit_address(addr))
+
         self.assertFalse(is_address("not an address"))
 
     def test_is_private_key(self):
-        self.assertTrue(is_private_key(self.private_key))
-        self.assertFalse(is_private_key(self.public_key_hex))
+        for priv_details in self.priv_pub_addr:
+            self.assertTrue(is_private_key(priv_details['priv']))
+            self.assertFalse(is_private_key(priv_details['pub']))
+            self.assertFalse(is_private_key(priv_details['address']))
+        self.assertFalse(is_private_key("not a privkey"))
+
+    def test_serialize_privkey(self):
+        for priv_details in self.priv_pub_addr:
+            txin_type, privkey, compressed = deserialize_privkey(priv_details['priv'])
+            priv2 = serialize_privkey(privkey, compressed, txin_type)
+            if not priv_details['minikey']:
+                self.assertEqual(priv_details['priv'], priv2)
+
+    def test_address_to_scripthash(self):
+        for priv_details in self.priv_pub_addr:
+            sh = address_to_scripthash(priv_details['address'])
+            self.assertEqual(priv_details['scripthash'], sh)
+
+    def test_is_minikey(self):
+        for priv_details in self.priv_pub_addr:
+            minikey = priv_details['minikey']
+            priv = priv_details['priv']
+            self.assertEqual(minikey, is_minikey(priv))
+
+    def test_is_compressed(self):
+        for priv_details in self.priv_pub_addr:
+            self.assertEqual(priv_details['compressed'],
+                             is_compressed(priv_details['priv']))
 
 
 class Test_seeds(unittest.TestCase):
