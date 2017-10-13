@@ -59,7 +59,6 @@ from .paymentrequest import InvoiceStore
 from .contacts import Contacts
 
 TX_STATUS = [
-    _('Replaceable'),
     _('Unconfirmed parent'),
     _('Low fee'),
     _('Unconfirmed'),
@@ -828,7 +827,6 @@ class Abstract_Wallet(PrintError):
             tx = self.transactions.get(tx_hash)
             if not tx:
                 return 3, 'unknown'
-            is_final = tx and tx.is_final()
             fee = self.tx_fees.get(tx_hash)
             if fee and self.network and self.network.config.has_fee_estimates():
                 size = len(tx.raw)/2
@@ -836,20 +834,18 @@ class Abstract_Wallet(PrintError):
                 is_lowfee = fee < low_fee * 0.5
             else:
                 is_lowfee = False
-            if height==0 and not is_final:
+            if height < 0:
                 status = 0
-            elif height < 0:
-                status = 1
             elif height == 0 and is_lowfee:
-                status = 2
+                status = 1
             elif height == 0:
-                status = 3
+                status = 2
             else:
-                status = 4
+                status = 3
         else:
-            status = 4 + min(conf, 6)
+            status = 3 + min(conf, 6)
         time_str = format_time(timestamp) if timestamp else _("unknown")
-        status_str = TX_STATUS[status] if status < 5 else time_str
+        status_str = TX_STATUS[status] if status < 4 else time_str
         return status, status_str
 
     def relayfee(self):

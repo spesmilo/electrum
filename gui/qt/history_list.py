@@ -34,7 +34,6 @@ from electroncash.util import timestamp_to_datetime, profiler
 TX_ICONS = [
     "warning.png",
     "warning.png",
-    "warning.png",
     "unconfirmed.png",
     "unconfirmed.png",
     "clock1.png",

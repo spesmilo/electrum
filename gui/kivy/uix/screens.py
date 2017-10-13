@@ -90,7 +90,6 @@ class CScreen(Factory.Screen):
 TX_ICONS = [
     "close",
     "close",
-    "close",
     "unconfirmed",
     "close",
     "clock1",
