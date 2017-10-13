@@ -45,9 +45,9 @@ class WalletTestCase(unittest.TestCase):
 
 class TestWalletStorage(WalletTestCase):
 
-    def test_read_dictionnary_from_file(self):
+    def test_read_dictionary_from_file(self):
 
-        some_dict = {"a":"b", "c":"d"}
+        some_dict = {"a":"b", "c":"d", "seed_version": FINAL_SEED_VERSION}
         contents = json.dumps(some_dict)
         with open(self.wallet_path, "w") as f:
             contents = f.write(contents)
@@ -56,7 +56,7 @@ class TestWalletStorage(WalletTestCase):
         self.assertEqual("b", storage.get("a"))
         self.assertEqual("d", storage.get("c"))
 
-    def test_write_dictionnary_to_file(self):
+    def test_write_dictionary_to_file(self):
 
         storage = WalletStorage(self.wallet_path)
 

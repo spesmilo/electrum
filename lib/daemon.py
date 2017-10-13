@@ -217,11 +217,6 @@ class Daemon(DaemonThread):
             if not password:
                 return
             storage.decrypt(password)
-        if storage.requires_split():
-            return
-        if storage.requires_upgrade():
-            self.print_error('upgrading wallet format')
-            storage.upgrade()
         if storage.get_action():
             return
         wallet = Wallet(storage)
