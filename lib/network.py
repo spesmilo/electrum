@@ -988,6 +988,7 @@ class Network(util.DaemonThread):
         if b:
             interface.blockchain = b
             self.switch_lagging_interface()
+            self.notify('updated')
             self.notify('interfaces')
             return
         b = blockchain.can_connect(header)
