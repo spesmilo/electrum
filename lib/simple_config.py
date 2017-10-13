@@ -147,8 +147,7 @@ class SimpleConfig(PrintError):
         f = open(path, "w")
         f.write(s)
         f.close()
-        if 'ANDROID_DATA' not in os.environ:
-            os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
+        os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
 
     def get_wallet_path(self):
         """Set the path of the wallet."""
