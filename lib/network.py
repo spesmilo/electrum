@@ -1020,7 +1020,7 @@ class Network(util.DaemonThread):
     def get_blockchains(self):
         out = {}
         for k, b in self.blockchains.items():
-            r = list(filter(lambda i: i.blockchain==b, self.interfaces.values()))
+            r = list(filter(lambda i: i.blockchain==b, list(self.interfaces.values())))
             if r:
                 out[k] = r
         return out
