@@ -352,7 +352,11 @@ class WalletStorage(PrintError):
                 for pubkey in pubkeys:
                     addr = bitcoin.pubkey_to_address('p2pkh', pubkey)
                     assert addr in addresses
-                    d[addr] = { 'pubkey':pubkey, 'type':'p2pkh'}
+                    d[addr] = {
+                        'pubkey': pubkey,
+                        'redeem_script': None,
+                        'type': 'p2pkh'
+                    }
                 self.put('addresses', d)
                 self.put('pubkeys', None)
                 self.put('wallet_type', 'imported')
