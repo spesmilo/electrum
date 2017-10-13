@@ -210,7 +210,7 @@ class Daemon(DaemonThread):
         if path in self.wallets:
             wallet = self.wallets[path]
             return wallet
-        storage = WalletStorage(path)
+        storage = WalletStorage(path, manual_upgrades=True)
         if not storage.file_exists():
             return
         if storage.is_encrypted():
@@ -220,7 +220,6 @@ class Daemon(DaemonThread):
         if storage.requires_split():
             return
         if storage.requires_upgrade():
-            self.print_error('upgrading wallet format')
             storage.upgrade()
         if storage.get_action():
             return

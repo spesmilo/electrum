@@ -7,6 +7,7 @@ import ast
 import json
 import threading
 import os
+import stat
 
 from copy import deepcopy
 from .util import user_dir, print_error, print_msg, print_stderr, PrintError
@@ -146,9 +147,7 @@ class SimpleConfig(PrintError):
         f = open(path, "w")
         f.write(s)
         f.close()
-        if 'ANDROID_DATA' not in os.environ:
-            import stat
-            os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
+        os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
 
     def get_wallet_path(self):
         """Set the path of the wallet."""
