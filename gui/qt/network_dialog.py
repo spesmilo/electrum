@@ -38,6 +38,7 @@ import PyQt5.QtCore as QtCore
 from electrum.i18n import _
 from electrum.network import DEFAULT_PORTS
 from electrum.network import serialize_server, deserialize_server
+from electrum.util import print_error
 
 from .util import *
 
@@ -361,6 +362,7 @@ class NetworkChoiceLayout(object):
         b = proxy_config.get('mode') != "none"
         self.check_disable_proxy(b)
         if b:
+            self.proxy_cb.setChecked(True)
             self.proxy_mode.setCurrentIndex(self.proxy_mode.findText(str(proxy_config.get("mode").upper())))
         self.proxy_host.setText(proxy_config.get("host"))
         self.proxy_port.setText(proxy_config.get("port"))
@@ -459,29 +461,33 @@ class NetworkChoiceLayout(object):
                       'password':str(self.proxy_password.text())}
         else:
             proxy = None
+            self.tor_cb.setChecked(False)
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
 
     def suggest_proxy(self, found_proxy):
         self.tor_proxy = found_proxy
         self.tor_cb.setText("Use Tor proxy at port " + str(found_proxy[1]))
-        if self.proxy_mode.currentIndex() == 2 \
+        if self.proxy_mode.currentIndex() == self.proxy_mode.findText('SOCKS5') \
             and self.proxy_host.text() == "127.0.0.1" \
                 and self.proxy_port.text() == str(found_proxy[1]):
             self.tor_cb.setChecked(True)
         self.tor_cb.show()
 
     def use_tor_proxy(self, use_it):
-        # 2 = SOCKS5
         if not use_it:
-            self.proxy_mode.setCurrentIndex(0)
-            self.tor_cb.setChecked(False)
+            self.proxy_cb.setChecked(False)
         else:
-            self.proxy_mode.setCurrentIndex(2)
+            socks5_mode_index = self.proxy_mode.findText('SOCKS5')
+            if socks5_mode_index == -1:
+                print_error("[network_dialog] can't find proxy_mode 'SOCKS5'")
+                return
+            self.proxy_mode.setCurrentIndex(socks5_mode_index)
             self.proxy_host.setText("127.0.0.1")
             self.proxy_port.setText(str(self.tor_proxy[1]))
             self.proxy_user.setText("")
             self.proxy_password.setText("")
             self.tor_cb.setChecked(True)
+            self.proxy_cb.setChecked(True)
         self.set_proxy()
 
     def proxy_settings_changed(self):
