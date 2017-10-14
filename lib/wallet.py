@@ -1364,6 +1364,9 @@ class Imported_Wallet(Abstract_Wallet):
 
     def load_addresses(self):
         self.addresses = self.storage.get('addresses', {})
+        # fixme: a reference to addresses is needed
+        if self.keystore:
+            self.keystore.addresses = self.addresses
 
     def save_addresses(self):
         self.storage.put('addresses', self.addresses)
@@ -1467,8 +1470,7 @@ class Imported_Wallet(Abstract_Wallet):
 
     def add_input_sig_info(self, txin, address):
         if self.is_watching_only():
-            addrtype, hash160 = b58_address_to_hash160(address)
-            x_pubkey = 'fd' + bh2u(bytes([addrtype]) + hash160)
+            x_pubkey = 'fd' + address_to_script(address)
             txin['x_pubkeys'] = [x_pubkey]
             txin['signatures'] = [None]
             return
