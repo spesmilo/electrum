@@ -177,12 +177,10 @@ def run_non_RPC(config):
         seed_type = 'segwit' if config.get('segwit') else 'standard'
         seed = Mnemonic('en').make_seed(seed_type)
         k = keystore.from_seed(seed, passphrase)
-        k.update_password(None, password)
         storage.put('keystore', k.dump())
         storage.put('wallet_type', 'standard')
-        storage.put('use_encryption', bool(password))
-        storage.write()
         wallet = Wallet(storage)
+        wallet.update_password(None, password, True)
         wallet.synchronize()
         print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
         print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")

@@ -145,7 +145,8 @@ class Commands:
     @command('wp')
     def password(self, password=None, new_password=None):
         """Change wallet password. """
-        self.wallet.update_password(password, new_password)
+        b = self.wallet.storage.is_encrypted()
+        self.wallet.update_password(password, new_password, b)
         self.wallet.storage.write()
         return {'password':self.wallet.has_password()}
 
