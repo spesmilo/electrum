@@ -165,9 +165,6 @@ class TestTransaction(unittest.TestCase):
         res = xpubkey_to_address('fe4e13b0f311a55b8a5db9a32e959da9f011b131019d4cebe6141b9e2c93edcbfc0954c358b062a9f94111548e50bde5847a3096b8b7872dcffadb0e9579b9017b01000200')
         self.assertEqual(res, ('04ee98d63800824486a1cf5b4376f2f574d86e0a3009a6448105703453f3368e8e1d8d090aaecdd626a45cc49876709a3bbb6dc96a4311b3cac03e225df5f63dfc', 'LTv6KFwtiNafLvxggFFQMRSQEXtBUru9eG'))
 
-        res = xpubkey_to_address('fd307d260305ef27224bbcf6cf5238d2b3638b5a78d5')
-        self.assertEqual(res, ('fd307d260305ef27224bbcf6cf5238d2b3638b5a78d5', 'LWdgGJGqSmaGYcp6e21RvpGmcuexJorNEH'))
-
     def test_version_field(self):
         tx = transaction.Transaction(v2_blob)
         self.assertEqual(tx.txid(), "b97f9180173ab141b61b9f944d841e60feec691d6daab4d4d932b24dd36606fe")

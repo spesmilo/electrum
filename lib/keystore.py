@@ -162,11 +162,9 @@ class Imported_KeyStore(Software_KeyStore):
             if x_pubkey in self.keypairs.keys():
                 return x_pubkey
         elif x_pubkey[0:2] == 'fd':
-            # fixme: this assumes p2pkh
-            _, addr = xpubkey_to_address(x_pubkey)
-            for pubkey in self.keypairs.keys():
-                if public_key_to_p2pkh(bfh(pubkey)) == addr:
-                    return pubkey
+            addr = bitcoin.script_to_address(x_pubkey[2:])
+            if addr in self.addresses:
+                return self.addresses[addr].get('pubkey')
 
     def update_password(self, old_password, new_password):
         self.check_password(old_password)
@@ -594,10 +592,7 @@ def parse_xpubkey(x_pubkey):
 
 def xpubkey_to_address(x_pubkey):
     if x_pubkey[0:2] == 'fd':
-        # TODO: check that ord() is OK here
-        addrtype = ord(bfh(x_pubkey[2:4]))
-        hash160 = bfh(x_pubkey[4:])
-        address = bitcoin.hash160_to_b58_address(hash160, addrtype)
+        address = bitcoin.script_to_address(x_pubkey[2:])
         return x_pubkey, address
     if x_pubkey[0:2] in ['02', '03', '04']:
         pubkey = x_pubkey
