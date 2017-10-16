@@ -27,7 +27,6 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-import six
 import hashlib
 import os.path
 import re
@@ -38,7 +37,7 @@ import traceback
 import json
 import requests
 
-from six.moves import urllib_parse
+import urllib.parse
 
 
 try:
@@ -78,7 +77,7 @@ PR_PAID    = 3     # send and propagated
 
 
 def get_payment_request(url):
-    u = urllib_parse.urlparse(url)
+    u = urllib.parse.urlparse(url)
     error = None
     if u.scheme in ['http', 'https']:
         try:
@@ -274,10 +273,10 @@ class PaymentRequest:
         paymnt.merchant_data = pay_det.merchant_data
         paymnt.transactions.append(bfh(raw_tx))
         ref_out = paymnt.refund_to.add()
-        ref_out.script = transaction.Transaction.pay_script(TYPE_ADDRESS, refund_addr)
+        ref_out.script = util.bfh(transaction.Transaction.pay_script(TYPE_ADDRESS, refund_addr))
         paymnt.memo = "Paid using Electrum"
         pm = paymnt.SerializeToString()
-        payurl = urllib_parse.urlparse(pay_det.payment_url)
+        payurl = urllib.parse.urlparse(pay_det.payment_url)
         try:
             r = requests.post(payurl.geturl(), data=pm, headers=ACK_HEADERS, verify=ca_path)
         except requests.exceptions.SSLError:
@@ -321,7 +320,7 @@ def make_unsigned_request(req):
     pd.memo = memo
     pr = pb2.PaymentRequest()
     pr.serialized_payment_details = pd.SerializeToString()
-    pr.signature = ''
+    pr.signature = util.to_bytes('')
     return pr
 
 

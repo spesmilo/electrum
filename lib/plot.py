@@ -1,4 +1,4 @@
-from PyQt4.QtGui import *
+from PyQt5.QtGui import *
 from electrum.i18n import _
 
 
@@ -9,7 +9,7 @@ from electrum.util import format_satoshis
 from electrum.bitcoin import COIN
 
 import matplotlib
-matplotlib.use('Qt4Agg')
+matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as md
 from matplotlib.patches import Ellipse

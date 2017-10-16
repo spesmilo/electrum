@@ -71,6 +71,8 @@ setup(
     },
     package_data={
         'electrum': [
+            'servers.json',
+            'servers_testnet.json',
             'currencies.json',
             'www/index.html',
             'wordlist/*.txt',

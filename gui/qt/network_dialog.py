@@ -31,13 +31,14 @@ from __future__ import unicode_literals
 
 import socket
 import six
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
-import PyQt4.QtCore as QtCore
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+import PyQt5.QtCore as QtCore
 
 from electrum.i18n import _
 from electrum.network import DEFAULT_PORTS
 from electrum.network import serialize_server, deserialize_server
+from electrum.util import print_error
 
 from .util import *
 
@@ -45,19 +46,21 @@ protocol_names = ['TCP', 'SSL']
 protocol_letters = 'ts'
 
 class NetworkDialog(QDialog):
-    def __init__(self, network, config):
+    def __init__(self, network, config, network_updated_signal_obj):
         QDialog.__init__(self)
         self.setWindowTitle(_('Network'))
         self.setMinimumSize(500, 20)
         self.nlayout = NetworkChoiceLayout(network, config)
+        self.network_updated_signal_obj = network_updated_signal_obj
         vbox = QVBoxLayout(self)
         vbox.addLayout(self.nlayout.layout())
         vbox.addLayout(Buttons(CloseButton(self)))
-        self.connect(self, QtCore.SIGNAL('updated'), self.on_update)
+        self.network_updated_signal_obj.network_updated_signal.connect(
+            self.on_update)
         network.register_callback(self.on_network, ['updated', 'interfaces'])
 
     def on_network(self, event, *args):
-        self.emit(QtCore.SIGNAL('updated'), event, *args)
+        self.network_updated_signal_obj.network_updated_signal.emit(event, args)
 
     def on_update(self):
         self.nlayout.update()
@@ -97,7 +100,7 @@ class NodesListWidget(QTreeWidget):
         # on 'enter' we show the menu
         pt = self.visualItemRect(item).bottomLeft()
         pt.setX(50)
-        self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), pt)
+        self.customContextMenuRequested.emit(pt)
 
     def update(self, network):
         self.clear()
@@ -125,8 +128,8 @@ class NodesListWidget(QTreeWidget):
 
         h = self.header()
         h.setStretchLastSection(False)
-        h.setResizeMode(0, QHeaderView.Stretch)
-        h.setResizeMode(1, QHeaderView.ResizeToContents)
+        h.setSectionResizeMode(0, QHeaderView.Stretch)
+        h.setSectionResizeMode(1, QHeaderView.ResizeToContents)
 
 
 class ServerListWidget(QTreeWidget):
@@ -163,7 +166,7 @@ class ServerListWidget(QTreeWidget):
         # on 'enter' we show the menu
         pt = self.visualItemRect(item).bottomLeft()
         pt.setX(50)
-        self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), pt)
+        self.customContextMenuRequested.emit(pt)
 
     def update(self, servers, protocol, use_tor):
         self.clear()
@@ -179,8 +182,8 @@ class ServerListWidget(QTreeWidget):
 
         h = self.header()
         h.setStretchLastSection(False)
-        h.setResizeMode(0, QHeaderView.Stretch)
-        h.setResizeMode(1, QHeaderView.ResizeToContents)
+        h.setSectionResizeMode(0, QHeaderView.Stretch)
+        h.setSectionResizeMode(1, QHeaderView.ResizeToContents)
 
 
 class NetworkChoiceLayout(object):
@@ -196,7 +199,7 @@ class NetworkChoiceLayout(object):
         proxy_tab = QWidget()
         blockchain_tab = QWidget()
         tabs.addTab(blockchain_tab, _('Overview'))
-        tabs.addTab(proxy_tab, _('Proxy'))
+        tabs.addTab(proxy_tab, _('Connection'))
         tabs.addTab(server_tab, _('Server'))
 
         # server tab
@@ -231,8 +234,12 @@ class NetworkChoiceLayout(object):
         grid.setSpacing(8)
 
         # proxy setting
+        self.proxy_cb = QCheckBox(_('Use proxy'))
+        self.proxy_cb.clicked.connect(self.check_disable_proxy)
+        self.proxy_cb.clicked.connect(self.set_proxy)
+
         self.proxy_mode = QComboBox()
-        self.proxy_mode.addItems(['NONE', 'SOCKS4', 'SOCKS5', 'HTTP'])
+        self.proxy_mode.addItems(['SOCKS4', 'SOCKS5', 'HTTP'])
         self.proxy_host = QLineEdit()
         self.proxy_host.setFixedWidth(200)
         self.proxy_port = QLineEdit()
@@ -250,14 +257,11 @@ class NetworkChoiceLayout(object):
         self.proxy_user.editingFinished.connect(self.set_proxy)
         self.proxy_password.editingFinished.connect(self.set_proxy)
 
-        self.check_disable_proxy()
-        self.proxy_mode.connect(self.proxy_mode, SIGNAL('currentIndexChanged(int)'), self.check_disable_proxy)
-
-        self.proxy_mode.connect(self.proxy_mode, SIGNAL('currentIndexChanged(int)'), self.proxy_settings_changed)
-        self.proxy_host.connect(self.proxy_host, SIGNAL('textEdited(QString)'), self.proxy_settings_changed)
-        self.proxy_port.connect(self.proxy_port, SIGNAL('textEdited(QString)'), self.proxy_settings_changed)
-        self.proxy_user.connect(self.proxy_user, SIGNAL('textEdited(QString)'), self.proxy_settings_changed)
-        self.proxy_password.connect(self.proxy_password, SIGNAL('textEdited(QString)'), self.proxy_settings_changed)
+        self.proxy_mode.currentIndexChanged.connect(self.proxy_settings_changed)
+        self.proxy_host.textEdited.connect(self.proxy_settings_changed)
+        self.proxy_port.textEdited.connect(self.proxy_settings_changed)
+        self.proxy_user.textEdited.connect(self.proxy_settings_changed)
+        self.proxy_password.textEdited.connect(self.proxy_settings_changed)
 
         self.tor_cb = QCheckBox(_("Use Tor Proxy"))
         self.tor_cb.setIcon(QIcon(":icons/tor_logo.png"))
@@ -265,13 +269,16 @@ class NetworkChoiceLayout(object):
         self.tor_cb.clicked.connect(self.use_tor_proxy)
 
         grid.addWidget(self.ssl_cb, 0, 0, 1, 3)
+        grid.addWidget(HelpButton(_('SSL is used to authenticate and encrypt your connections with Electrum servers.')), 0, 4)
         grid.addWidget(self.tor_cb, 1, 0, 1, 3)
+        grid.addWidget(self.proxy_cb, 2, 0, 1, 3)
+        grid.addWidget(HelpButton(_('Proxy settings apply to all connections: with Electrum servers, but also with third-party services.')), 2, 4)
         grid.addWidget(self.proxy_mode, 4, 1)
         grid.addWidget(self.proxy_host, 4, 2)
         grid.addWidget(self.proxy_port, 4, 3)
         grid.addWidget(self.proxy_user, 5, 2)
         grid.addWidget(self.proxy_password, 5, 3)
-        grid.setRowStretch(6, 1)
+        grid.setRowStretch(7, 1)
 
         # Blockchain Tab
         grid = QGridLayout(blockchain_tab)
@@ -317,12 +324,11 @@ class NetworkChoiceLayout(object):
         td.start()
         self.update()
 
-    def check_disable_proxy(self, index = False):
-        if self.config.is_modifiable('proxy'):
-            for w in [self.proxy_host, self.proxy_port, self.proxy_user, self.proxy_password]:
-                w.setEnabled(self.proxy_mode.currentText() != 'NONE')
-        else:
-            for w in [self.proxy_host, self.proxy_port, self.proxy_mode]: w.setEnabled(False)
+    def check_disable_proxy(self, b):
+        if not self.config.is_modifiable('proxy'):
+            b = False
+        for w in [self.proxy_mode, self.proxy_host, self.proxy_port, self.proxy_user, self.proxy_password]:
+            w.setEnabled(b)
 
     def enable_set_server(self):
         if self.config.is_modifiable('server'):
@@ -353,7 +359,11 @@ class NetworkChoiceLayout(object):
         self.enable_set_server()
 
         # proxy tab
-        self.proxy_mode.setCurrentIndex(self.proxy_mode.findText(str(proxy_config.get("mode").upper())))
+        b = proxy_config.get('mode') != "none"
+        self.check_disable_proxy(b)
+        if b:
+            self.proxy_cb.setChecked(True)
+            self.proxy_mode.setCurrentIndex(self.proxy_mode.findText(str(proxy_config.get("mode").upper())))
         self.proxy_host.setText(proxy_config.get("host"))
         self.proxy_port.setText(proxy_config.get("port"))
         self.proxy_user.setText(proxy_config.get("user", ""))
@@ -389,7 +399,7 @@ class NetworkChoiceLayout(object):
         host = self.server_host.text()
         pp = self.servers.get(host, DEFAULT_PORTS)
         if p not in pp.keys():
-            p = pp.keys()[0]
+            p = list(pp.keys())[0]
         port = pp[p]
         self.server_host.setText(host)
         self.server_port.setText(port)
@@ -424,7 +434,7 @@ class NetworkChoiceLayout(object):
                 protocol = 's'
                 port = pp.get(protocol)
             else:
-                protocol = pp.keys()[0]
+                protocol = list(pp.keys())[0]
                 port = pp.get(protocol)
         self.server_host.setText(host)
         self.server_port.setText(port)
@@ -443,7 +453,7 @@ class NetworkChoiceLayout(object):
 
     def set_proxy(self):
         host, port, protocol, proxy, auto_connect = self.network.get_parameters()
-        if self.proxy_mode.currentText() != 'NONE':
+        if self.proxy_cb.isChecked():
             proxy = { 'mode':str(self.proxy_mode.currentText()).lower(),
                       'host':str(self.proxy_host.text()),
                       'port':str(self.proxy_port.text()),
@@ -451,29 +461,33 @@ class NetworkChoiceLayout(object):
                       'password':str(self.proxy_password.text())}
         else:
             proxy = None
+            self.tor_cb.setChecked(False)
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
 
     def suggest_proxy(self, found_proxy):
         self.tor_proxy = found_proxy
         self.tor_cb.setText("Use Tor proxy at port " + str(found_proxy[1]))
-        if self.proxy_mode.currentIndex() == 2 \
+        if self.proxy_mode.currentIndex() == self.proxy_mode.findText('SOCKS5') \
             and self.proxy_host.text() == "127.0.0.1" \
                 and self.proxy_port.text() == str(found_proxy[1]):
             self.tor_cb.setChecked(True)
         self.tor_cb.show()
 
     def use_tor_proxy(self, use_it):
-        # 2 = SOCKS5
         if not use_it:
-            self.proxy_mode.setCurrentIndex(0)
-            self.tor_cb.setChecked(False)
+            self.proxy_cb.setChecked(False)
         else:
-            self.proxy_mode.setCurrentIndex(2)
+            socks5_mode_index = self.proxy_mode.findText('SOCKS5')
+            if socks5_mode_index == -1:
+                print_error("[network_dialog] can't find proxy_mode 'SOCKS5'")
+                return
+            self.proxy_mode.setCurrentIndex(socks5_mode_index)
             self.proxy_host.setText("127.0.0.1")
             self.proxy_port.setText(str(self.tor_proxy[1]))
             self.proxy_user.setText("")
             self.proxy_password.setText("")
             self.tor_cb.setChecked(True)
+            self.proxy_cb.setChecked(True)
         self.set_proxy()
 
     def proxy_settings_changed(self):

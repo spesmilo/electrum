@@ -2,6 +2,7 @@ from struct import pack, unpack
 import hashlib
 import time
 import sys
+import os
 import traceback
 
 import electrum
@@ -59,6 +60,14 @@ class Ledger_Client():
         #self.get_client() # prompt for the PIN before displaying the dialog if necessary
         #self.handler.show_message("Computing master public key")
         try:
+            if (os.getenv("LEDGER_NATIVE_SEGWIT") is not None) and self.supports_native_segwit():
+                xtype = 'segwit'
+            elif bip32_path.startswith("m/49'/"):
+                if not self.supports_segwit():
+                    raise Exception("Firmware version too old for Segwit support. Please update at https://www.ledgerwallet.com")
+                xtype = 'segwit_p2sh'
+            else:
+                xtype = 'standard'
             splitPath = bip32_path.split('/')
             if splitPath[0] == 'm':
                 splitPath = splitPath[1:]
@@ -75,11 +84,8 @@ class Ledger_Client():
             publicKey = compress_public_key(nodeData['publicKey'])
             depth = len(splitPath)
             lastChild = splitPath[len(splitPath) - 1].split('\'')
-            if len(lastChild) == 1:
-                childnum = int(lastChild[0])
-            else:
-                childnum = 0x80000000 | int(lastChild[0])
-            xpub = bitcoin.serialize_xpub(0, nodeData['chainCode'], publicKey, depth, self.i4b(fingerprint), self.i4b(childnum))
+            childnum = int(lastChild[0]) if len(lastChild) == 1 else 0x80000000 | int(lastChild[0])
+            xpub = bitcoin.serialize_xpub(xtype, nodeData['chainCode'], publicKey, depth, self.i4b(fingerprint), self.i4b(childnum))
             return xpub
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
@@ -109,10 +115,20 @@ class Ledger_Client():
     def supports_multi_output(self):
         return self.multiOutputSupported
 
+    def supports_segwit(self):
+        return self.segwitSupported
+
+    def supports_native_segwit(self):
+        return self.nativeSegwitSupported
+
     def perform_hw1_preflight(self):
         try:
-            firmware = self.dongleObject.getFirmwareVersion()['version'].split(".")
+            firmwareInfo = self.dongleObject.getFirmwareVersion()
+            firmware = firmwareInfo['version'].split(".")
             self.multiOutputSupported = int(firmware[0]) >= 1 and int(firmware[1]) >= 1 and int(firmware[2]) >= 4
+            self.segwitSupported = (int(firmware[0]) >= 1 and int(firmware[1]) >= 1 and int(firmware[2]) >= 10) or (firmwareInfo['specialVersion'] == 0x20 and int(firmware[0]) == 1 and int(firmware[1]) == 0 and int(firmware[2]) >= 4)
+            self.nativeSegwitSupported = int(firmware[0]) >= 1 and int(firmware[1]) >= 1 and int(firmware[2]) >= 10
+
             if not checkFirmware(firmware):
                 self.dongleObject.dongle.close()
                 raise Exception("HW1 firmware version too old. Please update at https://www.ledgerwallet.com")
@@ -172,9 +188,6 @@ class Ledger_KeyStore(Hardware_KeyStore):
         self.force_watching_only = False
         self.signing = False
         self.cfg = d.get('cfg', {'mode':0,'pair':''})
-
-    def is_segwit(self):
-        return self.derivation.startswith("m/49'/")
 
     def dump(self):
         obj = Hardware_KeyStore.dump(self)
@@ -285,7 +298,14 @@ class Ledger_KeyStore(Hardware_KeyStore):
             if txin['type'] in ['p2sh']:
                 p2shTransaction = True
 
-            if txin['type'] in ['p2wpkh-p2sh']:
+            if txin['type'] in ['p2wpkh-p2sh', 'p2wsh-p2sh']:
+                if not self.get_client_electrum().supports_segwit():
+                    self.give_error("Firmware version too old to support segwit. Please update at https://www.ledgerwallet.com")
+                segwitTransaction = True
+
+            if txin['type'] in ['p2wpkh', 'p2wsh']:
+                if not self.get_client_electrum().supports_native_segwit():
+                    self.give_error("Firmware version too old to support native segwit. Please update at https://www.ledgerwallet.com")
                 segwitTransaction = True
 
             pubkeys, x_pubkeys = tx.get_sorted_pubkeys(txin)

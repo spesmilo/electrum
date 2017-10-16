@@ -3,11 +3,11 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-import six
 import ast
 import json
 import threading
 import os
+import stat
 
 from copy import deepcopy
 from .util import user_dir, print_error, print_msg, print_stderr, PrintError
@@ -88,14 +88,13 @@ class SimpleConfig(PrintError):
 
         if self.get('testnet'):
             path = os.path.join(path, 'testnet')
-        elif self.get('nolnet'):
-            path = os.path.join(path, 'nolnet')
 
         # Make directory if it does not yet exist.
         if not os.path.exists(path):
             if os.path.islink(path):
                 raise BaseException('Dangling link: ' + path)
             os.mkdir(path)
+            os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
         self.print_error("electrum directory", path)
         return path
@@ -148,9 +147,7 @@ class SimpleConfig(PrintError):
         f = open(path, "w")
         f.write(s)
         f.close()
-        if 'ANDROID_DATA' not in os.environ:
-            import stat
-            os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
+        os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
 
     def get_wallet_path(self):
         """Set the path of the wallet."""
@@ -170,6 +167,7 @@ class SimpleConfig(PrintError):
             if os.path.islink(dirpath):
                 raise BaseException('Dangling link: ' + dirpath)
             os.mkdir(dirpath)
+            os.chmod(dirpath, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
         new_path = os.path.join(self.path, "wallets", "default_wallet")
 
@@ -257,13 +255,7 @@ def read_system_config(path=SYSTEM_CONFIG_PATH):
     """Parse and return the system config settings in /etc/electrum.conf."""
     result = {}
     if os.path.exists(path):
-        try:
-            from six.moves import configparser
-            # import ConfigParser
-        except ImportError:
-            print("cannot parse electrum.conf. please install ConfigParser")
-            return
-
+        import configparser
         p = configparser.ConfigParser()
         try:
             p.read(path)

@@ -27,19 +27,14 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-import gettext, os, six
+import gettext, os
 
 LOCALE_DIR = os.path.join(os.path.dirname(__file__), 'locale')
 language = gettext.translation('electrum', LOCALE_DIR, fallback = True)
 
-if six.PY2:
-    def _(x):
-        global language
-        return language.ugettext(x)
-else:
-    def _(x):
-        global language
-        return language.gettext(x)
+def _(x):
+    global language
+    return language.gettext(x)
 
 def set_language(x):
     global language

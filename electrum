@@ -137,11 +137,19 @@ def run_non_RPC(config):
             wallet = Imported_Wallet(storage)
             for x in text.split():
                 wallet.import_address(x)
+        elif keystore.is_private_key_list(text):
+            k = keystore.Imported_KeyStore({})
+            storage.put('keystore', k.dump())
+            storage.put('use_encryption', bool(password))
+            wallet = Imported_Wallet(storage)
+            for x in text.split():
+                wallet.import_private_key(x, password)
+            storage.write()
         else:
             if keystore.is_seed(text):
                 k = keystore.from_seed(text, passphrase)
-            elif keystore.is_any_key(text):
-                k = keystore.from_keys(text)
+            elif keystore.is_master_key(text):
+                k = keystore.from_master_key(text)
             else:
                 sys.exit("Error: Seed or key not recognized")
             if password:
@@ -166,14 +174,13 @@ def run_non_RPC(config):
     elif cmdname == 'create':
         password = password_dialog()
         passphrase = config.get('passphrase', '')
-        seed = Mnemonic('en').make_seed()
+        seed_type = 'segwit' if config.get('segwit') else 'standard'
+        seed = Mnemonic('en').make_seed(seed_type)
         k = keystore.from_seed(seed, passphrase)
-        k.update_password(None, password)
         storage.put('keystore', k.dump())
         storage.put('wallet_type', 'standard')
-        storage.put('use_encryption', bool(password))
-        storage.write()
         wallet = Wallet(storage)
+        wallet.update_password(None, password, True)
         wallet.synchronize()
         print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
         print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
@@ -279,10 +286,12 @@ def run_offline_command(config, config_options):
     # decode json arguments
     args = list(map(json_decode, args))
     # options
-    args += [(config_options.get(x) if x in ['password', 'new_password'] else config.get(x)) for x in cmd.options]
+    kwargs = {}
+    for x in cmd.options:
+        kwargs[x] = (config_options.get(x) if x in ['password', 'new_password'] else config.get(x))
     cmd_runner = Commands(config, wallet, None)
     func = getattr(cmd_runner, cmd.name)
-    result = func(*args)
+    result = func(*args, **kwargs)
     # save wallet
     if wallet:
         wallet.storage.write()
@@ -355,11 +364,6 @@ if __name__ == '__main__':
 
     if config.get('testnet'):
         bitcoin.set_testnet()
-        network.set_testnet()
-
-    if config.get('nolnet'):
-        bitcoin.set_nolnet()
-        network.set_nolnet()
 
     # run non-RPC commands separately
     if cmdname in ['create', 'restore']:

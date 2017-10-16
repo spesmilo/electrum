@@ -36,14 +36,13 @@ import threading
 
 from .i18n import _
 
-import six
-from six.moves import queue, urllib_parse
 
-try:
-    import urllib.parse
-    import urllib.request, urllib.parse, urllib.error
-except ImportError:
-    pass
+import urllib.request, urllib.parse, urllib.error
+import queue
+
+def inv_dict(d):
+    return {v: k for k, v in d.items()}
+
 
 base_units = {'BTC':8, 'mBTC':5, 'uBTC':2}
 fee_levels = [_('Within 25 blocks'), _('Within 10 blocks'), _('Within 5 blocks'), _('Within 2 blocks'), _('In the next block')]
@@ -254,18 +253,9 @@ def assert_bytes(*args):
     """
     porting helper, assert args type
     """
-    if six.PY2:
-        for x in args:
-            assert isinstance(x, (bytes, bytearray, str))
-        return
-
     try:
-        if six.PY3:
-            for x in args:
-                assert isinstance(x, (bytes, bytearray))
-        else:
-            for x in args:
-                assert isinstance(x, bytearray)
+        for x in args:
+            assert isinstance(x, (bytes, bytearray))
     except:
         print('assert bytes failed', list(map(type, args)))
         raise
@@ -276,7 +266,7 @@ def assert_str(*args):
     porting helper, assert args type
     """
     for x in args:
-        assert isinstance(x, six.string_types)
+        assert isinstance(x, str)
 
 
 
@@ -310,11 +300,8 @@ def hfu(x):
     :param x: str
     :return: str
     """
-    if six.PY3:
-        assert_bytes(x)
-        return binascii.hexlify(x)
-    else:
-        return x.encode('hex')
+    assert_bytes(x)
+    return binascii.hexlify(x)
 
 
 def bfh(x):
@@ -323,7 +310,7 @@ def bfh(x):
     :param x: str
     :rtype: bytes
     """
-    if isinstance(x, six.string_types):
+    if isinstance(x, str):
         return bfh_builder(x)
     # TODO: check for iterator interface
     elif isinstance(x, (list, tuple, map)):
@@ -340,15 +327,8 @@ def bh2u(x):
     :param x: bytes
     :rtype: str
     """
-    if six.PY3:
-        assert_bytes(x)
-        # x = to_bytes(x, 'ascii')
-        return binascii.hexlify(x).decode('ascii')
-    else:
-        if isinstance(x, bytearray):
-            return binascii.hexlify(x)
-        else:
-            return x.encode('hex')
+    assert_bytes(x)
+    return binascii.hexlify(x).decode('ascii')
 
 
 def user_dir():
@@ -392,8 +372,6 @@ def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespa
     if whitespaces:
         result += " " * (decimal_point - len(fract_part))
         result = " " * (15 - len(result)) + result
-    if six.PY2:
-        result = result.decode('utf8')
     return result
 
 def timestamp_to_datetime(timestamp):
@@ -529,7 +507,7 @@ def parse_URI(uri, on_pr=None):
             raise BaseException("Not a bitcoin address")
         return {'address': uri}
 
-    u = urllib_parse.urlparse(uri)
+    u = urllib.parse.urlparse(uri)
     if u.scheme != 'bitcoin':
         raise BaseException("Not a bitcoin URI")
     address = u.path
@@ -537,9 +515,9 @@ def parse_URI(uri, on_pr=None):
     # python for android fails to parse query
     if address.find('?') > 0:
         address, query = u.path.split('?')
-        pq = urllib_parse.parse_qs(query)
+        pq = urllib.parse.parse_qs(query)
     else:
-        pq = urllib_parse.parse_qs(u.query)
+        pq = urllib.parse.parse_qs(u.query)
 
     for k, v in pq.items():
         if len(v)!=1:
@@ -560,10 +538,7 @@ def parse_URI(uri, on_pr=None):
             amount = Decimal(am) * COIN
         out['amount'] = int(amount)
     if 'message' in out:
-        if six.PY3:
-            out['message'] = out['message']
-        else:
-            out['message'] = out['message'].decode('utf8')
+        out['message'] = out['message']
         out['memo'] = out['message']
     if 'time' in out:
         out['time'] = int(out['time'])
@@ -600,11 +575,9 @@ def create_URI(addr, amount, message):
     if amount:
         query.append('amount=%s'%format_satoshis_plain(amount))
     if message:
-        if six.PY2 and type(message) == unicode:
-            message = message.encode('utf8')
         query.append('message=%s'%urllib.parse.quote(message))
-    p = urllib_parse.ParseResult(scheme='bitcoin', netloc='', path=addr, params='', query='&'.join(query), fragment='')
-    return urllib_parse.urlunparse(p)
+    p = urllib.parse.ParseResult(scheme='bitcoin', netloc='', path=addr, params='', query='&'.join(query), fragment='')
+    return urllib.parse.urlunparse(p)
 
 
 # Python bug (http://bugs.python.org/issue1927) causes raw_input
@@ -615,14 +588,9 @@ def raw_input(prompt=None):
         sys.stdout.write(prompt)
     return builtin_raw_input()
 
-if six.PY2:
-    import  __builtin__
-    builtin_raw_input = __builtin__.raw_input
-    __builtin__.raw_input = raw_input
-else:
-    import builtins
-    builtin_raw_input = builtins.input
-    builtins.input = raw_input
+import builtins
+builtin_raw_input = builtins.input
+builtins.input = raw_input
 
 
 def parse_json(message):
@@ -772,7 +740,7 @@ def check_www_dir(rdir):
         "https://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css"
     ]
     for URL in files:
-        path = urllib_parse.urlsplit(URL).path
+        path = urllib.parse.urlsplit(URL).path
         filename = os.path.basename(path)
         path = os.path.join(rdir, filename)
         if not os.path.exists(path):

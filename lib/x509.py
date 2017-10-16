@@ -27,7 +27,6 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-import six
 from datetime import datetime
 import sys
 from . import util
