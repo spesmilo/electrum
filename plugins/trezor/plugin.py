@@ -253,7 +253,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
     def show_address(self, wallet, address):
         client = self.get_client(wallet.keystore)
         if not client.atleast_version(1, 3):
-            keystore.handler.show_error(_("Your device firmware is too old"))
+            wallet.keystore.handler.show_error(_("Your device firmware is too old"))
             return
         change, index = wallet.get_address_index(address)
         derivation = wallet.keystore.derivation
