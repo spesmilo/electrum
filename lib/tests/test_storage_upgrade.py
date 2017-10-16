@@ -251,7 +251,7 @@ class TestStorageUpgrade(WalletTestCase):
         cls.electrum_path = tempfile.mkdtemp()
         config = SimpleConfig({'electrum_path': cls.electrum_path})
 
-        gui_name = 'qt'
+        gui_name = 'cmdline'
         # TODO it's probably wasteful to load all plugins... only need Trezor
         Plugins(config, True, gui_name)
 
