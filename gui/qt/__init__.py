@@ -43,7 +43,6 @@ from electrum import SimpleConfig, Wallet, WalletStorage
 from electrum.synchronizer import Synchronizer
 from electrum.verifier import SPV
 from electrum.util import DebugMem, UserCancelled, InvalidPassword
-from electrum.util import print_msg
 from electrum.wallet import Abstract_Wallet
 
 from .installwizard import InstallWizard, GoBack
@@ -181,7 +180,6 @@ class ElectrumGui:
     def start_new_window(self, path, uri):
         '''Raises the window for the wallet if it is open.  Otherwise
         opens the wallet and creates a new window for it.'''
-        print_msg("msg new window")
         for w in self.windows:
             if w.wallet.storage.path == path:
                 w.bring_to_top()
@@ -229,7 +227,6 @@ class ElectrumGui:
                 wizard.terminate()
 
     def main(self):
-        print_msg("main") 
         try:
             self.init_network()
         except UserCancelled:
@@ -246,7 +243,6 @@ class ElectrumGui:
             return
         signal.signal(signal.SIGINT, lambda *args: self.app.quit())
         # main loop
-        print_msg("main loop")
         self.app.exec_()
         # Shut down the timer cleanly
         self.timer.stop()

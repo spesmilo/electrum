@@ -293,7 +293,6 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         return pw_decode(self.xprv, password)
 
     def check_password(self, password):
-        from .util import print_msg
         xprv = pw_decode(self.xprv, password)
         if deserialize_xprv(xprv)[4] != deserialize_xpub(self.xpub)[4]:
             raise InvalidPassword()

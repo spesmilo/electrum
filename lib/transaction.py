@@ -491,6 +491,7 @@ def deserialize(raw):
 # pay & redeem scripts
 
 
+
 def multisig_script(public_keys, m):
     n = len(public_keys)
     assert n <= 15

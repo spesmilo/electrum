@@ -288,5 +288,4 @@ class Daemon(DaemonThread):
             gui_name = 'qt'
         gui = __import__('electrum_gui.' + gui_name, fromlist=['electrum_gui'])
         self.gui = gui.ElectrumGui(config, self, plugins)
-        print_msg("gonna run main")
         self.gui.main()

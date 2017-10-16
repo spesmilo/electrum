@@ -27,8 +27,6 @@ from .context_menu import ContextMenu
 
 from electrum_gui.kivy.i18n import _
 
-from kivy.logger import Logger
-import inspect
 
 class EmptyLabel(Factory.Label):
     pass
@@ -57,9 +55,6 @@ class CScreen(Factory.Screen):
         Clock.schedule_once(lambda dt: self.dispatch('on_activate'), .25)
         pass
 
-#    def update(self):
-#        Logger.info("CS - update")
-#        pass
 
     @profiler
     def load_screen(self):
@@ -498,7 +493,7 @@ class AddressScreen(CScreen):
     cards = {}
 
     def update(self):
-        Logger.info("update")
+        pass
 
     def get_card(self, addr, status):
 
@@ -526,7 +521,6 @@ class AddressScreen(CScreen):
         return ci
 
     def extended_search(self):
-        Logger.info("Address - search: " + self.screen.message)
         _list = self.app.wallet.ext_search(self.screen.message)
 
         search_list = self.screen.ids.search_container
@@ -617,7 +611,6 @@ class TabbedCarousel(Factory.TabbedPanel):
         self._current_tab = header
         # set the carousel to load  the appropriate slide
         # saved in the screen attribute of the tab head
-        Logger.info(header.slide)
         slide = carousel.slides[header.slide]
         if carousel.current_slide != slide:
             carousel.current_slide.dispatch('on_leave')

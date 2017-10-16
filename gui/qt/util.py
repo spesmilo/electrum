@@ -50,7 +50,6 @@ expiration_values = [
     (_('Never'), None)
 ]
 
-from electrum.util import print_msg
 
 class Timer(QThread):
     stopped = False
@@ -497,7 +496,6 @@ class MyTreeWidget(QTreeWidget):
                 yield x
 
     def filter(self, p):
-        print_msg('in filter')
         columns = self.__class__.filter_columns
         p = p.lower()
         self.current_filter = p
