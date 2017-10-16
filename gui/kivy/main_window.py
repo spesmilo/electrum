@@ -328,10 +328,8 @@ class ElectrumWindow(App):
             self.update_tab(tab)
 
     def switch_to(self, name):
-        Logger.info("main - swtich to")
         s = getattr(self, name + '_screen', None)
         if s is None:
-            Logger.info("junction screen to id thanks to name")
             s = self.tabs.ids[name + '_screen']
             s.load_screen()
         panel = self.tabs.ids.panel
@@ -602,7 +600,6 @@ class ElectrumWindow(App):
             self.server_host = self.network.interface.host
 
     def on_network_event(self, event, *args):
-#        Logger.info('network event: '+ event)
         if event == 'interfaces':
             self._trigger_update_interfaces()
         elif event == 'updated':
@@ -821,10 +818,8 @@ class ElectrumWindow(App):
 
     def description_dialog(self, screen):
         from .uix.dialogs.label_dialog import LabelDialog
-        Logger.info("main - description dialog")
         text = screen.message
         def callback(text):
-            Logger.info("main - description callback")
             screen.message = text
         d = LabelDialog(_('Enter description'), text, callback)
         d.open()

@@ -24,18 +24,18 @@ source.exclude_dirs = bin, build, dist, contrib, gui/qt, gui/kivy/tools, gui/kiv
 source.exclude_patterns = Makefile,setup*
 
 # (str) Application versioning (method 1)
-version.regex = version_apk = '(.*)'
-version.filename = %(source.dir)s/contrib/versions.py
+#version.regex = version_apk = '(.*)'
+#version.filename = %(source.dir)s/contrib/versions.py
 
 # (str) Application versioning (method 2)
-#version = 1.9.8
+version = 1.9.8
 
 # (list) Application requirements
 requirements = python3crystax, android, openssl, plyer, kivy==master
 
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
-presplash.filename = %(source.dir)s/icons/electrum_presplash.png
+presplash.filename = %(source.dir)s/icons/electrum.png
 
 # (str) Icon of the application
 #icon.filename = %(source.dir)s/icons/electrum_android_launcher_icon.png
@@ -55,13 +55,13 @@ fullscreen = False
 # (list) Permissions
 android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
 # (int) Android API to use
-#android.api = 14
+android.api = 19
 
 # (int) Minimum API required (8 = Android 2.2 devices)
-#android.minapi = 8
+android.minapi = 8
 
 # (int) Android SDK version to use
-#android.sdk = 21
+android.sdk = 20
 
 # (str) Android NDK version to use
 #android.ndk = 9
@@ -70,7 +70,7 @@ android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
 android.private_storage = True
 
 # (str) Android NDK directory (if empty, it will be automatically downloaded.)
-android.ndk_path = /opt/crystax-ndk-10.3.2
+android.ndk_path = /home/user/.buildozer/android/platform/crystax-ndk-10.3.2
 
 # (str) Android SDK directory (if empty, it will be automatically downloaded.)
 #android.sdk_path =
@@ -104,7 +104,7 @@ android.ndk_path = /opt/crystax-ndk-10.3.2
 android.manifest.intent_filters = gui/kivy/tools/bitcoin_intent.xml
 
 # (list) Android additionnal libraries to copy into libs/armeabi
-#android.add_libs_armeabi = lib/android/*.so
+	#android.add_libs_armeabi = lib/android/*.so
 
 # (bool) Indicate whether the screen should stay on
 # Don't forget to add the WAKE_LOCK permission if you set this to True
@@ -119,8 +119,10 @@ android.manifest.intent_filters = gui/kivy/tools/bitcoin_intent.xml
 
 android.whitelist = lib-dynload/_csv.so
 
+p4a.source_dir = /home/user/.local/bin
+
 # local version that merges branch 866
-p4a.source_dir = /opt/python-for-android
+#android.p4a_dir = /opt/python-for-android
 
 #
 # iOS specific
@@ -136,6 +138,8 @@ p4a.source_dir = /opt/python-for-android
 
 
 [buildozer]
+
+build_dir = build/buildozer-myapp
 
 # (int) Log level (0 = error only, 1 = info, 2 = debug (with command output))
 log_level = 2

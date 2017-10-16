@@ -192,9 +192,10 @@
 
 <AddressFilter@GridLayout>
 	item_height: dp(42)
+	item_width: dp(60)
 	foreground_color: .843, .914, .972, 1
 	cols: 1
-	padding: '12dp', 0
+	#padding: '12dp', 0
 	canvas.before:
 		Color:
 			rgba: 0.192, .498, 0.745, 1
@@ -264,8 +265,10 @@
 
 <AddressButton@Button>:
 	background_color: 1, .585, .878, 0
-	halign: 'left'
-	text_size: (self.width-10, None)
+	halign: 'center'
+	text_size: (self.width, None)
+	font_size: '10dp'
+	shorten: True
 	size_hint: 0.5, None
 	default_text: ''
 	text: self.default_text
@@ -382,9 +385,6 @@
         ReceiveScreen:
             id: receive_screen
             tab: receive_tab
-        RequestsScreen:
-            id: requests_screen
-            tab: requests_tab
         AddressScreen:
             id: address_screen
             tab: address_tab
@@ -405,13 +405,9 @@
             text: _('Receive')
             slide: 3
         CleanHeader:
-            id: requests_tab
-            text: _('Requests')
-            slide: 4
-        CleanHeader:
             id: address_tab
             text: _('Address')
-            slide: 5
+            slide: 4
 
 
 <ActionOvrButton@ActionButton>
