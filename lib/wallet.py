@@ -1365,7 +1365,6 @@ class Simple_Wallet(Abstract_Wallet):
         self.storage.put('keystore', self.keystore.dump())
 
 
-<<<<<<< HEAD
     def addr_search(self, search):
 
         def get_addr_new(self):
