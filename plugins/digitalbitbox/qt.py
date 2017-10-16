@@ -1,4 +1,4 @@
-from PyQt4.Qt import (QInputDialog, QLineEdit)
+from PyQt5.QtWidgets import (QInputDialog, QLineEdit)
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from .digitalbitbox import DigitalBitboxPlugin
 

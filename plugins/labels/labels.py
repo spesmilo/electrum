@@ -47,6 +47,8 @@ class LabelsPlugin(BasePlugin):
     def set_label(self, wallet, item, label):
         if not wallet in self.wallets:
             return
+        if not item:
+            return
         nonce = self.get_nonce(wallet)
         wallet_id = self.wallets[wallet][2]
         bundle = {"walletId": wallet_id,
@@ -133,9 +135,10 @@ class LabelsPlugin(BasePlugin):
     def start_wallet(self, wallet):
         nonce = self.get_nonce(wallet)
         self.print_error("wallet", wallet.basename(), "nonce is", nonce)
-        mpk = wallet.get_fingerprint().encode('ascii')
+        mpk = wallet.get_fingerprint()
         if not mpk:
             return
+        mpk = mpk.encode('ascii')
         password = hashlib.sha1(mpk).hexdigest()[:32].encode('ascii')
         iv = hashlib.sha256(password).digest()[:16]
         wallet_id = hashlib.sha256(mpk).hexdigest()

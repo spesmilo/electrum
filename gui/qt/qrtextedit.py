@@ -6,10 +6,11 @@ from __future__ import unicode_literals
 import six
 from electrum.i18n import _
 from electrum.plugins import run_hook
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import QFileDialog
 
-from .util import ButtonsTextEdit, MessageBoxMixin
+from .util import ButtonsTextEdit, MessageBoxMixin, ColorScheme
 
 
 class ShowQRTextEdit(ButtonsTextEdit):
@@ -41,11 +42,12 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
         ButtonsTextEdit.__init__(self, text)
         self.setReadOnly(0)
         self.addButton(":icons/file.png", self.file_input, _("Read file"))
-        self.addButton(":icons/qrcode.png", self.qr_input, _("Read QR code"))
+        icon = ":icons/qrcode_white.png" if ColorScheme.dark_scheme else ":icons/qrcode.png"
+        self.addButton(icon, self.qr_input, _("Read QR code"))
         run_hook('scan_text_edit', self)
 
     def file_input(self):
-        fileName = QFileDialog.getOpenFileName(self, 'select file')
+        fileName, __ = QFileDialog.getOpenFileName(self, 'select file')
         if not fileName:
             return
         with open(fileName, "r") as f:

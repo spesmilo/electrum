@@ -29,6 +29,7 @@ from __future__ import unicode_literals
 import time
 import queue
 import os
+import stat
 import errno
 import sys
 import random
@@ -205,6 +206,7 @@ class Network(util.DaemonThread):
         dir_path = os.path.join( self.config.path, 'certs')
         if not os.path.exists(dir_path):
             os.mkdir(dir_path)
+            os.chmod(dir_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
         # subscriptions and requests
         self.subscribed_addresses = set()
@@ -317,6 +319,9 @@ class Network(util.DaemonThread):
         for i in bitcoin.FEE_TARGETS:
             self.queue_request('blockchain.estimatefee', [i])
         self.queue_request('blockchain.relayfee', [])
+        if self.interface.ping_required():
+            params = [ELECTRUM_VERSION, PROTOCOL_VERSION]
+            self.queue_request('server.version', params, self.interface)
         for h in self.subscribed_addresses:
             self.queue_request('blockchain.scripthash.subscribe', [h])
 
@@ -616,10 +621,11 @@ class Network(util.DaemonThread):
 
     def overload_cb(self, callback):
         def cb2(x):
-            p = x.pop('params')
+            x2 = x.copy()
+            p = x2.pop('params')
             addr = self.h2addr[p[0]]
-            x['params'] = [addr]
-            callback(x)
+            x2['params'] = [addr]
+            callback(x2)
         return cb2
 
     def subscribe_to_addresses(self, addresses, callback):
@@ -982,6 +988,7 @@ class Network(util.DaemonThread):
         if b:
             interface.blockchain = b
             self.switch_lagging_interface()
+            self.notify('updated')
             self.notify('interfaces')
             return
         b = blockchain.can_connect(header)
@@ -1014,7 +1021,7 @@ class Network(util.DaemonThread):
     def get_blockchains(self):
         out = {}
         for k, b in self.blockchains.items():
-            r = list(filter(lambda i: i.blockchain==b, self.interfaces.values()))
+            r = list(filter(lambda i: i.blockchain==b, list(self.interfaces.values())))
             if r:
                 out[k] = r
         return out

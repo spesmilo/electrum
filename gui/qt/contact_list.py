@@ -35,8 +35,10 @@ from electrum.bitcoin import is_address
 from electrum.util import block_explorer_URL, format_satoshis, format_time, age
 from electrum.plugins import run_hook
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import (
+    QAbstractItemView, QFileDialog, QMenu, QTreeWidgetItem)
 from .util import MyTreeWidget, pr_tooltips, pr_icons
 
 
@@ -59,7 +61,7 @@ class ContactList(MyTreeWidget):
 
     def import_contacts(self):
         wallet_folder = self.parent.get_wallet_folder()
-        filename = QFileDialog.getOpenFileName(self.parent, "Select your wallet file", wallet_folder)
+        filename, __ = QFileDialog.getOpenFileName(self.parent, "Select your wallet file", wallet_folder)
         if not filename:
             return
         self.parent.contacts.import_file(filename)
@@ -79,6 +81,7 @@ class ContactList(MyTreeWidget):
             column_data = '\n'.join([item.text(column) for item in selected])
             menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(column_data))
             if column in self.editable_columns:
+                item = self.currentItem()
                 menu.addAction(_("Edit %s")%column_title, lambda: self.editItem(item, column))
             menu.addAction(_("Pay to"), lambda: self.parent.payto_contacts(keys))
             menu.addAction(_("Delete"), lambda: self.parent.delete_contacts(keys))

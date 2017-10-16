@@ -28,8 +28,9 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import six
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import QCompleter, QPlainTextEdit
 from .qrtextedit import ScanQRTextEdit
 
 import re
@@ -72,10 +73,10 @@ class PayToEdit(ScanQRTextEdit):
             button.setHidden(b)
 
     def setGreen(self):
-        self.setStyleSheet(util.GREEN_BG)
+        self.setStyleSheet(util.ColorScheme.GREEN.as_stylesheet(True))
 
     def setExpired(self):
-        self.setStyleSheet(util.RED_BG)
+        self.setStyleSheet(util.ColorScheme.RED.as_stylesheet(True))
 
     def parse_address_and_amount(self, line):
         x, y = line.split(',')
@@ -209,10 +210,10 @@ class PayToEdit(ScanQRTextEdit):
         if self.c.widget() != self:
             return
         tc = self.textCursor()
-        extra = completion.length() - self.c.completionPrefix().length()
+        extra = len(completion) - len(self.c.completionPrefix())
         tc.movePosition(QTextCursor.Left)
         tc.movePosition(QTextCursor.EndOfWord)
-        tc.insertText(completion.right(extra))
+        tc.insertText(completion[-extra:])
         self.setTextCursor(tc)
 
 

@@ -30,9 +30,9 @@ from __future__ import unicode_literals
 import six
 from electrum.i18n import _
 
-import PyQt4
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
+import PyQt5
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
 
 from .util import *
 from .history_list import HistoryList
@@ -57,7 +57,8 @@ class AddressDialog(WindowModalDialog):
         vbox.addWidget(QLabel(_("Address:")))
         self.addr_e = ButtonsLineEdit(self.address)
         self.addr_e.addCopyButton(self.app)
-        self.addr_e.addButton(":icons/qrcode.png", self.show_qr, _("Show QR Code"))
+        icon = ":icons/qrcode_white.png" if ColorScheme.dark_scheme else ":icons/qrcode.png"
+        self.addr_e.addButton(icon, self.show_qr, _("Show QR Code"))
         self.addr_e.setReadOnly(True)
         vbox.addWidget(self.addr_e)
 

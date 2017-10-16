@@ -7,6 +7,7 @@ import ast
 import json
 import threading
 import os
+import stat
 
 from copy import deepcopy
 from .util import user_dir, print_error, print_msg, print_stderr, PrintError
@@ -96,6 +97,7 @@ class SimpleConfig(PrintError):
             if os.path.islink(path):
                 raise BaseException('Dangling link: ' + path)
             os.mkdir(path)
+            os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
         self.print_error("electrum directory", path)
         return path
@@ -148,9 +150,7 @@ class SimpleConfig(PrintError):
         f = open(path, "w")
         f.write(s)
         f.close()
-        if 'ANDROID_DATA' not in os.environ:
-            import stat
-            os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
+        os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
 
     def get_wallet_path(self):
         """Set the path of the wallet."""
@@ -170,6 +170,7 @@ class SimpleConfig(PrintError):
             if os.path.islink(dirpath):
                 raise BaseException('Dangling link: ' + dirpath)
             os.mkdir(dirpath)
+            os.chmod(dirpath, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
         new_path = os.path.join(self.path, "wallets", "default_wallet")
 

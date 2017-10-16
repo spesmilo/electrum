@@ -90,7 +90,7 @@ class ExchangeBase(PrintError):
 
     def get_currencies(self):
         rates = self.get_rates('')
-        return sorted([str(a) for (a, b) in rates.iteritems() if b is not None and len(a)==3])
+        return sorted([str(a) for (a, b) in rates.items() if b is not None and len(a)==3])
 
 
 class BitcoinAverage(ExchangeBase):
@@ -185,17 +185,6 @@ class BTCChina(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('data.btcchina.com', '/data/ticker')
         return {'CNY': Decimal(json['ticker']['last'])}
-
-
-class BTCe(ExchangeBase):
-
-    def get_rates(self, ccy):
-        json_eur = self.get_json('btc-e.nz', '/api/3/ticker/btc_eur')
-        json_rub = self.get_json('btc-e.nz', '/api/3/ticker/btc_rur')
-        json_usd = self.get_json('btc-e.nz', '/api/3/ticker/btc_usd')
-        return {'EUR': Decimal(json_eur['btc_eur']['last']),
-                'RUB': Decimal(json_rub['btc_rur']['last']),
-                'USD': Decimal(json_usd['btc_usd']['last'])}
 
 
 class BTCParalelo(ExchangeBase):
@@ -308,6 +297,17 @@ class Unocoin(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('www.unocoin.com', 'trade?buy')
         return {'INR': Decimal(json)}
+
+
+class WEX(ExchangeBase):
+
+    def get_rates(self, ccy):
+        json_eur = self.get_json('wex.nz', '/api/3/ticker/btc_eur')
+        json_rub = self.get_json('wex.nz', '/api/3/ticker/btc_rur')
+        json_usd = self.get_json('wex.nz', '/api/3/ticker/btc_usd')
+        return {'EUR': Decimal(json_eur['btc_eur']['last']),
+                'RUB': Decimal(json_rub['btc_rur']['last']),
+                'USD': Decimal(json_usd['btc_usd']['last'])}
 
 
 class Winkdex(ExchangeBase):

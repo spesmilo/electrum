@@ -6,7 +6,7 @@ from binascii import hexlify, unhexlify
 from functools import partial
 
 from electrum.util import bfh, bh2u
-from electrum.bitcoin import (b58_address_to_hash160, xpub_from_pubkey,
+from electrum.bitcoin import (is_segwit_address, b58_address_to_hash160, xpub_from_pubkey,
                               public_key_to_p2pkh, EncodeBase58Check,
                               TYPE_ADDRESS, TYPE_SCRIPT,
                               TESTNET, ADDRTYPE_P2PKH, ADDRTYPE_P2SH)
@@ -253,7 +253,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
     def show_address(self, wallet, address):
         client = self.get_client(wallet.keystore)
         if not client.atleast_version(1, 3):
-            keystore.handler.show_error(_("Your device firmware is too old"))
+            wallet.keystore.handler.show_error(_("Your device firmware is too old"))
             return
         change, index = wallet.get_address_index(address)
         derivation = wallet.keystore.derivation
@@ -365,13 +365,16 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                     txoutputtype.script_type = self.types.PAYTOOPRETURN
                     txoutputtype.op_return_data = address[2:]
                 elif _type == TYPE_ADDRESS:
-                    addrtype, hash_160 = b58_address_to_hash160(address)
-                    if addrtype == ADDRTYPE_P2PKH:
-                        txoutputtype.script_type = self.types.PAYTOADDRESS
-                    elif addrtype == ADDRTYPE_P2SH:
-                        txoutputtype.script_type = self.types.PAYTOSCRIPTHASH
+                    if is_segwit_address(address):
+                        txoutputtype.script_type = self.types.PAYTOWITNESS
                     else:
-                        raise BaseException('addrtype')
+                        addrtype, hash_160 = b58_address_to_hash160(address)
+                        if addrtype == ADDRTYPE_P2PKH:
+                            txoutputtype.script_type = self.types.PAYTOADDRESS
+                        elif addrtype == ADDRTYPE_P2SH:
+                            txoutputtype.script_type = self.types.PAYTOSCRIPTHASH
+                        else:
+                            raise BaseException('addrtype')
                     txoutputtype.address = address
 
             outputs.append(txoutputtype)

@@ -134,7 +134,7 @@ class DigitalBitbox_Client():
                     "You cannot access your coins or a backup without the password.\r\n" \
                     "A backup is saved automatically when generating a new wallet.")
             if self.password_dialog(msg):
-                reply = self.hid_send_plain(b'{"password":"' + self.password + '"}')
+                reply = self.hid_send_plain(b'{"password":"' + self.password + b'"}')
             else:
                 return False
 
@@ -210,7 +210,7 @@ class DigitalBitbox_Client():
 
     def dbb_generate_wallet(self):
         key = self.stretch_key(self.password)
-        filename = b"Electrum-" + time.strftime("%Y-%m-%d-%H-%M-%S") + ".pdf"
+        filename = ("Electrum-" + time.strftime("%Y-%m-%d-%H-%M-%S") + ".pdf").encode('utf8')
         msg = b'{"seed":{"source": "create", "key": "%s", "filename": "%s", "entropy": "%s"}}' % (key, filename, b'Digital Bitbox Electrum Plugin')
         reply = self.hid_send_encrypt(msg)
         if 'error' in reply:
