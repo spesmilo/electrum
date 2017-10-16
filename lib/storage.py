@@ -257,9 +257,10 @@ class WalletStorage(PrintError):
         self.convert_imported()
         self.convert_wallet_type()
         self.convert_account()
+        self.convert_version_13_b()
         self.convert_version_14()
 
-        self.put('seed_version', FINAL_SEED_VERSION)
+        self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
         self.write()
 
     def convert_wallet_type(self):
@@ -348,10 +349,35 @@ class WalletStorage(PrintError):
         self.put('keypairs', None)
         self.put('key_type', None)
 
+    def convert_version_13_b(self):
+        # version 13 is ambiguous, and has an earlier and a later structure
+        if not self._is_upgrade_method_needed(0, 13):
+            return
+
+        if self.get('wallet_type') == 'standard':
+            if self.get('keystore').get('type') == 'imported':
+                pubkeys = self.get('keystore').get('keypairs').keys()
+                if self.get('pubkeys'):
+                    pubkeys2 = set(self.get('pubkeys').get('receiving'))
+                    assert len(pubkeys) == len(pubkeys2)
+                    for pubkey in pubkeys:
+                        assert pubkey in pubkeys2
+                d = {'change': []}
+                receiving_addresses = []
+                for pubkey in pubkeys:
+                    addr = bitcoin.pubkey_to_address('p2pkh', pubkey)
+                    receiving_addresses.append(addr)
+                d['receiving'] = receiving_addresses
+                self.put('addresses', d)
+                self.put('pubkeys', None)
+
+        self.put('seed_version', 13)
+
     def convert_version_14(self):
         # convert imported wallets for 3.0
-        if self.get_seed_version() >= 14:
+        if not self._is_upgrade_method_needed(13, 13):
             return
+
         if self.get('wallet_type') =='imported':
             addresses = self.get('addresses')
             if type(addresses) is list:
@@ -374,6 +400,8 @@ class WalletStorage(PrintError):
                 self.put('addresses', d)
                 self.put('pubkeys', None)
                 self.put('wallet_type', 'imported')
+
+        self.put('seed_version', 14)
 
     def convert_imported(self):
         # '/x' is the internal ID for imported accounts
@@ -403,6 +431,17 @@ class WalletStorage(PrintError):
 
     def convert_account(self):
         self.put('accounts', None)
+
+    def _is_upgrade_method_needed(self, min_version, max_version):
+        cur_version = self.get_seed_version()
+        if cur_version > max_version:
+            return False
+        elif cur_version < min_version:
+            raise BaseException(
+                ('storage upgrade: unexpected version %d (should be %d-%d)'
+                 % (cur_version, min_version, max_version)))
+        else:
+            return True
 
     def get_action(self):
         action = run_hook('get_action', self)
