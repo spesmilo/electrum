@@ -55,6 +55,8 @@ class CScreen(Factory.Screen):
         Clock.schedule_once(lambda dt: self.dispatch('on_activate'), .25)
         pass
 
+    def update(self):
+        pass
 
     @profiler
     def load_screen(self):
