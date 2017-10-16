@@ -213,7 +213,7 @@ class QtPlugin(QtPluginBase):
         vbox.addLayout(hl)
 
         def clean_text(widget):
-            text = unicode(widget.toPlainText()).strip()
+            text = widget.toPlainText().strip()
             return ' '.join(text.split())
 
         if method in [TIM_NEW, TIM_RECOVER]:
@@ -281,7 +281,7 @@ class QtPlugin(QtPluginBase):
             item = ' '.join(str(clean_text(text)).split())
             pin = str(pin.text())
 
-        return (item, unicode(name.text()), pin, cb_phrase.isChecked())
+        return (item, name.text(), pin, cb_phrase.isChecked())
 
 
 
@@ -352,7 +352,7 @@ class SettingsDialog(WindowModalDialog):
             label_apply.setEnabled(label_edit.text() != self.features.label)
 
         def rename():
-            invoke_client('change_label', unicode(label_edit.text()))
+            invoke_client('change_label', label_edit.text())
 
         def toggle_passphrase():
             title = _("Confirm Toggle Passphrase Protection")
