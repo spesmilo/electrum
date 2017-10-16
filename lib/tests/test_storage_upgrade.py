@@ -1,3 +1,6 @@
+import shutil
+import tempfile
+
 from lib.storage import WalletStorage
 from lib.wallet import Wallet
 
@@ -241,12 +244,21 @@ class TestStorageUpgrade(WalletTestCase):
 
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         from lib.plugins import Plugins
         from lib.simple_config import SimpleConfig
-        config = SimpleConfig()
+
+        cls.electrum_path = tempfile.mkdtemp()
+        config = SimpleConfig({'electrum_path': cls.electrum_path})
+
         gui_name = 'qt'
         # TODO it's probably wasteful to load all plugins... only need Trezor
         Plugins(config, True, gui_name)
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.electrum_path)
 
     def _upgrade_storage(self, wallet_json, accounts=1):
         storage = self._load_storage_from_json_string(wallet_json, manual_upgrades=True)
