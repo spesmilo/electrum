@@ -229,7 +229,7 @@ class TrezorClientBase(GuiMixin, PrintError):
 
     @staticmethod
     def wrap_methods(cls):
-        for method in ['apply_settings', 'change_pin', 'decrypt_message',
+        for method in ['apply_settings', 'change_pin',
                        'get_address', 'get_public_node',
                        'load_device_by_mnemonic', 'load_device_by_xprv',
                        'recovery_device', 'reset_device', 'sign_message',

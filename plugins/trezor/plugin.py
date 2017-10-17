@@ -29,14 +29,7 @@ class TrezorCompatibleKeyStore(Hardware_KeyStore):
         return self.plugin.get_client(self, force_pair)
 
     def decrypt_message(self, sequence, message, password):
-        raise RuntimeError(_('Electrum and %s encryption and decryption are currently incompatible') % self.device)
-        client = self.get_client()
-        address_path = self.get_derivation() + "/%d/%d"%sequence
-        address_n = client.expand_path(address_path)
-        payload = base64.b64decode(message)
-        nonce, message, msg_hmac = payload[:33], payload[33:-8], payload[-8:]
-        result = client.decrypt_message(address_n, nonce, message, msg_hmac)
-        return result.message
+        raise RuntimeError(_('Encryption and decryption are not implemented by %s') % self.device)
 
     def sign_message(self, sequence, message, password):
         client = self.get_client()
@@ -55,7 +48,7 @@ class TrezorCompatibleKeyStore(Hardware_KeyStore):
         for txin in tx.inputs():
             pubkeys, x_pubkeys = tx.get_sorted_pubkeys(txin)
             tx_hash = txin['prevout_hash']
-            prev_tx[tx_hash] = txin['prev_tx'] 
+            prev_tx[tx_hash] = txin['prev_tx']
             for x_pubkey in x_pubkeys:
                 if not is_xpubkey(x_pubkey):
                     continue
@@ -96,7 +89,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             # raise
             self.print_error("cannot connect at", device.path, str(e))
             return None
- 
+
     def _try_bridge(self, device):
         self.print_error("Trying to connect over Trezor Bridge...")
         try:
