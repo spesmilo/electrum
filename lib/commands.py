@@ -130,7 +130,7 @@ class Commands:
         return ' '.join(sorted(known_commands.keys()))
 
     @command('')
-    def create(self):
+    def create(self, segwit=False):
         """Create a new wallet"""
         raise BaseException('Not a JSON-RPC command')
 
