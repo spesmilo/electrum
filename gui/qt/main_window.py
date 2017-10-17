@@ -104,6 +104,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     show_privkeys_signal = pyqtSignal()
 
     def __init__(self, gui_object, wallet):
+
         QMainWindow.__init__(self)
 
         self.gui_object = gui_object

@@ -7,7 +7,7 @@
 
 
 ReceiveScreen:
-    id: s
+    id: recv_screen
     name: 'receive'
 
     address: ''
@@ -68,7 +68,7 @@ ReceiveScreen:
                     pos_hint: {'center_y': .5}
                 BlueButton:
                     id: address_label
-                    text: s.address if s.address else _('Bitcoin Address')
+                    text: recv_screen.address if recv_screen.address else _('Bitcoin Address')
                     shorten: True
                     disabled: True
             CardSeparator:
@@ -87,8 +87,8 @@ ReceiveScreen:
                 BlueButton:
                     id: amount_label
                     default_text: _('Amount')
-                    text: s.amount if s.amount else _('Amount')
-                    on_release: Clock.schedule_once(lambda dt: app.amount_dialog(s, False))
+                    text: recv_screen.amount if recv_screen.amount else _('Amount')
+                    on_release: Clock.schedule_once(lambda dt: app.amount_dialog(recv_screen, False))
             CardSeparator:
                 opacity: message_selection.opacity
                 color: blue_bottom.foreground_color
@@ -105,8 +105,8 @@ ReceiveScreen:
                     pos_hint: {'center_y': .5}
                 BlueButton:
                     id: description
-                    text: s.message if s.message else _('Description')
-                    on_release: Clock.schedule_once(lambda dt: app.description_dialog(s))
+                    text: recv_screen.message if recv_screen.message else _('Description')
+                    on_release: Clock.schedule_once(lambda dt: app.description_dialog(recv_screen))
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
@@ -114,14 +114,14 @@ ReceiveScreen:
                 text: _('Copy')
                 size_hint: 1, None
                 height: '48dp'
-                on_release: s.parent.do_copy()
+                on_release: recv_screen.parent.do_copy()
             Button:
                 text: _('Share')
                 size_hint: 1, None
                 height: '48dp'
-                on_release: s.parent.do_share()
+                on_release: recv_screen.parent.do_share()
             Button:
                 text: _('New')
                 size_hint: 1, None
                 height: '48dp'
-                on_release: Clock.schedule_once(lambda dt: s.parent.do_new())
+                on_release: Clock.schedule_once(lambda dt: recv_screen.parent.do_new())
