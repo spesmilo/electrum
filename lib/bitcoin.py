@@ -121,7 +121,7 @@ def aes_encrypt_with_iv(key, iv, data):
         padlen = 16 - (len(data) % 16)
         if padlen == 0:
             padlen = 16
-        data += chr(padlen) * padlen
+        data += bytes([padlen]) * padlen
         e = AES.new(key, AES.MODE_CBC, iv).encrypt(data)
         return e
     else:
@@ -135,9 +135,9 @@ def aes_decrypt_with_iv(key, iv, data):
     if AES:
         cipher = AES.new(key, AES.MODE_CBC, iv)
         data = cipher.decrypt(data)
-        padlen = ord(data[-1])
+        padlen = data[-1]
         for i in data[-padlen:]:
-            if ord(i) != padlen:
+            if i != padlen:
                 raise InvalidPassword()
         return data[0:-padlen]
     else:
@@ -149,9 +149,6 @@ def aes_decrypt_with_iv(key, iv, data):
 def EncodeAES(secret, s):
     assert_bytes(s)
     iv = bytes(os.urandom(16))
-    # aes_cbc = pyaes.AESModeOfOperationCBC(secret, iv=iv)
-    # aes = pyaes.Encrypter(aes_cbc)
-    # e = iv + aes.feed(s) + aes.feed()
     ct = aes_encrypt_with_iv(secret, iv, s)
     e = iv + ct
     return base64.b64encode(e)
@@ -159,9 +156,6 @@ def EncodeAES(secret, s):
 def DecodeAES(secret, e):
     e = bytes(base64.b64decode(e))
     iv, e = e[:16], e[16:]
-    # aes_cbc = pyaes.AESModeOfOperationCBC(secret, iv=iv)
-    # aes = pyaes.Decrypter(aes_cbc)
-    # s = aes.feed(e) + aes.feed()
     s = aes_decrypt_with_iv(secret, iv, e)
     return s
 

@@ -46,7 +46,7 @@ $PYTHON -m pip install pypiwin32
 $PYTHON -m pip install PyQt5
 
 # Install pyinstaller
-$PYTHON -m pip install pyinstaller==3.2.1
+$PYTHON -m pip install pyinstaller==3.3
 
 # Install ZBar
 #wget -q -O zbar.exe "http://sourceforge.net/projects/zbar/files/zbar/0.10/zbar-0.10-setup.exe/download"

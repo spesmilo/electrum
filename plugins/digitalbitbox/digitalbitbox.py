@@ -5,7 +5,8 @@
 
 try:
     import electrum_ltc as electrum
-    from electrum_ltc.bitcoin import TYPE_ADDRESS, var_int, msg_magic, Hash, verify_message, pubkey_from_signature, point_to_ser, public_key_to_p2pkh, EncodeAES, DecodeAES, MyVerifyingKey
+    from electrum_ltc.bitcoin import TYPE_ADDRESS, push_script, var_int, msg_magic, Hash, verify_message, pubkey_from_signature, point_to_ser, public_key_to_p2pkh, EncodeAES, DecodeAES, MyVerifyingKey
+    from electrum_ltc.transaction import Transaction
     from electrum_ltc.i18n import _
     from electrum_ltc.keystore import Hardware_KeyStore
     from ..hw_wallet import HW_PluginBase
@@ -18,6 +19,10 @@ try:
     import binascii
     import struct
     import hashlib
+    import requests
+    import base64
+    import os
+    import sys
     from ecdsa.ecdsa import generator_secp256k1
     from ecdsa.util import sigencode_der
     from ecdsa.curves import SECP256k1
@@ -36,7 +41,8 @@ def to_hexstr(s):
 
 class DigitalBitbox_Client():
 
-    def __init__(self, hidDevice):
+    def __init__(self, plugin, hidDevice):
+        self.plugin = plugin
         self.dbb_hid = hidDevice
         self.opened = True
         self.password = None
@@ -73,13 +79,15 @@ class DigitalBitbox_Client():
     def is_paired(self):
         return self.password is not None
 
+    def _get_xpub(self, bip32_path):
+        if self.check_device_dialog():
+            return self.hid_send_encrypt(b'{"xpub": "%s"}' % bip32_path.encode('utf8'))
+
 
     def get_xpub(self, bip32_path):
-        if self.check_device_dialog():
-            msg = b'{"xpub": "%s"}' % bip32_path.encode('utf8')
-            reply = self.hid_send_encrypt(msg)
+        reply = self._get_xpub(bip32_path)
+        if reply:
             return reply['xpub']
-        return None
 
 
     def dbb_has_password(self):
@@ -165,7 +173,7 @@ class DigitalBitbox_Client():
                 self.recover_or_erase_dialog() # Already seeded
             else:
                 self.seed_device_dialog() # Seed if not initialized
-
+            self.mobile_pairing_dialog()
         return self.isInitialized
 
 
@@ -186,7 +194,9 @@ class DigitalBitbox_Client():
             if not self.dbb_load_backup():
                 return
         else:
-            pass # Use existing seed
+            if self.hid_send_encrypt(b'{"device":"info"}')['device']['lock']:
+                raise Exception("Full 2FA enabled. This is not supported yet.")
+            # Use existing seed
         self.isInitialized = True
 
 
@@ -207,6 +217,45 @@ class DigitalBitbox_Client():
                 return
         self.isInitialized = True
 
+    def mobile_pairing_dialog(self):
+        dbb_user_dir = None
+        if sys.platform == 'darwin':
+            dbb_user_dir = os.path.join(os.environ.get("HOME", ""), "Library", "Application Support", "DBB")
+        elif sys.platform == 'win32':
+            dbb_user_dir = os.path.join(os.environ["APPDATA"], "DBB")
+        else:
+            dbb_user_dir = os.path.join(os.environ["HOME"], ".dbb")
+
+        if not dbb_user_dir:
+            return
+
+        try:
+            with open(os.path.join(dbb_user_dir, "config.dat")) as f:
+                dbb_config = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return
+
+        if 'encryptionprivkey' not in dbb_config or 'comserverchannelid' not in dbb_config:
+            return
+
+        choices = [
+            _('Do not pair'),
+            _('Import pairing from the digital bitbox desktop app'),
+        ]
+        try:
+            reply = self.handler.win.query_choice(_('Mobile pairing options'), choices)
+        except Exception:
+            return # Back button pushed
+
+        if reply == 0:
+            if self.plugin.is_mobile_paired():
+                del self.plugin.digitalbitbox_config['encryptionprivkey']
+                del self.plugin.digitalbitbox_config['comserverchannelid']
+        elif reply == 1:
+            # import pairing from dbb app
+            self.plugin.digitalbitbox_config['encryptionprivkey'] = dbb_config['encryptionprivkey']
+            self.plugin.digitalbitbox_config['comserverchannelid'] = dbb_config['comserverchannelid']
+        self.plugin.config.set_key('digitalbitbox', self.plugin.digitalbitbox_config)
 
     def dbb_generate_wallet(self):
         key = self.stretch_key(self.password)
@@ -452,17 +501,28 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     if txinput['type'] != 'p2sh':
                         self.give_error("P2SH / regular input mixed in same transaction not supported") # should never happen
 
-            # Build pubkeyarray from outputs (unused because echo for smart verification not implemented)
-            if not p2shTransaction:
-                for _type, address, amount in tx.outputs():
-                    assert _type == TYPE_ADDRESS
-                    info = tx.output_info.get(address)
-                    if info is not None:
-                        index, xpubs, m = info
-                        changePath = self.get_derivation() + "/%d/%d" % index
-                        changePubkey = self.derive_pubkey(index[0], index[1])
-                        pubkeyarray_i = {'pubkey': changePubkey, 'keypath': changePath}
-                        pubkeyarray.append(pubkeyarray_i)
+            # Build pubkeyarray from outputs
+            for _type, address, amount in tx.outputs():
+                assert _type == TYPE_ADDRESS
+                info = tx.output_info.get(address)
+                if info is not None:
+                    index, xpubs, m = info
+                    changePath = self.get_derivation() + "/%d/%d" % index
+                    changePubkey = self.derive_pubkey(index[0], index[1])
+                    pubkeyarray_i = {'pubkey': changePubkey, 'keypath': changePath}
+                    pubkeyarray.append(pubkeyarray_i)
+
+            # Special serialization of the unsigned transaction for
+            # the mobile verification app.
+            class CustomTXSerialization(Transaction):
+                @classmethod
+                def input_script(self, txin, estimate_size=False):
+                    if txin['type'] == 'p2pkh':
+                        return Transaction.get_preimage_script(txin)
+                    if txin['type'] == 'p2sh':
+                        return '00' + push_script(Transaction.get_preimage_script(txin))
+                    raise Exception("unsupported type %s" % txin['type'])
+            tx_dbb_serialized = CustomTXSerialization(tx.serialize()).serialize()
 
             # Build sign command
             dbb_signatures = []
@@ -471,8 +531,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 hashes = hasharray[step * self.maxInputs : (step + 1) * self.maxInputs]
 
                 msg = ('{"sign": {"meta":"%s", "data":%s, "checkpub":%s} }' % \
-                       (to_hexstr(Hash(tx.serialize())), json.dumps(hashes), json.dumps(pubkeyarray))).encode('utf8')
-
+                       (to_hexstr(Hash(tx_dbb_serialized)), json.dumps(hashes), json.dumps(pubkeyarray))).encode('utf8')
                 dbb_client = self.plugin.get_client(self)
 
                 if not dbb_client.is_paired():
@@ -485,6 +544,11 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 if 'echo' not in reply:
                     raise Exception("Could not sign transaction.")
 
+                # multisig verification not working correctly yet
+                if self.plugin.is_mobile_paired() and not p2shTransaction:
+                    reply['tx'] = tx_dbb_serialized
+                    self.plugin.comserver_post_notification(reply)
+
                 if steps > 1:
                     self.handler.show_message(_("Signing large transaction. Please be patient ...\r\n\r\n" \
                                                 "To continue, touch the Digital Bitbox's blinking light for 3 seconds. " \
@@ -495,7 +559,8 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                                                 "To continue, touch the Digital Bitbox's blinking light for 3 seconds.\r\n\r\n" \
                                                 "To cancel, briefly touch the blinking light or wait for the timeout."))
 
-                reply = dbb_client.hid_send_encrypt(msg) # Send twice, first returns an echo for smart verification (not implemented)
+                # Send twice, first returns an echo for smart verification
+                reply = dbb_client.hid_send_encrypt(msg)
                 self.handler.clear_dialog()
 
                 if 'error' in reply:
@@ -555,6 +620,8 @@ class DigitalBitboxPlugin(HW_PluginBase):
         if self.libraries_available:
             self.device_manager().register_devices(self.DEVICE_IDS)
 
+        self.digitalbitbox_config = self.config.get('digitalbitbox', {})
+
 
     def get_dbb_device(self, device):
         dev = hid.device()
@@ -567,7 +634,7 @@ class DigitalBitboxPlugin(HW_PluginBase):
             self.handler = handler
             client = self.get_dbb_device(device)
             if client is not None:
-                client = DigitalBitbox_Client(client)
+                client = DigitalBitbox_Client(self, client)
             return client
         else:
             return None
@@ -580,6 +647,24 @@ class DigitalBitboxPlugin(HW_PluginBase):
         client.handler = self.create_handler(wizard)
         client.setupRunning = True
         client.get_xpub("m/44'/0'")
+
+
+    def is_mobile_paired(self):
+        return 'encryptionprivkey' in self.digitalbitbox_config
+
+
+    def comserver_post_notification(self, payload):
+        assert self.is_mobile_paired(), "unexpected mobile pairing error"
+        url = 'https://digitalbitbox.com/smartverification/index.php'
+        key_s = base64.b64decode(self.digitalbitbox_config['encryptionprivkey'])
+        args = 'c=data&s=0&dt=0&uuid=%s&pl=%s' % (
+            self.digitalbitbox_config['comserverchannelid'],
+            EncodeAES(key_s, json.dumps(payload).encode('ascii')).decode('ascii'),
+        )
+        try:
+            requests.post(url, args)
+        except Exception as e:
+            self.handler.show_error(str(e))
 
 
     def get_xpub(self, device_id, derivation, wizard):
