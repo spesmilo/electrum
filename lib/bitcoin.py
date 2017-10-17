@@ -145,9 +145,6 @@ def aes_decrypt_with_iv(key, iv, data):
 def EncodeAES(secret, s):
     assert_bytes(s)
     iv = bytes(os.urandom(16))
-    # aes_cbc = pyaes.AESModeOfOperationCBC(secret, iv=iv)
-    # aes = pyaes.Encrypter(aes_cbc)
-    # e = iv + aes.feed(s) + aes.feed()
     ct = aes_encrypt_with_iv(secret, iv, s)
     e = iv + ct
     return base64.b64encode(e)
@@ -155,9 +152,6 @@ def EncodeAES(secret, s):
 def DecodeAES(secret, e):
     e = bytes(base64.b64decode(e))
     iv, e = e[:16], e[16:]
-    # aes_cbc = pyaes.AESModeOfOperationCBC(secret, iv=iv)
-    # aes = pyaes.Decrypter(aes_cbc)
-    # s = aes.feed(e) + aes.feed()
     s = aes_decrypt_with_iv(secret, iv, e)
     return s
 
