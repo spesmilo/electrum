@@ -6,11 +6,13 @@ BTCHIP_GIT_URL=git://github.com/LedgerHQ/btchip-python.git
 
 BRANCH=master
 
+PYTHON_VERSION=3.5.4
+
 # These settings probably don't need any change
 export WINEPREFIX=/opt/wine64
 
-PYHOME=c:/python27
-PYTHON="wine $PYHOME/python.exe "
+PYHOME=c:/python$PYTHON_VERSION
+PYTHON="wine $PYHOME/python.exe -OO -B"
 
 # Let's begin!
 cd `dirname $0`
@@ -37,6 +39,7 @@ cd tmp
 # Install Cython
 $PYTHON -m pip install setuptools --upgrade
 $PYTHON -m pip install cython
+$PYTHON -m pip install hidapi==0.7.99.post20
 $PYTHON -m pip install trezor==0.7.16
 $PYTHON -m pip install keepkey
 $PYTHON -m pip install btchip-python
