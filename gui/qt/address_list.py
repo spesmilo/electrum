@@ -68,7 +68,7 @@ class AddressList(MyTreeWidget):
     def toggle_change(self):
         self.show_change = not self.show_change
         self.set_change_button_text()
-        self.on_update()
+        self.on_update(clear=True)
 
     def set_change_button_text(self):
         s = [_('Receiving'), _('Change')]
@@ -77,18 +77,34 @@ class AddressList(MyTreeWidget):
     def toggle_used(self):
         self.show_used = (self.show_used + 1) % 4
         self.set_used_button_text()
-        self.on_update()
+        self.on_update(clear=True)
 
     def set_used_button_text(self):
         s = [_('Unused'), _('Funded'), _('Used'), _('All')]
         self.used_button.setText(s[self.show_used])
 
-    def on_update(self):
+    def on_update(self, clear=False):
         self.wallet = self.parent.wallet
         item = self.currentItem()
         current_address = item.data(0, Qt.UserRole) if item else None
         addr_list = self.wallet.get_change_addresses() if self.show_change else self.wallet.get_receiving_addresses()
-        self.clear()
+
+        if clear:
+            # this completely clears selection
+            # unlike self.selectionModel().clearSelection(),
+            # which leaves the column of the item selected
+            self.setCurrentItem(QTreeWidgetItem())
+
+        def create_or_reuse_item(index, column_texts):
+            address_item = self.topLevelItem(index)
+            item_is_new = not bool(address_item)
+            if item_is_new:
+                address_item = QTreeWidgetItem()
+            for col, text in enumerate(column_texts):
+                address_item.setText(col, text)
+            return address_item, item_is_new
+
+        item_index = 0
         for address in addr_list:
             num = len(self.wallet.history.get(address,[]))
             is_used = self.wallet.is_used(address)
@@ -106,21 +122,32 @@ class AddressList(MyTreeWidget):
             if fx and fx.get_fiat_address_config():
                 rate = fx.exchange_rate()
                 fiat_balance = fx.value_str(balance, rate)
-                address_item = QTreeWidgetItem([address, label, balance_text, fiat_balance, "%d"%num])
+                column_texts = [address, label, balance_text, fiat_balance, "%d"%num]
+                address_item, item_is_new = create_or_reuse_item(item_index, column_texts)
                 address_item.setTextAlignment(3, Qt.AlignRight)
             else:
-                address_item = QTreeWidgetItem([address, label, balance_text, "%d"%num])
+                column_texts = [address, label, balance_text, "%d"%num]
+                address_item, item_is_new = create_or_reuse_item(item_index, column_texts)
                 address_item.setTextAlignment(2, Qt.AlignRight)
             address_item.setFont(0, QFont(MONOSPACE_FONT))
             address_item.setData(0, Qt.UserRole, address)
             address_item.setData(0, Qt.UserRole+1, True) # label can be edited
-            if self.wallet.is_frozen(address):
-                address_item.setBackground(0, ColorScheme.BLUE.as_color(True))
             if self.wallet.is_beyond_limit(address, self.show_change):
                 address_item.setBackground(0, ColorScheme.RED.as_color(True))
-            self.addChild(address_item)
+            elif self.wallet.is_frozen(address):
+                address_item.setBackground(0, ColorScheme.BLUE.as_color(True))
+            else:
+                address_item.setBackground(0, ColorScheme.DEFAULT.as_color(True))
+            if item_is_new:
+                self.addChild(address_item)
             if address == current_address:
                 self.setCurrentItem(address_item)
+            item_index += 1
+        # remove redundant items at the end
+        before_upd_item_count = self.topLevelItemCount()
+        if before_upd_item_count > item_index:
+            for i in range(before_upd_item_count-1, item_index-1, -1):
+                self.takeTopLevelItem(i)
 
     def create_menu(self, position):
         from electrum.wallet import Multisig_Wallet
