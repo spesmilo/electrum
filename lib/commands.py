@@ -405,7 +405,7 @@ class Commands:
         """Sign a message with a key. Use quotes if your message contains
         whitespaces"""
         sig = self.wallet.sign_message(address, message, password)
-        return base64.b64encode(sig)
+        return base64.b64encode(sig).decode('ascii')
 
     @command('')
     def verifymessage(self, address, signature, message):

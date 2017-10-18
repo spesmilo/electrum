@@ -68,7 +68,7 @@ class AddressList(MyTreeWidget):
     def toggle_change(self):
         self.show_change = not self.show_change
         self.set_change_button_text()
-        self.on_update()
+        self.update()
 
     def set_change_button_text(self):
         s = [_('Receiving'), _('Change')]
@@ -77,7 +77,7 @@ class AddressList(MyTreeWidget):
     def toggle_used(self):
         self.show_used = (self.show_used + 1) % 4
         self.set_used_button_text()
-        self.on_update()
+        self.update()
 
     def set_used_button_text(self):
         s = [_('Unused'), _('Funded'), _('Used'), _('All')]

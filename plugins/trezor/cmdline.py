@@ -1,4 +1,4 @@
-from electrum_ltc.util import print_msg
+from electrum_ltc.util import print_msg, raw_input
 from .trezor import TrezorPlugin
 
 class TrezorCmdLineHandler:
