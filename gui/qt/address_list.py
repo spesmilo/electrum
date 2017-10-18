@@ -144,7 +144,8 @@ class AddressList(MyTreeWidget):
         menu = QMenu()
         if not multi_select:
             column_title = self.headerItem().text(col)
-            menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(item.text(col)))
+            copy_text = item.text(col)
+            menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(copy_text))
             menu.addAction(_('Details'), lambda: self.parent.show_address(addr))
             if col in self.editable_columns:
                 menu.addAction(_("Edit %s")%column_title, lambda: self.editItem(item, col))
