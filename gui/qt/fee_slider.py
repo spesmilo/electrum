@@ -36,7 +36,7 @@ class FeeSlider(QSlider):
 
     def get_tooltip(self, pos, fee_rate):
         from electrum.util import fee_levels
-        rate_str = self.window.format_fee_rate(fee_rate)
+        rate_str = self.window.format_fee_rate(fee_rate) if fee_rate else _('unknown')
         if self.dyn:
             tooltip = fee_levels[pos] + '\n' + rate_str
         else:
