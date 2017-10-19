@@ -132,8 +132,6 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         return client
 
     def get_client(self, keystore, force_pair=True):
-        # All client interaction should not be in the main GUI thread
-        assert self.main_thread != threading.current_thread()
         devmgr = self.device_manager()
         handler = keystore.handler
         with devmgr.hid_lock:

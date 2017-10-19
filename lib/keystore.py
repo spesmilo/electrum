@@ -37,7 +37,7 @@ from .bitcoin import *
 from .bitcoin import is_old_seed, is_new_seed, is_seed
 from .util import PrintError, InvalidPassword, hfu
 from .mnemonic import Mnemonic, load_wordlist
-
+from .plugins import run_hook
 
 class KeyStore(PrintError):
 
@@ -488,6 +488,7 @@ class Hardware_KeyStore(KeyStore, Xpub):
         self.label = d.get('label')
         self.derivation = d.get('derivation')
         self.handler = None
+        run_hook('init_keystore', self)
 
     def set_label(self, label):
         self.label = label
