@@ -37,7 +37,7 @@ from electrum import transaction
 from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
 from electrum.wallet import Multisig_Wallet
-from electrum.util import bh2u
+from electrum.util import bh2u, bfh
 
 from electrum_gui.qt.transaction_dialog import show_transaction
 
@@ -177,7 +177,7 @@ class Plugin(BasePlugin):
         for window, xpub, K, _hash in self.cosigner_list:
             if not self.cosigner_can_sign(tx, xpub):
                 continue
-            message = bitcoin.encrypt_message(tx.raw, K)
+            message = bitcoin.encrypt_message(bfh(tx.raw), bh2u(K)).decode('ascii')
             try:
                 server.put(_hash, message)
             except Exception as e:
@@ -209,9 +209,9 @@ class Plugin(BasePlugin):
         if not xprv:
             return
         try:
-            k = bitcoin.deserialize_xprv(xprv)[-1].encode('hex')
-            EC = bitcoin.EC_KEY(k.decode('hex'))
-            message = EC.decrypt_message(message)
+            k = bh2u(bitcoin.deserialize_xprv(xprv)[-1])
+            EC = bitcoin.EC_KEY(bfh(k))
+            message = bh2u(EC.decrypt_message(message))
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             window.show_message(str(e))
