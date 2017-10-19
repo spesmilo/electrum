@@ -586,6 +586,7 @@ class ElectrumWindow(App):
         self.invoices_screen = None
         self.receive_screen = None
         self.requests_screen = None
+        self.address_screen = None
         self.icon = "icons/electrum.png"
         self.tabs = self.root.ids['tabs']
 
@@ -599,7 +600,6 @@ class ElectrumWindow(App):
             self.server_host = self.network.interface.host
 
     def on_network_event(self, event, *args):
-        Logger.info('network event: '+ event)
         if event == 'interfaces':
             self._trigger_update_interfaces()
         elif event == 'updated':

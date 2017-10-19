@@ -1365,6 +1365,73 @@ class Simple_Wallet(Abstract_Wallet):
         self.storage.put('keystore', self.keystore.dump())
 
 
+    def addr_search(self, search):
+
+        def get_addr_new(self):
+            _list = list()
+            for addr in self.receiving_addresses:
+                if addr not in self.receive_requests:
+                    _list.append(addr)
+            return _list
+
+        def get_addr_pending(self):
+            _list = list()
+            for addr in self.receive_requests:
+                status, conf = self.get_request_status(addr)
+                if status == PR_UNPAID or status == PR_EXPIRED:
+                    _list.append(addr)
+            return _list
+
+        def get_addr_paid(self):
+            _list = list()
+            for addr in self.receive_requests:
+                status, conf = self.get_request_status(addr)
+                if status == PR_PAID and self.is_used(addr) == False:
+                    _list.append(addr)
+            return _list
+
+        def get_addr_change(self):
+            return self.change_addresses
+
+        def get_addr_used(self):
+            _list = list()
+            for addr in self.receiving_addresses:
+                if self.is_used(addr):
+                    _list.append(addr)
+            return _list
+
+        addr_status = [ [0, get_addr_new], [1, get_addr_pending], [2, get_addr_paid], \
+            [3, get_addr_used], [4, get_addr_change] ]
+
+        for status in addr_status:
+            if search == status[0]:
+                _list = status[1](self)
+        return _list
+
+ 
+    def ext_search(self, search):
+        from .util import print_msg
+        
+        def to_btc(amount):
+            return str(amount / 100000000)
+
+        def to_mbtc(amount):
+            return str(amount / 100000)
+
+        def to_time(time):
+            from time import gmtime, strftime
+            return strftime("%Y-%m-%d %M:%S", gmtime(time)) 
+
+        _list = []
+        for addr in self.receive_requests:
+            r = self.receive_requests.get(addr)
+            if r['memo'].find(search) >= 0 or to_btc(r['amount']).find(search) >= 0 \
+                or to_mbtc(r['amount']).find(search) >= 0 or to_time(r['time']).find(search) >= 0:
+                _list.append(addr)
+
+        return _list
+    
+
 class Imported_Wallet(Simple_Wallet):
     # wallet made of imported addresses
 
