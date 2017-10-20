@@ -69,7 +69,7 @@ def check_imports():
         import google.protobuf
         import jsonrpclib
     except ImportError as e:
-        sys.exit("Error: %s. Try 'sudo pip install <module-name>'"%e.message)
+        sys.exit("Error: %s. Try 'sudo pip install <module-name>'"%str(e))
     # the following imports are for pyinstaller
     from google.protobuf import descriptor
     from google.protobuf import message
