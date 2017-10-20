@@ -1,8 +1,8 @@
 #!/bin/bash
 
-TREZOR_GIT_URL=git://github.com/trezor/python-trezor.git
-KEEPKEY_GIT_URL=git://github.com/keepkey/python-keepkey.git
-BTCHIP_GIT_URL=git://github.com/LedgerHQ/btchip-python.git
+TREZOR_GIT_URL=https://github.com/trezor/python-trezor.git
+KEEPKEY_GIT_URL=https://github.com/keepkey/python-keepkey.git
+BTCHIP_GIT_URL=https://github.com/LedgerHQ/btchip-python.git
 
 BRANCH=master
 
@@ -20,8 +20,8 @@ set -e
 
 cd tmp
 
-# downoad mingw-get-setup.exe
-#wget http://downloads.sourceforge.net/project/mingw/Installer/mingw-get-setup.exe
+# download mingw-get-setup.exe
+#wget https://downloads.sourceforge.net/project/mingw/Installer/mingw-get-setup.exe
 #wine mingw-get-setup.exe
 
 #echo "add c:\MinGW\bin to PATH using regedit" in HKEY_CURRENT_USER/Environment
