@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Please update these carefully, some versions won't work under Wine
-NSIS_URL=http://prdownloads.sourceforge.net/nsis/nsis-3.02.1-setup.exe?download
+NSIS_URL=https://prdownloads.sourceforge.net/nsis/nsis-3.02.1-setup.exe?download
 PYTHON_VERSION=3.5.4
 
 ## These settings probably don't need change
@@ -49,7 +49,7 @@ $PYTHON -m pip install PyQt5
 $PYTHON -m pip install pyinstaller==3.3
 
 # Install ZBar
-#wget -q -O zbar.exe "http://sourceforge.net/projects/zbar/files/zbar/0.10/zbar-0.10-setup.exe/download"
+#wget -q -O zbar.exe "https://sourceforge.net/projects/zbar/files/zbar/0.10/zbar-0.10-setup.exe/download"
 #wine zbar.exe
 
 # install Cryptodome
@@ -75,7 +75,7 @@ wget -q -O nsis.exe "$NSIS_URL"
 wine nsis.exe
 
 # Install UPX
-#wget -O upx.zip "http://upx.sourceforge.net/download/upx308w.zip"
+#wget -O upx.zip "https://downloads.sourceforge.net/project/upx/upx/3.08/upx308w.zip"
 #unzip -o upx.zip
 #cp upx*/upx.exe .
 
