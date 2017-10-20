@@ -176,7 +176,7 @@ class Commands:
     @command('')
     def check_seed(self, seed, entropy=1, language=None):
         """Check that a seed was generated with given entropy"""
-        from mnemonic import Mnemonic
+        from .mnemonic import Mnemonic
         return Mnemonic(language).check_seed(seed, entropy)
 
     @command('n')
