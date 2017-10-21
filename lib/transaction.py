@@ -483,7 +483,10 @@ def deserialize(raw):
                     txin['address'] = bitcoin.public_key_to_p2wpkh(bfh(txin['pubkeys'][0]))
                 else:
                     txin['type'] = 'p2wsh'
-                    txin['address'] = bitcoin.script_to_p2wsh(txin['witnessScript'])
+                    try:
+                      txin['address'] = bitcoin.script_to_p2wsh(txin['witnessScript'])
+                    except KeyError:
+                      pass
     d['lockTime'] = vds.read_uint32()
     return d
 

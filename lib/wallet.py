@@ -1792,6 +1792,12 @@ class Multisig_Wallet(Deterministic_Wallet):
         txin['signatures'] = [None] * self.n
         txin['num_sig'] = self.m
 
+class Lightning_Wallet(Standard_Wallet):
+    def sign_transaction(*args, **kwargs):
+        print("signing transaction")
+        print(args)
+        print(kwargs)
+        return super(Lightning_Wallet, self).sign_transaction(*args, **kwargs)
 
 wallet_types = ['standard', 'multisig', 'imported']
 
@@ -1802,7 +1808,8 @@ wallet_constructors = {
     'standard': Standard_Wallet,
     'old': Standard_Wallet,
     'xpub': Standard_Wallet,
-    'imported': Imported_Wallet
+    'imported': Imported_Wallet,
+    'lightning': Lightning_Wallet
 }
 
 def register_constructor(wallet_type, constructor):

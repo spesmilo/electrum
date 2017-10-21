@@ -130,7 +130,7 @@ class Commands:
         return ' '.join(sorted(known_commands.keys()))
 
     @command('')
-    def create(self, segwit=False):
+    def create(self, segwit=False, lightning=False):
         """Create a new wallet"""
         raise BaseException('Not a JSON-RPC command')
 
@@ -722,6 +722,7 @@ command_options = {
     'nbits':       (None, "Number of bits of entropy"),
     'entropy':     (None, "Custom entropy"),
     'segwit':      (None, "Create segwit seed"),
+    'lightning':   (None, "Create lightning wallet"),
     'language':    ("-L", "Default language for wordlist"),
     'privkey':     (None, "Private key. Set to '?' to get a prompt."),
     'unsigned':    ("-u", "Do not sign transaction"),
