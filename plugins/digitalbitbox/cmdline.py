@@ -1,17 +1,11 @@
 from electrum.util import print_msg
 from .digitalbitbox import DigitalBitboxPlugin
-
-class DigitalBitboxCmdLineHandler:
-    def stop(self):
-        pass
-
-    def show_message(self, msg):
-        print_msg(msg)
-
-    def get_passphrase(self, msg, confirm):
-        import getpass
-        print_msg(msg)
-        return getpass.getpass('')
+from ..hw_wallet import CmdLineHandler
 
 class Plugin(DigitalBitboxPlugin):
-    handler = DigitalBitboxCmdLineHandler()
+    handler = CmdLineHandler()
+    @hook
+    def init_keystore(self, keystore):
+        if not isinstance(keystore, self.keystore_class):
+            return
+        keystore.handler = self.handler

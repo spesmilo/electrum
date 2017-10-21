@@ -129,6 +129,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.need_update = threading.Event()
 
         self.decimal_point = config.get('decimal_point', 5)
+        self.fee_unit = config.get('fee_unit', 0)
         self.num_zeros     = int(config.get('num_zeros',0))
 
         self.completions = QStringListModel()
@@ -621,6 +622,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if text and x:
             text += ' (%s)'%x
         return text
+
+    def format_fee_rate(self, fee_rate):
+        if self.fee_unit == 0:
+            return format_satoshis(fee_rate/1000, False, self.num_zeros, 0, False)  + ' sat/byte'
+        else:
+            return self.format_amount(fee_rate) + ' ' + self.base_unit() + '/kB'
 
     def get_decimal_point(self):
         return self.decimal_point
@@ -2430,21 +2437,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fee_widgets.append((dynfee_cb, None))
         dynfee_cb.stateChanged.connect(on_dynfee)
 
-        def on_maxfee(x):
-            m = maxfee_e.get_amount()
-            if m: self.config.set_key('max_fee_rate', m)
-            self.fee_slider.update()
-        def update_maxfee():
-            d = self.config.is_dynfee()
-            maxfee_e.setDisabled(d)
-            maxfee_label.setDisabled(d)
-        maxfee_label = HelpLabel(_('Max static fee'), _('Max value of the static fee slider'))
-        maxfee_e = BTCkBEdit(self.get_decimal_point)
-        maxfee_e.setAmount(self.config.max_fee_rate())
-        maxfee_e.textChanged.connect(on_maxfee)
-        update_maxfee()
-        fee_widgets.append((maxfee_label, maxfee_e))
-
         feebox_cb = QCheckBox(_('Edit fees manually'))
         feebox_cb.setChecked(self.config.get('show_fee', False))
         feebox_cb.setToolTip(_("Show fee edit box in send tab."))
@@ -2463,6 +2455,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.config.set_key('rbf_policy', x)
         rbf_combo.currentIndexChanged.connect(on_rbf)
         fee_widgets.append((rbf_label, rbf_combo))
+
+        self.fee_unit = self.config.get('fee_unit', 0)
+        fee_unit_label = HelpLabel(_('Fee Unit') + ':', '')
+        fee_unit_combo = QComboBox()
+        fee_unit_combo.addItems([_('sat/byte'), _('mBTC/kB')])
+        fee_unit_combo.setCurrentIndex(self.fee_unit)
+        def on_fee_unit(x):
+            self.fee_unit = x
+            self.config.set_key('fee_unit', x)
+            self.fee_slider.update()
+        fee_unit_combo.currentIndexChanged.connect(on_fee_unit)
+        fee_widgets.append((fee_unit_label, fee_unit_combo))
 
         msg = _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n'\
               + _('The following alias providers are available:') + '\n'\

@@ -120,7 +120,7 @@ class HistoryScreen(CScreen):
         self.app.tx_dialog(tx)
 
     def label_dialog(self, obj):
-        from dialogs.label_dialog import LabelDialog
+        from .dialogs.label_dialog import LabelDialog
         key = obj.tx_hash
         text = self.app.wallet.get_label(key)
         def callback(text):
@@ -264,7 +264,7 @@ class SendScreen(CScreen):
         message = self.screen.message
         amount = sum(map(lambda x:x[2], outputs))
         if self.app.electrum_config.get('use_rbf'):
-            from dialogs.question import Question
+            from .dialogs.question import Question
             d = Question(_('Should this transaction be replaceable?'), lambda b: self._do_send(amount, message, outputs, b))
             d.open()
         else:
@@ -467,7 +467,7 @@ class InvoicesScreen(CScreen):
         self.app.show_pr_details(pr.get_dict(), obj.status, True)
 
     def do_delete(self, obj):
-        from dialogs.question import Question
+        from .dialogs.question import Question
         def cb(result):
             if result:
                 self.app.wallet.invoices.remove(obj.key)
@@ -537,7 +537,7 @@ class RequestsScreen(CScreen):
         self.app.show_pr_details(req, status, False)
 
     def do_delete(self, obj):
-        from dialogs.question import Question
+        from .dialogs.question import Question
         def cb(result):
             if result:
                 self.app.wallet.remove_payment_request(obj.address, self.app.electrum_config)

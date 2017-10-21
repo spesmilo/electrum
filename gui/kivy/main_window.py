@@ -92,7 +92,7 @@ class ElectrumWindow(App):
         self.auto_connect = not self.auto_connect
 
     def choose_server_dialog(self, popup):
-        from uix.dialogs.choice_dialog import ChoiceDialog
+        from .uix.dialogs.choice_dialog import ChoiceDialog
         protocol = 's'
         def cb2(host):
             from electrum.network import DEFAULT_PORTS
@@ -104,7 +104,7 @@ class ElectrumWindow(App):
         ChoiceDialog(_('Choose a server'), sorted(servers), popup.ids.host.text, cb2).open()
 
     def choose_blockchain_dialog(self, dt):
-        from uix.dialogs.choice_dialog import ChoiceDialog
+        from .uix.dialogs.choice_dialog import ChoiceDialog
         chains = self.network.get_blockchains()
         def cb(name):
             for index, b in self.network.blockchains.items():

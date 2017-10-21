@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # You probably need to update only this link
-ELECTRUM_GIT_URL=git://github.com/spesmilo/electrum.git
+ELECTRUM_GIT_URL=https://github.com/spesmilo/electrum.git
 BRANCH=master
 NAME_ROOT=electrum
 PYTHON_VERSION=3.5.4
