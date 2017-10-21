@@ -41,6 +41,8 @@ class SimpleConfig(PrintError):
     They are taken in order (1. overrides config options set in 2., that
     override config set in 3.)
     """
+    fee_rates = [5000, 10000, 20000, 30000, 50000, 70000, 100000, 150000, 200000, 300000]
+
     def __init__(self, options={}, read_system_config_function=None,
                  read_user_config_function=None, read_user_dir_function=None):
 
@@ -229,6 +231,13 @@ class SimpleConfig(PrintError):
         if fee_per_kb < self.fee_estimates.get(25)/2:
             min_target = -1
         return min_target
+
+    def static_fee(self, i):
+        return self.fee_rates[i]
+
+    def static_fee_index(self, value):
+        dist = list(map(lambda x: abs(x - value), self.fee_rates))
+        return min(range(len(dist)), key=dist.__getitem__)
 
     def has_fee_estimates(self):
         return len(self.fee_estimates)==4
