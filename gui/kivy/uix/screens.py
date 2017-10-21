@@ -27,6 +27,7 @@ from .context_menu import ContextMenu
 
 from electrum_gui.kivy.i18n import _
 
+
 class EmptyLabel(Factory.Label):
     pass
 
@@ -120,7 +121,7 @@ class HistoryScreen(CScreen):
         self.app.tx_dialog(tx)
 
     def label_dialog(self, obj):
-        from dialogs.label_dialog import LabelDialog
+        from .dialogs.label_dialog import LabelDialog
         key = obj.tx_hash
         text = self.app.wallet.get_label(key)
         def callback(text):
@@ -467,7 +468,7 @@ class InvoicesScreen(CScreen):
         self.app.show_pr_details(pr.get_dict(), obj.status, True)
 
     def do_delete(self, obj):
-        from dialogs.question import Question
+        from .dialogs.question import Question
         def cb(result):
             if result:
                 self.app.wallet.invoices.remove(obj.key)
@@ -475,77 +476,80 @@ class InvoicesScreen(CScreen):
         d = Question(_('Delete invoice?'), cb)
         d.open()
 
+address_text = {
+        0: _('New'),
+        1: _('Pending'),
+        2: _('Paid'),
+        3: _('Used'),
+        4: _('Change')
+}
 
-class RequestsScreen(CScreen):
-    kvname = 'requests'
+address_icon = {
+    1: 'atlas://gui/kivy/theming/light/important',
+    2: 'atlas://gui/kivy/theming/light/confirmed'
+}
+ 
+class AddressScreen(CScreen):
+
+    kvname = 'address'
     cards = {}
 
-    def get_card(self, req):
-        address = req['address']
-        timestamp = req.get('time', 0)
-        amount = req.get('amount')
-        expiration = req.get('exp', None)
-        status = req.get('status')
-        signature = req.get('sig')
+    def update(self):
+        pass
 
-        ci = self.cards.get(address)
+    def get_card(self, addr, status):
+
+        ci = self.cards.get(addr)
         if ci is None:
-            ci = Factory.RequestItem()
+            if status == 1 or status == 2:
+                ci = Factory.RequestItem()
+            else:
+                ci = Factory.RequestItemLight()
             ci.screen = self
-            ci.address = address
-            self.cards[address] = ci
+            ci.address = addr
+            ci.status = address_text[status]
+            self.cards[addr] = ci
 
-        ci.memo = self.app.wallet.get_label(address)
-        if amount:
-            status = req.get('status')
-            ci.status = request_text[status]
+        ci.memo = self.app.wallet.get_label(addr)
+        if status == 1 or status == 2:
+            req = self.app.wallet.get_payment_request(addr, self.app.electrum_config)
+            timestamp = req.get('time', 0)
+            amount = req.get('amount')
+            ci.icon = address_icon[status]
+            ci.amount = self.app.format_amount_and_units(amount) if amount else _('No Amount')
+            ci.date = format_time(timestamp)
         else:
-            received = self.app.wallet.get_addr_received(address)
-            ci.status = self.app.format_amount_and_units(amount)
-        ci.icon = pr_icon[status]
-        ci.amount = self.app.format_amount_and_units(amount) if amount else _('No Amount')
-        ci.date = format_time(timestamp)
+            ci.amount = _('No Amount')
         return ci
 
-    def update(self):
-        self.menu_actions = [('Show', self.do_show), ('Details', self.do_view), ('Delete', self.do_delete)]
-        requests_list = self.screen.ids.requests_container
-        requests_list.clear_widgets()
-        _list = self.app.wallet.get_sorted_requests(self.app.electrum_config) if self.app.wallet else []
+    def extended_search(self):
+        _list = self.app.wallet.ext_search(self.screen.message)
+
+        search_list = self.screen.ids.search_container
+        search_list.clear_widgets()
         for req in _list:
-            ci = self.get_card(req)
-            requests_list.add_widget(ci)
+            status, conf = self.app.wallet.get_request_status(req)
+            if status == PR_PAID:
+                s = 2
+            elif status == PR_UNPAID:
+                s = 1
+            else:
+                s = 3
+            card = self.get_card(req, s)
+            search_list.add_widget(card)
         if not _list:
-            msg = _('This screen shows the list of payment requests you made.')
-            requests_list.add_widget(EmptyLabel(text=msg))
+            msg = _('No address matching your search')
+            search_list.add_widget(EmptyLabel(text=msg))
 
-    def do_show(self, obj):
-        self.app.show_request(obj.address)
+    def search(self, status):
+        self.my_color = 1, 0.5, 0.5, 1
+        _list = self.app.wallet.addr_search(status)
 
-    def do_view(self, obj):
-        req = self.app.wallet.get_payment_request(obj.address, self.app.electrum_config)
-        status = req.get('status')
-        amount = req.get('amount')
-        address = req['address']
-        if amount:
-            status = req.get('status')
-            status = request_text[status]
-        else:
-            received_amount = self.app.wallet.get_addr_received(address)
-            status = self.app.format_amount_and_units(received_amount)
-
-        self.app.show_pr_details(req, status, False)
-
-    def do_delete(self, obj):
-        from dialogs.question import Question
-        def cb(result):
-            if result:
-                self.app.wallet.remove_payment_request(obj.address, self.app.electrum_config)
-                self.update()
-        d = Question(_('Delete request?'), cb)
-        d.open()
-
-
+        search_list = self.screen.ids.search_container
+        search_list.clear_widgets()
+        for addr in _list:
+            card = self.get_card(addr, status)
+            search_list.add_widget(card)
 
 
 class TabbedCarousel(Factory.TabbedPanel):
@@ -578,11 +582,11 @@ class TabbedCarousel(Factory.TabbedPanel):
         if not hasattr(current_slide, 'tab'):
             return
         tab = current_slide.tab
-        ct = self.current_tab
+        current = self.current_tab
         try:
-            if ct.text != tab.text:
+            if current.text != tab.text:
                 carousel = self.carousel
-                carousel.slides[ct.slide].dispatch('on_leave')
+                carousel.slides[current.slide].dispatch('on_leave')
                 self.switch_to(tab)
                 carousel.slides[tab.slide].dispatch('on_enter')
         except AttributeError:
