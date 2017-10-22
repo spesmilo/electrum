@@ -296,6 +296,8 @@ class SendScreen(CScreen):
         self.app.protected('\n'.join(msg), self.send_tx, (tx, message))
 
     def send_tx(self, tx, message, password):
+        if self.app.wallet.has_password() and password is None:
+            return
         def on_success(tx):
             if tx.is_complete():
                 self.app.broadcast(tx, self.payment_request)
