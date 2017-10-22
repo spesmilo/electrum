@@ -1825,10 +1825,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox = QVBoxLayout()
         wallet_type = self.wallet.storage.get('wallet_type', '')
         grid = QGridLayout()
-        grid.addWidget(QLabel(_("Wallet type")+ ':'), 0, 0)
-        grid.addWidget(QLabel(wallet_type), 0, 1)
-        grid.addWidget(QLabel(_("Script type")+ ':'), 1, 0)
-        grid.addWidget(QLabel(self.wallet.txin_type), 1, 1)
+        basename = os.path.basename(self.wallet.storage.path)
+        grid.addWidget(QLabel(_("Wallet name")+ ':'), 0, 0)
+        grid.addWidget(QLabel(basename), 0, 1)
+        grid.addWidget(QLabel(_("Wallet type")+ ':'), 1, 0)
+        grid.addWidget(QLabel(wallet_type), 1, 1)
+        grid.addWidget(QLabel(_("Script type")+ ':'), 2, 0)
+        grid.addWidget(QLabel(self.wallet.txin_type), 2, 1)
         vbox.addLayout(grid)
         if self.wallet.is_deterministic():
             mpk_text = ShowQRTextEdit()
@@ -1851,9 +1854,32 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             show_mpk(0)
             vbox.addWidget(mpk_text)
         vbox.addStretch(1)
-        vbox.addLayout(Buttons(CloseButton(dialog)))
+        delete_button = QPushButton(_("Delete"))
+        delete_button.clicked.connect(lambda: self.remove_wallet(dialog))
+        vbox.addLayout(Buttons(delete_button, CloseButton(dialog)))
         dialog.setLayout(vbox)
         dialog.exec_()
+
+    def remove_wallet(self, d):
+        if self.question(_('Delete wallet file') + "\n'%s'"%self.wallet.storage.path):
+            self._delete_wallet(d)
+
+    @protected
+    def _delete_wallet(self, d, password):
+        wallet_path = self.wallet.storage.path
+        dirname = os.path.dirname(wallet_path)
+        basename = os.path.basename(wallet_path)
+        if self.wallet.has_password():
+            try:
+                self.wallet.check_password(pw)
+            except:
+                self.show_error("Invalid PIN")
+                return
+        self.gui_object.daemon.stop_wallet(wallet_path)
+        d.close()
+        self.close()
+        os.unlink(wallet_path)
+        self.show_error("Wallet removed:" + basename)
 
     @protected
     def show_seed_dialog(self, password):
