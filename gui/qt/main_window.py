@@ -2056,14 +2056,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not data:
             return
         # if the user scanned a bitcoin URI
-        if data.startswith("bitcoin:"):
+        if str(data).startswith("bitcoin:"):
             self.pay_to_URI(data)
             return
         # else if the user scanned an offline signed tx
-        # transactions are binary, but qrcode seems to return utf-8...
-        data = data.decode('utf-8')
-        z = bitcoin.base_decode(data, length=None, base=43)
-        data = bh2u(''.join(chr(ord(b)) for b in z))
+        data = bh2u(bitcoin.base_decode(data, length=None, base=43))
         tx = self.tx_from_text(data)
         if not tx:
             return
