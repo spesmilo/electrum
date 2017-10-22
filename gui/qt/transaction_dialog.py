@@ -227,7 +227,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         vbox.addWidget(QLabel(_("Inputs") + ' (%d)'%len(self.tx.inputs())))
         ext = QTextCharFormat()
         rec = QTextCharFormat()
-        rec.setBackground(QBrush(QColor("lightgreen")))
+        rec.setBackground(QBrush(ColorScheme.GREEN.as_color(background=True)))
         rec.setToolTip(_("Wallet receive address"))
         chg = QTextCharFormat()
         chg.setBackground(QBrush(QColor("yellow")))
