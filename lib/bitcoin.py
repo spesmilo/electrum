@@ -230,7 +230,6 @@ def op_push(i):
 def push_script(x):
     return op_push(len(x)//2) + x
 
-
 def sha256(x):
     x = to_bytes(x, 'utf8')
     return bytes(hashlib.sha256(x).digest())
