@@ -123,7 +123,7 @@ class Contacts(dict):
             return None
             
     def _validate(self, data):
-        for k,v in data.items():
+        for k,v in list(data.items()):
             if k == 'contacts':
                 return self._validate(v)
             if not bitcoin.is_address(k):
