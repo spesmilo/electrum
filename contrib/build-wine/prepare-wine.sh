@@ -101,10 +101,9 @@ $PYTHON -m pip install websocket-client
 $PYTHON -m pip install setuptools --upgrade
 
 # Install NSIS installer
-echo "Make sure to untick 'Start NSIS' and 'Show release notes'" 
 wget -q -O nsis.exe "$NSIS_URL"
 verify_hash nsis.exe $NSIS_SHA256
-wine nsis.exe
+wine nsis.exe /S
 
 # Install UPX
 #wget -O upx.zip "https://downloads.sourceforge.net/project/upx/upx/3.08/upx308w.zip"
