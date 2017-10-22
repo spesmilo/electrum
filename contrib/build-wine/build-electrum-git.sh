@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # You probably need to update only this link
-ELECTRUM_GIT_URL=git://github.com/pooler/electrum-ltc.git
+ELECTRUM_GIT_URL=https://github.com/pooler/electrum-ltc.git
 BRANCH=master
 NAME_ROOT=electrum-ltc
 PYTHON_VERSION=3.5.4

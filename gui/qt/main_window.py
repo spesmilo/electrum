@@ -129,6 +129,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.need_update = threading.Event()
 
         self.decimal_point = config.get('decimal_point', 8)
+        self.fee_unit = config.get('fee_unit', 0)
         self.num_zeros     = int(config.get('num_zeros',0))
 
         self.completions = QStringListModel()
@@ -340,7 +341,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.notify_transactions()
         # update menus
         self.seed_menu.setEnabled(self.wallet.has_seed())
-        self.mpk_menu.setEnabled(self.wallet.is_deterministic())
         self.update_lock_icon()
         self.update_buttons_on_seed()
         self.update_console()
@@ -453,21 +453,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         file_menu.addAction(_("&Open"), self.open_wallet).setShortcut(QKeySequence.Open)
         file_menu.addAction(_("&New/Restore"), self.new_wallet).setShortcut(QKeySequence.New)
         file_menu.addAction(_("&Save Copy"), self.backup_wallet).setShortcut(QKeySequence.SaveAs)
+        file_menu.addAction(_("Delete"), self.remove_wallet)
         file_menu.addSeparator()
         file_menu.addAction(_("&Quit"), self.close)
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
-
+        wallet_menu.addAction(_("&Information"), self.show_master_public_keys)
+        wallet_menu.addSeparator()
         self.password_menu = wallet_menu.addAction(_("&Password"), self.change_password_dialog)
         self.seed_menu = wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
-        self.mpk_menu = wallet_menu.addAction(_("&Master Public Keys"), self.show_master_public_keys)
-
         self.private_keys_menu = wallet_menu.addMenu(_("&Private keys"))
         self.private_keys_menu.addAction(_("&Sweep"), self.sweep_key_dialog)
         self.import_privkey_menu = self.private_keys_menu.addAction(_("&Import"), self.do_import_privkey)
         self.export_menu = self.private_keys_menu.addAction(_("&Export"), self.export_privkeys_dialog)
         self.import_address_menu = wallet_menu.addAction(_("Import addresses"), self.import_addresses)
-
         wallet_menu.addSeparator()
 
         labels_menu = wallet_menu.addMenu(_("&Labels"))
@@ -621,6 +620,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if text and x:
             text += ' (%s)'%x
         return text
+
+    def format_fee_rate(self, fee_rate):
+        if self.fee_unit == 0:
+            return format_satoshis(fee_rate/1000, False, self.num_zeros, 0, False)  + ' sat/byte'
+        else:
+            return self.format_amount(fee_rate) + ' ' + self.base_unit() + '/kB'
 
     def get_decimal_point(self):
         return self.decimal_point
@@ -1815,31 +1820,64 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.set_contact(line2.text(), line1.text())
 
     def show_master_public_keys(self):
-        dialog = WindowModalDialog(self, "Master Public Keys")
+        dialog = WindowModalDialog(self, _("Wallet Information"))
+        dialog.setMinimumSize(500, 100)
         mpk_list = self.wallet.get_master_public_keys()
         vbox = QVBoxLayout()
-        mpk_text = ShowQRTextEdit()
-        mpk_text.setMaximumHeight(100)
-        mpk_text.addCopyButton(self.app)
-        def show_mpk(index):
-            mpk_text.setText(mpk_list[index])
-
-        # only show the combobox in case multiple accounts are available
-        if len(mpk_list) > 1:
-            def label(key):
-                if isinstance(self.wallet, Multisig_Wallet):
-                    return _("cosigner") + ' ' + str(key+1)
-                return ''
-            labels = [label(i) for i in range(len(mpk_list))]
-            on_click = lambda clayout: show_mpk(clayout.selected_index())
-            labels_clayout = ChoicesLayout(_("Master Public Keys"), labels, on_click)
-            vbox.addLayout(labels_clayout.layout())
-
-        show_mpk(0)
-        vbox.addWidget(mpk_text)
+        wallet_type = self.wallet.storage.get('wallet_type', '')
+        grid = QGridLayout()
+        basename = os.path.basename(self.wallet.storage.path)
+        grid.addWidget(QLabel(_("Wallet name")+ ':'), 0, 0)
+        grid.addWidget(QLabel(basename), 0, 1)
+        grid.addWidget(QLabel(_("Wallet type")+ ':'), 1, 0)
+        grid.addWidget(QLabel(wallet_type), 1, 1)
+        grid.addWidget(QLabel(_("Script type")+ ':'), 2, 0)
+        grid.addWidget(QLabel(self.wallet.txin_type), 2, 1)
+        vbox.addLayout(grid)
+        if self.wallet.is_deterministic():
+            mpk_text = ShowQRTextEdit()
+            mpk_text.setMaximumHeight(150)
+            mpk_text.addCopyButton(self.app)
+            def show_mpk(index):
+                mpk_text.setText(mpk_list[index])
+            # only show the combobox in case multiple accounts are available
+            if len(mpk_list) > 1:
+                def label(key):
+                    if isinstance(self.wallet, Multisig_Wallet):
+                        return _("cosigner") + ' ' + str(key+1)
+                    return ''
+                labels = [label(i) for i in range(len(mpk_list))]
+                on_click = lambda clayout: show_mpk(clayout.selected_index())
+                labels_clayout = ChoicesLayout(_("Master Public Keys"), labels, on_click)
+                vbox.addLayout(labels_clayout.layout())
+            else:
+                vbox.addWidget(QLabel(_("Master Public Key")))
+            show_mpk(0)
+            vbox.addWidget(mpk_text)
+        vbox.addStretch(1)
         vbox.addLayout(Buttons(CloseButton(dialog)))
         dialog.setLayout(vbox)
         dialog.exec_()
+
+    def remove_wallet(self):
+        if self.question(_('Delete wallet file') + "\n'%s'"%self.wallet.storage.path):
+            self._delete_wallet()
+
+    @protected
+    def _delete_wallet(self, password):
+        wallet_path = self.wallet.storage.path
+        dirname = os.path.dirname(wallet_path)
+        basename = os.path.basename(wallet_path)
+        if self.wallet.has_password():
+            try:
+                self.wallet.check_password(pw)
+            except:
+                self.show_error("Invalid Password")
+                return
+        self.gui_object.daemon.stop_wallet(wallet_path)
+        self.close()
+        os.unlink(wallet_path)
+        self.show_error("Wallet removed:" + basename)
 
     @protected
     def show_seed_dialog(self, password):
@@ -2049,14 +2087,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not data:
             return
         # if the user scanned a bitcoin URI
-        if data.startswith("litecoin:"):
+        if str(data).startswith("litecoin:"):
             self.pay_to_URI(data)
             return
         # else if the user scanned an offline signed tx
-        # transactions are binary, but qrcode seems to return utf-8...
-        data = data.decode('utf-8')
-        z = bitcoin.base_decode(data, length=None, base=43)
-        data = bh2u(''.join(chr(ord(b)) for b in z))
+        data = bh2u(bitcoin.base_decode(data, length=None, base=43))
         tx = self.tx_from_text(data)
         if not tx:
             return
@@ -2423,27 +2458,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def on_dynfee(x):
             self.config.set_key('dynamic_fees', x == Qt.Checked)
             self.fee_slider.update()
-            update_maxfee()
         dynfee_cb = QCheckBox(_('Use dynamic fees'))
         dynfee_cb.setChecked(self.config.is_dynfee())
         dynfee_cb.setToolTip(_("Use fees recommended by the server."))
         fee_widgets.append((dynfee_cb, None))
         dynfee_cb.stateChanged.connect(on_dynfee)
-
-        def on_maxfee(x):
-            m = maxfee_e.get_amount()
-            if m: self.config.set_key('max_fee_rate', m)
-            self.fee_slider.update()
-        def update_maxfee():
-            d = self.config.is_dynfee()
-            maxfee_e.setDisabled(d)
-            maxfee_label.setDisabled(d)
-        maxfee_label = HelpLabel(_('Max static fee'), _('Max value of the static fee slider'))
-        maxfee_e = BTCkBEdit(self.get_decimal_point)
-        maxfee_e.setAmount(self.config.max_fee_rate())
-        maxfee_e.textChanged.connect(on_maxfee)
-        update_maxfee()
-        fee_widgets.append((maxfee_label, maxfee_e))
 
         feebox_cb = QCheckBox(_('Edit fees manually'))
         feebox_cb.setChecked(self.config.get('show_fee', False))
@@ -2463,6 +2482,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.config.set_key('rbf_policy', x)
         rbf_combo.currentIndexChanged.connect(on_rbf)
         fee_widgets.append((rbf_label, rbf_combo))
+
+        self.fee_unit = self.config.get('fee_unit', 0)
+        fee_unit_label = HelpLabel(_('Fee Unit') + ':', '')
+        fee_unit_combo = QComboBox()
+        fee_unit_combo.addItems([_('sat/byte'), _('mLTC/kB')])
+        fee_unit_combo.setCurrentIndex(self.fee_unit)
+        def on_fee_unit(x):
+            self.fee_unit = x
+            self.config.set_key('fee_unit', x)
+            self.fee_slider.update()
+        fee_unit_combo.currentIndexChanged.connect(on_fee_unit)
+        fee_widgets.append((fee_unit_label, fee_unit_combo))
 
         msg = _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n'\
               + _('The following alias providers are available:') + '\n'\

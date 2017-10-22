@@ -176,7 +176,7 @@ class Commands:
     @command('')
     def check_seed(self, seed, entropy=1, language=None):
         """Check that a seed was generated with given entropy"""
-        from mnemonic import Mnemonic
+        from .mnemonic import Mnemonic
         return Mnemonic(language).check_seed(seed, entropy)
 
     @command('n')
@@ -193,7 +193,7 @@ class Commands:
         l = copy.deepcopy(self.wallet.get_utxos(exclude_frozen=False))
         for i in l:
             v = i["value"]
-            i["value"] = float(v)/COIN if v is not None else None
+            i["value"] = str(Decimal(v)/COIN) if v is not None else None
         return l
 
     @command('n')
@@ -486,7 +486,7 @@ class Commands:
                 'input_addresses': input_addresses,
                 'output_addresses': output_addresses,
                 'label': label,
-                'value': float(value)/COIN if value is not None else None,
+                'value': str(Decimal(value)/COIN) if value is not None else None,
                 'height': height,
                 'confirmations': conf
             })

@@ -72,7 +72,7 @@ class ContactList(MyTreeWidget):
         selected = self.selectedItems()
         if not selected:
             menu.addAction(_("New contact"), lambda: self.parent.new_contact_dialog())
-            menu.addAction(_("Import file"), lambda: self.parent.import_contacts())
+            menu.addAction(_("Import file"), lambda: self.import_contacts())
         else:
             names = [item.text(0) for item in selected]
             keys = [item.text(1) for item in selected]

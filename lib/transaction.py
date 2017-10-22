@@ -443,9 +443,9 @@ def parse_witness(vds, txin):
         txin['witnessScript'] = witnessScript
     else:
         txin['num_sig'] = 1
+        txin['x_pubkeys'] = [w[1]]
         txin['pubkeys'] = [w[1]]
         txin['signatures'] = parse_sig([w[0]])
-
 
 def parse_output(vds, i):
     d = {}
@@ -637,15 +637,16 @@ class Transaction:
 
     @classmethod
     def serialize_witness(self, txin):
+        add_w = lambda x: var_int(len(x)//2) + x
         if not self.is_segwit_input(txin):
             return '00'
         pubkeys, sig_list = self.get_siglist(txin)
         if txin['type'] in ['p2wpkh', 'p2wpkh-p2sh']:
-            witness = var_int(2) + push_script(sig_list[0]) + push_script(pubkeys[0])
+            witness = var_int(2) + add_w(sig_list[0]) + add_w(pubkeys[0])
         elif txin['type'] in ['p2wsh', 'p2wsh-p2sh']:
             n = len(sig_list) + 2
             witness_script = multisig_script(pubkeys, txin['num_sig'])
-            witness = var_int(n) + '00' + ''.join(var_int(len(x)//2) + x for x in sig_list) + var_int(len(witness_script)//2) + witness_script
+            witness = var_int(n) + '00' + ''.join(add_w(x) for x in sig_list) + add_w(witness_script)
         else:
             raise BaseException('wrong txin type')
         value_field = '' if self.is_txin_complete(txin) else var_int(0xffffffff) + int_to_hex(txin['value'], 8)

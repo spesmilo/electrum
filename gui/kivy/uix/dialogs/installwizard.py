@@ -690,7 +690,7 @@ class ShowXpubDialog(WizardDialog):
         self.app.do_share(self.xpub, _("Master Public Key"))
 
     def do_qr(self):
-        from qr_dialog import QRDialog
+        from .qr_dialog import QRDialog
         popup = QRDialog(_("Master Public Key"), self.xpub, True)
         popup.open()
 

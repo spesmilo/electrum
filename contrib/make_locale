@@ -36,12 +36,12 @@ if crowdin_api_key:
     requests.request('POST', url, files=files)
     # Build translations
     print('Build translations')
-    response = requests.request('GET', 'http://api.crowdin.com/api/project/' + crowdin_identifier + '/export?key=' + crowdin_api_key).content
+    response = requests.request('GET', 'https://api.crowdin.com/api/project/' + crowdin_identifier + '/export?key=' + crowdin_api_key).content
     print(response)
 
 # Download & unzip
 print('Download translations')
-s = requests.request('GET', 'http://crowdin.com/download/project/' + crowdin_identifier + '.zip').content
+s = requests.request('GET', 'https://crowdin.com/download/project/' + crowdin_identifier + '.zip').content
 zfobj = zipfile.ZipFile(io.BytesIO(s))
 
 print('Unzip translations')

@@ -214,7 +214,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         size_str = _("Size:") + ' %d bytes'% size
         fee_str = _("Fee") + ': %s'% (format_amount(fee) + ' ' + base_unit if fee is not None else _('unknown'))
         if fee is not None:
-            fee_str += '  ( %s )' % (format_amount(fee * 1000 / size) + ' ' + base_unit + '/kB')
+            fee_str += '  ( %s ) '%  self.main_window.format_fee_rate(fee/size*1000)
         self.amount_label.setText(amount_str)
         self.fee_label.setText(fee_str)
         self.size_label.setText(size_str)
@@ -227,7 +227,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         vbox.addWidget(QLabel(_("Inputs") + ' (%d)'%len(self.tx.inputs())))
         ext = QTextCharFormat()
         rec = QTextCharFormat()
-        rec.setBackground(QBrush(QColor("lightgreen")))
+        rec.setBackground(QBrush(ColorScheme.GREEN.as_color(background=True)))
         rec.setToolTip(_("Wallet receive address"))
         chg = QTextCharFormat()
         chg.setBackground(QBrush(QColor("yellow")))

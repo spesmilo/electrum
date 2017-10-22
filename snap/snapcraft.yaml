@@ -16,8 +16,8 @@ parts:
   electrum-ltc:
     source: .
     plugin: python
-    python-version: python2
-    stage-packages: [python-qt4]
-    build-packages: [pyqt4-dev-tools]
-    install: pyrcc4 icons.qrc -o $SNAPCRAFT_PART_INSTALL/lib/python2.7/site-packages/electrum_ltc_gui/qt/icons_rc.py
-    after: [desktop-qt4]
+    python-version: python3
+    stage-packages: [python3-pyqt5]
+    build-packages: [pyqt5-dev-tools]
+    install: pyrcc5 icons.qrc -o $SNAPCRAFT_PART_INSTALL/lib/python3.5/site-packages/electrum_ltc_gui/qt/icons_rc.py
+    after: [desktop-qt5]

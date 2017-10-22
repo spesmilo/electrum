@@ -129,7 +129,7 @@ class TxDialog(Factory.Popup):
         self.ids.output_list.update(self.tx.outputs())
 
     def do_rbf(self):
-        from bump_fee_dialog import BumpFeeDialog
+        from .bump_fee_dialog import BumpFeeDialog
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
         size = self.tx.estimated_size()
         d = BumpFeeDialog(self.app, fee, size, self._do_rbf)
@@ -171,7 +171,7 @@ class TxDialog(Factory.Popup):
         self.app.broadcast(self.tx)
 
     def show_qr(self):
-        from electrum_ltc.bitcoin import base_encode
-        text = str(self.tx).decode('hex')
+        from electrum_ltc.bitcoin import base_encode, bfh
+        text = bfh(str(self.tx))
         text = base_encode(text, base=43)
         self.app.qr_dialog(_("Raw Transaction"), text)
