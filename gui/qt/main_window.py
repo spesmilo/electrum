@@ -453,6 +453,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         file_menu.addAction(_("&Open"), self.open_wallet).setShortcut(QKeySequence.Open)
         file_menu.addAction(_("&New/Restore"), self.new_wallet).setShortcut(QKeySequence.New)
         file_menu.addAction(_("&Save Copy"), self.backup_wallet).setShortcut(QKeySequence.SaveAs)
+        file_menu.addAction(_("Delete"), self.remove_wallet)
         file_menu.addSeparator()
         file_menu.addAction(_("&Quit"), self.close)
 
@@ -1854,18 +1855,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             show_mpk(0)
             vbox.addWidget(mpk_text)
         vbox.addStretch(1)
-        delete_button = QPushButton(_("Delete"))
-        delete_button.clicked.connect(lambda: self.remove_wallet(dialog))
-        vbox.addLayout(Buttons(delete_button, CloseButton(dialog)))
+        vbox.addLayout(Buttons(CloseButton(dialog)))
         dialog.setLayout(vbox)
         dialog.exec_()
 
-    def remove_wallet(self, d):
+    def remove_wallet(self):
         if self.question(_('Delete wallet file') + "\n'%s'"%self.wallet.storage.path):
-            self._delete_wallet(d)
+            self._delete_wallet()
 
     @protected
-    def _delete_wallet(self, d, password):
+    def _delete_wallet(self, password):
         wallet_path = self.wallet.storage.path
         dirname = os.path.dirname(wallet_path)
         basename = os.path.basename(wallet_path)
@@ -1873,10 +1872,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             try:
                 self.wallet.check_password(pw)
             except:
-                self.show_error("Invalid PIN")
+                self.show_error("Invalid Password")
                 return
         self.gui_object.daemon.stop_wallet(wallet_path)
-        d.close()
         self.close()
         os.unlink(wallet_path)
         self.show_error("Wallet removed:" + basename)
