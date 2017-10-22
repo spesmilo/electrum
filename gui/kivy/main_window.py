@@ -305,8 +305,9 @@ class ElectrumWindow(App):
             return
         # try to decode transaction
         from electrum.transaction import Transaction
+        from electrum.util import bh2u
         try:
-            text = base_decode(data, None, base=43).encode('hex')
+            text = bh2u(base_decode(data, None, base=43))
             tx = Transaction(text)
             tx.deserialize()
         except:
