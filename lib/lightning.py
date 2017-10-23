@@ -40,11 +40,11 @@ def NewAddress(json):
   request = rpc_pb2.NewAddressRequest()
   json_format.Parse(json, request)
   m = rpc_pb2.NewAddressResponse()
-  if request.type == rpc_pb2.NewAddressRequest.WITNESS_PUBKEY_HASH:
+  if request.type == rpc_pb2.WITNESS_PUBKEY_HASH:
     m.address = WALLET.get_unused_address()
-  elif request.type == rpc_pb2.NewAddressRequest.NESTED_PUBKEY_HASH:
+  elif request.type == rpc_pb2.NESTED_PUBKEY_HASH:
     assert False
-  elif request.type == rpc_pb2.NewAddressRequest.PUBKEY_HASH:
+  elif request.type == rpc_pb2.PUBKEY_HASH:
     assert False
   else:
     assert False
@@ -60,6 +60,9 @@ def FetchRootKey(json):
   return msg
 
 cl = rpc_pb2.ListUnspentWitnessRequest
+
+assert rpc_pb2.WITNESS_PUBKEY_HASH is not None
+
 def ListUnspentWitness(json):
   global pubk
   req = cl()
@@ -81,8 +84,11 @@ def ListUnspentWitness(json):
     #  'height': 326,
     #  'value': 400000000}
 
-
     towire = m.utxos.add()
+    towire.addressType = rpc_pb2.WITNESS_PUBKEY_HASH
+    towire.redeemScript = b""
+    towire.pkScript = bytes(bytearray.fromhex(bitcoin.address_to_script(utxo["address"])))
+    towire.witnessScript = b""
     towire.value = utxo["value"]
     towire.outPoint.hash = utxo["prevout_hash"]
     towire.outPoint.index = utxo["prevout_n"]
