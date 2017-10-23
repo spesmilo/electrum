@@ -623,6 +623,7 @@ class ColorScheme:
     GREEN = ColorSchemeItem("#117c11", "#8af296")
     RED = ColorSchemeItem("#7c1111", "#f18c8c")
     BLUE = ColorSchemeItem("#123b7c", "#8cb3f2")
+    GREY = ColorSchemeItem("#666666", "#999999")
     DEFAULT = ColorSchemeItem("black", "white")
 
     @staticmethod

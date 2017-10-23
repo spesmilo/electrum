@@ -1060,6 +1060,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
               + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')
         self.fee_e_label = HelpLabel(_('Fee'), msg)
 
+        self.fee_e = BTCAmountEdit(self.get_decimal_point)
+        if not self.config.get('edit_fee', False):
+            self.fee_e.setFrozen(True)
+        self.fee_e.textEdited.connect(self.update_fee)
+
+        self.fiat_fee = AmountEdit(self.fx.get_currency if self.fx else '')
+        self.fiat_fee.setFrozen(True)
+        self.fiat_fee.setStyleSheet(ColorScheme.GREY.as_stylesheet())
+        if not self.fx or not self.fx.is_enabled():
+            self.fiat_fee.setVisible(False)
+
         def fee_cb(dyn, pos, fee_rate):
             if dyn:
                 self.config.set_key('fee_level', pos, False)
@@ -1070,10 +1081,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fee_slider = FeeSlider(self, self.config, fee_cb)
         self.fee_slider.setFixedWidth(140)
 
-        self.fee_e = BTCAmountEdit(self.get_decimal_point)
-        if not self.config.get('show_fee', False):
-            self.fee_e.setVisible(False)
-        self.fee_e.textEdited.connect(self.update_fee)
         # This is so that when the user blanks the fee and moves on,
         # we go back to auto-calculate mode and put a fee back.
         self.fee_e.editingFinished.connect(self.update_fee)
@@ -1087,9 +1094,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.rbf_checkbox.setVisible(False)
 
         grid.addWidget(self.fee_e_label, 5, 0)
-        grid.addWidget(self.fee_slider, 5, 1)
-        grid.addWidget(self.fee_e, 5, 2)
-        grid.addWidget(self.rbf_checkbox, 5, 3)
+        grid.addWidget(self.fee_e, 5, 1)
+        grid.addWidget(self.fiat_fee, 5, 2)
+        grid.addWidget(self.fee_slider, 5, 3)
+        grid.addWidget(self.rbf_checkbox, 5, 4)
 
         self.preview_button = EnterButton(_("Preview"), self.do_preview)
         self.preview_button.setToolTip(_('Display the details of your transactions before signing it.'))
@@ -1128,12 +1136,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             else:
                 amt_color, fee_color = ColorScheme.BLUE, ColorScheme.BLUE
 
+            if self.fee_e.isReadOnly() and fee_color != ColorScheme.RED:
+                fee_color = ColorScheme.GREY
+
             self.statusBar().showMessage(text)
             self.amount_e.setStyleSheet(amt_color.as_stylesheet())
             self.fee_e.setStyleSheet(fee_color.as_stylesheet())
 
         self.amount_e.textChanged.connect(entry_changed)
         self.fee_e.textChanged.connect(entry_changed)
+        self.fee_e.frozen.connect(entry_changed)
+
+        def update_fiat_fee():
+            fee = self.fee_e.get_amount()
+            rate = self.fx.exchange_rate() if self.fx else None
+            if fee is None or rate is None:
+                self.fiat_fee.setText('')
+            else:
+                self.fiat_fee.setText(self.fx.ccy_amount_str(
+                    fee * Decimal(rate) / COIN, False))
+        self.fee_e.textChanged.connect(update_fiat_fee)
 
         self.invoices_label = QLabel(_('Invoices'))
         from .invoice_list import InvoiceList
@@ -1223,7 +1245,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 b = False
             self.rbf_checkbox.setVisible(b)
             self.rbf_checkbox.setChecked(b)
-
 
     def from_list_delete(self, item):
         i = self.from_list.indexOfTopLevelItem(item)
@@ -1553,9 +1574,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.not_enough_funds = False
         self.payment_request = None
         self.payto_e.is_pr = False
-        for e in [self.payto_e, self.message_e, self.amount_e, self.fiat_send_e, self.fee_e]:
+        for e in [self.payto_e, self.message_e, self.amount_e,
+                  self.fiat_send_e, self.fee_e, self.fiat_fee]:
             e.setText('')
-            e.setFrozen(False)
+            e.setFrozen(e.isReadOnly())
         self.set_pay_from([])
         self.rbf_checkbox.setChecked(False)
         self.update_status()
@@ -2401,6 +2423,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         b = self.fx and self.fx.is_enabled()
         self.fiat_send_e.setVisible(b)
         self.fiat_receive_e.setVisible(b)
+        self.fiat_fee.setVisible(b)
         self.history_list.refresh_headers()
         self.history_list.update()
         self.address_list.update()
@@ -2465,11 +2488,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         dynfee_cb.stateChanged.connect(on_dynfee)
 
         feebox_cb = QCheckBox(_('Edit fees manually'))
-        feebox_cb.setChecked(self.config.get('show_fee', False))
+        feebox_cb.setChecked(self.config.get('edit_fee', False))
         feebox_cb.setToolTip(_("Show fee edit box in send tab."))
         def on_feebox(x):
-            self.config.set_key('show_fee', x == Qt.Checked)
-            self.fee_e.setVisible(bool(x))
+            self.config.set_key('edit_fee', x == Qt.Checked)
+            self.fee_e.setFrozen(not bool(x))
         feebox_cb.stateChanged.connect(on_feebox)
         fee_widgets.append((feebox_cb, None))
 
