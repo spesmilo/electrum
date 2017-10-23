@@ -191,6 +191,8 @@ server = TrustedCoinCosignerClient(user_agent="Electrum/" + version.ELECTRUM_VER
 
 class Wallet_2fa(Multisig_Wallet):
 
+    wallet_type = '2fa'
+
     def __init__(self, storage):
         self.m, self.n = 2, 3
         Deterministic_Wallet.__init__(self, storage)
