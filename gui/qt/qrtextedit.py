@@ -1,9 +1,4 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
-import six
 from electrum.i18n import _
 from electrum.plugins import run_hook
 from PyQt5.QtGui import *
@@ -60,8 +55,6 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
             data = qrscanner.scan_barcode(get_config().get_video_device())
         except BaseException as e:
             self.show_error(str(e))
-            data = ''
-        if type(data) != str:
             data = ''
         self.setText(data)
         return data

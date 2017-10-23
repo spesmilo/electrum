@@ -22,13 +22,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import webbrowser
-import six
 
 from electrum.i18n import _
 from electrum.bitcoin import is_address
@@ -72,7 +66,7 @@ class ContactList(MyTreeWidget):
         selected = self.selectedItems()
         if not selected:
             menu.addAction(_("New contact"), lambda: self.parent.new_contact_dialog())
-            menu.addAction(_("Import file"), lambda: self.parent.import_contacts())
+            menu.addAction(_("Import file"), lambda: self.import_contacts())
         else:
             names = [item.text(0) for item in selected]
             keys = [item.text(1) for item in selected]

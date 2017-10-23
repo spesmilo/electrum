@@ -133,36 +133,56 @@ try:
 except:
     AES = None
 
+
+class InvalidPadding(Exception):
+    pass
+
+
+def append_PKCS7_padding(data):
+    assert_bytes(data)
+    padlen = 16 - (len(data) % 16)
+    return data + bytes([padlen]) * padlen
+
+
+def strip_PKCS7_padding(data):
+    assert_bytes(data)
+    if len(data) % 16 != 0 or len(data) == 0:
+        raise InvalidPadding("invalid length")
+    padlen = data[-1]
+    if padlen > 16:
+        raise InvalidPadding("invalid padding byte (large)")
+    for i in data[-padlen:]:
+        if i != padlen:
+            raise InvalidPadding("invalid padding byte (inconsistent)")
+    return data[0:-padlen]
+
+
 def aes_encrypt_with_iv(key, iv, data):
     assert_bytes(key, iv, data)
+    data = append_PKCS7_padding(data)
     if AES:
-        padlen = 16 - (len(data) % 16)
-        if padlen == 0:
-            padlen = 16
-        data += bytes([padlen]) * padlen
         e = AES.new(key, AES.MODE_CBC, iv).encrypt(data)
-        return e
     else:
         aes_cbc = pyaes.AESModeOfOperationCBC(key, iv=iv)
-        aes = pyaes.Encrypter(aes_cbc)
-        e = aes.feed(data) + aes.feed()  # empty aes.feed() appends pkcs padding
-        return e
+        aes = pyaes.Encrypter(aes_cbc, padding=pyaes.PADDING_NONE)
+        e = aes.feed(data) + aes.feed()  # empty aes.feed() flushes buffer
+    return e
+
 
 def aes_decrypt_with_iv(key, iv, data):
     assert_bytes(key, iv, data)
     if AES:
         cipher = AES.new(key, AES.MODE_CBC, iv)
         data = cipher.decrypt(data)
-        padlen = data[-1]
-        for i in data[-padlen:]:
-            if i != padlen:
-                raise InvalidPassword()
-        return data[0:-padlen]
     else:
         aes_cbc = pyaes.AESModeOfOperationCBC(key, iv=iv)
-        aes = pyaes.Decrypter(aes_cbc)
-        s = aes.feed(data) + aes.feed()  # empty aes.feed() strips pkcs padding
-        return s
+        aes = pyaes.Decrypter(aes_cbc, padding=pyaes.PADDING_NONE)
+        data = aes.feed(data) + aes.feed()  # empty aes.feed() flushes buffer
+    try:
+        return strip_PKCS7_padding(data)
+    except InvalidPadding:
+        raise InvalidPassword()
+
 
 def EncodeAES(secret, s):
     assert_bytes(s)
@@ -231,7 +251,6 @@ def op_push(i):
 
 def push_script(x):
     return op_push(len(x)//2) + x
-
 
 def sha256(x):
     x = to_bytes(x, 'utf8')
