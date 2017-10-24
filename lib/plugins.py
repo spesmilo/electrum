@@ -253,6 +253,9 @@ class BasePlugin(PrintError):
     def is_available(self):
         return True
 
+    def can_user_disable(self):
+        return True
+
     def settings_dialog(self):
         pass
 
