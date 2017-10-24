@@ -332,6 +332,9 @@ class TrustedCoinPlugin(BasePlugin):
     def is_enabled(self):
         return True
 
+    def can_user_disable(self):
+        return False
+
     @hook
     def get_tx_extra_fee(self, wallet, tx):
         if type(wallet) != Wallet_2fa:

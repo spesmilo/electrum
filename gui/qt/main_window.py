@@ -2853,8 +2853,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 continue
             try:
                 cb = QCheckBox(descr['fullname'])
-                cb.setEnabled(plugins.is_available(name, self.wallet))
-                cb.setChecked(p is not None and p.is_enabled())
+                plugin_is_loaded = p is not None
+                cb_enabled = (not plugin_is_loaded and plugins.is_available(name, self.wallet)
+                              or plugin_is_loaded and p.can_user_disable())
+                cb.setEnabled(cb_enabled)
+                cb.setChecked(plugin_is_loaded and p.is_enabled())
                 grid.addWidget(cb, i, 0)
                 enable_settings_widget(p, name, i)
                 cb.clicked.connect(partial(do_toggle, cb, name, i))
