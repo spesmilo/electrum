@@ -1,0 +1,38 @@
+#! /usr/bin/env python3
+
+import sys
+from time import time
+from electrum import WalletStorage, Wallet
+from electrum.keystore import Imported_KeyStore
+
+
+if __name__ == "__main__":
+	if len(sys.argv) < 3:
+		print("USAGE: %s <source_file> <wallet_file>" % sys.argv[0])
+		print("       source_file should containt a list of private keys, one key per line")
+		print("       wallet_file is a path to your new wallet")
+		sys.exit()
+
+	storage = WalletStorage(sys.argv[2])
+	keystore = Imported_KeyStore({})
+
+	storage.put("wallet_type", "imported")
+	storage.put("keystore", keystore.dump())
+
+	wallet = Wallet(storage)
+
+	if not wallet.can_import_privkey():
+		print("ERROR: Wallet can't import privkey.")
+		sys.exit()
+
+	start = time()
+	n = 0
+	with open(sys.argv[1]) as input_file:
+		for privkey in [line.strip() for line in input_file.readlines()]:
+			address = wallet.import_private_key(privkey, None, write=False)
+			n += 1
+			print("[%d] Imported privkey for %s" % (n, address))
+	storage.write()
+	diff = time() - start
+	print("Imported %d privkeys in %fs" % (n, diff))
+	print("Wallet stored in %s" % sys.argv[2])
