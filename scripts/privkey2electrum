@@ -9,7 +9,7 @@ from electrum.keystore import Imported_KeyStore
 if __name__ == "__main__":
 	if len(sys.argv) < 3:
 		print("USAGE: %s <source_file> <wallet_file>" % sys.argv[0])
-		print("       source_file should containt a list of private keys, one key per line")
+		print("       source_file should contain a list of private keys, one key per line")
 		print("       wallet_file is a path to your new wallet")
 		sys.exit()
 
