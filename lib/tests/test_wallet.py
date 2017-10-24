@@ -1,9 +1,3 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-import six
 import shutil
 import tempfile
 import sys
@@ -11,7 +5,7 @@ import unittest
 import os
 import json
 
-from six.moves import StringIO
+from io import StringIO
 from lib.storage import WalletStorage, FINAL_SEED_VERSION
 
 
