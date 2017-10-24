@@ -1466,7 +1466,7 @@ class Imported_Wallet(Simple_Wallet):
     def get_public_key(self, address):
         return self.addresses[address].get('pubkey')
 
-    def import_private_key(self, sec, pw, redeem_script=None):
+    def import_private_key(self, sec, pw, redeem_script=None, write=True):
         try:
             txin_type, pubkey = self.keystore.import_privkey(sec, pw)
         except Exception:
@@ -1484,7 +1484,8 @@ class Imported_Wallet(Simple_Wallet):
         self.addresses[addr] = {'type':txin_type, 'pubkey':pubkey, 'redeem_script':redeem_script}
         self.save_keystore()
         self.save_addresses()
-        self.storage.write()
+        if write:
+            self.storage.write()
         self.add_address(addr)
         return addr
 
