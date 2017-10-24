@@ -1,4 +1,4 @@
-#! /usr/bin/env python3
+#!/usr/bin/env python3
 
 import sys
 from time import time
@@ -27,12 +27,14 @@ if __name__ == "__main__":
 
 	start = time()
 	n = 0
+
 	with open(sys.argv[1]) as input_file:
 		for privkey in [line.strip() for line in input_file.readlines()]:
 			address = wallet.import_private_key(privkey, None, write=False)
 			n += 1
 			print("[%d] Imported privkey for %s" % (n, address))
 	storage.write()
+
 	diff = time() - start
 	print("Imported %d privkeys in %fs" % (n, diff))
 	print("Wallet stored in %s" % sys.argv[2])
