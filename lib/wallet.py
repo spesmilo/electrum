@@ -1440,13 +1440,19 @@ class Imported_Wallet(Simple_Wallet):
     def get_change_addresses(self):
         return []
 
-    def import_address(self, address):
+    def finalize_import_address(self):
+        # these operations take linear (in keystore size) time
+        self.storage.write()
+
+    def import_address(self, address, finalize=True):
         if address in self.addresses:
             return ''
         self.addresses[address] = {}
         self.storage.put('addresses', self.addresses)
-        self.storage.write()
+        if finalize:
+            self.finalize_import_address()
         self.add_address(address)
+        self.print_error('imported address', address)
         return address
 
     def delete_address(self, address):
@@ -1466,7 +1472,13 @@ class Imported_Wallet(Simple_Wallet):
     def get_public_key(self, address):
         return self.addresses[address].get('pubkey')
 
-    def import_private_key(self, sec, pw, redeem_script=None):
+    def finalize_import_private_key(self):
+        # these operations take linear (in keystore size) time
+        self.save_keystore()
+        self.save_addresses()
+        self.storage.write()
+
+    def import_private_key(self, sec, pw, redeem_script=None, finalize=True):
         try:
             txin_type, pubkey = self.keystore.import_privkey(sec, pw)
         except Exception:
@@ -1482,10 +1494,10 @@ class Imported_Wallet(Simple_Wallet):
         else:
             raise NotImplementedError(self.txin_type)
         self.addresses[addr] = {'type':txin_type, 'pubkey':pubkey, 'redeem_script':redeem_script}
-        self.save_keystore()
-        self.save_addresses()
-        self.storage.write()
+        if finalize:
+            self.finalize_import_private_key()
         self.add_address(addr)
+        self.print_error('imported private key for address', addr)
         return addr
 
     def export_private_key(self, address, password):

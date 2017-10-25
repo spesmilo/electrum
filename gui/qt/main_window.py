@@ -2364,7 +2364,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.warn_if_watching_only()
         self.show_transaction(tx)
 
-    def _do_import(self, title, msg, func):
+    def _do_import(self, title, msg, import_func, finalize_func):
         text = text_dialog(self, title, msg + ' :', _('Import'))
         if not text:
             return
@@ -2372,11 +2372,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         good = []
         for key in str(text).split():
             try:
-                addr = func(key)
+                addr = import_func(key)
                 good.append(addr)
             except BaseException as e:
                 bad.append(key)
                 continue
+        finalize_func()
         if good:
             self.show_message(_("The following addresses were added") + ':\n' + '\n'.join(good))
         if bad:
@@ -2388,14 +2389,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not self.wallet.can_import_address():
             return
         title, msg = _('Import addresses'), _("Enter addresses")
-        self._do_import(title, msg, self.wallet.import_address)
+        self._do_import(title, msg,
+                        lambda x: self.wallet.import_address(x, finalize=False),
+                        self.wallet.finalize_import_address)
 
     @protected
     def do_import_privkey(self, password):
         if not self.wallet.can_import_privkey():
             return
         title, msg = _('Import private keys'), _("Enter private keys")
-        self._do_import(title, msg, lambda x: self.wallet.import_private_key(x, password))
+        self._do_import(title, msg,
+                        lambda x: self.wallet.import_private_key(x, password, finalize=False),
+                        self.wallet.finalize_import_private_key)
 
     def update_fiat(self):
         b = self.fx and self.fx.is_enabled()

@@ -147,13 +147,15 @@ class BaseWizard(object):
         if keystore.is_address_list(text):
             self.wallet = Imported_Wallet(self.storage)
             for x in text.split():
-                self.wallet.import_address(x)
+                self.wallet.import_address(x, finalize=False)
+            self.wallet.finalize_import_address()
         elif keystore.is_private_key_list(text):
             k = keystore.Imported_KeyStore({})
             self.storage.put('keystore', k.dump())
             self.wallet = Imported_Wallet(self.storage)
             for x in text.split():
-                self.wallet.import_private_key(x, None)
+                self.wallet.import_private_key(x, None, finalize=False)
+            self.wallet.finalize_import_private_key()
         self.terminate()
 
     def restore_from_key(self):
