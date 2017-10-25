@@ -681,7 +681,7 @@ def bip44_derivation(account_id, segwit=False):
     coin = 1 if bitcoin.TESTNET else 0
     return "m/%d'/%d'/%d'" % (bip, coin, int(account_id))
 
-def from_seed(seed, passphrase):
+def from_seed(seed, passphrase, is_p2sh):
     t = seed_type(seed)
     if t == 'old':
         keystore = Old_KeyStore({})
@@ -691,7 +691,13 @@ def from_seed(seed, passphrase):
         keystore.add_seed(seed)
         keystore.passphrase = passphrase
         bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
-        keystore.add_xprv_from_seed(bip32_seed, t, "m/")
+        if t == 'standard':
+            der = "m/"
+            xtype = 'standard'
+        else:
+            der = "m/1'/" if is_p2sh else "m/0'/"
+            xtype = 'p2wsh' if is_p2sh else 'p2wpkh'
+        keystore.add_xprv_from_seed(bip32_seed, xtype, der)
     else:
         raise BaseException(t)
     return keystore
