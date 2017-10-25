@@ -135,11 +135,12 @@ class TcpConnection(threading.Thread, util.PrintError):
                 # try with CA first
                 try:
                     s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_TLSv1_1, cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_path, do_handshake_on_connect=True)
-                except socket.timeout:
-                    return
                 except ssl.SSLError as e:
                     print_error(e)
                     s = None
+                except:
+                    return
+
                 if s and self.check_host_name(s.getpeercert(), self.host):
                     self.print_error("SSL certificate signed by CA")
                     return s
@@ -150,10 +151,10 @@ class TcpConnection(threading.Thread, util.PrintError):
                     return
                 try:
                     s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_TLSv1_1, cert_reqs=ssl.CERT_NONE, ca_certs=None)
-                except socket.timeout:
-                    return
                 except ssl.SSLError as e:
                     self.print_error("SSL error retrieving SSL certificate:", e)
+                    return
+                except:
                     return
 
                 dercert = s.getpeercert(True)

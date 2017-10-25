@@ -1483,7 +1483,7 @@ class Imported_Wallet(Simple_Wallet):
                 raise BaseException('Redeem script required for', txin_type, sec)
             addr = bitcoin.redeem_script_to_address(txin_type, redeem_script)
         else:
-            raise NotImplementedError(self.txin_type)
+            raise NotImplementedError(txin_type)
         self.addresses[addr] = {'type':txin_type, 'pubkey':pubkey, 'redeem_script':redeem_script}
         self.save_keystore()
         self.save_addresses()
