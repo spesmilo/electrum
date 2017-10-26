@@ -1860,7 +1860,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         dialog.exec_()
 
     def remove_wallet(self):
-        if self.question(_('Delete wallet file') + "\n'%s'"%self.wallet.storage.path):
+        if self.question('\n'.join([
+                _('Delete wallet file?'),
+                "%s"%self.wallet.storage.path,
+                _('If your wallet contains funds, make sure you have saved its seed.')])):
             self._delete_wallet()
 
     @protected
