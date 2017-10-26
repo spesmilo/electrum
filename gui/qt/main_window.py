@@ -1914,19 +1914,23 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
             return
+        xtype = bitcoin.deserialize_privkey(pk)[0]
         d = WindowModalDialog(self, _("Private key"))
-        d.setMinimumSize(600, 200)
+        d.setMinimumSize(600, 150)
         vbox = QVBoxLayout()
-        vbox.addWidget( QLabel(_("Address") + ': ' + address))
-        vbox.addWidget( QLabel(_("Private key") + ':'))
+        vbox.addWidget(QLabel(_("Address") + ': ' + address))
+        vbox.addWidget(QLabel(_("Script type") + ': ' + xtype))
+        vbox.addWidget(QLabel(_("Private key") + ':'))
         keys_e = ShowQRTextEdit(text=pk)
         keys_e.addCopyButton(self.app)
         vbox.addWidget(keys_e)
         if redeem_script:
-            vbox.addWidget( QLabel(_("Redeem Script") + ':'))
+            vbox.addWidget(QLabel(_("Redeem Script") + ':'))
             rds_e = ShowQRTextEdit(text=redeem_script)
             rds_e.addCopyButton(self.app)
             vbox.addWidget(rds_e)
+        if xtype in ['p2wpkh', 'p2wsh', 'p2wphk-p2sh', 'p2wsh-p2sh']:
+            vbox.addWidget(WWLabel(_("Warning: the format of segwit private keys may not be compatible with other wallets")))
         vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
         d.exec_()
