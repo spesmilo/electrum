@@ -25,9 +25,11 @@
     - The BIP32 master keys of segwit wallets are serialized using new
       version numbers. Version numbers are user visible, with the
       following prefixes:
-         * xpub/xprv : non-segwit wallet
-         * ypub/yprv : segwit-p2sh wallet
-         * zpub/zprv : native segwit wallet
+         * xpub/xprv : p2pkh or p2sh
+         * ypub/yprv : p2wpkh-in-p2sh
+         * Ypub/Yprv : p2wsh-in-p2sh
+         * zpub/zprv : p2wpkh
+         * Zpub/Zprv : p2wsh
 
   * A new version of the Electrum protocol is required by the client
     (version 1.1). Servers using older versions of the protocol will
