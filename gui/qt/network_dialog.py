@@ -316,6 +316,8 @@ class NetworkChoiceLayout(object):
         self.td = td = TorDetector()
         td.found_proxy.connect(self.suggest_proxy)
         td.start()
+
+        self.fill_in_proxy_settings()
         self.update()
 
     def check_disable_proxy(self, b):
@@ -337,8 +339,6 @@ class NetworkChoiceLayout(object):
 
     def update(self):
         host, port, protocol, proxy_config, auto_connect = self.network.get_parameters()
-        if not proxy_config:
-            proxy_config = { "mode":"none", "host":"localhost", "port":"9050"}
         self.server_host.setText(host)
         self.server_port.setText(port)
         self.ssl_cb.setChecked(protocol=='s')
@@ -351,17 +351,6 @@ class NetworkChoiceLayout(object):
         self.servers = self.network.get_servers()
         self.servers_list.update(self.servers, self.protocol, self.tor_cb.isChecked())
         self.enable_set_server()
-
-        # proxy tab
-        b = proxy_config.get('mode') != "none"
-        self.check_disable_proxy(b)
-        if b:
-            self.proxy_cb.setChecked(True)
-            self.proxy_mode.setCurrentIndex(self.proxy_mode.findText(str(proxy_config.get("mode").upper())))
-        self.proxy_host.setText(proxy_config.get("host"))
-        self.proxy_port.setText(proxy_config.get("port"))
-        self.proxy_user.setText(proxy_config.get("user", ""))
-        self.proxy_password.setText(proxy_config.get("password", ""))
 
         height_str = "%d "%(self.network.get_local_height()) + _('blocks')
         self.height_label.setText(height_str)
@@ -380,6 +369,23 @@ class NetworkChoiceLayout(object):
             msg = ''
         self.split_label.setText(msg)
         self.nodes_list_widget.update(self.network)
+
+    def fill_in_proxy_settings(self):
+        host, port, protocol, proxy_config, auto_connect = self.network.get_parameters()
+        if not proxy_config:
+            proxy_config = {"mode": "none", "host": "localhost", "port": "9050"}
+
+        b = proxy_config.get('mode') != "none"
+        self.check_disable_proxy(b)
+        if b:
+            self.proxy_cb.setChecked(True)
+            self.proxy_mode.setCurrentIndex(
+                self.proxy_mode.findText(str(proxy_config.get("mode").upper())))
+
+        self.proxy_host.setText(proxy_config.get("host"))
+        self.proxy_port.setText(proxy_config.get("port"))
+        self.proxy_user.setText(proxy_config.get("user", ""))
+        self.proxy_password.setText(proxy_config.get("password", ""))
 
     def layout(self):
         return self.layout_
@@ -482,6 +488,7 @@ class NetworkChoiceLayout(object):
             self.proxy_password.setText("")
             self.tor_cb.setChecked(True)
             self.proxy_cb.setChecked(True)
+        self.check_disable_proxy(use_it)
         self.set_proxy()
 
     def proxy_settings_changed(self):

@@ -660,18 +660,10 @@ class SocketPipe:
                 print_error("SSLError:", e)
                 time.sleep(0.1)
                 continue
-            except socket.error as e:
-                if e[0] in (errno.EWOULDBLOCK,errno.EAGAIN):
-                    print_error("EAGAIN: retrying")
-                    time.sleep(0.1)
-                    continue
-                elif e[0] in ['timed out', 'The write operation timed out']:
-                    print_error("socket timeout, retry")
-                    time.sleep(0.1)
-                    continue
-                else:
-                    traceback.print_exc(file=sys.stdout)
-                    raise e
+            except OSError as e:
+                print_error("OSError", e)
+                time.sleep(0.1)
+                continue
 
 
 class QueuePipe:
