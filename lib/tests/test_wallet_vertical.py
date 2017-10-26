@@ -48,7 +48,7 @@ class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
         seed_words = 'cycle rocket west magnet parrot shuffle foot correct salt library feed song'
         self.assertEqual(bitcoin.seed_type(seed_words), 'standard')
 
-        ks = keystore.from_seed(seed_words, '')
+        ks = keystore.from_seed(seed_words, '', False)
 
         self._check_seeded_keystore_sanity(ks)
         self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
@@ -65,24 +65,24 @@ class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
         seed_words = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
         self.assertEqual(bitcoin.seed_type(seed_words), 'segwit')
 
-        ks = keystore.from_seed(seed_words, '')
+        ks = keystore.from_seed(seed_words, '', False)
 
         self._check_seeded_keystore_sanity(ks)
         self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
 
-        self.assertEqual(ks.xpub, 'zpub6jftahH18ngZyLeqfLBFAm7YaWFVttE9pku5pNMX2qPzTjoq1FVgZMmhjecyB2nqFb31gHE9vNvbaggU6vvWpNZbXEWLLUjYjFqG95LNyT8')
+        self.assertEqual(ks.xpub, 'zpub6nsHdRuY92FsMKdbn9BfjBCG6X8pyhCibNP6uDvpnw2cyrVhecvHRMa3Ne8kdJZxjxgwnpbHLkcR4bfnhHy6auHPJyDTQ3kianeuVLdkCYQ')
 
         w = self._create_standard_wallet(ks)
 
-        self.assertEqual(w.get_receiving_addresses()[0], 'bc1qtt5msqvcqyvuu7hq7urwgraqqyq2yhtuzdpwc4')
-        self.assertEqual(w.get_change_addresses()[0], 'bc1q9wlrynvj7qz7x4fs29d8dnje0zdevj5vmenter')
+        self.assertEqual(w.get_receiving_addresses()[0], 'bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af')
+        self.assertEqual(w.get_change_addresses()[0], 'bc1qdy94n2q5qcp0kg7v9yzwe6wvfkhnvyzje7nx2p')
 
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_electrum_seed_old(self, mock_write):
         seed_words = 'powerful random nobody notice nothing important anyway look away hidden message over'
         self.assertEqual(bitcoin.seed_type(seed_words), 'old')
 
-        ks = keystore.from_seed(seed_words, '')
+        ks = keystore.from_seed(seed_words, '', False)
 
         self._check_seeded_keystore_sanity(ks)
         self.assertTrue(isinstance(ks, keystore.Old_KeyStore))
@@ -131,7 +131,7 @@ class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
         seed_words = 'blast uniform dragon fiscal ensure vast young utility dinosaur abandon rookie sure'
         self.assertEqual(bitcoin.seed_type(seed_words), 'standard')
 
-        ks1 = keystore.from_seed(seed_words, '')
+        ks1 = keystore.from_seed(seed_words, '', True)
         self._check_seeded_keystore_sanity(ks1)
         self.assertTrue(isinstance(ks1, keystore.BIP32_KeyStore))
         self.assertEqual(ks1.xpub, 'xpub661MyMwAqRbcGNEPu3aJQqXTydqR9t49Tkwb4Esrj112kw8xLthv8uybxvaki4Ygt9xiwZUQGeFTG7T2TUzR3eA4Zp3aq5RXsABHFBUrq4c')
@@ -150,19 +150,19 @@ class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
         seed_words = 'snow nest raise royal more walk demise rotate smooth spirit canyon gun'
         self.assertEqual(bitcoin.seed_type(seed_words), 'segwit')
 
-        ks1 = keystore.from_seed(seed_words, '')
+        ks1 = keystore.from_seed(seed_words, '', True)
         self._check_seeded_keystore_sanity(ks1)
         self.assertTrue(isinstance(ks1, keystore.BIP32_KeyStore))
-        self.assertEqual(ks1.xpub, 'zpub6jftahH18ngZxwy83eiaWSH1ynYTbA4Ta5MR6JQb4TZCJLCbEzY15f6BCpiDtQeFkzni3v4tT5x6x6Lanvg1YbMZ7ePQmjqtbznPUcYA6mK')
+        self.assertEqual(ks1.xpub, 'Zpub6xwgqLvc42wXB1wEELTdALD9iXwStMUkGqBgxkJFYumaL2dWgNvUkjEDWyDFZD3fZuDWDzd1KQJ4NwVHS7hs6H6QkpNYSShfNiUZsgMdtNg')
 
-        ks2 = keystore.from_xpub('zpub6jftahH18ngZxE47EYpJWzwTF71AhtNW8ToREBZB7mu3BMdud8aG1tw5TtSqY4qPrhFK1NpKvYwJi9mnhLE8p57nx6929YguJ1Sf2VB8VGt')
+        ks2 = keystore.from_xpub('Zpub6ymNkfdyhypEoqQNNGAUz9gXeiWJsW8AWx8Aa6PnDdeL76UC9b1UPGmEvwWzzkVVghVQuDBry7CK7wCBBdysRQgFFmdDSqi5kWoZ3A4cBuA')
         self._check_xpub_keystore_sanity(ks2)
         self.assertTrue(isinstance(ks2, keystore.BIP32_KeyStore))
 
         w = self._create_multisig_wallet(ks1, ks2)
 
-        self.assertEqual(w.get_receiving_addresses()[0], 'bc1qnvks7gfdu72de8qv6q6rhkkzu70fqz4wpjzuxjf6aydsx7wxfwcqnlxuv3')
-        self.assertEqual(w.get_change_addresses()[0], 'bc1qsvfq6ekp0paugjhfey38pt3nqyvs3tcxu5l00v56j3g6g5la004qw4d33a')
+        self.assertEqual(w.get_receiving_addresses()[0], 'bc1qlf9cr48pj5zheqedla0eucpzhufl7kp2nd0a0evsz529gdx7jgnsd4888q')
+        self.assertEqual(w.get_change_addresses()[0], 'bc1q89s4j4k3ghdmscjz0pklz2fl24mc9ptvwyg38xgqyw8f5vk29ccskzcf2y')
 
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_bip39_multisig_seed_bip44_standard(self, mock_write):
@@ -182,20 +182,3 @@ class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
         self.assertEqual(w.get_receiving_addresses()[0], '35hp2ELdVzs3xF7cFhsuifV9HnyHpNAwbf')
         self.assertEqual(w.get_change_addresses()[0], '39LMwwqYwx8XUNCs83FQ82nNBCpu3JDrcW')
 
-    @mock.patch.object(storage.WalletStorage, '_write')
-    def test_bip39_multisig_seed_bip49_p2sh_segwit(self, mock_write):
-        seed_words = 'treat dwarf wealth gasp brass outside high rent blood crowd make initial'
-        self.assertEqual(keystore.bip39_is_checksum_valid(seed_words), (True, True))
-
-        ks1 = keystore.from_bip39_seed(seed_words, '', "m/49'/0'/0'")
-        self.assertTrue(isinstance(ks1, keystore.BIP32_KeyStore))
-        self.assertEqual(ks1.xpub, 'ypub6XDth9u8DzXV1tcpDtoDKMf6kVMaVMn1juVWEesTshcX4zUVvfNgjPJLXrD9N7AdTLnbHFL64KmBn3SNaTe69iZYbYCqLCCNPZKbLz9niQ4')
-
-        ks2 = keystore.from_xpub('ypub6WnnkE8TGSfWMb6QUVYoVsDRwpCUR98xUg7JnSoVuK7w41UGNViztuCCd8f4mHi6KkUahrh5CnZex1PJNi3oKcSCZ9Lni4huF5FAGouGkuz')
-        self._check_xpub_keystore_sanity(ks2)
-        self.assertTrue(isinstance(ks2, keystore.BIP32_KeyStore))
-
-        w = self._create_multisig_wallet(ks1, ks2)
-
-        self.assertEqual(w.get_receiving_addresses()[0], '33hvqSEadWahj8WUbAcoLFBEXBRThuUDQd')
-        self.assertEqual(w.get_change_addresses()[0], '39Soij7BaNmD83d9NXF2283sqjb5Vwhe1m')
