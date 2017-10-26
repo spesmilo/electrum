@@ -339,8 +339,6 @@ class NetworkChoiceLayout(object):
 
     def update(self):
         host, port, protocol, proxy_config, auto_connect = self.network.get_parameters()
-        if not proxy_config:
-            proxy_config = { "mode":"none", "host":"localhost", "port":"9050"}
         self.server_host.setText(host)
         self.server_port.setText(port)
         self.ssl_cb.setChecked(protocol=='s')
