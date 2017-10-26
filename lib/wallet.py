@@ -1724,7 +1724,7 @@ class Multisig_Wallet(Deterministic_Wallet):
             self.keystores[name] = load_keystore(self.storage, name)
         self.keystore = self.keystores['x1/']
         xtype = deserialize_xpub(self.keystore.xpub)[0]
-        self.txin_type = 'p2sh' if xtype == 'standard' else 'xtype'
+        self.txin_type = 'p2sh' if xtype == 'standard' else xtype
 
     def save_keystore(self):
         for name, k in self.keystores.items():
