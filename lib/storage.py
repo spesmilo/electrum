@@ -46,7 +46,7 @@ from . import bitcoin
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 15     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 14     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -258,7 +258,7 @@ class WalletStorage(PrintError):
         self.convert_wallet_type()
         self.convert_account()
         self.convert_version_13_b()
-        self.convert_version_15()
+        self.convert_version_14()
 
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
         self.write()
@@ -373,7 +373,7 @@ class WalletStorage(PrintError):
 
         self.put('seed_version', 13)
 
-    def convert_version_15(self):
+    def convert_version_14(self):
         # convert imported wallets for 3.0
         if not self._is_upgrade_method_needed(13, 13):
             return
@@ -400,7 +400,8 @@ class WalletStorage(PrintError):
                 self.put('addresses', d)
                 self.put('pubkeys', None)
                 self.put('wallet_type', 'imported')
-        self.put('seed_version', 15)
+
+        self.put('seed_version', 14)
 
     def convert_imported(self):
         # '/x' is the internal ID for imported accounts
@@ -453,26 +454,21 @@ class WalletStorage(PrintError):
         seed_version = self.get('seed_version')
         if not seed_version:
             seed_version = OLD_SEED_VERSION if len(self.get('master_public_key','')) == 128 else NEW_SEED_VERSION
-        if seed_version==14 and self.get('seed_type') == 'segwit':
-            self.raise_unsupported_version(seed_version)
         if seed_version >=12:
             return seed_version
         if seed_version not in [OLD_SEED_VERSION, NEW_SEED_VERSION]:
-            self.raise_unsupported_version(seed_version)
+            msg = "Your wallet has an unsupported seed version."
+            msg += '\n\nWallet file: %s' % os.path.abspath(self.path)
+            if seed_version in [5, 7, 8, 9, 10]:
+                msg += "\n\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
+            if seed_version == 6:
+                # version 1.9.8 created v6 wallets when an incorrect seed was entered in the restore dialog
+                msg += '\n\nThis file was created because of a bug in version 1.9.8.'
+                if self.get('master_public_keys') is None and self.get('master_private_keys') is None and self.get('imported_keys') is None:
+                    # pbkdf2 was not included with the binaries, and wallet creation aborted.
+                    msg += "\nIt does not contain any keys, and can safely be removed."
+                else:
+                    # creation was complete if electrum was run from source
+                    msg += "\nPlease open this file with Electrum 1.9.8, and move your coins to a new wallet."
+            raise BaseException(msg)
         return seed_version
-
-    def raise_unsupported_version(self, seed_version):
-        msg = "Your wallet has an unsupported seed version."
-        msg += '\n\nWallet file: %s' % os.path.abspath(self.path)
-        if seed_version in [5, 7, 8, 9, 10, 14]:
-            msg += "\n\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
-        if seed_version == 6:
-            # version 1.9.8 created v6 wallets when an incorrect seed was entered in the restore dialog
-            msg += '\n\nThis file was created because of a bug in version 1.9.8.'
-            if self.get('master_public_keys') is None and self.get('master_private_keys') is None and self.get('imported_keys') is None:
-                # pbkdf2 was not included with the binaries, and wallet creation aborted.
-                msg += "\nIt does not contain any keys, and can safely be removed."
-            else:
-                # creation was complete if electrum was run from source
-                msg += "\nPlease open this file with Electrum 1.9.8, and move your coins to a new wallet."
-        raise BaseException(msg)
