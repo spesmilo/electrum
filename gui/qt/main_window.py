@@ -1704,6 +1704,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         pr = self.invoices.get(key)
         self.payment_request = pr
         self.prepare_for_payment_request()
+        pr.error = None  # this forces verify() to re-run
         if pr.verify(self.contacts):
             self.payment_request_ok()
         else:
