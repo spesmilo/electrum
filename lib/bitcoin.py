@@ -411,6 +411,9 @@ def address_to_script(addr):
 
 def address_to_scripthash(addr):
     script = address_to_script(addr)
+    return script_to_scripthash(script)
+
+def script_to_scripthash(script):
     h = sha256(bytes.fromhex(script))[0:32]
     return bh2u(bytes(reversed(h)))
 
