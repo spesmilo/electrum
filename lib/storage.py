@@ -453,6 +453,8 @@ class WalletStorage(PrintError):
         seed_version = self.get('seed_version')
         if not seed_version:
             seed_version = OLD_SEED_VERSION if len(self.get('master_public_key','')) == 128 else NEW_SEED_VERSION
+        if seed_version > FINAL_SEED_VERSION:
+            raise BaseException('This version of Electrum is too old to open this wallet')
         if seed_version==14 and self.get('seed_type') == 'segwit':
             self.raise_unsupported_version(seed_version)
         if seed_version >=12:
