@@ -480,6 +480,7 @@ class InvoiceStore(object):
                 d = json.loads(f.read())
                 self.load(d)
         except:
+            traceback.print_exc(file=sys.stderr)
             return
         self.save()
 
@@ -495,6 +496,9 @@ class InvoiceStore(object):
 
     def get_status(self, key):
         pr = self.get(key)
+        if pr is None:
+            print_error("[InvoiceStore] get_status() can't find pr for", key)
+            return
         if pr.tx is not None:
             return PR_PAID
         if pr.has_expired():
