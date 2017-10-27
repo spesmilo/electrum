@@ -258,6 +258,7 @@ class WalletStorage(PrintError):
         self.convert_wallet_type()
         self.convert_account()
         self.convert_version_13_b()
+        self.convert_version_14()
         self.convert_version_15()
 
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
@@ -373,7 +374,7 @@ class WalletStorage(PrintError):
 
         self.put('seed_version', 13)
 
-    def convert_version_15(self):
+    def convert_version_14(self):
         # convert imported wallets for 3.0
         if not self._is_upgrade_method_needed(13, 13):
             return
@@ -400,6 +401,12 @@ class WalletStorage(PrintError):
                 self.put('addresses', d)
                 self.put('pubkeys', None)
                 self.put('wallet_type', 'imported')
+        self.put('seed_version', 14)
+
+    def convert_version_15(self):
+        if not self._is_upgrade_method_needed(14, 14):
+            return
+        assert self.get('seed_type') != 'segwit'  # unsupported derivation
         self.put('seed_version', 15)
 
     def convert_imported(self):
