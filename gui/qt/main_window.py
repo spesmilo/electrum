@@ -1684,10 +1684,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             grid.addWidget(QLabel(format_time(expires)), 4, 1)
         vbox.addLayout(grid)
         def do_export():
-            fn = self.getOpenFileName(_("Save invoice to file"), "*.bip70")
+            fn = self.getSaveFileName(_("Save invoice to file"), "*.bip70")
             if not fn:
                 return
-            with open(fn, 'w') as f:
+            with open(fn, 'wb') as f:
                 data = f.write(pr.raw)
             self.show_message(_('Invoice saved as' + ' ' + fn))
         exportButton = EnterButton(_('Save'), do_export)
@@ -1695,6 +1695,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if self.question(_('Delete invoice?')):
                 self.invoices.remove(key)
                 self.history_list.update()
+                self.invoice_list.update()
                 d.close()
         deleteButton = EnterButton(_('Delete'), do_delete)
         vbox.addLayout(Buttons(exportButton, deleteButton, CloseButton(d)))
