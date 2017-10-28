@@ -873,27 +873,38 @@ class Abstract_Wallet(PrintError):
         self.sign_transaction(tx, password)
         return tx
 
+    def _append_utxos_to_inputs(self, inputs, network, pubkey, txin_type, imax):
+        address = None
+        if txin_type != 'p2pk':
+            address = bitcoin.pubkey_to_address(txin_type, pubkey)
+            sh = bitcoin.address_to_scripthash(address)
+        else:
+            script = bitcoin.public_key_to_p2pk_script(pubkey)
+            sh = bitcoin.script_to_scripthash(script)
+        u = network.synchronous_get(('blockchain.scripthash.listunspent', [sh]))
+        for item in u:
+            if len(inputs) >= imax:
+                break
+            if address is not None:
+                item['address'] = address
+            item['type'] = txin_type
+            item['prevout_hash'] = item['tx_hash']
+            item['prevout_n'] = item['tx_pos']
+            item['pubkeys'] = [pubkey]
+            item['x_pubkeys'] = [pubkey]
+            item['signatures'] = [None]
+            item['num_sig'] = 1
+            inputs.append(item)
+
     def sweep(self, privkeys, network, config, recipient, fee=None, imax=100):
         inputs = []
         keypairs = {}
         for sec in privkeys:
             txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
             pubkey = bitcoin.public_key_from_private_key(privkey, compressed)
-            address = bitcoin.pubkey_to_address(txin_type, pubkey)
-            sh = bitcoin.address_to_scripthash(address)
-            u = network.synchronous_get(('blockchain.scripthash.listunspent', [sh]))
-            for item in u:
-                if len(inputs) >= imax:
-                    break
-                item['type'] = txin_type
-                item['address'] = address
-                item['prevout_hash'] = item['tx_hash']
-                item['prevout_n'] = item['tx_pos']
-                item['pubkeys'] = [pubkey]
-                item['x_pubkeys'] = [pubkey]
-                item['signatures'] = [None]
-                item['num_sig'] = 1
-                inputs.append(item)
+            self._append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax)
+            if txin_type == 'p2pkh':  # WIF serialization is ambiguous :(
+                self._append_utxos_to_inputs(inputs, network, pubkey, 'p2pk', imax)
             keypairs[pubkey] = privkey, compressed
 
         if not inputs:
@@ -1665,14 +1676,7 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
             xtype = deserialize_xpub(self.keystore.xpub)[0]
         except:
             xtype = 'standard'
-        if xtype == 'standard':
-            self.txin_type = 'p2pkh'
-        elif xtype == 'segwit':
-            self.txin_type = 'p2wpkh'
-        elif xtype == 'segwit_p2sh':
-            self.txin_type = 'p2wpkh-p2sh'
-        else:
-            raise BaseException('unknown txin_type', xtype)
+        self.txin_type = 'p2pkh' if xtype == 'standard' else xtype
 
     def get_pubkey(self, c, i):
         return self.derive_pubkeys(c, i)
@@ -1734,14 +1738,7 @@ class Multisig_Wallet(Deterministic_Wallet):
             self.keystores[name] = load_keystore(self.storage, name)
         self.keystore = self.keystores['x1/']
         xtype = deserialize_xpub(self.keystore.xpub)[0]
-        if xtype == 'standard':
-            self.txin_type = 'p2sh'
-        elif xtype == 'segwit':
-            self.txin_type = 'p2wsh'
-        elif xtype == 'segwit_p2sh':
-            self.txin_type = 'p2wsh-p2sh'
-        else:
-            raise BaseException('unknown txin_type', xtype)
+        self.txin_type = 'p2sh' if xtype == 'standard' else xtype
 
     def save_keystore(self):
         for name, k in self.keystores.items():

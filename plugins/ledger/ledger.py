@@ -65,7 +65,7 @@ class Ledger_Client():
             elif bip32_path.startswith("m/49'/"):
                 if not self.supports_segwit():
                     raise Exception("Firmware version too old for Segwit support. Please update at https://www.ledgerwallet.com")
-                xtype = 'segwit_p2sh'
+                xtype = 'p2wpkh-p2sh'
             else:
                 xtype = 'standard'
             splitPath = bip32_path.split('/')
