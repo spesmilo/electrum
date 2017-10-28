@@ -871,19 +871,18 @@ class Abstract_Wallet(PrintError):
         return tx
 
     def _append_utxos_to_inputs(self, inputs, network, pubkey, txin_type, imax):
-        address = None
         if txin_type != 'p2pk':
             address = bitcoin.pubkey_to_address(txin_type, pubkey)
             sh = bitcoin.address_to_scripthash(address)
         else:
             script = bitcoin.public_key_to_p2pk_script(pubkey)
             sh = bitcoin.script_to_scripthash(script)
+            address = '(pubkey)'
         u = network.synchronous_get(('blockchain.scripthash.listunspent', [sh]))
         for item in u:
             if len(inputs) >= imax:
                 break
-            if address is not None:
-                item['address'] = address
+            item['address'] = address
             item['type'] = txin_type
             item['prevout_hash'] = item['tx_hash']
             item['prevout_n'] = item['tx_pos']
