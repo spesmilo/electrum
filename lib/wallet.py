@@ -874,19 +874,18 @@ class Abstract_Wallet(PrintError):
         return tx
 
     def _append_utxos_to_inputs(self, inputs, network, pubkey, txin_type, imax):
-        address = None
         if txin_type != 'p2pk':
             address = bitcoin.pubkey_to_address(txin_type, pubkey)
             sh = bitcoin.address_to_scripthash(address)
         else:
             script = bitcoin.public_key_to_p2pk_script(pubkey)
             sh = bitcoin.script_to_scripthash(script)
+            address = '(pubkey)'
         u = network.synchronous_get(('blockchain.scripthash.listunspent', [sh]))
         for item in u:
             if len(inputs) >= imax:
                 break
-            if address is not None:
-                item['address'] = address
+            item['address'] = address
             item['type'] = txin_type
             item['prevout_hash'] = item['tx_hash']
             item['prevout_n'] = item['tx_pos']
@@ -923,7 +922,9 @@ class Abstract_Wallet(PrintError):
             raise BaseException(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d\nDust Threshold: %d'%(total, fee, self.dust_threshold()))
 
         outputs = [(TYPE_ADDRESS, recipient, total - fee)]
-        tx = Transaction.from_io(inputs, outputs)
+        locktime = self.get_local_height()
+
+        tx = Transaction.from_io(inputs, outputs, locktime=locktime)
         tx.set_rbf(True)
         tx.sign(keypairs)
         return tx
@@ -1064,7 +1065,8 @@ class Abstract_Wallet(PrintError):
                     continue
         if delta > 0:
             raise BaseException(_('Cannot bump fee: could not find suitable outputs'))
-        return Transaction.from_io(inputs, outputs)
+        locktime = self.get_local_height()
+        return Transaction.from_io(inputs, outputs, locktime=locktime)
 
     def cpfp(self, tx, fee):
         txid = tx.txid()
@@ -1081,7 +1083,8 @@ class Abstract_Wallet(PrintError):
         self.add_input_info(item)
         inputs = [item]
         outputs = [(TYPE_ADDRESS, address, value - fee)]
-        return Transaction.from_io(inputs, outputs)
+        locktime = self.get_local_height()
+        return Transaction.from_io(inputs, outputs, locktime=locktime)
 
     def add_input_info(self, txin):
         address = txin['address']
