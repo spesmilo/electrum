@@ -260,9 +260,11 @@ def is_new_seed(x, prefix=version.SEED_PREFIX):
 
 
 def is_old_seed(seed):
-    from . import old_mnemonic
-    words = seed.strip().split()
+    from . import old_mnemonic, mnemonic
+    seed = mnemonic.normalize_text(seed)
+    words = seed.split()
     try:
+        # checks here are deliberately left weak for legacy reasons, see #3149
         old_mnemonic.mn_decode(words)
         uses_electrum_words = True
     except Exception:

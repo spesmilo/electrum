@@ -11,7 +11,7 @@ from lib.bitcoin import (
     var_int, op_push, address_to_script, regenerate_key,
     verify_message, deserialize_privkey, serialize_privkey, is_segwit_address,
     is_b58_address, address_to_scripthash, is_minikey, is_compressed, is_xpub,
-    xpub_type, is_xprv, is_bip32_derivation)
+    xpub_type, is_xprv, is_bip32_derivation, seed_type)
 from lib.util import bfh
 
 try:
@@ -348,6 +348,28 @@ class Test_keyImport(unittest.TestCase):
 
 class Test_seeds(unittest.TestCase):
     """ Test old and new seeds. """
+
+    mnemonics = {
+        ('cell dumb heartbeat north boom tease ship baby bright kingdom rare squeeze', 'old'),
+        ('cell dumb heartbeat north boom tease ' * 4, 'old'),
+        ('cell dumb heartbeat north boom tease ship baby bright kingdom rare badword', ''),
+        ('cElL DuMb hEaRtBeAt nOrTh bOoM TeAsE ShIp bAbY BrIgHt kInGdOm rArE SqUeEzE', 'old'),
+        ('   cElL  DuMb hEaRtBeAt nOrTh bOoM  TeAsE ShIp    bAbY BrIgHt kInGdOm rArE SqUeEzE   ', 'old'),
+        # below seed is actually 'invalid old' as it maps to 33 hex chars
+        ('hurry idiot prefer sunset mention mist jaw inhale impossible kingdom rare squeeze', 'old'),
+        ('cram swing cover prefer miss modify ritual silly deliver chunk behind inform able', 'standard'),
+        ('cram swing cover prefer miss modify ritual silly deliver chunk behind inform', ''),
+        ('ostrich security deer aunt climb inner alpha arm mutual marble solid task', 'standard'),
+        ('OSTRICH SECURITY DEER AUNT CLIMB INNER ALPHA ARM MUTUAL MARBLE SOLID TASK', 'standard'),
+        ('   oStRiCh sEcUrItY DeEr aUnT ClImB       InNeR AlPhA ArM MuTuAl mArBlE   SoLiD TaSk  ', 'standard'),
+        ('x8', 'standard'),
+        ('science dawn member doll dutch real can brick knife deny drive list', '2fa'),
+        ('science dawn member doll dutch real ca brick knife deny drive list', ''),
+        (' sCience dawn   member doll Dutch rEAl can brick knife deny drive  lisT', '2fa'),
+        ('frost pig brisk excite novel report camera enlist axis nation novel desert', 'segwit'),
+        ('  fRoSt pig brisk excIte novel rePort CamEra enlist axis nation nOVeL dEsert ', 'segwit'),
+        ('9dk', 'segwit'),
+    }
     
     def test_new_seed(self):
         seed = "cram swing cover prefer miss modify ritual silly deliver chunk behind inform able"
@@ -364,3 +386,7 @@ class Test_seeds(unittest.TestCase):
 
         self.assertTrue(is_old_seed("0123456789ABCDEF" * 2))
         self.assertTrue(is_old_seed("0123456789ABCDEF" * 4))
+
+    def test_seed_type(self):
+        for seed_words, _type in self.mnemonics:
+            self.assertEqual(_type, seed_type(seed_words), msg=seed_words)
