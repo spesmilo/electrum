@@ -264,10 +264,9 @@ def is_old_seed(seed):
     seed = mnemonic.normalize_text(seed)
     words = seed.split()
     try:
-        hex_seed = old_mnemonic.mn_decode(words)
-        words2 = old_mnemonic.mn_encode(hex_seed)
-        seed2 = ' '.join(words2)
-        uses_electrum_words = seed == seed2
+        # checks here are deliberately left weak for legacy reasons, see #3149
+        old_mnemonic.mn_decode(words)
+        uses_electrum_words = True
     except Exception:
         uses_electrum_words = False
     try:

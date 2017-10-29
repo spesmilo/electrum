@@ -355,7 +355,8 @@ class Test_seeds(unittest.TestCase):
         ('cell dumb heartbeat north boom tease ship baby bright kingdom rare badword', ''),
         ('cElL DuMb hEaRtBeAt nOrTh bOoM TeAsE ShIp bAbY BrIgHt kInGdOm rArE SqUeEzE', 'old'),
         ('   cElL  DuMb hEaRtBeAt nOrTh bOoM  TeAsE ShIp    bAbY BrIgHt kInGdOm rArE SqUeEzE   ', 'old'),
-        ('hurry idiot prefer sunset mention mist jaw inhale impossible kingdom rare squeeze', ''),  # almost 'old' but maps to 33 hex chars
+        # below seed is actually 'invalid old' as it maps to 33 hex chars
+        ('hurry idiot prefer sunset mention mist jaw inhale impossible kingdom rare squeeze', 'old'),
         ('cram swing cover prefer miss modify ritual silly deliver chunk behind inform able', 'standard'),
         ('cram swing cover prefer miss modify ritual silly deliver chunk behind inform', ''),
         ('ostrich security deer aunt climb inner alpha arm mutual marble solid task', 'standard'),
