@@ -1,4 +1,4 @@
-from electrum.util import print_msg
+from electrum.plugins import hook
 from .ledger import LedgerPlugin
 from ..hw_wallet import CmdLineHandler
 
