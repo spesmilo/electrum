@@ -214,6 +214,13 @@ class NetworkChoiceLayout(object):
         self.autoconnect_cb.clicked.connect(self.set_server)
         self.autoconnect_cb.clicked.connect(self.update)
 
+        msg = ' '.join([
+            _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain."),
+            _("If it is disabled, you have to choose a server you want to use. Electrum will warn you if your server is lagging.")
+        ])
+        grid.addWidget(self.autoconnect_cb, 0, 0, 1, 3)
+        grid.addWidget(HelpButton(msg), 0, 4)
+
         grid.addWidget(QLabel(_('Server') + ':'), 1, 0)
         grid.addWidget(self.server_host, 1, 1, 1, 2)
         grid.addWidget(self.server_port, 1, 3)
@@ -300,12 +307,6 @@ class NetworkChoiceLayout(object):
         self.split_label = QLabel('')
         grid.addWidget(self.split_label, 3, 0, 1, 3)
 
-        msg = ' '.join([
-            _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain."),
-            _("If it is disabled, you have to choose a server you want to use. Electrum will warn you if your server is lagging.")
-        ])
-        grid.addWidget(self.autoconnect_cb, 4, 0, 1, 3)
-        grid.addWidget(HelpButton(msg), 4, 4)
         self.nodes_list_widget = NodesListWidget(self)
         grid.addWidget(self.nodes_list_widget, 5, 0, 1, 5)
 
@@ -332,7 +333,6 @@ class NetworkChoiceLayout(object):
             self.server_host.setEnabled(enabled)
             self.server_port.setEnabled(enabled)
             self.servers_list.setEnabled(enabled)
-            self.tabs.setTabEnabled(2, enabled)
         else:
             for w in [self.autoconnect_cb, self.server_host, self.server_port, self.ssl_cb, self.servers_list]:
                 w.setEnabled(False)
