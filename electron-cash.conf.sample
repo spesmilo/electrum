@@ -1,4 +1,4 @@
-# Configuration file for the electron cahs client
+# Configuration file for the electron cash client
 # Settings defined here are shared across wallets
 #
 # copy this file to /etc/electron-cash.conf if you want read-only settings
