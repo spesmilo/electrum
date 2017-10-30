@@ -1569,16 +1569,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.utxo_list.update()
         self.update_fee()
 
-    def create_list_tab(self, l, buttons=None):
+    def create_list_tab(self, l, list_header=None):
         w = QWidget()
         w.searchable_list = l
         vbox = QVBoxLayout()
         w.setLayout(vbox)
         vbox.setContentsMargins(0, 0, 0, 0)
         vbox.setSpacing(0)
-        if buttons:
+        if list_header:
             hbox = QHBoxLayout()
-            for b in buttons:
+            for b in list_header:
                 hbox.addWidget(b)
             hbox.addStretch()
             vbox.addLayout(hbox)
@@ -1588,7 +1588,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def create_addresses_tab(self):
         from .address_list import AddressList
         self.address_list = l = AddressList(self)
-        return self.create_list_tab(l, l.get_buttons())
+        return self.create_list_tab(l, l.get_list_header())
 
     def create_utxo_tab(self):
         from .utxo_list import UTXOList
