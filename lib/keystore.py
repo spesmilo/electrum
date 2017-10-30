@@ -355,9 +355,9 @@ class Old_KeyStore(Deterministic_KeyStore):
         self.mpk = mpk
 
     def format_seed(self, seed):
-        from . import old_mnemonic
+        from . import old_mnemonic, mnemonic
+        seed = mnemonic.normalize_text(seed)
         # see if seed was entered as hex
-        seed = seed.strip()
         if seed:
             try:
                 bfh(seed)
