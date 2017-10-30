@@ -75,7 +75,7 @@ setup(
             'currencies.json',
             'www/index.html',
             'wordlist/*.txt',
-            'locale/*/LC_MESSAGES/electrum.mo',
+            'locale/*/LC_MESSAGES/electron-cash.mo',
         ]
     },
     scripts=['electron-cash'],

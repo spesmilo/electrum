@@ -1,10 +1,10 @@
-# Configuration file for the electrum client
+# Configuration file for the electron cahs client
 # Settings defined here are shared across wallets
 #
-# copy this file to /etc/electrum.conf if you want read-only settings
+# copy this file to /etc/electron-cash.conf if you want read-only settings
 
 [client]
-server = electrum.novit.ro:50001:t
+server = electron.coinucopia.io:50001:t
 proxy = None
 gap_limit = 5
 # booleans use python syntax

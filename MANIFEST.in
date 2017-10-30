@@ -1,6 +1,6 @@
 include LICENCE RELEASE-NOTES AUTHORS
 include README.rst
-include electrum.conf.sample
+include electron-cash.conf.sample
 include electron-cash.desktop
 include *.py
 include electron-cash
