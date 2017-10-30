@@ -80,6 +80,12 @@
         "t": "50001",
         "version": "1.1"
     },
+    "bitcoin.cluelessperson.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.1"
+    },
     "electrum.coinucopia.io": {
         "pruning": "-",
         "s": "50002",
