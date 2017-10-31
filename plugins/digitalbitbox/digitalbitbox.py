@@ -84,7 +84,8 @@ class DigitalBitbox_Client():
             return self.hid_send_encrypt(b'{"xpub": "%s"}' % bip32_path.encode('utf8'))
 
 
-    def get_xpub(self, bip32_path):
+    def get_xpub(self, bip32_path, xtype):
+        assert xpub == 'standard'
         reply = self._get_xpub(bip32_path)
         if reply:
             return reply['xpub']
@@ -646,7 +647,7 @@ class DigitalBitboxPlugin(HW_PluginBase):
         client = devmgr.client_by_id(device_id)
         client.handler = self.create_handler(wizard)
         client.setupRunning = True
-        client.get_xpub("m/44'/0'")
+        client.get_xpub("m/44'/0'", 'standard')
 
 
     def is_mobile_paired(self):
@@ -667,12 +668,12 @@ class DigitalBitboxPlugin(HW_PluginBase):
             self.handler.show_error(str(e))
 
 
-    def get_xpub(self, device_id, derivation, wizard):
+    def get_xpub(self, device_id, derivation, xtype, wizard):
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)
         client.handler = self.create_handler(wizard)
         client.check_device_dialog()
-        xpub = client.get_xpub(derivation)
+        xpub = client.get_xpub(derivation, xtype)
         return xpub
 
 
