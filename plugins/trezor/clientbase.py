@@ -147,15 +147,11 @@ class TrezorClientBase(GuiMixin, PrintError):
     def i4b(self, x):
         return pack('>I', x)
 
-    def get_xpub(self, bip32_path):
+    def get_xpub(self, bip32_path, xtype):
         address_n = self.expand_path(bip32_path)
-        creating = False #self.next_account_number() == 0
+        creating = False
         node = self.get_public_node(address_n, creating).node
-        xtype = 'p2wpkh-p2sh' if bip32_path.startswith("m/49'/") else 'standard'
         return serialize_xpub(xtype, node.chain_code, node.public_key, node.depth, self.i4b(node.fingerprint), self.i4b(node.child_num))
-
-    #def address_from_derivation(self, derivation):
-    #    return self.get_address('Bitcoin', self.expand_path(derivation))
 
     def toggle_passphrase(self):
         if self.features.passphrase_protection:

@@ -927,7 +927,6 @@ def deserialize_xkey(xkey, prv):
 def deserialize_xpub(xkey):
     return deserialize_xkey(xkey, False)
 
-
 def deserialize_xprv(xkey):
     return deserialize_xkey(xkey, True)
 

@@ -51,7 +51,7 @@ class Ledger_Client():
     def i4b(self, x):
         return pack('>I', x)        
 
-    def get_xpub(self, bip32_path):
+    def get_xpub(self, bip32_path, xtype):
         self.checkDevice()
         # bip32_path is of the form 44'/0'/1'
         # S-L-O-W - we don't handle the fingerprint directly, so compute
@@ -60,14 +60,11 @@ class Ledger_Client():
         #self.get_client() # prompt for the PIN before displaying the dialog if necessary
         #self.handler.show_message("Computing master public key")
         try:
-            if (os.getenv("LEDGER_NATIVE_SEGWIT") is not None) and self.supports_native_segwit():
-                xtype = 'p2wpkh'
-            elif bip32_path.startswith("m/49'/"):
-                if not self.supports_segwit():
-                    raise Exception("Firmware version too old for Segwit support. Please update at https://www.ledgerwallet.com")
-                xtype = 'p2wpkh-p2sh'
-            else:
-                xtype = 'standard'
+            if xtype in ['p2wpkh', 'p2wsh'] and not nelf.supports_native_segwit():
+                raise Exception("Firmware version too old for Segwit support. Please update at https://www.ledgerwallet.com")
+            if xtype in ['p2wpkh-p2sh', 'p2wsh-p2sh'] and not self.supports_segwit():
+                raise Exception("Firmware version too old for Segwit support. Please update at https://www.ledgerwallet.com")
+
             splitPath = bip32_path.split('/')
             if splitPath[0] == 'm':
                 splitPath = splitPath[1:]
@@ -493,18 +490,15 @@ class LedgerPlugin(HW_PluginBase):
         devmgr = self.device_manager()
         device_id = device_info.device.id_
         client = devmgr.client_by_id(device_id)
-        #client.handler = wizard
         client.handler = self.create_handler(wizard)
-        #client.get_xpub('m')
-        client.get_xpub("m/44'/0'") # TODO replace by direct derivation once Nano S > 1.1
+        client.get_xpub("m/44'/0'", 'standard') # TODO replace by direct derivation once Nano S > 1.1
 
-    def get_xpub(self, device_id, derivation, wizard):
+    def get_xpub(self, device_id, derivation, xtype, wizard):
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)
-        #client.handler = wizard
         client.handler = self.create_handler(wizard)
         client.checkDevice()
-        xpub = client.get_xpub(derivation)
+        xpub = client.get_xpub(derivation, xtype)
         return xpub
 
     def get_client(self, keystore, force_pair=True):
