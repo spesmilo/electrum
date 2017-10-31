@@ -1932,7 +1932,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             rds_e.addCopyButton(self.app)
             vbox.addWidget(rds_e)
         if xtype in ['p2wpkh', 'p2wsh', 'p2wpkh-p2sh', 'p2wsh-p2sh']:
-            vbox.addWidget(WWLabel(_("Warning: the format of segwit private keys may not be compatible with other wallets")))
+            vbox.addWidget(WWLabel(_("Warning: the format of private keys associated to segwit addresses may not be compatible with other wallets")))
         vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
         d.exec_()
