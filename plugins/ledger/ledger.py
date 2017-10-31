@@ -60,7 +60,7 @@ class Ledger_Client():
         #self.get_client() # prompt for the PIN before displaying the dialog if necessary
         #self.handler.show_message("Computing master public key")
         try:
-            if xtype in ['p2wpkh', 'p2wsh'] and not nelf.supports_native_segwit():
+            if xtype in ['p2wpkh', 'p2wsh'] and not self.supports_native_segwit():
                 raise Exception("Firmware version too old for Segwit support. Please update at https://www.ledgerwallet.com")
             if xtype in ['p2wpkh-p2sh', 'p2wsh-p2sh'] and not self.supports_segwit():
                 raise Exception("Firmware version too old for Segwit support. Please update at https://www.ledgerwallet.com")
