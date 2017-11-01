@@ -434,7 +434,9 @@ def parse_witness(vds, txin):
         txin['value'] = vds.read_uint64()
         n = vds.read_compact_size()
     w = list(bh2u(vds.read_bytes(vds.read_compact_size())) for i in range(n))
-    if n > 2:
+    if txin['type'] == 'coinbase':
+        pass
+    elif n > 2:
         txin['num_sig'] = n - 2
         txin['signatures'] = parse_sig(w[1:-1])
         m, n, x_pubkeys, pubkeys, witnessScript = parse_redeemScript(bfh(w[-1]))

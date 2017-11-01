@@ -870,27 +870,37 @@ class Abstract_Wallet(PrintError):
         self.sign_transaction(tx, password)
         return tx
 
+    def _append_utxos_to_inputs(self, inputs, network, pubkey, txin_type, imax):
+        if txin_type != 'p2pk':
+            address = bitcoin.pubkey_to_address(txin_type, pubkey)
+            sh = bitcoin.address_to_scripthash(address)
+        else:
+            script = bitcoin.public_key_to_p2pk_script(pubkey)
+            sh = bitcoin.script_to_scripthash(script)
+            address = '(pubkey)'
+        u = network.synchronous_get(('blockchain.scripthash.listunspent', [sh]))
+        for item in u:
+            if len(inputs) >= imax:
+                break
+            item['address'] = address
+            item['type'] = txin_type
+            item['prevout_hash'] = item['tx_hash']
+            item['prevout_n'] = item['tx_pos']
+            item['pubkeys'] = [pubkey]
+            item['x_pubkeys'] = [pubkey]
+            item['signatures'] = [None]
+            item['num_sig'] = 1
+            inputs.append(item)
+
     def sweep(self, privkeys, network, config, recipient, fee=None, imax=100):
         inputs = []
         keypairs = {}
         for sec in privkeys:
             txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
             pubkey = bitcoin.public_key_from_private_key(privkey, compressed)
-            address = bitcoin.pubkey_to_address(txin_type, pubkey)
-            sh = bitcoin.address_to_scripthash(address)
-            u = network.synchronous_get(('blockchain.scripthash.listunspent', [sh]))
-            for item in u:
-                if len(inputs) >= imax:
-                    break
-                item['type'] = txin_type
-                item['address'] = address
-                item['prevout_hash'] = item['tx_hash']
-                item['prevout_n'] = item['tx_pos']
-                item['pubkeys'] = [pubkey]
-                item['x_pubkeys'] = [pubkey]
-                item['signatures'] = [None]
-                item['num_sig'] = 1
-                inputs.append(item)
+            self._append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax)
+            if txin_type == 'p2pkh':  # WIF serialization is ambiguous :(
+                self._append_utxos_to_inputs(inputs, network, pubkey, 'p2pk', imax)
             keypairs[pubkey] = privkey, compressed
 
         if not inputs:
@@ -909,7 +919,9 @@ class Abstract_Wallet(PrintError):
             raise BaseException(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d\nDust Threshold: %d'%(total, fee, self.dust_threshold()))
 
         outputs = [(TYPE_ADDRESS, recipient, total - fee)]
-        tx = Transaction.from_io(inputs, outputs)
+        locktime = self.get_local_height()
+
+        tx = Transaction.from_io(inputs, outputs, locktime=locktime)
         tx.set_rbf(True)
         tx.sign(keypairs)
         return tx
@@ -1050,7 +1062,8 @@ class Abstract_Wallet(PrintError):
                     continue
         if delta > 0:
             raise BaseException(_('Cannot bump fee: could not find suitable outputs'))
-        return Transaction.from_io(inputs, outputs)
+        locktime = self.get_local_height()
+        return Transaction.from_io(inputs, outputs, locktime=locktime)
 
     def cpfp(self, tx, fee):
         txid = tx.txid()
@@ -1067,7 +1080,8 @@ class Abstract_Wallet(PrintError):
         self.add_input_info(item)
         inputs = [item]
         outputs = [(TYPE_ADDRESS, address, value - fee)]
-        return Transaction.from_io(inputs, outputs)
+        locktime = self.get_local_height()
+        return Transaction.from_io(inputs, outputs, locktime=locktime)
 
     def add_input_info(self, txin):
         address = txin['address']
@@ -1480,7 +1494,7 @@ class Imported_Wallet(Simple_Wallet):
                 raise BaseException('Redeem script required for', txin_type, sec)
             addr = bitcoin.redeem_script_to_address(txin_type, redeem_script)
         else:
-            raise NotImplementedError(self.txin_type)
+            raise NotImplementedError(txin_type)
         self.addresses[addr] = {'type':txin_type, 'pubkey':pubkey, 'redeem_script':redeem_script}
         self.save_keystore()
         self.save_addresses()
@@ -1659,17 +1673,10 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
     def load_keystore(self):
         self.keystore = load_keystore(self.storage, 'keystore')
         try:
-            xtype = deserialize_xpub(self.keystore.xpub)[0]
+            xtype = bitcoin.xpub_type(self.keystore.xpub)
         except:
             xtype = 'standard'
-        if xtype == 'standard':
-            self.txin_type = 'p2pkh'
-        elif xtype == 'segwit':
-            self.txin_type = 'p2wpkh'
-        elif xtype == 'segwit_p2sh':
-            self.txin_type = 'p2wpkh-p2sh'
-        else:
-            raise BaseException('unknown txin_type', xtype)
+        self.txin_type = 'p2pkh' if xtype == 'standard' else xtype
 
     def get_pubkey(self, c, i):
         return self.derive_pubkeys(c, i)
@@ -1730,15 +1737,8 @@ class Multisig_Wallet(Deterministic_Wallet):
             name = 'x%d/'%(i+1)
             self.keystores[name] = load_keystore(self.storage, name)
         self.keystore = self.keystores['x1/']
-        xtype = deserialize_xpub(self.keystore.xpub)[0]
-        if xtype == 'standard':
-            self.txin_type = 'p2sh'
-        elif xtype == 'segwit':
-            self.txin_type = 'p2wsh'
-        elif xtype == 'segwit_p2sh':
-            self.txin_type = 'p2wsh-p2sh'
-        else:
-            raise BaseException('unknown txin_type', xtype)
+        xtype = bitcoin.xpub_type(self.keystore.xpub)
+        self.txin_type = 'p2sh' if xtype == 'standard' else xtype
 
     def save_keystore(self):
         for name, k in self.keystores.items():

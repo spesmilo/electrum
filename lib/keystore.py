@@ -355,9 +355,9 @@ class Old_KeyStore(Deterministic_KeyStore):
         self.mpk = mpk
 
     def format_seed(self, seed):
-        from . import old_mnemonic
+        from . import old_mnemonic, mnemonic
+        seed = mnemonic.normalize_text(seed)
         # see if seed was entered as hex
-        seed = seed.strip()
         if seed:
             try:
                 bfh(seed)
@@ -576,7 +576,7 @@ def bip39_is_checksum_valid(mnemonic):
 def from_bip39_seed(seed, passphrase, derivation):
     k = BIP32_KeyStore({})
     bip32_seed = bip39_to_seed(seed, passphrase)
-    t = 'segwit_p2sh' if derivation.startswith("m/49'") else 'standard'  # bip43
+    t = 'p2wpkh-p2sh' if derivation.startswith("m/49'") else 'standard'  # bip43
     k.add_xprv_from_seed(bip32_seed, t, derivation)
     return k
 
@@ -681,7 +681,7 @@ def bip44_derivation(account_id, segwit=False):
     coin = 1 if bitcoin.TESTNET else 0
     return "m/%d'/%d'/%d'" % (bip, coin, int(account_id))
 
-def from_seed(seed, passphrase):
+def from_seed(seed, passphrase, is_p2sh):
     t = seed_type(seed)
     if t == 'old':
         keystore = Old_KeyStore({})
@@ -691,7 +691,13 @@ def from_seed(seed, passphrase):
         keystore.add_seed(seed)
         keystore.passphrase = passphrase
         bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
-        keystore.add_xprv_from_seed(bip32_seed, t, "m/")
+        if t == 'standard':
+            der = "m/"
+            xtype = 'standard'
+        else:
+            der = "m/1'/" if is_p2sh else "m/0'/"
+            xtype = 'p2wsh' if is_p2sh else 'p2wpkh'
+        keystore.add_xprv_from_seed(bip32_seed, xtype, der)
     else:
         raise BaseException(t)
     return keystore

@@ -241,7 +241,8 @@ class BaseWizard(object):
 
     def on_hw_derivation(self, name, device_info, derivation):
         from .keystore import hardware_keystore
-        xpub = self.plugin.get_xpub(device_info.device.id_, derivation, self)
+        xtype = 'p2wpkh-p2sh' if derivation.startswith("m/49'/") else 'standard'
+        xpub = self.plugin.get_xpub(device_info.device.id_, derivation, xtype, self)
         if xpub is None:
             self.show_error('Cannot read xpub from device')
             return
@@ -299,7 +300,7 @@ class BaseWizard(object):
         self.derivation_dialog(f)
 
     def create_keystore(self, seed, passphrase):
-        k = keystore.from_seed(seed, passphrase)
+        k = keystore.from_seed(seed, passphrase, self.wallet_type == 'multisig')
         self.on_keystore(k)
 
     def on_bip43(self, seed, passphrase, derivation):
@@ -307,17 +308,28 @@ class BaseWizard(object):
         self.on_keystore(k)
 
     def on_keystore(self, k):
+        has_xpub = isinstance(k, keystore.Xpub)
+        if has_xpub:
+            from .bitcoin import xpub_type
+            t1 = xpub_type(k.xpub)
         if self.wallet_type == 'standard':
+            if has_xpub and t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
+                self.show_error(_('Wrong key type') + ' %s'%t1)
+                self.run('choose_keystore')
+                return
             self.keystores.append(k)
             self.run('create_wallet')
         elif self.wallet_type == 'multisig':
+            assert has_xpub
+            if t1 not in ['standard', 'p2wsh', 'p2wsh-p2sh']:
+                self.show_error(_('Wrong key type') + ' %s'%t1)
+                self.run('choose_keystore')
+                return
             if k.xpub in map(lambda x: x.xpub, self.keystores):
                 self.show_error(_('Error: duplicate master public key'))
                 self.run('choose_keystore')
                 return
-            from .bitcoin import xpub_type
             if len(self.keystores)>0:
-                t1 = xpub_type(k.xpub)
                 t2 = xpub_type(self.keystores[0].xpub)
                 if t1 != t2:
                     self.show_error(_('Cannot add this cosigner:') + '\n' + "Their key type is '%s', we are '%s'"%(t1, t2))
