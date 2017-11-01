@@ -39,9 +39,9 @@
     (version 1.1). Servers using older versions of the protocol will
     not be displayed in the GUI.
 
-  * By default, transactions are time-locked to the height of the next
-    block. Other values of locktime can be passed using the command
-    line.
+  * By default, transactions are time-locked to the height of the
+    current block. Other values of locktime may be passed using the
+    command line.
 
 
 # Release 2.9.3
