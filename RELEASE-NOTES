@@ -27,13 +27,27 @@
       trezor/ledger users will need to enter a BIP49 derivation path.
 
     - The BIP32 master keys of segwit wallets are serialized using new
-      version numbers. Version numbers are user visible, with the
-      following prefixes:
+      version numbers. The new version numbers encode the script type,
+      and they result in the following prefixes:
+
          * xpub/xprv : p2pkh or p2sh
          * ypub/yprv : p2wpkh-in-p2sh
          * Ypub/Yprv : p2wsh-in-p2sh
          * zpub/zprv : p2wpkh
          * Zpub/Zprv : p2wsh
+
+      These values are identical for mainnet and testnet; tpub/tprv
+      prefixes are no longer used in testnet wallets.
+
+    - The Wallet Import Format (WIF) is similarly extended. After a
+      base58-encoded key is decoded to binary, its first byte encodes
+      the script type:
+         * 128 + 0: p2pkh
+         * 128 + 1: p2wpkh
+         * 128 + 2: p2wpkh-p2sh
+         * 128 + 5: p2sh
+         * 128 + 6: p2wsh
+         * 128 + 7: p2wsh-p2sh
 
   * A new version of the Electrum protocol is required by the client
     (version 1.1). Servers using older versions of the protocol will
