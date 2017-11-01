@@ -71,6 +71,7 @@ XPUB_HEADERS = {
 
 # Bitcoin network constants
 TESTNET = False
+WIF_PREFIX = 0x80
 ADDRTYPE_P2PKH = 0
 ADDRTYPE_P2SH = 5
 SEGWIT_HRP = "bc"
@@ -86,7 +87,9 @@ def set_testnet():
     global GENESIS
     global SEGWIT_HRP
     global DEFAULT_PORTS, SERVERLIST, DEFAULT_SERVERS
+    global WIF_PREFIX
     TESTNET = True
+    WIF_PREFIX = 0xef
     ADDRTYPE_P2PKH = 111
     ADDRTYPE_P2SH = 196
     SEGWIT_HRP = "tb"
@@ -521,7 +524,7 @@ SCRIPT_TYPES = {
 
 
 def serialize_privkey(secret, compressed, txin_type):
-    prefix = bytes([(SCRIPT_TYPES[txin_type]+128)&255])
+    prefix = bytes([(SCRIPT_TYPES[txin_type]+WIF_PREFIX)&255])
     suffix = b'\01' if compressed else b''
     vchIn = prefix + secret + suffix
     return EncodeBase58Check(vchIn)
@@ -533,7 +536,7 @@ def deserialize_privkey(key):
     if is_minikey(key):
         return 'p2pkh', minikey_to_private_key(key), True
     elif vch:
-        txin_type = inv_dict(SCRIPT_TYPES)[vch[0] - 128]
+        txin_type = inv_dict(SCRIPT_TYPES)[vch[0] - WIF_PREFIX]
         assert len(vch) in [33, 34]
         compressed = len(vch) == 34
         return txin_type, vch[1:33], compressed
