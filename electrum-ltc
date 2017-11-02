@@ -141,7 +141,7 @@ def run_non_RPC(config):
             storage.write()
         else:
             if keystore.is_seed(text):
-                k = keystore.from_seed(text, passphrase)
+                k = keystore.from_seed(text, passphrase, False)
             elif keystore.is_master_key(text):
                 k = keystore.from_master_key(text)
             else:
@@ -170,7 +170,7 @@ def run_non_RPC(config):
         passphrase = config.get('passphrase', '')
         seed_type = 'segwit' if config.get('segwit') else 'standard'
         seed = Mnemonic('en').make_seed(seed_type)
-        k = keystore.from_seed(seed, passphrase)
+        k = keystore.from_seed(seed, passphrase, False)
         storage.put('keystore', k.dump())
         storage.put('wallet_type', 'standard')
         wallet = Wallet(storage)
