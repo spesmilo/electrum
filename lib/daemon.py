@@ -220,7 +220,7 @@ class Daemon(DaemonThread):
         if storage.requires_split():
             return
         if storage.requires_upgrade():
-            storage.upgrade()
+            return
         if storage.get_action():
             return
         wallet = Wallet(storage)
