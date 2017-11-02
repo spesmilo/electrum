@@ -193,7 +193,7 @@ def test_lightning(wallet, networ, config, port):
   print("utxos", WALLET.get_utxos())
 
   deser = bitcoin.deserialize_xpub(wallet.keystore.xpub)
-  assert deser[0] == "segwit", deser
+  assert deser[0] == "p2wpkh", deser
 
   pubk = wallet.get_unused_address()
   K_compressed = bytes(bytearray.fromhex(wallet.get_public_keys(pubk)[0]))
@@ -298,8 +298,6 @@ def isWitnessPubKeyHash(script):
 def calcWitnessSignatureHash(original, sigHashes, hashType, tx, idx, amt):
   #correct = "".join(map(lambda x: chr(int(x)), "1 0 0 0 217 43 73 76 147 7 70 63 188 219 20 47 234 97 195 13 216 87 117 11 107 76 81 144 254 102 255 191 72 130 26 154 59 177 48 41 206 123 31 85 158 245 231 71 252 172 67 159 20 85 162 236 124 95 9 183 34 144 121 94 112 102 80 68 211 171 158 20 224 139 71 93 77 94 74 135 98 70 57 191 79 168 32 75 105 235 123 26 235 34 171 178 162 172 163 27 1 0 0 0 25 118 169 20 157 152 5 36 153 45 228 145 20 188 199 140 125 173 247 140 169 123 131 107 136 172 0 228 11 84 2 0 0 0 255 255 255 255 49 104 166 12 84 134 136 136 201 54 92 173 174 23 215 5 206 240 150 172 65 238 5 213 166 63 170 11 195 67 37 187 0 0 0 0 1 0 0 0".split(" ")))
   assert len(original) != 0
-  print("calcWitnessSignatureHash. here is transaction:")
-  print(tx)
   decoded = transaction.deserialize(binascii.hexlify(tx).decode("utf-8"))
   if idx > len(decoded["inputs"])-1:
     raise Exception("invalid inputIndex")
@@ -307,13 +305,13 @@ def calcWitnessSignatureHash(original, sigHashes, hashType, tx, idx, amt):
   #tohash = transaction.Transaction.serialize_witness(txin)
   sigHash = LEtobytes(decoded["version"],4)
   if toint(hashType) & toint(sigHashAnyOneCanPay) == 0:
-    sigHash += bytes(bytearray.fromhex(sigHashes.hashPrevOuts))
+    sigHash += bytes(bytearray.fromhex(sigHashes.hashPrevOuts))[::-1]
   else:
     sigHash += b"\x00" * 32
   #assert correct[:len(sigHash)] == sigHash, "\n" + sigHash.encode("hex") + "\n" + correct[:len(sigHash)].encode("hex")
 
   if toint(hashType) & toint(sigHashAnyOneCanPay) == 0 and toint(hashType) & toint(sigHashMask) != toint(sigHashSingle) and toint(hashType) & toint(sigHashMask) != toint(sigHashNone):
-    sigHash += bytes(bytearray.fromhex(sigHashes.hashSequence))
+    sigHash += bytes(bytearray.fromhex(sigHashes.hashSequence))[::-1]
   else:
     sigHash += b"\x00" * 32
   #assert correct[:len(sigHash)] == sigHash, "\n" + sigHash.encode("hex") + "\n" + correct[:len(sigHash)].encode("hex")
@@ -321,6 +319,7 @@ def calcWitnessSignatureHash(original, sigHashes, hashType, tx, idx, amt):
   #assert txin["prevout_hash"] == "1ba3aca2b2ab22eb1a7beb694b20a84fbf394662874a5e4d5d478be0149eabd3"
   sigHash += bytes(bytearray.fromhex(txin["prevout_hash"]))[::-1]
   sigHash += LEtobytes(txin["prevout_n"],4)
+  # byte 72
 
   #assert correct[:len(sigHash)] == sigHash, "\n" + sigHash.encode("hex") + "\n" + correct[:len(sigHash)].encode("hex")
 
@@ -336,18 +335,17 @@ def calcWitnessSignatureHash(original, sigHashes, hashType, tx, idx, amt):
     sigHash += bytes([transaction.opcodes.OP_EQUALVERIFY])
     sigHash += bytes([transaction.opcodes.OP_CHECKSIG])
   else:
-    print("subscript and its encoding (check this):")
-    print(subscript)
     # // For p2wsh outputs, and future outputs, the script code is
     # // the original script, with all code separators removed,
     # // serialized with a var int length prefix.
 
-    sigHash = bytes(bytearray.fromhex(bitcoin.var_int(len(original))))
+    assert len(sigHash) == 104, len(sigHash)
+    sigHash += bytes(bytearray.fromhex(bitcoin.var_int(len(original))))
+    assert len(sigHash) == 105, len(sigHash)
     #for bajts in [opcode.to_bytes(length=length, byteorder="big") for (opcode, data, length) in subscript]:
     #  sigHash += bajts
 
     sigHash += original
-    print("sigHash", sigHash)
   #assert correct[:len(sigHash)] == sigHash, "\n" + sigHash.encode("hex") + "\n" + correct[:len(sigHash)].encode("hex")
 
   sigHash += LEtobytes(amt, 8)
@@ -356,7 +354,7 @@ def calcWitnessSignatureHash(original, sigHashes, hashType, tx, idx, amt):
   #assert correct[:len(sigHash)] == sigHash, "\n" + sigHash.encode("hex") + "\n" + correct[:len(sigHash)].encode("hex")
 
   if toint(hashType) & toint(sigHashSingle) != toint(sigHashSingle) and toint(hashType) & toint(sigHashNone) != toint(sigHashNone):
-    sigHash += bytes(bytearray.fromhex(sigHashes.hashOutputs))
+    sigHash += bytes(bytearray.fromhex(sigHashes.hashOutputs))[::-1]
   elif toint(hashtype) & toint(sigHashMask) == toint(sigHashSingle) and idx < len(decoded["outputs"]):
     raise Exception("TODO")
   else:
@@ -368,6 +366,9 @@ def calcWitnessSignatureHash(original, sigHashes, hashType, tx, idx, amt):
   #assert correct[:len(sigHash)] == sigHash, "\n" + sigHash.encode("hex") + "\n" + correct[:len(sigHash)].encode("hex")
 
   #assert sigHash == correct, [ord(x) for x in sigHash]
+  print("calcWitnessSignatureHash", list(original), sigHashes, hashType, list(tx), idx, amt, "sigHash")
+  print(list(sigHash))
+  return sigHash
   return transaction.Hash(sigHash)
 
 #// RawTxInWitnessSignature returns the serialized ECDA signature for the input
@@ -380,6 +381,7 @@ def calcWitnessSignatureHash(original, sigHashes, hashType, tx, idx, amt):
 def rawTxInWitnessSignature(tx, sigHashes, idx, amt, subscript, hashType, key):
   digest = calcWitnessSignatureHash(subscript, sigHashes, hashType, tx, idx, amt)
   #assert digest == ''.join(map(lambda x: chr(int(x)), "33 236 33 111 254 94 205 8 151 34 154 141 176 156 16 118 34 2 183 224 53 72 53 155 60 72 96 110 24 220 112 24".split(" ")))
+  print("digest", digest)
   number = string_to_number(digest)
   signkey = MySigningKey.from_secret_exponent(key.secret, curve=ecdsa.curves.SECP256k1)
   sig = signkey.sign_digest_deterministic(digest, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der) + hashType
