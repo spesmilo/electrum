@@ -358,11 +358,6 @@ class WalletStorage(PrintError):
         if self.get('wallet_type') == 'standard':
             if self.get('keystore').get('type') == 'imported':
                 pubkeys = self.get('keystore').get('keypairs').keys()
-                if self.get('pubkeys'):
-                    pubkeys2 = set(self.get('pubkeys').get('receiving'))
-                    assert len(pubkeys) == len(pubkeys2)
-                    for pubkey in pubkeys:
-                        assert pubkey in pubkeys2
                 d = {'change': []}
                 receiving_addresses = []
                 for pubkey in pubkeys:
