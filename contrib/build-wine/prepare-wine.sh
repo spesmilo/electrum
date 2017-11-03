@@ -111,8 +111,6 @@ wine nsis.exe /S
 #cp upx*/upx.exe .
 
 # add dlls needed for pyinstaller:
-cp $WINEPREFIX/drive_c/windows/system32/msvcp90.dll $WINEPREFIX/drive_c/python$PYTHON_VERSION/
-cp $WINEPREFIX/drive_c/windows/system32/msvcm90.dll $WINEPREFIX/drive_c/python$PYTHON_VERSION/
 cp $WINEPREFIX/drive_c/python$PYTHON_VERSION/Lib/site-packages/PyQt5/Qt/bin/* $WINEPREFIX/drive_c/python$PYTHON_VERSION/
 
 

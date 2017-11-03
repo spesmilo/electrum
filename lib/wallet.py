@@ -1458,6 +1458,8 @@ class Imported_Wallet(Simple_Wallet):
         return []
 
     def import_address(self, address):
+        if not bitcoin.is_address(address):
+            return ''
         if address in self.addresses:
             return ''
         self.addresses[address] = {}

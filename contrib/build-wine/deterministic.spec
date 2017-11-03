@@ -62,6 +62,9 @@ for d in a.datas:
         a.datas.remove(d)
         break
 
+# hotfix for #3171 (pre-Win10 binaries)
+a.binaries = [x for x in a.binaries if not x[1].lower().startswith(r'c:\windows')]
+
 pyz = PYZ(a.pure)
 exe = EXE(pyz,
           a.scripts,
