@@ -311,7 +311,7 @@ class Abstract_Wallet(PrintError):
         '''Used by the verifier when a reorg has happened'''
         txs = set()
         with self.lock:
-            for tx_hash, item in self.verified_tx.items():
+            for tx_hash, item in list(self.verified_tx.items()):
                 tx_height, timestamp, pos = item
                 if tx_height >= height:
                     header = blockchain.read_header(tx_height)
@@ -1316,9 +1316,9 @@ class Abstract_Wallet(PrintError):
         def f(x):
             try:
                 addr = x.get('address')
-                return self.get_address_index(addr)
+                return self.get_address_index(addr) or addr
             except:
-                return -1, (0, 0)
+                return addr
         return sorted(map(lambda x: self.get_payment_request(x, config), self.receive_requests.keys()), key=f)
 
     def get_fingerprint(self):
@@ -1471,12 +1471,42 @@ class Imported_Wallet(Simple_Wallet):
     def delete_address(self, address):
         if address not in self.addresses:
             return
+
+        transactions_to_remove = set()  # only referred to by this address
+        transactions_new = set()  # txs that are not only referred to by address
+        with self.lock:
+            for addr, details in self.history.items():
+                if addr == address:
+                    for tx_hash, height in details:
+                        transactions_to_remove.add(tx_hash)
+                else:
+                    for tx_hash, height in details:
+                        transactions_new.add(tx_hash)
+            transactions_to_remove -= transactions_new
+            self.history.pop(address, None)
+
+            for tx_hash in transactions_to_remove:
+                self.remove_transaction(tx_hash)
+                self.tx_fees.pop(tx_hash, None)
+                self.verified_tx.pop(tx_hash, None)
+                self.unverified_tx.pop(tx_hash, None)
+                self.transactions.pop(tx_hash, None)
+                # FIXME: what about pruned_txo?
+
+        self.storage.put('verified_tx3', self.verified_tx)
+        self.save_transactions()
+
+        self.set_label(address, None)
+        self.remove_payment_request(address, {})
+        self.set_frozen_state([address], False)
+
         pubkey = self.get_public_key(address)
         self.addresses.pop(address)
         if pubkey:
             self.keystore.delete_imported_key(pubkey)
             self.save_keystore()
         self.storage.put('addresses', self.addresses)
+
         self.storage.write()
 
     def get_address_index(self, address):

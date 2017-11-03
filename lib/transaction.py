@@ -446,7 +446,7 @@ def parse_witness(vds, txin):
     else:
         txin['num_sig'] = 1
         txin['x_pubkeys'] = [w[1]]
-        txin['pubkeys'] = [w[1]]
+        txin['pubkeys'] = [safe_parse_pubkey(w[1])]
         txin['signatures'] = parse_sig([w[0]])
 
 def parse_output(vds, i):
