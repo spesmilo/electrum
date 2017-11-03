@@ -46,7 +46,7 @@ from . import bitcoin
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 15     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 16     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -260,6 +260,7 @@ class WalletStorage(PrintError):
         self.convert_version_13_b()
         self.convert_version_14()
         self.convert_version_15()
+        self.convert_version_16()
 
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
         self.write()
@@ -403,6 +404,24 @@ class WalletStorage(PrintError):
             return
         assert self.get('seed_type') != 'segwit'  # unsupported derivation
         self.put('seed_version', 15)
+
+    def convert_version_16(self):
+        # fixes issue #3193 for Imported_Wallets with addresses
+        if not self._is_upgrade_method_needed(15, 15):
+            return
+
+        if self.get('wallet_type') == 'imported':
+            addresses = self.get('addresses')
+            assert isinstance(addresses, dict)
+            addresses_new = dict()
+            for address, details in addresses.items():
+                if details is None:
+                    addresses_new[address] = {}
+                else:
+                    addresses_new[address] = details
+            self.put('addresses', addresses_new)
+
+        self.put('seed_version', 16)
 
     def convert_imported(self):
         # '/x' is the internal ID for imported accounts
