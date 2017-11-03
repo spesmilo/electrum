@@ -59,35 +59,29 @@ class Ledger_Client():
         # This only happens once so it's bearable
         #self.get_client() # prompt for the PIN before displaying the dialog if necessary
         #self.handler.show_message("Computing master public key")
-        try:
-            if xtype in ['p2wpkh', 'p2wsh'] and not self.supports_native_segwit():
-                raise Exception("Firmware version too old for Segwit support. Please update at https://www.ledgerwallet.com")
-            if xtype in ['p2wpkh-p2sh', 'p2wsh-p2sh'] and not self.supports_segwit():
-                raise Exception("Firmware version too old for Segwit support. Please update at https://www.ledgerwallet.com")
-
-            splitPath = bip32_path.split('/')
-            if splitPath[0] == 'm':
-                splitPath = splitPath[1:]
-                bip32_path = bip32_path[2:]
-            fingerprint = 0
-            if len(splitPath) > 1:
-                prevPath = "/".join(splitPath[0:len(splitPath) - 1])
-                nodeData = self.dongleObject.getWalletPublicKey(prevPath)
-                publicKey = compress_public_key(nodeData['publicKey'])
-                h = hashlib.new('ripemd160')
-                h.update(hashlib.sha256(publicKey).digest())
-                fingerprint = unpack(">I", h.digest()[0:4])[0]
-            nodeData = self.dongleObject.getWalletPublicKey(bip32_path)
-            publicKey = compress_public_key(nodeData['publicKey'])
-            depth = len(splitPath)
-            lastChild = splitPath[len(splitPath) - 1].split('\'')
-            childnum = int(lastChild[0]) if len(lastChild) == 1 else 0x80000000 | int(lastChild[0])
-            xpub = bitcoin.serialize_xpub(xtype, nodeData['chainCode'], publicKey, depth, self.i4b(fingerprint), self.i4b(childnum))
-            return xpub
-        except Exception as e:
-            traceback.print_exc(file=sys.stdout)
-            #print_error(e)
-            return None
+        if xtype in ['p2wpkh', 'p2wsh'] and not self.supports_native_segwit():
+            raise Exception("Firmware version too old for Segwit support. Please update at https://www.ledgerwallet.com")
+        if xtype in ['p2wpkh-p2sh', 'p2wsh-p2sh'] and not self.supports_segwit():
+            raise Exception("Firmware version too old for Segwit support. Please update at https://www.ledgerwallet.com")
+        splitPath = bip32_path.split('/')
+        if splitPath[0] == 'm':
+            splitPath = splitPath[1:]
+            bip32_path = bip32_path[2:]
+        fingerprint = 0
+        if len(splitPath) > 1:
+            prevPath = "/".join(splitPath[0:len(splitPath) - 1])
+            nodeData = self.dongleObject.getWalletPublicKey(prevPath)
+            publicKey = compress_public_key(nodeData['publicKey'])#
+            h = hashlib.new('ripemd160')
+            h.update(hashlib.sha256(publicKey).digest())
+            fingerprint = unpack(">I", h.digest()[0:4])[0]
+        nodeData = self.dongleObject.getWalletPublicKey(bip32_path)
+        publicKey = compress_public_key(nodeData['publicKey'])
+        depth = len(splitPath)
+        lastChild = splitPath[len(splitPath) - 1].split('\'')
+        childnum = int(lastChild[0]) if len(lastChild) == 1 else 0x80000000 | int(lastChild[0])
+        xpub = bitcoin.serialize_xpub(xtype, nodeData['chainCode'], publicKey, depth, self.i4b(fingerprint), self.i4b(childnum))
+        return xpub
 
     def has_detached_pin_support(self, client):
         try:
