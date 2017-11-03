@@ -8,7 +8,7 @@ from decimal import Decimal
 import threading
 
 import electrum
-from electrum.bitcoin import TYPE_ADDRESS
+from electrum.bitcoin import TYPE_ADDRESS, is_address
 from electrum import WalletStorage, Wallet
 from electrum_gui.kivy.i18n import _
 from electrum.paymentrequest import InvoiceStore
@@ -92,7 +92,7 @@ class ElectrumWindow(App):
         self.auto_connect = not self.auto_connect
 
     def choose_server_dialog(self, popup):
-        from .uix.dialogs.choice_dialog import ChoiceDialog
+        from uix.dialogs.choice_dialog import ChoiceDialog
         protocol = 's'
         def cb2(host):
             from electrum.network import DEFAULT_PORTS
@@ -104,7 +104,7 @@ class ElectrumWindow(App):
         ChoiceDialog(_('Choose a server'), sorted(servers), popup.ids.host.text, cb2).open()
 
     def choose_blockchain_dialog(self, dt):
-        from .uix.dialogs.choice_dialog import ChoiceDialog
+        from uix.dialogs.choice_dialog import ChoiceDialog
         chains = self.network.get_blockchains()
         def cb(name):
             for index, b in self.network.blockchains.items():
@@ -305,9 +305,8 @@ class ElectrumWindow(App):
             return
         # try to decode transaction
         from electrum.transaction import Transaction
-        from electrum.util import bh2u
         try:
-            text = bh2u(base_decode(data, None, base=43))
+            text = base_decode(data, None, base=43).encode('hex')
             tx = Transaction(text)
             tx.deserialize()
         except:
@@ -347,6 +346,7 @@ class ElectrumWindow(App):
         exp = req.get('exp')
         memo = req.get('memo')
         amount = req.get('amount')
+        fund = req.get('fund')
         popup = Builder.load_file('gui/kivy/uix/ui_screens/invoice.kv')
         popup.is_invoice = is_invoice
         popup.amount = amount
@@ -355,9 +355,24 @@ class ElectrumWindow(App):
         popup.description = memo if memo else ''
         popup.signature = req.get('signature', '')
         popup.status = status
+        popup.fund = fund if fund else 0
         txid = req.get('txid')
         popup.tx_hash = txid or ''
         popup.on_open = lambda: popup.ids.output_list.update(req.get('outputs', []))
+        popup.export = self.export_private_keys
+        popup.open()
+
+    def show_addr_details(self, req, status):
+        from electrum.util import format_time
+        fund = req.get('fund')
+        isaddr = 'y'
+        popup = Builder.load_file('gui/kivy/uix/ui_screens/invoice.kv')
+        popup.isaddr = isaddr
+        popup.is_invoice = False
+        popup.status = status
+        popup.requestor = req.get('address')
+        popup.fund = fund if fund else 0
+        popup.export = self.export_private_keys
         popup.open()
 
     def qr_dialog(self, title, data, show_text=False):
@@ -587,6 +602,7 @@ class ElectrumWindow(App):
         self.invoices_screen = None
         self.receive_screen = None
         self.requests_screen = None
+        self.address_screen = None
         self.icon = "icons/electrum.png"
         self.tabs = self.root.ids['tabs']
 
@@ -600,7 +616,6 @@ class ElectrumWindow(App):
             self.server_host = self.network.interface.host
 
     def on_network_event(self, event, *args):
-        Logger.info('network event: '+ event)
         if event == 'interfaces':
             self._trigger_update_interfaces()
         elif event == 'updated':
@@ -924,3 +939,9 @@ class ElectrumWindow(App):
             self._password_dialog = PasswordDialog()
         self._password_dialog.init(msg, callback)
         self._password_dialog.open()
+
+    def export_private_keys(self, pk_label, addr):
+        def show_private_key(addr, pk_label, password):
+            key = str(self.wallet.export_private_key(addr, password)[0])
+            pk_label.value = key
+        self.protected(_("Enter your PIN code in order to decrypt your private key"), show_private_key, (addr, pk_label))
