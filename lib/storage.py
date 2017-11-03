@@ -407,14 +407,39 @@ class WalletStorage(PrintError):
 
     def convert_version_16(self):
         # fixes issue #3193 for Imported_Wallets with addresses
+        # also, previous versions allowed importing any garbage as an address
+        #       which we now try to remove, see pr #3191
         if not self._is_upgrade_method_needed(15, 15):
             return
+
+        def remove_address(addr):
+            def remove_from_dict(dict_name):
+                d = self.get(dict_name, None)
+                if d is not None:
+                    d.pop(addr, None)
+                    self.put(dict_name, d)
+
+            def remove_from_list(list_name):
+                lst = self.get(list_name, None)
+                if lst is not None:
+                    s = set(lst)
+                    s -= {addr}
+                    self.put(list_name, list(s))
+
+            # note: we don't remove 'addr' from self.get('addresses')
+            remove_from_dict('addr_history')
+            remove_from_dict('labels')
+            remove_from_dict('payment_requests')
+            remove_from_list('frozen_addresses')
 
         if self.get('wallet_type') == 'imported':
             addresses = self.get('addresses')
             assert isinstance(addresses, dict)
             addresses_new = dict()
             for address, details in addresses.items():
+                if not bitcoin.is_address(address):
+                    remove_address(address)
+                    continue
                 if details is None:
                     addresses_new[address] = {}
                 else:
