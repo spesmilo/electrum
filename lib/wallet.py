@@ -1315,7 +1315,7 @@ class Abstract_Wallet(PrintError):
                 addr = x.get('address')
                 return self.get_address_index(addr)
             except:
-                return -1, (0, 0)
+                return addr
         return sorted(map(lambda x: self.get_payment_request(x, config), self.receive_requests.keys()), key=f)
 
     def get_fingerprint(self):
