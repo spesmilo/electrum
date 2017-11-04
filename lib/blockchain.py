@@ -27,6 +27,11 @@ from . import util
 from . import bitcoin
 from .bitcoin import *
 
+
+
+def bits_to_work(bits):
+    return (2 << 255) // (bits_to_target(bits) + 1)
+
 def bits_to_target(bits):
     if bits == 0:
         return 0
@@ -40,6 +45,7 @@ def bits_to_target(bits):
         return word >> (8 * (3 - size))
     else:
         return word << (8 * (size - 3))
+
 
 def target_to_bits(target):
     if target == 0:
@@ -189,11 +195,14 @@ class Blockchain(util.PrintError):
             err_str = "block at height %i is not cash chain fork block. hash %s" % (header.get('block_height'), hash_header(header))
             self.print_error(err_str)
             raise BaseException(err_str)
-        if bits != header.get('bits'):
+	if bits != header.get('bits'):
+	    #####TESTING DAA
+	    ##### if the consensus rules don't match the number of bits on the block...
+	    ##### print ("supposed to be raising a base exception")
             raise BaseException("bits mismatch: %s vs %s" % (bits, header.get('bits')))
         target = bits_to_target(bits)
         if int('0x' + _hash, 16) > target:
-            raise BaseException("insufficient proof of work: %s vs target %s" % (int('0x' + _hash, 16), target))
+	    raise BaseException("insufficient proof of work: %s vs target %s" % (int('0x' + _hash, 16), target))
 
     def verify_chunk(self, index, data):
         self.cur_chunk = data
@@ -205,9 +214,9 @@ class Blockchain(util.PrintError):
         for i in range(num):
             raw_header = data[i*80:(i+1) * 80]
             header = deserialize_header(raw_header, index*2016 + i)
-            bits = self.get_bits(header['block_height'])
-            self.verify_header(header, prev_header, bits)
-            prev_header = header
+	    bits = self.get_bits(header['block_height'])
+	    self.verify_header(header, prev_header, bits)
+	    prev_header = header
         self.cur_chunk = None
 
     def path(self):
@@ -310,16 +319,75 @@ class Blockchain(util.PrintError):
         h = self.local_height
         return sum([self.BIP9(h-i, 2) for i in range(N)])*10000/N/100.
 
+    def get_suitable_block_height(self, suitableheight):
+
+	#In order to avoid a block in a very skewed timestamp to have too much
+	#influence, we select the median of the 3 top most block as a start point
+	#Reference: github.com/Bitcoin-ABC/bitcoin-abc/master/src/pow.cpp#L201
+	blocks2height=suitableheight
+	blocks1height=suitableheight-1
+	blocksheight=suitableheight-2
+	blocks2 = self.read_header(blocks2height)
+	blocks1 = self.read_header(blocks1height)
+	blocks = self.read_header(blocksheight)
+	if (blocks['timestamp'] > blocks2['timestamp'] ):
+		blocksheight,blocks2height = blocks2height,blocksheight
+	if (blocks['timestamp'] > blocks1['timestamp'] ):
+		blocksheight,blocks1height = blocks1height,blocksheight
+	if (blocks1['timestamp'] > blocks2['timestamp'] ):
+		blocks1height,blocks2height = blocks2height,blocks1height
+	return blocks1height
+
+
     def get_median_time_past(self, height):
         times = [self.read_header(h)['timestamp']
                  for h in range(max(0, height - 10), height + 1)]
         return sorted(times)[len(times) // 2]
 
+
     def get_bits(self, height):
         '''Return bits for the given height.'''
         if bitcoin.TESTNET:
             return 0
-        # Difficulty adjustment interval?
+
+	#NOV 13 HF DAA
+        daa_mtp=self.get_median_time_past(height-1)
+
+	#######FOR TESTING
+	#print ("debug, mtp is ",daa_mtp)
+	#print ("VALIDATING BLOCK HEIGHT ",height)
+        #######if (daa_mtp > 1509333800):  #leave this here for testing
+        if (daa_mtp > 1510600000):
+            daa_starting_height=self.get_suitable_block_height(height-144)
+            daa_ending_height=self.get_suitable_block_height(height)
+            daa_cumulative_work=0
+            daa_starting_timestamp=0
+            daa_ending_timestamp=0
+            for daa_i in range (daa_starting_height,daa_ending_height+1):
+                daa_prior = self.read_header(daa_i)
+                if (daa_i == daa_ending_height):
+                    daa_ending_timestamp=daa_prior['timestamp']
+                if (daa_i == daa_starting_height):
+                    daa_starting_timestamp=daa_prior['timestamp']
+                daa_bits_for_a_block=daa_prior['bits']
+                daa_work_for_a_block=bits_to_work(daa_bits_for_a_block)
+                daa_cumulative_work += daa_work_for_a_block
+	    daa_elapsed_time=daa_ending_timestamp-daa_starting_timestamp
+	    if (daa_elapsed_time>172800):
+                daa_elapsed_time=172800
+            if (daa_elapsed_time<43200):
+                daa_elapsed_time=43200
+            daa_Wn= (daa_cumulative_work*600)//daa_elapsed_time
+	    daa_target= (2 << 255) // daa_Wn -1
+	    daa_retval = target_to_bits(daa_target)
+	    daa_retval = int(daa_retval)
+            #####FOR TESTING
+	    #print ("at height ",height)
+	    #print ("daa_Wn ",daa_Wn)
+	    #####print ("daa_retval is ",daa_retval)
+            return daa_retval
+
+         #END OF NOV-2017 DAA
         if height % 2016 == 0:
             return self.get_new_bits(height)
         prior = self.read_header(height - 1)
@@ -335,7 +403,9 @@ class Blockchain(util.PrintError):
         # target by 25% (reducing difficulty by 20%).
         target = bits_to_target(bits)
         target += target >> 2
+
         return target_to_bits(target)
+
 
     def get_new_bits(self, height):
         assert height % 2016 == 0
