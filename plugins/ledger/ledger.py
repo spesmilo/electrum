@@ -216,6 +216,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
     def sign_message(self, sequence, message, password):
         self.signing = True
+        message = message.encode('utf8')
         # prompt for the PIN before displaying the dialog if necessary
         client = self.get_client()
         address_path = self.get_derivation()[2:] + "/%d/%d"%sequence
@@ -242,9 +243,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         finally:
             self.handler.clear_dialog()
         self.signing = False
-
         # Parse the ASN.1 signature
-
         rLength = signature[3]
         r = signature[4 : 4 + rLength]
         sLength = signature[4 + rLength + 1]
@@ -253,11 +252,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
             r = r[1:]
         if sLength == 33:
             s = s[1:]
-        r = str(r)
-        s = str(s)
-
         # And convert it
-        return chr(27 + 4 + (signature[0] & 0x01)) + r + s
+        return bytes([27 + 4 + (signature[0] & 0x01)]) + r + s
+
 
     def sign_transaction(self, tx, password):
         if tx.is_complete():
