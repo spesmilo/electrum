@@ -324,19 +324,18 @@ class Blockchain(util.PrintError):
 	#In order to avoid a block in a very skewed timestamp to have too much
 	#influence, we select the median of the 3 top most block as a start point
 	#Reference: github.com/Bitcoin-ABC/bitcoin-abc/master/src/pow.cpp#L201
-	blocks2height=suitableheight
-	blocks1height=suitableheight-1
-	blocksheight=suitableheight-2
-	blocks2 = self.read_header(blocks2height)
-	blocks1 = self.read_header(blocks1height)
-	blocks = self.read_header(blocksheight)
+	blocks2 = self.read_header(suitableheight)
+	blocks1 = self.read_header(suitableheight-1)
+	blocks = self.read_header(suitableheight-2)
+
 	if (blocks['timestamp'] > blocks2['timestamp'] ):
-		blocksheight,blocks2height = blocks2height,blocksheight
+		blocks,blocks2 = blocks2,blocks
 	if (blocks['timestamp'] > blocks1['timestamp'] ):
-		blocksheight,blocks1height = blocks1height,blocksheight
+		blocks,blocks1 = blocks1,blocks
 	if (blocks1['timestamp'] > blocks2['timestamp'] ):
-		blocks1height,blocks2height = blocks2height,blocks1height
-	return blocks1height
+		blocks1,blocks2 = blocks2,blocks1
+
+	return blocks1['block_height']
 
 
     def get_median_time_past(self, height):
@@ -351,19 +350,21 @@ class Blockchain(util.PrintError):
             return 0
 
 	#NOV 13 HF DAA
-        daa_mtp=self.get_median_time_past(height-1)
+
+	prevheight = height -1
+        daa_mtp=self.get_median_time_past(prevheight)
 
 	#######FOR TESTING
 	#print ("debug, mtp is ",daa_mtp)
 	#print ("VALIDATING BLOCK HEIGHT ",height)
-        #######if (daa_mtp > 1509333800):  #leave this here for testing
-        if (daa_mtp > 1510600000):
-            daa_starting_height=self.get_suitable_block_height(height-144)
-            daa_ending_height=self.get_suitable_block_height(height)
+        #######if (daa_mtp > 91509333800):  #leave this here for testing
+        if (daa_mtp >= 1510600000):
+            daa_starting_height=self.get_suitable_block_height(prevheight-144)
+            daa_ending_height=self.get_suitable_block_height(prevheight)
             daa_cumulative_work=0
             daa_starting_timestamp=0
             daa_ending_timestamp=0
-            for daa_i in range (daa_starting_height,daa_ending_height+1):
+            for daa_i in range (daa_starting_height+1,daa_ending_height+1):
                 daa_prior = self.read_header(daa_i)
                 if (daa_i == daa_ending_height):
                     daa_ending_timestamp=daa_prior['timestamp']
@@ -378,7 +379,7 @@ class Blockchain(util.PrintError):
             if (daa_elapsed_time<43200):
                 daa_elapsed_time=43200
             daa_Wn= (daa_cumulative_work*600)//daa_elapsed_time
-	    daa_target= (2 << 255) // daa_Wn -1
+	    daa_target= (1 << 256) // daa_Wn -1
 	    daa_retval = target_to_bits(daa_target)
 	    daa_retval = int(daa_retval)
             #####FOR TESTING
