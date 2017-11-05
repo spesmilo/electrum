@@ -143,7 +143,7 @@ class SettingsDialog(Factory.Popup):
             def cb(text):
                 self.app._set_bu(text)
                 item.bu = self.app.base_unit
-            self._unit_dialog = ChoiceDialog(_('Denomination'), base_units.keys(), self.app.base_unit, cb)
+            self._unit_dialog = ChoiceDialog(_('Denomination'), list(base_units.keys()), self.app.base_unit, cb)
         self._unit_dialog.open()
 
     def coinselect_status(self):
