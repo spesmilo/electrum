@@ -1,3 +1,7 @@
+# Release 3.0.1
+  * minor bug and usability fixes
+
+
 # Release 3.0 - Uncanny Valley (November 1st, 2017)
 
   * The project was migrated to Python3 and Qt5. Python2 is no longer
