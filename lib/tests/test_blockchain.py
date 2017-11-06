@@ -70,10 +70,11 @@ class TestBlockchain(unittest.TestCase):
             blocks.append(block)
             chunk += bc.serialize_header(block).decode('hex')
             chain.cur_chunk = chunk
-            self.assertEqual(chain.get_bits(block['block_height']),
+            self.assertEqual(chain.get_bits(block),
                              first['bits'])
 
         # Now we expect difficulty to decrease
         # MTP(1010) is TimeStamp(1005), MTP(1004) is TimeStamp(999)
-        self.assertEqual(chain.get_bits(block['block_height'] + 1),
+        hdr = {'block_height': block['block_height'] + 1}
+        self.assertEqual(chain.get_bits(hdr),
                          0x1801b553)

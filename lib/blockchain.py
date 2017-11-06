@@ -340,6 +340,10 @@ class Blockchain(util.PrintError):
         '''Return bits for the given height.'''
         # Difficulty adjustment interval?
         height = header['block_height']
+        # Genesis
+        if height == 0:
+            return MAX_BITS
+
 	print ("testing for height ",height)
 
         prior = self.read_header(height - 1)
