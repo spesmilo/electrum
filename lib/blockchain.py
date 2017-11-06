@@ -344,13 +344,13 @@ class Blockchain(util.PrintError):
         if height == 0:
             return MAX_BITS
 
-	print ("testing for height ",height)
+        print ("testing for height ",height)
 
         prior = self.read_header(height - 1)
         bits = prior['bits']
 
         # testnet 20 minute rule
-        if bitcoin.TESTNET:
+        if bitcoin.TESTNET and height % 2016 != 0:
             if header['timestamp'] - prior['timestamp'] > 20*60:
                 return MAX_BITS
 
@@ -363,7 +363,7 @@ class Blockchain(util.PrintError):
 	#######FOR TESTING
 	print ("debug, mtp is ",daa_mtp)
 	print ("VALIDATING BLOCK HEIGHT ",height)
-        if (daa_mtp > 1509559291):  #leave this here for testing
+        if (daa_mtp >= 1509559291):  #leave this here for testing
         #if (daa_mtp >= 1510600000):
 
             daa_starting_height=self.get_suitable_block_height(prevheight-144)
