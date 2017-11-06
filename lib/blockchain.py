@@ -27,10 +27,8 @@ from . import util
 from . import bitcoin
 from .bitcoin import *
 
-
-
 def bits_to_work(bits):
-    return (2 << 255) // (bits_to_target(bits) + 1)
+    return (1 << 256) // (bits_to_target(bits) + 1)
 
 def bits_to_target(bits):
     if bits == 0:
@@ -45,7 +43,6 @@ def bits_to_target(bits):
         return word >> (8 * (3 - size))
     else:
         return word << (8 * (size - 3))
-
 
 def target_to_bits(target):
     if target == 0:
@@ -188,21 +185,16 @@ class Blockchain(util.PrintError):
         _hash = hash_header(header)
         if prev_hash != header.get('prev_block_hash'):
             raise BaseException("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
-        if bitcoin.NetworkConstants.TESTNET:
-            return
         # checkpoint BitcoinCash fork block
-        if ( header.get('block_height') == BITCOIN_CASH_FORK_BLOCK_HEIGHT and hash_header(header) != BITCOIN_CASH_FORK_BLOCK_HASH ):
+        if ( header.get('block_height') == bitcoin.BITCOIN_CASH_FORK_BLOCK_HEIGHT and hash_header(header) != bitcoin.BITCOIN_CASH_FORK_BLOCK_HASH ):
             err_str = "block at height %i is not cash chain fork block. hash %s" % (header.get('block_height'), hash_header(header))
             self.print_error(err_str)
             raise BaseException(err_str)
-	if bits != header.get('bits'):
-	    #####TESTING DAA
-	    ##### if the consensus rules don't match the number of bits on the block...
-	    ##### print ("supposed to be raising a base exception")
+        if bits != header.get('bits'):
             raise BaseException("bits mismatch: %s vs %s" % (bits, header.get('bits')))
         target = bits_to_target(bits)
         if int('0x' + _hash, 16) > target:
-	    raise BaseException("insufficient proof of work: %s vs target %s" % (int('0x' + _hash, 16), target))
+            raise BaseException("insufficient proof of work: %s vs target %s" % (int('0x' + _hash, 16), target))
 
     def verify_chunk(self, index, data):
         self.cur_chunk = data
@@ -214,9 +206,9 @@ class Blockchain(util.PrintError):
         for i in range(num):
             raw_header = data[i*80:(i+1) * 80]
             header = deserialize_header(raw_header, index*2016 + i)
-	    bits = self.get_bits(header['block_height'])
-	    self.verify_header(header, prev_header, bits)
-	    prev_header = header
+            bits = self.get_bits(header)
+            self.verify_header(header, prev_header, bits)
+            prev_header = header
         self.cur_chunk = None
 
     def path(self):
@@ -319,6 +311,11 @@ class Blockchain(util.PrintError):
         h = self.local_height
         return sum([self.BIP9(h-i, 2) for i in range(N)])*10000/N/100.
 
+    def get_median_time_past(self, height):
+        times = [self.read_header(h)['timestamp']
+                 for h in range(max(0, height - 10), height + 1)]
+        return sorted(times)[len(times) // 2]
+
     def get_suitable_block_height(self, suitableheight):
 
 	#In order to avoid a block in a very skewed timestamp to have too much
@@ -337,34 +334,28 @@ class Blockchain(util.PrintError):
 
 	return blocks1['block_height']
 
-
-    def get_median_time_past(self, height):
-        times = [self.read_header(h)['timestamp']
-                 for h in range(max(0, height - 10), height + 1)]
-        return sorted(times)[len(times) // 2]
-
-
-    def get_bits(self, height):
+    def get_bits(self, header):
         '''Return bits for the given height.'''
-        if bitcoin.TESTNET:
-            return 0
-
+        # Difficulty adjustment interval?
+        height = header['block_height']
+	print ("testing for height ",height)
 	#NOV 13 HF DAA
 
 	prevheight = height -1
         daa_mtp=self.get_median_time_past(prevheight)
 
 	#######FOR TESTING
-	#print ("debug, mtp is ",daa_mtp)
-	#print ("VALIDATING BLOCK HEIGHT ",height)
-        #######if (daa_mtp > 91509333800):  #leave this here for testing
-        if (daa_mtp >= 1510600000):
+	print ("debug, mtp is ",daa_mtp)
+	print ("VALIDATING BLOCK HEIGHT ",height)
+        if (daa_mtp > 1509559291):  #leave this here for testing
+        #if (daa_mtp >= 1510600000):
+
             daa_starting_height=self.get_suitable_block_height(prevheight-144)
             daa_ending_height=self.get_suitable_block_height(prevheight)
             daa_cumulative_work=0
             daa_starting_timestamp=0
             daa_ending_timestamp=0
-            for daa_i in range (daa_starting_height+1,daa_ending_height+1):
+            for daa_i in range (daa_starting_height,daa_ending_height+1):
                 daa_prior = self.read_header(daa_i)
                 if (daa_i == daa_ending_height):
                     daa_ending_timestamp=daa_prior['timestamp']
@@ -383,16 +374,26 @@ class Blockchain(util.PrintError):
 	    daa_retval = target_to_bits(daa_target)
 	    daa_retval = int(daa_retval)
             #####FOR TESTING
-	    #print ("at height ",height)
-	    #print ("daa_Wn ",daa_Wn)
-	    #####print ("daa_retval is ",daa_retval)
+	    print ("at height ",height)
+	    print ("daa_Wn ",daa_Wn)
+	    print ("daa_retval is ",daa_retval)
             return daa_retval
 
          #END OF NOV-2017 DAA
+
         if height % 2016 == 0:
             return self.get_new_bits(height)
         prior = self.read_header(height - 1)
         bits = prior['bits']
+
+        # testnet 20 minute rule
+        if bitcoin.TESTNET:
+            if header['timestamp'] - prior['timestamp'] > 20*60:
+                return MAX_BITS
+            else:
+                return self.read_header(int(height/2016)*2016)['bits']
+
+        # bitcoin cash EDA
         # Can't go below minimum, so early bail
         if bits == MAX_BITS:
             return bits
@@ -406,7 +407,6 @@ class Blockchain(util.PrintError):
         target += target >> 2
 
         return target_to_bits(target)
-
 
     def get_new_bits(self, height):
         assert height % 2016 == 0
@@ -435,8 +435,7 @@ class Blockchain(util.PrintError):
         prev_hash = hash_header(previous_header)
         if prev_hash != header.get('prev_block_hash'):
             return False
-        height = header.get('block_height')
-        bits = self.get_bits(height)
+        bits = self.get_bits(header)
         try:
             self.verify_header(header, previous_header, bits)
         except:
