@@ -77,10 +77,7 @@ class BCDataStream(object):
         if self.input is None:
             raise SerializationError("call write(bytes) before trying to deserialize")
 
-        try:
-            length = self.read_compact_size()
-        except IndexError:
-            raise SerializationError("attempt to read past end of buffer")
+        length = self.read_compact_size()
 
         return self.read_bytes(length).decode(encoding)
 
@@ -117,15 +114,18 @@ class BCDataStream(object):
     def write_uint64(self, val): return self._write_num('<Q', val)
 
     def read_compact_size(self):
-        size = self.input[self.read_cursor]
-        self.read_cursor += 1
-        if size == 253:
-            size = self._read_num('<H')
-        elif size == 254:
-            size = self._read_num('<I')
-        elif size == 255:
-            size = self._read_num('<Q')
-        return size
+        try:
+            size = self.input[self.read_cursor]
+            self.read_cursor += 1
+            if size == 253:
+                size = self._read_num('<H')
+            elif size == 254:
+                size = self._read_num('<I')
+            elif size == 255:
+                size = self._read_num('<Q')
+            return size
+        except IndexError:
+            raise SerializationError("attempt to read past end of buffer")
 
     def write_compact_size(self, size):
         if size < 0:
@@ -143,8 +143,11 @@ class BCDataStream(object):
             self._write_num('<Q', size)
 
     def _read_num(self, format):
-        (i,) = struct.unpack_from(format, self.input, self.read_cursor)
-        self.read_cursor += struct.calcsize(format)
+        try:
+            (i,) = struct.unpack_from(format, self.input, self.read_cursor)
+            self.read_cursor += struct.calcsize(format)
+        except Exception as e:
+            raise SerializationError(e)
         return i
 
     def _write_num(self, format, num):
