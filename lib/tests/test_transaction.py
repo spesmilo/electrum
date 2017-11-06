@@ -30,7 +30,7 @@ class TestBCDataStream(unittest.TestCase):
         for v in values:
             self.assertEqual(s.read_compact_size(), v)
 
-        with self.assertRaises(IndexError):
+        with self.assertRaises(transaction.SerializationError):
             s.read_compact_size()
 
     def test_string(self):
