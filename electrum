@@ -145,7 +145,7 @@ def run_non_RPC(config):
             elif keystore.is_master_key(text):
                 k = keystore.from_master_key(text)
             else:
-                sys.exit("Error: Seed or key not recognized")
+                sys.exit("Error: Seed or key not recognized: " + text)
             if password:
                 k.update_password(None, password)
             storage.put('keystore', k.dump())

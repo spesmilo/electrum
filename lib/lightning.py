@@ -16,6 +16,7 @@ import binascii
 
 WALLET = None
 NETWORK = None
+locked = set()
 
 def SetHdSeed(json):
   print("set hdseed unimplemented")
@@ -75,7 +76,7 @@ def ListUnspentWitness(json):
   unspent = WALLET.get_utxos()
   m = rpc_pb2.ListUnspentWitnessResponse()
   for utxo in unspent:
-    print(utxo)
+    #print(utxo)
     #example:
     # {'prevout_n': 0,
     #  'address': 'sb1qt52ccplvtpehz7qvvqft2udf2eaqvfsal08xre',
@@ -84,16 +85,18 @@ def ListUnspentWitness(json):
     #  'height': 326,
     #  'value': 400000000}
 
+    global locked
+    if (utxo["prevout_hash"], utxo["prevout_n"]) in locked:
+      print("SKIPPING LOCKED OUTPOINT", utxo["prevout_hash"])
+      continue
     towire = m.utxos.add()
     towire.addressType = rpc_pb2.WITNESS_PUBKEY_HASH
     towire.redeemScript = b""
     towire.pkScript = b""
     towire.witnessScript = bytes(bytearray.fromhex(bitcoin.address_to_script(utxo["address"])))
-    print("set empty pkscript")
     towire.value = utxo["value"]
     towire.outPoint.hash = utxo["prevout_hash"]
     towire.outPoint.index = utxo["prevout_n"]
-  #m.utxos[0].value =
   return json_format.MessageToJson(m)
 
 i = 0
@@ -109,56 +112,65 @@ def NewRawKey(json):
   res.publicKey = bytes(bytearray.fromhex(WALLET.get_public_keys(pubk)[0]))
   return json_format.MessageToJson(res)
 
+def LockOutpoint(json):
+  req = rpc_pb2.LockOutpointRequest()
+  json_format.Parse(json, req)
+  global locked
+  locked.add((req.outpoint.hash, req.outpoint.index))
+
+def UnlockOutpoint(json):
+  req = rpc_pb2.UnlockOutpointRequest()
+  json_format.Parse(json, req)
+  global locked
+  locked.remove((req.outpoint.hash, req.outpoint.index)) #throws KeyError if not existing. Use .discard() if we do not care
+
 def FetchInputInfo(json):
-  print(json)
   req = rpc_pb2.FetchInputInfoRequest()
   json_format.Parse(json, req)
   has = req.outPoint.hash
   idx = req.outPoint.index
-  print(list(WALLET.txo.values())[:10])
+  #print(list(WALLET.txo.values())[:10])
   txoinfo = WALLET.txo.get(has, {})
-  print("txoinfo", has, txoinfo)
+  #print("txoinfo", has, txoinfo)
   m = rpc_pb2.FetchInputInfoResponse()
   if has in WALLET.transactions:
     tx = WALLET.transactions[has]
+    m.mine = True
   else:
-    res = q(has, 'blockchain.transaction.get')
-    print(res)
-    assert res
-    tx = transaciton.Transaction(res)
+    res, err = q(has, 'blockchain.transaction.get')
+    assert res, (res, err)
+    tx = transaction.Transaction(res)
     print("did not find tx with hash", has)
-    print(tx)
-    assert False, "did not find tx"
+    print("tx", tx)
+
+    m.mine = False
+    return json_format.MessageToJson(m)
   outputs = tx.outputs()
-  print("output:")
-  print(outputs[idx])
+  #print("output:")
+  #print(outputs[idx])
   assert {bitcoin.TYPE_SCRIPT: "SCRIPT", bitcoin.TYPE_ADDRESS: "ADDRESS", bitcoin.TYPE_PUBKEY: "PUBKEY"}[outputs[idx][0]] == "ADDRESS"
   scr = transaction.Transaction.pay_script(outputs[idx][0], outputs[idx][1])
-  print("scr")
-  print(scr)
   #q(has, "blockchain.transaction.get")
   m.txOut.value = outputs[idx][2] # type, addr, val
-  #m.txOut.value = 10
-  #m.txOut.pkScript = b"lol"
   m.txOut.pkScript = bytes(bytearray.fromhex(scr))
   msg = json_format.MessageToJson(m)
-  #raise Exception(msg)
   return msg
 
-def q(pubk, cmd='blockchain.address.get_balance'):
+def q(pubk, cmd='blockchain.address.get_balance', timeToSleep=.1):
   #print(NETWORK.synchronous_get(('blockchain.address.get_balance', [pubk]), timeout=1))
-  # create an INET, STREAMing socket
   s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-  # now connect to the web server on port 80 - the normal http port
   s.connect(("localhost", 50001))
   i = interface.Interface("localhost:50001:garbage", s)
   i.queue_request(cmd, [pubk], 42) # 42 is id
   i.send_requests()
-  time.sleep(.1)
+  time.sleep(timeToSleep)
   res = i.get_responses()
   assert len(res) == 1
-  print(res[0][1])
-  return res[0][1]["result"]
+  print(cmd, res[0][1])
+  try:
+    return res[0][1]["result"], None
+  except KeyError:
+    return None, res[0][1]["error"]
 
 def serve(config, port):
   server = SimpleJSONRPCServer(('localhost', int(port)))
@@ -171,6 +183,9 @@ def serve(config, port):
   server.register_function(FetchInputInfo)
   server.register_function(ComputeInputScript)
   server.register_function(SignOutputRaw)
+  server.register_function(PublishTransaction)
+  server.register_function(LockOutpoint)
+  server.register_function(UnlockOutpoint)
   server.serve_forever()
 
 def test_lightning(wallet, networ, config, port):
@@ -356,9 +371,9 @@ def calcWitnessSignatureHash(original, sigHashes, hashType, tx, idx, amt):
   if toint(hashType) & toint(sigHashSingle) != toint(sigHashSingle) and toint(hashType) & toint(sigHashNone) != toint(sigHashNone):
     sigHash += bytes(bytearray.fromhex(sigHashes.hashOutputs))[::-1]
   elif toint(hashtype) & toint(sigHashMask) == toint(sigHashSingle) and idx < len(decoded["outputs"]):
-    raise Exception("TODO")
+    raise Exception("TODO 1")
   else:
-    raise Exception("TODO")
+    raise Exception("TODO 2")
 
   sigHash += LEtobytes(decoded["lockTime"], 4)
   sigHash += LEtobytes(toint(hashType), 4)
@@ -366,9 +381,9 @@ def calcWitnessSignatureHash(original, sigHashes, hashType, tx, idx, amt):
   #assert correct[:len(sigHash)] == sigHash, "\n" + sigHash.encode("hex") + "\n" + correct[:len(sigHash)].encode("hex")
 
   #assert sigHash == correct, [ord(x) for x in sigHash]
-  print("calcWitnessSignatureHash", list(original), sigHashes, hashType, list(tx), idx, amt, "sigHash")
-  print(list(sigHash))
-  return sigHash
+  #print("calcWitnessSignatureHash", list(original), sigHashes, hashType, list(tx), idx, amt, "sigHash")
+  #print(list(sigHash))
+  #return sigHash
   return transaction.Hash(sigHash)
 
 #// RawTxInWitnessSignature returns the serialized ECDA signature for the input
@@ -380,8 +395,6 @@ def calcWitnessSignatureHash(original, sigHashes, hashType, tx, idx, amt):
 #  key *btcec.PrivateKey) ([]byte, error) {
 def rawTxInWitnessSignature(tx, sigHashes, idx, amt, subscript, hashType, key):
   digest = calcWitnessSignatureHash(subscript, sigHashes, hashType, tx, idx, amt)
-  #assert digest == ''.join(map(lambda x: chr(int(x)), "33 236 33 111 254 94 205 8 151 34 154 141 176 156 16 118 34 2 183 224 53 72 53 155 60 72 96 110 24 220 112 24".split(" ")))
-  print("digest", digest)
   number = string_to_number(digest)
   signkey = MySigningKey.from_secret_exponent(key.secret, curve=ecdsa.curves.SECP256k1)
   sig = signkey.sign_digest_deterministic(digest, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der) + hashType
@@ -398,7 +411,6 @@ import hashlib
 #// dictated by the passed hashType. The signature generated observes the new
 #// transaction digest algorithm defined within BIP0143.
 def witnessSignature(tx, sigHashes, idx, amt, subscript, hashType, privKey, compress):
-  print("witnessSignature called. Subscript: ", subscript)
   sig = rawTxInWitnessSignature(tx, sigHashes, idx, amt, subscript, hashType, privKey)
   #ref = ''.join(map(lambda x: chr(int(x)),"48 68 2 32 62 85 194 71 180 244 2 87 141 53 208 147 25 47 181 82 25 88 118 216 45 70 168 14 65 144 142 71 205 4 105 209 2 32 17 185 10 179 229 150 236 161 45 49 199 206 16 79 105 228 13 185 39 231 184 62 199 137 80 190 249 211 70 248 95 40 1".split(" ")))
 
@@ -429,7 +441,6 @@ def SignOutputRaw(json):
   assert len(req.signDesc.sigHashes.hashPrevOuts) == 64
   assert len(req.signDesc.sigHashes.hashSequence) == 64
   assert len(req.signDesc.sigHashes.hashOutputs) == 64
-  print("SignOutputRaw witnessscript", req.signDesc.witnessScript)
 
   m = rpc_pb2.SignOutputRawResponse()
 
@@ -441,15 +452,26 @@ def SignOutputRaw(json):
 def signOutputRaw(tx, signDesc):
   assert len(signDesc.doubleTweak) == 0
   assert len(signDesc.singleTweak) == 0
-  print("signOutputRaw", signDesc.pubKey)
   #base58 = bitcoin.hash160_to_b58_address(bitcoin.hash_160(signDesc.pubKey[2:]),0)
   # actually it is not base58
   base58 = bitcoin.pubkey_to_address('p2wpkh', binascii.hexlify(signDesc.pubKey).decode("utf-8")) # Because this is all NewAddress supports
   pri = fetchPrivKey(base58)
   pri2 = maybeTweakPrivKey(signDesc, pri)
-  print("witnessScript", signDesc.witnessScript)
   sig = rawTxInWitnessSignature(tx, signDesc.sigHashes, signDesc.inputIndex, signDesc.output.value, signDesc.witnessScript, sigHashAll, pri2)
   return sig[:len(sig)-1]
+
+def PublishTransaction(json):
+  req = rpc_pb2.PublishTransactionRequest()
+  json_format.Parse(json, req)
+  global NETWORK
+  # TODO this should work
+  #suc, err = NETWORK.broadcast(transaction.Transaction(binascii.hexlify(req.tx).decode("utf-8")))
+  res, err = q(binascii.hexlify(req.tx).decode("utf-8"), "blockchain.transaction.broadcast", 5) # 5 seconds sleep needed so that transaction is relayed
+  print("transaction.broadcast got back", str(res))
+  m = rpc_pb2.PublishTransactionResponse()
+  m.success = err is None
+  m.error = err if err else ""
+  return json_format.MessageToJson(m)
 
 def ComputeInputScript(json):
   req = rpc_pb2.ComputeInputScriptRequest()
@@ -471,8 +493,6 @@ def ComputeInputScript(json):
 
   m = rpc_pb2.ComputeInputScriptResponse()
 
-  print("witness is", inpscr.witness)
-
   m.witnessScript.append(inpscr.witness[0])
   m.witnessScript.append(inpscr.witness[1])
   m.scriptSig = inpscr.scriptSig
@@ -484,24 +504,16 @@ def fetchPrivKey(str_address):
     # TODO FIXME privkey should be retrieved from wallet using str_address and signer_key
     pri, redeem_script = WALLET.export_private_key(str_address, None)
 
-    print("ignoring redeem script", redeem_script)
+    if redeem_script: print("ignoring redeem script", redeem_script)
 
     typ, pri, compressed = bitcoin.deserialize_privkey(pri)
     pri = EC_KEY(pri)
     return pri
 
 def computeInputScript(tx, signdesc):
-    print("pkScript")
-    print(signdesc.output.pkScript)
     typ, str_address = transaction.get_address_from_output_script(signdesc.output.pkScript)
     assert typ != bitcoin.TYPE_SCRIPT
-    try:
-      base58 = bitcoin.hash160_to_b58_address(bitcoin.hash_160(bytearray.fromhex(str_address[2:])),0)
-      print("base58:")
-      print(base58)
-    except:
-      print("(not hex)")
-    print("getting private key for {}".format(str_address))
+    #print("getting private key for {}".format(str_address))
 
     pri = fetchPrivKey(str_address)
 
@@ -543,8 +555,6 @@ def computeInputScript(tx, signdesc):
     witnessScript, pkData = witnessSignature(tx, signdesc.sigHashes,
       signdesc.inputIndex, signdesc.output.value, witnessProgram,
       sigHashAll, pri2, True)
-    print("types, lengths (witness, pkdata, outscriptsig")
-    print([type(witnessScript), type(pkData), type(ourScriptSig), len(witnessScript), len(pkData), len(ourScriptSig)])
     return InputScript(witness = (witnessScript, pkData), scriptSig = ourScriptSig)
 
 if __name__ == '__main__':
