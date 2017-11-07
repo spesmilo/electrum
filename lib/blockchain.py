@@ -344,8 +344,6 @@ class Blockchain(util.PrintError):
         if height == 0:
             return MAX_BITS
 
-        print ("testing for height ",height)
-
         prior = self.read_header(height - 1)
         bits = prior['bits']
 
@@ -354,17 +352,13 @@ class Blockchain(util.PrintError):
             if header['timestamp'] - prior['timestamp'] > 20*60:
                 return MAX_BITS
 
-
-	#NOV 13 HF DAA
+        #NOV 13 HF DAA
 
 	prevheight = height -1
         daa_mtp=self.get_median_time_past(prevheight)
 
-	#######FOR TESTING
-	print ("debug, mtp is ",daa_mtp)
-	print ("VALIDATING BLOCK HEIGHT ",height)
-        if (daa_mtp >= 1509559291):  #leave this here for testing
-            #if (daa_mtp >= 1510600000):
+        #if (daa_mtp >= 1509559291):  #leave this here for testing
+        if (daa_mtp >= 1510600000):
 
             # determine block range
             daa_starting_height=self.get_suitable_block_height(prevheight-144)
@@ -387,18 +381,14 @@ class Blockchain(util.PrintError):
             if (daa_elapsed_time<43200):
                 daa_elapsed_time=43200
 
-            # calculate new target
+            # calculate and return new target
             daa_Wn= (daa_cumulative_work*600)//daa_elapsed_time
-	    daa_target= (1 << 256) // daa_Wn -1
-	    daa_retval = target_to_bits(daa_target)
-	    daa_retval = int(daa_retval)
-            #####FOR TESTING
-	    print ("at height ",height)
-	    print ("daa_Wn ",daa_Wn)
-	    print ("daa_retval is ",daa_retval)
+            daa_target= (1 << 256) // daa_Wn -1
+            daa_retval = target_to_bits(daa_target)
+            daa_retval = int(daa_retval)
             return daa_retval
 
-         #END OF NOV-2017 DAA
+        #END OF NOV-2017 DAA
 
         if height % 2016 == 0:
             return self.get_new_bits(height)
