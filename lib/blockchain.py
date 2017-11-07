@@ -364,28 +364,30 @@ class Blockchain(util.PrintError):
 	print ("debug, mtp is ",daa_mtp)
 	print ("VALIDATING BLOCK HEIGHT ",height)
         if (daa_mtp >= 1509559291):  #leave this here for testing
-        #if (daa_mtp >= 1510600000):
+            #if (daa_mtp >= 1510600000):
 
+            # determine block range
             daa_starting_height=self.get_suitable_block_height(prevheight-144)
             daa_ending_height=self.get_suitable_block_height(prevheight)
+
+            # calculate cumulative work (EXcluding work from block daa_starting_height, INcluding work from block daa_ending_height)
             daa_cumulative_work=0
-            daa_starting_timestamp=0
-            daa_ending_timestamp=0
-            for daa_i in range (daa_starting_height,daa_ending_height+1):
+            for daa_i in range (daa_starting_height+1,daa_ending_height+1):
                 daa_prior = self.read_header(daa_i)
-                if (daa_i == daa_ending_height):
-                    daa_ending_timestamp=daa_prior['timestamp']
-                if (daa_i == daa_starting_height):
-                    daa_starting_timestamp=daa_prior['timestamp']
-                else:
-                    daa_bits_for_a_block=daa_prior['bits']
-                    daa_work_for_a_block=bits_to_work(daa_bits_for_a_block)
-                    daa_cumulative_work += daa_work_for_a_block
-	    daa_elapsed_time=daa_ending_timestamp-daa_starting_timestamp
-	    if (daa_elapsed_time>172800):
+                daa_bits_for_a_block=daa_prior['bits']
+                daa_work_for_a_block=bits_to_work(daa_bits_for_a_block)
+                daa_cumulative_work += daa_work_for_a_block
+
+            # calculate and sanitize elapsed time
+            daa_starting_timestamp = self.read_header(daa_starting_height)['timestamp']
+            daa_ending_timestamp = self.read_header(daa_ending_height)['timestamp']
+            daa_elapsed_time=daa_ending_timestamp-daa_starting_timestamp
+            if (daa_elapsed_time>172800):
                 daa_elapsed_time=172800
             if (daa_elapsed_time<43200):
                 daa_elapsed_time=43200
+
+            # calculate new target
             daa_Wn= (daa_cumulative_work*600)//daa_elapsed_time
 	    daa_target= (1 << 256) // daa_Wn -1
 	    daa_retval = target_to_bits(daa_target)
