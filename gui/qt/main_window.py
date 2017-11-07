@@ -1871,14 +1871,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     @protected
     def _delete_wallet(self, password):
         wallet_path = self.wallet.storage.path
-        dirname = os.path.dirname(wallet_path)
         basename = os.path.basename(wallet_path)
-        if self.wallet.has_password():
-            try:
-                self.wallet.check_password(pw)
-            except:
-                self.show_error("Invalid Password")
-                return
         self.gui_object.daemon.stop_wallet(wallet_path)
         self.close()
         os.unlink(wallet_path)
