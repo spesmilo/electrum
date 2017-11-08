@@ -213,13 +213,14 @@ class BaseWizard(object):
             self.show_error(str(e))
             self.choose_hw_device()
             return
+        f = lambda x: self.run('on_hw_derivation', name, device_info, str(x))
         if self.wallet_type=='multisig':
             # There is no general standard for HD multisig.
             # This is partially compatible with BIP45; assumes index=0
-            self.on_hw_derivation(name, device_info, "m/45'/0")
+            default_derivation = "m/45'/0"
         else:
-            f = lambda x: self.run('on_hw_derivation', name, device_info, str(x))
-            self.derivation_dialog_145(f)
+            default_derivation = bip44_derivation_145(0)
+        self.derivation_dialog_other(f, default_derivation)
 
     def derivation_dialog(self, f):
         default = bip44_derivation(0, False)
@@ -231,16 +232,14 @@ class BaseWizard(object):
         ])
         self.line_dialog(run_next=f, title=_('Derivation'), message=message, default=default, test=bitcoin.is_bip32_derivation)
 
-
-    def derivation_dialog_145(self, f):
-        default = bip44_derivation_145(0)
+    def derivation_dialog_other(self, f, default_derivation):
         message = '\n'.join([
             _('Enter your wallet derivation here.'),
             _('If you are not sure what this is, leave this field unchanged.')
         ])
-        self.line_dialog(run_next=f, title=_('Derivation'), message=message, default=default, test=bitcoin.is_bip32_derivation)
-
-
+        self.line_dialog(run_next=f, title=_('Derivation'), message=message,
+                         default=default_derivation,
+                         test=bitcoin.is_bip32_derivation)
 
     def on_hw_derivation(self, name, device_info, derivation):
         from .keystore import hardware_keystore
@@ -302,7 +301,7 @@ class BaseWizard(object):
 
     def on_restore_bip39_145(self, seed, passphrase):
         f = lambda x: self.run('on_bip44', seed, passphrase, str(x))
-        self.derivation_dialog_145(f)
+        self.derivation_dialog_other(f, bip44_derivation_145(0))
 
     def create_keystore(self, seed, passphrase):
         k = keystore.from_seed(seed, passphrase, self.wallet_type == 'multisig')
