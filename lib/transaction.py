@@ -440,9 +440,9 @@ def parse_witness(vds, txin):
     if txin['type'] == 'coinbase':
         pass
     elif n > 2:
-        txin['num_sig'] = n - 2
         txin['signatures'] = parse_sig(w[1:-1])
         m, n, x_pubkeys, pubkeys, witnessScript = parse_redeemScript(bfh(w[-1]))
+        txin['num_sig'] = m
         txin['x_pubkeys'] = x_pubkeys
         txin['pubkeys'] = pubkeys
         txin['witnessScript'] = witnessScript

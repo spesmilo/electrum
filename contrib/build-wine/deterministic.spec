@@ -66,7 +66,14 @@ for d in a.datas:
 a.binaries = [x for x in a.binaries if not x[1].lower().startswith(r'c:\windows')]
 
 pyz = PYZ(a.pure)
-exe = EXE(pyz,
+
+
+#####
+# "standalone" exe with all dependencies packed into it
+# (or "portable", depending on cmdline_name)
+
+exe_standalone = EXE(
+          pyz,
           a.scripts,
           a.binaries,
           a.datas,
@@ -78,7 +85,23 @@ exe = EXE(pyz,
           console=False)
           # The console True makes an annoying black box pop up, but it does make Electrum output command line commands, with this turned off no output will be given but commands can still be used
 
-coll = COLLECT(exe,
+#####
+# exe and separate files that NSIS uses to build installer "setup" exe
+# FIXME: this is redundantly done again, when building the "portable" exe
+
+exe_dependent = EXE(
+          pyz,
+          a.scripts,
+          exclude_binaries=True,
+          name=os.path.join('build\\pyi.win32\\electrum-ltc', cmdline_name),
+          debug=False,
+          strip=None,
+          upx=False,
+          icon=home+'icons/electrum.ico',
+          console=False)
+
+coll = COLLECT(
+               exe_dependent,
                a.binaries,
                a.zipfiles,
                a.datas,
