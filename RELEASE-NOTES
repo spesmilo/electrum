@@ -107,3 +107,12 @@ Menu "Tools") to see information about chain forks your client knows about), you
   * Removed dynamic fees.  Fees are now simple Sat/Byte model
   * Add Coin_Type 145 for Bitcoin Cash for bip39 seed imports
   * Use bitcoincash URI prefix for receiving and QR codes
+
+# Release 2.9.4
+  * Implement new Difficulty Adjustment Algorithm for Nov 13, 2017 Hard Fork
+  * Change ticker symobl from BCC to BCH
+  * Implement changes to allow simultaneous installation with Electrum
+  * Upgrade to PyQt5
+  * Various fixes for hardware wallets
+  * Remove 2FA for new wallet creation
+  * Remove feature to copy electrum wallet files
