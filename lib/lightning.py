@@ -139,6 +139,21 @@ def UnlockOutpoint(json):
     # throws KeyError if not existing. Use .discard() if we do not care
     locked.remove((req.outpoint.hash, req.outpoint.index))
 
+def ListTransactionDetails(json):
+    global WALLET
+    WALLET.synchronize()
+    WALLET.wait_until_synchronized()
+    print("height", NETWORK.get_local_height())
+    m = rpc_pb2.ListTransactionDetailsResponse()
+    for tx_hash, height, conf, timestamp, delta, balance in WALLET.get_history():
+        detail = m.details.add()
+        detail.hash = tx_hash
+        detail.value = delta
+        detail.numConfirmations = conf
+        detail.blockHeight = height
+        detail.timestamp = timestamp
+        detail.totalFees = 1337 # TODO
+    return json_format.MessageToJson(m)
 
 def FetchInputInfo(json):
     req = rpc_pb2.FetchInputInfoRequest()
@@ -205,20 +220,21 @@ def serve(config, port):
     server.register_function(PublishTransaction)
     server.register_function(LockOutpoint)
     server.register_function(UnlockOutpoint)
+    server.register_function(ListTransactionDetails)
     server.serve_forever()
 
 
 def test_lightning(wallet, networ, config, port):
     global WALLET, NETWORK, pubk, K_compressed
     WALLET = wallet
-    assert networ is None
+    assert networ is not None
 
     from . import network
 
     assert len(bitcoin.DEFAULT_SERVERS) == 1, bitcoin.DEFAULT_SERVERS
-    networ = network.Network(config)
-    networ.start()
-    wallet.start_threads(networ)
+    #networ = network.Network(config)
+    #networ.start()
+    #wallet.start_threads(networ)
     wallet.synchronize()
     print("WAITING!!!!")
     wallet.wait_until_synchronized()
