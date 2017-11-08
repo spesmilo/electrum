@@ -2312,7 +2312,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
             if tx_hash:
                 label = wallet.get_label(tx_hash)
-                label = label.encode('utf-8')
             else:
                 label = ""
 
