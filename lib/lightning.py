@@ -77,7 +77,7 @@ def ListUnspentWitness(json):
     global pubk
     req = cl()
     json_format.Parse(json, req)
-    confs = req.minConfirmations
+    confs = req.minConfirmations #TODO regard this
 
     WALLET.synchronize()
     WALLET.wait_until_synchronized()
@@ -139,17 +139,28 @@ def UnlockOutpoint(json):
     # throws KeyError if not existing. Use .discard() if we do not care
     locked.remove((req.outpoint.hash, req.outpoint.index))
 
+HEIGHT = None
+
 def ListTransactionDetails(json):
+    global HEIGHT
     global WALLET
+    global NETWORK
     WALLET.synchronize()
     WALLET.wait_until_synchronized()
-    print("height", NETWORK.get_local_height())
+    if HEIGHT is None:
+        HEIGHT = WALLET.get_local_height()
+    else:
+        assert HEIGHT != WALLET.get_local_height(), ("old height " + str(HEIGHT), "new height " + str(WALLET.get_local_height()))
+        HEIGHT = WALLET.get_local_height()
     m = rpc_pb2.ListTransactionDetailsResponse()
     for tx_hash, height, conf, timestamp, delta, balance in WALLET.get_history():
+        if height == 0:
+          print("WARNING", tx_hash, "has zero height!")
         detail = m.details.add()
         detail.hash = tx_hash
         detail.value = delta
         detail.numConfirmations = conf
+        detail.blockHash = NETWORK.blockchain().get_hash(height)
         detail.blockHeight = height
         detail.timestamp = timestamp
         detail.totalFees = 1337 # TODO
@@ -168,9 +179,7 @@ def FetchInputInfo(json):
         tx = WALLET.transactions[has]
         m.mine = True
     else:
-        res, err = q(has, 'blockchain.transaction.get')
-        assert res, (res, err)
-        tx = transaction.Transaction(res)
+        tx = WALLET.get_input_tx(has)
         print("did not find tx with hash", has)
         print("tx", tx)
 
@@ -187,24 +196,6 @@ def FetchInputInfo(json):
     m.txOut.pkScript = bytes(bytearray.fromhex(scr))
     msg = json_format.MessageToJson(m)
     return msg
-
-
-def q(pubk, cmd='blockchain.address.get_balance', timeToSleep=.1):
-    #print(NETWORK.synchronous_get(('blockchain.address.get_balance', [pubk]), timeout=1))
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect(("localhost", 50001))
-    i = interface.Interface("localhost:50001:garbage", s)
-    i.queue_request(cmd, [pubk], 42)  # 42 is id
-    i.send_requests()
-    time.sleep(timeToSleep)
-    res = i.get_responses()
-    assert len(res) == 1
-    print(cmd, res[0][1])
-    try:
-        return res[0][1]["result"], None
-    except KeyError:
-        return None, res[0][1]["error"]
-
 
 def serve(config, port):
     server = SimpleJSONRPCServer(('localhost', int(port)))
@@ -525,17 +516,16 @@ def signOutputRaw(tx, signDesc):
                                   signDesc.output.value, signDesc.witnessScript, sigHashAll, pri2)
     return sig[:len(sig) - 1]
 
-
 def PublishTransaction(json):
     req = rpc_pb2.PublishTransactionRequest()
     json_format.Parse(json, req)
-    global NETWORK
-    # TODO this should work
-    #suc, err = NETWORK.broadcast(transaction.Transaction(binascii.hexlify(req.tx).decode("utf-8")))
-    # 5 seconds sleep needed so that transaction is relayed
-    res, err = q(binascii.hexlify(req.tx).decode("utf-8"),
+    suc, err = q(binascii.hexlify(req.tx).decode("utf-8"),
                  "blockchain.transaction.broadcast", 5)
-    print("transaction.broadcast got back", str(res))
+    global NETWORK
+    suc, err = NETWORK.broadcast(transaction.Transaction(binascii.hexlify(req.tx).decode("utf-8")))
+    # 2 seconds sleep needed so that transaction is relayed
+    time.sleep(2)
+    print("transaction.broadcast got back", str(suc))
     m = rpc_pb2.PublishTransactionResponse()
     m.success = err is None
     m.error = err if err else ""

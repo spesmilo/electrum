@@ -93,6 +93,7 @@ def set_simnet():
     global NOLNET, HEADERS_URL
     global GENESIS
     global SEGWIT_HRP
+    global TESTNET
     SEGWIT_HRP = "sb"
     TESTNET = True
     ADDRTYPE_P2PKH = 0x3f

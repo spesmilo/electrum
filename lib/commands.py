@@ -680,7 +680,7 @@ class Commands:
         # for the python console
         return sorted(known_commands.keys())
 
-    @command('w')
+    @command('wn')
     def testlightning(self, port):
         from . import lightning
         return lightning.test_lightning(self.wallet, self.network, self.config, port)
