@@ -16,6 +16,7 @@ import binascii
 
 WALLET = None
 NETWORK = None
+CONFIG = None
 locked = set()
 
 
@@ -197,6 +198,38 @@ def FetchInputInfo(json):
     msg = json_format.MessageToJson(m)
     return msg
 
+def SendOutputs(json):
+    global NETWORK, WALLET, CONFIG
+
+    req = rpc_pb2.SendOutputsRequest()
+    json_format.Parse(json, req)
+
+    m = rpc_pb2.SendOutputsResponse()
+
+    elecOutputs = [(bitcoin.TYPE_SCRIPT, binascii.hexlify(txout.pkScript).decode("utf-8"), txout.value) for txout in req.outputs]
+
+    tx = None
+    try:
+        #                outputs,     password, config, fee
+        tx = WALLET.mktx(elecOutputs, None,     CONFIG, 1000)
+    except e:
+        m.success = False
+        m.error = str(e)
+        m.resultHash = ""
+        return json_format.MessageToJson(m)
+
+    suc, has = NETWORK.broadcast(tx)
+    if not suc:
+        m.success = False
+        m.error = "electrum/lightning/SendOutputs: Could not broadcast: " + str(has)
+        m.resultHash = ""
+        return json_format.MessageToJson(m)
+    m.success = True
+    m.error = ""
+    print("broadcast got back", suc, has)
+    m.resultHash = tx.txid()
+    return json_format.MessageToJson(m)
+
 def serve(config, port):
     server = SimpleJSONRPCServer(('localhost', int(port)))
     server.register_function(FetchRootKey)
@@ -212,11 +245,13 @@ def serve(config, port):
     server.register_function(LockOutpoint)
     server.register_function(UnlockOutpoint)
     server.register_function(ListTransactionDetails)
+    server.register_function(SendOutputs)
     server.serve_forever()
 
 
 def test_lightning(wallet, networ, config, port):
     global WALLET, NETWORK, pubk, K_compressed
+    global CONFIG
     WALLET = wallet
     assert networ is not None
 
@@ -246,6 +281,8 @@ def test_lightning(wallet, networ, config, port):
     assert wallet.pubkeys_to_address(binascii.hexlify(
         K_compressed).decode("utf-8")) in wallet.get_addresses()
     #print(q(pubk, 'blockchain.address.listunspent'))
+
+    CONFIG = config
 
     serve(config, port)
 
@@ -352,7 +389,6 @@ def isWitnessPubKeyHash(script):
 
 
 def calcWitnessSignatureHash(original, sigHashes, hashType, tx, idx, amt):
-    #correct = "".join(map(lambda x: chr(int(x)), "1 0 0 0 217 43 73 76 147 7 70 63 188 219 20 47 234 97 195 13 216 87 117 11 107 76 81 144 254 102 255 191 72 130 26 154 59 177 48 41 206 123 31 85 158 245 231 71 252 172 67 159 20 85 162 236 124 95 9 183 34 144 121 94 112 102 80 68 211 171 158 20 224 139 71 93 77 94 74 135 98 70 57 191 79 168 32 75 105 235 123 26 235 34 171 178 162 172 163 27 1 0 0 0 25 118 169 20 157 152 5 36 153 45 228 145 20 188 199 140 125 173 247 140 169 123 131 107 136 172 0 228 11 84 2 0 0 0 255 255 255 255 49 104 166 12 84 134 136 136 201 54 92 173 174 23 215 5 206 240 150 172 65 238 5 213 166 63 170 11 195 67 37 187 0 0 0 0 1 0 0 0".split(" ")))
     assert len(original) != 0
     decoded = transaction.deserialize(binascii.hexlify(tx).decode("utf-8"))
     if idx > len(decoded["inputs"]) - 1:
@@ -372,7 +408,6 @@ def calcWitnessSignatureHash(original, sigHashes, hashType, tx, idx, amt):
         sigHash += b"\x00" * 32
     #assert correct[:len(sigHash)] == sigHash, "\n" + sigHash.encode("hex") + "\n" + correct[:len(sigHash)].encode("hex")
 
-    #assert txin["prevout_hash"] == "1ba3aca2b2ab22eb1a7beb694b20a84fbf394662874a5e4d5d478be0149eabd3"
     sigHash += bytes(bytearray.fromhex(txin["prevout_hash"]))[::-1]
     sigHash += LEtobytes(txin["prevout_n"], 4)
     # byte 72
@@ -504,8 +539,6 @@ def SignOutputRaw(json):
 
 
 def signOutputRaw(tx, signDesc):
-    assert len(signDesc.doubleTweak) == 0
-    assert len(signDesc.singleTweak) == 0
     #base58 = bitcoin.hash160_to_b58_address(bitcoin.hash_160(signDesc.pubKey[2:]),0)
     # actually it is not base58
     base58 = bitcoin.pubkey_to_address('p2wpkh', binascii.hexlify(
@@ -519,16 +552,15 @@ def signOutputRaw(tx, signDesc):
 def PublishTransaction(json):
     req = rpc_pb2.PublishTransactionRequest()
     json_format.Parse(json, req)
-    suc, err = q(binascii.hexlify(req.tx).decode("utf-8"),
-                 "blockchain.transaction.broadcast", 5)
+    #suc, err = q(binascii.hexlify(req.tx).decode("utf-8"),
+    #             "blockchain.transaction.broadcast", 5)
     global NETWORK
-    suc, err = NETWORK.broadcast(transaction.Transaction(binascii.hexlify(req.tx).decode("utf-8")))
+    suc, has = NETWORK.broadcast(transaction.Transaction(binascii.hexlify(req.tx).decode("utf-8")))
     # 2 seconds sleep needed so that transaction is relayed
     time.sleep(2)
-    print("transaction.broadcast got back", str(suc))
     m = rpc_pb2.PublishTransactionResponse()
-    m.success = err is None
-    m.error = err if err else ""
+    m.success = suc
+    m.error = str(err)
     return json_format.MessageToJson(m)
 
 
