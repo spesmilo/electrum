@@ -85,10 +85,12 @@ class DigitalBitbox_Client():
 
 
     def get_xpub(self, bip32_path, xtype):
-        assert xpub == 'standard'
+        assert xtype == 'standard'
         reply = self._get_xpub(bip32_path)
         if reply:
             return reply['xpub']
+        else:
+            raise BaseException('no reply')
 
 
     def dbb_has_password(self):

@@ -182,6 +182,12 @@ class QtPluginBase(object):
         for keystore in wallet.get_keystores():
             if not isinstance(keystore, self.keystore_class):
                 continue
+            if not self.libraries_available:
+                window.show_error(
+                    _("Cannot find python library for") + " '%s'.\n" % self.name \
+                    + _("Make sure you install it with python3")
+                )
+                return
             tooltip = self.device + '\n' + (keystore.label or 'unnamed')
             cb = partial(self.show_settings_dialog, window, keystore)
             button = StatusBarButton(QIcon(self.icon_unpaired), tooltip, cb)

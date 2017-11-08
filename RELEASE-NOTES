@@ -1,39 +1,70 @@
-# Release 3.0 - Uncanny Valley (not released yet)
+# Release 3.0.1
+  * minor bug and usability fixes
 
-  * The project was migrated to Python3. Python2 is no longer
-    supported. If you cloned the source directory, you will need to
+
+# Release 3.0 - Uncanny Valley (November 1st, 2017)
+
+  * The project was migrated to Python3 and Qt5. Python2 is no longer
+    supported. If you cloned the source repository, you will need to
     run "python3 setup.py install" in order to install the new
     dependencies.
 
-  * Segwit support:
-    - P2SH-segwit scripts are supported and can be used with hardware
-      wallets. To create a segwit wallet, trezor/ledger users will
-      need to provide a BIP49 derivation path.
-    - Native segwit scripts are supported with Electrum software
-      wallets, using a new type of seed. Segwit seeds have version
-      0x100. Note that the wizard will not create Segwit seeds by
-      default; users must opt-in with the segwit option.
+  * Segwit support: 
+
+    - Native segwit scripts are supported using a new type of
+      seed. The version number for segwit seeds is 0x100. The install
+      wizard will not create segwit seeds by default; users must
+      opt-in with the segwit option.
+
     - Native segwit scripts are represented using bech32 addresses,
       following BIP173. Please note that BIP173 is still in draft
       status, and that other wallets/websites may not support
       it. Thus, you should keep a non-segwit wallet in order to be
       able to receive bitcoins during the transition period. If BIP173
-      ends up being rejected or substantially modified, bech32 wallets
+      ends up being rejected or substantially modified, your wallet
       may have to be restored from seed. This will not affect funds
       sent to bech32 addresses, and it will not affect the capacity of
       Electrum to spend these funds.
+
+    - Segwit scripts embedded in p2sh are supported with hardware
+      wallets or bip39 seeds. To create a segwit-in-p2sh wallet,
+      trezor/ledger users will need to enter a BIP49 derivation path.
+
     - The BIP32 master keys of segwit wallets are serialized using new
-      version numbers. Version numbers are user visible, with the
-      following prefixes:
+      version numbers. The new version numbers encode the script type,
+      and they result in the following prefixes:
+
          * xpub/xprv : p2pkh or p2sh
          * ypub/yprv : p2wpkh-in-p2sh
          * Ypub/Yprv : p2wsh-in-p2sh
          * zpub/zprv : p2wpkh
          * Zpub/Zprv : p2wsh
 
+      These values are identical for mainnet and testnet; tpub/tprv
+      prefixes are no longer used in testnet wallets.
+
+    - The Wallet Import Format (WIF) is similarly extended for segwit
+      scripts. After a base58-encoded key is decoded to binary, its
+      first byte encodes the script type:
+
+         * 128 + 0: p2pkh
+         * 128 + 1: p2wpkh
+         * 128 + 2: p2wpkh-in-p2sh
+         * 128 + 5: p2sh
+         * 128 + 6: p2wsh
+         * 128 + 7: p2wsh-in-p2sh
+
+      The distinction between p2sh and p2pkh in private key means that
+      it is not possible to import a p2sh private key and associate it
+      to a p2pkh address.
+
   * A new version of the Electrum protocol is required by the client
     (version 1.1). Servers using older versions of the protocol will
-    not be visible in the GUI.
+    not be displayed in the GUI.
+
+  * By default, transactions are time-locked to the height of the
+    current block. Other values of locktime may be passed using the
+    command line.
 
 
 # Release 2.9.3

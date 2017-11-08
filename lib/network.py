@@ -316,14 +316,18 @@ class Network(util.DaemonThread):
         self.queue_request('server.banner', [])
         self.queue_request('server.donation_address', [])
         self.queue_request('server.peers.subscribe', [])
-        for i in bitcoin.FEE_TARGETS:
-            self.queue_request('blockchain.estimatefee', [i])
+        self.request_fee_estimates()
         self.queue_request('blockchain.relayfee', [])
         if self.interface.ping_required():
             params = [ELECTRUM_VERSION, PROTOCOL_VERSION]
             self.queue_request('server.version', params, self.interface)
         for h in self.subscribed_addresses:
             self.queue_request('blockchain.scripthash.subscribe', [h])
+
+    def request_fee_estimates(self):
+        self.config.requested_fee_estimates()
+        for i in bitcoin.FEE_TARGETS:
+            self.queue_request('blockchain.estimatefee', [i])
 
     def get_status_value(self, key):
         if key == 'status':
@@ -547,7 +551,7 @@ class Network(util.DaemonThread):
             if error is None and result > 0:
                 i = params[0]
                 fee = int(result*COIN)
-                self.config.fee_estimates[i] = fee
+                self.config.update_fee_estimates(i, fee)
                 self.print_error("fee_estimates[%d]" % i, fee)
                 self.notify('fee')
         elif method == 'blockchain.relayfee':
@@ -752,6 +756,9 @@ class Network(util.DaemonThread):
                         self.server_retry_time = now
                 else:
                     self.switch_to_interface(self.default_server)
+        else:
+            if self.config.is_fee_estimates_update_required():
+                self.request_fee_estimates()
 
     def request_chunk(self, interface, idx):
         interface.print_error("requesting chunk %d" % idx)

@@ -1871,14 +1871,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     @protected
     def _delete_wallet(self, password):
         wallet_path = self.wallet.storage.path
-        dirname = os.path.dirname(wallet_path)
         basename = os.path.basename(wallet_path)
-        if self.wallet.has_password():
-            try:
-                self.wallet.check_password(pw)
-            except:
-                self.show_error("Invalid Password")
-                return
         self.gui_object.daemon.stop_wallet(wallet_path)
         self.close()
         os.unlink(wallet_path)
@@ -2119,17 +2112,25 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return self.tx_from_text(file_content)
 
     def do_process_from_text(self):
+        from electrum.transaction import SerializationError
         text = text_dialog(self, _('Input raw transaction'), _("Transaction:"), _("Load transaction"))
         if not text:
             return
-        tx = self.tx_from_text(text)
-        if tx:
-            self.show_transaction(tx)
+        try:
+            tx = self.tx_from_text(text)
+            if tx:
+                self.show_transaction(tx)
+        except SerializationError as e:
+            self.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
 
     def do_process_from_file(self):
-        tx = self.read_tx_from_file()
-        if tx:
-            self.show_transaction(tx)
+        from electrum.transaction import SerializationError
+        try:
+            tx = self.read_tx_from_file()
+            if tx:
+                self.show_transaction(tx)
+        except SerializationError as e:
+            self.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
 
     def do_process_from_txid(self):
         from electrum import transaction
@@ -2183,12 +2184,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 privkey = self.wallet.export_private_key(addr, password)[0]
                 private_keys[addr] = privkey
                 self.computing_privkeys_signal.emit()
+            self.computing_privkeys_signal.disconnect()
             self.show_privkeys_signal.emit()
 
         def show_privkeys():
             s = "\n".join( map( lambda x: x[0] + "\t"+ x[1], private_keys.items()))
             e.setText(s)
             b.setEnabled(True)
+            self.show_privkeys_signal.disconnect()
 
         self.computing_privkeys_signal.connect(lambda: e.setText("Please wait... %d/%d"%(len(private_keys),len(addresses))))
         self.show_privkeys_signal.connect(show_privkeys)

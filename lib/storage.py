@@ -46,7 +46,7 @@ from . import bitcoin
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 15     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 16     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -260,6 +260,7 @@ class WalletStorage(PrintError):
         self.convert_version_13_b()
         self.convert_version_14()
         self.convert_version_15()
+        self.convert_version_16()
 
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
         self.write()
@@ -358,11 +359,6 @@ class WalletStorage(PrintError):
         if self.get('wallet_type') == 'standard':
             if self.get('keystore').get('type') == 'imported':
                 pubkeys = self.get('keystore').get('keypairs').keys()
-                if self.get('pubkeys'):
-                    pubkeys2 = set(self.get('pubkeys').get('receiving'))
-                    assert len(pubkeys) == len(pubkeys2)
-                    for pubkey in pubkeys:
-                        assert pubkey in pubkeys2
                 d = {'change': []}
                 receiving_addresses = []
                 for pubkey in pubkeys:
@@ -408,6 +404,49 @@ class WalletStorage(PrintError):
             return
         assert self.get('seed_type') != 'segwit'  # unsupported derivation
         self.put('seed_version', 15)
+
+    def convert_version_16(self):
+        # fixes issue #3193 for Imported_Wallets with addresses
+        # also, previous versions allowed importing any garbage as an address
+        #       which we now try to remove, see pr #3191
+        if not self._is_upgrade_method_needed(15, 15):
+            return
+
+        def remove_address(addr):
+            def remove_from_dict(dict_name):
+                d = self.get(dict_name, None)
+                if d is not None:
+                    d.pop(addr, None)
+                    self.put(dict_name, d)
+
+            def remove_from_list(list_name):
+                lst = self.get(list_name, None)
+                if lst is not None:
+                    s = set(lst)
+                    s -= {addr}
+                    self.put(list_name, list(s))
+
+            # note: we don't remove 'addr' from self.get('addresses')
+            remove_from_dict('addr_history')
+            remove_from_dict('labels')
+            remove_from_dict('payment_requests')
+            remove_from_list('frozen_addresses')
+
+        if self.get('wallet_type') == 'imported':
+            addresses = self.get('addresses')
+            assert isinstance(addresses, dict)
+            addresses_new = dict()
+            for address, details in addresses.items():
+                if not bitcoin.is_address(address):
+                    remove_address(address)
+                    continue
+                if details is None:
+                    addresses_new[address] = {}
+                else:
+                    addresses_new[address] = details
+            self.put('addresses', addresses_new)
+
+        self.put('seed_version', 16)
 
     def convert_imported(self):
         # '/x' is the internal ID for imported accounts
