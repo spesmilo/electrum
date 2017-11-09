@@ -941,29 +941,6 @@ class Transaction:
         }
         return out
 
-    def requires_fee(self, wallet):
-        # see https://en.bitcoin.it/wiki/Transaction_fees
-        #
-        # size must be smaller than 1 kbyte for free tx
-        size = len(self.serialize(-1))/2
-        if size >= 10000:
-            return True
-        # all outputs must be 0.01 BTC or larger for free tx
-        for addr, value in self.get_outputs():
-            if value < 1000000:
-                return True
-        # priority must be large enough for free tx
-        threshold = 57600000
-        weight = 0
-        for txin in self.inputs():
-            height, conf, timestamp = wallet.get_tx_height(txin["prevout_hash"])
-            weight += txin["value"] * conf
-        priority = weight / size
-        print_error(priority, threshold)
-
-        return priority < threshold
-
-
 
 def tx_from_str(txt):
     "json or raw hexadecimal"
