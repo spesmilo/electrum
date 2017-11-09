@@ -230,6 +230,14 @@ def SendOutputs(json):
     m.resultHash = tx.txid()
     return json_format.MessageToJson(m)
 
+def IsSynced(json):
+    global NETWORK
+    local_height, server_height = NETWORK.get_status_value("updated")
+    synced = NETWORK.is_up_to_date() and local_height == server_height
+    m = rpc_pb2.IsSyncedResponse()
+    m.synced = synced
+    return json_format.MessageToJson(m)
+
 def wrap(fun):
     def wrapped(*args, **kwargs):
         try:
@@ -256,6 +264,7 @@ def serve(config, port):
     server.register_function(wrap(UnlockOutpoint))
     server.register_function(wrap(ListTransactionDetails))
     server.register_function(wrap(SendOutputs))
+    server.register_function(wrap(IsSynced))
     server.serve_forever()
 
 
@@ -593,12 +602,17 @@ def PublishTransaction(json):
     #suc, err = q(binascii.hexlify(req.tx).decode("utf-8"),
     #             "blockchain.transaction.broadcast", 5)
     global NETWORK
-    suc, has = NETWORK.broadcast(transaction.Transaction(binascii.hexlify(req.tx).decode("utf-8")))
+    tx = transaction.Transaction(binascii.hexlify(req.tx).decode("utf-8"))
+    suc, has = NETWORK.broadcast(tx)
     # 2 seconds sleep needed so that transaction is relayed
     time.sleep(2)
     m = rpc_pb2.PublishTransactionResponse()
     m.success = suc
-    m.error = str(err)
+    m.error = str(has) if not suc else ""
+    if m.error:
+        print("PublishTransaction", m.error)
+        if "Missing inputs" in m.error:
+            print("inputs", tx.inputs())
     return json_format.MessageToJson(m)
 
 
