@@ -1339,6 +1339,9 @@ class Abstract_Wallet(PrintError):
     def has_password(self):
         return self.storage.get('use_encryption', False)
 
+    def check_password(self, password):
+        self.keystore.check_password(password)
+
     def sign_message(self, address, message, password):
         index = self.get_address_index(address)
         return self.keystore.sign_message(index, message, password)
@@ -1363,9 +1366,6 @@ class Simple_Wallet(Abstract_Wallet):
 
     def can_change_password(self):
         return self.keystore.can_change_password()
-
-    def check_password(self, password):
-        self.keystore.check_password(password)
 
     def update_password(self, old_pw, new_pw, encrypt=False):
         if old_pw is None and self.has_password():
@@ -1393,9 +1393,6 @@ class Imported_Wallet(Simple_Wallet):
 
     def get_keystores(self):
         return [self.keystore] if self.keystore else []
-
-    def check_password(self, password):
-        self.keystore.check_password(password)
 
     def can_import_privkey(self):
         return bool(self.keystore)
@@ -1791,9 +1788,6 @@ class Multisig_Wallet(Deterministic_Wallet):
                 self.storage.put(name, keystore.dump())
         self.storage.set_password(new_pw, encrypt)
         self.storage.write()
-
-    def check_password(self, password):
-        self.keystore.check_password(password)
 
     def has_seed(self):
         return self.keystore.has_seed()
