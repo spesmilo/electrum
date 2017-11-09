@@ -39,9 +39,9 @@ cd tmp
 # Install Cython
 $PYTHON -m pip install setuptools --upgrade
 $PYTHON -m pip install cython
-$PYTHON -m pip install trezor
-$PYTHON -m pip install keepkey
-$PYTHON -m pip install btchip-python
+$PYTHON -m pip install trezor --upgrade
+$PYTHON -m pip install keepkey --upgrade
+$PYTHON -m pip install btchip-python --upgrade
 
 #git clone https://github.com/trezor/cython-hidapi.git
 #replace: from distutils.core import setup, Extenstion
