@@ -10,7 +10,6 @@ import socket
 import concurrent.futures as futures
 import time
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
-import json as jsonm
 from google.protobuf import json_format
 import binascii
 
@@ -28,7 +27,6 @@ def SetHdSeed(json):
 
 
 def ConfirmedBalance(json):
-    global pubk
     request = rpc_pb2.ConfirmedBalanceRequest()
     json_format.Parse(json, request)
     m = rpc_pb2.ConfirmedBalanceResponse()
@@ -75,7 +73,6 @@ assert rpc_pb2.WITNESS_PUBKEY_HASH is not None
 
 
 def ListUnspentWitness(json):
-    global pubk
     req = cl()
     json_format.Parse(json, req)
     confs = req.minConfirmations #TODO regard this
@@ -172,9 +169,7 @@ def FetchInputInfo(json):
     json_format.Parse(json, req)
     has = req.outPoint.hash
     idx = req.outPoint.index
-    # print(list(WALLET.txo.values())[:10])
     txoinfo = WALLET.txo.get(has, {})
-    #print("txoinfo", has, txoinfo)
     m = rpc_pb2.FetchInputInfoResponse()
     if has in WALLET.transactions:
         tx = WALLET.transactions[has]
@@ -187,12 +182,9 @@ def FetchInputInfo(json):
         m.mine = False
         return json_format.MessageToJson(m)
     outputs = tx.outputs()
-    # print("output:")
-    # print(outputs[idx])
     assert {bitcoin.TYPE_SCRIPT: "SCRIPT", bitcoin.TYPE_ADDRESS: "ADDRESS",
             bitcoin.TYPE_PUBKEY: "PUBKEY"}[outputs[idx][0]] == "ADDRESS"
     scr = transaction.Transaction.pay_script(outputs[idx][0], outputs[idx][1])
-    #q(has, "blockchain.transaction.get")
     m.txOut.value = outputs[idx][2]  # type, addr, val
     m.txOut.pkScript = bytes(bytearray.fromhex(scr))
     msg = json_format.MessageToJson(m)
@@ -226,7 +218,6 @@ def SendOutputs(json):
         return json_format.MessageToJson(m)
     m.success = True
     m.error = ""
-    print("broadcast got back", suc, has)
     m.resultHash = tx.txid()
     return json_format.MessageToJson(m)
 
@@ -269,7 +260,7 @@ def serve(config, port):
 
 
 def test_lightning(wallet, networ, config, port):
-    global WALLET, NETWORK, pubk, K_compressed
+    global WALLET, NETWORK, K_compressed
     global CONFIG
     WALLET = wallet
     assert networ is not None
@@ -277,29 +268,23 @@ def test_lightning(wallet, networ, config, port):
     from . import network
 
     assert len(bitcoin.DEFAULT_SERVERS) == 1, bitcoin.DEFAULT_SERVERS
-    #networ = network.Network(config)
-    #networ.start()
-    #wallet.start_threads(networ)
     wallet.synchronize()
     print("WAITING!!!!")
     wallet.wait_until_synchronized()
     print("done")
 
     NETWORK = networ
-    print("utxos", WALLET.get_utxos())
 
     deser = bitcoin.deserialize_xpub(wallet.keystore.xpub)
     assert deser[0] == "p2wpkh", deser
 
     pubk = wallet.get_unused_address()
     K_compressed = bytes(bytearray.fromhex(wallet.get_public_keys(pubk)[0]))
-    #adr = bitcoin.public_key_to_p2wpkh(K_compressed)
 
     assert len(K_compressed) == 33, len(K_compressed)
 
     assert wallet.pubkeys_to_address(binascii.hexlify(
         K_compressed).decode("utf-8")) in wallet.get_addresses()
-    #print(q(pubk, 'blockchain.address.listunspent'))
 
     CONFIG = config
 
@@ -380,7 +365,7 @@ def tweakPrivKey(basePriv, commitTweak):
     tweakInt = int.from_bytes(commitTweak, byteorder="big")
     tweakInt += basePriv.secret # D is secret
     tweakInt %= ecdsa.curves.SECP256k1.generator.order()
-    return EC_KEY(tweakInt.to_bytes(33, 'big'))
+    return EC_KEY(tweakInt.to_bytes(33, 'big')) # TODO find out if 33 bytes are necessary. private keys are usually only 32 bytes
 
 def singleTweakBytes(commitPoint, basePoint):
     m = hashlib.sha256()
@@ -403,7 +388,7 @@ def deriveRevocationPrivKey(revokeBasePriv, commitSecret):
     revocationPriv = revokeHalfPriv + commitHalfPriv
     revocationPriv %= ecdsa.curves.SECP256k1.generator.order()
 
-    return EC_KEY(revocationPriv.to_bytes(33, byteorder="big"))
+    return EC_KEY(revocationPriv.to_bytes(33, byteorder="big")) # TODO find out if 33 bytes are necessary. private keys are usually only 32 bytes
 
 
 def maybeTweakPrivKey(signdesc, pri):
@@ -447,19 +432,15 @@ def calcWitnessSignatureHash(original, sigHashes, hashType, tx, idx, amt):
         sigHash += bytes(bytearray.fromhex(sigHashes.hashPrevOuts))[::-1]
     else:
         sigHash += b"\x00" * 32
-    #assert correct[:len(sigHash)] == sigHash, "\n" + sigHash.encode("hex") + "\n" + correct[:len(sigHash)].encode("hex")
 
     if toint(hashType) & toint(sigHashAnyOneCanPay) == 0 and toint(hashType) & toint(sigHashMask) != toint(sigHashSingle) and toint(hashType) & toint(sigHashMask) != toint(sigHashNone):
         sigHash += bytes(bytearray.fromhex(sigHashes.hashSequence))[::-1]
     else:
         sigHash += b"\x00" * 32
-    #assert correct[:len(sigHash)] == sigHash, "\n" + sigHash.encode("hex") + "\n" + correct[:len(sigHash)].encode("hex")
 
     sigHash += bytes(bytearray.fromhex(txin["prevout_hash"]))[::-1]
     sigHash += LEtobytes(txin["prevout_n"], 4)
     # byte 72
-
-    #assert correct[:len(sigHash)] == sigHash, "\n" + sigHash.encode("hex") + "\n" + correct[:len(sigHash)].encode("hex")
 
     subscript = list(transaction.script_GetOp(original))
     if isWitnessPubKeyHash(subscript):
@@ -473,23 +454,18 @@ def calcWitnessSignatureHash(original, sigHashes, hashType, tx, idx, amt):
         sigHash += bytes([transaction.opcodes.OP_EQUALVERIFY])
         sigHash += bytes([transaction.opcodes.OP_CHECKSIG])
     else:
-        # // For p2wsh outputs, and future outputs, the script code is
-        # // the original script, with all code separators removed,
-        # // serialized with a var int length prefix.
+        # For p2wsh outputs, and future outputs, the script code is
+        # the original script, with all code separators removed,
+        # serialized with a var int length prefix.
 
         assert len(sigHash) == 104, len(sigHash)
         sigHash += bytes(bytearray.fromhex(bitcoin.var_int(len(original))))
         assert len(sigHash) == 105, len(sigHash)
-        # for bajts in [opcode.to_bytes(length=length, byteorder="big") for (opcode, data, length) in subscript]:
-        #  sigHash += bajts
 
         sigHash += original
-    #assert correct[:len(sigHash)] == sigHash, "\n" + sigHash.encode("hex") + "\n" + correct[:len(sigHash)].encode("hex")
 
     sigHash += LEtobytes(amt, 8)
     sigHash += LEtobytes(txin["sequence"], 4)
-
-    #assert correct[:len(sigHash)] == sigHash, "\n" + sigHash.encode("hex") + "\n" + correct[:len(sigHash)].encode("hex")
 
     if toint(hashType) & toint(sigHashSingle) != toint(sigHashSingle) and toint(hashType) & toint(sigHashNone) != toint(sigHashNone):
         sigHash += bytes(bytearray.fromhex(sigHashes.hashOutputs))[::-1]
@@ -501,12 +477,6 @@ def calcWitnessSignatureHash(original, sigHashes, hashType, tx, idx, amt):
     sigHash += LEtobytes(decoded["lockTime"], 4)
     sigHash += LEtobytes(toint(hashType), 4)
 
-    #assert correct[:len(sigHash)] == sigHash, "\n" + sigHash.encode("hex") + "\n" + correct[:len(sigHash)].encode("hex")
-
-    #assert sigHash == correct, [ord(x) for x in sigHash]
-    #print("calcWitnessSignatureHash", list(original), sigHashes, hashType, list(tx), idx, amt, "sigHash")
-    # print(list(sigHash))
-    # return sigHash
     return transaction.Hash(sigHash)
 
 #// RawTxInWitnessSignature returns the serialized ECDA signature for the input
@@ -534,19 +504,14 @@ import ecdsa.curves
 from .bitcoin import MySigningKey
 import hashlib
 
-#// WitnessSignature creates an input witness stack for tx to spend BTC sent
-#// from a previous output to the owner of privKey using the p2wkh script
-#// template. The passed transaction must contain all the inputs and outputs as
-#// dictated by the passed hashType. The signature generated observes the new
-#// transaction digest algorithm defined within BIP0143.
-
-
+# WitnessSignature creates an input witness stack for tx to spend BTC sent
+# from a previous output to the owner of privKey using the p2wkh script
+# template. The passed transaction must contain all the inputs and outputs as
+# dictated by the passed hashType. The signature generated observes the new
+# transaction digest algorithm defined within BIP0143.
 def witnessSignature(tx, sigHashes, idx, amt, subscript, hashType, privKey, compress):
     sig = rawTxInWitnessSignature(
         tx, sigHashes, idx, amt, subscript, hashType, privKey)
-    #ref = ''.join(map(lambda x: chr(int(x)),"48 68 2 32 62 85 194 71 180 244 2 87 141 53 208 147 25 47 181 82 25 88 118 216 45 70 168 14 65 144 142 71 205 4 105 209 2 32 17 185 10 179 229 150 236 161 45 49 199 206 16 79 105 228 13 185 39 231 184 62 199 137 80 190 249 211 70 248 95 40 1".split(" ")))
-
-    #assert sig == ref, "\n" + str([ord(x) for x in ref]) + "\n" + str([ord(x) for x in sig])
 
     pkData = bytes(bytearray.fromhex(
         privKey.get_public_key(compressed=compress)))
@@ -586,11 +551,9 @@ def SignOutputRaw(json):
 
 
 def signOutputRaw(tx, signDesc):
-    #base58 = bitcoin.hash160_to_b58_address(bitcoin.hash_160(signDesc.pubKey[2:]),0)
-    # actually it is not base58
-    base58 = bitcoin.pubkey_to_address('p2wpkh', binascii.hexlify(
+    adr = bitcoin.pubkey_to_address('p2wpkh', binascii.hexlify(
         signDesc.pubKey).decode("utf-8"))  # Because this is all NewAddress supports
-    pri = fetchPrivKey(base58)
+    pri = fetchPrivKey(adr)
     pri2 = maybeTweakPrivKey(signDesc, pri)
     sig = rawTxInWitnessSignature(tx, signDesc.sigHashes, signDesc.inputIndex,
                                   signDesc.output.value, signDesc.witnessScript, sigHashAll, pri2)
@@ -599,8 +562,6 @@ def signOutputRaw(tx, signDesc):
 def PublishTransaction(json):
     req = rpc_pb2.PublishTransactionRequest()
     json_format.Parse(json, req)
-    #suc, err = q(binascii.hexlify(req.tx).decode("utf-8"),
-    #             "blockchain.transaction.broadcast", 5)
     global NETWORK
     tx = transaction.Transaction(binascii.hexlify(req.tx).decode("utf-8"))
     suc, has = NETWORK.broadcast(tx)
@@ -645,7 +606,7 @@ def ComputeInputScript(json):
 
 
 def fetchPrivKey(str_address):
-        # TODO FIXME privkey should be retrieved from wallet using str_address and signer_key
+    # TODO FIXME privkey should be retrieved from wallet using also signer_key (in signdesc)
     pri, redeem_script = WALLET.export_private_key(str_address, None)
 
     if redeem_script:
@@ -660,7 +621,6 @@ def computeInputScript(tx, signdesc):
     typ, str_address = transaction.get_address_from_output_script(
         signdesc.output.pkScript)
     assert typ != bitcoin.TYPE_SCRIPT
-    #print("getting private key for {}".format(str_address))
 
     pri = fetchPrivKey(str_address)
 
@@ -674,14 +634,10 @@ def computeInputScript(tx, signdesc):
 
         scr = bitcoin.hash_160(pub)
 
-        #refwitnessprogram = "".join(map(lambda x: chr(int(x)), "0 20 157 152 5 36 153 45 228 145 20 188 199 140 125 173 247 140 169 123 131 107".split(" ")))
         witnessProgram = b"\x00\x14" + scr
-        #assert refwitnessprogram == witnessProgram, (refwitnessprogram.encode("hex"), witnessProgram.encode("hex"))
 
-        #referenceScriptSig = ''.join(map(chr,[22,0,20,157,152,5,36,153,45,228,145,20,188,199,140,125,173,247,140,169,123,131,107]))
         # \x14 is OP_20
         ourScriptSig = b"\x16\x00\x14" + scr
-        #assert ourScriptSig == referenceScriptSig, (decode_script(referenceProgram), scr, decode_script(ourProgram))
     else:
         # TODO TEST
         witnessProgram = signdesc.output.pkScript
@@ -689,21 +645,17 @@ def computeInputScript(tx, signdesc):
         print("set empty ourScriptSig")
         print("witnessProgram", witnessProgram)
 
-    #  // If a tweak (single or double) is specified, then we'll need to use
-    #  // this tweak to derive the final private key to be used for signing
-    #  // this output.
+    # If a tweak (single or double) is specified, then we'll need to use
+    # this tweak to derive the final private key to be used for signing
+    # this output.
     pri2 = maybeTweakPrivKey(signdesc, pri)
-    #  if err != nil {
-    #    return nil, err
-    #  }
     #
-    #  // Generate a valid witness stack for the input.
-    #  // TODO(roasbeef): adhere to passed HashType
+    # Generate a valid witness stack for the input.
+    # TODO(roasbeef): adhere to passed HashType
     witnessScript, pkData = witnessSignature(tx, signdesc.sigHashes,
                                              signdesc.inputIndex, signdesc.output.value, witnessProgram,
                                              sigHashAll, pri2, True)
     return InputScript(witness=(witnessScript, pkData), scriptSig=ourScriptSig)
-
 
 if __name__ == '__main__':
     serve()
