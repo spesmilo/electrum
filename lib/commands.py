@@ -651,7 +651,7 @@ class Commands:
     @command('w')
     def clearrequests(self):
         """Remove all payment requests"""
-        for k in self.wallet.receive_requests.keys():
+        for k in list(self.wallet.receive_requests.keys()):
             self.wallet.remove_payment_request(k, self.config)
 
     @command('n')
