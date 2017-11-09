@@ -212,7 +212,7 @@ def SendOutputs(json):
     try:
         #                outputs,     password, config, fee
         tx = WALLET.mktx(elecOutputs, None,     CONFIG, 1000)
-    except e:
+    except Exception as e:
         m.success = False
         m.error = str(e)
         m.resultHash = ""
@@ -230,22 +230,32 @@ def SendOutputs(json):
     m.resultHash = tx.txid()
     return json_format.MessageToJson(m)
 
+def wrap(fun):
+    def wrapped(*args, **kwargs):
+        try:
+            return fun(*args, **kwargs)
+        except Exception as e:
+            traceback.print_exc()
+            raise e
+    wrapped.__name__ = fun.__name__
+    return wrapped
+
 def serve(config, port):
     server = SimpleJSONRPCServer(('localhost', int(port)))
-    server.register_function(FetchRootKey)
-    server.register_function(ConfirmedBalance)
-    server.register_function(NewAddress)
-    server.register_function(ListUnspentWitness)
-    server.register_function(SetHdSeed)
-    server.register_function(NewRawKey)
-    server.register_function(FetchInputInfo)
-    server.register_function(ComputeInputScript)
-    server.register_function(SignOutputRaw)
-    server.register_function(PublishTransaction)
-    server.register_function(LockOutpoint)
-    server.register_function(UnlockOutpoint)
-    server.register_function(ListTransactionDetails)
-    server.register_function(SendOutputs)
+    server.register_function(wrap(FetchRootKey))
+    server.register_function(wrap(ConfirmedBalance))
+    server.register_function(wrap(NewAddress))
+    server.register_function(wrap(ListUnspentWitness))
+    server.register_function(wrap(SetHdSeed))
+    server.register_function(wrap(NewRawKey))
+    server.register_function(wrap(FetchInputInfo))
+    server.register_function(wrap(ComputeInputScript))
+    server.register_function(wrap(SignOutputRaw))
+    server.register_function(wrap(PublishTransaction))
+    server.register_function(wrap(LockOutpoint))
+    server.register_function(wrap(UnlockOutpoint))
+    server.register_function(wrap(ListTransactionDetails))
+    server.register_function(wrap(SendOutputs))
     server.serve_forever()
 
 
@@ -353,17 +363,45 @@ class InputScript(object):
         self.witness = witness
 
 
-from .bitcoin import EC_KEY, public_key_to_p2pkh
+from .bitcoin import EC_KEY
 from . import bitcoin
-from .transaction import decode_script
 from . import transaction
+
+def tweakPrivKey(basePriv, commitTweak):
+    tweakInt = int.from_bytes(commitTweak, byteorder="big")
+    tweakInt += basePriv.secret # D is secret
+    tweakInt %= ecdsa.curves.SECP256k1.generator.order()
+    return EC_KEY(tweakInt.to_bytes(33, 'big'))
+
+def singleTweakBytes(commitPoint, basePoint):
+    m = hashlib.sha256()
+    m.update(bytearray.fromhex(commitPoint))
+    m.update(bytearray.fromhex(basePoint))
+    return m.digest()
+
+def deriveRevocationPrivKey(revokeBasePriv, commitSecret):
+    revokeTweakBytes = singleTweakBytes(revokeBasePriv.get_public_key(True),
+                                        commitSecret.get_public_key(True))
+    revokeTweakInt = int.from_bytes(revokeTweakBytes, byteorder="big")
+
+    commitTweakBytes = singleTweakBytes(commitSecret.get_public_key(True),
+                                        revokeBasePriv.get_public_key(True))
+    commitTweakInt = int.from_bytes(commitTweakBytes, byteorder="big")
+
+    revokeHalfPriv = revokeTweakInt * revokeBasePriv.secret # D is secret
+    commitHalfPriv = commitTweakInt * commitSecret.secret
+
+    revocationPriv = revokeHalfPriv + commitHalfPriv
+    revocationPriv %= ecdsa.curves.SECP256k1.generator.order()
+
+    return EC_KEY(revocationPriv.to_bytes(33, byteorder="big"))
 
 
 def maybeTweakPrivKey(signdesc, pri):
     if len(signdesc.singleTweak) > 0:
         return tweakPrivKey(pri, signdesc.singleTweak)
     elif len(signdesc.doubleTweak) > 0:
-        return deriveRevocationPrivKey(pri, signdesc.doubleTweak)
+        return deriveRevocationPrivKey(pri, EC_KEY(signdesc.doubleTweak))
     else:
         return pri
 
@@ -482,7 +520,7 @@ def rawTxInWitnessSignature(tx, sigHashes, idx, amt, subscript, hashType, key):
     return sig
 
 
-from ecdsa.util import string_to_number
+from ecdsa.util import number_to_string, string_to_number
 import ecdsa.curves
 from .bitcoin import MySigningKey
 import hashlib
