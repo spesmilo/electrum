@@ -357,7 +357,7 @@ if __name__ == '__main__':
     cmdname = config.get('cmd')
 
     if config.get('testnet'):
-        bitcoin.set_testnet()
+        bitcoin.NetworkConstants.set_testnet()
 
     # run non-RPC commands separately
     if cmdname in ['create', 'restore']:

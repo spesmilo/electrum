@@ -95,8 +95,8 @@ class ElectrumWindow(App):
         from .uix.dialogs.choice_dialog import ChoiceDialog
         protocol = 's'
         def cb2(host):
-            from electrum.network import DEFAULT_PORTS
-            pp = servers.get(host, DEFAULT_PORTS)
+            from electrum.bitcoin import NetworkConstants
+            pp = servers.get(host, NetworkConstants.DEFAULT_PORTS)
             port = pp.get(protocol, '')
             popup.ids.host.text = host
             popup.ids.port.text = port
