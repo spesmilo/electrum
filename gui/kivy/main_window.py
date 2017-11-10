@@ -95,8 +95,8 @@ class ElectrumWindow(App):
         from .uix.dialogs.choice_dialog import ChoiceDialog
         protocol = 's'
         def cb2(host):
-            from electrum_ltc.network import DEFAULT_PORTS
-            pp = servers.get(host, DEFAULT_PORTS)
+            from electrum_ltc.bitcoin import NetworkConstants
+            pp = servers.get(host, NetworkConstants.DEFAULT_PORTS)
             port = pp.get(protocol, '')
             popup.ids.host.text = host
             popup.ids.port.text = port
@@ -347,6 +347,7 @@ class ElectrumWindow(App):
         exp = req.get('exp')
         memo = req.get('memo')
         amount = req.get('amount')
+        fund = req.get('fund')
         popup = Builder.load_file('gui/kivy/uix/ui_screens/invoice.kv')
         popup.is_invoice = is_invoice
         popup.amount = amount
@@ -355,9 +356,24 @@ class ElectrumWindow(App):
         popup.description = memo if memo else ''
         popup.signature = req.get('signature', '')
         popup.status = status
+        popup.fund = fund if fund else 0
         txid = req.get('txid')
         popup.tx_hash = txid or ''
         popup.on_open = lambda: popup.ids.output_list.update(req.get('outputs', []))
+        popup.export = self.export_private_keys
+        popup.open()
+
+    def show_addr_details(self, req, status):
+        from electrum_ltc.util import format_time
+        fund = req.get('fund')
+        isaddr = 'y'
+        popup = Builder.load_file('gui/kivy/uix/ui_screens/invoice.kv')
+        popup.isaddr = isaddr
+        popup.is_invoice = False
+        popup.status = status
+        popup.requestor = req.get('address')
+        popup.fund = fund if fund else 0
+        popup.export = self.export_private_keys
         popup.open()
 
     def qr_dialog(self, title, data, show_text=False):
@@ -587,6 +603,7 @@ class ElectrumWindow(App):
         self.invoices_screen = None
         self.receive_screen = None
         self.requests_screen = None
+        self.address_screen = None
         self.icon = "icons/electrum-ltc.png"
         self.tabs = self.root.ids['tabs']
 
@@ -924,3 +941,11 @@ class ElectrumWindow(App):
             self._password_dialog = PasswordDialog()
         self._password_dialog.init(msg, callback)
         self._password_dialog.open()
+
+    def export_private_keys(self, pk_label, addr):
+        def show_private_key(addr, pk_label, password):
+            if self.wallet.has_password() and password is None:
+                return
+            key = str(self.wallet.export_private_key(addr, password)[0])
+            pk_label.data = key
+        self.protected(_("Enter your PIN code in order to decrypt your private key"), show_private_key, (addr, pk_label))

@@ -9,7 +9,7 @@ from electrum_ltc.util import bfh, bh2u
 from electrum_ltc.bitcoin import (is_segwit_address, b58_address_to_hash160, xpub_from_pubkey,
                                   public_key_to_p2pkh, EncodeBase58Check,
                                   TYPE_ADDRESS, TYPE_SCRIPT,
-                                  TESTNET, ADDRTYPE_P2PKH, ADDRTYPE_P2SH, ADDRTYPE_P2SH_ALT)
+                                  NetworkConstants)
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.transaction import deserialize, Transaction
@@ -142,7 +142,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         return client
 
     def get_coin_name(self):
-        return "Testnet" if TESTNET else "Litecoin"
+        return "Testnet" if NetworkConstants.TESTNET else "Litecoin"
 
     def initialize_device(self, device_id, wizard, handler):
         # Initialization method

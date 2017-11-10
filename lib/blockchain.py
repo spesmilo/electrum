@@ -159,7 +159,7 @@ class Blockchain(util.PrintError):
         _powhash = pow_hash_header(header)
         if prev_hash != header.get('prev_block_hash'):
             raise BaseException("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
-        if bitcoin.TESTNET:
+        if bitcoin.NetworkConstants.TESTNET:
             return
         if bits != header.get('bits'):
             raise BaseException("bits mismatch: %s vs %s" % (bits, header.get('bits')))
@@ -276,7 +276,7 @@ class Blockchain(util.PrintError):
         return sum([self.BIP9(h-i, 2) for i in range(N)])*10000/N/100.
 
     def get_target(self, index):
-        if bitcoin.TESTNET:
+        if bitcoin.NetworkConstants.TESTNET:
             return 0, 0
         if index == 0:
             return 0x1e0ffff0, 0x00000FFFF0000000000000000000000000000000000000000000000000000000
@@ -314,7 +314,7 @@ class Blockchain(util.PrintError):
         if check_height and self.height() != height - 1:
             return False
         if height == 0:
-            return hash_header(header) == bitcoin.GENESIS
+            return hash_header(header) == bitcoin.NetworkConstants.GENESIS
         previous_header = self.read_header(height -1)
         if not previous_header:
             return False
