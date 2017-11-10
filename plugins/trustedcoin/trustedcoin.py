@@ -566,8 +566,7 @@ class TrustedCoinPlugin(BasePlugin):
             _, _, _, _, c, k = deserialize_xprv(xprv)
             pk = bip32_private_key([0, 0], k, c)
             key = regenerate_key(pk)
-            compressed = is_compressed(pk)
-            sig = key.sign_message(message, compressed)
+            sig = key.sign_message(message, True)
             return base64.b64encode(sig).decode()
 
         signatures = [f(x) for x in [xprv1, xprv2]]
