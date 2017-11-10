@@ -783,14 +783,14 @@ class Abstract_Wallet(PrintError):
         return status, status_str
 
     def relayfee(self):
-        RELAY_FEE = bitcoin.MIN_RELAY_TX_FEE
+        RELAY_FEE = 100000
         MAX_RELAY_FEE = 10 * RELAY_FEE
         f = self.network.relay_fee if self.network and self.network.relay_fee else RELAY_FEE
         return min(f, MAX_RELAY_FEE)
 
     def dust_threshold(self):
         # Change <= dust threshold is added to the tx fee
-        return DUST_SOFT_LIMIT
+        return 182 * 3 * self.relayfee() / 1000
 
     def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None, change_addr=None):
         # check outputs
@@ -833,7 +833,7 @@ class Abstract_Wallet(PrintError):
 
         # Fee estimator
         if fixed_fee is None:
-            fee_estimator = partial(self.estimate_fee, config, outputs=outputs)
+            fee_estimator = partial(self.estimate_fee, config)
         else:
             fee_estimator = lambda size: fixed_fee
 
@@ -860,11 +860,8 @@ class Abstract_Wallet(PrintError):
         run_hook('make_unsigned_transaction', self, tx)
         return tx
 
-    def estimate_fee(self, config, size, outputs=[]):
-        fee = int(config.fee_per_kb() * (1 + size // 1000))
-        for _, _, value in outputs:
-            if value > 0 and value < DUST_SOFT_LIMIT:
-                fee += DUST_SOFT_LIMIT
+    def estimate_fee(self, config, size):
+        fee = int(config.fee_per_kb() * size / 1000.)
         return fee
 
     def mktx(self, outputs, password, config, fee=None, change_addr=None, domain=None):
@@ -1342,6 +1339,9 @@ class Abstract_Wallet(PrintError):
     def has_password(self):
         return self.storage.get('use_encryption', False)
 
+    def check_password(self, password):
+        self.keystore.check_password(password)
+
     def sign_message(self, address, message, password):
         index = self.get_address_index(address)
         return self.keystore.sign_message(index, message, password)
@@ -1366,9 +1366,6 @@ class Simple_Wallet(Abstract_Wallet):
 
     def can_change_password(self):
         return self.keystore.can_change_password()
-
-    def check_password(self, password):
-        self.keystore.check_password(password)
 
     def update_password(self, old_pw, new_pw, encrypt=False):
         if old_pw is None and self.has_password():
@@ -1396,9 +1393,6 @@ class Imported_Wallet(Simple_Wallet):
 
     def get_keystores(self):
         return [self.keystore] if self.keystore else []
-
-    def check_password(self, password):
-        self.keystore.check_password(password)
 
     def can_import_privkey(self):
         return bool(self.keystore)
@@ -1794,9 +1788,6 @@ class Multisig_Wallet(Deterministic_Wallet):
                 self.storage.put(name, keystore.dump())
         self.storage.set_password(new_pw, encrypt)
         self.storage.write()
-
-    def check_password(self, password):
-        self.keystore.check_password(password)
 
     def has_seed(self):
         return self.keystore.has_seed()
