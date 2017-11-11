@@ -600,7 +600,7 @@ def is_minikey(text):
     # permits any length of 20 or more provided the minikey is valid.
     # A valid minikey must begin with an 'S', be in base58, and when
     # suffixed with '?' have its SHA256 hash begin with a zero byte.
-    # They are widely used in Casascius physical bitoins.
+    # They are widely used in Casascius physical bitcoins.
     return (len(text) >= 20 and text[0] == 'S'
             and all(ord(c) in __b58chars for c in text)
             and sha256(text + '?')[0] == 0x00)

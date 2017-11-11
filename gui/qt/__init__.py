@@ -192,7 +192,7 @@ class ElectrumGui:
                 d.exec_()
                 return
             if not wallet:
-                storage = WalletStorage(path)
+                storage = WalletStorage(path, manual_upgrades=True)
                 wizard = InstallWizard(self.config, self.app, self.plugins, storage)
                 try:
                     wallet = wizard.run_and_get_wallet()
