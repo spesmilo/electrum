@@ -240,7 +240,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         path = self.storage.path
         if self.storage.requires_split():
             self.hide()
-            msg = _("The wallet '%s' contains multiple accounts, which are no longer supported in Electrum 2.7.\n\n"
+            msg = _("The wallet '%s' contains multiple accounts, which are no longer supported since Electrum 2.7.\n\n"
                     "Do you want to split your wallet into multiple files?"%path)
             if not self.question(msg):
                 return
@@ -252,12 +252,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             return
 
         if self.storage.requires_upgrade():
-            self.hide()
-            msg = _("The format of your wallet '%s' must be upgraded for Electrum. This change will not be backward compatible"%path)
-            if not self.question(msg):
-                return
             self.storage.upgrade()
-            self.show_warning(_('Your wallet was upgraded successfully'))
             self.wallet = Wallet(self.storage)
             return self.wallet
 
