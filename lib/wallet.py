@@ -893,15 +893,28 @@ class Abstract_Wallet(PrintError):
             inputs.append(item)
 
     def sweep(self, privkeys, network, config, recipient, fee=None, imax=100):
+
+        def find_utxos_for_privkey(txin_type, privkey, compressed):
+            pubkey = bitcoin.public_key_from_private_key(privkey, compressed)
+            self._append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax)
+            keypairs[pubkey] = privkey, compressed
+
         inputs = []
         keypairs = {}
         for sec in privkeys:
             txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
-            pubkey = bitcoin.public_key_from_private_key(privkey, compressed)
-            self._append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax)
-            if txin_type == 'p2pkh':  # WIF serialization is ambiguous :(
-                self._append_utxos_to_inputs(inputs, network, pubkey, 'p2pk', imax)
-            keypairs[pubkey] = privkey, compressed
+
+            find_utxos_for_privkey(txin_type, privkey, compressed)
+
+            # do other lookups to increase support coverage
+            if is_minikey(sec):
+                # minikeys don't have a compressed byte
+                # we lookup both compressed and uncompressed pubkeys
+                find_utxos_for_privkey(txin_type, privkey, not compressed)
+            elif txin_type == 'p2pkh':
+                # WIF serialization does not distinguish p2pkh and p2pk
+                # we also search for pay-to-pubkey outputs
+                find_utxos_for_privkey('p2pk', privkey, compressed)
 
         if not inputs:
             raise BaseException(_('No inputs found. (Note that inputs need to be confirmed)'))
