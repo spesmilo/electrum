@@ -2,6 +2,14 @@
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
+import sys
+for i, x in enumerate(sys.argv):
+    if x == '--version':
+        VERSION = sys.argv[i+1]
+        break
+else:
+    raise BaseException('no version')
+
 home = '/Users/voegtlin/electrum/'
 block_cipher=None
 
@@ -63,7 +71,12 @@ exe = EXE(pyz,
           console=False)
 
 app = BUNDLE(exe,
+             version = VERSION,
              name='Electrum.app',
              icon=home+'electrum.icns',
-             bundle_identifier=None)
+             bundle_identifier=None,
+             info_plist = {
+                 'NSHighResolutionCapable':'True'
+             }
+)
 
