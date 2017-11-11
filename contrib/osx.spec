@@ -4,7 +4,7 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 import sys
 for i, x in enumerate(sys.argv):
-    if x == '--version':
+    if x == '--name':
         VERSION = sys.argv[i+1]
         break
 else:
