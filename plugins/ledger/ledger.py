@@ -389,7 +389,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     singleInput = [ chipInputs[inputIndex] ]
                     self.get_client().startUntrustedTransaction(False, 0,
                                                             singleInput, redeemScripts[inputIndex])
-                    inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex], pin)
+                    inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex], pin, lockTime=tx.locktime)
                     inputSignature[0] = 0x30 # force for 1.4.9+
                     signatures.append(inputSignature)
                     inputIndex = inputIndex + 1
