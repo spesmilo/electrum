@@ -247,10 +247,9 @@ class Blockchain(util.PrintError):
         delta = height - self.checkpoint
         name = self.path()
         if os.path.exists(name):
-            f = open(name, 'rb')
-            f.seek(delta * 80)
-            h = f.read(80)
-            f.close()
+            with open(name, 'rb') as f:
+                f.seek(delta * 80)
+                h = f.read(80)
         return deserialize_header(h, height)
 
     def get_hash(self, height):

@@ -149,9 +149,8 @@ class SimpleConfig(PrintError):
             return
         path = os.path.join(self.path, "config")
         s = json.dumps(self.user_config, indent=4, sort_keys=True)
-        f = open(path, "w")
-        f.write(s)
-        f.close()
+        with open(path, "w") as f:
+            f.write(s)
         os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
 
     def get_wallet_path(self):
