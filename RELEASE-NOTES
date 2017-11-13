@@ -1,6 +1,15 @@
+# Release 3.0.2
+  * Android: replace requests tab with address tab, with access to
+    private keys
+  * sweeping minikeys: search for both compressed and uncompressed
+    pubkeys
+  * fix wizard crash when attempting to reset Google Authenticator
+  * fix #3248: fix Ledger+segwit signing
+  * fix #3262: fix SSL payment request signing
+  * other minor fixes.
+
 # Release 3.0.1
   * minor bug and usability fixes
-
 
 # Release 3.0 - Uncanny Valley (November 1st, 2017)
 
