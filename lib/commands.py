@@ -23,10 +23,8 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import os
 import sys
 import datetime
-import time
 import copy
 import argparse
 import json
@@ -41,9 +39,7 @@ from .import bitcoin
 from .bitcoin import is_address,  hash_160, COIN, TYPE_ADDRESS
 from .i18n import _
 from .transaction import Transaction
-from .import paymentrequest
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
-from .import contacts
 from .plugins import run_hook
 
 known_commands = {}

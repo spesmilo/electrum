@@ -1,18 +1,13 @@
-import base64
-import re
 import threading
 
 from binascii import hexlify, unhexlify
-from functools import partial
 
 from electrum.util import bfh, bh2u
-from electrum.bitcoin import (is_segwit_address, b58_address_to_hash160, xpub_from_pubkey,
-                              public_key_to_p2pkh, EncodeBase58Check,
-                              TYPE_ADDRESS, TYPE_SCRIPT,
-                              NetworkConstants)
+from electrum.bitcoin import (b58_address_to_hash160, xpub_from_pubkey,
+                              TYPE_ADDRESS, TYPE_SCRIPT, NetworkConstants)
 from electrum.i18n import _
-from electrum.plugins import BasePlugin, hook
-from electrum.transaction import deserialize, Transaction
+from electrum.plugins import BasePlugin
+from electrum.transaction import deserialize
 from electrum.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
 
 from ..hw_wallet import HW_PluginBase

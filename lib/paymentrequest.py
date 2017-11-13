@@ -23,10 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import hashlib
-import os.path
-import re
 import sys
-import threading
 import time
 import traceback
 import json

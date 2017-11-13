@@ -23,8 +23,6 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import socket
-import threading
 import time
 from xmlrpc.client import ServerProxy
 

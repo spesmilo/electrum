@@ -23,7 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import queue
-import threading, os, json, time
+import threading, os, json
 from collections import defaultdict
 try:
     from SimpleWebSocketServer import WebSocket, SimpleSSLWebSocketServer

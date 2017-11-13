@@ -25,7 +25,6 @@
 import sys, time, threading
 import os, json, traceback
 import shutil
-import socket
 import weakref
 import webbrowser
 import csv
@@ -33,13 +32,11 @@ from decimal import Decimal
 import base64
 from functools import partial
 
-import PyQt5
+from PyQt5.QtCore import Qt
 from PyQt5.QtGui import *
-from PyQt5.QtCore import *
-import PyQt5.QtCore as QtCore
+from PyQt5.QtWidgets import *
 
 from electrum.util import bh2u, bfh
-from . import icons_rc
 
 from electrum import keystore
 from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS
@@ -48,24 +45,20 @@ from electrum.i18n import _
 from electrum.util import (format_time, format_satoshis, PrintError,
                            format_satoshis_plain, NotEnoughFunds,
                            UserCancelled)
-from electrum import Transaction, mnemonic
+from electrum import Transaction
 from electrum import util, bitcoin, commands, coinchooser
-from electrum import SimpleConfig, paymentrequest
-from electrum.wallet import Wallet, Multisig_Wallet
+from electrum import paymentrequest
+from electrum.wallet import Multisig_Wallet
 try:
     from electrum.plot import plot_history
 except:
     plot_history = None
 
-from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit
+from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider
-
-
-from electrum import ELECTRUM_VERSION
-import re
 
 from .util import *
 
@@ -85,11 +78,11 @@ class StatusBarButton(QPushButton):
         self.func()
 
     def keyPressEvent(self, e):
-        if e.key() == QtCore.Qt.Key_Return:
+        if e.key() == Qt.Key_Return:
             self.func()
 
 
-from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+from electrum.paymentrequest import PR_PAID
 
 
 class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
@@ -928,7 +921,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def new_payment_request(self):
         addr = self.wallet.get_unused_address()
         if addr is None:
-            from electrum.wallet import Imported_Wallet
             if not self.wallet.is_deterministic():
                 msg = [
                     _('No more addresses in your wallet.'),
@@ -2071,7 +2063,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return d.run()
 
     def tx_from_text(self, txt):
-        from electrum.transaction import tx_from_str, Transaction
+        from electrum.transaction import tx_from_str
         try:
             tx = tx_from_str(txt)
             return Transaction(tx)

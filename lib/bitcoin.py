@@ -25,7 +25,6 @@
 
 import hashlib
 import base64
-import re
 import hmac
 import os
 import json

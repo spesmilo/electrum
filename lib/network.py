@@ -26,11 +26,10 @@ import queue
 import os
 import stat
 import errno
-import sys
 import random
+import re
 import select
-import traceback
-from collections import defaultdict, deque
+from collections import defaultdict
 import threading
 import socket
 import json

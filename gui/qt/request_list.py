@@ -24,9 +24,9 @@
 # SOFTWARE.
 
 from electrum.i18n import _
-from electrum.util import block_explorer_URL, format_satoshis, format_time, age
+from electrum.util import format_time, age
 from electrum.plugins import run_hook
-from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+from electrum.paymentrequest import PR_UNKNOWN
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import QTreeWidgetItem, QMenu

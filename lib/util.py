@@ -583,7 +583,6 @@ class timeout(Exception):
     pass
 
 import socket
-import errno
 import json
 import ssl
 import time

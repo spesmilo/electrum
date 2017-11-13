@@ -4,8 +4,7 @@ _ = lambda x:x
 from electrum import WalletStorage, Wallet
 from electrum.util import format_satoshis, set_verbosity
 from electrum.bitcoin import is_address, COIN, TYPE_ADDRESS
-from electrum.network import filter_protocol
-import sys, getpass, datetime
+import getpass, datetime
 
 # minimal fdisk like gui for console usage
 # written by rofl0r, with some bits stolen from the text gui (ncurses)

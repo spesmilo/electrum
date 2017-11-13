@@ -4,14 +4,12 @@ import requests
 import sys
 from threading import Thread
 import time
-import traceback
 import csv
 from decimal import Decimal
 
 from .bitcoin import COIN
 from .i18n import _
 from .util import PrintError, ThreadJob
-from .util import format_satoshis
 
 
 # See https://en.wikipedia.org/wiki/ISO_4217

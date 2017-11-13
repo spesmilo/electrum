@@ -26,7 +26,7 @@ import webbrowser
 
 from .util import *
 from electrum.i18n import _
-from electrum.util import block_explorer_URL, format_satoshis, format_time
+from electrum.util import block_explorer_URL
 from electrum.plugins import run_hook
 from electrum.bitcoin import is_address
 

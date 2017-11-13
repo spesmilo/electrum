@@ -37,7 +37,6 @@ from email.encoders import encode_base64
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
-import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
 from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QLineEdit)
 

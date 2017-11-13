@@ -25,9 +25,9 @@
 
 from electrum.i18n import _
 
-import PyQt5
-from PyQt5.QtGui import *
 from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 
 from .util import *
 from .history_list import HistoryList

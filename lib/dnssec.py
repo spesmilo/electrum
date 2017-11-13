@@ -31,8 +31,8 @@
 #  https://github.com/rthalley/dnspython/blob/master/tests/test_dnssec.py
 
 
-import traceback
-import sys
+# import traceback
+# import sys
 import time
 import struct
 
@@ -56,7 +56,6 @@ import dns.rdtypes.ANY.SOA
 import dns.rdtypes.ANY.TXT
 import dns.rdtypes.IN.A
 import dns.rdtypes.IN.AAAA
-from dns.exception import DNSException
 
 
 # Pure-Python version of dns.dnssec._validate_rsig
