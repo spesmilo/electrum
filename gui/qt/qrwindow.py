@@ -23,15 +23,11 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import re
 import platform
-from decimal import Decimal
 
+from PyQt5.QtCore import Qt
 from PyQt5.QtGui import *
-from PyQt5.QtCore import *
-import PyQt5.QtCore as QtCore
-import PyQt5.QtGui as QtGui
-from PyQt5.QtWidgets import (QHBoxLayout, QVBoxLayout, QLabel, QWidget)
+from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QLabel, QWidget
 
 from electrum_ltc_gui.qt.qrcodewidget import QRCodeWidget
 from electrum_ltc.i18n import _
@@ -55,7 +51,7 @@ class QR_Window(QWidget):
         self.address = ''
         self.label = ''
         self.amount = 0
-        self.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.setFocusPolicy(Qt.NoFocus)
 
         main_box = QHBoxLayout()
 

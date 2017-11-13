@@ -23,9 +23,9 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import sys
-import os
 import signal
+import sys
+
 
 try:
     import PyQt5
@@ -39,11 +39,12 @@ import PyQt5.QtCore as QtCore
 
 from electrum_ltc.i18n import _, set_language
 from electrum_ltc.plugins import run_hook
-from electrum_ltc import SimpleConfig, Wallet, WalletStorage
-from electrum_ltc.synchronizer import Synchronizer
-from electrum_ltc.verifier import SPV
-from electrum_ltc.util import DebugMem, UserCancelled, InvalidPassword, print_error
-from electrum_ltc.wallet import Abstract_Wallet
+from electrum_ltc import WalletStorage
+# from electrum_ltc.synchronizer import Synchronizer
+# from electrum_ltc.verifier import SPV
+# from electrum_ltc.util import DebugMem
+from electrum_ltc.util import UserCancelled, print_error
+# from electrum_ltc.wallet import Abstract_Wallet
 
 from .installwizard import InstallWizard, GoBack
 

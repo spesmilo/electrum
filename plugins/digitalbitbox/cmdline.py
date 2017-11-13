@@ -1,4 +1,3 @@
-from electrum_ltc.util import print_msg
 from .digitalbitbox import DigitalBitboxPlugin
 from ..hw_wallet import CmdLineHandler
 

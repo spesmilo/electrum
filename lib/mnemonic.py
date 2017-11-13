@@ -22,12 +22,6 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-
 import os
 import hmac
 import math
@@ -41,7 +35,6 @@ import pbkdf2
 from .util import print_error
 from .bitcoin import is_old_seed, is_new_seed
 from . import version
-from . import i18n
 
 # http://www.asahi-net.or.jp/~ax2s-kmtn/ref/unicode/e_asia.html
 CJK_INTERVALS = [
@@ -170,7 +163,6 @@ class Mnemonic(object):
         return i % custom_entropy == 0
 
     def make_seed(self, seed_type='standard', num_bits=132, custom_entropy=1):
-        from . import version
         prefix = version.seed_prefix(seed_type)
         # increase num_bits in order to obtain a uniform distibution for the last word
         bpw = math.log(len(self.wordlist), 2)

@@ -27,9 +27,8 @@ import os
 from . import bitcoin
 from . import keystore
 from .keystore import bip44_derivation
-from .wallet import Wallet, Imported_Wallet, Standard_Wallet, Multisig_Wallet, wallet_types
+from .wallet import Imported_Wallet, Standard_Wallet, Multisig_Wallet, wallet_types
 from .i18n import _
-from .plugins import run_hook
 
 
 class BaseWizard(object):

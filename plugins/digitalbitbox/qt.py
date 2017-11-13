@@ -1,11 +1,10 @@
-from PyQt5.QtWidgets import (QInputDialog, QLineEdit)
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from .digitalbitbox import DigitalBitboxPlugin
 
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import hook
-from electrum_ltc.wallet import Wallet, Standard_Wallet
-from electrum_ltc.bitcoin import EncodeAES
+from electrum_ltc.wallet import Standard_Wallet
+
 
 class Plugin(DigitalBitboxPlugin, QtPluginBase):
     icon_unpaired = ":icons/digitalbitbox_unpaired.png"

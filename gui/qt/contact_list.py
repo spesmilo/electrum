@@ -26,14 +26,13 @@ import webbrowser
 
 from electrum_ltc.i18n import _
 from electrum_ltc.bitcoin import is_address
-from electrum_ltc.util import block_explorer_URL, format_satoshis, format_time, age
+from electrum_ltc.util import block_explorer_URL
 from electrum_ltc.plugins import run_hook
-from electrum_ltc.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import (
     QAbstractItemView, QFileDialog, QMenu, QTreeWidgetItem)
-from .util import MyTreeWidget, pr_tooltips, pr_icons
+from .util import MyTreeWidget
 
 
 class ContactList(MyTreeWidget):

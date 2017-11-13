@@ -27,21 +27,15 @@
 
 # Note: The deserialization code originally comes from ABE.
 
-from . import bitcoin
-from .bitcoin import *
-from .util import print_error, profiler, to_string
+from .util import print_error, profiler
 
 from . import bitcoin
 from .bitcoin import *
-import time
-import sys
 import struct
 
 #
 # Workalike python implementation of Bitcoin's CDataStream class.
 #
-import struct
-import random
 from .keystore import xpubkey_to_address, xpubkey_to_pubkey
 
 NO_SIGNATURE = 'ff'

@@ -4,7 +4,6 @@ import os
 import unittest
 import tempfile
 import shutil
-import json
 
 from io import StringIO
 from lib.simple_config import (SimpleConfig, read_system_config,

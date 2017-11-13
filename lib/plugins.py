@@ -31,7 +31,7 @@ import pkgutil
 import time
 import threading
 
-from .util import *
+from .util import print_error
 from .i18n import _
 from .util import profiler, PrintError, DaemonThread, UserCancelled, ThreadJob
 from . import bitcoin

@@ -2,10 +2,7 @@ import unittest
 from lib import transaction
 from lib.bitcoin import TYPE_ADDRESS
 
-import pprint
 from lib.keystore import xpubkey_to_address
-
-from lib.util import bh2u
 
 from lib.util import bh2u
 

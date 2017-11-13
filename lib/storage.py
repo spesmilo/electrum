@@ -25,8 +25,6 @@
 import os
 import ast
 import threading
-import random
-import time
 import json
 import copy
 import re
@@ -35,8 +33,7 @@ import pbkdf2, hmac, hashlib
 import base64
 import zlib
 
-from .i18n import _
-from .util import NotEnoughFunds, PrintError, profiler
+from .util import PrintError, profiler
 from .plugins import run_hook, plugin_loaders
 from .keystore import bip44_derivation
 from . import bitcoin

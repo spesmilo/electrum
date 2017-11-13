@@ -22,16 +22,8 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import hashlib
-import os.path
-import re
 import sys
-import threading
 import time
 import traceback
 import json
@@ -419,7 +411,7 @@ def sign_request_with_x509(pr, key_path, cert_path):
         s = f.read()
         bList = pem.dePemList(s, "CERTIFICATE")
     certificates = pb2.X509Certificates()
-    certificates.certificate.extend(map(str, bList))
+    certificates.certificate.extend(map(bytes, bList))
     pr.pki_type = 'x509+sha256'
     pr.pki_data = certificates.SerializeToString()
     msgBytes = bytearray(pr.SerializeToString())

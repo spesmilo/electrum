@@ -1,7 +1,8 @@
-import select, time, electrum_ltc as electrum, queue
+import select, time, queue
+# import electrum_ltc as electrum
 from electrum_ltc import Connection, Interface, SimpleConfig
 
-from electrum_ltc.network import filter_protocol, parse_servers
+from electrum_ltc.network import parse_servers
 from collections import defaultdict
 
 # electrum.util.set_verbosity(1)

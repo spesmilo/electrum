@@ -1,7 +1,6 @@
 #!/usr/bin/python2
 
-import sys, re, shutil, os, hashlib
-import imp
+import os
 import getpass
 
 if __name__ == '__main__':

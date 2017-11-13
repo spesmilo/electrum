@@ -1,8 +1,6 @@
 import os.path
 import time
-import traceback
 import sys
-import threading
 import platform
 import queue
 from collections import namedtuple
@@ -23,7 +21,7 @@ else:
 
 dialogs = []
 
-from electrum_ltc.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+from electrum_ltc.paymentrequest import PR_UNPAID, PR_PAID, PR_EXPIRED
 
 pr_icons = {
     PR_UNPAID:":icons/unpaid.png",
