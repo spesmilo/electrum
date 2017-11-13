@@ -41,7 +41,8 @@ from . import segwit_addr
 def read_json_dict(filename):
     path = os.path.join(os.path.dirname(__file__), filename)
     try:
-        r = json.loads(open(path, 'r').read())
+        with open(path, 'r') as f:
+            r = json.loads(f.read())
     except:
         r = {}
     return r
