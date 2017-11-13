@@ -26,12 +26,10 @@ import copy
 import datetime
 import json
 
-import PyQt5
-from PyQt5.QtGui import *
 from PyQt5.QtCore import *
-import PyQt5.QtCore as QtCore
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 
-from electrum import transaction
 from electrum.bitcoin import base_encode
 from electrum.i18n import _
 from electrum.plugins import run_hook

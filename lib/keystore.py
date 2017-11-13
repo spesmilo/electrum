@@ -24,20 +24,15 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import struct
-
 from unicodedata import normalize
 
-from .version import *
 from . import bitcoin
-from .bitcoin import pw_encode, pw_decode, bip32_root, bip32_private_derivation, bip32_public_derivation, bip32_private_key, deserialize_xprv, deserialize_xpub
-from .bitcoin import public_key_from_private_key, public_key_to_p2pkh
 from .bitcoin import *
 
-from .bitcoin import is_old_seed, is_new_seed, is_seed
 from .util import PrintError, InvalidPassword, hfu
 from .mnemonic import Mnemonic, load_wordlist
 from .plugins import run_hook
+
 
 class KeyStore(PrintError):
 

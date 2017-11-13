@@ -1,9 +1,3 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-import ast
 import json
 import threading
 import time
@@ -11,7 +5,7 @@ import os
 import stat
 
 from copy import deepcopy
-from .util import user_dir, print_error, print_msg, print_stderr, PrintError
+from .util import user_dir, print_error, print_stderr, PrintError
 
 from .bitcoin import MAX_FEE_RATE, FEE_TARGETS
 

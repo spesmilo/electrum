@@ -1,19 +1,16 @@
 from struct import pack, unpack
 import hashlib
-import time
 import sys
-import os
 import traceback
 
-import electrum
 from electrum import bitcoin
 from electrum.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
 from electrum.i18n import _
-from electrum.plugins import BasePlugin, hook
-from electrum.keystore import Hardware_KeyStore, parse_xpubkey
-from electrum.transaction import push_script, Transaction
+from electrum.plugins import BasePlugin
+from electrum.keystore import Hardware_KeyStore
+from electrum.transaction import Transaction
 from ..hw_wallet import HW_PluginBase
-from electrum.util import format_satoshis_plain, print_error, is_verbose, bfh, bh2u
+from electrum.util import print_error, is_verbose, bfh, bh2u
 
 try:
     import hid

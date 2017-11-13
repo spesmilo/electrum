@@ -1,12 +1,13 @@
 
-import sys
 import os
+import sys
+import threading
+import traceback
 
-from PyQt5.QtGui import *
 from PyQt5.QtCore import *
-import PyQt5.QtCore as QtCore
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 
-import electrum
 from electrum import Wallet, WalletStorage
 from electrum.util import UserCancelled, InvalidPassword
 from electrum.base_wizard import BaseWizard
@@ -55,9 +56,8 @@ class CosignWidget(QWidget):
         self.update()
 
     def paintEvent(self, event):
-        import math
         bgcolor = self.palette().color(QPalette.Background)
-        pen = QPen(bgcolor, 7, QtCore.Qt.SolidLine)
+        pen = QPen(bgcolor, 7, Qt.SolidLine)
         qp = QPainter()
         qp.begin(self)
         qp.setPen(pen)
