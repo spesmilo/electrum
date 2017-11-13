@@ -291,44 +291,23 @@ def to_bytes(something, encoding='utf8'):
     else:
         raise TypeError("Not a string or bytes like object")
 
-bfh_builder = lambda x: bytes.fromhex(x)
 
-
-def hfu(x):
-    """
-    py2-py3 aware wrapper for str.encode('hex')
-    :param x: str
-    :return: str
-    """
-    assert_bytes(x)
-    return binascii.hexlify(x)
-
-
-def bfh(x):
-    """
-    py2-py3 aware wrapper to "bytes.fromhex()" func
-    :param x: str
-    :rtype: bytes
-    """
-    if isinstance(x, str):
-        return bfh_builder(x)
-    # TODO: check for iterator interface
-    elif isinstance(x, (list, tuple, map)):
-        return [bfh(sub) for sub in x]
-    else:
-        raise TypeError('Unexpected type: ' + str(type(x)))
+bfh = bytes.fromhex
+hfu = binascii.hexlify
 
 
 def bh2u(x):
     """
-    unicode with hex representation of bytes()
-    e.g. x = bytes([1, 2, 10])
-    bh2u(x) -> '01020A'
+    str with hex representation of a bytes-like object
+
+    >>> x = bytes((1, 2, 10))
+    >>> bh2u(x)
+    '01020A'
+
     :param x: bytes
     :rtype: str
     """
-    assert_bytes(x)
-    return binascii.hexlify(x).decode('ascii')
+    return hfu(x).decode('ascii')
 
 
 def user_dir():
