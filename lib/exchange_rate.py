@@ -255,7 +255,8 @@ def get_exchanges_and_currencies():
     import os, json
     path = os.path.join(os.path.dirname(__file__), 'currencies.json')
     try:
-        return json.loads(open(path, 'r').read())
+        with open(path, 'r') as f:
+            return json.loads(f.read())
     except:
         pass
     d = {}

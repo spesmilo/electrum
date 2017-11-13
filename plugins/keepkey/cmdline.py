@@ -1,3 +1,4 @@
+from electrum_ltc.plugins import hook
 from electrum_ltc.util import print_msg, raw_input
 from .keepkey import KeepKeyPlugin
 from ..hw_wallet import CmdLineHandler

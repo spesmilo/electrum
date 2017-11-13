@@ -2235,9 +2235,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         labelsFile = self.getOpenFileName(_("Open labels file"), "*.json")
         if not labelsFile: return
         try:
-            f = open(labelsFile, 'r')
-            data = f.read()
-            f.close()
+            with open(labelsFile, 'r') as f:
+                data = f.read()
             for key, value in json.loads(data).items():
                 self.wallet.set_label(key, value)
             self.show_message(_("Your labels were imported from") + " '%s'" % str(labelsFile))
