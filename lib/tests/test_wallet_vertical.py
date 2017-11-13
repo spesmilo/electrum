@@ -99,7 +99,7 @@ class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
         seed_words = 'treat dwarf wealth gasp brass outside high rent blood crowd make initial'
         self.assertEqual(keystore.bip39_is_checksum_valid(seed_words), (True, True))
 
-        ks = keystore.from_bip39_seed(seed_words, '', "m/44'/0'/0'")
+        ks = keystore.from_bip39_seed(seed_words, '', "m/44'/0'/0'", False)
 
         self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
 
@@ -115,7 +115,7 @@ class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
         seed_words = 'treat dwarf wealth gasp brass outside high rent blood crowd make initial'
         self.assertEqual(keystore.bip39_is_checksum_valid(seed_words), (True, True))
 
-        ks = keystore.from_bip39_seed(seed_words, '', "m/49'/0'/0'")
+        ks = keystore.from_bip39_seed(seed_words, '', "m/49'/0'/0'", False)
 
         self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
 
@@ -169,7 +169,7 @@ class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
         seed_words = 'treat dwarf wealth gasp brass outside high rent blood crowd make initial'
         self.assertEqual(keystore.bip39_is_checksum_valid(seed_words), (True, True))
 
-        ks1 = keystore.from_bip39_seed(seed_words, '', "m/45'/0")
+        ks1 = keystore.from_bip39_seed(seed_words, '', "m/45'/0", True)
         self.assertTrue(isinstance(ks1, keystore.BIP32_KeyStore))
         self.assertEqual(ks1.xpub, 'xpub69xafV4YxC6o8Yiga5EiGLAtqR7rgNgNUGiYgw3S9g9pp6XYUne1KxdcfYtxwmA3eBrzMFuYcNQKfqsXCygCo4GxQFHfywxpUbKNfYvGJka')
 
