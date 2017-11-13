@@ -2,6 +2,7 @@
 
 # You probably need to update only this link
 ELECTRUM_GIT_URL=https://github.com/pooler/electrum-ltc.git
+ELECTRUM_ICONS_URL=https://github.com/spesmilo/electrum-icons.git
 BRANCH=master
 NAME_ROOT=electrum-ltc
 PYTHON_VERSION=3.5.4
@@ -52,8 +53,19 @@ cp electrum-ltc-git/LICENCE .
 cp -r ../../../lib/locale $WINEPREFIX/drive_c/electrum-ltc/lib/
 
 # Build Qt resources
-wine $WINEPREFIX/drive_c/python$PYTHON_VERSION/Scripts/pyrcc5.exe C:/electrum-ltc/icons.qrc -o C:/electrum-ltc/gui/qt/icons_rc.py
-
+# wine $WINEPREFIX/drive_c/python$PYTHON_VERSION/Scripts/pyrcc5.exe C:/electrum-ltc/icons.qrc -o C:/electrum-ltc/gui/qt/icons_rc.py
+# fetch icons file
+if [ -d "electrum-icons" ]; then
+    echo "Pull"
+    cd electrum-icons
+    git pull
+    git checkout master
+    cd ..
+else
+    echo "Clone"
+    git clone -b master $ELECTRUM_ICONS_URL electrum-icons
+fi
+cp electrum-icons/icons_rc.py $WINEPREFIX/drive_c/electrum-ltc/gui/qt/
 
 pushd $WINEPREFIX/drive_c/electrum-ltc
 $PYTHON setup.py install
