@@ -305,7 +305,7 @@ class BaseWizard(object):
         self.on_keystore(k)
 
     def on_bip43(self, seed, passphrase, derivation):
-        k = keystore.from_bip39_seed(seed, passphrase, derivation)
+        k = keystore.from_bip39_seed(seed, passphrase, derivation, self.wallet_type == 'multisig')
         self.on_keystore(k)
 
     def on_keystore(self, k):

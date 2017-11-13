@@ -573,11 +573,15 @@ def bip39_is_checksum_valid(mnemonic):
     calculated_checksum = hashed >> (256 - checksum_length)
     return checksum == calculated_checksum, True
 
-def from_bip39_seed(seed, passphrase, derivation):
+def from_bip39_seed(seed, passphrase, derivation, is_multisig):
     k = BIP32_KeyStore({})
     bip32_seed = bip39_to_seed(seed, passphrase)
-    t = 'p2wpkh-p2sh' if derivation.startswith("m/49'") else 'standard'  # bip43
-    k.add_xprv_from_seed(bip32_seed, t, derivation)
+    t = 'segwit' if derivation.startswith("m/49'") else 'standard'  # bip43
+    if t == 'standard':
+        xtype = 'standard'
+    else:
+        xtype = 'p2wsh-p2sh' if is_multisig else 'p2wpkh-p2sh'
+    k.add_xprv_from_seed(bip32_seed, xtype, derivation)
     return k
 
 # extended pubkeys
