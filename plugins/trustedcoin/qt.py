@@ -78,6 +78,10 @@ class Plugin(TrustedCoinPlugin):
         grid.addWidget(QLabel(_('Code')), 1, 0)
         grid.addWidget(pw, 1, 1)
         vbox.addLayout(grid)
+        msg = _('If you have lost your second factor, you need to restore your wallet from seed in order to request a new code.')
+        label = QLabel(msg)
+        label.setWordWrap(1)
+        vbox.addWidget(label)
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         if not d.exec_():
             return
