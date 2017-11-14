@@ -200,7 +200,7 @@ class MessageBoxMixin(object):
     def msg_box(self, icon, parent, title, text, buttons=QMessageBox.Ok,
                 defaultButton=QMessageBox.NoButton):
         parent = parent or self.top_level_window()
-        d = QMessageBox(icon, title, text, buttons, parent)
+        d = QMessageBox(icon, title, str(text), buttons, parent)
         d.setWindowModality(Qt.WindowModal)
         d.setDefaultButton(defaultButton)
         return d.exec_()
