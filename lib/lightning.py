@@ -240,7 +240,7 @@ def wrap(fun):
     wrapped.__name__ = fun.__name__
     return wrapped
 
-def serve(config, port):
+def get_server(port):
     server = SimpleJSONRPCServer(('localhost', int(port)))
     server.register_function(wrap(FetchRootKey))
     server.register_function(wrap(ConfirmedBalance))
@@ -257,16 +257,17 @@ def serve(config, port):
     server.register_function(wrap(ListTransactionDetails))
     server.register_function(wrap(SendOutputs))
     server.register_function(wrap(IsSynced))
-    server.serve_forever()
-
+    return server
 
 def test_lightning(wallet, networ, config, port):
     global WALLET, NETWORK
     global CONFIG
-    WALLET = wallet
-    assert networ is not None
 
-    from . import network
+    WALLET = wallet
+    NETWORK = networ
+    CONFIG = config
+
+    assert networ is not None
 
     assert len(bitcoin.DEFAULT_SERVERS) == 1, bitcoin.DEFAULT_SERVERS
     wallet.synchronize()
@@ -274,24 +275,19 @@ def test_lightning(wallet, networ, config, port):
     wallet.wait_until_synchronized()
     print("done")
 
-    NETWORK = networ
-
     deser = bitcoin.deserialize_xpub(wallet.keystore.xpub)
     assert deser[0] == "p2wpkh", deser
 
     pubk = wallet.get_unused_address()
-    print("one of my addresses: " + pubk)
-    K_compressed = bytes(bytearray.fromhex(wallet.get_public_keys(pubk)[0]))
+    with open("/tmp/{}address".format(port), "w") as f:
+        f.write(pubk)
+    #K_compressed = bytes(bytearray.fromhex(wallet.get_public_keys(pubk)[0]))
+    #assert len(K_compressed) == 33, len(K_compressed)
+    #pubkeystring = binascii.hexlify( K_compressed).decode("utf-8")
+    #assert wallet.pubkeys_to_address(pubkeystring) in wallet.get_addresses()
 
-    assert len(K_compressed) == 33, len(K_compressed)
-
-    assert wallet.pubkeys_to_address(binascii.hexlify(
-        K_compressed).decode("utf-8")) in wallet.get_addresses()
-
-    CONFIG = config
-
-    serve(config, port)
-
+    server = get_server(port)
+    server.serve_forever()
 
 def LEtobytes(x, l):
     if l == 2:
@@ -658,6 +654,3 @@ def computeInputScript(tx, signdesc):
                                              signdesc.inputIndex, signdesc.output.value, witnessProgram,
                                              sigHashAll, pri2, True)
     return InputScript(witness=(witnessScript, pkData), scriptSig=ourScriptSig)
-
-if __name__ == '__main__':
-    serve()
