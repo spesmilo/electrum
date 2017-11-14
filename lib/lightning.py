@@ -20,7 +20,9 @@ locked = set()
 
 
 def SetHdSeed(json):
-    print("set hdseed unimplemented")
+    req = rpc_pb2.SetHdSeedRequest()
+    json_format.Parse(json, req)
+    print("set hdseed unimplemented", req.hdSeed)
     m = rpc_pb2.SetHdSeedResponse()
     msg = json_format.MessageToJson(m)
     return msg
@@ -58,11 +60,10 @@ def NewAddress(json):
 
 
 def FetchRootKey(json):
-    global K_compressed
     request = rpc_pb2.FetchRootKeyRequest()
     json_format.Parse(json, request)
     m = rpc_pb2.FetchRootKeyResponse()
-    m.rootKey = K_compressed  # TODO this should actually be a private key
+    m.rootKey = os.urandom(32) # TODO derive from wallet
     msg = json_format.MessageToJson(m)
     return msg
 
@@ -260,7 +261,7 @@ def serve(config, port):
 
 
 def test_lightning(wallet, networ, config, port):
-    global WALLET, NETWORK, K_compressed
+    global WALLET, NETWORK
     global CONFIG
     WALLET = wallet
     assert networ is not None
@@ -279,6 +280,7 @@ def test_lightning(wallet, networ, config, port):
     assert deser[0] == "p2wpkh", deser
 
     pubk = wallet.get_unused_address()
+    print("one of my addresses: " + pubk)
     K_compressed = bytes(bytearray.fromhex(wallet.get_public_keys(pubk)[0]))
 
     assert len(K_compressed) == 33, len(K_compressed)
