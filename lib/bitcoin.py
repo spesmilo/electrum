@@ -777,11 +777,10 @@ class EC_KEY(object):
     def get_public_key(self, compressed=True):
         return bh2u(point_to_ser(self.pubkey.point, compressed))
 
-    def sign(self, msg_hash):
+    def sign(self, msg_hash, sigencode=ecdsa.util.sigencode_string):
         private_key = MySigningKey.from_secret_exponent(self.secret, curve = SECP256k1)
         public_key = private_key.get_verifying_key()
-        signature = private_key.sign_digest_deterministic(msg_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_string)
-        assert public_key.verify_digest(signature, msg_hash, sigdecode = ecdsa.util.sigdecode_string)
+        signature = private_key.sign_digest_deterministic(msg_hash, hashfunc=hashlib.sha256, sigencode = sigencode)
         return signature
 
     def sign_message(self, message, is_compressed):

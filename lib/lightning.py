@@ -4,14 +4,16 @@ import traceback
 sys.path.insert(0, "lib/ln")
 from .ln import rpc_pb2
 import os
-from . import keystore, bitcoin, daemon, interface
-import socket
 
-import concurrent.futures as futures
-import time
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
 from google.protobuf import json_format
 import binascii
+import ecdsa.util
+import ecdsa.curves
+import hashlib
+from .bitcoin import EC_KEY
+from . import bitcoin
+from . import transaction
 
 WALLET = None
 NETWORK = None
@@ -111,15 +113,23 @@ def ListUnspentWitness(json):
 
 i = 0
 
+usedAddresses = set()
 
 def NewRawKey(json):
     global i
     addresses = WALLET.get_unused_addresses()
     res = rpc_pb2.NewRawKeyResponse()
-    i = i + 1
-    if i > len(addresses) - 1:
-        i = 0
-    pubk = addresses[i]
+    pubk = None
+    assert len(set(addresses) - usedAddresses) > 0, "used all addresses!"
+    while pubk is None:
+      i = i + 1
+      if i > len(addresses) - 1:
+          i = 0
+      # TODO do not reuse keys!!!!!!!!!!!!!!!!
+      # find out when get_unused_addresses marks an address used...
+      if addresses[i] not in usedAddresses:
+        pubk = addresses[i]
+        usedAddresses.add(pubk)
     res.publicKey = bytes(bytearray.fromhex(WALLET.get_public_keys(pubk)[0]))
     return json_format.MessageToJson(res)
 
@@ -230,13 +240,38 @@ def IsSynced(json):
     m.synced = synced
     return json_format.MessageToJson(m)
 
+def SignMessage(json):
+    req = rpc_pb2.SignMessageRequest()
+    json_format.Parse(json, req)
+    m = rpc_pb2.SignMessageResponse()
+
+    address = None
+    for adr in usedAddresses:
+      if req.pubKey == bytes(bytearray.fromhex(WALLET.get_public_keys(adr)[0])):
+        address = adr
+        break
+
+    assert address is not None, "did not find address in list of addresses given out by NewRawKey"
+
+    pri, _ = WALLET.export_private_key(address, None)
+    typ, pri, compressed = bitcoin.deserialize_privkey(pri)
+    pri = EC_KEY(pri)
+
+    m.signature = pri.sign(bitcoin.Hash(req.messageToBeSigned), ecdsa.util.sigencode_der)
+    m.error = ""
+    m.success = True
+    return json_format.MessageToJson(m)
+
 def wrap(fun):
     def wrapped(*args, **kwargs):
         try:
             return fun(*args, **kwargs)
         except Exception as e:
+            # jsonRPC doesn't report the full trace, so we do it
             traceback.print_exc()
             raise e
+    # this is needed for the jsonRPC library to know which method this is.
+    # there is an alternative register_function call with a string passed.
     wrapped.__name__ = fun.__name__
     return wrapped
 
@@ -257,6 +292,7 @@ def get_server(port):
     server.register_function(wrap(ListTransactionDetails))
     server.register_function(wrap(SendOutputs))
     server.register_function(wrap(IsSynced))
+    server.register_function(wrap(SignMessage))
     return server
 
 def test_lightning(wallet, networ, config, port):
@@ -354,10 +390,6 @@ class InputScript(object):
         self.scriptSig = scriptSig
         self.witness = witness
 
-
-from .bitcoin import EC_KEY
-from . import bitcoin
-from . import transaction
 
 def tweakPrivKey(basePriv, commitTweak):
     tweakInt = int.from_bytes(commitTweak, byteorder="big")
@@ -489,18 +521,7 @@ def calcWitnessSignatureHash(original, sigHashes, hashType, tx, idx, amt):
 def rawTxInWitnessSignature(tx, sigHashes, idx, amt, subscript, hashType, key):
     digest = calcWitnessSignatureHash(
         subscript, sigHashes, hashType, tx, idx, amt)
-    number = string_to_number(digest)
-    signkey = MySigningKey.from_secret_exponent(
-        key.secret, curve=ecdsa.curves.SECP256k1)
-    sig = signkey.sign_digest_deterministic(
-        digest, hashfunc=hashlib.sha256, sigencode=ecdsa.util.sigencode_der) + hashType
-    return sig
-
-
-from ecdsa.util import number_to_string, string_to_number
-import ecdsa.curves
-from .bitcoin import MySigningKey
-import hashlib
+    return key.sign(digest, sigencode=ecdsa.util.sigencode_der) + hashType
 
 # WitnessSignature creates an input witness stack for tx to spend BTC sent
 # from a previous output to the owner of privKey using the p2wkh script
@@ -563,8 +584,6 @@ def PublishTransaction(json):
     global NETWORK
     tx = transaction.Transaction(binascii.hexlify(req.tx).decode("utf-8"))
     suc, has = NETWORK.broadcast(tx)
-    # 2 seconds sleep needed so that transaction is relayed
-    time.sleep(2)
     m = rpc_pb2.PublishTransactionResponse()
     m.success = suc
     m.error = str(has) if not suc else ""
