@@ -274,7 +274,7 @@ class DigitalBitbox_Client():
                                     "To continue, touch the Digital Bitbox's light for 3 seconds.\r\n\r\n" \
                                     "To cancel, briefly touch the light or wait for the timeout."))
         hid_reply = self.hid_send_encrypt(b'{"reset":"__ERASE__"}')
-        self.handler.clear_dialog()
+        self.handler.finished()
         if 'error' in hid_reply:
             raise Exception(hid_reply['error']['message'])
         else:
@@ -300,7 +300,7 @@ class DigitalBitbox_Client():
                                         "To cancel, briefly touch the light or wait for the timeout."))
         msg = b'{"seed":{"source": "backup", "key": "%s", "filename": "%s"}}' % (key, backups['backup'][f].encode('utf8'))
         hid_reply = self.hid_send_encrypt(msg)
-        self.handler.clear_dialog()
+        self.handler.finished()
         if 'error' in hid_reply:
             raise Exception(hid_reply['error']['message'])
         return True
@@ -432,7 +432,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                                         "To continue, touch the Digital Bitbox's blinking light for 3 seconds.\r\n\r\n" \
                                         "To cancel, briefly touch the blinking light or wait for the timeout."))
             reply = dbb_client.hid_send_encrypt(msg) # Send twice, first returns an echo for smart verification (not implemented)
-            self.handler.clear_dialog()
+            self.handler.finished()
 
             if 'error' in reply:
                 raise Exception(reply['error']['message'])
@@ -564,7 +564,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
 
                 # Send twice, first returns an echo for smart verification
                 reply = dbb_client.hid_send_encrypt(msg)
-                self.handler.clear_dialog()
+                self.handler.finished()
 
                 if 'error' in reply:
                     raise Exception(reply['error']['message'])
