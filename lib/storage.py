@@ -51,10 +51,13 @@ FINAL_SEED_VERSION = 16     # electrum >= 2.7 will set this to prevent
 def multisig_type(wallet_type):
     '''If wallet_type is mofn multi-sig, return [m, n],
     otherwise return None.'''
-    match = re.match('(\d+)of(\d+)', wallet_type)
-    if match:
-        match = [int(x) for x in match.group(1, 2)]
-    return match
+    try:
+        match = re.match('(\d+)of(\d+)', wallet_type)
+        if match:
+            match = [int(x) for x in match.group(1, 2)]
+        return match
+    except Exception as e:
+        return None
 
 
 class WalletStorage(PrintError):
@@ -73,6 +76,7 @@ class WalletStorage(PrintError):
             if not self.is_encrypted():
                 self.load_data(self.raw)
         else:
+            self.print_error('did not find existing wallet file')
             # avoid new wallets getting 'upgraded'
             self.put('seed_version', FINAL_SEED_VERSION)
 
