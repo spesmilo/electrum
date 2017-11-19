@@ -569,7 +569,10 @@ def address_from_private_key(sec):
     return pubkey_to_address(txin_type, public_key)
 
 def is_segwit_address(addr):
-    witver, witprog = segwit_addr.decode(NetworkConstants.SEGWIT_HRP, addr)
+    try:
+        witver, witprog = segwit_addr.decode(NetworkConstants.SEGWIT_HRP, addr)
+    except Exception as e:
+        return False
     return witprog is not None
 
 def is_b58_address(addr):
