@@ -150,9 +150,13 @@ class BaseWizard(object):
         elif keystore.is_private_key_list(text):
             k = keystore.Imported_KeyStore({})
             self.storage.put('keystore', k.dump())
-            self.wallet = Imported_Wallet(self.storage)
+            # create a temporary wallet and exploit that modifications
+            # will be reflected on self.storage
+            w = Imported_Wallet(self.storage)
             for x in text.split():
-                self.wallet.import_private_key(x, None)
+                w.import_private_key(x, None)
+            self.keystores.append(w.keystore)
+            return self.run('create_wallet')
         self.terminate()
 
     def restore_from_key(self):
@@ -368,6 +372,12 @@ class BaseWizard(object):
             self.storage.write()
             self.wallet = Multisig_Wallet(self.storage)
             self.run('create_addresses')
+        elif self.wallet_type == 'imported':
+            keys = self.keystores[0].dump()
+            self.storage.put('keystore', keys)
+            self.wallet = Imported_Wallet(self.storage)
+            self.wallet.storage.write()
+            self.terminate()
 
     def show_xpub_and_add_cosigners(self, xpub):
         self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('choose_keystore'))
