@@ -50,7 +50,7 @@ def Connection(server, queue, config_path):
     queue of the form (server, socket), where socket is None if
     connection failed.
     """
-    host, port, protocol = server.split(':')
+    host, port, protocol = server.rsplit(':', 2)
     if not protocol in 'st':
         raise Exception('Unknown protocol: %s' % protocol)
     c = TcpConnection(server, queue, config_path)
@@ -65,7 +65,7 @@ class TcpConnection(threading.Thread, util.PrintError):
         self.config_path = config_path
         self.queue = queue
         self.server = server
-        self.host, self.port, self.protocol = self.server.split(':')
+        self.host, self.port, self.protocol = self.server.rsplit(':', 2)
         self.host = str(self.host)
         self.port = int(self.port)
         self.use_ssl = (self.protocol == 's')
@@ -247,7 +247,7 @@ class Interface(util.PrintError):
 
     def __init__(self, server, socket):
         self.server = server
-        self.host, _, _ = server.split(':')
+        self.host, _, _ = server.rsplit(':', 2)
         self.socket = socket
 
         self.pipe = util.SocketPipe(socket)
