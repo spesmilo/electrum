@@ -6,6 +6,7 @@ from .ln import rpc_pb2
 import os
 
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
+from jsonrpclib import Server
 from google.protobuf import json_format
 import binascii
 import ecdsa.util
@@ -14,6 +15,10 @@ import hashlib
 from .bitcoin import EC_KEY
 from . import bitcoin
 from . import transaction
+
+import queue
+
+from .util import ThreadJob
 
 WALLET = None
 NETWORK = None
@@ -276,7 +281,7 @@ def wrap(fun):
     return wrapped
 
 def get_server(port):
-    server = SimpleJSONRPCServer(('localhost', int(port)))
+    server = SimpleJSONRPCServer(('localhost', port))
     server.register_function(wrap(FetchRootKey))
     server.register_function(wrap(ConfirmedBalance))
     server.register_function(wrap(NewAddress))
@@ -294,36 +299,6 @@ def get_server(port):
     server.register_function(wrap(IsSynced))
     server.register_function(wrap(SignMessage))
     return server
-
-def test_lightning(wallet, networ, config, port):
-    global WALLET, NETWORK
-    global CONFIG
-
-    WALLET = wallet
-    NETWORK = networ
-    CONFIG = config
-
-    assert networ is not None
-
-    assert len(bitcoin.DEFAULT_SERVERS) == 1, bitcoin.DEFAULT_SERVERS
-    wallet.synchronize()
-    print("WAITING!!!!")
-    wallet.wait_until_synchronized()
-    print("done")
-
-    deser = bitcoin.deserialize_xpub(wallet.keystore.xpub)
-    assert deser[0] == "p2wpkh", deser
-
-    pubk = wallet.get_unused_address()
-    with open("/tmp/{}address".format(port), "w") as f:
-        f.write(pubk)
-    #K_compressed = bytes(bytearray.fromhex(wallet.get_public_keys(pubk)[0]))
-    #assert len(K_compressed) == 33, len(K_compressed)
-    #pubkeystring = binascii.hexlify( K_compressed).decode("utf-8")
-    #assert wallet.pubkeys_to_address(pubkeystring) in wallet.get_addresses()
-
-    server = get_server(port)
-    server.serve_forever()
 
 def LEtobytes(x, l):
     if l == 2:
@@ -673,3 +648,86 @@ def computeInputScript(tx, signdesc):
                                              signdesc.inputIndex, signdesc.output.value, witnessProgram,
                                              sigHashAll, pri2, True)
     return InputScript(witness=(witnessScript, pkData), scriptSig=ourScriptSig)
+
+from collections import namedtuple
+QueueItem = namedtuple("QueueItem", ["methodName", "args"])
+
+class LightningRPC(ThreadJob):
+    def __init__(self):
+        super(LightningRPC, self).__init__()
+        self.queue = queue.Queue()
+        self.client = Server("http://localhost:8090")
+    # overridden
+    def run(self):
+        try:
+            qitem = self.queue.get(block=False)
+            result = getattr(self.client, qitem.methodName)(qitem.args)
+            self.console.newResult.emit(repr(result))
+        except queue.Empty:
+            pass
+    def setConsole(self, console):
+        self.console = console
+
+def lightningCall(rpc, methodName):
+    def fun(*args):
+        rpc.queue.put(QueueItem(methodName, args))
+    return fun
+
+class LightningUI():
+    def __init__(self, lightningGetter):
+        self.rpc = lightningGetter
+    def __getattr__(self, nam):
+        return lightningCall(self.rpc(), nam)
+
+def test_lightning(wallet, network, config, port):
+    global WALLET, NETWORK
+    global CONFIG
+
+    WALLET = wallet
+    NETWORK = network
+    CONFIG = config
+
+    assert networ is not None
+
+    assert len(bitcoin.DEFAULT_SERVERS) == 1, bitcoin.DEFAULT_SERVERS
+    wallet.synchronize()
+    print("WAITING!!!!")
+    wallet.wait_until_synchronized()
+    print("done")
+
+    deser = bitcoin.deserialize_xpub(wallet.keystore.xpub)
+    assert deser[0] == "p2wpkh", deser
+
+    pubk = wallet.get_unused_address()
+    with open("/tmp/{}address".format(port), "w") as f:
+        f.write(pubk)
+    #K_compressed = bytes(bytearray.fromhex(wallet.get_public_keys(pubk)[0]))
+    #assert len(K_compressed) == 33, len(K_compressed)
+    #pubkeystring = binascii.hexlify( K_compressed).decode("utf-8")
+    #assert wallet.pubkeys_to_address(pubkeystring) in wallet.get_addresses()
+
+    server = get_server(int(port))
+    server.serve_forever()
+
+class LightningWorker(ThreadJob):
+    def __init__(self, port, wallet, network, config):
+        super(LightningWorker, self).__init__()
+        self.server = None
+        self.port = port
+        self.wallet = wallet
+        self.network = network
+        self.config = config
+
+        deser = bitcoin.deserialize_xpub(wallet().keystore.xpub)
+        assert deser[0] == "p2wpkh", deser
+    def run(self):
+        global WALLET, NETWORK
+        global CONFIG
+
+        if not self.server:
+            self.server = get_server(self.port())
+            self.server.timeout = 1
+        WALLET = self.wallet()
+        NETWORK = self.network()
+        CONFIG = self.config()
+        self.server.handle_request()

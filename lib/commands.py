@@ -130,7 +130,7 @@ class Commands:
         return ' '.join(sorted(known_commands.keys()))
 
     @command('')
-    def create(self, segwit=False, lightning=False):
+    def create(self, segwit=False):
         """Create a new wallet"""
         raise BaseException('Not a JSON-RPC command')
 
@@ -722,7 +722,6 @@ command_options = {
     'nbits':       (None, "Number of bits of entropy"),
     'entropy':     (None, "Custom entropy"),
     'segwit':      (None, "Create segwit seed"),
-    'lightning':   (None, "Create lightning wallet"),
     'language':    ("-L", "Default language for wordlist"),
     'privkey':     (None, "Private key. Set to '?' to get a prompt."),
     'unsigned':    ("-u", "Do not sign transaction"),
@@ -835,6 +834,7 @@ def add_global_options(parser):
     group.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
     group.add_argument("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
     group.add_argument("--simnet", action="store_true", dest="simnet", default=False, help="Use Simnet")
+    group.add_argument("--lightning_port", dest="lightning_port", default=None, help="Lightning RPC port to listen on. Socat copier to be launched on this to bridge to remote.")
 
 def get_parser():
     # create main parser

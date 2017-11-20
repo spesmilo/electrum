@@ -55,6 +55,7 @@ from .plugins import run_hook
 from . import bitcoin
 from . import coinchooser
 from .synchronizer import Synchronizer
+from .lightning import LightningRPC
 from .verifier import SPV
 from .mnemonic import Mnemonic
 
@@ -64,6 +65,8 @@ from .paymentrequest import InvoiceStore
 from .contacts import Contacts
 
 from .storage import WalletStorage
+
+from .lightning import LightningWorker
 
 TX_STATUS = [
     _('Replaceable'),
@@ -955,20 +958,24 @@ class Abstract_Wallet(PrintError):
                 self.print_error("removing transaction", tx_hash)
                 self.transactions.pop(tx_hash)
 
-    def start_threads(self, network):
+    def start_threads(self, network, config):
         self.network = network
         if self.network is not None:
             self.prepare_for_verifier()
             self.verifier = SPV(self.network, self)
             self.synchronizer = Synchronizer(self, network)
-            network.add_jobs([self.verifier, self.synchronizer])
+            self.lightning = LightningRPC()
+            port = int(config.get("lightning_port"))
+            assert port is not None
+            self.lightningworker = LightningWorker(lambda: port, lambda: self, lambda: network, lambda: config)
+            network.add_jobs([self.verifier, self.synchronizer, self.lightning, self.lightningworker])
         else:
             self.verifier = None
             self.synchronizer = None
 
     def stop_threads(self):
         if self.network:
-            self.network.remove_jobs([self.synchronizer, self.verifier])
+            self.network.remove_jobs([self.synchronizer, self.verifier, self.lightning, self.lightningworker])
             self.synchronizer.release()
             self.synchronizer = None
             self.verifier = None
@@ -1824,13 +1831,6 @@ class Multisig_Wallet(Deterministic_Wallet):
         txin['signatures'] = [None] * self.n
         txin['num_sig'] = self.m
 
-class Lightning_Wallet(Standard_Wallet):
-    def sign_transaction(*args, **kwargs):
-        print("signing transaction")
-        print(args)
-        print(kwargs)
-        return super(Lightning_Wallet, self).sign_transaction(*args, **kwargs)
-
 wallet_types = ['standard', 'multisig', 'imported']
 
 def register_wallet_type(category):
@@ -1840,8 +1840,7 @@ wallet_constructors = {
     'standard': Standard_Wallet,
     'old': Standard_Wallet,
     'xpub': Standard_Wallet,
-    'imported': Imported_Wallet,
-    'lightning': Lightning_Wallet
+    'imported': Imported_Wallet
 }
 
 def register_constructor(wallet_type, constructor):

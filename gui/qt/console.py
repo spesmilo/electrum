@@ -18,6 +18,8 @@ else:
 
 
 class Console(QtWidgets.QPlainTextEdit):
+    newResult = QtCore.pyqtSignal(str)
+
     def __init__(self, prompt='>> ', startup_message='', parent=None):
         QtWidgets.QPlainTextEdit.__init__(self, parent)
 
@@ -34,6 +36,7 @@ class Console(QtWidgets.QPlainTextEdit):
 
         self.updateNamespace({'run':self.run_script})
         self.set_json(False)
+        self.newResult.connect(self.handleNewResult)
 
     def set_json(self, b):
         self.is_json = b
@@ -45,7 +48,8 @@ class Console(QtWidgets.QPlainTextEdit):
         # eval is generally considered bad practice. use it wisely!
         result = eval(script, self.namespace, self.namespace)
 
-
+    def handleNewResult(self, msg):
+        self.showMessage(msg)
 
     def updateNamespace(self, namespace):
         self.namespace.update(namespace)

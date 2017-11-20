@@ -225,7 +225,7 @@ class Daemon(DaemonThread):
         if storage.get_action():
             return
         wallet = Wallet(storage)
-        wallet.start_threads(self.network)
+        wallet.start_threads(self.network, self.config)
         self.wallets[path] = wallet
         return wallet
 

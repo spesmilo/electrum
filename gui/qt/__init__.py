@@ -26,6 +26,7 @@
 import sys
 import os
 import signal
+import traceback
 
 try:
     import PyQt5
@@ -46,7 +47,7 @@ from electrum.util import DebugMem, UserCancelled, InvalidPassword, print_error
 from electrum.wallet import Abstract_Wallet
 
 from .installwizard import InstallWizard, GoBack
-
+from electrum.lightning import LightningUI
 
 try:
     from . import icons_rc
@@ -91,6 +92,10 @@ class ElectrumGui:
         #network.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,
         #                            ElectrumWindow], interval=5)])
         QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_X11InitThreads)
+        def setConsoleAndReturnLightning():
+            self.windows[0].wallet.lightning.setConsole(self.windows[0].console)
+            return self.windows[0].wallet.lightning
+        self.lightning = LightningUI(setConsoleAndReturnLightning)
         self.config = config
         self.daemon = daemon
         self.plugins = plugins
@@ -188,6 +193,7 @@ class ElectrumGui:
             try:
                 wallet = self.daemon.load_wallet(path, None)
             except  BaseException as e:
+                traceback.print_exc()
                 d = QMessageBox(QMessageBox.Warning, _('Error'), 'Cannot load wallet:\n' + str(e))
                 d.exec_()
                 return
@@ -203,7 +209,7 @@ class ElectrumGui:
                 wizard.terminate()
                 if not wallet:
                     return
-                wallet.start_threads(self.daemon.network)
+                wallet.start_threads(self.daemon.network, self.config)
                 self.daemon.add_wallet(wallet)
             w = self.create_window_for_wallet(wallet)
         if uri:

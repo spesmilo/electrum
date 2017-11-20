@@ -172,7 +172,7 @@ def run_non_RPC(config):
         seed = Mnemonic('en').make_seed(seed_type)
         k = keystore.from_seed(seed, passphrase, False)
         storage.put('keystore', k.dump())
-        storage.put('wallet_type', 'standard' if not config.get('lightning') else 'lightning')
+        storage.put('wallet_type', 'standard')
         wallet = Wallet(storage)
         wallet.update_password(None, password, True)
         wallet.synchronize()
