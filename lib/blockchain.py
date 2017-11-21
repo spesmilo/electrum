@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2012 thomasv@ecdsa.org
 #
@@ -22,168 +20,259 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
-
-
 import os
-import util
-import bitcoin
-from bitcoin import *
+import threading
+
+from . import util
+from . import bitcoin
+from .bitcoin import *
+
+MAX_TARGET = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
+
+def serialize_header(res):
+    s = int_to_hex(res.get('version'), 4) \
+        + rev_hex(res.get('prev_block_hash')) \
+        + rev_hex(res.get('merkle_root')) \
+        + int_to_hex(int(res.get('timestamp')), 4) \
+        + int_to_hex(int(res.get('bits')), 4) \
+        + int_to_hex(int(res.get('nonce')), 4)
+    return s
+
+def deserialize_header(s, height):
+    hex_to_int = lambda s: int('0x' + bh2u(s[::-1]), 16)
+    h = {}
+    h['version'] = hex_to_int(s[0:4])
+    h['prev_block_hash'] = hash_encode(s[4:36])
+    h['merkle_root'] = hash_encode(s[36:68])
+    h['timestamp'] = hex_to_int(s[68:72])
+    h['bits'] = hex_to_int(s[72:76])
+    h['nonce'] = hex_to_int(s[76:80])
+    h['block_height'] = height
+    return h
+
+def hash_header(header):
+    if header is None:
+        return '0' * 64
+    if header.get('prev_block_hash') is None:
+        header['prev_block_hash'] = '00'*32
+    return hash_encode(Hash(bfh(serialize_header(header))))
+
+
+blockchains = {}
+
+def read_blockchains(config):
+    blockchains[0] = Blockchain(config, 0, None)
+    fdir = os.path.join(util.get_headers_dir(config), 'forks')
+    if not os.path.exists(fdir):
+        os.mkdir(fdir)
+    l = filter(lambda x: x.startswith('fork_'), os.listdir(fdir))
+    l = sorted(l, key = lambda x: int(x.split('_')[1]))
+    for filename in l:
+        checkpoint = int(filename.split('_')[2])
+        parent_id = int(filename.split('_')[1])
+        b = Blockchain(config, checkpoint, parent_id)
+        blockchains[b.checkpoint] = b
+    return blockchains
+
+def check_header(header):
+    if type(header) is not dict:
+        return False
+    for b in blockchains.values():
+        if b.check_header(header):
+            return b
+    return False
+
+def can_connect(header):
+    for b in blockchains.values():
+        if b.can_connect(header):
+            return b
+    return False
 
 USE_DIFF_RETARGET = True
 DGW3_START_HEIGHT = 100000
 
 class Blockchain(util.PrintError):
-    '''Manages blockchain headers and their verification'''
-    def __init__(self, config, network):
+    """
+    Manages blockchain headers and their verification
+    """
+
+    def __init__(self, config, checkpoint, parent_id):
         self.config = config
-        self.network = network
-        self.local_height = 0
-        # No URL for Groestlcoin
-        self.headers_url = ''#'http://headers.electrum.org/blockchain_headers'
-        self.set_local_height()
+        self.catch_up = None # interface catching up
+        self.checkpoint = checkpoint
+        self.parent_id = parent_id
+        self.lock = threading.Lock()
+        with self.lock:
+            self.update_size()
+
+    def parent(self):
+        return blockchains[self.parent_id]
+
+    def get_max_child(self):
+        children = list(filter(lambda y: y.parent_id==self.checkpoint, blockchains.values()))
+        return max([x.checkpoint for x in children]) if children else None
+
+    def get_checkpoint(self):
+        mc = self.get_max_child()
+        return mc if mc is not None else self.checkpoint
+
+    def get_branch_size(self):
+        return self.height() - self.get_checkpoint() + 1
+
+    def get_name(self):
+        return self.get_hash(self.get_checkpoint()).lstrip('00')[0:10]
+
+    def check_header(self, header):
+        header_hash = hash_header(header)
+        height = header.get('block_height')
+        return header_hash == self.get_hash(height)
+
+    def fork(parent, header):
+        checkpoint = header.get('block_height')
+        self = Blockchain(parent.config, checkpoint, parent.checkpoint)
+        open(self.path(), 'w+').close()
+        self.save_header(header)
+        return self
 
     def height(self):
-        return self.local_height
+        return self.checkpoint + self.size() - 1
 
-    def init(self):
-        import threading
-        if os.path.exists(self.path()):
-            self.downloading_headers = False
+    def size(self):
+        with self.lock:
+            return self._size
+
+    def update_size(self):
+        p = self.path()
+        self._size = os.path.getsize(p)//80 if os.path.exists(p) else 0
+
+    def verify_header(self, header, prev_header, bits, target):
+        prev_hash = hash_header(prev_header)
+        _hash = hash_header(header)
+        if prev_hash != header.get('prev_block_hash'):
+            raise BaseException("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
+        if bitcoin.TESTNET or not USE_DIFF_RETARGET or header['block_height'] < DGW3_START_HEIGHT:
             return
-        self.downloading_headers = True
-        t = threading.Thread(target = self.init_headers_file)
-        t.daemon = True
-        t.start()
-
-    def verify_header(self, header, prev_header, bits, target, height):
-        prev_hash = self.hash_header(prev_header)
-        assert prev_hash == header.get('prev_block_hash'), "prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash'))
-        if bitcoin.TESTNET or bitcoin.NOLNET or not USE_DIFF_RETARGET or height < DGW3_START_HEIGHT: return
-        assert bits == header.get('bits'), "bits mismatch: %s vs %s" % (bits, header.get('bits'))
-        _hash = self.hash_header(header)
-        assert int('0x' + _hash, 16) <= target, "insufficient proof of work: %s vs target %s" % (int('0x' + _hash, 16), target)
-
-    def verify_chain(self, chain):
-        first_header = chain[0]
-        prev_header = self.read_header(first_header.get('block_height') - 1)
-        for header in chain:
-            height = header.get('block_height')
-            bits, target = self.get_target(height, chain)
-            self.verify_header(header, prev_header, bits, target, height)
-            prev_header = header
+        if bits != header.get('bits'):
+            raise BaseException("bits mismatch: %s vs %s" % (bits, header.get('bits')))
+        if int('0x' + _hash, 16) > target:
+            raise BaseException("insufficient proof of work: %s vs target %s" % (int('0x' + _hash, 16), target))
 
     def verify_chunk(self, index, data):
-        num = len(data) / 80
+        num = len(data) // 80
         prev_header = None
         if index != 0:
-            prev_header = self.read_header(index*2016 - 1)
+            prev_header = self.read_header(index * 2016 - 1)
 
         chain = []
         for i in range(num):
             height = index*2016 + i
             raw_header = data[i*80:(i+1) * 80]
-            header = self.deserialize_header(raw_header)
-            header['block_height'] = height
+            header = deserialize_header(raw_header, height)
             # DGW3 requires access to recent (unsaved) headers.
             if USE_DIFF_RETARGET:
                 chain.append(header)
                 if not len(chain) % 100:
                     chain = chain[-100:]
             bits, target = self.get_target(height, chain)
-            self.verify_header(header, prev_header, bits, target, height)
-
+            self.verify_header(header, prev_header, bits, target)
             prev_header = header
 
-    def serialize_header(self, res):
-        s = int_to_hex(res.get('version'), 4) \
-            + rev_hex(res.get('prev_block_hash')) \
-            + rev_hex(res.get('merkle_root')) \
-            + int_to_hex(int(res.get('timestamp')), 4) \
-            + int_to_hex(int(res.get('bits')), 4) \
-            + int_to_hex(int(res.get('nonce')), 4)
-        return s
-
-    def deserialize_header(self, s):
-        hex_to_int = lambda s: int('0x' + s[::-1].encode('hex'), 16)
-        h = {}
-        h['version'] = hex_to_int(s[0:4])
-        h['prev_block_hash'] = hash_encode(s[4:36])
-        h['merkle_root'] = hash_encode(s[36:68])
-        h['timestamp'] = hex_to_int(s[68:72])
-        h['bits'] = hex_to_int(s[72:76])
-        h['nonce'] = hex_to_int(s[76:80])
-        return h
-
-    def hash_header(self, header):
-        if header is None:
-            return '0' * 64
-        return hash_encode(groestlHash(self.serialize_header(header).decode('hex')))
-
     def path(self):
-        return util.get_headers_path(self.config)
-
-    def init_headers_file(self):
-        filename = self.path()
-        try:
-            import urllib, socket
-            socket.setdefaulttimeout(30)
-            self.print_error("downloading ", bitcoin.HEADERS_URL)
-            urllib.urlretrieve(bitcoin.HEADERS_URL, filename + '.tmp')
-            os.rename(filename + '.tmp', filename)
-            self.print_error("done.")
-        except Exception:
-            self.print_error("download failed. creating file", filename)
-            open(filename, 'wb+').close()
-        self.downloading_headers = False
-        self.set_local_height()
-        self.print_error("%d blocks" % self.local_height)
+        d = util.get_headers_dir(self.config)
+        filename = 'blockchain_headers' if self.parent_id is None else os.path.join('forks', 'fork_%d_%d'%(self.parent_id, self.checkpoint))
+        return os.path.join(d, filename)
 
     def save_chunk(self, index, chunk):
         filename = self.path()
-        f = open(filename, 'rb+')
-        f.seek(index * 2016 * 80)
-        h = f.write(chunk)
-        f.close()
-        self.set_local_height()
+        d = (index * 2016 - self.checkpoint) * 80
+        if d < 0:
+            chunk = chunk[-d:]
+            d = 0
+        self.write(chunk, d)
+        self.swap_with_parent()
 
-    def save_header(self, header, height=None):
-        data = self.serialize_header(header).decode('hex')
-        assert len(data) == 80
-        if height is None: height = header.get('block_height')
+    def swap_with_parent(self):
+        if self.parent_id is None:
+            return
+        parent_branch_size = self.parent().height() - self.checkpoint + 1
+        if parent_branch_size >= self.size():
+            return
+        self.print_error("swap", self.checkpoint, self.parent_id)
+        parent_id = self.parent_id
+        checkpoint = self.checkpoint
+        parent = self.parent()
+        with open(self.path(), 'rb') as f:
+            my_data = f.read()
+        with open(parent.path(), 'rb') as f:
+            f.seek((checkpoint - parent.checkpoint)*80)
+            parent_data = f.read(parent_branch_size*80)
+        self.write(parent_data, 0)
+        parent.write(my_data, (checkpoint - parent.checkpoint)*80)
+        # store file path
+        for b in blockchains.values():
+            b.old_path = b.path()
+        # swap parameters
+        self.parent_id = parent.parent_id; parent.parent_id = parent_id
+        self.checkpoint = parent.checkpoint; parent.checkpoint = checkpoint
+        self._size = parent._size; parent._size = parent_branch_size
+        # move files
+        for b in blockchains.values():
+            if b in [self, parent]: continue
+            if b.old_path != b.path():
+                self.print_error("renaming", b.old_path, b.path())
+                os.rename(b.old_path, b.path())
+        # update pointers
+        blockchains[self.checkpoint] = self
+        blockchains[parent.checkpoint] = parent
+
+    def write(self, data, offset):
         filename = self.path()
-        f = open(filename, 'rb+')
-        f.seek(height * 80)
-        h = f.write(data)
-        f.close()
-        self.set_local_height()
+        with self.lock:
+            with open(filename, 'rb+') as f:
+                if offset != self._size*80:
+                    f.seek(offset)
+                    f.truncate()
+                f.seek(offset)
+                f.write(data)
+                f.flush()
+                os.fsync(f.fileno())
+            self.update_size()
 
-    def set_local_height(self):
-        name = self.path()
-        if os.path.exists(name):
-            h = os.path.getsize(name)/80 - 1
-            if self.local_height != h:
-                self.local_height = h
+    def save_header(self, header):
+        delta = header.get('block_height') - self.checkpoint
+        data = bfh(serialize_header(header))
+        assert delta == self.size()
+        assert len(data) == 80
+        self.write(data, delta*80)
+        self.swap_with_parent()
 
-    def roll_back_to_last_chunk(self):
-        name = self.path()
-        if os.path.exists(name):
-            f = open(name, 'rb+')
-            f.seek( (self.local_height - 100) *80)
-            f.truncate()
-            f.close()
-        self.set_local_height()
-
-    def read_header(self, block_height):
+    def read_header(self, height):
+        assert self.parent_id != self.checkpoint
+        if height < 0:
+            return
+        if height < self.checkpoint:
+            return self.parent().read_header(height)
+        if height > self.height():
+            return
+        delta = height - self.checkpoint
         name = self.path()
         if os.path.exists(name):
             f = open(name, 'rb')
-            f.seek(block_height * 80)
+            f.seek(delta * 80)
             h = f.read(80)
             f.close()
-            if len(h) == 80:
-                h = self.deserialize_header(h)
-                return h
+        return deserialize_header(h, height)
+
+    def get_hash(self, height):
+        return hash_header(self.read_header(height))
+
+    def BIP9(self, height, flag):
+        v = self.read_header(height)['version']
+        return ((v & 0xE0000000) == 0x20000000) and ((v & flag) == flag)
+
+    def segwit_support(self, N=144):
+        h = self.local_height
+        return sum([self.BIP9(h-i, 2) for i in range(N)])*10000/N/100.
 
     def bits_to_target(self, bits):
         MM = 256*256*256
@@ -272,53 +361,46 @@ class Blockchain(util.PrintError):
         new_bits = self.target_to_bits(bnNew)
         return new_bits, bnNew
 
-
     def get_target(self, block_height, chain=None):
         if chain is None:
             chain = []  # Do not use mutables as default values!
 
+        if bitcoin.TESTNET:
+            return 0, 0
+        if index == 0:
+            return 0x1d00ffff, MAX_TARGET
         # Enforce DGW3_START_HEIGHT.
         if not USE_DIFF_RETARGET or block_height < DGW3_START_HEIGHT:
-            return None, None
+            return 0, 0
         return self.get_target_dgw3(block_height, chain)
 
-    def connect_header(self, chain, header):
-        '''Builds a header chain until it connects.  Returns True if it has
-        successfully connected, False if verification failed, otherwise the
-        height of the next header needed.'''
-        chain.append(header)  # Ordered by decreasing height
-        previous_height = header['block_height'] - 1
-        previous_header = self.read_header(previous_height)
 
-        # Missing header, request it
-        if not previous_header:
-            return previous_height
-
-        # Does it connect to my chain?
-        prev_hash = self.hash_header(previous_header)
-        if prev_hash != header.get('prev_block_hash'):
-            self.print_error("reorg")
-            return previous_height
-
-        # The chain is complete.  Reverse to order by increasing height
-        chain.reverse()
-        try:
-            self.verify_chain(chain)
-            self.print_error("new height:", previous_height + len(chain))
-            for header in chain:
-                self.save_header(header)
-            return True
-        except BaseException as e:
-            self.print_error(str(e))
+    def can_connect(self, header, check_height=True):
+        height = header['block_height']
+        if check_height and self.height() != height - 1:
             return False
+        if height == 0:
+            return hash_header(header) == bitcoin.GENESIS
+        previous_header = self.read_header(height -1)
+        if not previous_header:
+            return False
+        prev_hash = hash_header(previous_header)
+        if prev_hash != header.get('prev_block_hash'):
+            return False
+        bits, target = self.get_target(height // 2016)
+        try:
+            self.verify_header(header, previous_header, bits, target)
+        except:
+            return False
+        return True
 
     def connect_chunk(self, idx, hexdata):
         try:
-            data = hexdata.decode('hex')
+            data = bfh(hexdata)
             self.verify_chunk(idx, data)
-            self.print_error("validated chunk %d" % idx)
+            #self.print_error("validated chunk %d" % idx)
             self.save_chunk(idx, data)
-            return idx + 1
+            return True
         except BaseException as e:
             self.print_error('verify_chunk failed', str(e))
-            return idx - 1
+            return False

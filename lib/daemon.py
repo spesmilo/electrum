@@ -22,31 +22,39 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
 import ast
 import os
 import sys
 import time
 
+# from jsonrpc import JSONRPCResponseManager
 import jsonrpclib
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCRequestHandler
 
-from version import ELECTRUM_VERSION
-from network import Network
-from util import json_decode, DaemonThread
-from util import print_msg, print_error, print_stderr, UserCancelled
-from wallet import Wallet
-from storage import WalletStorage
-from commands import known_commands, Commands
-from simple_config import SimpleConfig
-from plugins import run_hook
-from exchange_rate import FxThread
+from .version import ELECTRUM_VERSION
+from .network import Network
+from .util import json_decode, DaemonThread
+from .util import print_msg, print_error, print_stderr, UserCancelled
+from .wallet import Wallet
+from .storage import WalletStorage
+from .commands import known_commands, Commands
+from .simple_config import SimpleConfig
+from .plugins import run_hook
+from .exchange_rate import FxThread
+
 
 def get_lockfile(config):
     return os.path.join(config.path, 'daemon')
 
+
 def remove_lockfile(lockfile):
     os.unlink(lockfile)
+
 
 def get_fd_or_server(config):
     '''Tries to create the lockfile, using O_EXCL to
@@ -66,6 +74,7 @@ def get_fd_or_server(config):
         # Couldn't connect; remove lockfile and try again.
         remove_lockfile(lockfile)
 
+
 def get_server(config):
     lockfile = get_lockfile(config)
     while True:
@@ -77,26 +86,25 @@ def get_server(config):
             # Test daemon is running
             server.ping()
             return server
-        except:
-            pass
+        except Exception as e:
+            print_error("[get_server]", e)
         if not create_time or create_time < time.time() - 1.0:
             return None
         # Sleep a bit and try again; it might have just been started
         time.sleep(1.0)
 
 
-
 class RequestHandler(SimpleJSONRPCRequestHandler):
 
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.end_headers()
+     def do_OPTIONS(self):
+         self.send_response(200)
+         self.end_headers()
 
-    def end_headers(self):
-        self.send_header("Access-Control-Allow-Headers",
-                         "Origin, X-Requested-With, Content-Type, Accept")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        SimpleJSONRPCRequestHandler.end_headers(self)
+     def end_headers(self):
+         self.send_header("Access-Control-Allow-Headers",
+                          "Origin, X-Requested-With, Content-Type, Accept")
+         self.send_header("Access-Control-Allow-Origin", "*")
+         SimpleJSONRPCRequestHandler.end_headers(self)
 
 
 class Daemon(DaemonThread):
@@ -123,14 +131,13 @@ class Daemon(DaemonThread):
         host = config.get('rpchost', '127.0.0.1')
         port = config.get('rpcport', 0)
         try:
-            server = SimpleJSONRPCServer((host, port), logRequests=False,
-                                         requestHandler=RequestHandler)
-        except:
-            self.print_error('Warning: cannot initialize RPC server on host', host)
+            server = SimpleJSONRPCServer((host, port), logRequests=False, requestHandler=RequestHandler)
+        except Exception as e:
+            self.print_error('Warning: cannot initialize RPC server on host', host, e)
             self.server = None
             os.close(fd)
             return
-        os.write(fd, repr((server.socket.getsockname(), time.time())))
+        os.write(fd, bytes(repr((server.socket.getsockname(), time.time())), 'utf8'))
         os.close(fd)
         server.timeout = 0.1
         for cmdname in known_commands:
@@ -203,7 +210,7 @@ class Daemon(DaemonThread):
         if path in self.wallets:
             wallet = self.wallets[path]
             return wallet
-        storage = WalletStorage(path)
+        storage = WalletStorage(path, manual_upgrades=True)
         if not storage.file_exists():
             return
         if storage.is_encrypted():
@@ -213,7 +220,6 @@ class Daemon(DaemonThread):
         if storage.requires_split():
             return
         if storage.requires_upgrade():
-            self.print_error('upgrading wallet format')
             storage.upgrade()
         if storage.get_action():
             return
@@ -244,18 +250,20 @@ class Daemon(DaemonThread):
             path = config.get_wallet_path()
             wallet = self.wallets.get(path)
             if wallet is None:
-                return {'error': 'Wallet not open. Use "electrum daemon load_wallet"'}
+                return {'error': 'Wallet "%s" is not loaded. Use "electrum daemon load_wallet"'%os.path.basename(path) }
         else:
             wallet = None
         # arguments passed to function
         args = map(lambda x: config.get(x), cmd.params)
         # decode json arguments
-        args = map(json_decode, args)
+        args = [json_decode(i) for i in args]
         # options
-        args += map(lambda x: config.get(x), cmd.options)
-        cmd_runner = Commands(config, wallet, self.network, password=password, new_password=new_password)
+        kwargs = {}
+        for x in cmd.options:
+            kwargs[x] = (config_options.get(x) if x in ['password', 'new_password'] else config.get(x))
+        cmd_runner = Commands(config, wallet, self.network)
         func = getattr(cmd_runner, cmd.name)
-        result = func(*args)
+        result = func(*args, **kwargs)
         return result
 
     def run(self):

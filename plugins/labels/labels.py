@@ -12,8 +12,6 @@ from electrum_grs.plugins import BasePlugin, hook
 from electrum_grs.i18n import _
 
 
-
-
 class LabelsPlugin(BasePlugin):
 
     def __init__(self, parent, config, name):
@@ -25,7 +23,7 @@ class LabelsPlugin(BasePlugin):
         password, iv, wallet_id = self.wallets[wallet]
         encrypted = electrum_grs.bitcoin.aes_encrypt_with_iv(password, iv,
                                                          msg.encode('utf8'))
-        return base64.b64encode(encrypted)
+        return base64.b64encode(encrypted).decode()
 
     def decode(self, wallet, message):
         password, iv, wallet_id = self.wallets[wallet]
@@ -48,6 +46,8 @@ class LabelsPlugin(BasePlugin):
     @hook
     def set_label(self, wallet, item, label):
         if not wallet in self.wallets:
+            return
+        if not item:
             return
         nonce = self.get_nonce(wallet)
         wallet_id = self.wallets[wallet][2]
@@ -83,7 +83,7 @@ class LabelsPlugin(BasePlugin):
         bundle = {"labels": [],
                   "walletId": wallet_id,
                   "walletNonce": self.get_nonce(wallet)}
-        for key, value in wallet.labels.iteritems():
+        for key, value in wallet.labels.items():
             try:
                 encoded_key = self.encode(wallet, key)
                 encoded_value = self.encode(wallet, value)
@@ -138,9 +138,10 @@ class LabelsPlugin(BasePlugin):
         mpk = wallet.get_fingerprint()
         if not mpk:
             return
-        password = hashlib.sha1(mpk).digest().encode('hex')[:32]
+        mpk = mpk.encode('ascii')
+        password = hashlib.sha1(mpk).hexdigest()[:32].encode('ascii')
         iv = hashlib.sha256(password).digest()[:16]
-        wallet_id = hashlib.sha256(mpk).digest().encode('hex')
+        wallet_id = hashlib.sha256(mpk).hexdigest()
         self.wallets[wallet] = (password, iv, wallet_id)
         # If there is an auth token we can try to actually start syncing
         t = threading.Thread(target=self.pull_thread, args=(wallet, False))

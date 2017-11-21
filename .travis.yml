@@ -1,8 +1,12 @@
 sudo: false
 language: python
 python:
-    - "2.7"
+    - "3.5"
+    - "3.6"
 install:
     - pip install tox
+    - pip install tox-travis
 script:
     - tox
+after_success:
+    - if [ "$TRAVIS_BRANCH" = "master" ]; then pip install pycurl requests && contrib/make_locale; fi

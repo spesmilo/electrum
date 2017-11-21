@@ -1,6 +1,6 @@
 import gettext
 
-class _(unicode):
+class _(str):
 
     observers = set()
     lang = None
@@ -15,9 +15,7 @@ class _(unicode):
 
     @staticmethod
     def translate(s, *args, **kwargs):
-        tr = _.lang(s).format(args, kwargs)
-        tr = tr.decode('utf8')
-        return tr
+        return _.lang(s).format(args, kwargs)
 
     @staticmethod
     def bind(label):

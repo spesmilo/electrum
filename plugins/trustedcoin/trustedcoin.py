@@ -29,8 +29,8 @@ import re
 import requests
 import json
 from hashlib import sha256
-from urlparse import urljoin
-from urllib import quote
+from urllib.parse import urljoin
+from urllib.parse import quote
 
 import electrum_grs
 from electrum_grs import bitcoin
@@ -90,11 +90,10 @@ class TrustedCoinCosignerClient(object):
             kwargs['headers']['content-type'] = 'application/json'
         url = urljoin(self.base_url, relative_url)
         if self.debug:
-            print '%s %s %s' % (method, url, data)
+            print('%s %s %s' % (method, url, data))
         response = requests.request(method, url, **kwargs)
         if self.debug:
-            print response.text
-            print
+            print(response.text)
         if response.status_code != 200:
             message = str(response.text)
             if response.headers.get('content-type') == 'application/json':
@@ -192,6 +191,8 @@ server = TrustedCoinCosignerClient(user_agent="Electrum/" + version.ELECTRUM_VER
 
 class Wallet_2fa(Multisig_Wallet):
 
+    wallet_type = '2fa'
+
     def __init__(self, storage):
         self.m, self.n = 2, 3
         Deterministic_Wallet.__init__(self, storage)
@@ -236,6 +237,9 @@ class Wallet_2fa(Multisig_Wallet):
 
     def extra_fee(self, config):
         if self.can_sign_without_server():
+            return 0
+        if self.billing_info is None:
+            self.plugin.start_request_thread(self)
             return 0
         if self.billing_info.get('tx_remaining'):
             return 0
@@ -282,6 +286,8 @@ class Wallet_2fa(Multisig_Wallet):
             raw_tx = r.get('transaction')
             tx.update(raw_tx)
         self.print_error("twofactor: is complete", tx.is_complete())
+        # reset billing_info
+        self.billing_info = None
 
 
 # Utility functions
@@ -314,6 +320,7 @@ class TrustedCoinPlugin(BasePlugin):
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
         self.wallet_class.plugin = self
+        self.requesting = False
 
     @staticmethod
     def is_valid_seed(seed):
@@ -326,23 +333,37 @@ class TrustedCoinPlugin(BasePlugin):
         # Not available for GRS.
         return False
 
+    def can_user_disable(self):
+        return False
+
     @hook
-    def get_additional_fee(self, wallet, tx):
+    def get_tx_extra_fee(self, wallet, tx):
         if type(wallet) != Wallet_2fa:
             return
         address = wallet.billing_info['billing_address']
         for _type, addr, amount in tx.outputs():
             if _type == TYPE_ADDRESS and addr == address:
-                return amount
+                return address, amount
 
     def request_billing_info(self, wallet):
+        self.print_error("request billing info")
         billing_info = server.get(wallet.get_user_id()[1])
         billing_address = make_billing_address(wallet, billing_info['billing_index'])
         assert billing_address == billing_info['billing_address']
         wallet.billing_info = billing_info
         wallet.price_per_tx = dict(billing_info['price_per_tx'])
         wallet.price_per_tx.pop(1)
+        self.requesting = False
         return True
+
+    def start_request_thread(self, wallet):
+        from threading import Thread
+        if self.requesting is False:
+            self.requesting = True
+            t = Thread(target=self.request_billing_info, args=(wallet,))
+            t.setDaemon(True)
+            t.start()
+            return t
 
     def make_seed(self):
         return Mnemonic('english').make_seed(seed_type='2fa', num_bits=128)
@@ -370,17 +391,25 @@ class TrustedCoinPlugin(BasePlugin):
         f = lambda x: wizard.request_passphrase(seed, x)
         wizard.show_seed_dialog(run_next=f, seed_text=seed)
 
+    def get_xkeys(self, seed, passphrase, derivation):
+        from electrum.mnemonic import Mnemonic
+        from electrum.keystore import bip32_root, bip32_private_derivation
+        bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
+        xprv, xpub = bip32_root(bip32_seed, 'standard')
+        xprv, xpub = bip32_private_derivation(xprv, "m/", derivation)
+        return xprv, xpub
+
     def xkeys_from_seed(self, seed, passphrase):
         words = seed.split()
         n = len(words)
         # old version use long seed phrases
         if n >= 24:
             assert passphrase == ''
-            xprv1, xpub1 = keystore.xkeys_from_seed(' '.join(words[0:12]), '', "m/")
-            xprv2, xpub2 = keystore.xkeys_from_seed(' '.join(words[12:]), '', "m/")
+            xprv1, xpub1 = self.get_xkeys(' '.join(words[0:12]), '', "m/")
+            xprv2, xpub2 = self.get_xkeys(' '.join(words[12:]), '', "m/")
         elif n==12:
-            xprv1, xpub1 = keystore.xkeys_from_seed(seed, passphrase, "m/0'/")
-            xprv2, xpub2 = keystore.xkeys_from_seed(seed, passphrase, "m/1'/")
+            xprv1, xpub1 = self.get_xkeys(seed, passphrase, "m/0'/")
+            xprv2, xpub2 = self.get_xkeys(seed, passphrase, "m/1'/")
         else:
             raise BaseException('unrecognized seed length')
         return xprv1, xpub1, xprv2, xpub2
@@ -477,7 +506,8 @@ class TrustedCoinPlugin(BasePlugin):
             if e.status_code == 409:
                 r = None
             else:
-                raise e
+                wizard.show_message(str(e))
+                return
         if r is None:
             otp_secret = None
         else:
@@ -539,7 +569,7 @@ class TrustedCoinPlugin(BasePlugin):
             key = regenerate_key(pk)
             compressed = is_compressed(pk)
             sig = key.sign_message(message, compressed)
-            return base64.b64encode(sig)
+            return base64.b64encode(sig).decode()
 
         signatures = [f(x) for x in [xprv1, xprv2]]
         r = server.reset_auth(short_id, challenge, signatures)

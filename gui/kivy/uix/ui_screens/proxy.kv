@@ -1,0 +1,76 @@
+Popup:
+    id: nd
+    title: _('Proxy')
+    BoxLayout:
+        orientation: 'vertical'
+        padding: '10dp'
+        spacing: '10dp'
+        GridLayout:
+            cols: 2
+            Label:
+                text: _('Proxy mode')
+            Spinner:
+                id: mode
+                height: '48dp'
+                size_hint_y: None
+                text: app.proxy_config.get('mode', 'none')
+                values: ['none', 'socks4', 'socks5', 'http']
+            Label:
+                text: _('Host')
+            TextInput:
+                id: host
+                multiline: False
+                height: '48dp'
+                size_hint_y: None
+                text: app.proxy_config.get('host', '')
+                disabled: mode.text == 'none'
+            Label:
+                text: _('Port')
+            TextInput:
+                id: port
+                multiline: False
+                input_type: 'number'
+                height: '48dp'
+                size_hint_y: None
+                text: app.proxy_config.get('port', '')
+                disabled: mode.text == 'none'
+            Label:
+                text: _('Username')
+            TextInput:
+                id: user
+                multiline: False
+                height: '48dp'
+                size_hint_y: None
+                text: app.proxy_config.get('user', '')
+                disabled: mode.text == 'none'
+            Label:
+                text: _('Password')
+            TextInput:
+                id: password
+                multiline: False
+                password: True
+                height: '48dp'
+                size_hint_y: None
+                text: app.proxy_config.get('password', '')
+                disabled: mode.text == 'none'
+        Widget:
+            size_hint: 1, 0.1
+        BoxLayout:
+            Widget:
+                size_hint: 0.5, None
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('OK')
+                on_release:
+                    host, port, protocol, proxy, auto_connect = app.network.get_parameters()
+                    proxy = {}
+                    proxy['mode']=str(root.ids.mode.text).lower()
+                    proxy['host']=str(root.ids.host.text)
+                    proxy['port']=str(root.ids.port.text)
+                    proxy['user']=str(root.ids.user.text)
+                    proxy['password']=str(root.ids.password.text)
+                    if proxy['mode']=='none': proxy = None
+                    app.network.set_parameters(host, port, protocol, proxy, auto_connect)
+                    app.proxy_config = proxy if proxy else {}
+                    nd.dismiss()

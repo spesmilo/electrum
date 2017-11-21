@@ -1,7 +1,9 @@
+from binascii import hexlify, unhexlify
 import threading
 
-from PyQt4.Qt import (QDialog, QInputDialog, QLineEdit, QTextEdit, QVBoxLayout, QLabel, SIGNAL)
-import PyQt4.QtCore as QtCore
+from PyQt5.Qt import (QDialog, QInputDialog, QLineEdit, QTextEdit, QVBoxLayout, QLabel)
+import PyQt5.QtCore as QtCore
+from PyQt5.QtWidgets import *
 
 from electrum_grs.i18n import _
 from electrum_grs_gui.qt.util import *
@@ -13,7 +15,7 @@ from btchip.btchip import *
 
 DEBUG = False
 
-helpTxt = [_("Your Ledger Wallet wants tell you a one-time PIN code.<br><br>" \
+helpTxt = [_("Your Ledger Wallet wants to tell you a one-time PIN code.<br><br>" \
             "For best security you should unplug your device, open a text editor on another computer, " \
             "put your cursor into it, and plug your device into that computer. " \
             "It will output a summary of the transaction being signed and a one-time PIN.<br><br>" \
@@ -182,7 +184,7 @@ class LedgerAuthDialog(QDialog):
         
     def do_pairing(self):
         rng = os.urandom(16)
-        pairID = rng.encode('hex') + hashlib.sha256(rng).digest()[0].encode('hex')
+        pairID = (hexlify(rng) + hexlify(hashlib.sha256(rng).digest()[0:1])).decode('utf-8')
         self.pairqr.setData(pairID)
         self.modebox.setVisible(False)
         self.helpmsg.setVisible(False)
@@ -225,7 +227,7 @@ class LedgerAuthDialog(QDialog):
         try:
             mode = self.dongle.exchange( bytearray(apdu) )
             return mode
-        except BTChipException, e:
+        except BTChipException as e:
             debug_msg('Device getMode Failed')
         return 0x11
     
@@ -245,7 +247,7 @@ class LedgerWebSocket(QThread):
         QThread.__init__(self)
         self.stopping = False
         self.pairID = pairID
-        self.txreq = '{"type":"request","second_factor_data":"' + str(txdata['secureScreenData']).encode('hex')  + '"}' if txdata else None
+        self.txreq = '{"type":"request","second_factor_data":"' + hexlify(txdata['secureScreenData']).decode('utf-8') + '"}' if txdata else None
         self.dlg = dlg
         self.dongle = self.dlg.dongle
         self.data = None
@@ -269,25 +271,25 @@ class LedgerWebSocket(QThread):
         if data['type'] == 'identify':
             debug_msg('Identify')
             apdu = [0xe0, 0x12, 0x01, 0x00, 0x41] # init pairing
-            apdu.extend(data['public_key'].decode('hex'))
+            apdu.extend(unhexlify(data['public_key']))
             try:
                 challenge = self.dongle.exchange( bytearray(apdu) )
-                ws.send( '{"type":"challenge","data":"%s" }' % str(challenge).encode('hex') )
+                ws.send( '{"type":"challenge","data":"%s" }' % hexlify(challenge).decode('utf-8') )
                 self.data = data
-            except BTChipException, e:
+            except BTChipException as e:
                 debug_msg('Identify Failed')
                 
         if data['type'] == 'challenge':
             debug_msg('Challenge')
             apdu = [0xe0, 0x12, 0x02, 0x00, 0x10] # confirm pairing
-            apdu.extend(data['data'].decode('hex'))
+            apdu.extend(unhexlify(data['data']))
             try:
                 self.dongle.exchange( bytearray(apdu) )
                 debug_msg('Pairing Successful')
                 ws.send( '{"type":"pairing","is_successful":"true"}' )
                 self.data['pairid'] = self.pairID
                 self.pairing_done.emit(self.data)
-            except BTChipException, e:
+            except BTChipException as e:
                 debug_msg('Pairing Failed')
                 ws.send( '{"type":"pairing","is_successful":"false"}' ) 
                 self.pairing_done.emit(None)

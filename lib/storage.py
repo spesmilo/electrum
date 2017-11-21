@@ -22,7 +22,6 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
 import os
 import ast
 import threading
@@ -36,18 +35,18 @@ import pbkdf2, hmac, hashlib
 import base64
 import zlib
 
-from i18n import _
-from util import NotEnoughFunds, PrintError, profiler
-from plugins import run_hook, plugin_loaders
-from keystore import bip44_derivation
-import bitcoin
+from .i18n import _
+from .util import NotEnoughFunds, PrintError, profiler
+from .plugins import run_hook, plugin_loaders
+from .keystore import bip44_derivation
+from . import bitcoin
 
 
 # seed_version is now used for the version of the wallet file
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 13     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 15     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -63,8 +62,9 @@ def multisig_type(wallet_type):
 
 class WalletStorage(PrintError):
 
-    def __init__(self, path):
+    def __init__(self, path, manual_upgrades=False):
         self.print_error("wallet path", path)
+        self.manual_upgrades = manual_upgrades
         self.lock = threading.RLock()
         self.data = {}
         self.path = path
@@ -75,6 +75,9 @@ class WalletStorage(PrintError):
                 self.raw = f.read()
             if not self.is_encrypted():
                 self.load_data(self.raw)
+        else:
+            # avoid new wallets getting 'upgraded'
+            self.put('seed_version', FINAL_SEED_VERSION)
 
     def load_data(self, s):
         try:
@@ -86,12 +89,6 @@ class WalletStorage(PrintError):
             except Exception as e:
                 raise IOError("Cannot read wallet file '%s'" % self.path)
             self.data = {}
-            # In old versions of Electrum labels were latin1 encoded, this fixes breakage.
-            for i, label in labels.items():
-                try:
-                    unicode(label)
-                except UnicodeDecodeError:
-                    d['labels'][i] = unicode(label.decode('latin1'))
             for key, value in d.items():
                 try:
                     json.dumps(key)
@@ -106,9 +103,15 @@ class WalletStorage(PrintError):
         l = plugin_loaders.get(t)
         if l: l()
 
+        if not self.manual_upgrades:
+            if self.requires_split():
+                raise BaseException("This wallet has multiple accounts and must be split")
+            if self.requires_upgrade():
+                self.upgrade()
+
     def is_encrypted(self):
         try:
-            return base64.b64decode(self.raw).startswith('BIE1')
+            return base64.b64decode(self.raw)[0:4] == b'BIE1'
         except:
             return False
 
@@ -124,6 +127,7 @@ class WalletStorage(PrintError):
         ec_key = self.get_key(password)
         s = zlib.decompress(ec_key.decrypt_message(self.raw)) if self.raw else None
         self.pubkey = ec_key.get_public_key()
+        s = s.decode('utf8')
         self.load_data(s)
 
     def set_password(self, password, encrypt):
@@ -161,8 +165,6 @@ class WalletStorage(PrintError):
 
     @profiler
     def write(self):
-        # this ensures that previous versions of electrum won't open the wallet
-        self.put('seed_version', FINAL_SEED_VERSION)
         with self.lock:
             self._write()
 
@@ -174,7 +176,10 @@ class WalletStorage(PrintError):
             return
         s = json.dumps(self.data, indent=4, sort_keys=True)
         if self.pubkey:
-            s = bitcoin.encrypt_message(zlib.compress(s), self.pubkey)
+            s = bytes(s, 'utf8')
+            c = zlib.compress(s)
+            s = bitcoin.encrypt_message(c, self.pubkey)
+            s = s.decode('utf8')
 
         temp_path = "%s.tmp.%s" % (self.path, os.getpid())
         with open(temp_path, "w") as f:
@@ -244,12 +249,19 @@ class WalletStorage(PrintError):
         return result
 
     def requires_upgrade(self):
-        return self.file_exists() and self.get_seed_version() != FINAL_SEED_VERSION
+        return self.file_exists() and self.get_seed_version() < FINAL_SEED_VERSION
 
     def upgrade(self):
+        self.print_error('upgrading wallet format')
+
         self.convert_imported()
         self.convert_wallet_type()
         self.convert_account()
+        self.convert_version_13_b()
+        self.convert_version_14()
+        self.convert_version_15()
+
+        self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
         self.write()
 
     def convert_wallet_type(self):
@@ -338,6 +350,65 @@ class WalletStorage(PrintError):
         self.put('keypairs', None)
         self.put('key_type', None)
 
+    def convert_version_13_b(self):
+        # version 13 is ambiguous, and has an earlier and a later structure
+        if not self._is_upgrade_method_needed(0, 13):
+            return
+
+        if self.get('wallet_type') == 'standard':
+            if self.get('keystore').get('type') == 'imported':
+                pubkeys = self.get('keystore').get('keypairs').keys()
+                if self.get('pubkeys'):
+                    pubkeys2 = set(self.get('pubkeys').get('receiving'))
+                    assert len(pubkeys) == len(pubkeys2)
+                    for pubkey in pubkeys:
+                        assert pubkey in pubkeys2
+                d = {'change': []}
+                receiving_addresses = []
+                for pubkey in pubkeys:
+                    addr = bitcoin.pubkey_to_address('p2pkh', pubkey)
+                    receiving_addresses.append(addr)
+                d['receiving'] = receiving_addresses
+                self.put('addresses', d)
+                self.put('pubkeys', None)
+
+        self.put('seed_version', 13)
+
+    def convert_version_14(self):
+        # convert imported wallets for 3.0
+        if not self._is_upgrade_method_needed(13, 13):
+            return
+
+        if self.get('wallet_type') =='imported':
+            addresses = self.get('addresses')
+            if type(addresses) is list:
+                addresses = dict([(x, None) for x in addresses])
+                self.put('addresses', addresses)
+        elif self.get('wallet_type') == 'standard':
+            if self.get('keystore').get('type')=='imported':
+                addresses = set(self.get('addresses').get('receiving'))
+                pubkeys = self.get('keystore').get('keypairs').keys()
+                assert len(addresses) == len(pubkeys)
+                d = {}
+                for pubkey in pubkeys:
+                    addr = bitcoin.pubkey_to_address('p2pkh', pubkey)
+                    assert addr in addresses
+                    d[addr] = {
+                        'pubkey': pubkey,
+                        'redeem_script': None,
+                        'type': 'p2pkh'
+                    }
+                self.put('addresses', d)
+                self.put('pubkeys', None)
+                self.put('wallet_type', 'imported')
+        self.put('seed_version', 14)
+
+    def convert_version_15(self):
+        if not self._is_upgrade_method_needed(14, 14):
+            return
+        assert self.get('seed_type') != 'segwit'  # unsupported derivation
+        self.put('seed_version', 15)
+
     def convert_imported(self):
         # '/x' is the internal ID for imported accounts
         d = self.get('accounts', {}).get('/x', {}).get('imported',{})
@@ -366,7 +437,17 @@ class WalletStorage(PrintError):
 
     def convert_account(self):
         self.put('accounts', None)
-        self.put('pubkeys', None)
+
+    def _is_upgrade_method_needed(self, min_version, max_version):
+        cur_version = self.get_seed_version()
+        if cur_version > max_version:
+            return False
+        elif cur_version < min_version:
+            raise BaseException(
+                ('storage upgrade: unexpected version %d (should be %d-%d)'
+                 % (cur_version, min_version, max_version)))
+        else:
+            return True
 
     def get_action(self):
         action = run_hook('get_action', self)
@@ -379,21 +460,28 @@ class WalletStorage(PrintError):
         seed_version = self.get('seed_version')
         if not seed_version:
             seed_version = OLD_SEED_VERSION if len(self.get('master_public_key','')) == 128 else NEW_SEED_VERSION
+        if seed_version > FINAL_SEED_VERSION:
+            raise BaseException('This version of Electrum is too old to open this wallet')
+        if seed_version==14 and self.get('seed_type') == 'segwit':
+            self.raise_unsupported_version(seed_version)
         if seed_version >=12:
             return seed_version
         if seed_version not in [OLD_SEED_VERSION, NEW_SEED_VERSION]:
-            msg = "Your wallet has an unsupported seed version."
-            msg += '\n\nWallet file: %s' % os.path.abspath(self.path)
-            if seed_version in [5, 7, 8, 9, 10]:
-                msg += "\n\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
-            if seed_version == 6:
-                # version 1.9.8 created v6 wallets when an incorrect seed was entered in the restore dialog
-                msg += '\n\nThis file was created because of a bug in version 1.9.8.'
-                if self.get('master_public_keys') is None and self.get('master_private_keys') is None and self.get('imported_keys') is None:
-                    # pbkdf2 was not included with the binaries, and wallet creation aborted.
-                    msg += "\nIt does not contain any keys, and can safely be removed."
-                else:
-                    # creation was complete if electrum was run from source
-                    msg += "\nPlease open this file with Electrum 1.9.8, and move your coins to a new wallet."
-            raise BaseException(msg)
+            self.raise_unsupported_version(seed_version)
         return seed_version
+
+    def raise_unsupported_version(self, seed_version):
+        msg = "Your wallet has an unsupported seed version."
+        msg += '\n\nWallet file: %s' % os.path.abspath(self.path)
+        if seed_version in [5, 7, 8, 9, 10, 14]:
+            msg += "\n\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
+        if seed_version == 6:
+            # version 1.9.8 created v6 wallets when an incorrect seed was entered in the restore dialog
+            msg += '\n\nThis file was created because of a bug in version 1.9.8.'
+            if self.get('master_public_keys') is None and self.get('master_private_keys') is None and self.get('imported_keys') is None:
+                # pbkdf2 was not included with the binaries, and wallet creation aborted.
+                msg += "\nIt does not contain any keys, and can safely be removed."
+            else:
+                # creation was complete if electrum was run from source
+                msg += "\nPlease open this file with Electrum 1.9.8, and move your coins to a new wallet."
+        raise BaseException(msg)

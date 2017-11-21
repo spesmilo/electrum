@@ -1,16 +1,16 @@
 from functools import partial
 import threading
 
-from PyQt4.Qt import Qt
-from PyQt4.Qt import QGridLayout, QInputDialog, QPushButton
-from PyQt4.Qt import QVBoxLayout, QLabel, SIGNAL
+from PyQt5.Qt import Qt
+from PyQt5.Qt import QGridLayout, QInputDialog, QPushButton
+from PyQt5.Qt import QVBoxLayout, QLabel
 from electrum_grs_gui.qt.util import *
 from .plugin import TIM_NEW, TIM_RECOVER, TIM_MNEMONIC
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 
 from electrum_grs.i18n import _
 from electrum_grs.plugins import hook, DeviceMgr
-from electrum_grs.util import PrintError, UserCancelled
+from electrum_grs.util import PrintError, UserCancelled, bh2u
 from electrum_grs.wallet import Wallet, Standard_Wallet
 
 PASSPHRASE_HELP_SHORT =_(
@@ -213,7 +213,7 @@ class QtPlugin(QtPluginBase):
         vbox.addLayout(hl)
 
         def clean_text(widget):
-            text = unicode(widget.toPlainText()).strip()
+            text = widget.toPlainText().strip()
             return ' '.join(text.split())
 
         if method in [TIM_NEW, TIM_RECOVER]:
@@ -281,7 +281,7 @@ class QtPlugin(QtPluginBase):
             item = ' '.join(str(clean_text(text)).split())
             pin = str(pin.text())
 
-        return (item, unicode(name.text()), pin, cb_phrase.isChecked())
+        return (item, name.text(), pin, cb_phrase.isChecked())
 
 
 
@@ -320,7 +320,7 @@ class SettingsDialog(WindowModalDialog):
         def update(features):
             self.features = features
             set_label_enabled()
-            bl_hash = features.bootloader_hash.encode('hex')
+            bl_hash = bh2u(features.bootloader_hash)
             bl_hash = "\n".join([bl_hash[:32], bl_hash[32:]])
             noyes = [_("No"), _("Yes")]
             endis = [_("Enable Passphrases"), _("Disable Passphrases")]
@@ -352,7 +352,7 @@ class SettingsDialog(WindowModalDialog):
             label_apply.setEnabled(label_edit.text() != self.features.label)
 
         def rename():
-            invoke_client('change_label', unicode(label_edit.text()))
+            invoke_client('change_label', label_edit.text())
 
         def toggle_passphrase():
             title = _("Confirm Toggle Passphrase Protection")
@@ -377,7 +377,7 @@ class SettingsDialog(WindowModalDialog):
         def change_homescreen():
             from PIL import Image  # FIXME
             dialog = QFileDialog(self, _("Choose Homescreen"))
-            filename = dialog.getOpenFileName()
+            filename, __ = dialog.getOpenFileName()
             if filename:
                 im = Image.open(str(filename))
                 if im.size != (hs_cols, hs_rows):

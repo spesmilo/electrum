@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2011 Thomas Voegtlin
 #
@@ -22,18 +20,29 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
+import binascii
 import os, sys, re, json
-import platform
-import shutil
 from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
 import traceback
-import urlparse
 import urllib
 import threading
-from i18n import _
+
+from .i18n import _
+
+
+import urllib.request, urllib.parse, urllib.error
+import queue
+
+def inv_dict(d):
+    return {v: k for k, v in d.items()}
+
 
 base_units = {'BTC':8, 'mBTC':5, 'uBTC':2}
 fee_levels = [_('Within 25 blocks'), _('Within 10 blocks'), _('Within 5 blocks'), _('Within 2 blocks'), _('In the next block')]
@@ -55,7 +64,7 @@ class UserCancelled(Exception):
 
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
-        from transaction import Transaction
+        from .transaction import Transaction
         if isinstance(obj, Transaction):
             return obj.as_dict()
         return super(MyEncoder, self).default(obj)
@@ -128,7 +137,7 @@ class DaemonThread(threading.Thread, PrintError):
             for job in self.jobs:
                 try:
                     job.run()
-                except:
+                except Exception as e:
                     traceback.print_exc(file=sys.stderr)
 
     def remove_jobs(self, jobs):
@@ -157,7 +166,8 @@ class DaemonThread(threading.Thread, PrintError):
         self.print_error("stopped")
 
 
-is_verbose = False
+# TODO: disable
+is_verbose = True
 def set_verbosity(b):
     global is_verbose
     is_verbose = b
@@ -194,7 +204,7 @@ def json_decode(x):
 # decorator that prints execution time
 def profiler(func):
     def do_profile(func, args, kw_args):
-        n = func.func_name
+        n = func.__name__
         t0 = time.time()
         o = func(*args, **kw_args)
         t = time.time() - t0
@@ -213,12 +223,11 @@ def android_data_dir():
     PythonActivity = jnius.autoclass('org.kivy.android.PythonActivity')
     return PythonActivity.mActivity.getFilesDir().getPath() + '/data'
 
-def android_headers_path():
-    path = android_ext_dir() + '/org.electrum.electrum/blockchain_headers'
-    d = os.path.dirname(path)
+def android_headers_dir():
+    d = android_ext_dir() + '/org.electrum.electrum'
     if not os.path.exists(d):
         os.mkdir(d)
-    return path
+    return d
 
 def android_check_data_dir():
     """ if needed, move old directory to sandbox """
@@ -227,7 +236,7 @@ def android_check_data_dir():
     old_electrum_dir = ext_dir + '/electrum'
     if not os.path.exists(data_dir) and os.path.exists(old_electrum_dir):
         import shutil
-        new_headers_path = android_headers_path()
+        new_headers_path = android_headers_dir() + '/blockchain_headers'
         old_headers_path = old_electrum_dir + '/blockchain_headers'
         if not os.path.exists(new_headers_path) and os.path.exists(old_headers_path):
             print_error("Moving headers file to", new_headers_path)
@@ -236,11 +245,91 @@ def android_check_data_dir():
         shutil.move(old_electrum_dir, data_dir)
     return data_dir
 
-def get_headers_path(config):
-    if 'ANDROID_DATA' in os.environ:
-        return android_headers_path()
+def get_headers_dir(config):
+    return android_headers_dir() if 'ANDROID_DATA' in os.environ else config.path
+
+
+def assert_bytes(*args):
+    """
+    porting helper, assert args type
+    """
+    try:
+        for x in args:
+            assert isinstance(x, (bytes, bytearray))
+    except:
+        print('assert bytes failed', list(map(type, args)))
+        raise
+
+
+def assert_str(*args):
+    """
+    porting helper, assert args type
+    """
+    for x in args:
+        assert isinstance(x, str)
+
+
+
+def to_string(x, enc):
+    if isinstance(x, (bytes, bytearray)):
+        return x.decode(enc)
+    if isinstance(x, str):
+        return x
     else:
-        return os.path.join(config.path, 'blockchain_headers')
+        raise TypeError("Not a string or bytes like object")
+
+def to_bytes(something, encoding='utf8'):
+    """
+    cast string to bytes() like object, but for python2 support it's bytearray copy
+    """
+    if isinstance(something, bytes):
+        return something
+    if isinstance(something, str):
+        return something.encode(encoding)
+    elif isinstance(something, bytearray):
+        return bytes(something)
+    else:
+        raise TypeError("Not a string or bytes like object")
+
+bfh_builder = lambda x: bytes.fromhex(x)
+
+
+def hfu(x):
+    """
+    py2-py3 aware wrapper for str.encode('hex')
+    :param x: str
+    :return: str
+    """
+    assert_bytes(x)
+    return binascii.hexlify(x)
+
+
+def bfh(x):
+    """
+    py2-py3 aware wrapper to "bytes.fromhex()" func
+    :param x: str
+    :rtype: bytes
+    """
+    if isinstance(x, str):
+        return bfh_builder(x)
+    # TODO: check for iterator interface
+    elif isinstance(x, (list, tuple, map)):
+        return [bfh(sub) for sub in x]
+    else:
+        raise TypeError('Unexpected type: ' + str(type(x)))
+
+
+def bh2u(x):
+    """
+    unicode with hex representation of bytes()
+    e.g. x = bytes([1, 2, 10])
+    bh2u(x) -> '01020A'
+    :param x: bytes
+    :rtype: str
+    """
+    assert_bytes(x)
+    return binascii.hexlify(x).decode('ascii')
+
 
 def user_dir():
     if 'ANDROID_DATA' in os.environ:
@@ -255,11 +344,13 @@ def user_dir():
         #raise Exception("No home directory found in environment variables.")
         return
 
+
 def format_satoshis_plain(x, decimal_point = 8):
-    '''Display a satoshi amount scaled.  Always uses a '.' as a decimal
-    point and has no thousands separator'''
+    """Display a satoshi amount scaled.  Always uses a '.' as a decimal
+    point and has no thousands separator"""
     scale_factor = pow(10, decimal_point)
     return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
+
 
 def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespaces=False):
     from locale import localeconv
@@ -281,7 +372,7 @@ def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespa
     if whitespaces:
         result += " " * (decimal_point - len(fract_part))
         result = " " * (15 - len(result)) + result
-    return result.decode('utf8')
+    return result
 
 def timestamp_to_datetime(timestamp):
     try:
@@ -347,25 +438,31 @@ def time_difference(distance_in_time, include_seconds):
     else:
         return "over %d years" % (round(distance_in_minutes / 525600))
 
-block_explorer_info = {
+mainnet_block_explorers = {
     'cryptoID.info': ('https://chainz.cryptoid.info/grs/',
                         {'tx': 'tx.dws?', 'addr': 'address.dws?'}),
     'groestlsight': ('http://groestlsight.groestlcoin.org/',
                         {'tx': 'tx/', 'addr': 'address/'}),
+    'system default': ('blockchain:',
+                        {'tx': 'tx', 'addr': 'address'}),
 }
 
-def set_testnet():
-    global block_explorer_info
-    block_explorer_info = {
-        'cryptoID.info': ('https://chainz.cryptoid.info/grs-test/',
-                            {'tx': 'tx.dws?', 'addr': 'address.dws?'}),
-    }
+testnet_block_explorers = {
+    'cryptoID.info': ('https://chainz.cryptoid.info/grs-test/',
+                        {'tx': 'tx.dws?', 'addr': 'address.dws?'}),
+    'system default': ('blockchain:',
+                        {'tx': 'tx', 'addr': 'address'}),
+}
+
+def block_explorer_info():
+    from . import bitcoin
+    return testnet_block_explorers if bitcoin.TESTNET else mainnet_block_explorers
 
 def block_explorer(config):
     return config.get('block_explorer', 'cryptoID.info')
 
 def block_explorer_tuple(config):
-    return block_explorer_info.get(block_explorer(config))
+    return block_explorer_info().get(block_explorer(config))
 
 def block_explorer_URL(config, kind, item):
     be_tuple = block_explorer_tuple(config)
@@ -382,15 +479,15 @@ def block_explorer_URL(config, kind, item):
 #urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
 def parse_URI(uri, on_pr=None):
-    import bitcoin
-    from bitcoin import COIN
+    from . import bitcoin
+    from .bitcoin import COIN
 
     if ':' not in uri:
         if not bitcoin.is_address(uri):
-            raise BaseException("Not a bitcoin address")
+            raise BaseException("Not a groestlcoin address")
         return {'address': uri}
 
-    u = urlparse.urlparse(uri)
+    u = urllib.parse.urlparse(uri)
     if u.scheme != 'groestlcoin':
         raise BaseException("Not a groestlcoin URI")
     address = u.path
@@ -398,9 +495,9 @@ def parse_URI(uri, on_pr=None):
     # python for android fails to parse query
     if address.find('?') > 0:
         address, query = u.path.split('?')
-        pq = urlparse.parse_qs(query)
+        pq = urllib.parse.parse_qs(query)
     else:
-        pq = urlparse.parse_qs(u.query)
+        pq = urllib.parse.parse_qs(u.query)
 
     for k, v in pq.items():
         if len(v)!=1:
@@ -421,27 +518,28 @@ def parse_URI(uri, on_pr=None):
             amount = Decimal(am) * COIN
         out['amount'] = int(amount)
     if 'message' in out:
-        out['message'] = out['message'].decode('utf8')
+        out['message'] = out['message']
         out['memo'] = out['message']
     if 'time' in out:
         out['time'] = int(out['time'])
     if 'exp' in out:
         out['exp'] = int(out['exp'])
     if 'sig' in out:
-        out['sig'] = bitcoin.base_decode(out['sig'], None, base=58).encode('hex')
+        out['sig'] = bh2u(bitcoin.base_decode(out['sig'], None, base=58))
 
     r = out.get('r')
     sig = out.get('sig')
     name = out.get('name')
-    if r or (name and sig):
+    if on_pr and (r or (name and sig)):
         def get_payment_request_thread():
-            import paymentrequest as pr
+            from . import paymentrequest as pr
             if name and sig:
                 s = pr.serialize_request(out).SerializeToString()
                 request = pr.PaymentRequest(s)
             else:
                 request = pr.get_payment_request(r)
-            on_pr(request)
+            if on_pr:
+                on_pr(request)
         t = threading.Thread(target=get_payment_request_thread)
         t.setDaemon(True)
         t.start()
@@ -450,43 +548,40 @@ def parse_URI(uri, on_pr=None):
 
 
 def create_URI(addr, amount, message):
-    import bitcoin
+    from . import bitcoin
     if not bitcoin.is_address(addr):
         return ""
     query = []
     if amount:
         query.append('amount=%s'%format_satoshis_plain(amount))
     if message:
-        if type(message) == unicode:
-            message = message.encode('utf8')
-        query.append('message=%s'%urllib.quote(message))
-    p = urlparse.ParseResult(scheme='groestlcoin', netloc='', path=addr, params='', query='&'.join(query), fragment='')
-    return urlparse.urlunparse(p)
+    p = urllib.parse.ParseResult(scheme='groestlcoin', netloc='', path=addr, params='', query='&'.join(query), fragment='')
+    return urllib.parse.urlunparse(p)
 
 
 # Python bug (http://bugs.python.org/issue1927) causes raw_input
 # to be redirected improperly between stdin/stderr on Unix systems
+#TODO: py3
 def raw_input(prompt=None):
     if prompt:
         sys.stdout.write(prompt)
     return builtin_raw_input()
-import __builtin__
-builtin_raw_input = __builtin__.raw_input
-__builtin__.raw_input = raw_input
 
+import builtins
+builtin_raw_input = builtins.input
+builtins.input = raw_input
 
 
 def parse_json(message):
-    n = message.find('\n')
+    # TODO: check \r\n pattern
+    n = message.find(b'\n')
     if n==-1:
         return None, message
     try:
-        j = json.loads( message[0:n] )
+        j = json.loads(message[0:n].decode('utf8'))
     except:
         j = None
     return j, message[n+1:]
-
-
 
 
 class timeout(Exception):
@@ -498,11 +593,11 @@ import json
 import ssl
 import time
 
-class SocketPipe:
 
+class SocketPipe:
     def __init__(self, socket):
         self.socket = socket
-        self.message = ''
+        self.message = b''
         self.set_timeout(0.1)
         self.recv_time = time.time()
 
@@ -523,7 +618,7 @@ class SocketPipe:
                 raise timeout
             except ssl.SSLError:
                 raise timeout
-            except socket.error, err:
+            except socket.error as err:
                 if err.errno == 60:
                     raise timeout
                 elif err.errno in [11, 35, 10035]:
@@ -532,10 +627,10 @@ class SocketPipe:
                     raise timeout
                 else:
                     print_error("pipe: socket error", err)
-                    data = ''
+                    data = b''
             except:
                 traceback.print_exc(file=sys.stderr)
-                data = ''
+                data = b''
 
             if not data:  # Connection closed remotely
                 return None
@@ -544,10 +639,11 @@ class SocketPipe:
 
     def send(self, request):
         out = json.dumps(request) + '\n'
+        out = out.encode('utf8')
         self._send(out)
 
     def send_all(self, requests):
-        out = ''.join(map(lambda x: json.dumps(x) + '\n', requests))
+        out = b''.join(map(lambda x: (json.dumps(x) + '\n').encode('utf8'), requests))
         self._send(out)
 
     def _send(self, out):
@@ -559,34 +655,23 @@ class SocketPipe:
                 print_error("SSLError:", e)
                 time.sleep(0.1)
                 continue
-            except socket.error as e:
-                if e[0] in (errno.EWOULDBLOCK,errno.EAGAIN):
-                    print_error("EAGAIN: retrying")
-                    time.sleep(0.1)
-                    continue
-                elif e[0] in ['timed out', 'The write operation timed out']:
-                    print_error("socket timeout, retry")
-                    time.sleep(0.1)
-                    continue
-                else:
-                    traceback.print_exc(file=sys.stdout)
-                    raise e
+            except OSError as e:
+                print_error("OSError", e)
+                time.sleep(0.1)
+                continue
 
-
-
-import Queue
 
 class QueuePipe:
 
     def __init__(self, send_queue=None, get_queue=None):
-        self.send_queue = send_queue if send_queue else Queue.Queue()
-        self.get_queue = get_queue if get_queue else Queue.Queue()
+        self.send_queue = send_queue if send_queue else queue.Queue()
+        self.get_queue = get_queue if get_queue else queue.Queue()
         self.set_timeout(0.1)
 
     def get(self):
         try:
             return self.get_queue.get(timeout=self.timeout)
-        except Queue.Empty:
+        except queue.Empty:
             raise timeout
 
     def get_all(self):
@@ -595,7 +680,7 @@ class QueuePipe:
             try:
                 r = self.get_queue.get_nowait()
                 responses.append(r)
-            except Queue.Empty:
+            except queue.Empty:
                 break
         return responses
 
@@ -610,9 +695,8 @@ class QueuePipe:
             self.send(request)
 
 
-
 def check_www_dir(rdir):
-    import urllib, urlparse, shutil, os
+    import urllib, shutil, os
     if not os.path.exists(rdir):
         os.mkdir(rdir)
     index = os.path.join(rdir, 'index.html')
@@ -627,9 +711,9 @@ def check_www_dir(rdir):
         "https://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css"
     ]
     for URL in files:
-        path = urlparse.urlsplit(URL).path
+        path = urllib.parse.urlsplit(URL).path
         filename = os.path.basename(path)
         path = os.path.join(rdir, filename)
         if not os.path.exists(path):
             print_error("downloading ", URL)
-            urllib.urlretrieve(URL, path)
+            urllib.request.urlretrieve(URL, path)

@@ -28,8 +28,8 @@ from threading import Thread
 import re
 from decimal import Decimal
 
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
 
 from electrum_grs_gui.qt.util import *
 from electrum_grs_gui.qt.qrcodewidget import QRCodeWidget
@@ -37,10 +37,17 @@ from electrum_grs_gui.qt.amountedit import AmountEdit
 from electrum_grs_gui.qt.main_window import StatusBarButton
 from electrum_grs.i18n import _
 from electrum_grs.plugins import hook
-from trustedcoin import TrustedCoinPlugin, server
+from .trustedcoin import TrustedCoinPlugin, server
+
+
+class TOS(QTextEdit):
+    tos_signal = pyqtSignal()
 
 
 class Plugin(TrustedCoinPlugin):
+
+    def __init__(self, parent, config, name):
+        super().__init__(parent, config, name)
 
     @hook
     def on_new_window(self, window):
@@ -49,7 +56,7 @@ class Plugin(TrustedCoinPlugin):
             return
         if wallet.can_sign_without_server():
             msg = ' '.join([
-                _('This wallet is was restored from seed, and it contains two master private keys.'),
+                _('This wallet was restored from seed, and it contains two master private keys.'),
                 _('Therefore, two-factor authentication is disabled.')
             ])
             action = lambda: window.show_message(msg)
@@ -58,9 +65,7 @@ class Plugin(TrustedCoinPlugin):
         button = StatusBarButton(QIcon(":icons/trustedcoin-status.png"),
                                  _("TrustedCoin"), action)
         window.statusBar().addPermanentWidget(button)
-        t = Thread(target=self.request_billing_info, args=(wallet,))
-        t.setDaemon(True)
-        t.start()
+        self.start_request_thread(window.wallet)
 
     def auth_dialog(self, window):
         d = WindowModalDialog(window, _("Authorization"))
@@ -102,13 +107,10 @@ class Plugin(TrustedCoinPlugin):
         wallet = window.wallet
         if not isinstance(wallet, self.wallet_class):
             return
-        if not wallet.can_sign_without_server():
-            if wallet.billing_info is None:
-                # request billing info before forming the transaction
-                waiting_dialog(self, window).wait()
-                if wallet.billing_info is None:
-                    window.show_message('Could not contact server')
-                    return True
+        if wallet.can_sign_without_server():
+            return
+        if wallet.billing_info is None:
+            return True
         return False
 
 
@@ -186,7 +188,7 @@ class Plugin(TrustedCoinPlugin):
         vbox = QVBoxLayout()
         vbox.addWidget(QLabel(_("Terms of Service")))
 
-        tos_e = QTextEdit()
+        tos_e = TOS()
         tos_e.setReadOnly(True)
         vbox.addWidget(tos_e)
 
@@ -201,7 +203,7 @@ class Plugin(TrustedCoinPlugin):
         def request_TOS():
             tos = server.get_terms_of_service()
             self.TOS = tos
-            window.emit(SIGNAL('twofactor:TOS'))
+            tos_e.tos_signal.emit()
 
         def on_result():
             tos_e.setText(self.TOS)
@@ -209,7 +211,7 @@ class Plugin(TrustedCoinPlugin):
         def set_enabled():
             next_button.setEnabled(re.match(regexp,email_e.text()) is not None)
 
-        window.connect(window, SIGNAL('twofactor:TOS'), on_result)
+        tos_e.tos_signal.connect(on_result)
         t = Thread(target=request_TOS)
         t.setDaemon(True)
         t.start()

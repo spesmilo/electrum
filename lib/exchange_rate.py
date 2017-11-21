@@ -1,3 +1,8 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
 from datetime import datetime
 import inspect
 import requests
@@ -8,11 +13,10 @@ import traceback
 import csv
 from decimal import Decimal
 
-import bitcoin
-from bitcoin import COIN
-from i18n import _
-from util import PrintError, ThreadJob
-from util import format_satoshis
+from .bitcoin import COIN
+from .i18n import _
+from .util import PrintError, ThreadJob
+from .util import format_satoshis
 
 
 # See https://en.wikipedia.org/wiki/ISO_4217
@@ -23,6 +27,7 @@ CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
                   'RWF': 0, 'TND': 3, 'UGX': 0, 'UYI': 0, 'VND': 0,
                   'VUV': 0, 'XAF': 0, 'XAU': 4, 'XOF': 0, 'XPF': 0,
                   'BTC': 8}
+
 
 class ExchangeBase(PrintError):
 
@@ -41,7 +46,7 @@ class ExchangeBase(PrintError):
     def get_csv(self, site, get_string):
         url = ''.join(['https://', site, get_string])
         response = requests.request('GET', url, headers={'User-Agent' : 'Electrum'})
-        reader = csv.DictReader(response.content.split('\n'))
+        reader = csv.DictReader(response.content.decode().split('\n'))
         return list(reader)
 
     def name(self):
@@ -86,10 +91,11 @@ class ExchangeBase(PrintError):
 
     def get_currencies(self):
         rates = self.get_rates('')
-        return [str(a) for (a, b) in rates.iteritems() if b is not None]
+        return sorted([str(a) for (a, b) in rates.items() if b is not None and len(a)==3])
 
 
 class BlockchainInfo(ExchangeBase):
+
     def get_rates(self, ccy):
         json = self.get_json('blockchain.info', '/ticker')
         return dict([(r, Decimal(json[r]['15m'])) for r in json])
@@ -126,7 +132,7 @@ class GRSTicker(ExchangeBase):
 
 def dictinvert(d):
     inv = {}
-    for k, vlist in d.iteritems():
+    for k, vlist in d.items():
         for v in vlist:
             keys = inv.setdefault(v, [])
             keys.append(k)
@@ -169,7 +175,6 @@ def get_exchanges_by_ccy(history=True):
         exchange = klass(None, None)
         d[name] = exchange.history_ccys()
     return dictinvert(d)
-
 
 
 class FxThread(ThreadJob):
@@ -218,6 +223,12 @@ class FxThread(ThreadJob):
     def set_history_config(self, b):
         self.config.set_key('history_rates', bool(b))
 
+    def get_fiat_address_config(self):
+        return bool(self.config.get('fiat_address'))
+
+    def set_fiat_address_config(self, b):
+        self.config.set_key('fiat_address', bool(b))
+
     def get_currency(self):
         '''Use when dynamic fetching is needed'''
         return self.config.get("currency", "BTC")
@@ -260,10 +271,10 @@ class FxThread(ThreadJob):
         rate = self.exchange_rate()
         return '' if rate is None else "%s %s" % (self.value_str(btc_balance, rate), self.ccy)
 
-    def get_fiat_status_text(self, btc_balance):
+    def get_fiat_status_text(self, btc_balance, base_unit, decimal_point):
         rate = self.exchange_rate()
-        return _("  (No FX rate available)") if rate is None else " 1 GRS~%s %s" % (self.value_str(COIN, rate), self.ccy)
-
+        return _("  (No FX rate available)") if rate is None else " 1 %s~%s %s" % (base_unit,
+            self.value_str(COIN / (10**(8 - decimal_point)), rate), self.ccy)
 
     def value_str(self, satoshis, rate):
         if satoshis is None:  # Can happen with incomplete history

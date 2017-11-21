@@ -79,7 +79,7 @@ Builder.load_string('''
                     id: button_fiat
                     size_hint: 1, None
                     height: '48dp'
-                    text: (app.base_unit if kb.is_fiat else app.fiat_unit) if app.fiat_unit else ''
+                    text: (app.base_unit if not kb.is_fiat else app.fiat_unit) if app.fiat_unit else ''
                     on_release:
                         if app.fiat_unit: popup.toggle_fiat(kb)
                 Button:

@@ -58,7 +58,6 @@ class FeeDialog(Factory.Popup):
         Factory.Popup.__init__(self)
         self.app = app
         self.config = config
-        self.fee_step = self.config.max_fee_rate() / 10
         self.fee_rate = self.config.fee_per_kb()
         self.callback = callback
         self.dynfees = self.config.get('dynamic_fees', True)
@@ -77,9 +76,9 @@ class FeeDialog(Factory.Popup):
             slider.step = 1
             slider.value = self.config.get('fee_level', 2)
         else:
-            slider.range = (1, 10)
+            slider.range = (0, 9)
             slider.step = 1
-            slider.value = min(self.fee_rate / self.fee_step, 10)
+            slider.value = self.config.static_fee_index(self.fee_rate)
 
     def get_fee_text(self, value):
         if self.ids.dynfees.active:
@@ -88,7 +87,7 @@ class FeeDialog(Factory.Popup):
                 dynfee = self.config.dynfee(value)
                 tooltip += '\n' + (self.app.format_amount_and_units(dynfee)) + '/kB'
         else:
-            fee_rate = value * self.fee_step
+            fee_rate = self.config.static_fee(value)
             tooltip = self.app.format_amount_and_units(fee_rate) + '/kB'
             if self.config.has_fee_estimates():
                 i = self.config.reverse_dynfee(fee_rate)
@@ -101,7 +100,7 @@ class FeeDialog(Factory.Popup):
         if self.dynfees:
             self.config.set_key('fee_level', value, True)
         else:
-            self.config.set_key('fee_per_kb', value * self.fee_step, True)
+            self.config.set_key('fee_per_kb', self.config.static_fee(value), True)
         self.callback()
 
     def on_slider(self, value):

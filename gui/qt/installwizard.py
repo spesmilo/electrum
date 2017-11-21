@@ -1,9 +1,10 @@
+
 import sys
 import os
 
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
-import PyQt4.QtCore as QtCore
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+import PyQt5.QtCore as QtCore
 
 import electrum_grs
 from electrum_grs import Wallet, WalletStorage
@@ -11,10 +12,10 @@ from electrum_grs.util import UserCancelled, InvalidPassword
 from electrum_grs.base_wizard import BaseWizard
 from electrum_grs.i18n import _
 
-from seed_dialog import SeedLayout, KeysLayout
-from network_dialog import NetworkChoiceLayout
-from util import *
-from password_dialog import PasswordLayout, PW_NEW
+from .seed_dialog import SeedLayout, KeysLayout
+from .network_dialog import NetworkChoiceLayout
+from .util import *
+from .password_dialog import PasswordLayout, PW_NEW
 
 
 class GoBack(Exception):
@@ -87,7 +88,7 @@ def wizard_dialog(func):
         #    out = ()
         if type(out) is not tuple:
             out = (out,)
-        apply(run_next, out)
+        run_next(*out)
     return func_wrapper
 
 
@@ -95,23 +96,24 @@ def wizard_dialog(func):
 # WindowModalDialog must come first as it overrides show_error
 class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
-    def __init__(self, config, app, plugins, storage):
+    accept_signal = pyqtSignal()
+    synchronized_signal = pyqtSignal(str)
 
+    def __init__(self, config, app, plugins, storage):
         BaseWizard.__init__(self, config, storage)
         QDialog.__init__(self, None)
-
         self.setWindowTitle('Electrum-GRS  -  ' + _('Install Wizard'))
         self.app = app
         self.config = config
-
         # Set for base base class
         self.plugins = plugins
         self.language_for_seed = config.get('language')
         self.setMinimumSize(600, 400)
-        self.connect(self, QtCore.SIGNAL('accept'), self.accept)
+        self.accept_signal.connect(self.accept)
         self.title = QLabel()
         self.main_widget = QWidget()
         self.back_button = QPushButton(_("Back"), self)
+        self.back_button.setText(_('Back') if self.can_go_back() else _('Cancel'))
         self.next_button = QPushButton(_("Next"), self)
         self.next_button.setDefault(True)
         self.logo = QLabel()
@@ -124,20 +126,25 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.next_button.clicked.connect(lambda: self.loop.exit(2))
         outer_vbox = QVBoxLayout(self)
         inner_vbox = QVBoxLayout()
-        inner_vbox = QVBoxLayout()
         inner_vbox.addWidget(self.title)
         inner_vbox.addWidget(self.main_widget)
         inner_vbox.addStretch(1)
         inner_vbox.addWidget(self.please_wait)
         inner_vbox.addStretch(1)
+        scroll_widget = QWidget()
+        scroll_widget.setLayout(inner_vbox)
+        scroll = QScrollArea()
+        scroll.setWidget(scroll_widget)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setWidgetResizable(True)
         icon_vbox = QVBoxLayout()
         icon_vbox.addWidget(self.logo)
         icon_vbox.addStretch(1)
         hbox = QHBoxLayout()
         hbox.addLayout(icon_vbox)
         hbox.addSpacing(5)
-        hbox.addLayout(inner_vbox)
-        hbox.setStretchFactor(inner_vbox, 1)
+        hbox.addWidget(scroll)
+        hbox.setStretchFactor(scroll, 1)
         outer_vbox.addLayout(hbox)
         outer_vbox.addLayout(Buttons(self.back_button, self.next_button))
         self.set_icon(':icons/electrum.png')
@@ -147,76 +154,88 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     def run_and_get_wallet(self):
 
-        def on_filename():
-            wallet_folder = os.path.dirname(self.storage.path)
-            path = unicode(QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder))
+        vbox = QVBoxLayout()
+        hbox = QHBoxLayout()
+        hbox.addWidget(QLabel(_('Wallet') + ':'))
+        self.name_e = QLineEdit()
+        hbox.addWidget(self.name_e)
+        button = QPushButton(_('Choose...'))
+        hbox.addWidget(button)
+        vbox.addLayout(hbox)
+
+        self.msg_label = QLabel('')
+        vbox.addWidget(self.msg_label)
+        hbox2 = QHBoxLayout()
+        self.pw_e = QLineEdit('', self)
+        self.pw_e.setFixedWidth(150)
+        self.pw_e.setEchoMode(2)
+        self.pw_label = QLabel(_('Password') + ':')
+        hbox2.addWidget(self.pw_label)
+        hbox2.addWidget(self.pw_e)
+        hbox2.addStretch()
+        vbox.addLayout(hbox2)
+        self.set_layout(vbox, title=_('Electrum wallet'))
+
+        wallet_folder = os.path.dirname(self.storage.path)
+
+        def on_choose():
+            path, __ = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder)
             if path:
                 self.name_e.setText(path)
-                self.storage = WalletStorage(path)
-                update_layout()
-        def update_layout():
-            name = os.path.basename(self.storage.path)
-            vbox = QVBoxLayout()
-            hbox = QHBoxLayout()
-            hbox.addWidget(QLabel(_('Wallet') + ':'))
-            self.name_e = QLineEdit(text=name)
-            hbox.addWidget(self.name_e)
-            button = QPushButton(_('Choose...'))
-            button.clicked.connect(on_filename)
-            hbox.addWidget(button)
-            vbox.addLayout(hbox)
-            self.pw_e = None
 
-            if not self.storage.file_exists():
-                msg = _("This file does not exist.") + '\n' \
-                      + _("Press 'Next' to create this wallet, or chose another file.")
-                vbox.addWidget(QLabel(msg))
-
-            elif self.storage.file_exists() and self.storage.is_encrypted():
-                msg = _("This file is encrypted.") + '\n' + _('Enter your password or choose another file.')
-                vbox.addWidget(QLabel(msg))
-                hbox2 = QHBoxLayout()
-                self.pw_e = QLineEdit('', self)
-                self.pw_e.setFixedWidth(150)
-                self.pw_e.setEchoMode(2)
-                hbox2.addWidget(QLabel(_('Password') + ':'))
-                hbox2.addWidget(self.pw_e)
-                hbox2.addStretch()
-                vbox.addLayout(hbox2)
+        def on_filename(filename):
+            path = os.path.join(wallet_folder, filename)
+            try:
+                self.storage = WalletStorage(path, manual_upgrades=True)
+            except IOError:
+                self.storage = None
+            if self.storage:
+                if not self.storage.file_exists():
+                    msg =_("This file does not exist.") + '\n' \
+                          + _("Press 'Next' to create this wallet, or choose another file.")
+                    pw = False
+                elif self.storage.file_exists() and self.storage.is_encrypted():
+                    msg = _("This file is encrypted.") + '\n' + _('Enter your password or choose another file.')
+                    pw = True
+                else:
+                    msg = _("Press 'Next' to open this wallet.")
+                    pw = False
             else:
-                msg = _("Press 'Next' to open this wallet.")
-                vbox.addWidget(QLabel(msg))
-
-            self.set_layout(vbox, title=_('Electrum-GRS wallet'))
-            if self.pw_e:
+                msg = _('Cannot read file')
+                pw = False
+            self.msg_label.setText(msg)
+            if pw:
+                self.pw_label.show()
                 self.pw_e.show()
                 self.pw_e.setFocus()
+            else:
+                self.pw_label.hide()
+                self.pw_e.hide()
+
+        button.clicked.connect(on_choose)
+        self.name_e.textChanged.connect(on_filename)
+        n = os.path.basename(self.storage.path)
+        self.name_e.setText(n)
 
         while True:
-            update_layout()
-
             if self.storage.file_exists() and not self.storage.is_encrypted():
                 break
-
-            if not self.loop.exec_():
+            if self.loop.exec_() != 2:  # 2 = next
                 return
-
             if not self.storage.file_exists():
                 break
-
             if self.storage.file_exists() and self.storage.is_encrypted():
-                password = unicode(self.pw_e.text())
+                password = self.pw_e.text()
                 try:
                     self.storage.decrypt(password)
                     break
                 except InvalidPassword as e:
-                    QMessageBox.information(None, _('Error'), str(e), _('OK'))
+                    QMessageBox.information(None, _('Error'), str(e))
                     continue
                 except BaseException as e:
                     traceback.print_exc(file=sys.stdout)
-                    QMessageBox.information(None, _('Error'), str(e), _('OK'))
+                    QMessageBox.information(None, _('Error'), str(e))
                     return
-
 
         path = self.storage.path
         if self.storage.requires_split():
@@ -240,7 +259,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             self.storage.upgrade()
             self.show_warning(_('Your wallet was upgraded successfully'))
             self.wallet = Wallet(self.storage)
-            self.terminate()
             return self.wallet
 
         action = self.storage.get_action()
@@ -260,7 +278,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             return self.wallet
 
         self.wallet = Wallet(self.storage)
-        self.terminate()
         return self.wallet
 
 
@@ -394,8 +411,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                     msg = _("Recovery successful")
                 else:
                     msg = _("No transactions found for this seed")
-                self.emit(QtCore.SIGNAL('synchronized'), msg)
-            self.connect(self, QtCore.SIGNAL('synchronized'), self.show_message)
+                self.synchronized_signal.emit(msg)
+            self.synchronized_signal.connect(self.show_message)
             t = threading.Thread(target = task)
             t.daemon = True
             t.start()
@@ -409,8 +426,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.confirm(message, title)
 
     def confirm(self, message, title):
+        label = WWLabel(message)
         vbox = QVBoxLayout()
-        vbox.addWidget(WWLabel(message))
+        vbox.addWidget(label)
         self.exec_layout(vbox, title)
 
     @wizard_dialog
@@ -418,7 +436,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.run(action)
 
     def terminate(self):
-        self.emit(QtCore.SIGNAL('accept'))
+        self.accept_signal.emit()
 
     def waiting_dialog(self, task, msg):
         self.please_wait.setText(MSG_GENERATING_WAIT)
@@ -429,8 +447,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     @wizard_dialog
     def choice_dialog(self, title, message, choices, run_next):
-        c_values = map(lambda x: x[0], choices)
-        c_titles = map(lambda x: x[1], choices)
+        c_values = [x[0] for x in choices]
+        c_titles = [x[1] for x in choices]
         clayout = ChoicesLayout(message, c_titles)
         vbox = QVBoxLayout()
         vbox.addLayout(clayout.layout())
@@ -458,7 +476,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         vbox.addWidget(line)
         vbox.addWidget(WWLabel(warning))
         self.exec_layout(vbox, title, next_enabled=test(default))
-        return ' '.join(unicode(line.text()).split())
+        return ' '.join(line.text().split())
 
     @wizard_dialog
     def show_xpub_dialog(self, xpub, run_next):
@@ -475,7 +493,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def init_network(self, network):
         message = _("Electrum-GRS communicates with remote servers to get "
                   "information about your transactions and addresses. The "
-                  "servers all fulfil the same purpose only differing in "
+                  "servers all fulfill the same purpose only differing in "
                   "hardware. In most cases you simply want to let Electrum-GRS "
                   "pick one at random.  However if you prefer feel free to "
                   "select a server manually.")
@@ -485,17 +503,13 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.back_button.setText(_('Cancel'))
         self.exec_layout(clayout.layout(), title)
         r = clayout.selected_index()
-        if r == 0:
-            auto_connect = True
-        elif r == 1:
-            auto_connect = True
+        if r == 1:
             nlayout = NetworkChoiceLayout(network, self.config, wizard=True)
             if self.exec_layout(nlayout.layout()):
-                auto_connect = False
+                nlayout.accept()
         else:
-            auto_connect = True
-        network.auto_connect = auto_connect
-        self.config.set_key('auto_connect', auto_connect, True)
+            network.auto_connect = True
+            self.config.set_key('auto_connect', True, True)
 
     @wizard_dialog
     def multisig_dialog(self, run_next):

@@ -1,9 +1,9 @@
-# If you want electrum to appear in a linux app launcher ("start menu"), install this by doing:
-# sudo desktop-file-install electrum.desktop
+# If you want electrum-grs to appear in a linux app launcher ("start menu"), install this by doing:
+# sudo desktop-file-install electrum-grs.desktop
 
 [Desktop Entry]
 Comment=Lightweight Groestlcoin Client
-Exec=electrum %u
+Exec=electrum-grs %u
 GenericName[en_US]=Electrum-GRS
 GenericName=Electrum-GRS
 Icon=/usr/share/app-install/icons/electrum-grs.png

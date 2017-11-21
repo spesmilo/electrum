@@ -1,6 +1,113 @@
+# Release 3.0 - Uncanny Valley (November 1st, 2017)
+
+  * The project was migrated to Python3 and Qt5. Python2 is no longer
+    supported. If you cloned the source repository, you will need to
+    run "python3 setup.py install" in order to install the new
+    dependencies.
+
+  * Segwit support: 
+
+    - Native segwit scripts are supported using a new type of
+      seed. The version number for segwit seeds is 0x100. The install
+      wizard will not create segwit seeds by default; users must
+      opt-in with the segwit option.
+
+    - Native segwit scripts are represented using bech32 addresses,
+      following BIP173. Please note that BIP173 is still in draft
+      status, and that other wallets/websites may not support
+      it. Thus, you should keep a non-segwit wallet in order to be
+      able to receive bitcoins during the transition period. If BIP173
+      ends up being rejected or substantially modified, your wallet
+      may have to be restored from seed. This will not affect funds
+      sent to bech32 addresses, and it will not affect the capacity of
+      Electrum to spend these funds.
+
+    - Segwit scripts embedded in p2sh are supported with hardware
+      wallets or bip39 seeds. To create a segwit-in-p2sh wallet,
+      trezor/ledger users will need to enter a BIP49 derivation path.
+
+    - The BIP32 master keys of segwit wallets are serialized using new
+      version numbers. The new version numbers encode the script type,
+      and they result in the following prefixes:
+
+         * xpub/xprv : p2pkh or p2sh
+         * ypub/yprv : p2wpkh-in-p2sh
+         * Ypub/Yprv : p2wsh-in-p2sh
+         * zpub/zprv : p2wpkh
+         * Zpub/Zprv : p2wsh
+
+      These values are identical for mainnet and testnet; tpub/tprv
+      prefixes are no longer used in testnet wallets.
+
+    - The Wallet Import Format (WIF) is similarly extended for segwit
+      scripts. After a base58-encoded key is decoded to binary, its
+      first byte encodes the script type:
+
+         * 128 + 0: p2pkh
+         * 128 + 1: p2wpkh
+         * 128 + 2: p2wpkh-in-p2sh
+         * 128 + 5: p2sh
+         * 128 + 6: p2wsh
+         * 128 + 7: p2wsh-in-p2sh
+
+      The distinction between p2sh and p2pkh in private key means that
+      it is not possible to import a p2sh private key and associate it
+      to a p2pkh address.
+
+  * A new version of the Electrum protocol is required by the client
+    (version 1.1). Servers using older versions of the protocol will
+    not be displayed in the GUI.
+
+  * By default, transactions are time-locked to the height of the
+    current block. Other values of locktime may be passed using the
+    command line.
+
+
+# Release 2.9.3
+  * fix configuration file issue #2719
+  * fix ledger signing of non-RBF transactions
+  * disable 'spend confirmed only' option by default
+
+# Release 2.9.2
+  * force headers download if headers file is corrupted
+  * add websocket to windows builds
+
+# Release 2.9.1
+  * fix initial headers download
+  * validate contacts on import
+  * command-line option for locktime
+
+# Release 2.9 - Independence (July 27th, 2017)
+  * Multiple Chain Validation: Electrum will download and validate
+    block headers sent by servers that may follow different branches
+    of a fork in the Bitcoin blockchain. Instead of a linear sequence,
+    block headers are organized in a tree structure. Branching points
+    are located efficiently using binary search. The purpose of MCV is
+    to detect and handle blockchain forks that are invisible to the
+    classical SPV model.
+  * The desired branch of a blockchain fork can be selected using the
+    network dialog. Branches are identified by the hash and height of
+    the diverging block. Coin splitting is possible using RBF
+    transaction (a tutorial will be added).
+  * Multibit support: If the user enters a BIP39 seed (or uses a
+    hardware wallet), the full derivation path is configurable in the
+    install wizard.
+  * Option to send only confirmed coins
+  * Qt GUI:
+    - Network dialog uses tabs and gets updated by network events.
+    - The gui tabs use icons
+  * Kivy GUI:
+    - separation between network dialog and wallet settings dialog.
+    - option for manual server entry
+    - proxy configuration
+  * Daemon: The wallet password can be passed as parameter to the
+    JSONRPC API.
+  * Various other bugfixes and improvements.
+
+
 # Release 2.8.3
-  * Blockchain checkpoints can be added and configured from the GUI.
   * Fix crash on reading older wallet formats.
+  * TrustedCoin: remove pay-per-tx option
 
 # Release 2.8.2
   * show paid invoices in history tab

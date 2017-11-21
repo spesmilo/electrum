@@ -14,7 +14,7 @@ class KeepKeyPlugin(TrezorCompatiblePlugin):
 
     def __init__(self, *args):
         try:
-            import client
+            from . import client
             import keepkeylib
             import keepkeylib.ckd_public
             import keepkeylib.transport_hid

@@ -1,15 +1,21 @@
 #!/bin/bash
 
 # You probably need to update only this link
-ELECTRUM_GIT_URL=git://github.com/spesmilo/electrum.git
+ELECTRUM_GIT_URL=https://github.com/spesmilo/electrum.git
 BRANCH=master
 NAME_ROOT=electrum
+PYTHON_VERSION=3.5.4
 
+if [ "$#" -gt 0 ]; then
+    BRANCH="$1"
+fi
 
 # These settings probably don't need any change
 export WINEPREFIX=/opt/wine64
+export PYTHONHASHSEED=22
 
-PYHOME=c:/python27
+
+PYHOME=c:/python$PYTHON_VERSION
 PYTHON="wine $PYHOME/python.exe -OO -B"
 
 
@@ -23,8 +29,8 @@ if [ -d "electrum-git" ]; then
     # GIT repository found, update it
     echo "Pull"
     cd electrum-git
-    git checkout master
     git pull
+    git checkout $BRANCH
     cd ..
 else
     # GIT repository not found, clone it
@@ -42,22 +48,23 @@ rm -rf $WINEPREFIX/drive_c/electrum
 cp -r electrum-git $WINEPREFIX/drive_c/electrum
 cp electrum-git/LICENCE .
 
-# add python packages (built with make_packages)
-cp -r ../../../packages $WINEPREFIX/drive_c/electrum/
-
 # add locale dir
 cp -r ../../../lib/locale $WINEPREFIX/drive_c/electrum/lib/
 
 # Build Qt resources
-wine $WINEPREFIX/drive_c/Python27/Lib/site-packages/PyQt4/pyrcc4.exe C:/electrum/icons.qrc -o C:/electrum/lib/icons_rc.py
-wine $WINEPREFIX/drive_c/Python27/Lib/site-packages/PyQt4/pyrcc4.exe C:/electrum/icons.qrc -o C:/electrum/gui/qt/icons_rc.py
+wine $WINEPREFIX/drive_c/python$PYTHON_VERSION/Scripts/pyrcc5.exe C:/electrum/icons.qrc -o C:/electrum/gui/qt/icons_rc.py
+
+
+pushd $WINEPREFIX/drive_c/electrum
+$PYTHON setup.py install
+popd
 
 cd ..
 
 rm -rf dist/
 
 # build standalone version
-$PYTHON "C:/pyinstaller/pyinstaller.py" --noconfirm --ascii --name $NAME_ROOT-$VERSION.exe -w deterministic.spec
+wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" --noconfirm --ascii --name $NAME_ROOT-$VERSION.exe -w deterministic.spec 
 
 # build NSIS installer
 # $VERSION could be passed to the electrum.nsi script, but this would require some rewriting in the script iself.
@@ -72,6 +79,6 @@ cp portable.patch $WINEPREFIX/drive_c/electrum
 pushd $WINEPREFIX/drive_c/electrum
 patch < portable.patch 
 popd
-$PYTHON "C:/pyinstaller/pyinstaller.py" --noconfirm --ascii --name $NAME_ROOT-$VERSION-portable.exe -w deterministic.spec
+wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" --noconfirm --ascii --name $NAME_ROOT-$VERSION-portable.exe -w deterministic.spec
 
 echo "Done."

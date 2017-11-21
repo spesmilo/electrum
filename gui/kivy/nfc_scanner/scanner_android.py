@@ -123,7 +123,7 @@ class ScannerAndroid(NFCBase):
 
             details['recTypes'] = recTypes
         except Exception as err:
-            print str(err)
+            print(str(err))
 
         return details
 
@@ -141,7 +141,7 @@ class ScannerAndroid(NFCBase):
         #details = self.get_ndef_details(tag)
 
         if intent.getAction() not in action_list:
-            print 'unknow action, avoid.'
+            print('unknow action, avoid.')
             return
 
         rawmsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)
@@ -150,7 +150,7 @@ class ScannerAndroid(NFCBase):
         for message in rawmsgs:
             message = cast(NdefMessage, message)
             payload = message.getRecords()[0].getPayload()
-            print 'payload: {}'.format(''.join(map(chr, payload)))
+            print('payload: {}'.format(''.join(map(chr, payload))))
 
     def nfc_disable(self):
         '''Disable app from handling tags.

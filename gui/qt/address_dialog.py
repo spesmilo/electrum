@@ -25,12 +25,14 @@
 
 from electrum_grs.i18n import _
 
-import PyQt4
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
+import PyQt5
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
 
-from util import *
-from history_list import HistoryList
+from .util import *
+from .history_list import HistoryList
+from .qrtextedit import ShowQRTextEdit
+
 
 class AddressDialog(WindowModalDialog):
 
@@ -50,16 +52,37 @@ class AddressDialog(WindowModalDialog):
         vbox.addWidget(QLabel(_("Address:")))
         self.addr_e = ButtonsLineEdit(self.address)
         self.addr_e.addCopyButton(self.app)
-        self.addr_e.addButton(":icons/qrcode.png", self.show_qr, _("Show QR Code"))
+        icon = ":icons/qrcode_white.png" if ColorScheme.dark_scheme else ":icons/qrcode.png"
+        self.addr_e.addButton(icon, self.show_qr, _("Show QR Code"))
         self.addr_e.setReadOnly(True)
         vbox.addWidget(self.addr_e)
+
+        try:
+            pubkeys = self.wallet.get_public_keys(address)
+        except BaseException as e:
+            pubkeys = None
+        if pubkeys:
+            vbox.addWidget(QLabel(_("Public keys") + ':'))
+            for pubkey in pubkeys:
+                pubkey_e = ButtonsLineEdit(pubkey)
+                pubkey_e.addCopyButton(self.app)
+                vbox.addWidget(pubkey_e)
+
+        try:
+            redeem_script = self.wallet.pubkeys_to_redeem_script(pubkeys)
+        except BaseException as e:
+            redeem_script = None
+        if redeem_script:
+            vbox.addWidget(QLabel(_("Redeem Script") + ':'))
+            redeem_e = ShowQRTextEdit(text=redeem_script)
+            redeem_e.addCopyButton(self.app)
+            vbox.addWidget(redeem_e)
 
         vbox.addWidget(QLabel(_("History")))
         self.hw = HistoryList(self.parent)
         self.hw.get_domain = self.get_domain
         vbox.addWidget(self.hw)
 
-        vbox.addStretch(1)
         vbox.addLayout(Buttons(CloseButton(self)))
         self.format_amount = self.parent.format_amount
         self.hw.update()

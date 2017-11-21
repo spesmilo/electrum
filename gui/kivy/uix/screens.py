@@ -22,7 +22,7 @@ from electrum_grs import bitcoin
 from electrum_grs.util import timestamp_to_datetime
 from electrum_grs.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 
-from context_menu import ContextMenu
+from .context_menu import ContextMenu
 
 
 from electrum_grs_gui.kivy.i18n import _
@@ -120,7 +120,7 @@ class HistoryScreen(CScreen):
         self.app.tx_dialog(tx)
 
     def label_dialog(self, obj):
-        from dialogs.label_dialog import LabelDialog
+        from .dialogs.label_dialog import LabelDialog
         key = obj.tx_hash
         text = self.app.wallet.get_label(key)
         def callback(text):
@@ -235,7 +235,7 @@ class SendScreen(CScreen):
             self.payment_request = None
 
     def do_paste(self):
-        contents = unicode(self.app._clipboard.paste())
+        contents = self.app._clipboard.paste()
         if not contents:
             self.app.show_info(_("Clipboard is empty"))
             return
@@ -261,10 +261,10 @@ class SendScreen(CScreen):
                 self.app.show_error(_('Invalid amount') + ':\n' + self.screen.amount)
                 return
             outputs = [(bitcoin.TYPE_ADDRESS, address, amount)]
-        message = unicode(self.screen.message)
+        message = self.screen.message
         amount = sum(map(lambda x:x[2], outputs))
         if self.app.electrum_config.get('use_rbf'):
-            from dialogs.question import Question
+            from .dialogs.question import Question
             d = Question(_('Should this transaction be replaceable?'), lambda b: self._do_send(amount, message, outputs, b))
             d.open()
         else:
@@ -272,8 +272,8 @@ class SendScreen(CScreen):
 
     def _do_send(self, amount, message, outputs, rbf):
         # make unsigned transaction
-        coins = self.app.wallet.get_spendable_coins()
         config = self.app.electrum_config
+        coins = self.app.wallet.get_spendable_coins(None, config)
         try:
             tx = self.app.wallet.make_unsigned_transaction(coins, outputs, config, None)
         except NotEnoughFunds:
@@ -296,6 +296,8 @@ class SendScreen(CScreen):
         self.app.protected('\n'.join(msg), self.send_tx, (tx, message))
 
     def send_tx(self, tx, message, password):
+        if self.app.wallet.has_password() and password is None:
+            return
         def on_success(tx):
             if tx.is_complete():
                 self.app.broadcast(tx, self.payment_request)
@@ -344,7 +346,7 @@ class ReceiveScreen(CScreen):
         req = self.app.wallet.get_payment_request(addr, self.app.electrum_config)
         self.screen.status = ''
         if req:
-            self.screen.message = unicode(req.get('memo', ''))
+            self.screen.message = req.get('memo', '')
             amount = req.get('amount')
             self.screen.amount = self.app.format_amount_and_units(amount) if amount else ''
             status = req.get('status', PR_UNKNOWN)
@@ -376,9 +378,9 @@ class ReceiveScreen(CScreen):
         self.app.show_info(_('Request copied to clipboard'))
 
     def save_request(self):
-        addr = str(self.screen.address)
-        amount = str(self.screen.amount)
-        message = unicode(self.screen.message)
+        addr = self.screen.address
+        amount = self.screen.amount
+        message = self.screen.message
         amount = self.app.get_amount(amount) if amount else 0
         req = self.app.wallet.make_payment_request(addr, amount, message, None)
         self.app.wallet.add_payment_request(req, self.app.electrum_config)
@@ -467,7 +469,7 @@ class InvoicesScreen(CScreen):
         self.app.show_pr_details(pr.get_dict(), obj.status, True)
 
     def do_delete(self, obj):
-        from dialogs.question import Question
+        from .dialogs.question import Question
         def cb(result):
             if result:
                 self.app.wallet.invoices.remove(obj.key)
@@ -537,7 +539,7 @@ class RequestsScreen(CScreen):
         self.app.show_pr_details(req, status, False)
 
     def do_delete(self, obj):
-        from dialogs.question import Question
+        from .dialogs.question import Question
         def cb(result):
             if result:
                 self.app.wallet.remove_payment_request(obj.address, self.app.electrum_config)

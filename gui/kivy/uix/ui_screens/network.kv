@@ -1,55 +1,53 @@
 Popup:
     id: nd
     title: _('Network')
-    n_nodes: len(app.network.get_interfaces())
-    blockchain_height: app.network.get_local_height()
-    is_connected: app.network.is_connected()
-
     BoxLayout:
         orientation: 'vertical'
-        padding: '10dp'
-        spacing: '10dp'
-        TopLabel:
-            s1: _("Connected to %d nodes.")%root.n_nodes if root.n_nodes else _("Not connected?")
-            s2: _("Blockchain length") + ": %d "%root.blockchain_height + _("blocks")
-            text: self.s1 + '\n' + self.s2
-        Widget:
-            size_hint: 1, 0.1
-        GridLayout:
-            cols: 2
-            Label:
-                text: _('Server')
-            Spinner:
-                id: host
-                height: '48dp'
-                size_hint_y: None
-                text: ''
-                values: sorted(app.network.get_servers())
-                disabled: auto_connect.active
-            Label:
-                text: _('Auto-connect')
-            CheckBox:
-                id: auto_connect
-                size_hint_y: None
-        Widget:
-            size_hint: 1, 0.1
-        TopLabel:
-            text: _("Electrum retrieves your wallet information from a single node (address server). In addition, it connects to a number of extra nodes, in order to fetch block headers. Block headers are used to verify the information sent by the address server, using Simple Payment Verification (SPV).")
-            font_size: '6pt'
-        Widget:
-            size_hint: 1, 0.1
-        TopLabel:
-            text: _("If auto-connect is checked, the address server will be selected automatically.")
-            font_size: '6pt'
-        Widget:
-            size_hint: 1, 0.1
+        ScrollView:
+            GridLayout:
+                id: scrollviewlayout
+                cols:1
+                size_hint: 1, None
+                height: self.minimum_height
+                padding: '10dp'
+                SettingsItem:
+                    value: _("%d connections.")% app.num_nodes if app.num_nodes else _("Not connected")
+                    title: _("Status") + ': ' + self.value
+                    description: _("Connections with Electrum servers")
+                    action: lambda x: None
 
-        BoxLayout:
-            Widget:
-                size_hint: 0.5, None
-            Button:
-                size_hint: 0.5, None
-                height: '48dp'
-                text: _('OK')
-                on_release:
-                    nd.dismiss()
+                CardSeparator
+                SettingsItem:
+                    title: _("Server") + ': ' + app.server_host
+                    description: _("Server used to query your history.")
+                    action: lambda x: app.popup_dialog('server')
+
+                CardSeparator
+                SettingsItem:
+                    proxy: app.proxy_config.get('mode')
+                    host: app.proxy_config.get('host')
+                    port: app.proxy_config.get('port')
+                    title: _("Proxy") + ': ' + ((self.host +':' + self.port) if self.proxy else _('None'))
+                    description: _('Proxy configuration')
+                    action: lambda x: app.popup_dialog('proxy')
+
+                CardSeparator
+                SettingsItem:
+                    title: _("Auto-connect") + ': ' + ('ON' if app.auto_connect else 'OFF')
+                    description: _("Select your server automatically")
+                    action: app.toggle_auto_connect
+
+                CardSeparator
+                SettingsItem:
+                    value: "%d blocks" % app.num_blocks
+                    title: _("Blockchain") + ': ' + self.value
+                    description: _('Verified block headers')
+                    action: lambda x: x
+
+                CardSeparator
+                SettingsItem:
+                    title: _('Fork detected at block %d')%app.blockchain_checkpoint if app.num_chains>1 else _('No fork detected')
+                    fork_description: (_('You are following branch') if app.auto_connect else _("Your server is on branch")) + ' ' + app.blockchain_name
+                    description: self.fork_description if app.num_chains>1 else _('Connected nodes are on the same chain')
+                    action: app.choose_blockchain_dialog
+                    disabled: app.num_chains == 1
