@@ -174,7 +174,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         hbox2.addWidget(self.pw_e)
         hbox2.addStretch()
         vbox.addLayout(hbox2)
-        self.set_layout(vbox, title=_('Electrum wallet'))
+        self.set_layout(vbox, title=_('Electrum-GRS wallet'))
 
         wallet_folder = os.path.dirname(self.storage.path)
 

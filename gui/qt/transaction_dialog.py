@@ -36,7 +36,7 @@ from electrum_grs.bitcoin import base_encode
 from electrum_grs.i18n import _
 from electrum_grs.plugins import run_hook
 
-from electrum.util import bfh
+from electrum_grs.util import bfh
 from .util import *
 
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...

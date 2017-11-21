@@ -392,8 +392,8 @@ class TrustedCoinPlugin(BasePlugin):
         wizard.show_seed_dialog(run_next=f, seed_text=seed)
 
     def get_xkeys(self, seed, passphrase, derivation):
-        from electrum.mnemonic import Mnemonic
-        from electrum.keystore import bip32_root, bip32_private_derivation
+        from electrum_grs.mnemonic import Mnemonic
+        from electrum_grs.keystore import bip32_root, bip32_private_derivation
         bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
         xprv, xpub = bip32_root(bip32_seed, 'standard')
         xprv, xpub = bip32_private_derivation(xprv, "m/", derivation)
