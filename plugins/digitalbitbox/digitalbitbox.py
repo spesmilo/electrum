@@ -6,6 +6,7 @@
 try:
     import electrum
     from electrum.bitcoin import TYPE_ADDRESS, push_script, var_int, msg_magic, Hash, verify_message, pubkey_from_signature, point_to_ser, public_key_to_p2pkh, EncodeAES, DecodeAES, MyVerifyingKey
+    from electrum.bitcoin import serialize_xpub, deserialize_xpub
     from electrum.transaction import Transaction
     from electrum.i18n import _
     from electrum.keystore import Hardware_KeyStore
@@ -85,10 +86,17 @@ class DigitalBitbox_Client():
 
 
     def get_xpub(self, bip32_path, xtype):
-        assert xtype == 'standard'
+        assert xtype in ('standard', 'p2wpkh-p2sh')
         reply = self._get_xpub(bip32_path)
         if reply:
-            return reply['xpub']
+            xpub = reply['xpub']
+            # Change type of xpub to the requested type. The firmware
+            # only ever returns the standard type, but it is agnostic
+            # to the type when signing.
+            if xtype != 'standard':
+                _, depth, fingerprint, child_number, c, cK = deserialize_xpub(xpub)
+                xpub = serialize_xpub(xtype, c, cK, depth, fingerprint, child_number)
+            return xpub
         else:
             raise BaseException('no reply')
 
@@ -399,6 +407,10 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
         return str(self.derivation)
 
 
+    def is_p2pkh(self):
+        return self.derivation.startswith("m/44'/")
+
+
     def give_error(self, message, clear_client = False):
         if clear_client:
             self.client = None
@@ -472,7 +484,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
             return
 
         try:
-            p2shTransaction = False
+            p2pkhTransaction = True
             derivations = self.get_tx_derivations(tx)
             inputhasharray = []
             hasharray = []
@@ -483,8 +495,8 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 if txin['type'] == 'coinbase':
                     self.give_error("Coinbase not supported") # should never happen
 
-                if txin['type'] in ['p2sh']:
-                    p2shTransaction = True
+                if txin['type'] != 'p2pkh':
+                    p2pkhTransaction = False
 
                 for x_pubkey in txin['x_pubkeys']:
                     if x_pubkey in derivations:
@@ -497,12 +509,6 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                         break
                 else:
                     self.give_error("No matching x_key for sign_transaction") # should never happen
-
-            # Sanity check
-            if p2shTransaction:
-                for txinput in tx.inputs():
-                    if txinput['type'] != 'p2sh':
-                        self.give_error("P2SH / regular input mixed in same transaction not supported") # should never happen
 
             # Build pubkeyarray from outputs
             for _type, address, amount in tx.outputs():
@@ -517,15 +523,22 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
 
             # Special serialization of the unsigned transaction for
             # the mobile verification app.
-            class CustomTXSerialization(Transaction):
-                @classmethod
-                def input_script(self, txin, estimate_size=False):
-                    if txin['type'] == 'p2pkh':
-                        return Transaction.get_preimage_script(txin)
-                    if txin['type'] == 'p2sh':
-                        return '00' + push_script(Transaction.get_preimage_script(txin))
-                    raise Exception("unsupported type %s" % txin['type'])
-            tx_dbb_serialized = CustomTXSerialization(tx.serialize()).serialize()
+            # At the moment, verification only works for p2pkh transactions.
+            if p2pkhTransaction:
+                class CustomTXSerialization(Transaction):
+                    @classmethod
+                    def input_script(self, txin, estimate_size=False):
+                        if txin['type'] == 'p2pkh':
+                            return Transaction.get_preimage_script(txin)
+                        if txin['type'] == 'p2sh':
+                            # Multisig verification has partial support, but is disabled. This is the
+                            # expected serialization though, so we leave it here until we activate it.
+                            return '00' + push_script(Transaction.get_preimage_script(txin))
+                        raise Exception("unsupported type %s" % txin['type'])
+                tx_dbb_serialized = CustomTXSerialization(tx.serialize()).serialize()
+            else:
+                # We only need this for the signing echo / verification.
+                tx_dbb_serialized = None
 
             # Build sign command
             dbb_signatures = []
@@ -533,8 +546,15 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
             for step in range(int(steps)):
                 hashes = hasharray[step * self.maxInputs : (step + 1) * self.maxInputs]
 
-                msg = ('{"sign": {"meta":"%s", "data":%s, "checkpub":%s} }' % \
-                       (to_hexstr(Hash(tx_dbb_serialized)), json.dumps(hashes), json.dumps(pubkeyarray))).encode('utf8')
+                msg = {
+                    "sign": {
+                        "data": hashes,
+                        "checkpub": pubkeyarray,
+                    },
+                }
+                if tx_dbb_serialized is not None:
+                    msg["sign"]["meta"] = to_hexstr(Hash(tx_dbb_serialized))
+                msg = json.dumps(msg).encode('ascii')
                 dbb_client = self.plugin.get_client(self)
 
                 if not dbb_client.is_paired():
@@ -547,8 +567,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 if 'echo' not in reply:
                     raise Exception("Could not sign transaction.")
 
-                # multisig verification not working correctly yet
-                if self.plugin.is_mobile_paired() and not p2shTransaction:
+                if self.plugin.is_mobile_paired() and tx_dbb_serialized is not None:
                     reply['tx'] = tx_dbb_serialized
                     self.plugin.comserver_post_notification(reply)
 
