@@ -131,7 +131,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.need_update = threading.Event()
 
         self.decimal_point = config.get('decimal_point', 5)
-        self.fee_unit = config.get('fee_unit', 0)
         self.num_zeros     = int(config.get('num_zeros',0))
 
         self.completions = QStringListModel()
@@ -293,7 +292,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.need_update.set()
             self.gui_object.network_updated_signal_obj.network_updated_signal \
                 .emit(event, args)
-
         elif event == 'new_transaction':
             self.tx_notifications.append(args[0])
             self.notify_transactions_signal.emit()
@@ -315,6 +313,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if self.config.is_dynfee():
                 self.fee_slider.update()
                 self.do_update_fee()
+        elif event == 'fee_histogram':
+            if self.config.is_dynfee():
+                self.fee_slider.update()
+                self.do_update_fee()
+            # todo: update only unconfirmed tx
+            self.history_list.update()
         else:
             self.print_error("unexpected network_qt signal:", event, args)
 
@@ -636,10 +640,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return text
 
     def format_fee_rate(self, fee_rate):
-        if self.fee_unit == 0:
-            return format_satoshis(fee_rate/1000, False, self.num_zeros, 0, False)  + ' sat/byte'
-        else:
-            return self.format_amount(fee_rate) + ' ' + self.base_unit() + '/kB'
+        return format_satoshis(fee_rate/1000, False, self.num_zeros, 0, False)  + ' sat/byte'
 
     def get_decimal_point(self):
         return self.decimal_point
@@ -1076,7 +1077,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         def fee_cb(dyn, pos, fee_rate):
             if dyn:
-                self.config.set_key('fee_level', pos, False)
+                if self.config.get('mempool_fees'):
+                    self.config.set_key('depth_level', pos, False)
+                else:
+                    self.config.set_key('fee_level', pos, False)
             else:
                 self.config.set_key('fee_per_kb', fee_rate, False)
 
@@ -1116,7 +1120,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.size_e.setFixedWidth(140)
         self.size_e.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
 
-        self.feerate_e = FeerateEdit(lambda: 2 if self.fee_unit else 0)
+        self.feerate_e = FeerateEdit(lambda: 0)
         self.feerate_e.setAmount(self.config.fee_per_byte())
         self.feerate_e.textEdited.connect(partial(on_fee_or_feerate, self.feerate_e, False))
         self.feerate_e.editingFinished.connect(partial(on_fee_or_feerate, self.feerate_e, True))
@@ -1256,9 +1260,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         '''Recalculate the fee.  If the fee was manually input, retain it, but
         still build the TX to see if there are enough funds.
         '''
-        if not self.config.get('offline') and self.config.is_dynfee() and not self.config.has_fee_estimates():
-            self.statusBar().showMessage(_('Waiting for fee estimates...'))
-            return False
         freeze_fee = self.is_send_fee_frozen()
         freeze_feerate = self.is_send_feerate_frozen()
         amount = '!' if self.is_max else self.amount_e.get_amount()
@@ -2670,6 +2671,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         nz.valueChanged.connect(on_nz)
         gui_widgets.append((nz_label, nz))
 
+        msg = '\n'.join([
+            _('Time based: fee rate is based on average confirmation time estimates'),
+            _('Mempool based: fee rate is targetting a depth in the memory pool')
+            ]
+        )
+        fee_type_label = HelpLabel(_('Fee estimation') + ':', msg)
+        fee_type_combo = QComboBox()
+        fee_type_combo.addItems([_('Time based'), _('Mempool based')])
+        fee_type_combo.setCurrentIndex(1 if self.config.get('mempool_fees') else 0)
+        def on_fee_type(x):
+            self.config.set_key('mempool_fees', x==1)
+            self.fee_slider.update()
+        fee_type_combo.currentIndexChanged.connect(on_fee_type)
+        fee_widgets.append((fee_type_label, fee_type_combo))
+
         def on_dynfee(x):
             self.config.set_key('dynamic_fees', x == Qt.Checked)
             self.fee_slider.update()
@@ -2698,18 +2714,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.config.set_key('use_rbf', x == Qt.Checked)
         use_rbf_cb.stateChanged.connect(on_use_rbf)
         fee_widgets.append((use_rbf_cb, None))
-
-        self.fee_unit = self.config.get('fee_unit', 0)
-        fee_unit_label = HelpLabel(_('Fee Unit') + ':', '')
-        fee_unit_combo = QComboBox()
-        fee_unit_combo.addItems([_('sat/byte'), _('mBTC/kB')])
-        fee_unit_combo.setCurrentIndex(self.fee_unit)
-        def on_fee_unit(x):
-            self.fee_unit = x
-            self.config.set_key('fee_unit', x)
-            self.fee_slider.update()
-        fee_unit_combo.currentIndexChanged.connect(on_fee_unit)
-        fee_widgets.append((fee_unit_label, fee_unit_combo))
 
         msg = _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n'\
               + _('The following alias providers are available:') + '\n'\
