@@ -863,7 +863,8 @@ class Transaction:
         if not self.is_segwit():
             return 0
         inputs = self.inputs()
-        witness = ''.join(self.serialize_witness(x, True) for x in inputs)
+        estimate = not self.is_complete()
+        witness = ''.join(self.serialize_witness(x, estimate) for x in inputs)
         witness_size = len(witness) // 2 + 2  # include marker and flag
         return witness_size
 
