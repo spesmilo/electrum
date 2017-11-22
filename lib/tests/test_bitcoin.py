@@ -11,7 +11,7 @@ from lib.bitcoin import (
     var_int, op_push, address_to_script, regenerate_key,
     verify_message, deserialize_privkey, serialize_privkey, is_segwit_address,
     is_b58_address, address_to_scripthash, is_minikey, is_compressed, is_xpub,
-    xpub_type, is_xprv, is_bip32_derivation, seed_type)
+    xpub_type, is_xprv, is_bip32_derivation, seed_type, NetworkConstants)
 from lib.util import bfh
 
 try:
@@ -146,7 +146,6 @@ class Test_bitcoin(unittest.TestCase):
         self.assertEqual(op_push(0x10000), '4e00000100')
         self.assertEqual(op_push(0x12345678), '4e78563412')
 
-    # TODO testnet addresses
     def test_address_to_script(self):
         # bech32 native segwit
         # test vectors from BIP-0173
@@ -162,6 +161,33 @@ class Test_bitcoin(unittest.TestCase):
         # base58 P2SH
         self.assertEqual(address_to_script('35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT'), 'a9142a84cf00d47f699ee7bbc1dea5ec1bdecb4ac15487')
         self.assertEqual(address_to_script('3PyjzJ3im7f7bcV724GR57edKDqoZvH7Ji'), 'a914f47c8954e421031ad04ecd8e7752c9479206b9d387')
+
+
+class Test_bitcoin_testnet(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        NetworkConstants.set_testnet()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        NetworkConstants.set_mainnet()
+
+    def test_address_to_script(self):
+        # bech32 native segwit
+        # test vectors from BIP-0173
+        self.assertEqual(address_to_script('tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7'), '00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262')
+        self.assertEqual(address_to_script('tb1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesrxh6hy'), '0020000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433')
+
+        # base58 P2PKH
+        self.assertEqual(address_to_script('mutXcGt1CJdkRvXuN2xoz2quAAQYQ59bRX'), '76a9149da64e300c5e4eb4aaffc9c2fd465348d5618ad488ac')
+        self.assertEqual(address_to_script('miqtaRTkU3U8rzwKbEHx3g8FSz8GJtPS3K'), '76a914247d2d5b6334bdfa2038e85b20fc15264f8e5d2788ac')
+
+        # base58 P2SH
+        self.assertEqual(address_to_script('2N3LSvr3hv5EVdfcrxg2Yzecf3SRvqyBE4p'), 'a9146eae23d8c4a941316017946fc761a7a6c85561fb87')
+        self.assertEqual(address_to_script('2NE4ZdmxFmUgwu5wtfoN2gVniyMgRDYq1kk'), 'a914e4567743d378957cd2ee7072da74b1203c1a7a0b87')
 
 
 class Test_xprv_xpub(unittest.TestCase):
