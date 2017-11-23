@@ -273,6 +273,8 @@ class Commands:
     @command('wp')
     def getprivatekeys(self, address, password=None):
         """Get private keys of addresses. You may pass a single wallet address, or a list of wallet addresses."""
+        if isinstance(address, str):
+            address = address.strip()
         if is_address(address):
             return self.wallet.export_private_key(address, password)[0]
         domain = address
