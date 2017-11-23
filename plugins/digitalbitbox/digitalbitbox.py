@@ -11,7 +11,7 @@ try:
     from electrum.i18n import _
     from electrum.keystore import Hardware_KeyStore
     from ..hw_wallet import HW_PluginBase
-    from electrum.util import print_error
+    from electrum.util import print_error, to_string
 
     import time
     import hid
@@ -365,6 +365,7 @@ class DigitalBitbox_Client():
                 r = self.hid_read_frame()
             r = r.rstrip(b' \t\r\n\0')
             r = r.replace(b"\0", b'')
+            r = to_string(r, 'utf8')
             reply = json.loads(r)
         except Exception as e:
             print_error('Exception caught ' + str(e))
@@ -379,6 +380,7 @@ class DigitalBitbox_Client():
             reply = self.hid_send_plain(msg)
             if 'ciphertext' in reply:
                 reply = DecodeAES(secret, ''.join(reply["ciphertext"]))
+                reply = to_string(reply, 'utf8')
                 reply = json.loads(reply)
             if 'error' in reply:
                 self.password = None
