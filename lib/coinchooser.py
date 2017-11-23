@@ -91,8 +91,9 @@ class CoinChooserBase(PrintError):
             buckets[key].append(coin)
 
         def make_Bucket(desc, coins):
-            size = sum(Transaction.estimated_input_size(coin)
+            weight = sum(Transaction.estimated_input_weight(coin)
                        for coin in coins)
+            size = Transaction.virtual_size_from_weight(weight)
             value = sum(coin['value'] for coin in coins)
             return Bucket(desc, size, value, coins)
 

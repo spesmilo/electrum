@@ -635,11 +635,11 @@ class Transaction:
         return pk_list, sig_list
 
     @classmethod
-    def serialize_witness(self, txin):
+    def serialize_witness(self, txin, estimate_size=False):
         add_w = lambda x: var_int(len(x)//2) + x
         if not self.is_segwit_input(txin):
             return '00'
-        pubkeys, sig_list = self.get_siglist(txin)
+        pubkeys, sig_list = self.get_siglist(txin, estimate_size)
         if txin['type'] in ['p2wpkh', 'p2wpkh-p2sh']:
             witness = var_int(2) + add_w(sig_list[0]) + add_w(pubkeys[0])
         elif txin['type'] in ['p2wsh', 'p2wsh-p2sh']:
@@ -648,7 +648,10 @@ class Transaction:
             witness = var_int(n) + '00' + ''.join(add_w(x) for x in sig_list) + add_w(witness_script)
         else:
             raise BaseException('wrong txin type')
-        value_field = '' if self.is_txin_complete(txin) else var_int(0xffffffff) + int_to_hex(txin['value'], 8)
+        if self.is_txin_complete(txin) or estimate_size:
+            value_field = ''
+        else:
+            value_field = var_int(0xffffffff) + int_to_hex(txin['value'], 8)
         return value_field + witness
 
     @classmethod
@@ -781,7 +784,7 @@ class Transaction:
         if witness and self.is_segwit():
             marker = '00'
             flag = '01'
-            witness = ''.join(self.serialize_witness(x) for x in inputs)
+            witness = ''.join(self.serialize_witness(x, estimate_size) for x in inputs)
             return nVersion + marker + flag + txins + txouts + witness + nLocktime
         else:
             return nVersion + txins + txouts + nLocktime
@@ -830,13 +833,26 @@ class Transaction:
         weights, but for simplicity we approximate that with (virtual_size)x4
         """
         weight = self.estimated_weight()
-        return weight // 4 + (weight % 4 > 0)
+        return self.virtual_size_from_weight(weight)
 
     @classmethod
-    def estimated_input_size(self, txin):
-        '''Return an estimated of serialized input size in bytes.'''
-        script = self.input_script(txin, True)
-        return len(self.serialize_input(txin, script)) // 2
+    def estimated_input_weight(cls, txin):
+        '''Return an estimate of serialized input weight in weight units.'''
+        script = cls.input_script(txin, True)
+        input_size = len(cls.serialize_input(txin, script)) // 2
+
+        # note: we should actually branch based on tx.is_segwit()
+        # only if none of the inputs have a witness, is the size actually 0
+        if cls.is_segwit_input(txin):
+            witness_size = len(cls.serialize_witness(txin, True)) // 2
+        else:
+            witness_size = 0
+
+        return 4 * input_size + witness_size
+
+    @classmethod
+    def virtual_size_from_weight(cls, weight):
+        return weight // 4 + (weight % 4 > 0)
 
     def estimated_total_size(self):
         """Return an estimated total transaction size in bytes."""
@@ -847,7 +863,8 @@ class Transaction:
         if not self.is_segwit():
             return 0
         inputs = self.inputs()
-        witness = ''.join(self.serialize_witness(x) for x in inputs)
+        estimate = not self.is_complete()
+        witness = ''.join(self.serialize_witness(x, estimate) for x in inputs)
         witness_size = len(witness) // 2 + 2  # include marker and flag
         return witness_size
 
