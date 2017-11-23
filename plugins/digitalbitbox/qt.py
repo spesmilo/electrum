@@ -25,6 +25,9 @@ class Plugin(DigitalBitboxPlugin, QtPluginBase):
         if not self.is_mobile_paired():
             return
 
+        if not keystore.is_p2pkh():
+            return
+
         if len(addrs) == 1:
             def show_address():
                 change, index = wallet.get_address_index(addrs[0])
