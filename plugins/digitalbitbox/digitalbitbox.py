@@ -11,7 +11,7 @@ try:
     from electrum.i18n import _
     from electrum.keystore import Hardware_KeyStore
     from ..hw_wallet import HW_PluginBase
-    from electrum.util import print_error, to_string
+    from electrum.util import print_error, to_string, UserCancelled
 
     import time
     import hid
@@ -588,6 +588,9 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 self.handler.finished()
 
                 if 'error' in reply:
+                    if reply["error"].get('code') in (600, 601):
+                        # aborted via LED short touch or timeout
+                        raise UserCancelled()
                     raise Exception(reply['error']['message'])
 
                 if 'sign' not in reply:
@@ -623,6 +626,8 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     sig = sigencode_der(sig_r, sig_s, generator_secp256k1.order())
                     txin['signatures'][ii] = to_hexstr(sig) + '01'
                     tx._inputs[i] = txin
+        except UserCancelled:
+            raise
         except BaseException as e:
             self.give_error(e, True)
         else:
