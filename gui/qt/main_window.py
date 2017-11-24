@@ -89,6 +89,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     payment_request_ok_signal = pyqtSignal()
     payment_request_error_signal = pyqtSignal()
+    notify_transactions_signal = pyqtSignal()
     new_fx_quotes_signal = pyqtSignal()
     new_fx_history_signal = pyqtSignal()
     network_signal = pyqtSignal(str, object)
@@ -172,6 +173,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.payment_request_ok_signal.connect(self.payment_request_ok)
         self.payment_request_error_signal.connect(self.payment_request_error)
+        self.notify_transactions_signal.connect(self.notify_transactions)
         self.history_list.setFocus(True)
 
         # network callbacks
@@ -283,6 +285,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         elif event == 'new_transaction':
             self.tx_notifications.append(args[0])
+            self.notify_transactions_signal.emit()
         elif event in ['status', 'banner', 'verified', 'fee']:
             # Handle in GUI thread
             self.network_signal.emit(event, args)
@@ -556,7 +559,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
                     if(v > 0):
                         total_amount += v
-                self.notify(_("%(txs)s new transactions received. Total amount received in the new transactions %(amount)s") \
+                self.notify(_("%(txs)s new transactions received: Total amount received in the new transactions %(amount)s") \
                             % { 'txs' : tx_amount, 'amount' : self.format_amount_and_units(total_amount)})
                 self.tx_notifications = []
             else:
@@ -565,11 +568,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                       self.tx_notifications.remove(tx)
                       is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
                       if(v > 0):
-                          self.notify(_("New transaction received. %(amount)s") % { 'amount' : self.format_amount_and_units(v)})
+                          self.notify(_("New transaction received: %(amount)s") % { 'amount' : self.format_amount_and_units(v)})
 
     def notify(self, message):
         if self.tray:
-            self.tray.showMessage("Electrum-LTC", message, QSystemTrayIcon.Information, 20000)
+            try:
+                # this requires Qt 5.9
+                self.tray.showMessage("Electrum-LTC", message, QIcon(":icons/electrum_dark_icon"), 20000)
+            except TypeError:
+                self.tray.showMessage("Electrum-LTC", message, QSystemTrayIcon.Information, 20000)
 
 
 

@@ -11,7 +11,7 @@ try:
     from electrum_ltc.i18n import _
     from electrum_ltc.keystore import Hardware_KeyStore
     from ..hw_wallet import HW_PluginBase
-    from electrum_ltc.util import print_error
+    from electrum_ltc.util import print_error, to_string, UserCancelled
 
     import time
     import hid
@@ -365,6 +365,7 @@ class DigitalBitbox_Client():
                 r = self.hid_read_frame()
             r = r.rstrip(b' \t\r\n\0')
             r = r.replace(b"\0", b'')
+            r = to_string(r, 'utf8')
             reply = json.loads(r)
         except Exception as e:
             print_error('Exception caught ' + str(e))
@@ -379,6 +380,7 @@ class DigitalBitbox_Client():
             reply = self.hid_send_plain(msg)
             if 'ciphertext' in reply:
                 reply = DecodeAES(secret, ''.join(reply["ciphertext"]))
+                reply = to_string(reply, 'utf8')
                 reply = json.loads(reply)
             if 'error' in reply:
                 self.password = None
@@ -586,6 +588,9 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 self.handler.finished()
 
                 if 'error' in reply:
+                    if reply["error"].get('code') in (600, 601):
+                        # aborted via LED short touch or timeout
+                        raise UserCancelled()
                     raise Exception(reply['error']['message'])
 
                 if 'sign' not in reply:
@@ -621,6 +626,8 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     sig = sigencode_der(sig_r, sig_s, generator_secp256k1.order())
                     txin['signatures'][ii] = to_hexstr(sig) + '01'
                     tx._inputs[i] = txin
+        except UserCancelled:
+            raise
         except BaseException as e:
             self.give_error(e, True)
         else:
