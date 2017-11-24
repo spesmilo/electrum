@@ -572,7 +572,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def notify(self, message):
         if self.tray:
-            self.tray.showMessage("Electrum", message, QIcon(":icons/electrum_dark_icon"), 20000)
+            try:
+                # this requires Qt 5.9
+                self.tray.showMessage("Electrum", message, QIcon(":icons/electrum_dark_icon"), 20000)
+            except TypeError:
+                self.tray.showMessage("Electrum", message, QSystemTrayIcon.Information, 20000)
 
 
 
