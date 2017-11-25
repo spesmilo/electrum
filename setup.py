@@ -54,7 +54,6 @@ setup(
         'electroncash_plugins.audio_modem',
         'electroncash_plugins.cosigner_pool',
         'electroncash_plugins.email_requests',
-        'electroncash_plugins.greenaddress_instant',
         'electroncash_plugins.hw_wallet',
         'electroncash_plugins.keepkey',
         'electroncash_plugins.labels',
