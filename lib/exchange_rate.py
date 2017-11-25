@@ -268,6 +268,25 @@ class LocalBitcoins(ExchangeBase):
         return dict([(r, Decimal(json[r]['rates']['last'])) for r in json])
 
 
+class CoinFloor(ExchangeBase):
+    # CoinFloor API only supports GBP on public API
+    def get_rates(self, ccy):
+        json = self.get_json('webapi.coinfloor.co.uk:8090/bist/BCH/GBP', '/ticker/')
+        return {'GBP': Decimal(json['last'])}
+
+
+class CEXIO(ExchangeBase):
+    # Cex.io supports GBP, USD, EUR, BTC
+    def get_rates(self, ccy):
+        json = self.get_json('cex.io', '/api/ticker/BCH/%s' % ccy)
+        return { ccy : Decimal(json['last'])}
+
+class BtcMarkets(ExchangeBase):
+    # BtcMarkets - Australian Exchange - AUD
+    def get_rates(self, ccy):
+        json = self.get_json('api.btcmarkets.net', '/market/BCH/%s/tick' % ccy)
+        return { ccy : Decimal(json['lastPrice'])}
+
 class MercadoBitcoin(ExchangeBase):
 
     def get_rates(self, ccy):
