@@ -422,6 +422,9 @@ def parse_input(vds):
         else:
             d['scriptSig'] = ''
 
+        is_complete = Transaction.is_txin_complete(d)
+        if not is_complete:
+            d['value'] = vds.read_uint64()
     return d
 
 
@@ -752,13 +755,19 @@ class Transaction:
         return bh2u(bfh(txin['prevout_hash'])[::-1]) + int_to_hex(txin['prevout_n'], 4)
 
     @classmethod
-    def serialize_input(self, txin, script):
+    def serialize_input(self, txin, script, estimate_size=False):
         # Prev hash and index
         s = self.serialize_outpoint(txin)
         # Script length, script, sequence
         s += var_int(len(script)//2)
         s += script
         s += int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
+        # offline signing needs to know the input value
+        if self.is_txin_complete(txin) or estimate_size:
+            value_field = ''
+        else:
+            value_field = int_to_hex(txin['value'], 8)
+        s += value_field
         return s
 
     def BIP_LI01_sort(self):
@@ -813,7 +822,7 @@ class Transaction:
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
-        txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.input_script(txin, estimate_size)) for txin in inputs)
+        txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.input_script(txin, estimate_size), estimate_size) for txin in inputs)
         txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
         if witness and self.is_segwit():
             marker = '00'
@@ -857,57 +866,14 @@ class Transaction:
 
     @profiler
     def estimated_size(self):
-        """Return an estimated virtual tx size in vbytes.
-        BIP-0141 defines 'Virtual transaction size' to be weight/4 rounded up.
-        This definition is only for humans, and has little meaning otherwise.
-        If we wanted sub-byte precision, fee calculation should use transaction
-        weights, but for simplicity we approximate that with (virtual_size)x4
-        """
-        weight = self.estimated_weight()
-        return self.virtual_size_from_weight(weight)
+        '''Return an estimated tx size in bytes.'''
+        return len(self.serialize(True)) / 2 if not self.is_complete() or self.raw is None else len(self.raw) / 2 # ASCII hex string
 
     @classmethod
-    def estimated_input_weight(cls, txin):
-        '''Return an estimate of serialized input weight in weight units.'''
-        script = cls.input_script(txin, True)
-        input_size = len(cls.serialize_input(txin, script)) // 2
-
-        # note: we should actually branch based on tx.is_segwit()
-        # only if none of the inputs have a witness, is the size actually 0
-        if cls.is_segwit_input(txin):
-            witness_size = len(cls.serialize_witness(txin, True)) // 2
-        else:
-            witness_size = 0
-
-        return 4 * input_size + witness_size
-
-    @classmethod
-    def virtual_size_from_weight(cls, weight):
-        return weight // 4 + (weight % 4 > 0)
-
-    def estimated_total_size(self):
-        """Return an estimated total transaction size in bytes."""
-        return len(self.serialize(True)) // 2 if not self.is_complete() or self.raw is None else len(self.raw) // 2  # ASCII hex string
-
-    def estimated_witness_size(self):
-        """Return an estimate of witness size in bytes."""
-        if not self.is_segwit():
-            return 0
-        inputs = self.inputs()
-        estimate = not self.is_complete()
-        witness = ''.join(self.serialize_witness(x, estimate) for x in inputs)
-        witness_size = len(witness) // 2 + 2  # include marker and flag
-        return witness_size
-
-    def estimated_base_size(self):
-        """Return an estimated base transaction size in bytes."""
-        return self.estimated_total_size() - self.estimated_witness_size()
-
-    def estimated_weight(self):
-        """Return an estimate of transaction weight."""
-        total_tx_size = self.estimated_total_size()
-        base_tx_size = self.estimated_base_size()
-        return 3 * base_tx_size + total_tx_size
+    def estimated_input_size(self, txin):
+        '''Return an estimated of serialized input size in bytes.'''
+        script = self.input_script(txin, True)
+        return len(self.serialize_input(txin, script, True)) / 2
 
     def signature_count(self):
         r = 0
