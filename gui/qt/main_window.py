@@ -2111,7 +2111,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return self.tx_from_text(file_content)
 
     def do_process_from_text(self):
-        from electrum.transaction import SerializationError
+        from electrum_ltc.transaction import SerializationError
         text = text_dialog(self, _('Input raw transaction'), _("Transaction:"), _("Load transaction"))
         if not text:
             return
@@ -2123,7 +2123,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
 
     def do_process_from_file(self):
-        from electrum.transaction import SerializationError
+        from electrum_ltc.transaction import SerializationError
         try:
             tx = self.read_tx_from_file()
             if tx:
