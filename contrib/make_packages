@@ -1,17 +1,12 @@
 #!/bin/bash
 
+contrib=$(dirname "$0")
 
 whereis pip3
 if [ $? -ne 0 ] ; then echo "Install pip3" ; exit ; fi
 
+rm $contrib/packages/ -r
+
 #Install pure python modules in electrum directory
-pip3 install pyaes -t ./packages
-pip3 install ecdsa -t ./packages
-pip3 install pbkdf2 -t ./packages
-pip3 install requests -t ./packages
-pip3 install qrcode -t ./packages
-pip3 install protobuf -t ./packages
-pip3 install dnspython -t ./packages
-pip3 install jsonrpclib-pelix -t ./packages
-pip3 install PySocks -t ./packages
+pip3 install -r $contrib/deterministic_requirements.txt -t $contrib/packages
 
