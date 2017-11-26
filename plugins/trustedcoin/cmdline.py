@@ -1,8 +1,7 @@
-#!/usr/bin/env python2
-# -*- mode: python -*-
+#!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
-# Copyright (C) 2016  The Electrum developers
+# Electrum - Lightweight Bitcoin Client
+# Copyright (C) 2015 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -24,30 +23,23 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
+from electrum.plugins import hook
+from .trustedcoin import TrustedCoinPlugin
 
-
-class HW_PluginBase(BasePlugin):
-    # Derived classes provide:
-    #
-    #  class-static variables: client_class, firmware_URL, handler_class,
-    #     libraries_available, libraries_URL, minimum_firmware,
-    #     wallet_class, ckd_public, types, HidTransport
-
-    def __init__(self, parent, config, name):
-        BasePlugin.__init__(self, parent, config, name)
-        self.device = self.keystore_class.device
-        self.keystore_class.plugin = self
-
-    def is_enabled(self):
-        return True
-
-    def device_manager(self):
-        return self.parent.device_manager
+class Plugin(TrustedCoinPlugin):
 
     @hook
-    def close_wallet(self, wallet):
-        for keystore in wallet.get_keystores():
-            if isinstance(keystore, self.keystore_class):
-                self.device_manager().unpair_xpub(keystore.xpub)
+    def sign_tx(self, wallet, tx):
+        if not isinstance(wallet, self.wallet_class):
+            return
+        if not wallet.can_sign_without_server():
+            self.print_error("twofactor:sign_tx")
+            auth_code = None
+            if wallet.keystores['x3/'].get_tx_derivations(tx):
+                msg = _('Please enter your Google Authenticator code:')
+                auth_code = int(input(msg))
+            else:
+                self.print_error("twofactor: xpub3 not needed")
+            wallet.auth_code = auth_code
+

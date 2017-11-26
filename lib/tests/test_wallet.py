@@ -1,9 +1,3 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-import six
 import shutil
 import tempfile
 import sys
@@ -11,7 +5,7 @@ import unittest
 import os
 import json
 
-from six.moves import StringIO
+from io import StringIO
 from lib.storage import WalletStorage, FINAL_SEED_VERSION
 
 
@@ -45,18 +39,18 @@ class WalletTestCase(unittest.TestCase):
 
 class TestWalletStorage(WalletTestCase):
 
-    def test_read_dictionnary_from_file(self):
+    def test_read_dictionary_from_file(self):
 
         some_dict = {"a":"b", "c":"d"}
         contents = json.dumps(some_dict)
         with open(self.wallet_path, "w") as f:
             contents = f.write(contents)
 
-        storage = WalletStorage(self.wallet_path)
+        storage = WalletStorage(self.wallet_path, manual_upgrades=True)
         self.assertEqual("b", storage.get("a"))
         self.assertEqual("d", storage.get("c"))
 
-    def test_write_dictionnary_to_file(self):
+    def test_write_dictionary_to_file(self):
 
         storage = WalletStorage(self.wallet_path)
 

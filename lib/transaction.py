@@ -27,21 +27,15 @@
 
 # Note: The deserialization code originally comes from ABE.
 
-from . import bitcoin
-from .bitcoin import *
-from .util import print_error, profiler, to_string
+from .util import print_error, profiler
 
 from . import bitcoin
 from .bitcoin import *
-import time
-import sys
 import struct
 
 #
 # Workalike python implementation of Bitcoin's CDataStream class.
 #
-import struct
-import random
 from .keystore import xpubkey_to_address, xpubkey_to_pubkey
 
 NO_SIGNATURE = 'ff'
@@ -77,10 +71,7 @@ class BCDataStream(object):
         if self.input is None:
             raise SerializationError("call write(bytes) before trying to deserialize")
 
-        try:
-            length = self.read_compact_size()
-        except IndexError:
-            raise SerializationError("attempt to read past end of buffer")
+        length = self.read_compact_size()
 
         return self.read_bytes(length).decode(encoding)
 
@@ -117,15 +108,18 @@ class BCDataStream(object):
     def write_uint64(self, val): return self._write_num('<Q', val)
 
     def read_compact_size(self):
-        size = self.input[self.read_cursor]
-        self.read_cursor += 1
-        if size == 253:
-            size = self._read_num('<H')
-        elif size == 254:
-            size = self._read_num('<I')
-        elif size == 255:
-            size = self._read_num('<Q')
-        return size
+        try:
+            size = self.input[self.read_cursor]
+            self.read_cursor += 1
+            if size == 253:
+                size = self._read_num('<H')
+            elif size == 254:
+                size = self._read_num('<I')
+            elif size == 255:
+                size = self._read_num('<Q')
+            return size
+        except IndexError:
+            raise SerializationError("attempt to read past end of buffer")
 
     def write_compact_size(self, size):
         if size < 0:
@@ -143,8 +137,11 @@ class BCDataStream(object):
             self._write_num('<Q', size)
 
     def _read_num(self, format):
-        (i,) = struct.unpack_from(format, self.input, self.read_cursor)
-        self.read_cursor += struct.calcsize(format)
+        try:
+            (i,) = struct.unpack_from(format, self.input, self.read_cursor)
+            self.read_cursor += struct.calcsize(format)
+        except Exception as e:
+            raise SerializationError(e)
         return i
 
     def _write_num(self, format, num):
@@ -306,7 +303,7 @@ def parse_scriptSig(d, _bytes):
         item = decoded[0][1]
         if item[0] == 0:
             d['address'] = bitcoin.hash160_to_p2sh(bitcoin.hash_160(item))
-            d['type'] = 'p2wpkh-p2sh' if len(item) == 21 else 'p2wsh-p2sh'
+            d['type'] = 'p2wpkh-p2sh' if len(item) == 22 else 'p2wsh-p2sh'
         else:
             # payto_pubkey
             d['type'] = 'p2pk'
@@ -363,7 +360,7 @@ def parse_redeemScript(s):
     op_n = opcodes.OP_1 + n - 1
     match_multisig = [ op_m ] + [opcodes.OP_PUSHDATA4]*n + [ op_n, opcodes.OP_CHECKMULTISIG ]
     if not match_decoded(dec2, match_multisig):
-        print_error("cannot find address in input script", bh2u(_bytes))
+        print_error("cannot find address in input script", bh2u(s))
         return
     x_pubkeys = [bh2u(x[1]) for x in dec2[1:-2]]
     pubkeys = [safe_parse_pubkey(x) for x in x_pubkeys]
@@ -429,21 +426,25 @@ def parse_input(vds):
 def parse_witness(vds, txin):
     n = vds.read_compact_size()
     if n == 0:
+        return
+    if n == 0xffffffff:
         txin['value'] = vds.read_uint64()
         n = vds.read_compact_size()
     w = list(bh2u(vds.read_bytes(vds.read_compact_size())) for i in range(n))
-    if n > 2:
-        txin['num_sig'] = n - 2
+    if txin['type'] == 'coinbase':
+        pass
+    elif n > 2:
         txin['signatures'] = parse_sig(w[1:-1])
         m, n, x_pubkeys, pubkeys, witnessScript = parse_redeemScript(bfh(w[-1]))
+        txin['num_sig'] = m
         txin['x_pubkeys'] = x_pubkeys
         txin['pubkeys'] = pubkeys
         txin['witnessScript'] = witnessScript
     else:
         txin['num_sig'] = 1
-        txin['pubkeys'] = [w[1]]
+        txin['x_pubkeys'] = [w[1]]
+        txin['pubkeys'] = [safe_parse_pubkey(w[1])]
         txin['signatures'] = parse_sig([w[0]])
-
 
 def parse_output(vds, i):
     d = {}
@@ -474,6 +475,7 @@ def deserialize(raw):
         for i in range(n_vin):
             txin = d['inputs'][i]
             parse_witness(vds, txin)
+            # segwit-native script
             if not txin.get('scriptSig'):
                 if txin['num_sig'] == 1:
                     txin['type'] = 'p2wpkh'
@@ -487,14 +489,6 @@ def deserialize(raw):
 
 # pay & redeem scripts
 
-def p2wpkh_nested_script(pubkey):
-    pubkey = safe_parse_pubkey(pubkey)
-    pkh = bh2u(hash_160(bfh(pubkey)))
-    return '00' + push_script(pkh)
-
-def p2wsh_nested_script(witness_script):
-    wsh = bh2u(sha256(bfh(witness_script)))
-    return '00' + push_script(wsh)
 
 
 def multisig_script(public_keys, m):
@@ -619,13 +613,40 @@ class Transaction:
             raise TypeError('Unknown output type')
 
     @classmethod
+    def estimate_pubkey_size_from_x_pubkey(cls, x_pubkey):
+        try:
+            if x_pubkey[0:2] in ['02', '03']:  # compressed pubkey
+                return 0x21
+            elif x_pubkey[0:2] == '04':  # uncompressed pubkey
+                return 0x41
+            elif x_pubkey[0:2] == 'ff':  # bip32 extended pubkey
+                return 0x21
+            elif x_pubkey[0:2] == 'fe':  # old electrum extended pubkey
+                return 0x41
+        except Exception as e:
+            pass
+        return 0x21  # just guess it is compressed
+
+    @classmethod
+    def estimate_pubkey_size_for_txin(cls, txin):
+        pubkeys = txin.get('pubkeys', [])
+        x_pubkeys = txin.get('x_pubkeys', [])
+        if len(pubkeys) > 0:
+            return cls.estimate_pubkey_size_from_x_pubkey(pubkeys[0])
+        elif len(x_pubkeys) > 0:
+            return cls.estimate_pubkey_size_from_x_pubkey(x_pubkeys[0])
+        else:
+            return 0x21  # just guess it is compressed
+
+    @classmethod
     def get_siglist(self, txin, estimate_size=False):
         # if we have enough signatures, we use the actual pubkeys
         # otherwise, use extended pubkeys (with bip32 derivation)
         num_sig = txin.get('num_sig', 1)
         if estimate_size:
+            pubkey_size = self.estimate_pubkey_size_for_txin(txin)
+            pk_list = ["00" * pubkey_size] * num_sig
             # we assume that signature will be 0x48 bytes long
-            pk_list = [ "00" * 0x21 ] * num_sig
             sig_list = [ "00" * 0x48 ] * num_sig
         else:
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
@@ -641,17 +662,23 @@ class Transaction:
         return pk_list, sig_list
 
     @classmethod
-    def serialize_witness(self, txin):
-        pubkeys, sig_list = self.get_siglist(txin)
+    def serialize_witness(self, txin, estimate_size=False):
+        add_w = lambda x: var_int(len(x)//2) + x
+        if not self.is_segwit_input(txin):
+            return '00'
+        pubkeys, sig_list = self.get_siglist(txin, estimate_size)
         if txin['type'] in ['p2wpkh', 'p2wpkh-p2sh']:
-            witness = var_int(2) + push_script(sig_list[0]) + push_script(pubkeys[0])
+            witness = var_int(2) + add_w(sig_list[0]) + add_w(pubkeys[0])
         elif txin['type'] in ['p2wsh', 'p2wsh-p2sh']:
             n = len(sig_list) + 2
             witness_script = multisig_script(pubkeys, txin['num_sig'])
-            witness = var_int(n) + '00' + ''.join(var_int(len(x)//2) + x for x in sig_list) + var_int(len(witness_script)//2) + witness_script
+            witness = var_int(n) + '00' + ''.join(add_w(x) for x in sig_list) + add_w(witness_script)
         else:
             raise BaseException('wrong txin type')
-        value_field = '' if self.is_txin_complete(txin) else var_int(0) + int_to_hex(txin['value'], 8)
+        if self.is_txin_complete(txin) or estimate_size:
+            value_field = ''
+        else:
+            value_field = var_int(0xffffffff) + int_to_hex(txin['value'], 8)
         return value_field + witness
 
     @classmethod
@@ -677,11 +704,12 @@ class Transaction:
         elif _type in ['p2wpkh', 'p2wsh']:
             return ''
         elif _type == 'p2wpkh-p2sh':
-            scriptSig = p2wpkh_nested_script(pubkeys[0])
+            pubkey = safe_parse_pubkey(pubkeys[0])
+            scriptSig = bitcoin.p2wpkh_nested_script(pubkey)
             return push_script(scriptSig)
         elif _type == 'p2wsh-p2sh':
             witness_script = self.get_preimage_script(txin)
-            scriptSig = p2wsh_nested_script(witness_script)
+            scriptSig = bitcoin.p2wsh_nested_script(witness_script)
             return push_script(scriptSig)
         elif _type == 'address':
             script += push_script(pubkeys[0])
@@ -783,7 +811,7 @@ class Transaction:
         if witness and self.is_segwit():
             marker = '00'
             flag = '01'
-            witness = ''.join(self.serialize_witness(x) for x in inputs)
+            witness = ''.join(self.serialize_witness(x, estimate_size) for x in inputs)
             return nVersion + marker + flag + txins + txouts + witness + nLocktime
         else:
             return nVersion + txins + txouts + nLocktime
@@ -825,14 +853,57 @@ class Transaction:
 
     @profiler
     def estimated_size(self):
-        '''Return an estimated tx size in bytes.'''
-        return len(self.serialize(True)) // 2 if not self.is_complete() or self.raw is None else len(self.raw) / 2 # ASCII hex string
+        """Return an estimated virtual tx size in vbytes.
+        BIP-0141 defines 'Virtual transaction size' to be weight/4 rounded up.
+        This definition is only for humans, and has little meaning otherwise.
+        If we wanted sub-byte precision, fee calculation should use transaction
+        weights, but for simplicity we approximate that with (virtual_size)x4
+        """
+        weight = self.estimated_weight()
+        return self.virtual_size_from_weight(weight)
 
     @classmethod
-    def estimated_input_size(self, txin):
-        '''Return an estimated of serialized input size in bytes.'''
-        script = self.input_script(txin, True)
-        return len(self.serialize_input(txin, script)) // 2
+    def estimated_input_weight(cls, txin):
+        '''Return an estimate of serialized input weight in weight units.'''
+        script = cls.input_script(txin, True)
+        input_size = len(cls.serialize_input(txin, script)) // 2
+
+        # note: we should actually branch based on tx.is_segwit()
+        # only if none of the inputs have a witness, is the size actually 0
+        if cls.is_segwit_input(txin):
+            witness_size = len(cls.serialize_witness(txin, True)) // 2
+        else:
+            witness_size = 0
+
+        return 4 * input_size + witness_size
+
+    @classmethod
+    def virtual_size_from_weight(cls, weight):
+        return weight // 4 + (weight % 4 > 0)
+
+    def estimated_total_size(self):
+        """Return an estimated total transaction size in bytes."""
+        return len(self.serialize(True)) // 2 if not self.is_complete() or self.raw is None else len(self.raw) // 2  # ASCII hex string
+
+    def estimated_witness_size(self):
+        """Return an estimate of witness size in bytes."""
+        if not self.is_segwit():
+            return 0
+        inputs = self.inputs()
+        estimate = not self.is_complete()
+        witness = ''.join(self.serialize_witness(x, estimate) for x in inputs)
+        witness_size = len(witness) // 2 + 2  # include marker and flag
+        return witness_size
+
+    def estimated_base_size(self):
+        """Return an estimated base transaction size in bytes."""
+        return self.estimated_total_size() - self.estimated_witness_size()
+
+    def estimated_weight(self):
+        """Return an estimate of transaction weight."""
+        total_tx_size = self.estimated_total_size()
+        base_tx_size = self.estimated_base_size()
+        return 3 * base_tx_size + total_tx_size
 
     def signature_count(self):
         r = 0
@@ -860,8 +931,8 @@ class Transaction:
                     break
                 if x_pubkey in keypairs.keys():
                     print_error("adding signature for", x_pubkey)
-                    sec = keypairs.get(x_pubkey)
-                    pubkey = public_key_from_private_key(sec)
+                    sec, compressed = keypairs.get(x_pubkey)
+                    pubkey = public_key_from_private_key(sec, compressed)
                     # add signature
                     pre_hash = Hash(bfh(self.serialize_preimage(i)))
                     pkey = regenerate_key(sec)
@@ -907,29 +978,6 @@ class Transaction:
             'final': self.is_final(),
         }
         return out
-
-    def requires_fee(self, wallet):
-        # see https://en.bitcoin.it/wiki/Transaction_fees
-        #
-        # size must be smaller than 1 kbyte for free tx
-        size = len(self.serialize(-1))/2
-        if size >= 10000:
-            return True
-        # all outputs must be 0.01 BTC or larger for free tx
-        for addr, value in self.get_outputs():
-            if value < 1000000:
-                return True
-        # priority must be large enough for free tx
-        threshold = 57600000
-        weight = 0
-        for txin in self.inputs():
-            height, conf, timestamp = wallet.get_tx_height(txin["prevout_hash"])
-            weight += txin["value"] * conf
-        priority = weight / size
-        print_error(priority, threshold)
-
-        return priority < threshold
-
 
 
 def tx_from_str(txt):

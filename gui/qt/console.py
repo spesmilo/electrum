@@ -1,15 +1,11 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
-import six
 # source: http://stackoverflow.com/questions/2758159/how-to-embed-a-python-interpreter-in-a-pyqt-widget
 
 import sys, os, re
 import traceback, platform
-from PyQt4 import QtCore
-from PyQt4 import QtGui
+from PyQt5 import QtCore
+from PyQt5 import QtGui
+from PyQt5 import QtWidgets
 from electrum import util
 
 
@@ -21,9 +17,9 @@ else:
     MONOSPACE_FONT = 'monospace'
 
 
-class Console(QtGui.QPlainTextEdit):
+class Console(QtWidgets.QPlainTextEdit):
     def __init__(self, prompt='>> ', startup_message='', parent=None):
-        QtGui.QPlainTextEdit.__init__(self, parent)
+        QtWidgets.QPlainTextEdit.__init__(self, parent)
 
         self.prompt = prompt
         self.history = []
@@ -223,7 +219,7 @@ class Console(QtGui.QPlainTextEdit):
                             self.appendPlainText(repr(result))
                 except SyntaxError:
                     # exec is generally considered bad practice. use it wisely!
-                    exec(command) in self.namespace
+                    exec(command, self.namespace, self.namespace)
             except SystemExit:
                 self.close()
             except Exception:
@@ -315,8 +311,8 @@ welcome_message = '''
 '''
 
 if __name__ == '__main__':
-    app = QtGui.QApplication(sys.argv)
+    app = QtWidgets.QApplication(sys.argv)
     console = Console(startup_message=welcome_message)
     console.updateNamespace({'myVar1' : app, 'myVar2' : 1234})
-    console.show();
+    console.show()
     sys.exit(app.exec_())

@@ -22,14 +22,10 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
-import six
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import QCompleter, QPlainTextEdit
 from .qrtextedit import ScanQRTextEdit
 
 import re
@@ -72,10 +68,10 @@ class PayToEdit(ScanQRTextEdit):
             button.setHidden(b)
 
     def setGreen(self):
-        self.setStyleSheet(util.GREEN_BG)
+        self.setStyleSheet(util.ColorScheme.GREEN.as_stylesheet(True))
 
     def setExpired(self):
-        self.setStyleSheet(util.RED_BG)
+        self.setStyleSheet(util.ColorScheme.RED.as_stylesheet(True))
 
     def parse_address_and_amount(self, line):
         x, y = line.split(',')
@@ -190,8 +186,9 @@ class PayToEdit(ScanQRTextEdit):
         self.update_size()
 
     def update_size(self):
+        lineHeight = QFontMetrics(self.document().defaultFont()).height()
         docHeight = self.document().size().height()
-        h = docHeight*17 + 11
+        h = docHeight * lineHeight + 11
         if self.heightMin <= h <= self.heightMax:
             self.setMinimumHeight(h)
             self.setMaximumHeight(h)

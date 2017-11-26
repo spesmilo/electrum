@@ -25,7 +25,6 @@
 # SOFTWARE.
 import os
 import sys
-import six
 
 # from https://gist.github.com/tito/09c42fb4767721dc323d
 import threading
@@ -44,7 +43,7 @@ if jnius:
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
-is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "setup-release.py"))
+is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "electrum.desktop"))
 is_android = 'ANDROID_DATA' in os.environ
 
 # move this back to gui/kivy/__init.py once plugins are moved
@@ -52,8 +51,6 @@ os.environ['KIVY_DATA_DIR'] = os.path.abspath(os.path.dirname(__file__)) + '/gui
 
 if is_local or is_android:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
-elif is_bundle and sys.platform=='darwin':
-    is_local = True
 
 
 def check_imports():
@@ -63,13 +60,12 @@ def check_imports():
         import pyaes
         import ecdsa
         import requests
-        import six
         import qrcode
         import pbkdf2
         import google.protobuf
         import jsonrpclib
     except ImportError as e:
-        sys.exit("Error: %s. Try 'sudo pip install <module-name>'"%e.message)
+        sys.exit("Error: %s. Try 'sudo pip install <module-name>'"%str(e))
     # the following imports are for pyinstaller
     from google.protobuf import descriptor
     from google.protobuf import message
@@ -77,8 +73,6 @@ def check_imports():
     from google.protobuf import descriptor_pb2
     from jsonrpclib import SimpleJSONRPCServer
     # make sure that certificates are here
-    if is_bundle and sys.platform=='darwin':
-        requests.utils.DEFAULT_CA_BUNDLE_PATH = os.path.join(os.path.dirname(__file__), 'cacert.pem')
     assert os.path.exists(requests.utils.DEFAULT_CA_BUNDLE_PATH)
 
 
@@ -93,7 +87,7 @@ if is_local or is_android:
     imp.load_module('electrum_plugins', *imp.find_module('plugins'))
 
 
-from electrum import bitcoin, network
+from electrum import bitcoin
 from electrum import SimpleConfig, Network
 from electrum.wallet import Wallet, Imported_Wallet
 from electrum.storage import WalletStorage
@@ -137,11 +131,19 @@ def run_non_RPC(config):
             wallet = Imported_Wallet(storage)
             for x in text.split():
                 wallet.import_address(x)
+        elif keystore.is_private_key_list(text):
+            k = keystore.Imported_KeyStore({})
+            storage.put('keystore', k.dump())
+            storage.put('use_encryption', bool(password))
+            wallet = Imported_Wallet(storage)
+            for x in text.split():
+                wallet.import_private_key(x, password)
+            storage.write()
         else:
             if keystore.is_seed(text):
-                k = keystore.from_seed(text, passphrase)
-            elif keystore.is_any_key(text):
-                k = keystore.from_keys(text)
+                k = keystore.from_seed(text, passphrase, False)
+            elif keystore.is_master_key(text):
+                k = keystore.from_master_key(text)
             else:
                 sys.exit("Error: Seed or key not recognized")
             if password:
@@ -168,13 +170,11 @@ def run_non_RPC(config):
         passphrase = config.get('passphrase', '')
         seed_type = 'segwit' if config.get('segwit') else 'standard'
         seed = Mnemonic('en').make_seed(seed_type)
-        k = keystore.from_seed(seed, passphrase)
-        k.update_password(None, password)
+        k = keystore.from_seed(seed, passphrase, False)
         storage.put('keystore', k.dump())
         storage.put('wallet_type', 'standard')
-        storage.put('use_encryption', bool(password))
-        storage.write()
         wallet = Wallet(storage)
+        wallet.update_password(None, password, True)
         wallet.synchronize()
         print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
         print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
@@ -280,10 +280,12 @@ def run_offline_command(config, config_options):
     # decode json arguments
     args = list(map(json_decode, args))
     # options
-    args += [(config_options.get(x) if x in ['password', 'new_password'] else config.get(x)) for x in cmd.options]
+    kwargs = {}
+    for x in cmd.options:
+        kwargs[x] = (config_options.get(x) if x in ['password', 'new_password'] else config.get(x))
     cmd_runner = Commands(config, wallet, None)
     func = getattr(cmd_runner, cmd.name)
-    result = func(*args)
+    result = func(*args, **kwargs)
     # save wallet
     if wallet:
         wallet.storage.write()
@@ -355,7 +357,7 @@ if __name__ == '__main__':
     cmdname = config.get('cmd')
 
     if config.get('testnet'):
-        bitcoin.set_testnet()
+        bitcoin.NetworkConstants.set_testnet()
 
     # run non-RPC commands separately
     if cmdname in ['create', 'restore']:
@@ -421,7 +423,7 @@ if __name__ == '__main__':
                 result = run_offline_command(config, config_options)
 
                 # print result
-    if isinstance(result, six.text_type):
+    if isinstance(result, str):
         print_msg(result)
     elif type(result) is dict and result.get('error'):
         print_stderr(result.get('error'))

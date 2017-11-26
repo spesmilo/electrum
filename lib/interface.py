@@ -22,11 +22,6 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import os
 import re
 import socket
@@ -55,7 +50,7 @@ def Connection(server, queue, config_path):
     queue of the form (server, socket), where socket is None if
     connection failed.
     """
-    host, port, protocol = server.split(':')
+    host, port, protocol = server.rsplit(':', 2)
     if not protocol in 'st':
         raise Exception('Unknown protocol: %s' % protocol)
     c = TcpConnection(server, queue, config_path)
@@ -70,7 +65,7 @@ class TcpConnection(threading.Thread, util.PrintError):
         self.config_path = config_path
         self.queue = queue
         self.server = server
-        self.host, self.port, self.protocol = self.server.split(':')
+        self.host, self.port, self.protocol = self.server.rsplit(':', 2)
         self.host = str(self.host)
         self.port = int(self.port)
         self.use_ssl = (self.protocol == 's')
@@ -124,6 +119,18 @@ class TcpConnection(threading.Thread, util.PrintError):
         else:
             self.print_error("failed to connect", str(e))
 
+    @staticmethod
+    def get_ssl_context(cert_reqs, ca_certs):
+        context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_certs)
+        context.check_hostname = False
+        context.verify_mode = cert_reqs
+
+        context.options |= ssl.OP_NO_SSLv2
+        context.options |= ssl.OP_NO_SSLv3
+        context.options |= ssl.OP_NO_TLSv1
+
+        return context
+
     def get_socket(self):
         if self.use_ssl:
             cert_path = os.path.join(self.config_path, 'certs', self.host)
@@ -134,12 +141,14 @@ class TcpConnection(threading.Thread, util.PrintError):
                     return
                 # try with CA first
                 try:
-                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_TLSv1_1, cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_path, do_handshake_on_connect=True)
-                except socket.timeout:
-                    return
+                    context = self.get_ssl_context(cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_path)
+                    s = context.wrap_socket(s, do_handshake_on_connect=True)
                 except ssl.SSLError as e:
                     print_error(e)
                     s = None
+                except:
+                    return
+
                 if s and self.check_host_name(s.getpeercert(), self.host):
                     self.print_error("SSL certificate signed by CA")
                     return s
@@ -149,11 +158,12 @@ class TcpConnection(threading.Thread, util.PrintError):
                 if s is None:
                     return
                 try:
-                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_TLSv1_1, cert_reqs=ssl.CERT_NONE, ca_certs=None)
-                except socket.timeout:
-                    return
+                    context = self.get_ssl_context(cert_reqs=ssl.CERT_NONE, ca_certs=None)
+                    s = context.wrap_socket(s)
                 except ssl.SSLError as e:
                     self.print_error("SSL error retrieving SSL certificate:", e)
+                    return
+                except:
                     return
 
                 dercert = s.getpeercert(True)
@@ -173,11 +183,9 @@ class TcpConnection(threading.Thread, util.PrintError):
 
         if self.use_ssl:
             try:
-                s = ssl.wrap_socket(s,
-                                    ssl_version=ssl.PROTOCOL_TLSv1_1,
-                                    cert_reqs=ssl.CERT_REQUIRED,
-                                    ca_certs=(temporary_path if is_new else cert_path),
-                                    do_handshake_on_connect=True)
+                context = self.get_ssl_context(cert_reqs=ssl.CERT_REQUIRED,
+                                               ca_certs=(temporary_path if is_new else cert_path))
+                s = context.wrap_socket(s, do_handshake_on_connect=True)
             except socket.timeout:
                 self.print_error('timeout')
                 return
@@ -239,7 +247,7 @@ class Interface(util.PrintError):
 
     def __init__(self, server, socket):
         self.server = server
-        self.host, _, _ = server.split(':')
+        self.host, _, _ = server.rsplit(':', 2)
         self.socket = socket
 
         self.pipe = util.SocketPipe(socket)

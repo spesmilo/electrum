@@ -26,7 +26,7 @@
 
 import threading
 
-from PyQt4.Qt import QVBoxLayout, QLabel, SIGNAL
+from PyQt5.Qt import QVBoxLayout, QLabel
 from electrum_gui.qt.password_dialog import PasswordDialog, PW_PASSPHRASE
 from electrum_gui.qt.util import *
 
@@ -182,6 +182,12 @@ class QtPluginBase(object):
         for keystore in wallet.get_keystores():
             if not isinstance(keystore, self.keystore_class):
                 continue
+            if not self.libraries_available:
+                window.show_error(
+                    _("Cannot find python library for") + " '%s'.\n" % self.name \
+                    + _("Make sure you install it with python3")
+                )
+                return
             tooltip = self.device + '\n' + (keystore.label or 'unnamed')
             cb = partial(self.show_settings_dialog, window, keystore)
             button = StatusBarButton(QIcon(self.icon_unpaired), tooltip, cb)

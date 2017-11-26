@@ -1,18 +1,11 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-import six
 import ast
 import sys
 import os
 import unittest
 import tempfile
 import shutil
-import json
 
-from six.moves import StringIO
+from io import StringIO
 from lib.simple_config import (SimpleConfig, read_system_config,
                                read_user_config)
 

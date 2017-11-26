@@ -22,22 +22,14 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-import six
 import copy
 import datetime
 import json
 
-import PyQt4
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
-import PyQt4.QtCore as QtCore
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 
-from electrum import transaction
 from electrum.bitcoin import base_encode
 from electrum.i18n import _
 from electrum.plugins import run_hook
@@ -71,7 +63,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.saved = False
         self.desc = desc
 
-        self.setMinimumWidth(660)
+        self.setMinimumWidth(750)
         self.setWindowTitle(_("Transaction"))
 
         vbox = QVBoxLayout()
@@ -214,7 +206,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         size_str = _("Size:") + ' %d bytes'% size
         fee_str = _("Fee") + ': %s'% (format_amount(fee) + ' ' + base_unit if fee is not None else _('unknown'))
         if fee is not None:
-            fee_str += '  ( %s )' % (format_amount(fee * 1000 / size) + ' ' + base_unit + '/kB')
+            fee_str += '  ( %s ) '%  self.main_window.format_fee_rate(fee/size*1000)
         self.amount_label.setText(amount_str)
         self.fee_label.setText(fee_str)
         self.size_label.setText(size_str)
@@ -227,7 +219,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         vbox.addWidget(QLabel(_("Inputs") + ' (%d)'%len(self.tx.inputs())))
         ext = QTextCharFormat()
         rec = QTextCharFormat()
-        rec.setBackground(QBrush(QColor("lightgreen")))
+        rec.setBackground(QBrush(ColorScheme.GREEN.as_color(background=True)))
         rec.setToolTip(_("Wallet receive address"))
         chg = QTextCharFormat()
         chg.setBackground(QBrush(QColor("yellow")))

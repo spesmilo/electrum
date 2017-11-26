@@ -20,11 +20,6 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import binascii
 import os, sys, re, json
 from collections import defaultdict
@@ -39,6 +34,10 @@ from .i18n import _
 
 import urllib.request, urllib.parse, urllib.error
 import queue
+
+def inv_dict(d):
+    return {v: k for k, v in d.items()}
+
 
 base_units = {'BTC':8, 'mBTC':5, 'uBTC':2}
 fee_levels = [_('Within 25 blocks'), _('Within 10 blocks'), _('Within 5 blocks'), _('Within 2 blocks'), _('In the next block')]
@@ -287,44 +286,23 @@ def to_bytes(something, encoding='utf8'):
     else:
         raise TypeError("Not a string or bytes like object")
 
-bfh_builder = lambda x: bytes.fromhex(x)
 
-
-def hfu(x):
-    """
-    py2-py3 aware wrapper for str.encode('hex')
-    :param x: str
-    :return: str
-    """
-    assert_bytes(x)
-    return binascii.hexlify(x)
-
-
-def bfh(x):
-    """
-    py2-py3 aware wrapper to "bytes.fromhex()" func
-    :param x: str
-    :rtype: bytes
-    """
-    if isinstance(x, str):
-        return bfh_builder(x)
-    # TODO: check for iterator interface
-    elif isinstance(x, (list, tuple, map)):
-        return [bfh(sub) for sub in x]
-    else:
-        raise TypeError('Unexpected type: ' + str(type(x)))
+bfh = bytes.fromhex
+hfu = binascii.hexlify
 
 
 def bh2u(x):
     """
-    unicode with hex representation of bytes()
-    e.g. x = bytes([1, 2, 10])
-    bh2u(x) -> '01020A'
+    str with hex representation of a bytes-like object
+
+    >>> x = bytes((1, 2, 10))
+    >>> bh2u(x)
+    '01020A'
+
     :param x: bytes
     :rtype: str
     """
-    assert_bytes(x)
-    return binascii.hexlify(x).decode('ascii')
+    return hfu(x).decode('ascii')
 
 
 def user_dir():
@@ -472,7 +450,7 @@ testnet_block_explorers = {
 
 def block_explorer_info():
     from . import bitcoin
-    return testnet_block_explorers if bitcoin.TESTNET else mainnet_block_explorers
+    return testnet_block_explorers if bitcoin.NetworkConstants.TESTNET else mainnet_block_explorers
 
 def block_explorer(config):
     return config.get('block_explorer', 'Blocktrail.com')
@@ -605,7 +583,6 @@ class timeout(Exception):
     pass
 
 import socket
-import errno
 import json
 import ssl
 import time
@@ -672,18 +649,10 @@ class SocketPipe:
                 print_error("SSLError:", e)
                 time.sleep(0.1)
                 continue
-            except socket.error as e:
-                if e[0] in (errno.EWOULDBLOCK,errno.EAGAIN):
-                    print_error("EAGAIN: retrying")
-                    time.sleep(0.1)
-                    continue
-                elif e[0] in ['timed out', 'The write operation timed out']:
-                    print_error("socket timeout, retry")
-                    time.sleep(0.1)
-                    continue
-                else:
-                    traceback.print_exc(file=sys.stdout)
-                    raise e
+            except OSError as e:
+                print_error("OSError", e)
+                time.sleep(0.1)
+                continue
 
 
 class QueuePipe:

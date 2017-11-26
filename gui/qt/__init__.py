@@ -23,26 +23,28 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import sys
-import os
 import signal
+import sys
+
 
 try:
-    import PyQt4
+    import PyQt5
 except Exception:
-    sys.exit("Error: Could not import PyQt4 on Linux systems, you may try 'sudo apt-get install python3-pyqt4'")
+    sys.exit("Error: Could not import PyQt5 on Linux systems, you may try 'sudo apt-get install python3-pyqt5'")
 
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
-import PyQt4.QtCore as QtCore
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
+from PyQt5.QtCore import *
+import PyQt5.QtCore as QtCore
 
 from electrum.i18n import _, set_language
 from electrum.plugins import run_hook
-from electrum import SimpleConfig, Wallet, WalletStorage
-from electrum.synchronizer import Synchronizer
-from electrum.verifier import SPV
-from electrum.util import DebugMem, UserCancelled, InvalidPassword
-from electrum.wallet import Abstract_Wallet
+from electrum import WalletStorage
+# from electrum.synchronizer import Synchronizer
+# from electrum.verifier import SPV
+# from electrum.util import DebugMem
+from electrum.util import UserCancelled, print_error
+# from electrum.wallet import Abstract_Wallet
 
 from .installwizard import InstallWizard, GoBack
 
@@ -52,7 +54,7 @@ try:
 except Exception as e:
     print(e)
     print("Error: Could not find icons file.")
-    print("Please run 'pyrcc4 icons.qrc -o gui/qt/icons_rc.py -py3', and reinstall Electrum")
+    print("Please run 'pyrcc5 icons.qrc -o gui/qt/icons_rc.py', and reinstall Electrum")
     sys.exit(1)
 
 from .util import *   # * needed for plugins
@@ -73,6 +75,13 @@ class OpenFileEventFilter(QObject):
         return False
 
 
+class QElectrumApplication(QApplication):
+    new_window_signal = pyqtSignal(str, object)
+
+
+class QNetworkUpdatedSignalObject(QObject):
+    network_updated_signal = pyqtSignal(str, object)
+
 
 class ElectrumGui:
 
@@ -88,10 +97,11 @@ class ElectrumGui:
         self.plugins = plugins
         self.windows = []
         self.efilter = OpenFileEventFilter(self.windows)
-        self.app = QApplication(sys.argv)
+        self.app = QElectrumApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
         self.timer = Timer()
         self.nd = None
+        self.network_updated_signal_obj = QNetworkUpdatedSignalObject()
         # init tray
         self.dark_icon = self.config.get("dark_icon", False)
         self.tray = QSystemTrayIcon(self.tray_icon(), None)
@@ -99,13 +109,18 @@ class ElectrumGui:
         self.tray.activated.connect(self.tray_activated)
         self.build_tray_menu()
         self.tray.show()
-        self.app.connect(self.app, QtCore.SIGNAL('new_window'), self.start_new_window)
+        self.app.new_window_signal.connect(self.start_new_window)
         run_hook('init_qt', self)
+        ColorScheme.update_from_widget(QWidget())
 
     def build_tray_menu(self):
         # Avoid immediate GC of old menu when window closed via its action
-        self.old_menu = self.tray.contextMenu()
-        m = QMenu()
+        if self.tray.contextMenu() is None:
+            m = QMenu()
+            self.tray.setContextMenu(m)
+        else:
+            m = self.tray.contextMenu()
+            m.clear()
         for window in self.windows:
             submenu = m.addMenu(window.wallet.basename())
             submenu.addAction(_("Show/Hide"), window.show_or_hide)
@@ -113,7 +128,6 @@ class ElectrumGui:
         m.addAction(_("Dark/Light"), self.toggle_tray_icon)
         m.addSeparator()
         m.addAction(_("Exit Electrum"), self.close)
-        self.tray.setContextMenu(m)
 
     def tray_icon(self):
         if self.dark_icon:
@@ -141,7 +155,7 @@ class ElectrumGui:
 
     def new_window(self, path, uri=None):
         # Use a signal as can be called from daemon thread
-        self.app.emit(SIGNAL('new_window'), path, uri)
+        self.app.new_window_signal.emit(path, uri)
 
     def show_network_dialog(self, parent):
         if not self.daemon.network:
@@ -152,7 +166,8 @@ class ElectrumGui:
             self.nd.show()
             self.nd.raise_()
             return
-        self.nd = NetworkDialog(self.daemon.network, self.config)
+        self.nd = NetworkDialog(self.daemon.network, self.config,
+                                self.network_updated_signal_obj)
         self.nd.show()
 
     def create_window_for_wallet(self, wallet):
@@ -178,9 +193,14 @@ class ElectrumGui:
                 d.exec_()
                 return
             if not wallet:
-                storage = WalletStorage(path)
+                storage = WalletStorage(path, manual_upgrades=True)
                 wizard = InstallWizard(self.config, self.app, self.plugins, storage)
-                wallet = wizard.run_and_get_wallet()
+                try:
+                    wallet = wizard.run_and_get_wallet()
+                except UserCancelled:
+                    pass
+                except GoBack as e:
+                    print_error('[start_new_window] Exception caught (GoBack)', e)
                 wizard.terminate()
                 if not wallet:
                     return

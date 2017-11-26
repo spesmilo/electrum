@@ -143,7 +143,7 @@ class SettingsDialog(Factory.Popup):
             def cb(text):
                 self.app._set_bu(text)
                 item.bu = self.app.base_unit
-            self._unit_dialog = ChoiceDialog(_('Denomination'), base_units.keys(), self.app.base_unit, cb)
+            self._unit_dialog = ChoiceDialog(_('Denomination'), list(base_units.keys()), self.app.base_unit, cb)
         self._unit_dialog.open()
 
     def coinselect_status(self):
@@ -190,7 +190,7 @@ class SettingsDialog(Factory.Popup):
         self._proxy_dialog.open()
 
     def plugin_dialog(self, name, label, dt):
-        from checkbox_dialog import CheckBoxDialog
+        from .checkbox_dialog import CheckBoxDialog
         def callback(status):
             self.plugins.enable(name) if status else self.plugins.disable(name)
             label.status = 'ON' if status else 'OFF'
@@ -209,14 +209,14 @@ class SettingsDialog(Factory.Popup):
 
     def fee_dialog(self, label, dt):
         if self._fee_dialog is None:
-            from fee_dialog import FeeDialog
+            from .fee_dialog import FeeDialog
             def cb():
                 label.status = self.fee_status()
             self._fee_dialog = FeeDialog(self.app, self.config, cb)
         self._fee_dialog.open()
 
     def boolean_dialog(self, name, title, message, dt):
-        from checkbox_dialog import CheckBoxDialog
+        from .checkbox_dialog import CheckBoxDialog
         CheckBoxDialog(title, message, getattr(self.app, name), lambda x: setattr(self.app, name, x)).open()
 
     def fx_status(self):
@@ -230,7 +230,7 @@ class SettingsDialog(Factory.Popup):
 
     def fx_dialog(self, label, dt):
         if self._fx_dialog is None:
-            from fx_dialog import FxDialog
+            from .fx_dialog import FxDialog
             def cb():
                 label.status = self.fx_status()
             self._fx_dialog = FxDialog(self.app, self.plugins, self.config, cb)

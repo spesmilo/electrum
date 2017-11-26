@@ -22,15 +22,9 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
-import os
 import sys
 import datetime
-import time
 import copy
 import argparse
 import json
@@ -40,13 +34,13 @@ from functools import wraps
 from decimal import Decimal
 
 from .import util
-from .util import print_msg, format_satoshis, print_stderr
+from .util import bfh, bh2u, format_satoshis
 from .import bitcoin
 from .bitcoin import is_address,  hash_160, COIN, TYPE_ADDRESS
+from .i18n import _
 from .transaction import Transaction
-from .import paymentrequest
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
-from .import contacts
+from .plugins import run_hook
 
 known_commands = {}
 
@@ -84,8 +78,12 @@ def command(s):
         @wraps(func)
         def func_wrapper(*args, **kwargs):
             c = known_commands[func.__name__]
-            if c.requires_wallet and args[0].wallet is None:
+            wallet = args[0].wallet
+            password = kwargs.get('password')
+            if c.requires_wallet and wallet is None:
                 raise BaseException("wallet not loaded. Use 'electrum daemon load_wallet'")
+            if c.requires_password and password is None and wallet.storage.get('use_encryption'):
+                return {'error': 'Password required' }
             return func(*args, **kwargs)
         return func_wrapper
     return decorator
@@ -125,7 +123,7 @@ class Commands:
         return ' '.join(sorted(known_commands.keys()))
 
     @command('')
-    def create(self):
+    def create(self, segwit=False):
         """Create a new wallet"""
         raise BaseException('Not a JSON-RPC command')
 
@@ -140,7 +138,8 @@ class Commands:
     @command('wp')
     def password(self, password=None, new_password=None):
         """Change wallet password. """
-        self.wallet.update_password(password, new_password)
+        b = self.wallet.storage.is_encrypted()
+        self.wallet.update_password(password, new_password, b)
         self.wallet.storage.write()
         return {'password':self.wallet.has_password()}
 
@@ -170,7 +169,7 @@ class Commands:
     @command('')
     def check_seed(self, seed, entropy=1, language=None):
         """Check that a seed was generated with given entropy"""
-        from mnemonic import Mnemonic
+        from .mnemonic import Mnemonic
         return Mnemonic(language).check_seed(seed, entropy)
 
     @command('n')
@@ -187,7 +186,7 @@ class Commands:
         l = copy.deepcopy(self.wallet.get_utxos(exclude_frozen=False))
         for i in l:
             v = i["value"]
-            i["value"] = float(v)/COIN if v is not None else None
+            i["value"] = str(Decimal(v)/COIN) if v is not None else None
         return l
 
     @command('n')
@@ -212,16 +211,15 @@ class Commands:
                 prevout_hash, prevout_n = txin['output'].split(':')
                 txin['prevout_n'] = int(prevout_n)
                 txin['prevout_hash'] = prevout_hash
-            if txin.get('redeemPubkey'):
-                pubkey = txin['redeemPubkey']
-                txin['type'] = 'p2pkh'
+            sec = txin.get('privkey')
+            if sec:
+                txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
+                pubkey = bitcoin.public_key_from_private_key(privkey, compressed)
+                keypairs[pubkey] = privkey, compressed
+                txin['type'] = txin_type
                 txin['x_pubkeys'] = [pubkey]
                 txin['signatures'] = [None]
                 txin['num_sig'] = 1
-                if txin.get('privkey'):
-                    keypairs[pubkey] = txin['privkey']
-            elif txin.get('redeemScript'):
-                raise BaseException('Not implemented')
 
         outputs = [(TYPE_ADDRESS, x['address'], int(x['value'])) for x in outputs]
         tx = Transaction.from_io(inputs, outputs, locktime=locktime)
@@ -233,10 +231,11 @@ class Commands:
         """Sign a transaction. The wallet keys will be used unless a private key is provided."""
         tx = Transaction(tx)
         if privkey:
-            pubkey = bitcoin.public_key_from_private_key(privkey)
+            txin_type, privkey2, compressed = bitcoin.deserialize_privkey(privkey)
+            pubkey = bitcoin.public_key_from_private_key(privkey2, compressed)
             h160 = bitcoin.hash_160(bfh(pubkey))
             x_pubkey = 'fd' + bh2u(b'\x00' + h160)
-            tx.sign({x_pubkey:privkey})
+            tx.sign({x_pubkey:(privkey2, compressed)})
         else:
             self.wallet.sign_transaction(tx, password)
         return tx.as_dict()
@@ -274,10 +273,12 @@ class Commands:
     @command('wp')
     def getprivatekeys(self, address, password=None):
         """Get private keys of addresses. You may pass a single wallet address, or a list of wallet addresses."""
+        if isinstance(address, str):
+            address = address.strip()
         if is_address(address):
-            return self.wallet.get_private_key(address, password)
+            return self.wallet.export_private_key(address, password)[0]
         domain = address
-        return [self.wallet.get_private_key(address, password) for address in domain]
+        return [self.wallet.export_private_key(address, password)[0] for address in domain]
 
     @command('w')
     def ismine(self, address):
@@ -343,7 +344,7 @@ class Commands:
     @command('')
     def version(self):
         """Return the version of electrum."""
-        from version import ELECTRUM_VERSION
+        from .version import ELECTRUM_VERSION
         return ELECTRUM_VERSION
 
     @command('w')
@@ -364,11 +365,11 @@ class Commands:
 
     @command('wp')
     def importprivkey(self, privkey, password=None):
-        """Import a private key. """
+        """Import a private key."""
         if not self.wallet.can_import_privkey():
             return "Error: This type of wallet cannot import private keys. Try to create a new wallet with that key."
         try:
-            addr = self.wallet.import_key(privkey, password)
+            addr = self.wallet.import_private_key(privkey, password)
             out = "Keypair imported: " + addr
         except BaseException as e:
             out = "Error: " + str(e)
@@ -383,12 +384,12 @@ class Commands:
         return out['address']
 
     @command('nw')
-    def sweep(self, privkey, destination, tx_fee=None, nocheck=False, imax=100):
+    def sweep(self, privkey, destination, fee=None, nocheck=False, imax=100):
         """Sweep private keys. Returns a transaction that spends UTXOs from
         privkey to a destination address. The transaction is not
         broadcasted."""
-        tx_fee = satoshis(tx_fee)
-        privkeys = privkey if type(privkey) is list else [privkey]
+        tx_fee = satoshis(fee)
+        privkeys = privkey.split()
         self.nocheck = nocheck
         dest = self._resolver(destination)
         tx = self.wallet.sweep(privkeys, self.network, self.config, dest, tx_fee, imax)
@@ -399,7 +400,7 @@ class Commands:
         """Sign a message with a key. Use quotes if your message contains
         whitespaces"""
         sig = self.wallet.sign_message(address, message, password)
-        return base64.b64encode(sig)
+        return base64.b64encode(sig).decode('ascii')
 
     @command('')
     def verifymessage(self, address, signature, message):
@@ -424,22 +425,23 @@ class Commands:
         if rbf:
             tx.set_rbf(True)
         if not unsigned:
+            run_hook('sign_tx', self.wallet, tx)
             self.wallet.sign_transaction(tx, password)
         return tx
 
     @command('wp')
-    def payto(self, destination, amount, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None, locktime=None):
+    def payto(self, destination, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None, locktime=None):
         """Create a transaction. """
-        tx_fee = satoshis(tx_fee)
-        domain = [from_addr] if from_addr else None
+        tx_fee = satoshis(fee)
+        domain = from_addr.split(',') if from_addr else None
         tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime)
         return tx.as_dict()
 
     @command('wp')
-    def paytomany(self, outputs, tx_fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None, locktime=None):
+    def paytomany(self, outputs, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None, locktime=None):
         """Create a multi-output transaction. """
-        tx_fee = satoshis(tx_fee)
-        domain = [from_addr] if from_addr else None
+        tx_fee = satoshis(fee)
+        domain = from_addr.split(',') if from_addr else None
         tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime)
         return tx.as_dict()
 
@@ -479,7 +481,7 @@ class Commands:
                 'input_addresses': input_addresses,
                 'output_addresses': output_addresses,
                 'label': label,
-                'value': float(value)/COIN if value is not None else None,
+                'value': str(Decimal(value)/COIN) if value is not None else None,
                 'height': height,
                 'confirmations': conf
             })
@@ -511,7 +513,7 @@ class Commands:
         return results
 
     @command('w')
-    def listaddresses(self, receiving=False, change=False, show_labels=False, frozen=False, unused=False, funded=False, show_balance=False):
+    def listaddresses(self, receiving=False, change=False, labels=False, frozen=False, unused=False, funded=False, balance=False):
         """List wallet addresses. Returns the list of all addresses in your wallet. Use optional arguments to filter the results."""
         out = []
         for addr in self.wallet.get_addresses():
@@ -526,10 +528,12 @@ class Commands:
             if funded and self.wallet.is_empty(addr):
                 continue
             item = addr
-            if show_balance:
-                item += ", "+ format_satoshis(sum(self.wallet.get_addr_balance(addr)))
-            if show_labels:
-                item += ', ' + repr(self.wallet.labels.get(addr, ''))
+            if labels or balance:
+                item = (item,)
+            if balance:
+                item += (format_satoshis(sum(self.wallet.get_addr_balance(addr))),)
+            if labels:
+                item += (repr(self.wallet.labels.get(addr, '')),)
             out.append(item)
         return out
 
@@ -597,21 +601,21 @@ class Commands:
         return list(map(self._format_request, out))
 
     @command('w')
-    def getunusedaddress(self,force=False):
-        """Returns the first unused address."""
-        addr = self.wallet.get_unused_address()
-        if addr is None and force:
-            addr = self.wallet.create_new_address(False)
+    def createnewaddress(self):
+        """Create a new receiving address, beyond the gap limit of the wallet"""
+        return self.wallet.create_new_address(False)
 
-        if addr:
-            return addr
-        else:
-            return False
-
+    @command('w')
+    def getunusedaddress(self):
+        """Returns the first unused address of the wallet, or None if all addresses are used.
+        An address is considered as used if it has received a transaction, or if it is used in a payment request."""
+        return self.wallet.get_unused_address()
 
     @command('w')
     def addrequest(self, amount, memo='', expiration=None, force=False):
-        """Create a payment request."""
+        """Create a payment request, using the first unused address of the wallet.
+        The address will be condidered as used after this operation.
+        If no payment is received, the address will be considered as unused if the payment request is deleted from the wallet."""
         addr = self.wallet.get_unused_address()
         if addr is None:
             if force:
@@ -642,19 +646,19 @@ class Commands:
     @command('w')
     def clearrequests(self):
         """Remove all payment requests"""
-        for k in self.wallet.receive_requests.keys():
+        for k in list(self.wallet.receive_requests.keys()):
             self.wallet.remove_payment_request(k, self.config)
 
     @command('n')
     def notify(self, address, URL):
         """Watch an address. Everytime the address changes, a http POST is sent to the URL."""
         def callback(x):
-            import urllib2
+            import urllib.request
             headers = {'content-type':'application/json'}
             data = {'address':address, 'status':x.get('result')}
             try:
-                req = urllib2.Request(URL, json.dumps(data), headers)
-                response_stream = urllib2.urlopen(req, timeout=5)
+                req = urllib.request.Request(URL, json.dumps(data), headers)
+                response_stream = urllib.request.urlopen(req, timeout=5)
                 util.print_error('Got Response for %s' % address)
             except BaseException as e:
                 util.print_error(str(e))
@@ -687,40 +691,40 @@ param_descriptions = {
     'amount': 'Amount to be sent (in BTC). Type \'!\' to send the maximum available.',
     'requested_amount': 'Requested amount (in BTC).',
     'outputs': 'list of ["address", amount]',
+    'redeem_script': 'redeem script (hexadecimal)',
 }
 
 command_options = {
-    'password':    ("-W", "--password",    "Password"),
-    'new_password':(None, "--new_password","New Password"),
-    'receiving':   (None, "--receiving",   "Show only receiving addresses"),
-    'change':      (None, "--change",      "Show only change addresses"),
-    'frozen':      (None, "--frozen",      "Show only frozen addresses"),
-    'unused':      (None, "--unused",      "Show only unused addresses"),
-    'funded':      (None, "--funded",      "Show only funded addresses"),
-    'show_balance':("-b", "--balance",     "Show the balances of listed addresses"),
-    'show_labels': ("-l", "--labels",      "Show the labels of listed addresses"),
-    'nocheck':     (None, "--nocheck",     "Do not verify aliases"),
-    'imax':        (None, "--imax",        "Maximum number of inputs"),
-    'tx_fee':      ("-f", "--fee",         "Transaction fee (in BTC)"),
-    'from_addr':   ("-F", "--from",        "Source address. If it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet."),
-    'change_addr': ("-c", "--change",      "Change address. Default is a spare address, or the source address if it's not in the wallet"),
-    'nbits':       (None, "--nbits",       "Number of bits of entropy"),
-    'entropy':     (None, "--entropy",     "Custom entropy"),
-    'segwit':      (None, "--segwit",      "Create segwit seed"),
-    'language':    ("-L", "--lang",        "Default language for wordlist"),
-    'gap_limit':   ("-G", "--gap",         "Gap limit"),
-    'privkey':     (None, "--privkey",     "Private key. Set to '?' to get a prompt."),
-    'unsigned':    ("-u", "--unsigned",    "Do not sign transaction"),
-    'rbf':         (None, "--rbf",         "Replace-by-fee transaction"),
-    'locktime':    (None, "--locktime",    "Set locktime block number"),
-    'domain':      ("-D", "--domain",      "List of addresses"),
-    'memo':        ("-m", "--memo",        "Description of the request"),
-    'expiration':  (None, "--expiration",  "Time in seconds"),
-    'timeout':     (None, "--timeout",     "Timeout in seconds"),
-    'force':       (None, "--force",       "Create new address beyond gap limit, if no more addresses are available."),
-    'pending':     (None, "--pending",     "Show only pending requests."),
-    'expired':     (None, "--expired",     "Show only expired requests."),
-    'paid':        (None, "--paid",        "Show only paid requests."),
+    'password':    ("-W", "Password"),
+    'new_password':(None, "New Password"),
+    'receiving':   (None, "Show only receiving addresses"),
+    'change':      (None, "Show only change addresses"),
+    'frozen':      (None, "Show only frozen addresses"),
+    'unused':      (None, "Show only unused addresses"),
+    'funded':      (None, "Show only funded addresses"),
+    'balance':     ("-b", "Show the balances of listed addresses"),
+    'labels':      ("-l", "Show the labels of listed addresses"),
+    'nocheck':     (None, "Do not verify aliases"),
+    'imax':        (None, "Maximum number of inputs"),
+    'fee':         ("-f", "Transaction fee (in BTC)"),
+    'from_addr':   ("-F", "Source address. If it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet."),
+    'change_addr': ("-c", "Change address. Default is a spare address, or the source address if it's not in the wallet"),
+    'nbits':       (None, "Number of bits of entropy"),
+    'entropy':     (None, "Custom entropy"),
+    'segwit':      (None, "Create segwit seed"),
+    'language':    ("-L", "Default language for wordlist"),
+    'privkey':     (None, "Private key. Set to '?' to get a prompt."),
+    'unsigned':    ("-u", "Do not sign transaction"),
+    'rbf':         (None, "Replace-by-fee transaction"),
+    'locktime':    (None, "Set locktime block number"),
+    'domain':      ("-D", "List of addresses"),
+    'memo':        ("-m", "Description of the request"),
+    'expiration':  (None, "Time in seconds"),
+    'timeout':     (None, "Timeout in seconds"),
+    'force':       (None, "Create new address beyond gap limit, if no more addresses are available."),
+    'pending':     (None, "Show only pending requests."),
+    'expired':     (None, "Show only expired requests."),
+    'paid':        (None, "Show only paid requests."),
 }
 
 
@@ -737,7 +741,7 @@ arg_types = {
     'jsontx': json_loads,
     'inputs': json_loads,
     'outputs': json_loads,
-    'tx_fee': lambda x: str(Decimal(x)) if x is not None else None,
+    'fee': lambda x: str(Decimal(x)) if x is not None else None,
     'amount': lambda x: str(Decimal(x)) if x != '!' else '!',
     'locktime': int,
 }
@@ -849,7 +853,8 @@ def get_parser():
         if cmdname == 'restore':
             p.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
         for optname, default in zip(cmd.options, cmd.defaults):
-            a, b, help = command_options[optname]
+            a, help = command_options[optname]
+            b = '--' + optname
             action = "store_true" if type(default) is bool else 'store'
             args = (a, b) if a else (b,)
             if action == 'store':

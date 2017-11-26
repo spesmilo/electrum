@@ -1,18 +1,13 @@
-import base64
-import re
 import threading
 
 from binascii import hexlify, unhexlify
-from functools import partial
 
 from electrum.util import bfh, bh2u
 from electrum.bitcoin import (b58_address_to_hash160, xpub_from_pubkey,
-                              public_key_to_p2pkh, EncodeBase58Check,
-                              TYPE_ADDRESS, TYPE_SCRIPT,
-                              TESTNET, ADDRTYPE_P2PKH, ADDRTYPE_P2SH)
+                              TYPE_ADDRESS, TYPE_SCRIPT, NetworkConstants)
 from electrum.i18n import _
-from electrum.plugins import BasePlugin, hook
-from electrum.transaction import deserialize, Transaction
+from electrum.plugins import BasePlugin
+from electrum.transaction import deserialize
 from electrum.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
 
 from ..hw_wallet import HW_PluginBase
@@ -33,14 +28,7 @@ class TrezorCompatibleKeyStore(Hardware_KeyStore):
         return self.plugin.get_client(self, force_pair)
 
     def decrypt_message(self, sequence, message, password):
-        raise RuntimeError(_('Electrum and %s encryption and decryption are currently incompatible') % self.device)
-        client = self.get_client()
-        address_path = self.get_derivation() + "/%d/%d"%sequence
-        address_n = client.expand_path(address_path)
-        payload = base64.b64decode(message)
-        nonce, message, msg_hmac = payload[:33], payload[33:-8], payload[-8:]
-        result = client.decrypt_message(address_n, nonce, message, msg_hmac)
-        return result.message
+        raise RuntimeError(_('Encryption and decryption are not implemented by %s') % self.device)
 
     def sign_message(self, sequence, message, password):
         client = self.get_client()
@@ -59,7 +47,7 @@ class TrezorCompatibleKeyStore(Hardware_KeyStore):
         for txin in tx.inputs():
             pubkeys, x_pubkeys = tx.get_sorted_pubkeys(txin)
             tx_hash = txin['prevout_hash']
-            prev_tx[tx_hash] = txin['prev_tx'] 
+            prev_tx[tx_hash] = txin['prev_tx']
             for x_pubkey in x_pubkeys:
                 if not is_xpubkey(x_pubkey):
                     continue
@@ -100,7 +88,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             # raise
             self.print_error("cannot connect at", device.path, str(e))
             return None
- 
+
     def _try_bridge(self, device):
         self.print_error("Trying to connect over Trezor Bridge...")
         try:
@@ -139,8 +127,6 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         return client
 
     def get_client(self, keystore, force_pair=True):
-        # All client interaction should not be in the main GUI thread
-        assert self.main_thread != threading.current_thread()
         devmgr = self.device_manager()
         handler = keystore.handler
         with devmgr.hid_lock:
@@ -151,7 +137,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         return client
 
     def get_coin_name(self):
-        return "Testnet" if TESTNET else "Bitcoin"
+        return "Testnet" if NetworkConstants.TESTNET else "Bitcoin"
 
     def initialize_device(self, device_id, wizard, handler):
         # Initialization method
@@ -229,14 +215,14 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         client.handler = self.create_handler(wizard)
         if not device_info.initialized:
             self.initialize_device(device_id, wizard, client.handler)
-        client.get_xpub('m')
+        client.get_xpub('m', 'standard')
         client.used()
 
-    def get_xpub(self, device_id, derivation, wizard):
+    def get_xpub(self, device_id, derivation, xtype, wizard):
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)
         client.handler = wizard
-        xpub = client.get_xpub(derivation)
+        xpub = client.get_xpub(derivation, xtype)
         client.used()
         return xpub
 
@@ -253,7 +239,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
     def show_address(self, wallet, address):
         client = self.get_client(wallet.keystore)
         if not client.atleast_version(1, 3):
-            keystore.handler.show_error(_("Your device firmware is too old"))
+            wallet.keystore.handler.show_error(_("Your device firmware is too old"))
             return
         change, index = wallet.get_address_index(address)
         derivation = wallet.keystore.derivation
@@ -365,13 +351,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                     txoutputtype.script_type = self.types.PAYTOOPRETURN
                     txoutputtype.op_return_data = address[2:]
                 elif _type == TYPE_ADDRESS:
-                    addrtype, hash_160 = b58_address_to_hash160(address)
-                    if addrtype == ADDRTYPE_P2PKH:
-                        txoutputtype.script_type = self.types.PAYTOADDRESS
-                    elif addrtype == ADDRTYPE_P2SH:
-                        txoutputtype.script_type = self.types.PAYTOSCRIPTHASH
-                    else:
-                        raise BaseException('addrtype')
+                    txoutputtype.script_type = self.types.PAYTOADDRESS
                     txoutputtype.address = address
 
             outputs.append(txoutputtype)

@@ -22,16 +22,8 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import hashlib
-import os.path
-import re
 import sys
-import threading
 import time
 import traceback
 import json
@@ -320,7 +312,7 @@ def make_unsigned_request(req):
     pd.memo = memo
     pr = pb2.PaymentRequest()
     pr.serialized_payment_details = pd.SerializeToString()
-    pr.signature = ''
+    pr.signature = util.to_bytes('')
     return pr
 
 
@@ -419,7 +411,7 @@ def sign_request_with_x509(pr, key_path, cert_path):
         s = f.read()
         bList = pem.dePemList(s, "CERTIFICATE")
     certificates = pb2.X509Certificates()
-    certificates.certificate.extend(map(str, bList))
+    certificates.certificate.extend(map(bytes, bList))
     pr.pki_type = 'x509+sha256'
     pr.pki_data = certificates.SerializeToString()
     msgBytes = bytearray(pr.SerializeToString())
@@ -480,6 +472,7 @@ class InvoiceStore(object):
                 d = json.loads(f.read())
                 self.load(d)
         except:
+            traceback.print_exc(file=sys.stderr)
             return
         self.save()
 
@@ -495,6 +488,9 @@ class InvoiceStore(object):
 
     def get_status(self, key):
         pr = self.get(key)
+        if pr is None:
+            print_error("[InvoiceStore] get_status() can't find pr for", key)
+            return
         if pr.tx is not None:
             return PR_PAID
         if pr.has_expired():

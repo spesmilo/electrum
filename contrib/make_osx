@@ -1,6 +1,6 @@
 #!/bin/bash
 rm -rf dist
+export PYTHONHASHSEED=22
 VERSION=`git describe --tags`
-python2 setup-release.py py2app
+pyinstaller --noconfirm --ascii --name $VERSION contrib/osx.spec
 hdiutil create -fs HFS+ -volname "Electrum" -srcfolder dist/Electrum.app dist/electrum-$VERSION.dmg
-

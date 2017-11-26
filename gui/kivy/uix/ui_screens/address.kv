@@ -1,0 +1,106 @@
+#:import _ electrum_gui.kivy.i18n._
+#:import Decimal decimal.Decimal
+#:set btc_symbol chr(171)
+#:set mbtc_symbol chr(187)
+#:set font_light 'gui/kivy/data/fonts/Roboto-Condensed.ttf'
+
+<AddressLabel@Label>
+    text_size: self.width, None
+    halign: 'left'
+    valign: 'top'
+
+<AddressItem@CardItem>
+    address: ''
+    memo: ''
+    amount: ''
+    status: ''
+    BoxLayout:
+        spacing: '8dp'
+        height: '32dp'
+        orientation: 'vertical'
+        Widget
+        AddressLabel:
+            text: root.address
+            shorten: True
+        Widget
+        AddressLabel:
+            text: root.memo
+            color: .699, .699, .699, 1
+            font_size: '13sp'
+            shorten: True
+        Widget
+    BoxLayout:
+        spacing: '8dp'
+        height: '32dp'
+        orientation: 'vertical'
+        Widget
+        AddressLabel:
+            text: root.amount
+            halign: 'right'
+            font_size: '15sp'
+        Widget
+        AddressLabel:
+            text: root.status
+            halign: 'right'
+            font_size: '13sp'
+            color: .699, .699, .699, 1 
+
+AddressScreen:
+    id: addr_screen
+    name: 'address'
+    message: ''
+    pr_status: 'Pending'
+    show_change: False
+    show_used: 0
+    on_message:
+        self.parent.update()
+    BoxLayout
+        padding: '12dp', '70dp', '12dp', '12dp'
+        spacing: '12dp'
+        orientation: 'vertical'
+        size_hint: 1, 1.1
+        BoxLayout:
+            spacing: '6dp'
+            size_hint: 1, None
+            orientation: 'horizontal'
+            AddressFilter:
+                opacity: 1
+                size_hint: 1, None
+                height: self.minimum_height
+                spacing: '5dp'
+                AddressButton:
+                    id: search
+                    text: _('Change') if root.show_change else _('Receiving')
+                    on_release:
+                        root.show_change = not root.show_change
+                        Clock.schedule_once(lambda dt: app.address_screen.update())
+            AddressFilter:
+                opacity: 1
+                size_hint: 1, None
+                height: self.minimum_height
+                spacing: '5dp'
+                AddressButton:
+                    id: search
+                    text: {0:_('All'), 1:_('Unused'), 2:_('Funded'), 3:_('Used')}[root.show_used]
+                    on_release:
+                        root.show_used = (root.show_used + 1) % 4
+                        Clock.schedule_once(lambda dt: app.address_screen.update())
+            AddressFilter:
+                opacity: 1
+                size_hint: 1, None
+                height: self.minimum_height
+                spacing: '5dp'
+                canvas.before:
+                    Color:
+                        rgba: 0.9, 0.9, 0.9, 1
+                AddressButton:
+                    id: change
+                    text: root.message if root.message else _('Search')
+                    on_release: Clock.schedule_once(lambda dt: app.description_dialog(addr_screen))
+        ScrollView:
+            GridLayout:
+                cols: 1
+                id: search_container
+                size_hint_y: None
+                height: self.minimum_height
+                spacing: '2dp'

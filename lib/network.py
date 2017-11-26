@@ -21,20 +21,15 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import time
 import queue
 import os
+import stat
 import errno
-import sys
 import random
+import re
 import select
-import traceback
-from collections import defaultdict, deque
+from collections import defaultdict
 import threading
 import socket
 import json
@@ -65,7 +60,7 @@ def parse_servers(result):
             for v in item[2]:
                 if re.match("[st]\d*", v):
                     protocol, port = v[0], v[1:]
-                    if port == '': port = bitcoin.DEFAULT_PORTS[protocol]
+                    if port == '': port = bitcoin.NetworkConstants.DEFAULT_PORTS[protocol]
                     out[protocol] = port
                 elif re.match("v(.?)+", v):
                     version = v[1:]
@@ -99,7 +94,7 @@ def filter_protocol(hostmap, protocol = 's'):
 
 def pick_random_server(hostmap = None, protocol = 's', exclude_set = set()):
     if hostmap is None:
-        hostmap = bitcoin.DEFAULT_SERVERS
+        hostmap = bitcoin.NetworkConstants.DEFAULT_SERVERS
     eligible = list(set(filter_protocol(hostmap, protocol)) - exclude_set)
     return random.choice(eligible) if eligible else None
 
@@ -205,6 +200,7 @@ class Network(util.DaemonThread):
         dir_path = os.path.join( self.config.path, 'certs')
         if not os.path.exists(dir_path):
             os.mkdir(dir_path)
+            os.chmod(dir_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
         # subscriptions and requests
         self.subscribed_addresses = set()
@@ -314,11 +310,18 @@ class Network(util.DaemonThread):
         self.queue_request('server.banner', [])
         self.queue_request('server.donation_address', [])
         self.queue_request('server.peers.subscribe', [])
-        for i in bitcoin.FEE_TARGETS:
-            self.queue_request('blockchain.estimatefee', [i])
+        self.request_fee_estimates()
         self.queue_request('blockchain.relayfee', [])
+        if self.interface.ping_required():
+            params = [ELECTRUM_VERSION, PROTOCOL_VERSION]
+            self.queue_request('server.version', params, self.interface)
         for h in self.subscribed_addresses:
             self.queue_request('blockchain.scripthash.subscribe', [h])
+
+    def request_fee_estimates(self):
+        self.config.requested_fee_estimates()
+        for i in bitcoin.FEE_TARGETS:
+            self.queue_request('blockchain.estimatefee', [i])
 
     def get_status_value(self, key):
         if key == 'status':
@@ -354,7 +357,7 @@ class Network(util.DaemonThread):
         return list(self.interfaces.keys())
 
     def get_servers(self):
-        out = bitcoin.DEFAULT_SERVERS
+        out = bitcoin.NetworkConstants.DEFAULT_SERVERS
         if self.irc_servers:
             out.update(filter_version(self.irc_servers.copy()))
         else:
@@ -542,7 +545,7 @@ class Network(util.DaemonThread):
             if error is None and result > 0:
                 i = params[0]
                 fee = int(result*COIN)
-                self.config.fee_estimates[i] = fee
+                self.config.update_fee_estimates(i, fee)
                 self.print_error("fee_estimates[%d]" % i, fee)
                 self.notify('fee')
         elif method == 'blockchain.relayfee':
@@ -616,10 +619,11 @@ class Network(util.DaemonThread):
 
     def overload_cb(self, callback):
         def cb2(x):
-            p = x.pop('params')
+            x2 = x.copy()
+            p = x2.pop('params')
             addr = self.h2addr[p[0]]
-            x['params'] = [addr]
-            callback(x)
+            x2['params'] = [addr]
+            callback(x2)
         return cb2
 
     def subscribe_to_addresses(self, addresses, callback):
@@ -746,6 +750,9 @@ class Network(util.DaemonThread):
                         self.server_retry_time = now
                 else:
                     self.switch_to_interface(self.default_server)
+        else:
+            if self.config.is_fee_estimates_update_required():
+                self.request_fee_estimates()
 
     def request_chunk(self, interface, idx):
         interface.print_error("requesting chunk %d" % idx)
@@ -934,7 +941,7 @@ class Network(util.DaemonThread):
 
     def init_headers_file(self):
         b = self.blockchains[0]
-        if b.get_hash(0) == bitcoin.GENESIS:
+        if b.get_hash(0) == bitcoin.NetworkConstants.GENESIS:
             self.downloading_headers = False
             return
         filename = b.path()
@@ -942,8 +949,8 @@ class Network(util.DaemonThread):
             try:
                 import urllib.request, socket
                 socket.setdefaulttimeout(30)
-                self.print_error("downloading ", bitcoin.HEADERS_URL)
-                urllib.request.urlretrieve(bitcoin.HEADERS_URL, filename + '.tmp')
+                self.print_error("downloading ", bitcoin.NetworkConstants.HEADERS_URL)
+                urllib.request.urlretrieve(bitcoin.NetworkConstants.HEADERS_URL, filename + '.tmp')
                 os.rename(filename + '.tmp', filename)
                 self.print_error("done.")
             except Exception:
@@ -982,6 +989,7 @@ class Network(util.DaemonThread):
         if b:
             interface.blockchain = b
             self.switch_lagging_interface()
+            self.notify('updated')
             self.notify('interfaces')
             return
         b = blockchain.can_connect(header)
@@ -1014,7 +1022,7 @@ class Network(util.DaemonThread):
     def get_blockchains(self):
         out = {}
         for k, b in self.blockchains.items():
-            r = list(filter(lambda i: i.blockchain==b, self.interfaces.values()))
+            r = list(filter(lambda i: i.blockchain==b, list(self.interfaces.values())))
             if r:
                 out[k] = r
         return out

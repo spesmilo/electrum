@@ -22,14 +22,8 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import ast
 import os
-import sys
 import time
 
 # from jsonrpc import JSONRPCResponseManager
@@ -39,12 +33,11 @@ from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCReq
 from .version import ELECTRUM_VERSION
 from .network import Network
 from .util import json_decode, DaemonThread
-from .util import print_msg, print_error, print_stderr, UserCancelled
+from .util import print_error
 from .wallet import Wallet
 from .storage import WalletStorage
 from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
-from .plugins import run_hook
 from .exchange_rate import FxThread
 
 
@@ -87,8 +80,7 @@ def get_server(config):
             server.ping()
             return server
         except Exception as e:
-            print_error(e)
-            pass
+            print_error("[get_server]", e)
         if not create_time or create_time < time.time() - 1.0:
             return None
         # Sleep a bit and try again; it might have just been started
@@ -211,7 +203,7 @@ class Daemon(DaemonThread):
         if path in self.wallets:
             wallet = self.wallets[path]
             return wallet
-        storage = WalletStorage(path)
+        storage = WalletStorage(path, manual_upgrades=True)
         if not storage.file_exists():
             return
         if storage.is_encrypted():
@@ -221,8 +213,7 @@ class Daemon(DaemonThread):
         if storage.requires_split():
             return
         if storage.requires_upgrade():
-            self.print_error('upgrading wallet format')
-            storage.upgrade()
+            return
         if storage.get_action():
             return
         wallet = Wallet(storage)
@@ -252,7 +243,7 @@ class Daemon(DaemonThread):
             path = config.get_wallet_path()
             wallet = self.wallets.get(path)
             if wallet is None:
-                return {'error': 'Wallet not open. Use "electrum daemon load_wallet"'}
+                return {'error': 'Wallet "%s" is not loaded. Use "electrum daemon load_wallet"'%os.path.basename(path) }
         else:
             wallet = None
         # arguments passed to function
@@ -260,10 +251,12 @@ class Daemon(DaemonThread):
         # decode json arguments
         args = [json_decode(i) for i in args]
         # options
-        args += list(map(lambda x: (config_options.get(x) if x in ['password', 'new_password'] else config.get(x)), cmd.options))
+        kwargs = {}
+        for x in cmd.options:
+            kwargs[x] = (config_options.get(x) if x in ['password', 'new_password'] else config.get(x))
         cmd_runner = Commands(config, wallet, self.network)
         func = getattr(cmd_runner, cmd.name)
-        result = func(*args)
+        result = func(*args, **kwargs)
         return result
 
     def run(self):

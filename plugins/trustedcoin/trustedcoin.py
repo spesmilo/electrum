@@ -25,10 +25,8 @@
 
 import socket
 import os
-import re
 import requests
 import json
-from hashlib import sha256
 from urllib.parse import urljoin
 from urllib.parse import quote
 
@@ -38,9 +36,9 @@ from electrum import keystore
 from electrum.bitcoin import *
 from electrum.mnemonic import Mnemonic
 from electrum import version
-from electrum.wallet import Multisig_Wallet, Deterministic_Wallet, Wallet
+from electrum.wallet import Multisig_Wallet, Deterministic_Wallet
 from electrum.i18n import _
-from electrum.plugins import BasePlugin, run_hook, hook
+from electrum.plugins import BasePlugin, hook
 from electrum.util import NotEnoughFunds
 
 # signing_xpub is hardcoded so that the wallet can be restored from seed, without TrustedCoin's server
@@ -191,6 +189,8 @@ server = TrustedCoinCosignerClient(user_agent="Electrum/" + version.ELECTRUM_VER
 
 class Wallet_2fa(Multisig_Wallet):
 
+    wallet_type = '2fa'
+
     def __init__(self, storage):
         self.m, self.n = 2, 3
         Deterministic_Wallet.__init__(self, storage)
@@ -330,6 +330,9 @@ class TrustedCoinPlugin(BasePlugin):
     def is_enabled(self):
         return True
 
+    def can_user_disable(self):
+        return False
+
     @hook
     def get_tx_extra_fee(self, wallet, tx):
         if type(wallet) != Wallet_2fa:
@@ -385,17 +388,25 @@ class TrustedCoinPlugin(BasePlugin):
         f = lambda x: wizard.request_passphrase(seed, x)
         wizard.show_seed_dialog(run_next=f, seed_text=seed)
 
+    def get_xkeys(self, seed, passphrase, derivation):
+        from electrum.mnemonic import Mnemonic
+        from electrum.keystore import bip32_root, bip32_private_derivation
+        bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
+        xprv, xpub = bip32_root(bip32_seed, 'standard')
+        xprv, xpub = bip32_private_derivation(xprv, "m/", derivation)
+        return xprv, xpub
+
     def xkeys_from_seed(self, seed, passphrase):
         words = seed.split()
         n = len(words)
         # old version use long seed phrases
         if n >= 24:
             assert passphrase == ''
-            xprv1, xpub1 = keystore.xkeys_from_seed(' '.join(words[0:12]), '', "m/")
-            xprv2, xpub2 = keystore.xkeys_from_seed(' '.join(words[12:]), '', "m/")
+            xprv1, xpub1 = self.get_xkeys(' '.join(words[0:12]), '', "m/")
+            xprv2, xpub2 = self.get_xkeys(' '.join(words[12:]), '', "m/")
         elif n==12:
-            xprv1, xpub1 = keystore.xkeys_from_seed(seed, passphrase, "m/0'/")
-            xprv2, xpub2 = keystore.xkeys_from_seed(seed, passphrase, "m/1'/")
+            xprv1, xpub1 = self.get_xkeys(seed, passphrase, "m/0'/")
+            xprv2, xpub2 = self.get_xkeys(seed, passphrase, "m/1'/")
         else:
             raise BaseException('unrecognized seed length')
         return xprv1, xpub1, xprv2, xpub2
@@ -553,9 +564,8 @@ class TrustedCoinPlugin(BasePlugin):
             _, _, _, _, c, k = deserialize_xprv(xprv)
             pk = bip32_private_key([0, 0], k, c)
             key = regenerate_key(pk)
-            compressed = is_compressed(pk)
-            sig = key.sign_message(message, compressed)
-            return base64.b64encode(sig)
+            sig = key.sign_message(message, True)
+            return base64.b64encode(sig).decode()
 
         signatures = [f(x) for x in [xprv1, xprv2]]
         r = server.reset_auth(short_id, challenge, signatures)

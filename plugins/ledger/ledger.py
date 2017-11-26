@@ -1,18 +1,16 @@
 from struct import pack, unpack
 import hashlib
-import time
 import sys
 import traceback
 
-import electrum
 from electrum import bitcoin
 from electrum.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
 from electrum.i18n import _
-from electrum.plugins import BasePlugin, hook
-from electrum.keystore import Hardware_KeyStore, parse_xpubkey
-from electrum.transaction import push_script, Transaction
+from electrum.plugins import BasePlugin
+from electrum.keystore import Hardware_KeyStore
+from electrum.transaction import Transaction
 from ..hw_wallet import HW_PluginBase
-from electrum.util import format_satoshis_plain, print_error, is_verbose, bfh, bh2u
+from electrum.util import print_error, is_verbose, bfh, bh2u
 
 try:
     import hid
@@ -50,7 +48,7 @@ class Ledger_Client():
     def i4b(self, x):
         return pack('>I', x)        
 
-    def get_xpub(self, bip32_path):
+    def get_xpub(self, bip32_path, xtype):
         self.checkDevice()
         # bip32_path is of the form 44'/0'/1'
         # S-L-O-W - we don't handle the fingerprint directly, so compute
@@ -58,31 +56,29 @@ class Ledger_Client():
         # This only happens once so it's bearable
         #self.get_client() # prompt for the PIN before displaying the dialog if necessary
         #self.handler.show_message("Computing master public key")
-        try:
-            xtype = 'segwit_p2sh' if bip32_path.startswith("m/49'/") else 'standard'
-            splitPath = bip32_path.split('/')
-            if splitPath[0] == 'm':
-                splitPath = splitPath[1:]
-                bip32_path = bip32_path[2:]
-            fingerprint = 0
-            if len(splitPath) > 1:
-                prevPath = "/".join(splitPath[0:len(splitPath) - 1])
-                nodeData = self.dongleObject.getWalletPublicKey(prevPath)
-                publicKey = compress_public_key(nodeData['publicKey'])
-                h = hashlib.new('ripemd160')
-                h.update(hashlib.sha256(publicKey).digest())
-                fingerprint = unpack(">I", h.digest()[0:4])[0]
-            nodeData = self.dongleObject.getWalletPublicKey(bip32_path)
-            publicKey = compress_public_key(nodeData['publicKey'])
-            depth = len(splitPath)
-            lastChild = splitPath[len(splitPath) - 1].split('\'')
-            childnum = int(lastChild[0]) if len(lastChild) == 1 else 0x80000000 | int(lastChild[0])
-            xpub = bitcoin.serialize_xpub(xtype, nodeData['chainCode'], publicKey, depth, self.i4b(fingerprint), self.i4b(childnum))
-            return xpub
-        except Exception as e:
-            traceback.print_exc(file=sys.stdout)
-            #print_error(e)
-            return None
+        if xtype in ['p2wpkh', 'p2wsh'] and not self.supports_native_segwit():
+            raise Exception("Firmware version too old for Segwit support. Please update at https://www.ledgerwallet.com")
+        if xtype in ['p2wpkh-p2sh', 'p2wsh-p2sh'] and not self.supports_segwit():
+            raise Exception("Firmware version too old for Segwit support. Please update at https://www.ledgerwallet.com")
+        splitPath = bip32_path.split('/')
+        if splitPath[0] == 'm':
+            splitPath = splitPath[1:]
+            bip32_path = bip32_path[2:]
+        fingerprint = 0
+        if len(splitPath) > 1:
+            prevPath = "/".join(splitPath[0:len(splitPath) - 1])
+            nodeData = self.dongleObject.getWalletPublicKey(prevPath)
+            publicKey = compress_public_key(nodeData['publicKey'])#
+            h = hashlib.new('ripemd160')
+            h.update(hashlib.sha256(publicKey).digest())
+            fingerprint = unpack(">I", h.digest()[0:4])[0]
+        nodeData = self.dongleObject.getWalletPublicKey(bip32_path)
+        publicKey = compress_public_key(nodeData['publicKey'])
+        depth = len(splitPath)
+        lastChild = splitPath[len(splitPath) - 1].split('\'')
+        childnum = int(lastChild[0]) if len(lastChild) == 1 else 0x80000000 | int(lastChild[0])
+        xpub = bitcoin.serialize_xpub(xtype, nodeData['chainCode'], publicKey, depth, self.i4b(fingerprint), self.i4b(childnum))
+        return xpub
 
     def has_detached_pin_support(self, client):
         try:
@@ -107,10 +103,20 @@ class Ledger_Client():
     def supports_multi_output(self):
         return self.multiOutputSupported
 
+    def supports_segwit(self):
+        return self.segwitSupported
+
+    def supports_native_segwit(self):
+        return self.nativeSegwitSupported
+
     def perform_hw1_preflight(self):
         try:
-            firmware = self.dongleObject.getFirmwareVersion()['version'].split(".")
+            firmwareInfo = self.dongleObject.getFirmwareVersion()
+            firmware = firmwareInfo['version'].split(".")
             self.multiOutputSupported = int(firmware[0]) >= 1 and int(firmware[1]) >= 1 and int(firmware[2]) >= 4
+            self.segwitSupported = (int(firmware[0]) >= 1 and int(firmware[1]) >= 1 and int(firmware[2]) >= 10) or (firmwareInfo['specialVersion'] == 0x20 and int(firmware[0]) == 1 and int(firmware[1]) == 0 and int(firmware[2]) >= 4)
+            self.nativeSegwitSupported = int(firmware[0]) >= 1 and int(firmware[1]) >= 1 and int(firmware[2]) >= 10
+
             if not checkFirmware(firmware):
                 self.dongleObject.dongle.close()
                 raise Exception("HW1 firmware version too old. Please update at https://www.ledgerwallet.com")
@@ -207,6 +213,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
     def sign_message(self, sequence, message, password):
         self.signing = True
+        message = message.encode('utf8')
         # prompt for the PIN before displaying the dialog if necessary
         client = self.get_client()
         address_path = self.get_derivation()[2:] + "/%d/%d"%sequence
@@ -231,11 +238,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
         except Exception as e:
             self.give_error(e, True)
         finally:
-            self.handler.clear_dialog()
+            self.handler.finished()
         self.signing = False
-
         # Parse the ASN.1 signature
-
         rLength = signature[3]
         r = signature[4 : 4 + rLength]
         sLength = signature[4 + rLength + 1]
@@ -244,11 +249,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
             r = r[1:]
         if sLength == 33:
             s = s[1:]
-        r = str(r)
-        s = str(s)
-
         # And convert it
-        return chr(27 + 4 + (signature[0] & 0x01)) + r + s
+        return bytes([27 + 4 + (signature[0] & 0x01)]) + r + s
+
 
     def sign_transaction(self, tx, password):
         if tx.is_complete():
@@ -280,7 +283,14 @@ class Ledger_KeyStore(Hardware_KeyStore):
             if txin['type'] in ['p2sh']:
                 p2shTransaction = True
 
-            if txin['type'] in ['p2wpkh-p2sh']:
+            if txin['type'] in ['p2wpkh-p2sh', 'p2wsh-p2sh']:
+                if not self.get_client_electrum().supports_segwit():
+                    self.give_error("Firmware version too old to support segwit. Please update at https://www.ledgerwallet.com")
+                segwitTransaction = True
+
+            if txin['type'] in ['p2wpkh', 'p2wsh']:
+                if not self.get_client_electrum().supports_native_segwit():
+                    self.give_error("Firmware version too old to support native segwit. Please update at https://www.ledgerwallet.com")
                 segwitTransaction = True
 
             pubkeys, x_pubkeys = tx.get_sorted_pubkeys(txin)
@@ -346,7 +356,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     trustedInput = self.get_client().getTrustedInput(txtmp, utxo[1])
                     trustedInput['sequence'] = sequence
                     chipInputs.append(trustedInput)
-                    redeemScripts.append(txtmp.outputs[utxo[1]].script)                    
+                    redeemScripts.append(txtmp.outputs[utxo[1]].script)
                 else:
                     tmp = bfh(utxo[3])[::-1]
                     tmp += bfh(int_to_hex(utxo[1], 4))
@@ -366,17 +376,17 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 transactionOutput = outputData['outputData']
                 if outputData['confirmationNeeded']:
                     outputData['address'] = output
-                    self.handler.clear_dialog()
+                    self.handler.finished()
                     pin = self.handler.get_auth( outputData ) # does the authenticate dialog and returns pin
                     if not pin:
                         raise UserWarning()
                     if pin != 'paired':
                         self.handler.show_message(_("Confirmed. Signing Transaction..."))
-                while inputIndex < len(inputs):                
+                while inputIndex < len(inputs):
                     singleInput = [ chipInputs[inputIndex] ]
                     self.get_client().startUntrustedTransaction(False, 0,
                                                             singleInput, redeemScripts[inputIndex])
-                    inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex], pin)
+                    inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex], pin, lockTime=tx.locktime)
                     inputSignature[0] = 0x30 # force for 1.4.9+
                     signatures.append(inputSignature)
                     inputIndex = inputIndex + 1
@@ -390,7 +400,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                         transactionOutput = outputData['outputData']
                     if outputData['confirmationNeeded']:
                         outputData['address'] = output
-                        self.handler.clear_dialog()
+                        self.handler.finished()
                         pin = self.handler.get_auth( outputData ) # does the authenticate dialog and returns pin
                         if not pin:
                             raise UserWarning()
@@ -411,7 +421,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
             traceback.print_exc(file=sys.stdout)
             self.give_error(e, True)
         finally:
-            self.handler.clear_dialog()
+            self.handler.finished()
 
         for i, txin in enumerate(tx.inputs()):
             signingPos = inputs[i][4]
@@ -467,18 +477,15 @@ class LedgerPlugin(HW_PluginBase):
         devmgr = self.device_manager()
         device_id = device_info.device.id_
         client = devmgr.client_by_id(device_id)
-        #client.handler = wizard
         client.handler = self.create_handler(wizard)
-        #client.get_xpub('m')
-        client.get_xpub("m/44'/0'") # TODO replace by direct derivation once Nano S > 1.1
+        client.get_xpub("m/44'/0'", 'standard') # TODO replace by direct derivation once Nano S > 1.1
 
-    def get_xpub(self, device_id, derivation, wizard):
+    def get_xpub(self, device_id, derivation, xtype, wizard):
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)
-        #client.handler = wizard
         client.handler = self.create_handler(wizard)
         client.checkDevice()
-        xpub = client.get_xpub(derivation)
+        xpub = client.get_xpub(derivation, xtype)
         return xpub
 
     def get_client(self, keystore, force_pair=True):

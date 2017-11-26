@@ -25,7 +25,6 @@
 
 import hashlib
 import base64
-import re
 import hmac
 import os
 import json
@@ -35,16 +34,19 @@ import pyaes
 
 from .util import bfh, bh2u, to_string
 from . import version
-from .util import print_error, InvalidPassword, assert_bytes, to_bytes
+from .util import print_error, InvalidPassword, assert_bytes, to_bytes, inv_dict
 from . import segwit_addr
 
 def read_json_dict(filename):
     path = os.path.join(os.path.dirname(__file__), filename)
     try:
-        r = json.loads(open(path, 'r').read())
+        with open(path, 'r') as f:
+            r = json.loads(f.read())
     except:
         r = {}
     return r
+
+
 
 
 # Version numbers for BIP32 extended keys
@@ -53,44 +55,48 @@ def read_json_dict(filename):
 # native segwit: zprv, zpub
 XPRV_HEADERS = {
     'standard': 0x0488ade4,
-    'segwit_p2sh': 0x049d7878,
-    'segwit': 0x4b2430c
+    'p2wpkh-p2sh': 0x049d7878,
+    'p2wsh-p2sh': 0x295b005,
+    'p2wpkh': 0x4b2430c,
+    'p2wsh': 0x2aa7a99
 }
 XPUB_HEADERS = {
     'standard': 0x0488b21e,
-    'segwit_p2sh': 0x049d7cb2,
-    'segwit': 0x4b24746
+    'p2wpkh-p2sh': 0x049d7cb2,
+    'p2wsh-p2sh': 0x295b43f,
+    'p2wpkh': 0x4b24746,
+    'p2wsh': 0x2aa7ed3
 }
 
 
-# Bitcoin network constants
-TESTNET = False
-NOLNET = False
-ADDRTYPE_P2PKH = 0
-ADDRTYPE_P2SH = 5
-SEGWIT_HRP = "bc"
-HEADERS_URL = "https://headers.electrum.org/blockchain_headers"
-GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
-SERVERLIST = 'servers.json'
-DEFAULT_PORTS = {'t':'50001', 's':'50002'}
-DEFAULT_SERVERS = read_json_dict('servers.json')
+class NetworkConstants:
 
-def set_testnet():
-    global ADDRTYPE_P2PKH, ADDRTYPE_P2SH
-    global TESTNET, HEADERS_URL
-    global GENESIS
-    global SEGWIT_HRP
-    global DEFAULT_PORTS, SERVERLIST, DEFAULT_SERVERS
-    TESTNET = True
-    ADDRTYPE_P2PKH = 111
-    ADDRTYPE_P2SH = 196
-    SEGWIT_HRP = "tb"
-    HEADERS_URL = "https://headers.electrum.org/testnet_headers"
-    GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
-    SERVERLIST = 'servers_testnet.json'
-    DEFAULT_PORTS = {'t':'51001', 's':'51002'}
-    DEFAULT_SERVERS = read_json_dict('servers_testnet.json')
+    @classmethod
+    def set_mainnet(cls):
+        cls.TESTNET = False
+        cls.WIF_PREFIX = 0x80
+        cls.ADDRTYPE_P2PKH = 0
+        cls.ADDRTYPE_P2SH = 5
+        cls.SEGWIT_HRP = "bc"
+        cls.HEADERS_URL = "https://headers.electrum.org/blockchain_headers"
+        cls.GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
+        cls.DEFAULT_PORTS = {'t': '50001', 's': '50002'}
+        cls.DEFAULT_SERVERS = read_json_dict('servers.json')
 
+    @classmethod
+    def set_testnet(cls):
+        cls.TESTNET = True
+        cls.WIF_PREFIX = 0xef
+        cls.ADDRTYPE_P2PKH = 111
+        cls.ADDRTYPE_P2SH = 196
+        cls.SEGWIT_HRP = "tb"
+        cls.HEADERS_URL = "https://headers.electrum.org/testnet_headers"
+        cls.GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
+        cls.DEFAULT_PORTS = {'t':'51001', 's':'51002'}
+        cls.DEFAULT_SERVERS = read_json_dict('servers_testnet.json')
+
+
+NetworkConstants.set_mainnet()
 
 ################################## transactions
 
@@ -112,43 +118,60 @@ try:
 except:
     AES = None
 
+
+class InvalidPadding(Exception):
+    pass
+
+
+def append_PKCS7_padding(data):
+    assert_bytes(data)
+    padlen = 16 - (len(data) % 16)
+    return data + bytes([padlen]) * padlen
+
+
+def strip_PKCS7_padding(data):
+    assert_bytes(data)
+    if len(data) % 16 != 0 or len(data) == 0:
+        raise InvalidPadding("invalid length")
+    padlen = data[-1]
+    if padlen > 16:
+        raise InvalidPadding("invalid padding byte (large)")
+    for i in data[-padlen:]:
+        if i != padlen:
+            raise InvalidPadding("invalid padding byte (inconsistent)")
+    return data[0:-padlen]
+
+
 def aes_encrypt_with_iv(key, iv, data):
     assert_bytes(key, iv, data)
+    data = append_PKCS7_padding(data)
     if AES:
-        padlen = 16 - (len(data) % 16)
-        if padlen == 0:
-            padlen = 16
-        data += chr(padlen) * padlen
         e = AES.new(key, AES.MODE_CBC, iv).encrypt(data)
-        return e
     else:
         aes_cbc = pyaes.AESModeOfOperationCBC(key, iv=iv)
-        aes = pyaes.Encrypter(aes_cbc)
-        e = aes.feed(data) + aes.feed()  # empty aes.feed() appends pkcs padding
-        return e
+        aes = pyaes.Encrypter(aes_cbc, padding=pyaes.PADDING_NONE)
+        e = aes.feed(data) + aes.feed()  # empty aes.feed() flushes buffer
+    return e
+
 
 def aes_decrypt_with_iv(key, iv, data):
     assert_bytes(key, iv, data)
     if AES:
         cipher = AES.new(key, AES.MODE_CBC, iv)
         data = cipher.decrypt(data)
-        padlen = ord(data[-1])
-        for i in data[-padlen:]:
-            if ord(i) != padlen:
-                raise InvalidPassword()
-        return data[0:-padlen]
     else:
         aes_cbc = pyaes.AESModeOfOperationCBC(key, iv=iv)
-        aes = pyaes.Decrypter(aes_cbc)
-        s = aes.feed(data) + aes.feed()  # empty aes.feed() strips pkcs padding
-        return s
+        aes = pyaes.Decrypter(aes_cbc, padding=pyaes.PADDING_NONE)
+        data = aes.feed(data) + aes.feed()  # empty aes.feed() flushes buffer
+    try:
+        return strip_PKCS7_padding(data)
+    except InvalidPadding:
+        raise InvalidPassword()
+
 
 def EncodeAES(secret, s):
     assert_bytes(s)
     iv = bytes(os.urandom(16))
-    # aes_cbc = pyaes.AESModeOfOperationCBC(secret, iv=iv)
-    # aes = pyaes.Encrypter(aes_cbc)
-    # e = iv + aes.feed(s) + aes.feed()
     ct = aes_encrypt_with_iv(secret, iv, s)
     e = iv + ct
     return base64.b64encode(e)
@@ -156,9 +179,6 @@ def EncodeAES(secret, s):
 def DecodeAES(secret, e):
     e = bytes(base64.b64decode(e))
     iv, e = e[:16], e[16:]
-    # aes_cbc = pyaes.AESModeOfOperationCBC(secret, iv=iv)
-    # aes = pyaes.Decrypter(aes_cbc)
-    # s = aes.feed(e) + aes.feed()
     s = aes_decrypt_with_iv(secret, iv, e)
     return s
 
@@ -217,7 +237,6 @@ def op_push(i):
 def push_script(x):
     return op_push(len(x)//2) + x
 
-
 def sha256(x):
     x = to_bytes(x, 'utf8')
     return bytes(hashlib.sha256(x).digest())
@@ -242,9 +261,11 @@ def is_new_seed(x, prefix=version.SEED_PREFIX):
 
 
 def is_old_seed(seed):
-    from . import old_mnemonic
-    words = seed.strip().split()
+    from . import old_mnemonic, mnemonic
+    seed = mnemonic.normalize_text(seed)
+    words = seed.split()
     try:
+        # checks here are deliberately left weak for legacy reasons, see #3149
         old_mnemonic.mn_decode(words)
         uses_electrum_words = True
     except Exception:
@@ -316,16 +337,16 @@ def b58_address_to_hash160(addr):
 
 
 def hash160_to_p2pkh(h160):
-    return hash160_to_b58_address(h160, ADDRTYPE_P2PKH)
+    return hash160_to_b58_address(h160, NetworkConstants.ADDRTYPE_P2PKH)
 
 def hash160_to_p2sh(h160):
-    return hash160_to_b58_address(h160, ADDRTYPE_P2SH)
+    return hash160_to_b58_address(h160, NetworkConstants.ADDRTYPE_P2SH)
 
 def public_key_to_p2pkh(public_key):
     return hash160_to_p2pkh(hash_160(public_key))
 
 def hash_to_segwit_addr(h):
-    return segwit_addr.encode(SEGWIT_HRP, 0, h)
+    return segwit_addr.encode(NetworkConstants.SEGWIT_HRP, 0, h)
 
 def public_key_to_p2wpkh(public_key):
     return hash_to_segwit_addr(hash_160(public_key))
@@ -333,21 +354,57 @@ def public_key_to_p2wpkh(public_key):
 def script_to_p2wsh(script):
     return hash_to_segwit_addr(sha256(bfh(script)))
 
+def p2wpkh_nested_script(pubkey):
+    pkh = bh2u(hash_160(bfh(pubkey)))
+    return '00' + push_script(pkh)
+
+def p2wsh_nested_script(witness_script):
+    wsh = bh2u(sha256(bfh(witness_script)))
+    return '00' + push_script(wsh)
+
+def pubkey_to_address(txin_type, pubkey):
+    if txin_type == 'p2pkh':
+        return public_key_to_p2pkh(bfh(pubkey))
+    elif txin_type == 'p2wpkh':
+        return hash_to_segwit_addr(hash_160(bfh(pubkey)))
+    elif txin_type == 'p2wpkh-p2sh':
+        scriptSig = p2wpkh_nested_script(pubkey)
+        return hash160_to_p2sh(hash_160(bfh(scriptSig)))
+    else:
+        raise NotImplementedError(txin_type)
+
+def redeem_script_to_address(txin_type, redeem_script):
+    if txin_type == 'p2sh':
+        return hash160_to_p2sh(hash_160(bfh(redeem_script)))
+    elif txin_type == 'p2wsh':
+        return script_to_p2wsh(redeem_script)
+    elif txin_type == 'p2wsh-p2sh':
+        scriptSig = p2wsh_nested_script(redeem_script)
+        return hash160_to_p2sh(hash_160(bfh(scriptSig)))
+    else:
+        raise NotImplementedError(txin_type)
+
+
+def script_to_address(script):
+    from .transaction import get_address_from_output_script
+    t, addr = get_address_from_output_script(bfh(script))
+    assert t == TYPE_ADDRESS
+    return addr
 
 def address_to_script(addr):
-    witver, witprog = segwit_addr.decode(SEGWIT_HRP, addr)
+    witver, witprog = segwit_addr.decode(NetworkConstants.SEGWIT_HRP, addr)
     if witprog is not None:
         assert (0 <= witver <= 16)
         OP_n = witver + 0x50 if witver > 0 else 0
-        script = bytes([OP_n]).hex()
-        script += push_script(bytes(witprog).hex())
+        script = bh2u(bytes([OP_n]))
+        script += push_script(bh2u(bytes(witprog)))
         return script
     addrtype, hash_160 = b58_address_to_hash160(addr)
-    if addrtype == ADDRTYPE_P2PKH:
+    if addrtype == NetworkConstants.ADDRTYPE_P2PKH:
         script = '76a9'                                      # op_dup, op_hash_160
         script += push_script(bh2u(hash_160))
         script += '88ac'                                     # op_equalverify, op_checksig
-    elif addrtype == ADDRTYPE_P2SH:
+    elif addrtype == NetworkConstants.ADDRTYPE_P2SH:
         script = 'a9'                                        # op_hash_160
         script += push_script(bh2u(hash_160))
         script += '87'                                       # op_equal
@@ -357,8 +414,11 @@ def address_to_script(addr):
 
 def address_to_scripthash(addr):
     script = address_to_script(addr)
+    return script_to_scripthash(script)
+
+def script_to_scripthash(script):
     h = sha256(bytes.fromhex(script))[0:32]
-    return bytes(reversed(h)).hex()
+    return bh2u(bytes(reversed(h)))
 
 def public_key_to_p2pk_script(pubkey):
     script = push_script(pubkey)
@@ -448,33 +508,42 @@ def DecodeBase58Check(psz):
         return key
 
 
-def PrivKeyToSecret(privkey):
-    return privkey[9:9+32]
+
+# extended key export format for segwit
+
+SCRIPT_TYPES = {
+    'p2pkh':0,
+    'p2wpkh':1,
+    'p2wpkh-p2sh':2,
+    'p2sh':5,
+    'p2wsh':6,
+    'p2wsh-p2sh':7
+}
 
 
-def SecretToASecret(secret, compressed=False):
-    addrtype = ADDRTYPE_P2PKH
-    vchIn = bytes([(addrtype+128)&255]) + secret
-    if compressed: vchIn += b'\01'
+def serialize_privkey(secret, compressed, txin_type):
+    prefix = bytes([(SCRIPT_TYPES[txin_type]+NetworkConstants.WIF_PREFIX)&255])
+    suffix = b'\01' if compressed else b''
+    vchIn = prefix + secret + suffix
     return EncodeBase58Check(vchIn)
 
 
-def ASecretToSecret(key):
-    addrtype = ADDRTYPE_P2PKH
+def deserialize_privkey(key):
+    # whether the pubkey is compressed should be visible from the keystore
     vch = DecodeBase58Check(key)
-    if vch and vch[0] == ((addrtype+128)&255):
-        return vch[1:]
-    elif is_minikey(key):
-        return minikey_to_private_key(key)
+    if is_minikey(key):
+        return 'p2pkh', minikey_to_private_key(key), True
+    elif vch:
+        txin_type = inv_dict(SCRIPT_TYPES)[vch[0] - NetworkConstants.WIF_PREFIX]
+        assert len(vch) in [33, 34]
+        compressed = len(vch) == 34
+        return txin_type, vch[1:33], compressed
     else:
-        return False
+        raise BaseException("cannot deserialize", key)
 
-def regenerate_key(sec):
-    b = ASecretToSecret(sec)
-    if not b:
-        return False
-    b = b[0:32]
-    return EC_KEY(b)
+def regenerate_key(pk):
+    assert len(pk) == 32
+    return EC_KEY(pk)
 
 
 def GetPubKey(pubkey, compressed=False):
@@ -486,34 +555,32 @@ def GetSecret(pkey):
 
 
 def is_compressed(sec):
-    b = ASecretToSecret(sec)
-    return len(b) == 33
+    return deserialize_privkey(sec)[2]
 
 
-def public_key_from_private_key(sec):
-    # rebuild public key from private key, compressed or uncompressed
-    pkey = regenerate_key(sec)
-    assert pkey
-    compressed = is_compressed(sec)
+def public_key_from_private_key(pk, compressed):
+    pkey = regenerate_key(pk)
     public_key = GetPubKey(pkey.pubkey, compressed)
     return bh2u(public_key)
 
-
 def address_from_private_key(sec):
-    public_key = public_key_from_private_key(sec)
-    address = public_key_to_p2pkh(bfh(public_key))
-    return address
+    txin_type, privkey, compressed = deserialize_privkey(sec)
+    public_key = public_key_from_private_key(privkey, compressed)
+    return pubkey_to_address(txin_type, public_key)
 
 def is_segwit_address(addr):
-    witver, witprog = segwit_addr.decode(SEGWIT_HRP, addr)
-    return witprog is not None and witver == 0
+    try:
+        witver, witprog = segwit_addr.decode(NetworkConstants.SEGWIT_HRP, addr)
+    except Exception as e:
+        return False
+    return witprog is not None
 
 def is_b58_address(addr):
     try:
         addrtype, h = b58_address_to_hash160(addr)
     except Exception as e:
         return False
-    if addrtype not in [ADDRTYPE_P2PKH, ADDRTYPE_P2SH]:
+    if addrtype not in [NetworkConstants.ADDRTYPE_P2PKH, NetworkConstants.ADDRTYPE_P2SH]:
         return False
     return addr == hash160_to_b58_address(h, addrtype)
 
@@ -521,19 +588,9 @@ def is_address(addr):
     return is_segwit_address(addr) or is_b58_address(addr)
 
 
-def is_p2pkh(addr):
-    if is_address(addr):
-        addrtype, h = b58_address_to_hash160(addr)
-        return addrtype == ADDRTYPE_P2PKH
-
-def is_p2sh(addr):
-    if is_address(addr):
-        addrtype, h = b58_address_to_hash160(addr)
-        return addrtype == ADDRTYPE_P2SH
-
 def is_private_key(key):
     try:
-        k = ASecretToSecret(key)
+        k = deserialize_privkey(key)
         return k is not False
     except:
         return False
@@ -546,10 +603,10 @@ def is_minikey(text):
     # permits any length of 20 or more provided the minikey is valid.
     # A valid minikey must begin with an 'S', be in base58, and when
     # suffixed with '?' have its SHA256 hash begin with a zero byte.
-    # They are widely used in Casascius physical bitoins.
+    # They are widely used in Casascius physical bitcoins.
     return (len(text) >= 20 and text[0] == 'S'
-            and all(c in __b58chars for c in text)
-            and ord(sha256(text + '?')[0]) == 0)
+            and all(ord(c) in __b58chars for c in text)
+            and sha256(text + '?')[0] == 0x00)
 
 def minikey_to_private_key(text):
     return sha256(text)
@@ -561,9 +618,8 @@ from ecdsa.util import string_to_number, number_to_string
 
 
 def msg_magic(message):
-    varint = var_int(len(message))
-    encoded_varint = varint.encode('ascii')
-    return b"\x18Bitcoin Signed Message:\n" + encoded_varint + message
+    length = bfh(var_int(len(message)))
+    return b"\x18Bitcoin Signed Message:\n" + length + message
 
 
 def verify_message(address, sig, message):
@@ -573,8 +629,11 @@ def verify_message(address, sig, message):
         public_key, compressed = pubkey_from_signature(sig, h)
         # check public key using the address
         pubkey = point_to_ser(public_key.pubkey.point, compressed)
-        addr = public_key_to_p2pkh(pubkey)
-        if address != addr:
+        for txin_type in ['p2pkh','p2wpkh','p2wpkh-p2sh']:
+            addr = pubkey_to_address(txin_type, bh2u(pubkey))
+            if address == addr:
+                break
+        else:
             raise Exception("Bad signature")
         # check message
         public_key.verify_digest(sig[1:], h, sigdecode = ecdsa.util.sigdecode_string)
@@ -872,7 +931,6 @@ def deserialize_xkey(xkey, prv):
 def deserialize_xpub(xkey):
     return deserialize_xkey(xkey, False)
 
-
 def deserialize_xprv(xkey):
     return deserialize_xkey(xkey, True)
 
@@ -971,11 +1029,4 @@ def bip32_public_derivation(xpub, branch, sequence):
 def bip32_private_key(sequence, k, chain):
     for i in sequence:
         k, chain = CKD_priv(k, chain, i)
-    return SecretToASecret(k, True)
-
-
-def xkeys_from_seed(seed, passphrase, derivation):
-    from .mnemonic import Mnemonic
-    xprv, xpub = bip32_root(Mnemonic.mnemonic_to_seed(seed, passphrase), 0)
-    xprv, xpub = bip32_private_derivation(xprv, "m/", derivation)
-    return xprv, xpub
+    return k

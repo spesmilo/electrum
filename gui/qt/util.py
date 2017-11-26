@@ -1,22 +1,15 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-import six
 import os.path
 import time
-import traceback
 import sys
-import threading
 import platform
-from six.moves import queue
+import queue
 from collections import namedtuple
 from functools import partial
 
 from electrum.i18n import _
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import *
 
 if platform.system() == 'Windows':
     MONOSPACE_FONT = 'Lucida Console'
@@ -25,15 +18,10 @@ elif platform.system() == 'Darwin':
 else:
     MONOSPACE_FONT = 'monospace'
 
-GREEN_BG = "QWidget {background-color:#80ff80;}"
-RED_BG = "QWidget {background-color:#ffcccc;}"
-RED_FG = "QWidget {color:red;}"
-BLUE_FG = "QWidget {color:blue;}"
-BLACK_FG = "QWidget {color:black;}"
 
 dialogs = []
 
-from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_EXPIRED
 
 pr_icons = {
     PR_UNPAID:":icons/unpaid.png",
@@ -57,10 +45,11 @@ expiration_values = [
 
 class Timer(QThread):
     stopped = False
+    timer_signal = pyqtSignal()
 
     def run(self):
         while not self.stopped:
-            self.emit(SIGNAL('timersignal'))
+            self.timer_signal.emit()
             time.sleep(0.5)
 
     def stop(self):
@@ -111,7 +100,7 @@ class HelpLabel(QLabel):
         self.font = QFont()
 
     def mouseReleaseEvent(self, x):
-        QMessageBox.information(self, 'Help', self.help_text, 'OK')
+        QMessageBox.information(self, 'Help', self.help_text)
 
     def enterEvent(self, event):
         self.font.setUnderline(True)
@@ -135,7 +124,7 @@ class HelpButton(QPushButton):
         self.clicked.connect(self.onclick)
 
     def onclick(self):
-        QMessageBox.information(self, 'Help', self.help_text, 'OK')
+        QMessageBox.information(self, 'Help', self.help_text)
 
 class Buttons(QHBoxLayout):
     def __init__(self, *buttons):
@@ -211,7 +200,7 @@ class MessageBoxMixin(object):
     def msg_box(self, icon, parent, title, text, buttons=QMessageBox.Ok,
                 defaultButton=QMessageBox.NoButton):
         parent = parent or self.top_level_window()
-        d = QMessageBox(icon, title, text, buttons, parent)
+        d = QMessageBox(icon, title, str(text), buttons, parent)
         d.setWindowModality(Qt.WindowModal)
         d.setDefaultButton(defaultButton)
         return d.exec_()
@@ -349,7 +338,7 @@ def filename_field(parent, config, defaultname, select_msg):
     def func():
         text = filename_e.text()
         _filter = "*.csv" if text.endswith(".csv") else "*.json" if text.endswith(".json") else None
-        p = QFileDialog.getSaveFileName(None, select_msg, text, _filter)
+        p, __ = QFileDialog.getSaveFileName(None, select_msg, text, _filter)
         if p:
             filename_e.setText(p)
 
@@ -405,7 +394,7 @@ class MyTreeWidget(QTreeWidget):
         self.header().setStretchLastSection(False)
         for col in range(len(headers)):
             sm = QHeaderView.Stretch if col == self.stretch_column else QHeaderView.ResizeToContents
-            self.header().setResizeMode(col, sm)
+            self.header().setSectionResizeMode(col, sm)
 
     def editItem(self, item, column):
         if column in self.editable_columns:
@@ -436,13 +425,12 @@ class MyTreeWidget(QTreeWidget):
         # on 'enter' we show the menu
         pt = self.visualItemRect(item).bottomLeft()
         pt.setX(50)
-        self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), pt)
+        self.customContextMenuRequested.emit(pt)
 
     def createEditor(self, parent, option, index):
         self.editor = QStyledItemDelegate.createEditor(self.itemDelegate(),
                                                        parent, option, index)
-        self.editor.connect(self.editor, SIGNAL("editingFinished()"),
-                            self.editing_finished)
+        self.editor.editingFinished.connect(self.editing_finished)
         return self.editor
 
     def editing_finished(self):
@@ -535,8 +523,11 @@ class ButtonsWidget(QWidget):
 
     def addCopyButton(self, app):
         self.app = app
-        f = lambda: self.app.clipboard().setText(str(self.text()))
-        self.addButton(":icons/copy.png", f, _("Copy to clipboard"))
+        self.addButton(":icons/copy.png", self.on_copy, _("Copy to clipboard"))
+
+    def on_copy(self):
+        self.app.clipboard().setText(self.text())
+        QToolTip.showText(QCursor.pos(), _("Text copied to clipboard"), self)
 
 class ButtonsLineEdit(QLineEdit, ButtonsWidget):
     def __init__(self, text=None):
@@ -601,8 +592,43 @@ class TaskThread(QThread):
         self.tasks.put(None)
 
 
+class ColorSchemeItem:
+    def __init__(self, fg_color, bg_color):
+        self.colors = (fg_color, bg_color)
+
+    def _get_color(self, background):
+        return self.colors[(int(background) + int(ColorScheme.dark_scheme)) % 2]
+
+    def as_stylesheet(self, background=False):
+        css_prefix = "background-" if background else ""
+        color = self._get_color(background)
+        return "QWidget {{ {}color:{}; }}".format(css_prefix, color)
+
+    def as_color(self, background=False):
+        color = self._get_color(background)
+        return QColor(color)
+
+
+class ColorScheme:
+    dark_scheme = False
+
+    GREEN = ColorSchemeItem("#117c11", "#8af296")
+    RED = ColorSchemeItem("#7c1111", "#f18c8c")
+    BLUE = ColorSchemeItem("#123b7c", "#8cb3f2")
+    DEFAULT = ColorSchemeItem("black", "white")
+
+    @staticmethod
+    def has_dark_background(widget):
+        brightness = sum(widget.palette().color(QPalette.Background).getRgb()[0:3])
+        return brightness < (255*3/2)
+
+    @staticmethod
+    def update_from_widget(widget):
+        if ColorScheme.has_dark_background(widget):
+            ColorScheme.dark_scheme = True
+
 if __name__ == "__main__":
     app = QApplication([])
-    t = WaitingDialog(None, 'testing ...', lambda: [time.sleep(1)], lambda x: QMessageBox.information(None, 'done', "done", _('OK')))
+    t = WaitingDialog(None, 'testing ...', lambda: [time.sleep(1)], lambda x: QMessageBox.information(None, 'done', "done"))
     t.start()
     app.exec_()

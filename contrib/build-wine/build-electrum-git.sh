@@ -1,9 +1,11 @@
 #!/bin/bash
 
 # You probably need to update only this link
-ELECTRUM_GIT_URL=git://github.com/spesmilo/electrum.git
+ELECTRUM_GIT_URL=https://github.com/spesmilo/electrum.git
+ELECTRUM_ICONS_URL=https://github.com/spesmilo/electrum-icons.git
 BRANCH=master
 NAME_ROOT=electrum
+PYTHON_VERSION=3.5.4
 
 if [ "$#" -gt 0 ]; then
     BRANCH="$1"
@@ -14,7 +16,7 @@ export WINEPREFIX=/opt/wine64
 export PYTHONHASHSEED=22
 
 
-PYHOME=c:/python34
+PYHOME=c:/python$PYTHON_VERSION
 PYTHON="wine $PYHOME/python.exe -OO -B"
 
 
@@ -51,8 +53,19 @@ cp electrum-git/LICENCE .
 cp -r ../../../lib/locale $WINEPREFIX/drive_c/electrum/lib/
 
 # Build Qt resources
-wine $WINEPREFIX/drive_c/Python34/Lib/site-packages/PyQt4/pyrcc4.exe C:/electrum/icons.qrc -o C:/electrum/gui/qt/icons_rc.py -py3
-
+# wine $WINEPREFIX/drive_c/python$PYTHON_VERSION/Scripts/pyrcc5.exe C:/electrum/icons.qrc -o C:/electrum/gui/qt/icons_rc.py
+# fetch icons file
+if [ -d "electrum-icons" ]; then
+    echo "Pull"
+    cd electrum-icons
+    git pull
+    git checkout master
+    cd ..
+else
+    echo "Clone"
+    git clone -b master $ELECTRUM_ICONS_URL electrum-icons
+fi
+cp electrum-icons/icons_rc.py $WINEPREFIX/drive_c/electrum/gui/qt/
 
 pushd $WINEPREFIX/drive_c/electrum
 $PYTHON setup.py install
@@ -63,7 +76,7 @@ cd ..
 rm -rf dist/
 
 # build standalone version
-wine "C:/python34/scripts/pyinstaller.exe" --noconfirm --ascii --name $NAME_ROOT-$VERSION.exe -w deterministic.spec 
+wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" --noconfirm --ascii --name $NAME_ROOT-$VERSION.exe -w deterministic.spec 
 
 # build NSIS installer
 # $VERSION could be passed to the electrum.nsi script, but this would require some rewriting in the script iself.
@@ -78,6 +91,6 @@ cp portable.patch $WINEPREFIX/drive_c/electrum
 pushd $WINEPREFIX/drive_c/electrum
 patch < portable.patch 
 popd
-wine "C:/python34/scripts/pyinstaller.exe" --noconfirm --ascii --name $NAME_ROOT-$VERSION-portable.exe -w deterministic.spec
+wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" --noconfirm --ascii --name $NAME_ROOT-$VERSION-portable.exe -w deterministic.spec
 
 echo "Done."

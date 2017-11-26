@@ -1,22 +1,15 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 from datetime import datetime
 import inspect
 import requests
 import sys
 from threading import Thread
 import time
-import traceback
 import csv
 from decimal import Decimal
 
 from .bitcoin import COIN
 from .i18n import _
 from .util import PrintError, ThreadJob
-from .util import format_satoshis
 
 
 # See https://en.wikipedia.org/wiki/ISO_4217
@@ -90,7 +83,7 @@ class ExchangeBase(PrintError):
 
     def get_currencies(self):
         rates = self.get_rates('')
-        return sorted([str(a) for (a, b) in rates.iteritems() if b is not None and len(a)==3])
+        return sorted([str(a) for (a, b) in rates.items() if b is not None and len(a)==3])
 
 
 class BitcoinAverage(ExchangeBase):
@@ -339,7 +332,8 @@ def get_exchanges_and_currencies():
     import os, json
     path = os.path.join(os.path.dirname(__file__), 'currencies.json')
     try:
-        return json.loads(open(path, 'r').read())
+        with open(path, 'r') as f:
+            return json.loads(f.read())
     except:
         pass
     d = {}

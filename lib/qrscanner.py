@@ -62,7 +62,7 @@ def scan_barcode(device='', timeout=-1, display=True, threaded=False):
         return
     symbol = libzbar.zbar_symbol_set_first_symbol(symbols)
     data = libzbar.zbar_symbol_get_data(symbol)
-    return data
+    return data.decode('utf8')
 
 def _find_system_cameras():
     device_root = "/sys/class/video4linux"
@@ -70,7 +70,8 @@ def _find_system_cameras():
     if os.path.exists(device_root):
         for device in os.listdir(device_root):
             try:
-                name = open(os.path.join(device_root, device, 'name')).read()
+                with open(os.path.join(device_root, device, 'name')) as f:
+                    name = f.read()
             except IOError:
                 continue
             name = name.strip('\n')
