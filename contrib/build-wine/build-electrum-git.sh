@@ -1,9 +1,5 @@
 #!/bin/bash
 
-# You probably need to update only this link
-ELECTRUM_GIT_URL=https://github.com/spesmilo/electrum.git
-ELECTRUM_ICONS_URL=https://github.com/spesmilo/electrum-icons.git
-BRANCH=master
 NAME_ROOT=electrum
 PYTHON_VERSION=3.5.4
 
@@ -26,45 +22,35 @@ set -e
 
 cd tmp
 
-if [ -d "electrum-git" ]; then
-    # GIT repository found, update it
-    echo "Pull"
-    cd electrum-git
-    git pull
-    git checkout $BRANCH
-    cd ..
-else
-    # GIT repository not found, clone it
-    echo "Clone"
-    git clone -b $BRANCH $ELECTRUM_GIT_URL electrum-git
-fi
+for repo in electrum electrum-locale electrum-icons; do
+    if [ -d $repo ]; then
+	cd $repo
+	git pull
+	git checkout master
+	cd ..
+    else
+	URL=https://github.com/spesmilo/$repo.git
+	git clone -b master $URL $repo
+    fi
+done
 
-cd electrum-git
+pushd electrum-locale
+for i in ./locale/*; do
+    dir=$i/LC_MESSAGES
+    mkdir -p $dir
+    msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
+done
+popd
+
+pushd electrum-git
 VERSION=`git describe --tags`
 echo "Last commit: $VERSION"
-
-cd ..
+popd
 
 rm -rf $WINEPREFIX/drive_c/electrum
-cp -r electrum-git $WINEPREFIX/drive_c/electrum
-cp electrum-git/LICENCE .
-
-# add locale dir
-cp -r ../../../lib/locale $WINEPREFIX/drive_c/electrum/lib/
-
-# Build Qt resources
-# wine $WINEPREFIX/drive_c/python$PYTHON_VERSION/Scripts/pyrcc5.exe C:/electrum/icons.qrc -o C:/electrum/gui/qt/icons_rc.py
-# fetch icons file
-if [ -d "electrum-icons" ]; then
-    echo "Pull"
-    cd electrum-icons
-    git pull
-    git checkout master
-    cd ..
-else
-    echo "Clone"
-    git clone -b master $ELECTRUM_ICONS_URL electrum-icons
-fi
+cp -r electrum $WINEPREFIX/drive_c/electrum
+cp electrum/LICENCE .
+cp -r electrum-locale/locale $WINEPREFIX/drive_c/electrum/lib/
 cp electrum-icons/icons_rc.py $WINEPREFIX/drive_c/electrum/gui/qt/
 
 # Install frozen dependencies
