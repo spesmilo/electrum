@@ -17,6 +17,6 @@ pushd $contrib/..
 python setup.py install
 popd
 
-pip freeze | sed '/^Electrum/ d' > $contrib/deterministic_requirements.txt
+pip freeze | sed '/^Electrum/ d' > $contrib/requirements.txt
 
 echo "Updated requirements"
