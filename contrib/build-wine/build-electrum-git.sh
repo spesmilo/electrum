@@ -42,7 +42,7 @@ for i in ./locale/*; do
 done
 popd
 
-pushd electrum-git
+pushd electrum
 VERSION=`git describe --tags`
 echo "Last commit: $VERSION"
 popd
@@ -54,7 +54,7 @@ cp -r electrum-locale/locale $WINEPREFIX/drive_c/electrum/lib/
 cp electrum-icons/icons_rc.py $WINEPREFIX/drive_c/electrum/gui/qt/
 
 # Install frozen dependencies
-$PYTHON -m pip install -r ../../deterministic_requirements.txt
+$PYTHON -m pip install -r ../../requirements.txt
 
 pushd $WINEPREFIX/drive_c/electrum
 $PYTHON setup.py install
