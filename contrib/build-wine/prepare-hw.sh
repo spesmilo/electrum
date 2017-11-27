@@ -20,35 +20,9 @@ set -e
 
 cd tmp
 
-# download mingw-get-setup.exe
-#wget https://downloads.sourceforge.net/project/mingw/Installer/mingw-get-setup.exe
-#wine mingw-get-setup.exe
-
-#echo "add c:\MinGW\bin to PATH using regedit" in HKEY_CURRENT_USER/Environment
-#regedit
-#exit
-
-#wine mingw-get install gcc
-#wine mingw-get install mingw-utils
-#wine mingw-get install mingw32-libz
-
-
-#create cfg file
-#printf "[build]\ncompiler=mingw32\n" > /opt/wine64/drive_c/Python27/Lib/distutils/distutils.cfg
-
-# Install Cython
 $PYTHON -m pip install setuptools --upgrade
-$PYTHON -m pip install cython
-$PYTHON -m pip install trezor --upgrade
-$PYTHON -m pip install keepkey --upgrade
-$PYTHON -m pip install btchip-python --upgrade
-
-#git clone https://github.com/trezor/cython-hidapi.git
-#replace: from distutils.core import setup, Extenstion
-#cd cython-hidapi
-#git submodule init
-#git submodule update
-#$PYTHON setup.py install
-#cd ..
-
+$PYTHON -m pip install cython --upgrade
+$PYTHON -m pip install trezor==0.7.16 --upgrade
+$PYTHON -m pip install keepkey==4.0.0 --upgrade
+$PYTHON -m pip install btchip-python==0.1.23 --upgrade
 

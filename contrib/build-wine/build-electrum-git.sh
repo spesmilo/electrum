@@ -9,7 +9,6 @@ fi
 
 # These settings probably don't need any change
 export WINEPREFIX=/opt/wine64
-export PYTHONHASHSEED=22
 export PYTHONDONTWRITEBYTECODE=1
 
 PYHOME=c:/python$PYTHON_VERSION
