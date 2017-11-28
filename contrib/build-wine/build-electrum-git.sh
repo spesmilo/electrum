@@ -64,8 +64,13 @@ cd ..
 
 rm -rf dist/
 
-# build standalone version
+# build standalone and portable versions
 wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" --noconfirm --ascii --name $NAME_ROOT-$VERSION -w deterministic.spec
+
+# set timestamps in dist, in order to make the installer reproducible
+pushd dist
+find  -type f  -exec touch -d '2000-01-1 18:00:16' {} +
+popd
 
 # build NSIS installer
 # $VERSION could be passed to the electrum.nsi script, but this would require some rewriting in the script iself.
@@ -76,3 +81,4 @@ mv electrum-setup.exe $NAME_ROOT-$VERSION-setup.exe
 cd ..
 
 echo "Done."
+md5sum dist/electrum*exe
