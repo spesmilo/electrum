@@ -316,7 +316,7 @@ if __name__ == '__main__':
         elif arg == '?':
             sys.argv[i] = input("Enter argument:")
         elif arg == ':':
-            sys.argv[i] = prompt_password('Enter argument (will noot echo):', False)
+            sys.argv[i] = prompt_password('Enter argument (will not echo):', False)
 
     # parse command line
     parser = get_parser()
@@ -337,6 +337,10 @@ if __name__ == '__main__':
             config_options['auto_connect'] = False
 
     config_options['cwd'] = os.getcwd()
+
+    # fixme: this can probably be achieved with a runtime hook (pyinstaller)
+    if is_bundle and os.path.exists(os.path.join(sys._MEIPASS, 'is_portable')):
+        config_options.get('portable') = True
 
     if config_options.get('portable'):
         config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
