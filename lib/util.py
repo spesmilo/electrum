@@ -443,15 +443,15 @@ mainnet_block_explorers = {
                         {'tx': 'tx.dws?', 'addr': 'address.dws?'}),
     'groestlsight': ('http://groestlsight.groestlcoin.org/',
                         {'tx': 'tx/', 'addr': 'address/'}),
-    'system default': ('blockchain:',
-                        {'tx': 'tx', 'addr': 'address'}),
+    'system default': ('blockchain://00000ac5927c594d49cc0bdb81759d0da8297eb614683d3acb62f0703b639023/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
 }
 
 testnet_block_explorers = {
     'cryptoID.info': ('https://chainz.cryptoid.info/grs-test/',
                         {'tx': 'tx.dws?', 'addr': 'address.dws?'}),
-    'system default': ('blockchain:',
-                        {'tx': 'tx', 'addr': 'address'}),
+    'system default': ('blockchain://000000ffbb50fc9898cdd36ec163e6ba23230164c0052a28876255b7dcf2cd36/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
 }
 
 def block_explorer_info():
@@ -506,7 +506,7 @@ def parse_URI(uri, on_pr=None):
     out = {k: v[0] for k, v in pq.items()}
     if address:
         if not bitcoin.is_address(address):
-            raise BaseException("Invalid bitcoin address:" + address)
+            raise BaseException("Invalid groestlcoin address:" + address)
         out['address'] = address
     if 'amount' in out:
         am = out['amount']
