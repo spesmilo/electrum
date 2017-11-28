@@ -1,0 +1,15 @@
+certifi==2017.11.5
+chardet==3.0.4
+dnspython==1.15.0
+ecdsa==0.13
+idna==2.6
+jsonrpclib-pelix==0.3.1
+pbkdf2==1.3
+protobuf==3.5.0.post1
+pyaes==1.6.1
+PySocks==1.6.7
+qrcode==5.3
+requests==2.18.4
+scrypt==0.8.0
+six==1.11.0
+urllib3==1.22

@@ -1,9 +1,5 @@
 #!/bin/bash
 
-# You probably need to update only this link
-ELECTRUM_GIT_URL=https://github.com/pooler/electrum-ltc.git
-ELECTRUM_ICONS_URL=https://github.com/pooler/electrum-ltc-icons.git
-BRANCH=master
 NAME_ROOT=electrum-ltc
 PYTHON_VERSION=3.5.4
 
@@ -13,8 +9,7 @@ fi
 
 # These settings probably don't need any change
 export WINEPREFIX=/opt/wine64
-export PYTHONHASHSEED=22
-
+export PYTHONDONTWRITEBYTECODE=1
 
 PYHOME=c:/python$PYTHON_VERSION
 PYTHON="wine $PYHOME/python.exe -OO -B"
@@ -26,46 +21,39 @@ set -e
 
 cd tmp
 
-if [ -d "electrum-ltc-git" ]; then
-    # GIT repository found, update it
-    echo "Pull"
-    cd electrum-ltc-git
-    git pull
-    git checkout $BRANCH
-    cd ..
-else
-    # GIT repository not found, clone it
-    echo "Clone"
-    git clone -b $BRANCH $ELECTRUM_GIT_URL electrum-ltc-git
-fi
+for repo in electrum-ltc electrum-ltc-locale electrum-ltc-icons; do
+    if [ -d $repo ]; then
+	cd $repo
+	git pull
+	git checkout master
+	cd ..
+    else
+	URL=https://github.com/pooler/$repo.git
+	git clone -b master $URL $repo
+    fi
+done
 
-cd electrum-ltc-git
+pushd electrum-ltc-locale
+for i in ./locale/*; do
+    dir=$i/LC_MESSAGES
+    mkdir -p $dir
+    msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
+done
+popd
+
+pushd electrum-ltc
 VERSION=`git describe --tags`
 echo "Last commit: $VERSION"
-
-cd ..
+popd
 
 rm -rf $WINEPREFIX/drive_c/electrum-ltc
-cp -r electrum-ltc-git $WINEPREFIX/drive_c/electrum-ltc
-cp electrum-ltc-git/LICENCE .
-
-# add locale dir
-cp -r ../../../lib/locale $WINEPREFIX/drive_c/electrum-ltc/lib/
-
-# Build Qt resources
-# wine $WINEPREFIX/drive_c/python$PYTHON_VERSION/Scripts/pyrcc5.exe C:/electrum-ltc/icons.qrc -o C:/electrum-ltc/gui/qt/icons_rc.py
-# fetch icons file
-if [ -d "electrum-ltc-icons" ]; then
-    echo "Pull"
-    cd electrum-ltc-icons
-    git pull
-    git checkout master
-    cd ..
-else
-    echo "Clone"
-    git clone -b master $ELECTRUM_ICONS_URL electrum-ltc-icons
-fi
+cp -r electrum-ltc $WINEPREFIX/drive_c/electrum-ltc
+cp electrum-ltc/LICENCE .
+cp -r electrum-ltc-locale/locale $WINEPREFIX/drive_c/electrum-ltc/lib/
 cp electrum-ltc-icons/icons_rc.py $WINEPREFIX/drive_c/electrum-ltc/gui/qt/
+
+# Install frozen dependencies
+$PYTHON -m pip install -r ../../requirements.txt
 
 pushd $WINEPREFIX/drive_c/electrum-ltc
 $PYTHON setup.py install
