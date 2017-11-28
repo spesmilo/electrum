@@ -55,7 +55,7 @@ def hash_header(header):
         return '0' * 64
     if header.get('prev_block_hash') is None:
         header['prev_block_hash'] = '00'*32
-    return hash_encode(Hash(bfh(serialize_header(header))))
+    return hash_encode(groestlHash(bfh(serialize_header(header))))
 
 
 blockchains = {}
@@ -275,27 +275,24 @@ class Blockchain(util.PrintError):
         return sum([self.BIP9(h-i, 2) for i in range(N)])*10000/N/100.
 
     def bits_to_target(self, bits):
-        MM = 256*256*256
-        a = bits%MM
-        if a < 0x8000:
-            a *= 256
-        target = (a) * pow(2, 8 * (bits/MM - 3))
+        bitsN = (bits >> 24) & 0xff
+        if not (bitsN >= 0x03 and bitsN <= 0x1d):
+            raise BaseException("First part of bits should be in [0x03, 0x1d]")
+        bitsBase = bits & 0xffffff
+        if not (bitsBase >= 0x8000 and bitsBase <= 0x7fffff):
+            raise BaseException("Second part of bits should be in [0x8000, 0x7fffff]")
+        target = bitsBase << (8 * (bitsN-3))
         return target
 
     def target_to_bits(self, target):
-        MM = 256*256*256
-        c = ("%064X"%target)[2:]
-        i = 31
-        while c[0:2]=="00":
+        c = ("%064x" % target)[2:]
+        while c[:2] == '00' and len(c) > 6:
             c = c[2:]
-            i -= 1
-
-        c = int('0x'+c[0:6],16)
-        if c >= 0x800000:
-            c /= 256
-            i += 1
-
-        new_bits = c + MM * i
+        bitsN, bitsBase = len(c) // 2, int('0x' + c[:6], 16)
+        if bitsBase >= 0x800000:
+            bitsN += 1
+            bitsBase >>= 8
+        new_bits = bitsN << 24 | bitsBase
         return new_bits
 
     def get_target_dgw3(self, block_height, chain=None):
@@ -333,7 +330,7 @@ class Blockchain(util.PrintError):
                     PastDifficultyAverage = self.bits_to_target(BlockReading.get('bits'))
                 else:
                     bnNum = self.bits_to_target(BlockReading.get('bits'))
-                    PastDifficultyAverage = ((PastDifficultyAveragePrev * CountBlocks)+(bnNum)) / (CountBlocks + 1)
+                    PastDifficultyAverage = ((PastDifficultyAveragePrev * CountBlocks)+(bnNum)) // (CountBlocks + 1)
                 PastDifficultyAveragePrev = PastDifficultyAverage
 
             if LastBlockTime > 0:
@@ -350,13 +347,11 @@ class Blockchain(util.PrintError):
         bnNew = PastDifficultyAverage
         nTargetTimespan = CountBlocks * 60
 
-        nActualTimespan = max(nActualTimespan, nTargetTimespan/3)
-        nActualTimespan = min(nActualTimespan, nTargetTimespan*3)
+        nActualTimespan = max(nActualTimespan, nTargetTimespan // 3)
+        nActualTimespan = min(nActualTimespan, nTargetTimespan * 3)
 
         # retarget
-        bnNew *= nActualTimespan
-        bnNew /= nTargetTimespan
-        bnNew = min(bnNew, max_target)
+        bnNew = int(min(max_target, (bnNew * nActualTimespan) // nTargetTimespan))
 
         new_bits = self.target_to_bits(bnNew)
         return new_bits, bnNew
@@ -367,7 +362,7 @@ class Blockchain(util.PrintError):
 
         if bitcoin.TESTNET:
             return 0, 0
-        if index == 0:
+        if block_height == 0:
             return 0x1d00ffff, MAX_TARGET
         # Enforce DGW3_START_HEIGHT.
         if not USE_DIFF_RETARGET or block_height < DGW3_START_HEIGHT:
@@ -387,7 +382,7 @@ class Blockchain(util.PrintError):
         prev_hash = hash_header(previous_header)
         if prev_hash != header.get('prev_block_hash'):
             return False
-        bits, target = self.get_target(height // 2016)
+        bits, target = self.get_target(height)
         try:
             self.verify_header(header, previous_header, bits, target)
         except:
