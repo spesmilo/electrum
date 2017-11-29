@@ -128,6 +128,8 @@ def sweep(privkeys, network, config, recipient, fee=None, imax=100):
         outputs = [(TYPE_ADDRESS, recipient, total)]
         tx = Transaction.from_io(inputs, outputs)
         fee = config.estimate_fee(tx.estimated_size())
+        if config.fee_per_kb() is None:
+            raise BaseException('Dynamic fee estimates not available')
     if total - fee < 0:
         raise BaseException(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d'%(total, fee))
     if total - fee < dust_threshold(network):

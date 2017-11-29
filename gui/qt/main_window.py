@@ -2343,6 +2343,27 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         h, address_e = address_field(addresses)
         vbox.addLayout(h)
 
+        def fee_cb_sweep(dyn, pos, fee_rate):
+            if dyn:
+                self.config.set_key('fee_level', pos, False)
+            else:
+                self.config.set_key('fee_per_kb', fee_rate, False)
+            self.spend_max() if self.is_max else self.update_fee()
+
+        fee_slider_sweep = FeeSlider(self, self.config, fee_cb_sweep)
+        fee_slider_sweep.setFixedWidth(140)
+
+        fee_e_sweep = BTCAmountEdit(self.get_decimal_point)
+        if not self.config.get('show_fee', False):
+            fee_e_sweep.setVisible(False)
+
+        hbox = QHBoxLayout()
+        hbox.addWidget(QLabel(_("Fee")))
+        hbox.addWidget(fee_slider_sweep)
+        hbox.addWidget(fee_e_sweep)
+        hbox.addStretch()
+        vbox.addLayout(hbox)
+
         vbox.addStretch(1)
         button = OkButton(d, _('Sweep'))
         vbox.addLayout(Buttons(CancelButton(d), button))
@@ -2364,9 +2385,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         address_e.textChanged.connect(on_address)
         if not d.exec_():
             return
+
+        if self.config.get('show_fee', False) and fee_e_sweep.get_amount():
+            fee_sweep = fee_e_sweep.get_amount()
+        else:
+            fee_sweep = None
+
         from electrum.wallet import sweep
         try:
-            tx = sweep(get_pk(), self.network, self.config, get_address(), None)
+            tx = sweep(get_pk(), self.network, self.config, get_address(), fee_sweep)
         except BaseException as e:
             self.show_message(str(e))
             return
