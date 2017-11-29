@@ -10,6 +10,7 @@ fi
 # These settings probably don't need any change
 export WINEPREFIX=/opt/wine64
 export PYTHONDONTWRITEBYTECODE=1
+export PYTHONHASHSEED=22
 
 PYHOME=c:/python$PYTHON_VERSION
 PYTHON="wine $PYHOME/python.exe -OO -B"
@@ -63,8 +64,13 @@ cd ..
 
 rm -rf dist/
 
-# build standalone version
-wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" --noconfirm --ascii --name $NAME_ROOT-$VERSION.exe -w deterministic.spec 
+# build standalone and portable versions
+wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" --noconfirm --ascii --name $NAME_ROOT-$VERSION -w deterministic.spec
+
+# set timestamps in dist, in order to make the installer reproducible
+pushd dist
+find  -type f  -exec touch -d '2000-01-1 18:00:16' {} +
+popd
 
 # build NSIS installer
 # $VERSION could be passed to the electrum.nsi script, but this would require some rewriting in the script iself.
@@ -74,11 +80,5 @@ cd dist
 mv electrum-ltc-setup.exe $NAME_ROOT-$VERSION-setup.exe
 cd ..
 
-# build portable version
-cp portable.patch $WINEPREFIX/drive_c/electrum-ltc
-pushd $WINEPREFIX/drive_c/electrum-ltc
-patch < portable.patch 
-popd
-wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" --noconfirm --ascii --name $NAME_ROOT-$VERSION-portable.exe -w deterministic.spec
-
 echo "Done."
+md5sum dist/electrum*exe
