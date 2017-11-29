@@ -344,7 +344,16 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                     txoutputtype.script_type = self.types.PAYTOOPRETURN
                     txoutputtype.op_return_data = address[2:]
                 elif _type == TYPE_ADDRESS:
-                    txoutputtype.script_type = self.types.PAYTOADDRESS
+                    # trezor would be fine with self.types.PAYTOADDRESS
+                    # for any non-change output
+                    # but we need to maintain keepkey compatibility in this cls
+                    addrtype, hash_160 = b58_address_to_hash160(address)
+                    if addrtype == NetworkConstants.ADDRTYPE_P2PKH:
+                        txoutputtype.script_type = self.types.PAYTOADDRESS
+                    elif addrtype == NetworkConstants.ADDRTYPE_P2SH:
+                        txoutputtype.script_type = self.types.PAYTOSCRIPTHASH
+                    else:
+                        raise BaseException('addrtype: ' + str(addrtype))
                     txoutputtype.address = address
 
             outputs.append(txoutputtype)
