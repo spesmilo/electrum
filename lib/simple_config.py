@@ -249,6 +249,9 @@ class SimpleConfig(PrintError):
             fee_rate = self.get('fee_per_kb', self.max_fee_rate()/2)
         return fee_rate
 
+    def estimate_fee(self, size):
+        return int(self.fee_per_kb() * size / 1000.)
+
     def update_fee_estimates(self, key, value):
         self.fee_estimates[key] = value
         self.fee_estimates_last_updated[key] = time.time()

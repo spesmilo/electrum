@@ -383,16 +383,17 @@ class Commands:
             raise BaseException('cannot verify alias', x)
         return out['address']
 
-    @command('nw')
+    @command('n')
     def sweep(self, privkey, destination, fee=None, nocheck=False, imax=100):
         """Sweep private keys. Returns a transaction that spends UTXOs from
         privkey to a destination address. The transaction is not
         broadcasted."""
+        from .wallet import sweep
         tx_fee = satoshis(fee)
         privkeys = privkey.split()
         self.nocheck = nocheck
-        dest = self._resolver(destination)
-        tx = self.wallet.sweep(privkeys, self.network, self.config, dest, tx_fee, imax)
+        #dest = self._resolver(destination)
+        tx = sweep(privkeys, self.network, self.config, destination, tx_fee, imax)
         return tx.as_dict() if tx else None
 
     @command('wp')
@@ -707,7 +708,7 @@ command_options = {
     'nocheck':     (None, "Do not verify aliases"),
     'imax':        (None, "Maximum number of inputs"),
     'fee':         ("-f", "Transaction fee (in BTC)"),
-    'from_addr':   ("-F", "Source address. If it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet."),
+    'from_addr':   ("-F", "Source address (must be a wallet address; use sweep to spend from non-wallet address)."),
     'change_addr': ("-c", "Change address. Default is a spare address, or the source address if it's not in the wallet"),
     'nbits':       (None, "Number of bits of entropy"),
     'entropy':     (None, "Custom entropy"),

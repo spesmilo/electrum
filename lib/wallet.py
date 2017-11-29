@@ -67,6 +67,81 @@ TX_STATUS = [
 ]
 
 
+
+def relayfee(network):
+    RELAY_FEE = 5000
+    MAX_RELAY_FEE = 50000
+    f = network.relay_fee if network and network.relay_fee else RELAY_FEE
+    return min(f, MAX_RELAY_FEE)
+
+def dust_threshold(network):
+    # Change <= dust threshold is added to the tx fee
+    return 182 * 3 * relayfee(network) / 1000
+
+
+def append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax):
+    if txin_type != 'p2pk':
+        address = bitcoin.pubkey_to_address(txin_type, pubkey)
+        sh = bitcoin.address_to_scripthash(address)
+    else:
+        script = bitcoin.public_key_to_p2pk_script(pubkey)
+        sh = bitcoin.script_to_scripthash(script)
+        address = '(pubkey)'
+    u = network.synchronous_get(('blockchain.scripthash.listunspent', [sh]))
+    for item in u:
+        if len(inputs) >= imax:
+            break
+        item['address'] = address
+        item['type'] = txin_type
+        item['prevout_hash'] = item['tx_hash']
+        item['prevout_n'] = item['tx_pos']
+        item['pubkeys'] = [pubkey]
+        item['x_pubkeys'] = [pubkey]
+        item['signatures'] = [None]
+        item['num_sig'] = 1
+        inputs.append(item)
+
+def sweep(privkeys, network, config, recipient, fee=None, imax=100):
+
+    def find_utxos_for_privkey(txin_type, privkey, compressed):
+        pubkey = bitcoin.public_key_from_private_key(privkey, compressed)
+        append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax)
+        keypairs[pubkey] = privkey, compressed
+    inputs = []
+    keypairs = {}
+    for sec in privkeys:
+        txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
+        find_utxos_for_privkey(txin_type, privkey, compressed)
+        # do other lookups to increase support coverage
+        if is_minikey(sec):
+            # minikeys don't have a compressed byte
+            # we lookup both compressed and uncompressed pubkeys
+            find_utxos_for_privkey(txin_type, privkey, not compressed)
+        elif txin_type == 'p2pkh':
+            # WIF serialization does not distinguish p2pkh and p2pk
+            # we also search for pay-to-pubkey outputs
+            find_utxos_for_privkey('p2pk', privkey, compressed)
+    if not inputs:
+        raise BaseException(_('No inputs found. (Note that inputs need to be confirmed)'))
+    total = sum(i.get('value') for i in inputs)
+    if fee is None:
+        outputs = [(TYPE_ADDRESS, recipient, total)]
+        tx = Transaction.from_io(inputs, outputs)
+        fee = config.estimate_fee(tx.estimated_size())
+    if total - fee < 0:
+        raise BaseException(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d'%(total, fee))
+    if total - fee < dust_threshold(network):
+        raise BaseException(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d\nDust Threshold: %d'%(total, fee, dust_threshold(network)))
+
+    outputs = [(TYPE_ADDRESS, recipient, total - fee)]
+    locktime = network.get_local_height()
+
+    tx = Transaction.from_io(inputs, outputs, locktime=locktime)
+    tx.set_rbf(True)
+    tx.sign(keypairs)
+    return tx
+
+
 class Abstract_Wallet(PrintError):
     """
     Wallet classes are created to handle various address generation methods.
@@ -89,7 +164,6 @@ class Abstract_Wallet(PrintError):
         self.multiple_change       = storage.get('multiple_change', False)
         self.labels                = storage.get('labels', {})
         self.frozen_addresses      = set(storage.get('frozen_addresses',[]))
-        self.stored_height         = storage.get('stored_height', 0)       # last known height (for offline mode)
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
 
         self.load_keystore()
@@ -316,7 +390,7 @@ class Abstract_Wallet(PrintError):
 
     def get_local_height(self):
         """ return last known height if we are offline """
-        return self.network.get_local_height() if self.network else self.stored_height
+        return self.network.get_local_height() if self.network else self.storage.get('stored_height', 0)
 
     def get_tx_height(self, tx_hash):
         """ return the height and timestamp of a verified transaction. """
@@ -776,14 +850,10 @@ class Abstract_Wallet(PrintError):
         return status, status_str
 
     def relayfee(self):
-        RELAY_FEE = 5000
-        MAX_RELAY_FEE = 50000
-        f = self.network.relay_fee if self.network and self.network.relay_fee else RELAY_FEE
-        return min(f, MAX_RELAY_FEE)
+        return relayfee(self.network)
 
     def dust_threshold(self):
-        # Change <= dust threshold is added to the tx fee
-        return 182 * 3 * self.relayfee() / 1000
+        return dust_threshold(self.network)
 
     def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None, change_addr=None):
         # check outputs
@@ -826,7 +896,7 @@ class Abstract_Wallet(PrintError):
 
         # Fee estimator
         if fixed_fee is None:
-            fee_estimator = partial(self.estimate_fee, config)
+            fee_estimator = self.config.estimate_fee
         else:
             fee_estimator = lambda size: fixed_fee
 
@@ -853,83 +923,10 @@ class Abstract_Wallet(PrintError):
         run_hook('make_unsigned_transaction', self, tx)
         return tx
 
-    def estimate_fee(self, config, size):
-        fee = int(config.fee_per_kb() * size / 1000.)
-        return fee
-
     def mktx(self, outputs, password, config, fee=None, change_addr=None, domain=None):
         coins = self.get_spendable_coins(domain, config)
         tx = self.make_unsigned_transaction(coins, outputs, config, fee, change_addr)
         self.sign_transaction(tx, password)
-        return tx
-
-    def _append_utxos_to_inputs(self, inputs, network, pubkey, txin_type, imax):
-        if txin_type != 'p2pk':
-            address = bitcoin.pubkey_to_address(txin_type, pubkey)
-            sh = bitcoin.address_to_scripthash(address)
-        else:
-            script = bitcoin.public_key_to_p2pk_script(pubkey)
-            sh = bitcoin.script_to_scripthash(script)
-            address = '(pubkey)'
-        u = network.synchronous_get(('blockchain.scripthash.listunspent', [sh]))
-        for item in u:
-            if len(inputs) >= imax:
-                break
-            item['address'] = address
-            item['type'] = txin_type
-            item['prevout_hash'] = item['tx_hash']
-            item['prevout_n'] = item['tx_pos']
-            item['pubkeys'] = [pubkey]
-            item['x_pubkeys'] = [pubkey]
-            item['signatures'] = [None]
-            item['num_sig'] = 1
-            inputs.append(item)
-
-    def sweep(self, privkeys, network, config, recipient, fee=None, imax=100):
-
-        def find_utxos_for_privkey(txin_type, privkey, compressed):
-            pubkey = bitcoin.public_key_from_private_key(privkey, compressed)
-            self._append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax)
-            keypairs[pubkey] = privkey, compressed
-
-        inputs = []
-        keypairs = {}
-        for sec in privkeys:
-            txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
-
-            find_utxos_for_privkey(txin_type, privkey, compressed)
-
-            # do other lookups to increase support coverage
-            if is_minikey(sec):
-                # minikeys don't have a compressed byte
-                # we lookup both compressed and uncompressed pubkeys
-                find_utxos_for_privkey(txin_type, privkey, not compressed)
-            elif txin_type == 'p2pkh':
-                # WIF serialization does not distinguish p2pkh and p2pk
-                # we also search for pay-to-pubkey outputs
-                find_utxos_for_privkey('p2pk', privkey, compressed)
-
-        if not inputs:
-            raise BaseException(_('No inputs found. (Note that inputs need to be confirmed)'))
-
-        total = sum(i.get('value') for i in inputs)
-        if fee is None:
-            outputs = [(TYPE_ADDRESS, recipient, total)]
-            tx = Transaction.from_io(inputs, outputs)
-            fee = self.estimate_fee(config, tx.estimated_size())
-
-        if total - fee < 0:
-            raise BaseException(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d'%(total, fee))
-
-        if total - fee < self.dust_threshold():
-            raise BaseException(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d\nDust Threshold: %d'%(total, fee, self.dust_threshold()))
-
-        outputs = [(TYPE_ADDRESS, recipient, total - fee)]
-        locktime = self.get_local_height()
-
-        tx = Transaction.from_io(inputs, outputs, locktime=locktime)
-        tx.set_rbf(True)
-        tx.sign(keypairs)
         return tx
 
     def is_frozen(self, addr):
