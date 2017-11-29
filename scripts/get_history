@@ -3,6 +3,7 @@
 import sys
 from electrum_ltc import Network
 from electrum_ltc.util import json_encode, print_msg
+from electrum_ltc import bitcoin
 
 try:
     addr = sys.argv[1]
@@ -12,5 +13,6 @@ except Exception:
 
 n = Network()
 n.start()
-h = n.synchronous_get(('blockchain.address.get_history',[addr]))
+_hash = bitcoin.address_to_scripthash(addr)
+h = n.synchronous_get(('blockchain.scripthash.get_history',[_hash]))
 print_msg(json_encode(h))
