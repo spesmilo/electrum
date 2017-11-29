@@ -39,14 +39,14 @@ from .util import *
 
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
 
-def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
-    d = TxDialog(tx, parent, desc, prompt_if_unsaved)
+def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False, tx_type=None):
+    d = TxDialog(tx, parent, desc, prompt_if_unsaved, tx_type)
     dialogs.append(d)
     d.show()
 
 class TxDialog(QDialog, MessageBoxMixin):
 
-    def __init__(self, tx, parent, desc, prompt_if_unsaved):
+    def __init__(self, tx, parent, desc, prompt_if_unsaved, tx_type):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''
@@ -62,6 +62,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.prompt_if_unsaved = prompt_if_unsaved
         self.saved = False
         self.desc = desc
+        self.tx_type = tx_type
 
         self.setMinimumWidth(750)
         self.setWindowTitle(_("Transaction"))
@@ -175,7 +176,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         desc = self.desc
         base_unit = self.main_window.base_unit()
         format_amount = self.main_window.format_amount
-        tx_hash, status, label, can_broadcast, can_rbf, amount, fee, height, conf, timestamp, exp_n = self.wallet.get_tx_info(self.tx)
+        tx_hash, status, label, can_broadcast, can_rbf, amount, fee, height, conf, timestamp, exp_n = self.wallet.get_tx_info(self.tx, self.tx_type)
         size = self.tx.estimated_size()
         self.broadcast_button.setEnabled(can_broadcast)
         self.sign_button.setEnabled(self.wallet.can_sign(self.tx))
