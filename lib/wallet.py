@@ -125,9 +125,12 @@ def sweep(privkeys, network, config, recipient, fee=None, imax=100):
         raise BaseException(_('No inputs found. (Note that inputs need to be confirmed)'))
     total = sum(i.get('value') for i in inputs)
     if fee is None:
+        if not network.config.has_fee_estimates():
+            raise BaseException('Dynamic fee estimates not available')
         outputs = [(TYPE_ADDRESS, recipient, total)]
         tx = Transaction.from_io(inputs, outputs)
         fee = config.estimate_fee(tx.estimated_size())
+
     if total - fee < 0:
         raise BaseException(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d'%(total, fee))
     if total - fee < dust_threshold(network):
@@ -439,14 +442,17 @@ class Abstract_Wallet(PrintError):
             delta += v
         return delta
 
-    def get_wallet_delta(self, tx):
+    def get_wallet_delta(self, tx, tx_type=None):
         """ effect of tx on wallet """
         addresses = self.get_addresses()
         is_relevant = False
         is_mine = False
         is_pruned = False
         is_partial = False
+        is_sweep = False
         v_in = v_out = v_out_mine = 0
+        if tx_type == 'sweep':
+            is_sweep = True
         for item in tx.inputs():
             addr = item.get('address')
             if addr in addresses:
@@ -490,10 +496,24 @@ class Abstract_Wallet(PrintError):
                 fee = v_in - v_out
         if not is_mine:
             fee = None
+
+        # Calculate fee differently if it's sweep
+        if is_sweep:
+            v_in = v_out = 0
+            # Get all inputs
+            for item in tx.inputs():
+                v_in += item['value']
+            # Get all ouputs
+            outputs = [x[1] for x in tx.get_outputs()]
+            for output in outputs:
+                v_out += output
+            # Actual fee
+            fee = v_in - v_out
+
         return is_relevant, is_mine, v, fee
 
-    def get_tx_info(self, tx):
-        is_relevant, is_mine, v, fee = self.get_wallet_delta(tx)
+    def get_tx_info(self, tx, tx_type=None):
+        is_relevant, is_mine, v, fee = self.get_wallet_delta(tx, tx_type)
         exp_n = None
         can_broadcast = False
         can_bump = False
