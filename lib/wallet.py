@@ -101,7 +101,7 @@ def append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax):
         item['num_sig'] = 1
         inputs.append(item)
 
-def sweep(privkeys, network, config, recipient, fee=None, imax=100):
+def sweep_preparations(privkeys, network, imax=100):
 
     def find_utxos_for_privkey(txin_type, privkey, compressed):
         pubkey = bitcoin.public_key_from_private_key(privkey, compressed)
@@ -123,6 +123,11 @@ def sweep(privkeys, network, config, recipient, fee=None, imax=100):
             find_utxos_for_privkey('p2pk', privkey, compressed)
     if not inputs:
         raise BaseException(_('No inputs found. (Note that inputs need to be confirmed)'))
+    return inputs, keypairs
+
+
+def sweep(privkeys, network, config, recipient, fee=None, imax=100):
+    inputs, keypairs = sweep_preparations(privkeys, network, imax)
     total = sum(i.get('value') for i in inputs)
     if fee is None:
         outputs = [(TYPE_ADDRESS, recipient, total)]
