@@ -69,7 +69,7 @@ wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" --noconfirm --ascii --na
 
 # set timestamps in dist, in order to make the installer reproducible
 pushd dist
-find  -type f  -exec touch -d '2000-01-1 18:00:16' {} +
+find  -type f  -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
 # build NSIS installer

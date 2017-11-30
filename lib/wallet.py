@@ -896,7 +896,7 @@ class Abstract_Wallet(PrintError):
 
         # Fee estimator
         if fixed_fee is None:
-            fee_estimator = self.config.estimate_fee
+            fee_estimator = config.estimate_fee
         else:
             fee_estimator = lambda size: fixed_fee
 
