@@ -69,6 +69,9 @@ class AmountEdit(MyLineEdit):
         except:
             return None
 
+    def setAmount(self, x):
+        self.setText("%d"%x)
+
 
 class BTCAmountEdit(AmountEdit):
 

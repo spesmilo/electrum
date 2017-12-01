@@ -1068,11 +1068,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             else:
                 self.config.set_key('fee_per_kb', fee_rate, False)
             self.spend_max() if self.is_max else self.update_fee()
+            self.feerate_e.setAmount(fee_rate//1000)
 
         self.fee_slider = FeeSlider(self, self.config, fee_cb)
         self.fee_slider.setFixedWidth(140)
 
+        self.size_e = AmountEdit(lambda: 'bytes')
+        self.size_e.setReadOnly(True)
+        self.feerate_e = AmountEdit(lambda: self.base_unit() + '/kB' if self.fee_unit else 'sat/bytes')
+        self.feerate_e.textEdited.connect(self.update_fee)
+        
         self.fee_e = BTCAmountEdit(self.get_decimal_point)
+        
         if not self.config.get('show_fee', False):
             self.fee_e.setVisible(False)
         self.fee_e.textEdited.connect(self.update_fee)
@@ -1081,17 +1088,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fee_e.editingFinished.connect(self.update_fee)
         self.connect_fields(self, self.amount_e, self.fiat_send_e, self.fee_e)
 
-        self.rbf_checkbox = QCheckBox(_('Replaceable'))
-        msg = [_('If you check this box, your transaction will be marked as non-final,'),
-               _('and you will have the possiblity, while it is unconfirmed, to replace it with a transaction that pays a higher fee.'),
-               _('Note that some merchants do not accept non-final transactions until they are confirmed.')]
-        self.rbf_checkbox.setToolTip('<p>' + ' '.join(msg) + '</p>')
-        self.rbf_checkbox.setVisible(False)
+        #self.rbf_checkbox = QCheckBox(_('Replaceable'))
+        #msg = [_('If you check this box, your transaction will be marked as non-final,'),
+        #       _('and you will have the possiblity, while it is unconfirmed, to replace it with a transaction that pays a higher fee.'),
+        #       _('Note that some merchants do not accept non-final transactions until they are confirmed.')]
+        #self.rbf_checkbox.setToolTip('<p>' + ' '.join(msg) + '</p>')
+        #self.rbf_checkbox.setVisible(False)
 
         grid.addWidget(self.fee_e_label, 5, 0)
-        grid.addWidget(self.fee_slider, 5, 1)
-        grid.addWidget(self.fee_e, 5, 2)
-        grid.addWidget(self.rbf_checkbox, 5, 3)
+        grid.addWidget(self.feerate_e, 5, 1)
+        grid.addWidget(self.size_e, 5, 2)
+        grid.addWidget(self.fee_e, 5, 3)
+
+        grid.addWidget(self.fee_slider, 6, 1)
+        #grid.addWidget(self.rbf_checkbox, 5, 3)
 
         self.preview_button = EnterButton(_("Preview"), self.do_preview)
         self.preview_button.setToolTip(_('Display the details of your transactions before signing it.'))
@@ -1102,7 +1112,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         buttons.addWidget(self.clear_button)
         buttons.addWidget(self.preview_button)
         buttons.addWidget(self.send_button)
-        grid.addLayout(buttons, 6, 1, 1, 3)
+        grid.addLayout(buttons, 7, 1, 1, 3)
 
         self.amount_e.shortcut.connect(self.spend_max)
         self.payto_e.textChanged.connect(self.update_fee)
@@ -1203,9 +1213,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             except BaseException:
                 return
 
+            size = tx.estimated_size()
+            self.size_e.setAmount(size)
+            
             if not freeze_fee:
+                fee_rate = self.config.fee_per_kb()
                 fee = None if self.not_enough_funds else tx.get_fee()
                 self.fee_e.setAmount(fee)
+            elif fee:
+                print(size, fee)
+                fee_rate = fee // size
+                self.feerate_e.setAmount(fee_rate)
 
             if self.is_max:
                 amount = tx.output_value()
@@ -1213,20 +1231,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
             if fee is None:
                 return
-            rbf_policy = self.config.get('rbf_policy', 1)
-            if rbf_policy == 0:
-                b = True
-            elif rbf_policy == 1:
-                fee_rate = fee * 1000 / tx.estimated_size()
-                try:
-                    c = self.config.reverse_dynfee(fee_rate)
-                    b = c in [-1, 25]
-                except:
-                    b = False
-            elif rbf_policy == 2:
-                b = False
-            self.rbf_checkbox.setVisible(b)
-            self.rbf_checkbox.setChecked(b)
+            #rbf_policy = self.config.get('rbf_policy', 1)
+            #if rbf_policy == 0:
+            #    b = True
+            #elif rbf_policy == 1:
+            #    fee_rate = fee * 1000 / tx.estimated_size()
+            #    try:
+            #        c = self.config.reverse_dynfee(fee_rate)
+            #        b = c in [-1, 25]
+            #    except:
+            #        b = False
+            #elif rbf_policy == 2:
+            #    b = False
+            #self.rbf_checkbox.setVisible(b)
+            #self.rbf_checkbox.setChecked(b)
 
 
     def from_list_delete(self, item):
@@ -1356,7 +1374,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         amount = tx.output_value() if self.is_max else sum(map(lambda x:x[2], outputs))
         fee = tx.get_fee()
 
-        use_rbf = self.rbf_checkbox.isChecked()
+        use_rbf = True#self.rbf_checkbox.isChecked()
         if use_rbf:
             tx.set_rbf(True)
 
@@ -1567,7 +1585,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             e.setText('')
             e.setFrozen(False)
         self.set_pay_from([])
-        self.rbf_checkbox.setChecked(False)
+        #self.rbf_checkbox.setChecked(False)
         self.tx_external_keypairs = {}
         self.update_status()
         run_hook('do_clear', self)
