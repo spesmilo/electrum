@@ -1,231 +1,73 @@
 {
-    "E-X.not.fyi": {
+    "abc.vom-stausee.de": {
         "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
+        "version": "1.1",
+        "t": "52001",
+        "s": "52002"
     },
-    "ELECTRUMX.not.fyi": {
+    "abc1.hsmiths.com": {
         "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
+        "version": "1.1",
+        "t": "60001",
+        "s": "60002"
     },
-    "ELEX01.blackpole.online": {
+    "bch.arihanc.com": {
         "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
+        "version": "1.1",
+        "t":"52001",
+        "s":"52002"
     },
-    "VPS.hsmiths.com": {
+    "35.157.238.5": {
         "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
+        "version": "1.1",
+        "t":"51001",
+        "s":"51002"
     },
-    "bitcoin.freedomnode.com": {
+    "electrumx-cash.1209k.com": {
         "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
+        "version": "1.1",
+        "t":"51001",
+        "s":"51002"
     },
-    "btc.smsys.me": {
+    "shsmithgoggryfbx.onion": {
         "pruning": "-",
-        "s": "995",
-        "version": "1.1"
+        "version": "1.1",
+        "t": "60001",
+        "s": "60002"
     },
-    "currentlane.lovebitco.in": {
+    "mash.1209k.com": {
         "pruning": "-",
-        "t": "50001",
-        "version": "1.1"
+        "version": "1.1",
+        "t":"51001",
+        "s":"51002"
     },
-    "daedalus.bauerj.eu": {
+    "electroncash.bitcoinplug.com": {
         "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
+        "version": "1.1",
+        "t":"51001",
+        "s":"51002"
     },
-    "de01.hamster.science": {
+    "bch.curalle.ovh": {
         "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
+        "version": "1.1",
+        "t":"51001",
+        "s":"51002"
     },
-    "ecdsa.net": {
+    "electron.ueo.ch": {
         "pruning": "-",
-        "s": "110",
-        "t": "50001",
-        "version": "1.1"
+        "version": "1.1",
+        "t":"51001",
+        "s":"51002"
     },
-    "elec.luggs.co": {
+    "electron-cash.dragon.zone": {
         "pruning": "-",
-        "s": "443",
-        "version": "1.1"
+        "version": "1.1",
+        "t":"51001",
+        "s":"51002"
     },
-    "electrum.akinbo.org": {
+    "electroncash.cascharia.com": {
         "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "electrum.antumbra.se": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "electrum.be": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "electrum.coinucopia.io": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "electrum.cutie.ga": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "electrum.festivaldelhumor.org": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "electrum.hsmiths.com": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "electrum.qtornado.com": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "electrum.vom-stausee.de": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "electrum3.hachre.de": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "electrumx.bot.nu": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "electrumx.westeurope.cloudapp.azure.com": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "elx01.knas.systems": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "ex-btc.server-on.net": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "helicarrier.bauerj.eu": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "mooo.not.fyi": {
-        "pruning": "-",
-        "s": "50012",
-        "t": "50011",
-        "version": "1.1"
-    },
-    "ndnd.selfhost.eu": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "node.arihanc.com": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "node.xbt.eu": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "node1.volatilevictory.com": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "noserver4u.de": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "qmebr.spdns.org": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "raspi.hsmiths.com": {
-        "pruning": "-",
-        "s": "51002",
-        "t": "51001",
-        "version": "1.1"
-    },
-    "s2.noip.pl": {
-        "pruning": "-",
-        "s": "50102",
-        "version": "1.1"
-    },
-    "s5.noip.pl": {
-        "pruning": "-",
-        "s": "50105",
-        "version": "1.1"
-    },
-    "songbird.bauerj.eu": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "us.electrum.be": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
-    },
-    "us01.hamster.science": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.1"
+        "version": "1.1",
+        "s": "50002"
     }
 }
