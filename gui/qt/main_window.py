@@ -389,7 +389,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         wallet_folder = self.get_wallet_folder()
         filename, __ = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder)
         if not filename:
-            return
+            self.show_error('Error opening the file. Please check if the file is accessible.')
         self.gui_object.new_window(filename)
 
 
