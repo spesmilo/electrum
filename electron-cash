@@ -43,7 +43,7 @@ if jnius:
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
-is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "electron.desktop"))
+is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "electron-cash.desktop"))
 is_android = 'ANDROID_DATA' in os.environ
 
 # move this back to gui/kivy/__init.py once plugins are moved
