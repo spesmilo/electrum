@@ -21,9 +21,6 @@ class TrezorCompatibleKeyStore(Hardware_KeyStore):
     def get_derivation(self):
         return self.derivation
 
-    def is_segwit(self):
-        return self.derivation.startswith("m/49'/")
-
     def get_client(self, force_pair=True):
         return self.plugin.get_client(self, force_pair)
 
@@ -227,8 +224,8 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         self.prev_tx = prev_tx
         self.xpub_path = xpub_path
         client = self.get_client(keystore)
-        inputs = self.tx_inputs(tx, True, keystore.is_segwit())
-        outputs = self.tx_outputs(keystore.get_derivation(), tx, keystore.is_segwit())
+        inputs = self.tx_inputs(tx, True)
+        outputs = self.tx_outputs(keystore.get_derivation(), tx)
         signed_tx = client.sign_tx(self.get_coin_name(), inputs, outputs, lock_time=tx.locktime)[1]
         raw = bh2u(signed_tx)
         tx.update_signatures(raw)
@@ -242,11 +239,10 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         derivation = wallet.keystore.derivation
         address_path = "%s/%d/%d"%(derivation, change, index)
         address_n = client.expand_path(address_path)
-        segwit = wallet.keystore.is_segwit()
-        script_type = self.types.SPENDP2SHWITNESS if segwit else self.types.SPENDADDRESS
+        script_type = self.types.SPENDADDRESS
         client.get_address(self.get_coin_name(), address_n, True, script_type=script_type)
 
-    def tx_inputs(self, tx, for_sig=False, segwit=False):
+    def tx_inputs(self, tx, for_sig=False):
         inputs = []
         for txin in tx.inputs():
             txinputtype = self.types.TxInputType()
@@ -261,7 +257,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                         xpub, s = parse_xpubkey(x_pubkey)
                         xpub_n = self.client_class.expand_path(self.xpub_path[xpub])
                         txinputtype.address_n.extend(xpub_n + s)
-                        txinputtype.script_type = self.types.SPENDP2SHWITNESS if segwit else self.types.SPENDADDRESS
+                        txinputtype.script_type = self.types.SPENDADDRESS
                     else:
                         def f(x_pubkey):
                             if is_xpubkey(x_pubkey):
@@ -277,7 +273,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                             signatures=map(lambda x: bfh(x)[:-1] if x else b'', txin.get('signatures')),
                             m=txin.get('num_sig'),
                         )
-                        script_type = self.types.SPENDP2SHWITNESS if segwit else self.types.SPENDMULTISIG
+                        script_type = self.types.SPENDMULTISIG
                         txinputtype = self.types.TxInputType(
                             script_type=script_type,
                             multisig=multisig
@@ -309,7 +305,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
 
         return inputs
 
-    def tx_outputs(self, derivation, tx, segwit=False):
+    def tx_outputs(self, derivation, tx):
         outputs = []
         has_change = False
 
@@ -320,7 +316,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                 addrtype, hash_160 = b58_address_to_hash160(address)
                 index, xpubs, m = info
                 if len(xpubs) == 1:
-                    script_type = self.types.PAYTOP2SHWITNESS if segwit else self.types.PAYTOADDRESS
+                    script_type = self.types.PAYTOADDRESS
                     address_n = self.client_class.expand_path(derivation + "/%d/%d"%index)
                     txoutputtype = self.types.TxOutputType(
                         amount = amount,
@@ -328,7 +324,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                         address_n = address_n,
                     )
                 else:
-                    script_type = self.types.PAYTOP2SHWITNESS if segwit else self.types.PAYTOMULTISIG
+                    script_type = self.types.PAYTOMULTISIG
                     address_n = self.client_class.expand_path("/%d/%d"%index)
                     nodes = map(self.ckd_public.deserialize, xpubs)
                     pubkeys = [ self.types.HDNodePathType(node=node, address_n=address_n) for node in nodes]

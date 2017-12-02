@@ -55,17 +55,9 @@ def read_json_dict(filename):
 # native segwit: zprv, zpub
 XPRV_HEADERS = {
     'standard': 0x0488ade4,
-    'p2wpkh-p2sh': 0x049d7878,
-    'p2wsh-p2sh': 0x295b005,
-    'p2wpkh': 0x4b2430c,
-    'p2wsh': 0x2aa7a99
 }
 XPUB_HEADERS = {
     'standard': 0x0488b21e,
-    'p2wpkh-p2sh': 0x049d7cb2,
-    'p2wsh-p2sh': 0x295b43f,
-    'p2wpkh': 0x4b24746,
-    'p2wsh': 0x2aa7ed3
 }
 
 # Bitcoin Cash fork block specification
@@ -326,7 +318,7 @@ def hash_160(public_key):
         return md.digest()
 
 
-def hash160_to_b58_address(h160, addrtype, witness_program_version=1):
+def hash160_to_b58_address(h160, addrtype):
     s = bytes([addrtype])
     s += h160
     return base_encode(s+Hash(s)[0:4], base=58)
@@ -350,39 +342,15 @@ def public_key_to_p2pkh(public_key):
 def hash_to_segwit_addr(h):
     return segwit_addr.encode(NetworkConstants.SEGWIT_HRP, 0, h)
 
-def public_key_to_p2wpkh(public_key):
-    return hash_to_segwit_addr(hash_160(public_key))
-
-def script_to_p2wsh(script):
-    return hash_to_segwit_addr(sha256(bfh(script)))
-
-def p2wpkh_nested_script(pubkey):
-    pkh = bh2u(hash_160(bfh(pubkey)))
-    return '00' + push_script(pkh)
-
-def p2wsh_nested_script(witness_script):
-    wsh = bh2u(sha256(bfh(witness_script)))
-    return '00' + push_script(wsh)
-
 def pubkey_to_address(txin_type, pubkey):
     if txin_type == 'p2pkh':
         return public_key_to_p2pkh(bfh(pubkey))
-    elif txin_type == 'p2wpkh':
-        return hash_to_segwit_addr(hash_160(bfh(pubkey)))
-    elif txin_type == 'p2wpkh-p2sh':
-        scriptSig = p2wpkh_nested_script(pubkey)
-        return hash160_to_p2sh(hash_160(bfh(scriptSig)))
     else:
         raise NotImplementedError(txin_type)
 
 def redeem_script_to_address(txin_type, redeem_script):
     if txin_type == 'p2sh':
         return hash160_to_p2sh(hash_160(bfh(redeem_script)))
-    elif txin_type == 'p2wsh':
-        return script_to_p2wsh(redeem_script)
-    elif txin_type == 'p2wsh-p2sh':
-        scriptSig = p2wsh_nested_script(redeem_script)
-        return hash160_to_p2sh(hash_160(bfh(scriptSig)))
     else:
         raise NotImplementedError(txin_type)
 
@@ -515,11 +483,7 @@ def DecodeBase58Check(psz):
 
 SCRIPT_TYPES = {
     'p2pkh':0,
-    'p2wpkh':1,
-    'p2wpkh-p2sh':2,
     'p2sh':5,
-    'p2wsh':6,
-    'p2wsh-p2sh':7
 }
 
 
@@ -570,13 +534,6 @@ def address_from_private_key(sec):
     public_key = public_key_from_private_key(privkey, compressed)
     return pubkey_to_address(txin_type, public_key)
 
-def is_segwit_address(addr):
-    try:
-        witver, witprog = segwit_addr.decode(NetworkConstants.SEGWIT_HRP, addr)
-    except Exception as e:
-        return False
-    return witprog is not None
-
 def is_b58_address(addr):
     try:
         addrtype, h = b58_address_to_hash160(addr)
@@ -587,7 +544,7 @@ def is_b58_address(addr):
     return addr == hash160_to_b58_address(h, addrtype)
 
 def is_address(addr):
-    return is_segwit_address(addr) or is_b58_address(addr)
+    return is_b58_address(addr)
 
 
 def is_private_key(key):
@@ -631,7 +588,7 @@ def verify_message(address, sig, message):
         public_key, compressed = pubkey_from_signature(sig, h)
         # check public key using the address
         pubkey = point_to_ser(public_key.pubkey.point, compressed)
-        for txin_type in ['p2pkh','p2wpkh','p2wpkh-p2sh']:
+        for txin_type in ['p2pkh']:
             addr = pubkey_to_address(txin_type, bh2u(pubkey))
             if address == addr:
                 break

@@ -571,7 +571,7 @@ def bip39_is_checksum_valid(mnemonic):
 def from_bip39_seed(seed, passphrase, derivation):
     k = BIP32_KeyStore({})
     bip32_seed = bip39_to_seed(seed, passphrase)
-    t = 'p2wpkh-p2sh' if derivation.startswith("m/49'") else 'standard'  # bip43
+    t = 'standard'  # bip43
     k.add_xprv_from_seed(bip32_seed, t, derivation)
     return k
 
@@ -684,17 +684,13 @@ def from_seed(seed, passphrase, is_p2sh):
     if t == 'old':
         keystore = Old_KeyStore({})
         keystore.add_seed(seed)
-    elif t in ['standard', 'segwit']:
+    elif t in ['standard']:
         keystore = BIP32_KeyStore({})
         keystore.add_seed(seed)
         keystore.passphrase = passphrase
         bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
-        if t == 'standard':
-            der = "m/"
-            xtype = 'standard'
-        else:
-            der = "m/1'/" if is_p2sh else "m/0'/"
-            xtype = 'p2wsh' if is_p2sh else 'p2wpkh'
+        der = "m/"
+        xtype = 'standard'
         keystore.add_xprv_from_seed(bip32_seed, xtype, der)
     else:
         raise BaseException(t)

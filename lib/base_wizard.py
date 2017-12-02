@@ -243,7 +243,7 @@ class BaseWizard(object):
 
     def on_hw_derivation(self, name, device_info, derivation):
         from .keystore import hardware_keystore
-        xtype = 'p2wpkh-p2sh' if derivation.startswith("m/49'/") else 'standard'
+        xtype = 'standard'
         try:
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, xtype, self)
         except BaseException as e:
@@ -317,7 +317,7 @@ class BaseWizard(object):
             from .bitcoin import xpub_type
             t1 = xpub_type(k.xpub)
         if self.wallet_type == 'standard':
-            if has_xpub and t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
+            if has_xpub and t1 not in ['standard']:
                 self.show_error(_('Wrong key type') + ' %s'%t1)
                 self.run('choose_keystore')
                 return
@@ -325,7 +325,7 @@ class BaseWizard(object):
             self.run('create_wallet')
         elif self.wallet_type == 'multisig':
             assert has_xpub
-            if t1 not in ['standard', 'p2wsh', 'p2wsh-p2sh']:
+            if t1 not in ['standard']:
                 self.show_error(_('Wrong key type') + ' %s'%t1)
                 self.run('choose_keystore')
                 return
