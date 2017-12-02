@@ -84,7 +84,7 @@ class SeedLayout(QVBoxLayout):
 
 
 
-	if 'bip39_145' in self.options:
+        if 'bip39_145' in self.options:
             def f(b):
                 self.is_seed = (lambda x: bool(x)) if b else self.saved_is_seed
                 self.on_edit()

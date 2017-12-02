@@ -48,7 +48,7 @@ def target_to_bits(target):
     if target == 0:
         return 0
     target = min(target, MAX_TARGET)
-    size = (target.bit_length() + 7) / 8
+    size = (target.bit_length() + 7) // 8
     mask64 = 0xffffffffffffffff
     if size <= 3:
         compact = (target & mask64) << (8 * (3 - size))
@@ -199,7 +199,7 @@ class Blockchain(util.PrintError):
     def verify_chunk(self, index, data):
         self.cur_chunk = data
         self.cur_chunk_index = index
-        num = len(data) / 80
+        num = len(data) // 80
         prev_header = None
         if index != 0:
             prev_header = self.read_header(index*2016 - 1)
@@ -348,7 +348,7 @@ class Blockchain(util.PrintError):
         bits = prior['bits']
 
         # testnet 20 minute rule
-        if bitcoin.TESTNET and height % 2016 != 0:
+        if bitcoin.NetworkConstants.TESTNET and height % 2016 != 0:
             if header['timestamp'] - prior['timestamp'] > 20*60:
                 return MAX_BITS
 
@@ -393,8 +393,8 @@ class Blockchain(util.PrintError):
         if height % 2016 == 0:
             return self.get_new_bits(height)
 
-        if bitcoin.TESTNET:
-            return self.read_header(int(height / 2016) * 2016)['bits']
+        if bitcoin.NetworkConstants.TESTNET:
+            return self.read_header(height // 2016 * 2016)['bits']
 
         # bitcoin cash EDA
         # Can't go below minimum, so early bail
@@ -422,8 +422,8 @@ class Blockchain(util.PrintError):
 
         target_span = 14 * 24 * 60 * 60
         span = prior['timestamp'] - first['timestamp']
-        span = min(max(span, target_span / 4), target_span * 4)
-        new_target = (prior_target * span) / target_span
+        span = min(max(span, target_span // 4), target_span * 4)
+        new_target = (prior_target * span) // target_span
         return target_to_bits(new_target)
 
     def can_connect(self, header, check_height=True):
