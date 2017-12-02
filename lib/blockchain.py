@@ -323,18 +323,18 @@ class Blockchain(util.PrintError):
 	#In order to avoid a block in a very skewed timestamp to have too much
 	#influence, we select the median of the 3 top most block as a start point
 	#Reference: github.com/Bitcoin-ABC/bitcoin-abc/master/src/pow.cpp#L201
-	blocks2 = self.read_header(suitableheight)
-	blocks1 = self.read_header(suitableheight-1)
-	blocks = self.read_header(suitableheight-2)
+        blocks2 = self.read_header(suitableheight)
+        blocks1 = self.read_header(suitableheight-1)
+        blocks = self.read_header(suitableheight-2)
 
-	if (blocks['timestamp'] > blocks2['timestamp'] ):
-		blocks,blocks2 = blocks2,blocks
-	if (blocks['timestamp'] > blocks1['timestamp'] ):
-		blocks,blocks1 = blocks1,blocks
-	if (blocks1['timestamp'] > blocks2['timestamp'] ):
-		blocks1,blocks2 = blocks2,blocks1
+        if (blocks['timestamp'] > blocks2['timestamp'] ):
+            blocks,blocks2 = blocks2,blocks
+        if (blocks['timestamp'] > blocks1['timestamp'] ):
+            blocks,blocks1 = blocks1,blocks
+        if (blocks1['timestamp'] > blocks2['timestamp'] ):
+            blocks1,blocks2 = blocks2,blocks1
 
-	return blocks1['block_height']
+        return blocks1['block_height']
 
     def get_bits(self, header):
         '''Return bits for the given height.'''
@@ -354,7 +354,7 @@ class Blockchain(util.PrintError):
 
         #NOV 13 HF DAA
 
-	prevheight = height -1
+        prevheight = height -1
         daa_mtp=self.get_median_time_past(prevheight)
 
         #if (daa_mtp >= 1509559291):  #leave this here for testing
