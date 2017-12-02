@@ -5,7 +5,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtWidgets import (QLineEdit, QStyle, QStyleOptionFrame)
 
 from decimal import Decimal
-from electrum.util import format_satoshis_plain
+from electroncash.util import format_satoshis_plain
 
 
 class MyLineEdit(QLineEdit):

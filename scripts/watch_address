@@ -2,8 +2,8 @@
 
 import sys
 import time
-from electrum import SimpleConfig, Network
-from electrum.util import print_msg, json_encode
+from electroncash import SimpleConfig, Network
+from electroncash.util import print_msg, json_encode
 
 try:
     addr = sys.argv[1]

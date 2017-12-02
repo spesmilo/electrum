@@ -1,9 +1,9 @@
 from decimal import Decimal
 _ = lambda x:x
 #from i18n import _
-from electrum import WalletStorage, Wallet
-from electrum.util import format_satoshis, set_verbosity
-from electrum.bitcoin import is_address, COIN, TYPE_ADDRESS
+from electroncash import WalletStorage, Wallet
+from electroncash.util import format_satoshis, set_verbosity
+from electroncash.bitcoin import is_address, COIN, TYPE_ADDRESS
 import getpass, datetime
 
 # minimal fdisk like gui for console usage

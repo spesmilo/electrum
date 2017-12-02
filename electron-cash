@@ -43,7 +43,7 @@ if jnius:
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
-is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "electrum.desktop"))
+is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "electron.desktop"))
 is_android = 'ANDROID_DATA' in os.environ
 
 # move this back to gui/kivy/__init.py once plugins are moved
@@ -82,7 +82,7 @@ if not is_android:
 # load local module as electrum
 if is_local or is_android:
     import imp
-    imp.load_module('electrum', *imp.find_module('lib'))
+    imp.load_module('electroncash', *imp.find_module('lib'))
     imp.load_module('electroncash_gui', *imp.find_module('gui'))
     imp.load_module('electroncash_plugins', *imp.find_module('plugins'))
 
@@ -291,7 +291,7 @@ def run_offline_command(config, config_options):
     return result
 
 def init_plugins(config, gui_name):
-    from electrum.plugins import Plugins
+    from electroncash.plugins import Plugins
     return Plugins(config, is_local or is_android, gui_name)
 
 if __name__ == '__main__':
@@ -395,7 +395,7 @@ if __name__ == '__main__':
                 d = daemon.Daemon(config, fd)
                 d.start()
                 if config.get('websocket_server'):
-                    from electrum import websockets
+                    from electroncash import websockets
                     websockets.WebSocketServer(config, d.network).start()
                 if config.get('requests_dir'):
                     check_www_dir(config.get('requests_dir'))

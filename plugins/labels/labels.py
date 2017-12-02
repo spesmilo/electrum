@@ -8,8 +8,8 @@ import traceback
 import base64
 
 import electrum
-from electrum.plugins import BasePlugin, hook
-from electrum.i18n import _
+from electroncash.plugins import BasePlugin, hook
+from electroncash.i18n import _
 
 
 class LabelsPlugin(BasePlugin):

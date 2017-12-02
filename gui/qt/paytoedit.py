@@ -30,7 +30,7 @@ from .qrtextedit import ScanQRTextEdit
 
 import re
 from decimal import Decimal
-from electrum import bitcoin
+from electroncash import bitcoin
 
 from . import util
 
@@ -88,7 +88,7 @@ class PayToEdit(ScanQRTextEdit):
             return bitcoin.TYPE_SCRIPT, script
 
     def parse_script(self, x):
-        from electrum.transaction import opcodes, push_script
+        from electroncash.transaction import opcodes, push_script
         script = ''
         for word in x.split():
             if word[0:3] == 'OP_':

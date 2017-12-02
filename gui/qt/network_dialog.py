@@ -30,9 +30,9 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 import PyQt5.QtCore as QtCore
 
-from electrum.i18n import _
-from electrum.bitcoin import NetworkConstants
-from electrum.util import print_error
+from electroncash.i18n import _
+from electroncash.bitcoin import NetworkConstants
+from electroncash.util import print_error
 
 from .util import *
 

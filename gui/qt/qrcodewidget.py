@@ -9,7 +9,7 @@ import os
 import qrcode
 
 import electrum
-from electrum.i18n import _
+from electroncash.i18n import _
 from .util import WindowModalDialog
 
 

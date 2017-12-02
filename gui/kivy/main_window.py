@@ -8,14 +8,14 @@ from decimal import Decimal
 import threading
 
 import electrum
-from electrum.bitcoin import TYPE_ADDRESS
-from electrum import WalletStorage, Wallet
+from electroncash.bitcoin import TYPE_ADDRESS
+from electroncash import WalletStorage, Wallet
 from electroncash_gui.kivy.i18n import _
-from electrum.paymentrequest import InvoiceStore
-from electrum.util import profiler, InvalidPassword
-from electrum.plugins import run_hook
-from electrum.util import format_satoshis, format_satoshis_plain
-from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+from electroncash.paymentrequest import InvoiceStore
+from electroncash.util import profiler, InvalidPassword
+from electroncash.plugins import run_hook
+from electroncash.util import format_satoshis, format_satoshis_plain
+from electroncash.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 
 from kivy.app import App
 from kivy.core.window import Window
@@ -68,7 +68,7 @@ Label.register('Roboto',
                'gui/kivy/data/fonts/Roboto-Bold.ttf')
 
 
-from electrum.util import base_units
+from electroncash.util import base_units
 
 
 class ElectrumWindow(App):
@@ -96,7 +96,7 @@ class ElectrumWindow(App):
         from .uix.dialogs.choice_dialog import ChoiceDialog
         protocol = 's'
         def cb2(host):
-            from electrum.bitcoin import NetworkConstants
+            from electroncash.bitcoin import NetworkConstants
             pp = servers.get(host, NetworkConstants.DEFAULT_PORTS)
             port = pp.get(protocol, '')
             popup.ids.host.text = host
@@ -291,7 +291,7 @@ class ElectrumWindow(App):
             self.send_screen.do_clear()
 
     def on_qr(self, data):
-        from electrum.bitcoin import base_decode, is_address
+        from electroncash.bitcoin import base_decode, is_address
         data = data.strip()
         if is_address(data):
             self.set_URI(data)
@@ -300,8 +300,8 @@ class ElectrumWindow(App):
             self.set_URI(data)
             return
         # try to decode transaction
-        from electrum.transaction import Transaction
-        from electrum.util import bh2u
+        from electroncash.transaction import Transaction
+        from electroncash.util import bh2u
         try:
             text = bh2u(base_decode(data, None, base=43))
             tx = Transaction(text)
@@ -346,7 +346,7 @@ class ElectrumWindow(App):
         self.receive_screen.screen.address = addr
 
     def show_pr_details(self, req, status, is_invoice):
-        from electrum.util import format_time
+        from electroncash.util import format_time
         requestor = req.get('requestor')
         exp = req.get('exp')
         memo = req.get('memo')
@@ -368,7 +368,7 @@ class ElectrumWindow(App):
         popup.open()
 
     def show_addr_details(self, req, status):
-        from electrum.util import format_time
+        from electroncash.util import format_time
         fund = req.get('fund')
         isaddr = 'y'
         popup = Builder.load_file('gui/kivy/uix/ui_screens/invoice.kv')
