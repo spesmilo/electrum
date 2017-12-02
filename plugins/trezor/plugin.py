@@ -183,11 +183,11 @@ class TrezorCompatiblePlugin(HW_PluginBase):
 
         if method == TIM_NEW:
             strength = 64 * (item + 2)  # 128, 192 or 256
-            u2f_counter = 0
-            skip_backup = False
-            client.reset_device(True, strength, passphrase_protection,
-                                pin_protection, label, language,
-                                u2f_counter, skip_backup)
+            args = [True, strength, passphrase_protection,
+                    pin_protection, label, language]
+            if self.device == 'TREZOR':
+                args.extend([0, False])  # u2f_counter, skip_backup
+            client.reset_device(*args)
         elif method == TIM_RECOVER:
             word_count = 6 * (item + 2)  # 12, 18 or 24
             client.step = 0
