@@ -7,7 +7,7 @@ from lib.wallet import Wallet
 from lib.tests.test_wallet import WalletTestCase
 
 
-# TODO add other wallet types: 2fa, xpub-only
+# TODO add other wallet types: xpub-only
 # TODO hw wallet with client version 2.6.x (single-, and multiacc)
 class TestStorageUpgrade(WalletTestCase):
 

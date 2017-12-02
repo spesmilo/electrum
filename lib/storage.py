@@ -327,7 +327,7 @@ class WalletStorage(PrintError):
             self.put('wallet_type', 'standard')
             self.put('keystore', d)
 
-        elif (wallet_type == '2fa') or multisig_type(wallet_type):
+        elif multisig_type(wallet_type):
             for key in xpubs.keys():
                 d = {
                     'type': 'bip32',
@@ -399,7 +399,6 @@ class WalletStorage(PrintError):
     def convert_version_15(self):
         if not self._is_upgrade_method_needed(14, 14):
             return
-        assert self.get('seed_type') != 'segwit'  # unsupported derivation
         self.put('seed_version', 15)
 
     def convert_version_16(self):
@@ -498,8 +497,6 @@ class WalletStorage(PrintError):
             seed_version = OLD_SEED_VERSION if len(self.get('master_public_key','')) == 128 else NEW_SEED_VERSION
         if seed_version > FINAL_SEED_VERSION:
             raise BaseException('This version of Electrum is too old to open this wallet')
-        if seed_version==14 and self.get('seed_type') == 'segwit':
-            self.raise_unsupported_version(seed_version)
         if seed_version >=12:
             return seed_version
         if seed_version not in [OLD_SEED_VERSION, NEW_SEED_VERSION]:

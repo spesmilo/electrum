@@ -99,19 +99,11 @@ class Ledger_Client():
     def supports_multi_output(self):
         return self.multiOutputSupported
 
-    def supports_segwit(self):
-        return self.segwitSupported
-
-    def supports_native_segwit(self):
-        return self.nativeSegwitSupported
-
     def perform_hw1_preflight(self):
         try:
             firmwareInfo = self.dongleObject.getFirmwareVersion()
             firmware = firmwareInfo['version'].split(".")
             self.multiOutputSupported = int(firmware[0]) >= 1 and int(firmware[1]) >= 1 and int(firmware[2]) >= 4
-            self.segwitSupported = (int(firmware[0]) >= 1 and int(firmware[1]) >= 1 and int(firmware[2]) >= 10) or (firmwareInfo['specialVersion'] == 0x20 and int(firmware[0]) == 1 and int(firmware[1]) == 0 and int(firmware[2]) >= 4)
-            self.nativeSegwitSupported = int(firmware[0]) >= 1 and int(firmware[1]) >= 1 and int(firmware[2]) >= 10
 
             if not checkFirmware(firmware):
                 self.dongleObject.dongle.close()
@@ -400,7 +392,6 @@ class LedgerPlugin(HW_PluginBase):
                  ]
 
     def __init__(self, parent, config, name):
-        self.segwit = config.get("segwit")
         HW_PluginBase.__init__(self, parent, config, name)
         if self.libraries_available:
             self.device_manager().register_devices(self.DEVICE_IDS)

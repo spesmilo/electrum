@@ -7,7 +7,6 @@ import lib.storage as storage
 import lib.wallet as wallet
 
 
-# TODO: 2fa
 class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
 
     gap_limit = 1  # make tests run faster
@@ -181,4 +180,3 @@ class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
 
         self.assertEqual(w.get_receiving_addresses()[0], '3H3iyACDTLJGD2RMjwKZcCwpdYZLwEZzKb')
         self.assertEqual(w.get_change_addresses()[0], '31hyfHrkhNjiPZp1t7oky5CGNYqSqDAVM9')
-

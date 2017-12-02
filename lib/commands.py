@@ -123,7 +123,7 @@ class Commands:
         return ' '.join(sorted(known_commands.keys()))
 
     @command('')
-    def create(self, segwit=False):
+    def create(self):
         """Create a new wallet"""
         raise BaseException('Not a JSON-RPC command')
 
@@ -159,10 +159,10 @@ class Commands:
         return True
 
     @command('')
-    def make_seed(self, nbits=132, entropy=1, language=None, segwit=False):
+    def make_seed(self, nbits=132, entropy=1, language=None):
         """Create a seed"""
         from .mnemonic import Mnemonic
-        t = 'segwit' if segwit else 'standard'
+        t = 'standard'
         s = Mnemonic(language).make_seed(t, nbits, custom_entropy=entropy)
         return s
 
@@ -710,7 +710,6 @@ command_options = {
     'change_addr': ("-c", "Change address. Default is a spare address, or the source address if it's not in the wallet"),
     'nbits':       (None, "Number of bits of entropy"),
     'entropy':     (None, "Custom entropy"),
-    'segwit':      (None, "Create segwit seed"),
     'language':    ("-L", "Default language for wordlist"),
     'privkey':     (None, "Private key. Set to '?' to get a prompt."),
     'unsigned':    ("-u", "Do not sign transaction"),

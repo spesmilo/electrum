@@ -147,13 +147,6 @@ class Test_bitcoin(unittest.TestCase):
         self.assertEqual(op_push(0x12345678), '4e78563412')
 
     def test_address_to_script(self):
-        # bech32 native segwit
-        # test vectors from BIP-0173
-        self.assertEqual(address_to_script('BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4'), '0014751e76e8199196d454941c45d1b3a323f1433bd6')
-        self.assertEqual(address_to_script('bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7k7grplx'), '5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6')
-        self.assertEqual(address_to_script('BC1SW50QA3JX3S'), '6002751e')
-        self.assertEqual(address_to_script('bc1zw508d6qejxtdg4y5r3zarvaryvg6kdaj'), '5210751e76e8199196d454941c45d1b3a323')
-
         # base58 P2PKH
         self.assertEqual(address_to_script('14gcRovpkCoGkCNBivQBvw7eso7eiNAbxG'), '76a91428662c67561b95c79d2257d2a93d9d151c977e9188ac')
         self.assertEqual(address_to_script('1BEqfzh4Y3zzLosfGhw1AsqbEKVW6e1qHv'), '76a914704f4b81cadb7bf7e68c08cd3657220f680f863c88ac')
@@ -176,11 +169,6 @@ class Test_bitcoin_testnet(unittest.TestCase):
         NetworkConstants.set_mainnet()
 
     def test_address_to_script(self):
-        # bech32 native segwit
-        # test vectors from BIP-0173
-        self.assertEqual(address_to_script('tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7'), '00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262')
-        self.assertEqual(address_to_script('tb1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesrxh6hy'), '0020000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433')
-
         # base58 P2PKH
         self.assertEqual(address_to_script('mutXcGt1CJdkRvXuN2xoz2quAAQYQ59bRX'), '76a9149da64e300c5e4eb4aaffc9c2fd465348d5618ad488ac')
         self.assertEqual(address_to_script('miqtaRTkU3U8rzwKbEHx3g8FSz8GJtPS3K'), '76a914247d2d5b6334bdfa2038e85b20fc15264f8e5d2788ac')
@@ -367,12 +355,7 @@ class Test_seeds(unittest.TestCase):
         ('OSTRICH SECURITY DEER AUNT CLIMB INNER ALPHA ARM MUTUAL MARBLE SOLID TASK', 'standard'),
         ('   oStRiCh sEcUrItY DeEr aUnT ClImB       InNeR AlPhA ArM MuTuAl mArBlE   SoLiD TaSk  ', 'standard'),
         ('x8', 'standard'),
-        ('science dawn member doll dutch real can brick knife deny drive list', '2fa'),
         ('science dawn member doll dutch real ca brick knife deny drive list', ''),
-        (' sCience dawn   member doll Dutch rEAl can brick knife deny drive  lisT', '2fa'),
-        ('frost pig brisk excite novel report camera enlist axis nation novel desert', 'segwit'),
-        ('  fRoSt pig brisk excIte novel rePort CamEra enlist axis nation nOVeL dEsert ', 'segwit'),
-        ('9dk', 'segwit'),
     }
 
     def test_new_seed(self):

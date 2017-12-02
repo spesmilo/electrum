@@ -651,7 +651,6 @@ class Transaction:
 
     @classmethod
     def get_preimage_script(self, txin):
-        # only for non-segwit
         if txin['type'] == 'p2pkh':
             return bitcoin.address_to_script(txin['address'])
         elif txin['type'] in ['p2sh']:
