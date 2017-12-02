@@ -76,13 +76,8 @@ class TrezorCompatiblePlugin(HW_PluginBase):
 
     def _try_hid(self, device):
         self.print_error("Trying to connect over USB...")
-        if device.interface_number == 1:
-            pair = [None, device.path]
-        else:
-            pair = [device.path, None]
-
         try:
-            return self.hid_transport(pair)
+            return self.hid_transport(device)
         except BaseException as e:
             # see fdb810ba622dc7dbe1259cbafb5b28e19d2ab114
             # raise
