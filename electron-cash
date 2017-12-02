@@ -167,7 +167,7 @@ def run_non_RPC(config):
     elif cmdname == 'create':
         password = password_dialog()
         passphrase = config.get('passphrase', '')
-        seed_type = 'segwit' if config.get('segwit') else 'standard'
+        seed_type = 'standard'
         seed = Mnemonic('en').make_seed(seed_type)
         k = keystore.from_seed(seed, passphrase, False)
         storage.put('keystore', k.dump())

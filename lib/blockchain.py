@@ -307,10 +307,6 @@ class Blockchain(util.PrintError):
         v = self.read_header(height)['version']
         return ((v & 0xE0000000) == 0x20000000) and ((v & flag) == flag)
 
-    def segwit_support(self, N=144):
-        h = self.local_height
-        return sum([self.BIP9(h-i, 2) for i in range(N)])*10000/N/100.
-
     def get_median_time_past(self, height):
         if height < 0:
             return 0
