@@ -24,6 +24,7 @@
 # SOFTWARE.
 
 from electroncash.i18n import _
+from electroncash.address import Address
 
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -37,6 +38,7 @@ from .qrtextedit import ShowQRTextEdit
 class AddressDialog(WindowModalDialog):
 
     def __init__(self, parent, address):
+        assert isinstance(address, Address)
         WindowModalDialog.__init__(self, parent, _("Address"))
         self.address = address
         self.parent = parent
@@ -50,7 +52,7 @@ class AddressDialog(WindowModalDialog):
         self.setLayout(vbox)
 
         vbox.addWidget(QLabel(_("Address:")))
-        self.addr_e = ButtonsLineEdit(self.address)
+        self.addr_e = ButtonsLineEdit(self.address.to_ui_string())
         self.addr_e.addCopyButton(self.app)
         icon = ":icons/qrcode_white.png" if ColorScheme.dark_scheme else ":icons/qrcode.png"
         self.addr_e.addButton(icon, self.show_qr, _("Show QR Code"))
@@ -91,7 +93,7 @@ class AddressDialog(WindowModalDialog):
         return [self.address]
 
     def show_qr(self):
-        text = self.address
+        text = self.address.to_ui_string()
         try:
             self.parent.show_qrcode(text, 'Address')
         except Exception as e:
