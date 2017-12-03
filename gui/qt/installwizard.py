@@ -187,8 +187,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             path = os.path.join(wallet_folder, filename)
             try:
                 self.storage = WalletStorage(path, manual_upgrades=True)
+                self.next_button.setEnabled(True)
             except IOError:
                 self.storage = None
+                self.next_button.setEnabled(False)
             if self.storage:
                 if not self.storage.file_exists():
                     msg =_("This file does not exist.") + '\n' \
