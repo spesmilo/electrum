@@ -40,6 +40,7 @@ from collections import defaultdict
 from .i18n import _
 from .util import NotEnoughFunds, PrintError, UserCancelled, profiler, format_satoshis
 
+from .address import Address
 from .bitcoin import *
 from .version import *
 from .keystore import load_keystore, Hardware_KeyStore
@@ -285,13 +286,19 @@ class Abstract_Wallet(PrintError):
         return os.path.basename(self.storage.path)
 
     def save_addresses(self):
-        self.storage.put('addresses', {'receiving':self.receiving_addresses, 'change':self.change_addresses})
+        fmt = Address.FMT_STORAGE
+        addr_dict = {
+            'receiving': Address.to_strings(self.receiving_addrs, fmt),
+            'change': Address.to_strings(self.change_addrs, fmt),
+        }
+        self.put('addresses', addr_dict)
 
     def load_addresses(self):
         d = self.storage.get('addresses', {})
-        if type(d) != dict: d={}
-        self.receiving_addresses = d.get('receiving', [])
-        self.change_addresses = d.get('change', [])
+        if not isinstance(d, dict):
+            d = {}
+        self.receiving_addresses = Address.from_strings(d.get('receiving', []))
+        self.change_addresses = Address.from_strings(d.get('change', []))
 
     def synchronize(self):
         pass
@@ -1432,7 +1439,7 @@ class Imported_Wallet(Simple_Wallet):
         if address in self.addresses:
             return ''
         self.addresses[address] = {}
-        self.storage.put('addresses', self.addresses)
+        self.save_addresses()
         self.storage.write()
         self.add_address(address)
         return address
@@ -1474,7 +1481,7 @@ class Imported_Wallet(Simple_Wallet):
         if pubkey:
             self.keystore.delete_imported_key(pubkey)
             self.save_keystore()
-        self.storage.put('addresses', self.addresses)
+        self.save_addresses()
 
         self.storage.write()
 

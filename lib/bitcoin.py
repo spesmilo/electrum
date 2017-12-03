@@ -70,7 +70,9 @@ class NetworkConstants:
         cls.TESTNET = False
         cls.WIF_PREFIX = 0x80
         cls.ADDRTYPE_P2PKH = 0
+        cls.ADDRTYPE_P2PKH_BITPAY = 28
         cls.ADDRTYPE_P2SH = 5
+        cls.ADDRTYPE_P2SH_BITPAY = 40
         cls.SEGWIT_HRP = "bc"
         cls.HEADERS_URL = "http://bitcoincash.com/files/blockchain_headers"
         cls.GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
@@ -82,7 +84,9 @@ class NetworkConstants:
         cls.TESTNET = True
         cls.WIF_PREFIX = 0xef
         cls.ADDRTYPE_P2PKH = 111
+        cls.ADDRTYPE_P2PKH_BITPAY = 111  # Unsure
         cls.ADDRTYPE_P2SH = 196
+        cls.ADDRTYPE_P2SH_BITPAY = 196  # Unsure
         cls.SEGWIT_HRP = "tb"
         cls.HEADERS_URL = "http://bitcoincash.com/files/testnet_headers"
         cls.GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
