@@ -54,7 +54,7 @@ try:
 except:
     plot_history = None
 
-from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit
+from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
