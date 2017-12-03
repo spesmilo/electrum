@@ -91,7 +91,7 @@ class AddressList(MyTreeWidget):
         can_delete = self.wallet.can_delete_address()
         selected = self.selectedItems()
         multi_select = len(selected) > 1
-        addrs = [unicode(item.text(0)) for item in selected]
+        addrs = [item.text(0) for item in selected]
         if not addrs:
             return
         if not multi_select:
