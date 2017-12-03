@@ -981,10 +981,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.tabs.setCurrentIndex(self.tabs.indexOf(self.receive_tab))
 
     def receive_at(self, addr):
-        if not bitcoin.is_address(addr):
-            return
         self.show_receive_tab()
-        self.receive_address_e.setText(addr)
+        self.receive_address_e.setText(addr.to_ui_string())
         self.new_request_button.setEnabled(True)
 
     def update_receive_qr(self):

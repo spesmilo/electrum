@@ -50,7 +50,7 @@ class RequestList(MyTreeWidget):
             return
         if not item.isSelected():
             return
-        addr = str(item.text(1))
+        addr = item.data(0, Qt.UserRole)
         req = self.wallet.receive_requests[addr]
         expires = age(req['time'] + req['exp']) if req.get('exp') else _('Never')
         amount = req['amount']

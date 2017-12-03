@@ -96,6 +96,9 @@ class AddressList(MyTreeWidget):
         addrs = [item.data(0, Qt.UserRole) for item in selected]
         if not addrs:
             return
+
+        menu = QMenu()
+
         if not multi_select:
             item = self.itemAt(position)
             col = self.currentColumn()
@@ -106,8 +109,6 @@ class AddressList(MyTreeWidget):
                 item.setExpanded(not item.isExpanded())
                 return
 
-        menu = QMenu()
-        if not multi_select:
             column_title = self.headerItem().text(col)
             copy_text = item.text(col)
             menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(copy_text))
