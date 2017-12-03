@@ -204,7 +204,6 @@ class Network(util.DaemonThread):
 
         # subscriptions and requests
         self.subscribed_addresses = set()
-        self.h2addr = {}
         # Requests from client we've not seen a response to
         self.unanswered_requests = {}
         # retry times
@@ -612,29 +611,13 @@ class Network(util.DaemonThread):
             # Response is now in canonical form
             self.process_response(interface, response, callbacks)
 
-    def addr_to_scripthash(self, addr):
-        h = bitcoin.address_to_scripthash(addr)
-        if h not in self.h2addr:
-            self.h2addr[h] = addr
-        return h
+    def subscribe_to_scripthashes(self, scripthashes, callback):
+        msgs = [('blockchain.scripthash.subscribe', [sh])
+                for sh in scripthashes]
+        self.send(msgs, callback)
 
-    def overload_cb(self, callback):
-        def cb2(x):
-            x2 = x.copy()
-            p = x2.pop('params')
-            addr = self.h2addr[p[0]]
-            x2['params'] = [addr]
-            callback(x2)
-        return cb2
-
-    def subscribe_to_addresses(self, addresses, callback):
-        hashes = [self.addr_to_scripthash(addr) for addr in addresses]
-        msgs = [('blockchain.scripthash.subscribe', [x]) for x in hashes]
-        self.send(msgs, self.overload_cb(callback))
-
-    def request_address_history(self, address, callback):
-        h = self.addr_to_scripthash(address)
-        self.send([('blockchain.scripthash.get_history', [h])], self.overload_cb(callback))
+    def request_scripthash_history(self, sh, callback):
+        self.send([('blockchain.scripthash.get_history', [sh])], callback)
 
     def send(self, messages, callback):
         '''Messages is a list of (method, params) tuples'''

@@ -23,6 +23,7 @@
 
 # Many of the functions in this file are copied from ElectrumX
 
+from collections import namedtuple
 import hashlib
 import struct
 
@@ -80,7 +81,8 @@ class AddressError(Exception):
     '''Exception used for Address errors.'''
 
 
-class Address(object):
+# A namedtuple for easy comparison and unique hashing
+class Address(namedtuple("AddressTuple", "hash160 kind")):
 
     # Address kinds
     ADDR_P2PKH = 0
@@ -93,17 +95,17 @@ class Address(object):
 
     # At some stage switch to FMT_CASHADDR
     FMT_STORAGE = FMT_LEGACY
+    FMT_UI = FMT_LEGACY
 
-    def __init__(self, hash160, kind):
-        assert kind in (self.ADDR_P2PKH, self.ADDR_P2SH)
+    def __new__(cls, hash160, kind):
+        assert kind in (cls.ADDR_P2PKH, cls.ADDR_P2SH)
         assert isinstance(hash160, bytes) and len(hash160) == 20
-        self.hash160 = hash160
-        self.kind = kind
+        return super().__new__(cls, hash160, kind)
 
     @classmethod
     def from_string(cls, string):
         '''Construct from an address string.'''
-        raw = Base58.decode_check(address)
+        raw = Base58.decode_check(string)
 
         # Require version byte(s) plus hash160.
         if len(raw) != 21:
@@ -127,12 +129,28 @@ class Address(object):
         return [cls.from_string(string) for string in strings]
 
     @classmethod
+    def validate_pubkey(cls, pubkey, req_compressed=False):
+        if isinstance(pubkey, (bytes, bytearray)):
+            if len(pubkey) == 33 and pubkey[0] in (2, 3):
+                return  # Compressed
+            if len(pubkey) == 65 and pubkey[0] == 4:
+                if not req_compressed:
+                    return
+                raise AddressError('uncompressed pubkeys are invalid')
+        raise AddressError('invalid pubkey {}'.format(pubkey))
+
+    @classmethod
     def from_pubkey(cls, pubkey):
         '''Returns a P2PKH address from a public key.  The public key can
         be bytes or a hex string.'''
         if isinstance(pubkey, str):
             pubkey = hex_to_bytes(pubkey)
+        cls.validate_pubkey(pubkey)
         return cls(hash160(pubkey), cls.ADDR_P2PKH)
+
+    @classmethod
+    def from_multisig_script(cls, script):
+        return cls(hash160(script), cls.ADDR_P2SH)
 
     @classmethod
     def to_strings(cls, fmt, addrs):
@@ -158,16 +176,16 @@ class Address(object):
 
         return Base58.encode_check(bytes([verbyte]) + self.hash160)
 
+    def to_ui_string(self):
+        '''Convert to text in the current UI format choice.'''
+        return self.to_string(self.FMT_UI)
+
     def to_script(self):
         '''Return a binary script to pay to the address.'''
         if self.kind == self.ADDR_P2PKH:
-            return (bytes([opcodes.OP_DUP, opcodes.OP_HASH160])
-                    + Script.push_data(self.hash160)
-                    + bytes([opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG]))
+            return Script.P2PKH_script(self.hash160)
         else:
-            return (bytes([opcodes.OP_HASH160])
-                    + Script.push_data(self.hash160)
-                    + bytes([opcodes.OP_EQUAL]))
+            return Script.P2SH_script(self.hash160)
 
     def to_script_hex(self):
         '''Return a script to pay to the address as a hex string.'''
@@ -181,8 +199,41 @@ class Address(object):
         '''Like other bitcoin hashes this is reversed when written in hex.'''
         return hash_to_hex_str(self.to_scripthash())
 
+    def __str__(self):
+        return self.to_ui_string()
+
+    def __repr__(self):
+        return self.__str__()
+
 
 class Script(object):
+
+    @classmethod
+    def P2SH_script(cls, hash160):
+        return (bytes([opcodes.OP_HASH160])
+                + cls.push_data(hash160)
+                + bytes([opcodes.OP_EQUAL]))
+
+    @classmethod
+    def P2PKH_script(cls, hash160):
+        return (bytes([opcodes.OP_DUP, opcodes.OP_HASH160])
+                + cls.push_data(hash160)
+                + bytes([opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG]))
+
+    @classmethod
+    def multisig_script(cls, m, pubkeys):
+        '''Returns the script for a pay-to-multisig transaction.'''
+        n = len(pubkeys)
+        if not 1 <= m <= n <= 15:
+            raise ScriptError('{:d} of {:d} multisig script not possible'
+                              .format(m, n))
+        for pubkey in pubkeys:
+            Address.validate_pubkey(pubkey, req_compressed=True)
+        # See https://bitcoin.org/en/developer-guide
+        # 2 of 3 is: OP_2 pubkey1 pubkey2 pubkey3 OP_3 OP_CHECKMULTISIG
+        return (bytes([opcodes.OP_1 + m - 1])
+                + b''.join(cls.push_data(pubkey) for pubkey in pubkeys)
+                + bytes([opcodes.OP_1 + n - 1, opcodes.OP_CHECK_MULTISIG]))
 
     @classmethod
     def push_data(cls, data):

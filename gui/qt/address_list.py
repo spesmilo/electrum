@@ -29,7 +29,7 @@ from .util import *
 from electroncash.i18n import _
 from electroncash.util import block_explorer_URL
 from electroncash.plugins import run_hook
-from electroncash.bitcoin import is_address
+from electroncash.address import Address
 
 
 class AddressList(MyTreeWidget):
@@ -42,48 +42,50 @@ class AddressList(MyTreeWidget):
     def on_update(self):
         self.wallet = self.parent.wallet
         item = self.currentItem()
-        current_address = str(item.data(0, Qt.UserRole)) if item else None
+        current_address = item.data(0, Qt.UserRole) if item else None
         self.clear()
         receiving_addresses = self.wallet.get_receiving_addresses()
         change_addresses = self.wallet.get_change_addresses()
-        if True:
-            account_item = self
-            sequences = [0,1] if change_addresses else [0]
-            for is_change in sequences:
-                if len(sequences) > 1:
-                    name = _("Receiving") if not is_change else _("Change")
-                    seq_item = QTreeWidgetItem( [ name, '', '', '', ''] )
-                    account_item.addChild(seq_item)
-                    if not is_change:
-                        seq_item.setExpanded(True)
+
+        account_item = self
+        sequences = [0,1] if change_addresses else [0]
+        for is_change in sequences:
+            if len(sequences) > 1:
+                name = _("Receiving") if not is_change else _("Change")
+                seq_item = QTreeWidgetItem( [ name, '', '', '', ''] )
+                account_item.addChild(seq_item)
+                if not is_change:
+                    seq_item.setExpanded(True)
+            else:
+                seq_item = account_item
+            used_item = QTreeWidgetItem( [ _("Used"), '', '', '', ''] )
+            used_flag = False
+            addr_list = change_addresses if is_change else receiving_addresses
+            for address in addr_list:
+                num = len(self.wallet.get_address_history(address))
+                is_used = self.wallet.is_used(address)
+                c, u, x = self.wallet.get_addr_balance(address)
+
+                text = address.to_ui_string()
+                label = self.wallet.labels.get(text,'')
+                balance = self.parent.format_amount(c + u + x)
+                address_item = QTreeWidgetItem([text, label, balance, "%d"%num])
+                address_item.setFont(0, QFont(MONOSPACE_FONT))
+                address_item.setData(0, Qt.UserRole, address)
+                address_item.setData(0, Qt.UserRole+1, True) # label can be edited
+                if self.wallet.is_frozen(address):
+                    address_item.setBackground(0, QColor('lightblue'))
+                if self.wallet.is_beyond_limit(address, is_change):
+                    address_item.setBackground(0, QColor('red'))
+                if is_used:
+                    if not used_flag:
+                        seq_item.insertChild(0, used_item)
+                        used_flag = True
+                    used_item.addChild(address_item)
                 else:
-                    seq_item = account_item
-                used_item = QTreeWidgetItem( [ _("Used"), '', '', '', ''] )
-                used_flag = False
-                addr_list = change_addresses if is_change else receiving_addresses
-                for address in addr_list:
-                    num = len(self.wallet.history.get(address,[]))
-                    is_used = self.wallet.is_used(address)
-                    label = self.wallet.labels.get(address,'')
-                    c, u, x = self.wallet.get_addr_balance(address)
-                    balance = self.parent.format_amount(c + u + x)
-                    address_item = QTreeWidgetItem([address, label, balance, "%d"%num])
-                    address_item.setFont(0, QFont(MONOSPACE_FONT))
-                    address_item.setData(0, Qt.UserRole, address)
-                    address_item.setData(0, Qt.UserRole+1, True) # label can be edited
-                    if self.wallet.is_frozen(address):
-                        address_item.setBackground(0, QColor('lightblue'))
-                    if self.wallet.is_beyond_limit(address, is_change):
-                        address_item.setBackground(0, QColor('red'))
-                    if is_used:
-                        if not used_flag:
-                            seq_item.insertChild(0, used_item)
-                            used_flag = True
-                        used_item.addChild(address_item)
-                    else:
-                        seq_item.addChild(address_item)
-                    if address == current_address:
-                        self.setCurrentItem(address_item)
+                    seq_item.addChild(address_item)
+                if text == current_address:
+                    self.setCurrentItem(address_item)
 
     def create_menu(self, position):
         from electroncash.wallet import Multisig_Wallet
@@ -91,7 +93,7 @@ class AddressList(MyTreeWidget):
         can_delete = self.wallet.can_delete_address()
         selected = self.selectedItems()
         multi_select = len(selected) > 1
-        addrs = [item.text(0) for item in selected]
+        addrs = [item.data(0, Qt.UserRole) for item in selected]
         if not addrs:
             return
         if not multi_select:
@@ -100,7 +102,7 @@ class AddressList(MyTreeWidget):
             if not item:
                 return
             addr = addrs[0]
-            if not is_address(addr):
+            if not isinstance(addr, Address):
                 item.setExpanded(not item.isExpanded())
                 return
 

@@ -48,7 +48,8 @@ class Synchronizer(ThreadJob):
         # Entries are (tx_hash, tx_height) tuples
         self.requested_tx = {}
         self.requested_histories = {}
-        self.requested_addrs = set()
+        self.requested_hashes = set()
+        self.h2addr = {}
         self.lock = Lock()
         self.initialize()
 
@@ -60,7 +61,7 @@ class Synchronizer(ThreadJob):
 
     def is_up_to_date(self):
         return (not self.requested_tx and not self.requested_histories
-                and not self.requested_addrs)
+                and not self.requested_hashes)
 
     def release(self):
         self.network.unsubscribe(self.on_address_status)
@@ -71,9 +72,11 @@ class Synchronizer(ThreadJob):
             self.new_addresses.add(address)
 
     def subscribe_to_addresses(self, addresses):
-        if addresses:
-            self.requested_addrs |= addresses
-            self.network.subscribe_to_addresses(addresses, self.on_address_status)
+        hashes = [addr.to_scripthash_hex() for addr in addresses]
+        # Keep a hash -> address mapping
+        self.h2addr.update({h:addr for h, addr in zip(hashes, addresses)})
+        self.network.subscribe_to_scripthashes(hashes, self.on_address_status)
+        self.requested_hashes |= set(hashes)
 
     def get_status(self, h):
         if not h:
@@ -87,23 +90,30 @@ class Synchronizer(ThreadJob):
         params, result = self.parse_response(response)
         if not params:
             return
-        addr = params[0]
+        scripthash = params[0]
+        addr = self.h2addr.get(scripthash, None)
+        if not addr:
+            return  # Bad server response?
         history = self.wallet.get_address_history(addr)
         if self.get_status(history) != result:
-            if self.requested_histories.get(addr) is None:
-                self.requested_histories[addr] = result
-                self.network.request_address_history(addr, self.on_address_history)
+            if self.requested_histories.get(scripthash) is None:
+                self.requested_histories[scripthash] = result
+                self.network.request_scripthash_history(scripthash,
+                                                        self.on_address_history)
         # remove addr from list only after it is added to requested_histories
-        if addr in self.requested_addrs:  # Notifications won't be in
-            self.requested_addrs.remove(addr)
+        self.requested_hashes.discard(scripthash)  # Notifications won't be in
 
     def on_address_history(self, response):
         params, result = self.parse_response(response)
         if not params:
             return
-        addr = params[0]
-        self.print_error("receiving history", addr, len(result))
-        server_status = self.requested_histories[addr]
+        scripthash = params[0]
+        addr = self.h2addr.get(scripthash, None)
+        if not addr or not scripthash in self.requested_histories:
+            return  # Bad server response?
+        self.print_error("receiving history {} {}".format(addr, len(result)))
+        # Remove request; this allows up_to_date to be True
+        server_status = self.requested_histories.pop(scripthash)
         hashes = set(map(lambda item: item['tx_hash'], result))
         hist = list(map(lambda item: (item['tx_hash'], item['height']), result))
         # tx_fees
@@ -114,17 +124,16 @@ class Synchronizer(ThreadJob):
             self.network.interface.print_error("serving improperly sorted address histories")
         # Check that txids are unique
         if len(hashes) != len(result):
-            self.print_error("error: server history has non-unique txids: %s"% addr)
+            self.print_error("error: server history has non-unique txids: {}"
+                             .format(addr))
         # Check that the status corresponds to what was announced
         elif self.get_status(hist) != server_status:
-            self.print_error("error: status mismatch: %s" % addr)
+            self.print_error("error: status mismatch: {}".format(addr))
         else:
             # Store received history
             self.wallet.receive_history_callback(addr, hist, tx_fees)
             # Request transactions we don't have
             self.request_missing_txs(hist)
-        # Remove request; this allows up_to_date to be True
-        self.requested_histories.pop(addr)
 
     def tx_response(self, response):
         params, result = self.parse_response(response)
@@ -166,17 +175,13 @@ class Synchronizer(ThreadJob):
         addresses, and request any transactions in its address history
         we don't have.
         '''
-        for history in self.wallet.history.values():
-            # Old electrum servers returned ['*'] when all history for
-            # the address was pruned.  This no longer happens but may
-            # remain in old wallets.
-            if history == ['*']:
-                continue
+        # FIXME: encapsulation
+        for history in self.wallet._history.values():
             self.request_missing_txs(history)
 
         if self.requested_tx:
             self.print_error("missing tx", self.requested_tx)
-        self.subscribe_to_addresses(set(self.wallet.get_addresses()))
+        self.subscribe_to_addresses(self.wallet.get_addresses())
 
     def run(self):
         '''Called from the network proxy thread main loop.'''

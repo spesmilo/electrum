@@ -945,12 +945,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.receive_message_e.setFocus(1)
 
     def set_receive_address(self, addr):
-        self.receive_address_e.setText(addr)
+        self.receive_address_e.setText(addr.to_ui_string())
         self.receive_message_e.setText('')
         self.receive_amount_e.setAmount(None)
 
     def clear_receive_tab(self):
-        addr = self.wallet.get_receiving_address() or ''
+        addr = self.wallet.get_receiving_address_text()
         self.receive_address_e.setText(addr)
         self.receive_message_e.setText('')
         self.receive_amount_e.setAmount(None)

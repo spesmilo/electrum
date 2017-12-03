@@ -40,7 +40,7 @@ from collections import defaultdict
 from .i18n import _
 from .util import NotEnoughFunds, PrintError, UserCancelled, profiler, format_satoshis
 
-from .address import Address
+from .address import Address, Script
 from .bitcoin import *
 from .version import *
 from .keystore import load_keystore, Hardware_KeyStore
@@ -169,7 +169,9 @@ class Abstract_Wallet(PrintError):
         self.multiple_change       = storage.get('multiple_change', False)
         self.labels                = storage.get('labels', {})
         self.frozen_addresses      = set(storage.get('frozen_addresses',[]))
-        self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
+        # address -> list(txid, height)
+        history = storage.get('addr_history',{})
+        self._history = self.to_Address_dict(history)
 
         self.load_keystore()
         self.load_addresses()
@@ -177,7 +179,8 @@ class Abstract_Wallet(PrintError):
         self.build_reverse_history()
 
         # load requests
-        self.receive_requests = self.storage.get('payment_requests', {})
+        requests = self.storage.get('payment_requests', {})
+        self.receive_requests = self.to_Address_dict(requests)
 
         # Transactions pending verification.  A map from tx hash to transaction
         # height.  Access is not contended so no lock is needed.
@@ -203,6 +206,16 @@ class Abstract_Wallet(PrintError):
         self.invoices = InvoiceStore(self.storage)
         self.contacts = Contacts(self.storage)
 
+    @classmethod
+    def to_Address_dict(cls, d):
+        '''Convert a dict of strings to a dict of Adddress objects.'''
+        return {Address.from_string(text): value for text, value in d.items()}
+
+    @classmethod
+    def from_Address_dict(cls, d):
+        '''Convert a dict of Address objects to a dict of strings.'''
+        return {addr.to_string(Address.FMT_LEGACY): value
+                for addr, value in d.items()}
 
     def diagnostic_name(self):
         return self.basename()
@@ -239,7 +252,8 @@ class Abstract_Wallet(PrintError):
             self.storage.put('txo', self.txo)
             self.storage.put('tx_fees', self.tx_fees)
             self.storage.put('pruned_txo', self.pruned_txo)
-            self.storage.put('addr_history', self.history)
+            history = self.from_Address_dict(self._history)
+            self.storage.put('addr_history', history)
             if write:
                 self.storage.write()
 
@@ -251,13 +265,13 @@ class Abstract_Wallet(PrintError):
             self.pruned_txo = {}
         self.save_transactions()
         with self.lock:
-            self.history = {}
+            self._history = {}
             self.tx_addr_hist = {}
 
     @profiler
     def build_reverse_history(self):
         self.tx_addr_hist = {}
-        for addr, hist in self.history.items():
+        for addr, hist in self._history.items():
             for tx_hash, h in hist:
                 s = self.tx_addr_hist.get(tx_hash, set())
                 s.add(addr)
@@ -266,11 +280,12 @@ class Abstract_Wallet(PrintError):
     @profiler
     def check_history(self):
         save = False
-        mine_addrs = list(filter(lambda k: self.is_mine(self.history[k]), self.history.keys()))
-        if len(mine_addrs) != len(self.history.keys()):
+        my_addrs = [addr for addr in self._history.keys()
+                    if self.is_mine(addr)]
+        if len(my_addrs) != len(self._history):
             save = True
-        for addr in mine_addrs:
-            hist = self.history[addr]
+        for addr in my_addrs:
+            hist = self._history[addr]
 
             for tx_hash, tx_height in hist:
                 if tx_hash in self.pruned_txo.values() or self.txi.get(tx_hash) or self.txo.get(tx_hash):
@@ -332,6 +347,7 @@ class Abstract_Wallet(PrintError):
         return changed
 
     def is_mine(self, address):
+        assert isinstance(address, Address)
         return address in self.get_addresses()
 
     def is_change(self, address):
@@ -340,6 +356,7 @@ class Abstract_Wallet(PrintError):
         return address in self.change_addresses
 
     def get_address_index(self, address):
+        assert isinstance(address, Address)
         if address in self.receiving_addresses:
             return False, self.receiving_addresses.index(address)
         if address in self.change_addresses:
@@ -428,11 +445,11 @@ class Abstract_Wallet(PrintError):
                 return 1e12 - y, 0
 
     def is_found(self):
-        return self.history.values() != [[]] * len(self.history)
+        return any(value for value in self._history.values())
 
     def get_num_tx(self, address):
         """ return number of transactions where address is involved """
-        return len(self.history.get(address, []))
+        return len(self._history.get(address, []))
 
     def get_tx_delta(self, tx_hash, address):
         "effect of tx on address"
@@ -548,7 +565,8 @@ class Abstract_Wallet(PrintError):
         return tx_hash, status, label, can_broadcast, amount, fee, height, conf, timestamp, exp_n
 
     def get_addr_io(self, address):
-        h = self.history.get(address, [])
+        assert isinstance(address, Address)
+        h = self._history.get(address, [])
         received = {}
         sent = {}
         for tx_hash, height in h:
@@ -587,6 +605,7 @@ class Abstract_Wallet(PrintError):
 
     # return the balance of a bitcoin address: confirmed and matured, unconfirmed, unmatured
     def get_addr_balance(self, address):
+        assert isinstance(address, Address)
         received, sent = self.get_addr_io(address)
         c = u = x = 0
         for txo, (tx_height, v, is_cb) in received.items():
@@ -628,10 +647,7 @@ class Abstract_Wallet(PrintError):
         return self.get_receiving_addresses()[0]
 
     def get_addresses(self):
-        out = []
-        out += self.get_receiving_addresses()
-        out += self.get_change_addresses()
-        return out
+        return self.get_receiving_addresses() + self.get_change_addresses()
 
     def get_frozen_balance(self):
         return self.get_balance(self.frozen_addresses)
@@ -648,8 +664,9 @@ class Abstract_Wallet(PrintError):
         return cc, uu, xx
 
     def get_address_history(self, address):
+        assert isinstance(address, Address)
         with self.lock:
-            return self.history.get(address, [])
+            return self._history.get(address, [])
 
     def find_pay_to_pubkey_address(self, prevout_hash, prevout_n):
         dd = self.txo.get(prevout_hash, {})
@@ -742,15 +759,16 @@ class Abstract_Wallet(PrintError):
         self.add_unverified_tx(tx_hash, tx_height)
 
     def receive_history_callback(self, addr, hist, tx_fees):
+        assert isinstance(addr, Address)
         with self.lock:
-            old_hist = self.history.get(addr, [])
+            old_hist = self._history.get(addr, [])
             for tx_hash, height in old_hist:
                 if (tx_hash, height) not in hist:
                     # remove tx if it's not referenced in histories
                     self.tx_addr_hist[tx_hash].remove(addr)
                     if not self.tx_addr_hist[tx_hash]:
                         self.remove_transaction(tx_hash)
-            self.history[addr] = hist
+            self._history[addr] = hist
 
         for tx_hash, tx_height in hist:
             # add it in case it was previously unconfirmed
@@ -766,6 +784,10 @@ class Abstract_Wallet(PrintError):
 
         # Store fees
         self.tx_fees.update(tx_fees)
+
+    def get_address_history(self, address):
+        assert isinstance(address, Address)
+        return self._history.get(address, [])
 
     def get_history(self, domain=None):
         # get domain
@@ -936,6 +958,7 @@ class Abstract_Wallet(PrintError):
         return tx
 
     def is_frozen(self, addr):
+        assert isinstance(addr, Address)
         return addr in self.frozen_addresses
 
     def set_frozen_state(self, addrs, freeze):
@@ -951,7 +974,7 @@ class Abstract_Wallet(PrintError):
 
     def prepare_for_verifier(self):
         # review transactions that are in the history
-        for addr, hist in self.history.items():
+        for addr, hist in self._history.items():
             for tx_hash, tx_height in hist:
                 # add it in case it was previously unconfirmed
                 self.add_unverified_tx(tx_hash, tx_height)
@@ -1017,17 +1040,20 @@ class Abstract_Wallet(PrintError):
         return not self.is_watching_only() and hasattr(self.keystore, 'get_private_key')
 
     def is_used(self, address):
-        h = self.history.get(address,[])
+        assert isinstance(address, Address)
+        h = self._history.get(address,[])
         c, u, x = self.get_addr_balance(address)
         return len(h) > 0 and c + u + x == 0
 
     def is_empty(self, address):
+        assert isinstance(address, Address)
         c, u, x = self.get_addr_balance(address)
         return c+u+x == 0
 
     def address_is_old(self, address, age_limit=2):
+        assert isinstance(address, Address)
         age = -1
-        h = self.history.get(address, [])
+        h = self._history.get(address, [])
         for tx_hash, tx_height in h:
             if tx_height == 0:
                 tx_age = 0
@@ -1131,27 +1157,26 @@ class Abstract_Wallet(PrintError):
     def get_unused_addresses(self):
         # fixme: use slots from expired requests
         domain = self.get_receiving_addresses()
-        return [addr for addr in domain if not self.history.get(addr)
-                and addr not in self.receive_requests.keys()]
+        return [addr for addr in domain if not addr in self._history
+                and addr not in self.receive_requests]
 
     def get_unused_address(self):
         addrs = self.get_unused_addresses()
         if addrs:
             return addrs[0]
 
-    def get_receiving_address(self):
-        # always return an address
+    def get_receiving_address_text(self):
+        '''Returns string of a receiving address.'''
         domain = self.get_receiving_addresses()
         if not domain:
-            return
+            return ''
         choice = domain[0]
         for addr in domain:
-            if not self.history.get(addr):
-                if addr not in self.receive_requests.keys():
-                    return addr
-                else:
-                    choice = addr
-        return choice
+            if not self._history.get(addr):
+                choice = addr
+                if addr not in self.receive_requests:
+                    break
+        return choice.to_ui_string()
 
     def get_payment_status(self, address, amount):
         local_height = self.get_local_height()
@@ -1240,6 +1265,10 @@ class Abstract_Wallet(PrintError):
         r = {'time':timestamp, 'amount':amount, 'exp':expiration, 'address':addr, 'memo':message, 'id':_id}
         return r
 
+    def save_payment_requests(self):
+        requests = self.from_Address_dict(self.receive_requests)
+        self.storage.put('payment_requests', requests)
+
     def sign_payment_request(self, key, alias, alias_addr, password):
         req = self.receive_requests.get(key)
         alias_privkey = self.export_private_key(alias_addr, password)[0]
@@ -1248,14 +1277,14 @@ class Abstract_Wallet(PrintError):
         req['name'] = pr.pki_data
         req['sig'] = bh2u(pr.signature)
         self.receive_requests[key] = req
-        self.storage.put('payment_requests', self.receive_requests)
+        self.save_payment_requests()
 
     def add_payment_request(self, req, config):
         addr = req['address']
         amount = req.get('amount')
         message = req.get('memo')
         self.receive_requests[addr] = req
-        self.storage.put('payment_requests', self.receive_requests)
+        self.save_payment_requests()
         self.set_label(addr, message) # should be a default label
 
         rdir = config.get('requests_dir')
@@ -1288,7 +1317,7 @@ class Abstract_Wallet(PrintError):
                 n = os.path.join(rdir, 'req', key[0], key[1], key, key + s)
                 if os.path.exists(n):
                     os.unlink(n)
-        self.storage.put('payment_requests', self.receive_requests)
+        self.save_payment_requests()
         return True
 
     def get_sorted_requests(self, config):
@@ -1313,8 +1342,9 @@ class Abstract_Wallet(PrintError):
         return False
 
     def add_address(self, address):
-        if address not in self.history:
-            self.history[address] = []
+        assert isinstance(address, Address)
+        if address not in self._history:
+            self._history[address] = []
         if self.synchronizer:
             self.synchronizer.add(address)
 
@@ -1445,13 +1475,14 @@ class Imported_Wallet(Simple_Wallet):
         return address
 
     def delete_address(self, address):
+        assert isinstance(address, Address)
         if address not in self.addresses:
             return
 
         transactions_to_remove = set()  # only referred to by this address
         transactions_new = set()  # txs that are not only referred to by address
         with self.lock:
-            for addr, details in self.history.items():
+            for addr, details in self._history.items():
                 if addr == address:
                     for tx_hash, height in details:
                         transactions_to_remove.add(tx_hash)
@@ -1459,7 +1490,7 @@ class Imported_Wallet(Simple_Wallet):
                     for tx_hash, height in details:
                         transactions_new.add(tx_hash)
             transactions_to_remove -= transactions_new
-            self.history.pop(address, None)
+            self._history.pop(address, None)
 
             for tx_hash in transactions_to_remove:
                 self.remove_transaction(tx_hash)
@@ -1591,8 +1622,9 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def num_unused_trailing_addresses(self, addresses):
         k = 0
-        for a in addresses[::-1]:
-            if self.history.get(a):break
+        for addr in reversed(addresses):
+            if addr in self._history:
+                break
             k = k + 1
         return k
 
@@ -1603,7 +1635,7 @@ class Deterministic_Wallet(Abstract_Wallet):
         addresses = self.get_receiving_addresses()
         k = self.num_unused_trailing_addresses(addresses)
         for a in addresses[0:-k]:
-            if self.history.get(a):
+            if a in self._history:
                 n = 0
             else:
                 n += 1
@@ -1647,15 +1679,17 @@ class Deterministic_Wallet(Abstract_Wallet):
                         self.add_address(addr)
 
     def is_beyond_limit(self, address, is_change):
-        addr_list = self.get_change_addresses() if is_change else self.get_receiving_addresses()
-        i = addr_list.index(address)
-        prev_addresses = addr_list[:max(0, i)]
-        limit = self.gap_limit_for_change if is_change else self.gap_limit
-        if len(prev_addresses) < limit:
+        if is_change:
+            addr_list = self.get_change_addresses()
+            limit = self.gap_limit_for_change
+        else:
+            addr_list = self.get_receiving_addresses()
+            limit = self.gap_limit
+        idx = addr_list.index(address)
+        if idx < limit:
             return False
-        prev_addresses = prev_addresses[max(0, i - limit):]
-        for addr in prev_addresses:
-            if self.history.get(addr):
+        for addr in addr_list[-limit:]:
+            if addr in self._history:
                 return False
         return True
 
@@ -1717,7 +1751,7 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
     wallet_type = 'standard'
 
     def pubkeys_to_address(self, pubkey):
-        return bitcoin.pubkey_to_address(self.txin_type, pubkey)
+        return Address.from_pubkey(pubkey)
 
 
 class Multisig_Wallet(Deterministic_Wallet):
@@ -1734,10 +1768,10 @@ class Multisig_Wallet(Deterministic_Wallet):
 
     def pubkeys_to_address(self, pubkeys):
         redeem_script = self.pubkeys_to_redeem_script(pubkeys)
-        return bitcoin.redeem_script_to_address(self.txin_type, redeem_script)
+        return Address.from_multisig_script(redeem_script)
 
     def pubkeys_to_redeem_script(self, pubkeys):
-        return transaction.multisig_script(sorted(pubkeys), self.m)
+        return Script.multisig_script(self.m, sorted(pubkeys))
 
     def derive_pubkeys(self, c, i):
         return [k.derive_pubkey(c, i) for k in self.get_keystores()]
