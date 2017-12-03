@@ -22,6 +22,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
 import webbrowser
 
 from .util import *
@@ -35,82 +36,54 @@ class AddressList(MyTreeWidget):
     filter_columns = [0, 1, 2]  # Address, Label, Balance
 
     def __init__(self, parent=None):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [], 1)
-        self.refresh_headers()
+        MyTreeWidget.__init__(self, parent, self.create_menu, [ _('Address'), _('Label'), _('Balance'), _('Tx')], 1)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.show_change = False
-        self.show_used = 0
-        self.change_button = QComboBox(self)
-        self.change_button.currentIndexChanged.connect(self.toggle_change)
-        for t in [_('Receiving'), _('Change')]:
-            self.change_button.addItem(t)
-        self.used_button = QComboBox(self)
-        self.used_button.currentIndexChanged.connect(self.toggle_used)
-        for t in [_('All'), _('Unused'), _('Funded'), _('Used')]:
-            self.used_button.addItem(t)
-
-    def get_list_header(self):
-        return QLabel(_("Filter:")), self.change_button, self.used_button
-
-    def refresh_headers(self):
-        headers = [ _('Address'), _('Label'), _('Balance')]
-        fx = self.parent.fx
-        if fx and fx.get_fiat_address_config():
-            headers.extend([_(fx.get_currency()+' Balance')])
-        headers.extend([_('Tx')])
-        self.update_headers(headers)
-
-    def toggle_change(self, show):
-        show = bool(show)
-        if show == self.show_change:
-            return
-        self.show_change = show
-        self.update()
-
-    def toggle_used(self, state):
-        if state == self.show_used:
-            return
-        self.show_used = state
-        self.update()
 
     def on_update(self):
         self.wallet = self.parent.wallet
         item = self.currentItem()
-        current_address = item.data(0, Qt.UserRole) if item else None
-        addr_list = self.wallet.get_change_addresses() if self.show_change else self.wallet.get_receiving_addresses()
+        current_address = str(item.data(0, Qt.UserRole)) if item else None
         self.clear()
-        for address in addr_list:
-            num = len(self.wallet.history.get(address,[]))
-            is_used = self.wallet.is_used(address)
-            label = self.wallet.labels.get(address, '')
-            c, u, x = self.wallet.get_addr_balance(address)
-            balance = c + u + x
-            if self.show_used == 1 and (balance or is_used):
-                continue
-            if self.show_used == 2 and balance == 0:
-                continue
-            if self.show_used == 3 and not is_used:
-                continue
-            balance_text = self.parent.format_amount(balance)
-            fx = self.parent.fx
-            if fx and fx.get_fiat_address_config():
-                rate = fx.exchange_rate()
-                fiat_balance = fx.value_str(balance, rate)
-                address_item = QTreeWidgetItem([address, label, balance_text, fiat_balance, "%d"%num])
-                address_item.setTextAlignment(3, Qt.AlignRight)
-            else:
-                address_item = QTreeWidgetItem([address, label, balance_text, "%d"%num])
-                address_item.setTextAlignment(2, Qt.AlignRight)
-            address_item.setFont(0, QFont(MONOSPACE_FONT))
-            address_item.setData(0, Qt.UserRole, address)
-            address_item.setData(0, Qt.UserRole+1, True) # label can be edited
-            if self.wallet.is_frozen(address):
-                address_item.setBackground(0, ColorScheme.BLUE.as_color(True))
-            if self.wallet.is_beyond_limit(address, self.show_change):
-                address_item.setBackground(0, ColorScheme.RED.as_color(True))
-            self.addChild(address_item)
-            if address == current_address:
-                self.setCurrentItem(address_item)
+        receiving_addresses = self.wallet.get_receiving_addresses()
+        change_addresses = self.wallet.get_change_addresses()
+        if True:
+            account_item = self
+            sequences = [0,1] if change_addresses else [0]
+            for is_change in sequences:
+                if len(sequences) > 1:
+                    name = _("Receiving") if not is_change else _("Change")
+                    seq_item = QTreeWidgetItem( [ name, '', '', '', ''] )
+                    account_item.addChild(seq_item)
+                    if not is_change:
+                        seq_item.setExpanded(True)
+                else:
+                    seq_item = account_item
+                used_item = QTreeWidgetItem( [ _("Used"), '', '', '', ''] )
+                used_flag = False
+                addr_list = change_addresses if is_change else receiving_addresses
+                for address in addr_list:
+                    num = len(self.wallet.history.get(address,[]))
+                    is_used = self.wallet.is_used(address)
+                    label = self.wallet.labels.get(address,'')
+                    c, u, x = self.wallet.get_addr_balance(address)
+                    balance = self.parent.format_amount(c + u + x)
+                    address_item = QTreeWidgetItem([address, label, balance, "%d"%num])
+                    address_item.setFont(0, QFont(MONOSPACE_FONT))
+                    address_item.setData(0, Qt.UserRole, address)
+                    address_item.setData(0, Qt.UserRole+1, True) # label can be edited
+                    if self.wallet.is_frozen(address):
+                        address_item.setBackground(0, QColor('lightblue'))
+                    if self.wallet.is_beyond_limit(address, is_change):
+                        address_item.setBackground(0, QColor('red'))
+                    if is_used:
+                        if not used_flag:
+                            seq_item.insertChild(0, used_item)
+                            used_flag = True
+                        used_item.addChild(address_item)
+                    else:
+                        seq_item.addChild(address_item)
+                    if address == current_address:
+                        self.setCurrentItem(address_item)
 
     def create_menu(self, position):
         from electroncash.wallet import Multisig_Wallet
@@ -118,7 +91,7 @@ class AddressList(MyTreeWidget):
         can_delete = self.wallet.can_delete_address()
         selected = self.selectedItems()
         multi_select = len(selected) > 1
-        addrs = [item.text(0) for item in selected]
+        addrs = [unicode(item.text(0)) for item in selected]
         if not addrs:
             return
         if not multi_select:
@@ -134,8 +107,7 @@ class AddressList(MyTreeWidget):
         menu = QMenu()
         if not multi_select:
             column_title = self.headerItem().text(col)
-            copy_text = item.text(col)
-            menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(copy_text))
+            menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(item.text(col)))
             menu.addAction(_('Details'), lambda: self.parent.show_address(addr))
             if col in self.editable_columns:
                 menu.addAction(_("Edit %s")%column_title, lambda: self.editItem(item, col))
@@ -162,7 +134,3 @@ class AddressList(MyTreeWidget):
 
         run_hook('receive_menu', menu, addrs, self.wallet)
         menu.exec_(self.viewport().mapToGlobal(position))
-
-    def on_permit_edit(self, item, column):
-        # labels for headings, e.g. "receiving" or "used" should not be editable
-        return item.childCount() == 0

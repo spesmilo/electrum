@@ -1555,7 +1555,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def create_addresses_tab(self):
         from .address_list import AddressList
         self.address_list = l = AddressList(self)
-        return self.create_list_tab(l, l.get_list_header())
+        return self.create_list_tab(l)
 
     def create_utxo_tab(self):
         from .utxo_list import UTXOList
