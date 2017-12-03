@@ -31,7 +31,6 @@ import threading
 
 from .i18n import _
 
-
 import urllib.request, urllib.parse, urllib.error
 import queue
 
@@ -410,38 +409,6 @@ def time_difference(distance_in_time, include_seconds):
         return "about 1 year"
     else:
         return "over %d years" % (round(distance_in_minutes / 525600))
-
-mainnet_block_explorers = {
-    'Blockchair.com': ('https://blockchair.com/bitcoin-cash',
-                        {'tx': 'transaction', 'addr': 'address'}),
-}
-
-testnet_block_explorers = {
-    'Blocktrail.com': ('https://www.blocktrail.com/tBCC',
-                       {'tx': 'tx', 'addr': 'address'}),
-    'system default': ('blockchain:',
-                       {'tx': 'tx', 'addr': 'address'}),
-}
-
-def block_explorer_info():
-    from . import bitcoin
-    return testnet_block_explorers if bitcoin.NetworkConstants.TESTNET else mainnet_block_explorers
-
-def block_explorer(config):
-    return config.get('block_explorer', 'Blockchair.com')
-
-def block_explorer_tuple(config):
-    return block_explorer_info().get(block_explorer(config))
-
-def block_explorer_URL(config, kind, item):
-    be_tuple = block_explorer_tuple(config)
-    if not be_tuple:
-        return
-    kind_str = be_tuple[1].get(kind)
-    if not kind_str:
-        return
-    url_parts = [be_tuple[0], kind_str, item]
-    return "/".join(url_parts)
 
 # URL decode
 #_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)

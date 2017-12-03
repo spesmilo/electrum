@@ -26,7 +26,7 @@ import webbrowser
 
 from electroncash.i18n import _
 from electroncash.bitcoin import is_address
-from electroncash.util import block_explorer_URL
+import electroncash.block_explorer as block_explorer
 from electroncash.plugins import run_hook
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -78,7 +78,7 @@ class ContactList(MyTreeWidget):
                 menu.addAction(_("Edit %s")%column_title, lambda: self.editItem(item, column))
             menu.addAction(_("Pay to"), lambda: self.parent.payto_contacts(keys))
             menu.addAction(_("Delete"), lambda: self.parent.delete_contacts(keys))
-            URLs = [block_explorer_URL(self.config, 'addr', key) for key in filter(is_address, keys)]
+            URLs = [block_explorer.URL(self.config, 'addr', key) for key in filter(is_address, keys)]
             if URLs:
                 menu.addAction(_("View on block explorer"), lambda: map(webbrowser.open, URLs))
 

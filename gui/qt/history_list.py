@@ -26,8 +26,8 @@
 import webbrowser
 
 from .util import *
+import electroncash.block_explorer as block_explorer
 from electroncash.i18n import _
-from electroncash.util import block_explorer_URL
 from electroncash.util import timestamp_to_datetime, profiler
 
 
@@ -148,7 +148,7 @@ class HistoryList(MyTreeWidget):
             column_title = self.headerItem().text(column)
             column_data = item.text(column)
 
-        tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
+        tx_URL = block_explorer.URL(self.config, 'tx', tx_hash)
         height, conf, timestamp = self.wallet.get_tx_height(tx_hash)
         tx = self.wallet.transactions.get(tx_hash)
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)

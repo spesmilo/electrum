@@ -22,6 +22,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
 import sys, time, threading
 import os, json, traceback
 import shutil
@@ -53,6 +54,7 @@ try:
     from electroncash.plot import plot_history
 except:
     plot_history = None
+import electroncash.block_explorer as block_explorer
 
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
@@ -2560,12 +2562,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         unit_combo.currentIndexChanged.connect(on_unit)
         gui_widgets.append((unit_label, unit_combo))
 
-        block_explorers = sorted(util.block_explorer_info().keys())
+        block_explorers = block_explorer.sorted_list()
         msg = _('Choose which online block explorer to use for functions that open a web browser')
         block_ex_label = HelpLabel(_('Online Block Explorer') + ':', msg)
         block_ex_combo = QComboBox()
         block_ex_combo.addItems(block_explorers)
-        block_ex_combo.setCurrentIndex(block_ex_combo.findText(util.block_explorer(self.config)))
+        block_ex_combo.setCurrentIndex(block_ex_combo.findText(block_explorer.from_config(self.config)))
         def on_be(x):
             be_result = block_explorers[block_ex_combo.currentIndex()]
             self.config.set_key('block_explorer', be_result, True)
