@@ -35,7 +35,19 @@ _new_hash = hashlib.new
 hex_to_bytes = bytes.fromhex
 
 
+class AddressError(Exception):
+    '''Exception used for Address errors.'''
+
+
 # Utility functions
+
+def to_bytes(x):
+    '''Convert to bytes which is hashable.'''
+    if isinstance(x, bytes):
+        return x
+    if isinstance(x, bytearray):
+        return bytes(x)
+    raise TypeError('{} is not bytes ({})'.format(x, type(x)))
 
 def hash_to_hex_str(x):
     '''Convert a big-endian binary hash to displayed hex string.
@@ -77,17 +89,13 @@ def hash160(x):
     return ripemd160(sha256(x))
 
 
-class AddressError(Exception):
-    '''Exception used for Address errors.'''
-
-
 class PublicKey(namedtuple("PublicKeyTuple", "pubkey")):
 
     @classmethod
     def from_pubkey(cls, pubkey):
         '''Create from a public key expressed as binary bytes.'''
         cls.validate(pubkey)
-        return cls(pubkey)
+        return cls(to_bytes(pubkey))
 
     @classmethod
     def from_string(cls, string):
@@ -125,6 +133,20 @@ class PublicKey(namedtuple("PublicKeyTuple", "pubkey")):
 
 class ScriptOutput(namedtuple("ScriptAddressTuple", "script")):
 
+    @classmethod
+    def from_string(self, string):
+        '''Instantiate from a mixture of opcodes and raw data.'''
+        script = bytearray()
+        for word in string.split():
+            if word.startswith('OP_'):
+                opcode = OpCodes.lookup.get(word)
+                if opcode is None:
+                    raise AddressError('unknown opcode {}'.format(word))
+                script.append(opcode)
+            else:
+                script.extend(Script.push_data(word))
+        return script
+
     def to_ui_string(self):
         '''Convert to a hexadecimal string.'''
         return self.script.hex()
@@ -156,7 +178,7 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
 
     def __new__(cls, hash160, kind):
         assert kind in (cls.ADDR_P2PKH, cls.ADDR_P2SH)
-        assert isinstance(hash160, (bytes, bytearray))
+        hash160 = to_bytes(hash160)
         assert len(hash160) == 20
         return super().__new__(cls, hash160, kind)
 

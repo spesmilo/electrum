@@ -31,6 +31,7 @@ from .qrtextedit import ScanQRTextEdit
 import re
 from decimal import Decimal
 from electroncash import bitcoin
+from electroncash.address import Address, ScriptOutput
 
 from . import util
 
@@ -81,22 +82,9 @@ class PayToEdit(ScanQRTextEdit):
 
     def parse_output(self, x):
         try:
-            address = self.parse_address(x)
-            return bitcoin.TYPE_ADDRESS, address
+            return bitcoin.TYPE_ADDRESS, Address.from_string(x)
         except:
-            script = self.parse_script(x)
-            return bitcoin.TYPE_SCRIPT, script
-
-    def parse_script(self, x):
-        from electroncash.transaction import opcodes, push_script
-        script = ''
-        for word in x.split():
-            if word[0:3] == 'OP_':
-                assert word in opcodes.lookup
-                script += chr(opcodes.lookup[word])
-            else:
-                script += push_script(word).decode('hex')
-        return script
+            return bitcoin.TYPE_SCRIPT, ScriptOutput.from_string(x)
 
     def parse_amount(self, x):
         if x.strip() == '!':

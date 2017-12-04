@@ -1268,7 +1268,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         else:
             errors = self.payto_e.get_errors()
             if errors:
-                self.show_warning(_("Invalid Lines found:") + "\n\n" + '\n'.join([ _("Line #") + str(x[0]+1) + ": " + x[1] for x in errors]))
+                self.show_warning(_("Invalid lines found:") + "\n\n" + '\n'.join([ _("Line #") + str(x[0]+1) + ": " + x[1] for x in errors]))
                 return
             outputs = self.payto_e.get_outputs(self.is_max)
 
@@ -1284,12 +1284,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
 
         for _type, addr, amount in outputs:
-            if addr is None:
-                self.show_error(_('Bitcoin Cash Address is None'))
-                return
-            if _type == TYPE_ADDRESS and not bitcoin.is_address(addr):
-                self.show_error(_('Invalid Bitcoin Cash Address'))
-                return
             if amount is None:
                 self.show_error(_('Invalid Amount'))
                 return

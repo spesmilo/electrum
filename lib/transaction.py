@@ -238,8 +238,6 @@ def parse_scriptSig(d, _bytes):
         print_error("cannot find address in input script", bh2u(_bytes))
         return
 
-    print("DECODED:", decoded, file=sys.stdout)
-
     match = [ opcodes.OP_PUSHDATA4 ]
     if match_decoded(decoded, match):
         item = decoded[0][1]
@@ -481,21 +479,24 @@ class Transaction:
     def deserialize(self):
         if self.raw is None:
             return
-            #self.raw = self.serialize()
         if self._inputs is not None:
             return
         d = deserialize(self.raw)
         self._inputs = d['inputs']
         self._outputs = [(x['type'], x['address'], x['value']) for x in d['outputs']]
+        assert all(isinstance(output[1], (PublicKey, Address, ScriptOutput))
+                   for output in self._outputs)
         self.locktime = d['lockTime']
         self.version = d['version']
         return d
 
     @classmethod
     def from_io(klass, inputs, outputs, locktime=0):
+        assert all(isinstance(output[1], (PublicKey, Address, ScriptOutput))
+                   for output in outputs)
         self = klass(None)
         self._inputs = inputs
-        self._outputs = outputs
+        self._outputs = outputs.copy()
         self.locktime = locktime
         return self
 
@@ -584,7 +585,7 @@ class Transaction:
     @classmethod
     def get_preimage_script(self, txin):
         if txin['type'] == 'p2pkh':
-            return bitcoin.address_to_script(txin['address'])
+            return txin['address'].to_script().hex()
         elif txin['type'] in ['p2sh']:
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
             return multisig_script(pubkeys, txin['num_sig'])
@@ -676,6 +677,8 @@ class Transaction:
         self.raw = None
 
     def add_outputs(self, outputs):
+        assert all(isinstance(output[1], (PublicKey, Address, ScriptOutput))
+                   for output in outputs)
         self._outputs.extend(outputs)
         self.raw = None
 

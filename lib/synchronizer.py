@@ -22,10 +22,11 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
 from threading import Lock
 import hashlib
+import traceback
 
-# from .bitcoin import Hash, hash_encode
 from .transaction import Transaction
 from .util import ThreadJob, bh2u
 
@@ -145,6 +146,7 @@ class Synchronizer(ThreadJob):
         try:
             tx.deserialize()
         except Exception:
+            traceback.print_exc()
             self.print_msg("cannot deserialize transaction, skipping", tx_hash)
             return
         tx_height = self.requested_tx.pop(tx_hash)

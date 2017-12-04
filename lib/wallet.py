@@ -311,11 +311,11 @@ class Abstract_Wallet(PrintError):
     def save_addresses(self):
         addr_dict = {
             'receiving': [addr.to_storage_string()
-                          for addr in self.receiving_addrs],
+                          for addr in self.receiving_addresses],
             'change': [addr.to_storage_string()
-                       for addr in self.change_addrs],
+                       for addr in self.change_addresses],
         }
-        self.put('addresses', addr_dict)
+        self.storage.put('addresses', addr_dict)
 
     def load_addresses(self):
         d = self.storage.get('addresses', {})
@@ -711,15 +711,10 @@ class Abstract_Wallet(PrintError):
             self.txo[tx_hash] = d = {}
             for n, txo in enumerate(tx.outputs()):
                 ser = tx_hash + ':%d'%n
-                _type, x, v = txo
-                if _type == TYPE_ADDRESS:
-                    addr = x
-                elif _type == TYPE_PUBKEY:
-                    addr = bitcoin.public_key_to_p2pkh(bfh(x))
-                else:
-                    addr = None
-                if addr and self.is_mine(addr):
-                    if d.get(addr) is None:
+                _type, addr, v = txo
+                if self.is_mine(addr):
+                    print('addr: {} {}'.format(addr, type(addr)))
+                    if not addr in d:
                         d[addr] = []
                     d[addr].append((n, v, is_coinbase))
                 # give v to txi that spends me
@@ -894,9 +889,6 @@ class Abstract_Wallet(PrintError):
         i_max = None
         for i, o in enumerate(outputs):
             _type, data, value = o
-            if _type == TYPE_ADDRESS:
-                if not is_address(data):
-                    raise BaseException("Invalid bitcoin address:" + data)
             if value == '!':
                 if i_max is not None:
                     raise BaseException("More than one output set to spend max")
@@ -928,6 +920,8 @@ class Abstract_Wallet(PrintError):
             else:
                 change_addrs = [inputs[0]['address']]
 
+        assert all(isinstance(addr, Address) for addr in change_addrs)
+
         # Fee estimator
         if fixed_fee is None:
             fee_estimator = config.estimate_fee
@@ -944,11 +938,11 @@ class Abstract_Wallet(PrintError):
             sendable = sum(map(lambda x:x['value'], inputs))
             _type, data, value = outputs[i_max]
             outputs[i_max] = (_type, data, 0)
-            tx = Transaction.from_io(inputs, outputs[:])
+            tx = Transaction.from_io(inputs, outputs)
             fee = fee_estimator(tx.estimated_size())
             amount = max(0, sendable - tx.output_value() - fee)
             outputs[i_max] = (_type, data, amount)
-            tx = Transaction.from_io(inputs, outputs[:])
+            tx = Transaction.from_io(inputs, outputs)
 
         # Sort the inputs and outputs deterministically
         tx.BIP_LI01_sort()

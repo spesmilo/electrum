@@ -22,11 +22,11 @@
 # SOFTWARE.
 
 import os
+import sys
 import threading
 import traceback
 
 from . import util
-from . import bitcoin
 from .networks import (NetworkConstants, BITCOIN_CASH_FORK_BLOCK_HEIGHT,
                        BITCOIN_CASH_FORK_BLOCK_HASH)
 from .bitcoin import *
@@ -191,7 +191,7 @@ class Blockchain(util.PrintError):
         if prev_hash != header.get('prev_block_hash'):
             raise BaseException("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
         # checkpoint BitcoinCash fork block
-        if ( header.get('block_height') == bitcoin.BITCOIN_CASH_FORK_BLOCK_HEIGHT and hash_header(header) != bitcoin.BITCOIN_CASH_FORK_BLOCK_HASH ):
+        if ( header.get('block_height') == BITCOIN_CASH_FORK_BLOCK_HEIGHT and hash_header(header) != BITCOIN_CASH_FORK_BLOCK_HASH ):
             err_str = "block at height %i is not cash chain fork block. hash %s" % (header.get('block_height'), hash_header(header))
             self.print_error(err_str)
             raise BaseException(err_str)
@@ -349,7 +349,7 @@ class Blockchain(util.PrintError):
         bits = prior['bits']
 
         # testnet 20 minute rule
-        if bitcoin.NetworkConstants.TESTNET and height % 2016 != 0:
+        if NetworkConstants.TESTNET and height % 2016 != 0:
             if header['timestamp'] - prior['timestamp'] > 20*60:
                 return MAX_BITS
 
@@ -394,7 +394,7 @@ class Blockchain(util.PrintError):
         if height % 2016 == 0:
             return self.get_new_bits(height)
 
-        if bitcoin.NetworkConstants.TESTNET:
+        if NetworkConstants.TESTNET:
             return self.read_header(height // 2016 * 2016)['bits']
 
         # bitcoin cash EDA
@@ -432,7 +432,7 @@ class Blockchain(util.PrintError):
         if check_height and self.height() != height - 1:
             return False
         if height == 0:
-            return hash_header(header) == bitcoin.NetworkConstants.GENESIS
+            return hash_header(header) == NetworkConstants.GENESIS
         previous_header = self.read_header(height -1)
         if not previous_header:
             return False
@@ -453,7 +453,6 @@ class Blockchain(util.PrintError):
         try:
             data = bfh(hexdata)
             self.verify_chunk(idx, data)
-            #self.print_error("validated chunk %d" % idx)
             self.save_chunk(idx, data)
             return True
         except BaseException as e:
