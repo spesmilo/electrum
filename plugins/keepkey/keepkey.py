@@ -1,12 +1,12 @@
-from ..trezor.plugin import TrezorCompatiblePlugin, TrezorCompatibleKeyStore
+from .plugin import KeepKeyCompatiblePlugin, KeepKeyCompatibleKeyStore
 
 
-class KeepKey_KeyStore(TrezorCompatibleKeyStore):
+class KeepKey_KeyStore(KeepKeyCompatibleKeyStore):
     hw_type = 'keepkey'
     device = 'KeepKey'
 
 
-class KeepKeyPlugin(TrezorCompatiblePlugin):
+class KeepKeyPlugin(KeepKeyCompatiblePlugin):
     firmware_URL = 'https://www.keepkey.com'
     libraries_URL = 'https://github.com/keepkey/python-keepkey'
     minimum_firmware = (4, 0, 0)
@@ -25,7 +25,7 @@ class KeepKeyPlugin(TrezorCompatiblePlugin):
             self.libraries_available = True
         except ImportError:
             self.libraries_available = False
-        TrezorCompatiblePlugin.__init__(self, *args)
+        KeepKeyCompatiblePlugin.__init__(self, *args)
 
     def hid_transport(self, pair):
         from keepkeylib.transport_hid import HidTransport

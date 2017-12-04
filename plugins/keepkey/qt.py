@@ -1,4 +1,4 @@
-from ..trezor.qt_generic import QtPlugin
+from .qt_generic import QtPlugin
 from .keepkey import KeepKeyPlugin
 
 
