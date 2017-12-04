@@ -105,9 +105,16 @@ class PublicKey(namedtuple("PublicKeyTuple", "pubkey")):
                 raise AddressError('compressed public keys are required')
         raise AddressError('invalid pubkey {}'.format(pubkey))
 
+    def to_Address(self):
+        '''Convert to an Address object.'''
+        return Address(hash160(self.pubkey), cls.ADDR_P2PKH)
+
     def to_ui_string(self):
         '''Convert to a hexadecimal string.'''
         return self.pubkey.hex()
+
+    def to_script(self):
+        return Script.P2PK_script(self.pubkey)
 
     def __str__(self):
         return self.to_ui_string()
@@ -116,17 +123,20 @@ class PublicKey(namedtuple("PublicKeyTuple", "pubkey")):
         return '<PubKey {}>'.format(self.__str__())
 
 
-class ScriptAddress(namedtuple("ScriptAddressTuple", "script")):
+class ScriptOutput(namedtuple("ScriptAddressTuple", "script")):
 
     def to_ui_string(self):
         '''Convert to a hexadecimal string.'''
         return self.script.hex()
 
+    def to_script(self):
+        return self.script
+
     def __str__(self):
         return self.to_ui_string()
 
     def __repr__(self):
-        return '<ScriptAddress {}>'.format(self.__str__())
+        return '<ScriptOutput {}>'.format(self.__str__())
 
 
 # A namedtuple for easy comparison and unique hashing
@@ -182,7 +192,7 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
         be bytes or a hex string.'''
         if isinstance(pubkey, str):
             pubkey = hex_to_bytes(pubkey)
-        cls.validate_pubkey(pubkey)
+        PublicKey.validate_pubkey(pubkey)
         return cls(hash160(pubkey), cls.ADDR_P2PKH)
 
     @classmethod
@@ -295,6 +305,10 @@ class Script(object):
                 + bytes([OpCodes.OP_EQUALVERIFY, OpCodes.OP_CHECKSIG]))
 
     @classmethod
+    def P2PK_script(cls, pubkey):
+        return pubkey + bytes([OpCodes.OP_CHECKSIG])
+
+    @classmethod
     def multisig_script(cls, m, pubkeys):
         '''Returns the script for a pay-to-multisig transaction.'''
         n = len(pubkeys)
@@ -302,7 +316,7 @@ class Script(object):
             raise ScriptError('{:d} of {:d} multisig script not possible'
                               .format(m, n))
         for pubkey in pubkeys:
-            Address.validate_pubkey(pubkey, req_compressed=True)
+            PublicKey.validate_pubkey(pubkey, req_compressed=True)
         # See https://bitcoin.org/en/developer-guide
         # 2 of 3 is: OP_2 pubkey1 pubkey2 pubkey3 OP_3 OP_CHECKMULTISIG
         return (bytes([OpCodes.OP_1 + m - 1])

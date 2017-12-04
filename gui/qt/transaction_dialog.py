@@ -22,6 +22,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
 import copy
 import datetime
 import json
@@ -30,6 +31,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 
+from electroncash.address import Address, PublicKey
 from electroncash.bitcoin import base_encode
 from electroncash.i18n import _
 from electroncash.plugins import run_hook
@@ -231,7 +233,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         chg.setToolTip(_("Wallet change address"))
 
         def text_format(addr):
-            if self.wallet.is_mine(addr):
+            if isinstance(addr, Address) and self.wallet.is_mine(addr):
                 return chg if self.wallet.is_change(addr) else rec
             return ext
 
@@ -251,14 +253,14 @@ class TxDialog(QDialog, MessageBoxMixin):
                 prevout_n = x.get('prevout_n')
                 cursor.insertText(prevout_hash[0:8] + '...', ext)
                 cursor.insertText(prevout_hash[-8:] + ":%-4d " % prevout_n, ext)
-                addr = x.get('address')
-                if addr == "(pubkey)":
-                    _addr = self.wallet.find_pay_to_pubkey_address(prevout_hash, prevout_n)
-                    if _addr:
-                        addr = _addr
+                addr = x['address']
+                if isinstance(addr, PublicKey):
+                    addr = addr.toAddress()
                 if addr is None:
-                    addr = _('unknown')
-                cursor.insertText(addr, text_format(addr))
+                    addr_text = _('unknown')
+                else:
+                    addr_text = addr.to_ui_string()
+                cursor.insertText(addr_text, text_format(addr))
                 if x.get('value'):
                     cursor.insertText(format_amount(x['value']), ext)
             cursor.insertBlock()
@@ -271,7 +273,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         o_text.setMaximumHeight(100)
         cursor = o_text.textCursor()
         for addr, v in self.tx.get_outputs():
-            cursor.insertText(addr, text_format(addr))
+            cursor.insertText(addr.to_ui_string(), text_format(addr))
             if v is not None:
                 cursor.insertText('\t', ext)
                 cursor.insertText(format_amount(v), ext)

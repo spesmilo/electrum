@@ -486,8 +486,7 @@ class Abstract_Wallet(PrintError):
         is_partial = False
         v_in = v_out = v_out_mine = 0
         for item in tx.inputs():
-            addr = item.get('address')
-            assert isinstance(addr, Address)
+            addr = item['address']
             if addr in addresses:
                 is_mine = True
                 is_relevant = True

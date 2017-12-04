@@ -30,7 +30,7 @@
 from .util import print_error, profiler
 
 from . import bitcoin
-from .address import PublicKey, Address, ScriptAddress, OpCodes as opcodes
+from .address import PublicKey, Address, ScriptOutput, OpCodes as opcodes
 from .bitcoin import *
 import struct
 
@@ -321,7 +321,7 @@ def get_address_from_output_script(_bytes):
     if match_decoded(decoded, match):
         return TYPE_ADDRESS, Address.from_P2PKH_hash(decoded[1][1])
 
-    return TYPE_SCRIPT, ScriptAddress(_bytes)
+    return TYPE_SCRIPT, ScriptOutput(_bytes)
 
 
 def parse_input(vds):
@@ -494,15 +494,8 @@ class Transaction:
         return self
 
     @classmethod
-    def pay_script(self, output_type, addr):
-        if output_type == TYPE_SCRIPT:
-            return addr
-        elif output_type == TYPE_ADDRESS:
-            return bitcoin.address_to_script(addr)
-        elif output_type == TYPE_PUBKEY:
-            return bitcoin.public_key_to_p2pk_script(addr)
-        else:
-            raise TypeError('Unknown output type')
+    def pay_script(self, output):
+        return output.to_script().hex()
 
     @classmethod
     def estimate_pubkey_size_from_x_pubkey(cls, x_pubkey):
@@ -616,12 +609,12 @@ class Transaction:
     def BIP_LI01_sort(self):
         # See https://github.com/kristovatlas/rfc/blob/master/bips/bip-li01.mediawiki
         self._inputs.sort(key = lambda i: (i['prevout_hash'], i['prevout_n']))
-        self._outputs.sort(key = lambda o: (o[2], self.pay_script(o[0], o[1])))
+        self._outputs.sort(key = lambda o: (o[2], self.pay_script(o[1])))
 
     def serialize_output(self, output):
         output_type, addr, amount = output
         s = int_to_hex(amount, 8)
-        script = self.pay_script(output_type, addr)
+        script = self.pay_script(addr)
         s += var_int(len(script)//2)
         s += script
         return s
