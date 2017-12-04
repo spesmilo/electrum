@@ -407,6 +407,7 @@ class Commands:
     def verifymessage(self, address, signature, message):
         """Verify a signature."""
         sig = base64.b64decode(signature)
+        message = util.to_bytes(message)
         return bitcoin.verify_message(address, sig, message)
 
     def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned, password, locktime=None):
