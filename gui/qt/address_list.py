@@ -25,6 +25,8 @@
 
 import webbrowser
 
+from functools import partial
+
 from .util import *
 from electroncash.i18n import _
 from electroncash.plugins import run_hook
@@ -96,6 +98,7 @@ class AddressList(MyTreeWidget):
         addrs = [item.data(0, Qt.UserRole) for item in selected]
         if not addrs:
             return
+        addrs = [addr for addr in addrs if isinstance(addr, Address)]
 
         menu = QMenu()
 
@@ -104,10 +107,10 @@ class AddressList(MyTreeWidget):
             col = self.currentColumn()
             if not item:
                 return
-            addr = addrs[0]
-            if not isinstance(addr, Address):
+            if not addrs:
                 item.setExpanded(not item.isExpanded())
                 return
+            addr = addrs[0]
 
             column_title = self.headerItem().text(col)
             copy_text = item.text(col)
@@ -127,14 +130,16 @@ class AddressList(MyTreeWidget):
             if addr_URL:
                 menu.addAction(_("View on block explorer"), lambda: webbrowser.open(addr_URL))
 
-            if not self.wallet.is_frozen(addr):
-                menu.addAction(_("Freeze"), lambda: self.parent.set_frozen_state([addr], True))
-            else:
-                menu.addAction(_("Unfreeze"), lambda: self.parent.set_frozen_state([addr], False))
+        freeze = self.parent.set_frozen_state
+        if any(self.wallet.is_frozen(addr) for addr in addrs):
+            menu.addAction(_("Unfreeze"), partial(freeze, addrs, False))
+        if not all(self.wallet.is_frozen(addr) for addr in addrs):
+            menu.addAction(_("Freeze"), partial(freeze, addrs, True))
 
         coins = self.wallet.get_utxos(addrs)
         if coins:
-            menu.addAction(_("Spend from"), lambda: self.parent.spend_coins(coins))
+            menu.addAction(_("Spend from"),
+                           partial(self.parent.spend_coins, coins))
 
         run_hook('receive_menu', menu, addrs, self.wallet)
         menu.exec_(self.viewport().mapToGlobal(position))

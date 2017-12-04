@@ -168,7 +168,10 @@ class Abstract_Wallet(PrintError):
         self.use_change            = storage.get('use_change', True)
         self.multiple_change       = storage.get('multiple_change', False)
         self.labels                = storage.get('labels', {})
-        self.frozen_addresses      = set(storage.get('frozen_addresses',[]))
+        # Frozen addresses
+        frozen_addresses = storage.get('frozen_addresses',[])
+        self.frozen_addresses = set(Address.from_string(addr)
+                                    for addr in frozen_addresses)
         # address -> list(txid, height)
         history = storage.get('addr_history',{})
         self._history = self.to_Address_dict(history)
@@ -968,7 +971,9 @@ class Abstract_Wallet(PrintError):
                 self.frozen_addresses |= set(addrs)
             else:
                 self.frozen_addresses -= set(addrs)
-            self.storage.put('frozen_addresses', list(self.frozen_addresses))
+            frozen_addresses = [addr.to_storage_string()
+                                for addr in self.frozen_addresses]
+            self.storage.put('frozen_addresses', frozen_addresses)
             return True
         return False
 
