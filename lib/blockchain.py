@@ -20,8 +20,10 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
 import os
 import threading
+import traceback
 
 from . import util
 from . import bitcoin
@@ -438,7 +440,9 @@ class Blockchain(util.PrintError):
         try:
             self.verify_header(header, previous_header, bits)
         except:
-            #self.print_error('can_connect: verify_header failed');
+            traceback.print_exc()
+            self.print_error('verify header {} failed at height {:d}'
+                             .format(hash_header(header), height))
             return False
         return True
 
