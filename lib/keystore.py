@@ -29,9 +29,10 @@ from unicodedata import normalize
 from . import bitcoin
 from .bitcoin import *
 
-from .util import PrintError, InvalidPassword, hfu
+from .networks import NetworkConstants
 from .mnemonic import Mnemonic, load_wordlist
 from .plugins import run_hook
+from .util import PrintError, InvalidPassword, hfu
 
 
 class KeyStore(PrintError):
@@ -673,7 +674,7 @@ is_bip32_key = lambda x: is_xprv(x) or is_xpub(x)
 
 def bip44_derivation(account_id):
     bip  = 44
-    coin = 1 if bitcoin.NetworkConstants.TESTNET else 0
+    coin = 1 if NetworkConstants.TESTNET else 0
     return "m/%d'/%d'/%d'" % (bip, coin, int(account_id))
 
 def bip44_derivation_145(account_id):

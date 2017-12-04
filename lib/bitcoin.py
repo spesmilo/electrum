@@ -32,69 +32,11 @@ import json
 import ecdsa
 import pyaes
 
-from .util import bfh, bh2u, to_string
+from .networks import NetworkConstants
+from .util import (bfh, bh2u, to_string, print_error, InvalidPassword,
+                   assert_bytes, to_bytes, inv_dict)
 from . import version
-from .util import print_error, InvalidPassword, assert_bytes, to_bytes, inv_dict
 from . import segwit_addr
-
-def read_json_dict(filename):
-    path = os.path.join(os.path.dirname(__file__), filename)
-    try:
-        with open(path, 'r') as f:
-            r = json.loads(f.read())
-    except:
-        r = {}
-    return r
-
-
-
-
-# Version numbers for BIP32 extended keys
-# standard: xprv, xpub
-XPRV_HEADERS = {
-    'standard': 0x0488ade4,
-}
-XPUB_HEADERS = {
-    'standard': 0x0488b21e,
-}
-
-# Bitcoin Cash fork block specification
-BITCOIN_CASH_FORK_BLOCK_HEIGHT = 478559
-BITCOIN_CASH_FORK_BLOCK_HASH = "000000000000000000651ef99cb9fcbe0dadde1d424bd9f15ff20136191a5eec"
-
-
-class NetworkConstants:
-
-    @classmethod
-    def set_mainnet(cls):
-        cls.TESTNET = False
-        cls.WIF_PREFIX = 0x80
-        cls.ADDRTYPE_P2PKH = 0
-        cls.ADDRTYPE_P2PKH_BITPAY = 28
-        cls.ADDRTYPE_P2SH = 5
-        cls.ADDRTYPE_P2SH_BITPAY = 40
-        cls.SEGWIT_HRP = "bc"
-        cls.HEADERS_URL = "http://bitcoincash.com/files/blockchain_headers"
-        cls.GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
-        cls.DEFAULT_PORTS = {'t': '50001', 's': '50002'}
-        cls.DEFAULT_SERVERS = read_json_dict('servers.json')
-
-    @classmethod
-    def set_testnet(cls):
-        cls.TESTNET = True
-        cls.WIF_PREFIX = 0xef
-        cls.ADDRTYPE_P2PKH = 111
-        cls.ADDRTYPE_P2PKH_BITPAY = 111  # Unsure
-        cls.ADDRTYPE_P2SH = 196
-        cls.ADDRTYPE_P2SH_BITPAY = 196  # Unsure
-        cls.SEGWIT_HRP = "tb"
-        cls.HEADERS_URL = "http://bitcoincash.com/files/testnet_headers"
-        cls.GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
-        cls.DEFAULT_PORTS = {'t':'51001', 's':'51002'}
-        cls.DEFAULT_SERVERS = read_json_dict('servers_testnet.json')
-
-
-NetworkConstants.set_mainnet()
 
 ################################## transactions
 
@@ -847,11 +789,11 @@ def _CKD_pub(cK, c, s):
 
 
 def xprv_header(xtype):
-    return bfh("%08x" % XPRV_HEADERS[xtype])
+    return bfh("%08x" % NetworkConstants.XPRV_HEADERS[xtype])
 
 
 def xpub_header(xtype):
-    return bfh("%08x" % XPUB_HEADERS[xtype])
+    return bfh("%08x" % NetworkConstants.XPUB_HEADERS[xtype])
 
 
 def serialize_xprv(xtype, c, k, depth=0, fingerprint=b'\x00'*4, child_number=b'\x00'*4):

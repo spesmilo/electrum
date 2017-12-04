@@ -10,6 +10,7 @@ import threading
 from electroncash.bitcoin import TYPE_ADDRESS
 from electroncash import WalletStorage, Wallet
 from electroncash_gui.kivy.i18n import _
+from electroncash.networks import NetworkConstants
 from electroncash.paymentrequest import InvoiceStore
 from electroncash.util import profiler, InvalidPassword
 from electroncash.plugins import run_hook
@@ -95,7 +96,6 @@ class ElectrumWindow(App):
         from .uix.dialogs.choice_dialog import ChoiceDialog
         protocol = 's'
         def cb2(host):
-            from electroncash.bitcoin import NetworkConstants
             pp = servers.get(host, NetworkConstants.DEFAULT_PORTS)
             port = pp.get(protocol, '')
             popup.ids.host.text = host

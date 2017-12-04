@@ -27,8 +27,8 @@ from collections import namedtuple
 import hashlib
 import struct
 
-from .bitcoin import NetworkConstants
-from .transaction import opcodes
+from .enum import Enumeration
+from .networks import NetworkConstants
 
 _sha256 = hashlib.sha256
 _new_hash = hashlib.new
@@ -81,6 +81,54 @@ class AddressError(Exception):
     '''Exception used for Address errors.'''
 
 
+class PublicKey(namedtuple("PublicKeyTuple", "pubkey")):
+
+    @classmethod
+    def from_pubkey(cls, pubkey):
+        '''Create from a public key expressed as binary bytes.'''
+        cls.validate_pubkey(pubkey)
+        return cls(pubkey)
+
+    @classmethod
+    def from_string(cls, string):
+        '''Create from a hex string.'''
+        return cls.from_pubkey(hex_to_bytes(string))
+
+    @classmethod
+    def validate(cls, pubkey, req_compressed=False):
+        if isinstance(pubkey, (bytes, bytearray)):
+            if len(pubkey) == 33 and pubkey[0] in (2, 3):
+                return  # Compressed
+            if len(pubkey) == 65 and pubkey[0] == 4:
+                if not req_compressed:
+                    return
+                raise AddressError('compressed public keys are required')
+        raise AddressError('invalid pubkey {}'.format(pubkey))
+
+    def to_ui_string(self):
+        '''Convert to a hexadecimal string.'''
+        return self.pubkey.hex()
+
+    def __str__(self):
+        return self.to_ui_string()
+
+    def __repr__(self):
+        return '<PubKey {}>'.format(self.__str__())
+
+
+class ScriptAddress(namedtuple("ScriptAddressTuple", "script")):
+
+    def to_ui_string(self):
+        '''Convert to a hexadecimal string.'''
+        return self.script.hex()
+
+    def __str__(self):
+        return self.to_ui_string()
+
+    def __repr__(self):
+        return '<ScriptAddress {}>'.format(self.__str__())
+
+
 # A namedtuple for easy comparison and unique hashing
 class Address(namedtuple("AddressTuple", "hash160 kind")):
 
@@ -94,12 +142,12 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
     FMT_BITPAY = 2   # Supported temporarily only for compatibility
 
     # At some stage switch to FMT_CASHADDR
-    FMT_STORAGE = FMT_LEGACY
     FMT_UI = FMT_LEGACY
 
     def __new__(cls, hash160, kind):
         assert kind in (cls.ADDR_P2PKH, cls.ADDR_P2SH)
-        assert isinstance(hash160, bytes) and len(hash160) == 20
+        assert isinstance(hash160, (bytes, bytearray))
+        assert len(hash160) == 20
         return super().__new__(cls, hash160, kind)
 
     @classmethod
@@ -129,17 +177,6 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
         return [cls.from_string(string) for string in strings]
 
     @classmethod
-    def validate_pubkey(cls, pubkey, req_compressed=False):
-        if isinstance(pubkey, (bytes, bytearray)):
-            if len(pubkey) == 33 and pubkey[0] in (2, 3):
-                return  # Compressed
-            if len(pubkey) == 65 and pubkey[0] == 4:
-                if not req_compressed:
-                    return
-                raise AddressError('uncompressed pubkeys are invalid')
-        raise AddressError('invalid pubkey {}'.format(pubkey))
-
-    @classmethod
     def from_pubkey(cls, pubkey):
         '''Returns a P2PKH address from a public key.  The public key can
         be bytes or a hex string.'''
@@ -147,6 +184,16 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
             pubkey = hex_to_bytes(pubkey)
         cls.validate_pubkey(pubkey)
         return cls(hash160(pubkey), cls.ADDR_P2PKH)
+
+    @classmethod
+    def from_P2PKH_hash(cls, hash160):
+        '''Construct from a P2PKH hash160.'''
+        return cls(hash160, cls.ADDR_P2PKH)
+
+    @classmethod
+    def from_P2SH_hash(cls, hash160):
+        '''Construct from a P2PKH hash160.'''
+        return cls(hash160, cls.ADDR_P2SH)
 
     @classmethod
     def from_multisig_script(cls, script):
@@ -180,6 +227,10 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
         '''Convert to text in the current UI format choice.'''
         return self.to_string(self.FMT_UI)
 
+    def to_storage_string(self):
+        '''Convert to text in the storage format.'''
+        return self.to_string(self.FMT_LEGACY)
+
     def to_script(self):
         '''Return a binary script to pay to the address.'''
         if self.kind == self.ADDR_P2PKH:
@@ -203,22 +254,45 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
         return self.to_ui_string()
 
     def __repr__(self):
-        return self.__str__()
+        return '<Address {}>'.format(self.__str__())
+
+
+OpCodes = Enumeration("OpCodes", [
+    ("OP_0", 0), ("OP_PUSHDATA1",76), "OP_PUSHDATA2", "OP_PUSHDATA4", "OP_1NEGATE", "OP_RESERVED",
+    "OP_1", "OP_2", "OP_3", "OP_4", "OP_5", "OP_6", "OP_7",
+    "OP_8", "OP_9", "OP_10", "OP_11", "OP_12", "OP_13", "OP_14", "OP_15", "OP_16",
+    "OP_NOP", "OP_VER", "OP_IF", "OP_NOTIF", "OP_VERIF", "OP_VERNOTIF", "OP_ELSE", "OP_ENDIF", "OP_VERIFY",
+    "OP_RETURN", "OP_TOALTSTACK", "OP_FROMALTSTACK", "OP_2DROP", "OP_2DUP", "OP_3DUP", "OP_2OVER", "OP_2ROT", "OP_2SWAP",
+    "OP_IFDUP", "OP_DEPTH", "OP_DROP", "OP_DUP", "OP_NIP", "OP_OVER", "OP_PICK", "OP_ROLL", "OP_ROT",
+    "OP_SWAP", "OP_TUCK", "OP_CAT", "OP_SUBSTR", "OP_LEFT", "OP_RIGHT", "OP_SIZE", "OP_INVERT", "OP_AND",
+    "OP_OR", "OP_XOR", "OP_EQUAL", "OP_EQUALVERIFY", "OP_RESERVED1", "OP_RESERVED2", "OP_1ADD", "OP_1SUB", "OP_2MUL",
+    "OP_2DIV", "OP_NEGATE", "OP_ABS", "OP_NOT", "OP_0NOTEQUAL", "OP_ADD", "OP_SUB", "OP_MUL", "OP_DIV",
+    "OP_MOD", "OP_LSHIFT", "OP_RSHIFT", "OP_BOOLAND", "OP_BOOLOR",
+    "OP_NUMEQUAL", "OP_NUMEQUALVERIFY", "OP_NUMNOTEQUAL", "OP_LESSTHAN",
+    "OP_GREATERTHAN", "OP_LESSTHANOREQUAL", "OP_GREATERTHANOREQUAL", "OP_MIN", "OP_MAX",
+    "OP_WITHIN", "OP_RIPEMD160", "OP_SHA1", "OP_SHA256", "OP_HASH160",
+    "OP_HASH256", "OP_CODESEPARATOR", "OP_CHECKSIG", "OP_CHECKSIGVERIFY", "OP_CHECKMULTISIG",
+    "OP_CHECKMULTISIGVERIFY",
+    ("OP_SINGLEBYTE_END", 0xF0),
+    ("OP_DOUBLEBYTE_BEGIN", 0xF000),
+    "OP_PUBKEY", "OP_PUBKEYHASH",
+    ("OP_INVALIDOPCODE", 0xFFFF),
+])
 
 
 class Script(object):
 
     @classmethod
     def P2SH_script(cls, hash160):
-        return (bytes([opcodes.OP_HASH160])
+        return (bytes([OpCodes.OP_HASH160])
                 + cls.push_data(hash160)
-                + bytes([opcodes.OP_EQUAL]))
+                + bytes([OpCodes.OP_EQUAL]))
 
     @classmethod
     def P2PKH_script(cls, hash160):
-        return (bytes([opcodes.OP_DUP, opcodes.OP_HASH160])
+        return (bytes([OpCodes.OP_DUP, OpCodes.OP_HASH160])
                 + cls.push_data(hash160)
-                + bytes([opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG]))
+                + bytes([OpCodes.OP_EQUALVERIFY, OpCodes.OP_CHECKSIG]))
 
     @classmethod
     def multisig_script(cls, m, pubkeys):
@@ -231,23 +305,23 @@ class Script(object):
             Address.validate_pubkey(pubkey, req_compressed=True)
         # See https://bitcoin.org/en/developer-guide
         # 2 of 3 is: OP_2 pubkey1 pubkey2 pubkey3 OP_3 OP_CHECKMULTISIG
-        return (bytes([opcodes.OP_1 + m - 1])
+        return (bytes([OpCodes.OP_1 + m - 1])
                 + b''.join(cls.push_data(pubkey) for pubkey in pubkeys)
-                + bytes([opcodes.OP_1 + n - 1, opcodes.OP_CHECK_MULTISIG]))
+                + bytes([OpCodes.OP_1 + n - 1, OpCodes.OP_CHECK_MULTISIG]))
 
     @classmethod
     def push_data(cls, data):
-        '''Returns the opcodes to push the data on the stack.'''
+        '''Returns the OpCodes to push the data on the stack.'''
         assert isinstance(data, (bytes, bytearray))
 
         n = len(data)
-        if n < opcodes.OP_PUSHDATA1:
+        if n < OpCodes.OP_PUSHDATA1:
             return bytes([n]) + data
         if n < 256:
-            return bytes([opcodes.OP_PUSHDATA1, n]) + data
+            return bytes([OpCodes.OP_PUSHDATA1, n]) + data
         if n < 65536:
-            return bytes([opcodes.OP_PUSHDATA2]) + struct.pack('<H', n) + data
-        return bytes([opcodes.OP_PUSHDATA4]) + struct.pack('<I', n) + data
+            return bytes([OpCodes.OP_PUSHDATA2]) + struct.pack('<H', n) + data
+        return bytes([OpCodes.OP_PUSHDATA4]) + struct.pack('<I', n) + data
 
 
 class Base58Error(Exception):

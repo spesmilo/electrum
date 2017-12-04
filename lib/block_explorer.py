@@ -22,7 +22,7 @@
 # SOFTWARE.
 
 from .address import Address
-from .bitcoin import NetworkConstants
+from .networks import NetworkConstants
 
 mainnet_block_explorers = {
     'Blockchair.com': ('https://blockchair.com/bitcoin-cash',

@@ -228,8 +228,12 @@ class Abstract_Wallet(PrintError):
 
     @profiler
     def load_transactions(self):
-        self.txi = self.storage.get('txi', {})
-        self.txo = self.storage.get('txo', {})
+        txi = self.storage.get('txi', {})
+        self.txi = {tx_hash: self.to_Address_dict(value)
+                    for tx_hash, value in txi.items()}
+        txo = self.storage.get('txo', {})
+        self.txo = {tx_hash: self.to_Address_dict(value)
+                    for tx_hash, value in txo.items()}
         self.tx_fees = self.storage.get('tx_fees', {})
         self.pruned_txo = self.storage.get('pruned_txo', {})
         tx_list = self.storage.get('transactions', {})
@@ -248,8 +252,12 @@ class Abstract_Wallet(PrintError):
             for k,v in self.transactions.items():
                 tx[k] = str(v)
             self.storage.put('transactions', tx)
-            self.storage.put('txi', self.txi)
-            self.storage.put('txo', self.txo)
+            txi = {tx_hash: self.from_Address_dict(value)
+                   for tx_hash, value in self.txi.items()}
+            txo = {tx_hash: self.from_Address_dict(value)
+                   for tx_hash, value in self.txo.items()}
+            self.storage.put('txi', txi)
+            self.storage.put('txo', txo)
             self.storage.put('tx_fees', self.tx_fees)
             self.storage.put('pruned_txo', self.pruned_txo)
             history = self.from_Address_dict(self._history)
@@ -301,10 +309,11 @@ class Abstract_Wallet(PrintError):
         return os.path.basename(self.storage.path)
 
     def save_addresses(self):
-        fmt = Address.FMT_STORAGE
         addr_dict = {
-            'receiving': Address.to_strings(self.receiving_addrs, fmt),
-            'change': Address.to_strings(self.change_addrs, fmt),
+            'receiving': [addr.to_storage_string()
+                          for addr in self.receiving_addrs],
+            'change': [addr.to_storage_string()
+                       for addr in self.change_addrs],
         }
         self.put('addresses', addr_dict)
 
@@ -452,6 +461,7 @@ class Abstract_Wallet(PrintError):
         return len(self._history.get(address, []))
 
     def get_tx_delta(self, tx_hash, address):
+        assert isinstance(address, Address)
         "effect of tx on address"
         # pruned
         if tx_hash in self.pruned_txo.values():
@@ -477,6 +487,7 @@ class Abstract_Wallet(PrintError):
         v_in = v_out = v_out_mine = 0
         for item in tx.inputs():
             addr = item.get('address')
+            assert isinstance(addr, Address)
             if addr in addresses:
                 is_mine = True
                 is_relevant = True
@@ -683,6 +694,7 @@ class Abstract_Wallet(PrintError):
             self.txi[tx_hash] = d = {}
             for txi in tx.inputs():
                 addr = txi.get('address')
+                assert isinstance(addr, Address)
                 if txi['type'] != 'coinbase':
                     prevout_hash = txi['prevout_hash']
                     prevout_n = txi['prevout_n']
@@ -844,7 +856,7 @@ class Abstract_Wallet(PrintError):
             d = self.txo.get(tx_hash, {})
             labels = []
             for addr in d.keys():
-                label = self.labels.get(addr)
+                label = self.labels.get(addr.to_storage_string())
                 if label:
                     labels.append(label)
             return ', '.join(labels)

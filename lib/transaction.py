@@ -30,6 +30,7 @@
 from .util import print_error, profiler
 
 from . import bitcoin
+from .address import PublicKey, Address, ScriptAddress, OpCodes as opcodes
 from .bitcoin import *
 import struct
 
@@ -151,47 +152,6 @@ class BCDataStream(object):
         self.write(s)
 
 
-# enum-like type
-# From the Python Cookbook, downloaded from http://code.activestate.com/recipes/67107/
-class EnumException(Exception):
-    pass
-
-
-class Enumeration:
-    def __init__(self, name, enumList):
-        self.__doc__ = name
-        lookup = { }
-        reverseLookup = { }
-        i = 0
-        uniqueNames = [ ]
-        uniqueValues = [ ]
-        for x in enumList:
-            if isinstance(x, tuple):
-                x, i = x
-            if not isinstance(x, str):
-                raise EnumException("enum name is not a string: " + x)
-            if not isinstance(i, int):
-                raise EnumException("enum value is not an integer: " + i)
-            if x in uniqueNames:
-                raise EnumException("enum name is not unique: " + x)
-            if i in uniqueValues:
-                raise EnumException("enum value is not unique for " + x)
-            uniqueNames.append(x)
-            uniqueValues.append(i)
-            lookup[x] = i
-            reverseLookup[i] = x
-            i = i + 1
-        self.lookup = lookup
-        self.reverseLookup = reverseLookup
-
-    def __getattr__(self, attr):
-        if attr not in self.lookup:
-            raise AttributeError
-        return self.lookup[attr]
-    def whatis(self, value):
-        return self.reverseLookup[value]
-
-
 # This function comes from bitcointools, bct-LICENSE.txt.
 def long_hex(bytes):
     return bytes.encode('hex_codec')
@@ -202,30 +162,6 @@ def short_hex(bytes):
     if len(t) < 11:
         return t
     return t[0:4]+"..."+t[-4:]
-
-
-
-opcodes = Enumeration("Opcodes", [
-    ("OP_0", 0), ("OP_PUSHDATA1",76), "OP_PUSHDATA2", "OP_PUSHDATA4", "OP_1NEGATE", "OP_RESERVED",
-    "OP_1", "OP_2", "OP_3", "OP_4", "OP_5", "OP_6", "OP_7",
-    "OP_8", "OP_9", "OP_10", "OP_11", "OP_12", "OP_13", "OP_14", "OP_15", "OP_16",
-    "OP_NOP", "OP_VER", "OP_IF", "OP_NOTIF", "OP_VERIF", "OP_VERNOTIF", "OP_ELSE", "OP_ENDIF", "OP_VERIFY",
-    "OP_RETURN", "OP_TOALTSTACK", "OP_FROMALTSTACK", "OP_2DROP", "OP_2DUP", "OP_3DUP", "OP_2OVER", "OP_2ROT", "OP_2SWAP",
-    "OP_IFDUP", "OP_DEPTH", "OP_DROP", "OP_DUP", "OP_NIP", "OP_OVER", "OP_PICK", "OP_ROLL", "OP_ROT",
-    "OP_SWAP", "OP_TUCK", "OP_CAT", "OP_SUBSTR", "OP_LEFT", "OP_RIGHT", "OP_SIZE", "OP_INVERT", "OP_AND",
-    "OP_OR", "OP_XOR", "OP_EQUAL", "OP_EQUALVERIFY", "OP_RESERVED1", "OP_RESERVED2", "OP_1ADD", "OP_1SUB", "OP_2MUL",
-    "OP_2DIV", "OP_NEGATE", "OP_ABS", "OP_NOT", "OP_0NOTEQUAL", "OP_ADD", "OP_SUB", "OP_MUL", "OP_DIV",
-    "OP_MOD", "OP_LSHIFT", "OP_RSHIFT", "OP_BOOLAND", "OP_BOOLOR",
-    "OP_NUMEQUAL", "OP_NUMEQUALVERIFY", "OP_NUMNOTEQUAL", "OP_LESSTHAN",
-    "OP_GREATERTHAN", "OP_LESSTHANOREQUAL", "OP_GREATERTHANOREQUAL", "OP_MIN", "OP_MAX",
-    "OP_WITHIN", "OP_RIPEMD160", "OP_SHA1", "OP_SHA256", "OP_HASH160",
-    "OP_HASH256", "OP_CODESEPARATOR", "OP_CHECKSIG", "OP_CHECKSIGVERIFY", "OP_CHECKMULTISIG",
-    "OP_CHECKMULTISIGVERIFY",
-    ("OP_SINGLEBYTE_END", 0xF0),
-    ("OP_DOUBLEBYTE_BEGIN", 0xF000),
-    "OP_PUBKEY", "OP_PUBKEYHASH",
-    ("OP_INVALIDOPCODE", 0xFFFF),
-])
 
 
 def script_GetOp(_bytes):
@@ -294,7 +230,7 @@ def safe_parse_pubkey(x):
 
 def parse_scriptSig(d, _bytes):
     try:
-        decoded = [ x for x in script_GetOp(_bytes) ]
+        decoded = list(script_GetOp(_bytes))
     except Exception as e:
         # coinbase transactions raise an exception
         print_error("cannot find address in input script", bh2u(_bytes))
@@ -305,7 +241,7 @@ def parse_scriptSig(d, _bytes):
         item = decoded[0][1]
         # payto_pubkey
         d['type'] = 'p2pk'
-        d['address'] = "(pubkey)"
+        d['address'] = PublicKey.from_pubkey(item)
         d['signatures'] = [bh2u(item)]
         d['num_sig'] = 1
         d['x_pubkeys'] = ["(pubkey)"]
@@ -321,7 +257,7 @@ def parse_scriptSig(d, _bytes):
         x_pubkey = bh2u(decoded[1][1])
         try:
             signatures = parse_sig([sig])
-            pubkey, address = xpubkey_to_address(x_pubkey)
+            pubkey, address = Address.from_pubkey(decoded[1][1])
         except:
             print_error("cannot find address in input script", bh2u(_bytes))
             return
@@ -347,7 +283,7 @@ def parse_scriptSig(d, _bytes):
     d['x_pubkeys'] = x_pubkeys
     d['pubkeys'] = pubkeys
     d['redeemScript'] = redeemScript
-    d['address'] = hash160_to_p2sh(hash_160(bfh(redeemScript)))
+    d['address'] = Address.from_P2SH_hash(decoded[1][1])
 
 
 def parse_redeemScript(s):
@@ -372,20 +308,20 @@ def get_address_from_output_script(_bytes):
     # 65 BYTES:... CHECKSIG
     match = [ opcodes.OP_PUSHDATA4, opcodes.OP_CHECKSIG ]
     if match_decoded(decoded, match):
-        return TYPE_PUBKEY, bh2u(decoded[0][1])
+        return TYPE_PUBKEY, PublicKey.from_pubkey(decoded[0][1])
 
     # Pay-by-Bitcoin-address TxOuts look like:
     # DUP HASH160 20 BYTES:... EQUALVERIFY CHECKSIG
     match = [ opcodes.OP_DUP, opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG ]
     if match_decoded(decoded, match):
-        return TYPE_ADDRESS, hash160_to_p2pkh(decoded[2][1])
+        return TYPE_ADDRESS, Address.from_P2PKH_hash(decoded[2][1])
 
     # p2sh
     match = [ opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUAL ]
     if match_decoded(decoded, match):
-        return TYPE_ADDRESS, hash160_to_p2sh(decoded[1][1])
+        return TYPE_ADDRESS, Address.from_P2PKH_hash(decoded[1][1])
 
-    return TYPE_SCRIPT, bh2u(_bytes)
+    return TYPE_SCRIPT, ScriptAddress(_bytes)
 
 
 def parse_input(vds):
@@ -407,11 +343,8 @@ def parse_input(vds):
         d['address'] = None
         d['type'] = 'unknown'
         d['num_sig'] = 0
-        if scriptSig:
-            d['scriptSig'] = bh2u(scriptSig)
-            parse_scriptSig(d, scriptSig)
-        else:
-            d['scriptSig'] = ''
+        d['scriptSig'] = bh2u(scriptSig)
+        parse_scriptSig(d, scriptSig)
 
         if not Transaction.is_txin_complete(d):
             d['value'] = vds.read_uint64()

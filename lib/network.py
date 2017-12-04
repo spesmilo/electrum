@@ -38,6 +38,7 @@ import socks
 from . import util
 from . import bitcoin
 from .bitcoin import *
+from .networks import NetworkConstants
 from .interface import Connection, Interface
 from . import blockchain
 from .version import ELECTRUM_VERSION, PROTOCOL_VERSION

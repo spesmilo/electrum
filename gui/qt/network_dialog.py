@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import *
 import PyQt5.QtCore as QtCore
 
 from electroncash.i18n import _
-from electroncash.bitcoin import NetworkConstants
+from electroncash.networks import NetworkConstants
 from electroncash.util import print_error
 
 from .util import *
