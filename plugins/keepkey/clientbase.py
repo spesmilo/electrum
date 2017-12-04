@@ -83,7 +83,7 @@ class GuiMixin(object):
         return self.proto.CharacterAck(**char_info)
 
 
-class TrezorClientBase(GuiMixin, PrintError):
+class KeepKeyClientBase(GuiMixin, PrintError):
 
     def __init__(self, handler, plugin, proto):
         assert hasattr(self, 'tx_api')  # ProtocolMixin already constructed?
@@ -184,7 +184,7 @@ class TrezorClientBase(GuiMixin, PrintError):
         self.print_error("clear session:", self)
         self.prevent_timeouts()
         try:
-            super(TrezorClientBase, self).clear_session()
+            super(KeepKeyClientBase, self).clear_session()
         except BaseException as e:
             # If the device was removed it has the same effect...
             self.print_error("clear_session: ignoring error", str(e))
@@ -192,7 +192,7 @@ class TrezorClientBase(GuiMixin, PrintError):
 
     def get_public_node(self, address_n, creating):
         self.creating_wallet = creating
-        return super(TrezorClientBase, self).get_public_node(address_n)
+        return super(KeepKeyClientBase, self).get_public_node(address_n)
 
     def close(self):
         '''Called when Our wallet was closed or the device removed.'''
