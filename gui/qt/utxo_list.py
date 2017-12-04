@@ -38,7 +38,6 @@ class UTXOList(MyTreeWidget):
 
     def on_update(self):
         self.wallet = self.parent.wallet
-        item = self.currentItem()
         self.clear()
         self.utxos = self.wallet.get_utxos()
         for x in self.utxos:

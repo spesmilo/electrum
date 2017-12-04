@@ -86,7 +86,7 @@ class PublicKey(namedtuple("PublicKeyTuple", "pubkey")):
     @classmethod
     def from_pubkey(cls, pubkey):
         '''Create from a public key expressed as binary bytes.'''
-        cls.validate_pubkey(pubkey)
+        cls.validate(pubkey)
         return cls(pubkey)
 
     @classmethod
@@ -192,7 +192,7 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
         be bytes or a hex string.'''
         if isinstance(pubkey, str):
             pubkey = hex_to_bytes(pubkey)
-        PublicKey.validate_pubkey(pubkey)
+        PublicKey.validate(pubkey)
         return cls(hash160(pubkey), cls.ADDR_P2PKH)
 
     @classmethod
@@ -316,7 +316,7 @@ class Script(object):
             raise ScriptError('{:d} of {:d} multisig script not possible'
                               .format(m, n))
         for pubkey in pubkeys:
-            PublicKey.validate_pubkey(pubkey, req_compressed=True)
+            PublicKey.validate(pubkey, req_compressed=True)
         # See https://bitcoin.org/en/developer-guide
         # 2 of 3 is: OP_2 pubkey1 pubkey2 pubkey3 OP_3 OP_CHECKMULTISIG
         return (bytes([OpCodes.OP_1 + m - 1])

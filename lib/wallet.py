@@ -378,12 +378,7 @@ class Abstract_Wallet(PrintError):
             return []
         index = self.get_address_index(address)
         pk, compressed = self.keystore.get_private_key(index, password)
-        if self.txin_type in ['p2sh']:
-            pubkeys = self.get_public_keys(address)
-            redeem_script = self.pubkeys_to_redeem_script(pubkeys)
-        else:
-            redeem_script = None
-        return bitcoin.serialize_privkey(pk, compressed, self.txin_type), redeem_script
+        return bitcoin.serialize_privkey(pk, compressed, self.txin_type)
 
 
     def get_public_keys(self, address):
@@ -1282,7 +1277,7 @@ class Abstract_Wallet(PrintError):
 
     def sign_payment_request(self, key, alias, alias_addr, password):
         req = self.receive_requests.get(key)
-        alias_privkey = self.export_private_key(alias_addr, password)[0]
+        alias_privkey = self.export_private_key(alias_addr, password)
         pr = paymentrequest.make_unsigned_request(req)
         paymentrequest.sign_request_with_alias(pr, alias, alias_privkey)
         req['name'] = pr.pki_data
@@ -1558,9 +1553,8 @@ class Imported_Wallet(Simple_Wallet):
     def export_private_key(self, address, password):
         d = self.addresses[address]
         pubkey = d['pubkey']
-        redeem_script = d['redeem_script']
         sec = pw_decode(self.keystore.keypairs[pubkey], password)
-        return sec, redeem_script
+        return sec
 
     def get_txin_type(self, address):
         return self.addresses[address].get('type', 'address')

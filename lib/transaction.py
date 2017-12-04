@@ -229,12 +229,16 @@ def safe_parse_pubkey(x):
         return x
 
 def parse_scriptSig(d, _bytes):
+    import sys
     try:
         decoded = list(script_GetOp(_bytes))
     except Exception as e:
         # coinbase transactions raise an exception
+        print("Coinbase", file=sys.stdout)
         print_error("cannot find address in input script", bh2u(_bytes))
         return
+
+    print("DECODED:", decoded, file=sys.stdout)
 
     match = [ opcodes.OP_PUSHDATA4 ]
     if match_decoded(decoded, match):
@@ -254,10 +258,11 @@ def parse_scriptSig(d, _bytes):
     match = [ opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4 ]
     if match_decoded(decoded, match):
         sig = bh2u(decoded[0][1])
-        x_pubkey = bh2u(decoded[1][1])
+        pubkey = decoded[1][1]
+        x_pubkey = pubkey.hex()
         try:
             signatures = parse_sig([sig])
-            pubkey, address = Address.from_pubkey(decoded[1][1])
+            address = Address.from_pubkey(pubkey)
         except:
             print_error("cannot find address in input script", bh2u(_bytes))
             return
@@ -265,13 +270,14 @@ def parse_scriptSig(d, _bytes):
         d['signatures'] = signatures
         d['x_pubkeys'] = [x_pubkey]
         d['num_sig'] = 1
-        d['pubkeys'] = [pubkey]
+        d['pubkeys'] = [x_pubkey]
         d['address'] = address
         return
 
     # p2sh transaction, m of n
     match = [ opcodes.OP_0 ] + [ opcodes.OP_PUSHDATA4 ] * (len(decoded) - 1)
     if not match_decoded(decoded, match):
+        print("Fail3", file=sys.stdout)
         print_error("cannot find address in input script", bh2u(_bytes))
         return
     x_sig = [bh2u(x[1]) for x in decoded[1:-1]]

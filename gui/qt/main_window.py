@@ -40,6 +40,7 @@ from PyQt5.QtWidgets import *
 from electroncash.util import bh2u, bfh
 
 from electroncash import keystore
+from electroncash.address import Address
 from electroncash.bitcoin import COIN, is_address, TYPE_ADDRESS
 from electroncash.plugins import run_hook
 from electroncash.i18n import _
@@ -1217,8 +1218,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.from_list.setHidden(len(self.pay_from) == 0)
 
         def format(x):
-            h = x.get('prevout_hash')
-            return h[0:10] + '...' + h[-10:] + ":%d"%x.get('prevout_n') + u'\t' + "%s"%x.get('address')
+            h = x['prevout_hash']
+            return '{}...{}:{:d}\t{}'.format(h[0:10], h[-10:],
+                                             x['prevout_n'], x['address'])
 
         for item in self.pay_from:
             self.from_list.addTopLevelItem(QTreeWidgetItem( [format(item), self.format_amount(item['value']) ]))
@@ -1873,7 +1875,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not address:
             return
         try:
-            pk, redeem_script = self.wallet.export_private_key(address, password)
+            pk = self.wallet.export_private_key(address, password)
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
@@ -1882,17 +1884,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d = WindowModalDialog(self, _("Private key"))
         d.setMinimumSize(600, 150)
         vbox = QVBoxLayout()
-        vbox.addWidget(QLabel(_("Address") + ': ' + address))
+        vbox.addWidget(QLabel('{}: {}'.format(_("Address"), address)))
         vbox.addWidget(QLabel(_("Script type") + ': ' + xtype))
         vbox.addWidget(QLabel(_("Private key") + ':'))
         keys_e = ShowQRTextEdit(text=pk)
         keys_e.addCopyButton(self.app)
         vbox.addWidget(keys_e)
-        if redeem_script:
-            vbox.addWidget(QLabel(_("Redeem Script") + ':'))
-            rds_e = ShowQRTextEdit(text=redeem_script)
-            rds_e.addCopyButton(self.app)
-            vbox.addWidget(rds_e)
+        vbox.addWidget(QLabel(_("Redeem Script") + ':'))
+        rds_e = ShowQRTextEdit(text=address.to_script().hex())
+        rds_e.addCopyButton(self.app)
+        vbox.addWidget(rds_e)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
         d.exec_()
@@ -1906,17 +1907,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def do_sign(self, address, message, signature, password):
         address  = address.text().strip()
         message = message.toPlainText().strip()
-        if not bitcoin.is_address(address):
+        try:
+            addr = Address.from_string(address)
+        except:
             self.show_message('Invalid Bitcoin Cash address.')
             return
-        txin_type = self.wallet.get_txin_type(address)
-        if txin_type not in ['p2pkh']:
+        if addr.kind != addr.ADDR_P2PKH:
             self.show_message('Cannot sign messages with this type of address.' + '\n\n' + self.msg_sign)
             return
-        if not self.wallet.is_mine(address):
+        if not self.wallet.is_mine(addr):
             self.show_message('Address not in wallet.')
             return
-        task = partial(self.wallet.sign_message, address, message, password)
+        task = partial(self.wallet.sign_message, addr, message, password)
 
         def show_signed_message(sig):
             signature.setText(base64.b64encode(sig).decode('ascii'))
@@ -1939,7 +1941,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         else:
             self.show_error(_("Wrong signature"))
 
-    def sign_verify_message(self, address=''):
+    def sign_verify_message(self, address=None):
         d = WindowModalDialog(self, _('Sign/verify Message'))
         d.setMinimumSize(610, 290)
 
@@ -1951,7 +1953,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         layout.setRowStretch(2,3)
 
         address_e = QLineEdit()
-        address_e.setText(address)
+        address_e.setText(address.to_ui_string() if address else '')
         layout.addWidget(QLabel(_('Address')), 2, 0)
         layout.addWidget(address_e, 2, 1)
 
@@ -1992,7 +1994,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             traceback.print_exc(file=sys.stdout)
             self.show_warning(str(e))
 
-    def encrypt_message(self, address=''):
+    def encrypt_message(self, address=None):
         d = WindowModalDialog(self, _('Encrypt/decrypt Message'))
         d.setMinimumSize(610, 490)
 
@@ -2165,7 +2167,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 time.sleep(0.1)
                 if done:
                     break
-                privkey = self.wallet.export_private_key(addr, password)[0]
+                privkey = self.wallet.export_private_key(addr, password)
                 private_keys[addr] = privkey
                 self.computing_privkeys_signal.emit()
             self.computing_privkeys_signal.disconnect()

@@ -84,7 +84,7 @@ class AddressList(MyTreeWidget):
                     used_item.addChild(address_item)
                 else:
                     seq_item.addChild(address_item)
-                if text == current_address:
+                if address == current_address:
                     self.setCurrentItem(address_item)
 
     def create_menu(self, position):

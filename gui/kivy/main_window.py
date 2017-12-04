@@ -949,6 +949,6 @@ class ElectrumWindow(App):
         def show_private_key(addr, pk_label, password):
             if self.wallet.has_password() and password is None:
                 return
-            key = str(self.wallet.export_private_key(addr, password)[0])
+            key = self.wallet.export_private_key(addr, password)
             pk_label.data = key
         self.protected(_("Enter your PIN code in order to decrypt your private key"), show_private_key, (addr, pk_label))

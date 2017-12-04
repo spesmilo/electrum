@@ -815,7 +815,7 @@ def deserialize_xkey(xkey, prv):
     child_number = xkey[9:13]
     c = xkey[13:13+32]
     header = int('0x' + bh2u(xkey[0:4]), 16)
-    headers = XPRV_HEADERS if prv else XPUB_HEADERS
+    headers = NetworkConstants.XPRV_HEADERS if prv else NetworkConstants.XPUB_HEADERS
     if header not in headers.values():
         raise BaseException('Invalid xpub format', hex(header))
     xtype = list(headers.keys())[list(headers.values()).index(header)]
