@@ -169,26 +169,14 @@ class KeepKeyCompatiblePlugin(HW_PluginBase):
     def _initialize_device(self, settings, method, device_id, wizard, handler):
         item, label, pin_protection, passphrase_protection = settings
 
-        if method == TIM_RECOVER and self.device == 'TREZOR':
-            # Warn user about firmware lameness
-            handler.show_error(_(
-                "You will be asked to enter 24 words regardless of your "
-                "seed's actual length.  If you enter a word incorrectly or "
-                "misspell it, you cannot change it or go back - you will need "
-                "to start again from the beginning.\n\nSo please enter "
-                "the words carefully!"))
-
         language = 'english'
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)
 
         if method == TIM_NEW:
             strength = 64 * (item + 2)  # 128, 192 or 256
-            args = [True, strength, passphrase_protection,
-                    pin_protection, label, language]
-            if self.device == 'TREZOR':
-                args.extend([0, False])  # u2f_counter, skip_backup
-            client.reset_device(*args)
+            client.reset_device(True, strength, passphrase_protection,
+                                pin_protection, label, language)
         elif method == TIM_RECOVER:
             word_count = 6 * (item + 2)  # 12, 18 or 24
             client.step = 0

@@ -168,8 +168,9 @@ class TrezorCompatiblePlugin(HW_PluginBase):
     def _initialize_device(self, settings, method, device_id, wizard, handler):
         item, label, pin_protection, passphrase_protection = settings
 
-        if method == TIM_RECOVER and self.device == 'TREZOR':
-            # Warn user about firmware lameness
+        if method == TIM_RECOVER:
+            # FIXME the PIN prompt will appear over this message
+            # which makes this unreadable
             handler.show_error(_(
                 "You will be asked to enter 24 words regardless of your "
                 "seed's actual length.  If you enter a word incorrectly or "
@@ -183,11 +184,11 @@ class TrezorCompatiblePlugin(HW_PluginBase):
 
         if method == TIM_NEW:
             strength = 64 * (item + 2)  # 128, 192 or 256
-            args = [True, strength, passphrase_protection,
-                    pin_protection, label, language]
-            if self.device == 'TREZOR':
-                args.extend([0, False])  # u2f_counter, skip_backup
-            client.reset_device(*args)
+            u2f_counter = 0
+            skip_backup = False
+            client.reset_device(True, strength, passphrase_protection,
+                                pin_protection, label, language,
+                                u2f_counter, skip_backup)
         elif method == TIM_RECOVER:
             word_count = 6 * (item + 2)  # 12, 18 or 24
             client.step = 0
