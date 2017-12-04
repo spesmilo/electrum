@@ -24,13 +24,15 @@
 import os
 import sys
 import threading
-import traceback
+
 
 from . import util
 from .networks import (NetworkConstants, BITCOIN_CASH_FORK_BLOCK_HEIGHT,
                        BITCOIN_CASH_FORK_BLOCK_HASH)
 from .bitcoin import *
 
+class VerifyError:
+    pass
 
 def bits_to_work(bits):
     return (1 << 256) // (bits_to_target(bits) + 1)
@@ -189,17 +191,17 @@ class Blockchain(util.PrintError):
         prev_hash = hash_header(prev_header)
         _hash = hash_header(header)
         if prev_hash != header.get('prev_block_hash'):
-            raise BaseException("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
+            raise VerifyError("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
         # checkpoint BitcoinCash fork block
         if ( header.get('block_height') == BITCOIN_CASH_FORK_BLOCK_HEIGHT and hash_header(header) != BITCOIN_CASH_FORK_BLOCK_HASH ):
             err_str = "block at height %i is not cash chain fork block. hash %s" % (header.get('block_height'), hash_header(header))
             self.print_error(err_str)
-            raise BaseException(err_str)
+            raise VerifyError(err_str)
         if bits != header.get('bits'):
-            raise BaseException("bits mismatch: %s vs %s" % (bits, header.get('bits')))
+            raise VerifyError("bits mismatch: %s vs %s" % (bits, header.get('bits')))
         target = bits_to_target(bits)
         if int('0x' + _hash, 16) > target:
-            raise BaseException("insufficient proof of work: %s vs target %s" % (int('0x' + _hash, 16), target))
+            raise VerifyError("insufficient proof of work: %s vs target %s" % (int('0x' + _hash, 16), target))
 
     def verify_chunk(self, index, data):
         self.cur_chunk = data
@@ -442,10 +444,9 @@ class Blockchain(util.PrintError):
         bits = self.get_bits(header)
         try:
             self.verify_header(header, previous_header, bits)
-        except:
-            traceback.print_exc()
-            self.print_error('verify header {} failed at height {:d}'
-                             .format(hash_header(header), height))
+        except VerifyError as e:
+            self.print_error('verify header {} failed at height {:d}: {}'
+                             .format(hash_header(header), height, e))
             return False
         return True
 
@@ -455,6 +456,6 @@ class Blockchain(util.PrintError):
             self.verify_chunk(idx, data)
             self.save_chunk(idx, data)
             return True
-        except BaseException as e:
-            self.print_error('verify_chunk failed', str(e))
+        except VerifyError as e:
+            self.print_error('verify_chunk failed: {}'.format(e))
             return False
