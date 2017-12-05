@@ -4,8 +4,9 @@ from binascii import hexlify, unhexlify
 
 from electroncash.util import bfh, bh2u
 from electroncash.bitcoin import (b58_address_to_hash160, xpub_from_pubkey,
-                              TYPE_ADDRESS, TYPE_SCRIPT, NetworkConstants)
+                              TYPE_ADDRESS, TYPE_SCRIPT)
 from electroncash.i18n import _
+from electroncash.networks import NetworkConstants
 from electroncash.plugins import BasePlugin
 from electroncash.transaction import deserialize
 from electroncash.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey

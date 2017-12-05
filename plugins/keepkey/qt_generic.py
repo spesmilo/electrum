@@ -221,7 +221,7 @@ class QtPlugin(QtPluginBase):
             hbox1 = QHBoxLayout()
             gb.setLayout(hbox1)
             # KeepKey recovery doesn't need a word count
-            if method == TIM_NEW or self.device == 'TREZOR':
+            if method == TIM_NEW:
                 vbox.addWidget(gb)
             gb.setTitle(_("Select your seed length:"))
             bg = QButtonGroup()
