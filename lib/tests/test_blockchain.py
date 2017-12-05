@@ -56,11 +56,11 @@ class TestBlockchain(unittest.TestCase):
             'block_height': 0
         }
         blocks = [first]
-        chunk = bc.serialize_header(first).decode('hex')
+        chunk = bytes.fromhex(bc.serialize_header(first))
         for n in range(1, 1000):
             block = get_block(blocks[-1], 600, first['bits'])
             blocks.append(block)
-            chunk += bc.serialize_header(block).decode('hex')
+            chunk += bytes.fromhex(bc.serialize_header(block))
 
         chain = MyBlockchain()
 
@@ -68,7 +68,7 @@ class TestBlockchain(unittest.TestCase):
         for n in range(11):
             block = get_block(blocks[-1], 2 * 3600, first['bits'])
             blocks.append(block)
-            chunk += bc.serialize_header(block).decode('hex')
+            chunk += bytes.fromhex(bc.serialize_header(block))
             chain.cur_chunk = chunk
             self.assertEqual(chain.get_bits(block),
                              first['bits'])

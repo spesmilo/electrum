@@ -413,8 +413,7 @@ def parse_input(vds):
         else:
             d['scriptSig'] = ''
 
-        is_complete = Transaction.is_txin_complete(d)
-        if not is_complete:
+        if not Transaction.is_txin_complete(d):
             d['value'] = vds.read_uint64()
     return d
 
@@ -436,6 +435,7 @@ def deserialize(raw):
     start = vds.read_cursor
     d['version'] = vds.read_int32()
     n_vin = vds.read_compact_size()
+    assert n_vin != 0
     d['inputs'] = [parse_input(vds) for i in range(n_vin)]
     n_vout = vds.read_compact_size()
     d['outputs'] = [parse_output(vds, i) for i in range(n_vout)]
@@ -675,11 +675,9 @@ class Transaction:
         s += script
         s += int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
         # offline signing needs to know the input value
-        if self.is_txin_complete(txin) or estimate_size:
-            value_field = ''
-        else:
-            value_field = int_to_hex(txin['value'], 8)
-        s += value_field
+        if ('value' in txin   # Legacy txs
+            and not (estimate_size or self.is_txin_complete(txin))):
+            s += int_to_hex(txin['value'], 8)
         return s
 
     def BIP_LI01_sort(self):

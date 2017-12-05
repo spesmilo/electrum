@@ -2,7 +2,6 @@ import threading
 
 from binascii import hexlify, unhexlify
 
-<<<<<<< HEAD
 from electroncash.util import bfh, bh2u
 from electroncash.bitcoin import (b58_address_to_hash160, xpub_from_pubkey,
                               TYPE_ADDRESS, TYPE_SCRIPT, NetworkConstants)
@@ -10,15 +9,6 @@ from electroncash.i18n import _
 from electroncash.plugins import BasePlugin
 from electroncash.transaction import deserialize
 from electroncash.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
-=======
-from electrum.util import bfh, bh2u
-from electrum.bitcoin import (b58_address_to_hash160, xpub_from_pubkey,
-                              TYPE_ADDRESS, TYPE_SCRIPT, NetworkConstants)
-from electrum.i18n import _
-from electrum.plugins import BasePlugin
-from electrum.transaction import deserialize
-from electrum.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
->>>>>>> 1359fac4... trezor/keepkey separation: tx output type
 
 from ..hw_wallet import HW_PluginBase
 

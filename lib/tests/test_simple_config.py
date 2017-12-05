@@ -20,7 +20,7 @@ class Test_SimpleConfig(unittest.TestCase):
         # for development machines with electrum installed :)
         self.user_dir = tempfile.mkdtemp()
 
-        self.options = {"electrum_path": self.electrum_dir}
+        self.options = {"electron_cash_path": self.electrum_dir}
         self._saved_stdout = sys.stdout
         self._stdout_buffer = StringIO()
         sys.stdout = self._stdout_buffer
@@ -57,26 +57,26 @@ class Test_SimpleConfig(unittest.TestCase):
     def test_simple_config_command_line_overrides_everything(self):
         """Options passed by command line override all other configuration
         sources"""
-        fake_read_system = lambda : {"electrum_path": "a"}
-        fake_read_user = lambda _: {"electrum_path": "b"}
+        fake_read_system = lambda : {"electron_cash_path": "a"}
+        fake_read_user = lambda _: {"electron_cash_path": "b"}
         read_user_dir = lambda : self.user_dir
         config = SimpleConfig(options=self.options,
                               read_system_config_function=fake_read_system,
                               read_user_config_function=fake_read_user,
                               read_user_dir_function=read_user_dir)
-        self.assertEqual(self.options.get("electrum_path"),
-                         config.get("electrum_path"))
+        self.assertEqual(self.options.get("electron_cash_path"),
+                         config.get("electron_cash_path"))
 
     def test_simple_config_user_config_overrides_system_config(self):
         """Options passed in user config override system config."""
-        fake_read_system = lambda : {"electrum_path": self.electrum_dir}
-        fake_read_user = lambda _: {"electrum_path": "b"}
+        fake_read_system = lambda : {"electron_cash_path": self.electrum_dir}
+        fake_read_user = lambda _: {"electron_cash_path": "b"}
         read_user_dir = lambda : self.user_dir
         config = SimpleConfig(options={},
                               read_system_config_function=fake_read_system,
                               read_user_config_function=fake_read_user,
                               read_user_dir_function=read_user_dir)
-        self.assertEqual("b", config.get("electrum_path"))
+        self.assertEqual("b", config.get("electron_cash_path"))
 
     def test_simple_config_system_config_ignored_if_portable(self):
         """If electrum is started with the "portable" flag, system
@@ -94,63 +94,63 @@ class Test_SimpleConfig(unittest.TestCase):
         """If no system-wide configuration and no command-line options are
         specified, the user configuration is used instead."""
         fake_read_system = lambda : {}
-        fake_read_user = lambda _: {"electrum_path": self.electrum_dir}
+        fake_read_user = lambda _: {"electron_cash_path": self.electrum_dir}
         read_user_dir = lambda : self.user_dir
         config = SimpleConfig(options={},
                               read_system_config_function=fake_read_system,
                               read_user_config_function=fake_read_user,
                               read_user_dir_function=read_user_dir)
-        self.assertEqual(self.options.get("electrum_path"),
-                         config.get("electrum_path"))
+        self.assertEqual(self.options.get("electron_cash_path"),
+                         config.get("electron_cash_path"))
 
     def test_cannot_set_options_passed_by_command_line(self):
         fake_read_system = lambda : {}
-        fake_read_user = lambda _: {"electrum_path": "b"}
+        fake_read_user = lambda _: {"electron_cash_path": "b"}
         read_user_dir = lambda : self.user_dir
         config = SimpleConfig(options=self.options,
                               read_system_config_function=fake_read_system,
                               read_user_config_function=fake_read_user,
                               read_user_dir_function=read_user_dir)
-        config.set_key("electrum_path", "c")
-        self.assertEqual(self.options.get("electrum_path"),
-                         config.get("electrum_path"))
+        config.set_key("electron_cash_path", "c")
+        self.assertEqual(self.options.get("electron_cash_path"),
+                         config.get("electron_cash_path"))
 
     def test_can_set_options_from_system_config(self):
-        fake_read_system = lambda : {"electrum_path": self.electrum_dir}
+        fake_read_system = lambda : {"electron_cash_path": self.electrum_dir}
         fake_read_user = lambda _: {}
         read_user_dir = lambda : self.user_dir
         config = SimpleConfig(options={},
                               read_system_config_function=fake_read_system,
                               read_user_config_function=fake_read_user,
                               read_user_dir_function=read_user_dir)
-        config.set_key("electrum_path", "c")
-        self.assertEqual("c", config.get("electrum_path"))
+        config.set_key("electron_cash_path", "c")
+        self.assertEqual("c", config.get("electron_cash_path"))
 
     def test_can_set_options_set_in_user_config(self):
         another_path = tempfile.mkdtemp()
         fake_read_system = lambda : {}
-        fake_read_user = lambda _: {"electrum_path": self.electrum_dir}
+        fake_read_user = lambda _: {"electron_cash_path": self.electrum_dir}
         read_user_dir = lambda : self.user_dir
         config = SimpleConfig(options={},
                               read_system_config_function=fake_read_system,
                               read_user_config_function=fake_read_user,
                               read_user_dir_function=read_user_dir)
-        config.set_key("electrum_path", another_path)
-        self.assertEqual(another_path, config.get("electrum_path"))
+        config.set_key("electron_cash_path", another_path)
+        self.assertEqual(another_path, config.get("electron_cash_path"))
 
     def test_can_set_options_from_system_config_if_portable(self):
         """If the "portable" flag is set, the user can overwrite system
         configuration options."""
         another_path = tempfile.mkdtemp()
-        fake_read_system = lambda : {"electrum_path": self.electrum_dir}
+        fake_read_system = lambda : {"electron_cash_path": self.electrum_dir}
         fake_read_user = lambda _: {}
         read_user_dir = lambda : self.user_dir
         config = SimpleConfig(options={"portable": True},
                               read_system_config_function=fake_read_system,
                               read_user_config_function=fake_read_user,
                               read_user_dir_function=read_user_dir)
-        config.set_key("electrum_path", another_path)
-        self.assertEqual(another_path, config.get("electrum_path"))
+        config.set_key("electron_cash_path", another_path)
+        self.assertEqual(another_path, config.get("electron_cash_path"))
 
     def test_user_config_is_not_written_with_read_only_config(self):
         """The user config does not contain command-line options or system
@@ -165,7 +165,7 @@ class Test_SimpleConfig(unittest.TestCase):
                               read_user_dir_function=read_user_dir)
         config.save_user_config()
         contents = None
-        with open(os.path.join(self.user_dir, "config"), "r") as f:
+        with open(os.path.join(self.electrum_dir, "config"), "r") as f:
             contents = f.read()
         result = ast.literal_eval(contents)
         self.assertEqual({"something": "a"}, result)
