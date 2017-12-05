@@ -186,7 +186,7 @@ class Network(util.DaemonThread):
         except:
             self.default_server = None
         if not self.default_server:
-            self.default_server = pick_random_server()
+            self.default_server = pick_random_server(protocol='t')
 
         self.lock = threading.Lock()
         self.pending_sends = []
