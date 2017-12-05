@@ -93,7 +93,7 @@ def set_testnet():
     WIF_PREFIX = 0xef
     ADDRTYPE_P2PKH = 111
     ADDRTYPE_P2SH = 196
-    SEGWIT_HRP = "grst"
+    SEGWIT_HRP = "tgrs"
     HEADERS_URL = "https://headers.groestlcoin.org/testnet_headers"
     GENESIS = "000000ffbb50fc9898cdd36ec163e6ba23230164c0052a28876255b7dcf2cd36"
     SERVERLIST = 'servers_testnet.json'
