@@ -2,6 +2,7 @@ import unittest
 from pprint import pprint
 
 from lib import transaction
+from lib.address import Address
 from lib.bitcoin import TYPE_ADDRESS
 
 from lib.keystore import xpubkey_to_address
@@ -58,7 +59,7 @@ class TestTransaction(unittest.TestCase):
 
     def test_tx_unsigned(self):
         expected = {
-            'inputs': [{'address': '13Vp8Y3hD5Cb6sERfpxePz5vGJizXbWciN',
+            'inputs': [{'address': Address.from_string('13Vp8Y3hD5Cb6sERfpxePz5vGJizXbWciN'),
                         'num_sig': 1,
                         'prevout_hash': 'ed6a4d07e546b677abf6ba1257c2546128c694f23f4b9ebbd822fdfe435ef349',
                         'prevout_n': 1,
@@ -70,7 +71,7 @@ class TestTransaction(unittest.TestCase):
                         'value': 20112600,
                         'x_pubkeys': ['ff0488b21e0000000000000000004f130d773e678a58366711837ec2e33ea601858262f8eaef246a7ebd19909c9a03c3b30e38ca7d797fee1223df1c9827b2a9f3379768f520910260220e0560014600002300']}],
             'lockTime': 507231,
-            'outputs': [{'address': '1MYXdf4moacvaEKZ57ozerpJ3t9xSeN6LK',
+            'outputs': [{'address': Address.from_string('1MYXdf4moacvaEKZ57ozerpJ3t9xSeN6LK'),
                          'prevout_n': 0,
                          'scriptPubKey': '76a914e158fb15c888037fdc40fb9133b4c1c3c688706488ac',
                          'type': 0,
@@ -82,12 +83,12 @@ class TestTransaction(unittest.TestCase):
         self.assertEqual(tx.deserialize(), None)
 
         self.assertEqual(tx.as_dict(), {'hex': unsigned_blob, 'complete': False, 'final': True})
-        self.assertEqual(tx.get_outputs(), [('1MYXdf4moacvaEKZ57ozerpJ3t9xSeN6LK', 20112408)])
-        self.assertEqual(tx.get_output_addresses(), ['1MYXdf4moacvaEKZ57ozerpJ3t9xSeN6LK'])
+        self.assertEqual(tx.get_outputs(), [(Address.from_string('1MYXdf4moacvaEKZ57ozerpJ3t9xSeN6LK'), 20112408)])
+        self.assertEqual(tx.get_output_addresses(), [Address.from_string('1MYXdf4moacvaEKZ57ozerpJ3t9xSeN6LK')])
 
-        self.assertTrue(tx.has_address('1MYXdf4moacvaEKZ57ozerpJ3t9xSeN6LK'))
-        self.assertTrue(tx.has_address('13Vp8Y3hD5Cb6sERfpxePz5vGJizXbWciN'))
-        self.assertFalse(tx.has_address('1CQj15y1N7LDHp7wTt28eoD1QhHgFgxECH'))
+        self.assertTrue(tx.has_address(Address.from_string('1MYXdf4moacvaEKZ57ozerpJ3t9xSeN6LK')))
+        self.assertTrue(tx.has_address(Address.from_string('13Vp8Y3hD5Cb6sERfpxePz5vGJizXbWciN')))
+        self.assertFalse(tx.has_address(Address.from_string('1CQj15y1N7LDHp7wTt28eoD1QhHgFgxECH')))
 
         self.assertEqual(tx.serialize(), unsigned_blob)
 
@@ -101,7 +102,7 @@ class TestTransaction(unittest.TestCase):
 
     def test_tx_signed(self):
         expected = {
-            'inputs': [{'address': '13Vp8Y3hD5Cb6sERfpxePz5vGJizXbWciN',
+            'inputs': [{'address': Address.from_string('13Vp8Y3hD5Cb6sERfpxePz5vGJizXbWciN'),
                         'num_sig': 1,
                         'prevout_hash': 'ed6a4d07e546b677abf6ba1257c2546128c694f23f4b9ebbd822fdfe435ef349',
                         'prevout_n': 1,
@@ -112,7 +113,7 @@ class TestTransaction(unittest.TestCase):
                         'type': 'p2pkh',
                         'x_pubkeys': ['03b5bbebceeb33c1b61f649596b9c3611c6b2853a1f6b48bce05dd54f667fa2166']}],
             'lockTime': 507231,
-            'outputs': [{'address': '1MYXdf4moacvaEKZ57ozerpJ3t9xSeN6LK',
+            'outputs': [{'address': Address.from_string('1MYXdf4moacvaEKZ57ozerpJ3t9xSeN6LK'),
                          'prevout_n': 0,
                          'scriptPubKey': '76a914e158fb15c888037fdc40fb9133b4c1c3c688706488ac',
                          'type': 0,

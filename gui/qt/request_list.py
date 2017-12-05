@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+from electroncash.address import Address
 from electroncash.i18n import _
 from electroncash.util import format_time, age
 from electroncash.plugins import run_hook
@@ -54,8 +55,8 @@ class RequestList(MyTreeWidget):
         req = self.wallet.receive_requests[addr]
         expires = age(req['time'] + req['exp']) if req.get('exp') else _('Never')
         amount = req['amount']
-        message = self.wallet.labels.get(addr, '')
-        self.parent.receive_address_e.setText(addr)
+        message = self.wallet.labels.get(addr.to_storage_string(), '')
+        self.parent.receive_address_e.setText(addr.to_ui_string())
         self.parent.receive_message_e.setText(message)
         self.parent.receive_amount_e.setAmount(amount)
         self.parent.expires_combo.hide()
@@ -74,7 +75,7 @@ class RequestList(MyTreeWidget):
             self.parent.expires_combo.show()
 
         # update the receive address if necessary
-        current_address = self.parent.receive_address_e.text()
+        current_address = Address.from_string(self.parent.receive_address_e.text())
         domain = self.wallet.get_receiving_addresses()
         addr = self.wallet.get_unused_address()
         if not current_address in domain and addr:
@@ -96,7 +97,9 @@ class RequestList(MyTreeWidget):
             signature = req.get('sig')
             requestor = req.get('name', '')
             amount_str = self.parent.format_amount(amount) if amount else ""
-            item = QTreeWidgetItem([date, address, '', message, amount_str, pr_tooltips.get(status,'')])
+            item = QTreeWidgetItem([date, address.to_ui_string(), '', message,
+                                    amount_str, pr_tooltips.get(status,'')])
+            item.setData(0, Qt.UserRole, address)
             if signature is not None:
                 item.setIcon(2, QIcon(":icons/seal.png"))
                 item.setToolTip(2, 'signed by '+ requestor)
@@ -109,7 +112,7 @@ class RequestList(MyTreeWidget):
         item = self.itemAt(position)
         if not item:
             return
-        addr = str(item.text(1))
+        addr = item.data(0, Qt.UserRole)
         req = self.wallet.receive_requests[addr]
         column = self.currentColumn()
         column_title = self.headerItem().text(column)

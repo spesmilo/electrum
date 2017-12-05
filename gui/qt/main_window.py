@@ -47,6 +47,7 @@ from electroncash.i18n import _
 from electroncash.util import (format_time, format_satoshis, PrintError,
                            format_satoshis_plain, NotEnoughFunds,
                            UserCancelled)
+import electroncash.web as web
 from electroncash import Transaction
 from electroncash import util, bitcoin, commands, coinchooser
 from electroncash import paymentrequest
@@ -55,7 +56,7 @@ try:
     from electroncash.plot import plot_history
 except:
     plot_history = None
-import electroncash.block_explorer as block_explorer
+import electroncash.web as web
 
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
@@ -854,9 +855,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def get_request_URI(self, addr):
         req = self.wallet.receive_requests[addr]
-        message = self.wallet.labels.get(addr, '')
+        message = self.wallet.labels.get(addr.to_storage_string(), '')
         amount = req['amount']
-        URI = util.create_URI(addr, amount, message)
+        URI = web.create_URI(addr, amount, message)
         if req.get('time'):
             URI += "&time=%d"%req.get('time')
         if req.get('exp'):
@@ -889,7 +890,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     return
 
     def save_payment_request(self):
-        addr = str(self.receive_address_e.text())
+        addr = Address.from_string(self.receive_address_e.text())
         amount = self.receive_amount_e.get_amount()
         message = self.receive_message_e.text()
         if not message and not amount:
@@ -917,7 +918,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         dialog.exec_()
 
     def export_payment_request(self, addr):
-        r = self.wallet.receive_requests.get(addr)
+        r = self.wallet.receive_requests[addr]
         pr = paymentrequest.serialize_request(r).SerializeToString()
         name = r['id'] + '.bip70'
         fileName = self.getSaveFileName(_("Select where to save your payment request"), name, "*.bip70")
@@ -991,7 +992,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         amount = self.receive_amount_e.get_amount()
         message = self.receive_message_e.text()
         self.save_request_button.setEnabled((amount is not None) or (message != ""))
-        uri = util.create_URI(addr, amount, message)
+        uri = web.create_URI(addr, amount, message)
         self.receive_qr.setData(uri)
         if self.qr_window and self.qr_window.isVisible():
             self.qr_window.set_content(addr, amount, message, uri)
@@ -1486,7 +1487,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not URI:
             return
         try:
-            out = util.parse_URI(URI, self.on_pr)
+            out = web.parse_URI(URI, self.on_pr)
         except BaseException as e:
             self.show_error(_('Invalid bitcoincash URI:') + '\n' + str(e))
             return
@@ -2556,12 +2557,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         unit_combo.currentIndexChanged.connect(on_unit)
         gui_widgets.append((unit_label, unit_combo))
 
-        block_explorers = block_explorer.sorted_list()
+        block_explorers = web.BE_sorted_list()
         msg = _('Choose which online block explorer to use for functions that open a web browser')
         block_ex_label = HelpLabel(_('Online Block Explorer') + ':', msg)
         block_ex_combo = QComboBox()
         block_ex_combo.addItems(block_explorers)
-        block_ex_combo.setCurrentIndex(block_ex_combo.findText(block_explorer.from_config(self.config)))
+        block_ex_combo.setCurrentIndex(block_ex_combo.findText(web.BE_from_config(self.config)))
         def on_be(x):
             be_result = block_explorers[block_ex_combo.currentIndex()]
             self.config.set_key('block_explorer', be_result, True)

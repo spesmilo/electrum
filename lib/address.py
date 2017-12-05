@@ -89,6 +89,18 @@ def hash160(x):
     return ripemd160(sha256(x))
 
 
+class UnknownAddress(object):
+
+    def to_ui_string(self):
+        return '<UnknownAddress>'
+
+    def __str__(self):
+        return self.to_ui_string()
+
+    def __repr__(self):
+        return '<UnknownAddress>'
+
+
 class PublicKey(namedtuple("PublicKeyTuple", "pubkey")):
 
     @classmethod
@@ -104,13 +116,15 @@ class PublicKey(namedtuple("PublicKeyTuple", "pubkey")):
 
     @classmethod
     def validate(cls, pubkey, req_compressed=False):
-        if isinstance(pubkey, (bytes, bytearray)):
-            if len(pubkey) == 33 and pubkey[0] in (2, 3):
-                return  # Compressed
-            if len(pubkey) == 65 and pubkey[0] == 4:
-                if not req_compressed:
-                    return
-                raise AddressError('compressed public keys are required')
+        if not isinstance(pubkey, (bytes, bytearray)):
+            raise AddressError('pubkey must be of bytes type, not {}'
+                               .format(type(pubkey)))
+        if len(pubkey) == 33 and pubkey[0] in (2, 3):
+            return  # Compressed
+        if len(pubkey) == 65 and pubkey[0] == 4:
+            if not req_compressed:
+                return
+            raise AddressError('compressed public keys are required')
         raise AddressError('invalid pubkey {}'.format(pubkey))
 
     def to_Address(self):
@@ -328,7 +342,7 @@ class Script(object):
 
     @classmethod
     def P2PK_script(cls, pubkey):
-        return pubkey + bytes([OpCodes.OP_CHECKSIG])
+        return cls.push_data(pubkey) + bytes([OpCodes.OP_CHECKSIG])
 
     @classmethod
     def multisig_script(cls, m, pubkeys):
@@ -343,7 +357,7 @@ class Script(object):
         # 2 of 3 is: OP_2 pubkey1 pubkey2 pubkey3 OP_3 OP_CHECKMULTISIG
         return (bytes([OpCodes.OP_1 + m - 1])
                 + b''.join(cls.push_data(pubkey) for pubkey in pubkeys)
-                + bytes([OpCodes.OP_1 + n - 1, OpCodes.OP_CHECK_MULTISIG]))
+                + bytes([OpCodes.OP_1 + n - 1, OpCodes.OP_CHECKMULTISIG]))
 
     @classmethod
     def push_data(cls, data):

@@ -302,7 +302,7 @@ def make_unsigned_request(req):
     if amount is None:
         amount = 0
     memo = req['memo']
-    script = bfh(Transaction.pay_script(TYPE_ADDRESS, addr))
+    script = bfh(Transaction.pay_script(addr))
     outputs = [(script, amount)]
     pd = pb2.PaymentDetails()
     for script, amount in outputs:

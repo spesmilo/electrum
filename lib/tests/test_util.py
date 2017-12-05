@@ -1,5 +1,6 @@
 import unittest
-from lib.util import format_satoshis, parse_URI
+from lib.util import format_satoshis
+from lib.web import parse_URI
 
 class TestUtil(unittest.TestCase):
 
@@ -67,4 +68,3 @@ class TestUtil(unittest.TestCase):
 
     def test_parse_URI_parameter_polution(self):
         self.assertRaises(Exception, parse_URI, 'bitcoincash:15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma?amount=0.0003&label=test&amount=30.0')
-

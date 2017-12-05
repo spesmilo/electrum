@@ -17,9 +17,10 @@ from kivy.lang import Builder
 from kivy.factory import Factory
 from kivy.utils import platform
 
-from electroncash.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds
+from electroncash.util import profiler, format_time, InvalidPassword, NotEnoughFunds
 from electroncash import bitcoin
 from electroncash.util import timestamp_to_datetime
+from electroncash.web import create_URI, parse_URI
 from electroncash.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 
 from .context_menu import ContextMenu
@@ -345,7 +346,6 @@ class ReceiveScreen(CScreen):
         Clock.schedule_once(lambda dt: self.update_qr())
 
     def get_URI(self):
-        from electroncash.util import create_URI
         amount = self.screen.amount
         if amount:
             a, u = self.screen.amount.split()

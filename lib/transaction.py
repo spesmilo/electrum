@@ -29,9 +29,9 @@
 
 from .util import print_error, profiler
 
-from . import bitcoin
-from .address import PublicKey, Address, ScriptOutput, OpCodes as opcodes
 from .bitcoin import *
+from .address import (PublicKey, Address, Script, ScriptOutput, hash160,
+                      UnknownAddress, OpCodes as opcodes)
 import struct
 
 #
@@ -229,12 +229,10 @@ def safe_parse_pubkey(x):
         return x
 
 def parse_scriptSig(d, _bytes):
-    import sys
     try:
         decoded = list(script_GetOp(_bytes))
     except Exception as e:
         # coinbase transactions raise an exception
-        print("Coinbase", file=sys.stdout)
         print_error("cannot find address in input script", bh2u(_bytes))
         return
 
@@ -243,7 +241,7 @@ def parse_scriptSig(d, _bytes):
         item = decoded[0][1]
         # payto_pubkey
         d['type'] = 'p2pk'
-        d['address'] = PublicKey.from_pubkey(item)
+        d['address'] = UnknownAddress()
         d['signatures'] = [bh2u(item)]
         d['num_sig'] = 1
         d['x_pubkeys'] = ["(pubkey)"]
@@ -256,11 +254,10 @@ def parse_scriptSig(d, _bytes):
     match = [ opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4 ]
     if match_decoded(decoded, match):
         sig = bh2u(decoded[0][1])
-        pubkey = decoded[1][1]
-        x_pubkey = pubkey.hex()
+        x_pubkey = bh2u(decoded[1][1])
         try:
             signatures = parse_sig([sig])
-            address = Address.from_pubkey(pubkey)
+            pubkey, address = xpubkey_to_address(x_pubkey)
         except:
             print_error("cannot find address in input script", bh2u(_bytes))
             return
@@ -268,14 +265,13 @@ def parse_scriptSig(d, _bytes):
         d['signatures'] = signatures
         d['x_pubkeys'] = [x_pubkey]
         d['num_sig'] = 1
-        d['pubkeys'] = [x_pubkey]
-        d['address'] = address
+        d['pubkeys'] = [pubkey]
+        d['address'] = Address.from_string(address)
         return
 
     # p2sh transaction, m of n
     match = [ opcodes.OP_0 ] + [ opcodes.OP_PUSHDATA4 ] * (len(decoded) - 1)
     if not match_decoded(decoded, match):
-        print("Fail3", file=sys.stdout)
         print_error("cannot find address in input script", bh2u(_bytes))
         return
     x_sig = [bh2u(x[1]) for x in decoded[1:-1]]
@@ -287,7 +283,7 @@ def parse_scriptSig(d, _bytes):
     d['x_pubkeys'] = x_pubkeys
     d['pubkeys'] = pubkeys
     d['redeemScript'] = redeemScript
-    d['address'] = Address.from_P2SH_hash(decoded[1][1])
+    d['address'] = Address.from_P2SH_hash(hash160(redeemScript))
 
 
 def parse_redeemScript(s):
@@ -302,7 +298,8 @@ def parse_redeemScript(s):
         return
     x_pubkeys = [bh2u(x[1]) for x in dec2[1:-2]]
     pubkeys = [safe_parse_pubkey(x) for x in x_pubkeys]
-    redeemScript = multisig_script(pubkeys, m)
+    redeemScript = Script.multisig_script(m, [bytes.fromhex(p)
+                                              for p in pubkeys])
     return m, n, x_pubkeys, pubkeys, redeemScript
 
 def get_address_from_output_script(_bytes):
@@ -323,7 +320,7 @@ def get_address_from_output_script(_bytes):
     # p2sh
     match = [ opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUAL ]
     if match_decoded(decoded, match):
-        return TYPE_ADDRESS, Address.from_P2PKH_hash(decoded[1][1])
+        return TYPE_ADDRESS, Address.from_P2SH_hash(decoded[1][1])
 
     return TYPE_SCRIPT, ScriptOutput(_bytes)
 
@@ -591,7 +588,7 @@ class Transaction:
             return multisig_script(pubkeys, txin['num_sig'])
         elif txin['type'] == 'p2pk':
             pubkey = txin['pubkeys'][0]
-            return bitcoin.public_key_to_p2pk_script(pubkey)
+            return public_key_to_p2pk_script(pubkey)
         else:
             raise TypeError('Unknown txin type', txin['type'])
 
@@ -734,7 +731,7 @@ class Transaction:
                     pre_hash = Hash(bfh(self.serialize_preimage(i)))
                     pkey = regenerate_key(sec)
                     secexp = pkey.secret
-                    private_key = bitcoin.MySigningKey.from_secret_exponent(secexp, curve = SECP256k1)
+                    private_key = MySigningKey.from_secret_exponent(secexp, curve = SECP256k1)
                     public_key = private_key.get_verifying_key()
                     sig = private_key.sign_digest_deterministic(pre_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
                     assert public_key.verify_digest(sig, pre_hash, sigdecode = ecdsa.util.sigdecode_der)
@@ -752,7 +749,7 @@ class Transaction:
             if type == TYPE_ADDRESS:
                 addr = x
             elif type == TYPE_PUBKEY:
-                addr = bitcoin.public_key_to_p2pkh(bfh(x))
+                addr = public_key_to_p2pkh(bfh(x))
             else:
                 addr = 'SCRIPT ' + x
             o.append((addr,v))      # consider using yield (addr, v)

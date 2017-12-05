@@ -20,18 +20,17 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
 import binascii
 import os, sys, re, json
 from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
 import traceback
-import urllib
 import threading
 
 from .i18n import _
 
-import urllib.request, urllib.parse, urllib.error
 import queue
 
 def inv_dict(d):
@@ -410,92 +409,6 @@ def time_difference(distance_in_time, include_seconds):
     else:
         return "over %d years" % (round(distance_in_minutes / 525600))
 
-# URL decode
-#_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
-#urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
-
-def parse_URI(uri, on_pr=None):
-    from . import bitcoin
-    from .bitcoin import COIN
-
-    if ':' not in uri:
-        if not bitcoin.is_address(uri):
-            raise BaseException("Not a bitcoin address")
-        return {'address': uri}
-
-    u = urllib.parse.urlparse(uri)
-    if u.scheme != 'bitcoincash':
-        raise BaseException("Not a bitcoincash URI")
-    address = u.path
-
-    # python for android fails to parse query
-    if address.find('?') > 0:
-        address, query = u.path.split('?')
-        pq = urllib.parse.parse_qs(query)
-    else:
-        pq = urllib.parse.parse_qs(u.query)
-
-    for k, v in pq.items():
-        if len(v)!=1:
-            raise Exception('Duplicate Key', k)
-
-    out = {k: v[0] for k, v in pq.items()}
-    if address:
-        if not bitcoin.is_address(address):
-            raise BaseException("Invalid bitcoin address:" + address)
-        out['address'] = address
-    if 'amount' in out:
-        am = out['amount']
-        m = re.match('([0-9\.]+)X([0-9])', am)
-        if m:
-            k = int(m.group(2)) - 8
-            amount = Decimal(m.group(1)) * pow(  Decimal(10) , k)
-        else:
-            amount = Decimal(am) * COIN
-        out['amount'] = int(amount)
-    if 'message' in out:
-        out['message'] = out['message']
-        out['memo'] = out['message']
-    if 'time' in out:
-        out['time'] = int(out['time'])
-    if 'exp' in out:
-        out['exp'] = int(out['exp'])
-    if 'sig' in out:
-        out['sig'] = bh2u(bitcoin.base_decode(out['sig'], None, base=58))
-
-    r = out.get('r')
-    sig = out.get('sig')
-    name = out.get('name')
-    if on_pr and (r or (name and sig)):
-        def get_payment_request_thread():
-            from . import paymentrequest as pr
-            if name and sig:
-                s = pr.serialize_request(out).SerializeToString()
-                request = pr.PaymentRequest(s)
-            else:
-                request = pr.get_payment_request(r)
-            if on_pr:
-                on_pr(request)
-        t = threading.Thread(target=get_payment_request_thread)
-        t.setDaemon(True)
-        t.start()
-
-    return out
-
-
-def create_URI(addr, amount, message):
-    from . import bitcoin
-    if not bitcoin.is_address(addr):
-        return ""
-    query = []
-    if amount:
-        query.append('amount=%s'%format_satoshis_plain(amount))
-    if message:
-        query.append('message=%s'%urllib.parse.quote(message))
-    p = urllib.parse.ParseResult(scheme='bitcoincash', netloc='', path=addr, params='', query='&'.join(query), fragment='')
-    return urllib.parse.urlunparse(p)
-
-
 # Python bug (http://bugs.python.org/issue1927) causes raw_input
 # to be redirected improperly between stdin/stderr on Unix systems
 #TODO: py3
@@ -629,27 +542,3 @@ class QueuePipe:
     def send_all(self, requests):
         for request in requests:
             self.send(request)
-
-
-def check_www_dir(rdir):
-    import urllib, shutil, os
-    if not os.path.exists(rdir):
-        os.mkdir(rdir)
-    index = os.path.join(rdir, 'index.html')
-    if not os.path.exists(index):
-        print_error("copying index.html")
-        src = os.path.join(os.path.dirname(__file__), 'www', 'index.html')
-        shutil.copy(src, index)
-    files = [
-        "https://code.jquery.com/jquery-1.9.1.min.js",
-        "https://raw.githubusercontent.com/davidshimjs/qrcodejs/master/qrcode.js",
-        "https://code.jquery.com/ui/1.10.3/jquery-ui.js",
-        "https://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css"
-    ]
-    for URL in files:
-        path = urllib.parse.urlsplit(URL).path
-        filename = os.path.basename(path)
-        path = os.path.join(rdir, filename)
-        if not os.path.exists(path):
-            print_error("downloading ", URL)
-            urllib.request.urlretrieve(URL, path)

@@ -183,7 +183,10 @@ class Abstract_Wallet(PrintError):
 
         # load requests
         requests = self.storage.get('payment_requests', {})
-        self.receive_requests = self.to_Address_dict(requests)
+        for key, req in requests.items():
+            req['address'] = Address.from_string(key)
+        self.receive_requests = {req['address']: req
+                                 for req in requests.values()}
 
         # Transactions pending verification.  A map from tx hash to transaction
         # height.  Access is not contended so no lock is needed.
@@ -1195,11 +1198,14 @@ class Abstract_Wallet(PrintError):
         return False, None
 
     def get_payment_request(self, addr, config):
+        assert isinstance(addr, Address)
         r = self.receive_requests.get(addr)
         if not r:
             return
         out = copy.copy(r)
-        out['URI'] = 'bitcoincash:' + addr + '?amount=' + format_satoshis(out.get('amount'))
+        addr_text = addr.to_ui_string()
+        amount_text = format_satoshis(r['amount'])
+        out['URI'] = 'bitcoincash:{}?amount={}'.format(addr_text, amount_text)
         status, conf = self.get_request_status(addr)
         out['status'] = status
         if conf is not None:
@@ -1207,7 +1213,7 @@ class Abstract_Wallet(PrintError):
         # check if bip70 file exists
         rdir = config.get('requests_dir')
         if rdir:
-            key = out.get('id', addr)
+            key = out.get('id', addr.to_storage_string())
             path = os.path.join(rdir, 'req', key[0], key[1], key)
             if os.path.exists(path):
                 baseurl = 'file://' + rdir
@@ -1255,13 +1261,26 @@ class Abstract_Wallet(PrintError):
         return status, conf
 
     def make_payment_request(self, addr, amount, message, expiration):
+        assert isinstance(addr, Address)
         timestamp = int(time.time())
-        _id = bh2u(Hash(addr + "%d"%timestamp))[0:10]
-        r = {'time':timestamp, 'amount':amount, 'exp':expiration, 'address':addr, 'memo':message, 'id':_id}
-        return r
+        _id = bh2u(Hash(addr.to_storage_string() + "%d" % timestamp))[0:10]
+        return {
+            'time': timestamp,
+            'amount': amount,
+            'exp': expiration,
+            'address': addr,
+            'memo': message,
+            'id': _id
+        }
+
+    def serialize_request(self, r):
+        result = r.copy()
+        result['address'] = r['address'].to_storage_string()
+        return rresult
 
     def save_payment_requests(self):
-        requests = self.from_Address_dict(self.receive_requests)
+        requests = {addr.to_ui_string() : value.copy().pop('address')
+                    for addr, value in self.receive_requests.items()}
         self.storage.put('payment_requests', requests)
 
     def sign_payment_request(self, key, alias, alias_addr, password):
@@ -1276,15 +1295,16 @@ class Abstract_Wallet(PrintError):
 
     def add_payment_request(self, req, config):
         addr = req['address']
-        amount = req.get('amount')
-        message = req.get('memo')
+        addr_text = addr.to_storage_string()
+        amount = req['amount']
+        message = req['memo']
         self.receive_requests[addr] = req
         self.save_payment_requests()
-        self.set_label(addr, message) # should be a default label
+        self.set_label(addr_text, message) # should be a default label
 
         rdir = config.get('requests_dir')
         if rdir and amount is not None:
-            key = req.get('id', addr)
+            key = req.get('id', addr_text)
             pr = paymentrequest.make_request(config, req)
             path = os.path.join(rdir, 'req', key[0], key[1], key)
             if not os.path.exists(path):
@@ -1318,7 +1338,7 @@ class Abstract_Wallet(PrintError):
     def get_sorted_requests(self, config):
         def f(x):
             try:
-                addr = x.get('address')
+                addr = x['address']
                 return self.get_address_index(addr) or addr
             except:
                 return addr
@@ -1761,6 +1781,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         return self.derive_pubkeys(c, i)
 
     def pubkeys_to_address(self, pubkeys):
+        pubkeys = [bytes.fromhex(pubkey) for pubkey in pubkeys]
         redeem_script = self.pubkeys_to_redeem_script(pubkeys)
         return Address.from_multisig_script(redeem_script)
 
