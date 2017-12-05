@@ -467,12 +467,6 @@ class Commands:
                 if x['type'] == 'coinbase': continue
                 addr = x.get('address')
                 if addr == None: continue
-                if addr == "(pubkey)":
-                    prevout_hash = x.get('prevout_hash')
-                    prevout_n = x.get('prevout_n')
-                    _addr = self.wallet.find_pay_to_pubkey_address(prevout_hash, prevout_n)
-                    if _addr:
-                        addr = _addr
                 input_addresses.append(addr)
             for addr, v in tx.get_outputs():
                 output_addresses.append(addr)
