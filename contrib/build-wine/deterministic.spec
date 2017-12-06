@@ -20,19 +20,19 @@ hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
 
 datas = [
-    (home+'lib/currencies.json', 'electrum'),
-    (home+'lib/servers.json', 'electrum'),
-    (home+'lib/servers_testnet.json', 'electrum'),
-    (home+'lib/wordlist/english.txt', 'electrum/wordlist'),
-    (home+'lib/locale', 'electrum/locale'),
-    (home+'plugins', 'electrum_plugins'),
+    (home+'lib/currencies.json', 'electroncash'),
+    (home+'lib/servers.json', 'electroncash'),
+    (home+'lib/servers_testnet.json', 'electroncash'),
+    (home+'lib/wordlist/english.txt', 'electroncash/wordlist'),
+    (home+'lib/locale', 'electroncash/locale'),
+    (home+'plugins', 'electroncash_plugins'),
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
-a = Analysis([home+'electrum',
+a = Analysis([home+'electron-cash',
               home+'gui/qt/main_window.py',
               home+'gui/text.py',
               home+'lib/util.py',
@@ -70,16 +70,18 @@ pyz = PYZ(a.pure)
 #####
 # "standalone" exe with all dependencies packed into it
 
+#options = [ ('v', None, 'OPTION')]  - put this in the following exe list to debug and turn console=true
+
 exe_standalone = EXE(
     pyz,
     a.scripts,
     a.binaries,
-    a.datas, 
+    a.datas,  
     name=os.path.join('build\\pyi.win32\\electrum', cmdline_name + ".exe"),
     debug=False,
     strip=None,
     upx=False,
-    icon=home+'icons/electrum.ico',
+    icon=home+'icons/electron.ico',
     console=False)
     # console=True makes an annoying black box pop up, but it does make Electrum output command line commands, with this turned off no output will be given but commands can still be used
 
@@ -92,7 +94,7 @@ exe_portable = EXE(
     debug=False,
     strip=None,
     upx=False,
-    icon=home+'icons/electrum.ico',
+    icon=home+'icons/electron.ico',
     console=False)
 
 #####
@@ -106,7 +108,7 @@ exe_dependent = EXE(
     debug=False,
     strip=None,
     upx=False,
-    icon=home+'icons/electrum.ico',
+    icon=home+'icons/electron.ico',
     console=False)
 
 coll = COLLECT(
@@ -117,6 +119,6 @@ coll = COLLECT(
     strip=None,
     upx=True,
     debug=False,
-    icon=home+'icons/electrum.ico',
+    icon=home+'icons/electron.ico',
     console=False,
     name=os.path.join('dist', 'electrum'))

@@ -22,14 +22,28 @@ set -e
 
 cd tmp
 
-for repo in electrum electrum-locale electrum-icons; do
+
+for repo in electrum; do
+    if [ -d $repo ]; then
+	cd $repo
+	git pull
+	git checkout python3
+	cd ..
+    else
+	URL=https://github.com/fyookball/$repo.git
+	git clone -b python3 $URL $repo
+    fi
+done
+
+
+for repo in electrum-locale electrum-icons; do
     if [ -d $repo ]; then
 	cd $repo
 	git pull
 	git checkout master
 	cd ..
     else
-	URL=https://github.com/spesmilo/$repo.git
+	URL=https://github.com/fyookball/$repo.git
 	git clone -b master $URL $repo
     fi
 done
@@ -41,9 +55,10 @@ for i in ./locale/*; do
     msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
 done
 popd
+ 
 
 pushd electrum
-VERSION=`git describe --tags`
+VERSION="3.0"
 echo "Last commit: $VERSION"
 popd
 
@@ -52,6 +67,7 @@ cp -r electrum $WINEPREFIX/drive_c/electrum
 cp electrum/LICENCE .
 cp -r electrum-locale/locale $WINEPREFIX/drive_c/electrum/lib/
 cp electrum-icons/icons_rc.py $WINEPREFIX/drive_c/electrum/gui/qt/
+
 
 # Install frozen dependencies
 $PYTHON -m pip install -r ../../requirements.txt
@@ -64,13 +80,16 @@ cd ..
 
 rm -rf dist/
 
+
 # build standalone and portable versions
 wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" --noconfirm --ascii --name $NAME_ROOT-$VERSION -w deterministic.spec
+
 
 # set timestamps in dist, in order to make the installer reproducible
 pushd dist
 find  -type f  -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
+
 
 # build NSIS installer
 # $VERSION could be passed to the electrum.nsi script, but this would require some rewriting in the script iself.
