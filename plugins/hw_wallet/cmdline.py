@@ -29,7 +29,7 @@ class CmdLineHandler:
     def stop(self):
         pass
 
-    def show_message(self, msg, on_cancel):
+    def show_message(self, msg, on_cancel=None):
         print_msg(msg)
 
     def update_status(self, b):
