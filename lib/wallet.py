@@ -1787,6 +1787,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         # they are sorted in transaction.get_sorted_pubkeys
         derivation = self.get_address_index(address)
         txin['x_pubkeys'] = [k.get_xpubkey(*derivation) for k in self.get_keystores()]
+        txin['pubkeys'] = None
         # we need n place holders
         txin['signatures'] = [None] * self.n
         txin['num_sig'] = self.m
