@@ -48,7 +48,7 @@ from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
 from .bitcoin import *
 from .version import *
 from .keystore import load_keystore, Hardware_KeyStore
-from .storage import multisig_type
+from .storage import multisig_type, STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW
 
 from . import transaction
 from .transaction import Transaction
@@ -1359,10 +1359,65 @@ class Abstract_Wallet(PrintError):
             self.synchronizer.add(address)
 
     def has_password(self):
-        return self.storage.get('use_encryption', False)
+        return self.has_keystore_encryption() or self.has_storage_encryption()
+
+    def can_have_keystore_encryption(self):
+        return self.keystore and self.keystore.may_have_password()
+
+    def get_available_storage_encryption_version(self):
+        """Returns the type of storage encryption offered to the user.
+
+        A wallet file (storage) is either encrypted with this version
+        or is stored in plaintext.
+        """
+        if isinstance(self.keystore, Hardware_KeyStore):
+            return STO_EV_XPUB_PW
+        else:
+            return STO_EV_USER_PW
+
+    def has_keystore_encryption(self):
+        """Returns whether encryption is enabled for the keystore.
+
+        If True, e.g. signing a transaction will require a password.
+        """
+        if self.can_have_keystore_encryption():
+            return self.storage.get('use_encryption', False)
+        return False
+
+    def has_storage_encryption(self):
+        """Returns whether encryption is enabled for the wallet file on disk."""
+        return self.storage.is_encrypted()
+
+    @classmethod
+    def may_have_password(cls):
+        return True
 
     def check_password(self, password):
-        self.keystore.check_password(password)
+        if self.has_keystore_encryption():
+            self.keystore.check_password(password)
+        self.storage.check_password(password)
+
+    def update_password(self, old_pw, new_pw, encrypt_storage=False):
+        if old_pw is None and self.has_password():
+            raise InvalidPassword()
+        self.check_password(old_pw)
+
+        if encrypt_storage:
+            enc_version = self.get_available_storage_encryption_version()
+        else:
+            enc_version = STO_EV_PLAINTEXT
+        self.storage.set_password(new_pw, enc_version)
+
+        # note: Encrypting storage with a hw device is currently only
+        #       allowed for non-multisig wallets. Further,
+        #       Hardware_KeyStore.may_have_password() == False.
+        #       If these were not the case,
+        #       extra care would need to be taken when encrypting keystores.
+        self._update_password_for_keystore(old_pw, new_pw)
+        encrypt_keystore = self.can_have_keystore_encryption()
+        self.storage.set_keystore_encryption(bool(new_pw) and encrypt_keystore)
+
+        self.storage.write()
 
     def sign_message(self, address, message, password):
         index = self.get_address_index(address)
@@ -1386,16 +1441,10 @@ class Simple_Wallet(Abstract_Wallet):
     def is_watching_only(self):
         return self.keystore.is_watching_only()
 
-    def can_change_password(self):
-        return self.keystore.can_change_password()
-
-    def update_password(self, old_pw, new_pw, encrypt=False):
-        if old_pw is None and self.has_password():
-            raise InvalidPassword()
-        self.keystore.update_password(old_pw, new_pw)
-        self.save_keystore()
-        self.storage.set_password(new_pw, encrypt)
-        self.storage.write()
+    def _update_password_for_keystore(self, old_pw, new_pw):
+        if self.keystore and self.keystore.may_have_password():
+            self.keystore.update_password(old_pw, new_pw)
+            self.save_keystore()
 
     def save_keystore(self):
         self.storage.put('keystore', self.keystore.dump())
@@ -1433,9 +1482,6 @@ class Imported_Wallet(Simple_Wallet):
 
     def save_addresses(self):
         self.storage.put('addresses', self.addresses)
-
-    def can_change_password(self):
-        return not self.is_watching_only()
 
     def can_import_address(self):
         return self.is_watching_only()
@@ -1798,21 +1844,27 @@ class Multisig_Wallet(Deterministic_Wallet):
     def get_keystores(self):
         return [self.keystores[i] for i in sorted(self.keystores.keys())]
 
-    def update_password(self, old_pw, new_pw, encrypt=False):
-        if old_pw is None and self.has_password():
-            raise InvalidPassword()
+    def can_have_keystore_encryption(self):
+        return any([k.may_have_password() for k in self.get_keystores()])
+
+    def _update_password_for_keystore(self, old_pw, new_pw):
         for name, keystore in self.keystores.items():
-            if keystore.can_change_password():
+            if keystore.may_have_password():
                 keystore.update_password(old_pw, new_pw)
                 self.storage.put(name, keystore.dump())
-        self.storage.set_password(new_pw, encrypt)
-        self.storage.write()
+
+    def check_password(self, password):
+        for name, keystore in self.keystores.items():
+            if keystore.may_have_password():
+                keystore.check_password(password)
+        self.storage.check_password(password)
+
+    def get_available_storage_encryption_version(self):
+        # multisig wallets are not offered hw device encryption
+        return STO_EV_USER_PW
 
     def has_seed(self):
         return self.keystore.has_seed()
-
-    def can_change_password(self):
-        return self.keystore.can_change_password()
 
     def is_watching_only(self):
         return not any([not k.is_watching_only() for k in self.get_keystores()])

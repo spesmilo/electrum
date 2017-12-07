@@ -522,7 +522,7 @@ class LedgerPlugin(HW_PluginBase):
             client = Ledger_Client(client)
         return client
 
-    def setup_device(self, device_info, wizard):
+    def setup_device(self, device_info, wizard, purpose):
         devmgr = self.device_manager()
         device_id = device_info.device.id_
         client = devmgr.client_by_id(device_id)

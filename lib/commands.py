@@ -82,7 +82,7 @@ def command(s):
             password = kwargs.get('password')
             if c.requires_wallet and wallet is None:
                 raise BaseException("wallet not loaded. Use 'electrum daemon load_wallet'")
-            if c.requires_password and password is None and wallet.storage.get('use_encryption'):
+            if c.requires_password and password is None and wallet.has_password():
                 return {'error': 'Password required' }
             return func(*args, **kwargs)
         return func_wrapper
