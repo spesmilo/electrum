@@ -76,19 +76,19 @@ def cashaddr_encode(hrp, data):
     return ''.join([CHARSET[d] for d in combined])
 
 
-def cashaddr_decode(bech):
+def cashaddr_decode(addr):
     """Validate a cashaddr string, and determine HRP and data."""
-    if ((any(ord(x) < 33 or ord(x) > 126 for x in bech)) or
-            (bech.lower() != bech and bech.upper() != bech)):
+    if ((any(ord(x) < 33 or ord(x) > 126 for x in addr)) or
+            (addr.lower() != addr and addr.upper() != addr)):
         return (None, None)
-    bech = bech.lower()
-    pos = bech.rfind(':')
-    if pos < 1 or pos + 7 > len(bech) or len(bech[pos+1:]) > 80:
+    addr = addr.lower()
+    pos = addr.rfind(':')
+    if pos < 1 or pos + 7 > len(addr) or len(addr[pos+1:]) > 124:
         return (None, None)
-    if not all(x in CHARSET for x in bech[pos+1:]):
+    if not all(x in CHARSET for x in addr[pos+1:]):
         return (None, None)
-    hrp = bech[:pos]
-    data = [CHARSET.find(x) for x in bech[pos+1:]]
+    hrp = addr[:pos]
+    data = [CHARSET.find(x) for x in addr[pos+1:]]
     if not cashaddr_verify_checksum(hrp, data):
         return (None, None)
     # 40 bits in chunks of 5 bits is 8 bytes total that we don't want to include
@@ -123,10 +123,24 @@ def decode(hrp, addr):
     if hrpgot != hrp:
         return (None, None)
 
-    # Need to check for padding here.
+    # Ensure there isn't extra padding
+    extrabits = len(data) * 5 % 8;
+    if extrabits >= 5:
+        return (None, None);
+
+    # Ensure extrabits are zeros
+    last_byte = data[-1]
+    if last_byte & ((1 << extrabits) - 1):
+        # Found some non-zero bits
+        return (None, None)
+
     decoded, padded = convertbits(data, 5, 8, False)
     version = decoded[0]
-    size = (version & 0x07) * 4 + 20
+    size = (version & 0x03) * 4 + 20
+    # Double the size, if the 3rd bit is on.
+    if version & 0x04:
+        size <<= 1
+
     version >>= 3
     if version != SCRIPT_TYPE and version != PUBKEY_TYPE:
         return (None, None)
@@ -142,9 +156,22 @@ def pack_addr_data( addrtype, addrhash ):
     """Pack addr data with version byte"""
     assert addrtype == 0 or addrtype == 1, "invalid addrtype"
     version_byte = addrtype << 3
-    encoded_size = (len(addrhash) - 20) // 4
-    assert (len(addrhash) - 20) % 4 == 0, "invalid addrhash size"
-    assert encoded_size >= 0 and encoded_size <= 8, "encoded size out of valid range"
+
+    offset = 1
+    encoded_size = 0
+    if len(addrhash) >= 40:
+        offset = 2
+        encoded_size |= 0x04
+    encoded_size |= (len(addrhash) - 20 * offset) // (4 * offset)
+
+    # invalid size
+    if (len(addrhash) - 20 * offset) % (4 * offset) != 0:
+        return None
+
+    # encoded_size out of range
+    if encoded_size < 0 or encoded_size > 7:
+        return None
+
     version_byte |= encoded_size
 
     data = [version_byte]
@@ -158,5 +185,8 @@ def encode(hrp, addrtype, addrhash):
     """Encode a cashaddr address."""
     # Need to handle the address type and pack size here.
     packed_data = pack_addr_data(addrtype, addrhash)
+    if packed_data is None:
+        return None
+
     ret = cashaddr_encode(hrp, packed_data)
     return hrp + ':' + ret
