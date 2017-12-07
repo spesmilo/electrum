@@ -1,10 +1,10 @@
 import time
 from struct import pack
 
-from electrum.i18n import _
-from electrum.util import PrintError, UserCancelled
-from electrum.keystore import bip39_normalize_passphrase
-from electrum.bitcoin import serialize_xpub
+from electroncash.i18n import _
+from electroncash.util import PrintError, UserCancelled
+from electroncash.keystore import bip39_normalize_passphrase
+from electroncash.bitcoin import serialize_xpub
 
 
 class GuiMixin(object):

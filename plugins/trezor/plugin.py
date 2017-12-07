@@ -352,7 +352,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
 
         return outputs
 
-    def electrum_tx_to_txtype(self, tx):
+    def electroncash_tx_to_txtype(self, tx):
         t = self.types.TransactionType()
         d = deserialize(tx.raw)
         t.version = d['version']
@@ -368,4 +368,4 @@ class TrezorCompatiblePlugin(HW_PluginBase):
     # This function is called from the trezor libraries (via tx_api)
     def get_tx(self, tx_hash):
         tx = self.prev_tx[tx_hash]
-        return self.electrum_tx_to_txtype(tx)
+        return self.electroncash_tx_to_txtype(tx)
