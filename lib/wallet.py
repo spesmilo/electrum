@@ -40,7 +40,7 @@ from collections import defaultdict
 from .i18n import _
 from .util import NotEnoughFunds, PrintError, UserCancelled, profiler, format_satoshis
 
-from .address import Address, Script
+from .address import Address, Script, ScriptOutput, PublicKey
 from .bitcoin import *
 from .version import *
 from .keystore import load_keystore, Hardware_KeyStore
@@ -362,7 +362,7 @@ class Abstract_Wallet(PrintError):
         return changed
 
     def is_mine(self, address):
-        assert isinstance(address, Address)
+        assert isinstance(address, (Address, PublicKey, ScriptOutput))
         return address in self.get_addresses()
 
     def is_change(self, address):

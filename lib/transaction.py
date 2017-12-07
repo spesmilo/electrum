@@ -745,13 +745,7 @@ class Transaction:
     def get_outputs(self):
         """convert pubkeys to addresses"""
         o = []
-        for type, x, v in self.outputs():
-            if type == TYPE_ADDRESS:
-                addr = x
-            elif type == TYPE_PUBKEY:
-                addr = public_key_to_p2pkh(bfh(x))
-            else:
-                addr = 'SCRIPT ' + x
+        for type, addr, v in self.outputs():
             o.append((addr,v))      # consider using yield (addr, v)
         return o
 
