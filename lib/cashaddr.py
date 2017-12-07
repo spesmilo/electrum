@@ -21,6 +21,12 @@
 CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 PUBKEY_TYPE = 0;
 SCRIPT_TYPE = 1;
+BCH_HRP = "bitcoincash"
+
+
+class CashAddrError(Exception):
+    '''Raised on a cash address exception.'''
+
 
 def cashaddr_polymod(values):
     """Internal function that computes the cashaddr checksum."""
@@ -29,15 +35,15 @@ def cashaddr_polymod(values):
         c0 = c >> 35
         c = ((c & 0x07ffffffff) << 5) ^ d;
         if (c0 & 0x01):
-            c ^= 0x98f2bc8e61 
+            c ^= 0x98f2bc8e61
         if (c0 & 0x02):
-            c ^= 0x79b76d99e2 
+            c ^= 0x79b76d99e2
         if (c0 & 0x04):
-            c ^= 0xf33e5fb3c4 
+            c ^= 0xf33e5fb3c4
         if (c0 & 0x08):
-            c ^= 0xae2eabe2a8 
+            c ^= 0xae2eabe2a8
         if (c0 & 0x10):
-            c ^= 0x1e4f43e470 
+            c ^= 0x1e4f43e470
     retval= c ^ 1
     return retval
 
@@ -128,7 +134,7 @@ def decode(hrp, addr):
         return (None, None)
 
     decoded_hash = decoded[1:]
-    
+
     return (version, decoded_hash)
 
 
@@ -143,7 +149,7 @@ def pack_addr_data( addrtype, addrhash ):
 
     data = [version_byte]
     data.extend(addrhash)
-    packed_data, padded = convertbits(data, 8, 5, True) 
+    packed_data, padded = convertbits(data, 8, 5, True)
 
     return packed_data
 

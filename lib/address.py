@@ -28,6 +28,7 @@ import hashlib
 import struct
 
 from .enum import Enumeration
+import lib.cashaddr as cashaddr
 from .networks import NetworkConstants
 
 _sha256 = hashlib.sha256
@@ -197,8 +198,26 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
         return super().__new__(cls, hash160, kind)
 
     @classmethod
+    def from_cashaddr_string(cls, string):
+        '''Construct from a cashaddress string.'''
+        if not string.startswith(cashaddr.BCH_HRP):
+            string = ':'.join([cashaddr.BCH_HRP, string])
+        kind, hash_bytes = cashaddr.decode(cashaddr.BCH_HRP, string)
+        if kind is None:
+            raise AddressError('bad cashaddress: {}'.format(string))
+        hash160 = bytes(hash_bytes)
+        if kind == cashaddr.PUBKEY_TYPE:
+            return cls(hash160, cls.ADDR_P2PKH)
+        else:
+            assert kind == cashaddr.SCRIPT_TYPE
+            return cls(hash160, cls.ADDR_P2SH)
+
+    @classmethod
     def from_string(cls, string):
         '''Construct from an address string.'''
+        if len(string) > 35:
+            return cls.from_cashaddr_string(string)
+
         raw = Base58.decode_check(string)
 
         # Require version byte(s) plus hash160.
@@ -250,22 +269,32 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
         '''Construct a list of strings from an iterable of Address objects.'''
         return [addr.to_string(fmt) for addr in addrs]
 
+    def to_cashaddr(self):
+        if self.kind == self.ADDR_P2PKH:
+            kind  = cashaddr.PUBKEY_TYPE
+        else:
+            kind  = cashaddr.SCRIPT_TYPE
+        hash_bytes = list(self.hash160)
+        packed_data = cashaddr.pack_addr_data(kind, hash_bytes)
+        return cashaddr.cashaddr_encode(cashaddr.BCH_HRP, packed_data)
+
     def to_string(self, fmt):
         '''Converts to a string of the given format.'''
-        if self.kind == self.ADDR_P2PKH:
-            if fmt == self.FMT_LEGACY:
+        if fmt == self.FMT_CASHADDR:
+            return self.to_cashaddr()
+
+        if fmt == self.FMT_LEGACY:
+            if self.kind == self.ADDR_P2PKH:
                 verbyte = NetworkConstants.ADDRTYPE_P2PKH
-            elif fmt == self.FMT_BITPAY:
+            else:
+                verbyte = NetworkConstants.ADDRTYPE_P2SH
+        elif fmt == self.FMT_BITPAY:
+            if self.kind == self.ADDR_P2PKH:
                 verbyte = NetworkConstants.ADDRTYPE_P2PKH_BITPAY
             else:
-                raise AddressError('unrecognised format')
-        else:
-            if fmt == self.FMT_LEGACY:
-                verbyte = NetworkConstants.ADDRTYPE_P2SH
-            elif fmt == self.FMT_BITPAY:
                 verbyte = NetworkConstants.ADDRTYPE_P2SH_BITPAY
-            else:
-                raise AddressError('unrecognised format')
+        else:
+            raise AddressError('unrecognised format')
 
         return Base58.encode_check(bytes([verbyte]) + self.hash160)
 

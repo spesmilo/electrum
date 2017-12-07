@@ -58,9 +58,9 @@ class TestCashAddrAddress(unittest.TestCase):
             # Convert to a valid number of bytes for a hash
             size = encoded_size * 4 + 20
             hashbytes = [random.randint(0,255) for i in range(size)]
-            hrp = "bitcoincash"
-            addr = cashaddr.encode(hrp, cashaddr.PUBKEY_TYPE, hashbytes)
-            addrtype, addrhash = cashaddr.decode(hrp, addr)
+            addr = cashaddr.encode(cashaddr.BCH_HRP, cashaddr.PUBKEY_TYPE,
+                                   hashbytes)
+            addrtype, addrhash = cashaddr.decode(cashaddr.BCH_HRP, addr)
             self.assertIsNotNone(addrtype)
             self.assertEqual(addrtype, cashaddr.PUBKEY_TYPE)
             self.assertEqual(addrhash, hashbytes)
@@ -68,8 +68,7 @@ class TestCashAddrAddress(unittest.TestCase):
     def test_valid_pubkeyhash(self):
         """Test whether valid addresses decode to the correct output."""
         for (address, hashbytes) in zip(VALID_SCRIPT_ADDRESSES, VALID_HASHES):
-            hrp = "bitcoincash"
-            addrtype, addrhash = cashaddr.decode(hrp, address)
+            addrtype, addrhash = cashaddr.decode(cashaddr.BCH_HRP, address)
             self.assertIsNotNone(addrtype)
             self.assertEqual(addrtype, cashaddr.SCRIPT_TYPE)
             self.assertEqual(addrhash, hashbytes)
@@ -77,8 +76,7 @@ class TestCashAddrAddress(unittest.TestCase):
     def test_valid_scripthash(self):
         """Test whether valid addresses decode to the correct output."""
         for (address, hashbytes) in zip(VALID_PUBKEY_ADDRESSES, VALID_HASHES):
-            hrp = "bitcoincash"
-            addrtype, addrhash = cashaddr.decode(hrp, address)
+            addrtype, addrhash = cashaddr.decode(cashaddr.BCH_HRP, address)
             self.assertIsNotNone(addrtype)
             self.assertEqual(addrtype, 0)
             self.assertEqual(addrhash, hashbytes)
