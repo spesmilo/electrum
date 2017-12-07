@@ -140,9 +140,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.utxo_tab = self.create_utxo_tab()
         self.console_tab = self.create_console_tab()
         self.contacts_tab = self.create_contacts_tab()
+        self.converter_tab = self.create_converter_tab()
         tabs.addTab(self.create_history_tab(), QIcon(":icons/tab_history.png"), _('History'))
         tabs.addTab(self.send_tab, QIcon(":icons/tab_send.png"), _('Send'))
         tabs.addTab(self.receive_tab, QIcon(":icons/tab_receive.png"), _('Receive'))
+        tabs.addTab(self.converter_tab, QIcon(":icons/tab_converter.png"), _('Convert'))
 
         def add_optional_tab(tabs, tab, icon, description, name):
             tab.tab_icon = icon
@@ -1532,6 +1534,67 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.address_list.update()
         self.utxo_list.update()
         self.update_fee()
+
+    def create_converter_tab(self):
+
+        source_address = QLineEdit()
+        cash_address = QLineEdit()
+        cash_address.setReadOnly(True)
+        legacy_address = QLineEdit()
+        legacy_address.setReadOnly(True)
+        bitpay_address = QLineEdit()
+        bitpay_address.setReadOnly(True)
+
+        widgets = [
+            (cash_address, Address.FMT_CASHADDR),
+            (legacy_address, Address.FMT_LEGACY),
+            (bitpay_address, Address.FMT_BITPAY),
+        ]
+
+        def convert_address():
+            try:
+                addr = Address.from_string(source_address.text().strip())
+            except:
+                addr = None
+            for widget, fmt in widgets:
+                if addr:
+                    widget.setText(addr.to_string(fmt))
+                else:
+                    widget.setText('')
+
+        source_address.textChanged.connect(convert_address)
+
+        label = WWLabel(_(
+            "This tool helps convert between 3 address formats for Bitcoin "
+            "Cash addresses.\nYou are encouraged to use the 'Cash address' "
+            "format.\nThe BitPay format is deprecated and support is for "
+            "a transitional period only."
+        ))
+
+        w = QWidget()
+        grid = QGridLayout()
+        grid.setSpacing(15)
+        grid.setColumnStretch(1, 2)
+        grid.setColumnStretch(2, 1)
+        grid.addWidget(QLabel(_('Address to convert')), 0, 0)
+        grid.addWidget(source_address, 0, 1)
+        grid.addWidget(QLabel(_('Cash address')), 1, 0)
+        grid.addWidget(cash_address, 1, 1)
+        grid.addWidget(QLabel(_('Legacy address')), 2, 0)
+        grid.addWidget(legacy_address, 2, 1)
+        grid.addWidget(QLabel(_('BitPay address')), 3, 0)
+        grid.addWidget(bitpay_address, 3, 1)
+        w.setLayout(grid)
+
+        vbox = QVBoxLayout()
+        vbox.addWidget(label)
+        vbox.addWidget(w)
+        vbox.addStretch(1)
+
+        w = QWidget()
+        w.setLayout(vbox)
+
+        return w
 
     def create_list_tab(self, l, list_header=None):
         w = QWidget()
