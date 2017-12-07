@@ -631,9 +631,9 @@ class Transaction:
     def estimate_pubkey_size_for_txin(cls, txin):
         pubkeys = txin.get('pubkeys', [])
         x_pubkeys = txin.get('x_pubkeys', [])
-        if len(pubkeys) > 0:
+        if pubkeys and len(pubkeys) > 0:
             return cls.estimate_pubkey_size_from_x_pubkey(pubkeys[0])
-        elif len(x_pubkeys) > 0:
+        elif x_pubkeys and len(x_pubkeys) > 0:
             return cls.estimate_pubkey_size_from_x_pubkey(x_pubkeys[0])
         else:
             return 0x21  # just guess it is compressed
