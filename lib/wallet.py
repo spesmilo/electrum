@@ -76,7 +76,8 @@ def relayfee(network):
 
 def dust_threshold(network):
     # Change <= dust threshold is added to the tx fee
-    return 182 * 3 * relayfee(network) / 1000
+    #return 182 * 3 * relayfee(network) / 1000
+    return 0
 
 
 def append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax):

@@ -36,7 +36,7 @@ class FeeSlider(QSlider):
             tooltip = 'Fixed rate: ' + rate_str
             if self.config.has_fee_estimates():
                 i = self.config.reverse_dynfee(fee_rate)
-                tooltip += '\n' + (_('Low fee') if i < 0 else 'Within %d blocks'%i)
+                #tooltip += '\n' + (_('Low fee') if i < 0 else 'Within %d blocks'%i)
         return tooltip
 
     def update(self):
@@ -44,7 +44,7 @@ class FeeSlider(QSlider):
             self.fee_step = self.config.max_fee_rate() / 10
             fee_rate = self.config.fee_per_kb()
             pos = min(fee_rate / self.fee_step, 10)
-            self.setRange(1, 10)
+            self.setRange(0, 9)
             self.setValue(pos)
             tooltip = self.get_tooltip(pos, fee_rate)
             self.setToolTip(tooltip)
