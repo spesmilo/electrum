@@ -709,7 +709,6 @@ class Abstract_Wallet(PrintError):
                 ser = tx_hash + ':%d'%n
                 _type, addr, v = txo
                 if self.is_mine(addr):
-                    print('addr: {} {}'.format(addr, type(addr)))
                     if not addr in d:
                         d[addr] = []
                     d[addr].append((n, v, is_coinbase))
