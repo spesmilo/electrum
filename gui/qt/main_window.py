@@ -613,6 +613,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.need_update.clear()
             self.update_wallet()
         # resolve aliases
+        # FIXME this is a blocking network call that has a timeout of 5 sec
         self.payto_e.resolve()
         # update fee
         if self.require_fee_update:

@@ -266,6 +266,9 @@ class PayToEdit(ScanQRTextEdit):
         self.previous_payto = key
         if not (('.' in key) and (not '<' in key) and (not ' ' in key)):
             return
+        parts = key.split(sep=',')  # assuming single line
+        if parts and len(parts) > 0 and bitcoin.is_address(parts[0]):
+            return
         try:
             data = self.win.contacts.resolve(key)
         except:
