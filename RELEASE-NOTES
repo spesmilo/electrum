@@ -94,7 +94,19 @@ If you have problems syncing to the correct chain fork (take a look at the Overv
 Menu "Tools") to see information about chain forks your client knows about), you can try to remove everything except
 "wallets" directory and "config" file from your Electron Cash directory.
 
+Electron Cash 3.0 -- This is now on Python 3.  Make sure all python commands are on python 3 and any needed
+modules/libraries are imported into pyhon 3.  The build is deterministic for windows (everyone should get
+the same binary because of customization to Pyinstaller that was done by Electrum team, as well as separate
+repos for locales and icons).  The fee upgrades may not be visible for existing wallet owners 
+unless you reset the max fee in preferences or remove the config file.  There is no minimum fee on the client
+side.  Be careful sending too low of a fee (lower than 1 satoshi/byte) or your transaction may get stuck,
+and there is no warning message.
 
+# Release 3.0
+  * upgrade to Python3 and PyQt5
+  * Build is done deterministically for windows
+  * improve fee policy
+  
 # Release 2.9.2
   * force headers download if headers file is corrupted
   * add websocket to windows builds
