@@ -1,7 +1,7 @@
 #!/bin/bash
 PYTHON_VERSION=3.5.4
 
-PYINSTALLER_GIT_URL=https://github.com/ecdsa/pyinstaller.git
+PYINSTALLER_GIT_URL=https://github.com/fyookball/pyinstaller.git
 BRANCH=fix_2952
 
 export WINEPREFIX=/opt/wine64
