@@ -143,7 +143,6 @@ def sweep(privkeys, network, config, recipient, fee=None, imax=100):
     locktime = network.get_local_height()
 
     tx = Transaction.from_io(inputs, outputs, locktime=locktime)
-    tx.set_rbf(True)
     tx.sign(keypairs)
     return tx
 
