@@ -302,12 +302,20 @@ class ChoicesLayout(object):
 def address_field(addresses):
     hbox = QHBoxLayout()
     address_e = QLineEdit()
-    if addresses:
+    if addresses and len(addresses) > 0:
         address_e.setText(addresses[0])
+    else:
+        addresses = []
     def func():
-        i = addresses.index(str(address_e.text())) + 1
-        i = i % len(addresses)
-        address_e.setText(addresses[i])
+        try:
+            i = addresses.index(str(address_e.text())) + 1
+            i = i % len(addresses)
+            address_e.setText(addresses[i])
+        except ValueError:
+            # the user might have changed address_e to an
+            # address not in the wallet (or to something that isn't an address)
+            if addresses and len(addresses) > 0:
+                address_e.setText(addresses[0])
     button = QPushButton(_('Address'))
     button.clicked.connect(func)
     hbox.addWidget(button)
