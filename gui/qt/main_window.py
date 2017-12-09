@@ -124,6 +124,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.tl_windows = []
         self.tx_external_keypairs = {}
 
+        Address.show_cashaddr(config.get('show_cashaddr', False))
+
         self.create_status_bar()
         self.need_update = threading.Event()
 
@@ -2475,6 +2477,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fee_widgets = []
         tx_widgets = []
         id_widgets = []
+
+        def on_toggle_cashaddr(state):
+            self.config.set_key('show_cashaddr', state == Qt.Checked)
+            Address.show_cashaddr(state == Qt.Checked)
+            # FIXME: overkill, but also not enough
+            self.update_tabs()
+
+        cashaddr_cb = QCheckBox(_('CashAddr address format'))
+        cashaddr_cb.setChecked(Address.FMT_UI == Address.FMT_CASHADDR)
+        cashaddr_cb.setToolTip(_("If unchecked, addresses are shown in legacy format"))
+        cashaddr_cb.stateChanged.connect(on_toggle_cashaddr)
+        gui_widgets.append((cashaddr_cb, None))
 
         # language
         lang_help = _('Select which language is used in the GUI (after restart).')

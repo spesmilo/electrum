@@ -198,6 +198,10 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
         return super().__new__(cls, hash160, kind)
 
     @classmethod
+    def show_cashaddr(cls, on):
+        cls.FMT_UI = cls.FMT_CASHADDR if on else cls.FMT_LEGACY
+
+    @classmethod
     def from_cashaddr_string(cls, string):
         '''Construct from a cashaddress string.'''
         if not string.startswith(cashaddr.BCH_HRP):
