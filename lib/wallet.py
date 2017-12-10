@@ -343,6 +343,8 @@ class Abstract_Wallet(PrintError):
         with self.lock: return self.up_to_date
 
     def set_label(self, name, text = None):
+        if isinstance(name, Address):
+            name = name.to_storage_string()
         changed = False
         old_text = self.labels.get(name)
         if text:
