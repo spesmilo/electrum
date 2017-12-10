@@ -39,7 +39,7 @@ from PyQt5.QtWidgets import *
 from electrum.util import bh2u, bfh
 
 from electrum import keystore
-from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS
+from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS, NetworkConstants
 from electrum.plugins import run_hook
 from electrum.i18n import _
 from electrum.util import (format_time, format_satoshis, PrintError,
@@ -363,7 +363,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.setGeometry(100, 100, 840, 400)
 
     def watching_only_changed(self):
-        title = 'Electrum %s  -  %s' % (self.wallet.electrum_version,
+        name = "Electrum Testnet" if NetworkConstants.TESTNET else "Electrum"
+        title = '%s %s  -  %s' % (name, self.wallet.electrum_version,
                                         self.wallet.basename())
         extra = [self.wallet.storage.get('wallet_type', '?')]
         if self.wallet.is_watching_only():
