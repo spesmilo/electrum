@@ -144,7 +144,7 @@ class TcpConnection(threading.Thread, util.PrintError):
                     context = self.get_ssl_context(cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_path)
                     s = context.wrap_socket(s, do_handshake_on_connect=True)
                 except ssl.SSLError as e:
-                    print_error(e)
+                    self.print_error(e)
                     s = None
                 except:
                     return
