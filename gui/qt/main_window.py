@@ -42,6 +42,7 @@ from electroncash.util import bh2u, bfh
 from electroncash import keystore
 from electroncash.address import Address
 from electroncash.bitcoin import COIN, is_address, TYPE_ADDRESS
+from electroncash.networks import NetworkConstants
 from electroncash.plugins import run_hook
 from electroncash.i18n import _
 from electroncash.util import (format_time, format_satoshis, PrintError,
@@ -146,7 +147,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tabs.addTab(self.create_history_tab(), QIcon(":icons/tab_history.png"), _('History'))
         tabs.addTab(self.send_tab, QIcon(":icons/tab_send.png"), _('Send'))
         tabs.addTab(self.receive_tab, QIcon(":icons/tab_receive.png"), _('Receive'))
-       
+
         def add_optional_tab(tabs, tab, icon, description, name):
             tab.tab_icon = icon
             tab.tab_description = description
@@ -369,8 +370,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.setGeometry(100, 100, 840, 400)
 
     def watching_only_changed(self):
-        title = 'Electron Cash %s  -  %s' % (self.wallet.electrum_version,
-                                        self.wallet.basename())
+        title = '%s %s  -  %s' % (NetworkConstants.TITLE,
+                                  self.wallet.electrum_version,
+                                  self.wallet.basename())
         extra = [self.wallet.storage.get('wallet_type', '?')]
         if self.wallet.is_watching_only():
             self.warn_if_watching_only()
@@ -1787,7 +1789,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.lock_icon = QIcon()
         self.password_button = StatusBarButton(self.lock_icon, _("Password"), self.change_password_dialog )
         sb.addPermanentWidget(self.password_button)
- 
+
         icon = QIcon(":icons/tab_converter_bw.png") if not self.config.get('show_cashaddr') == True else QIcon(":icons/tab_converter.png")
         self.addr_converter_button = StatusBarButton(QIcon(icon), _("Toggle Address Format"), self.toggle_cashaddr_tray )
         sb.addPermanentWidget(self.addr_converter_button)
@@ -2487,8 +2489,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         else:
             cashaddr_tray_new_status=False
             icon = QIcon(":icons/tab_converter_bw.png")
-        self.config.set_key('show_cashaddr', cashaddr_tray_new_status) 
-        Address.show_cashaddr(cashaddr_tray_new_status) 
+        self.config.set_key('show_cashaddr', cashaddr_tray_new_status)
+        Address.show_cashaddr(cashaddr_tray_new_status)
         self.update_tabs()
         self.addr_converter_button.setIcon(icon)
 
@@ -2498,7 +2500,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
 
- 
+
 
 
 
@@ -2512,7 +2514,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tx_widgets = []
         id_widgets = []
 
-   
+
         def on_toggle_cashaddr(state):
             self.config.set_key('show_cashaddr', state == Qt.Checked)
             Address.show_cashaddr(state == Qt.Checked)
