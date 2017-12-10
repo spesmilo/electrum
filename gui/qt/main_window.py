@@ -1785,6 +1785,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.lock_icon = QIcon()
         self.password_button = StatusBarButton(self.lock_icon, _("Password"), self.change_password_dialog )
         sb.addPermanentWidget(self.password_button)
+ 
+        icon = QIcon(":icons/tab_converter_bw.png") if not self.config.get('show_cashaddr') == True else QIcon(":icons/tab_converter.png")
+        self.addr_converter_button = StatusBarButton(QIcon(icon), _("Address Converter"), self.toggle_cashaddr_tray )
+        sb.addPermanentWidget(self.addr_converter_button)
 
         sb.addPermanentWidget(StatusBarButton(QIcon(":icons/preferences.png"), _("Preferences"), self.settings_dialog ) )
         self.seed_button = StatusBarButton(QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog )
@@ -2468,6 +2472,29 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.address_list.update()
         self.update_status()
 
+
+    def toggle_cashaddr_tray(self):
+        if not self.config.get('show_cashaddr') == True:
+            cashaddr_tray_new_status=True
+            icon = QIcon(":icons/tab_converter.png")
+        else:
+            cashaddr_tray_new_status=False
+            icon = QIcon(":icons/tab_converter_bw.png")
+        self.config.set_key('show_cashaddr', cashaddr_tray_new_status) 
+        Address.show_cashaddr(cashaddr_tray_new_status) 
+        self.update_tabs()
+        self.addr_converter_button.setIcon(icon)
+
+
+
+
+
+
+
+ 
+
+
+
     def settings_dialog(self):
         self.need_restart = False
         d = WindowModalDialog(self, _('Preferences'))
@@ -2478,6 +2505,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tx_widgets = []
         id_widgets = []
 
+   
         def on_toggle_cashaddr(state):
             self.config.set_key('show_cashaddr', state == Qt.Checked)
             Address.show_cashaddr(state == Qt.Checked)
