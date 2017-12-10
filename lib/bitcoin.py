@@ -36,7 +36,6 @@ from .networks import NetworkConstants
 from .util import (bfh, bh2u, to_string, print_error, InvalidPassword,
                    assert_bytes, to_bytes, inv_dict)
 from . import version
-from . import segwit_addr
 
 ################################## transactions
 
@@ -301,13 +300,6 @@ def script_to_address(script):
     return addr
 
 def address_to_script(addr):
-    witver, witprog = segwit_addr.decode(NetworkConstants.SEGWIT_HRP, addr)
-    if witprog is not None:
-        assert (0 <= witver <= 16)
-        OP_n = witver + 0x50 if witver > 0 else 0
-        script = bh2u(bytes([OP_n]))
-        script += push_script(bh2u(bytes(witprog)))
-        return script
     addrtype, hash_160 = b58_address_to_hash160(addr)
     if addrtype == NetworkConstants.ADDRTYPE_P2PKH:
         script = '76a9'                                      # op_dup, op_hash_160

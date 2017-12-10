@@ -21,7 +21,7 @@
 # THE SOFTWARE.
 
 
-"""Reference tests for segwit adresses"""
+"""Reference tests for cashaddr adresses"""
 
 import binascii
 import unittest
