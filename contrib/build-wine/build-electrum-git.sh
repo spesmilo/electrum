@@ -60,6 +60,7 @@ popd
 pushd electrum
 VERSION="3.0"
 echo "Last commit: $VERSION"
+find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
 rm -rf $WINEPREFIX/drive_c/electrum
@@ -87,7 +88,7 @@ wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" --noconfirm --ascii --na
 
 # set timestamps in dist, in order to make the installer reproducible
 pushd dist
-find  -type f  -exec touch -d '2000-11-11T11:11:11+00:00' {} +
+find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
 
