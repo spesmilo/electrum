@@ -18,22 +18,14 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
-PUBKEY_TYPE = 0;
-SCRIPT_TYPE = 1;
-BCH_HRP = "bitcoincash"
+_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 
-
-class CashAddrError(Exception):
-    '''Raised on a cash address exception.'''
-
-
-def cashaddr_polymod(values):
+def _polymod(values):
     """Internal function that computes the cashaddr checksum."""
     c = 1
     for d in values:
         c0 = c >> 35
-        c = ((c & 0x07ffffffff) << 5) ^ d;
+        c = ((c & 0x07ffffffff) << 5) ^ d
         if (c0 & 0x01):
             c ^= 0x98f2bc8e61
         if (c0 & 0x02):
@@ -47,59 +39,25 @@ def cashaddr_polymod(values):
     retval= c ^ 1
     return retval
 
-
-def cashaddr_hrp_expand(hrp):
-    """Expand the HRP into values for checksum computation."""
-    retval = [ord(x) & 0x1f for x in hrp]
+def _prefix_expand(prefix):
+    """Expand the prefix into values for checksum computation."""
+    retval = bytearray(ord(x) & 0x1f for x in prefix)
     # Append null separator
     retval.append(0)
     return retval
 
-
-def cashaddr_verify_checksum(hrp, data):
-    """Verify a checksum given HRP and converted data characters."""
-    return cashaddr_polymod(cashaddr_hrp_expand(hrp) + data) == 0
-
-
-def cashaddr_create_checksum(hrp, data):
-    """Compute the checksum values given HRP and data."""
-    values = cashaddr_hrp_expand(hrp) + data
-    polymod = cashaddr_polymod(values + [0, 0, 0, 0, 0, 0, 0, 0])
+def _create_checksum(prefix, data):
+    """Compute the checksum values given prefix and data."""
+    values = _prefix_expand(prefix) + data + bytes(8)
+    polymod = _polymod(values)
     # Return the polymod expanded into eight 5-bit elements
-    return [(polymod >> 5 * (7 - i)) & 31 for i in range(8)]
+    return bytes((polymod >> 5 * (7 - i)) & 31 for i in range(8))
 
-
-def cashaddr_encode(hrp, data):
-    """Compute a cashaddr string given HRP and data values."""
-    combined = data
-    combined.extend(cashaddr_create_checksum(hrp, data))
-    return ''.join([CHARSET[d] for d in combined])
-
-
-def cashaddr_decode(addr):
-    """Validate a cashaddr string, and determine HRP and data."""
-    if ((any(ord(x) < 33 or ord(x) > 126 for x in addr)) or
-            (addr.lower() != addr and addr.upper() != addr)):
-        return (None, None)
-    addr = addr.lower()
-    pos = addr.rfind(':')
-    if pos < 1 or pos + 7 > len(addr) or len(addr[pos+1:]) > 124:
-        return (None, None)
-    if not all(x in CHARSET for x in addr[pos+1:]):
-        return (None, None)
-    hrp = addr[:pos]
-    data = [CHARSET.find(x) for x in addr[pos+1:]]
-    if not cashaddr_verify_checksum(hrp, data):
-        return (None, None)
-    # 40 bits in chunks of 5 bits is 8 bytes total that we don't want to include
-    return (hrp, data[:-8])
-
-
-def convertbits(data, frombits, tobits, pad=True):
+def _convertbits(data, frombits, tobits, pad=True):
     """General power-of-2 base conversion."""
     acc = 0
     bits = 0
-    ret = []
+    ret = bytearray()
     maxv = (1 << tobits) - 1
     max_acc = (1 << (frombits + tobits - 1)) - 1
     for value in data:
@@ -109,84 +67,131 @@ def convertbits(data, frombits, tobits, pad=True):
             bits -= tobits
             ret.append((acc >> bits) & maxv)
 
-    if not pad and bits:
-        return ret, False
-    elif pad and bits:
+    if pad and bits:
         ret.append((acc << (tobits - bits)) & maxv)
 
-    return ret, True
+    return ret
+
+def _pack_addr_data(kind, addr_hash):
+    """Pack addr data with version byte"""
+    version_byte = kind << 3
+
+    offset = 1
+    encoded_size = 0
+    if len(addr_hash) >= 40:
+        offset = 2
+        encoded_size |= 0x04
+    encoded_size |= (len(addr_hash) - 20 * offset) // (4 * offset)
+
+    # invalid size?
+    if ((len(addr_hash) - 20 * offset) % (4 * offset) != 0
+            or not 0 <= encoded_size <= 7):
+        raise ValueError('invalid address hash size {}'.format(addr_hash))
+
+    version_byte |= encoded_size
+
+    data = bytes([version_byte]) + addr_hash
+    return _convertbits(data, 8, 5, True)
 
 
-def decode(hrp, addr):
-    """Decode a cashaddr address."""
-    hrpgot, data = cashaddr_decode(addr)
-    if hrpgot != hrp:
-        return (None, None)
+def _decode_payload(addr):
+    """Validate a cashaddr string.
+
+    Throws CashAddr.Error if it is invalid, otherwise returns the
+    triple
+
+       (prefix,  payload)
+
+    without the checksum
+    """
+    lower = addr.lower()
+    if lower != addr and addr.upper() != addr:
+        raise ValueError('mixed case in address: {}'.format(addr))
+
+    parts = lower.split(':', 1)
+    if len(parts) != 2:
+        raise ValueError("address missing ':' separator: {}".format(addr))
+
+    prefix, payload = parts
+    if not prefix:
+        raise ValueError('address prefix is missing: {}'.format(addr))
+    if not all(33 <= ord(x) <= 126 for x in prefix):
+        raise ValueError('invalid address prefix: {}'.format(prefix))
+    if not (8 <= len(payload) <= 124):
+        raise ValueError('address payload has invalid length: {}'
+                         .format(len(addr)))
+    try:
+        data = bytes(_CHARSET.find(x) for x in payload)
+    except ValueError:
+        raise ValueError('invalid characters in address: {}'
+                            .format(payload))
+
+    if _polymod(_prefix_expand(prefix) + data):
+        raise ValueError('invalid checksum in address: {}'.format(addr))
+
+    # Drop the 40 bit checksum
+    return prefix, data[:-8]
+
+#
+# External Interface
+#
+
+PUBKEY_TYPE = 0
+SCRIPT_TYPE = 1
+
+def decode(address):
+    '''Given a cashaddr address, return a triple
+
+          (prefix, kind, hash)
+     '''
+    if not isinstance(address, str):
+        raise TypeError('address must be a string')
+
+    prefix, payload = _decode_payload(address)
 
     # Ensure there isn't extra padding
-    extrabits = len(data) * 5 % 8;
+    extrabits = len(payload) * 5 % 8
     if extrabits >= 5:
-        return (None, None);
+        raise ValueError('excess padding in address {}'.format(address))
 
     # Ensure extrabits are zeros
-    last_byte = data[-1]
-    if last_byte & ((1 << extrabits) - 1):
-        # Found some non-zero bits
-        return (None, None)
+    if payload[-1] & ((1 << extrabits) - 1):
+        raise ValueError('non-zero padding in address {}'.format(address))
 
-    decoded, padded = convertbits(data, 5, 8, False)
+    decoded = _convertbits(payload, 5, 8, False)
     version = decoded[0]
+    addr_hash = bytes(decoded[1:])
     size = (version & 0x03) * 4 + 20
     # Double the size, if the 3rd bit is on.
     if version & 0x04:
         size <<= 1
+    if size != len(addr_hash):
+        raise ValueError('address hash has length {} but expected {}'
+                         .format(len(addr_hash), size))
 
-    version >>= 3
-    if version != SCRIPT_TYPE and version != PUBKEY_TYPE:
-        return (None, None)
-    if size != len(decoded[1:]):
-        return (None, None)
+    kind = version >> 3
+    if kind not in (SCRIPT_TYPE, PUBKEY_TYPE):
+        raise ValueError('unrecognised address type {}'.format(kind))
 
-    decoded_hash = decoded[1:]
-
-    return (version, decoded_hash)
-
-
-def pack_addr_data( addrtype, addrhash ):
-    """Pack addr data with version byte"""
-    assert addrtype == 0 or addrtype == 1, "invalid addrtype"
-    version_byte = addrtype << 3
-
-    offset = 1
-    encoded_size = 0
-    if len(addrhash) >= 40:
-        offset = 2
-        encoded_size |= 0x04
-    encoded_size |= (len(addrhash) - 20 * offset) // (4 * offset)
-
-    # invalid size
-    if (len(addrhash) - 20 * offset) % (4 * offset) != 0:
-        return None
-
-    # encoded_size out of range
-    if encoded_size < 0 or encoded_size > 7:
-        return None
-
-    version_byte |= encoded_size
-
-    data = [version_byte]
-    data.extend(addrhash)
-    packed_data, padded = convertbits(data, 8, 5, True)
-
-    return packed_data
+    return prefix, kind, addr_hash
 
 
-def encode(hrp, addrtype, addrhash):
-    """Encode a cashaddr address."""
-    # Need to handle the address type and pack size here.
-    packed_data = pack_addr_data(addrtype, addrhash)
-    if packed_data is None:
-        return None
+def encode(prefix, kind, addr_hash):
+    """Encode a cashaddr address without prefix and separator."""
+    if not isinstance(prefix, str):
+        raise TypeError('prefix must be a string')
 
-    ret = cashaddr_encode(hrp, packed_data)
-    return hrp + ':' + ret
+    if not isinstance(addr_hash, (bytes, bytearray)):
+        raise TypeError('addr_hash must be binary bytes')
+
+    if kind not in (SCRIPT_TYPE, PUBKEY_TYPE):
+        raise ValueError('unrecognised address type {}'.format(kind))
+
+    payload = _pack_addr_data(kind, addr_hash)
+    checksum = _create_checksum(prefix, payload)
+    return ''.join([_CHARSET[d] for d in (payload + checksum)])
+
+
+def encode_full(prefix, kind, addr_hash):
+    """Encode a full cashaddr address, with prefix and separator."""
+    return ':'.join([prefix, encode(prefix, kind, addr_hash)])

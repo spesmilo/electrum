@@ -204,17 +204,17 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
     @classmethod
     def from_cashaddr_string(cls, string):
         '''Construct from a cashaddress string.'''
-        if not string.startswith(cashaddr.BCH_HRP):
-            string = ':'.join([cashaddr.BCH_HRP, string])
-        kind, hash_bytes = cashaddr.decode(cashaddr.BCH_HRP, string)
-        if kind is None:
-            raise AddressError('bad cashaddress: {}'.format(string))
-        hash160 = bytes(hash_bytes)
+        if not string.startswith(NetworkConstants.CASHADDR_PREFIX):
+            string = ':'.join([NetworkConstants.CASHADDR_PREFIX, string])
+        prefix, kind, addr_hash = cashaddr.decode(string)
+        if prefix != NetworkConstants.CASHADDR_PREFIX:
+            raise AddressError('address has unexpected prefix {}'
+                               .format(prefix))
         if kind == cashaddr.PUBKEY_TYPE:
-            return cls(hash160, cls.ADDR_P2PKH)
+            return cls(addr_hash, cls.ADDR_P2PKH)
         else:
             assert kind == cashaddr.SCRIPT_TYPE
-            return cls(hash160, cls.ADDR_P2SH)
+            return cls(addr_hash, cls.ADDR_P2SH)
 
     @classmethod
     def from_string(cls, string):
@@ -278,9 +278,8 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
             kind  = cashaddr.PUBKEY_TYPE
         else:
             kind  = cashaddr.SCRIPT_TYPE
-        hash_bytes = list(self.hash160)
-        packed_data = cashaddr.pack_addr_data(kind, hash_bytes)
-        return cashaddr.cashaddr_encode(cashaddr.BCH_HRP, packed_data)
+        return cashaddr.encode(NetworkConstants.CASHADDR_PREFIX, kind,
+                               self.hash160)
 
     def to_string(self, fmt):
         '''Converts to a string of the given format.'''
