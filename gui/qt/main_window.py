@@ -146,8 +146,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tabs.addTab(self.create_history_tab(), QIcon(":icons/tab_history.png"), _('History'))
         tabs.addTab(self.send_tab, QIcon(":icons/tab_send.png"), _('Send'))
         tabs.addTab(self.receive_tab, QIcon(":icons/tab_receive.png"), _('Receive'))
-        tabs.addTab(self.converter_tab, QIcon(":icons/tab_converter.png"), _('Convert'))
-
+       
         def add_optional_tab(tabs, tab, icon, description, name):
             tab.tab_icon = icon
             tab.tab_description = description
@@ -160,6 +159,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         add_optional_tab(tabs, self.utxo_tab, QIcon(":icons/tab_coins.png"), _("Co&ins"), "utxo")
         add_optional_tab(tabs, self.contacts_tab, QIcon(":icons/tab_contacts.png"), _("Con&tacts"), "contacts")
         add_optional_tab(tabs, self.console_tab, QIcon(":icons/tab_console.png"), _("Con&sole"), "console")
+        add_optional_tab(tabs, self.converter_tab, QIcon(":icons/tab_converter.png"), _("Converter"), "converter")
 
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
@@ -497,6 +497,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         add_toggle_action(view_menu, self.utxo_tab)
         add_toggle_action(view_menu, self.contacts_tab)
         add_toggle_action(view_menu, self.console_tab)
+        add_toggle_action(view_menu, self.converter_tab)
 
         tools_menu = menubar.addMenu(_("&Tools"))
 
@@ -1787,7 +1788,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         sb.addPermanentWidget(self.password_button)
  
         icon = QIcon(":icons/tab_converter_bw.png") if not self.config.get('show_cashaddr') == True else QIcon(":icons/tab_converter.png")
-        self.addr_converter_button = StatusBarButton(QIcon(icon), _("Address Converter"), self.toggle_cashaddr_tray )
+        self.addr_converter_button = StatusBarButton(QIcon(icon), _("Toggle Address Format"), self.toggle_cashaddr_tray )
         sb.addPermanentWidget(self.addr_converter_button)
 
         sb.addPermanentWidget(StatusBarButton(QIcon(":icons/preferences.png"), _("Preferences"), self.settings_dialog ) )
