@@ -72,7 +72,7 @@
   !define MUI_ABORTWARNING
   !define MUI_ABORTWARNING_TEXT "Are you sure you wish to abort the installation of ${PRODUCT_NAME}?"
   
-  !define MUI_ICON "..\..\icons\electrum.ico"
+  !define MUI_ICON "tmp\electrum-ltc\icons\electrum.ico"
   
 ;--------------------------------
 ;Pages
@@ -129,6 +129,8 @@ Section
   CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\Uninstall.exe" 0
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME}.lnk" "$INSTDIR\electrum-ltc-${PRODUCT_VERSION}.exe" "" "$INSTDIR\electrum-ltc-${PRODUCT_VERSION}.exe" 0
+  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME} Testnet.lnk" "$INSTDIR\electrum-ltc-${PRODUCT_VERSION}.exe" "--testnet" "$INSTDIR\electrum-ltc-${PRODUCT_VERSION}.exe" 0
+
 
   ;Links bitcoin: URI's to Electrum
   WriteRegStr HKCU "Software\Classes\litecoin" "" "URL:litecoin Protocol"

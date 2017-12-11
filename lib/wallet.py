@@ -1096,7 +1096,7 @@ class Abstract_Wallet(PrintError):
         if self.is_mine(address):
             txin['type'] = self.get_txin_type(address)
             # segwit needs value to sign
-            if txin.get('value') is None and txin['type'] in ['p2wpkh', 'p2wsh', 'p2wpkh-p2sh', 'p2wsh-p2sh']:
+            if txin.get('value') is None and Transaction.is_segwit_input(txin):
                 received, spent = self.get_addr_io(address)
                 item = received.get(txin['prevout_hash']+':%d'%txin['prevout_n'])
                 tx_height, value, is_cb = item
