@@ -2668,19 +2668,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return '\n'.join([key, "", " ".join(lines)])
 
         choosers = sorted(coinchooser.COIN_CHOOSERS.keys())
-        chooser_name = coinchooser.get_name(self.config)
-        msg = _('Choose coin (UTXO) selection method.  The following are available:\n\n')
-        msg += '\n\n'.join(fmt_docs(*item) for item in coinchooser.COIN_CHOOSERS.items())
-        chooser_label = HelpLabel(_('Coin selection') + ':', msg)
-        chooser_combo = QComboBox()
-        chooser_combo.addItems(choosers)
-        i = choosers.index(chooser_name) if chooser_name in choosers else 0
-        chooser_combo.setCurrentIndex(i)
-        def on_chooser(x):
-            chooser_name = choosers[chooser_combo.currentIndex()]
-            self.config.set_key('coin_chooser', chooser_name)
-        chooser_combo.currentIndexChanged.connect(on_chooser)
-        tx_widgets.append((chooser_label, chooser_combo))
+        if len(choosers) > 1:
+            chooser_name = coinchooser.get_name(self.config)
+            msg = _('Choose coin (UTXO) selection method.  The following are available:\n\n')
+            msg += '\n\n'.join(fmt_docs(*item) for item in coinchooser.COIN_CHOOSERS.items())
+            chooser_label = HelpLabel(_('Coin selection') + ':', msg)
+            chooser_combo = QComboBox()
+            chooser_combo.addItems(choosers)
+            i = choosers.index(chooser_name) if chooser_name in choosers else 0
+            chooser_combo.setCurrentIndex(i)
+            def on_chooser(x):
+                chooser_name = choosers[chooser_combo.currentIndex()]
+                self.config.set_key('coin_chooser', chooser_name)
+            chooser_combo.currentIndexChanged.connect(on_chooser)
+            tx_widgets.append((chooser_label, chooser_combo))
 
         def on_unconf(x):
             self.config.set_key('confirmed_only', bool(x))
