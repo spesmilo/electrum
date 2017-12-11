@@ -860,7 +860,8 @@ class Abstract_Wallet(PrintError):
     def dust_threshold(self):
         return dust_threshold(self.network)
 
-    def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None, change_addr=None):
+    def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None,
+                                  change_addr=None, is_sweep=False):
         # check outputs
         i_max = None
         for i, o in enumerate(outputs):
