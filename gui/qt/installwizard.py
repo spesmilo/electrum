@@ -527,10 +527,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         grid.addWidget(m_label, 1, 0)
         grid.addWidget(m_edit, 1, 1)
         def on_m(m):
-            m_label.setText(_('Require %d signatures')%m)
+            m_label.setText(_('Require {0} signatures').format(m))
             cw.set_m(m)
         def on_n(n):
-            n_label.setText(_('From %d cosigners')%n)
+            n_label.setText(_('From {0} cosigners').format(n))
             cw.set_n(n)
             m_edit.setMaximum(n)
         n_edit.valueChanged.connect(on_n)
