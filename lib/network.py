@@ -804,12 +804,13 @@ class Network(util.DaemonThread):
             interface.print_error("unsolicited header",interface.request, height)
             self.connection_down(interface.server)
             return
-        can_connect = blockchain.can_connect(header)
         chain = blockchain.check_header(header)
         if interface.mode == 'backward':
+            can_connect = blockchain.can_connect(header)
             if can_connect and can_connect.catch_up is None:
                 interface.mode = 'catch_up'
                 interface.blockchain = can_connect
+                interface.blockchain.save_header(header)
                 next_height = height + 1
                 interface.blockchain.catch_up = interface.server
             elif chain:
