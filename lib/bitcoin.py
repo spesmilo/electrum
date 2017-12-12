@@ -76,7 +76,7 @@ WIF_PREFIX = 0x80
 ADDRTYPE_P2PKH = 36
 ADDRTYPE_P2SH = 5
 SEGWIT_HRP = "grs"
-HEADERS_URL = "https://headers.groestlcoin.org/blockchain_headers"
+HEADERS_URL = "https://www.groestlcoin.org/blockchain_headers"
 GENESIS = "00000ac5927c594d49cc0bdb81759d0da8297eb614683d3acb62f0703b639023"
 SERVERLIST = 'servers.json'
 DEFAULT_PORTS = {'t':'50001', 's':'50002'}
@@ -94,7 +94,7 @@ def set_testnet():
     ADDRTYPE_P2PKH = 111
     ADDRTYPE_P2SH = 196
     SEGWIT_HRP = "tgrs"
-    HEADERS_URL = "https://headers.groestlcoin.org/testnet_headers"
+    HEADERS_URL = "https://www.groestlcoin.org/testnet_headers"
     GENESIS = "000000ffbb50fc9898cdd36ec163e6ba23230164c0052a28876255b7dcf2cd36"
     SERVERLIST = 'servers_testnet.json'
     DEFAULT_PORTS = {'t':'51001', 's':'51002'}
