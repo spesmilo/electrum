@@ -165,8 +165,7 @@ class Network(util.DaemonThread):
         util.DaemonThread.__init__(self)
         self.config = SimpleConfig(config) if isinstance(config, dict) else config
         self.num_server = 10 if not self.config.get('oneserver') else 0
-        self.read_checkpoints()
-        self.blockchains = blockchain.read_blockchains(self.config, self.checkpoints)
+        self.blockchains = blockchain.read_blockchains(self.config)
         self.print_error("blockchains", self.blockchains.keys())
         self.blockchain_index = config.get('blockchain_index', 0)
         if self.blockchain_index not in self.blockchains.keys():
@@ -951,7 +950,7 @@ class Network(util.DaemonThread):
         b = self.blockchains[0]
         filename = b.path()
         if not os.path.exists(filename):
-            length = 80 * len(self.checkpoints) * 2016
+            length = 80 * len(bitcoin.NetworkConstants.CHECKPOINTS) * 2016
             with open(filename, 'wb') as f:
                 if length>0:
                     f.seek(length-1)
@@ -1065,22 +1064,11 @@ class Network(util.DaemonThread):
             return False, "error: " + out
         return True, out
 
-    def checkpoints_path(self):
-        return os.path.join(os.path.dirname(__file__), 'checkpoints.json')
-
-    def export_checkpoints(self):
-        # for each chunk, store the hash of the last block and the target after the chunk
+    def export_checkpoints(self, path):
+        # run manually from the console to generate checkpoints
         cp = self.blockchain().get_checkpoints()
-        with open(self.checkpoints_path(), 'w') as f:
+        with open(path, 'w') as f:
             f.write(json.dumps(cp, indent=4))
 
-    def read_checkpoints(self):
-        try:
-            with open(self.checkpoints_path(), 'r') as f:
-                self.checkpoints = json.loads(f.read())
-            self.print_error("Read %d checkpoints" % len(self.checkpoints))
-        except:
-            self.checkpoints = []
-
     def max_checkpoint(self):
-        return max(0, len(self.checkpoints) * 2016 - 1)
+        return max(0, len(bitcoin.NetworkConstants.CHECKPOINTS) * 2016 - 1)

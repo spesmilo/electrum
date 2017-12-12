@@ -60,8 +60,8 @@ def hash_header(header):
 
 blockchains = {}
 
-def read_blockchains(config, checkpoints):
-    blockchains[0] = Blockchain(config, checkpoints, 0, None)
+def read_blockchains(config):
+    blockchains[0] = Blockchain(config, 0, None)
     fdir = os.path.join(util.get_headers_dir(config), 'forks')
     if not os.path.exists(fdir):
         os.mkdir(fdir)
@@ -70,7 +70,7 @@ def read_blockchains(config, checkpoints):
     for filename in l:
         checkpoint = int(filename.split('_')[2])
         parent_id = int(filename.split('_')[1])
-        b = Blockchain(config, checkpoints, checkpoint, parent_id)
+        b = Blockchain(config, checkpoint, parent_id)
         blockchains[b.checkpoint] = b
     return blockchains
 
@@ -94,11 +94,11 @@ class Blockchain(util.PrintError):
     Manages blockchain headers and their verification
     """
 
-    def __init__(self, config, checkpoints, checkpoint, parent_id):
+    def __init__(self, config, checkpoint, parent_id):
         self.config = config
         self.catch_up = None # interface catching up
         self.checkpoint = checkpoint
-        self.checkpoints = checkpoints
+        self.checkpoints = bitcoin.NetworkConstants.CHECKPOINTS
         self.parent_id = parent_id
         self.lock = threading.Lock()
         with self.lock:
@@ -128,7 +128,7 @@ class Blockchain(util.PrintError):
 
     def fork(parent, header):
         checkpoint = header.get('block_height')
-        self = Blockchain(parent.config, parent.checkpoints, checkpoint, parent.checkpoint)
+        self = Blockchain(parent.config, checkpoint, parent.checkpoint)
         open(self.path(), 'w+').close()
         self.save_header(header)
         return self
