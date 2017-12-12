@@ -1191,7 +1191,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 _type, addr = self.get_payto_or_dummy()
                 outputs = [(_type, addr, amount)]
             try:
-                tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, self.config, fee)
+                is_sweep = bool(self.tx_external_keypairs)
+                tx = self.wallet.make_unsigned_transaction(
+                    self.get_coins(), outputs, self.config, fee, is_sweep=is_sweep)
                 self.not_enough_funds = False
             except NotEnoughFunds:
                 self.not_enough_funds = True
@@ -1340,7 +1342,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         outputs, fee, tx_desc, coins = r
         try:
-            tx = self.wallet.make_unsigned_transaction(coins, outputs, self.config, fee)
+            is_sweep = bool(self.tx_external_keypairs)
+            tx = self.wallet.make_unsigned_transaction(
+                coins, outputs, self.config, fee, is_sweep=is_sweep)
         except NotEnoughFunds:
             self.show_message(_("Insufficient funds"))
             return
@@ -1408,8 +1412,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         '''Sign the transaction in a separate thread.  When done, calls
         the callback with a success code of True or False.
         '''
-        # call hook to see if plugin needs gui interaction
-        run_hook('sign_tx', self, tx)
 
         def on_signed(result):
             callback(True)
@@ -1418,8 +1420,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             callback(False)
 
         if self.tx_external_keypairs:
+            # can sign directly
             task = partial(Transaction.sign, tx, self.tx_external_keypairs)
         else:
+            # call hook to see if plugin needs gui interaction
+            run_hook('sign_tx', self, tx)
             task = partial(self.wallet.sign_transaction, tx, password)
         WaitingDialog(self, _('Signing transaction...'), task,
                       on_signed, on_failed)

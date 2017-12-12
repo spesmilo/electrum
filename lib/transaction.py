@@ -645,7 +645,7 @@ class Transaction:
         num_sig = txin.get('num_sig', 1)
         if estimate_size:
             pubkey_size = self.estimate_pubkey_size_for_txin(txin)
-            pk_list = ["00" * pubkey_size] * num_sig
+            pk_list = ["00" * pubkey_size] * len(txin.get('x_pubkeys', [None]))
             # we assume that signature will be 0x48 bytes long
             sig_list = [ "00" * 0x48 ] * num_sig
         else:
