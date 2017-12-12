@@ -20,10 +20,11 @@ hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
 
 datas = [
-    (home+'lib/currencies.json', 'electrum-ltc'),
-    (home+'lib/servers.json', 'electrum-ltc'),
-    (home+'lib/wordlist/english.txt', 'electrum-ltc/wordlist'),
-    (home+'lib/locale', 'electrum-ltc/locale'),
+    (home+'lib/currencies.json', 'electrum_ltc'),
+    (home+'lib/servers.json', 'electrum_ltc'),
+    (home+'lib/checkpoints.json', 'electrum_ltc'),
+    (home+'lib/wordlist/english.txt', 'electrum_ltc/wordlist'),
+    (home+'lib/locale', 'electrum_ltc/locale'),
     (home+'plugins', 'electrum_ltc_plugins'),
 ]
 datas += collect_data_files('trezorlib')
