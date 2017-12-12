@@ -135,9 +135,7 @@ class BaseWizard(object):
 
     def on_import(self, text):
         if keystore.is_address_list(text):
-            self.wallet = Imported_Wallet(self.storage)
-            for x in text.split():
-                self.wallet.import_address(x)
+            self.wallet = ImportedAddressWallet.from_text(self.storage, text)
         elif keystore.is_private_key_list(text):
             k = keystore.Imported_KeyStore({})
             self.storage.put('keystore', k.dump())

@@ -89,7 +89,7 @@ if is_local or is_android:
 from electroncash import bitcoin
 from electroncash import SimpleConfig, Network
 from electroncash.networks import NetworkConstants
-from electroncash.wallet import Wallet, Imported_Wallet
+from electroncash.wallet import Wallet, Imported_Wallet, ImportedAddressWallet
 from electroncash.storage import WalletStorage
 from electroncash.util import print_msg, print_stderr, json_encode, json_decode
 from electroncash.util import set_verbosity, InvalidPassword
@@ -129,9 +129,7 @@ def run_non_RPC(config):
         passphrase = config.get('passphrase', '')
         password = password_dialog() if keystore.is_private(text) else None
         if keystore.is_address_list(text):
-            wallet = Imported_Wallet(storage)
-            for x in text.split():
-                wallet.import_address(x)
+            wallet = ImportedAddressWallet.from_text(storage, text)
         elif keystore.is_private_key_list(text):
             k = keystore.Imported_KeyStore({})
             storage.put('keystore', k.dump())

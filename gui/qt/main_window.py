@@ -1634,7 +1634,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return self.create_list_tab(l)
 
     def remove_address(self, addr):
-        if self.question(_("Do you want to remove")+" %s "%addr +_("from your wallet?")):
+        if self.question(_("Do you want to remove {} from your wallet?"
+                           .format(addr.to_ui_string()))):
             self.wallet.delete_address(addr)
             self.address_list.update()
             self.history_list.update()
@@ -2463,7 +2464,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not self.wallet.can_import_address():
             return
         title, msg = _('Import addresses'), _("Enter addresses")
-        self._do_import(title, msg, self.wallet.import_address)
+        def import_addr(addr):
+            if self.wallet.import_address(Address.from_string(addr)):
+                return addr
+            return ''
+        self._do_import(title, msg, import_addr)
 
     @protected
     def do_import_privkey(self, password):

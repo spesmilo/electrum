@@ -22,7 +22,7 @@
 # SOFTWARE.
 
 # Wallet classes:
-#   - Imported_Wallet: imported address, no keystore
+#   - ImportedAddressWallet: imported address, no keystore
 #   - Standard_Wallet: one keystore, P2PKH
 #   - Multisig_Wallet: several keystores, P2SH
 
@@ -1407,6 +1407,151 @@ class Simple_Wallet(Abstract_Wallet):
         self.storage.put('keystore', self.keystore.dump())
 
 
+class ImportedWalletBase(Simple_Wallet):
+
+    txin_type = 'address'
+
+    def can_delete_address(self):
+        return True
+
+    def has_seed(self):
+        return False
+
+    def is_deterministic(self):
+        return False
+
+    def is_used(self, address):
+        return False
+
+    def is_change(self, address):
+        return False
+
+    def get_master_public_keys(self):
+        return []
+
+    def is_beyond_limit(self, address, is_change):
+        return False
+
+    def get_fingerprint(self):
+        return ''
+
+    def get_receiving_addresses(self):
+        return self.get_addresses()
+
+    def get_change_addresses(self):
+        return []
+
+    def delete_address(self, address):
+        assert isinstance(address, Address)
+        if address not in self.addresses:
+            return
+
+        transactions_to_remove = set()  # only referred to by this address
+        transactions_new = set()  # txs that are not only referred to by address
+        with self.lock:
+            for addr, details in self._history.items():
+                if addr == address:
+                    for tx_hash, height in details:
+                        transactions_to_remove.add(tx_hash)
+                else:
+                    for tx_hash, height in details:
+                        transactions_new.add(tx_hash)
+            transactions_to_remove -= transactions_new
+            self._history.pop(address, None)
+
+            for tx_hash in transactions_to_remove:
+                self.remove_transaction(tx_hash)
+                self.tx_fees.pop(tx_hash, None)
+                self.verified_tx.pop(tx_hash, None)
+                self.unverified_tx.pop(tx_hash, None)
+                self.transactions.pop(tx_hash, None)
+                # FIXME: what about pruned_txo?
+
+        self.storage.put('verified_tx3', self.verified_tx)
+        self.save_transactions()
+
+        self.set_label(address.to_storage_string(), None)
+        self.remove_payment_request(address, {})
+        self.set_frozen_state([address], False)
+
+        self.delete_address_derived(address)
+        self.save_addresses()
+
+
+class ImportedAddressWallet(ImportedWalletBase):
+    # Watch-only wallet of imported addresses
+
+    wallet_type = 'imported_addr'
+
+    def __init__(self, storage):
+        self._sorted = None
+        super().__init__(storage)
+
+    @classmethod
+    def from_text(cls, storage, text):
+        wallet = cls(storage)
+        for address in text.split():
+            wallet.import_address(Address.from_string(address))
+        return wallet
+
+    def is_watching_only(self):
+        return True
+
+    def get_keystores(self):
+        return []
+
+    def can_import_privkey(self):
+        return False
+
+    def load_keystore(self):
+        self.keystore = None
+
+    def save_keystore(self):
+        pass
+
+    def load_addresses(self):
+        addresses = self.storage.get('addresses', [])
+        self.addresses = [Address.from_string(addr) for addr in addresses]
+
+    def save_addresses(self):
+        self.storage.put('addresses', [addr.to_storage_string()
+                                       for addr in self.addresses])
+        self.storage.write()
+
+    def can_change_password(self):
+        return False
+
+    def can_import_address(self):
+        return True
+
+    def get_addresses(self, include_change=False):
+        if not self._sorted:
+            self._sorted = sorted(self.addresses,
+                                  key=lambda addr: addr.to_ui_string())
+        return self._sorted
+
+    def import_address(self, address):
+        assert isinstance(address, Address)
+        if address in self.addresses:
+            return False
+        self.addresses.append(address)
+        self.save_addresses()
+        self.storage.write()
+        self.add_address(address)
+        self._sorted = None
+        return True
+
+    def delete_address_derived(self, address):
+        self.addresses.remove(address)
+        self._sorted.remove(address)
+
+    def add_input_sig_info(self, txin, address):
+        x_pubkey = 'fd' + address.to_script_hex()
+        txin['x_pubkeys'] = [x_pubkey]
+        txin['signatures'] = [None]
+
+
+
 class Imported_Wallet(Simple_Wallet):
     # wallet made of imported addresses
 
@@ -1859,7 +2004,8 @@ wallet_constructors = {
     'standard': Standard_Wallet,
     'old': Standard_Wallet,
     'xpub': Standard_Wallet,
-    'imported': Imported_Wallet
+    'imported': Imported_Wallet,
+    'imported_addr': ImportedAddressWallet,
 }
 
 def register_constructor(wallet_type, constructor):
