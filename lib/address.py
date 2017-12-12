@@ -28,7 +28,7 @@ import hashlib
 import struct
 
 from .enum import Enumeration
-import lib.cashaddr as cashaddr
+from . import cashaddr
 from .networks import NetworkConstants
 
 _sha256 = hashlib.sha256
