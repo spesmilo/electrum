@@ -973,6 +973,9 @@ class Network(util.DaemonThread):
         height = header.get('block_height')
         if not height:
             return
+        if height < self.max_checkpoint():
+            self.connection_down(interface)
+            return
         interface.tip_header = header
         interface.tip = height
         if interface.mode != 'default':
