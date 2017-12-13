@@ -92,6 +92,11 @@ class SimpleConfig(PrintError):
         if not os.path.exists(path):
             if os.path.islink(path):
                 raise BaseException('Dangling link: ' + path)
+            # If both testnet and local options check if needed to make first a local dir
+            if self.get('testnet') and self.cmdline_options.get('portable', True):
+                short = path.rsplit('/', 1)[0]
+                if not os.path.exists(short):
+                    os.mkdir(short)
             os.mkdir(path)
             os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
