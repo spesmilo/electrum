@@ -81,7 +81,11 @@ def read_blockchains(config):
         checkpoint = int(filename.split('_')[2])
         parent_id = int(filename.split('_')[1])
         b = Blockchain(config, checkpoint, parent_id)
-        blockchains[b.checkpoint] = b
+        h = b.read_header(b.checkpoint)
+        if b.parent().can_connect(h, check_height=False):
+            blockchains[b.checkpoint] = b
+        else:
+            util.print_error("cannot connect", filename)
     return blockchains
 
 def check_header(header):
@@ -330,7 +334,6 @@ class Blockchain(util.PrintError):
         except:
             return False
         if prev_hash != header.get('prev_block_hash'):
-            self.print_error("bad hash", height, prev_hash, header.get('prev_block_hash'))
             return False
         target = self.get_target(height // 2016 - 1)
         try:

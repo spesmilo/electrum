@@ -878,6 +878,13 @@ class Transaction:
         return 4 * input_size + witness_size
 
     @classmethod
+    def estimated_output_size(cls, address):
+        """Return an estimate of serialized output size in bytes."""
+        script = bitcoin.address_to_script(address)
+        # 8 byte value + 1 byte script len + script
+        return 9 + len(script) // 2
+
+    @classmethod
     def virtual_size_from_weight(cls, weight):
         return weight // 4 + (weight % 4 > 0)
 

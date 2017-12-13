@@ -90,12 +90,14 @@ Builder.load_string('''
                     description: _("Send your change to separate addresses.")
                     message: _('Send excess coins to change addresses')
                     action: partial(root.boolean_dialog, 'use_change', _('Use change addresses'), self.message)
-                CardSeparator
-                SettingsItem:
-                    status: root.coinselect_status()
-                    title: _('Coin selection') + ': ' + self.status
-                    description: "Coin selection method"
-                    action: partial(root.coinselect_dialog, self)
+
+                # disabled: there is currently only one coin selection policy
+                #CardSeparator
+                #SettingsItem:
+                #    status: root.coinselect_status()
+                #    title: _('Coin selection') + ': ' + self.status
+                #    description: "Coin selection method"
+                #    action: partial(root.coinselect_dialog, self)
 ''')
 
 
