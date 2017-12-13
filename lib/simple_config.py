@@ -85,15 +85,19 @@ class SimpleConfig(PrintError):
         if path is None:
             path = self.user_dir()
 
+        def make_dir(path):
+            # Make directory if it does not yet exist.
+            if not os.path.exists(path):
+                if os.path.islink(path):
+                    raise BaseException('Dangling link: ' + path)
+                os.mkdir(path)
+                os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+
+        make_dir(path)
         if self.get('testnet'):
             path = os.path.join(path, 'testnet')
+            make_dir(path)
 
-        # Make directory if it does not yet exist.
-        if not os.path.exists(path):
-            if os.path.islink(path):
-                raise BaseException('Dangling link: ' + path)
-            os.mkdir(path)
-            os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
         obsolete_file = os.path.join(path, 'recent_servers')
         if os.path.exists(obsolete_file):
             os.remove(obsolete_file)
