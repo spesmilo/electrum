@@ -2077,6 +2077,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         pubkey_e = QLineEdit()
         if address:
             pubkey = self.wallet.get_public_key(address)
+            if not isinstance(pubkey, str):
+                pubkey = pubkey.to_ui_string()
             pubkey_e.setText(pubkey)
         layout.addWidget(QLabel(_('Public key')), 2, 0)
         layout.addWidget(pubkey_e, 2, 1)

@@ -27,7 +27,8 @@ import os
 from . import bitcoin
 from . import keystore
 from .keystore import bip44_derivation, bip44_derivation_145
-from .wallet import Imported_Wallet, Standard_Wallet, Multisig_Wallet, wallet_types
+from .wallet import (ImportedAddressWallet, ImportedPrivkeyWallet,
+                     Standard_Wallet, Multisig_Wallet, wallet_types)
 from .i18n import _
 
 
@@ -137,11 +138,8 @@ class BaseWizard(object):
         if keystore.is_address_list(text):
             self.wallet = ImportedAddressWallet.from_text(self.storage, text)
         elif keystore.is_private_key_list(text):
-            k = keystore.Imported_KeyStore({})
-            self.storage.put('keystore', k.dump())
-            self.wallet = Imported_Wallet(self.storage)
-            for x in text.split():
-                self.wallet.import_private_key(x, None)
+            self.wallet = ImportedPrivkeyWallet.from_text(self.storage, text,
+                                                          None)
         self.terminate()
 
     def restore_from_key(self):

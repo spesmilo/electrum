@@ -27,8 +27,10 @@ from collections import namedtuple
 import hashlib
 import struct
 
-from .enum import Enumeration
 from . import cashaddr
+from .enum import Enumeration
+from .bitcoin import EC_KEY
+from .util import cachedproperty
 from .networks import NetworkConstants
 
 _sha256 = hashlib.sha256
@@ -38,6 +40,26 @@ hex_to_bytes = bytes.fromhex
 
 class AddressError(Exception):
     '''Exception used for Address errors.'''
+
+
+OpCodes = Enumeration("OpCodes", [
+    ("OP_0", 0), ("OP_PUSHDATA1",76), "OP_PUSHDATA2", "OP_PUSHDATA4", "OP_1NEGATE", "OP_RESERVED",
+    "OP_1", "OP_2", "OP_3", "OP_4", "OP_5", "OP_6", "OP_7",
+    "OP_8", "OP_9", "OP_10", "OP_11", "OP_12", "OP_13", "OP_14", "OP_15", "OP_16",
+    "OP_NOP", "OP_VER", "OP_IF", "OP_NOTIF", "OP_VERIF", "OP_VERNOTIF", "OP_ELSE", "OP_ENDIF", "OP_VERIFY",
+    "OP_RETURN", "OP_TOALTSTACK", "OP_FROMALTSTACK", "OP_2DROP", "OP_2DUP", "OP_3DUP", "OP_2OVER", "OP_2ROT", "OP_2SWAP",
+    "OP_IFDUP", "OP_DEPTH", "OP_DROP", "OP_DUP", "OP_NIP", "OP_OVER", "OP_PICK", "OP_ROLL", "OP_ROT",
+    "OP_SWAP", "OP_TUCK", "OP_CAT", "OP_SUBSTR", "OP_LEFT", "OP_RIGHT", "OP_SIZE", "OP_INVERT", "OP_AND",
+    "OP_OR", "OP_XOR", "OP_EQUAL", "OP_EQUALVERIFY", "OP_RESERVED1", "OP_RESERVED2", "OP_1ADD", "OP_1SUB", "OP_2MUL",
+    "OP_2DIV", "OP_NEGATE", "OP_ABS", "OP_NOT", "OP_0NOTEQUAL", "OP_ADD", "OP_SUB", "OP_MUL", "OP_DIV",
+    "OP_MOD", "OP_LSHIFT", "OP_RSHIFT", "OP_BOOLAND", "OP_BOOLOR",
+    "OP_NUMEQUAL", "OP_NUMEQUALVERIFY", "OP_NUMNOTEQUAL", "OP_LESSTHAN",
+    "OP_GREATERTHAN", "OP_LESSTHANOREQUAL", "OP_GREATERTHANOREQUAL", "OP_MIN", "OP_MAX",
+    "OP_WITHIN", "OP_RIPEMD160", "OP_SHA1", "OP_SHA256", "OP_HASH160",
+    "OP_HASH256", "OP_CODESEPARATOR", "OP_CHECKSIG", "OP_CHECKSIGVERIFY", "OP_CHECKMULTISIG",
+    "OP_CHECKMULTISIGVERIFY",
+    ("OP_SINGLEBYTE_END", 0xF0),
+])
 
 
 # Utility functions
@@ -104,11 +126,36 @@ class UnknownAddress(object):
 
 class PublicKey(namedtuple("PublicKeyTuple", "pubkey")):
 
+    TO_ADDRESS_OPS = [OpCodes.OP_DUP, OpCodes.OP_HASH160, -1,
+                      OpCodes.OP_EQUALVERIFY, OpCodes.OP_CHECKSIG]
+
     @classmethod
     def from_pubkey(cls, pubkey):
         '''Create from a public key expressed as binary bytes.'''
         cls.validate(pubkey)
         return cls(to_bytes(pubkey))
+
+    @classmethod
+    def privkey_from_WIF_privkey(cls, WIF_privkey):
+        '''Given a WIF private key, return the private key as binary
+        and a boolean indicating whether it was encoded to indicate
+        a compressed public key or not.'''
+        raw = Base58.decode_check(WIF_privkey)
+        if not raw or raw[0] != NetworkConstants.WIF_PREFIX:
+            raise ValueError('private key has invalid WIF prefix')
+        if len(raw) == 34 and raw[-1] == 1:
+            return raw[1:33], True
+        if len(raw) == 33:
+            return raw[1:], False
+        raise ValueError('invalid private key')
+
+    @classmethod
+    def from_WIF_privkey(cls, WIF_privkey):
+        '''Create a compressed or uncompressed public key from a private
+        key.'''
+        privkey, compressed = cls.privkey_from_WIF_privkey(WIF_privkey)
+        ec_key = EC_KEY(privkey)
+        return cls.from_pubkey(ec_key.GetPubKey(compressed))
 
     @classmethod
     def from_string(cls, string):
@@ -118,8 +165,8 @@ class PublicKey(namedtuple("PublicKeyTuple", "pubkey")):
     @classmethod
     def validate(cls, pubkey, req_compressed=False):
         if not isinstance(pubkey, (bytes, bytearray)):
-            raise AddressError('pubkey must be of bytes type, not {}'
-                               .format(type(pubkey)))
+            raise TypeError('pubkey must be of bytes type, not {}'
+                            .format(type(pubkey)))
         if len(pubkey) == 33 and pubkey[0] in (2, 3):
             return  # Compressed
         if len(pubkey) == 65 and pubkey[0] == 4:
@@ -128,16 +175,30 @@ class PublicKey(namedtuple("PublicKeyTuple", "pubkey")):
             raise AddressError('compressed public keys are required')
         raise AddressError('invalid pubkey {}'.format(pubkey))
 
-    def to_Address(self):
+    @cachedproperty
+    def address(self):
         '''Convert to an Address object.'''
-        return Address(hash160(self.pubkey), cls.ADDR_P2PKH)
+        return Address(hash160(self.pubkey), Address.ADDR_P2PKH)
+
+    def is_compressed(self):
+        '''Returns True if the pubkey is compressed.'''
+        return len(self.pubkey) == 33
 
     def to_ui_string(self):
         '''Convert to a hexadecimal string.'''
         return self.pubkey.hex()
 
+    def to_storage_string(self):
+        '''Convert to a hexadecimal string for storage.'''
+        return self.pubkey.hex()
+
     def to_script(self):
+        '''Note this returns the P2PK script.'''
         return Script.P2PK_script(self.pubkey)
+
+    def to_P2PKH_script(self):
+        '''Return a P2PKH script.'''
+        return self.address.to_script()
 
     def __str__(self):
         return self.to_ui_string()
@@ -335,27 +396,17 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
         return '<Address {}>'.format(self.__str__())
 
 
-OpCodes = Enumeration("OpCodes", [
-    ("OP_0", 0), ("OP_PUSHDATA1",76), "OP_PUSHDATA2", "OP_PUSHDATA4", "OP_1NEGATE", "OP_RESERVED",
-    "OP_1", "OP_2", "OP_3", "OP_4", "OP_5", "OP_6", "OP_7",
-    "OP_8", "OP_9", "OP_10", "OP_11", "OP_12", "OP_13", "OP_14", "OP_15", "OP_16",
-    "OP_NOP", "OP_VER", "OP_IF", "OP_NOTIF", "OP_VERIF", "OP_VERNOTIF", "OP_ELSE", "OP_ENDIF", "OP_VERIFY",
-    "OP_RETURN", "OP_TOALTSTACK", "OP_FROMALTSTACK", "OP_2DROP", "OP_2DUP", "OP_3DUP", "OP_2OVER", "OP_2ROT", "OP_2SWAP",
-    "OP_IFDUP", "OP_DEPTH", "OP_DROP", "OP_DUP", "OP_NIP", "OP_OVER", "OP_PICK", "OP_ROLL", "OP_ROT",
-    "OP_SWAP", "OP_TUCK", "OP_CAT", "OP_SUBSTR", "OP_LEFT", "OP_RIGHT", "OP_SIZE", "OP_INVERT", "OP_AND",
-    "OP_OR", "OP_XOR", "OP_EQUAL", "OP_EQUALVERIFY", "OP_RESERVED1", "OP_RESERVED2", "OP_1ADD", "OP_1SUB", "OP_2MUL",
-    "OP_2DIV", "OP_NEGATE", "OP_ABS", "OP_NOT", "OP_0NOTEQUAL", "OP_ADD", "OP_SUB", "OP_MUL", "OP_DIV",
-    "OP_MOD", "OP_LSHIFT", "OP_RSHIFT", "OP_BOOLAND", "OP_BOOLOR",
-    "OP_NUMEQUAL", "OP_NUMEQUALVERIFY", "OP_NUMNOTEQUAL", "OP_LESSTHAN",
-    "OP_GREATERTHAN", "OP_LESSTHANOREQUAL", "OP_GREATERTHANOREQUAL", "OP_MIN", "OP_MAX",
-    "OP_WITHIN", "OP_RIPEMD160", "OP_SHA1", "OP_SHA256", "OP_HASH160",
-    "OP_HASH256", "OP_CODESEPARATOR", "OP_CHECKSIG", "OP_CHECKSIGVERIFY", "OP_CHECKMULTISIG",
-    "OP_CHECKMULTISIGVERIFY",
-    ("OP_SINGLEBYTE_END", 0xF0),
-    ("OP_DOUBLEBYTE_BEGIN", 0xF000),
-    "OP_PUBKEY", "OP_PUBKEYHASH",
-    ("OP_INVALIDOPCODE", 0xFFFF),
-])
+def _match_ops(ops, pattern):
+    if len(ops) != len(pattern):
+        return False
+    for op, pop in zip(ops, pattern):
+        if pop != op:
+            # -1 means 'data push', whose op is an (op, data) tuple
+            if pop == -1 and isinstance(op, tuple):
+                continue
+            return False
+
+    return True
 
 
 class Script(object):
@@ -404,6 +455,43 @@ class Script(object):
         if n < 65536:
             return bytes([OpCodes.OP_PUSHDATA2]) + struct.pack('<H', n) + data
         return bytes([OpCodes.OP_PUSHDATA4]) + struct.pack('<I', n) + data
+
+    @classmethod
+    def get_ops(cls, script):
+        ops = []
+
+        # The unpacks or script[n] below throw on truncated scripts
+        try:
+            n = 0
+            while n < len(script):
+                op = script[n]
+                n += 1
+
+                if op <= OpCodes.OP_PUSHDATA4:
+                    # Raw bytes follow
+                    if op < OpCodes.OP_PUSHDATA1:
+                        dlen = op
+                    elif op == OpCodes.OP_PUSHDATA1:
+                        dlen = script[n]
+                        n += 1
+                    elif op == OpCodes.OP_PUSHDATA2:
+                        dlen, = struct.unpack('<H', script[n: n + 2])
+                        n += 2
+                    else:
+                        dlen, = struct.unpack('<I', script[n: n + 4])
+                        n += 4
+                    if n + dlen > len(script):
+                        raise IndexError
+                    op = (op, script[n:n + dlen])
+                    n += dlen
+
+                ops.append(op)
+        except Exception:
+            # Truncated script; e.g. tx_hash
+            # ebc9fa1196a59e192352d76c0f6e73167046b9d37b8302b6bb6968dfd279b767
+            raise ScriptError('truncated script')
+
+        return ops
 
 
 class Base58Error(Exception):

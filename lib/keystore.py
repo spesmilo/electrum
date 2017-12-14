@@ -29,6 +29,7 @@ from unicodedata import normalize
 from . import bitcoin
 from .bitcoin import *
 
+from .address import Address, PublicKey
 from .networks import NetworkConstants
 from .mnemonic import Mnemonic, load_wordlist
 from .plugins import run_hook
@@ -109,10 +110,14 @@ class Software_KeyStore(KeyStore):
 
 class Imported_KeyStore(Software_KeyStore):
     # keystore for imported private keys
+    # private keys are encrypted versions of the WIF encoding
 
     def __init__(self, d):
         Software_KeyStore.__init__(self)
-        self.keypairs = d.get('keypairs', {})
+        keypairs = d.get('keypairs', {})
+        self.keypairs = {PublicKey.from_string(pubkey): enc_privkey
+                         for pubkey, enc_privkey in keypairs.items()}
+        self._sorted = None
 
     def is_deterministic(self):
         return False
@@ -124,43 +129,70 @@ class Imported_KeyStore(Software_KeyStore):
         return None
 
     def dump(self):
+        keypairs = {pubkey.to_storage_string(): enc_privkey
+                    for pubkey, enc_privkey in self.keypairs.items()}
         return {
             'type': 'imported',
-            'keypairs': self.keypairs,
+            'keypairs': keypairs,
         }
 
     def can_import(self):
         return True
 
+    def get_addresses(self):
+        if not self._sorted:
+            addresses = [pubkey.address for pubkey in self.keypairs]
+            self._sorted = sorted(addresses,
+                                  key=lambda address: address.to_ui_string())
+        return self._sorted
+
+    def address_to_pubkey(self, address):
+        for pubkey in self.keypairs:
+            if pubkey.address == address:
+                return pubkey
+        return None
+
+    def remove_address(self, address):
+        pubkey = self.address_to_pubkey(address)
+        if pubkey:
+            self.keypairs.pop(pubkey)
+            if self._sorted:
+                self._sorted.remove(address)
+
     def check_password(self, password):
         pubkey = list(self.keypairs.keys())[0]
-        self.get_private_key(pubkey, password)
+        self.export_private_key(pubkey, password)
 
-    def import_privkey(self, sec, password):
-        txin_type, privkey, compressed = deserialize_privkey(sec)
-        pubkey = public_key_from_private_key(privkey, compressed)
-        self.keypairs[pubkey] = pw_encode(sec, password)
-        return txin_type, pubkey
+    def import_privkey(self, WIF_privkey, password):
+        pubkey = PublicKey.from_WIF_privkey(WIF_privkey)
+        self.keypairs[pubkey] = pw_encode(WIF_privkey, password)
+        self._sorted = None
+        return pubkey
 
     def delete_imported_key(self, key):
         self.keypairs.pop(key)
 
-    def get_private_key(self, pubkey, password):
-        sec = pw_decode(self.keypairs[pubkey], password)
-        txin_type, privkey, compressed = deserialize_privkey(sec)
+    def export_private_key(self, pubkey, password):
+        '''Returns a WIF string'''
+        WIF_privkey = pw_decode(self.keypairs[pubkey], password)
         # this checks the password
-        if pubkey != public_key_from_private_key(privkey, compressed):
+        if pubkey != PublicKey.from_WIF_privkey(WIF_privkey):
             raise InvalidPassword()
-        return privkey, compressed
+        return WIF_privkey
+
+    def get_private_key(self, pubkey, password):
+        '''Returns a (32 byte privkey, is_compressed) pair.'''
+        WIF_privkey = self.export_private_key(pubkey, password)
+        return PublicKey.privkey_from_WIF_privkey(WIF_privkey)
 
     def get_pubkey_derivation(self, x_pubkey):
         if x_pubkey[0:2] in ['02', '03', '04']:
-            if x_pubkey in self.keypairs.keys():
-                return x_pubkey
+            pubkey = PublicKey.from_string(x_pubkey)
+            if pubkey in self.keypairs:
+                return pubkey
         elif x_pubkey[0:2] == 'fd':
             addr = bitcoin.script_to_address(x_pubkey[2:])
-            if addr in self.addresses:
-                return self.addresses[addr].get('pubkey')
+            return self.address_to_pubkey(addr)
 
     def update_password(self, old_password, new_password):
         self.check_password(old_password)
@@ -602,7 +634,7 @@ def xpubkey_to_address(x_pubkey):
     else:
         raise BaseException("Cannot parse pubkey")
     if pubkey:
-        address = public_key_to_p2pkh(bfh(pubkey))
+        address = Address.from_pubkey(pubkey)
     return pubkey, address
 
 def xpubkey_to_pubkey(x_pubkey):

@@ -403,7 +403,7 @@ class WalletStorage(PrintError):
         self.put('seed_version', 15)
 
     def convert_version_16(self):
-        # fixes issue #3193 for Imported_Wallets with addresses
+        # fixes issue #3193 for imported address wallets
         # also, previous versions allowed importing any garbage as an address
         #       which we now try to remove, see pr #3191
         if not self._is_upgrade_method_needed(15, 15):
@@ -450,8 +450,8 @@ class WalletStorage(PrintError):
             return
         if self.get('wallet_type') == 'imported':
             addrs = self.get('addresses')
-            if any(v for v in addrs.values()):
-                pass
+            if all(v for v in addrs.values()):
+                self.put('wallet_type', 'imported_privkey')
             else:
                 self.put('wallet_type', 'imported_addr')
 

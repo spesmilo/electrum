@@ -266,7 +266,7 @@ def parse_scriptSig(d, _bytes):
         d['x_pubkeys'] = [x_pubkey]
         d['num_sig'] = 1
         d['pubkeys'] = [pubkey]
-        d['address'] = Address.from_string(address)
+        d['address'] = address
         return
 
     # p2sh transaction, m of n
@@ -565,8 +565,6 @@ class Transaction:
             redeem_script = multisig_script(pubkeys, txin['num_sig'])
             script += push_script(redeem_script)
         elif _type == 'p2pkh':
-            script += push_script(pubkeys[0])
-        elif _type == 'address':
             script += push_script(pubkeys[0])
         elif _type == 'unknown':
             return txin['scriptSig']

@@ -640,6 +640,9 @@ class EC_KEY(object):
         self.privkey = ecdsa.ecdsa.Private_key( self.pubkey, secret )
         self.secret = secret
 
+    def GetPubKey(self, compressed):
+        return GetPubKey(self.pubkey, compressed)
+
     def get_public_key(self, compressed=True):
         return bh2u(point_to_ser(self.pubkey.point, compressed))
 
