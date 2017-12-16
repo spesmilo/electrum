@@ -29,7 +29,7 @@ import struct
 
 from . import cashaddr
 from .enum import Enumeration
-from .bitcoin import EC_KEY
+from .bitcoin import EC_KEY, is_minikey, minikey_to_private_key
 from .util import cachedproperty
 from .networks import NetworkConstants
 
@@ -137,9 +137,13 @@ class PublicKey(namedtuple("PublicKeyTuple", "pubkey")):
 
     @classmethod
     def privkey_from_WIF_privkey(cls, WIF_privkey):
-        '''Given a WIF private key, return the private key as binary
-        and a boolean indicating whether it was encoded to indicate
-        a compressed public key or not.'''
+        '''Given a WIF private key (or minikey), return the private key as
+        binary and a boolean indicating whether it was encoded to
+        indicate a compressed public key or not.
+        '''
+        if is_minikey(WIF_privkey):
+            # The Casascius coins were uncompressed
+            return minikey_to_private_key(WIF_privkey), False
         raw = Base58.decode_check(WIF_privkey)
         if not raw or raw[0] != NetworkConstants.WIF_PREFIX:
             raise ValueError('private key has invalid WIF prefix')
