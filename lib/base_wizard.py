@@ -140,6 +140,8 @@ class BaseWizard(object):
         elif keystore.is_private_key_list(text):
             self.wallet = ImportedPrivkeyWallet.from_text(self.storage, text,
                                                           None)
+            self.keystores = self.wallet.get_keystores()
+            self.request_password(run_next=self.on_password)
         self.terminate()
 
     def restore_from_key(self):
