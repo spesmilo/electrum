@@ -2245,7 +2245,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_privkeys_signal.emit()
 
         def show_privkeys():
-            s = "\n".join( map( lambda x: x[0] + "\t"+ x[1], private_keys.items()))
+            s = "\n".join('{}\t{}'.format(addr.to_ui_string(), privkey)
+                          for addr, privkey in private_keys.items())
             e.setText(s)
             b.setEnabled(True)
             self.show_privkeys_signal.disconnect()
