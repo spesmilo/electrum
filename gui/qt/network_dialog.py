@@ -355,14 +355,14 @@ class NetworkChoiceLayout(object):
         height_str = "%d "%(self.network.get_local_height()) + _('blocks')
         self.height_label.setText(height_str)
         n = len(self.network.get_interfaces())
-        status = _("Connected to %d nodes.")%n if n else _("Not connected")
+        status = _("Connected to {0} nodes.").format(n) if n else _("Not connected")
         self.status_label.setText(status)
         chains = self.network.get_blockchains()
         if len(chains)>1:
             chain = self.network.blockchain()
             checkpoint = chain.get_checkpoint()
             name = chain.get_name()
-            msg = _('Chain split detected at block %d')%checkpoint + '\n'
+            msg = _('Chain split detected at block {0}').format(checkpoint) + '\n'
             msg += (_('You are following branch') if auto_connect else _('Your server is on branch'))+ ' ' + name
             msg += ' (%d %s)' % (chain.get_branch_size(), _('blocks'))
         else:

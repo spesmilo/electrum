@@ -631,9 +631,9 @@ class Transaction:
     def estimate_pubkey_size_for_txin(cls, txin):
         pubkeys = txin.get('pubkeys', [])
         x_pubkeys = txin.get('x_pubkeys', [])
-        if len(pubkeys) > 0:
+        if pubkeys and len(pubkeys) > 0:
             return cls.estimate_pubkey_size_from_x_pubkey(pubkeys[0])
-        elif len(x_pubkeys) > 0:
+        elif x_pubkeys and len(x_pubkeys) > 0:
             return cls.estimate_pubkey_size_from_x_pubkey(x_pubkeys[0])
         else:
             return 0x21  # just guess it is compressed
@@ -645,7 +645,7 @@ class Transaction:
         num_sig = txin.get('num_sig', 1)
         if estimate_size:
             pubkey_size = self.estimate_pubkey_size_for_txin(txin)
-            pk_list = ["00" * pubkey_size] * num_sig
+            pk_list = ["00" * pubkey_size] * len(txin.get('x_pubkeys', [None]))
             # we assume that signature will be 0x48 bytes long
             sig_list = [ "00" * 0x48 ] * num_sig
         else:
@@ -876,6 +876,13 @@ class Transaction:
             witness_size = 0
 
         return 4 * input_size + witness_size
+
+    @classmethod
+    def estimated_output_size(cls, address):
+        """Return an estimate of serialized output size in bytes."""
+        script = bitcoin.address_to_script(address)
+        # 8 byte value + 1 byte script len + script
+        return 9 + len(script) // 2
 
     @classmethod
     def virtual_size_from_weight(cls, weight):

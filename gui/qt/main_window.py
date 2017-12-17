@@ -39,7 +39,7 @@ from PyQt5.QtWidgets import *
 from electrum.util import bh2u, bfh
 
 from electrum import keystore
-from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS
+from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS, NetworkConstants
 from electrum.plugins import run_hook
 from electrum.i18n import _
 from electrum.util import (format_time, format_satoshis, PrintError,
@@ -363,7 +363,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.setGeometry(100, 100, 840, 400)
 
     def watching_only_changed(self):
-        title = 'Electrum %s  -  %s' % (self.wallet.electrum_version,
+        name = "Electrum Testnet" if NetworkConstants.TESTNET else "Electrum"
+        title = '%s %s  -  %s' % (name, self.wallet.electrum_version,
                                         self.wallet.basename())
         extra = [self.wallet.storage.get('wallet_type', '?')]
         if self.wallet.is_watching_only():
@@ -606,6 +607,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.need_update.clear()
             self.update_wallet()
         # resolve aliases
+        # FIXME this is a blocking network call that has a timeout of 5 sec
         self.payto_e.resolve()
         # update fee
         if self.require_fee_update:
@@ -1189,7 +1191,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 _type, addr = self.get_payto_or_dummy()
                 outputs = [(_type, addr, amount)]
             try:
-                tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, self.config, fee)
+                is_sweep = bool(self.tx_external_keypairs)
+                tx = self.wallet.make_unsigned_transaction(
+                    self.get_coins(), outputs, self.config, fee, is_sweep=is_sweep)
                 self.not_enough_funds = False
             except NotEnoughFunds:
                 self.not_enough_funds = True
@@ -1338,7 +1342,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         outputs, fee, tx_desc, coins = r
         try:
-            tx = self.wallet.make_unsigned_transaction(coins, outputs, self.config, fee)
+            is_sweep = bool(self.tx_external_keypairs)
+            tx = self.wallet.make_unsigned_transaction(
+                coins, outputs, self.config, fee, is_sweep=is_sweep)
         except NotEnoughFunds:
             self.show_message(_("Insufficient funds"))
             return
@@ -1406,8 +1412,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         '''Sign the transaction in a separate thread.  When done, calls
         the callback with a success code of True or False.
         '''
-        # call hook to see if plugin needs gui interaction
-        run_hook('sign_tx', self, tx)
 
         def on_signed(result):
             callback(True)
@@ -1416,8 +1420,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             callback(False)
 
         if self.tx_external_keypairs:
+            # can sign directly
             task = partial(Transaction.sign, tx, self.tx_external_keypairs)
         else:
+            # call hook to see if plugin needs gui interaction
+            run_hook('sign_tx', self, tx)
             task = partial(self.wallet.sign_transaction, tx, password)
         WaitingDialog(self, _('Signing transaction...'), task,
                       on_signed, on_failed)
@@ -2347,6 +2354,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addWidget(keys_e)
 
         addresses = self.wallet.get_unused_addresses()
+        if not addresses:
+            try:
+                addresses = self.wallet.get_receiving_addresses()
+            except AttributeError:
+                addresses = self.wallet.get_addresses()
         h, address_e = address_field(addresses)
         vbox.addLayout(h)
 
@@ -2425,6 +2437,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fiat_receive_e.setVisible(b)
         self.history_list.refresh_headers()
         self.history_list.update()
+        self.address_list.refresh_headers()
         self.address_list.update()
         self.update_status()
 
@@ -2662,19 +2675,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return '\n'.join([key, "", " ".join(lines)])
 
         choosers = sorted(coinchooser.COIN_CHOOSERS.keys())
-        chooser_name = coinchooser.get_name(self.config)
-        msg = _('Choose coin (UTXO) selection method.  The following are available:\n\n')
-        msg += '\n\n'.join(fmt_docs(*item) for item in coinchooser.COIN_CHOOSERS.items())
-        chooser_label = HelpLabel(_('Coin selection') + ':', msg)
-        chooser_combo = QComboBox()
-        chooser_combo.addItems(choosers)
-        i = choosers.index(chooser_name) if chooser_name in choosers else 0
-        chooser_combo.setCurrentIndex(i)
-        def on_chooser(x):
-            chooser_name = choosers[chooser_combo.currentIndex()]
-            self.config.set_key('coin_chooser', chooser_name)
-        chooser_combo.currentIndexChanged.connect(on_chooser)
-        tx_widgets.append((chooser_label, chooser_combo))
+        if len(choosers) > 1:
+            chooser_name = coinchooser.get_name(self.config)
+            msg = _('Choose coin (UTXO) selection method.  The following are available:\n\n')
+            msg += '\n\n'.join(fmt_docs(*item) for item in coinchooser.COIN_CHOOSERS.items())
+            chooser_label = HelpLabel(_('Coin selection') + ':', msg)
+            chooser_combo = QComboBox()
+            chooser_combo.addItems(choosers)
+            i = choosers.index(chooser_name) if chooser_name in choosers else 0
+            chooser_combo.setCurrentIndex(i)
+            def on_chooser(x):
+                chooser_name = choosers[chooser_combo.currentIndex()]
+                self.config.set_key('coin_chooser', chooser_name)
+            chooser_combo.currentIndexChanged.connect(on_chooser)
+            tx_widgets.append((chooser_label, chooser_combo))
 
         def on_unconf(x):
             self.config.set_key('confirmed_only', bool(x))
