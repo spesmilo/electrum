@@ -305,7 +305,6 @@ class KeepKeyCompatiblePlugin(HW_PluginBase):
             info = tx.output_info.get(address)
             if info is not None and not has_change:
                 has_change = True # no more than one change address
-                addrtype, hash_160 = b58_address_to_hash160(address)
                 index, xpubs, m = info
                 if len(xpubs) == 1:
                     script_type = self.types.PAYTOADDRESS
@@ -334,16 +333,13 @@ class KeepKeyCompatiblePlugin(HW_PluginBase):
                 txoutputtype.amount = amount
                 if _type == TYPE_SCRIPT:
                     txoutputtype.script_type = self.types.PAYTOOPRETURN
-                    txoutputtype.op_return_data = address[2:]
+                    txoutputtype.op_return_data = address.to_ui_string()[2:]
                 elif _type == TYPE_ADDRESS:
-                    addrtype, hash_160 = b58_address_to_hash160(address)
-                    if addrtype == NetworkConstants.ADDRTYPE_P2PKH:
+                    if address.kind == address.ADDR_P2PKH:
                         txoutputtype.script_type = self.types.PAYTOADDRESS
-                    elif addrtype == NetworkConstants.ADDRTYPE_P2SH:
-                        txoutputtype.script_type = self.types.PAYTOSCRIPTHASH
                     else:
-                        raise BaseException('addrtype: ' + str(addrtype))
-                    txoutputtype.address = address
+                        txoutputtype.script_type = self.types.PAYTOSCRIPTHASH
+                    txoutputtype.address = address.to_string(address.FMT_LEGACY)
 
             outputs.append(txoutputtype)
 
