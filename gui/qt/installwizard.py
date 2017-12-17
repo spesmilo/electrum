@@ -344,7 +344,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def seed_input(self, title, message, is_seed, options):
         slayout = SeedLayout(title=message, is_seed=is_seed, options=options, parent=self)
         self.exec_layout(slayout, title, next_enabled=False)
-        return slayout.get_seed(), slayout.is_bip39, slayout.is_ext, slayout.is_bip39_145
+        return slayout.get_seed(), slayout.is_bip39, slayout.is_ext
 
     @wizard_dialog
     def add_xpub_dialog(self, title, message, is_valid, run_next):
@@ -366,8 +366,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             options.append('ext')
         if self.opt_bip39:
             options.append('bip39')
-        if self.opt_bip39_145:
-            options.append('bip39_145')
         title = _('Enter Seed')
         message = _('Please enter your seed phrase in order to restore your wallet.')
         return self.seed_input(title, message, test, options)
@@ -381,7 +379,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             _('If you lose your seed, your money will be permanently lost.'),
             _('To make sure that you have properly saved your seed, please retype it here.')
         ])
-        seed, is_bip39, is_ext,is_bip39_145 = self.seed_input(title, message, test, None)
+        seed, is_bip39, is_ext = self.seed_input(title, message, test, None)
         return seed
 
     @wizard_dialog

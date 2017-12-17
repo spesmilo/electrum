@@ -218,26 +218,16 @@ class BaseWizard(object):
             default_derivation = "m/45'/0"
         else:
             default_derivation = bip44_derivation_145(0)
-        self.derivation_dialog_other(f, default_derivation)
+        self.derivation_dialog(f, default_derivation)
 
-    def derivation_dialog(self, f):
-        default = bip44_derivation(0)
+    def derivation_dialog(self, f, default_derivation):
         message = '\n'.join([
             _('Enter your wallet derivation here.'),
             _('If you are not sure what this is, leave this field unchanged.'),
 	    _("If you want the wallet to use legacy Bitcoin addresses use m/44'/0'/0'"),
 	    _("If you want the wallet to use Bitcoin Cash addresses use m/44'/145'/0'")
         ])
-        self.line_dialog(run_next=f, title=_('Derivation'), message=message, default=default, test=bitcoin.is_bip32_derivation)
-
-    def derivation_dialog_other(self, f, default_derivation):
-        message = '\n'.join([
-            _('Enter your wallet derivation here.'),
-            _('If you are not sure what this is, leave this field unchanged.')
-        ])
-        self.line_dialog(run_next=f, title=_('Derivation'), message=message,
-                         default=default_derivation,
-                         test=bitcoin.is_bip32_derivation)
+        self.line_dialog(run_next=f, title=_('Derivation'), message=message, default=default_derivation, test=bitcoin.is_bip32_derivation)
 
     def on_hw_derivation(self, name, device_info, derivation):
         from .keystore import hardware_keystore
@@ -272,17 +262,13 @@ class BaseWizard(object):
     def restore_from_seed(self):
         self.opt_bip39 = True
         self.opt_ext = True
-        self.opt_bip39_145 = True
         test = bitcoin.is_seed if self.wallet_type == 'standard' else bitcoin.is_new_seed
         self.restore_seed_dialog(run_next=self.on_restore_seed, test=test)
 
-    def on_restore_seed(self, seed, is_bip39, is_ext,is_bip39_145):
+    def on_restore_seed(self, seed, is_bip39, is_ext):
         self.seed_type = 'bip39' if is_bip39 else bitcoin.seed_type(seed)
         if self.seed_type == 'bip39':
-            if is_bip39_145 == True:
-                f=lambda passphrase: self.on_restore_bip39_145(seed, passphrase)
-            else:
-                f=lambda passphrase: self.on_restore_bip39(seed, passphrase)
+            f=lambda passphrase: self.on_restore_bip39(seed, passphrase)
             self.passphrase_dialog(run_next=f) if is_ext else f('')
         elif self.seed_type in ['standard']:
             f = lambda passphrase: self.run('create_keystore', seed, passphrase)
@@ -293,18 +279,14 @@ class BaseWizard(object):
             raise BaseException('Unknown seed type', self.seed_type)
 
     def on_restore_bip39(self, seed, passphrase):
-        f = lambda x: self.run('on_bip43', seed, passphrase, str(x))
-        self.derivation_dialog(f)
-
-    def on_restore_bip39_145(self, seed, passphrase):
         f = lambda x: self.run('on_bip44', seed, passphrase, str(x))
-        self.derivation_dialog_other(f, bip44_derivation_145(0))
+        self.derivation_dialog(f, bip44_derivation_145(0))
 
     def create_keystore(self, seed, passphrase):
         k = keystore.from_seed(seed, passphrase, self.wallet_type == 'multisig')
         self.on_keystore(k)
 
-    def on_bip43(self, seed, passphrase, derivation):
+    def on_bip44(self, seed, passphrase, derivation):
         k = keystore.from_bip39_seed(seed, passphrase, derivation)
         self.on_keystore(k)
 
