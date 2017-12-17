@@ -101,6 +101,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     alias_received_signal = pyqtSignal()
     computing_privkeys_signal = pyqtSignal()
     show_privkeys_signal = pyqtSignal()
+    cashaddr_toggled_signal = pyqtSignal()
 
     def __init__(self, gui_object, wallet):
         QMainWindow.__init__(self)
@@ -181,6 +182,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         for i in range(wrtabs.count()):
             QShortcut(QKeySequence("Alt+" + str(i + 1)), self, lambda i=i: wrtabs.setCurrentIndex(i))
 
+        self.cashaddr_toggled_signal.connect(self.update_cashaddr_icon)
         self.payment_request_ok_signal.connect(self.payment_request_ok)
         self.payment_request_error_signal.connect(self.payment_request_error)
         self.notify_transactions_signal.connect(self.notify_transactions)
@@ -537,7 +539,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d = self.network.get_donation_address()
         if d:
             host = self.network.get_parameters()[0]
-            self.pay_to_URI('bitcoincash:%s?message=donation for %s'%(d, host))
+            self.pay_to_URI('{}:{}?message=donation for {}'
+                            .format(NetworkConstants.CASHADDR_PREFIX, d, host))
         else:
             self.show_error(_('No donation address for this server'))
 
@@ -769,6 +772,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.setSpacing(8)
         grid.setColumnStretch(3, 1)
 
+        self.receive_address = None
         self.receive_address_e = ButtonsLineEdit()
         self.receive_address_e.addCopyButton(self.app)
         self.receive_address_e.setReadOnly(True)
@@ -776,6 +780,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.receive_address_label = HelpLabel(_('Receiving address'), msg)
         self.receive_address_e.textChanged.connect(self.update_receive_qr)
         self.receive_address_e.setFocusPolicy(Qt.NoFocus)
+        self.cashaddr_toggled_signal.connect(self.update_receive_address_widget)
         grid.addWidget(self.receive_address_label, 0, 0)
         grid.addWidget(self.receive_address_e, 0, 1, 1, -1)
 
@@ -898,7 +903,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     return
 
     def save_payment_request(self):
-        addr = Address.from_string(self.receive_address_e.text())
+        if not self.receive_address:
+            self.show_error(_('No receiving adddress'))
         amount = self.receive_amount_e.get_amount()
         message = self.receive_message_e.text()
         if not message and not amount:
@@ -906,9 +912,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return False
         i = self.expires_combo.currentIndex()
         expiration = list(map(lambda x: x[1], expiration_values))[i]
-        req = self.wallet.make_payment_request(addr, amount, message, expiration)
+        req = self.wallet.make_payment_request(self.receive_address, amount,
+                                               message, expiration)
         self.wallet.add_payment_request(req, self.config)
-        self.sign_payment_request(addr)
+        self.sign_payment_request(self.receive_address)
         self.request_list.update()
         self.address_list.update()
         self.save_request_button.setEnabled(False)
@@ -957,17 +964,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.receive_message_e.setFocus(1)
 
     def set_receive_address(self, addr):
-        self.receive_address_e.setText(addr.to_ui_string())
+        self.receive_address = addr
         self.receive_message_e.setText('')
         self.receive_amount_e.setAmount(None)
+        self.update_receive_address_widget()
+
+    def update_receive_address_widget(self):
+        if self.receive_address:
+            self.receive_address_e.setText(self.receive_address.to_ui_string())
+        else:
+            self.receive_address_e.setText('')
 
     def clear_receive_tab(self):
-        addr = self.wallet.get_receiving_address_text()
-        self.receive_address_e.setText(addr)
-        self.receive_message_e.setText('')
-        self.receive_amount_e.setAmount(None)
         self.expires_label.hide()
         self.expires_combo.show()
+        self.set_receive_address(self.wallet.get_receiving_address())
 
     def toggle_qr_window(self):
         from . import qrwindow
@@ -991,19 +1002,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.tabs.setCurrentIndex(self.tabs.indexOf(self.receive_tab))
 
     def receive_at(self, addr):
+        self.receive_address = addr
         self.show_receive_tab()
-        self.receive_address_e.setText(addr.to_ui_string())
         self.new_request_button.setEnabled(True)
+        self.update_receive_address_widget()
 
     def update_receive_qr(self):
-        addr = str(self.receive_address_e.text())
         amount = self.receive_amount_e.get_amount()
         message = self.receive_message_e.text()
         self.save_request_button.setEnabled((amount is not None) or (message != ""))
-        uri = web.create_URI(addr, amount, message)
+        uri = web.create_URI(self.receive_address, amount, message)
         self.receive_qr.setData(uri)
         if self.qr_window and self.qr_window.isVisible():
-            self.qr_window.set_content(addr, amount, message, uri)
+            self.qr_window.set_content(self.receive_address, amount,
+                                       message, uri)
 
     def create_send_tab(self):
         # A 4-column grid layout.  All the stretch is in the last column.
@@ -1621,16 +1633,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def create_addresses_tab(self):
         from .address_list import AddressList
         self.address_list = l = AddressList(self)
+        self.cashaddr_toggled_signal.connect(l.update)
         return self.create_list_tab(l)
 
     def create_utxo_tab(self):
         from .utxo_list import UTXOList
         self.utxo_list = l = UTXOList(self)
+        self.cashaddr_toggled_signal.connect(l.update)
         return self.create_list_tab(l)
 
     def create_contacts_tab(self):
         from .contact_list import ContactList
         self.contact_list = l = ContactList(self)
+        self.cashaddr_toggled_signal.connect(l.update)
         return self.create_list_tab(l)
 
     def remove_address(self, addr):
@@ -1791,8 +1806,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.password_button = StatusBarButton(self.lock_icon, _("Password"), self.change_password_dialog )
         sb.addPermanentWidget(self.password_button)
 
-        icon = QIcon(":icons/tab_converter_bw.png") if not self.config.get('show_cashaddr') == True else QIcon(":icons/tab_converter.png")
-        self.addr_converter_button = StatusBarButton(QIcon(icon), _("Toggle Address Format"), self.toggle_cashaddr_tray )
+        self.addr_converter_button = StatusBarButton(
+            self.cashaddr_icon(),
+            _("Toggle CashAddr Display"),
+            self.toggle_cashaddr_status_bar
+        )
         sb.addPermanentWidget(self.addr_converter_button)
 
         sb.addPermanentWidget(StatusBarButton(QIcon(":icons/preferences.png"), _("Preferences"), self.settings_dialog ) )
@@ -2140,7 +2158,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not data:
             return
         # if the user scanned a bitcoincash URI
-        if str(data).startswith("bitcoincash:"):
+        if str(data).startswith(NetworkConstants.CASHADDR_PREFIX + ':'):
             self.pay_to_URI(data)
             return
         # else if the user scanned an offline signed tx
@@ -2489,28 +2507,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.address_list.update()
         self.update_status()
 
-
-    def toggle_cashaddr_tray(self):
-        if not self.config.get('show_cashaddr') == True:
-            cashaddr_tray_new_status=True
-            icon = QIcon(":icons/tab_converter.png")
+    def cashaddr_icon(self):
+        if self.config.get('show_cashaddr', False):
+            return QIcon(":icons/tab_converter.png")
         else:
-            cashaddr_tray_new_status=False
-            icon = QIcon(":icons/tab_converter_bw.png")
-        self.config.set_key('show_cashaddr', cashaddr_tray_new_status)
-        Address.show_cashaddr(cashaddr_tray_new_status)
-        self.update_tabs()
-        self.addr_converter_button.setIcon(icon)
+            return QIcon(":icons/tab_converter_bw.png")
 
+    def update_cashaddr_icon(self):
+        self.addr_converter_button.setIcon(self.cashaddr_icon())
 
+    def toggle_cashaddr_status_bar(self):
+        self.toggle_cashaddr(not self.config.get('show_cashaddr', False))
 
+    def toggle_cashaddr_settings(self, state):
+        self.toggle_cashaddr(state == Qt.Checked)
 
-
-
-
-
-
-
+    def toggle_cashaddr(self, on):
+        self.config.set_key('show_cashaddr', on)
+        Address.show_cashaddr(on)
+        for window in self.gui_object.windows:
+            window.cashaddr_toggled_signal.emit()
 
     def settings_dialog(self):
         self.need_restart = False
@@ -2522,17 +2538,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tx_widgets = []
         id_widgets = []
 
-
-        def on_toggle_cashaddr(state):
-            self.config.set_key('show_cashaddr', state == Qt.Checked)
-            Address.show_cashaddr(state == Qt.Checked)
-            # FIXME: overkill, but also not enough
-            self.update_tabs()
-
         cashaddr_cb = QCheckBox(_('CashAddr address format'))
         cashaddr_cb.setChecked(Address.FMT_UI == Address.FMT_CASHADDR)
         cashaddr_cb.setToolTip(_("If unchecked, addresses are shown in legacy format"))
-        cashaddr_cb.stateChanged.connect(on_toggle_cashaddr)
+        cashaddr_cb.stateChanged.connect(self.toggle_cashaddr_settings)
         gui_widgets.append((cashaddr_cb, None))
 
         # language

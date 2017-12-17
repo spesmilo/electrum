@@ -52,12 +52,14 @@ class AddressDialog(WindowModalDialog):
         self.setLayout(vbox)
 
         vbox.addWidget(QLabel(_("Address:")))
-        self.addr_e = ButtonsLineEdit(self.address.to_ui_string())
+        self.addr_e = ButtonsLineEdit()
         self.addr_e.addCopyButton(self.app)
         icon = ":icons/qrcode_white.png" if ColorScheme.dark_scheme else ":icons/qrcode.png"
         self.addr_e.addButton(icon, self.show_qr, _("Show QR Code"))
         self.addr_e.setReadOnly(True)
+        self.parent.cashaddr_toggled_signal.connect(self.update_addr)
         vbox.addWidget(self.addr_e)
+        self.update_addr()
 
         try:
             pubkeys = self.wallet.get_public_keys(address)
@@ -88,6 +90,9 @@ class AddressDialog(WindowModalDialog):
         vbox.addLayout(Buttons(CloseButton(self)))
         self.format_amount = self.parent.format_amount
         self.hw.update()
+
+    def update_addr(self):
+        self.addr_e.setText(self.address.to_ui_string())
 
     def get_domain(self):
         return [self.address]

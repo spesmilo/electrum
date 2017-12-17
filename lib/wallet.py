@@ -45,6 +45,7 @@ from .address import Address, Script, ScriptOutput, PublicKey
 from .bitcoin import *
 from .version import *
 from .keystore import load_keystore, Hardware_KeyStore, Imported_KeyStore
+from .networks import NetworkConstants
 from .storage import multisig_type
 
 from . import transaction
@@ -1164,18 +1165,18 @@ class Abstract_Wallet(PrintError):
         if addrs:
             return addrs[0]
 
-    def get_receiving_address_text(self):
-        '''Returns string of a receiving address.'''
+    def get_receiving_address(self):
+        '''Returns a receiving address or None.'''
         domain = self.get_receiving_addresses()
         if not domain:
-            return ''
+            return None
         choice = domain[0]
         for addr in domain:
             if not self._history.get(addr):
                 choice = addr
                 if addr not in self.receive_requests:
                     break
-        return choice.to_ui_string()
+        return choice
 
     def get_payment_status(self, address, amount):
         local_height = self.get_local_height()
@@ -1206,7 +1207,8 @@ class Abstract_Wallet(PrintError):
         out = copy.copy(r)
         addr_text = addr.to_ui_string()
         amount_text = format_satoshis(r['amount'])
-        out['URI'] = 'bitcoincash:{}?amount={}'.format(addr_text, amount_text)
+        out['URI'] = '{}:{}?amount={}'.format(NetworkConstants.CASHADDR_PREFIX,
+                                              addr_text, amount_text)
         status, conf = self.get_request_status(addr)
         out['status'] = status
         if conf is not None:

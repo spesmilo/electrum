@@ -48,7 +48,6 @@ class QR_Window(QWidget):
         self.win = win
         self.setWindowTitle('Electrum - '+_('Payment Request'))
         self.setMinimumSize(800, 250)
-        self.address = ''
         self.label = ''
         self.amount = 0
         self.setFocusPolicy(Qt.NoFocus)
@@ -75,9 +74,9 @@ class QR_Window(QWidget):
         self.setLayout(main_box)
 
 
-    def set_content(self, address, amount, message, url):
-        address_text = "<span style='font-size: 18pt'>%s</span>" % address if address else ""
-        self.address_label.setText(address_text)
+    def set_content(self, address_text, amount, message, url):
+        text = "<span style='font-size: 18pt'>{}</span>".format(address_text)
+        self.address_label.setText(text)
         if amount:
             amount = self.win.format_amount(amount)
             amount_text = "<span style='font-size: 21pt'>%s</span> <span style='font-size: 16pt'>%s</span> " % (amount, self.win.base_unit())

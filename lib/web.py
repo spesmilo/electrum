@@ -83,7 +83,9 @@ def create_URI(addr, amount, message):
         query.append('amount=%s'%format_satoshis_plain(amount))
     if message:
         query.append('message=%s'%urllib.parse.quote(message))
-    p = urllib.parse.ParseResult(scheme='bitcoincash', netloc='', path=path, params='', query='&'.join(query), fragment='')
+    p = urllib.parse.ParseResult(scheme=NetworkConstants.CASHADDR_PREFIX,
+                                 netloc='', path=path, params='',
+                                 query='&'.join(query), fragment='')
     return urllib.parse.urlunparse(p)
 
 # URL decode
@@ -97,8 +99,8 @@ def parse_URI(uri, on_pr=None):
         return {'address': uri}
 
     u = urllib.parse.urlparse(uri)
-    if u.scheme != 'bitcoincash':
-        raise BaseException("Not a bitcoincash URI")
+    if u.scheme != NetworkConstants.CASHADDR_PREFIX:
+        raise Exception("Not a {} URI".format(NetworkConstants.CASHADDR_PREFIX))
     address = u.path
 
     # python for android fails to parse query

@@ -25,6 +25,7 @@
 
 import copy
 import datetime
+from functools import partial
 import json
 
 from PyQt5.QtCore import *
@@ -224,6 +225,24 @@ class TxDialog(QDialog, MessageBoxMixin):
             vbox.addWidget(QLabel("LockTime: %d\n" % self.tx.locktime))
 
         vbox.addWidget(QLabel(_("Inputs") + ' (%d)'%len(self.tx.inputs())))
+
+        i_text = QTextEdit()
+        i_text.setFont(QFont(MONOSPACE_FONT))
+        i_text.setReadOnly(True)
+        i_text.setMaximumHeight(100)
+
+        vbox.addWidget(i_text)
+        vbox.addWidget(QLabel(_("Outputs") + ' (%d)'%len(self.tx.outputs())))
+        o_text = QTextEdit()
+        o_text.setFont(QFont(MONOSPACE_FONT))
+        o_text.setReadOnly(True)
+        o_text.setMaximumHeight(100)
+        vbox.addWidget(o_text)
+        self.main_window.cashaddr_toggled_signal.connect(
+            partial(self.update_io, i_text, o_text))
+        self.update_io(i_text, o_text)
+
+    def update_io(self, i_text, o_text):
         ext = QTextCharFormat()
         rec = QTextCharFormat()
         rec.setBackground(QBrush(ColorScheme.GREEN.as_color(background=True)))
@@ -240,10 +259,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         def format_amount(amt):
             return self.main_window.format_amount(amt, whitespaces = True)
 
-        i_text = QTextEdit()
-        i_text.setFont(QFont(MONOSPACE_FONT))
-        i_text.setReadOnly(True)
-        i_text.setMaximumHeight(100)
+        i_text.clear()
         cursor = i_text.textCursor()
         for x in self.tx.inputs():
             if x['type'] == 'coinbase':
@@ -265,12 +281,7 @@ class TxDialog(QDialog, MessageBoxMixin):
                     cursor.insertText(format_amount(x['value']), ext)
             cursor.insertBlock()
 
-        vbox.addWidget(i_text)
-        vbox.addWidget(QLabel(_("Outputs") + ' (%d)'%len(self.tx.outputs())))
-        o_text = QTextEdit()
-        o_text.setFont(QFont(MONOSPACE_FONT))
-        o_text.setReadOnly(True)
-        o_text.setMaximumHeight(100)
+        o_text.clear()
         cursor = o_text.textCursor()
         for addr, v in self.tx.get_outputs():
             cursor.insertText(addr.to_ui_string(), text_format(addr))
@@ -278,4 +289,3 @@ class TxDialog(QDialog, MessageBoxMixin):
                 cursor.insertText('\t', ext)
                 cursor.insertText(format_amount(v), ext)
             cursor.insertBlock()
-        vbox.addWidget(o_text)
