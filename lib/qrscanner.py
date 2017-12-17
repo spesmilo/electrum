@@ -49,7 +49,8 @@ def scan_barcode(device='', timeout=-1, display=True, threaded=False):
     libzbar.zbar_symbol_set_first_symbol.restype = ctypes.POINTER(ctypes.c_int)
     proc = libzbar.zbar_processor_create(threaded)
     libzbar.zbar_processor_request_size(proc, 640, 480)
-    libzbar.zbar_processor_init(proc, device, display)
+    if libzbar.zbar_processor_init(proc, device.encode('utf-8'), display) != 0:
+        raise RuntimeError("Can not start QR scanner; initialization failed.")
     libzbar.zbar_processor_set_visible(proc)
     if libzbar.zbar_process_one(proc, timeout):
         symbols = libzbar.zbar_processor_get_results(proc)
