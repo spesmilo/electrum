@@ -83,9 +83,29 @@ This directory contains the python dependencies used by Electron Cash.
 Mac OS X / macOS
 --------
 
-::
+Do all the stuff listed under 'Development Version' and 'Creating Binaries' above, and in addition:: 
+
+    ln -s contrib/packages packages
 
     python setup-release.py py2app
+
+Now, you'll have a dist/Electron-Cash.app, but it won't quite work.  You need to do some crazy magic to get python to see the files properly::
+
+    (cd dist/Electron-Cash.app/Contents/Resources/lib && for z in *.zip; do mv $z z.zip && mkdir $z &&  cd $z && unzip -v ../z.zip && rm -f ../z.zip && mv electroncash_plugins plugins.bak && ln -s ../python3.*/plugins electroncash_plugins && cd .. && rm -f z.zip) 
+
+Next, you'll try and run it but it will complain that it can't find the 'cocoa' plugin. You have to copy everything from::
+
+    /opt/local/libexec/qt5/plugins 
+
+Into a directory called 'qt_plugins' as such::
+
+    dist/Electron-Cash.app/Contents/Resoureces/qt_plugins 
+
+and then use install_name_tool on each .dylib file to rewrite hard-coded lib names to @rpath/../Frameworks/.  
+
+If you know what this means, great!  If not, google it (or give up)!
+
+And finally, optionally create a .dmg...
 
     hdiutil create -fs HFS+ -volname "Electron-Cash" -srcfolder dist/Electron-Cash.app dist/electron-cash-VERSION-macosx.dmg
 

@@ -5,7 +5,7 @@ contrib=$(dirname "$0")
 whereis pip3
 if [ $? -ne 0 ] ; then echo "Install pip3" ; exit ; fi
 
-rm $contrib/packages/ -r
+rm -fr $contrib/packages/ 
 
 #Install pure python modules in electrum directory
 pip3 install -r $contrib/requirements.txt -t $contrib/packages

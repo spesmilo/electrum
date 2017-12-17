@@ -169,7 +169,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         fileName = self.main_window.getSaveFileName(_("Select where to save your signed transaction"), name, "*.txn")
         if fileName:
             tx_dict = self.tx.as_dict()
-            input_values = [x['value'] for x in self.tx.inputs()]
+            input_values = [x.get('value') for x in self.tx.inputs()]
             tx_dict['input_values'] = input_values
             with open(fileName, "w+") as f:
                 f.write(json.dumps(tx_dict, indent=4) + '\n')

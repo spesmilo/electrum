@@ -21,8 +21,8 @@ from lib.version import ELECTRUM_VERSION as version
 name = "Electron-Cash"
 mainscript = 'electron-cash'
 
-if sys.version_info[:3] < (2, 6, 0):
-    print_error("Error: " + name + " requires Python version >= 2.6.0...")
+if sys.version_info[:3] < (3, 0, 0):
+    print_error("Error: " + name + " requires Python version >= 3.0.0...")
     sys.exit(1)
 
 if sys.platform == 'darwin':
@@ -66,6 +66,8 @@ if sys.platform == 'darwin':
     os.remove(mainscript)
     resource = "dist/" + name + ".app/Contents/Resources/"
 
+    # note this isn't needed for Qt5
+    '''
     # Try to locate qt_menu
     # Let's try the port version first!
     if os.path.isfile("/opt/local/lib/Resources/qt_menu.nib"):
@@ -80,13 +82,13 @@ if sys.platform == 'darwin':
         qt_menu_location = re.sub('\n', '', qt_menu_location)
 
     if (len(qt_menu_location) == 0):
-        print "Sorry couldn't find your qt_menu.nib this probably won't work"
+        print("Sorry couldn't find your qt_menu.nib this probably won't work")
     else:
-        print "Found your qib: " + qt_menu_location
-
-    # Need to include a copy of qt_menu.nib
-    shutil.copytree(qt_menu_location, resource + "qt_menu.nib")
+        print("Found your qib: " + qt_menu_location)
+        # Need to include a copy of qt_menu.nib
+        shutil.copytree(qt_menu_location, resource + "qt_menu.nib")
+    '''
     # Need to touch qt.conf to avoid loading 2 sets of Qt libraries
     fname = resource + "qt.conf"
-    with file(fname, 'a'):
+    with open(fname, 'a'):
         os.utime(fname, None)
