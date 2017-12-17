@@ -30,6 +30,7 @@ import urllib
 from .address import Address
 from . import bitcoin
 from .networks import NetworkConstants
+from .util import format_satoshis_plain
 
 mainnet_block_explorers = {
     'Blockchair.com': ('https://blockchair.com/bitcoin-cash',
