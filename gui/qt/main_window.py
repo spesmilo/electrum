@@ -1943,6 +1943,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d.setLayout(vbox)
         d.exec_()
 
+    def confirm_address(self, address):
+        task = partial(self.wallet.confirm_address, address)
+        self.wallet.thread.add(task)
+
     msg_sign = ("Signing with an address actually means signing with the corresponding "
                 "private key, and verifying with the corresponding public key. The "
                 "address you have entered does not have a unique public key, so these "
