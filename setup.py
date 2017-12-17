@@ -9,6 +9,9 @@ import platform
 import imp
 import argparse
 
+with open('requirements.txt') as f:
+    requirements = f.read().splitlines()
+
 version = imp.load_source('version', 'lib/version.py')
 
 if sys.version_info[:3] < (3, 4, 0):
@@ -35,17 +38,7 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
 setup(
     name="Electrum",
     version=version.ELECTRUM_VERSION,
-    install_requires=[
-        'pyaes>=0.1a1',
-        'ecdsa>=0.9',
-        'pbkdf2',
-        'requests',
-        'qrcode',
-        'protobuf',
-        'dnspython',
-        'jsonrpclib-pelix',
-        'PySocks>=1.6.6',
-    ],
+    install_requires=requirements,
     packages=[
         'electrum',
         'electrum_gui',
