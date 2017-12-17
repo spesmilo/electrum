@@ -315,7 +315,6 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             info = tx.output_info.get(address)
             if info is not None and not has_change:
                 has_change = True # no more than one change address
-                addrtype, hash_160 = b58_address_to_hash160(address)
                 index, xpubs, m = info
                 if len(xpubs) == 1:
                     script_type = self.types.PAYTOADDRESS
@@ -344,10 +343,10 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                 txoutputtype.amount = amount
                 if _type == TYPE_SCRIPT:
                     txoutputtype.script_type = self.types.PAYTOOPRETURN
-                    txoutputtype.op_return_data = address[2:]
+                    txoutputtype.op_return_data = address.to_ui_string()[2:]
                 elif _type == TYPE_ADDRESS:
                     txoutputtype.script_type = self.types.PAYTOADDRESS
-                    txoutputtype.address = address
+                    txoutputtype.address = address.to_string(address.FMT_LEGACY)
 
             outputs.append(txoutputtype)
 
