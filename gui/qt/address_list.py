@@ -69,7 +69,7 @@ class AddressList(MyTreeWidget):
                 c, u, x = self.wallet.get_addr_balance(address)
 
                 text = address.to_ui_string()
-                label = self.wallet.labels.get(text,'')
+                label = self.wallet.labels.get(address.to_storage_string(), '')
                 balance = self.parent.format_amount(c + u + x)
                 address_item = QTreeWidgetItem([text, label, balance, "%d"%num])
                 address_item.setFont(0, QFont(MONOSPACE_FONT))
