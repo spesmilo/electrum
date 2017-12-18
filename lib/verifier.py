@@ -22,6 +22,7 @@
 # SOFTWARE.
 from .util import ThreadJob
 from .bitcoin import *
+from .util import ub_height_to_index
 
 
 class SPV(ThreadJob):
@@ -43,7 +44,9 @@ class SPV(ThreadJob):
             # do not request merkle branch before headers are available
             if (tx_height > 0) and (tx_height <= lh):
                 header = self.network.blockchain().read_header(tx_height)
-                index = tx_height // 2016
+
+                index = ub_height_to_index(tx_height)
+                #index = tx_height // 2016
                 #print(index, header)
                 if header is None:
                     if index not in self.requested_chunks  and self.network.interface:

@@ -157,13 +157,17 @@ class Blockchain(util.PrintError):
             raise BaseException("insufficient proof of work: %s vs target %s" % (int('0x' + _hash, 16), target))
 
     def verify_chunk(self, index, data):
+
         num = len(data) // 80
-        prev_hash = self.get_hash(index * 2016 - 1)
+        if index ==247:
+            num = 499276 - 247*2016
+        prev_hash = self.get_hash(util.ub_start_height_of_index(index) - 1)
         target = self.get_target(index-1)
         for i in range(num):
             raw_header = data[i*80:(i+1) * 80]
-            header = deserialize_header(raw_header, index*2016 + i)
-            self.verify_header(header, prev_hash, target)
+            header = deserialize_header(raw_header, util.ub_start_height_of_index(index) + i)
+            if not (util.ub_start_height_of_index(index) + i >=498777 and util.ub_start_height_of_index(index) + i<499277):
+                self.verify_header(header, prev_hash, target)
             prev_hash = hash_header(header)
 
     def path(self):
@@ -173,7 +177,7 @@ class Blockchain(util.PrintError):
 
     def save_chunk(self, index, chunk):
         filename = self.path()
-        d = (index * 2016 - self.checkpoint) * 80
+        d = (util.ub_start_height_of_index(index) - self.checkpoint) * 80
         if d < 0:
             chunk = chunk[-d:]
             d = 0
@@ -258,13 +262,28 @@ class Blockchain(util.PrintError):
             return '0000000000000000000000000000000000000000000000000000000000000000'
         elif height == 0:
             return bitcoin.NetworkConstants.GENESIS
-        elif height < len(self.checkpoints) * 2016:
-            assert (height+1) % 2016 == 0
-            index = height // 2016
-            h, t = self.checkpoints[index]
-            return h
-        else:
-            return hash_header(self.read_header(height))
+        elif len(self.checkpoints)<247 :
+            if height < len(self.checkpoints) * 2016:
+                assert (height+1) % 2016 == 0
+                index = height // 2016
+                h, t = self.checkpoints[index]
+                return h
+            else:
+                return hash_header(self.read_header(height))
+        elif len(self.checkpoints)>=247:
+            if height < 247*2016:
+                assert (height+1) % 2016 == 0
+                index = height // 2016
+                h, t = self.checkpoints[index]
+                return h
+            elif height < 499200+(len(self.checkpoints) -247 )* 200:
+                assert (height -499200 + 1) % 200 == 0
+                index = 247 + ((height-499200) // 200)
+                h, t = self.checkpoints[index]
+                return h
+            else:
+                return hash_header(self.read_header(height))
+
 
     def get_target(self, index):
         # compute target from chunk x, used in chunk x+1
@@ -275,17 +294,38 @@ class Blockchain(util.PrintError):
         if index < len(self.checkpoints):
             h, t = self.checkpoints[index]
             return t
+        old_check_index_count = 247
+        first_block_num = 499200
         # new target
-        first = self.read_header(index * 2016)
-        last = self.read_header(index * 2016 + 2015)
-        bits = last.get('bits')
-        target = self.bits_to_target(bits)
-        nActualTimespan = last.get('timestamp') - first.get('timestamp')
-        nTargetTimespan = 14 * 24 * 60 * 60
-        nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
-        nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
-        new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
-        return new_target
+        if index <old_check_index_count:
+            print("block num", first_block_num + (index - old_check_index_count) * 200)
+            first = self.read_header(index * 2016)
+            last = self.read_header(index * 2016 + 2015)
+            bits = last.get('bits')
+            target = self.bits_to_target(bits)
+            nActualTimespan = last.get('timestamp') - first.get('timestamp')
+            nTargetTimespan = 14 * 24 * 60 * 60
+            nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
+            nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
+            new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
+            return new_target
+        else:
+            print("block num",first_block_num+ (index-old_check_index_count) * 200)
+            if first_block_num+ (index-old_check_index_count) * 200 < 498777:
+                return self.bits_to_target(0x1800b0ed)
+            elif first_block_num+ (index-old_check_index_count) * 200 < 499277:
+                return self.bits_to_target(0x18451c94)
+            first = self.read_header(first_block_num+ (index-old_check_index_count) * 200)
+            last = self.read_header(first_block_num+ (index-old_check_index_count) * 200 + 199)
+            bits = last.get('bits')
+            target = self.bits_to_target(bits)
+            nActualTimespan = last.get('timestamp') - first.get('timestamp')
+            nTargetTimespan = 200* 10 * 60
+            nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
+            nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
+            new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
+            return new_target
+
 
     def bits_to_target(self, bits):
         bitsN = (bits >> 24) & 0xff
@@ -320,7 +360,7 @@ class Blockchain(util.PrintError):
         if prev_hash != header.get('prev_block_hash'):
             self.print_error("bad hash", height, prev_hash, header.get('prev_block_hash'))
             return False
-        target = self.get_target(height // 2016 - 1)
+        target = self.get_target(util.ub_height_to_index(height) - 1)
         try:
             self.verify_header(header, prev_hash, target)
         except BaseException as e:
@@ -341,9 +381,22 @@ class Blockchain(util.PrintError):
     def get_checkpoints(self):
         # for each chunk, store the hash of the last block and the target after the chunk
         cp = []
-        n = self.height() // 2016
-        for index in range(n):
-            h = self.get_hash((index+1) * 2016 -1)
-            target = self.get_target(index)
-            cp.append((h, target))
-        return cp
+        if self.height() <499277:
+            n = self.height() // 2016
+            for index in range(n):
+                h = self.get_hash((index+1) * 2016 -1)
+                target = self.get_target(index)
+                cp.append((h, target))
+            return cp
+        else:
+            n = 247 + ((self.height()-499200) // 200)
+            for index in range(n):
+                if n <=246:
+                    h = self.get_hash((index + 1) * 2016 - 1)
+                    target = self.get_target(index)
+                    cp.append((h, target))
+                else:
+                    h = self.get_hash(499200 + (index - 247 ) * 200 - 1)
+                    target = self.get_target(index)
+                    cp.append((h, target))
+            return cp

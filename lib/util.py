@@ -208,6 +208,25 @@ def profiler(func):
     return lambda *args, **kw_args: do_profile(func, args, kw_args)
 
 
+def ub_height_to_index(height):
+    after_chunk_size = 200
+    fork_height = 499200
+    pre_fork_max_index = fork_height // 2016
+    if height <= (pre_fork_max_index*2016 -1):
+        return height // 2016
+    else:
+        return pre_fork_max_index + (height - fork_height)//after_chunk_size
+
+def ub_start_height_of_index(index):
+    after_chunk_size = 200
+    fork_height = 499200
+    pre_fork_max_index = fork_height // 2016
+    if index <= pre_fork_max_index:
+        return index * 2016
+    else:
+        return (index - pre_fork_max_index) * after_chunk_size + fork_height
+
+
 def android_ext_dir():
     import jnius
     env = jnius.autoclass('android.os.Environment')
