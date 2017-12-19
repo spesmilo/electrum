@@ -160,14 +160,14 @@ class SimpleConfig(PrintError):
             return path
 
         # default path
-        dirpath = os.path.join(self.path, "wallets")
+        dirpath = os.path.join(self.path, "ubtc_wallets")
         if not os.path.exists(dirpath):
             if os.path.islink(dirpath):
                 raise BaseException('Dangling link: ' + dirpath)
             os.mkdir(dirpath)
             os.chmod(dirpath, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
-        new_path = os.path.join(self.path, "wallets", "default_wallet")
+        new_path = os.path.join(self.path, "ubtc_wallets", "default_wallet")
 
         # default path in pre 1.9 versions
         old_path = os.path.join(self.path, "electrum.dat")

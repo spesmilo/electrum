@@ -4,5 +4,23 @@
         "s": "50002",
         "t": "50001",
         "version": "1.1"
+    },
+    "ubelcm1.ub.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.1"
+    },
+    "ubelcm2.ub.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.1"
+    },
+    "ubelcm3.ub.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.1"
     }
 }
