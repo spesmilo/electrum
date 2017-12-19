@@ -1067,8 +1067,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.config.set_key('fee_level', pos, False)
             else:
                 self.config.set_key('fee_per_kb', fee_rate, False)
+
+            self.feerate_e.setAmount(fee_rate // 1000)
+            self.fee_e.setModified(False)
+
+            self.fee_slider.activate()
             self.spend_max() if self.is_max else self.update_fee()
-            self.feerate_e.setAmount(fee_rate//1000)
 
         self.fee_slider = FeeSlider(self, self.config, fee_cb)
         self.fee_slider.setFixedWidth(140)
@@ -1084,10 +1088,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 # edit_changed was edited just now, so make sure we will
                 # freeze the correct fee setting (this)
                 edit_other.setModified(False)
+            self.fee_slider.deactivate()
             self.update_fee()
 
-        self.size_e = AmountEdit(lambda: 'bytes')
-        self.size_e.setFrozen(True)
+        class TxSizeLabel(QLabel):
+            def setAmount(self, byte_size):
+                self.setText('x   %s bytes   =' % byte_size)
+
+        self.size_e = TxSizeLabel()
+        self.size_e.setAlignment(Qt.AlignCenter)
+        self.size_e.setAmount(0)
+        self.size_e.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
 
         self.feerate_e = FeerateEdit(lambda: 2 if self.fee_unit else 0)
         self.feerate_e.textEdited.connect(partial(on_fee_or_feerate, self.feerate_e, False))
@@ -1117,8 +1128,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         hbox.addWidget(self.feerate_e)
         hbox.addWidget(self.size_e)
         hbox.addWidget(self.fee_e)
-
-        self.size_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
 
         vbox_feecontrol = QVBoxLayout()
         vbox_feecontrol.addWidget(self.fee_adv_controls)
@@ -1643,9 +1652,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.payment_request = None
         self.payto_e.is_pr = False
         for e in [self.payto_e, self.message_e, self.amount_e, self.fiat_send_e,
-                  self.fee_e, self.feerate_e, self.size_e]:
+                  self.fee_e, self.feerate_e]:
             e.setText('')
             e.setFrozen(False)
+        self.size_e.setAmount(0)
         self.set_pay_from([])
         #self.rbf_checkbox.setChecked(False)
         self.tx_external_keypairs = {}
