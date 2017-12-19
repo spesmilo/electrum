@@ -27,11 +27,11 @@ import socket
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
+from PyQt5.QtWidgets import *
 import PyQt5.QtCore as QtCore
 
 from electrum_grs.i18n import _
-from electrum_grs.network import DEFAULT_PORTS
-from electrum_grs.network import serialize_server, deserialize_server
+from electrum_grs.bitcoin import NetworkConstants
 from electrum_grs.util import print_error
 
 from .util import *
@@ -66,7 +66,7 @@ class NodesListWidget(QTreeWidget):
     def __init__(self, parent):
         QTreeWidget.__init__(self)
         self.parent = parent
-        self.setHeaderLabels([_('Node'), _('Height')])
+        self.setHeaderLabels([_('Connected node'), _('Height')])
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.create_menu)
 
@@ -397,7 +397,7 @@ class NetworkChoiceLayout(object):
     def change_protocol(self, use_ssl):
         p = 's' if use_ssl else 't'
         host = self.server_host.text()
-        pp = self.servers.get(host, DEFAULT_PORTS)
+        pp = self.servers.get(host, NetworkConstants.DEFAULT_PORTS)
         if p not in pp.keys():
             p = list(pp.keys())[0]
         port = pp[p]
@@ -422,7 +422,7 @@ class NetworkChoiceLayout(object):
             self.change_server(str(x.text(0)), self.protocol)
 
     def change_server(self, host, protocol):
-        pp = self.servers.get(host, DEFAULT_PORTS)
+        pp = self.servers.get(host, NetworkConstants.DEFAULT_PORTS)
         if protocol and protocol not in protocol_letters:
             protocol = None
         if protocol:

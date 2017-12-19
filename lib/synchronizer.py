@@ -22,17 +22,12 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 from threading import Lock
 import hashlib
 
-from .bitcoin import Hash, hash_encode, sha256
+# from .bitcoin import Hash, hash_encode, sha256
 from .transaction import Transaction
-from .util import print_error, print_msg, ThreadJob, bh2u
+from .util import ThreadJob, bh2u
 
 
 class Synchronizer(ThreadJob):

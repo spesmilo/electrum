@@ -1,3 +1,31 @@
+# Release 3.0.3
+  * Qt GUI: sweeping now uses the Send tab, allowing fees to be set
+  * Windows: if using the installer binary, there is now a separate shortcut
+    for "Electrum Testnet"
+  * Digital Bitbox: added suport for p2sh-segwit
+  * OS notifications for incoming transactions
+  * better transaction size estimation:
+    - fees for segwit txns were somewhat underestimated (#3347)
+    - some multisig txns were underestimated
+    - handle uncompressed pubkeys
+  * fix #3321: testnet for Windows binaries
+  * fix #3264: Ledger/dbb signing on some platforms
+  * fix #3407: KeepKey sending to p2sh output
+  * other minor fixes and usability improvements
+
+# Release 3.0.2
+  * Android: replace requests tab with address tab, with access to
+    private keys
+  * sweeping minikeys: search for both compressed and uncompressed
+    pubkeys
+  * fix wizard crash when attempting to reset Google Authenticator
+  * fix #3248: fix Ledger+segwit signing
+  * fix #3262: fix SSL payment request signing
+  * other minor fixes.
+
+# Release 3.0.1
+  * minor bug and usability fixes
+
 # Release 3.0 - Uncanny Valley (November 1st, 2017)
 
   * The project was migrated to Python3 and Qt5. Python2 is no longer

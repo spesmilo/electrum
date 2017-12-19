@@ -76,8 +76,9 @@ $PYTHON -m pip install pypiwin32
 # Install PyQt
 $PYTHON -m pip install PyQt5
 
-# Install pyinstaller
-$PYTHON -m pip install pyinstaller==3.3
+## Install pyinstaller
+#$PYTHON -m pip install pyinstaller==3.3
+
 
 # Install ZBar
 #wget -q -O zbar.exe "https://sourceforge.net/projects/zbar/files/zbar/0.10/zbar-0.10-setup.exe/download"
@@ -91,11 +92,6 @@ $PYTHON -m pip install win_inet_pton
 
 # install websocket (python2)
 $PYTHON -m pip install websocket-client
-
-
-# Install setuptools
-#wget -O setuptools.exe "$SETUPTOOLS_URL"
-#wine setuptools.exe
 
 # Upgrade setuptools (so Electrum can be installed later)
 $PYTHON -m pip install setuptools --upgrade
@@ -111,6 +107,7 @@ wine nsis.exe /S
 #cp upx*/upx.exe .
 
 # add dlls needed for pyinstaller:
-cp $WINEPREFIX/drive_c/windows/system32/msvcp90.dll $WINEPREFIX/drive_c/python$PYTHON_VERSION/
-cp $WINEPREFIX/drive_c/windows/system32/msvcm90.dll $WINEPREFIX/drive_c/python$PYTHON_VERSION/
 cp $WINEPREFIX/drive_c/python$PYTHON_VERSION/Lib/site-packages/PyQt5/Qt/bin/* $WINEPREFIX/drive_c/python$PYTHON_VERSION/
+
+
+echo "Wine is configured. Please run prepare-pyinstaller.sh"

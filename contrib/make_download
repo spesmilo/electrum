@@ -1,7 +1,5 @@
 #!/usr/bin/python2
-import sys
 import re
-import hashlib
 import os
 
 from versions import version, version_win, version_mac, version_android, version_apk

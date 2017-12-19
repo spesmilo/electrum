@@ -27,8 +27,7 @@ import webbrowser
 
 from .util import *
 from electrum_grs.i18n import _
-from electrum_grs.util import block_explorer_URL, format_satoshis, format_time
-from electrum_grs.plugins import run_hook
+from electrum_grs.util import block_explorer_URL
 from electrum_grs.util import timestamp_to_datetime, profiler
 
 

@@ -2,12 +2,8 @@
 # create a BIP70 payment request signed with a certificate
 
 import tlslite
-import time
-import hashlib
 
 from electrum_grs.transaction import Transaction
-from electrum_grs import bitcoin
-from electrum_grs import x509
 from electrum_grs import paymentrequest
 from electrum_grs import paymentrequest_pb2 as pb2
 

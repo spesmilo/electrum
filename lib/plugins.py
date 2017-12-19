@@ -31,7 +31,7 @@ import pkgutil
 import time
 import threading
 
-from .util import *
+from .util import print_error
 from .i18n import _
 from .util import profiler, PrintError, DaemonThread, UserCancelled, ThreadJob
 from . import bitcoin
@@ -392,6 +392,8 @@ class DeviceMgr(ThreadJob, PrintError):
 
     def client_for_keystore(self, plugin, handler, keystore, force_pair):
         self.print_error("getting client for keystore")
+        if handler is None:
+            raise BaseException(_("Handler not found for") + ' ' + plugin.name + '\n' + _("A library is probably missing."))
         handler.update_status(False)
         devices = self.scan_devices()
         xpub = keystore.xpub
@@ -470,7 +472,7 @@ class DeviceMgr(ThreadJob, PrintError):
             infos = self.unpaired_device_infos(handler, plugin, devices)
             if infos:
                 break
-            msg = _('Could not connect to your %s.  Verify the cable is '
+            msg = _('Please insert your %s.  Verify the cable is '
                     'connected and that no other application is using it.\n\n'
                     'Try to connect again?') % plugin.device
             if not handler.yes_no_question(msg):

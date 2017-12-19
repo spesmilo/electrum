@@ -68,7 +68,7 @@ class Plugin(BasePlugin):
     def do_verify(self, d):
         tx = d.tx
         wallet = d.wallet
-        window = d.parent
+        window = d.main_window
         # 1. get the password and sign the verification request
         password = None
         if wallet.has_password():

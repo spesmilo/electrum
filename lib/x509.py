@@ -22,15 +22,8 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from datetime import datetime
-import sys
 from . import util
-from .util import profiler, print_error, bh2u
+from .util import profiler, bh2u
 import ecdsa
 import hashlib
 

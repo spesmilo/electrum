@@ -1,11 +1,10 @@
-from PyQt5.QtWidgets import (QInputDialog, QLineEdit)
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from .digitalbitbox import DigitalBitboxPlugin
 
 from electrum_grs.i18n import _
 from electrum_grs.plugins import hook
-from electrum_grs.wallet import Wallet, Standard_Wallet
-from electrum_grs.bitcoin import EncodeAES
+from electrum_grs.wallet import Standard_Wallet
+
 
 class Plugin(DigitalBitboxPlugin, QtPluginBase):
     icon_unpaired = ":icons/digitalbitbox_unpaired.png"
@@ -24,6 +23,9 @@ class Plugin(DigitalBitboxPlugin, QtPluginBase):
             return
 
         if not self.is_mobile_paired():
+            return
+
+        if not keystore.is_p2pkh():
             return
 
         if len(addrs) == 1:

@@ -186,8 +186,9 @@ class PayToEdit(ScanQRTextEdit):
         self.update_size()
 
     def update_size(self):
+        lineHeight = QFontMetrics(self.document().defaultFont()).height()
         docHeight = self.document().size().height()
-        h = docHeight*17 + 11
+        h = docHeight * lineHeight + 11
         if self.heightMin <= h <= self.heightMax:
             self.setMinimumHeight(h)
             self.setMaximumHeight(h)
@@ -276,6 +277,9 @@ class PayToEdit(ScanQRTextEdit):
             return
         self.previous_payto = key
         if not (('.' in key) and (not '<' in key) and (not ' ' in key)):
+            return
+        parts = key.split(sep=',')  # assuming single line
+        if parts and len(parts) > 0 and bitcoin.is_address(parts[0]):
             return
         try:
             data = self.win.contacts.resolve(key)

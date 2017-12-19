@@ -27,9 +27,8 @@ import os
 from . import bitcoin
 from . import keystore
 from .keystore import bip44_derivation
-from .wallet import Wallet, Imported_Wallet, Standard_Wallet, Multisig_Wallet, wallet_types
+from .wallet import Imported_Wallet, Standard_Wallet, Multisig_Wallet, wallet_types
 from .i18n import _
-from .plugins import run_hook
 
 
 class BaseWizard(object):
@@ -244,9 +243,10 @@ class BaseWizard(object):
     def on_hw_derivation(self, name, device_info, derivation):
         from .keystore import hardware_keystore
         xtype = 'p2wpkh-p2sh' if derivation.startswith("m/49'/") else 'standard'
-        xpub = self.plugin.get_xpub(device_info.device.id_, derivation, xtype, self)
-        if xpub is None:
-            self.show_error('Cannot read xpub from device')
+        try:
+            xpub = self.plugin.get_xpub(device_info.device.id_, derivation, xtype, self)
+        except BaseException as e:
+            self.show_error(e)
             return
         d = {
             'type': 'hardware',

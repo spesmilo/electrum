@@ -191,6 +191,31 @@
             pos: self.pos
 
 
+<AddressFilter@GridLayout>
+	item_height: dp(42)
+	item_width: dp(60)
+	foreground_color: .843, .914, .972, 1
+	cols: 1
+	canvas.before:
+		Color:
+			rgba: 0.192, .498, 0.745, 1
+		BorderImage:
+			source: 'atlas://gui/kivy/theming/light/card_bottom'
+			size: self.size
+			pos: self.pos
+
+<SearchBox@GridLayout>
+	item_height: dp(42)
+	foreground_color: .843, .914, .972, 1
+	cols: 1
+	padding: '12dp', 0
+	canvas.before:
+		Color:
+			rgba: 0.192, .498, 0.745, 1
+        BorderImage:
+            source: 'atlas://gui/kivy/theming/light/card_bottom'
+            size: self.size
+            pos: self.pos
 
 <CardSeparator@Widget>
     size_hint: 1, None
@@ -238,6 +263,25 @@
             size: self.size
             pos: self.pos
 
+<AddressButton@Button>:
+	background_color: 1, .585, .878, 0
+	halign: 'center'
+	text_size: (self.width, None)
+	shorten: True
+	size_hint: 0.5, None
+	default_text: ''
+	text: self.default_text
+	padding: '5dp', '5dp'
+	height: '40dp'
+	text_color: self.foreground_color
+	disabled_color: 1, 1, 1, 1
+	foreground_color: 1, 1, 1, 1
+	canvas.before:
+		Color:
+			rgba: (0.9, .498, 0.745, 1) if self.state == 'down' else self.background_color
+		Rectangle:
+			size: self.size
+			pos: self.pos
 
 <KButton@Button>:
     size_hint: 1, None
@@ -340,9 +384,9 @@
         ReceiveScreen:
             id: receive_screen
             tab: receive_tab
-        RequestsScreen:
-            id: requests_screen
-            tab: requests_tab
+        AddressScreen:
+            id: address_screen
+            tab: address_tab
         CleanHeader:
             id: invoices_tab
             text: _('Invoices')
@@ -360,8 +404,8 @@
             text: _('Receive')
             slide: 3
         CleanHeader:
-            id: requests_tab
-            text: _('Requests')
+            id: address_tab
+            text: _('Addresses')
             slide: 4
 
 

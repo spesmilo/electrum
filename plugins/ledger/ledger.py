@@ -1,19 +1,16 @@
 from struct import pack, unpack
 import hashlib
-import time
 import sys
-import os
 import traceback
 
-import electrum_grs
 from electrum_grs import bitcoin
 from electrum_grs.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
 from electrum_grs.i18n import _
-from electrum_grs.plugins import BasePlugin, hook
-from electrum_grs.keystore import Hardware_KeyStore, parse_xpubkey
-from electrum_grs.transaction import push_script, Transaction
+from electrum_grs.plugins import BasePlugin
+from electrum_grs.keystore import Hardware_KeyStore
+from electrum_grs.transaction import Transaction
 from ..hw_wallet import HW_PluginBase
-from electrum_grs.util import format_satoshis_plain, print_error, is_verbose, bfh, bh2u
+from electrum_grs.util import print_error, is_verbose, bfh, bh2u
 
 try:
     import hid
@@ -59,35 +56,29 @@ class Ledger_Client():
         # This only happens once so it's bearable
         #self.get_client() # prompt for the PIN before displaying the dialog if necessary
         #self.handler.show_message("Computing master public key")
-        try:
-            if xtype in ['p2wpkh', 'p2wsh'] and not self.supports_native_segwit():
-                raise Exception("Firmware version too old for Segwit support. Please update at https://www.ledgerwallet.com")
-            if xtype in ['p2wpkh-p2sh', 'p2wsh-p2sh'] and not self.supports_segwit():
-                raise Exception("Firmware version too old for Segwit support. Please update at https://www.ledgerwallet.com")
-
-            splitPath = bip32_path.split('/')
-            if splitPath[0] == 'm':
-                splitPath = splitPath[1:]
-                bip32_path = bip32_path[2:]
-            fingerprint = 0
-            if len(splitPath) > 1:
-                prevPath = "/".join(splitPath[0:len(splitPath) - 1])
-                nodeData = self.dongleObject.getWalletPublicKey(prevPath)
-                publicKey = compress_public_key(nodeData['publicKey'])
-                h = hashlib.new('ripemd160')
-                h.update(hashlib.sha256(publicKey).digest())
-                fingerprint = unpack(">I", h.digest()[0:4])[0]
-            nodeData = self.dongleObject.getWalletPublicKey(bip32_path)
-            publicKey = compress_public_key(nodeData['publicKey'])
-            depth = len(splitPath)
-            lastChild = splitPath[len(splitPath) - 1].split('\'')
-            childnum = int(lastChild[0]) if len(lastChild) == 1 else 0x80000000 | int(lastChild[0])
-            xpub = bitcoin.serialize_xpub(xtype, nodeData['chainCode'], publicKey, depth, self.i4b(fingerprint), self.i4b(childnum))
-            return xpub
-        except Exception as e:
-            traceback.print_exc(file=sys.stdout)
-            #print_error(e)
-            return None
+        if xtype in ['p2wpkh', 'p2wsh'] and not self.supports_native_segwit():
+            raise Exception("Firmware version too old for Segwit support. Please update at https://www.ledgerwallet.com")
+        if xtype in ['p2wpkh-p2sh', 'p2wsh-p2sh'] and not self.supports_segwit():
+            raise Exception("Firmware version too old for Segwit support. Please update at https://www.ledgerwallet.com")
+        splitPath = bip32_path.split('/')
+        if splitPath[0] == 'm':
+            splitPath = splitPath[1:]
+            bip32_path = bip32_path[2:]
+        fingerprint = 0
+        if len(splitPath) > 1:
+            prevPath = "/".join(splitPath[0:len(splitPath) - 1])
+            nodeData = self.dongleObject.getWalletPublicKey(prevPath)
+            publicKey = compress_public_key(nodeData['publicKey'])#
+            h = hashlib.new('ripemd160')
+            h.update(hashlib.sha256(publicKey).digest())
+            fingerprint = unpack(">I", h.digest()[0:4])[0]
+        nodeData = self.dongleObject.getWalletPublicKey(bip32_path)
+        publicKey = compress_public_key(nodeData['publicKey'])
+        depth = len(splitPath)
+        lastChild = splitPath[len(splitPath) - 1].split('\'')
+        childnum = int(lastChild[0]) if len(lastChild) == 1 else 0x80000000 | int(lastChild[0])
+        xpub = bitcoin.serialize_xpub(xtype, nodeData['chainCode'], publicKey, depth, self.i4b(fingerprint), self.i4b(childnum))
+        return xpub
 
     def has_detached_pin_support(self, client):
         try:
@@ -222,6 +213,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
     def sign_message(self, sequence, message, password):
         self.signing = True
+        message = message.encode('utf8')
         # prompt for the PIN before displaying the dialog if necessary
         client = self.get_client()
         address_path = self.get_derivation()[2:] + "/%d/%d"%sequence
@@ -246,11 +238,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
         except Exception as e:
             self.give_error(e, True)
         finally:
-            self.handler.clear_dialog()
+            self.handler.finished()
         self.signing = False
-
         # Parse the ASN.1 signature
-
         rLength = signature[3]
         r = signature[4 : 4 + rLength]
         sLength = signature[4 + rLength + 1]
@@ -259,11 +249,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
             r = r[1:]
         if sLength == 33:
             s = s[1:]
-        r = str(r)
-        s = str(s)
-
         # And convert it
-        return chr(27 + 4 + (signature[0] & 0x01)) + r + s
+        return bytes([27 + 4 + (signature[0] & 0x01)]) + r + s
+
 
     def sign_transaction(self, tx, password):
         if tx.is_complete():
@@ -363,13 +351,12 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     tmp += txtmp.outputs[utxo[1]].amount
                     chipInputs.append({'value' : tmp, 'witness' : True, 'sequence' : sequence})
                     redeemScripts.append(bfh(utxo[2]))
-                # FIXME: getTrustedInput fails with native segwit transactions (firmware issue)
-                #elif not p2shTransaction:
-                #    txtmp = bitcoinTransaction(bfh(utxo[0]))
-                #    trustedInput = self.get_client().getTrustedInput(txtmp, utxo[1])
-                #    trustedInput['sequence'] = sequence
-                #    chipInputs.append(trustedInput)
-                #    redeemScripts.append(txtmp.outputs[utxo[1]].script)
+                elif not p2shTransaction:
+                    txtmp = bitcoinTransaction(bfh(utxo[0]))
+                    trustedInput = self.get_client().getTrustedInput(txtmp, utxo[1])
+                    trustedInput['sequence'] = sequence
+                    chipInputs.append(trustedInput)
+                    redeemScripts.append(txtmp.outputs[utxo[1]].script)
                 else:
                     tmp = bfh(utxo[3])[::-1]
                     tmp += bfh(int_to_hex(utxo[1], 4))
@@ -389,17 +376,17 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 transactionOutput = outputData['outputData']
                 if outputData['confirmationNeeded']:
                     outputData['address'] = output
-                    self.handler.clear_dialog()
+                    self.handler.finished()
                     pin = self.handler.get_auth( outputData ) # does the authenticate dialog and returns pin
                     if not pin:
                         raise UserWarning()
                     if pin != 'paired':
                         self.handler.show_message(_("Confirmed. Signing Transaction..."))
-                while inputIndex < len(inputs):                
+                while inputIndex < len(inputs):
                     singleInput = [ chipInputs[inputIndex] ]
                     self.get_client().startUntrustedTransaction(False, 0,
                                                             singleInput, redeemScripts[inputIndex])
-                    inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex], pin)
+                    inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex], pin, lockTime=tx.locktime)
                     inputSignature[0] = 0x30 # force for 1.4.9+
                     signatures.append(inputSignature)
                     inputIndex = inputIndex + 1
@@ -413,7 +400,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                         transactionOutput = outputData['outputData']
                     if outputData['confirmationNeeded']:
                         outputData['address'] = output
-                        self.handler.clear_dialog()
+                        self.handler.finished()
                         pin = self.handler.get_auth( outputData ) # does the authenticate dialog and returns pin
                         if not pin:
                             raise UserWarning()
@@ -434,7 +421,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
             traceback.print_exc(file=sys.stdout)
             self.give_error(e, True)
         finally:
-            self.handler.clear_dialog()
+            self.handler.finished()
 
         for i, txin in enumerate(tx.inputs()):
             signingPos = inputs[i][4]

@@ -4,8 +4,6 @@ from electrum_grs.i18n import _
 
 import datetime
 from collections import defaultdict
-
-from electrum_grs.util import format_satoshis
 from electrum_grs.bitcoin import COIN
 
 import matplotlib

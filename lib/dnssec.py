@@ -22,12 +22,6 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-
 
 # Check DNSSEC trust chain.
 # Todo: verify expiration dates
@@ -37,8 +31,8 @@ from __future__ import unicode_literals
 #  https://github.com/rthalley/dnspython/blob/master/tests/test_dnssec.py
 
 
-import traceback
-import sys
+# import traceback
+# import sys
 import time
 import struct
 
@@ -62,7 +56,6 @@ import dns.rdtypes.ANY.SOA
 import dns.rdtypes.ANY.TXT
 import dns.rdtypes.IN.A
 import dns.rdtypes.IN.AAAA
-from dns.exception import DNSException
 
 
 # Pure-Python version of dns.dnssec._validate_rsig

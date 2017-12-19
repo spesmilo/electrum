@@ -6,11 +6,12 @@
 try:
     import electrum_grs
     from electrum_grs.bitcoin import TYPE_ADDRESS, push_script, var_int, msg_magic, Hash, verify_message, pubkey_from_signature, point_to_ser, public_key_to_p2pkh, EncodeAES, DecodeAES, MyVerifyingKey
+    from electrum_grs.bitcoin import serialize_xpub, deserialize_xpub
     from electrum_grs.transaction import Transaction
     from electrum_grs.i18n import _
     from electrum_grs.keystore import Hardware_KeyStore
     from ..hw_wallet import HW_PluginBase
-    from electrum_grs.util import print_error
+    from electrum_grs.util import print_error, to_string, UserCancelled
 
     import time
     import hid
@@ -85,10 +86,19 @@ class DigitalBitbox_Client():
 
 
     def get_xpub(self, bip32_path, xtype):
-        assert xpub == 'standard'
+        assert xtype in ('standard', 'p2wpkh-p2sh')
         reply = self._get_xpub(bip32_path)
         if reply:
-            return reply['xpub']
+            xpub = reply['xpub']
+            # Change type of xpub to the requested type. The firmware
+            # only ever returns the standard type, but it is agnostic
+            # to the type when signing.
+            if xtype != 'standard':
+                _, depth, fingerprint, child_number, c, cK = deserialize_xpub(xpub)
+                xpub = serialize_xpub(xtype, c, cK, depth, fingerprint, child_number)
+            return xpub
+        else:
+            raise BaseException('no reply')
 
 
     def dbb_has_password(self):
@@ -272,7 +282,7 @@ class DigitalBitbox_Client():
                                     "To continue, touch the Digital Bitbox's light for 3 seconds.\r\n\r\n" \
                                     "To cancel, briefly touch the light or wait for the timeout."))
         hid_reply = self.hid_send_encrypt(b'{"reset":"__ERASE__"}')
-        self.handler.clear_dialog()
+        self.handler.finished()
         if 'error' in hid_reply:
             raise Exception(hid_reply['error']['message'])
         else:
@@ -298,7 +308,7 @@ class DigitalBitbox_Client():
                                         "To cancel, briefly touch the light or wait for the timeout."))
         msg = b'{"seed":{"source": "backup", "key": "%s", "filename": "%s"}}' % (key, backups['backup'][f].encode('utf8'))
         hid_reply = self.hid_send_encrypt(msg)
-        self.handler.clear_dialog()
+        self.handler.finished()
         if 'error' in hid_reply:
             raise Exception(hid_reply['error']['message'])
         return True
@@ -355,6 +365,7 @@ class DigitalBitbox_Client():
                 r = self.hid_read_frame()
             r = r.rstrip(b' \t\r\n\0')
             r = r.replace(b"\0", b'')
+            r = to_string(r, 'utf8')
             reply = json.loads(r)
         except Exception as e:
             print_error('Exception caught ' + str(e))
@@ -369,6 +380,7 @@ class DigitalBitbox_Client():
             reply = self.hid_send_plain(msg)
             if 'ciphertext' in reply:
                 reply = DecodeAES(secret, ''.join(reply["ciphertext"]))
+                reply = to_string(reply, 'utf8')
                 reply = json.loads(reply)
             if 'error' in reply:
                 self.password = None
@@ -395,6 +407,10 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
 
     def get_derivation(self):
         return str(self.derivation)
+
+
+    def is_p2pkh(self):
+        return self.derivation.startswith("m/44'/")
 
 
     def give_error(self, message, clear_client = False):
@@ -430,7 +446,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                                         "To continue, touch the Digital Bitbox's blinking light for 3 seconds.\r\n\r\n" \
                                         "To cancel, briefly touch the blinking light or wait for the timeout."))
             reply = dbb_client.hid_send_encrypt(msg) # Send twice, first returns an echo for smart verification (not implemented)
-            self.handler.clear_dialog()
+            self.handler.finished()
 
             if 'error' in reply:
                 raise Exception(reply['error']['message'])
@@ -470,7 +486,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
             return
 
         try:
-            p2shTransaction = False
+            p2pkhTransaction = True
             derivations = self.get_tx_derivations(tx)
             inputhasharray = []
             hasharray = []
@@ -481,8 +497,8 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 if txin['type'] == 'coinbase':
                     self.give_error("Coinbase not supported") # should never happen
 
-                if txin['type'] in ['p2sh']:
-                    p2shTransaction = True
+                if txin['type'] != 'p2pkh':
+                    p2pkhTransaction = False
 
                 for x_pubkey in txin['x_pubkeys']:
                     if x_pubkey in derivations:
@@ -495,12 +511,6 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                         break
                 else:
                     self.give_error("No matching x_key for sign_transaction") # should never happen
-
-            # Sanity check
-            if p2shTransaction:
-                for txinput in tx.inputs():
-                    if txinput['type'] != 'p2sh':
-                        self.give_error("P2SH / regular input mixed in same transaction not supported") # should never happen
 
             # Build pubkeyarray from outputs
             for _type, address, amount in tx.outputs():
@@ -515,15 +525,22 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
 
             # Special serialization of the unsigned transaction for
             # the mobile verification app.
-            class CustomTXSerialization(Transaction):
-                @classmethod
-                def input_script(self, txin, estimate_size=False):
-                    if txin['type'] == 'p2pkh':
-                        return Transaction.get_preimage_script(txin)
-                    if txin['type'] == 'p2sh':
-                        return '00' + push_script(Transaction.get_preimage_script(txin))
-                    raise Exception("unsupported type %s" % txin['type'])
-            tx_dbb_serialized = CustomTXSerialization(tx.serialize()).serialize()
+            # At the moment, verification only works for p2pkh transactions.
+            if p2pkhTransaction:
+                class CustomTXSerialization(Transaction):
+                    @classmethod
+                    def input_script(self, txin, estimate_size=False):
+                        if txin['type'] == 'p2pkh':
+                            return Transaction.get_preimage_script(txin)
+                        if txin['type'] == 'p2sh':
+                            # Multisig verification has partial support, but is disabled. This is the
+                            # expected serialization though, so we leave it here until we activate it.
+                            return '00' + push_script(Transaction.get_preimage_script(txin))
+                        raise Exception("unsupported type %s" % txin['type'])
+                tx_dbb_serialized = CustomTXSerialization(tx.serialize()).serialize()
+            else:
+                # We only need this for the signing echo / verification.
+                tx_dbb_serialized = None
 
             # Build sign command
             dbb_signatures = []
@@ -531,8 +548,15 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
             for step in range(int(steps)):
                 hashes = hasharray[step * self.maxInputs : (step + 1) * self.maxInputs]
 
-                msg = ('{"sign": {"meta":"%s", "data":%s, "checkpub":%s} }' % \
-                       (to_hexstr(Hash(tx_dbb_serialized)), json.dumps(hashes), json.dumps(pubkeyarray))).encode('utf8')
+                msg = {
+                    "sign": {
+                        "data": hashes,
+                        "checkpub": pubkeyarray,
+                    },
+                }
+                if tx_dbb_serialized is not None:
+                    msg["sign"]["meta"] = to_hexstr(Hash(tx_dbb_serialized))
+                msg = json.dumps(msg).encode('ascii')
                 dbb_client = self.plugin.get_client(self)
 
                 if not dbb_client.is_paired():
@@ -545,8 +569,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 if 'echo' not in reply:
                     raise Exception("Could not sign transaction.")
 
-                # multisig verification not working correctly yet
-                if self.plugin.is_mobile_paired() and not p2shTransaction:
+                if self.plugin.is_mobile_paired() and tx_dbb_serialized is not None:
                     reply['tx'] = tx_dbb_serialized
                     self.plugin.comserver_post_notification(reply)
 
@@ -562,9 +585,12 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
 
                 # Send twice, first returns an echo for smart verification
                 reply = dbb_client.hid_send_encrypt(msg)
-                self.handler.clear_dialog()
+                self.handler.finished()
 
                 if 'error' in reply:
+                    if reply["error"].get('code') in (600, 601):
+                        # aborted via LED short touch or timeout
+                        raise UserCancelled()
                     raise Exception(reply['error']['message'])
 
                 if 'sign' not in reply:
@@ -600,6 +626,8 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     sig = sigencode_der(sig_r, sig_s, generator_secp256k1.order())
                     txin['signatures'][ii] = to_hexstr(sig) + '01'
                     tx._inputs[i] = txin
+        except UserCancelled:
+            raise
         except BaseException as e:
             self.give_error(e, True)
         else:

@@ -24,7 +24,6 @@
 # SOFTWARE.
 from .util import *
 from electrum_grs.i18n import _
-from electrum_grs.bitcoin import is_address
 
 
 class UTXOList(MyTreeWidget):
@@ -70,3 +69,7 @@ class UTXOList(MyTreeWidget):
             menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx))
 
         menu.exec_(self.viewport().mapToGlobal(position))
+
+    def on_permit_edit(self, item, column):
+        # disable editing fields in this tab (labels)
+        return False

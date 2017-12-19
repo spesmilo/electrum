@@ -87,7 +87,7 @@ if is_local or is_android:
     imp.load_module('electrum_grs_plugins', *imp.find_module('plugins'))
 
 
-from electrum_grs import bitcoin, network
+from electrum_grs import bitcoin
 from electrum_grs import SimpleConfig, Network
 from electrum_grs.wallet import Wallet, Imported_Wallet
 from electrum_grs.storage import WalletStorage
@@ -316,7 +316,7 @@ if __name__ == '__main__':
         elif arg == '?':
             sys.argv[i] = input("Enter argument:")
         elif arg == ':':
-            sys.argv[i] = prompt_password('Enter argument (will noot echo):', False)
+            sys.argv[i] = prompt_password('Enter argument (will not echo):', False)
 
     # parse command line
     parser = get_parser()
@@ -338,6 +338,10 @@ if __name__ == '__main__':
 
     config_options['cwd'] = os.getcwd()
 
+    # fixme: this can probably be achieved with a runtime hook (pyinstaller)
+    if is_bundle and os.path.exists(os.path.join(sys._MEIPASS, 'is_portable')):
+        config_options['portable'] = True
+
     if config_options.get('portable'):
         config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
 
@@ -357,7 +361,7 @@ if __name__ == '__main__':
     cmdname = config.get('cmd')
 
     if config.get('testnet'):
-        bitcoin.set_testnet()
+        bitcoin.NetworkConstants.set_testnet()
 
     # run non-RPC commands separately
     if cmdname in ['create', 'restore']:

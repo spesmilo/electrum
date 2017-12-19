@@ -150,7 +150,7 @@ class Blockchain(util.PrintError):
         _hash = hash_header(header)
         if prev_hash != header.get('prev_block_hash'):
             raise BaseException("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
-        if bitcoin.TESTNET or not USE_DIFF_RETARGET or header['block_height'] < DGW3_START_HEIGHT:
+        if bitcoin.NetworkConstants.TESTNET or not USE_DIFF_RETARGET or header['block_height'] < DGW3_START_HEIGHT:
             return
         if bits != header.get('bits'):
             raise BaseException("bits mismatch: %s vs %s" % (bits, header.get('bits')))
@@ -257,10 +257,9 @@ class Blockchain(util.PrintError):
         delta = height - self.checkpoint
         name = self.path()
         if os.path.exists(name):
-            f = open(name, 'rb')
-            f.seek(delta * 80)
-            h = f.read(80)
-            f.close()
+            with open(name, 'rb') as f:
+                f.seek(delta * 80)
+                h = f.read(80)
         return deserialize_header(h, height)
 
     def get_hash(self, height):
@@ -360,7 +359,7 @@ class Blockchain(util.PrintError):
         if chain is None:
             chain = []  # Do not use mutables as default values!
 
-        if bitcoin.TESTNET:
+        if bitcoin.NetworkConstants.TESTNET:
             return 0, 0
         if block_height == 0:
             return 0x1d00ffff, MAX_TARGET
@@ -375,7 +374,7 @@ class Blockchain(util.PrintError):
         if check_height and self.height() != height - 1:
             return False
         if height == 0:
-            return hash_header(header) == bitcoin.GENESIS
+            return hash_header(header) == bitcoin.NetworkConstants.GENESIS
         previous_header = self.read_header(height -1)
         if not previous_header:
             return False

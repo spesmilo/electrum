@@ -1,7 +1,8 @@
-import select, time, electrum_grs, queue
+import select, time, queue
+# import electrum_grs
 from electrum_grs import Connection, Interface, SimpleConfig
 
-from electrum_grs.network import filter_protocol, parse_servers
+from electrum_grs.network import parse_servers
 from collections import defaultdict
 
 # electrum.util.set_verbosity(1)

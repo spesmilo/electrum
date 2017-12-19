@@ -25,6 +25,7 @@
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
+from PyQt5.QtWidgets import *
 from electrum_grs.i18n import _
 
 from .util import *
@@ -62,8 +63,8 @@ class SeedLayout(QVBoxLayout):
         if 'bip39' in self.options:
             def f(b):
                 self.is_seed = (lambda x: bool(x)) if b else self.saved_is_seed
-                self.on_edit()
                 self.is_bip39 = b
+                self.on_edit()
                 if b:
                     msg = ' '.join([
                         '<b>' + _('Warning') + ':</b>  ',

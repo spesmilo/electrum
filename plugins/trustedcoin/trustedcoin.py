@@ -25,10 +25,8 @@
 
 import socket
 import os
-import re
 import requests
 import json
-from hashlib import sha256
 from urllib.parse import urljoin
 from urllib.parse import quote
 
@@ -38,9 +36,9 @@ from electrum_grs import keystore
 from electrum_grs.bitcoin import *
 from electrum_grs.mnemonic import Mnemonic
 from electrum_grs import version
-from electrum_grs.wallet import Multisig_Wallet, Deterministic_Wallet, Wallet
+from electrum_grs.wallet import Multisig_Wallet, Deterministic_Wallet
 from electrum_grs.i18n import _
-from electrum_grs.plugins import BasePlugin, run_hook, hook
+from electrum_grs.plugins import BasePlugin, hook
 from electrum_grs.util import NotEnoughFunds
 
 # signing_xpub is hardcoded so that the wallet can be restored from seed, without TrustedCoin's server
@@ -250,11 +248,11 @@ class Wallet_2fa(Multisig_Wallet):
         assert price <= 100000 * n
         return price
 
-    def make_unsigned_transaction(self, coins, outputs, config,
-                                  fixed_fee=None, change_addr=None):
+    def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None,
+                                  change_addr=None, is_sweep=False):
         mk_tx = lambda o: Multisig_Wallet.make_unsigned_transaction(
             self, coins, o, config, fixed_fee, change_addr)
-        fee = self.extra_fee(config)
+        fee = self.extra_fee(config) if not is_sweep else 0
         if fee:
             address = self.billing_info['billing_address']
             fee_output = (TYPE_ADDRESS, address, fee)
@@ -567,8 +565,7 @@ class TrustedCoinPlugin(BasePlugin):
             _, _, _, _, c, k = deserialize_xprv(xprv)
             pk = bip32_private_key([0, 0], k, c)
             key = regenerate_key(pk)
-            compressed = is_compressed(pk)
-            sig = key.sign_message(message, compressed)
+            sig = key.sign_message(message, True)
             return base64.b64encode(sig).decode()
 
         signatures = [f(x) for x in [xprv1, xprv2]]

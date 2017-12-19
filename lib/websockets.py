@@ -22,13 +22,8 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import queue
-import threading, os, json, time
+import threading, os, json
 from collections import defaultdict
 try:
     from SimpleWebSocketServer import WebSocket, SimpleSSLWebSocketServer
@@ -62,7 +57,7 @@ class WsClientThread(util.DaemonThread):
         util.DaemonThread.__init__(self)
         self.network = network
         self.config = config
-        self.response_queue = Queue.Queue()
+        self.response_queue = queue.Queue()
         self.subscriptions = defaultdict(list)
 
     def make_request(self, request_id):
@@ -80,7 +75,7 @@ class WsClientThread(util.DaemonThread):
         while self.is_running():
             try:
                 ws, request_id = request_queue.get()
-            except Queue.Empty:
+            except queue.Empty:
                 continue
             try:
                 addr, amount = self.make_request(request_id)
@@ -97,7 +92,7 @@ class WsClientThread(util.DaemonThread):
         while self.is_running():
             try:
                 r = self.response_queue.get(timeout=0.1)
-            except Queue.Empty:
+            except queue.Empty:
                 continue
             util.print_error('response', r)
             method = r.get('method')

@@ -42,6 +42,7 @@ from .trustedcoin import TrustedCoinPlugin, server
 
 class TOS(QTextEdit):
     tos_signal = pyqtSignal()
+    error_signal = pyqtSignal(object)
 
 
 class Plugin(TrustedCoinPlugin):
@@ -78,6 +79,10 @@ class Plugin(TrustedCoinPlugin):
         grid.addWidget(QLabel(_('Code')), 1, 0)
         grid.addWidget(pw, 1, 1)
         vbox.addLayout(grid)
+        msg = _('If you have lost your second factor, you need to restore your wallet from seed in order to request a new code.')
+        label = QLabel(msg)
+        label.setWordWrap(1)
+        vbox.addWidget(label)
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         if not d.exec_():
             return
@@ -191,6 +196,7 @@ class Plugin(TrustedCoinPlugin):
         tos_e = TOS()
         tos_e.setReadOnly(True)
         vbox.addWidget(tos_e)
+        tos_received = False
 
         vbox.addWidget(QLabel(_("Please enter your e-mail address")))
         email_e = QLineEdit()
@@ -201,17 +207,33 @@ class Plugin(TrustedCoinPlugin):
         next_button.setText(_('Accept'))
 
         def request_TOS():
-            tos = server.get_terms_of_service()
+            try:
+                tos = server.get_terms_of_service()
+            except Exception as e:
+                import traceback
+                traceback.print_exc(file=sys.stderr)
+                tos_e.error_signal.emit(_('Could not retrieve Terms of Service:')
+                                        + '\n' + str(e))
+                return
             self.TOS = tos
             tos_e.tos_signal.emit()
 
         def on_result():
             tos_e.setText(self.TOS)
+            nonlocal tos_received
+            tos_received = True
+            set_enabled()
+
+        def on_error(msg):
+            window.show_error(str(msg))
+            window.terminate()
 
         def set_enabled():
-            next_button.setEnabled(re.match(regexp,email_e.text()) is not None)
+            valid_email = re.match(regexp, email_e.text()) is not None
+            next_button.setEnabled(tos_received and valid_email)
 
         tos_e.tos_signal.connect(on_result)
+        tos_e.error_signal.connect(on_error)
         t = Thread(target=request_TOS)
         t.setDaemon(True)
         t.start()

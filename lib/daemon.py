@@ -22,14 +22,8 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import ast
 import os
-import sys
 import time
 
 # from jsonrpc import JSONRPCResponseManager
@@ -39,12 +33,11 @@ from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCReq
 from .version import ELECTRUM_VERSION
 from .network import Network
 from .util import json_decode, DaemonThread
-from .util import print_msg, print_error, print_stderr, UserCancelled
+from .util import print_error
 from .wallet import Wallet
 from .storage import WalletStorage
 from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
-from .plugins import run_hook
 from .exchange_rate import FxThread
 
 
@@ -220,7 +213,7 @@ class Daemon(DaemonThread):
         if storage.requires_split():
             return
         if storage.requires_upgrade():
-            storage.upgrade()
+            return
         if storage.get_action():
             return
         wallet = Wallet(storage)

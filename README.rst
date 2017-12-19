@@ -12,6 +12,10 @@ Electrum-GRS - Lightweight Groestlcoin client
 .. image:: https://travis-ci.org/groestlcoin/electrum-grs.svg?branch=master
     :target: https://travis-ci.org/groestlcoin/electrum-grs
     :alt: Build Status
+.. image:: https://coveralls.io/repos/github/spesmilo/electrum/badge.svg?branch=master
+    :target: https://coveralls.io/github/spesmilo/electrum?branch=master
+    :alt: Test coverage statistics
+
 
 
 

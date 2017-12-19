@@ -1,9 +1,3 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-import six
 import tty, sys
 import curses, datetime, locale
 from decimal import Decimal
@@ -25,7 +19,7 @@ class ElectrumGui:
         self.config = config
         self.network = daemon.network
         storage = WalletStorage(config.get_wallet_path())
-        if not storage.file_exists:
+        if not storage.file_exists():
             print("Wallet not found. try 'electrum-grs create'")
             exit()
         if storage.is_encrypted():

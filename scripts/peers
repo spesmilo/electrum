@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
-import util, json
-from collections import defaultdict
+import util
 
 from electrum_grs.network import filter_protocol
 from electrum_grs.blockchain import hash_header

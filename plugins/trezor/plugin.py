@@ -1,18 +1,13 @@
-import base64
-import re
 import threading
 
 from binascii import hexlify, unhexlify
-from functools import partial
 
 from electrum_grs.util import bfh, bh2u
-from electrum_grs.bitcoin import (is_segwit_address, b58_address_to_hash160, xpub_from_pubkey,
-                              public_key_to_p2pkh, EncodeBase58Check,
-                              TYPE_ADDRESS, TYPE_SCRIPT,
-                              TESTNET, ADDRTYPE_P2PKH, ADDRTYPE_P2SH)
+from electrum_grs.bitcoin import (b58_address_to_hash160, xpub_from_pubkey,
+                              TYPE_ADDRESS, TYPE_SCRIPT, NetworkConstants)
 from electrum_grs.i18n import _
-from electrum_grs.plugins import BasePlugin, hook
-from electrum_grs.transaction import deserialize, Transaction
+from electrum_grs.plugins import BasePlugin
+from electrum_grs.transaction import deserialize
 from electrum_grs.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
 
 from ..hw_wallet import HW_PluginBase
@@ -146,7 +141,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         return client
 
     def get_coin_name(self):
-        return "Testnet" if TESTNET else "Groestlcoin"
+        return "Testnet" if NetworkConstants.TESTNET else "Groestlcoin"
 
     def initialize_device(self, device_id, wizard, handler):
         # Initialization method
@@ -177,8 +172,9 @@ class TrezorCompatiblePlugin(HW_PluginBase):
     def _initialize_device(self, settings, method, device_id, wizard, handler):
         item, label, pin_protection, passphrase_protection = settings
 
-        if method == TIM_RECOVER and self.device == 'TREZOR':
-            # Warn user about firmware lameness
+        if method == TIM_RECOVER:
+            # FIXME the PIN prompt will appear over this message
+            # which makes this unreadable
             handler.show_error(_(
                 "You will be asked to enter 24 words regardless of your "
                 "seed's actual length.  If you enter a word incorrectly or "

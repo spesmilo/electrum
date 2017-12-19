@@ -1,12 +1,13 @@
 
-import sys
 import os
+import sys
+import threading
+import traceback
 
-from PyQt5.QtGui import *
 from PyQt5.QtCore import *
-import PyQt5.QtCore as QtCore
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 
-import electrum_grs
 from electrum_grs import Wallet, WalletStorage
 from electrum_grs.util import UserCancelled, InvalidPassword
 from electrum_grs.base_wizard import BaseWizard
@@ -55,9 +56,8 @@ class CosignWidget(QWidget):
         self.update()
 
     def paintEvent(self, event):
-        import math
         bgcolor = self.palette().color(QPalette.Background)
-        pen = QPen(bgcolor, 7, QtCore.Qt.SolidLine)
+        pen = QPen(bgcolor, 7, Qt.SolidLine)
         qp = QPainter()
         qp.begin(self)
         qp.setPen(pen)
@@ -187,8 +187,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             path = os.path.join(wallet_folder, filename)
             try:
                 self.storage = WalletStorage(path, manual_upgrades=True)
+                self.next_button.setEnabled(True)
             except IOError:
                 self.storage = None
+                self.next_button.setEnabled(False)
             if self.storage:
                 if not self.storage.file_exists():
                     msg =_("This file does not exist.") + '\n' \
@@ -240,7 +242,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         path = self.storage.path
         if self.storage.requires_split():
             self.hide()
-            msg = _("The wallet '%s' contains multiple accounts, which are no longer supported in Electrum-GRS 2.7.\n\n"
+            msg = _("The wallet '%s' contains multiple accounts, which are no longer supported since Electrum-GRS 2.7.\n\n"
                     "Do you want to split your wallet into multiple files?"%path)
             if not self.question(msg):
                 return
@@ -252,12 +254,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             return
 
         if self.storage.requires_upgrade():
-            self.hide()
-            msg = _("The format of your wallet '%s' must be upgraded for Electrum-GRS. This change will not be backward compatible"%path)
-            if not self.question(msg):
-                return
             self.storage.upgrade()
-            self.show_warning(_('Your wallet was upgraded successfully'))
             self.wallet = Wallet(self.storage)
             return self.wallet
 
