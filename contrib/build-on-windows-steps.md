@@ -2,6 +2,7 @@ build-on-windows-steps
 ===================
 
 * Install Python3.6
+* Install msgfmt(maybe you can install msysgit, which includes msgfmt)
 * cd to projects' parent directory
 * git clone https://github.com/ecdsa/pyinstaller.git
 * git fetch origin fix_2952:fix_2952 && git checkout fix_2952
@@ -17,8 +18,10 @@ build-on-windows-steps
 * cp -r electrum-locale/locale electrum/lib/
 * cp electrum-icons/icons_rc.py electrum/gui/qt/
 * cd to the electrum directory
-* pip setup.py install
+* pip install ./contrib/requirements.txt
+* pip install trezor btchip-python
 * cp contrib/build-wine/* .
+* modify file ./deterministic.spec, change the path of the project's directory in it
 * pyinstaller.exe --noconfirm --ascii --name $NAME_ROOT-$VERSION -w deterministic.spec
 * if you want to make nsis setup program, run `makensis.exe" /DPRODUCT_VERSION=$VERSION electrum.nsi`
 * You can find the result-program.exe in the `dist` directory
