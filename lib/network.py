@@ -81,7 +81,7 @@ def filter_version(servers):
     return {k: v for k, v in servers.items() if is_recent(v.get('version'))}
 
 
-def filter_protocol(hostmap, protocol = 's'):
+def filter_protocol(hostmap, protocol = 't'):
     '''Filters the hostmap for those implementing protocol.
     The result is a list in serialized form.'''
     eligible = []
@@ -91,7 +91,7 @@ def filter_protocol(hostmap, protocol = 's'):
             eligible.append(serialize_server(host, port, protocol))
     return eligible
 
-def pick_random_server(hostmap = None, protocol = 's', exclude_set = set()):
+def pick_random_server(hostmap = None, protocol = 't', exclude_set = set()):
     if hostmap is None:
         hostmap = bitcoin.NetworkConstants.DEFAULT_SERVERS
     eligible = list(set(filter_protocol(hostmap, protocol)) - exclude_set)
@@ -133,7 +133,6 @@ def deserialize_proxy(s):
     if len(args) > n:
         proxy["password"] = args[n]
     return proxy
-
 
 def deserialize_server(server_str):
     host, port, protocol = str(server_str).split(':')
