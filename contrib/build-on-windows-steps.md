@@ -7,7 +7,6 @@ build-on-windows-steps
 * git clone https://github.com/ecdsa/pyinstaller.git
 * git fetch origin fix_2952:fix_2952 && git checkout fix_2952
 * cd to pyinstaller directory
-* python setup.py install
 * cd to projects' parent directory 
 * git clone https://github.com/spesmilo/electrum-icons
 * git clone https://github.com/spesmilo/electrum-locale
@@ -20,6 +19,7 @@ build-on-windows-steps
 * cd to the electrum directory
 * pip install ./contrib/requirements.txt
 * pip install trezor btchip-python
+* python setup.py install
 * cp contrib/build-wine/* .
 * modify file ./deterministic.spec, change the path of the project's directory in it
 * pyinstaller.exe --noconfirm --ascii --name $NAME_ROOT-$VERSION -w deterministic.spec
