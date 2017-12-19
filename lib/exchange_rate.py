@@ -7,7 +7,7 @@ import time
 import csv
 from decimal import Decimal
 
-from .bitcoin import COIN
+from .bitcoin import COIN, NetworkConstants
 from .i18n import _
 from .util import PrintError, ThreadJob
 
@@ -115,7 +115,7 @@ class GRSTicker(ExchangeBase):
                                     headers={'User-Agent' : 'Electrum'})
 
         quote_currencies = {}
-        grs_btc_rate = quote_currencies['BTC'] = Decimal(response.content)
+        grs_btc_rate = quote_currencies['BTC'] = Decimal(response.content.decode())
         # Get BTC/fiat rates from BlockchainInfo.
         blockchain_tickers = BlockchainInfo(None, None).get_rates(ccy)
         for currency, btc_rate in blockchain_tickers.items():
@@ -205,7 +205,7 @@ class FxThread(ThreadJob):
                 self.exchange.update(self.ccy)
 
     def is_enabled(self):
-        return bool(self.config.get('use_exchange_rate')) and not bitcoin.TESTNET
+        return bool(self.config.get('use_exchange_rate')) and not NetworkConstants.TESTNET
 
     def set_enabled(self, b):
         return self.config.set_key('use_exchange_rate', bool(b))
