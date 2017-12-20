@@ -638,9 +638,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.decimal_point == 2:
             return 'bits'
         if self.decimal_point == 5:
-            return 'mBTC'
+            return 'mUBTC'
         if self.decimal_point == 8:
-            return 'BTC'
+            return 'UBTC'
         raise Exception('Unknown base unit')
 
     def connect_fields(self, window, btc_e, fiat_e, fee_e):
