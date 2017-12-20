@@ -516,9 +516,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         help_menu = menubar.addMenu(_("&Help"))
         help_menu.addAction(_("&About"), self.show_about)
-        help_menu.addAction(_("&Official website"), lambda: webbrowser.open("http://electrum.org"))
+        help_menu.addAction(_("&Official website"), lambda: webbrowser.open("http://www.ub.com"))
         help_menu.addSeparator()
-        help_menu.addAction(_("&Documentation"), lambda: webbrowser.open("http://docs.electrum.org/")).setShortcut(QKeySequence.HelpContents)
+        help_menu.addAction(_("&Documentation"), lambda: webbrowser.open("http://docs.ub.com/")).setShortcut(QKeySequence.HelpContents)
         help_menu.addAction(_("&Report Bug"), self.show_report_bug)
         help_menu.addSeparator()
         help_menu.addAction(_("&Donate to server"), self.donate_to_server)
@@ -2520,7 +2520,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fee_unit = self.config.get('fee_unit', 0)
         fee_unit_label = HelpLabel(_('Fee Unit') + ':', '')
         fee_unit_combo = QComboBox()
-        fee_unit_combo.addItems([_('sat/byte'), _('mBTC/kB')])
+        fee_unit_combo.addItems([_('sat/byte'), _('mUBTC/kB')])
         fee_unit_combo.setCurrentIndex(self.fee_unit)
         def on_fee_unit(x):
             self.fee_unit = x
@@ -2579,9 +2579,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         SSL_id_e.setReadOnly(True)
         id_widgets.append((SSL_id_label, SSL_id_e))
 
-        units = ['BTC', 'mBTC', 'bits']
+        units = ['UBTC', 'mUBTC', 'bits']
         msg = _('Base unit of your wallet.')\
-              + '\n1BTC=1000mBTC.\n' \
+              + '\n1BTC=1000mUBTC.\n' \
               + _(' These settings affects the fields in the Send tab')+' '
         unit_label = HelpLabel(_('Base unit') + ':', msg)
         unit_combo = QComboBox()
@@ -2593,9 +2593,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 return
             edits = self.amount_e, self.fee_e, self.receive_amount_e
             amounts = [edit.get_amount() for edit in edits]
-            if unit_result == 'BTC':
+            if unit_result == 'UBTC':
                 self.decimal_point = 8
-            elif unit_result == 'mBTC':
+            elif unit_result == 'mUBTC':
                 self.decimal_point = 5
             elif unit_result == 'bits':
                 self.decimal_point = 2
