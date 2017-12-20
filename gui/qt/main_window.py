@@ -1110,13 +1110,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.connect_fields(self, self.amount_e, self.fiat_send_e, self.fee_e)
 
-        #self.rbf_checkbox = QCheckBox(_('Replaceable'))
-        #msg = [_('If you check this box, your transaction will be marked as non-final,'),
-        #       _('and you will have the possiblity, while it is unconfirmed, to replace it with a transaction that pays a higher fee.'),
-        #       _('Note that some merchants do not accept non-final transactions until they are confirmed.')]
-        #self.rbf_checkbox.setToolTip('<p>' + ' '.join(msg) + '</p>')
-        #self.rbf_checkbox.setVisible(False)
-
         vbox_feelabel = QVBoxLayout()
         vbox_feelabel.addWidget(self.fee_e_label)
         vbox_feelabel.addStretch(1)
@@ -1279,24 +1272,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 amount = tx.output_value()
                 self.amount_e.setAmount(amount)
 
-            if fee is None:
-                return
-            #rbf_policy = self.config.get('rbf_policy', 1)
-            #if rbf_policy == 0:
-            #    b = True
-            #elif rbf_policy == 1:
-            #    fee_rate = fee * 1000 / tx.estimated_size()
-            #    try:
-            #        c = self.config.reverse_dynfee(fee_rate)
-            #        b = c in [-1, 25]
-            #    except:
-            #        b = False
-            #elif rbf_policy == 2:
-            #    b = False
-            #self.rbf_checkbox.setVisible(b)
-            #self.rbf_checkbox.setChecked(b)
-
-
     def from_list_delete(self, item):
         i = self.from_list.indexOfTopLevelItem(item)
         self.pay_from.pop(i)
@@ -1444,7 +1419,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         amount = tx.output_value() if self.is_max else sum(map(lambda x:x[2], outputs))
         fee = tx.get_fee()
 
-        use_rbf = True#self.rbf_checkbox.isChecked()
+        use_rbf = self.config.get('use_rbf', True)
         if use_rbf:
             tx.set_rbf(True)
 
@@ -1657,7 +1632,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             e.setFrozen(False)
         self.size_e.setAmount(0)
         self.set_pay_from([])
-        #self.rbf_checkbox.setChecked(False)
         self.tx_external_keypairs = {}
         self.update_status()
         run_hook('do_clear', self)
@@ -2598,15 +2572,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         feebox_cb.stateChanged.connect(on_feebox)
         fee_widgets.append((feebox_cb, None))
 
-        rbf_policy = self.config.get('rbf_policy', 1)
-        rbf_label = HelpLabel(_('Propose Replace-By-Fee') + ':', '')
-        rbf_combo = QComboBox()
-        rbf_combo.addItems([_('Always'), _('If the fee is low'), _('Never')])
-        rbf_combo.setCurrentIndex(rbf_policy)
-        def on_rbf(x):
-            self.config.set_key('rbf_policy', x)
-        rbf_combo.currentIndexChanged.connect(on_rbf)
-        fee_widgets.append((rbf_label, rbf_combo))
+        use_rbf_cb = QCheckBox(_('Use Replace-By-Fee'))
+        use_rbf_cb.setChecked(self.config.get('use_rbf', True))
+        use_rbf_cb.setToolTip(
+            _('If you check this box, your transactions will be marked as non-final,') + '\n' + \
+            _('and you will have the possiblity, while they are unconfirmed, to replace them with transactions that pay higher fees.') + '\n' + \
+            _('Note that some merchants do not accept non-final transactions until they are confirmed.'))
+        def on_use_rbf(x):
+            self.config.set_key('use_rbf', x == Qt.Checked)
+        use_rbf_cb.stateChanged.connect(on_use_rbf)
+        fee_widgets.append((use_rbf_cb, None))
 
         self.fee_unit = self.config.get('fee_unit', 0)
         fee_unit_label = HelpLabel(_('Fee Unit') + ':', '')
