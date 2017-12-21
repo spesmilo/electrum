@@ -1443,9 +1443,6 @@ class Imported_Wallet(Simple_Wallet):
     def is_deterministic(self):
         return False
 
-    def is_used(self, address):
-        return False
-
     def is_change(self, address):
         return False
 
