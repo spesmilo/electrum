@@ -37,6 +37,7 @@ import struct
 # Workalike python implementation of Bitcoin's CDataStream class.
 #
 from .keystore import xpubkey_to_address, xpubkey_to_pubkey
+import binascii
 
 NO_SIGNATURE = 'ff'
 
@@ -776,11 +777,12 @@ class Transaction:
 
     def serialize_preimage(self, i):
         nVersion = int_to_hex(self.version, 4)
-        nHashType = int_to_hex(1, 4)
+        nHashType = int_to_hex(9, 4)
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
         txin = inputs[i]
+        ub_flag = "027562"
         # TODO: py3 hex
         if self.is_segwit_input(txin):
             hashPrevouts = bh2u(Hash(bfh(''.join(self.serialize_outpoint(txin) for txin in inputs))))
@@ -791,11 +793,11 @@ class Transaction:
             scriptCode = var_int(len(preimage_script) // 2) + preimage_script
             amount = int_to_hex(txin['value'], 8)
             nSequence = int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
-            preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
+            preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType + ub_flag
         else:
             txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.get_preimage_script(txin) if i==k else '') for k, txin in enumerate(inputs))
             txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
-            preimage = nVersion + txins + txouts + nLocktime + nHashType
+            preimage = nVersion + txins + txouts + nLocktime + nHashType + ub_flag
         return preimage
 
     def is_segwit(self):
@@ -810,7 +812,7 @@ class Transaction:
         txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
         if witness and self.is_segwit():
             marker = '00'
-            flag = '01'
+            flag = '09'
             witness = ''.join(self.serialize_witness(x, estimate_size) for x in inputs)
             return nVersion + marker + flag + txins + txouts + witness + nLocktime
         else:
@@ -948,7 +950,7 @@ class Transaction:
                     public_key = private_key.get_verifying_key()
                     sig = private_key.sign_digest_deterministic(pre_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
                     assert public_key.verify_digest(sig, pre_hash, sigdecode = ecdsa.util.sigdecode_der)
-                    txin['signatures'][j] = bh2u(sig) + '01'
+                    txin['signatures'][j] = bh2u(sig) + '09'
                     #txin['x_pubkeys'][j] = pubkey
                     txin['pubkeys'][j] = pubkey # needed for fd keys
                     self._inputs[i] = txin
