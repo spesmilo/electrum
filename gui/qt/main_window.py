@@ -1093,7 +1093,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         class TxSizeLabel(QLabel):
             def setAmount(self, byte_size):
-                self.setText('x   %s bytes   =' % byte_size)
+                self.setText(('x   %s bytes   =' % byte_size) if byte_size else '')
 
         self.size_e = TxSizeLabel()
         self.size_e.setAlignment(Qt.AlignCenter)
@@ -1630,6 +1630,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                   self.fee_e, self.feerate_e]:
             e.setText('')
             e.setFrozen(False)
+        self.fee_slider.activate()
         self.size_e.setAmount(0)
         self.set_pay_from([])
         self.tx_external_keypairs = {}
