@@ -863,17 +863,16 @@ class Transaction:
         return self.virtual_size_from_weight(weight)
 
     @classmethod
-    def estimated_input_weight(cls, txin):
+    def estimated_input_weight(cls, txin, is_segwit_tx):
         '''Return an estimate of serialized input weight in weight units.'''
         script = cls.input_script(txin, True)
         input_size = len(cls.serialize_input(txin, script)) // 2
 
-        # note: we should actually branch based on tx.is_segwit()
-        # only if none of the inputs have a witness, is the size actually 0
         if cls.is_segwit_input(txin):
+            assert is_segwit_tx
             witness_size = len(cls.serialize_witness(txin, True)) // 2
         else:
-            witness_size = 0
+            witness_size = 1 if is_segwit_tx else 0
 
         return 4 * input_size + witness_size
 

@@ -256,7 +256,11 @@ class SimpleConfig(PrintError):
         return fee_rate
 
     def estimate_fee(self, size):
-        return int(self.fee_per_kb() * size / 1000.)
+        return self.estimate_fee_for_feerate(self.fee_per_kb(), size)
+
+    @classmethod
+    def estimate_fee_for_feerate(cls, fee_per_kb, size):
+        return int(fee_per_kb * size / 1000.)
 
     def update_fee_estimates(self, key, value):
         self.fee_estimates[key] = value
