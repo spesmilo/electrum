@@ -144,6 +144,7 @@ def sweep(privkeys, network, config, recipient, fee=None, imax=100):
     locktime = network.get_local_height()
 
     tx = Transaction.from_io(inputs, outputs, locktime=locktime)
+    tx.BIP_LI01_sort()
     tx.sign(keypairs)
     return tx
 
@@ -1068,6 +1069,7 @@ class Abstract_Wallet(PrintError):
         inputs = [item]
         outputs = [(TYPE_ADDRESS, address, value - fee)]
         locktime = self.get_local_height()
+        # note: no need to call tx.BIP_LI01_sort() here - single input/output
         return Transaction.from_io(inputs, outputs, locktime=locktime)
 
     def add_input_info(self, txin):
