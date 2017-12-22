@@ -113,7 +113,7 @@ class CoinChooserBase(PrintError):
             return 0
         return penalty
 
-    def change_amounts(self, tx, count, fee_estimator, dust_threshold):
+    def change_amounts(self, tx, count, fee_estimator, enforce_exact_fee):
         # Break change up if bigger than max_change
         output_amounts = [o[2] for o in tx.outputs()]
         # Don't split change of less than 0.02 BTC
@@ -149,19 +149,24 @@ class CoinChooserBase(PrintError):
             remaining -= amount
             n -= 1
 
-        # Last change output.  Round down to maximum precision but lose
-        # no more than 100 satoshis to fees (2dp)
-        N = pow(10, min(2, zeroes[0]))
-        amount = (remaining // N) * N
+        # Last change output.
+        if enforce_exact_fee:
+            amount = remaining
+        else:
+            # Round down to maximum precision but lose
+            # no more than 100 satoshis to fees (2dp)
+            N = pow(10, min(2, zeroes[0]))
+            amount = (remaining // N) * N
         amounts.append(amount)
 
         assert sum(amounts) <= change_amount
 
         return amounts
 
-    def change_outputs(self, tx, change_addrs, fee_estimator, dust_threshold):
+    def change_outputs(self, tx, change_addrs, fee_estimator, dust_threshold,
+                       enforce_exact_fee):
         amounts = self.change_amounts(tx, len(change_addrs), fee_estimator,
-                                      dust_threshold)
+                                      enforce_exact_fee)
         assert min(amounts) >= 0
         assert len(change_addrs) >= len(amounts)
         # If change is above dust threshold after accounting for the
@@ -176,7 +181,7 @@ class CoinChooserBase(PrintError):
         return change
 
     def make_tx(self, coins, outputs, change_addrs, fee_estimator,
-                dust_threshold):
+                dust_threshold, enforce_exact_fee):
         """Select unspent coins to spend to pay outputs.  If the change is
         greater than dust_threshold (after adding the change output to
         the transaction) it is kept, otherwise none is sent and it is
@@ -233,7 +238,8 @@ class CoinChooserBase(PrintError):
         # This takes a count of change outputs and returns a tx fee
         output_weight = 4 * Transaction.estimated_output_size(change_addrs[0])
         fee = lambda count: fee_estimator_w(tx_weight + count * output_weight)
-        change = self.change_outputs(tx, change_addrs, fee, dust_threshold)
+        change = self.change_outputs(tx, change_addrs, fee, dust_threshold,
+                                     enforce_exact_fee)
         tx.add_outputs(change)
 
         self.print_error("using %d inputs" % len(tx.inputs()))

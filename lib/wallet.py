@@ -866,8 +866,9 @@ class Abstract_Wallet(PrintError):
     def dust_threshold(self):
         return dust_threshold(self.network)
 
-    def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None,
-                                  change_addr=None, is_sweep=False):
+    def make_unsigned_transaction(
+            self, inputs, outputs, config, fee=None, change_addr=None,
+            is_sweep=False, enforce_exact_fee=False):
         # check outputs
         i_max = None
         for i, o in enumerate(outputs):
@@ -884,7 +885,7 @@ class Abstract_Wallet(PrintError):
         if not inputs:
             raise NotEnoughFunds()
 
-        if fixed_fee is None and config.fee_per_kb() is None:
+        if fee is None and config.fee_per_kb() is None:
             raise NoDynamicFeeEstimates()
 
         for item in inputs:
@@ -907,21 +908,22 @@ class Abstract_Wallet(PrintError):
                 change_addrs = [inputs[0]['address']]
 
         # Fee estimator
-        if fixed_fee is None:
+        if fee is None:
             fee_estimator = config.estimate_fee
-        elif isinstance(fixed_fee, Number):
-            fee_estimator = lambda size: fixed_fee
-        elif callable(fixed_fee):
-            fee_estimator = fixed_fee
+        elif isinstance(fee, Number):
+            fee_estimator = lambda size: fee
+        elif callable(fee):
+            fee_estimator = fee
         else:
-            raise BaseException('Invalid argument fixed_fee: %s' % fixed_fee)
+            raise BaseException('Invalid argument fee: %s' % fee)
 
         if i_max is None:
             # Let the coin chooser select the coins to spend
             max_change = self.max_change_outputs if self.multiple_change else 1
             coin_chooser = coinchooser.get_coin_chooser(config)
             tx = coin_chooser.make_tx(inputs, outputs, change_addrs[:max_change],
-                                      fee_estimator, self.dust_threshold())
+                                      fee_estimator, self.dust_threshold(),
+                                      enforce_exact_fee)
         else:
             sendable = sum(map(lambda x:x['value'], inputs))
             _type, data, value = outputs[i_max]
