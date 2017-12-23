@@ -102,7 +102,7 @@ def _decode_payload(addr):
 
        (prefix,  payload)
 
-    without the checksum
+    without the checksum.
     """
     lower = addr.lower()
     if lower != addr and addr.upper() != addr:
@@ -129,6 +129,9 @@ def _decode_payload(addr):
     if _polymod(_prefix_expand(prefix) + data):
         raise ValueError('invalid checksum in address: {}'.format(addr))
 
+    if lower != addr:
+        prefix = prefix.upper()
+
     # Drop the 40 bit checksum
     return prefix, data[:-8]
 
@@ -143,7 +146,7 @@ def decode(address):
     '''Given a cashaddr address, return a triple
 
           (prefix, kind, hash)
-     '''
+    '''
     if not isinstance(address, str):
         raise TypeError('address must be a string')
 

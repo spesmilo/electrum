@@ -269,12 +269,15 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
     @classmethod
     def from_cashaddr_string(cls, string):
         '''Construct from a cashaddress string.'''
-        if not string.startswith(NetworkConstants.CASHADDR_PREFIX):
-            string = ':'.join([NetworkConstants.CASHADDR_PREFIX, string])
-        prefix, kind, addr_hash = cashaddr.decode(string)
-        if prefix != NetworkConstants.CASHADDR_PREFIX:
+        prefix = NetworkConstants.CASHADDR_PREFIX
+        if string.upper() == string:
+            prefix = prefix.upper()
+        if not string.startswith(prefix + ':'):
+            string = ':'.join([prefix, string])
+        addr_prefix, kind, addr_hash = cashaddr.decode(string)
+        if addr_prefix != prefix:
             raise AddressError('address has unexpected prefix {}'
-                               .format(prefix))
+                               .format(addr_prefix))
         if kind == cashaddr.PUBKEY_TYPE:
             return cls(addr_hash, cls.ADDR_P2PKH)
         else:
