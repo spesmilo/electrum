@@ -54,14 +54,14 @@ def read_json_dict(filename):
 # segwit in p2sh: yprv, ypub
 # native segwit: zprv, zpub
 XPRV_HEADERS = {
-    'standard': 0x0488ade4,
+    'standard': 0x0488DAEE,
     'p2wpkh-p2sh': 0x049d7878,
     'p2wsh-p2sh': 0x295b005,
     'p2wpkh': 0x4b2430c,
     'p2wsh': 0x2aa7a99
 }
 XPUB_HEADERS = {
-    'standard': 0x0488b21e,
+    'standard': 0x0488BC26,
     'p2wpkh-p2sh': 0x049d7cb2,
     'p2wsh-p2sh': 0x295b43f,
     'p2wpkh': 0x4b24746,
@@ -74,12 +74,12 @@ class NetworkConstants:
     @classmethod
     def set_mainnet(cls):
         cls.TESTNET = False
-        cls.WIF_PREFIX = 0x80
-        cls.ADDRTYPE_P2PKH = 0
-        cls.ADDRTYPE_P2SH = 5
-        cls.SEGWIT_HRP = "bc"
-        cls.HEADERS_URL = "https://headers.electrum.org/blockchain_headers"
-        cls.GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
+        cls.WIF_PREFIX = 0x8E
+        cls.ADDRTYPE_P2PKH = 0x0E
+        cls.ADDRTYPE_P2SH = 0x05
+        cls.SEGWIT_HRP = "fc"
+        cls.HEADERS_URL = "http://headers.feathercoin.ch"
+        cls.GENESIS = "12a765e31ffd4059bada1e25190f6e98c99d9714d334efa41a195a7e7e04bfe2"
         cls.DEFAULT_PORTS = {'t': '50001', 's': '50002'}
         cls.DEFAULT_SERVERS = read_json_dict('servers.json')
 
@@ -89,9 +89,9 @@ class NetworkConstants:
         cls.WIF_PREFIX = 0xef
         cls.ADDRTYPE_P2PKH = 111
         cls.ADDRTYPE_P2SH = 196
-        cls.SEGWIT_HRP = "tb"
-        cls.HEADERS_URL = "https://headers.electrum.org/testnet_headers"
-        cls.GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
+        cls.SEGWIT_HRP = "tf"
+        #cls.HEADERS_URL = "https://headers.electrum.org/testnet_headers"
+        cls.GENESIS = "8e8b634d2f2800398261b7adcfbb6ace490e1746e62123ec2bf8010f9fc98b17"
         cls.DEFAULT_PORTS = {'t':'51001', 's':'51002'}
         cls.DEFAULT_SERVERS = read_json_dict('servers_testnet.json')
 
