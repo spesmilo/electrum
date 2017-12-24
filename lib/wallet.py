@@ -1025,14 +1025,6 @@ class Abstract_Wallet(PrintError):
     def can_export(self):
         return not self.is_watching_only() and hasattr(self.keystore, 'get_private_key')
 
-    def can_confirm(self):
-        return hasattr(self.keystore, 'confirm_address')
-
-    def confirm_address(self, address):
-        index = self.get_address_index(address)
-        txin_type = self.get_txin_type(address)
-        self.keystore.confirm_address(index, txin_type)
-
     def is_used(self, address):
         h = self.history.get(address,[])
         c, u, x = self.get_addr_balance(address)
