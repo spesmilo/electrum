@@ -140,7 +140,8 @@ class BaseWizard(object):
         v = lambda x: keystore.is_address_list(x) or keystore.is_private_key_list(x)
         title = _("Import Bitcoin Addresses")
         message = _("Enter a list of Bitcoin addresses (this will create a watching-only wallet), or a list of private keys.")
-        self.add_xpub_dialog(title=title, message=message, run_next=self.on_import, is_valid=v)
+        self.add_xpub_dialog(title=title, message=message, run_next=self.on_import,
+                             is_valid=v, allow_multi=True)
 
     def on_import(self, text):
         if keystore.is_address_list(text):

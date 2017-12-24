@@ -702,6 +702,7 @@ class AddXpubDialog(WizardDialog):
         self.is_valid = kwargs['is_valid']
         self.title = kwargs['title']
         self.message = kwargs['message']
+        self.allow_multi = kwargs.get('allow_multi', False)
 
     def check_text(self, dt):
         self.ids.next.disabled = not bool(self.is_valid(self.get_text()))
@@ -715,7 +716,10 @@ class AddXpubDialog(WizardDialog):
 
     def scan_xpub(self):
         def on_complete(text):
-            self.ids.text_input.text = text
+            if self.allow_multi:
+                self.ids.text_input.text += text + '\n'
+            else:
+                self.ids.text_input.text = text
         self.app.scan_qr(on_complete)
 
     def do_paste(self):
