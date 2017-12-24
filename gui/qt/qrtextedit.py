@@ -33,8 +33,9 @@ class ShowQRTextEdit(ButtonsTextEdit):
 
 class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
 
-    def __init__(self, text=""):
+    def __init__(self, text="", allow_multi=False):
         ButtonsTextEdit.__init__(self, text)
+        self.allow_multi = allow_multi
         self.setReadOnly(0)
         self.addButton(":icons/file.png", self.file_input, _("Read file"))
         icon = ":icons/qrcode_white.png" if ColorScheme.dark_scheme else ":icons/qrcode.png"
@@ -58,7 +59,11 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
             data = ''
         if not data:
             data = ''
-        self.setText(data)
+        if self.allow_multi:
+            new_text = self.text() + data + '\n'
+        else:
+            new_text = data
+        self.setText(new_text)
         return data
 
     def contextMenuEvent(self, e):

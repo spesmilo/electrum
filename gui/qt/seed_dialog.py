@@ -181,11 +181,11 @@ class SeedLayout(QVBoxLayout):
 
 
 class KeysLayout(QVBoxLayout):
-    def __init__(self, parent=None, title=None, is_valid=None):
+    def __init__(self, parent=None, title=None, is_valid=None, allow_multi=False):
         QVBoxLayout.__init__(self)
         self.parent = parent
         self.is_valid = is_valid
-        self.text_e = ScanQRTextEdit()
+        self.text_e = ScanQRTextEdit(allow_multi=allow_multi)
         self.text_e.textChanged.connect(self.on_edit)
         self.addWidget(WWLabel(title))
         self.addWidget(self.text_e)

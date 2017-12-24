@@ -336,8 +336,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def remove_from_recently_open(self, filename):
         self.config.remove_from_recently_open(filename)
 
-    def text_input(self, title, message, is_valid):
-        slayout = KeysLayout(parent=self, title=message, is_valid=is_valid)
+    def text_input(self, title, message, is_valid, allow_multi=False):
+        slayout = KeysLayout(parent=self, title=message, is_valid=is_valid,
+                             allow_multi=allow_multi)
         self.exec_layout(slayout, title, next_enabled=False)
         return slayout.get_text()
 
@@ -347,8 +348,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return slayout.get_seed(), slayout.is_bip39, slayout.is_ext
 
     @wizard_dialog
-    def add_xpub_dialog(self, title, message, is_valid, run_next):
-        return self.text_input(title, message, is_valid)
+    def add_xpub_dialog(self, title, message, is_valid, run_next, allow_multi=False):
+        return self.text_input(title, message, is_valid, allow_multi)
 
     @wizard_dialog
     def add_cosigner_dialog(self, run_next, index, is_valid):
