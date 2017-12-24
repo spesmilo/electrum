@@ -156,9 +156,6 @@ class AddressList(MyTreeWidget):
             else:
                 menu.addAction(_("Unfreeze"), lambda: self.parent.set_frozen_state([addr], False))
 
-            if self.wallet.can_confirm():
-                menu.addAction(_("Confirm"), lambda: self.parent.confirm_address(addr))
-
         coins = self.wallet.get_utxos(addrs)
         if coins:
             menu.addAction(_("Spend from"), lambda: self.parent.spend_coins(coins))
