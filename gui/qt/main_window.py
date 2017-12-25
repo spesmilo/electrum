@@ -2030,7 +2030,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         task = partial(self.wallet.sign_message, address, message, password)
 
         def show_signed_message(sig):
-            signature.setText(base64.b64encode(sig).decode('ascii'))
+            try:
+                signature.setText(base64.b64encode(sig).decode('ascii'))
+            except RuntimeError:
+                # (signature) wrapped C/C++ object has been deleted
+                pass
+
         self.wallet.thread.add(task, on_success=show_signed_message)
 
     def do_verify(self, address, message, signature):
@@ -2091,7 +2096,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def do_decrypt(self, message_e, pubkey_e, encrypted_e, password):
         cyphertext = encrypted_e.toPlainText()
         task = partial(self.wallet.decrypt_message, pubkey_e.text(), cyphertext, password)
-        self.wallet.thread.add(task, on_success=lambda text: message_e.setText(text.decode('utf-8')))
+
+        def setText(text):
+            try:
+                message_e.setText(text.decode('utf-8'))
+            except RuntimeError:
+                # (message_e) wrapped C/C++ object has been deleted
+                pass
+
+        self.wallet.thread.add(task, on_success=setText)
 
     def do_encrypt(self, message_e, pubkey_e, encrypted_e):
         message = message_e.toPlainText()
