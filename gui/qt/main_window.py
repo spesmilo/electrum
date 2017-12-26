@@ -160,8 +160,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         add_optional_tab(tabs, self.addresses_tab, QIcon(":icons/tab_addresses.png"), _("&Addresses"), "addresses")
         add_optional_tab(tabs, self.utxo_tab, QIcon(":icons/tab_coins.png"), _("Co&ins"), "utxo")
         add_optional_tab(tabs, self.contacts_tab, QIcon(":icons/tab_contacts.png"), _("Con&tacts"), "contacts")
-        add_optional_tab(tabs, self.console_tab, QIcon(":icons/tab_console.png"), _("Con&sole"), "console")
         add_optional_tab(tabs, self.converter_tab, QIcon(":icons/tab_converter.png"), _("Address Converter"), "converter")
+        add_optional_tab(tabs, self.console_tab, QIcon(":icons/tab_console.png"), _("Con&sole"), "console")
 
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
@@ -500,8 +500,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         add_toggle_action(view_menu, self.addresses_tab)
         add_toggle_action(view_menu, self.utxo_tab)
         add_toggle_action(view_menu, self.contacts_tab)
-        add_toggle_action(view_menu, self.console_tab)
         add_toggle_action(view_menu, self.converter_tab)
+        add_toggle_action(view_menu, self.console_tab)
 
         tools_menu = menubar.addMenu(_("&Tools"))
 
