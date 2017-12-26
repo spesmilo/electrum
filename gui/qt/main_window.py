@@ -1508,7 +1508,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         try:
             out = web.parse_URI(URI, self.on_pr)
-        except BaseException as e:
+        except Exception as e:
             self.show_error(_('Invalid bitcoincash URI:') + '\n' + str(e))
             return
         self.show_send_tab()
@@ -2158,7 +2158,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not data:
             return
         # if the user scanned a bitcoincash URI
-        if str(data).startswith(NetworkConstants.CASHADDR_PREFIX + ':'):
+        if data.lower().startswith(NetworkConstants.CASHADDR_PREFIX + ':'):
             self.pay_to_URI(data)
             return
         # else if the user scanned an offline signed tx

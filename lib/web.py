@@ -100,6 +100,7 @@ def parse_URI(uri, on_pr=None):
         return {'address': uri}
 
     u = urllib.parse.urlparse(uri)
+    # The scheme always comes back in lower case
     if u.scheme != NetworkConstants.CASHADDR_PREFIX:
         raise Exception("Not a {} URI".format(NetworkConstants.CASHADDR_PREFIX))
     address = u.path
@@ -119,6 +120,7 @@ def parse_URI(uri, on_pr=None):
     if address:
         Address.from_string(address)
         out['address'] = address
+
     if 'amount' in out:
         am = out['amount']
         m = re.match('([0-9\.]+)X([0-9])', am)
