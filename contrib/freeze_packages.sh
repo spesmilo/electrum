@@ -4,19 +4,34 @@
 venv_dir=~/.electron-cash-venv
 contrib=$(dirname "$0")
 
-which virtualenv3 > /dev/null 2>&1 || { echo "Please install virtualenv3" && exit 1; }
+which virtualenv > /dev/null 2>&1 || { echo "Please install virtualenv" && exit 1; }
+
+# standard Electrum dependencies
 
 rm "$venv_dir" -rf
-virtualenv3 $venv_dir
+virtualenv -p $(which python3) $venv_dir
 
 source $venv_dir/bin/activate
 
-echo "Installing dependencies"
+echo "Installing main dependencies"
 
 pushd $contrib/..
 python setup.py install
 popd
 
-pip freeze | sed '/^Electron-Cash/ d' > $contrib/requirements.txt
+pip freeze | sed '/^Electron-Cash/ d' > $contrib/deterministic-build/requirements.txt
 
-echo "Updated requirements"
+# hw wallet library dependencies
+
+rm "$venv_dir" -rf
+virtualenv -p $(which python3) $venv_dir
+
+source $venv_dir/bin/activate
+
+echo "Installing hw wallet dependencies"
+
+python -m pip install -r $contrib/../requirements-hw.txt --upgrade
+
+pip freeze | sed '/^Electron-Cash/ d' > $contrib/deterministic-build/requirements-hw.txt
+
+echo "Done. Updated requirements"

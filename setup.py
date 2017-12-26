@@ -9,12 +9,15 @@ import platform
 import imp
 import argparse
 
+with open('requirements-hw.txt') as f:
+    requirements_hw = f.read().splitlines()
+
 version = imp.load_source('version', 'lib/version.py')
 
 if sys.version_info[:3] < (3, 4, 0):
     sys.exit("Error: Electron Cash requires Python version >= 3.4.0...")
 
-data_files = []
+data_files = ['requirements-hw.txt']
 
 if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
     parser = argparse.ArgumentParser()
@@ -47,6 +50,9 @@ setup(
         'PySocks>=1.6.6',
         'pyqt5',
     ],
+    extras_require={
+        'hardware': requirements_hw,
+    },
     packages=[
         'electroncash',
         'electroncash_gui',
