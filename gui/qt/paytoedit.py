@@ -35,9 +35,6 @@ from electroncash.address import Address, ScriptOutput
 
 from . import util
 
-RE_ADDRESS = '[1-9A-HJ-NP-Za-km-z]{26,}'
-RE_ALIAS = '(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>'
-
 frozen_style = "QWidget { background-color:none; border:none;}"
 normal_style = "QPlainTextEdit { }"
 
@@ -91,13 +88,6 @@ class PayToEdit(ScanQRTextEdit):
             return '!'
         p = pow(10, self.amount_edit.decimal_point())
         return int(p * Decimal(x.strip()))
-
-    def parse_address(self, line):
-        r = line.strip()
-        m = re.match('^'+RE_ALIAS+'$', r)
-        address = str(m.group(2) if m else r)
-        assert bitcoin.is_address(address)
-        return address
 
     def check_text(self):
         self.errors = []
