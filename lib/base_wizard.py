@@ -236,7 +236,13 @@ class BaseWizard(object):
             _('Enter your wallet derivation here.'),
             _('If you are not sure what this is, leave this field unchanged.')
         ])
-        self.line_dialog(run_next=f, title=_('Derivation'), message=message, default=default, test=bitcoin.is_bip32_derivation)
+        presets = (
+            ('legacy BIP44', bip44_derivation(0, False)),
+            ('p2sh-segwit BIP49', bip44_derivation(0, True)),
+        )
+        self.line_dialog(run_next=f, title=_('Derivation'), message=message,
+                         default=default, test=bitcoin.is_bip32_derivation,
+                         presets=presets)
 
     def on_hw_derivation(self, name, device_info, derivation):
         from .keystore import hardware_keystore

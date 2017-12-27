@@ -462,7 +462,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return clayout.selected_index()
 
     @wizard_dialog
-    def line_dialog(self, run_next, title, message, default, test, warning=''):
+    def line_dialog(self, run_next, title, message, default, test, warning='',
+                    presets=()):
         vbox = QVBoxLayout()
         vbox.addWidget(WWLabel(message))
         line = QLineEdit()
@@ -472,6 +473,15 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         line.textEdited.connect(f)
         vbox.addWidget(line)
         vbox.addWidget(WWLabel(warning))
+
+        for preset in presets:
+            button = QPushButton(preset[0])
+            button.clicked.connect(lambda __, text=preset[1]: line.setText(text))
+            button.setMaximumWidth(150)
+            hbox = QHBoxLayout()
+            hbox.addWidget(button, Qt.AlignCenter)
+            vbox.addLayout(hbox)
+
         self.exec_layout(vbox, title, next_enabled=test(default))
         return ' '.join(line.text().split())
 
