@@ -171,7 +171,10 @@ class Mnemonic(object):
         n_custom = int(math.ceil(math.log(custom_entropy, 2)))
         n = max(16, num_bits - n_custom)
         print_error("make_seed", prefix, "adding %d bits"%n)
-        my_entropy = ecdsa.util.randrange(pow(2, n))
+        my_entropy = 1
+        while my_entropy < pow(2, n - bpw):
+            # try again if seed would not contain enough words
+            my_entropy = ecdsa.util.randrange(pow(2, n))
         nonce = 0
         while True:
             nonce += 1
