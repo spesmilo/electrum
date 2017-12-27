@@ -432,28 +432,8 @@ def time_difference(distance_in_time, include_seconds):
         return "over %d years" % (round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
-    'block.bitbank.com': ('https://block.bitbank.com',
-                        {'tx': 'tx/ubtc', 'addr': 'address/ubtc'}),
-    'Blockchain.info': ('https://blockchain.info',
-                        {'tx': 'tx', 'addr': 'address'}),
-    'Blockr.io': ('https://btc.blockr.io',
-                        {'tx': 'tx/info', 'addr': 'address/info'}),
-    'Blocktrail.com': ('https://www.blocktrail.com/BTC',
-                        {'tx': 'tx', 'addr': 'address'}),
-    'BTC.com': ('https://chain.btc.com',
-                        {'tx': 'tx', 'addr': 'address'}),
-    'Chain.so': ('https://www.chain.so',
-                        {'tx': 'tx/BTC', 'addr': 'address/BTC'}),
-    'Insight.is': ('https://insight.bitpay.com',
-                        {'tx': 'tx', 'addr': 'address'}),
-    'TradeBlock.com': ('https://tradeblock.com/blockchain',
-                        {'tx': 'tx', 'addr': 'address'}),
-    'BlockCypher.com': ('https://live.blockcypher.com/btc',
-                        {'tx': 'tx', 'addr': 'address'}),
-    'Blockchair.com': ('https://blockchair.com/bitcoin',
-                        {'tx': 'transaction', 'addr': 'address'}),
-    'system default': ('blockchain:',
-                        {'tx': 'tx', 'addr': 'address'}),
+    'block.ub.com': ('https://block.bitbank.com',
+                        {'tx': 'tx?txid=', 'addr': 'address?address='})
 }
 
 testnet_block_explorers = {
@@ -468,7 +448,7 @@ def block_explorer_info():
     return testnet_block_explorers if bitcoin.NetworkConstants.TESTNET else mainnet_block_explorers
 
 def block_explorer(config):
-    return config.get('block_explorer', 'block.bitbank.com')
+    return config.get('block_explorer', 'block.ub.com')
 
 def block_explorer_tuple(config):
     return block_explorer_info().get(block_explorer(config))
