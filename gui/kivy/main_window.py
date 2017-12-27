@@ -943,8 +943,13 @@ class ElectrumWindow(App):
         self._password_dialog.open()
 
     def export_private_keys(self, pk_label, addr):
+        if self.wallet.is_watching_only():
+            self.show_info(_('This is a watching-only wallet. It does not contain private keys.'))
+            return
         def show_private_key(addr, pk_label, password):
             if self.wallet.has_password() and password is None:
+                return
+            if not self.wallet.can_export():
                 return
             key = str(self.wallet.export_private_key(addr, password)[0])
             pk_label.data = key

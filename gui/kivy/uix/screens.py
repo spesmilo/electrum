@@ -521,7 +521,7 @@ class AddressScreen(CScreen):
     def update(self):
         self.menu_actions = [('Receive', self.do_show), ('Details', self.do_view)]
         wallet = self.app.wallet
-        _list = wallet.change_addresses if self.screen.show_change else wallet.receiving_addresses
+        _list = wallet.get_change_addresses() if self.screen.show_change else wallet.get_receiving_addresses()
         search = self.screen.message
         container = self.screen.ids.search_container
         container.clear_widgets()
