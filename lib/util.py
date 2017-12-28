@@ -432,7 +432,7 @@ def time_difference(distance_in_time, include_seconds):
         return "over %d years" % (round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
-    'block.ub.com': ('https://block.ub.com',
+    'block.ub.com': ('https://block.ub.com/explorer/',
                         {'tx': 'tx?txid=', 'addr': 'address?address='})
 }
 
@@ -461,7 +461,7 @@ def block_explorer_URL(config, kind, item):
     if not kind_str:
         return
     url_parts = [be_tuple[0], kind_str, item]
-    return "/".join(url_parts)
+    return "".join(url_parts)
 
 # URL decode
 #_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
