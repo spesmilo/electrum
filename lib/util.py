@@ -432,7 +432,7 @@ def time_difference(distance_in_time, include_seconds):
         return "over %d years" % (round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
-    'block.ub.com': ('https://block.bitbank.com',
+    'block.ub.com': ('https://block.ub.com',
                         {'tx': 'tx?txid=', 'addr': 'address?address='})
 }
 
