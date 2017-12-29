@@ -75,6 +75,7 @@ setup(
             'servers_testnet.json',
             'currencies.json',
             'checkpoints.json',
+            'checkpoints_testnet.json',
             'www/index.html',
             'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electrum.mo',
