@@ -52,7 +52,8 @@ fullscreen = False
 #
 
 # (list) Permissions
-android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
+android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE, CAMERA
+
 # (int) Android API to use
 #android.api = 14
 
@@ -86,7 +87,11 @@ android.ndk_path = /opt/crystax-ndk-10.3.2
 
 # (list) List of Java files to add to the android project (can be java or a
 # directory containing the files)
-#android.add_src =
+android.add_src = gui/kivy/data/java-classes/
+
+android.gradle_dependencies = me.dm7.barcodescanner:zxing:1.9.8
+
+android.add_activities = org.electrum.qr.SimpleScannerActivity
 
 # (str) python-for-android branch to use, if not master, useful to try
 # not yet merged features.
