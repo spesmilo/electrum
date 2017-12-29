@@ -325,7 +325,7 @@ class ElectrumWindow(App):
 
     @profiler
     def update_tabs(self):
-        for tab in ['invoices', 'send', 'history', 'receive', 'requests']:
+        for tab in ['invoices', 'send', 'history', 'receive', 'address']:
             self.update_tab(tab)
 
     def switch_to(self, name):
