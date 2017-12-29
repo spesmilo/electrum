@@ -89,9 +89,13 @@ class ExchangeBase(PrintError):
 class Coinmarketcap(ExchangeBase):
 
     def get_rates(self, ccy):
-        json = self.get_json('api.coinmarketcap.com/', 'v1/ticker/united-bitcoin/?convert=%s' % ccy)
-        return dict([(r.replace("BTC", ""), Decimal(json[r]['last']))
-                     for r in json if r != 'timestamp'])
+        if ccy == "USD":
+            json = self.get_json('api.coinmarketcap.com/', 'v1/ticker/united-bitcoin/')
+        else:
+            json = self.get_json('api.coinmarketcap.com/', 'v1/ticker/united-bitcoin/?convert=%s' % ccy)
+        result = {}
+        result[ccy] = Decimal(json[0]['price_'+ccy.lower()])
+        return result
 
     # def history_ccys(self):
     #     return ['AUD', 'BRL', 'CAD', 'CHF', 'CNY', 'EUR', 'GBP', 'IDR', 'ILS',
