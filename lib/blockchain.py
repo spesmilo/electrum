@@ -298,7 +298,6 @@ class Blockchain(util.PrintError):
         first_block_num = 499200
         # new target
         if index <old_check_index_count:
-            print("block num", first_block_num + (index - old_check_index_count) * 200)
             first = self.read_header(index * 2016)
             last = self.read_header(index * 2016 + 2015)
             bits = last.get('bits')
