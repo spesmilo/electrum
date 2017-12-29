@@ -17,9 +17,10 @@ class TrezorPlugin(TrezorCompatiblePlugin):
             import trezorlib
             import trezorlib.ckd_public
             import trezorlib.transport_hid
+            import trezorlib.messages
             self.client_class = client.TrezorClient
             self.ckd_public = trezorlib.ckd_public
-            self.types = trezorlib.client.types
+            self.types = trezorlib.messages
             self.DEVICE_IDS = (trezorlib.transport_hid.DEV_TREZOR1, trezorlib.transport_hid.DEV_TREZOR2)
             self.libraries_available = True
         except ImportError:
