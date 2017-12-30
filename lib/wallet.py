@@ -42,7 +42,8 @@ from numbers import Number
 import sys
 
 from .i18n import _
-from .util import NotEnoughFunds, PrintError, UserCancelled, profiler, format_satoshis
+from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
+                   format_satoshis, NoDynamicFeeEstimates)
 
 from .bitcoin import *
 from .version import *
@@ -884,7 +885,7 @@ class Abstract_Wallet(PrintError):
             raise NotEnoughFunds()
 
         if fixed_fee is None and config.fee_per_kb() is None:
-            raise BaseException('Dynamic fee estimates not available')
+            raise NoDynamicFeeEstimates()
 
         for item in inputs:
             self.add_input_info(item)
