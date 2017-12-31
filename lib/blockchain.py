@@ -31,8 +31,8 @@ from .networks import (NetworkConstants, BITCOIN_CASH_FORK_BLOCK_HEIGHT,
                        BITCOIN_CASH_FORK_BLOCK_HASH)
 from .bitcoin import *
 
-class VerifyError:
-    pass
+class VerifyError(Exception):
+    '''Exception used for blockchain verification errors.'''
 
 def bits_to_work(bits):
     return (1 << 256) // (bits_to_target(bits) + 1)
