@@ -132,6 +132,8 @@ class PublicKey(namedtuple("PublicKeyTuple", "pubkey")):
     @classmethod
     def from_pubkey(cls, pubkey):
         '''Create from a public key expressed as binary bytes.'''
+        if isinstance(pubkey, str):
+            pubkey = hex_to_bytes(pubkey)
         cls.validate(pubkey)
         return cls(to_bytes(pubkey))
 
@@ -199,6 +201,18 @@ class PublicKey(namedtuple("PublicKeyTuple", "pubkey")):
     def to_script(self):
         '''Note this returns the P2PK script.'''
         return Script.P2PK_script(self.pubkey)
+
+    def to_script_hex(self):
+        '''Return a script to pay to the address as a hex string.'''
+        return self.to_script().hex()
+
+    def to_scripthash(self):
+        '''Returns the hash of the script in binary.'''
+        return sha256(self.to_script())
+
+    def to_scripthash_hex(self):
+        '''Like other bitcoin hashes this is reversed when written in hex.'''
+        return hash_to_hex_str(self.to_scripthash())
 
     def to_P2PKH_script(self):
         '''Return a P2PKH script.'''

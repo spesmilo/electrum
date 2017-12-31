@@ -83,13 +83,11 @@ def dust_threshold(network):
 
 
 def append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax):
-    if txin_type != 'p2pk':
-        address = bitcoin.pubkey_to_address(txin_type, pubkey)
-        sh = bitcoin.address_to_scripthash(address)
+    if txin_type == 'p2pkh':
+        address = Address.from_pubkey(pubkey)
     else:
-        script = bitcoin.public_key_to_p2pk_script(pubkey)
-        sh = bitcoin.script_to_scripthash(script)
-        address = '(pubkey)'
+        address = PublicKey.from_pubkey(pubkey)
+    sh = address.to_scripthash_hex()
     u = network.synchronous_get(('blockchain.scripthash.listunspent', [sh]))
     for item in u:
         if len(inputs) >= imax:
@@ -110,6 +108,7 @@ def sweep_preparations(privkeys, network, imax=100):
         pubkey = bitcoin.public_key_from_private_key(privkey, compressed)
         append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax)
         keypairs[pubkey] = privkey, compressed
+
     inputs = []
     keypairs = {}
     for sec in privkeys:
@@ -462,7 +461,7 @@ class Abstract_Wallet(PrintError):
 
     def get_num_tx(self, address):
         """ return number of transactions where address is involved """
-        return len(self._history.get(address, []))
+        return len(self.get_address_history(address))
 
     def get_tx_delta(self, tx_hash, address):
         assert isinstance(address, Address)
@@ -579,8 +578,7 @@ class Abstract_Wallet(PrintError):
         return tx_hash, status, label, can_broadcast, amount, fee, height, conf, timestamp, exp_n
 
     def get_addr_io(self, address):
-        assert isinstance(address, Address)
-        h = self._history.get(address, [])
+        h = self.get_address_history(address)
         received = {}
         sent = {}
         for tx_hash, height in h:
@@ -679,8 +677,7 @@ class Abstract_Wallet(PrintError):
 
     def get_address_history(self, address):
         assert isinstance(address, Address)
-        with self.lock:
-            return self._history.get(address, [])
+        return self._history.get(address, [])
 
     def add_transaction(self, tx_hash, tx):
         is_coinbase = tx.inputs()[0]['type'] == 'coinbase'
@@ -758,9 +755,8 @@ class Abstract_Wallet(PrintError):
         self.add_unverified_tx(tx_hash, tx_height)
 
     def receive_history_callback(self, addr, hist, tx_fees):
-        assert isinstance(addr, Address)
         with self.lock:
-            old_hist = self._history.get(addr, [])
+            old_hist = self.get_address_history(addr)
             for tx_hash, height in old_hist:
                 if (tx_hash, height) not in hist:
                     # remove tx if it's not referenced in histories
@@ -783,10 +779,6 @@ class Abstract_Wallet(PrintError):
 
         # Store fees
         self.tx_fees.update(tx_fees)
-
-    def get_address_history(self, address):
-        assert isinstance(address, Address)
-        return self._history.get(address, [])
 
     def get_history(self, domain=None):
         # get domain
@@ -1041,9 +1033,8 @@ class Abstract_Wallet(PrintError):
 
     def is_used(self, address):
         assert isinstance(address, Address)
-        h = self._history.get(address,[])
         c, u, x = self.get_addr_balance(address)
-        return len(h) > 0 and c + u + x == 0
+        return c + u + x == 0 and self.get_address_history(address)
 
     def is_empty(self, address):
         assert isinstance(address, Address)
@@ -1051,10 +1042,8 @@ class Abstract_Wallet(PrintError):
         return c+u+x == 0
 
     def address_is_old(self, address, age_limit=2):
-        assert isinstance(address, Address)
         age = -1
-        h = self._history.get(address, [])
-        for tx_hash, tx_height in h:
+        for tx_hash, tx_height in self.get_address_history(address):
             if tx_height == 0:
                 tx_age = 0
             else:
@@ -1157,7 +1146,8 @@ class Abstract_Wallet(PrintError):
     def get_unused_addresses(self):
         # fixme: use slots from expired requests
         domain = self.get_receiving_addresses()
-        return [addr for addr in domain if not addr in self._history
+        return [addr for addr in domain
+                if not self.get_address_history(addr)
                 and addr not in self.receive_requests]
 
     def get_unused_address(self):
@@ -1167,16 +1157,9 @@ class Abstract_Wallet(PrintError):
 
     def get_receiving_address(self):
         '''Returns a receiving address or None.'''
-        domain = self.get_receiving_addresses()
-        if not domain:
-            return None
-        choice = domain[0]
-        for addr in domain:
-            if not self._history.get(addr):
-                choice = addr
-                if addr not in self.receive_requests:
-                    break
-        return choice
+        domain = self.get_unused_addresses() or self.get_receiving_addresses()
+        if domain:
+            return domain[0]
 
     def get_payment_status(self, address, amount):
         local_height = self.get_local_height()

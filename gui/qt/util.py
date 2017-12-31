@@ -7,6 +7,7 @@ from collections import namedtuple
 from functools import partial
 
 from electroncash.i18n import _
+from electroncash.address import Address
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
@@ -299,28 +300,15 @@ class ChoicesLayout(object):
     def selected_index(self):
         return self.group.checkedId()
 
-def address_field(addresses):
+def address_combo(addresses):
+    addr_combo = QComboBox()
+    addr_combo.addItems(addr.to_ui_string() for addr in addresses)
+    addr_combo.setCurrentIndex(0)
+
     hbox = QHBoxLayout()
-    address_e = QLineEdit()
-    if addresses and len(addresses) > 0:
-        address_e.setText(addresses[0])
-    else:
-        addresses = []
-    def func():
-        try:
-            i = addresses.index(str(address_e.text())) + 1
-            i = i % len(addresses)
-            address_e.setText(addresses[i])
-        except ValueError:
-            # the user might have changed address_e to an
-            # address not in the wallet (or to something that isn't an address)
-            if addresses and len(addresses) > 0:
-                address_e.setText(addresses[0])
-    button = QPushButton(_('Address'))
-    button.clicked.connect(func)
-    hbox.addWidget(button)
-    hbox.addWidget(address_e)
-    return hbox, address_e
+    hbox.addWidget(QLabel(_('Address to sweep to:')))
+    hbox.addWidget(addr_combo)
+    return hbox, addr_combo
 
 
 def filename_field(parent, config, defaultname, select_msg):

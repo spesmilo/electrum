@@ -52,7 +52,7 @@ import electroncash.web as web
 from electroncash import Transaction
 from electroncash import util, bitcoin, commands, coinchooser
 from electroncash import paymentrequest
-from electroncash.wallet import Multisig_Wallet
+from electroncash.wallet import Multisig_Wallet, sweep_preparations
 try:
     from electroncash.plot import plot_history
 except:
@@ -2406,6 +2406,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 f.write(json.dumps(lines, indent = 4))
 
     def sweep_key_dialog(self):
+        addresses = self.wallet.get_unused_addresses()
+        if not addresses:
+            try:
+                addresses = self.wallet.get_receiving_addresses()
+            except AttributeError:
+                addresses = self.wallet.get_addresses()
+        if not addresses:
+            self.show_warning(_('Wallet has no address to sweep to'))
+            return
+
         d = WindowModalDialog(self, title=_('Sweep private keys'))
         d.setMinimumSize(600, 300)
 
@@ -2416,49 +2426,40 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         keys_e.setTabChangesFocus(True)
         vbox.addWidget(keys_e)
 
-        addresses = self.wallet.get_unused_addresses()
-        if not addresses:
-            try:
-                addresses = self.wallet.get_receiving_addresses()
-            except AttributeError:
-                addresses = self.wallet.get_addresses()
-        h, address_e = address_field(addresses)
+        h, addr_combo = address_combo(addresses)
         vbox.addLayout(h)
 
         vbox.addStretch(1)
-        button = OkButton(d, _('Sweep'))
-        vbox.addLayout(Buttons(CancelButton(d), button))
-        button.setEnabled(False)
+        sweep_button = OkButton(d, _('Sweep'))
+        vbox.addLayout(Buttons(CancelButton(d), sweep_button))
 
-        def get_address():
-            addr = str(address_e.text()).strip()
-            if bitcoin.is_address(addr):
-                return addr
+        def get_address_text():
+            return addr_combo.currentText()
 
-        def get_pk():
-            text = str(keys_e.toPlainText())
-            return keystore.get_private_keys(text)
+        def get_priv_keys():
+            return keystore.get_private_keys(keys_e.toPlainText())
 
-        f = lambda: button.setEnabled(get_address() is not None and get_pk() is not None)
-        on_address = lambda text: address_e.setStyleSheet((ColorScheme.DEFAULT if get_address() else ColorScheme.RED).as_stylesheet())
-        keys_e.textChanged.connect(f)
-        address_e.textChanged.connect(f)
-        address_e.textChanged.connect(on_address)
+        def enable_sweep():
+            sweep_button.setEnabled(bool(get_address_text()
+                                         and get_priv_keys()))
+
+        keys_e.textChanged.connect(enable_sweep)
+        enable_sweep()
         if not d.exec_():
             return
-        from electroncash.wallet import sweep_preparations
+
         try:
             self.do_clear()
-            coins, keypairs = sweep_preparations(get_pk(), self.network)
+            coins, keypairs = sweep_preparations(get_priv_keys(), self.network)
             self.tx_external_keypairs = keypairs
+            self.payto_e.setText(get_address_text())
             self.spend_coins(coins)
-            self.payto_e.setText(get_address())
             self.spend_max()
-            self.payto_e.setFrozen(True)
-            self.amount_e.setFrozen(True)
         except BaseException as e:
             self.show_message(str(e))
             return
+        self.payto_e.setFrozen(True)
+        self.amount_e.setFrozen(True)
         self.warn_if_watching_only()
 
     def _do_import(self, title, msg, func):
