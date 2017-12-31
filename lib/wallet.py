@@ -74,7 +74,7 @@ TX_STATUS = [
 
 
 def relayfee(network):
-    RELAY_FEE = 5000
+    RELAY_FEE = 1000
     MAX_RELAY_FEE = 50000
     f = network.relay_fee if network and network.relay_fee else RELAY_FEE
     return min(f, MAX_RELAY_FEE)
