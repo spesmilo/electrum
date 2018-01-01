@@ -332,8 +332,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def remove_from_recently_open(self, filename):
         self.config.remove_from_recently_open(filename)
 
-    def text_input(self, title, message, is_valid):
-        slayout = KeysLayout(parent=self, title=message, is_valid=is_valid)
+    def text_input(self, title, message, is_valid, allow_multi=False):
+        slayout = KeysLayout(parent=self, title=message, is_valid=is_valid,
+                             allow_multi=allow_multi)
         self.exec_layout(slayout, title, next_enabled=False)
         return slayout.get_text()
 
@@ -343,8 +344,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return slayout.get_seed(), slayout.is_bip39, slayout.is_ext
 
     @wizard_dialog
-    def add_xpub_dialog(self, title, message, is_valid, run_next):
-        return self.text_input(title, message, is_valid)
+    def add_xpub_dialog(self, title, message, is_valid, run_next, allow_multi=False):
+        return self.text_input(title, message, is_valid, allow_multi)
 
     @wizard_dialog
     def add_cosigner_dialog(self, run_next, index, is_valid):
@@ -462,7 +463,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return clayout.selected_index()
 
     @wizard_dialog
-    def line_dialog(self, run_next, title, message, default, test, warning=''):
+    def line_dialog(self, run_next, title, message, default, test, warning='',
+                    presets=()):
         vbox = QVBoxLayout()
         vbox.addWidget(WWLabel(message))
         line = QLineEdit()
@@ -472,6 +474,15 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         line.textEdited.connect(f)
         vbox.addWidget(line)
         vbox.addWidget(WWLabel(warning))
+
+        for preset in presets:
+            button = QPushButton(preset[0])
+            button.clicked.connect(lambda __, text=preset[1]: line.setText(text))
+            button.setMaximumWidth(150)
+            hbox = QHBoxLayout()
+            hbox.addWidget(button, Qt.AlignCenter)
+            vbox.addLayout(hbox)
+
         self.exec_layout(vbox, title, next_enabled=test(default))
         return ' '.join(line.text().split())
 

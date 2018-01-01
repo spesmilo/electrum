@@ -140,7 +140,8 @@ class BaseWizard(object):
         v = lambda x: keystore.is_address_list(x) or keystore.is_private_key_list(x)
         title = _("Import Litecoin Addresses")
         message = _("Enter a list of Litecoin addresses (this will create a watching-only wallet), or a list of private keys.")
-        self.add_xpub_dialog(title=title, message=message, run_next=self.on_import, is_valid=v)
+        self.add_xpub_dialog(title=title, message=message, run_next=self.on_import,
+                             is_valid=v, allow_multi=True)
 
     def on_import(self, text):
         if keystore.is_address_list(text):
@@ -236,7 +237,13 @@ class BaseWizard(object):
             _('Enter your wallet derivation here.'),
             _('If you are not sure what this is, leave this field unchanged.')
         ])
-        self.line_dialog(run_next=f, title=_('Derivation'), message=message, default=default, test=bitcoin.is_bip32_derivation)
+        presets = (
+            ('legacy BIP44', bip44_derivation(0, False)),
+            ('p2sh-segwit BIP49', bip44_derivation(0, True)),
+        )
+        self.line_dialog(run_next=f, title=_('Derivation'), message=message,
+                         default=default, test=bitcoin.is_bip32_derivation,
+                         presets=presets)
 
     def on_hw_derivation(self, name, device_info, derivation):
         from .keystore import hardware_keystore

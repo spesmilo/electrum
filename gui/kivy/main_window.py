@@ -259,7 +259,7 @@ class ElectrumWindow(App):
         self.daemon = self.gui_object.daemon
         self.fx = self.daemon.fx
 
-        self.use_rbf = config.get('use_rbf', False)
+        self.use_rbf = config.get('use_rbf', True)
         self.use_change = config.get('use_change', True)
         self.use_unconfirmed = not config.get('confirmed_only', False)
 
@@ -325,7 +325,7 @@ class ElectrumWindow(App):
 
     @profiler
     def update_tabs(self):
-        for tab in ['invoices', 'send', 'history', 'receive', 'requests']:
+        for tab in ['invoices', 'send', 'history', 'receive', 'address']:
             self.update_tab(tab)
 
     def switch_to(self, name):
@@ -384,45 +384,22 @@ class ElectrumWindow(App):
     def scan_qr(self, on_complete):
         if platform != 'android':
             return
-        from jnius import autoclass
+        from jnius import autoclass, cast
         from android import activity
         PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        SimpleScannerActivity = autoclass("org.electrum.qr.SimpleScannerActivity")
         Intent = autoclass('android.content.Intent')
-        intent = Intent("com.google.zxing.client.android.SCAN")
-        intent.putExtra("SCAN_MODE", "QR_CODE_MODE")
-        def on_qr_result(requestCode, resultCode, intent):
-            if requestCode == 0:
-                if resultCode == -1: # RESULT_OK:
-                    contents = intent.getStringExtra("SCAN_RESULT")
-                    if intent.getStringExtra("SCAN_RESULT_FORMAT") == 'QR_CODE':
-                        on_complete(contents)
-                    else:
-                        self.show_error("wrong format " + intent.getStringExtra("SCAN_RESULT_FORMAT"))
-        activity.bind(on_activity_result=on_qr_result)
-        try:
-            PythonActivity.mActivity.startActivityForResult(intent, 0)
-        except:
-            self.show_error(_('Could not start Barcode Scanner.') + ' ' + _('Please install the Barcode Scanner app from ZXing'))
+        intent = Intent(PythonActivity.mActivity, SimpleScannerActivity)
 
-    def scan_qr_zxing(self, on_complete):
-        # uses zxing embedded lib
-        if platform != 'android':
-            return
-        from jnius import autoclass
-        from android import activity
-        PythonActivity = autoclass('org.kivy.android.PythonActivity')
-        IntentIntegrator = autoclass('com.google.zxing.integration.android.IntentIntegrator')
-        integrator = IntentIntegrator(PythonActivity.mActivity)
         def on_qr_result(requestCode, resultCode, intent):
-            if requestCode == 0:
-                if resultCode == -1: # RESULT_OK:
-                    contents = intent.getStringExtra("SCAN_RESULT")
-                    if intent.getStringExtra("SCAN_RESULT_FORMAT") == 'QR_CODE':
-                        on_complete(contents)
-                    else:
-                        self.show_error("wrong format " + intent.getStringExtra("SCAN_RESULT_FORMAT"))
+            if resultCode == -1:  # RESULT_OK:
+                #  this doesn't work due to some bug in jnius:
+                # contents = intent.getStringExtra("text")
+                String = autoclass("java.lang.String")
+                contents = intent.getStringExtra(String("text"))
+                on_complete(contents)
         activity.bind(on_activity_result=on_qr_result)
-        integrator.initiateScan()
+        PythonActivity.mActivity.startActivityForResult(intent, 0)
 
     def do_share(self, data, title):
         if platform != 'android':

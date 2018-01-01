@@ -44,7 +44,7 @@ from electrum_ltc.plugins import run_hook
 from electrum_ltc.i18n import _
 from electrum_ltc.util import (format_time, format_satoshis, PrintError,
                                format_satoshis_plain, NotEnoughFunds,
-                               UserCancelled)
+                               UserCancelled, NoDynamicFeeEstimates)
 from electrum_ltc import Transaction
 from electrum_ltc import util, bitcoin, commands, coinchooser
 from electrum_ltc import paymentrequest
@@ -1068,7 +1068,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             else:
                 self.config.set_key('fee_per_kb', fee_rate, False)
 
-            self.feerate_e.setAmount(fee_rate // 1000)
+            if fee_rate:
+                self.feerate_e.setAmount(fee_rate // 1000)
             self.fee_e.setModified(False)
 
             self.fee_slider.activate()
@@ -1098,6 +1099,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.size_e = TxSizeLabel()
         self.size_e.setAlignment(Qt.AlignCenter)
         self.size_e.setAmount(0)
+        self.size_e.setFixedWidth(140)
         self.size_e.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
 
         self.feerate_e = FeerateEdit(lambda: 2 if self.fee_unit else 0)
@@ -1242,16 +1244,23 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if not outputs:
                 _type, addr = self.get_payto_or_dummy()
                 outputs = [(_type, addr, amount)]
-            try:
-                is_sweep = bool(self.tx_external_keypairs)
-                tx = self.wallet.make_unsigned_transaction(
+            is_sweep = bool(self.tx_external_keypairs)
+            make_tx = lambda fee_est: \
+                self.wallet.make_unsigned_transaction(
                     self.get_coins(), outputs, self.config,
-                    fixed_fee=fee_estimator, is_sweep=is_sweep)
+                    fixed_fee=fee_est, is_sweep=is_sweep)
+            try:
+                tx = make_tx(fee_estimator)
                 self.not_enough_funds = False
             except NotEnoughFunds:
                 self.not_enough_funds = True
                 if not freeze_fee:
                     self.fee_e.setAmount(None)
+                return
+            except NoDynamicFeeEstimates:
+                tx = make_tx(0)
+                size = tx.estimated_size()
+                self.size_e.setAmount(size)
                 return
             except BaseException:
                 traceback.print_exc(file=sys.stderr)
@@ -2414,7 +2423,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox = QVBoxLayout(d)
         vbox.addWidget(QLabel(_("Enter private keys:")))
 
-        keys_e = ScanQRTextEdit()
+        keys_e = ScanQRTextEdit(allow_multi=True)
         keys_e.setTabChangesFocus(True)
         vbox.addWidget(keys_e)
 
@@ -2464,7 +2473,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.warn_if_watching_only()
 
     def _do_import(self, title, msg, func):
-        text = text_dialog(self, title, msg + ' :', _('Import'))
+        text = text_dialog(self, title, msg + ' :', _('Import'),
+                           allow_multi=True)
         if not text:
             return
         bad = []
