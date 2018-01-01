@@ -220,7 +220,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
     def sign_message(self, sequence, message, password):
         self.signing = True
         message = message.encode('utf8')
-        message_hash = hashlib.sha256(message).hexdigest()
+        message_hash = hashlib.sha256(message).hexdigest().upper()
         # prompt for the PIN before displaying the dialog if necessary
         client = self.get_client()
         address_path = self.get_derivation()[2:] + "/%d/%d"%sequence
