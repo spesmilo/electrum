@@ -1,6 +1,6 @@
 #!/bin/bash
 
-NAME_ROOT=electrum
+NAME_ROOT=electrum-ubtc
 PYTHON_VERSION=3.5.4
 
 # These settings probably don't need any change
@@ -78,7 +78,7 @@ popd
 wine "$WINEPREFIX/drive_c/Program Files (x86)/NSIS/makensis.exe" /DPRODUCT_VERSION=$VERSION electrum.nsi
 
 cd dist
-mv electrum-setup.exe $NAME_ROOT-$VERSION-setup.exe
+mv electrum-ubtc-setup.exe $NAME_ROOT-$VERSION-setup.exe
 cd ..
 
 echo "Done."
