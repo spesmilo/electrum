@@ -8,8 +8,8 @@ build-on-windows-steps
 * git fetch origin fix_2952:fix_2952 && git checkout fix_2952
 * cd to pyinstaller directory
 * cd to projects' parent directory 
-* git clone https://github.com/spesmilo/electrum-icons
-* git clone https://github.com/spesmilo/electrum-locale
+* git clone https://github.com/UnitedBitcoin/electrum-icons
+* git clone https://github.com/UnitedBitcoin/electrum-locale
 * cd to electrum-locale/locale/zh-CN
 * mkdir LC_MESSAGES
 * msgfmt --output-file=./LC_MESSAGES/electrum.mo ./electrum.po

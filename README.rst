@@ -55,7 +55,7 @@ Development version
 
 Check out the code from Github::
 
-    git clone git://github.com/spesmilo/electrum.git
+    git clone https://github.com/UnitedBitcoin/electrum.git
     cd electrum
 
 Run install (this should install dependencies)::
