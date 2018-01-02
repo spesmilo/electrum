@@ -248,10 +248,12 @@ class Wallet_2fa(Multisig_Wallet):
         assert price <= 100000 * n
         return price
 
-    def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None,
-                                  change_addr=None, is_sweep=False):
+    def make_unsigned_transaction(
+            self, coins, outputs, config, fee=None, change_addr=None,
+            is_sweep=False, enforce_exact_fee=False):
         mk_tx = lambda o: Multisig_Wallet.make_unsigned_transaction(
-            self, coins, o, config, fixed_fee, change_addr)
+            self, coins, o, config, fee=fee, change_addr=change_addr,
+            is_sweep=is_sweep, enforce_exact_fee=enforce_exact_fee)
         fee = self.extra_fee(config) if not is_sweep else 0
         if fee:
             address = self.billing_info['billing_address']

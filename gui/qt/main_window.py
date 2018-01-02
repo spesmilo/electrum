@@ -1239,7 +1239,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.not_enough_funds = False
             self.statusBar().showMessage('')
         else:
-            fee_estimator = self.get_send_fee_estimator()
+            fee_estimator, enforce_exact_fee = self.get_send_fee_estimator()
             outputs = self.payto_e.get_outputs(self.is_max)
             if not outputs:
                 _type, addr = self.get_payto_or_dummy()
@@ -1248,7 +1248,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             make_tx = lambda fee_est: \
                 self.wallet.make_unsigned_transaction(
                     self.get_coins(), outputs, self.config,
-                    fixed_fee=fee_est, is_sweep=is_sweep)
+                    fee=fee_est, is_sweep=is_sweep,
+                    enforce_exact_fee=enforce_exact_fee)
             try:
                 tx = make_tx(fee_estimator)
                 self.not_enough_funds = False
@@ -1276,6 +1277,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if not freeze_feerate:
                 fee_rate = fee // size if fee is not None else None
                 self.feerate_e.setAmount(fee_rate)
+
+            # show tooltip re precision of fee calc
+            displayed_feerate = self.feerate_e.get_amount()
+            displayed_feerate = displayed_feerate // 1000 if displayed_feerate else 0
+            displayed_fee = self.fee_e.get_amount()
+            displayed_fee = displayed_fee if displayed_fee else 0
+            if not freeze_fee and displayed_feerate * size != displayed_fee:
+                self.fee_e.setToolTip(_(
+                    'Note that there are reasons why fee calculation is sometimes not precise, some of which are intentional.\n'
+                    'To somewhat protect your privacy, Electrum tries to create change with similar precision to other outputs.\n'
+                    'At most 100 satoshis might be lost due to this rounding. If you use this box to manually set the fee,\n'
+                    'no rounding is done, however even then, calculation might not be precise e.g. as dust is not kept.'))
+            else:
+                self.fee_e.setToolTip('')
 
             if self.is_max:
                 amount = tx.output_value()
@@ -1350,16 +1365,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                and (self.feerate_e.text() or self.feerate_e.hasFocus())
 
     def get_send_fee_estimator(self):
+        enforce_exact_fee = False
         if self.is_send_fee_frozen():
             fee_estimator = self.fee_e.get_amount()
+            # if user sets absolute fee, try to respect it
+            enforce_exact_fee = True
         elif self.is_send_feerate_frozen():
             amount = self.feerate_e.get_amount()
-            amount = 0 if amount is None else float(amount)
+            amount = 0 if amount is None else amount
             fee_estimator = partial(
                 simple_config.SimpleConfig.estimate_fee_for_feerate, amount)
         else:
             fee_estimator = None
-        return fee_estimator
+        return fee_estimator, enforce_exact_fee
 
     def read_send_tab(self):
         if self.payment_request and self.payment_request.has_expired():
@@ -1398,9 +1416,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.show_error(_('Invalid Amount'))
                 return
 
-        fee_estimator = self.get_send_fee_estimator()
+        fee_estimator, enforce_exact_fee = self.get_send_fee_estimator()
         coins = self.get_coins()
-        return outputs, fee_estimator, label, coins
+        return outputs, fee_estimator, enforce_exact_fee, label, coins
 
     def do_preview(self):
         self.do_send(preview = True)
@@ -1411,12 +1429,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         r = self.read_send_tab()
         if not r:
             return
-        outputs, fee_estimator, tx_desc, coins = r
+        outputs, fee_estimator, enforce_exact_fee, tx_desc, coins = r
         try:
             is_sweep = bool(self.tx_external_keypairs)
             tx = self.wallet.make_unsigned_transaction(
-                coins, outputs, self.config, fixed_fee=fee_estimator,
-                is_sweep=is_sweep)
+                coins, outputs, self.config, fee=fee_estimator,
+                is_sweep=is_sweep, enforce_exact_fee=enforce_exact_fee)
         except NotEnoughFunds:
             self.show_message(_("Insufficient funds"))
             return
