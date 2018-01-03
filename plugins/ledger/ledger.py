@@ -1,4 +1,5 @@
 from struct import pack, unpack
+from distutils.version import LooseVersion
 import hashlib
 import sys
 import traceback
@@ -26,6 +27,9 @@ except ImportError:
     BTCHIP = False
 
 class Ledger_Client():
+
+    BITCOIN_CASH_SUPPORT = "1.1.8"
+
     def __init__(self, hidDevice):
         self.dongleObject = btchip(hidDevice)
         self.preflightDone = False
@@ -99,10 +103,10 @@ class Ledger_Client():
     def perform_hw1_preflight(self):
         try:
             firmwareInfo = self.dongleObject.getFirmwareVersion()
-            firmware = firmwareInfo['version'].split(".")
-            bitcoinCashSupport = int(firmware[0]) >= 1 and int(firmware[1]) >= 1 and int(firmware[2]) >= 8
+            firmware = firmwareInfo['version']
+            bitcoinCashSupport = LooseVersion(firmware) >= LooseVersion(self.BITCOIN_CASH_SUPPORT)
 
-            if not checkFirmware(firmware) or not bitcoinCashSupport:
+            if not checkFirmware(firmwareInfo) or not bitcoinCashSupport:
                 self.dongleObject.dongle.close()
                 raise Exception("HW1 firmware version too old. Please update at https://www.ledgerwallet.com")
             try:
