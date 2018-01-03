@@ -273,6 +273,8 @@ class CoinChooserRandom(CoinChooserBase):
                     candidates.add(tuple(sorted(permutation[:count + 1])))
                     break
             else:
+                # FIXME this assumes that the effective value of any bkt is >= 0
+                # we should make sure not to choose buckets with <= 0 eff. val.
                 raise NotEnoughFunds()
 
         candidates = [[buckets[n] for n in c] for c in candidates]
