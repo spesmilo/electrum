@@ -7,7 +7,6 @@ from electroncash.util import base_units
 from electroncash.i18n import languages
 from electroncash_gui.kivy.i18n import _
 from electroncash.plugins import run_hook
-from electroncash import coinchooser
 from electroncash.util import fee_levels
 
 from .choice_dialog import ChoiceDialog
@@ -80,12 +79,6 @@ Builder.load_string('''
                     description: _("Send your change to separate addresses.")
                     message: _('Send excess coins to change addresses')
                     action: partial(root.boolean_dialog, 'use_change', _('Use change addresses'), self.message)
-                CardSeparator
-                SettingsItem:
-                    status: root.coinselect_status()
-                    title: _('Coin selection') + ': ' + self.status
-                    description: "Coin selection method"
-                    action: partial(root.coinselect_dialog, self)
 ''')
 
 
@@ -105,7 +98,6 @@ class SettingsDialog(Factory.Popup):
         self._proxy_dialog = None
         self._language_dialog = None
         self._unit_dialog = None
-        self._coinselect_dialog = None
 
     def update(self):
         self.wallet = self.app.wallet
@@ -135,19 +127,6 @@ class SettingsDialog(Factory.Popup):
                 item.bu = self.app.base_unit
             self._unit_dialog = ChoiceDialog(_('Denomination'), list(base_units.keys()), self.app.base_unit, cb)
         self._unit_dialog.open()
-
-    def coinselect_status(self):
-        return coinchooser.get_name(self.app.electrum_config)
-
-    def coinselect_dialog(self, item, dt):
-        if self._coinselect_dialog is None:
-            choosers = sorted(coinchooser.COIN_CHOOSERS.keys())
-            chooser_name = coinchooser.get_name(self.config)
-            def cb(text):
-                self.config.set_key('coin_chooser', text)
-                item.status = text
-            self._coinselect_dialog = ChoiceDialog(_('Coin selection'), choosers, chooser_name, cb)
-        self._coinselect_dialog.open()
 
     def proxy_status(self):
         server, port, protocol, proxy, auto_connect = self.app.network.get_parameters()
