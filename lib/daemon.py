@@ -58,7 +58,7 @@ def get_fd_or_server(config):
     lockfile = get_lockfile(config)
     while True:
         try:
-            return os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY), None
+            return os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644), None
         except OSError:
             pass
         server = get_server(config)
