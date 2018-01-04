@@ -23,11 +23,11 @@ for repo in electrum; do
     if [ -d $repo ]; then
 	cd $repo
 	git pull
-	git checkout python3
+	git checkout master
 	cd ..
     else
 	URL=https://github.com/fyookball/$repo.git
-	git clone -b python3 $URL $repo
+	git clone -b master $URL $repo
     fi
 done
 
