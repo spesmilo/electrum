@@ -27,8 +27,7 @@ import threading
 
 
 from . import util
-from .networks import (NetworkConstants, BITCOIN_CASH_FORK_BLOCK_HEIGHT,
-                       BITCOIN_CASH_FORK_BLOCK_HASH)
+from .networks import NetworkConstants
 from .bitcoin import *
 
 class VerifyError(Exception):
@@ -193,9 +192,8 @@ class Blockchain(util.PrintError):
         if prev_hash != header.get('prev_block_hash'):
             raise VerifyError("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
         # checkpoint BitcoinCash fork block
-        if ( header.get('block_height') == BITCOIN_CASH_FORK_BLOCK_HEIGHT and hash_header(header) != BITCOIN_CASH_FORK_BLOCK_HASH ):
+        if (header.get('block_height') == NetworkConstants.BITCOIN_CASH_FORK_BLOCK_HEIGHT and hash_header(header) != NetworkConstants.BITCOIN_CASH_FORK_BLOCK_HASH):
             err_str = "block at height %i is not cash chain fork block. hash %s" % (header.get('block_height'), hash_header(header))
-            self.print_error(err_str)
             raise VerifyError(err_str)
         if bits != header.get('bits'):
             raise VerifyError("bits mismatch: %s vs %s" % (bits, header.get('bits')))
@@ -350,11 +348,6 @@ class Blockchain(util.PrintError):
         prior = self.read_header(height - 1)
         bits = prior['bits']
 
-        # testnet 20 minute rule
-        if NetworkConstants.TESTNET and height % 2016 != 0:
-            if header['timestamp'] - prior['timestamp'] > 20*60:
-                return MAX_BITS
-
         #NOV 13 HF DAA
 
         prevheight = height -1
@@ -362,6 +355,11 @@ class Blockchain(util.PrintError):
 
         #if (daa_mtp >= 1509559291):  #leave this here for testing
         if (daa_mtp >= 1510600000):
+
+            if NetworkConstants.TESTNET:
+                # testnet 20 minute rule
+                if header['timestamp'] - prior['timestamp'] > 20*60:
+                    return MAX_BITS
 
             # determine block range
             daa_starting_height=self.get_suitable_block_height(prevheight-144)
@@ -397,6 +395,9 @@ class Blockchain(util.PrintError):
             return self.get_new_bits(height)
 
         if NetworkConstants.TESTNET:
+            # testnet 20 minute rule
+            if header['timestamp'] - prior['timestamp'] > 20*60:
+                return MAX_BITS
             return self.read_header(height // 2016 * 2016)['bits']
 
         # bitcoin cash EDA

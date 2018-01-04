@@ -1,5 +1,12 @@
 {
-        '180.235.49.196':  {"t":"51001", "s":"51002"},
-        'electrum-testnet-abc.criptolayer.net': {'s': '50112'},
-        'electrontest.cascharia.com': {'s': '51002'},
+    "180.235.49.196": {
+        "t":"51001",
+        "s":"51002"
+    },
+    "electrum-testnet-abc.criptolayer.net": {
+        "s": "50112"
+    },
+    "electrontest.cascharia.com": {
+        "s": "51002"
+    }
 }

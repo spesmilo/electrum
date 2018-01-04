@@ -25,11 +25,6 @@
 import json
 import os
 
-
-# Bitcoin Cash fork block specification
-BITCOIN_CASH_FORK_BLOCK_HEIGHT = 478559
-BITCOIN_CASH_FORK_BLOCK_HASH = "000000000000000000651ef99cb9fcbe0dadde1d424bd9f15ff20136191a5eec"
-
 def read_json_dict(filename):
     path = os.path.join(os.path.dirname(__file__), filename)
     try:
@@ -38,7 +33,6 @@ def read_json_dict(filename):
     except:
         r = {}
     return r
-
 
 class NetworkConstants:
 
@@ -67,6 +61,10 @@ class NetworkConstants:
         cls.DEFAULT_SERVERS = read_json_dict('servers.json')
         cls.TITLE = 'Electron Cash'
 
+        # Bitcoin Cash fork block specification
+        cls.BITCOIN_CASH_FORK_BLOCK_HEIGHT = 478559
+        cls.BITCOIN_CASH_FORK_BLOCK_HASH = "000000000000000000651ef99cb9fcbe0dadde1d424bd9f15ff20136191a5eec"
+
     @classmethod
     def set_testnet(cls):
         cls.TESTNET = True
@@ -81,6 +79,10 @@ class NetworkConstants:
         cls.DEFAULT_PORTS = {'t':'51001', 's':'51002'}
         cls.DEFAULT_SERVERS = read_json_dict('servers_testnet.json')
         cls.TITLE = 'Electron Cash Testnet'
+
+        # Bitcoin Cash fork block specification
+        cls.BITCOIN_CASH_FORK_BLOCK_HEIGHT = None
+        cls.BITCOIN_CASH_FORK_BLOCK_HASH = None
 
 
 NetworkConstants.set_mainnet()
