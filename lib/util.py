@@ -45,6 +45,8 @@ def normalize_version(v):
 
 class NotEnoughFunds(Exception): pass
 
+class ExcessiveFee(Exception): pass
+
 class InvalidPassword(Exception):
     def __str__(self):
         return _("Incorrect password")

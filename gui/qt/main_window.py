@@ -46,7 +46,7 @@ from electroncash.networks import NetworkConstants
 from electroncash.plugins import run_hook
 from electroncash.i18n import _
 from electroncash.util import (format_time, format_satoshis, PrintError,
-                           format_satoshis_plain, NotEnoughFunds,
+                           format_satoshis_plain, NotEnoughFunds, ExcessiveFee,
                            UserCancelled)
 import electroncash.web as web
 from electroncash import Transaction
@@ -1329,6 +1329,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         except NotEnoughFunds:
             self.show_message(_("Insufficient funds"))
             return
+        except ExcessiveFee:
+            self.show_message(_("Your fee is too high.  Max is 50 sat/byte."))
+            return	   
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
@@ -1357,8 +1360,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             msg.append( _("Additional fees") + ": " + self.format_amount_and_units(x_fee_amount) )
 
         confirm_rate = 2 * self.config.max_fee_rate()
-        if fee > confirm_rate * tx.estimated_size() / 1000:
-            msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
+        
+        # IN THE FUTURE IF WE WANT TO APPEND SOMETHING IN THE MSG ABOUT THE FEE, CODE IS COMMENTED OUT:
+        #if fee > confirm_rate * tx.estimated_size() / 1000:
+        #    msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
 
         if self.wallet.has_password():
             msg.append("")

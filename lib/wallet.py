@@ -39,7 +39,7 @@ from functools import partial
 from collections import defaultdict
 
 from .i18n import _
-from .util import NotEnoughFunds, PrintError, UserCancelled, profiler, format_satoshis
+from .util import NotEnoughFunds, ExcessiveFee, PrintError, UserCancelled, profiler, format_satoshis
 
 from .address import Address, Script, ScriptOutput, PublicKey
 from .bitcoin import *
@@ -934,6 +934,14 @@ class Abstract_Wallet(PrintError):
             amount = max(0, sendable - tx.output_value() - fee)
             outputs[i_max] = (_type, data, amount)
             tx = Transaction.from_io(inputs, outputs)
+
+        # If user tries to send too big of a fee (more than 50 sat/byte), stop them from shooting themselves in the foot
+        tx_in_bytes=tx.estimated_size()
+        fee_in_satoshis=tx.get_fee()
+        sats_per_byte=fee_in_satoshis/tx_in_bytes
+        if (sats_per_byte > 50):
+            raise ExcessiveFee()
+            return 
 
         # Sort the inputs and outputs deterministically
         tx.BIP_LI01_sort()
