@@ -41,7 +41,7 @@ from .bitcoin import *
 from .networks import NetworkConstants
 from .interface import Connection, Interface
 from . import blockchain
-from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
+from .version import PACKAGE_VERSION, PROTOCOL_VERSION
 
 
 NODES_RETRY_INTERVAL = 60
@@ -315,7 +315,7 @@ class Network(util.DaemonThread):
         self.request_fee_estimates()
         self.queue_request('blockchain.relayfee', [])
         if self.interface.ping_required():
-            params = [ELECTRUM_VERSION, PROTOCOL_VERSION]
+            params = [PACKAGE_VERSION, PROTOCOL_VERSION]
             self.queue_request('server.version', params, self.interface)
         for h in self.subscribed_addresses:
             self.queue_request('blockchain.scripthash.subscribe', [h])
@@ -712,7 +712,7 @@ class Network(util.DaemonThread):
             if interface.has_timed_out():
                 self.connection_down(interface.server)
             elif interface.ping_required():
-                params = [ELECTRUM_VERSION, PROTOCOL_VERSION]
+                params = [PACKAGE_VERSION, PROTOCOL_VERSION]
                 self.queue_request('server.version', params, interface)
 
         now = time.time()

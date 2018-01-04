@@ -30,7 +30,7 @@ import time
 import jsonrpclib
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer, SimpleJSONRPCRequestHandler
 
-from .version import ELECTRUM_VERSION
+from .version import PACKAGE_VERSION
 from .network import Network
 from .util import json_decode, DaemonThread
 from .util import print_error
@@ -173,7 +173,7 @@ class Daemon(DaemonThread):
                     'spv_nodes': len(self.network.get_interfaces()),
                     'connected': self.network.is_connected(),
                     'auto_connect': p[4],
-                    'version': ELECTRUM_VERSION,
+                    'version': PACKAGE_VERSION,
                     'wallets': {k: w.is_up_to_date()
                                 for k, w in self.wallets.items()},
                     'fee_per_kb': self.config.fee_per_kb(),

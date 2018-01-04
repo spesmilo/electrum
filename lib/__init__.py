@@ -1,4 +1,4 @@
-from .version import ELECTRUM_VERSION
+from .version import PACKAGE_VERSION
 from .util import format_satoshis, print_msg, print_error, set_verbosity
 from .wallet import Synchronizer, Wallet
 from .storage import WalletStorage

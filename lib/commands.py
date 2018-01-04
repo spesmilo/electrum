@@ -346,8 +346,8 @@ class Commands:
     @command('')
     def version(self):
         """Return the version of electron-cash."""
-        from .version import ELECTRUM_VERSION
-        return ELECTRUM_VERSION
+        from .version import PACKAGE_VERSION
+        return PACKAGE_VERSION
 
     @command('w')
     def getmpk(self):
