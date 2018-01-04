@@ -1,3 +1,23 @@
+# Release 3.1
+
+  * Multiple address format support.  Electron Cash supports input of cashaddr
+    addresses, legacy bitcoin addresses, and BitPay addresses anywhere
+    where a legacy address used to be accepted.
+  * Only display of cashaddr and legacy addresses is supported.  You can
+    toggle the display format in the Appearance tab of the Preferences
+    dialog window; alternatively you can press the converter icon
+    button in the toolbar at the bottom of the main window.  Hardware
+    wallets will probably show the legacy format until their firmware is
+    updated.
+  * An address converter tab can convert between all 3 address formats.
+    To see it, choose to show it from the View menu.
+  * At some stage support for BitPay address format will be removed, and
+    at some later stage support for display of legacy addresses will also
+    be removed.
+  * The fee slider has been adjusted to range from 1 to 10 sats/byte.
+  * Many bug fixes and improvements.
+
+
 7/27/2017 - Jonald Fyookball
 
 Electron Cash is a fork of the open source Electrum Bitcoin wallet (www.electrum.org) for Bitcoin Cash.  The current
@@ -97,7 +117,7 @@ Menu "Tools") to see information about chain forks your client knows about), you
 Electron Cash 3.0 -- This is now on Python 3.  Make sure all python commands are on python 3 and any needed
 modules/libraries are imported into pyhon 3.  The build is deterministic for windows (everyone should get
 the same binary because of customization to Pyinstaller that was done by Electrum team, as well as separate
-repos for locales and icons).  The fee upgrades may not be visible for existing wallet owners 
+repos for locales and icons).  The fee upgrades may not be visible for existing wallet owners
 unless you reset the max fee in preferences or remove the config file.  There is no minimum fee on the client
 side.  Be careful sending too low of a fee (lower than 1 satoshi/byte) or your transaction may get stuck,
 and there is no warning message.
@@ -106,7 +126,7 @@ and there is no warning message.
   * upgrade to Python3 and PyQt5
   * Build is done deterministically for windows
   * improve fee policy
-  
+
 # Release 2.9.2
   * force headers download if headers file is corrupted
   * add websocket to windows builds
