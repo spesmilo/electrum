@@ -81,7 +81,7 @@ class AddressList(MyTreeWidget):
                 balance = sum(self.wallet.get_addr_balance(address))
                 address_text = address.to_ui_string()
                 label = self.wallet.labels.get(address.to_storage_string(), '')
-                balance_text = self.parent.format_amount(balance)
+                balance_text = self.parent.format_amount(balance, whitespaces=True)
                 columns = [address_text, label, balance_text, "%d"%num]
                 if fx:
                     rate = fx.exchange_rate()
