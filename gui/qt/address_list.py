@@ -38,8 +38,16 @@ class AddressList(MyTreeWidget):
     filter_columns = [0, 1, 2]  # Address, Label, Balance
 
     def __init__(self, parent=None):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [ _('Address'), _('Label'), _('Balance'), _('Tx')], 1)
+        MyTreeWidget.__init__(self, parent, self.create_menu, [], 1)
+        self.refresh_headers()
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+
+    def refresh_headers(self):
+        headers = [ _('Address'), _('Label'), _('Balance'), _('Tx')]
+        fx = self.parent.fx
+        if fx and fx.get_fiat_address_config():
+            headers.insert(3, '{} {}'.format(fx.get_currency(), _(' Balance')))
+        self.update_headers(headers)
 
     def on_update(self):
         self.wallet = self.parent.wallet
@@ -49,6 +57,10 @@ class AddressList(MyTreeWidget):
         receiving_addresses = self.wallet.get_receiving_addresses()
         change_addresses = self.wallet.get_change_addresses()
 
+        if self.parent.fx and self.parent.fx.get_fiat_address_config():
+            fx = self.parent.fx
+        else:
+            fx = None
         account_item = self
         sequences = [0,1] if change_addresses else [0]
         for is_change in sequences:
@@ -66,12 +78,22 @@ class AddressList(MyTreeWidget):
             for address in addr_list:
                 num = len(self.wallet.get_address_history(address))
                 is_used = self.wallet.is_used(address)
-                c, u, x = self.wallet.get_addr_balance(address)
-
-                text = address.to_ui_string()
+                balance = sum(self.wallet.get_addr_balance(address))
+                address_text = address.to_ui_string()
                 label = self.wallet.labels.get(address.to_storage_string(), '')
-                balance = self.parent.format_amount(c + u + x)
-                address_item = QTreeWidgetItem([text, label, balance, "%d"%num])
+                balance_text = self.parent.format_amount(balance)
+                columns = [address_text, label, balance_text, "%d"%num]
+                if fx:
+                    rate = fx.exchange_rate()
+                    fiat_balance = fx.value_str(balance, rate)
+                    columns.insert(3, fiat_balance)
+                address_item = QTreeWidgetItem(columns)
+                address_item.setTextAlignment(2, Qt.AlignRight)
+                address_item.setFont(2, QFont(MONOSPACE_FONT))
+                if fx:
+                    address_item.setTextAlignment(3, Qt.AlignRight)
+                    address_item.setFont(3, QFont(MONOSPACE_FONT))
+
                 address_item.setFont(0, QFont(MONOSPACE_FONT))
                 address_item.setData(0, Qt.UserRole, address)
                 address_item.setData(0, Qt.UserRole+1, True) # label can be edited
