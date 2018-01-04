@@ -81,8 +81,8 @@ class NetworkConstants:
         cls.TITLE = 'Electron Cash Testnet'
 
         # Bitcoin Cash fork block specification
-        cls.BITCOIN_CASH_FORK_BLOCK_HEIGHT = None
-        cls.BITCOIN_CASH_FORK_BLOCK_HASH = None
+        cls.BITCOIN_CASH_FORK_BLOCK_HEIGHT = 1155876
+        cls.BITCOIN_CASH_FORK_BLOCK_HASH = "00000000000e38fef93ed9582a7df43815d5c2ba9fd37ef70c9a0ea4a285b8f5"
 
 
 NetworkConstants.set_mainnet()
