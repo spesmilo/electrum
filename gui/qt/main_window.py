@@ -970,10 +970,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.update_receive_address_widget()
 
     def update_receive_address_widget(self):
+        text = ''
         if self.receive_address:
-            self.receive_address_e.setText(self.receive_address.to_ui_string())
-        else:
-            self.receive_address_e.setText('')
+            text = self.receive_address.to_full_ui_string()
+        self.receive_address_e.setText(text)
 
     def clear_receive_tab(self):
         self.expires_label.hide()
@@ -1014,7 +1014,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         uri = web.create_URI(self.receive_address, amount, message)
         self.receive_qr.setData(uri)
         if self.qr_window and self.qr_window.isVisible():
-            self.qr_window.set_content(self.receive_address, amount,
+            self.qr_window.set_content(self.receive_address_e.text(), amount,
                                        message, uri)
 
     def create_send_tab(self):
