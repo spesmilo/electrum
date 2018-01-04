@@ -6,8 +6,10 @@ import lib.keystore as keystore
 import lib.storage as storage
 import lib.wallet as wallet
 
+from plugins.trustedcoin import trustedcoin
 
-# TODO: 2fa
+
+# TODO passphrase/seed_extension
 class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
 
     gap_limit = 1  # make tests run faster
@@ -32,12 +34,17 @@ class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
         w.synchronize()
         return w
 
-    def _create_multisig_wallet(self, ks1, ks2):
+    def _create_multisig_wallet(self, ks1, ks2, ks3=None):
+        """Creates a 2-of-2 or 2-of-3 multisig wallet."""
         store = storage.WalletStorage('if_this_exists_mocking_failed_648151893')
-        multisig_type = "%dof%d" % (2, 2)
-        store.put('wallet_type', multisig_type)
         store.put('x%d/' % 1, ks1.dump())
         store.put('x%d/' % 2, ks2.dump())
+        if ks3 is None:
+            multisig_type = "%dof%d" % (2, 2)
+        else:
+            multisig_type = "%dof%d" % (2, 3)
+            store.put('x%d/' % 3, ks3.dump())
+        store.put('wallet_type', multisig_type)
         store.put('gap_limit', self.gap_limit)
         w = wallet.Multisig_Wallet(store)
         w.synchronize()
@@ -98,6 +105,39 @@ class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
 
         self.assertEqual(w.get_receiving_addresses()[0], '1FJEEB8ihPMbzs2SkLmr37dHyRFzakqUmo')
         self.assertEqual(w.get_change_addresses()[0], '1KRW8pH6HFHZh889VDq6fEKvmrsmApwNfe')
+
+    @mock.patch.object(storage.WalletStorage, '_write')
+    def test_electrum_seed_2fa(self, mock_write):
+        seed_words = 'kiss live scene rude gate step hip quarter bunker oxygen motor glove'
+        self.assertEqual(bitcoin.seed_type(seed_words), '2fa')
+
+        xprv1, xpub1, xprv2, xpub2 = trustedcoin.TrustedCoinPlugin.xkeys_from_seed(seed_words, '')
+
+        ks1 = keystore.from_xprv(xprv1)
+        self.assertTrue(isinstance(ks1, keystore.BIP32_KeyStore))
+        self.assertEqual(ks1.xprv, 'xprv9uraXy9F3HP7i8QDqwNTBiD8Jf4bPD4Epif8cS8qbUbgeidUesyZpKmzfcSeHutsGfFnjgih7kzwTB5UQVRNB5LoXaNc8pFusKYx3KVVvYR')
+        self.assertEqual(ks1.xpub, 'xpub68qvwUg8sewQvcUgwxuTYr9rrgu5nfn6BwajQpYT9p8fXWxdCRHpN86UWruWJAD1ede8Sv8ERrTa22Gyc4SBfm7zFpcyoVWVBKCVwnw6s1J')
+        self.assertEqual(ks1.xpub, xpub1)
+
+        ks2 = keystore.from_xprv(xprv2)
+        self.assertTrue(isinstance(ks2, keystore.BIP32_KeyStore))
+        self.assertEqual(ks2.xprv, 'xprv9uraXy9F3HP7kKSiRAvLV7Nrjj7YzspDys7dvGLLu4tLZT49CEBxPWp88dHhVxvZ69SHrPQMUCWjj4Ka2z9kNvs1HAeEf3extGGeSWqEVqf')
+        self.assertEqual(ks2.xpub, 'xpub68qvwUg8sewQxoXBXCTLrFKbHkx3QLY5M63EiejxTQRKSFPHjmWCwK8byvZMM2wZNYA3SmxXoma3M1zxhGESHZwtB7SwrxRgKXAG8dCD2eS')
+        self.assertEqual(ks2.xpub, xpub2)
+
+        long_user_id, short_id = trustedcoin.get_user_id(
+            {'x1/': {'xpub': xpub1},
+             'x2/': {'xpub': xpub2}})
+        xpub3 = trustedcoin.make_xpub(trustedcoin.signing_xpub, long_user_id)
+        ks3 = keystore.from_xpub(xpub3)
+        self._check_xpub_keystore_sanity(ks3)
+        self.assertTrue(isinstance(ks3, keystore.BIP32_KeyStore))
+
+        w = self._create_multisig_wallet(ks1, ks2, ks3)
+        self.assertEqual(w.txin_type, 'p2sh')
+
+        self.assertEqual(w.get_receiving_addresses()[0], '35L8XmCDoEBKeaWRjvmZvoZvhp8BXMMMPV')
+        self.assertEqual(w.get_change_addresses()[0], '3PeZEcumRqHSPNN43hd4yskGEBdzXgY8Cy')
 
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_bip39_seed_bip44_standard(self, mock_write):
