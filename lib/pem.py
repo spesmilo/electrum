@@ -165,7 +165,7 @@ def _parsePKCS8(_bytes):
 
 
 def _parseSSLeay(bytes):
-    return _parseASN1PrivateKey(ASN1_Node(str(bytes)))
+    return _parseASN1PrivateKey(ASN1_Node(bytes))
 
 
 def bytesToNumber(s):
