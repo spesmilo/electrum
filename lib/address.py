@@ -383,16 +383,20 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
 
         return Base58.encode_check(bytes([verbyte]) + self.hash160)
 
+    def to_full_string(self, fmt):
+        '''Convert to text, with a URI prefix for cashaddr format.'''
+        text = self.to_string(fmt)
+        if fmt == self.FMT_CASHADDR:
+            text = ':'.join([NetworkConstants.CASHADDR_PREFIX, text])
+        return text
+
     def to_ui_string(self):
         '''Convert to text in the current UI format choice.'''
         return self.to_string(self.FMT_UI)
 
     def to_full_ui_string(self):
         '''Convert to text, with a URI prefix if cashaddr.'''
-        text = self.to_ui_string()
-        if self.FMT_UI == self.FMT_CASHADDR:
-            text = ':'.join([NetworkConstants.CASHADDR_PREFIX, text])
-        return text
+        return self.to_full_string(self.FMT_UI)
 
     def to_URI_components(self):
         '''Returns a (scheme, path) pair for building a URI.'''
