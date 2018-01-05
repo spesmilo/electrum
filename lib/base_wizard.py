@@ -333,7 +333,7 @@ class BaseWizard(object):
             self.passphrase_dialog(run_next=f) if is_ext else f('')
         elif self.seed_type == 'old':
             self.run('create_keystore', seed, '')
-        elif self.seed_type == '2fa':
+        elif bitcoin.is_any_2fa_seed_type(self.seed_type):
             if self.is_kivy:
                 self.show_error(_('2FA seeds are not supported in this version'))
                 self.run('restore_from_seed')
@@ -463,18 +463,20 @@ class BaseWizard(object):
         k = keystore.from_master_key(text, password)
         self.on_keystore(k)
 
-    def choose_seed_type(self):
+    def choose_seed_type(self, message=None, choices=None):
         title = _('Choose Seed type')
-        message = ' '.join([
-            _("The type of addresses used by your wallet will depend on your seed."),
-            _("Segwit wallets use bech32 addresses, defined in BIP173."),
-            _("Please note that websites and other wallets may not support these addresses yet."),
-            _("Thus, you might want to keep using a non-segwit wallet in order to be able to receive bitcoins during the transition period.")
-        ])
-        choices = [
-            ('create_standard_seed', _('Standard')),
-            ('create_segwit_seed', _('Segwit')),
-        ]
+        if message is None:
+            message = ' '.join([
+                _("The type of addresses used by your wallet will depend on your seed."),
+                _("Segwit wallets use bech32 addresses, defined in BIP173."),
+                _("Please note that websites and other wallets may not support these addresses yet."),
+                _("Thus, you might want to keep using a non-segwit wallet in order to be able to receive bitcoins during the transition period.")
+            ])
+        if choices is None:
+            choices = [
+                ('create_standard_seed', _('Standard')),
+                ('create_segwit_seed', _('Segwit')),
+            ]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 
     def create_segwit_seed(self): self.create_seed('segwit')

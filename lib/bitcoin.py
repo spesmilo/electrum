@@ -291,9 +291,14 @@ def seed_type(x):
         return 'segwit'
     elif is_new_seed(x, version.SEED_PREFIX_2FA):
         return '2fa'
+    elif is_new_seed(x, version.SEED_PREFIX_2FA_SW):
+        return '2fa_segwit'
     return ''
 
 is_seed = lambda x: bool(seed_type(x))
+
+def is_any_2fa_seed_type(seed_type):
+    return seed_type in ['2fa', '2fa_segwit']
 
 # pywallet openssl private key implementation
 
