@@ -91,7 +91,7 @@ Do all the stuff listed under 'Development Version' and 'Creating Binaries' abov
 
 Now, you'll have a dist/Electron-Cash.app, but it won't quite work.  You need to do some crazy magic to get python to see the files properly::
 
-    (cd dist/Electron-Cash.app/Contents/Resources/lib && for z in *.zip; do mv $z z.zip && mkdir $z &&  cd $z && unzip -v ../z.zip && rm -f ../z.zip && mv electroncash_plugins plugins.bak && ln -s ../python3.*/plugins electroncash_plugins && cd .. && rm -f z.zip) 
+    (cd dist/Electron-Cash.app/Contents/Resources/lib && mv python36.zip z.zip && mkdir python36.zip &&  cd python36.zip && unzip ../z.zip && rm -f ../z.zip ; mv electroncash_plugins plugins.bak ; ln -s ../python3.6/plugins electroncash_plugins && cd ..) 
 
 Next, you'll try and run it but it will complain that it can't find the 'cocoa' plugin. You have to copy everything from::
 
@@ -101,9 +101,11 @@ Into a directory called 'qt_plugins' as such::
 
     dist/Electron-Cash.app/Contents/Resoureces/qt_plugins 
 
-and then use install_name_tool on each .dylib file to rewrite hard-coded lib names to @rpath/../Frameworks/.  
+Now, you need to fix the libs copied in the previous step, use this tool from the root level of the sources::
 
-If you know what this means, great!  If not, google it (or give up)!
+    contrib/fix_libs_osx.sh
+
+Now, try to run it.  If it doesn't run, create an issue in github.  If it does, great! 
 
 And finally, optionally create a .dmg...
 

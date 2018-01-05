@@ -7,6 +7,18 @@ if [ $? -ne 0 ] ; then echo "Install pip3" ; exit ; fi
 
 rm -fr $contrib/packages/ 
 
-#Install pure python modules in electrum directory
-pip3 install -r $contrib/requirements.txt -t $contrib/packages
+#Install pure python modules in electron directory
+
+# NB: OSX seems to have different requirements -- at least it did for me -Calin
+if [ `uname` == "Darwin" ]; then
+	# try to name pip the Brew way..
+	PIP=`which pip3` 
+	if [ -z "${PIP}" ]; then
+		# nope, maybe MacPorts instead.. hopefully it's pip3
+		PIP=pip
+	fi
+	$PIP install -r $contrib/requirements_osx.txt -t $contrib/packages 
+else
+	pip3 install -r $contrib/requirements.txt -t $contrib/packages 
+fi
 
