@@ -2017,24 +2017,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d.setLayout(vbox)
         d.exec_()
 
-    msg_sign = ("Signing with an address actually means signing with the corresponding "
+    msg_sign = _("Signing with an address actually means signing with the corresponding "
                 "private key, and verifying with the corresponding public key. The "
                 "address you have entered does not have a unique public key, so these "
-                "operations cannot be performed.")
+                "operations cannot be performed.") + '\n\n' + \
+               _('The operation is undefined. Not just in Electrum, but in general.')
 
     @protected
     def do_sign(self, address, message, signature, password):
         address  = address.text().strip()
         message = message.toPlainText().strip()
         if not bitcoin.is_address(address):
-            self.show_message('Invalid Litecoin address.')
+            self.show_message(_('Invalid Litecoin address.'))
+            return
+        if not self.wallet.is_mine(address):
+            self.show_message(_('Address not in wallet.'))
             return
         txin_type = self.wallet.get_txin_type(address)
         if txin_type not in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh']:
-            self.show_message('Cannot sign messages with this type of address.' + '\n\n' + self.msg_sign)
-            return
-        if not self.wallet.is_mine(address):
-            self.show_message('Address not in wallet.')
+            self.show_message(_('Cannot sign messages with this type of address:') + \
+                              ' ' + txin_type + '\n\n' + self.msg_sign)
             return
         task = partial(self.wallet.sign_message, address, message, password)
 
@@ -2046,7 +2048,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         address  = address.text().strip()
         message = message.toPlainText().strip().encode('utf-8')
         if not bitcoin.is_address(address):
-            self.show_message('Invalid Litecoin address.')
+            self.show_message(_('Invalid Litecoin address.'))
             return
         try:
             # This can throw on invalid base64

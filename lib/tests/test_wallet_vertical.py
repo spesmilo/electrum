@@ -7,7 +7,7 @@ import lib.storage as storage
 import lib.wallet as wallet
 
 
-# TODO: 2fa
+# TODO passphrase/seed_extension
 class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
 
     gap_limit = 1  # make tests run faster
@@ -32,12 +32,17 @@ class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
         w.synchronize()
         return w
 
-    def _create_multisig_wallet(self, ks1, ks2):
+    def _create_multisig_wallet(self, ks1, ks2, ks3=None):
+        """Creates a 2-of-2 or 2-of-3 multisig wallet."""
         store = storage.WalletStorage('if_this_exists_mocking_failed_648151893')
-        multisig_type = "%dof%d" % (2, 2)
-        store.put('wallet_type', multisig_type)
         store.put('x%d/' % 1, ks1.dump())
         store.put('x%d/' % 2, ks2.dump())
+        if ks3 is None:
+            multisig_type = "%dof%d" % (2, 2)
+        else:
+            multisig_type = "%dof%d" % (2, 3)
+            store.put('x%d/' % 3, ks3.dump())
+        store.put('wallet_type', multisig_type)
         store.put('gap_limit', self.gap_limit)
         w = wallet.Multisig_Wallet(store)
         w.synchronize()
