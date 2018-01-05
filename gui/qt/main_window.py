@@ -131,7 +131,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.create_status_bar()
         self.need_update = threading.Event()
 
-        self.decimal_point = config.get('decimal_point', 5)
+        self.decimal_point = config.get('decimal_point', 8)
         self.fee_unit = config.get('fee_unit', 0)
         self.num_zeros     = int(config.get('num_zeros',0))
 
@@ -1331,7 +1331,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         except ExcessiveFee:
             self.show_message(_("Your fee is too high.  Max is 50 sat/byte."))
-            return	   
+            return
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
@@ -1360,7 +1360,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             msg.append( _("Additional fees") + ": " + self.format_amount_and_units(x_fee_amount) )
 
         confirm_rate = 2 * self.config.max_fee_rate()
-        
+
         # IN THE FUTURE IF WE WANT TO APPEND SOMETHING IN THE MSG ABOUT THE FEE, CODE IS COMMENTED OUT:
         #if fee > confirm_rate * tx.estimated_size() / 1000:
         #    msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
