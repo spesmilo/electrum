@@ -294,7 +294,7 @@ class BaseWizard(object):
             self.run('create_keystore', seed, '')
         elif self.seed_type == '2fa':
             if self.is_kivy:
-                self.show_error('2FA seeds are not supported in this version')
+                self.show_error(_('2FA seeds are not supported in this version'))
                 self.run('restore_from_seed')
             else:
                 self.load_2fa()
@@ -386,10 +386,10 @@ class BaseWizard(object):
     def choose_seed_type(self):
         title = _('Choose Seed type')
         message = ' '.join([
-            "The type of addresses used by your wallet will depend on your seed.",
-            "Segwit wallets use bech32 addresses, defined in BIP173.",
-            "Please note that websites and other wallets may not support these addresses yet.",
-            "Thus, you might want to keep using a non-segwit wallet in order to be able to receive bitcoins during the transition period."
+            _("The type of addresses used by your wallet will depend on your seed."),
+            _("Segwit wallets use bech32 addresses, defined in BIP173."),
+            _("Please note that websites and other wallets may not support these addresses yet."),
+            _("Thus, you might want to keep using a non-segwit wallet in order to be able to receive bitcoins during the transition period.")
         ])
         choices = [
             ('create_standard_seed', _('Standard')),
