@@ -93,15 +93,7 @@ Now, you'll have a dist/Electron-Cash.app, but it won't quite work.  You need to
 
     (cd dist/Electron-Cash.app/Contents/Resources/lib && mv python36.zip z.zip && mkdir python36.zip &&  cd python36.zip && unzip ../z.zip && rm -f ../z.zip ; mv electroncash_plugins plugins.bak ; ln -s ../python3.6/plugins electroncash_plugins && cd ..) 
 
-Next, you'll try and run it but it will complain that it can't find the 'cocoa' plugin. You have to copy everything from::
-
-    /opt/local/libexec/qt5/plugins 
-
-Into a directory called 'qt_plugins' as such::
-
-    dist/Electron-Cash.app/Contents/Resoureces/qt_plugins 
-
-Now, you need to fix the libs copied in the previous step, use this tool from the root level of the sources::
+Next, you'll try and run it but it will complain that it can't find the 'cocoa' plugin. You have to run this script::
 
     contrib/fix_libs_osx.sh
 
