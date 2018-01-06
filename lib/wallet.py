@@ -962,6 +962,8 @@ class Abstract_Wallet(PrintError):
                 date = timestamp_to_datetime(time.time() if conf <= 0 else timestamp)
                 item['fiat_value'] = fx.historical_value_str(value, date)
                 item['fiat_balance'] = fx.historical_value_str(balance, date)
+                if value < 0:
+                    item['capital_gain'] = self.capital_gain(tx_hash, fx.timestamp_rate)
             out.append(item)
         return out
 
@@ -1585,6 +1587,46 @@ class Abstract_Wallet(PrintError):
                     children.add(other_hash)
                     children |= self.get_depending_transactions(other_hash)
         return children
+
+    def txin_value(self, txin):
+        txid = txin['prevout_hash']
+        prev_n = txin['prevout_n']
+        for address, d in self.txo[txid].items():
+            for n, v, cb in d:
+                if n == prev_n:
+                    return v
+        raise BaseException('unknown txin value')
+
+    def capital_gain(self, txid, price_func):
+        """
+        Difference between the fiat price of coins leaving the wallet because of transaction txid,
+        and the price of these coins when they entered the wallet.
+        price_func: function that returns the fiat price given a timestamp
+        """
+        height, conf, timestamp = self.get_tx_height(txid)
+        tx = self.transactions[txid]
+        out_value = sum([ (value if not self.is_mine(address) else 0) for otype, address, value in tx.outputs() ])
+        try:
+            return out_value/1e8 * (price_func(timestamp) - self.average_price(tx, price_func))
+        except:
+            return None
+
+    def average_price(self, tx, price_func):
+        """ average price of the inputs of a transaction """
+        return sum(self.coin_price(txin, price_func) * self.txin_value(txin) for txin in tx.inputs()) / sum(self.txin_value(txin) for txin in tx.inputs())
+
+    def coin_price(self, coin, price_func):
+        """ fiat price of acquisition of coin """
+        txid = coin['prevout_hash']
+        tx = self.transactions[txid]
+        if all([self.is_mine(txin['address']) for txin in tx.inputs()]):
+            return self.average_price(tx, price_func)
+        elif all([ not self.is_mine(txin['address']) for txin in tx.inputs()]):
+            height, conf, timestamp = self.get_tx_height(txid)
+            return price_func(timestamp)
+        else:
+            # could be some coinjoin transaction..
+            return None
 
 
 class Simple_Wallet(Abstract_Wallet):

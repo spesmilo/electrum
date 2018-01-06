@@ -62,6 +62,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         fx = self.parent.fx
         if fx and fx.show_history():
             headers.extend(['%s '%fx.ccy + _('Amount'), '%s '%fx.ccy + _('Balance')])
+            headers.extend(['%s '%fx.ccy + _('Capital Gains')])
         self.update_headers(headers)
 
     def get_domain(self):
@@ -91,6 +92,10 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
                 for amount in [value, balance]:
                     text = fx.historical_value_str(amount, date)
                     entry.append(text)
+                # fixme: should use is_mine
+                if value < 0:
+                    cg = self.wallet.capital_gain(tx_hash, self.parent.fx.timestamp_rate)
+                    entry.append("%.2f"%cg if cg is not None else _('No data'))
             item = QTreeWidgetItem(entry)
             item.setIcon(0, icon)
             item.setToolTip(0, str(conf) + " confirmation" + ("s" if conf != 1 else ""))
