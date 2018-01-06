@@ -45,6 +45,7 @@ setup(
         'dnspython',
         'jsonrpclib-pelix',
         'PySocks>=1.6.6',
+        'pyqt5',
     ],
     packages=[
         'electroncash',
