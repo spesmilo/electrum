@@ -1,3 +1,13 @@
+# Release 3.0.4 : (Security update)
+
+ * Fix a vulnerability caused by Cross-Origin Resource Sharing (CORS)
+   in the JSONRPC interface. Previous versions of Electrum are
+   vulnerable to port scanning and deanonimization attacks from
+   malicious websites. Wallets that are not password-protected are
+   vulnerable to theft.
+ * Bundle QR scanner with Android app
+ * Minor bug fixes
+
 # Release 3.0.3
   * Qt GUI: sweeping now uses the Send tab, allowing fees to be set
   * Windows: if using the installer binary, there is now a separate shortcut
