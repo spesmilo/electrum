@@ -46,7 +46,7 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
         fileName, __ = QFileDialog.getOpenFileName(self, 'select file')
         if not fileName:
             return
-        with open(fileName, "r") as f:
+        with open(fileName, "r", encoding='utf-8') as f:
             data = f.read()
         self.setText(data)
 
