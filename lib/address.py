@@ -323,6 +323,14 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
         return cls(hash160, kind)
 
     @classmethod
+    def is_valid(cls, string):
+        try:
+            cls.from_string(string)
+            return True
+        except Exception:
+            return False
+
+    @classmethod
     def from_strings(cls, strings):
         '''Construct a list from an iterable of strings.'''
         return [cls.from_string(string) for string in strings]

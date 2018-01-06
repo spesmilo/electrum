@@ -36,6 +36,8 @@ from electroncash.networks import NetworkConstants
 
 from . import util
 
+RE_ALIAS = '^(.*?)\s*\<([1-9A-Za-z]{26,})\>$'
+
 frozen_style = "QWidget { background-color:none; border:none;}"
 normal_style = "QPlainTextEdit { }"
 
@@ -80,9 +82,16 @@ class PayToEdit(ScanQRTextEdit):
 
     def parse_output(self, x):
         try:
-            return bitcoin.TYPE_ADDRESS, Address.from_string(x)
+            address = self.parse_address(x)
+            return bitcoin.TYPE_ADDRESS, address
         except:
             return bitcoin.TYPE_SCRIPT, ScriptOutput.from_string(x)
+
+    def parse_address(self, line):
+        r = line.strip()
+        m = re.match(RE_ALIAS, r)
+        address = m.group(2) if m else r
+        return Address.from_string(address)
 
     def parse_amount(self, x):
         if x.strip() == '!':
