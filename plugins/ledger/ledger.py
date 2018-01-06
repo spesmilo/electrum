@@ -1,5 +1,4 @@
 from struct import pack, unpack
-from distutils.version import LooseVersion
 import hashlib
 import sys
 import traceback
@@ -51,6 +50,9 @@ class Ledger_Client():
 
     def i4b(self, x):
         return pack('>I', x)
+
+    def versiontuple(self, v):
+        return tuple(map(int, (v.split("."))))
 
     def get_xpub(self, bip32_path, xtype):
         self.checkDevice()
@@ -104,7 +106,7 @@ class Ledger_Client():
         try:
             firmwareInfo = self.dongleObject.getFirmwareVersion()
             firmware = firmwareInfo['version']
-            bitcoinCashSupport = LooseVersion(firmware) >= LooseVersion(self.BITCOIN_CASH_SUPPORT)
+            bitcoinCashSupport = self.versiontuple(firmware) >= self.versiontuple(self.BITCOIN_CASH_SUPPORT)
 
             if not checkFirmware(firmwareInfo) or not bitcoinCashSupport:
                 self.dongleObject.dongle.close()
