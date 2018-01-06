@@ -134,29 +134,34 @@ class BitcoinVenezuela(ExchangeBase):
 class Bitmarket(ExchangeBase):
 
     def get_rates(self, ccy):
-        json = self.get_json('www.bitmarket.pl', '/json/BTCPLN/ticker.json')
+        json = self.get_json('www.bitmarket.pl', '/json/BCCPLN/ticker.json')
         return {'PLN': Decimal(json['last'])}
 
 
 class BitPay(ExchangeBase):
 
     def get_rates(self, ccy):
-        json = self.get_json('bitpay.com', '/api/rates')
+        json = self.get_json('bitpay.com', '/api/rates/BCH')
         return dict([(r['code'], Decimal(r['rate'])) for r in json])
 
 
 class Bitso(ExchangeBase):
 
     def get_rates(self, ccy):
-        json = self.get_json('api.bitso.com', '/v2/ticker')
-        return {'MXN': Decimal(json['last'])}
+        json = self.get_json('api.bitso.com', '/v2/ticker/?book=bch_btc')
+        return {'BTC': Decimal(json['last'])}
 
 
 class BitStamp(ExchangeBase):
 
     def get_rates(self, ccy):
-        json = self.get_json('www.bitstamp.net', '/api/ticker/')
-        return {'USD': Decimal(json['last'])}
+        json_usd = self.get_json('www.bitstamp.net', '/api/v2/ticker/bchusd')
+        json_eur = self.get_json('www.bitstamp.net', '/api/v2/ticker/bcheur')
+        json_btc = self.get_json('www.bitstamp.net', '/api/v2/ticker/bchbtc')
+        return {
+            'USD': Decimal(json_usd['last']),
+            'EUR': Decimal(json_eur['last']),
+            'BTC': Decimal(json_btc['last'])}
 
 
 class Bitvalor(ExchangeBase):
@@ -193,7 +198,7 @@ class Coinbase(ExchangeBase):
         json = self.get_json('coinbase.com',
                              '/api/v1/currencies/exchange_rates')
         return dict([(r[7:].upper(), Decimal(json[r]))
-                     for r in json if r.startswith('btc_to_')])
+                     for r in json if r.startswith('bch_to_')])
 
 
 class CoinDesk(ExchangeBase):
@@ -314,13 +319,20 @@ class Unocoin(ExchangeBase):
 class WEX(ExchangeBase):
 
     def get_rates(self, ccy):
-        json_eur = self.get_json('wex.nz', '/api/3/ticker/btc_eur')
-        json_rub = self.get_json('wex.nz', '/api/3/ticker/btc_rur')
-        json_usd = self.get_json('wex.nz', '/api/3/ticker/btc_usd')
-        return {'EUR': Decimal(json_eur['btc_eur']['last']),
-                'RUB': Decimal(json_rub['btc_rur']['last']),
-                'USD': Decimal(json_usd['btc_usd']['last'])}
-
+        json_eur = self.get_json('wex.nz', '/api/3/ticker/bch_eur')
+        json_rub = self.get_json('wex.nz', '/api/3/ticker/bch_rur')
+        json_usd = self.get_json('wex.nz', '/api/3/ticker/bch_usd')
+        json_btc = self.get_json('wex.nz', '/api/3/ticker/bch_btc')
+        json_ltc = self.get_json('wex.nz', '/api/3/ticker/bch_ltc')
+        json_eth = self.get_json('wex.nz', '/api/3/ticker/bch_eth')
+        json_dsh = self.get_json('wex.nz', '/api/3/ticker/bch_dsh')
+        return {'EUR': Decimal(json_eur['bch_eur']['last']),
+                'RUB': Decimal(json_rub['bch_rur']['last']),
+                'USD': Decimal(json_usd['bch_usd']['last']),
+                'BTC': Decimal(json_btc['bch_btc']['last']),
+                'LTC': Decimal(json_ltc['bch_ltc']['last']),
+                'ETH': Decimal(json_eth['bch_eth']['last']),
+                'DSH': Decimal(json_dsh['bch_dsh']['last'])}
 
 class Winkdex(ExchangeBase):
 
