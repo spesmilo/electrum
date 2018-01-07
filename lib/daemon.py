@@ -116,7 +116,7 @@ def get_rpc_credentials(config):
 
 class Daemon(DaemonThread):
 
-    def __init__(self, config, fd, is_gui):
+    def __init__(self, config, fd, is_android):
         DaemonThread.__init__(self)
         self.config = config
         if config.get('offline'):
@@ -130,8 +130,12 @@ class Daemon(DaemonThread):
 
         self.gui = None
         self.wallets = {}
-        # Setup JSONRPC server
-        self.init_server(config, fd, is_gui)
+        if not is_android:
+            # Setup JSONRPC server
+            self.cmd_runner = Commands(self.config, None, self.network)
+            self.init_server(config, fd)
+        else:
+            self.server = None
 
     def init_server(self, config, fd, is_gui):
         host = config.get('rpchost', '127.0.0.1')
