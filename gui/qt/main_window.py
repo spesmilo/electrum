@@ -382,7 +382,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             msg = ' '.join([
                 _("This wallet is watching-only."),
                 _("This means you will not be able to spend Groestlcoins with it."),
-                _("Make sure you own the seed phrase or the private keys, before you request Bitcoins to be sent to this wallet.")
+                _("Make sure you own the seed phrase or the private keys, before you request Groestlcoins to be sent to this wallet.")
             ])
             self.show_warning(msg, title=_('Information'))
 
