@@ -1,12 +1,12 @@
 sudo: false
 language: python
 python:
-    - "3.5"
-    - "3.6"
+    - 3.5
+    - 3.6
 install:
-    - pip install tox
-    - pip install tox-travis
-    - pip install python-coveralls
+  - pip install -r requirements_travis.txt
+cache:
+  - pip
 script:
     - tox
     - coveralls
