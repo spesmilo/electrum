@@ -1,4 +1,5 @@
 # Copyright (c) 2017 Pieter Wuille
+# Copyright (c) 2017 Shammah Chancellor, Neil Booth
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
