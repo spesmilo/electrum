@@ -34,6 +34,8 @@ import urlparse
 import urllib
 import threading
 from i18n import _
+import hmac
+
 
 base_units = {'BTC':8, 'mBTC':5, 'uBTC':2}
 fee_levels = [_('Within 25 blocks'), _('Within 10 blocks'), _('Within 5 blocks'), _('Within 2 blocks'), _('In the next block')]
@@ -190,6 +192,13 @@ def json_decode(x):
         return json.loads(x, parse_float=Decimal)
     except:
         return x
+
+
+# taken from Django Source Code
+def constant_time_compare(val1, val2):
+    """Return True if the two strings are equal, False otherwise."""
+    return hmac.compare_digest(to_bytes(val1, 'utf8'), to_bytes(val2, 'utf8'))
+
 
 # decorator that prints execution time
 def profiler(func):
