@@ -7,10 +7,58 @@ if [ "$?" != "0" ]; then
 	exit 1
 fi
 
+pyver=""
+pydotver=""
+
+if [ -e "lib/python36.zip" ]; then
+	pyver="36"
+	pydotver="3.6"
+elif [ -e "lib/python35.zip" ]; then
+	pyver="35"
+	pydotver="3.5"
+else
+	echo 'Cannot determine python version used -- only 3.5 and 3.6 are supported at this time by this script. Sorry.'
+	exit 1
+fi
+
+zfile="lib/python${pyver}.zip"
+ldir="python${pydotver}"
+
+if [ ! -d "$zfile" ]; then
+	echo
+	echo "Doing some magic to compensate for broken py2app stuff..."
+	echo
+	mv -v "${zfile}" "lib/z.zip"
+	mkdir -v "$zfile"
+	cd "$zfile"
+	unzip ../z.zip && rm -f ../z.zip
+	if [ "$?" != "0" ]; then
+		echo "Something went wrong"
+		exit 1
+	fi
+	[ -e electroncash_plugins ] && mv -vf electroncash_plugins electroncash_plugins.bak
+	ln -svf ../"${ldir}"/plugins electroncash_plugins
+	[ -e electroncash ] && mv -vf electroncash electroncash.bak
+	ln -svf ../"${ldir}"/lib electroncash
+	[ -e electroncash_gui ] && mv -vf electroncash_gui electroncash_gui.bak
+	ln -svf ../"${ldir}"/gui electroncash_gui
+	cd ../../
+	if [ ! -d "${zfile}" ] || [ ! -e "${zfile}/electroncash_plugins" ] || [ ! -e "${zfile}/electroncash" ] || [ ! -e "${zfile}/electroncash_gui" ]; then
+		echo 'Something went wrong... File a github issue at http://www.github.com/fyookball/electrum.'
+		exit 1
+	fi
+fi
+
 if [ ! -e "qt_plugins" ]; then
 	echo
 	echo "Copying qt_plugins.."
 	echo
+
+	if [ ! -d /opt/local/libexec/qt5/plugins ]; then
+		echo "Qt5 not found -- this script requires it be installed in /opt/local as per MacPorts. Sorry."
+		exit 1
+	fi
+
 	mkdir qt_plugins
 	cp -fpvR /opt/local/libexec/qt5/plugins/* qt_plugins/
 	echo

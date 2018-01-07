@@ -83,17 +83,31 @@ This directory contains the python dependencies used by Electron Cash.
 Mac OS X / macOS
 --------
 
-Do all the stuff listed under 'Development Version' and 'Creating Binaries' above, and in addition:: 
+Requires python3.5+, pyqt5, protoc, gettext, pycurl, pyqt5-devtools, and possibly other packages. These instructions and support scripts presume you are using MacPorts. Brew-based building is left as an exercise for the reader. ;)
+
+Compile the icons file for Qt (make sure pyrcc5 is installed)::
+
+    pyrcc5 icons.qrc -o gui/qt/icons_rc.py
+
+Compile the protobuf description file (make sure protoc is installed)::
+
+    protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto
+
+Create translations (optional)::
+
+    ./contrib/make_locale
+
+Create the 'packages' directory::
+
+    ./contrib/make_packages
 
     ln -s contrib/packages packages
 
+Now, you run can py2app (if it complains about missing python packages, use pip to install packages listed in contrib/requirements_osx.txt)::
+
     python setup-release.py py2app
 
-Now, you'll have a dist/Electron-Cash.app, but it won't quite work.  You need to do some crazy magic to get python to see the files properly::
-
-    (cd dist/Electron-Cash.app/Contents/Resources/lib && mv python36.zip z.zip && mkdir python36.zip &&  cd python36.zip && unzip ../z.zip && rm -f ../z.zip ; mv electroncash_plugins plugins.bak ; ln -s ../python3.6/plugins electroncash_plugins && cd ..) 
-
-Next, you'll try and run it but it will complain that it can't find the 'cocoa' plugin. You have to run this script::
+Now, you'll have a dist/Electron-Cash.app, but it won't quite work.  You need to do some crazy magic to get python to see the files properly. Fortunately for you, I already went to the trouble to figure out this magic, and it's embodied in the fix_libs_osx.sh script. Run this script::
 
     contrib/fix_libs_osx.sh
 
