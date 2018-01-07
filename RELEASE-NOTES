@@ -1,3 +1,13 @@
+# Release 3.0.5 : (Security update)
+
+This is a follow-up to the 3.0.4 release, which did not completely fix
+issue #3374. Users should upgrade to 3.0.5.
+
+ * The JSONRPC interface is password protected
+ * JSONRPC commands are disabled if the GUI is running, except 'ping',
+   which is used to determine if a GUI is already running
+
+
 # Release 3.0.4 : (Security update)
 
  * Fix a vulnerability caused by Cross-Origin Resource Sharing (CORS)
