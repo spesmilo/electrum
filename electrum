@@ -372,7 +372,7 @@ if __name__ == '__main__':
         fd, server = daemon.get_fd_or_server(config)
         if fd is not None:
             plugins = init_plugins(config, config.get('gui', 'qt'))
-            d = daemon.Daemon(config, fd, is_android)
+            d = daemon.Daemon(config, fd, True)
             d.start()
             d.init_gui(config, plugins)
             sys.exit(0)
@@ -393,7 +393,7 @@ if __name__ == '__main__':
                         print_stderr("starting daemon (PID %d)" % pid)
                         sys.exit(0)
                 init_plugins(config, 'cmdline')
-                d = daemon.Daemon(config, fd, is_android)
+                d = daemon.Daemon(config, fd, False)
                 d.start()
                 if config.get('websocket_server'):
                     from electrum import websockets
@@ -425,7 +425,6 @@ if __name__ == '__main__':
             else:
                 init_plugins(config, 'cmdline')
                 result = run_offline_command(config, config_options)
-
                 # print result
     if isinstance(result, str):
         print_msg(result)
