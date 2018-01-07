@@ -1,3 +1,8 @@
+# Release 3.1.1
+  * Requires Python 3.5 or greater
+  * Fixes JSONPRC security threat
+  * Fixes included for ledger for windows
+
 # Release 3.1
 
   * Multiple address format support.  Electron Cash supports input of cashaddr
