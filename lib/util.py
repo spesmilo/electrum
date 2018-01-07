@@ -28,6 +28,7 @@ from decimal import Decimal
 import traceback
 import urllib
 import threading
+import hmac
 
 from .i18n import _
 
@@ -195,6 +196,13 @@ def json_decode(x):
         return json.loads(x, parse_float=Decimal)
     except:
         return x
+
+
+# taken from Django Source Code
+def constant_time_compare(val1, val2):
+    """Return True if the two strings are equal, False otherwise."""
+    return hmac.compare_digest(to_bytes(val1, 'utf8'), to_bytes(val2, 'utf8'))
+
 
 # decorator that prints execution time
 def profiler(func):
