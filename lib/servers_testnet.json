@@ -1,6 +1,6 @@
 {
         "electrum-test1.groestlcoin.org": {"t":"51001", "s":"51002"},
         "electrum-test2.groestlcoin.org": {"t":"51001", "s":"51002"},
-        "7frvhgofuf522b5i.onion": {"t":"51001", "s":"51002"},
-        "aocojvqcybdoxekv.onion": {"t":"51001", "s":"51002"}
+        "7frvhgofuf522b5i.onion": {"t":"51001"},
+        "aocojvqcybdoxekv.onion": {"t":"51001"}
 }
