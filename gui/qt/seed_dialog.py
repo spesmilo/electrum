@@ -120,11 +120,10 @@ class SeedLayout(QVBoxLayout):
         self.options = options
         if title:
             self.addWidget(WWLabel(title))
+        self.seed_e = QTextEdit()
         if seed:
-            self.seed_e = ShowQRTextEdit()
             self.seed_e.setText(seed)
         else:
-            self.seed_e = ScanQRTextEdit()
             self.seed_e.setTabChangesFocus(True)
             self.is_seed = is_seed
             self.saved_is_seed = self.is_seed
