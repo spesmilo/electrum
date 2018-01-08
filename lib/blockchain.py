@@ -273,9 +273,9 @@ class Blockchain(util.PrintError):
     def get_target(self, index):
         # compute target from chunk x, used in chunk x+1
         if bitcoin.NetworkConstants.TESTNET:
-            return 0, 0
+            return 0
         if index == -1:
-            return 0x1d00ffff, MAX_TARGET
+            return MAX_TARGET
         if index < len(self.checkpoints):
             h, t = self.checkpoints[index]
             return t
