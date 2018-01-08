@@ -28,12 +28,12 @@ import time
 
 # from jsonrpc import JSONRPCResponseManager
 import jsonrpclib
-from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
+from .jsonrpc import VerifyingJSONRPCServer
 
 from .version import ELECTRUM_VERSION
 from .network import Network
 from .util import json_decode, DaemonThread
-from .util import print_error
+from .util import print_error, to_string
 from .wallet import Wallet
 from .storage import WalletStorage
 from .commands import known_commands, Commands
@@ -75,7 +75,14 @@ def get_server(config):
         try:
             with open(lockfile) as f:
                 (host, port), create_time = ast.literal_eval(f.read())
-                server = jsonrpclib.Server('http://%s:%d' % (host, port))
+                rpc_user, rpc_password = get_rpc_credentials(config)
+                if rpc_password == '':
+                    # authentication disabled
+                    server_url = 'http://%s:%d' % (host, port)
+                else:
+                    server_url = 'http://%s:%s@%s:%d' % (
+                        rpc_user, rpc_password, host, port)
+                server = jsonrpclib.Server(server_url)
             # Test daemon is running
             server.ping()
             return server
@@ -87,9 +94,29 @@ def get_server(config):
         time.sleep(1.0)
 
 
+def get_rpc_credentials(config):
+    rpc_user = config.get('rpcuser', None)
+    rpc_password = config.get('rpcpassword', None)
+    if rpc_user is None or rpc_password is None:
+        rpc_user = 'user'
+        import ecdsa, base64
+        bits = 128
+        nbytes = bits // 8 + (bits % 8 > 0)
+        pw_int = ecdsa.util.randrange(pow(2, bits))
+        pw_b64 = base64.b64encode(
+            pw_int.to_bytes(nbytes, 'big'), b'-_')
+        rpc_password = to_string(pw_b64, 'ascii')
+        config.set_key('rpcuser', rpc_user)
+        config.set_key('rpcpassword', rpc_password, save=True)
+    elif rpc_password == '':
+        from .util import print_stderr
+        print_stderr('WARNING: RPC authentication is disabled.')
+    return rpc_user, rpc_password
+
+
 class Daemon(DaemonThread):
 
-    def __init__(self, config, fd):
+    def __init__(self, config, fd, is_gui):
         DaemonThread.__init__(self)
         self.config = config
         if config.get('offline'):
@@ -104,14 +131,16 @@ class Daemon(DaemonThread):
         self.gui = None
         self.wallets = {}
         # Setup JSONRPC server
-        self.cmd_runner = Commands(self.config, None, self.network)
-        self.init_server(config, fd)
+        self.init_server(config, fd, is_gui)
 
-    def init_server(self, config, fd):
+    def init_server(self, config, fd, is_gui):
         host = config.get('rpchost', '127.0.0.1')
         port = config.get('rpcport', 0)
+
+        rpc_user, rpc_password = get_rpc_credentials(config)
         try:
-            server = SimpleJSONRPCServer((host, port), logRequests=False)
+            server = VerifyingJSONRPCServer((host, port), logRequests=False,
+                                            rpc_user=rpc_user, rpc_password=rpc_password)
         except Exception as e:
             self.print_error('Warning: cannot initialize RPC server on host', host, e)
             self.server = None
@@ -119,14 +148,17 @@ class Daemon(DaemonThread):
             return
         os.write(fd, bytes(repr((server.socket.getsockname(), time.time())), 'utf8'))
         os.close(fd)
-        server.timeout = 0.1
-        for cmdname in known_commands:
-            server.register_function(getattr(self.cmd_runner, cmdname), cmdname)
-        server.register_function(self.run_cmdline, 'run_cmdline')
-        server.register_function(self.ping, 'ping')
-        server.register_function(self.run_daemon, 'daemon')
-        server.register_function(self.run_gui, 'gui')
         self.server = server
+        server.timeout = 0.1
+        server.register_function(self.ping, 'ping')
+        if is_gui:
+            server.register_function(self.run_gui, 'gui')
+        else:
+            server.register_function(self.run_daemon, 'daemon')
+            self.cmd_runner = Commands(self.config, None, self.network)
+            for cmdname in known_commands:
+                server.register_function(getattr(self.cmd_runner, cmdname), cmdname)
+            server.register_function(self.run_cmdline, 'run_cmdline')
 
     def ping(self):
         return True
@@ -175,12 +207,13 @@ class Daemon(DaemonThread):
     def run_gui(self, config_options):
         config = SimpleConfig(config_options)
         if self.gui:
-            if hasattr(self.gui, 'new_window'):
-                path = config.get_wallet_path()
-                self.gui.new_window(path, config.get('url'))
-                response = "ok"
-            else:
-                response = "error: current GUI does not support multiple windows"
+            #if hasattr(self.gui, 'new_window'):
+            #    path = config.get_wallet_path()
+            #    self.gui.new_window(path, config.get('url'))
+            #    response = "ok"
+            #else:
+            #    response = "error: current GUI does not support multiple windows"
+            response = "error: Electrum GUI already running"
         else:
             response = "Error: Electrum is running in daemon mode. Please stop the daemon first."
         return response
