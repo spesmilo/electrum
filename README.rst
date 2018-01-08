@@ -67,7 +67,7 @@ Compile the protobuf description file::
 
 Create translations (optional)::
 
-    sudo apt-get install python-pycurl gettext
+    sudo apt-get install python-requests gettext
     ./contrib/make_locale
 
 

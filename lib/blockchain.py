@@ -34,7 +34,7 @@ except ImportError:
     util.print_msg("Warning: package scrypt not available; synchronization could be very slow")
     from .scrypt import scrypt_1024_1_1_80 as getPoWHash
 
-MAX_TARGET = 0x00000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+MAX_TARGET = 0x00000FFFFF000000000000000000000000000000000000000000000000000000
 
 def serialize_header(res):
     s = int_to_hex(res.get('version'), 4) \
@@ -284,9 +284,9 @@ class Blockchain(util.PrintError):
     def get_target(self, index):
         # compute target from chunk x, used in chunk x+1
         if bitcoin.NetworkConstants.TESTNET:
-            return 0, 0
+            return 0
         if index == -1:
-            return 0x1e0ffff0, 0x00000FFFF0000000000000000000000000000000000000000000000000000000
+            return 0x00000FFFF0000000000000000000000000000000000000000000000000000000
         if index < len(self.checkpoints):
             h, t = self.checkpoints[index]
             return t
