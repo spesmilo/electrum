@@ -369,6 +369,19 @@ class Ledger_KeyStore(Hardware_KeyStore):
         tx.raw = tx.serialize()
         self.signing = False
 
+    def show_address(self, sequence):
+        self.signing = True
+        # prompt for the PIN before displaying the dialog if necessary
+        address_path = self.get_derivation()[2:] + "/%d/%d" % sequence
+        self.handler.show_message(_("Showing address ..."))
+        try:
+            self.get_client().getWalletPublicKey(address_path, showOnScreen=True)
+        except:
+            pass
+        finally:
+            self.handler.finished()
+        self.signing = False
+
 
 class LedgerPlugin(HW_PluginBase):
     libraries_available = BTCHIP
@@ -440,3 +453,7 @@ class LedgerPlugin(HW_PluginBase):
         if client is not None:
             client.checkDevice()
         return client
+
+    def show_address(self, wallet, address):
+        sequence = wallet.get_address_index(address)
+        wallet.get_keystore().show_address(sequence)
