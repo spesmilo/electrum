@@ -92,7 +92,7 @@ class SeedLayout(QVBoxLayout):
         self.options = options
         if title:
             self.addWidget(WWLabel(title))
-        self.seed_e = QTextEdit()
+        self.seed_e = ButtonsTextEdit()
         if seed:
             self.seed_e.setText(seed)
         else:
