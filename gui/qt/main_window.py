@@ -2263,13 +2263,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 if done:
                     break
                 privkey = self.wallet.export_private_key(addr, password)
-                private_keys[addr] = privkey
+                private_keys[addr.to_ui_string()] = privkey
                 self.computing_privkeys_signal.emit()
             self.computing_privkeys_signal.disconnect()
             self.show_privkeys_signal.emit()
 
         def show_privkeys():
-            s = "\n".join('{}\t{}'.format(addr.to_ui_string(), privkey)
+            s = "\n".join('{}\t{}'.format(addr, privkey)
                           for addr, privkey in private_keys.items())
             e.setText(s)
             b.setEnabled(True)
