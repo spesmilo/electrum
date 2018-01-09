@@ -521,7 +521,7 @@ class AddressScreen(CScreen):
         container.clear_widgets()
         n = 0
         for address in _list:
-            label = wallet.labels.get(address, '')
+            label = wallet.labels.get(address.to_storage_string(), '')
             balance = sum(wallet.get_addr_balance(address))
             is_used = wallet.is_used(address)
             if self.screen.show_used == 1 and (balance or is_used):

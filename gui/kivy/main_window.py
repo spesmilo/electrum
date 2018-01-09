@@ -342,7 +342,7 @@ class ElectrumWindow(App):
 
     def show_request(self, addr):
         self.switch_to('receive')
-        self.receive_screen.screen.address = addr
+        self.receive_screen.screen.address = addr.to_ui_string()
 
     def show_pr_details(self, req, status, is_invoice):
         from electroncash.util import format_time
@@ -354,7 +354,7 @@ class ElectrumWindow(App):
         popup = Builder.load_file('gui/kivy/uix/ui_screens/invoice.kv')
         popup.is_invoice = is_invoice
         popup.amount = amount
-        popup.requestor = requestor if is_invoice else req.get('address')
+        popup.requestor = requestor if is_invoice else req.get('address').to_ui_string()
         popup.exp = format_time(exp) if exp else ''
         popup.description = memo if memo else ''
         popup.signature = req.get('signature', '')
@@ -374,7 +374,7 @@ class ElectrumWindow(App):
         popup.isaddr = isaddr
         popup.is_invoice = False
         popup.status = status
-        popup.requestor = req.get('address')
+        popup.requestor = req.get('address').to_ui_string()
         popup.fund = fund if fund else 0
         popup.export = self.export_private_keys
         popup.open()
