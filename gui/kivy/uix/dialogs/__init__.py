@@ -209,7 +209,6 @@ class OutputList(Factory.GridLayout):
 
     def add_output(self, address, amount):
         b = Factory.OutputItem()
-        b.address = address
+        b.address = address.to_ui_string()
         b.value = self.app.format_amount_and_units(amount)
         self.add_widget(b)
-
