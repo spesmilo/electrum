@@ -21,6 +21,7 @@ from electroncash.util import profiler, format_time, InvalidPassword, NotEnoughF
 from electroncash import bitcoin
 from electroncash.util import timestamp_to_datetime
 from electroncash.web import create_URI, parse_URI
+from electroncash.address import Address
 from electroncash.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 
 from .context_menu import ContextMenu
@@ -313,7 +314,8 @@ class ReceiveScreen(CScreen):
         if not self.screen.address:
             self.get_new_address()
         else:
-            status = self.app.wallet.get_request_status(self.screen.address)
+            addr = Address.from_string(self.screen.address)
+            status = self.app.wallet.get_request_status(addr)
             self.screen.status = _('Payment received') if status == PR_PAID else ''
 
     def clear(self):
@@ -327,14 +329,15 @@ class ReceiveScreen(CScreen):
         self.clear()
         addr = self.app.wallet.get_unused_address()
         if addr is None:
-            addr = self.app.wallet.get_receiving_address().to_ui_string()
+            addr = self.app.wallet.get_receiving_address()
             b = False
         else:
             b = True
-        self.screen.address = addr
+        self.screen.address = addr.to_ui_string()
         return b
 
-    def on_address(self, addr):
+    def on_address(self, addr_text):
+        addr = Address.from_string(addr_text)
         req = self.app.wallet.get_payment_request(addr, self.app.electrum_config)
         self.screen.status = ''
         if req:
