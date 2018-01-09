@@ -180,7 +180,7 @@ class SendScreen(CScreen):
         try:
             uri = parse_URI(text, self.app.on_pr)
         except:
-            self.app.show_info(_("{} is not a BitcoinCash URI").format(text))
+            self.app.show_info(_("{} is not a BitcoinCash URI".format(text)))
             return
         amount = uri.get('amount')
         self.screen.address = uri.get('address', '')
@@ -356,7 +356,8 @@ class ReceiveScreen(CScreen):
             a, u = self.screen.amount.split()
             assert u == self.app.base_unit
             amount = Decimal(a) * pow(10, self.app.decimal_point())
-        return create_URI(self.screen.address, amount, self.screen.message)
+        addr = Address.from_string(self.screen.address)
+        return create_URI(addr, amount, self.screen.message)
 
     @profiler
     def update_qr(self):
