@@ -169,16 +169,14 @@ class PublicKey(namedtuple("PublicKeyTuple", "pubkey")):
         return cls.from_pubkey(hex_to_bytes(string))
 
     @classmethod
-    def validate(cls, pubkey, req_compressed=False):
+    def validate(cls, pubkey):
         if not isinstance(pubkey, (bytes, bytearray)):
             raise TypeError('pubkey must be of bytes type, not {}'
                             .format(type(pubkey)))
         if len(pubkey) == 33 and pubkey[0] in (2, 3):
             return  # Compressed
         if len(pubkey) == 65 and pubkey[0] == 4:
-            if not req_compressed:
-                return
-            raise AddressError('compressed public keys are required')
+            return  # Uncompressed
         raise AddressError('invalid pubkey {}'.format(pubkey))
 
     @cachedproperty
@@ -485,7 +483,7 @@ class Script(object):
             raise ScriptError('{:d} of {:d} multisig script not possible'
                               .format(m, n))
         for pubkey in pubkeys:
-            PublicKey.validate(pubkey, req_compressed=True)
+            PublicKey.validate(pubkey)   # Can be compressed or not
         # See https://bitcoin.org/en/developer-guide
         # 2 of 3 is: OP_2 pubkey1 pubkey2 pubkey3 OP_3 OP_CHECKMULTISIG
         return (bytes([OpCodes.OP_1 + m - 1])
