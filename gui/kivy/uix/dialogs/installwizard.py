@@ -566,7 +566,6 @@ class RestoreSeedDialog(WizardDialog):
         self.message = _('Please type your seed phrase using the virtual keyboard.')
         self.title = _('Enter Seed')
         self.ext = False
-        self.is_bip39_145=False
 
     def options_dialog(self):
         from .seed_options import SeedOptionsDialog
@@ -667,7 +666,7 @@ class RestoreSeedDialog(WizardDialog):
             tis.focus = False
 
     def get_params(self, b):
-        return (self.get_text(), False, self.ext, self.is_bip39_145)
+        return (self.get_text(), False, self.ext)
 
 
 class ConfirmSeedDialog(RestoreSeedDialog):
