@@ -1,3 +1,6 @@
+# Release 3.1.2
+  * Additional security improvements related to JSONRPC
+
 # Release 3.1.1
   * Requires Python 3.5 or greater
   * Fixes JSONPRC security threat
