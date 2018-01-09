@@ -486,7 +486,7 @@ class AddressScreen(CScreen):
         if ci is None:
             ci = Factory.AddressItem()
             ci.screen = self
-            ci.address = addr
+            ci.address = addr.to_ui_string()
             self.cards[addr] = ci
 
         ci.memo = label
@@ -540,12 +540,14 @@ class AddressScreen(CScreen):
             container.add_widget(EmptyLabel(text=msg))
 
     def do_show(self, obj):
-        self.app.show_request(obj.address)
+        addr = Address.from_string(obj.address)
+        self.app.show_request(addr)
 
     def do_view(self, obj):
-        req = self.app.wallet.get_payment_request(obj.address, self.app.electrum_config)
+        addr = Address.from_string(obj.address)
+        req = self.app.wallet.get_payment_request(addr, self.app.electrum_config)
         if req:
-            c, u, x = self.app.wallet.get_addr_balance(obj.address)
+            c, u, x = self.app.wallet.get_addr_balance(addr)
             balance = c + u + x
             if balance > 0:
                 req['fund'] = balance
@@ -559,11 +561,10 @@ class AddressScreen(CScreen):
                 received_amount = self.app.wallet.get_addr_received(address)
                 status = self.app.format_amount_and_units(received_amount)
             self.app.show_pr_details(req, status, False)
-
         else:
-            req = { 'address': obj.address, 'status' : obj.status }
+            req = { 'address': addr, 'status' : obj.status }
             status = obj.status
-            c, u, x = self.app.wallet.get_addr_balance(obj.address)
+            c, u, x = self.app.wallet.get_addr_balance(addr)
             balance = c + u + x
             if balance > 0:
                 req['fund'] = balance
@@ -573,7 +574,8 @@ class AddressScreen(CScreen):
         from .dialogs.question import Question
         def cb(result):
             if result:
-                self.app.wallet.remove_payment_request(obj.address, self.app.electrum_config)
+                addr = Address.from_string(obj.address)
+                self.app.wallet.remove_payment_request(addr, self.app.electrum_config)
                 self.update()
         d = Question(_('Delete request?'), cb)
         d.open()
