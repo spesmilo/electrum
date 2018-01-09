@@ -29,6 +29,9 @@ MSG_NEEDS_FW_UPDATE_GENERIC = _('Firmware version too old. Please update at') + 
                       ' https://www.ledgerwallet.com'
 MSG_NEEDS_FW_UPDATE_SEGWIT = _('Firmware version (or "Bitcoin" app) too old for Segwit support. Please update at') + \
                       ' https://www.ledgerwallet.com'
+MULTI_OUTPUT_SUPPORT = '1.1.4'
+SEGWIT_SUPPORT = '1.1.10'
+SEGWIT_SUPPORT_SPECIAL = '1.0.4'
 
 
 class Ledger_Client():
@@ -53,6 +56,9 @@ class Ledger_Client():
 
     def i4b(self, x):
         return pack('>I', x)
+
+    def versiontuple(self, v):
+        return tuple(map(int, (v.split("."))))
 
     def get_xpub(self, bip32_path, xtype):
         self.checkDevice()
@@ -118,12 +124,12 @@ class Ledger_Client():
     def perform_hw1_preflight(self):
         try:
             firmwareInfo = self.dongleObject.getFirmwareVersion()
-            firmware = firmwareInfo['version'].split(".")
-            self.multiOutputSupported = int(firmware[0]) >= 1 and int(firmware[1]) >= 1 and int(firmware[2]) >= 4
-            self.segwitSupported = (int(firmware[0]) >= 1 and int(firmware[1]) >= 1 and int(firmware[2]) >= 10) or (firmwareInfo['specialVersion'] == 0x20 and int(firmware[0]) == 1 and int(firmware[1]) == 0 and int(firmware[2]) >= 4)
-            self.nativeSegwitSupported = int(firmware[0]) >= 1 and int(firmware[1]) >= 1 and int(firmware[2]) >= 10
+            firmware = firmwareInfo['version']
+            self.multiOutputSupported = self.versiontuple(firmware) >= self.versiontuple(MULTI_OUTPUT_SUPPORT)
+            self.nativeSegwitSupported = self.versiontuple(firmware) >= self.versiontuple(SEGWIT_SUPPORT)
+            self.segwitSupported = self.nativeSegwitSupported or (firmwareInfo['specialVersion'] == 0x20 and self.versiontuple(firmware) >= self.versiontuple(SEGWIT_SUPPORT_SPECIAL))
 
-            if not checkFirmware(firmware):
+            if not checkFirmware(firmwareInfo):
                 self.dongleObject.dongle.close()
                 raise Exception(MSG_NEEDS_FW_UPDATE_GENERIC)
             try:
