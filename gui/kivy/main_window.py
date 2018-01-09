@@ -7,6 +7,7 @@ import traceback
 from decimal import Decimal
 import threading
 
+from electroncash.address import Address
 from electroncash.bitcoin import TYPE_ADDRESS
 from electroncash import WalletStorage, Wallet
 from electroncash_gui.kivy.i18n import _
@@ -931,6 +932,7 @@ class ElectrumWindow(App):
                 return
             if not self.wallet.can_export():
                 return
+            addr = Address.from_string(addr)
             key = self.wallet.export_private_key(addr, password)
             pk_label.data = key
         self.protected(_("Enter your PIN code in order to decrypt your private key"), show_private_key, (addr, pk_label))
