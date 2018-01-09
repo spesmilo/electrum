@@ -180,7 +180,7 @@ class SendScreen(CScreen):
         try:
             uri = parse_URI(text, self.app.on_pr)
         except:
-            self.app.show_info(_("Not a Bitcoin URI"))
+            self.app.show_info(_("{} is not a BitcoinCash URI").format(text))
             return
         amount = uri.get('amount')
         self.screen.address = uri.get('address', '')
