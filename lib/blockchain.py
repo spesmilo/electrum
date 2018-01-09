@@ -276,10 +276,17 @@ class Blockchain(util.PrintError):
         elif height < len(self.checkpoints) * 2016:
             assert (height+1) % 2016 == 0
             index = height // 2016
-            h, t = self.checkpoints[index]
+            h, t, _ = self.checkpoints[index]
             return h
         else:
             return hash_header(self.read_header(height))
+
+    def get_timestamp(self, height):
+        if height < len(self.checkpoints) * 2016 and (height+1) % 2016 == 0:
+            index = height // 2016
+            _, _, ts = self.checkpoints[index]
+            return ts
+        return self.read_header(height).get('timestamp')
 
     def get_target(self, index):
         # compute target from chunk x, used in chunk x+1
@@ -288,15 +295,15 @@ class Blockchain(util.PrintError):
         if index == -1:
             return 0x00000FFFF0000000000000000000000000000000000000000000000000000000
         if index < len(self.checkpoints):
-            h, t = self.checkpoints[index]
+            h, t, _ = self.checkpoints[index]
             return t
         # new target
         # Litecoin: go back the full period unless it's the first retarget
-        first = self.read_header(index * 2016 - 1 if index > 0 else 0)
+        first_timestamp = self.get_timestamp(index * 2016 - 1 if index > 0 else 0)
         last = self.read_header(index * 2016 + 2015)
         bits = last.get('bits')
         target = self.bits_to_target(bits)
-        nActualTimespan = last.get('timestamp') - first.get('timestamp')
+        nActualTimespan = last.get('timestamp') - first_timestamp
         nTargetTimespan = 84 * 60 * 60
         nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
         nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
@@ -360,5 +367,7 @@ class Blockchain(util.PrintError):
         for index in range(n):
             h = self.get_hash((index+1) * 2016 -1)
             target = self.get_target(index)
-            cp.append((h, target))
+            # Litecoin: also store the timestamp of the last block
+            tstamp = self.get_timestamp((index+1) * 2016 - 1)
+            cp.append((h, target, tstamp))
         return cp
