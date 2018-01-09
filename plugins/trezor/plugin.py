@@ -319,7 +319,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                 addrtype, hash_160 = b58_address_to_hash160(address)
                 index, xpubs, m = info
                 if len(xpubs) == 1:
-                    script_type = self.types.PAYTOP2SHWITNESS if segwit else self.types.PAYTOADDRESS
+                    script_type = self.types.OutputScriptType.PAYTOP2SHWITNESS if segwit else self.types.OutputScriptType.PAYTOADDRESS
                     address_n = self.client_class.expand_path(derivation + "/%d/%d"%index)
                     txoutputtype = self.types.TxOutputType(
                         amount = amount,
