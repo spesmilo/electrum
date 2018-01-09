@@ -219,7 +219,8 @@ class SendScreen(CScreen):
             return
         # save address as invoice
         from electroncash.paymentrequest import make_unsigned_request, PaymentRequest
-        req = {'address':self.screen.address, 'memo':self.screen.message}
+        addr = Address.from_string(self.screen.address)
+        req = {'address': addr, 'memo':self.screen.message}
         amount = self.app.get_amount(self.screen.amount) if self.screen.amount else 0
         req['amount'] = amount
         pr = make_unsigned_request(req).SerializeToString()
@@ -252,7 +253,7 @@ class SendScreen(CScreen):
             if not address:
                 self.app.show_error(_('Recipient not specified.') + ' ' + _('Please scan a Bitcoin address or a payment request'))
                 return
-            if not bitcoin.is_address(address):
+            if not Address.is_valid(address):
                 self.app.show_error(_('Invalid Bitcoin Address') + ':\n' + address)
                 return
             try:
@@ -260,7 +261,8 @@ class SendScreen(CScreen):
             except:
                 self.app.show_error(_('Invalid amount') + ':\n' + self.screen.amount)
                 return
-            outputs = [(bitcoin.TYPE_ADDRESS, address, amount)]
+            outputs = [(bitcoin.TYPE_ADDRESS, Address.from_string(address),
+                        amount)]
         message = self.screen.message
         amount = sum(map(lambda x:x[2], outputs))
         self._do_send(amount, message, outputs)
