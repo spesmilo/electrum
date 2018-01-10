@@ -438,15 +438,21 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
     def show_address(self, sequence, txin_type):
         self.signing = True
-        # prompt for the PIN before displaying the dialog if necessary
         client = self.get_client()
         address_path = self.get_derivation()[2:] + "/%d/%d"%sequence
         self.handler.show_message(_("Showing address ..."))
-        segwit = txin_type in ['p2wpkh', 'p2wsh', 'p2wpkh-p2sh', 'p2wsh-p2sh']
+        segwit = Transaction.is_segwit_inputtype(txin_type)
         try:
-            self.get_client().getWalletPublicKey(address_path, showOnScreen=True, segwit=segwit)
-        except:
-            pass
+            client.getWalletPublicKey(address_path, showOnScreen=True, segwit=segwit)
+        except BTChipException as e:
+            if e.sw == 0x6985:  # cancelled by user
+                pass
+            else:
+                traceback.print_exc(file=sys.stderr)
+                self.handler.show_error(e)
+        except BaseException as e:
+            traceback.print_exc(file=sys.stderr)
+            self.handler.show_error(e)
         finally:
             self.handler.finished()
         self.signing = False

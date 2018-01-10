@@ -20,7 +20,6 @@ class Plugin(LedgerPlugin, QtPluginBase):
 
     @hook
     def receive_menu(self, menu, addrs, wallet):
-        print('receive_menu')
         if type(wallet) is not Standard_Wallet:
             return
         keystore = wallet.get_keystore()
