@@ -2164,6 +2164,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message(_("This is a watching-only wallet"))
             return
 
+        if isinstance(self.wallet, Multisig_Wallet):
+            self.show_message(_('WARNING: This is a multi-signature wallet.') + '\n' +
+                              _('It can not be "backed up" by simply exporting these private keys.'))
+
         d = WindowModalDialog(self, _('Private keys'))
         d.setMinimumSize(850, 300)
         vbox = QVBoxLayout(d)
