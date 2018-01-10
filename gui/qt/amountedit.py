@@ -93,7 +93,7 @@ class BTCAmountEdit(AmountEdit):
         except:
             return None
         p = pow(10, self.decimal_point())
-        return int( p * x )
+        return int( p * x ) if x > 0 else None
 
     def setAmount(self, amount):
         if amount is None:

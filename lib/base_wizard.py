@@ -139,6 +139,7 @@ class BaseWizard(object):
         if keystore.is_address_list(text):
             self.wallet = ImportedAddressWallet.from_text(self.storage, text)
         elif keystore.is_private_key_list(text):
+
             self.wallet = ImportedPrivkeyWallet.from_text(self.storage, text,
                                                           None)
             self.keystores = self.wallet.get_keystores()
@@ -352,6 +353,8 @@ class BaseWizard(object):
             self.storage.write()
             self.wallet = Multisig_Wallet(self.storage)
             self.run('create_addresses')
+        elif self.wallet_type == 'imported':
+            self.wallet.save_keystore()
 
     def show_xpub_and_add_cosigners(self, xpub):
         self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('choose_keystore'))
