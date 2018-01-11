@@ -3,7 +3,7 @@
 # (str) Title of your application
 title = Electron-Cash
 
-# (str) Package name
+# (str) Package Name
 package.name = ElectronCash3
 
 # (str) Package domain (needed for android/ios packaging)
