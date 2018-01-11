@@ -79,6 +79,13 @@ Builder.load_string('''
                     description: _("Send your change to separate addresses.")
                     message: _('Send excess coins to change addresses')
                     action: partial(root.boolean_dialog, 'use_change', _('Use change addresses'), self.message)
+                CardSeparator
+                SettingsItem:
+                    status: _('Yes') if app.use_cashaddr else _('No')
+                    title: _('CashAddr address format') + ': ' + self.status
+                    description: _("Use CashAddr address format.")
+                    message: _('Use CashAddr format.')
+                    action: partial(root.cashaddr_dialog, 'use_cashaddr', _('CashAddr adresses format'), self.message)
 ''')
 
 
@@ -89,6 +96,7 @@ class SettingsDialog(Factory.Popup):
         self.app = app
         self.plugins = self.app.plugins
         self.config = self.app.electrum_config
+         
         Factory.Popup.__init__(self)
         layout = self.ids.scrollviewlayout
         layout.bind(minimum_height=layout.setter('height'))
@@ -97,7 +105,7 @@ class SettingsDialog(Factory.Popup):
         self._fee_dialog = None
         self._proxy_dialog = None
         self._language_dialog = None
-        self._unit_dialog = None
+        self._unit_dialog = None 
 
     def update(self):
         self.wallet = self.app.wallet
@@ -171,10 +179,7 @@ class SettingsDialog(Factory.Popup):
         d.open()
 
     def fee_status(self):
-        if self.config.get('dynamic_fees', True):
-            return fee_levels[self.config.get('fee_level', 2)]
-        else:
-            return self.app.format_amount_and_units(self.config.fee_per_kb()) + '/kB'
+        return self.app.format_amount_and_units_fees(self.config.fee_per_kb()) + '/byte'
 
     def fee_dialog(self, label, dt):
         if self._fee_dialog is None:
@@ -188,6 +193,11 @@ class SettingsDialog(Factory.Popup):
         from .checkbox_dialog import CheckBoxDialog
         CheckBoxDialog(title, message, getattr(self.app, name), lambda x: setattr(self.app, name, x)).open()
 
+
+    def cashaddr_dialog(self, name, title, message, dt):
+        from .checkbox_dialog import CheckBoxDialog
+        CheckBoxDialog(title, message, getattr(self.app, name), lambda x: setattr(self.app, name, x)).open()
+       
     def fx_status(self):
         fx = self.app.fx
         if fx.is_enabled():

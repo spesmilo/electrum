@@ -25,14 +25,7 @@ Builder.load_string('''
             range: 0, 4
             step: 1
             on_value: root.on_slider(self.value)
-        BoxLayout:
-            orientation: 'horizontal'
-            size_hint: 1, 0.5
-            Label:
-                text: _('Dynamic Fees')
-            CheckBox:
-                id: dynfees
-                on_active: root.on_checkbox(self.active)
+         
         Widget:
             size_hint: 1, 1
         BoxLayout:
@@ -60,8 +53,6 @@ class FeeDialog(Factory.Popup):
         self.config = config
         self.fee_rate = self.config.fee_per_kb()
         self.callback = callback
-        self.dynfees = self.config.get('dynamic_fees', True)
-        self.ids.dynfees.active = self.dynfees
         self.update_slider()
         self.update_text()
 
@@ -71,42 +62,20 @@ class FeeDialog(Factory.Popup):
 
     def update_slider(self):
         slider = self.ids.slider
-        if self.dynfees:
-            slider.range = (0, 4)
-            slider.step = 1
-            slider.value = self.config.get('fee_level', 2)
-        else:
-            slider.range = (0, 9)
-            slider.step = 1
-            slider.value = self.config.static_fee_index(self.fee_rate)
+        slider.range = (0, 9)
+        slider.step = 1
+        slider.value = self.config.static_fee_index(self.fee_rate)
 
     def get_fee_text(self, value):
-        if self.ids.dynfees.active:
-            tooltip = fee_levels[value]
-            if self.config.has_fee_estimates():
-                dynfee = self.config.dynfee(value)
-                tooltip += '\n' + (self.app.format_amount_and_units(dynfee)) + '/kB'
-        else:
             fee_rate = self.config.static_fee(value)
-            tooltip = self.app.format_amount_and_units(fee_rate) + '/kB'
-            if self.config.has_fee_estimates():
-                i = self.config.reverse_dynfee(fee_rate)
-                tooltip += '\n' + (_('low fee') if i < 0 else 'Within %d blocks'%i)
-        return tooltip
+            tooltip = self.app.format_amount_and_units_fees(fee_rate) + '/byte'
+            return tooltip
 
     def on_ok(self):
         value = int(self.ids.slider.value)
-        self.config.set_key('dynamic_fees', self.dynfees, False)
-        if self.dynfees:
-            self.config.set_key('fee_level', value, True)
-        else:
-            self.config.set_key('fee_per_kb', self.config.static_fee(value), True)
+        self.config.set_key('fee_per_kb', self.config.static_fee(value), True)
         self.callback()
 
     def on_slider(self, value):
         self.update_text()
-
-    def on_checkbox(self, b):
-        self.dynfees = b
-        self.update_slider()
-        self.update_text()
+ 

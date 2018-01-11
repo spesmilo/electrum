@@ -72,6 +72,8 @@ Label.register('Roboto',
 from electroncash.util import base_units
 
 
+
+
 class ElectrumWindow(App):
 
     electrum_config = ObjectProperty(None)
@@ -119,6 +121,12 @@ class ElectrumWindow(App):
     use_change = BooleanProperty(False)
     def on_use_change(self, instance, x):
         self.electrum_config.set_key('use_change', self.use_change, True)
+
+    
+    use_cashaddr = BooleanProperty(False)
+    def on_use_cashaddr(self, instance, x): 
+        self.electrum_config.set_key('use_cashaddr', self.use_cashaddr, True)
+        Address.show_cashaddr(self.use_cashaddr)
 
     use_unconfirmed = BooleanProperty(False)
     def on_use_unconfirmed(self, instance, x):
@@ -238,7 +246,7 @@ class ElectrumWindow(App):
 
         App.__init__(self)#, **kwargs)
 
-        title = _('Electrum App')
+        title = _('Electron-Cash App')
         self.electrum_config = config = kwargs.get('config', None)
         self.language = config.get('language', 'en')
         self.network = network = kwargs.get('network', None)
@@ -257,6 +265,7 @@ class ElectrumWindow(App):
         self.fx = self.daemon.fx
 
         self.use_change = config.get('use_change', True)
+        self.use_cashaddr = config.get('use_cashaddr', True)
         self.use_unconfirmed = not config.get('confirmed_only', False)
 
         # create triggers so as to minimize updation a max of 2 times a sec
@@ -660,6 +669,9 @@ class ElectrumWindow(App):
 
     def format_amount_and_units(self, x):
         return format_satoshis_plain(x, self.decimal_point()) + ' ' + self.base_unit
+
+    def format_amount_and_units_fees(self, x):
+        return format_satoshis_plain(x, 3) + ' sats'
 
     #@profiler
     def update_wallet(self, *dt):
