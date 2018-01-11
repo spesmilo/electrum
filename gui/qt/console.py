@@ -7,6 +7,7 @@ from PyQt5 import QtCore
 from PyQt5 import QtGui
 from PyQt5 import QtWidgets
 from electrum import util
+from electrum.i18n import _
 
 
 if platform.system() == 'Windows':
@@ -15,6 +16,33 @@ elif platform.system() == 'Darwin':
     MONOSPACE_FONT = 'Monaco'
 else:
     MONOSPACE_FONT = 'monospace'
+
+
+class OverlayLabel(QtWidgets.QLabel):
+    STYLESHEET = '''
+    QLabel, QLabel link {
+        color: rgb(0, 0, 0);
+        background-color: rgb(248, 240, 200);
+        border: 1px solid;
+        border-color: rgb(255, 114, 47);
+        padding: 2px;
+    }
+    '''
+    def __init__(self, text, parent):
+        super().__init__(text, parent)
+        self.setMinimumHeight(150)
+        self.setGeometry(0, 0, self.width(), self.height())
+        self.setStyleSheet(self.STYLESHEET)
+        self.setMargin(0)
+        parent.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.setWordWrap(True)
+
+    def mousePressEvent(self, e):
+        self.hide()
+
+    def on_resize(self, w):
+        padding = 2  # px, from the stylesheet above
+        self.setFixedWidth(w - padding)
 
 
 class Console(QtWidgets.QPlainTextEdit):
@@ -34,6 +62,18 @@ class Console(QtWidgets.QPlainTextEdit):
 
         self.updateNamespace({'run':self.run_script})
         self.set_json(False)
+
+        warning_text = "<h1>{}</h1><br>{}<br><br>{}".format(
+            _("Warning!"),
+            _("Do not paste code here that you don't understand. Executing the wrong code could lead "
+              "to your coins being irreversibly lost."),
+            _("Click here to hide this message.")
+        )
+        self.messageOverlay = OverlayLabel(warning_text, self)
+
+    def resizeEvent(self, e):
+        self.messageOverlay.on_resize(self.width() - self.verticalScrollBar().width())
+
 
     def set_json(self, b):
         self.is_json = b
