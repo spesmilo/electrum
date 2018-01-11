@@ -28,11 +28,10 @@ source.exclude_patterns = Makefile,setup*
 #version.filename = %(source.dir)s/contrib/versions.py
 
 # (str) Application versioning (method 2)
-version = 2.9.4
+version = 3.1.2
 
 # (list) Application requirements
-requirements = python3crystax, android, openssl, plyer, kivy==master
-
+requirements = python3crystax, android, openssl, plyer, kivy==32b0ffc7390bf3e19b3c3e8eb5d2d83a210d9684
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
 presplash.filename = %(source.dir)s/icons/electron_presplash.png
@@ -70,7 +69,7 @@ android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE, C
 android.private_storage = True
 
 # (str) Android NDK directory (if empty, it will be automatically downloaded.)
-android.ndk_path = /opt/crystax-ndk-10.3.2
+android.ndk_path = /home/ubuntu/Downloads/crystax-ndk-10.3.2
 
 # (str) Android SDK directory (if empty, it will be automatically downloaded.)
 #android.sdk_path =
@@ -121,11 +120,16 @@ android.manifest.intent_filters = gui/kivy/tools/bitcoin_intent.xml
 # project.properties automatically.)
 #android.library_references =
 
-android.whitelist = lib-dynload/_csv.so
+# HASHLIB ADDED FOR NO WALLET BUG, THIS WORKAROUND ALSO INVOLVES ADDING
+# a #hashlib section to crystax in the build/tools/build-target-python.sh
+# similar to the ssl section.
+
+# 
+#android.whitelist = lib-dynload/_csv.so 
+android.whitelist = lib-dynload/_csv.so , lib-dynload/_hashlib.so
 
 # local version that merges branch 866
-p4a.source_dir = /opt/python-for-android
-
+p4a.source_dir = /home/ubuntu/Downloads/python-for-android
 #
 # iOS specific
 #
