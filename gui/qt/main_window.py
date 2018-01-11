@@ -2193,25 +2193,38 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         private_keys = {}
         addresses = self.wallet.get_addresses()
         done = False
+        cancelled = False
         def privkeys_thread():
             for addr in addresses:
                 time.sleep(0.1)
-                if done:
+                if done or cancelled:
                     break
                 privkey = self.wallet.export_private_key(addr, password)[0]
                 private_keys[addr] = privkey
                 self.computing_privkeys_signal.emit()
-            self.computing_privkeys_signal.disconnect()
-            self.show_privkeys_signal.emit()
+            if not cancelled:
+                self.computing_privkeys_signal.disconnect()
+                self.show_privkeys_signal.emit()
 
         def show_privkeys():
             s = "\n".join( map( lambda x: x[0] + "\t"+ x[1], private_keys.items()))
             e.setText(s)
             b.setEnabled(True)
             self.show_privkeys_signal.disconnect()
+            nonlocal done
+            done = True
+
+        def on_dialog_closed(*args):
+            nonlocal done
+            nonlocal cancelled
+            if not done:
+                cancelled = True
+                self.computing_privkeys_signal.disconnect()
+                self.show_privkeys_signal.disconnect()
 
         self.computing_privkeys_signal.connect(lambda: e.setText("Please wait... %d/%d"%(len(private_keys),len(addresses))))
         self.show_privkeys_signal.connect(show_privkeys)
+        d.finished.connect(on_dialog_closed)
         threading.Thread(target=privkeys_thread).start()
 
         if not d.exec_():
