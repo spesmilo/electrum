@@ -26,6 +26,9 @@
 import os
 import sys
 
+if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 5):
+    raise BaseException("Must be using Python 3.5 or higher")
+
 # from https://gist.github.com/tito/09c42fb4767721dc323d
 import threading
 try:
