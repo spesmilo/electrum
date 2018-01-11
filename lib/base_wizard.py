@@ -31,6 +31,9 @@ from .wallet import Imported_Wallet, Standard_Wallet, Multisig_Wallet, wallet_ty
 from .i18n import _
 
 
+class ScriptTypeNotSupported(Exception): pass
+
+
 class BaseWizard(object):
 
     def __init__(self, config, storage):
@@ -232,24 +235,36 @@ class BaseWizard(object):
             self.derivation_dialog(f)
 
     def derivation_dialog(self, f):
-        default = bip44_derivation(0, False)
+        default = bip44_derivation(0, bip43_purpose=44)
         message = '\n'.join([
             _('Enter your wallet derivation here.'),
             _('If you are not sure what this is, leave this field unchanged.')
         ])
         presets = (
-            ('legacy BIP44', bip44_derivation(0, False)),
-            ('p2sh-segwit BIP49', bip44_derivation(0, True)),
+            ('legacy BIP44', bip44_derivation(0, bip43_purpose=44)),
+            ('p2sh-segwit BIP49', bip44_derivation(0, bip43_purpose=49)),
+            ('native-segwit BIP84', bip44_derivation(0, bip43_purpose=84)),
         )
-        self.line_dialog(run_next=f, title=_('Derivation'), message=message,
-                         default=default, test=bitcoin.is_bip32_derivation,
-                         presets=presets)
+        while True:
+            try:
+                self.line_dialog(run_next=f, title=_('Derivation'), message=message,
+                                 default=default, test=bitcoin.is_bip32_derivation,
+                                 presets=presets)
+                return
+            except ScriptTypeNotSupported as e:
+                self.show_error(e)
+                # let the user choose again
 
     def on_hw_derivation(self, name, device_info, derivation):
         from .keystore import hardware_keystore
-        xtype = 'p2wpkh-p2sh' if derivation.startswith("m/49'/") else 'standard'
+        xtype = keystore.xtype_from_derivation(derivation)
+        if xtype not in ('standard', 'p2wpkh-p2sh'):
+            self.show_error(_('Hardware wallet support for this script type is not yet enabled.'))
+            return
         try:
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, xtype, self)
+        except ScriptTypeNotSupported:
+            raise  # this is handled in derivation_dialog
         except BaseException as e:
             self.show_error(e)
             return

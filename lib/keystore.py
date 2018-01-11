@@ -571,9 +571,20 @@ def bip39_is_checksum_valid(mnemonic):
 def from_bip39_seed(seed, passphrase, derivation):
     k = BIP32_KeyStore({})
     bip32_seed = bip39_to_seed(seed, passphrase)
-    t = 'p2wpkh-p2sh' if derivation.startswith("m/49'") else 'standard'  # bip43
-    k.add_xprv_from_seed(bip32_seed, t, derivation)
+    xtype = xtype_from_derivation(derivation)
+    k.add_xprv_from_seed(bip32_seed, xtype, derivation)
     return k
+
+
+def xtype_from_derivation(derivation):
+    """Returns the script type to be used for this derivation."""
+    if derivation.startswith("m/84'"):
+        return 'p2wpkh'
+    elif derivation.startswith("m/49'"):
+        return 'p2wpkh-p2sh'
+    else:
+        return 'standard'
+
 
 # extended pubkeys
 
@@ -671,10 +682,9 @@ is_private_key = lambda x: is_xprv(x) or is_private_key_list(x)
 is_bip32_key = lambda x: is_xprv(x) or is_xpub(x)
 
 
-def bip44_derivation(account_id, segwit=False):
-    bip  = 49 if segwit else 44
+def bip44_derivation(account_id, bip43_purpose=44):
     coin = 1 if bitcoin.NetworkConstants.TESTNET else 2
-    return "m/%d'/%d'/%d'" % (bip, coin, int(account_id))
+    return "m/%d'/%d'/%d'" % (bip43_purpose, coin, int(account_id))
 
 def from_seed(seed, passphrase, is_p2sh):
     t = seed_type(seed)
