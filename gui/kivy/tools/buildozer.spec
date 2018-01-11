@@ -4,7 +4,7 @@
 title = Electron-Cash
 
 # (str) Package name
-package.name = ElectronCash
+package.name = ElectronCash3
 
 # (str) Package domain (needed for android/ios packaging)
 package.domain = org.electroncash
