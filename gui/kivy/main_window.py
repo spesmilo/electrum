@@ -122,9 +122,9 @@ class ElectrumWindow(App):
     def on_use_change(self, instance, x):
         self.electrum_config.set_key('use_change', self.use_change, True)
 
-    
+
     use_cashaddr = BooleanProperty(False)
-    def on_use_cashaddr(self, instance, x): 
+    def on_use_cashaddr(self, instance, x):
         self.electrum_config.set_key('use_cashaddr', self.use_cashaddr, True)
         Address.show_cashaddr(self.use_cashaddr)
 
@@ -300,9 +300,9 @@ class ElectrumWindow(App):
             self.send_screen.do_clear()
 
     def on_qr(self, data):
-        from electroncash.bitcoin import base_decode, is_address
+        from electroncash.bitcoin import base_decode
         data = data.strip()
-        if is_address(data):
+        if Address.is_valid(data):
             self.set_URI(data)
             return
         if data.startswith('bitcoincash:'):

@@ -41,7 +41,7 @@ from electroncash.util import bh2u, bfh
 
 from electroncash import keystore
 from electroncash.address import Address
-from electroncash.bitcoin import COIN, is_address, TYPE_ADDRESS
+from electroncash.bitcoin import COIN, TYPE_ADDRESS
 from electroncash.networks import NetworkConstants
 from electroncash.plugins import run_hook
 from electroncash.i18n import _
@@ -1695,7 +1695,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.payto_e.setFocus()
 
     def set_contact(self, label, address):
-        if not is_address(address):
+        if not Address.is_valid(address):
             self.show_error(_('Invalid Address'))
             self.contact_list.update()  # Displays original unchanged value
             return False
@@ -2020,7 +2020,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def do_verify(self, address, message, signature):
         address  = address.text().strip()
         message = message.toPlainText().strip().encode('utf-8')
-        if not bitcoin.is_address(address):
+        if not Address.is_valid(address):
             self.show_message(_('Invalid Bitcoin Cash address.'))
             return
         try:

@@ -36,7 +36,8 @@ from decimal import Decimal
 from .import util
 from .util import bfh, bh2u, format_satoshis
 from .import bitcoin
-from .bitcoin import is_address,  hash_160, COIN, TYPE_ADDRESS
+from .address import Address
+from .bitcoin import hash_160, COIN, TYPE_ADDRESS
 from .i18n import _
 from .transaction import Transaction, multisig_script
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
@@ -295,7 +296,7 @@ class Commands:
     @command('')
     def validateaddress(self, address):
         """Check that an address is valid. """
-        return is_address(address)
+        return Address.is_valid(address)
 
     @command('w')
     def getpubkeys(self, address):

@@ -7,10 +7,10 @@ from lib.bitcoin import (
     generator_secp256k1, point_to_ser, public_key_to_p2pkh, EC_KEY,
     bip32_root, bip32_public_derivation, bip32_private_derivation, pw_encode,
     pw_decode, Hash, public_key_from_private_key, address_from_private_key,
-    is_address, is_private_key, xpub_from_xprv, is_new_seed, is_old_seed,
+    is_private_key, xpub_from_xprv, is_new_seed, is_old_seed,
     var_int, op_push, address_to_script, regenerate_key,
     verify_message, deserialize_privkey, serialize_privkey,
-    is_b58_address, address_to_scripthash, is_minikey, is_compressed, is_xpub,
+    address_to_scripthash, is_minikey, is_compressed, is_xpub,
     xpub_type, is_xprv, is_bip32_derivation, seed_type)
 from lib.networks import NetworkConstants
 from lib.util import bfh
@@ -292,21 +292,6 @@ class Test_keyImport(unittest.TestCase):
         for priv_details in self.priv_pub_addr:
             addr2 = address_from_private_key(priv_details['priv'])
             self.assertEqual(priv_details['address'], addr2)
-
-    def test_is_valid_address(self):
-        for priv_details in self.priv_pub_addr:
-            addr = priv_details['address']
-            self.assertFalse(is_address(priv_details['priv']))
-            self.assertFalse(is_address(priv_details['pub']))
-            self.assertTrue(is_address(addr))
-
-            is_enc_b58 = priv_details['addr_encoding'] == 'base58'
-            self.assertEqual(is_enc_b58, is_b58_address(addr))
-
-            is_enc_bech32 = priv_details['addr_encoding'] == 'bech32'
-            self.assertEqual(is_enc_bech32, False)
-
-        self.assertFalse(is_address("not an address"))
 
     def test_is_private_key(self):
         for priv_details in self.priv_pub_addr:

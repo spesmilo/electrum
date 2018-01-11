@@ -4,8 +4,9 @@ from decimal import Decimal
 import getpass
 
 import electrum
+from electroncash.address import Address
 from electroncash.util import format_satoshis, set_verbosity
-from electroncash.bitcoin import is_address, COIN, TYPE_ADDRESS
+from electroncash.bitcoin import COIN, TYPE_ADDRESS
 from electroncash import Wallet, WalletStorage
 
 _ = lambda x:x
@@ -319,7 +320,7 @@ class ElectrumGui:
         self.str_description = ''
 
     def do_send(self):
-        if not is_address(self.str_recipient):
+        if not Address.is_valid(self.str_recipient):
             self.show_message(_('Invalid Bitcoin address'))
             return
         try:

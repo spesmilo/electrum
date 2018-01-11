@@ -24,7 +24,7 @@ import re
 import dns
 import json
 
-from . import bitcoin
+from .address import Address
 from . import dnssec
 
 
@@ -40,7 +40,7 @@ class Contacts(dict):
         # backward compatibility
         for k, v in self.items():
             _type, n = v
-            if _type == 'address' and bitcoin.is_address(n):
+            if _type == 'address' and Address.is_valid(n):
                 self.pop(k)
                 self[n] = ('address', k)
 
@@ -66,7 +66,7 @@ class Contacts(dict):
             self.save()
 
     def resolve(self, k):
-        if bitcoin.is_address(k):
+        if Address.is_valid(k):
             return {
                 'address': k,
                 'type': 'address'
@@ -111,16 +111,15 @@ class Contacts(dict):
             return regex.search(haystack).groups()[0]
         except AttributeError:
             return None
-            
+
     def _validate(self, data):
         for k,v in list(data.items()):
             if k == 'contacts':
                 return self._validate(v)
-            if not bitcoin.is_address(k):
+            if not Address.is_valid(k):
                 data.pop(k)
             else:
                 _type,_ = v
                 if _type != 'address':
                     data.pop(k)
         return data
-

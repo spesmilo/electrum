@@ -682,7 +682,7 @@ def is_old_mpk(mpk):
 
 def is_address_list(text):
     parts = text.split()
-    return bool(parts) and all(bitcoin.is_address(x) for x in parts)
+    return parts and all(Address.is_valid(x) for x in parts)
 
 
 def get_private_keys(text):

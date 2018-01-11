@@ -3,7 +3,8 @@ _ = lambda x:x
 #from i18n import _
 from electroncash import WalletStorage, Wallet
 from electroncash.util import format_satoshis, set_verbosity
-from electroncash.bitcoin import is_address, COIN, TYPE_ADDRESS
+from electroncash.address import Address
+from electroncash.bitcoin import COIN, TYPE_ADDRESS
 import getpass, datetime
 
 # minimal fdisk like gui for console usage
@@ -162,7 +163,7 @@ class ElectrumGui:
         while self.done == 0: self.main_command()
 
     def do_send(self):
-        if not is_address(self.str_recipient):
+        if not Address.is_valid(self.str_recipient):
             print(_('Invalid Bitcoin address'))
             return
         try:

@@ -33,6 +33,7 @@ import pbkdf2, hmac, hashlib
 import base64
 import zlib
 
+from .address import Address
 from .util import PrintError, profiler
 from .plugins import run_hook, plugin_loaders
 from .keystore import bip44_derivation
@@ -434,7 +435,7 @@ class WalletStorage(PrintError):
             assert isinstance(addresses, dict)
             addresses_new = dict()
             for address, details in addresses.items():
-                if not bitcoin.is_address(address):
+                if not Address.is_valid(address):
                     remove_address(address)
                     continue
                 if details is None:
