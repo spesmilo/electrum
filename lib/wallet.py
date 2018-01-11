@@ -77,9 +77,9 @@ def relayfee(network):
     return min(f, MAX_RELAY_FEE)
 
 def dust_threshold(network):
-    # Change <= dust threshold is added to the tx fee
+    # Change < dust threshold is added to the tx fee
     #return 182 * 3 * relayfee(network) / 1000
-    return 0
+    return 1
 
 
 def append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax):
@@ -941,7 +941,7 @@ class Abstract_Wallet(PrintError):
         sats_per_byte=fee_in_satoshis/tx_in_bytes
         if (sats_per_byte > 50):
             raise ExcessiveFee()
-            return 
+            return
 
         # Sort the inputs and outputs deterministically
         tx.BIP_LI01_sort()
