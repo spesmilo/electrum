@@ -132,7 +132,6 @@ class PaymentRequest:
 
     def is_pr(self):
         return self.get_amount() != 0
-        #return self.get_outputs() != [(TYPE_ADDRESS, self.get_requestor(), self.get_amount())]
 
     def verify(self, contacts):
         if self.error:
@@ -229,7 +228,7 @@ class PaymentRequest:
     def get_address(self):
         o = self.outputs[0]
         assert o[0] == TYPE_ADDRESS
-        return o[1]
+        return o[1].to_ui_string()
 
     def get_requestor(self):
         return self.requestor if self.requestor else self.get_address()
