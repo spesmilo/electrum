@@ -84,7 +84,7 @@ Builder.load_string('''
                     status: _('Yes') if app.use_cashaddr else _('No')
                     title: _('CashAddr address format') + ': ' + self.status
                     description: _("Use CashAddr address format.")
-                    message: _('Use CashAddr format.')
+                    message: _('Use CashAddr format.  Requires wallet restart to take effect.')
                     action: partial(root.cashaddr_dialog, 'use_cashaddr', _('CashAddr adresses format'), self.message)
 ''')
 
