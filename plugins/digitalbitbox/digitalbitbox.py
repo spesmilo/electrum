@@ -12,6 +12,7 @@ try:
     from electrum.keystore import Hardware_KeyStore
     from ..hw_wallet import HW_PluginBase
     from electrum.util import print_error, to_string, UserCancelled
+    from electrum.base_wizard import ScriptTypeNotSupported
 
     import time
     import hid
@@ -697,6 +698,8 @@ class DigitalBitboxPlugin(HW_PluginBase):
 
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
+        if xtype not in ('standard', 'p2wpkh-p2sh'):
+            raise ScriptTypeNotSupported(_('This type of script is not supported with the Digital Bitbox.'))
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)
         client.handler = self.create_handler(wizard)
