@@ -8,6 +8,27 @@
         "USD",
         "BTC"
     ],
+    "BitcoinAverage": [
+      "AUD",
+      "BRL",
+      "CAD",
+      "CHF",
+      "CNY",
+      "EUR",
+      "GBP",
+      "IDR",
+      "ILS",
+      "MXN",
+      "NOK",
+      "NZD",
+      "PLN",
+      "RON",
+      "RUB",
+      "SEK",
+      "SGD",
+      "USD",
+      "ZAR"
+    ],
     "BtcMarkets": [
         "AUD"
     ],
