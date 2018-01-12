@@ -1,3 +1,7 @@
+# Release 2.9.4 (security update)
+  * Backport security fixes from 3.0.5 after vulnerability was
+    discovered in JSONRPC interface.
+
 # Release 2.9.3
   * fix configuration file issue #2719
   * fix ledger signing of non-RBF transactions
