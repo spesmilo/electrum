@@ -258,9 +258,6 @@ class BaseWizard(object):
     def on_hw_derivation(self, name, device_info, derivation):
         from .keystore import hardware_keystore
         xtype = keystore.xtype_from_derivation(derivation)
-        if xtype not in ('standard', 'p2wpkh-p2sh'):
-            self.show_error(_('Hardware wallet support for this script type is not yet enabled.'))
-            return
         try:
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, xtype, self)
         except ScriptTypeNotSupported:
