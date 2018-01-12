@@ -48,6 +48,21 @@ class Ledger_Client():
     def i4b(self, x):
         return pack('>I', x)        
 
+    def test_pin_unlocked(func):
+        """Function decorator to test the Ledger for being unlocked, and if not,
+        raise a human-readable exception.
+        """
+        def catch_exception(self, *args, **kwargs):
+            try:
+                return func(self, *args, **kwargs)
+            except BTChipException as e:
+                if e.sw == 0x6982:
+                    raise Exception(_('Your Ledger is locked. Please unlock it.'))
+                else:
+                    raise
+        return catch_exception
+
+    @test_pin_unlocked
     def get_xpub(self, bip32_path, xtype):
         self.checkDevice()
         # bip32_path is of the form 44'/0'/1'
@@ -68,7 +83,7 @@ class Ledger_Client():
         if len(splitPath) > 1:
             prevPath = "/".join(splitPath[0:len(splitPath) - 1])
             nodeData = self.dongleObject.getWalletPublicKey(prevPath)
-            publicKey = compress_public_key(nodeData['publicKey'])#
+            publicKey = compress_public_key(nodeData['publicKey'])
             h = hashlib.new('ripemd160')
             h.update(hashlib.sha256(publicKey).digest())
             fingerprint = unpack(">I", h.digest()[0:4])[0]
