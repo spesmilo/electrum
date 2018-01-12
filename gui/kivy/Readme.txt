@@ -19,7 +19,7 @@ Building instructions for Ubuntu 16.04 x86_64::
   pip3 install -U --user pip cython
   pip3 install -U --user git+https://github.com/fyookball/buildozer@ec3
   git clone -b ec3 --single-branch https://github.com/fyookball/python-for-android.git ~/Downloads/python-for-android
-  git clone -b ec3 --single-branch https://github.com/fyookball/electrum.git electron-cash
+  git clone https://github.com/fyookball/electrum.git electron-cash
   cd electron-cash
   cd gui/kivy
   make theming
