@@ -1,12 +1,95 @@
 <!DOCTYPE HTML>
-<html>
+<html lang="en">
     <head>
-      <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-      <title>Payment request</title>
-	<script type="text/javascript" charset="utf-8" src="jquery-1.9.1.min.js"></script>
-	<script type="text/javascript" src="qrcode.js"></script>
-	<script type="text/javascript" src="jquery-ui.js"></script>
-	<link rel="stylesheet" type="text/css" href="jquery-ui.css">
+      <meta charset="utf-8">
+      <meta http-equiv="X-UA-Compatible" content="IE=edge">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Bitcoin payment request</title>
+	<!-- https://code.jquery.com/ -->
+	<script type="text/javascript" src="jquery-3.2.1.min.js"></script>
+
+	<!-- Bootstrap with a nice skin https://getbootstrap.com/getting-started/#download -->
+	<link href="bootstrap.min.css" rel="stylesheet">
+	<script type="text/javascript" src="bootstrap.min.js"></script>
+
+	<!-- http://www.minddust.com/project/bootstrap-progressbar/ -->
+	<link href="bootstrap-progressbar-3.3.4.min.css" rel="stylesheet">
+	<script type="text/javascript" src="bootstrap-progressbar-3.3.4.min.js"></script>
+
+	<!-- https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css -->
+	<link href="font-awesome.min.css" rel="stylesheet">
+
+	<!-- Local CSS -->
+	<style media="screen" type="text/css">
+body {
+        /* Margin bottom to fit sticky footer */
+        margin-bottom: 30px;
+}
+canvas {
+	width: 100%;
+	height: auto;
+}
+.progress {
+	height: 4.0vw !important;
+}
+.progress-bar {
+}
+.progress .progressbar-back-text {
+	font-size: 3.0vw;
+	line-height: 4.0vw;
+	color: #fff;
+	background-color: #2B3E50;
+}
+.progress .progressbar-front-text {
+	font-size: 3.0vw;
+	line-height: 4.0vw;
+	color: #000000;
+}
+.progress .progress-bar {
+	line-height: 40px;
+}
+.six-sec-ease-in-out {
+	-webkit-transition: width 6s ease-in-out;
+	-moz-transition: width 6s ease-in-out;
+	-ms-transition: width 6s ease-in-out;
+	-o-transition: width 6s ease-in-out;
+	transition: width 6s ease-in-out;
+}
+/* https://css-tricks.com/snippets/css/prevent-long-urls-from-breaking-out-of-container/ */
+#address {
+
+	/* These are technically the same, but use both */
+	overflow-wrap: break-word;
+	word-wrap: break-word;
+
+	-ms-word-break: break-all;
+	/* This is the dangerous one in WebKit, as it breaks things wherever */
+	word-break: break-all;
+	/* Instead use this non-standard one: */
+	word-break: break-word;
+
+	/* Adds a hyphen where the word breaks, if supported (No Blink) */
+	-ms-hyphens: auto;
+	-moz-hyphens: auto;
+	-webkit-hyphens: auto;
+	hyphens: auto;
+}
+.navbar-right {
+	color: white;
+}
+
+/* we have Font Awesome files in the root directory */
+@font-face {
+  font-family: 'FontAwesome';
+  src: url('fontawesome-webfont.eot');
+  src: url('fontawesome-webfont.eot') format('embedded-opentype'), url('fontawesome-webfont.woff') format('woff'), url('fontawesome-webfont.ttf') format('truetype'), url('fontawesome-webfont.svg') format('svg');
+  font-weight: normal;
+  font-style: normal;
+}
+
+	</style>
+
+	<!-- Local JavaScript -->
         <script type="text/javascript">
 function getUrlParameter(sParam)
 {
@@ -25,63 +108,80 @@ function getUrlParameter(sParam)
 var id = getUrlParameter('id');
 
 if (id) {
-        var uri_path = location.pathname;
-        var jqxhr = $.getJSON(uri_path.replace("index.html", "req/"+  id[0] + "/"+ id[1] + "/"+ id + "/"+ id + ".json"), function() {
+
+    var uri_path = location.pathname;
+    var jqxhr = $.getJSON(uri_path.replace("index.html", "req/"+  id[0] + "/"+ id[1] + "/"+ id + "/"+ id + ".json"), function() {
 	console.log("getJSON:success");
     })
         .done( function(data) {
-	    new QRCode(document.getElementById("qrcode"), data.URI);
-            $("<p />").text(data.memo).appendTo($("p#reason"));
-            $("<p />").text(data.amount/100000000 + "BTC").appendTo($("p#amount"));
-	    $("a").attr("href", data.URI);
-            $("<p />").text("Powered by Electrum").appendTo($("p#powered"));
-            var websocket_server = data.websocket_server;
-            var websocket_port = data.websocket_port;
+	    new QRious({
+		element: document.getElementById('qrcode'),
+		value: data.URI,
+		background: "white",
+		foreground: "black",
+		level: "L",
+		size: 1555 // It is automatically scaled down by CSS
+	    });
+            $("h1").text(data.memo).appendTo($("h1"));
+            $("kbd#amount").text(data.amount/100000000).appendTo($("p#amount"));
+	    $("a#paylink").attr("href", data.URI);
+	    $("kbd#address").text(data.address).appendTo($("p#address"));
+	    var websocket_server = data.websocket_server;
+	    var websocket_port = data.websocket_port;
+            $('.progress .progress-bar').progressbar();
+	    var $pb = $('.progress .progress-bar');
+	    jQuery.timeago.settings.allowFuture = true;
 	    $(function () {
 		var current;
-		var max = 100;
 		var initial = data.time;
-                var duration = data.exp;
+		var duration = data.exp;
                 if(duration){
-     		  var current = 100 * (Math.floor(Date.now()/1000) - initial)/duration;
-		  $("#progressbar").progressbar({
-		    value: current,
-		    max: max
-		  });
 		  function update() {
-        	    current = 100 * (Math.floor(Date.now()/1000) - initial)/duration;
-		    $("#progressbar").progressbar({
-			value: current
+     		    var current = 100 - (100 * (Math.floor(Date.now()/1000) - initial)/duration);
+		    $pb.attr('data-transitiongoal', current).progressbar({
+			display_text: 'center',
+			use_percentage: false,
+			amount_format: function(amount_part) {
+					if (current > 0) {
+						return "Expires in: " + jQuery.timeago(new Date(initial * 1000 + duration *1000));
+					}},
 		    });
-		    if (current >= max) {
-			$("#container").html("This invoice has expired");
+		    if (current <= 0) {
+			$("div.progress").replaceWith('<div class="alert alert-danger" role="alert">This payment request has expired, do not try pay it anymore!</div>');
+			$("p#btcpay").replaceWith('<p>You were about to pay:</p>');
+			$("p#reqpaid").replaceWith('');
+			$("p#btcdesc").replaceWith('');
+			$("p#btcinfo").replaceWith('<p>to the bitcoin address:</p>');
 		    }
 		  };
-		  var interval = setInterval(update, 1000);
+		  var interval = setInterval(update, 3000);
                  }
             });
-
-            var wss_address = "wss://" + websocket_server + ":" + websocket_port +"/";
-            console.log("Opening WSS: " + wss_address)
-            var ws = new WebSocket(wss_address);
-
-            ws.onopen = function() {
-                        ws.send('id:' + id);
-            };
-            ws.onmessage = function (evt) {
-                        var received_msg = evt.data;
-                        if(received_msg == 'paid'){
-                            $("#container").html("This invoice has been paid.");
-                        }
-                        else alert("Message is received:"+ received_msg);
-            };
-
-	    })
+	    wss_address = "wss://" + websocket_server + ":" + websocket_port +"/";
+	    console.log("Opening WSS: " + wss_address);
+	    var ws = new WebSocket(wss_address);
+	    ws.onopen = function() {
+		ws.send('id:' + id);
+	    };
+	    ws.onmessage = function (evt) {
+	    	var received_msg = evt.data;
+	    	if (received_msg == 'paid') {
+			$("div.progress").replaceWith('<div class="alert alert-success" role="alert"><p>This payment has been received! Thank you. <a href="javascript: history.go(-2)">Please go back to the shopping area.</a></p></div>');
+			$("p#reqpaid").replaceWith('<p><span class="badge">PAID</span> to address:</p>');
+			$("p#btcpay").replaceWith('<h2>&nbsp;</h2>');
+			$("p#btcinfo").replaceWith('');
+			$("p#btcstar").replaceWith('');
+			$("p#btcdesc").replaceWith('');
+	   	}
+	  	else alert("Message is received:"+ received_msg);
+	    };
+	})
 	.fail(function() {
 	    console.log("error fail");
             $("<p />").text("error").appendTo($("p#error"));
         });
 };
+
 
 // See http://stackoverflow.com/questions/29186154/chrome-clicking-mailto-links-closes-websocket-connection
 $(document).on('click', 'a[href^="bitcoin:"]', function (e) {
@@ -94,18 +194,49 @@ $(document).on('click', 'a[href^="bitcoin:"]', function (e) {
 </script>
     </head>
     <body>
-	<div id="container" style="width:20em; text-align:center; margin:auto; font-family:arial, serif;">
-            <p id="error"></p>
-            <p id="reason"></p>
-            <p id="amount"></p>
-	    <div style="background-color:#7777aa; border-radius: 5px; padding:10px;">
-		<a style="color:#ffffff; text-decoration:none;" id="paylink" target="_blank">Pay with Bitcoin</a>
-	    </div>
-	    <br/>
-	    <div id="qrcode" align="center"></div>
-            <p id="powered" style="font-size:80%;"></p>
-	    <div id="progressbar"></div>
+	<nav class="navbar navbar-default">
+	<div class="container">
+		<div class="navbar-brand" href="#">INVOICE / Bitcoin payment request</div>
 	</div>
+	</nav>
+	<div class="container">
+		<div class="jumbotron">
+			<h1 id="reason"></h1>
+			<div class="row">
+				<div class="col-sm-3">
+	    				<canvas id="qrcode"></canvas>
+				</div>
+				<div class="col-sm-9">
+					<p class="lead" id='btcpay'>Amount to pay:
+						<sup><i class="fa fa-asterisk" aria-hidden="true"></i></sup>
+					</p>
+					<p>
+						<i class="fa fa-btc" aria-hidden="true"></i>
+            					<kbd id="amount"></kbd>
+					</p>
+					<p id='reqpaid'><a class="btn btn-primary" id="paylink" href="">Click to pay with a connected wallet</a></p>
+					<p id='btcinfo'>or send money directly to the bitcoin address:</p>
+					<p class="dont-break-out"><kbd class="dont-break-out" id="address"></kbd></p>
+				</div>
+			</div>
+	    		<br/><br/>
+			<div class="progress progress-striped active right">
+				<div class="progress-bar progress-bar-warning six-sec-ease-in-out" role="progressbar"></div>
+	    		</div>
+		</div>
+		<p id='btcstar'><sup><i class="fa fa-asterisk" aria-hidden="true"></i></sup> Please be aware that you should cover bitcoin transaction fee and send us precisely the amount specified above.</p>
+		<p id='btcdesc'>This page will get automatically updated when you pay or when the payment request is being expired.</p>
 
+	</div>
+	<footer class="navbar-default navbar-fixed-bottom">
+		<div class="container">
+			<div class="navbar-right">Powered by <a href="https://electrum.org/">Electrum</a>, a free, self-hosted payment system and wallet.</div>
+		</div>
+	</footer>
+
+	<!-- https://raw.githubusercontent.com/neocotic/qrious/master/dist/umd/qrious.min.js -->
+	<script type="text/javascript" src="qrious.min.js"></script>
+	<!-- http://timeago.yarp.com/ --@-- http://timeago.yarp.com/jquery.timeago.js -->
+	<script type="text/javascript" src="jquery.timeago.js"></script>
     </body>
 </html>
