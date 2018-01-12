@@ -403,7 +403,11 @@ if __name__ == '__main__':
                     from electroncash import websockets
                     websockets.WebSocketServer(config, d.network).start()
                 if config.get('requests_dir'):
-                    web.check_www_dir(config.get('requests_dir'))
+                    path = os.path.join(config.get('requests_dir'), 'index.html')
+                    if not os.path.exists(path):
+                        print("Requests directory not configured.")
+                        print("You can configure it using https://github.com/spesmilo/electrum-merchant")
+                        sys.exit(1)
                 d.join()
                 sys.exit(0)
             else:
