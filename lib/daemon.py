@@ -33,8 +33,8 @@ from .jsonrpc import VerifyingJSONRPCServer
 
 from version import ELECTRUM_VERSION
 from network import Network
-from util import json_decode, DaemonThread
-from util import print_msg, print_error, print_stderr, UserCancelled
+from util import (json_decode, DaemonThread, print_msg, print_error,
+                  print_stderr, UserCancelled, to_string, int_to_bytes)
 from wallet import Wallet
 from storage import WalletStorage
 from commands import known_commands, Commands
@@ -102,7 +102,7 @@ def get_rpc_credentials(config):
         nbytes = bits // 8 + (bits % 8 > 0)
         pw_int = ecdsa.util.randrange(pow(2, bits))
         pw_b64 = base64.b64encode(
-            pw_int.to_bytes(nbytes, 'big'), b'-_')
+            int_to_bytes(pw_int, nbytes, 'big'), b'-_')
         rpc_password = to_string(pw_b64, 'ascii')
         config.set_key('rpcuser', rpc_user)
         config.set_key('rpcpassword', rpc_password, save=True)

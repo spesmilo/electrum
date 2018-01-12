@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python2
 #
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2018 Thomas Voegtlin
@@ -52,6 +52,8 @@ class VerifyingJSONRPCServer(SimpleJSONRPCServer):
 
         self.rpc_user = kargs['rpc_user']
         self.rpc_password = kargs['rpc_password']
+        del kargs['rpc_user']
+        del kargs['rpc_password']
 
         class VerifyingRequestHandler(SimpleJSONRPCRequestHandler):
             def parse_request(myself):
