@@ -93,6 +93,6 @@ class AddressDialog(WindowModalDialog):
     def show_qr(self):
         text = self.address
         try:
-            self.parent.show_qrcode(text, 'Address')
+            self.parent.show_qrcode(text, 'Address', parent=self)
         except Exception as e:
             self.show_message(str(e))
