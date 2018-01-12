@@ -346,7 +346,7 @@ class ElectrumGui:
             return
 
         if self.str_description:
-            self.wallet.labels[tx.hash()] = self.str_description
+            self.wallet.labels[tx.txid()] = self.str_description
 
         self.show_message(_("Please wait..."), getchar=False)
         status, msg = self.network.broadcast(tx)

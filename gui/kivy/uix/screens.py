@@ -301,7 +301,7 @@ class SendScreen(CScreen):
         def on_success(tx):
             if tx.is_complete():
                 self.app.broadcast(tx, self.payment_request)
-                self.app.wallet.set_label(tx.hash(), message)
+                self.app.wallet.set_label(tx.txid(), message)
             else:
                 self.app.tx_dialog(tx)
         def on_failure(error):
