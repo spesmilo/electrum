@@ -75,6 +75,9 @@ class WalletStorage(PrintError):
                 self.raw = f.read()
             if not self.is_encrypted():
                 self.load_data(self.raw)
+        else:
+            # avoid new wallets getting 'upgraded'
+            self.put('seed_version', FINAL_SEED_VERSION)
 
     def load_data(self, s):
         try:
@@ -161,8 +164,6 @@ class WalletStorage(PrintError):
 
     @profiler
     def write(self):
-        # this ensures that previous versions of electrum won't open the wallet
-        self.put('seed_version', FINAL_SEED_VERSION)
         with self.lock:
             self._write()
 
@@ -244,12 +245,14 @@ class WalletStorage(PrintError):
         return result
 
     def requires_upgrade(self):
-        return self.file_exists() and self.get_seed_version() != FINAL_SEED_VERSION
+        return self.file_exists() and self.get_seed_version() < FINAL_SEED_VERSION
 
     def upgrade(self):
         self.convert_imported()
         self.convert_wallet_type()
         self.convert_account()
+
+        self.put('seed_version', FINAL_SEED_VERSION)
         self.write()
 
     def convert_wallet_type(self):
@@ -379,6 +382,8 @@ class WalletStorage(PrintError):
         seed_version = self.get('seed_version')
         if not seed_version:
             seed_version = OLD_SEED_VERSION if len(self.get('master_public_key','')) == 128 else NEW_SEED_VERSION
+        if seed_version > FINAL_SEED_VERSION:
+            raise BaseException('This version of Electrum is too old to open this wallet')
         if seed_version >=12:
             return seed_version
         if seed_version not in [OLD_SEED_VERSION, NEW_SEED_VERSION]:
