@@ -181,7 +181,7 @@ class Blockchain(util.PrintError):
         if d < 0:
             chunk = chunk[-d:]
             d = 0
-        self.write(chunk, d)
+        self.write(chunk, d, index > len(self.checkpoints))
         self.swap_with_parent()
 
     def swap_with_parent(self):
@@ -218,11 +218,11 @@ class Blockchain(util.PrintError):
         blockchains[self.checkpoint] = self
         blockchains[parent.checkpoint] = parent
 
-    def write(self, data, offset):
+    def write(self, data, offset, truncate=True):
         filename = self.path()
         with self.lock:
             with open(filename, 'rb+') as f:
-                if offset != self._size*80:
+                if truncate and offset != self._size*80:
                     f.seek(offset)
                     f.truncate()
                 f.seek(offset)
@@ -263,7 +263,7 @@ class Blockchain(util.PrintError):
         elif height == 0:
             return bitcoin.NetworkConstants.GENESIS
         elif height < len(self.checkpoints) * 2016:
-            assert (height+1) % 2016 == 0
+            assert (height+1) % 2016 == 0, height
             index = height // 2016
             h, t = self.checkpoints[index]
             return h
