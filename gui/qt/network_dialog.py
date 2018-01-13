@@ -389,18 +389,6 @@ class NetworkChoiceLayout(object):
         if protocol != self.protocol:
             self.protocol = protocol
 
-    def change_protocol(self, use_ssl):
-        p = 's' if use_ssl else 't'
-        host = self.server_host.text()
-        pp = self.servers.get(host, NetworkConstants.DEFAULT_PORTS)
-        if p not in pp.keys():
-            p = list(pp.keys())[0]
-        port = pp[p]
-        self.server_host.setText(host)
-        self.server_port.setText(port)
-        self.set_protocol(p)
-        self.set_server()
-
     def follow_branch(self, index):
         self.network.follow_chain(index)
         self.update()
