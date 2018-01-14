@@ -1272,10 +1272,14 @@ class Abstract_Wallet(PrintError):
     def serialize_request(self, r):
         result = r.copy()
         result['address'] = r['address'].to_storage_string()
-        return rresult
+        return result
 
     def save_payment_requests(self):
-        requests = {addr.to_ui_string() : value.copy().pop('address')
+        def delete_address(value):
+            del value['address']
+            return value
+
+        requests = {addr.to_storage_string() : delete_address(value.copy())
                     for addr, value in self.receive_requests.items()}
         self.storage.put('payment_requests', requests)
 
