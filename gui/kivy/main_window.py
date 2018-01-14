@@ -945,6 +945,10 @@ class ElectrumWindow(App):
             if not self.wallet.can_export():
                 return
             addr = Address.from_string(addr)
-            key = self.wallet.export_private_key(addr, password)
-            pk_label.data = key
+            try:
+                key = self.wallet.export_private_key(addr, password)
+                pk_label.data = key
+            except InvalidPassword:
+                self.show_error("Invalid PIN")
+                return
         self.protected(_("Enter your PIN code in order to decrypt your private key"), show_private_key, (addr, pk_label))
