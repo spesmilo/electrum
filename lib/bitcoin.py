@@ -287,6 +287,9 @@ def deser_char_vector(f):
         r.append(t)
     return r
 
+def vector_from_bytes(s):
+    return [v for v in s]
+
 
 def deser_uint256(f):
     r = 0

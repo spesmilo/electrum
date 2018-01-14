@@ -51,16 +51,17 @@ def expand_array(inp, out_len, bit_len, byte_pad=0):
 def compress_array(inp, out_len, bit_len, byte_pad=0):
     assert bit_len >= 8 and word_size >= 7+bit_len
 
-    in_width = (bit_len+7)/8 + byte_pad
-    assert out_len == bit_len*len(inp)/(8*in_width)
+    in_width = (bit_len+7)//8 + byte_pad
+    print('----->', out_len, bit_len*len(inp)//(8*in_width))
+    assert out_len == bit_len*len(inp)//(8*in_width)
     out = bytearray(out_len)
 
     bit_len_mask = (1 << bit_len) - 1
 
     # The acc_bits least-significant bits of acc_value represent a bit sequence
     # in big-endian order.
-    acc_bits = 0;
-    acc_value = 0;
+    acc_bits = 0
+    acc_value = 0
 
     j = 0
     for i in range(out_len):
@@ -94,18 +95,17 @@ def get_indices_from_minimal(minimal, bit_len):
 
 def get_minimal_from_indices(indices, bit_len):
     eh_index_size = 4
-    assert (bit_len+7)/8 <= eh_index_size
+    assert (bit_len+7)//8 <= eh_index_size
     len_indices = len(indices)*eh_index_size
-    min_len = bit_len*len_indices/(8*eh_index_size)
-    byte_pad = eh_index_size - (bit_len+7)/8
-    byte_indices = bytearray(''.join([struct.pack('>I', i) for i in indices]))
+    min_len = bit_len*len_indices//(8*eh_index_size)
+    byte_pad = eh_index_size - (bit_len+7)//8
+    byte_indices = bytearray(b''.join([struct.pack('>I', i) for i in indices]))
     return compress_array(byte_indices, min_len, bit_len, byte_pad)
 
 
 def hash_nonce(digest, nonce):
     for i in range(8):
-        digest.update(struct.pack('<I', nonce >> (32*i)))
-
+        digest.update(struct.pack('<I', nonce >> (32*i) & 0xffffffff))
 
 def hash_xi(digest, xi):
     digest.update(struct.pack('<I', xi))
@@ -311,11 +311,11 @@ def validate_params(n, k):
 
 # a bit different from https://github.com/zcash/zcash/blob/master/qa/rpc-tests/test_framework/mininode.py#L747
 # since electrum is a SPV oriented and not a node
-def is_gbp_valid(nNonce, nSolution, n=48, k=5):
+def is_gbp_valid(header, nNonce, nSolution, n=48, k=5):
     # H(I||...
-    digest = blake2b(digest_size=(512/n)*n/8, person=zcash_person(n, k))
-    digest.update(super(CBlock, self).serialize()[:108])
+    digest = blake2b(digest_size=(512//n)*n//8, person=zcash_person(n, k))
+    digest.update(header[:108])
     hash_nonce(digest, nNonce)
-    if not gbp_validate(nSolution, digest, n, k):
-        return False
-    return True
+    collision_length = n//(k+1)
+    return gbp_validate(digest, nSolution, n, k)
+

@@ -28,6 +28,7 @@ from io import BytesIO
 from . import util
 from . import bitcoin
 from .bitcoin import *
+import base64
 
 from .equihash import is_gbp_valid
 import logging
@@ -44,7 +45,7 @@ def serialize_header(res):
     r += struct.pack("<I", res.get('timestamp'))
     r += struct.pack("<I", res.get('bits'))
     r += str_to_hash(res.get('nonce'))
-    r += ser_char_vector(str_to_hash(res.get('n_solution')))
+    r += ser_char_vector(base64.b64decode(res.get('n_solution').encode('utf8')))
     return r
 
 def deserialize_header(f, height):
@@ -56,7 +57,7 @@ def deserialize_header(f, height):
     h['timestamp'] = struct.unpack("<I", f.read(4))[0]
     h['bits'] = struct.unpack("<I", f.read(4))[0]
     h['nonce'] = hash_to_str(f.read(32))
-    h['n_solution'] = hash_to_str(deser_char_vector(f))
+    h['n_solution'] = base64.b64encode(bytes(deser_char_vector(f))).decode('utf8')
     h['block_height'] = height
     return h
 
@@ -175,19 +176,17 @@ class Blockchain(util.PrintError):
                     except:
                         break
 
-    def verify_header(self, header, prev_header, bits, target, nonce, n_solution):
-        prev_hash = self.sha256_header(prev_header)
-        _powhash = self.sha256_header(header)
+    def verify_header(self, header, prev_header, target):
+        prev_hash = hash_header(prev_header)
+        _powhash = sha256_header(header)
         if prev_hash != header.get('prev_block_hash'):
             raise BaseException("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
-        if bitcoin.NetworkConstants.TESTNET:
-            return
-        bits = self.target_to_bits(target)
-        if bits != header.get('bits'):
-            raise BaseException("bits mismatch: %s vs %s" % (bits, header.get('bits')))
-        if int('0x' + _powhash, 16) > target:
+        target = self.bits_to_target(header['bits'])
+        if _powhash > target:
             raise BaseException("insufficient proof of work: %s vs target %s" % (int('0x' + _powhash, 16), target))
-        if not is_gbp_valid(nonce, n_solution):
+        nonce = uint256_from_bytes(str_to_hash(header.get('nonce')))
+        n_solution = vector_from_bytes(base64.b64decode(header.get('n_solution').encode('utf8')))
+        if not is_gbp_valid(serialize_header(header), nonce, n_solution):
             raise BaseException("Equihash invalid")
 
     def verify_chunk(self, index, data):
@@ -306,14 +305,12 @@ class Blockchain(util.PrintError):
         delta = height - self.checkpoint
         name = self.path()
         if os.path.exists(name):
-            f = open(name, 'rb')
-            for i in range(delta):
-                f.seek(bitcoin.BASIC_HEADER_SIZE, 1)
-                vs = read_vector_size(f)
-                f.seek(vs, 1)
-            h = deserialize_header(f, height)
-            f.close()
-
+            with open(name, 'rb') as f:
+                for i in range(delta):
+                    f.seek(bitcoin.BASIC_HEADER_SIZE, 1)
+                    vs = read_vector_size(f)
+                    f.seek(vs, 1)
+                h = deserialize_header(f, height)
         return h
 
     def get_hash(self, height):
@@ -371,16 +368,19 @@ class Blockchain(util.PrintError):
         if height == 0:
             return hash_header(header) == bitcoin.NetworkConstants.GENESIS
         try:
-            prev_hash = self.get_hash(height - 1)
+            prev_header = self.read_header(height - 1)
+            prev_hash = self.hash_header(prev_header)
         except:
             return False
         if prev_hash != header.get('prev_block_hash'):
             return False
-        nonce, n_solution = headers.get('nonce'), header.get('n_solution')
-        bits, target = self.get_target(index * 2016 + i, headers)
+        target = self.get_target(height // 2016 - 1)
         try:
-            self.verify_header(header, prev_header, bits, target, nonce, n_solution)
-        except:
+            self.verify_header(header, prev_header, target)
+        except BaseException as e:
+            import traceback
+            traceback.print_exc()
+            self.print_error('verify_header failed', str(e))
             return False
         return True
 
