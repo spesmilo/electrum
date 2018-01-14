@@ -23,8 +23,8 @@ def expand_array(inp, out_len, bit_len, byte_pad=0):
 
     # The acc_bits least-significant bits of acc_value represent a bit sequence
     # in big-endian order.
-    acc_bits = 0;
-    acc_value = 0;
+    acc_bits = 0
+    acc_value = 0
 
     j = 0
     for i in range(len(inp)):

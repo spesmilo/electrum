@@ -38,38 +38,37 @@ MAX_TARGET = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
 def serialize_header(res):
     r = b''
     r += struct.pack("<i", res.get('version'))
-    r += ser_uint256(res.get('prev_block_hash'))
-    r += ser_uint256(res.get('merkle_root'))
-    r += ser_uint256(res.get('hash_reserved'))
+    r += str_to_hash(res.get('prev_block_hash'))
+    r += str_to_hash(res.get('merkle_root'))
+    r += str_to_hash(res.get('hash_reserved'))
     r += struct.pack("<I", res.get('timestamp'))
     r += struct.pack("<I", res.get('bits'))
-    r += ser_uint256(res.get('nonce'))
-    r += ser_char_vector(res.get('n_solution')).encode('utf-8')
+    r += str_to_hash(res.get('nonce'))
+    r += ser_char_vector(str_to_hash(res.get('n_solution')))
     return r
 
 def deserialize_header(f, height):
-    hex_to_int = lambda s: int('0x' + s[::-1].encode('hex'), 16)
     h = {}
     h['version'] = struct.unpack("<I", f.read(4))[0]
-    h['prev_block_hash'] = deser_uint256(f)
-    h['merkle_root'] = deser_uint256(f)
-    h['hash_reserved'] = deser_uint256(f)
+    h['prev_block_hash'] = hash_to_str(f.read(32))
+    h['merkle_root'] = hash_to_str(f.read(32))
+    h['hash_reserved'] = hash_to_str(f.read(32))
     h['timestamp'] = struct.unpack("<I", f.read(4))[0]
     h['bits'] = struct.unpack("<I", f.read(4))[0]
-    h['nonce'] = struct.unpack("<I", f.read(4))[0]
-    h['n_solution'] = deser_char_vector(f)
+    h['nonce'] = hash_to_str(f.read(32))
+    h['n_solution'] = hash_to_str(deser_char_vector(f))
     h['block_height'] = height
     return h
 
-def sha256_header(self, header):
-    return uint256_from_str(Hash(self.serialize_header(header)))
+def sha256_header(header):
+    return uint256_from_bytes(Hash(serialize_header(header)))
 
 def hash_header(header):
     if header is None:
         return '0' * 64
     if header.get('prev_block_hash') is None:
-        header['prev_block_hash'] = '00'*32
-    return hash_encode(Hash(serialize_header(header)))
+        header['prev_block_hash'] = '00'*64
+    return hash_to_str(Hash(serialize_header(header)))
 
 
 blockchains = {}
@@ -160,7 +159,21 @@ class Blockchain(util.PrintError):
 
     def update_size(self):
         p = self.path()
-        self._size = os.path.getsize(p) / 1484 if os.path.exists(p) else 0
+        self._size = 0
+        if os.path.exists(p):
+            with open(p, 'rb') as f:
+                f.seek(0, 2)
+                eof = f.tell()
+                f.seek(0, 0)
+                while True:
+                    try:
+                        f.seek(bitcoin.BASIC_HEADER_SIZE, 1)
+                        vs = read_vector_size(f)
+                        f.seek(vs, 1)
+                        if f.tell() < eof:
+                            self._size += 1
+                    except:
+                        break
 
     def verify_header(self, header, prev_header, bits, target, nonce, n_solution):
         prev_hash = self.sha256_header(prev_header)
@@ -199,7 +212,8 @@ class Blockchain(util.PrintError):
 
     def save_chunk(self, index, chunk):
         filename = self.path()
-        d = (index * 2016 - self.checkpoint) * 1484
+        with open(filename, 'rb') as f:
+            d = self._height_to_offset(f, index * 2016 - self.checkpoint)
         if d < 0:
             chunk = chunk[-d:]
             d = 0
@@ -219,10 +233,14 @@ class Blockchain(util.PrintError):
         with open(self.path(), 'rb') as f:
             my_data = f.read()
         with open(parent.path(), 'rb') as f:
-            f.seek((checkpoint - parent.checkpoint)*1484)
-            parent_data = f.read(parent_branch_size*1484)
+            self._height_to_offset
+            offset = self._height_to_offset(f, checkpoint - parent.checkpoint)
+            length = self._height_to_offset(f, parent_branch_size, offset)
+            f.seek(offset)
+            parent_data = f.read(length)
+
         self.write(parent_data, 0)
-        parent.write(my_data, (checkpoint - parent.checkpoint)*1484)
+        parent.write(my_data, checkpoint - parent.checkpoint)
         # store file path
         for b in blockchains.values():
             b.old_path = b.path()
@@ -240,14 +258,30 @@ class Blockchain(util.PrintError):
         blockchains[self.checkpoint] = self
         blockchains[parent.checkpoint] = parent
 
-    def write(self, data, offset, truncate=True):
+    def _height_to_offset(self, f, height, start=0):
+        pos = f.tell()
+        f.seek(0, 2)
+        eof = f.tell()
+        f.seek(start, 0)
+        for i in range(height):
+            f.seek(bitcoin.BASIC_HEADER_SIZE, 1)
+            vs = read_vector_size(f)
+            f.seek(vs, 1)
+            if f.tell() >= eof:
+                raise Exception('Out of file')
+        f.seek(pos, 0)
+        return f.tell()
+
+    def write(self, data, delta, truncate):
         filename = self.path()
         with self.lock:
             with open(filename, 'rb+') as f:
-                if offset != self._size*1484:
-                    f.seek(offset)
-                    f.truncate()
+                f.seek(0, 2)
+                eof = f.tell()
+                offset = self._height_to_offset(f, delta)
                 f.seek(offset)
+                if truncate and offset < eof:
+                    f.truncate()
                 f.write(data)
                 f.flush()
                 os.fsync(f.fileno())
@@ -255,10 +289,9 @@ class Blockchain(util.PrintError):
 
     def save_header(self, header):
         delta = header.get('block_height') - self.checkpoint
-        data = bfh(serialize_header(header))
+        data = serialize_header(header)
         assert delta == self.size()
-        assert len(data) == 1484
-        self.write(data, delta*1484)
+        self.write(data, delta)
         self.swap_with_parent()
 
     def read_header(self, height):
@@ -270,28 +303,24 @@ class Blockchain(util.PrintError):
         if height > self.height():
             return
 
-        idx, h = 0, None
+        delta = height - self.checkpoint
         name = self.path()
-
         if os.path.exists(name):
-            while idx <= height:
-                f = open(name, 'rb')
-                h = deserialize_header(f, height)
-                idx += 1
+            f = open(name, 'rb')
+            for i in range(delta):
+                f.seek(bitcoin.BASIC_HEADER_SIZE, 1)
+                vs = read_vector_size(f)
+                f.seek(vs, 1)
+            h = deserialize_header(f, height)
+            f.close()
+
         return h
 
     def get_hash(self, height):
-        if height == -1:
-            return '0000000000000000000000000000000000000000000000000000000000000000'
-        elif height == 0:
-            return bitcoin.NetworkConstants.GENESIS
-        elif height < len(self.checkpoints) * 2016:
-            assert (height+1) % 2016 == 0, height
-            index = height // 2016
-            h, t = self.checkpoints[index]
-            return h
-        else:
-            return hash_header(self.read_header(height))
+        return self.hash_header(self.read_header(height))
+
+    def hash_header(self, header):
+        return hash_header(header)
 
     def get_target(self, index):
         # compute target from chunk x, used in chunk x+1
@@ -334,9 +363,10 @@ class Blockchain(util.PrintError):
         return bitsN << 24 | bitsBase
 
     def can_connect(self, header, check_height=True):
+        import pdb; pdb.set_trace()
         height = header['block_height']
         if check_height and self.height() != height - 1:
-            #self.print_error("cannot connect at height", height)
+            self.print_error("cannot connect at height", height)
             return False
         if height == 0:
             return hash_header(header) == bitcoin.NetworkConstants.GENESIS
