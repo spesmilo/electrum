@@ -33,7 +33,8 @@ from .equihash import is_gbp_valid
 import logging
 logging.basicConfig(level=logging.INFO)
 
-MAX_TARGET = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
+# https://en.bitcoin.it/wiki/Target
+MAX_TARGET = 0x0007FFFFFFFF0000000000000000000000000000000000000000000000000000
 
 def serialize_header(res):
     r = b''
