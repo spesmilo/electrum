@@ -14,6 +14,7 @@ Popup:
     isaddr: ''
     fund: 0
     pk: ''
+    sig: ''
     title: _('Invoice') if popup.is_invoice else _('Request')
     tx_hash: ''
     BoxLayout:
@@ -52,11 +53,19 @@ Popup:
                         text: _('Balance') if popup.fund else ''
                         value: app.format_amount_and_units(root.fund) if root.fund else ''
                     TopLabel:
-                        text: _('Private Key') 
+                        text: _('Private Key') if pk_label.data else ''
                     RefLabel:
                         id: pk_label
                         touched: True if not self.touched else True
                         data: root.pk
+                    TopLabel:
+                        text: _('Signature Minexbank') if sig_label.data else ''
+                    RefLabel:
+                        id: sig_label
+                        data: root.sig
+                        on_ref_press:
+                            app._clipboard.copy(root.sig)
+                            app.show_info(_('Minexbank Signature copied to clipboard'))
 
                 TopLabel:
                     text: _('Outputs') if popup.is_invoice else ''
@@ -68,7 +77,23 @@ Popup:
                     data: popup.tx_hash
                     name: _('Transaction ID')
         Widget:
-            size_hint: 1, 0.1
+            size_hint: 0.5, 0.05
+
+        BoxLayout:
+            size_hint: 1, None
+            height: '48dp'
+            Widget:
+                size_hint: 2.5, None
+                height: '48dp'
+            Button:
+                size_hint: 2, None
+                height: '48dp'
+                text: _('Sign for Minexbank')
+                on_release:
+                    setattr(sig_label, 'data', '') if sig_label.data else popup.sign_mb(sig_label, popup.requestor)
+
+        Widget:
+            size_hint: 0.5, 0.05
 
         BoxLayout:
             size_hint: 1, None

@@ -6,6 +6,7 @@ import datetime
 import traceback
 from decimal import Decimal
 import threading
+import base64
 
 import electrum
 from electrum.bitcoin import TYPE_ADDRESS
@@ -154,7 +155,7 @@ class ElectrumWindow(App):
         self._trigger_update_history()
 
     def _get_bu(self):
-        return self.electrum_config.get('base_unit', 'mBTC')
+        return self.electrum_config.get('base_unit', 'MNX')
 
     def _set_bu(self, value):
         assert value in base_units.keys()
@@ -374,6 +375,7 @@ class ElectrumWindow(App):
         popup.requestor = req.get('address')
         popup.fund = fund if fund else 0
         popup.export = self.export_private_keys
+        popup.sign_mb = self.sign_minexbank
         popup.open()
 
     def qr_dialog(self, title, data, show_text=False):
@@ -384,22 +386,45 @@ class ElectrumWindow(App):
     def scan_qr(self, on_complete):
         if platform != 'android':
             return
-        from jnius import autoclass, cast
+        from jnius import autoclass
         from android import activity
         PythonActivity = autoclass('org.kivy.android.PythonActivity')
-        SimpleScannerActivity = autoclass("org.electrum.qr.SimpleScannerActivity")
         Intent = autoclass('android.content.Intent')
-        intent = Intent(PythonActivity.mActivity, SimpleScannerActivity)
-
+        intent = Intent("com.google.zxing.client.android.SCAN")
+        intent.putExtra("SCAN_MODE", "QR_CODE_MODE")
         def on_qr_result(requestCode, resultCode, intent):
-            if resultCode == -1:  # RESULT_OK:
-                #  this doesn't work due to some bug in jnius:
-                # contents = intent.getStringExtra("text")
-                String = autoclass("java.lang.String")
-                contents = intent.getStringExtra(String("text"))
-                on_complete(contents)
+            if requestCode == 0:
+                if resultCode == -1: # RESULT_OK:
+                    contents = intent.getStringExtra("SCAN_RESULT")
+                    if intent.getStringExtra("SCAN_RESULT_FORMAT") == 'QR_CODE':
+                        on_complete(contents)
+                    else:
+                        self.show_error("wrong format " + intent.getStringExtra("SCAN_RESULT_FORMAT"))
         activity.bind(on_activity_result=on_qr_result)
-        PythonActivity.mActivity.startActivityForResult(intent, 0)
+        try:
+            PythonActivity.mActivity.startActivityForResult(intent, 0)
+        except:
+            self.show_error(_('Could not start Barcode Scanner.') + ' ' + _('Please install the Barcode Scanner app from ZXing'))
+
+    def scan_qr_zxing(self, on_complete):
+        # uses zxing embedded lib
+        if platform != 'android':
+            return
+        from jnius import autoclass
+        from android import activity
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        IntentIntegrator = autoclass('com.google.zxing.integration.android.IntentIntegrator')
+        integrator = IntentIntegrator(PythonActivity.mActivity)
+        def on_qr_result(requestCode, resultCode, intent):
+            if requestCode == 0:
+                if resultCode == -1: # RESULT_OK:
+                    contents = intent.getStringExtra("SCAN_RESULT")
+                    if intent.getStringExtra("SCAN_RESULT_FORMAT") == 'QR_CODE':
+                        on_complete(contents)
+                    else:
+                        self.show_error("wrong format " + intent.getStringExtra("SCAN_RESULT_FORMAT"))
+        activity.bind(on_activity_result=on_qr_result)
+        integrator.initiateScan()
 
     def do_share(self, data, title):
         if platform != 'android':
@@ -619,6 +644,7 @@ class ElectrumWindow(App):
         run_hook('load_wallet', wallet, self)
 
     def update_status(self, *dt):
+        fiat_balance = ''	
         self.num_blocks = self.network.get_local_height()
         if not self.wallet:
             self.status = _("No Wallet")
@@ -636,12 +662,13 @@ class ElectrumWindow(App):
                 c, u, x = self.wallet.get_balance()
                 text = self.format_amount(c+x+u)
                 status = str(text.strip() + ' ' + self.base_unit)
+                fiat_balance = (self.fx.format_amount_and_units(c+u+x) or '') if self.fx.is_enabled() else ''
         else:
             status = _("Disconnected")
+	
+        n = self.wallet.basename() if fiat_balance == '' else fiat_balance
+        self.status = '[size=15dp]%s[/size]\n%s' %(fiat_balance, status)
 
-        n = self.wallet.basename()
-        self.status = '[size=15dp]%s[/size]\n%s' %(n, status)
-        #fiat_balance = self.fx.format_amount_and_units(c+u+x) or ''
 
     def get_max_amount(self):
         inputs = self.wallet.get_spendable_coins(None, self.electrum_config)
@@ -670,8 +697,8 @@ class ElectrumWindow(App):
                 from plyer import notification
             icon = (os.path.dirname(os.path.realpath(__file__))
                     + '/../../' + self.icon)
-            notification.notify('Electrum', message,
-                            app_icon=icon, app_name='Electrum')
+            notification.notify('Electrum ', message,
+                            app_icon=icon, app_name='ElectrumMNX')
         except ImportError:
             Logger.Error('Notification: needs plyer; `sudo pip install plyer`')
 
@@ -928,6 +955,27 @@ class ElectrumWindow(App):
                 return
             if not self.wallet.can_export():
                 return
-            key = str(self.wallet.export_private_key(addr, password)[0])
-            pk_label.data = key
+            try:
+                key = str(self.wallet.export_private_key(addr, password)[0])
+                pk_label.data = key
+            except InvalidPassword:
+                self.show_error("Invalid PIN")
+                return
         self.protected(_("Enter your PIN code in order to decrypt your private key"), show_private_key, (addr, pk_label))
+
+    def sign_minexbank(self, sig_label, addr):
+        if self.wallet.is_watching_only():
+            self.show_info(_(" This is a watching-only wallet which can't be used for minexbank." ))
+            return
+        def show_mxsignature(addr, sig_label, password):
+            if self.wallet.has_password() and password is None:
+                return
+            if not self.wallet.can_export():
+                return
+            try:
+                mxsignature = self.wallet.sign_message(addr, 'minexbank', password)
+                sig_label.data = base64.b64encode(mxsignature).decode('ascii')
+            except InvalidPassword:
+                self.show_error("Invalid PIN")
+                return
+        self.protected(_("Enter your PIN code in order to generate minexbank signature"), show_mxsignature, (addr, sig_label))
