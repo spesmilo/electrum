@@ -184,6 +184,8 @@ class Blockchain(util.PrintError):
         target = self.bits_to_target(header['bits'])
         if _powhash > target:
             raise BaseException("insufficient proof of work: %s vs target %s" % (int('0x' + _powhash, 16), target))
+        if bitcoin.NetworkConstants.TESTNET:
+            return
         nonce = uint256_from_bytes(str_to_hash(header.get('nonce')))
         n_solution = vector_from_bytes(base64.b64decode(header.get('n_solution').encode('utf8')))
         if not is_gbp_valid(serialize_header(header), nonce, n_solution):
@@ -271,7 +273,7 @@ class Blockchain(util.PrintError):
         f.seek(pos, 0)
         return f.tell()
 
-    def write(self, data, delta, truncate):
+    def write(self, data, delta, truncate=False):
         filename = self.path()
         with self.lock:
             with open(filename, 'rb+') as f:
@@ -360,7 +362,6 @@ class Blockchain(util.PrintError):
         return bitsN << 24 | bitsBase
 
     def can_connect(self, header, check_height=True):
-        import pdb; pdb.set_trace()
         height = header['block_height']
         if check_height and self.height() != height - 1:
             self.print_error("cannot connect at height", height)

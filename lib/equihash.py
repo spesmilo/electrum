@@ -316,6 +316,5 @@ def is_gbp_valid(header, nNonce, nSolution, n=48, k=5):
     digest = blake2b(digest_size=(512//n)*n//8, person=zcash_person(n, k))
     digest.update(header[:108])
     hash_nonce(digest, nNonce)
-    collision_length = n//(k+1)
     return gbp_validate(digest, nSolution, n, k)
 
