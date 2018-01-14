@@ -278,7 +278,8 @@ def run_offline_command(config, config_options):
     # arguments passed to function
     args = [config.get(x) for x in cmd.params]
     # decode json arguments
-    args = list(map(json_decode, args))
+    if cmdname not in ('setconfig',):
+        args = list(map(json_decode, args))
     # options
     kwargs = {}
     for x in cmd.options:
