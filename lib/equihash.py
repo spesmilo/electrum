@@ -2,6 +2,7 @@
 from pyblake2 import blake2b
 from operator import itemgetter
 import struct
+from functools import reduce
 
 DEBUG = False
 VERBOSE = False
@@ -15,8 +16,8 @@ def expand_array(inp, out_len, bit_len, byte_pad=0):
     assert bit_len >= 8 and word_size >= 7+bit_len
     bit_len_mask = (1<<bit_len)-1
 
-    out_width = (bit_len+7)/8 + byte_pad
-    assert out_len == 8*out_width*len(inp)/bit_len
+    out_width = (bit_len+7)//8 + byte_pad
+    assert out_len == 8*out_width*len(inp)//bit_len
     out = bytearray(out_len)
 
     bit_len_mask = (1 << bit_len) - 1
@@ -52,7 +53,6 @@ def compress_array(inp, out_len, bit_len, byte_pad=0):
     assert bit_len >= 8 and word_size >= 7+bit_len
 
     in_width = (bit_len+7)//8 + byte_pad
-    print('----->', out_len, bit_len*len(inp)//(8*in_width))
     assert out_len == bit_len*len(inp)//(8*in_width)
     out = bytearray(out_len)
 
@@ -86,9 +86,9 @@ def compress_array(inp, out_len, bit_len, byte_pad=0):
 
 def get_indices_from_minimal(minimal, bit_len):
     eh_index_size = 4
-    assert (bit_len+7)/8 <= eh_index_size
-    len_indices = 8*eh_index_size*len(minimal)/bit_len
-    byte_pad = eh_index_size - (bit_len+7)/8
+    assert (bit_len+7)//8 <= eh_index_size
+    len_indices = 8*eh_index_size*len(minimal)//bit_len
+    byte_pad = eh_index_size - (bit_len+7)//8
     expanded = expand_array(minimal, len_indices, bit_len, byte_pad)
     return [struct.unpack('>I', expanded[i:i+4])[0] for i in range(0, len_indices, eh_index_size)]
 
@@ -123,7 +123,7 @@ def count_zeroes(h):
 
 
 def has_collision(ha, hb, i, l):
-    res = [ha[j] == hb[j] for j in range((i-1)*l/8, i*l/8)]
+    res = [ha[j] == hb[j] for j in range((i-1)*l//8, i*l//8)]
     return reduce(lambda x, y: x and y, res)
 
 
@@ -242,9 +242,9 @@ def gbp_basic(digest, n, k):
 
 def gbp_validate(digest, minimal, n, k):
     validate_params(n, k)
-    collision_length = n/(k+1)
+    collision_length = n//(k+1)
     hash_length = (k+1)*((collision_length+7)//8)
-    indices_per_hash_output = 512/n
+    indices_per_hash_output = 512//n
     solution_width = (1 << k)*(collision_length+1)//8
 
     if len(minimal) != solution_width:
@@ -257,10 +257,10 @@ def gbp_validate(digest, minimal, n, k):
         r = i % indices_per_hash_output
         # X_i = H(I||V||x_i)
         curr_digest = digest.copy()
-        hash_xi(curr_digest, i/indices_per_hash_output)
+        hash_xi(curr_digest, i//indices_per_hash_output)
         tmp_hash = curr_digest.digest()
         X.append((
-            expand_array(bytearray(tmp_hash[r*n/8:(r+1)*n/8]),
+            expand_array(bytearray(tmp_hash[r*n//8:(r+1)*n//8]),
                          hash_length, collision_length),
             (i,)
         ))

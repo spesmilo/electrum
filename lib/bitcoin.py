@@ -84,7 +84,9 @@ class NetworkConstants:
         cls.DEFAULT_PORTS = {'t': '50001', 's': '50002'}
         cls.DEFAULT_SERVERS = read_json('servers.json', {})
         cls.CHECKPOINTS = read_json('checkpoints.json', [])
-
+        cls.EQUIHASH_N = 200
+        cls.EQUIHASH_K = 9
+        
     @classmethod
     def set_testnet(cls):
         cls.TESTNET = True
@@ -97,7 +99,8 @@ class NetworkConstants:
         cls.DEFAULT_PORTS = {'t':'51001', 's':'51002'}
         cls.DEFAULT_SERVERS = read_json('servers_testnet.json', {})
         cls.CHECKPOINTS = read_json('checkpoints_testnet.json', [])
-
+        cls.EQUIHASH_N = 200
+        cls.EQUIHASH_K = 9
 
 NetworkConstants.set_testnet()
 
