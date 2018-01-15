@@ -172,22 +172,26 @@ class Network(util.DaemonThread):
         if self.blockchain_index not in self.blockchains.keys():
             self.blockchain_index = 0
         self.protocol = 't' if self.config.get('nossl') else 's'
-        # Server for addresses and transactions
-        self.default_server = self.config.get('server')
-        # Sanitize default server
-        try:
-            host, port, protocol = deserialize_server(self.default_server)
-            assert protocol == self.protocol
-        except:
-            self.default_server = None
-        if not self.default_server:
-            self.default_server = pick_random_server()
+
         self.lock = threading.Lock()
         self.pending_sends = []
         self.message_id = 0
         self.debug = False
         self.irc_servers = {} # returned by interface (list from irc)
         self.recent_servers = self.read_recent_servers()
+
+        # Server for addresses and transactions
+        self.default_server = self.config.get('server')
+        # Sanitize default server
+        protocol = None
+        try:
+            host, port, protocol = deserialize_server(self.default_server)
+        except:
+            self.default_server = None
+        if self.default_server and protocol and protocol != self.protocol:
+            self.handle_protocol_contradiction(self.protocol)
+        if not self.default_server:
+            self.default_server = pick_random_server()
 
         self.banner = ''
         self.donation_address = ''
@@ -221,6 +225,30 @@ class Network(util.DaemonThread):
         self.requested_chunks = set()
         self.socket_queue = queue.Queue()
         self.start_network(self.protocol, deserialize_proxy(self.config.get('proxy')))
+
+    def handle_protocol_contradiction(self, nossl_based_protocol):
+        """Resolve conflicting server protocol and nossl option.
+        We assume there IS a conflict.
+        """
+        if nossl_based_protocol == 't':
+            # ssl server and --nossl
+            self.print_error('WARNING: Disabling SSL but keeping server.')
+        else:
+            # tcp server [without nossl]
+            self.print_error('WARNING: Forcing SSL but keeping server. \n'
+                             'To connect to a server over TCP without SSL, '
+                             'you need to start Electrum with the --nossl option.')
+        self.change_to_protocol(nossl_based_protocol)
+
+    def change_to_protocol(self, protocol):
+        assert protocol in ('s', 't')
+        # note: we assume that self.default_server is not malformed
+        host, port, _ = deserialize_server(self.default_server)
+        pp = self.get_servers().get(host, NetworkConstants.DEFAULT_PORTS)
+        if protocol in pp.keys():
+            port = pp[protocol]
+        self.default_server = serialize_server(host, port, protocol)
+        self.protocol = protocol
 
     def register_callback(self, callback, events):
         with self.lock:
