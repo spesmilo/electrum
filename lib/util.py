@@ -431,7 +431,7 @@ mainnet_block_explorers = {
                         {'tx': 'tx', 'addr': 'address'}),
     'ZclassicExplorer.com': ('http://149.56.129.104/insight-api-zcash',
                         {'tx': 'tx', 'addr': 'address'}),
-    'BlockCypher.com': ('http://zcl-explorer.com/insight-api-zcash',
+    'ZCL-Explorer.com': ('http://zcl-explorer.com/insight-api-zcash',
                         {'tx': 'tx', 'addr': 'address'}),
     'system default': ('blockchain:',
                         {'tx': 'tx', 'addr': 'address'})
