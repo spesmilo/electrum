@@ -40,7 +40,7 @@ def inv_dict(d):
     return {v: k for k, v in d.items()}
 
 
-base_units = {'BTC':8, 'mBTC':5, 'uBTC':2}
+base_units = {'ZCL':8, 'mZCL':5, 'uZCL':2}
 fee_levels = [_('Within 25 blocks'), _('Within 10 blocks'), _('Within 5 blocks'), _('Within 2 blocks'), _('In the next block')]
 
 def normalize_version(v):
@@ -492,7 +492,7 @@ def parse_URI(uri, on_pr=None):
 
     if ':' not in uri:
         if not bitcoin.is_address(uri):
-            raise BaseException("Not a bitcoin address")
+            raise BaseException("Not a Zclassic address")
         return {'address': uri}
 
     u = urllib.parse.urlparse(uri)
@@ -514,7 +514,7 @@ def parse_URI(uri, on_pr=None):
     out = {k: v[0] for k, v in pq.items()}
     if address:
         if not bitcoin.is_address(address):
-            raise BaseException("Invalid bitcoin address:" + address)
+            raise BaseException("Invalid Zclassic address:" + address)
         out['address'] = address
     if 'amount' in out:
         am = out['amount']
