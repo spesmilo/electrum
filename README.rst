@@ -87,7 +87,7 @@ Requires python3.5+, pyqt5, protoc, gettext, pycurl, pyqt5-devtools, and possibl
 
 Compile the icons file for Qt (make sure pyrcc5 is installed)::
 
-    pyrcc5 icons.qrc -o gui/qt/icons_rc.py
+    pyrcc5-3.6 icons.qrc -o gui/qt/icons_rc.py
 
 Compile the protobuf description file (make sure protoc is installed)::
 
