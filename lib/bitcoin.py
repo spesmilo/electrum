@@ -72,35 +72,41 @@ XPUB_HEADERS = {
 
 class NetworkConstants:
 
+    # https://github.com/z-classic/zclassic/blob/master/src/chainparams.cpp#L103
     @classmethod
     def set_mainnet(cls):
         cls.TESTNET = False
         cls.WIF_PREFIX = 0x80
-        cls.ADDRTYPE_P2PKH = 0
-        cls.ADDRTYPE_P2SH = 5
-        cls.SEGWIT_HRP = "bc"
-        cls.HEADERS_URL = "https://headers.electrum.org/blockchain_headers" #TODO
+        cls.ADDRTYPE_P2PKH = [0x1c, 0xb8]
+        cls.ADDRTYPE_P2SH = [0x1c, 0xbd]
+        cls.SEGWIT_HRP = "bc" #TODO zcl has no segwit
         cls.GENESIS = "0007104ccda289427919efc39dc9e4d499804b7bebc22df55f8b834301260602"
         cls.DEFAULT_PORTS = {'t': '50001', 's': '50002'}
         cls.DEFAULT_SERVERS = read_json('servers.json', {})
         cls.CHECKPOINTS = read_json('checkpoints.json', [])
         cls.EQUIHASH_N = 200
         cls.EQUIHASH_K = 9
-        
+    
+        cls.HEADERS_URL = "https://headers.electrum.org/blockchain_headers" #TODO
+
+
+    # https://github.com/z-classic/zclassic/blob/master/src/chainparams.cpp#L234
     @classmethod
     def set_testnet(cls):
         cls.TESTNET = True
         cls.WIF_PREFIX = 0xef
-        cls.ADDRTYPE_P2PKH = 111
-        cls.ADDRTYPE_P2SH = 196
-        cls.SEGWIT_HRP = "tb"
-        cls.HEADERS_URL = "http://35.224.186.7/headers00" #TODO
-        cls.GENESIS = "0007104ccda289427919efc39dc9e4d499804b7bebc22df55f8b834301260602"
-        cls.DEFAULT_PORTS = {'t':'51001', 's':'51002'}
+        cls.ADDRTYPE_P2PKH = [0x1d, 0x25]
+        cls.ADDRTYPE_P2SH = [0x1c,0xba]
+        cls.SEGWIT_HRP = "tb" #TODO zcl has no segwit
+        cls.GENESIS = "03e1c4bb705c871bf9bfda3e74b7f8f86bff267993c215a89d5795e3708e5e1f"
+        cls.DEFAULT_PORTS = {'t': '51001', 's': '51002'}
         cls.DEFAULT_SERVERS = read_json('servers_testnet.json', {})
         cls.CHECKPOINTS = read_json('checkpoints_testnet.json', [])
         cls.EQUIHASH_N = 200
         cls.EQUIHASH_K = 9
+
+        cls.HEADERS_URL = "http://35.224.186.7/headers00" #TODO
+
 
 NetworkConstants.set_testnet()
 
@@ -113,7 +119,7 @@ FEE_TARGETS = [25, 10, 5, 2]
 COINBASE_MATURITY = 100
 COIN = 100000000
 
-# supported types of transction outputs
+# supported types of transaction outputs
 TYPE_ADDRESS = 0
 TYPE_PUBKEY  = 1
 TYPE_SCRIPT  = 2
@@ -655,7 +661,7 @@ def is_b58_address(addr):
         addrtype, h = b58_address_to_hash160(addr)
     except Exception as e:
         return False
-    if addrtype not in [NetworkConstants.ADDRTYPE_P2PKH, NetworkConstants.ADDRTYPE_P2SH]:
+    if addrtype not in NetworkConstants.ADDRTYPE_P2PKH + NetworkConstants.ADDRTYPE_P2SH:
         return False
     return addr == hash160_to_b58_address(h, addrtype)
 
