@@ -434,15 +434,15 @@ mainnet_block_explorers = {
     'BlockCypher.com': ('http://zcl-explorer.com/insight-api-zcash',
                         {'tx': 'tx', 'addr': 'address'}),
     'system default': ('blockchain:',
-                        {'tx': 'tx', 'addr': 'address'}),
+                        {'tx': 'tx', 'addr': 'address'})
 }
 
 # TODO zcl testnet block explorer
 testnet_block_explorers = {
     #'Blocktrail.com': ('https://www.blocktrail.com/tBTC',
-                       {'tx': 'tx', 'addr': 'address'}),
+                       #{'tx': 'tx', 'addr': 'address'}),
     'system default': ('blockchain:',
-                       {'tx': 'tx', 'addr': 'address'}),
+                       {'tx': 'tx', 'addr': 'address'})
 }
 
 def block_explorer_info():
