@@ -77,8 +77,8 @@ class NetworkConstants:
     def set_mainnet(cls):
         cls.TESTNET = False
         cls.WIF_PREFIX = 0x80
-        cls.ADDRTYPE_P2PKH = [0x1c, 0xb8]
-        cls.ADDRTYPE_P2SH = [0x1c, 0xbd]
+        cls.ADDRTYPE_P2PKH = [0x1C, 0xB8]
+        cls.ADDRTYPE_P2SH = [0x1C, 0xBD]
         cls.SEGWIT_HRP = "bc" #TODO zcl has no segwit
         cls.GENESIS = "0007104ccda289427919efc39dc9e4d499804b7bebc22df55f8b834301260602"
         cls.DEFAULT_PORTS = {'t': '50001', 's': '50002'}
@@ -96,8 +96,8 @@ class NetworkConstants:
     def set_testnet(cls):
         cls.TESTNET = True
         cls.WIF_PREFIX = 0xef
-        cls.ADDRTYPE_P2PKH = [0x1d, 0x25]
-        cls.ADDRTYPE_P2SH = [0x1c,0xba]
+        cls.ADDRTYPE_P2PKH = [0x1D, 0x25]
+        cls.ADDRTYPE_P2SH = [0x1C, 0xBA]
         cls.SEGWIT_HRP = "tb" #TODO zcl has no segwit
         cls.GENESIS = "03e1c4bb705c871bf9bfda3e74b7f8f86bff267993c215a89d5795e3708e5e1f"
         cls.DEFAULT_PORTS = {'t': '51001', 's': '51002'}
@@ -412,15 +412,16 @@ def hash_160(public_key):
 
 
 def hash160_to_b58_address(h160, addrtype, witness_program_version=1):
-    s = bytes([addrtype])
+    s = bytes([addrtype[0]])
+    s += bytes([addrtype[1]])
     s += h160
     return base_encode(s+Hash(s)[0:4], base=58)
 
 
 def b58_address_to_hash160(addr):
     addr = to_bytes(addr, 'ascii')
-    _bytes = base_decode(addr, 25, base=58)
-    return _bytes[0], _bytes[1:21]
+    _bytes = base_decode(addr, 26, base=58)
+    return [_bytes[0], _bytes[1]], _bytes[2:22]
 
 
 def hash160_to_p2pkh(h160):
@@ -667,7 +668,7 @@ def is_b58_address(addr):
         addrtype, h = b58_address_to_hash160(addr)
     except Exception as e:
         return False
-    if addrtype not in NetworkConstants.ADDRTYPE_P2PKH + NetworkConstants.ADDRTYPE_P2SH:
+    if addrtype not in [NetworkConstants.ADDRTYPE_P2PKH, NetworkConstants.ADDRTYPE_P2SH]:
         return False
     return addr == hash160_to_b58_address(h, addrtype)
 
