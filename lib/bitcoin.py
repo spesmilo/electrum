@@ -87,8 +87,9 @@ class NetworkConstants:
         cls.EQUIHASH_N = 200
         cls.EQUIHASH_K = 9
     
-        cls.HEADERS_URL = "https://headers.electrum.org/blockchain_headers" #TODO
+        cls.HEADERS_URL = "http://35.224.186.7/headers00" #TODO
 
+        cls.CHUNK_SIZE = 200
 
     # https://github.com/z-classic/zclassic/blob/master/src/chainparams.cpp#L234
     @classmethod
@@ -104,11 +105,12 @@ class NetworkConstants:
         cls.CHECKPOINTS = read_json('checkpoints_testnet.json', [])
         cls.EQUIHASH_N = 200
         cls.EQUIHASH_K = 9
+        cls.CHUNK_SIZE = 200
 
         cls.HEADERS_URL = "http://35.224.186.7/headers00" #TODO
 
 
-NetworkConstants.set_testnet()
+NetworkConstants.set_mainnet()
 
 ################################## transactions
 
@@ -333,6 +335,10 @@ def sha256(x):
 def Hash(x):
     out = bytes(sha256(sha256(x)))
     return out
+
+hash_encode = lambda x: bh2u(x[::-1])
+hash_decode = lambda x: bfh(x)[::-1]
+hmac_sha_512 = lambda x, y: hmac.new(x, y, hashlib.sha512).digest()
 
 def is_new_seed(x, prefix=version.SEED_PREFIX):
     from . import mnemonic
