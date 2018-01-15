@@ -20,3 +20,8 @@ bin/
 # tox files
 .cache/
 .coverage
+
+# User-specific stuff:
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/dictionaries

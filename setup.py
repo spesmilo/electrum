@@ -44,6 +44,7 @@ setup(
         'protobuf',
         'dnspython',
         'jsonrpclib-pelix',
+        'pyblake2',
         'PySocks>=1.6.6',
     ],
     packages=[

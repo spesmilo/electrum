@@ -29,6 +29,7 @@ import hmac
 import os
 import json
 
+import struct
 import ecdsa
 import pyaes
 
@@ -78,11 +79,14 @@ class NetworkConstants:
         cls.ADDRTYPE_P2PKH = 0
         cls.ADDRTYPE_P2SH = 5
         cls.SEGWIT_HRP = "bc"
-        cls.GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
+        cls.HEADERS_URL = "https://headers.electrum.org/blockchain_headers" #TODO
+        cls.GENESIS = "0007104ccda289427919efc39dc9e4d499804b7bebc22df55f8b834301260602"
         cls.DEFAULT_PORTS = {'t': '50001', 's': '50002'}
         cls.DEFAULT_SERVERS = read_json('servers.json', {})
         cls.CHECKPOINTS = read_json('checkpoints.json', [])
-
+        cls.EQUIHASH_N = 200
+        cls.EQUIHASH_K = 9
+        
     @classmethod
     def set_testnet(cls):
         cls.TESTNET = True
@@ -90,13 +94,15 @@ class NetworkConstants:
         cls.ADDRTYPE_P2PKH = 111
         cls.ADDRTYPE_P2SH = 196
         cls.SEGWIT_HRP = "tb"
-        cls.GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
+        cls.HEADERS_URL = "http://35.224.186.7/headers00" #TODO
+        cls.GENESIS = "0007104ccda289427919efc39dc9e4d499804b7bebc22df55f8b834301260602"
         cls.DEFAULT_PORTS = {'t':'51001', 's':'51002'}
         cls.DEFAULT_SERVERS = read_json('servers_testnet.json', {})
         cls.CHECKPOINTS = read_json('checkpoints_testnet.json', [])
+        cls.EQUIHASH_N = 200
+        cls.EQUIHASH_K = 9
 
-
-NetworkConstants.set_mainnet()
+NetworkConstants.set_testnet()
 
 ################################## transactions
 
@@ -237,21 +243,90 @@ def op_push(i):
 def push_script(x):
     return op_push(len(x)//2) + x
 
+# ZCASH specific utils methods
+# https://github.com/zcash/zcash/blob/master/qa/rpc-tests/test_framework/mininode.py
+
+BASIC_HEADER_SIZE = 140
+
+hash_to_str = lambda x: bytes(reversed(x)).hex()
+str_to_hash = lambda x: bytes(reversed(bytes.fromhex(x)))
+
+def read_vector_size(f):
+    nit = struct.unpack("<B", f.read(1))[0]
+    if nit == 253:
+        return struct.unpack("<H", f.read(2))[0]
+    elif nit == 254:
+        return struct.unpack("<I", f.read(4))[0]
+    elif nit == 255:
+        return struct.unpack("<Q", f.read(8))[0]
+    return nit
+
+def ser_char_vector(l):
+    if l is None:
+        l = b''
+    if len(l) < 253:
+        r = struct.pack("<B", len(l))
+    elif len(l) < 0x10000:
+        r = struct.pack("<B", 253) + struct.pack("<H", len(l))
+    elif len(l) < 0x100000000:
+        r = struct.pack("<B", 254) + struct.pack("<I", len(l))
+    else:
+        r = struct.pack("<B", 255) + struct.pack("<Q", len(l))
+    r += bytes(l)
+    return r
+
+
+def deser_char_vector(f):
+    nit = struct.unpack("<B", f.read(1))[0]
+    if nit == 253:
+        nit = struct.unpack("<H", f.read(2))[0]
+    elif nit == 254:
+        nit = struct.unpack("<I", f.read(4))[0]
+    elif nit == 255:
+        nit = struct.unpack("<Q", f.read(8))[0]
+    r = []
+    for i in range(nit):
+        t = struct.unpack("<B", f.read(1))[0]
+        r.append(t)
+    return r
+
+def vector_from_bytes(s):
+    return [v for v in s]
+
+
+def deser_uint256(f):
+    r = 0
+    for i in range(8):
+        t = struct.unpack("<I", f.read(4))[0]
+        r += t << (i * 32)
+    return r
+
+
+def uint256_from_bytes(s):
+    r = 0
+    t = struct.unpack("<IIIIIIII", s[:32])
+    for i in range(8):
+        r += t[i] << (i * 32)
+    return r
+
+
+def ser_uint256(u):
+    if isinstance(u, str):
+        u = int(u, 16)
+    if u is None:
+        u = 0
+    rs = b''
+    for i in range(8):
+        rs += struct.pack("<I", u & 0xFFFFFFFF)
+        u >>= 32
+    return rs
+
 def sha256(x):
-    x = to_bytes(x, 'utf8')
     return bytes(hashlib.sha256(x).digest())
 
-
 def Hash(x):
-    x = to_bytes(x, 'utf8')
     out = bytes(sha256(sha256(x)))
     return out
-
-
-hash_encode = lambda x: bh2u(x[::-1])
-hash_decode = lambda x: bfh(x)[::-1]
-hmac_sha_512 = lambda x, y: hmac.new(x, y, hashlib.sha512).digest()
-
 
 def is_new_seed(x, prefix=version.SEED_PREFIX):
     from . import mnemonic
