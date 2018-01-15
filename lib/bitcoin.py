@@ -668,7 +668,7 @@ def is_b58_address(addr):
         addrtype, h = b58_address_to_hash160(addr)
     except Exception as e:
         return False
-    if addrtype not in NetworkConstants.ADDRTYPE_P2PKH + NetworkConstants.ADDRTYPE_P2SH:
+    if addrtype not in [NetworkConstants.ADDRTYPE_P2PKH, NetworkConstants.ADDRTYPE_P2SH]:
         return False
     return addr == hash160_to_b58_address(h, addrtype)
 
