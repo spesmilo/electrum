@@ -5,7 +5,8 @@ import os
 import stat
 
 from copy import deepcopy
-from .util import user_dir, print_error, print_stderr, PrintError
+from .util import (user_dir, print_error, print_stderr, PrintError,
+                   NoDynamicFeeEstimates)
 
 from .bitcoin import MAX_FEE_RATE, FEE_TARGETS
 
@@ -248,6 +249,9 @@ class SimpleConfig(PrintError):
         return self.get('dynamic_fees', False)
 
     def fee_per_kb(self):
+        """Returns sat/kvB fee to pay for a txn.
+        Note: might return None.
+        """
         dyn = self.is_dynfee()
         if dyn:
             fee_rate = self.dynfee(self.get('fee_level', 2))
@@ -255,8 +259,18 @@ class SimpleConfig(PrintError):
             fee_rate = self.get('fee_per_kb', self.max_fee_rate()/10)
         return fee_rate
 
+    def fee_per_byte(self):
+        """Returns sat/vB fee to pay for a txn.
+        Note: might return None.
+        """
+        fee_per_kb = self.fee_per_kb()
+        return fee_per_kb / 1000 if fee_per_kb is not None else None
+
     def estimate_fee(self, size):
-        return self.estimate_fee_for_feerate(self.fee_per_kb(), size)
+        fee_per_kb = self.fee_per_kb()
+        if fee_per_kb is None:
+            raise NoDynamicFeeEstimates()
+        return self.estimate_fee_for_feerate(fee_per_kb, size)
 
     @classmethod
     def estimate_fee_for_feerate(cls, fee_per_kb, size):
