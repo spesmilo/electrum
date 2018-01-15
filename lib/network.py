@@ -59,7 +59,7 @@ def parse_servers(result):
             for v in item[2]:
                 if re.match("[st]\d*", v):
                     protocol, port = v[0], v[1:]
-                    if port == '': port = bitcoin.NetworkConstants.DEFAULT_PORTS[protocol]
+                    if port == '': port = NetworkConstants.DEFAULT_PORTS[protocol]
                     out[protocol] = port
                 elif re.match("v(.?)+", v):
                     version = v[1:]
@@ -93,7 +93,7 @@ def filter_protocol(hostmap, protocol = 's'):
 
 def pick_random_server(hostmap = None, protocol = 's', exclude_set = set()):
     if hostmap is None:
-        hostmap = bitcoin.NetworkConstants.DEFAULT_SERVERS
+        hostmap = NetworkConstants.DEFAULT_SERVERS
     eligible = list(set(filter_protocol(hostmap, protocol)) - exclude_set)
     return random.choice(eligible) if eligible else None
 
@@ -358,7 +358,7 @@ class Network(util.DaemonThread):
         return list(self.interfaces.keys())
 
     def get_servers(self):
-        out = bitcoin.NetworkConstants.DEFAULT_SERVERS
+        out = NetworkConstants.DEFAULT_SERVERS
         if self.irc_servers:
             out.update(filter_version(self.irc_servers.copy()))
         else:
@@ -908,7 +908,7 @@ class Network(util.DaemonThread):
         # If not finished, get the next header
         if next_height:
             if interface.mode == 'catch_up' and interface.tip > next_height + 50:
-                self.request_chunk(interface, next_height // 2016)
+                self.request_chunk(interface, next_height // NetworkConstants.CHUNK_SIZE)
             else:
                 self.request_header(interface, next_height)
         else:
@@ -949,8 +949,8 @@ class Network(util.DaemonThread):
 
     def init_headers_file(self):
         b = self.blockchains[0]
-        print(b.get_hash(0), bitcoin.NetworkConstants.GENESIS)
-        if b.get_hash(0) == bitcoin.NetworkConstants.GENESIS:
+        print(b.get_hash(0), NetworkConstants.GENESIS)
+        if b.get_hash(0) == NetworkConstants.GENESIS:
             self.downloading_headers = False
             return
         filename = b.path()
@@ -958,8 +958,8 @@ class Network(util.DaemonThread):
             try:
                 import urllib, socket
                 socket.setdefaulttimeout(30)
-                self.print_error("downloading ", bitcoin.NetworkConstants.HEADERS_URL)
-                urllib.request.urlretrieve(bitcoin.NetworkConstants.HEADERS_URL, filename)
+                self.print_error("downloading ", NetworkConstants.HEADERS_URL)
+                urllib.request.urlretrieve(NetworkConstants.HEADERS_URL, filename)
                 self.print_error("done.")
             except Exception:
                 import traceback
@@ -1092,9 +1092,3 @@ class Network(util.DaemonThread):
         if out != tx_hash:
             return False, "error: " + out
         return True, out
-
-    def export_checkpoints(self, path):
-        # run manually from the console to generate checkpoints
-        cp = self.blockchain().get_checkpoints()
-        with open(path, 'w') as f:
-            f.write(json.dumps(cp, indent=4))

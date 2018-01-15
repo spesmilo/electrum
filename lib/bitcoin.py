@@ -86,7 +86,8 @@ class NetworkConstants:
         cls.CHECKPOINTS = read_json('checkpoints.json', [])
         cls.EQUIHASH_N = 200
         cls.EQUIHASH_K = 9
-        
+        cls.CHUNK_SIZE = 200
+
     @classmethod
     def set_testnet(cls):
         cls.TESTNET = True
@@ -101,6 +102,7 @@ class NetworkConstants:
         cls.CHECKPOINTS = read_json('checkpoints_testnet.json', [])
         cls.EQUIHASH_N = 200
         cls.EQUIHASH_K = 9
+        cls.CHUNK_SIZE = 200
 
 NetworkConstants.set_testnet()
 

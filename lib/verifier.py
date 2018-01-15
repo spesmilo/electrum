@@ -43,7 +43,7 @@ class SPV(ThreadJob):
             if (tx_height > 0) and (tx_height <= lh):
                 header = self.network.blockchain().read_header(tx_height)
                 if header is None and self.network.interface:
-                    index = tx_height // 2016
+                    index = tx_height // NetworkConstants.CHUNK_SIZE
                     self.network.request_chunk(self.network.interface, index)
                 else:
                     if tx_hash not in self.merkle_roots:
