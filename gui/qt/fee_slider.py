@@ -18,6 +18,7 @@ class FeeSlider(QSlider):
         self.lock = threading.RLock()
         self.update()
         self.valueChanged.connect(self.moved)
+        self._active = True
 
     def moved(self, pos):
         with self.lock:
@@ -56,9 +57,11 @@ class FeeSlider(QSlider):
             self.setToolTip(tooltip)
 
     def activate(self):
+        self._active = True
         self.setStyleSheet('')
 
     def deactivate(self):
+        self._active = False
         # TODO it would be nice to find a platform-independent solution
         # that makes the slider look as if it was disabled
         self.setStyleSheet(
@@ -79,3 +82,6 @@ class FeeSlider(QSlider):
             }
             """
         )
+
+    def is_active(self):
+        return self._active
