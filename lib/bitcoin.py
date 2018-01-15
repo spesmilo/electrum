@@ -104,7 +104,7 @@ class NetworkConstants:
         cls.EQUIHASH_K = 9
         cls.CHUNK_SIZE = 200
 
-NetworkConstants.set_testnet()
+NetworkConstants.set_mainnet()
 
 ################################## transactions
 
