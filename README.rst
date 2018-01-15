@@ -80,6 +80,30 @@ Create translations (optional)::
 
 
 
+ZCL Hints and Debug
+===================
+
+::
+    cd scripts
+    python3 block_headers
+
+This is a good initial check to determine whether things are working.
+
+::
+    cd ~/.electrum-zcl
+    vim config
+
+Add
+
+::
+    "server": "188.243.70.5:50001:t" 
+
+or
+
+::
+     "server": "35.224.186.7:50001:t"
+
+
 
 Creating Binaries
 =================
