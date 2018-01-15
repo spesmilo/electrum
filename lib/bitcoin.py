@@ -330,6 +330,10 @@ def Hash(x):
     out = bytes(sha256(sha256(x)))
     return out
 
+hash_encode = lambda x: bh2u(x[::-1])
+hash_decode = lambda x: bfh(x)[::-1]
+hmac_sha_512 = lambda x, y: hmac.new(x, y, hashlib.sha512).digest()
+
 def is_new_seed(x, prefix=version.SEED_PREFIX):
     from . import mnemonic
     x = mnemonic.normalize_text(x)
