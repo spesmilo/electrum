@@ -84,7 +84,8 @@ class WsClientThread(util.DaemonThread):
             l = self.subscriptions.get(addr, [])
             l.append((ws, amount))
             self.subscriptions[addr] = l
-            self.network.send([('blockchain.address.subscribe', [addr])], self.response_queue.put)
+            h = self.network.addr_to_scripthash(addr)
+            self.network.send([('blockchain.scripthash.subscribe', [h])], self.response_queue.put)
 
 
     def run(self):
@@ -100,10 +101,13 @@ class WsClientThread(util.DaemonThread):
             result = r.get('result')
             if result is None:
                 continue    
-            if method == 'blockchain.address.subscribe':
-                self.network.send([('blockchain.address.get_balance', params)], self.response_queue.put)
-            elif method == 'blockchain.address.get_balance':
-                addr = params[0]
+            if method == 'blockchain.scripthash.subscribe':
+                self.network.send([('blockchain.scripthash.get_balance', params)], self.response_queue.put)
+            elif method == 'blockchain.scripthash.get_balance':
+                h = params[0]
+                addr = self.network.h2addr.get(h, None)
+                if addr is None:
+                    util.print_error("can't find address for scripthash: %s" % h)
                 l = self.subscriptions.get(addr, [])
                 for ws, amount in l:
                     if not ws.closed:
