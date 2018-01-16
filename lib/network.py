@@ -137,14 +137,23 @@ def deserialize_proxy(s):
 
 
 def deserialize_server(server_str):
-    host, port, protocol = str(server_str).split(':')
+    host, port, protocol = str(server_str).rsplit(':', 2)
     assert protocol in 'st'
     int(port)    # Throw if cannot be converted to int
     return host, port, protocol
 
 
-def serialize_server(host, port, protocol):
-    return str(':'.join([host, port, protocol]))
+def deserialize_server_without_protocol(server_str):
+    host, port = str(server_str).rsplit(':', 1)
+    int(port)  # Throw if cannot be converted to int
+    return host, port
+
+
+def serialize_server(host, port, protocol=None):
+    if protocol is None:
+        return str(':'.join([host, port]))
+    else:
+        return str(':'.join([host, port, protocol]))
 
 
 class Network(util.DaemonThread):
@@ -173,13 +182,15 @@ class Network(util.DaemonThread):
             self.blockchain_index = 0
         self.protocol = 't' if self.config.get('nossl') else 's'
         # Server for addresses and transactions
-        self.default_server = self.config.get('server')
+        self.default_server = self.config.get('server', None)
         # Sanitize default server
-        try:
-            host, port, protocol = deserialize_server(self.default_server)
-            assert protocol == self.protocol
-        except:
-            self.default_server = None
+        if self.default_server:
+            try:
+                host, port = deserialize_server_without_protocol(self.default_server)
+                self.default_server = serialize_server(host, port, self.protocol)
+            except:
+                self.print_stderr('Warning: failed to parse server-string; falling back to random.')
+                self.default_server = None
         if not self.default_server:
             self.default_server = pick_random_server()
         self.lock = threading.Lock()
@@ -444,11 +455,13 @@ class Network(util.DaemonThread):
                 int(proxy['port'])
         except:
             return
+        server_without_protocol = serialize_server(host, port)
         self.config.set_key('auto_connect', auto_connect, False)
         self.config.set_key("proxy", proxy_str, False)
-        self.config.set_key("server", server, True)
+        self.config.set_key("server", server_without_protocol, True)
         # abort if changes were not allowed by config
-        if self.config.get('server') != server or self.config.get('proxy') != proxy_str:
+        if self.config.get('server') != server_without_protocol \
+                or self.config.get('proxy') != proxy_str:
             return
         self.auto_connect = auto_connect
         if self.proxy != proxy or self.protocol != protocol:
