@@ -658,7 +658,7 @@ class ElectrumWindow(App):
 
     def get_max_amount(self):
         inputs = self.wallet.get_spendable_coins(None, self.electrum_config)
-        addr = str(self.send_screen.screen.address) or self.wallet.dummy_address()
+        addr = Address.from_string(self.send_screen.screen.address) or self.wallet.dummy_address()
         outputs = [(TYPE_ADDRESS, addr, '!')]
         tx = self.wallet.make_unsigned_transaction(inputs, outputs, self.electrum_config)
         amount = tx.output_value()
