@@ -656,13 +656,15 @@ class Commands:
             import urllib.request
             headers = {'content-type':'application/json'}
             data = {'address':address, 'status':x.get('result')}
+            serialized_data = util.to_bytes(json.dumps(data))
             try:
-                req = urllib.request.Request(URL, json.dumps(data), headers)
+                req = urllib.request.Request(URL, serialized_data, headers)
                 response_stream = urllib.request.urlopen(req, timeout=5)
                 util.print_error('Got Response for %s' % address)
             except BaseException as e:
                 util.print_error(str(e))
-        self.network.send([('blockchain.address.subscribe', [address])], callback)
+        h = self.network.addr_to_scripthash(address)
+        self.network.send([('blockchain.scripthash.subscribe', [h])], callback)
         return True
 
     @command('wn')
@@ -823,7 +825,6 @@ def add_global_options(parser):
     group.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum-ltc_data' directory")
     group.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
     group.add_argument("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
-    group.add_argument("--nossl", action="store_true", dest="nossl", default=False, help="Disable SSL")
 
 def get_parser():
     # create main parser

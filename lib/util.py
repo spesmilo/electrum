@@ -77,7 +77,11 @@ class PrintError(object):
         return self.__class__.__name__
 
     def print_error(self, *msg):
+        # only prints with --verbose flag
         print_error("[%s]" % self.diagnostic_name(), *msg)
+
+    def print_stderr(self, *msg):
+        print_stderr("[%s]" % self.diagnostic_name(), *msg)
 
     def print_msg(self, *msg):
         print_msg("[%s]" % self.diagnostic_name(), *msg)
