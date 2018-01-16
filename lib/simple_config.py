@@ -162,12 +162,12 @@ class SimpleConfig(PrintError):
         self.rename_config_keys(self.user_config, {'auto_cycle': 'auto_connect'})
 
         try:
-            # migrate server string FROM host:port:proto TO host:port
+            # change server string FROM host:port:proto TO host:port:s
             server_str = self.user_config.get('server')
             host, port, protocol = str(server_str).rsplit(':', 2)
             assert protocol in ('s', 't')
             int(port)  # Throw if cannot be converted to int
-            server_str = str('{}:{}'.format(host, port))
+            server_str = '{}:{}:s'.format(host, port)
             self._set_key_in_user_config('server', server_str)
         except BaseException:
             self._set_key_in_user_config('server', None)
