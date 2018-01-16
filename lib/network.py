@@ -604,6 +604,9 @@ class Network(util.DaemonThread):
                 elif method == 'blockchain.scripthash.subscribe':
                     response['params'] = [params[0]]  # addr
                     response['result'] = params[1]
+                elif method == 'blockchain.address.subscribe':
+                    response['params'] = [params[0]]
+                    response['result'] = params[1]
                 callbacks = self.subscriptions.get(k, [])
 
             # update cache if it's a subscription
