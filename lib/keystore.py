@@ -77,7 +77,7 @@ class KeyStore(PrintError):
             return False
         return bool(self.get_tx_derivations(tx))
 
-    def set_wallet_atvice(self, addr, advice):
+    def set_wallet_advice(self, addr, advice):
         pass
 
 
