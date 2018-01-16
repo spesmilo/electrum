@@ -420,7 +420,7 @@ if __name__ == '__main__':
         else:
             cmd = known_commands[cmdname]
             if cmd.requires_network:
-                print_msg("Daemon not running; try 'electrum daemon start'")
+                print_msg("Daemon not running; try 'electrum-grs daemon start'")
                 sys.exit(1)
             else:
                 init_plugins(config, 'cmdline')
