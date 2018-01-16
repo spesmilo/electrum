@@ -290,7 +290,20 @@ class Xpub:
         assert len(s) == 2
         return xkey, s
 
+    def get_pubkey_derivation_from_addr(self, x_pubkey):
+        _, needle = xpubkey_to_address(x_pubkey)
+        for c in range(0, 2):
+            # try to figure out which deterministic pubkey it was.. try first
+            # 40 pubkeys -- this is a workaround/fix for github issue #470
+            for i in range(0, 40):
+                _, candidate = xpubkey_to_address(self.derive_pubkey(c, i))
+                if needle == candidate:
+                    return [c, i]
+        return
+
     def get_pubkey_derivation(self, x_pubkey):
+        if x_pubkey[0:2] == 'fd':
+            return self.get_pubkey_derivation_from_addr(x_pubkey)
         if x_pubkey[0:2] != 'ff':
             return
         xpub, derivation = self.parse_xpubkey(x_pubkey)
