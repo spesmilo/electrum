@@ -533,8 +533,7 @@ class SettingsDialog(WindowModalDialog):
 
         # Advanced tab
         advanced_tab = QWidget()
-        advanced_layout = QVBoxLayout(advanced_tab)
-        advanced_glayout = QGridLayout()
+        advanced_glayout = QGridLayout(advanced_tab)
 
         # Advanced tab - clear PIN
         clear_pin_button = QPushButton(_("Disable PIN"))
@@ -573,8 +572,8 @@ class SettingsDialog(WindowModalDialog):
         advanced_glayout.addWidget(wipe_device_button, 6, 2)
         advanced_glayout.addWidget(wipe_device_msg, 7, 0, 1, 5)
         advanced_glayout.addWidget(wipe_device_warning, 8, 0, 1, 5)
-        advanced_layout.addLayout(advanced_glayout)
-        advanced_layout.addStretch(1)
+#        advanced_layout.addLayout(advanced_glayout)
+#        advanced_layout.addStretch(1)
 
         tabs = QTabWidget(self)
         tabs.addTab(info_tab, _("Information"))

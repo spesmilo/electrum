@@ -2018,17 +2018,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.wallet.thread.add(task, on_success=show_signed_message)
 
     def do_verify(self, address, message, signature):
-        address  = address.text().strip()
-        message = message.toPlainText().strip().encode('utf-8')
-        if not Address.is_valid(address):
+        try:
+            address = Address.from_string(address.text().strip())
+        except:
             self.show_message(_('Invalid Bitcoin Cash address.'))
             return
+        message = message.toPlainText().strip().encode('utf-8')
         try:
             # This can throw on invalid base64
-            sig = base64.b64decode(str(signature.toPlainText()))
-            verified = bitcoin.verify_message(address, sig, message)
-        except Exception as e:
+            sig = base64.b64decode(signature.toPlainText())
+        except:
             verified = False
+        else:
+            verified = bitcoin.verify_message(address, sig, message)
+
         if verified:
             self.show_message(_("Signature verified"))
         else:

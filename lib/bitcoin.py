@@ -500,24 +500,24 @@ def msg_magic(message):
 
 def verify_message(address, sig, message):
     assert_bytes(sig, message)
-    try:
-        h = Hash(msg_magic(message))
-        public_key, compressed = pubkey_from_signature(sig, h)
-        # check public key using the address
-        pubkey = point_to_ser(public_key.pubkey.point, compressed)
-        for txin_type in ['p2pkh']:
-            addr = pubkey_to_address(txin_type, bh2u(pubkey))
-            if address == addr:
-                break
-        else:
-            raise Exception("Bad signature")
-        # check message
-        public_key.verify_digest(sig[1:], h, sigdecode = ecdsa.util.sigdecode_string)
-        return True
-    except Exception as e:
-        print_error("Verification error: {0}".format(e))
-        return False
+    from .address import Address
+    if not isinstance(address, Address):
+        address = Address.from_string(address)
 
+    h = Hash(msg_magic(message))
+    public_key, compressed = pubkey_from_signature(sig, h)
+    # check public key using the right address
+    pubkey = point_to_ser(public_key.pubkey.point, compressed)
+    addr = Address.from_pubkey(pubkey)
+    if address != addr:
+        return False
+    # check message
+    try:
+        public_key.verify_digest(sig[1:], h,
+                                 sigdecode=ecdsa.util.sigdecode_string)
+    except:
+        return False
+    return True
 
 def encrypt_message(message, pubkey):
     return EC_KEY.encrypt_message(message, bfh(pubkey))
