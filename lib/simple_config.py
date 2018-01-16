@@ -5,12 +5,10 @@ import os
 import stat
 
 from copy import deepcopy
-from .util import (user_dir, print_error, print_stderr, PrintError,
+from .util import (user_dir, print_error, PrintError,
                    NoDynamicFeeEstimates)
 
 from .bitcoin import MAX_FEE_RATE, FEE_TARGETS
-
-SYSTEM_CONFIG_PATH = "/etc/electrum.conf"
 
 config = None
 
@@ -25,22 +23,26 @@ def set_config(c):
     config = c
 
 
+FINAL_CONFIG_VERSION = 2
+
+
 class SimpleConfig(PrintError):
     """
     The SimpleConfig class is responsible for handling operations involving
     configuration files.
 
-    There are 3 different sources of possible configuration values:
+    There are two different sources of possible configuration values:
         1. Command line options.
         2. User configuration (in the user's config directory)
-        3. System configuration (in /etc/)
-    They are taken in order (1. overrides config options set in 2., that
-    override config set in 3.)
+    They are taken in order (1. overrides config options set in 2.)
     """
     fee_rates = [5000, 10000, 20000, 30000, 50000, 70000, 100000, 150000, 200000, 300000]
 
-    def __init__(self, options={}, read_system_config_function=None,
-                 read_user_config_function=None, read_user_dir_function=None):
+    def __init__(self, options=None, read_user_config_function=None,
+                 read_user_dir_function=None):
+
+        if options is None:
+            options = {}
 
         # This lock needs to be acquired for updating and reading the config in
         # a thread-safe way.
@@ -52,8 +54,6 @@ class SimpleConfig(PrintError):
 
         # The following two functions are there for dependency injection when
         # testing.
-        if read_system_config_function is None:
-            read_system_config_function = read_system_config
         if read_user_config_function is None:
             read_user_config_function = read_user_config
         if read_user_dir_function is None:
@@ -63,24 +63,30 @@ class SimpleConfig(PrintError):
 
         # The command line options
         self.cmdline_options = deepcopy(options)
-
-        # Portable wallets don't use a system config
-        if self.cmdline_options.get('portable', False):
-            self.system_config = {}
-        else:
-            self.system_config = read_system_config_function()
+        # don't allow to be set on CLI:
+        self.cmdline_options.pop('config_version', None)
 
         # Set self.path and read the user config
         self.user_config = {}  # for self.get in electrum_path()
         self.path = self.electrum_path()
         self.user_config = read_user_config_function(self.path)
-        # Upgrade obsolete keys
-        self.fixup_keys({'auto_cycle': 'auto_connect'})
+        if not self.user_config:
+            # avoid new config getting upgraded
+            self.user_config = {'config_version': FINAL_CONFIG_VERSION}
+
+        # config "upgrade" - CLI options
+        self.rename_config_keys(
+            self.cmdline_options, {'auto_cycle': 'auto_connect'}, True)
+
+        # config upgrade - user config
+        if self.requires_upgrade():
+            self.upgrade()
+
         # Make a singleton instance of 'self'
         set_config(self)
 
     def electrum_path(self):
-        # Read electrum_path from command line / system configuration
+        # Read electrum_path from command line
         # Otherwise use the user's default data directory.
         path = self.get('electrum_path')
         if path is None:
@@ -102,45 +108,92 @@ class SimpleConfig(PrintError):
         self.print_error("electrum directory", path)
         return path
 
-    def fixup_config_keys(self, config, keypairs):
+    def rename_config_keys(self, config, keypairs, deprecation_warning=False):
+        """Migrate old key names to new ones"""
         updated = False
         for old_key, new_key in keypairs.items():
             if old_key in config:
-                if not new_key in config:
+                if new_key not in config:
                     config[new_key] = config[old_key]
+                    if deprecation_warning:
+                        self.print_stderr('Note that the {} variable has been deprecated. '
+                                     'You should use {} instead.'.format(old_key, new_key))
                 del config[old_key]
                 updated = True
         return updated
 
-    def fixup_keys(self, keypairs):
-        '''Migrate old key names to new ones'''
-        self.fixup_config_keys(self.cmdline_options, keypairs)
-        self.fixup_config_keys(self.system_config, keypairs)
-        if self.fixup_config_keys(self.user_config, keypairs):
-            self.save_user_config()
-
-    def set_key(self, key, value, save = True):
+    def set_key(self, key, value, save=True):
         if not self.is_modifiable(key):
-            print_stderr("Warning: not changing config key '%s' set on the command line" % key)
+            self.print_stderr("Warning: not changing config key '%s' set on the command line" % key)
             return
+        self._set_key_in_user_config(key, value, save)
 
+    def _set_key_in_user_config(self, key, value, save=True):
         with self.lock:
-            self.user_config[key] = value
+            if value is not None:
+                self.user_config[key] = value
+            else:
+                self.user_config.pop(key, None)
             if save:
                 self.save_user_config()
-        return
 
     def get(self, key, default=None):
         with self.lock:
             out = self.cmdline_options.get(key)
             if out is None:
-                out = self.user_config.get(key)
-                if out is None:
-                    out = self.system_config.get(key, default)
+                out = self.user_config.get(key, default)
         return out
 
+    def requires_upgrade(self):
+        return self.get_config_version() < FINAL_CONFIG_VERSION
+
+    def upgrade(self):
+        with self.lock:
+            self.print_error('upgrading config')
+
+            self.convert_version_2()
+
+            self.set_key('config_version', FINAL_CONFIG_VERSION, save=True)
+
+    def convert_version_2(self):
+        if not self._is_upgrade_method_needed(1, 1):
+            return
+
+        self.rename_config_keys(self.user_config, {'auto_cycle': 'auto_connect'})
+
+        try:
+            # change server string FROM host:port:proto TO host:port:s
+            server_str = self.user_config.get('server')
+            host, port, protocol = str(server_str).rsplit(':', 2)
+            assert protocol in ('s', 't')
+            int(port)  # Throw if cannot be converted to int
+            server_str = '{}:{}:s'.format(host, port)
+            self._set_key_in_user_config('server', server_str)
+        except BaseException:
+            self._set_key_in_user_config('server', None)
+
+        self.set_key('config_version', 2)
+
+    def _is_upgrade_method_needed(self, min_version, max_version):
+        cur_version = self.get_config_version()
+        if cur_version > max_version:
+            return False
+        elif cur_version < min_version:
+            raise BaseException(
+                ('config upgrade: unexpected version %d (should be %d-%d)'
+                 % (cur_version, min_version, max_version)))
+        else:
+            return True
+
+    def get_config_version(self):
+        config_version = self.get('config_version', 1)
+        if config_version > FINAL_CONFIG_VERSION:
+            self.print_stderr('WARNING: config version ({}) is higher than ours ({})'
+                             .format(config_version, FINAL_CONFIG_VERSION))
+        return config_version
+
     def is_modifiable(self, key):
-        return not key in self.cmdline_options
+        return key not in self.cmdline_options
 
     def save_user_config(self):
         if not self.path:
@@ -297,21 +350,6 @@ class SimpleConfig(PrintError):
             device = ''
         return device
 
-
-def read_system_config(path=SYSTEM_CONFIG_PATH):
-    """Parse and return the system config settings in /etc/electrum.conf."""
-    result = {}
-    if os.path.exists(path):
-        import configparser
-        p = configparser.ConfigParser()
-        try:
-            p.read(path)
-            for k, v in p.items('client'):
-                result[k] = v
-        except (configparser.NoSectionError, configparser.MissingSectionHeaderError):
-            pass
-
-    return result
 
 def read_user_config(path):
     """Parse and store the user config settings in electrum.conf into user_config[]."""
