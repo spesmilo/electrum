@@ -959,7 +959,7 @@ class Abstract_Wallet(PrintError):
         # if we are on a pruning server, remove unverified transactions
         with self.lock:
             vr = list(self.verified_tx.keys()) + list(self.unverified_tx.keys())
-        for tx_hash in self.transactions.keys():
+        for tx_hash in list(self.transactions):
             if tx_hash not in vr:
                 self.print_error("removing transaction", tx_hash)
                 self.transactions.pop(tx_hash)
@@ -1433,9 +1433,6 @@ class Imported_Wallet(Simple_Wallet):
         return False
 
     def is_deterministic(self):
-        return False
-
-    def is_used(self, address):
         return False
 
     def is_change(self, address):
