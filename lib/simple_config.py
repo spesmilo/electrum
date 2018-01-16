@@ -239,7 +239,8 @@ class SimpleConfig(PrintError):
         return len(self.fee_estimates)==4
 
     def is_dynfee(self):
-        return self.get('dynamic_fees', False)
+        # TODO: Re-enable when servers can estimate fees.
+        return False and self.get('dynamic_fees', False)
 
     def fee_per_kb(self):
         dyn = self.is_dynfee()
