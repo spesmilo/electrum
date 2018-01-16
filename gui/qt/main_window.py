@@ -2605,7 +2605,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         unit_combo = QComboBox()
         unit_combo.addItems(units)
         unit_combo.setCurrentIndex(units.index(self.base_unit()))
-        def on_unit(x):
+        def on_unit(x, nz):
             unit_result = units[unit_combo.currentIndex()]
             if self.base_unit() == unit_result:
                 return
@@ -2620,13 +2620,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             else:
                 raise Exception('Unknown base unit')
             self.config.set_key('decimal_point', self.decimal_point, True)
+            nz.setMaximum(self.decimal_point)
             self.history_list.update()
             self.request_list.update()
             self.address_list.update()
             for edit, amount in zip(edits, amounts):
                 edit.setAmount(amount)
             self.update_status()
-        unit_combo.currentIndexChanged.connect(on_unit)
+        unit_combo.currentIndexChanged.connect(lambda x: on_unit(x, nz))
         gui_widgets.append((unit_label, unit_combo))
 
         block_explorers = sorted(util.block_explorer_info().keys())
