@@ -33,6 +33,7 @@ import PyQt5.QtCore as QtCore
 from electroncash.i18n import _
 from electroncash.networks import NetworkConstants
 from electroncash.util import print_error
+from electroncash.network import serialize_server, deserialize_server
 
 from .util import *
 
@@ -145,7 +146,7 @@ class ServerListWidget(QTreeWidget):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def set_server(self, s):
-        host, port, protocol = s.split(':')
+        host, port, protocol = deserialize_server(s)
         self.parent.server_host.setText(host)
         self.parent.server_port.setText(port)
         self.parent.set_server()
@@ -170,7 +171,7 @@ class ServerListWidget(QTreeWidget):
             port = d.get(protocol)
             if port:
                 x = QTreeWidgetItem([_host, port])
-                server = _host+':'+port+':'+protocol
+                server = serialize_server(_host, port, protocol)
                 x.setData(1, Qt.UserRole, server)
                 self.addTopLevelItem(x)
 
@@ -411,7 +412,7 @@ class NetworkChoiceLayout(object):
     def follow_server(self, server):
         self.network.switch_to_interface(server)
         host, port, protocol, proxy, auto_connect = self.network.get_parameters()
-        host, port, protocol = server.split(':')
+        host, port, protocol = deserialize_server(server)
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
         self.update()
 
@@ -444,7 +445,6 @@ class NetworkChoiceLayout(object):
         host, port, protocol, proxy, auto_connect = self.network.get_parameters()
         host = str(self.server_host.text())
         port = str(self.server_port.text())
-        protocol = 't' if self.config.get('nossl') else 's'
         auto_connect = self.autoconnect_cb.isChecked()
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
 
