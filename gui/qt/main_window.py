@@ -626,7 +626,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def format_fee_rate(self, fee_rate):
         if self.fee_unit == 0:
-            return format_satoshis(fee_rate/1000, False, self.num_zeros, 0, False)  + ' sat/byte'
+            return format_satoshis(fee_rate/1000, False, self.num_zeros, 0, False)  + ' gro/byte'
         else:
             return self.format_amount(fee_rate) + ' ' + self.base_unit() + '/kB'
 
@@ -2522,7 +2522,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fee_unit = self.config.get('fee_unit', 0)
         fee_unit_label = HelpLabel(_('Fee Unit') + ':', '')
         fee_unit_combo = QComboBox()
-        fee_unit_combo.addItems([_('sat/byte'), _('mGRS/kB')])
+        fee_unit_combo.addItems([_('gro/byte'), _('mGRS/kB')])
         fee_unit_combo.setCurrentIndex(self.fee_unit)
         def on_fee_unit(x):
             self.fee_unit = x
