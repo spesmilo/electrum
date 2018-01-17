@@ -109,9 +109,6 @@ class NetworkConstants:
         cls.EQUIHASH_K = 9
         cls.CHUNK_SIZE = 200
 
-        cls.HEADERS_URL = "http://35.224.186.7/headers00" #TODO
-
-
 NetworkConstants.set_mainnet()
 
 ################################## transactions
@@ -256,7 +253,7 @@ def push_script(x):
 # ZCASH specific utils methods
 # https://github.com/zcash/zcash/blob/master/qa/rpc-tests/test_framework/mininode.py
 
-BASIC_HEADER_SIZE = 140
+HEADER_SIZE = 1487
 
 hash_to_str = lambda x: bytes(reversed(x)).hex()
 str_to_hash = lambda x: bytes(reversed(bytes.fromhex(x)))
@@ -332,6 +329,8 @@ def ser_uint256(u):
     return rs
 
 def sha256(x):
+    if isinstance(x, str):
+        x = x.encode('utf8')
     return bytes(hashlib.sha256(x).digest())
 
 def Hash(x):
