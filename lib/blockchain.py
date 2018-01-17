@@ -50,6 +50,7 @@ def serialize_header(res):
     return r
 
 def deserialize_header(f, height):
+    f = BytesIO(f)
     h = {}
     h['version'] = struct.unpack("<I", f.read(4))[0]
     h['prev_block_hash'] = hash_to_str(f.read(32))
@@ -61,6 +62,19 @@ def deserialize_header(f, height):
     h['n_solution'] = base64.b64encode(bytes(deser_char_vector(f))).decode('utf8')
     h['block_height'] = height
     return h
+
+# def deserialize_header(f, height):
+#     h = {}
+#     h['version'] = struct.unpack("<I", f.read(4))[0]
+#     h['prev_block_hash'] = hash_to_str(f.read(32))
+#     h['merkle_root'] = hash_to_str(f.read(32))
+#     h['hash_reserved'] = hash_to_str(f.read(32))
+#     h['timestamp'] = struct.unpack("<I", f.read(4))[0]
+#     h['bits'] = struct.unpack("<I", f.read(4))[0]
+#     h['nonce'] = hash_to_str(f.read(32))
+#     h['n_solution'] = base64.b64encode(bytes(deser_char_vector(f))).decode('utf8')
+#     h['block_height'] = height
+#     return h
 
 def sha256_header(header):
     return uint256_from_bytes(Hash(serialize_header(header)))
@@ -161,24 +175,7 @@ class Blockchain(util.PrintError):
 
     def update_size(self):
         p = self.path()
-        self._size = 0
-        if os.path.exists(p):
-            with open(p, 'rb') as f:
-                eof = f.seek(0, 2)
-                f.seek(0, 0)
-                while True:
-                    try:
-                        f.seek(bitcoin.BASIC_HEADER_SIZE, 1)
-                        vs = read_vector_size(f)
-                        f.seek(vs, 1)
-                        if f.tell() <= eof:
-                            self._size += 1
-                        if f.tell() >= eof:
-                            break
-                    except:
-                        import traceback
-                        traceback.print_exc()
-                        break
+        self._size = os.path.getsize(p)//bitcoin.HEADER_SIZE if os.path.exists(p) else 0
 
     def verify_header(self, header, prev_header):
         if prev_header:
@@ -196,15 +193,14 @@ class Blockchain(util.PrintError):
             raise BaseException("Equihash invalid")
 
     def verify_chunk(self, index, data):
-        data = BytesIO(data)
+        num = len(data) // bitcoin.HEADER_SIZE
         prev_header = None
         if index != 0:
             prev_header = self.read_header(index * NetworkConstants.CHUNK_SIZE - 1)
-        while True:
-            try:
-                header = self.deserialize_header(data, index * NetworkConstants.CHUNK_SIZE + i)
-            except:
-                break
+
+        for i in range(num):
+            raw_header = data[i*bitcoin.HEADER_SIZE:(i+1) * bitcoin.HEADER_SIZE]
+            header = deserialize_header(raw_header, index*NetworkConstants.CHUNK_SIZE + i)
             self.verify_header(header, prev_header)
             prev_header = header
 
@@ -215,13 +211,11 @@ class Blockchain(util.PrintError):
 
     def save_chunk(self, index, chunk):
         filename = self.path()
-        height = index * NetworkConstants.CHUNK_SIZE - self.checkpoint
-        with open(filename, 'rb') as f:
-            d = self._height_to_offset(f, height)
+        d = (index * NetworkConstants.CHUNK_SIZE - self.checkpoint) * bitcoin.HEADER_SIZE
         if d < 0:
             chunk = chunk[-d:]
             d = 0
-        self.write(chunk, height, index > len(self.checkpoints))
+        self.write(chunk, d)
         self.swap_with_parent()
 
     def swap_with_parent(self):
@@ -237,14 +231,11 @@ class Blockchain(util.PrintError):
         with open(self.path(), 'rb') as f:
             my_data = f.read()
         with open(parent.path(), 'rb') as f:
-            self._height_to_offset
-            offset = self._height_to_offset(f, checkpoint - parent.checkpoint)
-            length = self._height_to_offset(f, parent_branch_size, offset)
-            f.seek(offset)
-            parent_data = f.read(length)
+            f.seek((checkpoint - parent.checkpoint)*bitcoin.HEADER_SIZE)
+            parent_data = f.read(parent_branch_size*bitcoin.HEADER_SIZE)
 
         self.write(parent_data, 0)
-        parent.write(my_data, checkpoint - parent.checkpoint)
+        parent.write(my_data, (checkpoint - parent.checkpoint)*bitcoin.HEADER_SIZE)
         # store file path
         for b in blockchains.values():
             b.old_path = b.path()
@@ -262,42 +253,25 @@ class Blockchain(util.PrintError):
         blockchains[self.checkpoint] = self
         blockchains[parent.checkpoint] = parent
 
-    def _height_to_offset(self, f, height, start=0):
-        pos = f.tell()
-        eof = f.seek(0, 2)
-        f.seek(start, 0)
-        for i in range(height):
-            f.seek(bitcoin.BASIC_HEADER_SIZE, 1)
-            vs = read_vector_size(f)
-            f.seek(vs, 1)
-            if f.tell() > eof:
-                raise Exception('Out of file')
-            elif f.tell() == eof:
-                break
-        result = f.tell()
-        f.seek(pos, 0)
-        return result
-
-    def write(self, data, delta, truncate=False):
+    def write(self, data, offset):
         filename = self.path()
         with self.lock:
             with open(filename, 'rb+') as f:
-                eof = f.seek(0, 2)
-                offset = self._height_to_offset(f, delta)
-                f.seek(offset)
-                if truncate and offset < eof:
+                if offset != self._size*bitcoin.HEADER_SIZE:
+                    f.seek(offset)
                     f.truncate()
+                f.seek(offset)
                 f.write(data)
                 f.flush()
                 os.fsync(f.fileno())
             self.update_size()
 
     def save_header(self, header):
-        self.print_error("save_header", header.get('block_height'))
         delta = header.get('block_height') - self.checkpoint
         data = serialize_header(header)
         assert delta == self.size()
-        self.write(data, delta)
+        assert len(data) == bitcoin.HEADER_SIZE
+        self.write(data, delta*bitcoin.HEADER_SIZE)
         self.swap_with_parent()
 
     def read_header(self, height):
@@ -313,12 +287,9 @@ class Blockchain(util.PrintError):
         name = self.path()
         if os.path.exists(name):
             with open(name, 'rb') as f:
-                for i in range(delta):
-                    f.seek(bitcoin.BASIC_HEADER_SIZE, 1)
-                    vs = read_vector_size(f)
-                    f.seek(vs, 1)
-                h = deserialize_header(f, height)
-        return h
+                f.seek(delta * bitcoin.HEADER_SIZE)
+                h = f.read(bitcoin.HEADER_SIZE)
+        return deserialize_header(h, height)
 
     def get_hash(self, height):
         return self.hash_header(self.read_header(height))
