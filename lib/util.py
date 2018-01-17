@@ -426,12 +426,13 @@ def time_difference(distance_in_time, include_seconds):
     else:
         return "over %d years" % (round(distance_in_minutes / 525600))
 
+# For raw json, append /insight-api-zcash
 mainnet_block_explorers = {
-    'ZCLMine.pro': ('http://explorer.zclmine.pro/insight-api-zcash',
+    'ZclassicExplorer.com': ('http://zclassicexplorer.com',
                         {'tx': 'tx', 'addr': 'address'}),
-    'ZclassicExplorer.com': ('http://149.56.129.104/insight-api-zcash',
+    'ZCLMine.pro': ('http://explorer.zclmine.pro',
                         {'tx': 'tx', 'addr': 'address'}),
-    'ZCL-Explorer.com': ('http://zcl-explorer.com/insight-api-zcash',
+    'MyZCL.com': ('http://myzcl.com',
                         {'tx': 'tx', 'addr': 'address'}),
     'system default': ('blockchain:',
                         {'tx': 'tx', 'addr': 'address'})
