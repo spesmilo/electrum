@@ -92,7 +92,7 @@ class AddressDialog(WindowModalDialog):
         self.hw.update()
 
     def update_addr(self):
-        self.addr_e.setText(self.address.to_ui_string())
+        self.addr_e.setText(self.address.to_full_ui_string())
 
     def get_domain(self):
         return [self.address]
