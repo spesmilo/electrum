@@ -216,7 +216,7 @@ class OKCoin(ExchangeBase):
 class MercadoBitcoin(ExchangeBase):
 
     def get_rates(self,ccy):
-        json = self.get_json('mercadobitcoin.net', '/api/v2/ticker_litecoin')
+        json = self.get_json('www.mercadobitcoin.net', '/api/ltc/ticker/')
         return {'BRL': Decimal(json['ticker']['last'])}
 
 
