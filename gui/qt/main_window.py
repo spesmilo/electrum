@@ -1600,7 +1600,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.payment_request_error_signal.emit()
 
     def pay_to_URI(self, URI):
-        if not URI:
+        if not URI or not isinstance(URI, str):
             return
         try:
             out = util.parse_URI(URI, self.on_pr)

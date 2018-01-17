@@ -328,12 +328,15 @@ class Blockchain(util.PrintError):
 
     def bits_to_target(self, bits):
         bitsN = (bits >> 24) & 0xff
-        if not (bitsN >= 0x03 and bitsN <= 0x1d):
-            raise BaseException("First part of bits should be in [0x03, 0x1d]")
+        # if not (bitsN >= 0x03 and bitsN <= 0x1d):
+        #     raise BaseException("First part of bits should be in [0x03, 0x1d]")
         bitsBase = bits & 0xffffff
-        if not (bitsBase >= 0x8000 and bitsBase <= 0x7fffff):
-            raise BaseException("Second part of bits should be in [0x8000, 0x7fffff]")
-        return bitsBase << (8 * (bitsN-3))
+        # if not (bitsBase >= 0x8000 and bitsBase <= 0x7fffff):
+        #     raise BaseException("Second part of bits should be in [0x8000, 0x7fffff]")
+        if bitsN <= 3:
+            return bitsBase >> (8 * (3 - bitsN))
+        else:
+            return bitsBase << (8 * (bitsN - 3))
 
     def target_to_bits(self, target):
         c = ("%064x" % target)[2:]
@@ -346,6 +349,7 @@ class Blockchain(util.PrintError):
         return bitsN << 24 | bitsBase
 
     def can_connect(self, header, check_height=True):
+        # import pdb; pdb.set_trace()
         height = header['block_height']
         if check_height and self.height() != height - 1:
             self.print_error("cannot connect at height", height)

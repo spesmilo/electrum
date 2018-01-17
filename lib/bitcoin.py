@@ -79,6 +79,7 @@ class NetworkConstants:
         cls.WIF_PREFIX = 0x80
         cls.ADDRTYPE_P2PKH = [0x1C, 0xB8]
         cls.ADDRTYPE_P2SH = [0x1C, 0xBD]
+        cls.ADDRTYPE_SHIELDED = [0x16, 0x9A]
         cls.SEGWIT_HRP = "bc" #TODO zcl has no segwit
         cls.GENESIS = "0007104ccda289427919efc39dc9e4d499804b7bebc22df55f8b834301260602"
         cls.DEFAULT_PORTS = {'t': '50001', 's': '50002'}
@@ -98,6 +99,7 @@ class NetworkConstants:
         cls.WIF_PREFIX = 0xef
         cls.ADDRTYPE_P2PKH = [0x1D, 0x25]
         cls.ADDRTYPE_P2SH = [0x1C, 0xBA]
+        cls.ADDRTYPE_SHIELDED [0x16, 0xB6]
         cls.SEGWIT_HRP = "tb" #TODO zcl has no segwit
         cls.GENESIS = "03e1c4bb705c871bf9bfda3e74b7f8f86bff267993c215a89d5795e3708e5e1f"
         cls.DEFAULT_PORTS = {'t': '51001', 's': '51002'}
