@@ -2584,25 +2584,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         nz.valueChanged.connect(on_nz)
         gui_widgets.append((nz_label, nz))
 
-''' Disable option for dynamic fee calculation system
-        def on_dynfee(x):
-            self.config.set_key('dynamic_fees', x == Qt.Checked)
-            self.fee_slider.update()
-        dynfee_cb = QCheckBox(_('Use dynamic fees'))
-        dynfee_cb.setChecked(self.config.is_dynfee())
-        dynfee_cb.setToolTip(_("Use fees recommended by the server."))
-        fee_widgets.append((dynfee_cb, None))
-        dynfee_cb.stateChanged.connect(on_dynfee)
-'''
-
-        feebox_cb = QCheckBox(_('Edit fees manually'))
-        feebox_cb.setChecked(self.config.get('show_fee', True))
-        feebox_cb.setToolTip(_("Show fee edit box in send tab."))
-        def on_feebox(x):
-            self.config.set_key('show_fee', x == Qt.Checked)
-            self.fee_adv_controls.setVisible(bool(x))
-        feebox_cb.stateChanged.connect(on_feebox)
-        fee_widgets.append((feebox_cb, None))
 
         use_rbf_cb = QCheckBox(_('Use Replace-By-Fee'))
         use_rbf_cb.setChecked(self.config.get('use_rbf', True))

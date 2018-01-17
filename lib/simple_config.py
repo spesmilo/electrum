@@ -7,7 +7,7 @@ import stat
 from copy import deepcopy
 from .util import user_dir, print_error, print_stderr, PrintError
 
-from .bitcoin import DFEAULT_FEE_RATE, MAX_FEE_RATE, FEE_TARGETS
+from .bitcoin import DEFAULT_FEE_RATE, MAX_FEE_RATE, FEE_TARGETS
 
 SYSTEM_CONFIG_PATH = "/etc/electrum.conf"
 
