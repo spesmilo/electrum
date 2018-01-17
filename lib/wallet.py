@@ -1322,12 +1322,14 @@ class Abstract_Wallet(PrintError):
         return req
 
     def remove_payment_request(self, addr, config):
+        if isinstance(addr, str):
+            addr = Address.from_string(addr)
         if addr not in self.receive_requests:
             return False
         r = self.receive_requests.pop(addr)
         rdir = config.get('requests_dir')
         if rdir:
-            key = r.get('id', addr)
+            key = r.get('id', addr.to_storage_string())
             for s in ['.json', '']:
                 n = os.path.join(rdir, 'req', key[0], key[1], key, key + s)
                 if os.path.exists(n):
