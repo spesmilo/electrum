@@ -201,8 +201,7 @@ class Blockchain(util.PrintError):
         for i in range(num):
             raw_header = data[i*bitcoin.HEADER_SIZE:(i+1) * bitcoin.HEADER_SIZE]
             header = deserialize_header(raw_header, index*NetworkConstants.CHUNK_SIZE + i)
-            if header.get('block_height') != 0:
-                self.verify_header(header, prev_header)
+            self.verify_header(header, prev_header)
             prev_header = header
 
     def path(self):
