@@ -887,8 +887,9 @@ class Abstract_Wallet(PrintError):
         if fixed_fee is None and config.fee_per_kb() is None:
             raise NoDynamicFeeEstimates()
 
-        for item in inputs:
-            self.add_input_info(item)
+        if not is_sweep:
+            for item in inputs:
+                self.add_input_info(item)
 
         # change address
         if change_addr:
