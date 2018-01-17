@@ -44,7 +44,7 @@ from .util import NotEnoughFunds, ExcessiveFee, PrintError, UserCancelled, profi
 from .address import Address, Script, ScriptOutput, PublicKey
 from .bitcoin import *
 from .version import *
-from .keystore import load_keystore, Hardware_KeyStore, Imported_KeyStore
+from .keystore import load_keystore, Hardware_KeyStore, Imported_KeyStore, BIP32_KeyStore, xpubkey_to_address
 from .networks import NetworkConstants
 from .storage import multisig_type
 
@@ -1094,6 +1094,18 @@ class Abstract_Wallet(PrintError):
         if tx.is_complete():
             return False
         for k in self.get_keystores():
+            # setup "wallet advice" so Xpub wallets know how to sign 'fd' type tx inputs
+            # by giving them the sequence number ahead of time
+            if isinstance(k, BIP32_KeyStore):
+                for txin in tx.inputs():
+                    for x_pubkey in txin['x_pubkeys']:
+                        _, addr = xpubkey_to_address(x_pubkey)
+                        try:
+                            c, index = self.get_address_index(addr)
+                        except:
+                            continue
+                        if index is not None:
+                            k.set_wallet_advice(addr, [c,index])
             if k.can_sign(tx):
                 return True
         return False
