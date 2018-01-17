@@ -326,6 +326,8 @@ def ser_uint256(u):
     return rs
 
 def sha256(x):
+    if isinstance(x, str):
+        x = x.encode('utf8')
     return bytes(hashlib.sha256(x).digest())
 
 def Hash(x):
