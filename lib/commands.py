@@ -665,6 +665,12 @@ class Commands:
         """ return wallet synchronization status """
         return self.wallet.is_up_to_date()
 
+    @command('n')
+    def getfeerate(self):
+        """Return current optimal fee rate per kilobyte, according
+        to config settings (static/dynamic)"""
+        return self.config.fee_per_kb()
+
     @command('')
     def help(self):
         # for the python console
