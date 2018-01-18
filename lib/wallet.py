@@ -69,6 +69,7 @@ TX_STATUS = [
     _('Low fee'),
     _('Unconfirmed'),
     _('Not Verified'),
+    _('Local'),
 ]
 
 
@@ -404,28 +405,30 @@ class Abstract_Wallet(PrintError):
         return self.network.get_local_height() if self.network else self.storage.get('stored_height', 0)
 
     def get_tx_height(self, tx_hash):
-        """ return the height and timestamp of a verified transaction. """
+        """ return the height and timestamp of a transaction. """
         with self.lock:
             if tx_hash in self.verified_tx:
                 height, timestamp, pos = self.verified_tx[tx_hash]
                 conf = max(self.get_local_height() - height + 1, 0)
                 return height, conf, timestamp
-            else:
+            elif tx_hash in self.unverified_tx:
                 height = self.unverified_tx[tx_hash]
                 return height, 0, False
+            else:
+                # local transaction
+                return -2, 0, False
 
     def get_txpos(self, tx_hash):
         "return position, even if the tx is unverified"
         with self.lock:
-            x = self.verified_tx.get(tx_hash)
-            y = self.unverified_tx.get(tx_hash)
-            if x:
-                height, timestamp, pos = x
+            if tx_hash in self.verified_tx:
+                height, timestamp, pos = self.verified_tx[tx_hash]
                 return height, pos
-            elif y > 0:
-                return y, 0
+            elif tx_hash in self.unverified_tx:
+                height = self.unverified_tx[tx_hash]
+                return (height, 0) if height>0 else (1e9 - height), 0
             else:
-                return 1e12 - y, 0
+                return (1e9+1, 0)
 
     def is_found(self):
         return self.history.values() != [[]] * len(self.history)
@@ -520,7 +523,7 @@ class Abstract_Wallet(PrintError):
                         status = _("%d confirmations") % conf
                     else:
                         status = _('Not verified')
-                else:
+                elif height in [-1,0]:
                     status = _('Unconfirmed')
                     if fee is None:
                         fee = self.tx_fees.get(tx_hash)
@@ -529,6 +532,9 @@ class Abstract_Wallet(PrintError):
                         fee_per_kb = fee * 1000 / size
                         exp_n = self.network.config.reverse_dynfee(fee_per_kb)
                     can_bump = is_mine and not tx.is_final()
+                else:
+                    status = _('Local')
+                    can_broadcast = self.network is not None
             else:
                 status = _("Signed")
                 can_broadcast = self.network is not None
@@ -550,7 +556,7 @@ class Abstract_Wallet(PrintError):
         return tx_hash, status, label, can_broadcast, can_bump, amount, fee, height, conf, timestamp, exp_n
 
     def get_addr_io(self, address):
-        h = self.history.get(address, [])
+        h = self.get_address_history(address)
         received = {}
         sent = {}
         for tx_hash, height in h:
@@ -649,9 +655,14 @@ class Abstract_Wallet(PrintError):
             xx += x
         return cc, uu, xx
 
-    def get_address_history(self, address):
-        with self.lock:
-            return self.history.get(address, [])
+    def get_address_history(self, addr):
+        h = []
+        with self.transaction_lock:
+            for tx_hash in self.transactions:
+                if addr in self.txi.get(tx_hash, []) or addr in self.txo.get(tx_hash, []):
+                    tx_height = self.get_tx_height(tx_hash)[0]
+                    h.append((tx_hash, tx_height))
+        return h
 
     def find_pay_to_pubkey_address(self, prevout_hash, prevout_n):
         dd = self.txo.get(prevout_hash, {})
@@ -748,10 +759,9 @@ class Abstract_Wallet(PrintError):
             old_hist = self.history.get(addr, [])
             for tx_hash, height in old_hist:
                 if (tx_hash, height) not in hist:
-                    # remove tx if it's not referenced in histories
-                    self.tx_addr_hist[tx_hash].remove(addr)
-                    if not self.tx_addr_hist[tx_hash]:
-                        self.remove_transaction(tx_hash)
+                    # make tx local
+                    self.unverified_tx.pop(tx_hash, None)
+                    self.verified_tx.pop(tx_hash, None)
             self.history[addr] = hist
 
         for tx_hash, tx_height in hist:
@@ -844,10 +854,12 @@ class Abstract_Wallet(PrintError):
                 is_lowfee = fee < low_fee * 0.5
             else:
                 is_lowfee = False
-            if height==0 and not is_final:
-                status = 0
-            elif height < 0:
+            if height == -2:
+                status = 5
+            elif height == -1:
                 status = 1
+            elif height==0 and not is_final:
+                status = 0
             elif height == 0 and is_lowfee:
                 status = 2
             elif height == 0:
@@ -855,9 +867,9 @@ class Abstract_Wallet(PrintError):
             else:
                 status = 4
         else:
-            status = 4 + min(conf, 6)
+            status = 5 + min(conf, 6)
         time_str = format_time(timestamp) if timestamp else _("unknown")
-        status_str = TX_STATUS[status] if status < 5 else time_str
+        status_str = TX_STATUS[status] if status < 6 else time_str
         return status, status_str
 
     def relayfee(self):
@@ -966,14 +978,6 @@ class Abstract_Wallet(PrintError):
             for tx_hash, tx_height in hist:
                 # add it in case it was previously unconfirmed
                 self.add_unverified_tx(tx_hash, tx_height)
-
-        # if we are on a pruning server, remove unverified transactions
-        with self.lock:
-            vr = list(self.verified_tx.keys()) + list(self.unverified_tx.keys())
-        for tx_hash in list(self.transactions):
-            if tx_hash not in vr:
-                self.print_error("removing transaction", tx_hash)
-                self.transactions.pop(tx_hash)
 
     def start_threads(self, network):
         self.network = network

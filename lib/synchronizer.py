@@ -88,7 +88,7 @@ class Synchronizer(ThreadJob):
         if not params:
             return
         addr = params[0]
-        history = self.wallet.get_address_history(addr)
+        history = self.wallet.history.get(addr, [])
         if self.get_status(history) != result:
             if self.requested_histories.get(addr) is None:
                 self.requested_histories[addr] = result
