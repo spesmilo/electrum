@@ -673,6 +673,12 @@ class Commands:
         return self.wallet.is_up_to_date()
 
     @command('')
+    def getfee(self):
+        """Return current optimal fee per kilobyte, according to
+        config settings (static/dynamic)"""
+        return self.config.fee_per_kb()
+
+    @command('')
     def help(self):
         # for the python console
         return sorted(known_commands.keys())
