@@ -672,7 +672,7 @@ class Commands:
         """ return wallet synchronization status """
         return self.wallet.is_up_to_date()
 
-    @command('')
+    @command('n')
     def getfee(self):
         """Return current optimal fee per kilobyte, according to
         config settings (static/dynamic)"""
