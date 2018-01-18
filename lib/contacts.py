@@ -68,7 +68,7 @@ class Contacts(dict):
     def resolve(self, k):
         if Address.is_valid(k):
             return {
-                'address': k,
+                'address': Address.from_string(k),
                 'type': 'address'
             }
         if k in self.keys():
@@ -103,7 +103,7 @@ class Contacts(dict):
                     name = address
                 if not address:
                     continue
-                return address, name, validated
+                return Address.from_string(address), name, validated
 
     def find_regex(self, haystack, needle):
         regex = re.compile(needle)
