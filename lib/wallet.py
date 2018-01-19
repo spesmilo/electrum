@@ -1210,7 +1210,6 @@ class Abstract_Wallet(PrintError):
             return
         out = copy.copy(r)
         addr_text = addr.to_ui_string()
-        out['address'] = addr_text
         amount_text = format_satoshis(r['amount'])
         out['URI'] = '{}:{}?amount={}'.format(NetworkConstants.CASHADDR_PREFIX,
                                               addr_text, amount_text)
