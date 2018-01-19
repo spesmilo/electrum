@@ -1,8 +1,12 @@
-Electrum - Lightweight Bitcoin client
+ZCL Electrum - Lightweight Zclassic Client
 =====================================
 
-::
+Forked from spesmilo/electrum
 
+Original Project Info
+---------------------
+
+::
   Licence: MIT Licence
   Author: Thomas Voegtlin
   Language: Python
@@ -15,8 +19,6 @@ Electrum - Lightweight Bitcoin client
 .. image:: https://coveralls.io/repos/github/spesmilo/electrum/badge.svg?branch=master
     :target: https://coveralls.io/github/spesmilo/electrum?branch=master
     :alt: Test coverage statistics
-
-
 
 
 
@@ -63,7 +65,28 @@ Run install (this should install dependencies)::
 
     python3 setup.py install
 
-Compile the icons file for Qt::
+And then:
+
+For Mac:
+--------
+
+Copy the newly generated `build/scripts-3.6/electrum` to the Electrum directory::
+
+    cp -f build/scripts-3.6/electrum electrum-mac
+
+Compile the icon files for QT::
+
+    pyrcc5 icons.qrc -o gui/qt/icons_rc.py
+
+Run::
+
+    ./electrum-mac
+
+
+For Linux:
+----------
+
+Compile the icons file for QT::
 
     sudo apt-get install pyqt5-dev-tools
     pyrcc5 icons.qrc -o gui/qt/icons_rc.py
@@ -82,31 +105,28 @@ Create translations (optional)::
     sudo apt-get install python-requests gettext
     ./contrib/make_locale
 
+Run::
+    
+    ./electrum
+
 
 
 ZCL Hints and Debug
 ===================
 
-::
+There are several useful scripts in `scripts`
+
+This is a good initial check to determine whether things are working.::
     cd scripts
     python3 block_headers
 
-This is a good initial check to determine whether things are working.
+It should run, validating chunks without error.
 
-::
-    cd ~/.electrum-zcl
-    vim config
+Also be sure to check out `~/.electrum-zcl/`:
 
-Add
+`~/.electrum-zcl/wallets/` has your wallet files - this folder can be backed up.
 
-::
-    "server": "188.243.70.5:50001:t" 
-
-or
-
-::
-     "server": "35.224.186.7:50001:t"
-
+`~/.electrum-zcl/config` has your Electrum connection object.
 
 
 Creating Binaries
@@ -123,7 +143,7 @@ Mac OS X / macOS
 --------
 
 ::
-
+    
     # On MacPorts installs: 
     sudo python3 setup-release.py py2app
     
