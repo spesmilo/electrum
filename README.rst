@@ -1,12 +1,12 @@
 ZCL Electrum - Lightweight Zclassic Client
-=====================================
+==========================================
 
-Forked from spesmilo/electrum
+Forked from **spesmilo/electrum**: https://github.com/spesmilo/electrum
 
 Original Project Info
 ---------------------
-
 ::
+
   Licence: MIT Licence
   Author: Thomas Voegtlin
   Language: Python
@@ -19,7 +19,6 @@ Original Project Info
 .. image:: https://coveralls.io/repos/github/spesmilo/electrum/badge.svg?branch=master
     :target: https://coveralls.io/github/spesmilo/electrum?branch=master
     :alt: Test coverage statistics
-
 
 
 
@@ -65,7 +64,7 @@ Run install (this should install dependencies)::
 
     python3 setup.py install
 
-And then:
+**And then...**
 
 For Mac:
 --------
@@ -114,19 +113,24 @@ Run::
 ZCL Hints and Debug
 ===================
 
-There are several useful scripts in `scripts`
+There are several useful scripts in::
+
+    scripts
 
 This is a good initial check to determine whether things are working.::
+
     cd scripts
     python3 block_headers
 
 It should run, validating chunks without error.
 
-Also be sure to check out `~/.electrum-zcl/`:
+Also be sure to check out:::
 
-`~/.electrum-zcl/wallets/` has your wallet files - this folder can be backed up.
+    ~/.electrum-zcl/
 
-`~/.electrum-zcl/config` has your Electrum connection object.
+    `~/.electrum-zcl/wallets/` has your wallet files - this folder can be backed up.
+
+    `~/.electrum-zcl/config` has your Electrum connection object.
 
 
 Creating Binaries
@@ -140,7 +144,7 @@ To create binaries, create the 'packages' directory::
 This directory contains the python dependencies used by Electrum.
 
 Mac OS X / macOS
---------
+----------------
 
 ::
     
@@ -162,3 +166,4 @@ Android
 -------
 
 See `gui/kivy/Readme.txt` file.
+
