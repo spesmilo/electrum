@@ -33,7 +33,7 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
     ]
 
 setup(
-    name="Electrum",
+    name="Electrum-ZCL",
     version=version.ELECTRUM_VERSION,
     install_requires=[
         'pyaes>=0.1a1',
@@ -46,6 +46,7 @@ setup(
         'jsonrpclib-pelix',
         'pyblake2',
         'PySocks>=1.6.6',
+        'PyQt5'
     ],
     packages=[
         'electrum',
@@ -84,10 +85,10 @@ setup(
     },
     scripts=['electrum'],
     data_files=data_files,
-    description="Lightweight Bitcoin Wallet",
-    author="Thomas Voegtlin",
-    author_email="thomasv@electrum.org",
+    description="Lightweight Zclassic Wallet",
+    author="BTCP Community",
+    author_email="csulmone@gmail.com",
     license="MIT Licence",
-    url="https://electrum.org",
-    long_description="""Lightweight Bitcoin Wallet"""
+    url="https://zclassic.org",
+    long_description="""Lightweight Zclassic Wallet"""
 )
