@@ -673,9 +673,9 @@ class Commands:
         return self.wallet.is_up_to_date()
 
     @command('n')
-    def getfee(self):
-        """Return current optimal fee per kilobyte, according to
-        config settings (static/dynamic)"""
+    def getfeerate(self):
+        """Return current optimal fee rate per kilobyte, according
+        to config settings (static/dynamic)"""
         return self.config.fee_per_kb()
 
     @command('')
