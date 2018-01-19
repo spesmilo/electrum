@@ -68,6 +68,10 @@ Compile the icons file for Qt::
     sudo apt-get install pyqt5-dev-tools
     pyrcc5 icons.qrc -o gui/qt/icons_rc.py
 
+For the linux app launcher (start menu) icon::
+
+    sudo desktop-file-install electrum.desktop
+
 Compile the protobuf description file::
 
     sudo apt-get install protobuf-compiler
