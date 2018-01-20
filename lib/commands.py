@@ -572,7 +572,7 @@ class Commands:
     @command('w')
     def getrequest(self, key):
         """Return a payment request"""
-        r = self.wallet.get_payment_request(key, self.config)
+        r = self.wallet.get_payment_request(Address.from_string(key), self.config)
         if not r:
             raise BaseException("Request not found")
         return self._format_request(r)
