@@ -79,7 +79,7 @@ class Test_bitcoin(unittest.TestCase):
         self.assertTrue(verify_message(addr1, sig1, msg1))
         self.assertTrue(verify_message(addr2, sig2, msg2))
 
-        self.assertFalse(verify_message(addr1, b'wrong', msg1))
+        self.assertRaises(Exception, verify_message, addr1, b'wrong', msg1)
         self.assertFalse(verify_message(addr1, sig2, msg1))
 
     def test_aes_homomorphic(self):
