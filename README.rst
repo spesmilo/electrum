@@ -26,10 +26,8 @@ Getting started
 ===============
 
 Electrum is a pure python application. If you want to use the
-Qt interface, install the Qt dependencies::
+Qt interface, install the Qt dependencies.
 
-    sudo apt-get install python3-pyqt5
-    sudo pip2 install pyblake2
 
 If you downloaded the official package (tar.gz), you can run
 Electrum from its root directory, without installing it on your
@@ -38,13 +36,6 @@ directory. To run Electrum from its root directory, just do::
 
     ./electrum
 
-You can also install Electrum on your system, by running this command::
-
-    sudo apt-get install python3-setuptools
-    python3 setup.py install
-
-This will download and install the Python dependencies used by
-Electrum, instead of using the 'packages' directory.
 
 If you cloned the git repository, you need to compile extra files
 before you can run Electrum. Read the next section, "Development
@@ -60,30 +51,52 @@ Check out the code from Github::
     git clone git://github.com/spesmilo/electrum.git
     cd electrum
 
-Run install (this should install dependencies)::
-
-    python3 setup.py install
-
-**And then...**
-
 For Mac:
 --------
 
-Copy the newly generated `build/scripts-3.6/electrum` to the Electrum directory::
+Using Homebrew::
+
+    # Install Homebrew
+		/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+
+		# (Optionally)
+		sudo chown -R "$USER":admin /usr/local
+		sudo chown -R "$USER":admin /Library/Caches/Homebrew
+
+    # Install python3
+		brew install python3
+		brew link python3
+		brew postinstall python3
+
+		# Python setuptools
+		curl https://bootstrap.pypa.io/ez_setup.py -o - | python3
+
+    # Install pyqt5
+		pip3 install pyqt5
+
+		# Setup
+		python3 setup.py install
+		pyrcc5 icons.qrc -o gui/qt/icons_rc.py
+
+		# Run
+		./electrum
+
+Alternatively, copy the generated `build/scripts-3.6/electrum` to the main directory::
 
     cp -f build/scripts-3.6/electrum electrum-mac
-
-Compile the icon files for QT::
-
-    pyrcc5 icons.qrc -o gui/qt/icons_rc.py
-
-Run::
-
     ./electrum-mac
 
 
 For Linux:
 ----------
+
+Install Dependencies::
+
+    sudo apt-get install python3-pyqt5
+    sudo pip2 install pyblake2
+
+    sudo apt-get install python3-setuptools
+    python3 setup.py install
 
 Compile the icons file for QT::
 
@@ -133,7 +146,6 @@ Also be sure to check out:::
     `~/.electrum-zcl/config` has your Electrum connection object.
 
 
-Creating Binaries
 =================
 
 
