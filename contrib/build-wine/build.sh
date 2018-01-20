@@ -7,10 +7,11 @@ if [ ! -z "$1" ]; then
 fi
 
 here=$(dirname "$0")
+test -n "$here" -a -d "$here" || exit
 
 echo "Clearing $here/build and $here/dist..."
-rm $here/build/* -rf
-rm $here/dist/* -rf
+rm "$here"/build/* -rf
+rm "$here"/dist/* -rf
 
 $here/prepare-wine.sh && \
 $here/prepare-pyinstaller.sh && \
