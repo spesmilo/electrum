@@ -904,7 +904,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def save_payment_request(self):
         if not self.receive_address:
-            self.show_error(_('No receiving adddress'))
+            self.show_error(_('No receiving address'))
         amount = self.receive_amount_e.get_amount()
         message = self.receive_message_e.text()
         if not message and not amount:
