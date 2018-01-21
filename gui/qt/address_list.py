@@ -50,7 +50,7 @@ class AddressList(MyTreeWidget):
             self.used_button.addItem(t)
 
     def get_list_header(self):
-        return QLabel(_("Filter:")), self.change_button, self.used_button
+        return QLabel(_("Filter ")), self.change_button, self.used_button
 
     def refresh_headers(self):
         headers = [ _('Address'), _('Label'), _('Balance')]

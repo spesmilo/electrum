@@ -447,10 +447,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         menubar = QMenuBar()
 
         file_menu = menubar.addMenu(_("&File"))
-        self.recently_visited_menu = file_menu.addMenu(_("&Recently open"))
+        self.recently_visited_menu = file_menu.addMenu(_("&Recently Opened"))
         file_menu.addAction(_("&Open"), self.open_wallet).setShortcut(QKeySequence.Open)
         file_menu.addAction(_("&New/Restore"), self.new_wallet).setShortcut(QKeySequence.New)
-        file_menu.addAction(_("&Save Copy"), self.backup_wallet).setShortcut(QKeySequence.SaveAs)
+        file_menu.addAction(_("&Backup Wallet"), self.backup_wallet).setShortcut(QKeySequence.SaveAs)
         file_menu.addAction(_("Delete"), self.remove_wallet)
         file_menu.addSeparator()
         file_menu.addAction(_("&Quit"), self.close)
@@ -460,11 +460,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         wallet_menu.addSeparator()
         self.password_menu = wallet_menu.addAction(_("&Password"), self.change_password_dialog)
         self.seed_menu = wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
-        self.private_keys_menu = wallet_menu.addMenu(_("&Private keys"))
+        self.private_keys_menu = wallet_menu.addMenu(_("&Private Keys"))
         self.private_keys_menu.addAction(_("&Sweep"), self.sweep_key_dialog)
         self.import_privkey_menu = self.private_keys_menu.addAction(_("&Import"), self.do_import_privkey)
         self.export_menu = self.private_keys_menu.addAction(_("&Export"), self.export_privkeys_dialog)
-        self.import_address_menu = wallet_menu.addAction(_("Import addresses"), self.import_addresses)
+        self.import_address_menu = wallet_menu.addAction(_("Import Addresses"), self.import_addresses)
         wallet_menu.addSeparator()
 
         labels_menu = wallet_menu.addMenu(_("&Labels"))
@@ -496,21 +496,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tools_menu = menubar.addMenu(_("&Tools"))
 
         # Settings / Preferences are all reserved keywords in OSX using this as work around
-        tools_menu.addAction(_("Electrum preferences") if sys.platform == 'darwin' else _("Preferences"), self.settings_dialog)
+        tools_menu.addAction(_("Electrum Preferences") if sys.platform == 'darwin' else _("Preferences"), self.settings_dialog)
         tools_menu.addAction(_("&Network"), lambda: self.gui_object.show_network_dialog(self))
         tools_menu.addAction(_("&Plugins"), self.plugins_dialog)
         tools_menu.addSeparator()
-        tools_menu.addAction(_("&Sign/verify message"), self.sign_verify_message)
-        tools_menu.addAction(_("&Encrypt/decrypt message"), self.encrypt_message)
+        tools_menu.addAction(_("&Sign/Verify Message"), self.sign_verify_message)
+        tools_menu.addAction(_("&Encrypt/Decrypt Message"), self.encrypt_message)
         tools_menu.addSeparator()
 
-        paytomany_menu = tools_menu.addAction(_("&Pay to many"), self.paytomany)
+        paytomany_menu = tools_menu.addAction(_("&Pay Multiple Addresses"), self.paytomany)
 
-        raw_transaction_menu = tools_menu.addMenu(_("&Load transaction"))
-        raw_transaction_menu.addAction(_("&From file"), self.do_process_from_file)
-        raw_transaction_menu.addAction(_("&From text"), self.do_process_from_text)
-        raw_transaction_menu.addAction(_("&From the blockchain"), self.do_process_from_txid)
-        raw_transaction_menu.addAction(_("&From QR code"), self.read_tx_from_qrcode)
+        raw_transaction_menu = tools_menu.addMenu(_("&Load Transaction"))
+        raw_transaction_menu.addAction(_("&From File"), self.do_process_from_file)
+        raw_transaction_menu.addAction(_("&From Text"), self.do_process_from_text)
+        raw_transaction_menu.addAction(_("&From the Blockchain"), self.do_process_from_txid)
+        raw_transaction_menu.addAction(_("&From QR Code"), self.read_tx_from_qrcode)
         self.raw_transaction_menu = raw_transaction_menu
         run_hook('init_menubar_tools', self, tools_menu)
 
@@ -570,7 +570,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                       self.tx_notifications.remove(tx)
                       is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
                       if(v > 0):
-                          self.notify(_("New transaction received: %(amount)s") % { 'amount' : self.format_amount_and_units(v)})
+                          self.notify(_("Inbound Transaction - %(amount)s") % { 'amount' : self.format_amount_and_units(v)})
 
     def notify(self, message):
         if self.tray:
@@ -1363,7 +1363,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def read_send_tab(self):
         if self.payment_request and self.payment_request.has_expired():
-            self.show_error(_('Payment request has expired'))
+            self.show_error(_('Payment request has expired.'))
             return
         label = self.message_e.text()
 
@@ -1372,7 +1372,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         else:
             errors = self.payto_e.get_errors()
             if errors:
-                self.show_warning(_("Invalid Lines found:") + "\n\n" + '\n'.join([ _("Line #") + str(x[0]+1) + ": " + x[1] for x in errors]))
+                self.show_warning(_("Invalid lines found:") + "\n\n" + '\n'.join([ _("Line #") + str(x[0]+1) + ": " + x[1] for x in errors]))
                 return
             outputs = self.payto_e.get_outputs(self.is_max)
 
@@ -1384,12 +1384,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     return
 
         if not outputs:
-            self.show_error(_('No outputs'))
+            self.show_error(_('No Recipients'))
             return
 
         for _type, addr, amount in outputs:
             if addr is None:
-                self.show_error(_('Zclassic Address is None'))
+                self.show_error(_('No Zclassic Address'))
                 return
             if _type == TYPE_ADDRESS and not bitcoin.is_address(addr):
                 self.show_error(_('Invalid Zclassic Address'))
@@ -1508,7 +1508,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             pr = self.payment_request
             if pr and pr.has_expired():
                 self.payment_request = None
-                return False, _("Payment request has expired")
+                return False, _("Payment request has expired.")
             status, msg =  self.network.broadcast(tx)
             if pr and status is True:
                 self.invoices.set_paid(pr, tx.txid())
@@ -1754,7 +1754,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d = WindowModalDialog(self, _("Invoice"))
         vbox = QVBoxLayout(d)
         grid = QGridLayout()
-        grid.addWidget(QLabel(_("Requestor") + ':'), 0, 0)
+        grid.addWidget(QLabel(_("Requested By") + ':'), 0, 0)
         grid.addWidget(QLabel(pr.get_requestor()), 0, 1)
         grid.addWidget(QLabel(_("Amount") + ':'), 1, 0)
         outputs_str = '\n'.join(map(lambda x: self.format_amount(x[2])+ self.base_unit() + ' @ ' + x[1], pr.get_outputs()))

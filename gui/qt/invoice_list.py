@@ -29,10 +29,10 @@ from electrum.util import format_time
 
 
 class InvoiceList(MyTreeWidget):
-    filter_columns = [0, 1, 2, 3]  # Date, Requestor, Description, Amount
+    filter_columns = [0, 1, 2, 3]  # Date, Requested By, Description, Amount
 
     def __init__(self, parent):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [_('Expires'), _('Requestor'), _('Description'), _('Amount'), _('Status')], 2)
+        MyTreeWidget.__init__(self, parent, self.create_menu, [_('Expires'), _('Requested By'), _('Description'), _('Amount'), _('Status')], 2)
         self.setSortingEnabled(True)
         self.header().setSectionResizeMode(1, QHeaderView.Interactive)
         self.setColumnWidth(1, 200)
