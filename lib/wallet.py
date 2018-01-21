@@ -519,7 +519,7 @@ class Abstract_Wallet(PrintError):
                     if conf:
                         status = _("%d confirmations") % conf
                     else:
-                        status = _('Not verified')
+                        status = _('Not Verified')
                 else:
                     status = _('Unconfirmed')
                     if fee is None:
@@ -534,7 +534,7 @@ class Abstract_Wallet(PrintError):
                 can_broadcast = self.network is not None
         else:
             s, r = tx.signature_count()
-            status = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
+            status = _("Unsigned") if s == 0 else _('Partially Signed') + ' (%d/%d)'%(s,r)
 
         if is_relevant:
             if is_mine:
@@ -835,7 +835,7 @@ class Abstract_Wallet(PrintError):
         if conf == 0:
             tx = self.transactions.get(tx_hash)
             if not tx:
-                return 3, 'unknown'
+                return 3, 'Unknown'
             is_final = tx and tx.is_final()
             fee = self.tx_fees.get(tx_hash)
             if fee and self.network and self.network.config.has_fee_estimates():
@@ -856,7 +856,7 @@ class Abstract_Wallet(PrintError):
                 status = 4
         else:
             status = 4 + min(conf, 6)
-        time_str = format_time(timestamp) if timestamp else _("unknown")
+        time_str = format_time(timestamp) if timestamp else _("Unknown")
         status_str = TX_STATUS[status] if status < 5 else time_str
         return status, status_str
 

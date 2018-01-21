@@ -2338,7 +2338,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 f.write(json.dumps(pklist, indent = 4))
 
     def do_import_labels(self):
-        labelsFile = self.getOpenFileName(_("Open labels file"), "*.json")
+        labelsFile = self.getOpenFileName(_("Open Labels File"), "*.json")
         if not labelsFile: return
         try:
             with open(labelsFile, 'r') as f:
@@ -2354,7 +2354,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def do_export_labels(self):
         labels = self.wallet.labels
         try:
-            fileName = self.getSaveFileName(_("Select file to save your labels"), 'electrum_labels.json', "*.json")
+            fileName = self.getSaveFileName(_("Select destination file for your labels:"), 'electrum_labels.json', "*.json")
             if fileName:
                 with open(fileName, 'w+') as f:
                     json.dump(labels, f, indent=4, sort_keys=True)
@@ -2367,7 +2367,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d.setMinimumSize(400, 200)
         vbox = QVBoxLayout(d)
         defaultname = os.path.expanduser('~/electrum-history.csv')
-        select_msg = _('Select file to export your wallet transactions to')
+        select_msg = _('Select destination file for your wallet transaction history:')
         hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
         vbox.addLayout(hbox)
         vbox.addStretch(1)
@@ -2515,14 +2515,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def import_addresses(self):
         if not self.wallet.can_import_address():
             return
-        title, msg = _('Import addresses'), _("Enter addresses")
+        title, msg = _('Import Addresses'), _("Enter addresses")
         self._do_import(title, msg, self.wallet.import_address)
 
     @protected
     def do_import_privkey(self, password):
         if not self.wallet.can_import_privkey():
             return
-        title, msg = _('Import private keys'), _("Enter private keys")
+        title, msg = _('Import Private Keys'), _("Enter private keys")
         self._do_import(title, msg, lambda x: self.wallet.import_private_key(x, password))
 
     def update_fiat(self):
@@ -2691,8 +2691,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         gui_widgets.append((unit_label, unit_combo))
 
         block_explorers = sorted(util.block_explorer_info().keys())
-        msg = _('Choose which online block explorer to use for functions that open a web browser')
-        block_ex_label = HelpLabel(_('Online Block Explorer') + ':', msg)
+        msg = _('Choose which block explorer to use for transaction info')
+        block_ex_label = HelpLabel(_('Block Explorer') + ':', msg)
         block_ex_combo = QComboBox()
         block_ex_combo.addItems(block_explorers)
         block_ex_combo.setCurrentIndex(block_ex_combo.findText(util.block_explorer(self.config)))
