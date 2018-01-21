@@ -123,9 +123,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.create_status_bar()
         self.need_update = threading.Event()
 
-        self.decimal_point = config.get('decimal_point', 5)
+        self.decimal_point = config.get('decimal_point', 8)
         self.fee_unit = config.get('fee_unit', 0)
-        self.num_zeros     = int(config.get('num_zeros',0))
+        self.num_zeros = int(config.get('num_zeros', 0))
 
         self.completions = QStringListModel()
 
@@ -3032,7 +3032,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         fee = fee_e.get_amount()
         if fee > max_fee:
-            self.show_error(_('Max fee exceeded'))
+            self.show_error(_('Max fee exceeded!'))
             return
         new_tx = self.wallet.cpfp(parent_tx, fee)
         new_tx.set_rbf(True)
@@ -3065,7 +3065,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         new_fee = fee_e.get_amount()
         delta = new_fee - fee
         if delta < 0:
-            self.show_error("fee too low")
+            self.show_error("Fee too low!")
             return
         try:
             new_tx = self.wallet.bump_fee(tx, delta)
