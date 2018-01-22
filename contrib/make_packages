@@ -1,6 +1,7 @@
 #!/bin/bash
 
 contrib=$(dirname "$0")
+test -n "$contrib" -a -d "$contrib" || exit
 
 whereis pip3
 if [ $? -ne 0 ] ; then echo "Install pip3" ; exit ; fi
@@ -21,4 +22,3 @@ if [ `uname` == "Darwin" ]; then
 else
 	pip3 install -r $contrib/requirements.txt -t $contrib/../packages 
 fi
-
