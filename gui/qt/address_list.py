@@ -27,7 +27,10 @@ import webbrowser
 
 from functools import partial
 
-from .util import *
+from .util import MyTreeWidget, MONOSPACE_FONT
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont, QColor, QKeySequence
+from PyQt5.QtWidgets import QTreeWidgetItem, QAbstractItemView
 from electroncash.i18n import _
 from electroncash.address import Address
 from electroncash.plugins import run_hook
@@ -38,7 +41,7 @@ class AddressList(MyTreeWidget):
     filter_columns = [0, 1, 2]  # Address, Label, Balance
 
     def __init__(self, parent=None):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [], 1)
+        super().__init__(parent, self.create_menu, [], 1)
         self.refresh_headers()
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
 
@@ -135,7 +138,10 @@ class AddressList(MyTreeWidget):
             addr = addrs[0]
 
             column_title = self.headerItem().text(col)
-            copy_text = item.text(col)
+            if col == 0:
+                copy_text = addr.to_full_ui_string()
+            else:
+                copy_text = item.text(col)
             menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(copy_text))
             menu.addAction(_('Details'), lambda: self.parent.show_address(addr))
             if col in self.editable_columns:
@@ -165,3 +171,12 @@ class AddressList(MyTreeWidget):
 
         run_hook('receive_menu', menu, addrs, self.wallet)
         menu.exec_(self.viewport().mapToGlobal(position))
+
+    def keyPressEvent(self, event):
+        if event.matches(QKeySequence.Copy) and self.currentColumn() == 0:
+            addrs = [i.data(0, Qt.UserRole) for i in self.selectedItems()]
+            if addrs and isinstance(addrs[0], Address):
+                text = addrs[0].to_full_ui_string()
+                self.parent.app.clipboard().setText(text)
+        else:
+            super().keyPressEvent(event)
