@@ -6,7 +6,7 @@ contrib=$(dirname "$0")
 
 which virtualenv3 > /dev/null 2>&1 || { echo "Please install virtualenv3" && exit 1; }
 
-rm $venv_dir -rf
+rm "$venv_dir" -rf
 virtualenv3 $venv_dir
 
 source $venv_dir/bin/activate
