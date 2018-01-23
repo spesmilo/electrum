@@ -159,11 +159,15 @@ class HistoryList(MyTreeWidget):
 
         menu = QMenu()
 
+        if height == -2:
+            menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
+
         menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(column_data))
         if column in self.editable_columns:
             menu.addAction(_("Edit %s")%column_title, lambda: self.editItem(item, column))
 
         menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx))
+
         if is_unconfirmed and tx:
             rbf = is_mine and not tx.is_final()
             if rbf:
@@ -177,3 +181,20 @@ class HistoryList(MyTreeWidget):
         if tx_URL:
             menu.addAction(_("View on block explorer"), lambda: webbrowser.open(tx_URL))
         menu.exec_(self.viewport().mapToGlobal(position))
+
+    def remove_local_tx(self, tx_hash):
+        answer = QMessageBox.question(self.parent,
+                                     _("Please confirm"),
+                                     _("Are you sure you want to remove this transaction?"),
+                                     QMessageBox.Yes,
+                                     QMessageBox.No)
+        if answer == QMessageBox.No:
+            return
+        self.wallet.remove_transaction(tx_hash)
+        root = self.invisibleRootItem()
+        child_count = root.childCount()
+        for i in range(child_count):
+            item = root.child(i)
+            if item.data(0, Qt.UserRole) == tx_hash:
+                root.removeChild(item)
+                return
