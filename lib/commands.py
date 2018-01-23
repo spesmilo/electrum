@@ -395,8 +395,8 @@ class Commands:
         tx_fee = satoshis(fee)
         privkeys = privkey.split()
         self.nocheck = nocheck
-        #dest = self._resolver(destination)
-        tx = sweep(privkeys, self.network, self.config, destination, tx_fee, imax)
+        addr = Address.from_string(destination)
+        tx = sweep(privkeys, self.network, self.config, addr, tx_fee, imax)
         return tx.as_dict() if tx else None
 
     @command('wp')
