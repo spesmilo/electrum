@@ -110,7 +110,7 @@ class FeerateEdit(BTCAmountEdit):
         if p == 2:
             return 'mZCL/kB'
         if p == 0:
-            return 'sat/byte'
+            return 'zat/byte'
         raise Exception('Unknown base unit')
 
     def get_amount(self):
