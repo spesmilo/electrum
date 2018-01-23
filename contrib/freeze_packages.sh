@@ -6,8 +6,8 @@ contrib=$(dirname "$0")
 
 which virtualenv > /dev/null 2>&1 || { echo "Please install virtualenv" && exit 1; }
 
-rm $venv_dir -rf
-virtualenv $venv_dir
+rm "$venv_dir" -rf
+virtualenv -p $(which python3) $venv_dir
 
 source $venv_dir/bin/activate
 
