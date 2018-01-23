@@ -69,7 +69,7 @@ TX_STATUS = [
     _('Low fee'),
     _('Unconfirmed'),
     _('Not Verified'),
-    _('Local'),
+    _('Local only'),
 ]
 
 

@@ -37,7 +37,7 @@ TX_ICONS = [
     "warning.png",
     "unconfirmed.png",
     "unconfirmed.png",
-    "warning.png",
+    "offline_tx.png",
     "clock1.png",
     "clock2.png",
     "clock3.png",
