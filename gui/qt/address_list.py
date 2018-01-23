@@ -30,7 +30,7 @@ from functools import partial
 from .util import MyTreeWidget, MONOSPACE_FONT
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor, QKeySequence
-from PyQt5.QtWidgets import QTreeWidgetItem, QAbstractItemView
+from PyQt5.QtWidgets import QTreeWidgetItem, QAbstractItemView, QMenu
 from electroncash.i18n import _
 from electroncash.address import Address
 from electroncash.plugins import run_hook
