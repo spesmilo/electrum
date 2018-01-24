@@ -549,18 +549,43 @@ class Abstract_Wallet(PrintError):
 
         return tx_hash, status, label, can_broadcast, can_bump, amount, fee, height, conf, timestamp, exp_n
 
-    def get_addr_io(self, address):
+    def get_addr_io(self, address, with_unverified=True, to_height=-1):
+        """Return address io, with optional limit by max block height
+        and possibly not including unverified transactions"""
         h = self.history.get(address, [])
         received = {}
         sent = {}
+
+        no_gap_with_unverified = True
+        uh = []
         for tx_hash, height in h:
+            if not tx_hash in self.verified_tx:
+                if with_unverified:
+                    uh.append((tx_hash, height))
+                continue
+
+            if to_height >= 0 and height > to_height:
+                no_gap_with_unverified = False
+                continue
+
             l = self.txo.get(tx_hash, {}).get(address, [])
             for n, v, is_cb in l:
                 received[tx_hash + ':%d'%n] = (height, v, is_cb)
-        for tx_hash, height in h:
+
             l = self.txi.get(tx_hash, {}).get(address, [])
             for txi, v in l:
                 sent[txi] = height
+
+        if with_unverified and no_gap_with_unverified:
+            for tx_hash, height in uh:
+                l = self.txo.get(tx_hash, {}).get(address, [])
+                for n, v, is_cb in l:
+                    received[tx_hash + ':%d'%n] = (height, v, is_cb)
+
+                l = self.txi.get(tx_hash, {}).get(address, [])
+                for txi, v in l:
+                    sent[txi] = height
+
         return received, sent
 
     def get_addr_utxo(self, address):
@@ -588,8 +613,12 @@ class Abstract_Wallet(PrintError):
         return sum([v for height, v, is_cb in received.values()])
 
     # return the balance of a bitcoin address: confirmed and matured, unconfirmed, unmatured
-    def get_addr_balance(self, address):
-        received, sent = self.get_addr_io(address)
+    def get_addr_balance(self, address, with_unverified=True, to_height=-1):
+        """Return addr balance with optional limit by max block height
+        and possibly not including unverified transactions"""
+        received, sent = self.get_addr_io(address,
+                                          with_unverified=with_unverified,
+                                          to_height=to_height)
         c = u = x = 0
         for txo, (tx_height, v, is_cb) in received.items():
             if is_cb and tx_height + COINBASE_MATURITY > self.get_local_height():
@@ -638,12 +667,16 @@ class Abstract_Wallet(PrintError):
     def get_frozen_balance(self):
         return self.get_balance(self.frozen_addresses)
 
-    def get_balance(self, domain=None):
+    def get_balance(self, domain=None, with_unverified=True, to_height=-1):
+        """Return balance with optional limit by max block height
+        and possibly not including unverified transactions"""
         if domain is None:
             domain = self.get_addresses()
         cc = uu = xx = 0
         for addr in domain:
-            c, u, x = self.get_addr_balance(addr)
+            c, u, x = self.get_addr_balance(addr,
+                                            with_unverified=with_unverified,
+                                            to_height=to_height)
             cc += c
             uu += u
             xx += x
@@ -769,21 +802,79 @@ class Abstract_Wallet(PrintError):
         # Store fees
         self.tx_fees.update(tx_fees)
 
-    def get_history(self, domain=None):
+    def get_history(self, domain=None, from_height=-1, to_height=-1,
+                    from_time=-1, to_time=-1):
+        """Return history with optional limit by block height/time"""
         # get domain
         if domain is None:
             domain = self.get_addresses()
+
+        # 0. (Re)calculate from_height/to_height if from_time/to_time is set
+        if from_time >= 0 or to_time >= 0:
+            heights_times = [(v[0], v[1]) for v in self.verified_tx.values()]
+            if len(heights_times) == 0:
+                return []
+
+            heights_times.sort()
+            times = [ht[1] for ht in heights_times]
+            min_time = min(times)
+            max_time = max(times)
+
+            if from_time >= 0:
+                if max_time < from_time:
+                    return []
+
+                for found_height, found_time in heights_times:
+                    if found_time >= from_time:
+                        if from_height < 0 or found_height > from_height:
+                            from_height = found_height
+                        break
+
+            if to_time >= 0:
+                if min_time >= to_time:
+                    return []
+
+                for found_height, found_time in heights_times[::-1]:
+                    if found_time < to_time:
+                        if to_height < 0 or found_height + 1 < to_height:
+                            to_height = found_height + 1
+                        break
+
+        if to_height > 0 and to_height <= from_height or to_height == 0:
+            return []
+
         # 1. Get the history of each address in the domain, maintain the
         #    delta of a tx as the sum of its deltas on domain addresses
         tx_deltas = defaultdict(int)
         for addr in domain:
             h = self.get_address_history(addr)
+            no_gap_with_unverified = True
+            uh = []
             for tx_hash, height in h:
+                if not tx_hash in self.verified_tx:
+                    uh.append((tx_hash, height))
+                    continue
+
+                if from_height >= 0 and height < from_height:
+                    continue
+
+                if to_height >= 0 and height >= to_height:
+                    no_gap_with_unverified = False
+                    continue
+
                 delta = self.get_tx_delta(tx_hash, addr)
                 if delta is None or tx_deltas[tx_hash] is None:
                     tx_deltas[tx_hash] = None
                 else:
                     tx_deltas[tx_hash] += delta
+
+            if no_gap_with_unverified:
+                for tx_hash, height in uh:
+                    delta = self.get_tx_delta(tx_hash, addr)
+                    if delta is None or tx_deltas[tx_hash] is None:
+                        tx_deltas[tx_hash] = None
+                    else:
+                        tx_deltas[tx_hash] += delta
 
         # 2. create sorted history
         history = []
@@ -795,8 +886,9 @@ class Abstract_Wallet(PrintError):
         history.reverse()
 
         # 3. add balance
-        c, u, x = self.get_balance(domain)
+        c, u, x = self.get_balance(domain, to_height=to_height-1)
         balance = c + u + x
+
         h2 = []
         for tx_hash, height, conf, timestamp, delta in history:
             h2.append((tx_hash, height, conf, timestamp, delta, balance))
@@ -806,8 +898,15 @@ class Abstract_Wallet(PrintError):
                 balance -= delta
         h2.reverse()
 
+        if from_height > 0:
+            c, u, x = self.get_balance(domain, with_unverified=False,
+                                       to_height=from_height-1)
+            starting_balance = c + u + x
+        else:
+            starting_balance = 0
+
         # fixme: this may happen if history is incomplete
-        if balance not in [None, 0]:
+        if balance not in [None, starting_balance]:
             self.print_error("Error: history not synchronized")
             return []
 
@@ -1880,4 +1979,3 @@ class Wallet(object):
         if wallet_type in wallet_constructors:
             return wallet_constructors[wallet_type]
         raise RuntimeError("Unknown wallet type: " + wallet_type)
-

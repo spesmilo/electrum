@@ -50,6 +50,18 @@ def satoshis(amount):
     return int(COIN*Decimal(amount)) if amount not in ['!', None] else amount
 
 
+def int_epoch_time(data):
+    """Return int epoch time from Y-m-d H:M:S format or simply convert to int"""
+    if type(data) == int:
+        return data
+    try:
+        res = datetime.datetime.strptime(data, '%Y-%m-%d %H:%M:%S')
+        res = int(time.mktime(res.timetuple()))
+    except ValueError:
+        res = int(data)
+    return res
+
+
 class Command:
     def __init__(self, func, s):
         self.name = func.__name__
@@ -446,11 +458,21 @@ class Commands:
         return tx.as_dict()
 
     @command('w')
-    def history(self):
-        """Wallet history. Returns the transaction history of your wallet."""
+    def history(self, from_height=-1, to_height=-1, from_time=-1, to_time=-1):
+        """Wallet history. Returns the transaction history of your wallet
+        with optional limit by block height/time."""
+
+        # Additional conversion for RPC calls
+        from_height = int(from_height)
+        to_height = int(to_height)
+        from_time = int_epoch_time(from_time)
+        to_time = int_epoch_time(to_time)
+
         balance = 0
         out = []
-        for item in self.wallet.get_history():
+        for item in self.wallet.get_history(
+                from_height=from_height, to_height=to_height,
+                from_time=from_time, to_time=to_time):
             tx_hash, height, conf, timestamp, value, balance = item
             if timestamp:
                 date = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
@@ -733,6 +755,12 @@ command_options = {
     'pending':     (None, "Show only pending requests."),
     'expired':     (None, "Show only expired requests."),
     'paid':        (None, "Show only paid requests."),
+    'from_height': (None, "Start from block height (inclusive)."),
+    'to_height':   (None, "Finish on block height (not inclusive)."),
+    'from_time':   (None, "Start from time (epoch seconds or local time in"
+                          " \"YYYY-mm-dd HH:MM:SS\" format, inclusive)."),
+    'to_time':     (None, "Finish on time (epoch seconds or local time in"
+                          " \"YYYY-mm-dd HH:MM:SS\" format, not inclusive)."),
 }
 
 
@@ -752,6 +780,10 @@ arg_types = {
     'fee': lambda x: str(Decimal(x)) if x is not None else None,
     'amount': lambda x: str(Decimal(x)) if x != '!' else '!',
     'locktime': int,
+    'from_height': int,
+    'to_height': int,
+    'from_time': int_epoch_time,
+    'to_time': int_epoch_time,
 }
 
 config_variables = {
