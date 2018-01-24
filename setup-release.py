@@ -13,16 +13,16 @@ import shutil
 
 from lib.version import ELECTRUM_VERSION as version
 
+CERT_PATH = requests.certs.where()
 
 name = "Electrum"
-mainscript = 'electrum-mac'
+mainscript = 'electrum'
 
 plist = Plist.fromFile('Info.plist')
 plist.update(dict(CFBundleIconFile='electrum.icns'))
 
 
-CERT_PATH = requests.certs.where()
-
+os.environ["REQUESTS_CA_BUNDLE"] = "cacert.pem"
 shutil.copy(mainscript, mainscript + '.py')
 mainscript += '.py'
 extra_options = dict(

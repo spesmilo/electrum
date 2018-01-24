@@ -74,9 +74,9 @@ def check_imports():
     from google.protobuf import descriptor_pb2
     from jsonrpclib import SimpleJSONRPCServer
     # make sure that certificates are here
-    if not is_macOS:
-        # cannot check if path exists inside zip on macOS
-        assert os.path.exists(requests.utils.DEFAULT_CA_BUNDLE_PATH)
+    if is_bundle and is_macOS:
+        requests.utils.DEFAULT_CA_BUNDLE_PATH = os.path.join(os.path.dirname(__file__), 'cacert.pem')
+    assert os.path.exists(requests.utils.DEFAULT_CA_BUNDLE_PATH)
 
 
 if not is_android:

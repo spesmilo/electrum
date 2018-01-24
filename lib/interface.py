@@ -31,11 +31,9 @@ import threading
 import time
 import traceback
 
-import requests
+from .util import print_error, get_cert_path
 
-from .util import print_error
-
-ca_path = requests.certs.where()
+ca_path = get_cert_path()
 
 from . import util
 from . import x509
