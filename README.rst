@@ -59,7 +59,7 @@ Using Homebrew::
     # Install Homebrew
 		/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 
-		# (Optionally)
+    # (Optionally)
 		sudo chown -R "$USER":admin /usr/local
 		sudo chown -R "$USER":admin /Library/Caches/Homebrew
 
@@ -68,20 +68,26 @@ Using Homebrew::
 		brew link python3
 		brew postinstall python3
 
-		# Python setuptools
+    # Python setuptools
 		curl https://bootstrap.pypa.io/ez_setup.py -o - | python3
 
     # Install pyqt5
 		pip3 install pyqt5
 
-		# Setup
+    # Install Protobuf
+                brew install protobuf
+
+    # Setup
 		python3 setup.py install
+
+
+    # Build icons
 		pyrcc5 icons.qrc -o gui/qt/icons_rc.py
 
-		# Run
+    # Run
 		./electrum
 
-Alternatively, copy the generated `build/scripts-3.6/electrum` to the main directory::
+`(Alternatively, copy the generated "build/scripts-3.6/electrum" to the main directory)`::
 
     cp -f build/scripts-3.6/electrum electrum-mac
     ./electrum-mac
@@ -92,18 +98,23 @@ For Linux:
 
 Install Dependencies::
 
-    sudo apt-get install python3-pyqt5
+    sudo apt-get install python3-pip python3-setuptools python3-dev python3-pyqt5
     sudo pip2 install pyblake2
-
-    sudo apt-get install python3-setuptools
+    pip3 install pyqt5
     python3 setup.py install
 
-Compile the icons file for QT::
+    # OPTIONAL: Install without sudo -
+    # If you do not have a dir located at /usr/local/lib/python3.6/site-packages/
+    # you will need to create this before running the install.
+
+    mkdir  /usr/local/lib/python3.6/site-packages/
+
+Compile the icons file for Qt::
 
     sudo apt-get install pyqt5-dev-tools
     pyrcc5 icons.qrc -o gui/qt/icons_rc.py
 
-For the linux app launcher (start menu) icon::
+For the Linux app launcher (start menu) icon::
 
     sudo desktop-file-install electrum.desktop
 
@@ -121,6 +132,40 @@ Run::
 
     ./electrum
 
+
+
+
+Building Releases
+=================
+
+
+MacOS
+------
+
+Simply - ::
+
+    sh ./setup-mac.sh
+
+    sudo sh ./install-mac.sh
+
+Windows
+-------
+
+See `contrib/build-wine/README` file.
+
+
+Android
+-------
+
+See `gui/kivy/Readme.txt` file.
+
+---
+
+To just create binaries, create the 'packages/' directory::
+
+    ./contrib/make_packages
+
+(This directory contains the Python dependencies used by Electrum.)
 
 
 ZCL Hints and Debug
@@ -141,35 +186,12 @@ Also be sure to check out:::
 
     ~/.electrum-zcl/
 
-    `~/.electrum-zcl/wallets/` has your wallet files - this folder can be backed up.
+    ~/.electrum-zcl/wallets/ has your wallet files - ** back up this folder **
 
-    `~/.electrum-zcl/config` has your Electrum connection object.
-
-
-=================
+    ~/.electrum-zcl/config has your Electrum connection object.
 
 
-To create binaries, create the 'packages' directory::
+---
 
-    ./contrib/make_packages
+The Zclassic Team
 
-This directory contains the python dependencies used by Electrum.
-
-Mac OS X / macOS
-----------------
-
-::
-
-sh ./setup-mac.sh
-sudo sh ./install-mac.sh
-
-Windows
--------
-
-See `contrib/build-wine/README` file.
-
-
-Android
--------
-
-See `gui/kivy/Readme.txt` file.
