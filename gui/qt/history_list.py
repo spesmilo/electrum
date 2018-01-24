@@ -47,11 +47,12 @@ TX_ICONS = [
 ]
 
 
-class HistoryList(MyTreeWidget):
+class HistoryList(MyTreeWidget, AcceptFileDragDrop):
     filter_columns = [2, 3, 4]  # Date, Description, Amount
 
     def __init__(self, parent=None):
         MyTreeWidget.__init__(self, parent, self.create_menu, [], 3)
+        AcceptFileDragDrop.__init__(self, ".txn")
         self.refresh_headers()
         self.setColumnHidden(1, True)
 
@@ -205,3 +206,12 @@ class HistoryList(MyTreeWidget):
             if item.data(0, Qt.UserRole) in to_delete:
                 root.removeChild(item)
                 _offset += 1
+
+    def onFileAdded(self, fn):
+        with open(fn) as f:
+            tx = self.parent.tx_from_text(f.read())
+            self.wallet.add_transaction(tx.txid(), tx)
+            self.wallet.save_transactions()
+            self.on_update()
+
+
