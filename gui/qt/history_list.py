@@ -182,19 +182,26 @@ class HistoryList(MyTreeWidget):
             menu.addAction(_("View on block explorer"), lambda: webbrowser.open(tx_URL))
         menu.exec_(self.viewport().mapToGlobal(position))
 
-    def remove_local_tx(self, tx_hash):
-        answer = QMessageBox.question(self.parent,
-                                     _("Please confirm"),
-                                     _("Are you sure you want to remove this transaction?"),
-                                     QMessageBox.Yes,
-                                     QMessageBox.No)
+    def remove_local_tx(self, delete_tx):
+        to_delete = {delete_tx}
+        to_delete |= self.wallet.get_depending_transactions(delete_tx)
+
+        question = _("Are you sure you want to remove this transaction?")
+        if len(to_delete) > 1:
+            question = _(
+                "Are you sure you want to remove this transaction and {} child transactions?".format(len(to_delete) - 1)
+            )
+
+        answer = QMessageBox.question(self.parent, _("Please confirm"), question, QMessageBox.Yes, QMessageBox.No)
         if answer == QMessageBox.No:
             return
-        self.wallet.remove_transaction(tx_hash)
+        for tx in to_delete:
+            self.wallet.remove_transaction(tx)
         root = self.invisibleRootItem()
         child_count = root.childCount()
+        _offset = 0
         for i in range(child_count):
-            item = root.child(i)
-            if item.data(0, Qt.UserRole) == tx_hash:
+            item = root.child(i - _offset)
+            if item.data(0, Qt.UserRole) in to_delete:
                 root.removeChild(item)
-                return
+                _offset += 1

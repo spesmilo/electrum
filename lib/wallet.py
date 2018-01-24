@@ -1377,6 +1377,16 @@ class Abstract_Wallet(PrintError):
         index = self.get_address_index(addr)
         return self.keystore.decrypt_message(index, message, password)
 
+    def get_depending_transactions(self, tx_hash):
+        """Returns all (grand-)children of tx_hash in this wallet."""
+        children = set()
+        for other_hash, tx in self.transactions.items():
+            for input in (tx.inputs()):
+                if input["prevout_hash"] == tx_hash:
+                    children.add(other_hash)
+                    children |= self.get_depending_transactions(other_hash)
+        return children
+
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore
