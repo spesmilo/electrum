@@ -198,6 +198,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             return
         for tx in to_delete:
             self.wallet.remove_transaction(tx)
+        self.wallet.save_transactions(write=True)
         root = self.invisibleRootItem()
         child_count = root.childCount()
         _offset = 0
@@ -211,7 +212,5 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         with open(fn) as f:
             tx = self.parent.tx_from_text(f.read())
             self.wallet.add_transaction(tx.txid(), tx)
-            self.wallet.save_transactions()
+            self.wallet.save_transactions(write=True)
             self.on_update()
-
-
