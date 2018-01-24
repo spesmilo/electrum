@@ -118,7 +118,7 @@ Create translations (optional)::
     ./contrib/make_locale
 
 Run::
-    
+
     ./electrum
 
 
@@ -159,14 +159,9 @@ Mac OS X / macOS
 ----------------
 
 ::
-    
-    # On MacPorts installs: 
-    sudo python3 setup-release.py py2app
-    
-    # On Homebrew installs: 
-    ARCHFLAGS="-arch i386 -arch x86_64" sudo python3 setup-release.py py2app --includes sip
-    
-    sudo hdiutil create -fs HFS+ -volname "Electrum" -srcfolder dist/Electrum.app dist/electrum-VERSION-macosx.dmg
+
+sh ./setup-mac.sh
+sudo sh ./install-mac.sh
 
 Windows
 -------
@@ -178,4 +173,3 @@ Android
 -------
 
 See `gui/kivy/Readme.txt` file.
-

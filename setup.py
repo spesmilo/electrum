@@ -46,7 +46,7 @@ setup(
         'jsonrpclib-pelix',
         'pyblake2',
         'PySocks>=1.6.6',
-        'PyQt5'
+        'PyQt5',
     ],
     packages=[
         'electrum',

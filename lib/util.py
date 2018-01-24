@@ -29,6 +29,7 @@ import traceback
 import urllib
 import threading
 import hmac
+import requests
 
 from .i18n import _
 
@@ -39,6 +40,9 @@ import queue
 def inv_dict(d):
     return {v: k for k, v in d.items()}
 
+
+is_bundle = getattr(sys, 'frozen', False)
+is_macOS = sys.platform == 'darwin'
 
 base_units = {'ZCL':8, 'mZCL':5, 'uZCL':2}
 fee_levels = [_('Within 25 blocks'), _('Within 10 blocks'), _('Within 5 blocks'), _('Within 2 blocks'), _('In the next block')]
@@ -687,3 +691,8 @@ class QueuePipe:
             self.send(request)
 
 
+def get_cert_path():
+    if is_bundle and is_macOS:
+        # set in ./electrum
+        return requests.utils.DEFAULT_CA_BUNDLE_PATH
+    return requests.certs.where()

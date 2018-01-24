@@ -39,7 +39,7 @@ except ImportError:
 
 from . import bitcoin
 from . import util
-from .util import print_error, bh2u, bfh
+from .util import print_error, bh2u, bfh, get_cert_path
 from . import transaction
 from . import x509
 from . import rsakey
@@ -49,7 +49,7 @@ from .bitcoin import TYPE_ADDRESS
 REQUEST_HEADERS = {'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'}
 ACK_HEADERS = {'Content-Type':'application/bitcoin-payment','Accept':'application/bitcoin-paymentack','User-Agent':'Electrum'}
 
-ca_path = requests.certs.where()
+ca_path = get_cert_path()
 ca_list = None
 ca_keyID = None
 
