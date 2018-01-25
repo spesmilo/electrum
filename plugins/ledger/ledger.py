@@ -463,8 +463,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
         address_path = self.get_derivation()[2:] + "/%d/%d"%sequence
         self.handler.show_message(_("Showing address ..."))
         segwit = Transaction.is_segwit_inputtype(txin_type)
+        segwitNative = txin_type == 'p2wpkh'
         try:
-            client.getWalletPublicKey(address_path, showOnScreen=True, segwit=segwit)
+            client.getWalletPublicKey(address_path, showOnScreen=True, segwit=segwit, segwitNative=segwitNative)
         except BTChipException as e:
             if e.sw == 0x6985:  # cancelled by user
                 pass
