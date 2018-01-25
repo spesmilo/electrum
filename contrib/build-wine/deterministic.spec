@@ -3,6 +3,7 @@
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 import sys
+import os
 for i, x in enumerate(sys.argv):
     if x == '--name':
         cmdline_name = sys.argv[i+1]
@@ -10,8 +11,7 @@ for i, x in enumerate(sys.argv):
 else:
     raise BaseException('no name')
 
-
-home = 'C:\\Users\\csulm\\code\\crypto\\electrum-zcl\\'
+home = os.getcwd()+'\\'
 
 # see https://github.com/pyinstaller/pyinstaller/issues/2005
 hiddenimports = []
@@ -45,10 +45,10 @@ a = Analysis([home+'electrum',
               home+'lib/commands.py',
               home+'plugins/cosigner_pool/qt.py',
               home+'plugins/email_requests/qt.py',
-              home+'plugins/trezor/client.py',
-              home+'plugins/trezor/qt.py',
-              home+'plugins/keepkey/qt.py',
-              home+'plugins/ledger/qt.py',
+              #home+'plugins/trezor/client.py',
+              #home+'plugins/trezor/qt.py',
+              #home+'plugins/keepkey/qt.py',
+              #home+'plugins/ledger/qt.py',
               #home+'packages/requests/utils.py'
               ],
              datas=datas,
