@@ -32,6 +32,7 @@ from decimal import Decimal
 import base64
 from functools import partial
 
+import datetime
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
@@ -2452,6 +2453,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def do_export_history(self, wallet, fileName, is_csv):
         history = wallet.get_history()
+        fx = self.fx
         lines = []
         for item in history:
             tx_hash, height, confirmations, timestamp, value, balance = item
@@ -2473,20 +2475,32 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             else:
                 label = ""
 
-            if is_csv:
-                lines.append([tx_hash, label, confirmations, value_string, time_string])
+            if fx and value and timestamp:
+                dt = datetime.datetime.fromtimestamp(timestamp)
+                fiat_value = "{} {}".format(fx.historical_value_str(value, dt), fx.get_currency())
             else:
-                lines.append({'txid':tx_hash, 'date':"%16s"%time_string, 'label':label, 'value':value_string})
+                fiat_value = "--"
+
+            if is_csv:
+                lines.append([tx_hash, label, confirmations, value_string, fiat_value, time_string])
+            else:
+                lines.append({
+                    'txid': tx_hash,
+                    'date': "%16s"%time_string,
+                    'label': label,
+                    'value': value_string,
+                    'fiat_value': fiat_value
+                     })
 
         with open(fileName, "w+") as f:
             if is_csv:
                 transaction = csv.writer(f, lineterminator='\n')
-                transaction.writerow(["transaction_hash","label", "confirmations", "value", "timestamp"])
+                transaction.writerow(["transaction_hash","label", "confirmations", "value", "fiat_value", "timestamp"])
                 for line in lines:
                     transaction.writerow(line)
             else:
                 import json
-                f.write(json.dumps(lines, indent = 4))
+                f.write(json.dumps(lines, indent=4))
 
     def sweep_key_dialog(self):
         d = WindowModalDialog(self, title=_('Sweep private keys'))
