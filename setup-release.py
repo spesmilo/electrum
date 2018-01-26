@@ -19,7 +19,7 @@ name = "Electrum"
 mainscript = 'electrum'
 
 plist = Plist.fromFile('Info.plist')
-plist.update(dict(CFBundleIconFile='electrum.icns'))
+plist.update(dict(CFBundleIconFile='icons/electrum.icns'))
 
 
 os.environ["REQUESTS_CA_BUNDLE"] = "cacert.pem"
@@ -56,7 +56,7 @@ extra_options = dict(
     options=dict(py2app=dict(argv_emulation=False,
                              includes=['sip'],
                              packages=['lib', 'gui', 'plugins'],
-                             iconfile='electrum.icns',
+                             iconfile='icons/electrum.icns',
                              plist=plist,
                              resources=["icons"])),
 )

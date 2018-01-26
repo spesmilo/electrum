@@ -1,0 +1,10 @@
+python3-pip
+python3-setuptools
+python3-dev
+python3-pyqt5
+protobuf-compiler
+python-requests
+gettext
+wine-development
+dirmngr
+gnupg2
