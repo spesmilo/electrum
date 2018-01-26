@@ -8,3 +8,5 @@ brew "gettext"
 tap "brewsci/science"
 brew "matplotlib"
 # required for matplotlib used in Plot History
+brew "libusb-compat"
+# ledger wallet

@@ -8,3 +8,5 @@ gettext
 wine-development
 dirmngr
 gnupg2
+libudev-dev
+libusb-1.0-0-dev

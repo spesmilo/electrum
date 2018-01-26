@@ -89,6 +89,10 @@ Install Dependencies::
 
   pip install -r requirement.txt
 
+  (Ubuntu with ledger wallet)
+  ln -s /lib/x86_64-linux-gnu/libudev.so.1 /lib/x86_64-linux-gnu/libudev.so
+
+
 Compile the icons file for Qt::
 
     pyrcc5 icons.qrc -o gui/qt/icons_rc.py
