@@ -341,7 +341,7 @@ class Abstract_Wallet(PrintError):
     def is_change(self, address):
         if not self.is_mine(address):
             return False
-        return address in self.change_addresses
+        return self.get_address_index(address)[0]
 
     def get_address_index(self, address):
         if hasattr(self, '_addr_to_addr_index'):
