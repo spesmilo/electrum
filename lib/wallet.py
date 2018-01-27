@@ -272,10 +272,15 @@ class Abstract_Wallet(PrintError):
     @profiler
     def check_history(self):
         save = False
-        mine_addrs = list(filter(lambda k: self.is_mine(self.history[k]), self.history.keys()))
-        if len(mine_addrs) != len(self.history.keys()):
+
+        hist_addrs_mine = list(filter(lambda k: self.is_mine(k), self.history.keys()))
+        hist_addrs_not_mine = list(filter(lambda k: not self.is_mine(k), self.history.keys()))
+
+        for addr in hist_addrs_not_mine:
+            self.history.pop(addr)
             save = True
-        for addr in mine_addrs:
+
+        for addr in hist_addrs_mine:
             hist = self.history[addr]
 
             for tx_hash, tx_height in hist:
