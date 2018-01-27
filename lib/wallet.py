@@ -332,6 +332,10 @@ class Abstract_Wallet(PrintError):
         return changed
 
     def is_mine(self, address):
+        if hasattr(self, '_addr_to_addr_index'):  # Deterministic_Wallet
+            return address in self._addr_to_addr_index
+        if hasattr(self, 'addresses'):  # Imported_Wallet
+            return address in self.addresses
         return address in self.get_addresses()
 
     def is_change(self, address):
