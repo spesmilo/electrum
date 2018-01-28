@@ -1,7 +1,7 @@
 ZCL Electrum - Lightweight Zclassic Client
 ==========================================
 
-**Current Release (0.1.0) (alpha)**: https://github.com/BTCP-community/electrum-zcl/releases/tag/Z!0.1.0
+**Current Release (1.0.0) (beta)**: https://github.com/BTCP-community/electrum-zcl/releases/tag/Z!1.0.0
 
 
 Forked from **spesmilo/electrum**: https://github.com/spesmilo/electrum
