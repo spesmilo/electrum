@@ -87,7 +87,7 @@ class NetworkConstants:
         cls.CHECKPOINTS = read_json('checkpoints.json', [])
         cls.EQUIHASH_N = 200
         cls.EQUIHASH_K = 9
-        cls.HEADERS_URL = "http://35.227.234.163:80/blockchain_headers"
+        cls.HEADERS_URL = "http://35.186.223.75:80/blockchain_headers"
 
         cls.CHUNK_SIZE = 200
 
