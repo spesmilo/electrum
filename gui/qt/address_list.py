@@ -39,6 +39,7 @@ class AddressList(MyTreeWidget):
         MyTreeWidget.__init__(self, parent, self.create_menu, [], 2)
         self.refresh_headers()
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.setSortingEnabled(True)
         self.show_change = 0
         self.show_used = 0
         self.change_button = QComboBox(self)
@@ -109,11 +110,11 @@ class AddressList(MyTreeWidget):
             if fx and fx.get_fiat_address_config():
                 rate = fx.exchange_rate()
                 fiat_balance = fx.value_str(balance, rate)
-                address_item = QTreeWidgetItem(['', address, label, balance_text, fiat_balance, "%d"%num])
+                address_item = SortableTreeWidgetItem(['', address, label, balance_text, fiat_balance, "%d"%num])
                 address_item.setTextAlignment(4, Qt.AlignRight)
                 address_item.setFont(4, QFont(MONOSPACE_FONT))
             else:
-                address_item = QTreeWidgetItem(['', address, label, balance_text, "%d"%num])
+                address_item = SortableTreeWidgetItem(['', address, label, balance_text, "%d"%num])
             address_item.setFont(3, QFont(MONOSPACE_FONT))
             if self.wallet.is_change(address):
                 address_item.setText(0, _('change'))
