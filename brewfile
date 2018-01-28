@@ -1,0 +1,12 @@
+tap "caskroom/cask"
+brew "python3"
+brew  "protobuf"
+# brew "zbar" -
+brew "gmp"
+# required by gmpy
+brew "gettext"
+tap "brewsci/science"
+brew "matplotlib"
+# required for matplotlib used in Plot History
+brew "libusb-compat"
+# ledger wallet

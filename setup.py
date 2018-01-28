@@ -11,6 +11,22 @@ import argparse
 
 version = imp.load_source('version', 'lib/version.py')
 
+
+def readhere(path):
+    here = os.path.abspath(os.path.dirname(__file__))
+    with open(os.path.join(here, path), 'r') as fd:
+        return fd.read()
+
+
+def readreqs(path):
+    return [req for req in
+            [line.strip() for line in readhere(path).split('\n')]
+            if req and not req.startswith(('#', '-r'))]
+
+
+install_requires = readreqs('requirements.txt')
+tests_requires = install_requires + readreqs('requirements_travis.txt')
+
 if sys.version_info[:3] < (3, 4, 0):
     sys.exit("Error: Electrum requires Python version >= 3.4.0...")
 
@@ -35,19 +51,8 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
 setup(
     name="Electrum-ZCL",
     version=version.ELECTRUM_VERSION,
-    install_requires=[
-        'pyaes>=0.1a1',
-        'ecdsa>=0.9',
-        'pbkdf2',
-        'requests',
-        'qrcode',
-        'protobuf',
-        'dnspython',
-        'jsonrpclib-pelix',
-        'pyblake2',
-        'PySocks>=1.6.6',
-        'PyQt5',
-    ],
+    install_requires=install_requires,
+    tests_require=tests_requires,
     packages=[
         'electrum',
         'electrum_gui',

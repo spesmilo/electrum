@@ -59,33 +59,20 @@ For Mac:
 
 Using Homebrew::
 
-    # Install Homebrew
-		/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+    # Setup Homebrew
+    sh ./setup-mac.sh
 
-    # (Optionally)
-		sudo chown -R "$USER":admin /usr/local
-		sudo chown -R "$USER":admin /Library/Caches/Homebrew
+    # Install Homebrew dependencies
+    brew bundle
 
-    # Install python3
-		brew install python3
-		brew link python3
-		brew postinstall python3
-
-    # Python setuptools
-		curl https://bootstrap.pypa.io/ez_setup.py -o - | python3
-
-    # Install pyqt5
-		pip3 install pyqt5
-
-    # Install Protobuf
-                brew install protobuf
-
-    # Setup
-		python3 setup.py install
-
+    # Install Python dependencies
+    pip3 install -r requirements.txt
 
     # Build icons
 		pyrcc5 icons.qrc -o gui/qt/icons_rc.py
+
+    # Compile the protobuf description file
+    protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto
 
     # Run
 		./electrum
@@ -101,20 +88,16 @@ For Linux:
 
 Install Dependencies::
 
-    sudo apt-get install python3-pip python3-setuptools python3-dev python3-pyqt5
-    sudo pip2 install pyblake2
-    pip3 install pyqt5
-    python3 setup.py install
+  sudo apt-get install $(grep -vE "^\s*#" packages.txt  | tr "\n" " ")
 
-    # OPTIONAL: Install without sudo -
-    # If you do not have a dir located at /usr/local/lib/python3.6/site-packages/
-    # you will need to create this before running the install.
+  pip install -r requirement.txt
 
-    mkdir  /usr/local/lib/python3.6/site-packages/
+  (Ubuntu with ledger wallet)
+  ln -s /lib/x86_64-linux-gnu/libudev.so.1 /lib/x86_64-linux-gnu/libudev.so
+
 
 Compile the icons file for Qt::
 
-    sudo apt-get install pyqt5-dev-tools
     pyrcc5 icons.qrc -o gui/qt/icons_rc.py
 
 For the Linux app launcher (start menu) icon::
@@ -123,12 +106,9 @@ For the Linux app launcher (start menu) icon::
 
 Compile the protobuf description file::
 
-    sudo apt-get install protobuf-compiler
     protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto
 
 Create translations (optional)::
-
-    sudo apt-get install python-requests gettext
     ./contrib/make_locale
 
 Run::
@@ -197,4 +177,3 @@ Also be sure to check out:::
 ---
 
 The Zclassic Team
-
