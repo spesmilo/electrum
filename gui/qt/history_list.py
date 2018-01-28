@@ -25,6 +25,7 @@
 
 import webbrowser
 
+from electrum.wallet import UnrelatedTransactionException
 from .util import *
 from electrum.i18n import _
 from electrum.util import block_explorer_URL
@@ -211,6 +212,10 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
     def onFileAdded(self, fn):
         with open(fn) as f:
             tx = self.parent.tx_from_text(f.read())
-            self.wallet.add_transaction(tx.txid(), tx)
-            self.wallet.save_transactions(write=True)
-            self.on_update()
+            try:
+                self.wallet.add_transaction(tx.txid(), tx)
+            except UnrelatedTransactionException as e:
+                self.parent.show_error(e)
+            else:
+                self.wallet.save_transactions(write=True)
+                self.on_update()

@@ -632,7 +632,6 @@ class Commands:
     @command('w')
     def addtransaction(self, tx):
         """ Add a transaction to the wallet history """
-        #fixme: we should ensure that tx is related to wallet
         tx = Transaction(tx)
         self.wallet.add_transaction(tx.txid(), tx)
         self.wallet.save_transactions()

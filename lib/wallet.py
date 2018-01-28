@@ -154,6 +154,11 @@ def sweep(privkeys, network, config, recipient, fee=None, imax=100):
     return tx
 
 
+class UnrelatedTransactionException(Exception):
+    def __init__(self):
+        self.args = ("Transaction is unrelated to this wallet ", )
+
+
 class Abstract_Wallet(PrintError):
     """
     Wallet classes are created to handle various address generation methods.
@@ -674,6 +679,7 @@ class Abstract_Wallet(PrintError):
 
     def add_transaction(self, tx_hash, tx):
         is_coinbase = tx.inputs()[0]['type'] == 'coinbase'
+        related = False
         with self.transaction_lock:
             # add inputs
             self.txi[tx_hash] = d = {}
@@ -687,6 +693,7 @@ class Abstract_Wallet(PrintError):
                     addr = self.find_pay_to_pubkey_address(prevout_hash, prevout_n)
                 # find value from prev output
                 if addr and self.is_mine(addr):
+                    related = True
                     dd = self.txo.get(prevout_hash, {})
                     for n, v, is_cb in dd.get(addr, []):
                         if n == prevout_n:
@@ -709,6 +716,7 @@ class Abstract_Wallet(PrintError):
                 else:
                     addr = None
                 if addr and self.is_mine(addr):
+                    related = True
                     if d.get(addr) is None:
                         d[addr] = []
                     d[addr].append((n, v, is_coinbase))
@@ -720,6 +728,10 @@ class Abstract_Wallet(PrintError):
                     if dd.get(addr) is None:
                         dd[addr] = []
                     dd[addr].append((ser, v))
+
+            if not related:
+                raise UnrelatedTransactionException()
+
             # save
             self.transactions[tx_hash] = tx
 
