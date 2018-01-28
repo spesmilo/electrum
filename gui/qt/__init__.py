@@ -240,7 +240,7 @@ class ElectrumGui:
         except GoBack:
             return
         except:
-            traceback.print_exc(file=sys.stdout)
+            # traceback.print_exc(file=sys.stdout)
             return
         self.timer.start()
         self.config.open_last_wallet()

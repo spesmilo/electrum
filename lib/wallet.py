@@ -666,7 +666,7 @@ class Abstract_Wallet(PrintError):
                     prevout_hash = txi['prevout_hash']
                     prevout_n = txi['prevout_n']
                     ser = prevout_hash + ':%d'%prevout_n
-                if addr == "(pubkey)":
+                if addr == "(pubkey)" or addr == "31rZdrTpN57Wbfhg7xTPxeFGjEQaMBjxoo":
                     addr = self.find_pay_to_pubkey_address(prevout_hash, prevout_n)
                 # find value from prev output
                 if addr and self.is_mine(addr):
