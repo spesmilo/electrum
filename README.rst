@@ -3,6 +3,10 @@ ZCL Electrum - Lightweight Zclassic Client
 
 **Current Release (1.0.0) (beta)**: https://github.com/BTCP-community/electrum-zcl/releases/tag/Z!1.0.0
 
+**ATTENTION**
+
+- Viewing & Sending from Z addresses is not yet supported on this wallet.
+- Please **do not** use '2FA' when setting up your wallet - please use Standard or MultiSig.
 
 Forked from **spesmilo/electrum**: https://github.com/spesmilo/electrum
 
@@ -111,6 +115,7 @@ Compile the protobuf description file::
     protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto
 
 Create translations (optional)::
+
     ./contrib/make_locale
 
 Run::
@@ -167,7 +172,7 @@ This is a good initial check to determine whether things are working.::
 
 It should run, validating chunks without error.
 
-Also be sure to check out:::
+Also be sure to check out::
 
     ~/.electrum-zcl/
 
