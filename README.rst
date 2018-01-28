@@ -129,7 +129,7 @@ Simply - ::
 
     sh ./setup-mac.sh
 
-    sudo sh ./install-mac.sh
+    sudo sh ./create-dmg.sh
 
 Windows
 -------
@@ -172,6 +172,7 @@ Also be sure to check out:::
     ~/.electrum-zcl/wallets/ has your wallet files - ** back up this folder **
 
     ~/.electrum-zcl/config has your Electrum connection object.
+
 
 
 ---
