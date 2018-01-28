@@ -244,7 +244,7 @@ class SendScreen(CScreen):
     def do_send(self):
         if self.screen.is_pr:
             if self.payment_request.has_expired():
-                self.app.show_error(_('Payment request has expired'))
+                self.app.show_error(_('Payment request has expired.'))
                 return
             outputs = self.payment_request.get_outputs()
         else:
@@ -258,7 +258,7 @@ class SendScreen(CScreen):
             try:
                 amount = self.app.get_amount(self.screen.amount)
             except:
-                self.app.show_error(_('Invalid amount') + ':\n' + self.screen.amount)
+                self.app.show_error(_('Invalid Amount') + ':\n' + self.screen.amount)
                 return
             outputs = [(bitcoin.TYPE_ADDRESS, address, amount)]
         message = self.screen.message
@@ -322,7 +322,7 @@ class ReceiveScreen(CScreen):
             self.get_new_address()
         else:
             status = self.app.wallet.get_request_status(self.screen.address)
-            self.screen.status = _('Payment received') if status == PR_PAID else ''
+            self.screen.status = _('Payment Received') if status == PR_PAID else ''
 
     def clear(self):
         self.screen.address = ''
@@ -350,7 +350,7 @@ class ReceiveScreen(CScreen):
             amount = req.get('amount')
             self.screen.amount = self.app.format_amount_and_units(amount) if amount else ''
             status = req.get('status', PR_UNKNOWN)
-            self.screen.status = _('Payment received') if status == PR_PAID else ''
+            self.screen.status = _('Payment Received') if status == PR_PAID else ''
         Clock.schedule_once(lambda dt: self.update_qr())
 
     def get_URI(self):

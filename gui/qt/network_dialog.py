@@ -66,7 +66,7 @@ class NodesListWidget(QTreeWidget):
     def __init__(self, parent):
         QTreeWidget.__init__(self)
         self.parent = parent
-        self.setHeaderLabels([_('Connected node'), _('Height')])
+        self.setHeaderLabels([_('Connected Node'), _('Height')])
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.create_menu)
 
@@ -223,8 +223,8 @@ class NetworkChoiceLayout(object):
         grid.addWidget(self.server_host, 1, 1, 1, 2)
         grid.addWidget(self.server_port, 1, 3)
 
-        label = _('Server peers') if network.is_connected() else _('Default Servers')
-        grid.addWidget(QLabel(label), 2, 0, 1, 5)
+        label = _('Server Peers') if network.is_connected() else _('Default Servers')
+        grid.addWidget(QLabel(label + ':'), 2, 0, 1, 5)
         self.servers_list = ServerListWidget(self)
         grid.addWidget(self.servers_list, 3, 0, 1, 5)
 
@@ -233,7 +233,7 @@ class NetworkChoiceLayout(object):
         grid.setSpacing(8)
 
         # proxy setting
-        self.proxy_cb = QCheckBox(_('Use proxy'))
+        self.proxy_cb = QCheckBox(_('Use Proxy'))
         self.proxy_cb.clicked.connect(self.check_disable_proxy)
         self.proxy_cb.clicked.connect(self.set_proxy)
 

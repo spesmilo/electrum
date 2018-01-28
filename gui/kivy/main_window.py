@@ -241,7 +241,7 @@ class ElectrumWindow(App):
 
         App.__init__(self)#, **kwargs)
 
-        title = _('Electrum App')
+        title = _('Zclassic Electrum')
         self.electrum_config = config = kwargs.get('config', None)
         self.language = config.get('language', 'en')
         self.network = network = kwargs.get('network', None)
@@ -282,16 +282,16 @@ class ElectrumWindow(App):
                 self.invoices_screen.update()
             status = self.wallet.invoices.get_status(key)
             if status == PR_PAID:
-                self.show_error("invoice already paid")
+                self.show_error("Invoice already paid")
                 self.send_screen.do_clear()
             else:
                 if pr.has_expired():
-                    self.show_error(_('Payment request has expired'))
+                    self.show_error(_('Payment request has expired.'))
                 else:
                     self.switch_to('send')
                     self.send_screen.set_request(pr)
         else:
-            self.show_error("invoice error:" + pr.error)
+            self.show_error("Invoice error:" + pr.error)
             self.send_screen.do_clear()
 
     def on_qr(self, data):

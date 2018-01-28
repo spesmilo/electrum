@@ -34,10 +34,10 @@ Popup:
                         text: (_('Status') if popup.amount or popup.is_invoice or popup.isaddr == 'y' else _('Amount received')) if root.status else ''
                         value: root.status
                     BoxLabel:
-                        text: _('Request amount') if root.amount else ''
+                        text: _('Request Amount') if root.amount else ''
                         value: app.format_amount_and_units(root.amount) if root.amount else ''
                     BoxLabel:
-                        text: _('Requestor') if popup.is_invoice else _('Address')
+                        text: _('Requested By') if popup.is_invoice else _('Address')
                         value: root.requestor
                     BoxLabel:
                         text: _('Signature') if root.signature else ''

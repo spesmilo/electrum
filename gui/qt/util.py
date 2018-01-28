@@ -222,7 +222,7 @@ class WaitingDialog(WindowModalDialog):
         assert parent
         if isinstance(parent, MessageBoxMixin):
             parent = parent.top_level_window()
-        WindowModalDialog.__init__(self, parent, _("Please wait"))
+        WindowModalDialog.__init__(self, parent, _("Please wait..."))
         vbox = QVBoxLayout(self)
         vbox.addWidget(QLabel(message))
         self.accepted.connect(self.on_accepted)
@@ -326,13 +326,13 @@ def address_field(addresses):
 def filename_field(parent, config, defaultname, select_msg):
 
     vbox = QVBoxLayout()
-    vbox.addWidget(QLabel(_("Format")))
+    vbox.addWidget(QLabel(_("Export Format")))
     gb = QGroupBox("format", parent)
     b1 = QRadioButton(gb)
     b1.setText(_("CSV"))
     b1.setChecked(True)
     b2 = QRadioButton(gb)
-    b2.setText(_("json"))
+    b2.setText(_("JSON"))
     vbox.addWidget(b1)
     vbox.addWidget(b2)
 

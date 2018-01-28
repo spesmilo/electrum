@@ -347,7 +347,7 @@ def format_satoshis_plain(x, decimal_point = 8):
 def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespaces=False):
     from locale import localeconv
     if x is None:
-        return 'unknown'
+        return 'Unknown'
     x = int(x)  # Some callers pass Decimal
     scale_factor = pow (10, decimal_point)
     integer_part = "{:n}".format(int(abs(x) / scale_factor))
