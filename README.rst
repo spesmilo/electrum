@@ -90,8 +90,10 @@ Install Dependencies::
 
   sudo apt-get install $(grep -vE "^\s*#" packages.txt  | tr "\n" " ")
 
-  pip install -r requirement.txt
-
+  pip install -r requirements.txt
+  
+  // pip3 for newer version
+  
   (Ubuntu with ledger wallet)
   ln -s /lib/x86_64-linux-gnu/libudev.so.1 /lib/x86_64-linux-gnu/libudev.so
 
