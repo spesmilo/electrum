@@ -431,7 +431,7 @@ class Abstract_Wallet(PrintError):
                 return height, pos
             elif tx_hash in self.unverified_tx:
                 height = self.unverified_tx[tx_hash]
-                return (height, 0) if height>0 else (1e9 - height), 0
+                return (height, 0) if height > 0 else ((1e9 - height), 0)
             else:
                 return (1e9+1, 0)
 
