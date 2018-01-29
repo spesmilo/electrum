@@ -1,5 +1,5 @@
  # version of the client package
-ELECTRUM_VERSION = 'Z!1.0.0'
+ELECTRUM_VERSION = 'Z!1.0.2'
 # protocol version requested
 PROTOCOL_VERSION = '1.1'
 
