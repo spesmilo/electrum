@@ -8,7 +8,7 @@ from copy import deepcopy
 from .util import (user_dir, print_error, PrintError,
                    NoDynamicFeeEstimates)
 
-from .bitcoin import MAX_FEE_RATE, FEE_TARGETS
+from .bitcoin import DEFAULT_FEE_RATE, MAX_FEE_RATE, FEE_TARGETS
 
 config = None
 
@@ -257,6 +257,12 @@ class SimpleConfig(PrintError):
             path = wallet.storage.path
             self.set_key('gui_last_wallet', path)
 
+    def default_fee_rate(self):
+        f = self.get('default_fee_rate', DEFAULT_FEE_RATE)
+        if f==0:
+            f = DEFAULT_FEE_RATE
+        return f
+
     def max_fee_rate(self):
         f = self.get('max_fee_rate', MAX_FEE_RATE)
         if f==0:
@@ -295,8 +301,9 @@ class SimpleConfig(PrintError):
     def has_fee_estimates(self):
         return len(self.fee_estimates)==4
 
+    # 'dynamic' fees are disabled - we use 'static' (but adjustable) fees
     def is_dynfee(self):
-        return self.get('dynamic_fees', True)
+        return self.get('dynamic_fees', False)
 
     def fee_per_kb(self):
         """Returns sat/kvB fee to pay for a txn.

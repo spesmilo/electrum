@@ -23,7 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 from . import util
-from .util import profiler, bh2u
+from .util import profiler, bh2u, get_cert_path
 import ecdsa
 import hashlib
 
@@ -334,8 +334,8 @@ def load_certificates(ca_path):
 
 
 if __name__ == "__main__":
-    import requests
 
     util.set_verbosity(True)
-    ca_path = requests.certs.where()
+    ca_path = get_cert_path()
+
     ca_list, ca_keyID = load_certificates(ca_path)

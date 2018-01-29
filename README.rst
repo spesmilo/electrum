@@ -1,6 +1,18 @@
-Electrum - Lightweight Bitcoin client
-=====================================
+ZCL Electrum - Lightweight Zclassic Client
+==========================================
 
+Current Release (1.0.1): https://github.com/BTCP-community/electrum-zcl/releases/tag/Z!1.0.1
+
+**ATTENTION! Please Read**
+
+- Viewing & Sending from Z addresses is not yet supported on this wallet.
+- Please **do not** use '2FA' when setting up your wallet - please use Standard or MultiSig.
+
+
+Originally forked from **spesmilo/electrum**: https://github.com/spesmilo/electrum
+
+Original Project Info
+---------------------
 ::
 
   Licence: MIT Licence
@@ -18,16 +30,12 @@ Electrum - Lightweight Bitcoin client
 
 
 
-
-
-
 Getting started
 ===============
 
 Electrum is a pure python application. If you want to use the
-Qt interface, install the Qt dependencies::
+Qt interface, install the Qt dependencies.
 
-    sudo apt-get install python3-pyqt5
 
 If you downloaded the official package (tar.gz), you can run
 Electrum from its root directory, without installing it on your
@@ -36,13 +44,6 @@ directory. To run Electrum from its root directory, just do::
 
     ./electrum
 
-You can also install Electrum on your system, by running this command::
-
-    sudo apt-get install python3-setuptools
-    python3 setup.py install
-
-This will download and install the Python dependencies used by
-Electrum, instead of using the 'packages' directory.
 
 If you cloned the git repository, you need to compile extra files
 before you can run Electrum. Read the next section, "Development
@@ -55,53 +56,83 @@ Development version
 
 Check out the code from Github::
 
-    git clone git://github.com/spesmilo/electrum.git
-    cd electrum
+    git clone git://github.com/BTCP-community/electrum-zcl.git
+    cd electrum-zcl
 
-Run install (this should install dependencies)::
+For Mac:
+--------
 
-    python3 setup.py install
+Using Homebrew::
+
+    # Setup Homebrew
+    sh ./setup-mac.sh
+
+    # Install Homebrew dependencies
+    brew bundle
+
+    # Install Python dependencies
+    pip3 install -r requirements.txt
+
+    # Build icons
+    pyrcc5 icons.qrc -o gui/qt/icons_rc.py
+
+    # Compile the protobuf description file
+    protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto
+
+    # Run
+    ./electrum
+
+
+For Linux:
+----------
+
+Install Dependencies::
+
+  sudo apt-get install $(grep -vE "^\s*#" packages.txt  | tr "\n" " ")
+
+  pip install -r requirements.txt
+  
+  // pip3 for newer version
+  
+  (Ubuntu with ledger wallet)
+  ln -s /lib/x86_64-linux-gnu/libudev.so.1 /lib/x86_64-linux-gnu/libudev.so
+
 
 Compile the icons file for Qt::
 
-    sudo apt-get install pyqt5-dev-tools
     pyrcc5 icons.qrc -o gui/qt/icons_rc.py
+
+For the Linux app launcher (start menu) icon::
+
+    sudo desktop-file-install electrum.desktop
 
 Compile the protobuf description file::
 
-    sudo apt-get install protobuf-compiler
     protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto
 
 Create translations (optional)::
 
-    sudo apt-get install python-requests gettext
     ./contrib/make_locale
 
+Run::
+
+    ./electrum
 
 
 
-Creating Binaries
+
+Building Releases
 =================
 
 
-To create binaries, create the 'packages' directory::
+MacOS
+------
 
-    ./contrib/make_packages
+Simply - ::
 
-This directory contains the python dependencies used by Electrum.
+    sh ./setup-mac.sh
 
-Mac OS X / macOS
---------
-
-::
-
-    # On MacPorts installs: 
-    sudo python3 setup-release.py py2app
-    
-    # On Homebrew installs: 
-    ARCHFLAGS="-arch i386 -arch x86_64" sudo python3 setup-release.py py2app --includes sip
-    
-    sudo hdiutil create -fs HFS+ -volname "Electrum" -srcfolder dist/Electrum.app dist/electrum-VERSION-macosx.dmg
+    sudo sh ./create-dmg.sh
 
 Windows
 -------
@@ -113,3 +144,40 @@ Android
 -------
 
 See `gui/kivy/Readme.txt` file.
+
+---
+
+To just create binaries, create the 'packages/' directory::
+
+    ./contrib/make_packages
+
+(This directory contains the Python dependencies used by Electrum.)
+
+
+ZCL Hints and Debug
+===================
+
+There are several useful scripts in::
+
+    scripts
+
+This is a good initial check to determine whether things are working.::
+
+    cd scripts
+    python3 block_headers
+
+It should run, validating chunks without error.
+
+Also be sure to check out::
+
+    ~/.electrum-zcl/
+
+    ~/.electrum-zcl/wallets/ has your wallet files - ** back up this folder **
+
+    ~/.electrum-zcl/config has your Electrum connection object.
+
+
+
+---
+
+The Zclassic Team

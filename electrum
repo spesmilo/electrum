@@ -45,6 +45,7 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
 is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "electrum.desktop"))
 is_android = 'ANDROID_DATA' in os.environ
+is_macOS = sys.platform == 'darwin'
 
 # move this back to gui/kivy/__init.py once plugins are moved
 os.environ['KIVY_DATA_DIR'] = os.path.abspath(os.path.dirname(__file__)) + '/gui/kivy/data/'
@@ -73,6 +74,8 @@ def check_imports():
     from google.protobuf import descriptor_pb2
     from jsonrpclib import SimpleJSONRPCServer
     # make sure that certificates are here
+    if is_bundle and is_macOS:
+        requests.utils.DEFAULT_CA_BUNDLE_PATH = os.path.join(os.path.dirname(__file__), 'cacert.pem')
     assert os.path.exists(requests.utils.DEFAULT_CA_BUNDLE_PATH)
 
 
@@ -80,7 +83,7 @@ if not is_android:
     check_imports()
 
 # load local module as electrum
-if is_local or is_android:
+if is_local or is_android or is_macOS:
     import imp
     imp.load_module('electrum', *imp.find_module('lib'))
     imp.load_module('electrum_gui', *imp.find_module('gui'))
@@ -340,7 +343,7 @@ if __name__ == '__main__':
     config_options['cwd'] = os.getcwd()
 
     # fixme: this can probably be achieved with a runtime hook (pyinstaller)
-    if is_bundle and os.path.exists(os.path.join(sys._MEIPASS, 'is_portable')):
+    if is_bundle and hasattr(sys, '_MEIPASS') and os.path.exists(os.path.join(sys._MEIPASS, 'is_portable')):
         config_options['portable'] = True
 
     if config_options.get('portable'):

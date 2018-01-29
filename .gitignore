@@ -5,6 +5,8 @@ build/
 dist/
 *.egg/
 /electrum.py
+/electrum-mac.py
+.DS_Store
 contrib/pyinstaller/
 Electrum.egg-info/
 gui/qt/icons_rc.py
@@ -20,3 +22,8 @@ bin/
 # tox files
 .cache/
 .coverage
+
+# User-specific stuff:
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/dictionaries

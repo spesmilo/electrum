@@ -180,7 +180,7 @@ class SendScreen(CScreen):
         try:
             uri = electrum.util.parse_URI(text, self.app.on_pr)
         except:
-            self.app.show_info(_("Not a Bitcoin URI"))
+            self.app.show_info(_("Not a Zclassic URI"))
             return
         amount = uri.get('amount')
         self.screen.address = uri.get('address', '')
@@ -244,21 +244,21 @@ class SendScreen(CScreen):
     def do_send(self):
         if self.screen.is_pr:
             if self.payment_request.has_expired():
-                self.app.show_error(_('Payment request has expired'))
+                self.app.show_error(_('Payment request has expired.'))
                 return
             outputs = self.payment_request.get_outputs()
         else:
             address = str(self.screen.address)
             if not address:
-                self.app.show_error(_('Recipient not specified.') + ' ' + _('Please scan a Bitcoin address or a payment request'))
+                self.app.show_error(_('Recipient not specified.') + ' ' + _('Please scan a Zclassic address or a payment request'))
                 return
             if not bitcoin.is_address(address):
-                self.app.show_error(_('Invalid Bitcoin Address') + ':\n' + address)
+                self.app.show_error(_('Invalid Zclassic Address') + ':\n' + address)
                 return
             try:
                 amount = self.app.get_amount(self.screen.amount)
             except:
-                self.app.show_error(_('Invalid amount') + ':\n' + self.screen.amount)
+                self.app.show_error(_('Invalid Amount') + ':\n' + self.screen.amount)
                 return
             outputs = [(bitcoin.TYPE_ADDRESS, address, amount)]
         message = self.screen.message
@@ -322,7 +322,7 @@ class ReceiveScreen(CScreen):
             self.get_new_address()
         else:
             status = self.app.wallet.get_request_status(self.screen.address)
-            self.screen.status = _('Payment received') if status == PR_PAID else ''
+            self.screen.status = _('Payment Received') if status == PR_PAID else ''
 
     def clear(self):
         self.screen.address = ''
@@ -350,7 +350,7 @@ class ReceiveScreen(CScreen):
             amount = req.get('amount')
             self.screen.amount = self.app.format_amount_and_units(amount) if amount else ''
             status = req.get('status', PR_UNKNOWN)
-            self.screen.status = _('Payment received') if status == PR_PAID else ''
+            self.screen.status = _('Payment Received') if status == PR_PAID else ''
         Clock.schedule_once(lambda dt: self.update_qr())
 
     def get_URI(self):
@@ -370,7 +370,7 @@ class ReceiveScreen(CScreen):
 
     def do_share(self):
         uri = self.get_URI()
-        self.app.do_share(uri, _("Share Bitcoin Request"))
+        self.app.do_share(uri, _("Share Zclassic Request"))
 
     def do_copy(self):
         uri = self.get_URI()

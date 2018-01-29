@@ -206,7 +206,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         else:
             amount_str = _("Amount sent:") + ' %s'% format_amount(-amount) + ' ' + base_unit
         size_str = _("Size:") + ' %d bytes'% size
-        fee_str = _("Fee") + ': %s'% (format_amount(fee) + ' ' + base_unit if fee is not None else _('unknown'))
+        fee_str = _("Fee") + ': %s'% (format_amount(fee) + ' ' + base_unit if fee is not None else _('Unknown'))
         if fee is not None:
             fee_str += '  ( %s ) '%  self.main_window.format_fee_rate(fee/size*1000)
         self.amount_label.setText(amount_str)
@@ -254,7 +254,7 @@ class TxDialog(QDialog, MessageBoxMixin):
                     if _addr:
                         addr = _addr
                 if addr is None:
-                    addr = _('unknown')
+                    addr = _('Unknown')
                 cursor.insertText(addr, text_format(addr))
                 if x.get('value'):
                     cursor.insertText(format_amount(x['value']), ext)

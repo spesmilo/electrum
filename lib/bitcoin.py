@@ -29,6 +29,7 @@ import hmac
 import os
 import json
 
+import struct
 import ecdsa
 import pyaes
 
@@ -71,43 +72,58 @@ XPUB_HEADERS = {
 
 class NetworkConstants:
 
+    # https://github.com/z-classic/zclassic/blob/master/src/chainparams.cpp#L103
     @classmethod
     def set_mainnet(cls):
         cls.TESTNET = False
         cls.WIF_PREFIX = 0x80
-        cls.ADDRTYPE_P2PKH = 0
-        cls.ADDRTYPE_P2SH = 5
-        cls.SEGWIT_HRP = "bc"
-        cls.GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
+        cls.ADDRTYPE_P2PKH = [0x1C, 0xB8]
+        cls.ADDRTYPE_P2SH = [0x1C, 0xBD]
+        cls.ADDRTYPE_SHIELDED = [0x16, 0x9A]
+        cls.SEGWIT_HRP = "bc" #TODO zcl has no segwit
+        cls.GENESIS = "0007104ccda289427919efc39dc9e4d499804b7bebc22df55f8b834301260602"
         cls.DEFAULT_PORTS = {'t': '50001', 's': '50002'}
         cls.DEFAULT_SERVERS = read_json('servers.json', {})
         cls.CHECKPOINTS = read_json('checkpoints.json', [])
+        cls.EQUIHASH_N = 200
+        cls.EQUIHASH_K = 9
+        cls.HEADERS_URL = "http://35.186.223.75:80/blockchain_headers"
 
+        cls.CHUNK_SIZE = 200
+
+    # https://github.com/z-classic/zclassic/blob/master/src/chainparams.cpp#L234
     @classmethod
     def set_testnet(cls):
         cls.TESTNET = True
         cls.WIF_PREFIX = 0xef
-        cls.ADDRTYPE_P2PKH = 111
-        cls.ADDRTYPE_P2SH = 196
-        cls.SEGWIT_HRP = "tb"
-        cls.GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
-        cls.DEFAULT_PORTS = {'t':'51001', 's':'51002'}
+        cls.ADDRTYPE_P2PKH = [0x1D, 0x25]
+        cls.ADDRTYPE_P2SH = [0x1C, 0xBA]
+        cls.ADDRTYPE_SHIELDED [0x16, 0xB6]
+        cls.SEGWIT_HRP = "tb" #TODO zcl has no segwit
+        cls.GENESIS = "03e1c4bb705c871bf9bfda3e74b7f8f86bff267993c215a89d5795e3708e5e1f"
+        cls.DEFAULT_PORTS = {'t': '51001', 's': '51002'}
         cls.DEFAULT_SERVERS = read_json('servers_testnet.json', {})
         cls.CHECKPOINTS = read_json('checkpoints_testnet.json', [])
+        cls.EQUIHASH_N = 200
+        cls.EQUIHASH_K = 9
 
+        #cls.HEADERS_URL = "http://35.224.186.7/blockchain_headers"
+
+        cls.CHUNK_SIZE = 200
 
 NetworkConstants.set_mainnet()
 
 ################################## transactions
 
 FEE_STEP = 10000
+DEFAULT_FEE_RATE = 10000
 MAX_FEE_RATE = 300000
 FEE_TARGETS = [25, 10, 5, 2]
 
 COINBASE_MATURITY = 100
 COIN = 100000000
 
-# supported types of transction outputs
+# supported types of transaction outputs
 TYPE_ADDRESS = 0
 TYPE_PUBKEY  = 1
 TYPE_SCRIPT  = 2
@@ -237,21 +253,96 @@ def op_push(i):
 def push_script(x):
     return op_push(len(x)//2) + x
 
+# ZCASH specific utils methods
+# https://github.com/zcash/zcash/blob/master/qa/rpc-tests/test_framework/mininode.py
+
+HEADER_SIZE = 1487
+
+hash_to_str = lambda x: bytes(reversed(x)).hex()
+str_to_hash = lambda x: bytes(reversed(bytes.fromhex(x)))
+
+def read_vector_size(f):
+    nit = struct.unpack("<B", f.read(1))[0]
+    if nit == 253:
+        return struct.unpack("<H", f.read(2))[0]
+    elif nit == 254:
+        return struct.unpack("<I", f.read(4))[0]
+    elif nit == 255:
+        return struct.unpack("<Q", f.read(8))[0]
+    return nit
+
+def ser_char_vector(l):
+    if l is None:
+        l = b''
+    if len(l) < 253:
+        r = struct.pack("<B", len(l))
+    elif len(l) < 0x10000:
+        r = struct.pack("<B", 253) + struct.pack("<H", len(l))
+    elif len(l) < 0x100000000:
+        r = struct.pack("<B", 254) + struct.pack("<I", len(l))
+    else:
+        r = struct.pack("<B", 255) + struct.pack("<Q", len(l))
+    r += bytes(l)
+    return r
+
+
+def deser_char_vector(f):
+    nit = struct.unpack("<B", f.read(1))[0]
+    if nit == 253:
+        nit = struct.unpack("<H", f.read(2))[0]
+    elif nit == 254:
+        nit = struct.unpack("<I", f.read(4))[0]
+    elif nit == 255:
+        nit = struct.unpack("<Q", f.read(8))[0]
+    r = []
+    for i in range(nit):
+        t = struct.unpack("<B", f.read(1))[0]
+        r.append(t)
+    return r
+
+def vector_from_bytes(s):
+    return [v for v in s]
+
+
+def deser_uint256(f):
+    r = 0
+    for i in range(8):
+        t = struct.unpack("<I", f.read(4))[0]
+        r += t << (i * 32)
+    return r
+
+
+def uint256_from_bytes(s):
+    r = 0
+    t = struct.unpack("<IIIIIIII", s[:32])
+    for i in range(8):
+        r += t[i] << (i * 32)
+    return r
+
+
+def ser_uint256(u):
+    if isinstance(u, str):
+        u = int(u, 16)
+    if u is None:
+        u = 0
+    rs = b''
+    for i in range(8):
+        rs += struct.pack("<I", u & 0xFFFFFFFF)
+        u >>= 32
+    return rs
+
 def sha256(x):
-    x = to_bytes(x, 'utf8')
+    if isinstance(x, str):
+        x = x.encode('utf8')
     return bytes(hashlib.sha256(x).digest())
 
-
 def Hash(x):
-    x = to_bytes(x, 'utf8')
     out = bytes(sha256(sha256(x)))
     return out
-
 
 hash_encode = lambda x: bh2u(x[::-1])
 hash_decode = lambda x: bfh(x)[::-1]
 hmac_sha_512 = lambda x, y: hmac.new(x, y, hashlib.sha512).digest()
-
 
 def is_new_seed(x, prefix=version.SEED_PREFIX):
     from . import mnemonic
@@ -325,15 +416,16 @@ def hash_160(public_key):
 
 
 def hash160_to_b58_address(h160, addrtype, witness_program_version=1):
-    s = bytes([addrtype])
+    s = bytes([addrtype[0]])
+    s += bytes([addrtype[1]])
     s += h160
     return base_encode(s+Hash(s)[0:4], base=58)
 
 
 def b58_address_to_hash160(addr):
     addr = to_bytes(addr, 'ascii')
-    _bytes = base_decode(addr, 25, base=58)
-    return _bytes[0], _bytes[1:21]
+    _bytes = base_decode(addr, 26, base=58)
+    return [_bytes[0], _bytes[1]], _bytes[2:22]
 
 
 def hash160_to_p2pkh(h160):
@@ -619,7 +711,7 @@ from ecdsa.util import string_to_number, number_to_string
 
 def msg_magic(message):
     length = bfh(var_int(len(message)))
-    return b"\x18Bitcoin Signed Message:\n" + length + message
+    return b"\x19Zcash Signed Message:\n" + length + message
 
 
 def verify_message(address, sig, message):

@@ -3,6 +3,7 @@
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 import sys
+import os
 for i, x in enumerate(sys.argv):
     if x == '--name':
         cmdline_name = sys.argv[i+1]
@@ -10,14 +11,13 @@ for i, x in enumerate(sys.argv):
 else:
     raise BaseException('no name')
 
-
-home = 'C:\\electrum\\'
+home = os.getcwd()+'\\'
 
 # see https://github.com/pyinstaller/pyinstaller/issues/2005
 hiddenimports = []
-hiddenimports += collect_submodules('trezorlib')
-hiddenimports += collect_submodules('btchip')
-hiddenimports += collect_submodules('keepkeylib')
+# hiddenimports += collect_submodules('trezorlib')
+# hiddenimports += collect_submodules('btchip')
+# hiddenimports += collect_submodules('keepkeylib')
 
 datas = [
     (home+'lib/currencies.json', 'electrum'),
@@ -26,12 +26,12 @@ datas = [
     (home+'lib/servers_testnet.json', 'electrum'),
     (home+'lib/checkpoints_testnet.json', 'electrum'),
     (home+'lib/wordlist/english.txt', 'electrum/wordlist'),
-    (home+'lib/locale', 'electrum/locale'),
+#    (home+'lib/locale', 'electrum/locale'),
     (home+'plugins', 'electrum_plugins'),
 ]
-datas += collect_data_files('trezorlib')
-datas += collect_data_files('btchip')
-datas += collect_data_files('keepkeylib')
+# datas += collect_data_files('trezorlib')
+# datas += collect_data_files('btchip')
+# datas += collect_data_files('keepkeylib')
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([home+'electrum',
@@ -45,10 +45,10 @@ a = Analysis([home+'electrum',
               home+'lib/commands.py',
               home+'plugins/cosigner_pool/qt.py',
               home+'plugins/email_requests/qt.py',
-              home+'plugins/trezor/client.py',
-              home+'plugins/trezor/qt.py',
-              home+'plugins/keepkey/qt.py',
-              home+'plugins/ledger/qt.py',
+              #home+'plugins/trezor/client.py',
+              #home+'plugins/trezor/qt.py',
+              #home+'plugins/keepkey/qt.py',
+              #home+'plugins/ledger/qt.py',
               #home+'packages/requests/utils.py'
               ],
              datas=datas,
@@ -85,40 +85,40 @@ exe_standalone = EXE(
     console=False)
     # console=True makes an annoying black box pop up, but it does make Electrum output command line commands, with this turned off no output will be given but commands can still be used
 
-exe_portable = EXE(
-    pyz,
-    a.scripts,
-    a.binaries,
-    a.datas + [ ('is_portable', 'README.md', 'DATA' ) ],
-    name=os.path.join('build\\pyi.win32\\electrum', cmdline_name + "-portable.exe"),
-    debug=False,
-    strip=None,
-    upx=False,
-    icon=home+'icons/electrum.ico',
-    console=False)
+# exe_portable = EXE(
+    # pyz,
+    # a.scripts,
+    # a.binaries,
+    # a.datas,
+    # name=os.path.join('build\\pyi.win32\\electrum', cmdline_name + "-portable.exe"),
+    # debug=False,
+    # strip=None,
+    # upx=False,
+    # icon=home+'icons/electrum.ico',
+    # console=False)
 
-#####
-# exe and separate files that NSIS uses to build installer "setup" exe
+# #####
+# # exe and separate files that NSIS uses to build installer "setup" exe
 
-exe_dependent = EXE(
-    pyz,
-    a.scripts,
-    exclude_binaries=True,
-    name=os.path.join('build\\pyi.win32\\electrum', cmdline_name),
-    debug=False,
-    strip=None,
-    upx=False,
-    icon=home+'icons/electrum.ico',
-    console=False)
+# exe_dependent = EXE(
+    # pyz,
+    # a.scripts,
+    # exclude_binaries=True,
+    # name=os.path.join('build\\pyi.win32\\electrum', cmdline_name),
+    # debug=False,
+    # strip=None,
+    # upx=False,
+    # icon=home+'icons/electrum.ico',
+    # console=False)
 
-coll = COLLECT(
-    exe_dependent,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    strip=None,
-    upx=True,
-    debug=False,
-    icon=home+'icons/electrum.ico',
-    console=False,
-    name=os.path.join('dist', 'electrum'))
+# coll = COLLECT(
+    # exe_dependent,
+    # a.binaries,
+    # a.zipfiles,
+    # a.datas,
+    # strip=None,
+    # upx=True,
+    # debug=False,
+    # icon=home+'icons/electrum.ico',
+    # console=False,
+    # name=os.path.join('dist', 'electrum'))
