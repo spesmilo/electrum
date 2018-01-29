@@ -45,6 +45,14 @@ class SerializationError(Exception):
     """ Thrown when there's a problem deserializing or serializing """
 
 
+class UnknownTxinType(Exception):
+    pass
+
+
+class NotRecognizedRedeemScript(Exception):
+    pass
+
+
 class BCDataStream(object):
     def __init__(self):
         self.input = None
@@ -302,8 +310,14 @@ def parse_scriptSig(d, _bytes):
     if match_decoded(decoded, match):
         item = decoded[0][1]
         if item[0] == 0:
+            # segwit embedded into p2sh
             d['address'] = bitcoin.hash160_to_p2sh(bitcoin.hash_160(item))
-            d['type'] = 'p2wpkh-p2sh' if len(item) == 22 else 'p2wsh-p2sh'
+            if len(item) == 22:
+                d['type'] = 'p2wpkh-p2sh'
+            elif len(item) == 34:
+                d['type'] = 'p2wsh-p2sh'
+            else:
+                print_error("unrecognized txin type", bh2u(item))
         else:
             # payto_pubkey
             d['type'] = 'p2pk'
@@ -361,7 +375,7 @@ def parse_redeemScript(s):
     match_multisig = [ op_m ] + [opcodes.OP_PUSHDATA4]*n + [ op_n, opcodes.OP_CHECKMULTISIG ]
     if not match_decoded(dec2, match_multisig):
         print_error("cannot find address in input script", bh2u(s))
-        return
+        raise NotRecognizedRedeemScript()
     x_pubkeys = [bh2u(x[1]) for x in dec2[1:-2]]
     pubkeys = [safe_parse_pubkey(x) for x in x_pubkeys]
     redeemScript = multisig_script(pubkeys, m)
@@ -431,20 +445,29 @@ def parse_witness(vds, txin):
         txin['value'] = vds.read_uint64()
         n = vds.read_compact_size()
     w = list(bh2u(vds.read_bytes(vds.read_compact_size())) for i in range(n))
+
+    add_w = lambda x: var_int(len(x) // 2) + x
+    txin['witness'] = var_int(n) + ''.join(add_w(i) for i in w)
+
     if txin['type'] == 'coinbase':
         pass
     elif n > 2:
+        try:
+            m, n, x_pubkeys, pubkeys, witnessScript = parse_redeemScript(bfh(w[-1]))
+        except NotRecognizedRedeemScript:
+            raise UnknownTxinType()
         txin['signatures'] = parse_sig(w[1:-1])
-        m, n, x_pubkeys, pubkeys, witnessScript = parse_redeemScript(bfh(w[-1]))
         txin['num_sig'] = m
         txin['x_pubkeys'] = x_pubkeys
         txin['pubkeys'] = pubkeys
         txin['witnessScript'] = witnessScript
-    else:
+    elif n == 2:
         txin['num_sig'] = 1
         txin['x_pubkeys'] = [w[1]]
         txin['pubkeys'] = [safe_parse_pubkey(w[1])]
         txin['signatures'] = parse_sig([w[0]])
+    else:
+        raise UnknownTxinType()
 
 def parse_output(vds, i):
     d = {}
@@ -474,7 +497,12 @@ def deserialize(raw):
     if is_segwit:
         for i in range(n_vin):
             txin = d['inputs'][i]
-            parse_witness(vds, txin)
+            try:
+                parse_witness(vds, txin)
+            except UnknownTxinType:
+                txin['type'] = 'unknown'
+                # FIXME: GUI might show 'unknown' address (e.g. for a non-multisig p2wsh)
+                continue
             # segwit-native script
             if not txin.get('scriptSig'):
                 if txin['num_sig'] == 1:
@@ -674,7 +702,9 @@ class Transaction:
             witness_script = multisig_script(pubkeys, txin['num_sig'])
             witness = var_int(n) + '00' + ''.join(add_w(x) for x in sig_list) + add_w(witness_script)
         else:
-            raise BaseException('wrong txin type')
+            witness = txin.get('witness', None)
+            if not witness:
+                raise BaseException('wrong txin type:', txin['type'])
         if self.is_txin_complete(txin) or estimate_size:
             value_field = ''
         else:
@@ -682,8 +712,12 @@ class Transaction:
         return value_field + witness
 
     @classmethod
-    def is_segwit_input(self, txin):
-        return txin['type'] in ['p2wpkh', 'p2wpkh-p2sh', 'p2wsh', 'p2wsh-p2sh']
+    def is_segwit_input(cls, txin):
+        return cls.is_segwit_inputtype(txin['type']) or bool(txin.get('witness', False))
+
+    @classmethod
+    def is_segwit_inputtype(cls, txin_type):
+        return txin_type in ('p2wpkh', 'p2wpkh-p2sh', 'p2wsh', 'p2wsh-p2sh')
 
     @classmethod
     def input_script(self, txin, estimate_size=False):
