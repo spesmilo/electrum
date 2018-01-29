@@ -72,6 +72,9 @@ TX_STATUS = [
     _('Local only'),
 ]
 
+TX_HEIGHT_LOCAL = -2
+TX_HEIGHT_UNCONF_PARENT = -1
+TX_HEIGHT_UNCONFIRMED = 0
 
 
 def relayfee(network):
@@ -371,7 +374,8 @@ class Abstract_Wallet(PrintError):
         return self.get_pubkeys(*sequence)
 
     def add_unverified_tx(self, tx_hash, tx_height):
-        if tx_height == 0 and tx_hash in self.verified_tx:
+        if tx_height in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT) \
+                and tx_hash in self.verified_tx:
             self.verified_tx.pop(tx_hash)
             self.verifier.merkle_roots.pop(tx_hash, None)
 
@@ -421,7 +425,7 @@ class Abstract_Wallet(PrintError):
                 return height, 0, False
             else:
                 # local transaction
-                return -2, 0, False
+                return TX_HEIGHT_LOCAL, 0, False
 
     def get_txpos(self, tx_hash):
         "return position, even if the tx is unverified"
@@ -528,7 +532,7 @@ class Abstract_Wallet(PrintError):
                         status = _("%d confirmations") % conf
                     else:
                         status = _('Not verified')
-                elif height in [-1,0]:
+                elif height in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED):
                     status = _('Unconfirmed')
                     if fee is None:
                         fee = self.tx_fees.get(tx_hash)
@@ -607,7 +611,7 @@ class Abstract_Wallet(PrintError):
                 x += v
             elif tx_height > 0:
                 c += v
-            elif tx_height != -2:  # local tx
+            elif tx_height != TX_HEIGHT_LOCAL:
                 u += v
             if txo in sent:
                 if sent[txo] > 0:
@@ -824,7 +828,7 @@ class Abstract_Wallet(PrintError):
             h2.append((tx_hash, height, conf, timestamp, delta, balance))
             if balance is None or delta is None:
                 balance = None
-            elif height != -2:  # local tx
+            elif height != TX_HEIGHT_LOCAL:
                 balance -= delta
         h2.reverse()
 
@@ -866,15 +870,15 @@ class Abstract_Wallet(PrintError):
                 is_lowfee = fee < low_fee * 0.5
             else:
                 is_lowfee = False
-            if height == -2:
+            if height == TX_HEIGHT_LOCAL:
                 status = 5
-            elif height == -1:
+            elif height == TX_HEIGHT_UNCONF_PARENT:
                 status = 1
-            elif height==0 and not is_final:
+            elif height == TX_HEIGHT_UNCONFIRMED and not is_final:
                 status = 0
-            elif height == 0 and is_lowfee:
+            elif height == TX_HEIGHT_UNCONFIRMED and is_lowfee:
                 status = 2
-            elif height == 0:
+            elif height == TX_HEIGHT_UNCONFIRMED:
                 status = 3
             else:
                 status = 4
@@ -1056,7 +1060,7 @@ class Abstract_Wallet(PrintError):
         age = -1
         h = self.history.get(address, [])
         for tx_hash, tx_height in h:
-            if tx_height == 0:
+            if tx_height <= 0:
                 tx_age = 0
             else:
                 tx_age = self.get_local_height() - tx_height + 1
