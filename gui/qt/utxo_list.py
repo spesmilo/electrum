@@ -32,6 +32,7 @@ class UTXOList(MyTreeWidget):
     def __init__(self, parent=None):
         MyTreeWidget.__init__(self, parent, self.create_menu, [ _('Address'), _('Label'), _('Amount'), _('Height'), _('Output point')], 1)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.setSortingEnabled(True)
 
     def get_name(self, x):
         return x.get('prevout_hash') + ":%d"%x.get('prevout_n')
@@ -47,7 +48,7 @@ class UTXOList(MyTreeWidget):
             name = self.get_name(x)
             label = self.wallet.get_label(x['prevout_hash'])
             amount = self.parent.format_amount(x['value'])
-            utxo_item = QTreeWidgetItem([address_text, label, amount,
+            utxo_item = SortableTreeWidgetItem([address_text, label, amount,
                                          str(height),
                                          name[0:10] + '...' + name[-2:]])
             utxo_item.setFont(0, QFont(MONOSPACE_FONT))

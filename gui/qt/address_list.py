@@ -27,7 +27,7 @@ import webbrowser
 
 from functools import partial
 
-from .util import MyTreeWidget, MONOSPACE_FONT
+from .util import MyTreeWidget, MONOSPACE_FONT, SortableTreeWidgetItem
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor, QKeySequence
 from PyQt5.QtWidgets import QTreeWidgetItem, QAbstractItemView, QMenu
@@ -44,6 +44,7 @@ class AddressList(MyTreeWidget):
         super().__init__(parent, self.create_menu, [], 1)
         self.refresh_headers()
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.setSortingEnabled(True)
 
     def refresh_headers(self):
         headers = [ _('Address'), _('Label'), _('Balance'), _('Tx')]
@@ -69,13 +70,13 @@ class AddressList(MyTreeWidget):
         for is_change in sequences:
             if len(sequences) > 1:
                 name = _("Receiving") if not is_change else _("Change")
-                seq_item = QTreeWidgetItem( [ name, '', '', '', ''] )
+                seq_item = SortableTreeWidgetItem( [ name, '', '', '', ''] )
                 account_item.addChild(seq_item)
                 if not is_change:
                     seq_item.setExpanded(True)
             else:
                 seq_item = account_item
-            used_item = QTreeWidgetItem( [ _("Used"), '', '', '', ''] )
+            used_item = SortableTreeWidgetItem( [ _("Used"), '', '', '', ''] )
             used_flag = False
             addr_list = change_addresses if is_change else receiving_addresses
             for address in addr_list:
@@ -90,7 +91,7 @@ class AddressList(MyTreeWidget):
                     rate = fx.exchange_rate()
                     fiat_balance = fx.value_str(balance, rate)
                     columns.insert(3, fiat_balance)
-                address_item = QTreeWidgetItem(columns)
+                address_item = SortableTreeWidgetItem(columns)
                 address_item.setTextAlignment(2, Qt.AlignRight)
                 address_item.setFont(2, QFont(MONOSPACE_FONT))
                 if fx:
