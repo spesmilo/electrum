@@ -53,6 +53,8 @@ class HistoryList(MyTreeWidget):
         MyTreeWidget.__init__(self, parent, self.create_menu, [], 3)
         self.refresh_headers()
         self.setColumnHidden(1, True)
+        self.setSortingEnabled(True)
+        self.sortByColumn(0, Qt.AscendingOrder)
 
     def refresh_headers(self):
         headers = ['', '', _('Date'), _('Description') , _('Amount'), _('Balance')]
@@ -88,9 +90,10 @@ class HistoryList(MyTreeWidget):
                 for amount in [value, balance]:
                     text = fx.historical_value_str(amount, date)
                     entry.append(text)
-            item = QTreeWidgetItem(entry)
+            item = SortableTreeWidgetItem(entry)
             item.setIcon(0, icon)
             item.setToolTip(0, str(conf) + " confirmation" + ("s" if conf != 1 else ""))
+            item.setData(0, SortableTreeWidgetItem.DataRole, (status, conf))
             if has_invoice:
                 item.setIcon(3, QIcon(":icons/seal"))
             for i in range(len(entry)):
@@ -131,6 +134,7 @@ class HistoryList(MyTreeWidget):
         if items:
             item = items[0]
             item.setIcon(0, icon)
+            item.setData(0, SortableTreeWidgetItem.DataRole, (status, conf))
             item.setText(2, status_str)
 
     def create_menu(self, position):
