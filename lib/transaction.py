@@ -311,6 +311,8 @@ def parse_scriptSig(d, _bytes):
         item = decoded[0][1]
         if item[0] == 0:
             # segwit embedded into p2sh
+            # witness version 0
+            # segwit embedded into p2sh
             d['address'] = bitcoin.hash160_to_p2sh(bitcoin.hash_160(item))
             if len(item) == 22:
                 d['type'] = 'p2wpkh-p2sh'
@@ -318,8 +320,13 @@ def parse_scriptSig(d, _bytes):
                 d['type'] = 'p2wsh-p2sh'
             else:
                 print_error("unrecognized txin type", bh2u(item))
+        elif opcodes.OP_1 <= item[0] <= opcodes.OP_16:
+            # segwit embedded into p2sh
+            # witness version 1-16
+            pass
         else:
-            # payto_pubkey
+            # assert item[0] == 0x30
+            # pay-to-pubkey
             d['type'] = 'p2pk'
             d['address'] = "(pubkey)"
             d['signatures'] = [bh2u(item)]
@@ -444,14 +451,24 @@ def parse_witness(vds, txin):
     if n == 0xffffffff:
         txin['value'] = vds.read_uint64()
         n = vds.read_compact_size()
+    # now 'n' is the number of items in the witness
     w = list(bh2u(vds.read_bytes(vds.read_compact_size())) for i in range(n))
 
     add_w = lambda x: var_int(len(x) // 2) + x
     txin['witness'] = var_int(n) + ''.join(add_w(i) for i in w)
 
+    # FIXME: witness version > 0 will probably fail here.
+    # For native segwit, we would need the scriptPubKey of the parent txn
+    # to determine witness program version, and properly parse the witness.
+    # In case of p2sh-segwit, we can tell based on the scriptSig in this txn.
+    # The code below assumes witness version 0.
+    # p2sh-segwit should work in that case; for native segwit we need to tell
+    # between p2wpkh and p2wsh; we do this based on number of witness items,
+    # hence (FIXME) p2wsh with n==2 (maybe n==1 ?) will probably fail.
+    # If v==0 and n==2, we need parent scriptPubKey to distinguish between p2wpkh and p2wsh.
     if txin['type'] == 'coinbase':
         pass
-    elif n > 2:
+    elif txin['type'] == 'p2wsh-p2sh' or n > 2:
         try:
             m, n, x_pubkeys, pubkeys, witnessScript = parse_redeemScript(bfh(w[-1]))
         except NotRecognizedRedeemScript:
@@ -461,7 +478,7 @@ def parse_witness(vds, txin):
         txin['x_pubkeys'] = x_pubkeys
         txin['pubkeys'] = pubkeys
         txin['witnessScript'] = witnessScript
-    elif n == 2:
+    elif txin['type'] == 'p2wpkh-p2sh' or n == 2:
         txin['num_sig'] = 1
         txin['x_pubkeys'] = [w[1]]
         txin['pubkeys'] = [safe_parse_pubkey(w[1])]
