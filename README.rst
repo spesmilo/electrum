@@ -1,14 +1,15 @@
 ZCL Electrum - Lightweight Zclassic Client
 ==========================================
 
-**Current Release (1.0.0) (beta)**: https://github.com/BTCP-community/electrum-zcl/releases/tag/Z!1.0.0
+Current Release (1.0.1): https://github.com/BTCP-community/electrum-zcl/releases/tag/Z!1.0.1
 
-**ATTENTION**
+**ATTENTION! Please Read**
 
 - Viewing & Sending from Z addresses is not yet supported on this wallet.
 - Please **do not** use '2FA' when setting up your wallet - please use Standard or MultiSig.
 
-Forked from **spesmilo/electrum**: https://github.com/spesmilo/electrum
+
+Originally forked from **spesmilo/electrum**: https://github.com/spesmilo/electrum
 
 Original Project Info
 ---------------------
@@ -73,18 +74,13 @@ Using Homebrew::
     pip3 install -r requirements.txt
 
     # Build icons
-		pyrcc5 icons.qrc -o gui/qt/icons_rc.py
+    pyrcc5 icons.qrc -o gui/qt/icons_rc.py
 
     # Compile the protobuf description file
     protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto
 
     # Run
-		./electrum
-
-`(Alternatively, copy the generated "build/scripts-3.6/electrum" to the main directory)`::
-
-    cp -f build/scripts-3.6/electrum electrum-mac
-    ./electrum-mac
+    ./electrum
 
 
 For Linux:
