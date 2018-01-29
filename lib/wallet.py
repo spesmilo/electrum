@@ -332,10 +332,6 @@ class Abstract_Wallet(PrintError):
         return changed
 
     def is_mine(self, address):
-        if hasattr(self, '_addr_to_addr_index'):  # Deterministic_Wallet
-            return address in self._addr_to_addr_index
-        if hasattr(self, 'addresses'):  # Imported_Wallet
-            return address in self.addresses
         return address in self.get_addresses()
 
     def is_change(self, address):
@@ -1466,6 +1462,9 @@ class Imported_Wallet(Simple_Wallet):
     def is_beyond_limit(self, address, is_change):
         return False
 
+    def is_mine(self, address):
+        return address in self.addresses
+
     def get_fingerprint(self):
         return ''
 
@@ -1711,6 +1710,9 @@ class Deterministic_Wallet(Abstract_Wallet):
             if self.history.get(addr):
                 return False
         return True
+
+    def is_mine(self, address):
+        return address in self._addr_to_addr_index
 
     def get_master_public_keys(self):
         return [self.get_master_public_key()]
