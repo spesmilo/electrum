@@ -340,13 +340,7 @@ class Abstract_Wallet(PrintError):
         return self.get_address_index(address)[0]
 
     def get_address_index(self, address):
-        if hasattr(self, '_addr_to_addr_index'):
-            return self._addr_to_addr_index[address]
-        if address in self.receiving_addresses:
-            return False, self.receiving_addresses.index(address)
-        if address in self.change_addresses:
-            return True, self.change_addresses.index(address)
-        raise Exception("Address not found", address)
+        raise NotImplementedError()
 
     def export_private_key(self, address, password):
         """ extended WIF format """
@@ -1713,6 +1707,9 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def is_mine(self, address):
         return address in self._addr_to_addr_index
+
+    def get_address_index(self, address):
+        return self._addr_to_addr_index[address]
 
     def get_master_public_keys(self):
         return [self.get_master_public_key()]
