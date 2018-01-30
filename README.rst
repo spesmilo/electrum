@@ -93,20 +93,12 @@ This directory contains the python dependencies used by Electrum.
 Mac OS X / macOS
 --------
 
-::
-
-    # On MacPorts installs: 
-    sudo python3 setup-release.py py2app
-    
-    # On Homebrew installs: 
-    ARCHFLAGS="-arch i386 -arch x86_64" sudo python3 setup-release.py py2app --includes sip
-    
-    sudo hdiutil create -fs HFS+ -volname "Electrum" -srcfolder dist/Electrum.app dist/electrum-VERSION-macosx.dmg
+See `contrib/build-osx/`.
 
 Windows
 -------
 
-See `contrib/build-wine/README` file.
+See `contrib/build-wine/`.
 
 
 Android
