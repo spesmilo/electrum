@@ -312,7 +312,6 @@ def parse_scriptSig(d, _bytes):
         if item[0] == 0:
             # segwit embedded into p2sh
             # witness version 0
-            # segwit embedded into p2sh
             d['address'] = bitcoin.hash160_to_p2sh(bitcoin.hash_160(item))
             if len(item) == 22:
                 d['type'] = 'p2wpkh-p2sh'
