@@ -730,7 +730,8 @@ class Transaction:
 
     @classmethod
     def is_segwit_input(cls, txin):
-        return cls.is_segwit_inputtype(txin['type']) or bool(txin.get('witness', False))
+        has_nonzero_witness = txin.get('witness', '00') != '00'
+        return cls.is_segwit_inputtype(txin['type']) or has_nonzero_witness
 
     @classmethod
     def is_segwit_inputtype(cls, txin_type):
