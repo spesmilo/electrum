@@ -25,6 +25,7 @@
 
 import webbrowser
 
+from electrum_ltc.wallet import UnrelatedTransactionException
 from .util import *
 from electrum_ltc.i18n import _
 from electrum_ltc.util import block_explorer_URL
@@ -37,6 +38,7 @@ TX_ICONS = [
     "warning.png",
     "unconfirmed.png",
     "unconfirmed.png",
+    "offline_tx.png",
     "clock1.png",
     "clock2.png",
     "clock3.png",
@@ -46,11 +48,12 @@ TX_ICONS = [
 ]
 
 
-class HistoryList(MyTreeWidget):
+class HistoryList(MyTreeWidget, AcceptFileDragDrop):
     filter_columns = [2, 3, 4]  # Date, Description, Amount
 
     def __init__(self, parent=None):
         MyTreeWidget.__init__(self, parent, self.create_menu, [], 3)
+        AcceptFileDragDrop.__init__(self, ".txn")
         self.refresh_headers()
         self.setColumnHidden(1, True)
 
@@ -158,11 +161,15 @@ class HistoryList(MyTreeWidget):
 
         menu = QMenu()
 
+        if height == -2:
+            menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
+
         menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(column_data))
         if column in self.editable_columns:
             menu.addAction(_("Edit %s")%column_title, lambda: self.editItem(item, column))
 
         menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx))
+
         if is_unconfirmed and tx:
             rbf = is_mine and not tx.is_final()
             if rbf:
@@ -176,3 +183,39 @@ class HistoryList(MyTreeWidget):
         if tx_URL:
             menu.addAction(_("View on block explorer"), lambda: webbrowser.open(tx_URL))
         menu.exec_(self.viewport().mapToGlobal(position))
+
+    def remove_local_tx(self, delete_tx):
+        to_delete = {delete_tx}
+        to_delete |= self.wallet.get_depending_transactions(delete_tx)
+
+        question = _("Are you sure you want to remove this transaction?")
+        if len(to_delete) > 1:
+            question = _(
+                "Are you sure you want to remove this transaction and {} child transactions?".format(len(to_delete) - 1)
+            )
+
+        answer = QMessageBox.question(self.parent, _("Please confirm"), question, QMessageBox.Yes, QMessageBox.No)
+        if answer == QMessageBox.No:
+            return
+        for tx in to_delete:
+            self.wallet.remove_transaction(tx)
+        self.wallet.save_transactions(write=True)
+        root = self.invisibleRootItem()
+        child_count = root.childCount()
+        _offset = 0
+        for i in range(child_count):
+            item = root.child(i - _offset)
+            if item.data(0, Qt.UserRole) in to_delete:
+                root.removeChild(item)
+                _offset += 1
+
+    def onFileAdded(self, fn):
+        with open(fn) as f:
+            tx = self.parent.tx_from_text(f.read())
+            try:
+                self.wallet.add_transaction(tx.txid(), tx)
+            except UnrelatedTransactionException as e:
+                self.parent.show_error(e)
+            else:
+                self.wallet.save_transactions(write=True)
+                self.on_update()
