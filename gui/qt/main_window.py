@@ -62,6 +62,7 @@ from .fee_slider import FeeSlider
 
 from .util import *
 
+from electrum.util import profiler
 
 class StatusBarButton(QPushButton):
     def __init__(self, icon, tooltip, func):
@@ -325,6 +326,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.print_error('close_wallet', self.wallet.storage.path)
         run_hook('close_wallet', self.wallet)
 
+    @profiler
     def load_wallet(self, wallet):
         wallet.thread = TaskThread(self, self.on_error)
         self.wallet = wallet

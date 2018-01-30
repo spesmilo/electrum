@@ -346,14 +346,10 @@ class Abstract_Wallet(PrintError):
     def is_change(self, address):
         if not self.is_mine(address):
             return False
-        return address in self.change_addresses
+        return self.get_address_index(address)[0]
 
     def get_address_index(self, address):
-        if address in self.receiving_addresses:
-            return False, self.receiving_addresses.index(address)
-        if address in self.change_addresses:
-            return True, self.change_addresses.index(address)
-        raise Exception("Address not found", address)
+        raise NotImplementedError()
 
     def export_private_key(self, address, password):
         """ extended WIF format """
@@ -1050,8 +1046,10 @@ class Abstract_Wallet(PrintError):
 
     def is_used(self, address):
         h = self.history.get(address,[])
+        if len(h) == 0:
+            return False
         c, u, x = self.get_addr_balance(address)
-        return len(h) > 0 and c + u + x == 0
+        return c + u + x == 0
 
     def is_empty(self, address):
         c, u, x = self.get_addr_balance(address)
@@ -1489,6 +1487,9 @@ class Imported_Wallet(Simple_Wallet):
     def is_beyond_limit(self, address, is_change):
         return False
 
+    def is_mine(self, address):
+        return address in self.addresses
+
     def get_fingerprint(self):
         return ''
 
@@ -1678,6 +1679,14 @@ class Deterministic_Wallet(Abstract_Wallet):
                 if n > nmax: nmax = n
         return nmax + 1
 
+    def load_addresses(self):
+        super().load_addresses()
+        self._addr_to_addr_index = {}  # key: address, value: (is_change, index)
+        for i, addr in enumerate(self.receiving_addresses):
+            self._addr_to_addr_index[addr] = (False, i)
+        for i, addr in enumerate(self.change_addresses):
+            self._addr_to_addr_index[addr] = (True, i)
+
     def create_new_address(self, for_change=False):
         assert type(for_change) is bool
         addr_list = self.change_addresses if for_change else self.receiving_addresses
@@ -1685,6 +1694,7 @@ class Deterministic_Wallet(Abstract_Wallet):
         x = self.derive_pubkeys(for_change, n)
         address = self.pubkeys_to_address(x)
         addr_list.append(address)
+        self._addr_to_addr_index[address] = (for_change, n)
         self.save_addresses()
         self.add_address(address)
         return address
@@ -1716,16 +1726,21 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def is_beyond_limit(self, address, is_change):
         addr_list = self.get_change_addresses() if is_change else self.get_receiving_addresses()
-        i = addr_list.index(address)
-        prev_addresses = addr_list[:max(0, i)]
+        i = self.get_address_index(address)[1]
         limit = self.gap_limit_for_change if is_change else self.gap_limit
-        if len(prev_addresses) < limit:
+        if i < limit:
             return False
-        prev_addresses = prev_addresses[max(0, i - limit):]
+        prev_addresses = addr_list[max(0, i - limit):max(0, i)]
         for addr in prev_addresses:
             if self.history.get(addr):
                 return False
         return True
+
+    def is_mine(self, address):
+        return address in self._addr_to_addr_index
+
+    def get_address_index(self, address):
+        return self._addr_to_addr_index[address]
 
     def get_master_public_keys(self):
         return [self.get_master_public_key()]
