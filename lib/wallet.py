@@ -366,7 +366,7 @@ class Abstract_Wallet(PrintError):
         return changed
 
     def is_mine(self, address):
-        assert isinstance(address, (Address, PublicKey, ScriptOutput))
+        assert not isinstance(address, str)
         return address in self.get_addresses()
 
     def is_change(self, address):

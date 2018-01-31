@@ -241,7 +241,6 @@ def parse_scriptSig(d, _bytes):
         item = decoded[0][1]
         # payto_pubkey
         d['type'] = 'p2pk'
-        d['address'] = UnknownAddress()
         d['signatures'] = [bh2u(item)]
         d['num_sig'] = 1
         d['x_pubkeys'] = ["(pubkey)"]
@@ -334,6 +333,7 @@ def parse_input(vds):
     d['prevout_hash'] = prevout_hash
     d['prevout_n'] = prevout_n
     d['sequence'] = sequence
+    d['address'] = UnknownAddress()
     if prevout_hash == '00'*32:
         d['type'] = 'coinbase'
         d['scriptSig'] = bh2u(scriptSig)
