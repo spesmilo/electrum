@@ -692,7 +692,7 @@ class Abstract_Wallet(PrintError):
                     prevout_n = txi['prevout_n']
                     ser = prevout_hash + ':%d'%prevout_n
                 # find value from prev output
-                if isinstance(addr, Address) and self.is_mine(addr):
+                if self.is_mine(addr):
                     dd = self.txo.get(prevout_hash, {})
                     for n, v, is_cb in dd.get(addr, []):
                         if n == prevout_n:
@@ -708,7 +708,7 @@ class Abstract_Wallet(PrintError):
             for n, txo in enumerate(tx.outputs()):
                 ser = tx_hash + ':%d'%n
                 _type, addr, v = txo
-                if isinstance(addr, Address) and self.is_mine(addr):
+                if self.is_mine(addr):
                     if not addr in d:
                         d[addr] = []
                     d[addr].append((n, v, is_coinbase))
