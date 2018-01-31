@@ -101,8 +101,12 @@ class TxDialog(QDialog, MessageBoxMixin):
         b.clicked.connect(self.do_broadcast)
 
         self.save_button = QPushButton(_("Save"))
-        self.save_button.setDisabled(True)
-        self.save_button.setToolTip(_("Please sign this transaction in order to save it"))
+        save_button_disabled = not tx.is_complete()
+        self.save_button.setDisabled(save_button_disabled)
+        if save_button_disabled:
+            self.save_button.setToolTip(_("Please sign this transaction in order to save it"))
+        else:
+            self.save_button.setToolTip("")
         self.save_button.clicked.connect(self.save)
 
         self.export_button = b = QPushButton(_("Export"))
