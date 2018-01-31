@@ -10,7 +10,7 @@ for i, x in enumerate(sys.argv):
 else:
     raise BaseException('no version')
 
-electrum = os.path.abspath("../../")
+electrum = os.path.abspath(".") + "/"
 block_cipher = None
 
 # see https://github.com/pyinstaller/pyinstaller/issues/2005
