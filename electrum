@@ -405,9 +405,11 @@ if __name__ == '__main__':
                 if config.get('requests_dir'):
                     path = os.path.join(config.get('requests_dir'), 'index.html')
                     if not os.path.exists(path):
-                        print("Requests directory not configured.")
-                        print("You can configure it using https://github.com/spesmilo/electrum-merchant")
-                        sys.exit(1)
+                        print("Requests directory is not configured.")
+                        print("You must configure it using \
+                              https://github.com/spesmilo/electrum-merchant")
+                        print("Read full merchant documentation at: \
+                              http://docs.electrum.org/en/latest/merchant.html")
                 d.join()
                 sys.exit(0)
             else:
