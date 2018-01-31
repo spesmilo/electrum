@@ -32,6 +32,7 @@ from electrum.util import block_explorer_URL
 from electrum.util import timestamp_to_datetime, profiler
 
 
+# note: this list needs to be kept in sync with another in kivy
 TX_ICONS = [
     "warning.png",
     "warning.png",

@@ -87,11 +87,13 @@ class CScreen(Factory.Screen):
         self.add_widget(self.context_menu)
 
 
+# note: this list needs to be kept in sync with another in qt
 TX_ICONS = [
     "close",
     "close",
     "close",
     "unconfirmed",
+    "close",
     "close",
     "clock1",
     "clock2",
