@@ -286,7 +286,7 @@ class CoinChooserRandom(CoinChooserBase):
         Any bucket can be:
         1. "confirmed" if it only contains confirmed coins; else
         2. "unconfirmed" if it does not contain coins with unconfirmed parents
-        3. "unconfirmed parent" otherwise
+        3. other: e.g. "unconfirmed parent" or "local"
 
         This method tries to only use buckets of type 1, and if the coins there
         are not enough, tries to use the next type but while also selecting
@@ -294,9 +294,9 @@ class CoinChooserRandom(CoinChooserBase):
         """
         conf_buckets = [bkt for bkt in buckets if bkt.min_height > 0]
         unconf_buckets = [bkt for bkt in buckets if bkt.min_height == 0]
-        unconf_par_buckets = [bkt for bkt in buckets if bkt.min_height == -1]
+        other_buckets = [bkt for bkt in buckets if bkt.min_height < 0]
 
-        bucket_sets = [conf_buckets, unconf_buckets, unconf_par_buckets]
+        bucket_sets = [conf_buckets, unconf_buckets, other_buckets]
         already_selected_buckets = []
 
         for bkts_choose_from in bucket_sets:

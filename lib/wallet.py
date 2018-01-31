@@ -613,7 +613,7 @@ class Abstract_Wallet(PrintError):
                 x += v
             elif tx_height > 0:
                 c += v
-            elif tx_height != TX_HEIGHT_LOCAL:
+            else:
                 u += v
             if txo in sent:
                 if sent[txo] > 0:
@@ -830,7 +830,7 @@ class Abstract_Wallet(PrintError):
             h2.append((tx_hash, height, conf, timestamp, delta, balance))
             if balance is None or delta is None:
                 balance = None
-            elif height != TX_HEIGHT_LOCAL:
+            else:
                 balance -= delta
         h2.reverse()
 
