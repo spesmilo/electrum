@@ -28,8 +28,11 @@ from collections import defaultdict
 try:
     from SimpleWebSocketServer import WebSocket, SimpleSSLWebSocketServer
 except ImportError:
+    print("Read full Electrum merchant documentation at: \
+           http://docs.electrum.org/en/latest/merchant.html")
     import sys
-    sys.exit("install SimpleWebSocketServer")
+    sys.exit("SimpleWebSocketServer library is missing. Install it before \
+             running Electrum daemon with Web Sockets service.")
 
 from . import util
 
