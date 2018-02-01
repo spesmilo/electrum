@@ -25,7 +25,7 @@
 
 import webbrowser
 
-from electrum.wallet import UnrelatedTransactionException
+from electrum.wallet import UnrelatedTransactionException, TX_HEIGHT_LOCAL
 from .util import *
 from electrum.i18n import _
 from electrum.util import block_explorer_URL
@@ -71,6 +71,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
 
     @profiler
     def on_update(self):
+        # TODO save and restore scroll position (maybe based on y coord or selected item?)
         self.wallet = self.parent.wallet
         h = self.wallet.get_history(self.get_domain())
         item = self.currentItem()
@@ -162,7 +163,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
 
         menu = QMenu()
 
-        if height == -2:
+        if height == TX_HEIGHT_LOCAL:
             menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
 
         menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(column_data))
@@ -201,14 +202,8 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         for tx in to_delete:
             self.wallet.remove_transaction(tx)
         self.wallet.save_transactions(write=True)
-        root = self.invisibleRootItem()
-        child_count = root.childCount()
-        _offset = 0
-        for i in range(child_count):
-            item = root.child(i - _offset)
-            if item.data(0, Qt.UserRole) in to_delete:
-                root.removeChild(item)
-                _offset += 1
+        # need to update at least: history_list, utxo_list, address_list
+        self.parent.need_update.set()
 
     def onFileAdded(self, fn):
         with open(fn) as f:
