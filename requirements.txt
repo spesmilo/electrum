@@ -19,3 +19,4 @@ keepkey
 configparser
 btchip-python==0.1.23
 pillow
+pyblake2
