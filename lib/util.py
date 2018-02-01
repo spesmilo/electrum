@@ -431,39 +431,41 @@ def time_difference(distance_in_time, include_seconds):
         return "over %d years" % (round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
-    'Biteasy.com': ('https://www.biteasy.com/blockchain',
-                        {'tx': 'transactions', 'addr': 'addresses'}),
-    'Bitflyer.jp': ('https://chainflyer.bitflyer.jp',
-                        {'tx': 'Transaction', 'addr': 'Address'}),
-    'Blockchain.info': ('https://blockchain.info',
-                        {'tx': 'tx', 'addr': 'address'}),
-    'blockchainbdgpzk.onion': ('https://blockchainbdgpzk.onion',
-                        {'tx': 'tx', 'addr': 'address'}),
-    'Blockr.io': ('https://btc.blockr.io',
-                        {'tx': 'tx/info', 'addr': 'address/info'}),
-    'Blocktrail.com': ('https://www.blocktrail.com/BTC',
-                        {'tx': 'tx', 'addr': 'address'}),
-    'BTC.com': ('https://chain.btc.com',
-                        {'tx': 'tx', 'addr': 'address'}),
-    'Chain.so': ('https://www.chain.so',
-                        {'tx': 'tx/BTC', 'addr': 'address/BTC'}),
-    'Insight.is': ('https://insight.bitpay.com',
-                        {'tx': 'tx', 'addr': 'address'}),
-    'TradeBlock.com': ('https://tradeblock.com/blockchain',
-                        {'tx': 'tx', 'addr': 'address'}),
-    'BlockCypher.com': ('https://live.blockcypher.com/btc',
-                        {'tx': 'tx', 'addr': 'address'}),
-    'Blockchair.com': ('https://blockchair.com/bitcoin',
-                        {'tx': 'transaction', 'addr': 'address'}),
-    'system default': ('blockchain:',
-                        {'tx': 'tx', 'addr': 'address'}),
+    'Biteasy.com': ('https://www.biteasy.com/blockchain/',
+                        {'tx': 'transactions/', 'addr': 'addresses/'}),
+    'Bitflyer.jp': ('https://chainflyer.bitflyer.jp/',
+                        {'tx': 'Transaction/', 'addr': 'Address/'}),
+    'Blockchain.info': ('https://blockchain.info/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
+    'blockchainbdgpzk.onion': ('https://blockchainbdgpzk.onion/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
+    'Blockr.io': ('https://btc.blockr.io/',
+                        {'tx': 'tx/info/', 'addr': 'address/info/'}),
+    'Blocktrail.com': ('https://www.blocktrail.com/BTC/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
+    'BTC.com': ('https://chain.btc.com/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
+    'Chain.so': ('https://www.chain.so/',
+                        {'tx': 'tx/BTC/', 'addr': 'address/BTC/'}),
+    'Insight.is': ('https://insight.bitpay.com/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
+    'TradeBlock.com': ('https://tradeblock.com/blockchain/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
+    'BlockCypher.com': ('https://live.blockcypher.com/btc/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
+    'Blockchair.com': ('https://blockchair.com/bitcoin/',
+                        {'tx': 'transaction/', 'addr': 'address/'}),
+    'blockonomics.co': ('https://www.blockonomics.co/',
+                        {'tx': 'api/tx?txid=', 'addr': '#/search?q='}),
+    'system default': ('blockchain:/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
 }
 
 testnet_block_explorers = {
-    'Blocktrail.com': ('https://www.blocktrail.com/tBTC',
-                       {'tx': 'tx', 'addr': 'address'}),
-    'system default': ('blockchain:',
-                       {'tx': 'tx', 'addr': 'address'}),
+    'Blocktrail.com': ('https://www.blocktrail.com/tBTC/',
+                       {'tx': 'tx/', 'addr': 'address/'}),
+    'system default': ('blockchain://000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943/',
+                       {'tx': 'tx/', 'addr': 'address/'}),
 }
 
 def block_explorer_info():
@@ -484,7 +486,7 @@ def block_explorer_URL(config, kind, item):
     if not kind_str:
         return
     url_parts = [be_tuple[0], kind_str, item]
-    return "/".join(url_parts)
+    return ''.join(url_parts)
 
 # URL decode
 #_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
