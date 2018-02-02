@@ -262,7 +262,23 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             script_type = self.types.InputScriptType.SPENDP2SHWITNESS
         else:
             script_type = self.types.InputScriptType.SPENDADDRESS
-        client.get_address(self.get_coin_name(), address_n, True, script_type=script_type)
+        xpubs = wallet.get_master_public_keys()
+        if len(xpubs) == 1:
+            client.get_address(self.get_coin_name(), address_n, True, script_type=script_type)
+        else:
+            def f(xpub):
+                node = self.ckd_public.deserialize(xpub)
+                return self.types.HDNodePathType(node=node, address_n=[change, index])
+            pubkeys = wallet.get_public_keys(address)
+            # sort xpubs using the order of pubkeys
+            sorted_pubkeys, sorted_xpubs = zip(*sorted(zip(pubkeys, xpubs)))
+            pubkeys = list(map(f, sorted_xpubs))
+            multisig = self.types.MultisigRedeemScriptType(
+               pubkeys=pubkeys,
+               signatures=[b''] * wallet.n,
+               m=wallet.m,
+            )
+            client.get_address(self.get_coin_name(), address_n, True, multisig=multisig)
 
     def tx_inputs(self, tx, for_sig=False, script_gen=SCRIPT_GEN_LEGACY):
         inputs = []

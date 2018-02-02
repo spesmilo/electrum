@@ -188,8 +188,6 @@ class QtPlugin(QtPluginBase):
 
     @hook
     def receive_menu(self, menu, addrs, wallet):
-        if type(wallet) is not Standard_Wallet:
-            return
         keystore = wallet.get_keystore()
         if type(keystore) == self.keystore_class and len(addrs) == 1:
             def show_address():
