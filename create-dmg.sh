@@ -1,9 +1,6 @@
 #!/bin/sh
 sudo sh ./clean.sh
-VERSION=$(cat lib/version.py \
-  | grep ELECTRUM_VERSION \
-  | sed "s/[',]//g" \
-  | tr -d '[[:space:]]')
+VERSION=$(python3 -c "from lib import version; print(version.ELECTRUM_VERSION)")
 VERSION=${VERSION//ELECTRUM_VERSION=/}
 echo "Creating package $VERSION"
 

@@ -1,62 +1,29 @@
 ZCL Electrum - Lightweight Zclassic Client
 ==========================================
 
-Current Release (1.0.1): https://github.com/BTCP-community/electrum-zcl/releases/tag/Z!1.0.1
-
-**ATTENTION! Please Read**
-
-- Viewing & Sending from Z addresses is not yet supported on this wallet.
-- Please **do not** use '2FA' when setting up your wallet - please use Standard or MultiSig.
+Latest Release: https://github.com/BTCP-community/electrum-zcl/releases/
 
 
-Originally forked from **spesmilo/electrum**: https://github.com/spesmilo/electrum
-
-Original Project Info
----------------------
-::
-
-  Licence: MIT Licence
-  Author: Thomas Voegtlin
-  Language: Python
-  Homepage: https://electrum.org/
+Viewing & Sending from Z addresses is not yet supported on this wallet.
 
 
-.. image:: https://travis-ci.org/spesmilo/electrum.svg?branch=master
-    :target: https://travis-ci.org/spesmilo/electrum
-    :alt: Build Status
-.. image:: https://coveralls.io/repos/github/spesmilo/electrum/badge.svg?branch=master
-    :target: https://coveralls.io/github/spesmilo/electrum?branch=master
-    :alt: Test coverage statistics
+Know about your data directory::
 
+    Linux + Mac: ~/.electrum-zcl/
+    Windows: C:\Users\YourUserName\AppData\Roaming\Electrum-zcl\
 
+    ~/.electrum-zcl/wallets/ has your wallet files - BACK UP THIS FOLDER 
 
-Getting started
-===============
+You can also use 'Export Private Keys' and 'Show Seed' from inside the application to write down and store your funds.
 
-Electrum is a pure python application. If you want to use the
-Qt interface, install the Qt dependencies.
+Please use the issue tracker for bug reports, feature requests, and other mission-critical information. It is actively monitored by the Zclassic development team. For general support, please visit our Discord: https://discord.gg/2PRZ5q 
 
-
-If you downloaded the official package (tar.gz), you can run
-Electrum from its root directory, without installing it on your
-system; all the python dependencies are included in the 'packages'
-directory. To run Electrum from its root directory, just do::
-
-    ./electrum
-
-
-If you cloned the git repository, you need to compile extra files
-before you can run Electrum. Read the next section, "Development
-Version".
-
-
-
-Development version
+Development Version
 ===================
 
 Check out the code from Github::
 
-    git clone git://github.com/BTCP-community/electrum-zcl.git
+    git clone https://github.com/BTCP-community/electrum-zcl
     cd electrum-zcl
 
 For Mac:
@@ -144,6 +111,7 @@ Android
 -------
 
 See `gui/kivy/Readme.txt` file.
+UPSTREAM PATCH: https://github.com/spesmilo/electrum/blob/master/gui/kivy/Readme.md
 
 ---
 
@@ -161,21 +129,41 @@ There are several useful scripts in::
 
     scripts
 
-This is a good initial check to determine whether things are working.::
+Here is a good initial check to determine whether things are working (should successfully validate chunks)::
 
     cd scripts
     python3 block_headers
 
-It should run, validating chunks without error.
+--
 
-Also be sure to check out::
+The Zclassic Wiki is located at: https://github.com/z-classic/zclassic/wiki. Please use this as a reference and feel free to contribute.
 
-    ~/.electrum-zcl/
+There is also an Electrum ZCL wiki at: https://github.com/BTCP-community/electrum-zcl/wiki. It cointains information about setting up the ElectrumX Server (https://github.com/BTCP-community/electrumx), which is the provider for block and peer data. 
 
-    ~/.electrum-zcl/wallets/ has your wallet files - ** back up this folder **
+--
 
-    ~/.electrum-zcl/config has your Electrum connection object.
+Here is our current progress on zk-SNARK integration: https://github.com/BTCP-community/electrum-zcl/wiki/Shielded-Transactions 
 
+
+Original Project Info
+---------------------
+::
+
+  Forked from **spesmilo/electrum**: https://github.com/spesmilo/electrum
+
+  Licence: MIT Licence
+  Author: Thomas Voegtlin
+  Language: Python (GUI: Qt, Kivy)
+  Platforms: Windows, Mac, Linux, Android
+  Homepage: https://electrum.org/
+
+
+.. image:: https://travis-ci.org/spesmilo/electrum.svg?branch=master
+    :target: https://travis-ci.org/spesmilo/electrum
+    :alt: Build Status
+.. image:: https://coveralls.io/repos/github/spesmilo/electrum/badge.svg?branch=master
+    :target: https://coveralls.io/github/spesmilo/electrum?branch=master
+    :alt: Test coverage statistics
 
 
 ---
