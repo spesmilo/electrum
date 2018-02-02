@@ -86,6 +86,16 @@ Run::
     ./electrum
 
 
+For Linux with docker:
+----------------------
+
+Build the docker image::
+
+    ./build-docker.sh
+
+Run the docker image::
+
+    ./run-docker.sh
 
 
 Building Releases
