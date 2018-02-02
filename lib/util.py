@@ -446,6 +446,8 @@ mainnet_block_explorers = {
 testnet_block_explorers = {
     'SoChain': ('https://chain.so/',
                         {'tx': 'tx/LTCTEST/', 'addr': 'address/LTCTEST/'}),
+    'LiteCore': ('https://testnet.litecore.io/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
     'system default': ('blockchain://4966625a4b2851d9fdee139e56211a0d88575f59ed816ff5e6a63deb4e3e29a0/',
                        {'tx': 'tx/', 'addr': 'address/'}),
 }
