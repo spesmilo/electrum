@@ -662,7 +662,9 @@ class Abstract_Wallet(PrintError):
                     return addr
 
     def add_transaction(self, tx_hash, tx):
-        is_coinbase = tx.inputs()[0]['type'] == 'coinbase'
+        is_shielded_input = len(tx.inputs()) == 0
+
+        is_coinbase = not is_shielded_input and tx.inputs()[0]['type'] == 'coinbase'
         with self.transaction_lock:
             # add inputs
             self.txi[tx_hash] = d = {}
