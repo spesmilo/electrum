@@ -323,17 +323,6 @@ class Commands:
         return out
 
     @command('n')
-    def getproof(self, address):
-        """Get Merkle branch of an address in the UTXO set"""
-        # Servers no longer support this query.
-        raise NotImplementedError()
-        p = self.network.synchronous_get(('blockchain.address.get_proof', [address]))
-        out = []
-        for i,s in p:
-            out.append(i)
-        return out
-
-    @command('n')
     def getmerkle(self, txid, height):
         """Get Merkle branch of a transaction included in a block. Electrum
         uses this to verify transactions (Simple Payment Verification)."""
