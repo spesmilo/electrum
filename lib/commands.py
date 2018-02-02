@@ -33,7 +33,7 @@ from functools import wraps
 from decimal import Decimal
 
 from .import util
-from .util import bfh, bh2u, format_satoshis, json_decode
+from .util import bfh, bh2u, format_satoshis, json_decode, print_error
 from .import bitcoin
 from .address import Address
 from .bitcoin import hash_160, COIN, TYPE_ADDRESS
@@ -175,7 +175,8 @@ class Commands:
         """Return the transaction history of any address. Note: This is a
         walletless server query, results are not checked by SPV.
         """
-        return self.network.synchronous_get(('blockchain.address.get_history', [address]))
+        sh = bitcoin.address_to_scripthash(address)
+        return self.network.synchronous_get(('blockchain.scripthash.get_history', [sh]))
 
     @command('w')
     def listunspent(self):
@@ -193,7 +194,8 @@ class Commands:
         """Returns the UTXO list of any address. Note: This
         is a walletless server query, results are not checked by SPV.
         """
-        return self.network.synchronous_get(('blockchain.address.listunspent', [address]))
+        sh = bitcoin.address_to_scripthash(address)
+        return self.network.synchronous_get(('blockchain.scripthash.listunspent', [sh]))
 
     @command('')
     def serialize(self, jsontx):
@@ -321,7 +323,8 @@ class Commands:
         """Return the balance of any address. Note: This is a walletless
         server query, results are not checked by SPV.
         """
-        out = self.network.synchronous_get(('blockchain.address.get_balance', [address]))
+        sh = bitcoin.address_to_scripthash(address)
+        out = self.network.synchronous_get(('blockchain.scripthash.get_balance', [sh]))
         out["confirmed"] =  str(Decimal(out["confirmed"])/COIN)
         out["unconfirmed"] =  str(Decimal(out["unconfirmed"])/COIN)
         return out
