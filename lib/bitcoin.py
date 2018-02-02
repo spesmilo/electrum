@@ -87,7 +87,7 @@ class NetworkConstants:
         cls.CHECKPOINTS = read_json('checkpoints.json', [])
         cls.EQUIHASH_N = 200
         cls.EQUIHASH_K = 9
-        cls.HEADERS_URL = "http://35.186.223.75:80/blockchain_headers"
+        cls.HEADERS_URL = "http://headers.zcl-electrum.com/blockchain_headers"
 
         cls.CHUNK_SIZE = 200
 
@@ -98,7 +98,7 @@ class NetworkConstants:
         cls.WIF_PREFIX = 0xef
         cls.ADDRTYPE_P2PKH = [0x1D, 0x25]
         cls.ADDRTYPE_P2SH = [0x1C, 0xBA]
-        cls.ADDRTYPE_SHIELDED [0x16, 0xB6]
+        cls.ADDRTYPE_SHIELDED = [0x16, 0xB6]
         cls.SEGWIT_HRP = "tb" #TODO zcl has no segwit
         cls.GENESIS = "03e1c4bb705c871bf9bfda3e74b7f8f86bff267993c215a89d5795e3708e5e1f"
         cls.DEFAULT_PORTS = {'t': '51001', 's': '51002'}
