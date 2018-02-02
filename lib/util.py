@@ -431,23 +431,23 @@ def time_difference(distance_in_time, include_seconds):
         return "over %d years" % (round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
-    'explorer.litecoin.net': ('http://explorer.litecoin.net',
-                        {'tx': 'tx', 'addr': 'address'}),
-    'Blockr.io': ('https://ltc.blockr.io',
-                        {'tx': 'tx/info', 'addr': 'address/info'}),
-    'BlockCypher.com': ('https://live.blockcypher.com/ltc',
-                        {'tx': 'tx', 'addr': 'address'}),
-    'SoChain': ('https://chain.so',
-                        {'tx': 'tx/LTC', 'addr': 'address/LTC'}),
-    'system default': ('blockchain:',
-                        {'tx': 'tx', 'addr': 'address'}),
+    'explorer.litecoin.net': ('http://explorer.litecoin.net/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
+    'Blockr.io': ('https://ltc.blockr.io/',
+                        {'tx': 'tx/info/', 'addr': 'address/info/'}),
+    'BlockCypher.com': ('https://live.blockcypher.com/ltc/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
+    'SoChain': ('https://chain.so/',
+                        {'tx': 'tx/LTC/', 'addr': 'address/LTC/'}),
+    'system default': ('blockchain://12a765e31ffd4059bada1e25190f6e98c99d9714d334efa41a195a7e7e04bfe2/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
 }
 
 testnet_block_explorers = {
-    'SoChain': ('https://chain.so',
-                        {'tx': 'tx/LTCTEST', 'addr': 'address/LTCTEST'}),
-    'system default': ('blockchain:',
-                       {'tx': 'tx', 'addr': 'address'}),
+    'SoChain': ('https://chain.so/',
+                        {'tx': 'tx/LTCTEST/', 'addr': 'address/LTCTEST/'}),
+    'system default': ('blockchain://4966625a4b2851d9fdee139e56211a0d88575f59ed816ff5e6a63deb4e3e29a0/',
+                       {'tx': 'tx/', 'addr': 'address/'}),
 }
 
 def block_explorer_info():
@@ -468,7 +468,7 @@ def block_explorer_URL(config, kind, item):
     if not kind_str:
         return
     url_parts = [be_tuple[0], kind_str, item]
-    return "/".join(url_parts)
+    return ''.join(url_parts)
 
 # URL decode
 #_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
