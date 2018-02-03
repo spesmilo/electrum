@@ -807,7 +807,7 @@ class InstallWizard(BaseWizard, Widget):
         popup.init(message, callback)
         popup.open()
 
-    def request_password(self, run_next):
+    def request_password(self, run_next, force_disable_encrypt_cb=False):
         def callback(pin):
             if pin:
                 self.run('confirm_password', pin, run_next)

@@ -70,9 +70,10 @@ class QtHandlerBase(QObject, PrintError):
         self.status_signal.emit(paired)
 
     def _update_status(self, paired):
-        button = self.button
-        icon = button.icon_paired if paired else button.icon_unpaired
-        button.setIcon(QIcon(icon))
+        if hasattr(self, 'button'):
+            button = self.button
+            icon = button.icon_paired if paired else button.icon_unpaired
+            button.setIcon(QIcon(icon))
 
     def query_choice(self, msg, labels):
         self.done.clear()

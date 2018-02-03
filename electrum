@@ -193,6 +193,8 @@ def init_daemon(config_options):
         print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
         sys.exit(0)
     if storage.is_encrypted():
+        if storage.is_encrypted_with_hw_device():
+            raise NotImplementedError("CLI functionality of encrypted hw wallets")
         if config.get('password'):
             password = config.get('password')
         else:
@@ -237,6 +239,8 @@ def init_cmdline(config_options, server):
     # commands needing password
     if (cmd.requires_wallet and storage.is_encrypted() and server is None)\
        or (cmd.requires_password and (storage.get('use_encryption') or storage.is_encrypted())):
+        if storage.is_encrypted_with_hw_device():
+            raise NotImplementedError("CLI functionality of encrypted hw wallets")
         if config.get('password'):
             password = config.get('password')
         else:
@@ -263,12 +267,14 @@ def run_offline_command(config, config_options):
     if cmd.requires_wallet:
         storage = WalletStorage(config.get_wallet_path())
         if storage.is_encrypted():
+            if storage.is_encrypted_with_hw_device():
+                raise NotImplementedError("CLI functionality of encrypted hw wallets")
             storage.decrypt(password)
         wallet = Wallet(storage)
     else:
         wallet = None
     # check password
-    if cmd.requires_password and storage.get('use_encryption'):
+    if cmd.requires_password and wallet.has_password():
         try:
             seed = wallet.check_password(password)
         except InvalidPassword:

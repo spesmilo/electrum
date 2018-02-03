@@ -383,7 +383,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             extra.append(_('watching only'))
         title += '  [%s]'% ', '.join(extra)
         self.setWindowTitle(title)
-        self.password_menu.setEnabled(self.wallet.can_change_password())
+        self.password_menu.setEnabled(self.wallet.may_have_password())
         self.import_privkey_menu.setVisible(self.wallet.can_import_privkey())
         self.import_address_menu.setVisible(self.wallet.can_import_address())
         self.export_menu.setEnabled(self.wallet.can_export())
@@ -888,14 +888,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if alias_addr:
                 if self.wallet.is_mine(alias_addr):
                     msg = _('This payment request will be signed.') + '\n' + _('Please enter your password')
-                    password = self.password_dialog(msg)
-                    if password:
-                        try:
-                            self.wallet.sign_payment_request(addr, alias, alias_addr, password)
-                        except Exception as e:
-                            self.show_error(str(e))
+                    password = None
+                    if self.wallet.has_keystore_encryption():
+                        password = self.password_dialog(msg)
+                        if not password:
                             return
-                    else:
+                    try:
+                        self.wallet.sign_payment_request(addr, alias, alias_addr, password)
+                    except Exception as e:
+                        self.show_error(str(e))
                         return
                 else:
                     return
@@ -1383,7 +1384,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def request_password(self, *args, **kwargs):
             parent = self.top_level_window()
             password = None
-            while self.wallet.has_password():
+            while self.wallet.has_keystore_encryption():
                 password = self.password_dialog(parent=parent)
                 if password is None:
                     # User cancelled password input
@@ -1518,7 +1519,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if fee > confirm_rate * tx.estimated_size() / 1000:
             msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
 
-        if self.wallet.has_password():
+        if self.wallet.has_keystore_encryption():
             msg.append("")
             msg.append(_("Enter your password to proceed"))
             password = self.password_dialog('\n'.join(msg))
@@ -1921,17 +1922,37 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def update_buttons_on_seed(self):
         self.seed_button.setVisible(self.wallet.has_seed())
-        self.password_button.setVisible(self.wallet.can_change_password())
+        self.password_button.setVisible(self.wallet.may_have_password())
         self.send_button.setVisible(not self.wallet.is_watching_only())
 
     def change_password_dialog(self):
-        from .password_dialog import ChangePasswordDialog
-        d = ChangePasswordDialog(self, self.wallet)
-        ok, password, new_password, encrypt_file = d.run()
+        from electrum.storage import STO_EV_XPUB_PW
+        if self.wallet.get_available_storage_encryption_version() == STO_EV_XPUB_PW:
+            from .password_dialog import ChangePasswordDialogForHW
+            d = ChangePasswordDialogForHW(self, self.wallet)
+            ok, encrypt_file = d.run()
+            if not ok:
+                return
+
+            try:
+                hw_dev_pw = self.wallet.keystore.get_password_for_storage_encryption()
+            except UserCancelled:
+                return
+            except BaseException as e:
+                traceback.print_exc(file=sys.stderr)
+                self.show_error(str(e))
+                return
+            old_password = hw_dev_pw if self.wallet.has_password() else None
+            new_password = hw_dev_pw if encrypt_file else None
+        else:
+            from .password_dialog import ChangePasswordDialogForSW
+            d = ChangePasswordDialogForSW(self, self.wallet)
+            ok, old_password, new_password, encrypt_file = d.run()
+
         if not ok:
             return
         try:
-            self.wallet.update_password(password, new_password, encrypt_file)
+            self.wallet.update_password(old_password, new_password, encrypt_file)
         except BaseException as e:
             self.show_error(str(e))
             return
@@ -1939,7 +1960,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             traceback.print_exc(file=sys.stdout)
             self.show_error(_('Failed to update password'))
             return
-        msg = _('Password was updated successfully') if new_password else _('Password is disabled, this wallet is not protected')
+        msg = _('Password was updated successfully') if self.wallet.has_password() else _('Password is disabled, this wallet is not protected')
         self.show_message(msg, title=_("Success"))
         self.update_lock_icon()
 

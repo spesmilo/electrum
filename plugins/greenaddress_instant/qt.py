@@ -65,9 +65,14 @@ class Plugin(BasePlugin):
         tx = d.tx
         wallet = d.wallet
         window = d.main_window
+
+        if wallet.is_watching_only():
+            d.show_critical(_('This feature is not available for watch-only wallets.'))
+            return
+
         # 1. get the password and sign the verification request
         password = None
-        if wallet.has_password():
+        if wallet.has_keystore_encryption():
             msg = _('GreenAddress requires your signature \n'
                     'to verify that transaction is instant.\n'
                     'Please enter your password to sign a\n'
