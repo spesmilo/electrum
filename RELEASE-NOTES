@@ -1,3 +1,8 @@
+# Release 3.0.6 :
+
+  * Fix transaction parsing bug #3788
+
+
 # Release 3.0.5 : (Security update)
 
 This is a follow-up to the 3.0.4 release, which did not completely fix
