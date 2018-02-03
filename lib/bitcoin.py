@@ -643,8 +643,8 @@ def verify_message(address, sig, message):
         return False
 
 
-def encrypt_message(message, pubkey):
-    return EC_KEY.encrypt_message(message, bfh(pubkey))
+def encrypt_message(message, pubkey, magic=b'BIE1'):
+    return EC_KEY.encrypt_message(message, bfh(pubkey), magic)
 
 
 def chunks(l, n):
@@ -789,7 +789,7 @@ class EC_KEY(object):
     # ECIES encryption/decryption methods; AES-128-CBC with PKCS7 is used as the cipher; hmac-sha256 is used as the mac
 
     @classmethod
-    def encrypt_message(self, message, pubkey):
+    def encrypt_message(self, message, pubkey, magic=b'BIE1'):
         assert_bytes(message)
 
         pk = ser_to_point(pubkey)
@@ -803,20 +803,20 @@ class EC_KEY(object):
         iv, key_e, key_m = key[0:16], key[16:32], key[32:]
         ciphertext = aes_encrypt_with_iv(key_e, iv, message)
         ephemeral_pubkey = bfh(ephemeral.get_public_key(compressed=True))
-        encrypted = b'BIE1' + ephemeral_pubkey + ciphertext
+        encrypted = magic + ephemeral_pubkey + ciphertext
         mac = hmac.new(key_m, encrypted, hashlib.sha256).digest()
 
         return base64.b64encode(encrypted + mac)
 
-    def decrypt_message(self, encrypted):
+    def decrypt_message(self, encrypted, magic=b'BIE1'):
         encrypted = base64.b64decode(encrypted)
         if len(encrypted) < 85:
             raise Exception('invalid ciphertext: length')
-        magic = encrypted[:4]
+        magic_found = encrypted[:4]
         ephemeral_pubkey = encrypted[4:37]
         ciphertext = encrypted[37:-32]
         mac = encrypted[-32:]
-        if magic != b'BIE1':
+        if magic_found != magic:
             raise Exception('invalid ciphertext: invalid magic bytes')
         try:
             ephemeral_pubkey = ser_to_point(ephemeral_pubkey)

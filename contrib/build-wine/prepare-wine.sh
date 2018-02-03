@@ -72,8 +72,8 @@ done
 # upgrade pip
 $PYTHON -m pip install pip --upgrade
 
-# Install PyWin32
-$PYTHON -m pip install pypiwin32
+# Install pywin32-ctypes (needed by pyinstaller)
+$PYTHON -m pip install pywin32-ctypes
 
 # Install PyQt
 $PYTHON -m pip install PyQt5

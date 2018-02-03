@@ -194,10 +194,7 @@ class KeepKeyCompatiblePlugin(HW_PluginBase):
                                        label, language)
         wizard.loop.exit(0)
 
-    def setup_device(self, device_info, wizard):
-        '''Called when creating a new wallet.  Select the device to use.  If
-        the device is uninitialized, go through the intialization
-        process.'''
+    def setup_device(self, device_info, wizard, purpose):
         devmgr = self.device_manager()
         device_id = device_info.device.id_
         client = devmgr.client_by_id(device_id)

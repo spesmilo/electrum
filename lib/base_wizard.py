@@ -24,12 +24,19 @@
 # SOFTWARE.
 
 import os
+import sys
+import traceback
+
 from . import bitcoin
 from . import keystore
 from .keystore import bip44_derivation
 from .wallet import Imported_Wallet, Standard_Wallet, Multisig_Wallet, wallet_types
+from .storage import STO_EV_USER_PW, STO_EV_XPUB_PW, get_derivation_used_for_hw_device_encryption
 from .i18n import _
+from .util import UserCancelled
 
+# hardware device setup purpose
+HWD_SETUP_NEW_WALLET, HWD_SETUP_DECRYPT_WALLET = range(0, 2)
 
 class ScriptTypeNotSupported(Exception): pass
 
@@ -147,17 +154,22 @@ class BaseWizard(object):
                              is_valid=v, allow_multi=True)
 
     def on_import(self, text):
+        # create a temporary wallet and exploit that modifications
+        # will be reflected on self.storage
         if keystore.is_address_list(text):
-            self.wallet = Imported_Wallet(self.storage)
+            w = Imported_Wallet(self.storage)
             for x in text.split():
-                self.wallet.import_address(x)
+                w.import_address(x)
         elif keystore.is_private_key_list(text):
             k = keystore.Imported_KeyStore({})
             self.storage.put('keystore', k.dump())
-            self.wallet = Imported_Wallet(self.storage)
+            w = Imported_Wallet(self.storage)
             for x in text.split():
-                self.wallet.import_private_key(x, None)
-        self.terminate()
+                w.import_private_key(x, None)
+            self.keystores.append(w.keystore)
+        else:
+            return self.terminate()
+        return self.run('create_wallet')
 
     def restore_from_key(self):
         if self.wallet_type == 'standard':
@@ -176,7 +188,7 @@ class BaseWizard(object):
         k = keystore.from_master_key(text)
         self.on_keystore(k)
 
-    def choose_hw_device(self):
+    def choose_hw_device(self, purpose=HWD_SETUP_NEW_WALLET):
         title = _('Hardware Keystore')
         # check available plugins
         support = self.plugins.get_hardware_support()
@@ -185,7 +197,7 @@ class BaseWizard(object):
                 _('No hardware wallet support found on your system.'),
                 _('Please install the relevant libraries (eg python-trezor for Trezor).'),
             ])
-            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device())
+            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device(purpose))
             return
         # scan devices
         devices = []
@@ -205,7 +217,7 @@ class BaseWizard(object):
                 _('If your device is not detected on Windows, go to "Settings", "Devices", "Connected devices", and do "Remove device". Then, plug your device again.') + ' ',
                 _('On Linux, you might have to add a new permission to your udev rules.'),
             ])
-            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device())
+            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device(purpose))
             return
         # select device
         self.devices = devices
@@ -216,23 +228,31 @@ class BaseWizard(object):
             descr = "%s [%s, %s]" % (label, name, state)
             choices.append(((name, info), descr))
         msg = _('Select a device') + ':'
-        self.choice_dialog(title=title, message=msg, choices=choices, run_next=self.on_device)
+        self.choice_dialog(title=title, message=msg, choices=choices, run_next= lambda *args: self.on_device(*args, purpose=purpose))
 
-    def on_device(self, name, device_info):
+    def on_device(self, name, device_info, *, purpose):
         self.plugin = self.plugins.get_plugin(name)
         try:
-            self.plugin.setup_device(device_info, self)
+            self.plugin.setup_device(device_info, self, purpose)
         except BaseException as e:
             self.show_error(str(e))
-            self.choose_hw_device()
+            self.choose_hw_device(purpose)
             return
-        if self.wallet_type=='multisig':
-            # There is no general standard for HD multisig.
-            # This is partially compatible with BIP45; assumes index=0
-            self.on_hw_derivation(name, device_info, "m/45'/0")
+        if purpose == HWD_SETUP_NEW_WALLET:
+            if self.wallet_type=='multisig':
+                # There is no general standard for HD multisig.
+                # This is partially compatible with BIP45; assumes index=0
+                self.on_hw_derivation(name, device_info, "m/45'/0")
+            else:
+                f = lambda x: self.run('on_hw_derivation', name, device_info, str(x))
+                self.derivation_dialog(f)
+        elif purpose == HWD_SETUP_DECRYPT_WALLET:
+            derivation = get_derivation_used_for_hw_device_encryption()
+            xpub = self.plugin.get_xpub(device_info.device.id_, derivation, 'standard', self)
+            password = keystore.Xpub.get_pubkey_from_xpub(xpub, ())
+            self.storage.decrypt(password)
         else:
-            f = lambda x: self.run('on_hw_derivation', name, device_info, str(x))
-            self.derivation_dialog(f)
+            raise Exception('unknown purpose: %s' % purpose)
 
     def derivation_dialog(self, f):
         default = bip44_derivation(0, bip43_purpose=44)
@@ -365,13 +385,45 @@ class BaseWizard(object):
                 self.run('create_wallet')
 
     def create_wallet(self):
-        if any(k.may_have_password() for k in self.keystores):
-            self.request_password(run_next=self.on_password)
+        encrypt_keystore = any(k.may_have_password() for k in self.keystores)
+        # note: the following condition ("if") is duplicated logic from
+        # wallet.get_available_storage_encryption_version()
+        if self.wallet_type == 'standard' and isinstance(self.keystores[0], keystore.Hardware_KeyStore):
+            # offer encrypting with a pw derived from the hw device
+            k = self.keystores[0]
+            try:
+                k.handler = self.plugin.create_handler(self)
+                password = k.get_password_for_storage_encryption()
+            except UserCancelled:
+                devmgr = self.plugins.device_manager
+                devmgr.unpair_xpub(k.xpub)
+                self.choose_hw_device()
+                return
+            except BaseException as e:
+                traceback.print_exc(file=sys.stderr)
+                self.show_error(str(e))
+                return
+            self.request_storage_encryption(
+                run_next=lambda encrypt_storage: self.on_password(
+                    password,
+                    encrypt_storage=encrypt_storage,
+                    storage_enc_version=STO_EV_XPUB_PW,
+                    encrypt_keystore=False))
         else:
-            self.on_password(None, False)
+            # prompt the user to set an arbitrary password
+            self.request_password(
+                run_next=lambda password, encrypt_storage: self.on_password(
+                    password,
+                    encrypt_storage=encrypt_storage,
+                    storage_enc_version=STO_EV_USER_PW,
+                    encrypt_keystore=encrypt_keystore),
+                force_disable_encrypt_cb=not encrypt_keystore)
 
-    def on_password(self, password, encrypt):
-        self.storage.set_password(password, encrypt)
+    def on_password(self, password, *, encrypt_storage,
+                    storage_enc_version=STO_EV_USER_PW, encrypt_keystore):
+        self.storage.set_keystore_encryption(bool(password) and encrypt_keystore)
+        if encrypt_storage:
+            self.storage.set_password(password, enc_version=storage_enc_version)
         for k in self.keystores:
             if k.may_have_password():
                 k.update_password(None, password)
@@ -387,6 +439,13 @@ class BaseWizard(object):
             self.storage.write()
             self.wallet = Multisig_Wallet(self.storage)
             self.run('create_addresses')
+        elif self.wallet_type == 'imported':
+            if len(self.keystores) > 0:
+                keys = self.keystores[0].dump()
+                self.storage.put('keystore', keys)
+            self.wallet = Imported_Wallet(self.storage)
+            self.wallet.storage.write()
+            self.terminate()
 
     def show_xpub_and_add_cosigners(self, xpub):
         self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('choose_keystore'))
