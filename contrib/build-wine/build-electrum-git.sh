@@ -55,7 +55,8 @@ cp -r electrum-ltc-locale/locale $WINEPREFIX/drive_c/electrum-ltc/lib/
 cp electrum-ltc-icons/icons_rc.py $WINEPREFIX/drive_c/electrum-ltc/gui/qt/
 
 # Install frozen dependencies
-$PYTHON -m pip install -r ../../requirements.txt
+$PYTHON -m pip install -r ../../deterministic-build/requirements.txt
+$PYTHON -m pip install -r ../../deterministic-build/requirements-hw.txt
 
 pushd $WINEPREFIX/drive_c/electrum-ltc
 $PYTHON setup.py install
