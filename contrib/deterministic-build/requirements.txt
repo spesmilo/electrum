@@ -5,9 +5,9 @@ ecdsa==0.13
 idna==2.6
 jsonrpclib-pelix==0.3.1
 pbkdf2==1.3
-protobuf==3.5.0.post1
+protobuf==3.5.1
 pyaes==1.6.1
-PySocks==1.6.7
+PySocks==1.6.8
 qrcode==5.3
 requests==2.18.4
 six==1.11.0
