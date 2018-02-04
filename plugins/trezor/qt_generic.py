@@ -188,7 +188,6 @@ class QtPlugin(QtPluginBase):
 
     @hook
     def receive_menu(self, menu, addrs, wallet):
-        keystore = wallet.get_keystore()
         if len(addrs) != 1:
             return
         for keystore in wallet.get_keystores():
