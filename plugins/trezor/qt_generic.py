@@ -189,10 +189,14 @@ class QtPlugin(QtPluginBase):
     @hook
     def receive_menu(self, menu, addrs, wallet):
         keystore = wallet.get_keystore()
-        if type(keystore) == self.keystore_class and len(addrs) == 1:
-            def show_address():
-                keystore.thread.add(partial(self.show_address, wallet, addrs[0]))
-            menu.addAction(_("Show on %s") % self.device, show_address)
+        if len(addrs) != 1:
+            return
+        for keystore in wallet.get_keystores():
+            if type(keystore) == self.keystore_class:
+                def show_address():
+                    keystore.thread.add(partial(self.show_address, wallet, keystore, addrs[0]))
+                menu.addAction(_("Show on %s") % self.device, show_address)
+                break
 
     def show_settings_dialog(self, window, keystore):
         device_id = self.choose_device(window, keystore)
