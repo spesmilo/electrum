@@ -209,6 +209,15 @@ class BaseWizard(object):
         self.plugin = self.plugins.get_plugin(name)
         try:
             self.plugin.setup_device(device_info, self)
+        except OSError as e:
+            self.show_error(_('We encountered an error while connecting to your device:')
+                            + '\n' + str(e) + '\n'
+                            + _('To try to fix this, we will now re-pair with your device.') + '\n'
+                            + _('Please try again.'))
+            devmgr = self.plugins.device_manager
+            devmgr.unpair_id(device_info.device.id_)
+            self.choose_hw_device()
+            return
         except BaseException as e:
             self.show_error(str(e))
             self.choose_hw_device()

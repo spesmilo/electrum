@@ -362,15 +362,20 @@ class DeviceMgr(ThreadJob, PrintError):
             if not xpub in self.xpub_ids:
                 return
             _id = self.xpub_ids.pop(xpub)
-        client = self.client_lookup(_id)
-        self.clients.pop(client, None)
-        if client:
-            client.close()
+            self._close_client(_id)
 
     def unpair_id(self, id_):
         xpub = self.xpub_by_id(id_)
         if xpub:
             self.unpair_xpub(xpub)
+        else:
+            self._close_client(id_)
+
+    def _close_client(self, id_):
+        client = self.client_lookup(id_)
+        self.clients.pop(client, None)
+        if client:
+            client.close()
 
     def pair_xpub(self, xpub, id_):
         with self.lock:
