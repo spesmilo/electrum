@@ -72,10 +72,10 @@ class ContactList(MyTreeWidget):
             column = self.currentColumn()
             column_title = self.headerItem().text(column)
             column_data = '\n'.join([item.text(column) for item in selected])
-            menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(column_data))
+            menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
             if column in self.editable_columns:
                 item = self.currentItem()
-                menu.addAction(_("Edit %s")%column_title, lambda: self.editItem(item, column))
+                menu.addAction(_("Edit {}").format(column_title), lambda: self.editItem(item, column))
             menu.addAction(_("Pay to"), lambda: self.parent.payto_contacts(keys))
             menu.addAction(_("Delete"), lambda: self.parent.delete_contacts(keys))
             URLs = [block_explorer_URL(self.config, 'addr', key) for key in filter(is_address, keys)]

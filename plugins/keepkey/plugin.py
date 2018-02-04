@@ -30,7 +30,7 @@ class KeepKeyCompatibleKeyStore(Hardware_KeyStore):
         return self.plugin.get_client(self, force_pair)
 
     def decrypt_message(self, sequence, message, password):
-        raise RuntimeError(_('Encryption and decryption are not implemented by %s') % self.device)
+        raise RuntimeError(_('Encryption and decryption are not implemented by {}').format(self.device))
 
     def sign_message(self, sequence, message, password):
         client = self.get_client()
@@ -119,9 +119,9 @@ class KeepKeyCompatiblePlugin(HW_PluginBase):
             return None
 
         if not client.atleast_version(*self.minimum_firmware):
-            msg = (_('Outdated %s firmware for device labelled %s. Please '
-                     'download the updated firmware from %s') %
-                   (self.device, client.label(), self.firmware_URL))
+            msg = (_('Outdated {} firmware for device labelled {}. Please '
+                     'download the updated firmware from {}')
+                   .format(self.device, client.label(), self.firmware_URL))
             self.print_error(msg)
             handler.show_error(msg)
             return None
@@ -143,14 +143,14 @@ class KeepKeyCompatiblePlugin(HW_PluginBase):
 
     def initialize_device(self, device_id, wizard, handler):
         # Initialization method
-        msg = _("Choose how you want to initialize your %s.\n\n"
+        msg = _("Choose how you want to initialize your {}.\n\n"
                 "The first two methods are secure as no secret information "
                 "is entered into your computer.\n\n"
                 "For the last two methods you input secrets on your keyboard "
-                "and upload them to your %s, and so you should "
+                "and upload them to your {}, and so you should "
                 "only do those on a computer you know to be trustworthy "
                 "and free of malware."
-        ) % (self.device, self.device)
+        ).format(self.device, self.device)
         choices = [
             # Must be short as QT doesn't word-wrap radio button text
             (TIM_NEW, _("Let the device generate a completely new seed randomly")),

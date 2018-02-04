@@ -421,7 +421,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
 
 
     def decrypt_message(self, pubkey, message, password):
-        raise RuntimeError(_('Encryption and decryption are currently not supported for %s') % self.device)
+        raise RuntimeError(_('Encryption and decryption are currently not supported for {}').format(self.device))
 
 
     def sign_message(self, sequence, message, password):

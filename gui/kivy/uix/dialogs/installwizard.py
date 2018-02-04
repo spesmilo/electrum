@@ -135,7 +135,7 @@ Builder.load_string('''
         height: self.minimum_height
         Label:
             color: root.text_color
-            text: _('From %d cosigners')%n.value
+            text: _('From {} cosigners').format(n.value)
         Slider:
             id: n
             range: 2, 5
@@ -143,7 +143,7 @@ Builder.load_string('''
             value: 2
         Label:
             color: root.text_color
-            text: _('Require %d signatures')%m.value
+            text: _('Require {} signatures').format(m.value)
         Slider:
             id: m
             range: 1, n.value

@@ -144,7 +144,7 @@ class QtHandlerBase(QObject, PrintError):
     def message_dialog(self, msg, on_cancel):
         # Called more than once during signing, to confirm output and fee
         self.clear_dialog()
-        title = _('Please check your %s device') % self.device
+        title = _('Please check your {} device').format(self.device)
         self.dialog = dialog = WindowModalDialog(self.top_level_window(), title)
         l = QLabel(msg)
         vbox = QVBoxLayout(dialog)

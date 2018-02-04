@@ -531,7 +531,7 @@ class Abstract_Wallet(PrintError):
                 height, conf, timestamp = self.get_tx_height(tx_hash)
                 if height > 0:
                     if conf:
-                        status = _("%d confirmations") % conf
+                        status = _("{} confirmations").format(conf)
                     else:
                         status = _('Not verified')
                 elif height in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED):

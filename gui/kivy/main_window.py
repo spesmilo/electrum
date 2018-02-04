@@ -631,7 +631,7 @@ class ElectrumWindow(App):
             if not self.wallet.up_to_date or server_height == 0:
                 status = _("Synchronizing...")
             elif server_lag > 1:
-                status = _("Server lagging (%d blocks)"%server_lag)
+                status = _("Server lagging ({} blocks)").format(server_lag)
             else:
                 c, u, x = self.wallet.get_balance()
                 text = self.format_amount(c+x+u)
@@ -846,7 +846,7 @@ class ElectrumWindow(App):
     def _delete_wallet(self, b):
         if b:
             basename = os.path.basename(self.wallet.storage.path)
-            self.protected(_("Enter your PIN code to confirm deletion of %s") % basename, self.__delete_wallet, ())
+            self.protected(_("Enter your PIN code to confirm deletion of {}").format(basename), self.__delete_wallet, ())
 
     def __delete_wallet(self, pw):
         wallet_path = self.get_wallet_path()

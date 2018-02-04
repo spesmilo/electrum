@@ -42,7 +42,7 @@ class TrezorCompatibleKeyStore(Hardware_KeyStore):
         return self.plugin.get_client(self, force_pair)
 
     def decrypt_message(self, sequence, message, password):
-        raise RuntimeError(_('Encryption and decryption are not implemented by %s') % self.device)
+        raise RuntimeError(_('Encryption and decryption are not implemented by {}').format(self.device))
 
     def sign_message(self, sequence, message, password):
         client = self.get_client()
@@ -126,9 +126,9 @@ class TrezorCompatiblePlugin(HW_PluginBase):
             return None
 
         if not client.atleast_version(*self.minimum_firmware):
-            msg = (_('Outdated %s firmware for device labelled %s. Please '
-                     'download the updated firmware from %s') %
-                   (self.device, client.label(), self.firmware_URL))
+            msg = (_('Outdated {} firmware for device labelled {}. Please '
+                     'download the updated firmware from {}')
+                   .format(self.device, client.label(), self.firmware_URL))
             self.print_error(msg)
             handler.show_error(msg)
             return None
@@ -150,14 +150,14 @@ class TrezorCompatiblePlugin(HW_PluginBase):
 
     def initialize_device(self, device_id, wizard, handler):
         # Initialization method
-        msg = _("Choose how you want to initialize your %s.\n\n"
+        msg = _("Choose how you want to initialize your {}.\n\n"
                 "The first two methods are secure as no secret information "
                 "is entered into your computer.\n\n"
                 "For the last two methods you input secrets on your keyboard "
-                "and upload them to your %s, and so you should "
+                "and upload them to your {}, and so you should "
                 "only do those on a computer you know to be trustworthy "
                 "and free of malware."
-        ) % (self.device, self.device)
+        ).format(self.device, self.device)
         choices = [
             # Must be short as QT doesn't word-wrap radio button text
             (TIM_NEW, _("Let the device generate a completely new seed randomly")),
@@ -243,23 +243,39 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         raw = bh2u(signed_tx)
         tx.update_signatures(raw)
 
-    def show_address(self, wallet, address):
-        client = self.get_client(wallet.keystore)
+    def show_address(self, wallet, keystore, address):
+        client = self.get_client(keystore)
         if not client.atleast_version(1, 3):
-            wallet.keystore.handler.show_error(_("Your device firmware is too old"))
+            keystore.handler.show_error(_("Your device firmware is too old"))
             return
         change, index = wallet.get_address_index(address)
-        derivation = wallet.keystore.derivation
+        derivation = keystore.derivation
         address_path = "%s/%d/%d"%(derivation, change, index)
         address_n = client.expand_path(address_path)
-        script_gen = wallet.keystore.get_script_gen()
-        if script_gen == SCRIPT_GEN_NATIVE_SEGWIT:
-            script_type = self.types.InputScriptType.SPENDWITNESS
-        elif script_gen == SCRIPT_GEN_P2SH_SEGWIT:
-            script_type = self.types.InputScriptType.SPENDP2SHWITNESS
+        xpubs = wallet.get_master_public_keys()
+        if len(xpubs) == 1:
+            script_gen = keystore.get_script_gen()
+            if script_gen == SCRIPT_GEN_NATIVE_SEGWIT:
+                script_type = self.types.InputScriptType.SPENDWITNESS
+            elif script_gen == SCRIPT_GEN_P2SH_SEGWIT:
+                script_type = self.types.InputScriptType.SPENDP2SHWITNESS
+            else:
+                script_type = self.types.InputScriptType.SPENDADDRESS
+            client.get_address(self.get_coin_name(), address_n, True, script_type=script_type)
         else:
-            script_type = self.types.InputScriptType.SPENDADDRESS
-        client.get_address(self.get_coin_name(), address_n, True, script_type=script_type)
+            def f(xpub):
+                node = self.ckd_public.deserialize(xpub)
+                return self.types.HDNodePathType(node=node, address_n=[change, index])
+            pubkeys = wallet.get_public_keys(address)
+            # sort xpubs using the order of pubkeys
+            sorted_pubkeys, sorted_xpubs = zip(*sorted(zip(pubkeys, xpubs)))
+            pubkeys = list(map(f, sorted_xpubs))
+            multisig = self.types.MultisigRedeemScriptType(
+               pubkeys=pubkeys,
+               signatures=[b''] * wallet.n,
+               m=wallet.m,
+            )
+            client.get_address(self.get_coin_name(), address_n, True, multisig=multisig)
 
     def tx_inputs(self, tx, for_sig=False, script_gen=SCRIPT_GEN_LEGACY):
         inputs = []

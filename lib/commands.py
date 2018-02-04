@@ -808,7 +808,7 @@ def subparser_call(self, parser, namespace, values, option_string=None):
         parser = self._name_parser_map[parser_name]
     except KeyError:
         tup = parser_name, ', '.join(self._name_parser_map)
-        msg = _('unknown parser %r (choices: %s)') % tup
+        msg = _('unknown parser {!r} (choices: {})').format(*tup)
         raise ArgumentError(self, msg)
     # parse all the remaining options into the namespace
     # store any unrecognized options on the object, so that the top
