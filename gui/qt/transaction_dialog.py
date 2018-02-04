@@ -197,7 +197,7 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         if timestamp:
             time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
-            self.date_label.setText(_("Date: %s")%time_str)
+            self.date_label.setText(_("Date: {}").format(time_str))
             self.date_label.show()
         elif exp_n:
             text = '%d blocks'%(exp_n) if exp_n > 0 else _('unknown (low fee)')

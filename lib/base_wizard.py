@@ -199,7 +199,7 @@ class BaseWizard(object):
         choices = []
         for name, info in devices:
             state = _("initialized") if info.initialized else _("wiped")
-            label = info.label or _("An unnamed %s")%name
+            label = info.label or _("An unnamed {}").format(name)
             descr = "%s [%s, %s]" % (label, name, state)
             choices.append(((name, info), descr))
         msg = _('Select a device') + ':'

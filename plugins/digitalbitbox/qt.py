@@ -39,7 +39,7 @@ class Plugin(DigitalBitboxPlugin, QtPluginBase):
                     }
                 self.comserver_post_notification(verify_request_payload)
 
-            menu.addAction(_("Show on %s") % self.device, show_address)
+            menu.addAction(_("Show on {}").format(self.device), show_address)
 
 
 class DigitalBitbox_Handler(QtHandlerBase):

@@ -161,9 +161,9 @@ class HistoryList(MyTreeWidget):
 
         menu = QMenu()
 
-        menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(column_data))
+        menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
         if column in self.editable_columns:
-            menu.addAction(_("Edit %s")%column_title, lambda: self.editItem(item, column))
+            menu.addAction(_("Edit {}").format(column_title), lambda: self.editItem(item, column))
 
         menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx))
         if is_unconfirmed and tx:

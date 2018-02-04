@@ -11,15 +11,15 @@ class GuiMixin(object):
     # Requires: self.proto, self.device
 
     messages = {
-        3: _("Confirm the transaction output on your %s device"),
-        4: _("Confirm internal entropy on your %s device to begin"),
-        5: _("Write down the seed word shown on your %s"),
-        6: _("Confirm on your %s that you want to wipe it clean"),
-        7: _("Confirm on your %s device the message to sign"),
+        3: _("Confirm the transaction output on your {} device"),
+        4: _("Confirm internal entropy on your {} device to begin"),
+        5: _("Write down the seed word shown on your {}"),
+        6: _("Confirm on your {} that you want to wipe it clean"),
+        7: _("Confirm on your {} device the message to sign"),
         8: _("Confirm the total amount spent and the transaction fee on your "
-             "%s device"),
-        10: _("Confirm wallet address on your %s device"),
-        'default': _("Check your %s device to continue"),
+             "{} device"),
+        10: _("Confirm wallet address on your {} device"),
+        'default': _("Check your {} device to continue"),
     }
 
     def callback_Failure(self, msg):
@@ -38,18 +38,18 @@ class GuiMixin(object):
         message = self.msg
         if not message:
             message = self.messages.get(msg.code, self.messages['default'])
-        self.handler.show_message(message % self.device, self.cancel)
+        self.handler.show_message(message.format(self.device), self.cancel)
         return self.proto.ButtonAck()
 
     def callback_PinMatrixRequest(self, msg):
         if msg.type == 2:
-            msg = _("Enter a new PIN for your %s:")
+            msg = _("Enter a new PIN for your {}:")
         elif msg.type == 3:
-            msg = (_("Re-enter the new PIN for your %s.\n\n"
+            msg = (_("Re-enter the new PIN for your {}.\n\n"
                      "NOTE: the positions of the numbers have changed!"))
         else:
-            msg = _("Enter your current %s PIN:")
-        pin = self.handler.get_pin(msg % self.device)
+            msg = _("Enter your current {} PIN:")
+        pin = self.handler.get_pin(msg.format(self.device))
         if not pin:
             return self.proto.Cancel()
         return self.proto.PinMatrixAck(pin=pin)
@@ -57,9 +57,9 @@ class GuiMixin(object):
     def callback_PassphraseRequest(self, req):
         if self.creating_wallet:
             msg = _("Enter a passphrase to generate this wallet.  Each time "
-                    "you use this wallet your %s will prompt you for the "
+                    "you use this wallet your {} will prompt you for the "
                     "passphrase.  If you forget the passphrase you cannot "
-                    "access the bitcoins in the wallet.") % self.device
+                    "access the bitcoins in the wallet.").format(self.device)
         else:
             msg = _("Enter the passphrase to unlock this wallet:")
         passphrase = self.handler.get_passphrase(msg, self.creating_wallet)
@@ -70,8 +70,8 @@ class GuiMixin(object):
 
     def callback_WordRequest(self, msg):
         self.step += 1
-        msg = _("Step %d/24.  Enter seed word as explained on "
-                "your %s:") % (self.step, self.device)
+        msg = _("Step {}/24.  Enter seed word as explained on "
+                "your {}:").format(self.step, self.device)
         word = self.handler.get_word(msg)
         # Unfortunately the device can't handle self.proto.Cancel()
         return self.proto.WordAck(word=word)
@@ -155,27 +155,27 @@ class TrezorClientBase(GuiMixin, PrintError):
 
     def toggle_passphrase(self):
         if self.features.passphrase_protection:
-            self.msg = _("Confirm on your %s device to disable passphrases")
+            self.msg = _("Confirm on your {} device to disable passphrases")
         else:
-            self.msg = _("Confirm on your %s device to enable passphrases")
+            self.msg = _("Confirm on your {} device to enable passphrases")
         enabled = not self.features.passphrase_protection
         self.apply_settings(use_passphrase=enabled)
 
     def change_label(self, label):
-        self.msg = _("Confirm the new label on your %s device")
+        self.msg = _("Confirm the new label on your {} device")
         self.apply_settings(label=label)
 
     def change_homescreen(self, homescreen):
-        self.msg = _("Confirm on your %s device to change your home screen")
+        self.msg = _("Confirm on your {} device to change your home screen")
         self.apply_settings(homescreen=homescreen)
 
     def set_pin(self, remove):
         if remove:
-            self.msg = _("Confirm on your %s device to disable PIN protection")
+            self.msg = _("Confirm on your {} device to disable PIN protection")
         elif self.features.pin_protection:
-            self.msg = _("Confirm on your %s device to change your PIN")
+            self.msg = _("Confirm on your {} device to change your PIN")
         else:
-            self.msg = _("Confirm on your %s device to set a PIN")
+            self.msg = _("Confirm on your {} device to set a PIN")
         self.change_pin(remove)
 
     def clear_session(self):
