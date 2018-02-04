@@ -164,7 +164,7 @@ class LedgerAuthDialog(QDialog):
             if not self.cfg['pair']:
                 self.modes.addItem(_("Mobile - Not paired")) 
             else:
-                self.modes.addItem(_("Mobile - %s") % self.cfg['pair'][1]) 
+                self.modes.addItem(_("Mobile - {}").format(self.cfg['pair'][1]))
         self.modes.blockSignals(False)
         
     def update_dlg(self):

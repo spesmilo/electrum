@@ -26,7 +26,7 @@ MSG_GENERATING_WAIT = _("Electrum is generating your addresses, please wait...")
 MSG_ENTER_ANYTHING = _("Please enter a seed phrase, a master key, a list of "
                        "Bitcoin addresses, or a list of private keys")
 MSG_ENTER_SEED_OR_MPK = _("Please enter a seed phrase or a master key (xpub or xprv):")
-MSG_COSIGNER = _("Please enter the master public key of cosigner #%d:")
+MSG_COSIGNER = _("Please enter the master public key of cosigner #{}:")
 MSG_ENTER_PASSWORD = _("Choose a password to encrypt your wallet keys.") + '\n'\
                      + _("Leave this field empty if you want to disable encryption.")
 MSG_HW_STORAGE_ENCRYPTION = _("Set wallet file encryption.") + '\n'\
@@ -275,8 +275,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         path = self.storage.path
         if self.storage.requires_split():
             self.hide()
-            msg = _("The wallet '%s' contains multiple accounts, which are no longer supported since Electrum 2.7.\n\n"
-                    "Do you want to split your wallet into multiple files?"%path)
+            msg = _("The wallet '{}' contains multiple accounts, which are no longer supported since Electrum 2.7.\n\n"
+                    "Do you want to split your wallet into multiple files?").format(path)
             if not self.question(msg):
                 return
             file_list = '\n'.join(self.storage.split_accounts())
@@ -294,10 +294,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         action = self.storage.get_action()
         if action and action != 'new':
             self.hide()
-            msg = _("The file '%s' contains an incompletely created wallet.\n"
-                    "Do you want to complete its creation now?") % path
+            msg = _("The file '{}' contains an incompletely created wallet.\n"
+                    "Do you want to complete its creation now?").format(path)
             if not self.question(msg):
-                if self.question(_("Do you want to delete '%s'?") % path):
+                if self.question(_("Do you want to delete '{}'?").format(path)):
                     os.remove(path)
                     self.show_warning(_('The file was removed'))
                 return

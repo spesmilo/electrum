@@ -96,9 +96,9 @@ class Plugin(BasePlugin):
 
             # 3. display the result
             if response.get('verified'):
-                d.show_message(_('%s is covered by GreenAddress instant confirmation') % (tx.txid()), title=_('Verification successful!'))
+                d.show_message(_('{} is covered by GreenAddress instant confirmation').format(tx.txid()), title=_('Verification successful!'))
             else:
-                d.show_critical(_('%s is not covered by GreenAddress instant confirmation') % (tx.txid()), title=_('Verification failed!'))
+                d.show_critical(_('{} is not covered by GreenAddress instant confirmation').format(tx.txid()), title=_('Verification failed!'))
         except BaseException as e:
             import traceback
             traceback.print_exc(file=sys.stdout)
