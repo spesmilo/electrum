@@ -430,13 +430,13 @@ class TrustedCoinPlugin(BasePlugin):
         wizard.storage.put('x2/', k2.dump())
         wizard.storage.write()
         msg = [
-            _("Your wallet file is: %s.")%os.path.abspath(wizard.storage.path),
+            _("Your wallet file is: {}.").format(os.path.abspath(wizard.storage.path)),
             _("You need to be online in order to complete the creation of "
               "your wallet.  If you generated your seed on an offline "
-              'computer, click on "%s" to close this window, move your '
+              'computer, click on "{}" to close this window, move your '
               "wallet file to an online computer, and reopen it with "
-              "Electrum.") % _('Cancel'),
-            _('If you are online, click on "%s" to continue.') % _('Next')
+              "Electrum.").format(_('Cancel')),
+            _('If you are online, click on "{}" to continue.').format(_('Next'))
         ]
         msg = '\n\n'.join(msg)
         wizard.stack = []

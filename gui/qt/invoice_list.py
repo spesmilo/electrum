@@ -76,7 +76,7 @@ class InvoiceList(MyTreeWidget):
         pr = self.parent.invoices.get(key)
         status = self.parent.invoices.get_status(key)
         if column_data:
-            menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(column_data))
+            menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
         menu.addAction(_("Details"), lambda: self.parent.show_invoice(key))
         if status == PR_UNPAID:
             menu.addAction(_("Pay Now"), lambda: self.parent.do_pay_invoice(key))

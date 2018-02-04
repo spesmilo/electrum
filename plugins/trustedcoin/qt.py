@@ -173,7 +173,7 @@ class Plugin(TrustedCoinPlugin):
             i += 1
 
         n = wallet.billing_info.get('tx_remaining', 0)
-        grid.addWidget(QLabel(_("Your wallet has %d prepaid transactions.")%n), i, 0)
+        grid.addWidget(QLabel(_("Your wallet has {} prepaid transactions.").format(n)), i, 0)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
 
