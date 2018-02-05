@@ -106,12 +106,7 @@ class BTCAmountEdit(AmountEdit):
 
 class FeerateEdit(BTCAmountEdit):
     def _base_unit(self):
-        p = self.decimal_point()
-        if p == 2:
-            return 'mLTC/kB'
-        if p == 0:
-            return 'sat/byte'
-        raise Exception('Unknown base unit')
+        return 'sat/byte'
 
     def get_amount(self):
         sat_per_byte_amount = BTCAmountEdit.get_amount(self)

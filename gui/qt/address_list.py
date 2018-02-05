@@ -38,11 +38,11 @@ class AddressList(MyTreeWidget):
         MyTreeWidget.__init__(self, parent, self.create_menu, [], 1)
         self.refresh_headers()
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.show_change = False
+        self.show_change = 0
         self.show_used = 0
         self.change_button = QComboBox(self)
         self.change_button.currentIndexChanged.connect(self.toggle_change)
-        for t in [_('Receiving'), _('Change')]:
+        for t in [_('Receiving'), _('Change'), _('All')]:
             self.change_button.addItem(t)
         self.used_button = QComboBox(self)
         self.used_button.currentIndexChanged.connect(self.toggle_used)
@@ -60,11 +60,10 @@ class AddressList(MyTreeWidget):
         headers.extend([_('Tx')])
         self.update_headers(headers)
 
-    def toggle_change(self, show):
-        show = bool(show)
-        if show == self.show_change:
+    def toggle_change(self, state):
+        if state == self.show_change:
             return
-        self.show_change = show
+        self.show_change = state
         self.update()
 
     def toggle_used(self, state):
@@ -77,7 +76,12 @@ class AddressList(MyTreeWidget):
         self.wallet = self.parent.wallet
         item = self.currentItem()
         current_address = item.data(0, Qt.UserRole) if item else None
-        addr_list = self.wallet.get_change_addresses() if self.show_change else self.wallet.get_receiving_addresses()
+        if self.show_change == 0:
+            addr_list = self.wallet.get_receiving_addresses()
+        elif self.show_change == 1:
+            addr_list = self.wallet.get_change_addresses()
+        else:
+            addr_list = self.wallet.get_addresses()
         self.clear()
         for address in addr_list:
             num = len(self.wallet.history.get(address,[]))
@@ -106,7 +110,7 @@ class AddressList(MyTreeWidget):
             address_item.setData(0, Qt.UserRole+1, True) # label can be edited
             if self.wallet.is_frozen(address):
                 address_item.setBackground(0, ColorScheme.BLUE.as_color(True))
-            if self.wallet.is_beyond_limit(address, self.show_change):
+            if self.wallet.is_beyond_limit(address):
                 address_item.setBackground(0, ColorScheme.RED.as_color(True))
             self.addChild(address_item)
             if address == current_address:

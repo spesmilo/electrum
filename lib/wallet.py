@@ -538,10 +538,10 @@ class Abstract_Wallet(PrintError):
                     status = _('Unconfirmed')
                     if fee is None:
                         fee = self.tx_fees.get(tx_hash)
-                    if fee and self.network.config.has_fee_estimates():
+                    if fee and self.network.config.has_fee_etas():
                         size = tx.estimated_size()
                         fee_per_kb = fee * 1000 / size
-                        exp_n = self.network.config.reverse_dynfee(fee_per_kb)
+                        exp_n = self.network.config.fee_to_eta(fee_per_kb)
                     can_bump = is_mine and not tx.is_final()
                 else:
                     status = _('Local')
@@ -860,18 +860,17 @@ class Abstract_Wallet(PrintError):
 
     def get_tx_status(self, tx_hash, height, conf, timestamp):
         from .util import format_time
+        exp_n = False
         if conf == 0:
             tx = self.transactions.get(tx_hash)
             if not tx:
                 return 3, 'unknown'
             is_final = tx and tx.is_final()
             fee = self.tx_fees.get(tx_hash)
-            if fee and self.network and self.network.config.has_fee_estimates():
-                size = len(tx.raw)/2
-                low_fee = int(self.network.config.dynfee(0)*size/1000)
-                is_lowfee = fee < low_fee * 0.5
-            else:
-                is_lowfee = False
+            if fee and self.network and self.network.config.has_fee_mempool():
+                size = tx.estimated_size()
+                fee_per_kb = fee * 1000 / size
+                exp_n = self.network.config.fee_to_depth(fee_per_kb//1000)
             if height == TX_HEIGHT_LOCAL:
                 status = 5
             elif height == TX_HEIGHT_UNCONF_PARENT:
@@ -888,6 +887,8 @@ class Abstract_Wallet(PrintError):
             status = 5 + min(conf, 6)
         time_str = format_time(timestamp) if timestamp else _("unknown")
         status_str = TX_STATUS[status] if status < 6 else time_str
+        if exp_n:
+            status_str += ' [%d sat/b, %.2f MB]'%(fee_per_kb//1000, exp_n/1000000)
         return status, status_str
 
     def relayfee(self):
@@ -1535,7 +1536,7 @@ class Imported_Wallet(Simple_Wallet):
     def get_master_public_keys(self):
         return []
 
-    def is_beyond_limit(self, address, is_change):
+    def is_beyond_limit(self, address):
         return False
 
     def is_mine(self, address):
@@ -1775,9 +1776,9 @@ class Deterministic_Wallet(Abstract_Wallet):
                     for addr in self.receiving_addresses:
                         self.add_address(addr)
 
-    def is_beyond_limit(self, address, is_change):
+    def is_beyond_limit(self, address):
+        is_change, i = self.get_address_index(address)
         addr_list = self.get_change_addresses() if is_change else self.get_receiving_addresses()
-        i = self.get_address_index(address)[1]
         limit = self.gap_limit_for_change if is_change else self.gap_limit
         if i < limit:
             return False

@@ -321,8 +321,10 @@ class Network(util.DaemonThread):
             self.queue_request('blockchain.scripthash.subscribe', [h])
 
     def request_fee_estimates(self):
+        from .simple_config import FEE_ETA_TARGETS
         self.config.requested_fee_estimates()
-        for i in bitcoin.FEE_TARGETS:
+        self.queue_request('mempool.get_fee_histogram', [])
+        for i in FEE_ETA_TARGETS:
             self.queue_request('blockchain.estimatefee', [i])
 
     def get_status_value(self, key):
@@ -332,6 +334,8 @@ class Network(util.DaemonThread):
             value = self.banner
         elif key == 'fee':
             value = self.config.fee_estimates
+        elif key == 'fee_histogram':
+            value = self.config.mempool_fees
         elif key == 'updated':
             value = (self.get_local_height(), self.get_server_height())
         elif key == 'servers':
@@ -543,6 +547,11 @@ class Network(util.DaemonThread):
         elif method == 'server.donation_address':
             if error is None:
                 self.donation_address = result
+        elif method == 'mempool.get_fee_histogram':
+            if error is None:
+                self.print_error(result)
+                self.config.mempool_fees = result
+                self.notify('fee_histogram')
         elif method == 'blockchain.estimatefee':
             if error is None and result > 0:
                 i = params[0]
