@@ -66,7 +66,6 @@ from .contacts import Contacts
 TX_STATUS = [
     _('Replaceable'),
     _('Unconfirmed parent'),
-    _('Low fee'),
     _('Unconfirmed'),
     _('Not Verified'),
     _('Local only'),
@@ -877,16 +876,14 @@ class Abstract_Wallet(PrintError):
                 status = 1
             elif height == TX_HEIGHT_UNCONFIRMED and not is_final:
                 status = 0
-            elif height == TX_HEIGHT_UNCONFIRMED and is_lowfee:
-                status = 2
             elif height == TX_HEIGHT_UNCONFIRMED:
-                status = 3
+                status = 2
             else:
-                status = 4
+                status = 3
         else:
-            status = 5 + min(conf, 6)
+            status = 4 + min(conf, 6)
         time_str = format_time(timestamp) if timestamp else _("unknown")
-        status_str = TX_STATUS[status] if status < 6 else time_str
+        status_str = TX_STATUS[status] if status < 5 else time_str
         if exp_n:
             status_str += ' [%d sat/b, %.2f MB]'%(fee_per_kb//1000, exp_n/1000000)
         return status, status_str

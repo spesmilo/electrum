@@ -36,7 +36,6 @@ from electrum.util import timestamp_to_datetime, profiler
 TX_ICONS = [
     "warning.png",
     "warning.png",
-    "warning.png",
     "unconfirmed.png",
     "unconfirmed.png",
     "offline_tx.png",
