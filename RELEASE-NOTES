@@ -28,7 +28,7 @@
    until they are confirmed.
  * Watching-only wallets and hardware wallets can be encrypted.
  * Semi-automated crash reporting
- * The SSH checkbox option was removed from the GUI.
+ * The SSL checkbox option was removed from the GUI.
 
 
 # Release 3.0.6 :
