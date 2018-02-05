@@ -1,7 +1,38 @@
+# Release 3.1 - (to be released)
+
+ * Mempory pool based fee estimates. If this option is activated,
+   users can set transaction fees that target a desired depth in the
+   memory pool. This feature might be controversial, because miners
+   could conspire and fill the memory pool with expensive transactions
+   that never get mined. However, our current time-based fee estimates
+   results in sticky fees, which cause inexperienced users to overpay,
+   while more advanced users visit (and trust) websites that display
+   memorypool data, and set their fee accordingly.
+ * Local transactions: Transactions that have not been broadcasted can
+   be saved in the wallet file, and their outputs can be used in
+   subsequent transactions. Transactions that disapear from the memory
+   pool stay in the wallet, and can be rebroadcasted. This feature can
+   be combined with cold storage, to create several transactions
+   before broadcasting.
+ * The initial headers download was replaced with hardcoded
+   checkpoints, one per retargeting period. Past headers are
+   downloaded when needed.
+ * The two coin selection policies have been merged, and the policy
+   choice was removed from preferences. Previously, the 'privacy'
+   policy has been unusable because it was was not prioritizing
+   confirmed coins.
+ * The 'Send' tab of the Qt GUI displays how transaction fees are
+   computed from transaction size.
+ * RBF is enabled by default. This might cause some issues with
+   merchants that use wallets that do not display RBF transactions
+   until they are confirmed.
+ * Watching-only wallets and hardware wallets can be encrypted.
+ * Semi-automated crash reporting
+ * The SSL checkbox option was removed from the GUI.
+
+
 # Release 3.0.6 :
-
   * Fix transaction parsing bug #3788
-
 
 # Release 3.0.5 : (Security update)
 
