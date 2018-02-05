@@ -863,7 +863,7 @@ class Abstract_Wallet(PrintError):
         if conf == 0:
             tx = self.transactions.get(tx_hash)
             if not tx:
-                return 3, 'unknown'
+                return 2, 'unknown'
             is_final = tx and tx.is_final()
             fee = self.tx_fees.get(tx_hash)
             if fee and self.network and self.network.config.has_fee_mempool():
@@ -871,7 +871,7 @@ class Abstract_Wallet(PrintError):
                 fee_per_kb = fee * 1000 / size
                 exp_n = self.network.config.fee_to_depth(fee_per_kb//1000)
             if height == TX_HEIGHT_LOCAL:
-                status = 5
+                status = 4
             elif height == TX_HEIGHT_UNCONF_PARENT:
                 status = 1
             elif height == TX_HEIGHT_UNCONFIRMED and not is_final:
