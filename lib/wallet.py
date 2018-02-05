@@ -1535,7 +1535,7 @@ class Imported_Wallet(Simple_Wallet):
     def get_master_public_keys(self):
         return []
 
-    def is_beyond_limit(self, address, is_change):
+    def is_beyond_limit(self, address):
         return False
 
     def is_mine(self, address):
@@ -1775,9 +1775,9 @@ class Deterministic_Wallet(Abstract_Wallet):
                     for addr in self.receiving_addresses:
                         self.add_address(addr)
 
-    def is_beyond_limit(self, address, is_change):
+    def is_beyond_limit(self, address):
+        is_change, i = self.get_address_index(address)
         addr_list = self.get_change_addresses() if is_change else self.get_receiving_addresses()
-        i = self.get_address_index(address)[1]
         limit = self.gap_limit_for_change if is_change else self.gap_limit
         if i < limit:
             return False
