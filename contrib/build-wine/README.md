@@ -34,3 +34,30 @@ The binaries are also built by Travis CI, so if you are having problems,
 2. Make sure `/opt` is writable by the current user.
 3. Run `build.sh`.
 4. The generated binaries are in `./dist`.
+
+
+Code Signing
+============
+
+Electrum Windows builds are signed with a Microsoft Authenticode™ code signing
+certificate in addition to the GPG-based signatures.
+
+The advantage of using Authenticode is that Electrum users won't receive a 
+Windows SmartScreen warning when starting it.
+
+The release signing procedure involves a signer (the holder of the
+certificate/key) and one or multiple trusted verifiers:
+
+
+| Signer                                                    | Verifier                          |
+|-----------------------------------------------------------|-----------------------------------|
+| Build .exe files using `build.sh`                         |                                   |
+|                                                           | Build .exe files using `build.sh` |
+|                                                           | Sign .exe files using `gpg -b`    |
+|                                                           | Send signatures to signer         |
+| Place signatures as `$filename.$builder.asc` in `./dist`  |                                   |
+| Run `./sign.sh`                                           |                                   |
+
+
+`sign.sh` will check if the signatures match the signer's files. This ensures that the signer's
+build environment is not compromised and that the binaries can be reproduced by anyone.
