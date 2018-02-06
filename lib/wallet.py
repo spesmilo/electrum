@@ -779,6 +779,7 @@ class Abstract_Wallet(PrintError):
                     # make tx local
                     self.unverified_tx.pop(tx_hash, None)
                     self.verified_tx.pop(tx_hash, None)
+                    self.verifier.merkle_roots.pop(tx_hash, None)
             self.history[addr] = hist
 
         for tx_hash, tx_height in hist:
