@@ -84,38 +84,22 @@ class TrezorCompatiblePlugin(HW_PluginBase):
     def __init__(self, parent, config, name):
         HW_PluginBase.__init__(self, parent, config, name)
         self.main_thread = threading.current_thread()
-        # FIXME: move to base class when Ledger is fixed
         if self.libraries_available:
-            self.device_manager().register_devices(self.DEVICE_IDS)
+            self.device_manager().register_enumerate_func(self.enumerate)
 
-    def _try_hid(self, device):
-        self.print_error("Trying to connect over USB...")
+    def create_client(self, device, handler):
         try:
-            return self.hid_transport(device)
+            self.print_error("Trying to connect to TREZOR...")
+            transport = self.transport(device)
         except BaseException as e:
-            # see fdb810ba622dc7dbe1259cbafb5b28e19d2ab114
-            # raise
             self.print_error("cannot connect at", device.path, str(e))
             return None
 
-    def _try_bridge(self, device):
-        self.print_error("Trying to connect over Trezor Bridge...")
-        try:
-            return self.bridge_transport({'path': hexlify(device.path)})
-        except BaseException as e:
-            self.print_error("cannot connect to bridge", str(e))
-            return None
-
-    def create_client(self, device, handler):
-        # disable bridge because it seems to never returns if keepkey is plugged
-        #transport = self._try_bridge(device) or self._try_hid(device)
-        transport = self._try_hid(device)
         if not transport:
-            self.print_error("cannot connect to device")
+            self.print_error("cannot connect at", device.path)
             return
 
         self.print_error("connected to device at", device.path)
-
         client = self.client_class(transport, handler, self)
 
         # Try a ping for device sanity

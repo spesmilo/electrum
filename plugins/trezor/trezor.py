@@ -16,21 +16,22 @@ class TrezorPlugin(TrezorCompatiblePlugin):
             from . import client
             import trezorlib
             import trezorlib.ckd_public
-            import trezorlib.transport_hid
             import trezorlib.messages
+            import trezorlib.device
             self.client_class = client.TrezorClient
             self.ckd_public = trezorlib.ckd_public
             self.types = trezorlib.messages
-            self.DEVICE_IDS = (trezorlib.transport_hid.DEV_TREZOR1, trezorlib.transport_hid.DEV_TREZOR2)
+            self.DEVICE_IDS = ('TREZOR',)
             self.libraries_available = True
         except ImportError:
             self.libraries_available = False
         TrezorCompatiblePlugin.__init__(self, *args)
 
-    def hid_transport(self, device):
-        from trezorlib.transport_hid import HidTransport
-        return HidTransport.find_by_path(device.path)
+    def enumerate(self):
+        from trezorlib.device import TrezorDevice
+        from electrum.plugins import Device
+        return [Device(str(d), -1, str(d), 'TREZOR', 0) for d in TrezorDevice.enumerate()]
 
-    def bridge_transport(self, d):
-        from trezorlib.transport_bridge import BridgeTransport
-        return BridgeTransport(d)
+    def transport(self, device):
+        from trezorlib.device import TrezorDevice
+        return TrezorDevice.find_by_path(device.path)
