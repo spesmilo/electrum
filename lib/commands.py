@@ -627,7 +627,8 @@ class Commands:
     def addtransaction(self, tx):
         """ Add a transaction to the wallet history """
         tx = Transaction(tx)
-        self.wallet.add_transaction(tx.txid(), tx)
+        if not self.wallet.add_transaction(tx.txid(), tx):
+            return False
         self.wallet.save_transactions()
         return tx.txid()
 
