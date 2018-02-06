@@ -64,6 +64,10 @@ Install Dependencies::
   (Ubuntu with ledger wallet)
   ln -s /lib/x86_64-linux-gnu/libudev.so.1 /lib/x86_64-linux-gnu/libudev.so
 
+  # For yum installations (no apt-get), or for a clean python env, use Anaconda with Python 3:
+  
+  #https://poweruphosting.com/blog/install-anaconda-python-ubuntu-16-04/
+
 
 Compile the icons file for Qt::
 
