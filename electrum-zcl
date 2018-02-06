@@ -85,9 +85,9 @@ if not is_android:
 # load local module as electrum
 if is_local or is_android or is_macOS:
     import imp
-    imp.load_module('electrum', *imp.find_module('lib'))
-    imp.load_module('electrum_gui', *imp.find_module('gui'))
-    imp.load_module('electrum_plugins', *imp.find_module('plugins'))
+    imp.load_module('electrum-zcl', *imp.find_module('lib'))
+    imp.load_module('electrum-zcl_gui', *imp.find_module('gui'))
+    imp.load_module('electrum-zcl_plugins', *imp.find_module('plugins'))
 
 
 from electrum import bitcoin
