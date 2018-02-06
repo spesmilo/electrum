@@ -70,7 +70,6 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
 
     @profiler
     def on_update(self):
-        # TODO save and restore scroll position (maybe based on y coord or selected item?)
         self.wallet = self.parent.wallet
         h = self.wallet.get_history(self.get_domain())
         item = self.currentItem()
@@ -213,4 +212,5 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
                 self.parent.show_error(e)
             else:
                 self.wallet.save_transactions(write=True)
-                self.on_update()
+                # need to update at least: history_list, utxo_list, address_list
+                self.parent.need_update.set()

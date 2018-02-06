@@ -478,8 +478,12 @@ class MyTreeWidget(QTreeWidget):
             self.pending_update = True
         else:
             self.setUpdatesEnabled(False)
+            scroll_pos = self.verticalScrollBar().value()
             self.on_update()
             self.setUpdatesEnabled(True)
+            # To paint the list before resetting the scroll position
+            self.parent.app.processEvents()
+            self.verticalScrollBar().setValue(scroll_pos)
         if self.current_filter:
             self.filter(self.current_filter)
 

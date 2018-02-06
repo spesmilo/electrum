@@ -328,7 +328,7 @@ class SimpleConfig(PrintError):
     def get_fee_status(self):
         dyn = self.is_dynfee()
         mempool = self.get('mempool_fees')
-        pos = self.get('fee_level', 2) if mempool else self.get('depth_level', 2)
+        pos = self.get_depth_level() if mempool else self.get_fee_level()
         fee_rate = self.fee_per_kb()
         target, tooltip = self.get_fee_text(pos, dyn, mempool, fee_rate)
         return target
@@ -359,20 +359,28 @@ class SimpleConfig(PrintError):
                     tooltip = ''
         return text, tooltip
 
+    def get_depth_level(self):
+        maxp = len(FEE_DEPTH_TARGETS) - 1
+        return min(maxp, self.get('depth_level', 2))
+
+    def get_fee_level(self):
+        maxp = len(FEE_ETA_TARGETS) - 1
+        return min(maxp, self.get('fee_level', 2))
+
     def get_fee_slider(self, dyn, mempool):
         if dyn:
             if mempool:
+                pos = self.get_depth_level()
                 maxp = len(FEE_DEPTH_TARGETS) - 1
-                pos = min(maxp, self.get('depth_level', 2))
                 fee_rate = self.depth_to_fee(pos)
             else:
+                pos = self.get_fee_level()
                 maxp = len(FEE_ETA_TARGETS) - 1
-                pos = min(maxp, self.get('fee_level', 2))
                 fee_rate = self.eta_to_fee(pos)
         else:
             fee_rate = self.fee_per_kb()
             pos = self.static_fee_index(fee_rate)
-            maxp= 9
+            maxp = 9
         return maxp, pos, fee_rate
 
 
@@ -401,9 +409,9 @@ class SimpleConfig(PrintError):
         """
         if self.is_dynfee():
             if self.use_mempool_fees():
-                fee_rate = self.depth_to_fee(self.get('depth_level', 2))
+                fee_rate = self.depth_to_fee(self.get_depth_level())
             else:
-                fee_rate = self.eta_to_fee(self.get('fee_level', 2))
+                fee_rate = self.eta_to_fee(self.get_fee_level())
         else:
             fee_rate = self.get('fee_per_kb', self.max_fee_rate()/10)
         return fee_rate
