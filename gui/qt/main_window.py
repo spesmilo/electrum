@@ -2017,6 +2017,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         if addr.kind != addr.ADDR_P2PKH:
             self.show_message(_('Cannot sign messages with this type of address.') + '\n\n' + self.msg_sign)
+        if self.wallet.is_watching_only():
+            self.show_message(_('This is a watching-only wallet.'))
             return
         if not self.wallet.is_mine(addr):
             self.show_message(_('Address not in wallet.'))
@@ -2086,6 +2088,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     @protected
     def do_decrypt(self, message_e, pubkey_e, encrypted_e, password):
+        if self.wallet.is_watching_only():
+            self.show_message(_('This is a watching-only wallet.'))
+            return
         cyphertext = encrypted_e.toPlainText()
         task = partial(self.wallet.decrypt_message, pubkey_e.text(), cyphertext, password)
         self.wallet.thread.add(task, on_success=lambda text: message_e.setText(text.decode('utf-8')))
