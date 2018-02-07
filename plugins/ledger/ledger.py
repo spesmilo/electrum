@@ -10,7 +10,7 @@ from electroncash.plugins import BasePlugin
 from electroncash.keystore import Hardware_KeyStore
 from electroncash.transaction import Transaction
 from ..hw_wallet import HW_PluginBase
-from electroncash.util import print_error, is_verbose, bfh, bh2u
+from electroncash.util import print_error, is_verbose, bfh, bh2u, versiontuple
 
 try:
     import hid
@@ -25,9 +25,9 @@ try:
 except ImportError:
     BTCHIP = False
 
-class Ledger_Client():
+BITCOIN_CASH_SUPPORT = (1, 1, 8)
 
-    BITCOIN_CASH_SUPPORT = "1.1.8"
+class Ledger_Client():
 
     def __init__(self, hidDevice):
         self.dongleObject = btchip(hidDevice)
@@ -50,9 +50,6 @@ class Ledger_Client():
 
     def i4b(self, x):
         return pack('>I', x)
-
-    def versiontuple(self, v):
-        return tuple(map(int, (v.split("."))))
 
     def test_pin_unlocked(func):
         """Function decorator to test the Ledger for being unlocked, and if not,
@@ -121,7 +118,7 @@ class Ledger_Client():
         try:
             firmwareInfo = self.dongleObject.getFirmwareVersion()
             firmware = firmwareInfo['version']
-            bitcoinCashSupport = self.versiontuple(firmware) >= self.versiontuple(self.BITCOIN_CASH_SUPPORT)
+            bitcoinCashSupport = versiontuple(firmware) >= BITCOIN_CASH_SUPPORT
 
             if not checkFirmware(firmwareInfo) or not bitcoinCashSupport:
                 self.dongleObject.dongle.close()
