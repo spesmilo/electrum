@@ -36,7 +36,7 @@ from kivy.lang import Builder
 #Factory.register('OutputItem', module='electrum_gui.kivy.uix.dialogs')
 
 from .uix.dialogs.installwizard import InstallWizard
-from .uix.dialogs import InfoBubble
+from .uix.dialogs import InfoBubble, crash_reporter
 from .uix.dialogs import OutputList, OutputItem
 
 #from kivy.core.window import Window
@@ -449,6 +449,7 @@ class ElectrumWindow(App):
         #win.softinput_mode = 'below_target'
         self.on_size(win, win.size)
         self.init_ui()
+        crash_reporter.ExceptionHook(self)
         # init plugins
         run_hook('init_kivy', self)
         # fiat currency
