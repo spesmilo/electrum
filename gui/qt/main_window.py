@@ -1012,6 +1012,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.qr_window and self.qr_window.isVisible():
             self.qr_window.set_content(addr, amount, message, uri)
 
+    def set_feerounding_text(self, num_satoshis_added):
+        self.feerounding_text = (_('Additional {} satoshis are going to be added.')
+                                 .format(num_satoshis_added))
+
     def create_send_tab(self):
         # A 4-column grid layout.  All the stretch is in the last column.
         # The exchange rate plugin adds a fiat widget in column 2
@@ -1130,7 +1134,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fee_e.editingFinished.connect(partial(on_fee_or_feerate, self.fee_e, True))
 
         def feerounding_onclick():
-            text = (_('To somewhat protect your privacy, Electrum tries to create change with similar precision to other outputs.') + ' ' +
+            text = (self.feerounding_text + '\n\n' +
+                    _('To somewhat protect your privacy, Electrum tries to create change with similar precision to other outputs.') + ' ' +
                     _('At most 100 satoshis might be lost due to this rounding.') + '\n' +
                     _('Also, dust is not kept as change, but added to the fee.'))
             QMessageBox.information(self, 'Fee rounding', text)
@@ -1330,12 +1335,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
             # show/hide fee rounding icon
             feerounding = (fee - displayed_fee) if fee else 0
-            if feerounding:
-                self.feerounding_icon.setToolTip(
-                    _('additional {} satoshis will be added').format(feerounding))
-                self.feerounding_icon.setVisible(True)
-            else:
-                self.feerounding_icon.setVisible(False)
+            self.set_feerounding_text(feerounding)
+            self.feerounding_icon.setToolTip(self.feerounding_text)
+            self.feerounding_icon.setVisible(bool(feerounding))
 
             if self.is_max:
                 amount = tx.output_value()
@@ -2117,6 +2119,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not bitcoin.is_address(address):
             self.show_message(_('Invalid Litecoin address.'))
             return
+        if self.wallet.is_watching_only():
+            self.show_message(_('This is a watching-only wallet.'))
+            return
         if not self.wallet.is_mine(address):
             self.show_message(_('Address not in wallet.'))
             return
@@ -2187,6 +2192,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     @protected
     def do_decrypt(self, message_e, pubkey_e, encrypted_e, password):
+        if self.wallet.is_watching_only():
+            self.show_message(_('This is a watching-only wallet.'))
+            return
         cyphertext = encrypted_e.toPlainText()
         task = partial(self.wallet.decrypt_message, pubkey_e.text(), cyphertext, password)
         self.wallet.thread.add(task, on_success=lambda text: message_e.setText(text.decode('utf-8')))

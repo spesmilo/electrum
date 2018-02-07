@@ -31,8 +31,11 @@ class FeeSlider(QSlider):
 
     def get_tooltip(self, pos, fee_rate):
         mempool = self.config.get('mempool_fees')
-        text, tooltip = self.config.get_fee_text(pos, self.dyn, mempool, fee_rate)
-        return text + '\n' + tooltip
+        target, estimate = self.config.get_fee_text(pos, self.dyn, mempool, fee_rate)
+        if self.dyn:
+            return _('Target') + ': ' + target + '\n' + _('Current rate') + ': ' + estimate
+        else:
+            return _('Fixed rate') + ': ' + target + '\n' + _('Estimate') + ': ' + estimate
 
     def update(self):
         with self.lock:

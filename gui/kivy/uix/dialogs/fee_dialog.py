@@ -18,7 +18,17 @@ Builder.load_string('''
             orientation: 'horizontal'
             size_hint: 1, 0.5
             Label:
-                id: fee_per_kb
+                text: (_('Target') if dynfees.active else _('Fixed rate')) + ':'
+            Label:
+                id: fee_target
+                text: ''
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint: 1, 0.5
+            Label:
+                text: (_('Current rate') if dynfees.active else _('Estimate')) + ':'
+            Label:
+                id: fee_estimate
                 text: ''
         Slider:
             id: slider
@@ -77,7 +87,9 @@ class FeeDialog(Factory.Popup):
 
     def update_text(self):
         value = int(self.ids.slider.value)
-        self.ids.fee_per_kb.text = self.get_fee_text(value)
+        target, estimate = self.get_fee_text(value)
+        self.ids.fee_target.text = target
+        self.ids.fee_estimate.text = estimate
 
     def update_slider(self):
         slider = self.ids.slider
@@ -93,8 +105,7 @@ class FeeDialog(Factory.Popup):
             fee_rate = self.config.depth_to_fee(pos) if mempool else self.config.eta_to_fee(pos)
         else:
             fee_rate = self.config.static_fee(pos)
-        target, tooltip = self.config.get_fee_text(pos, dyn, mempool, fee_rate)
-        return target
+        return self.config.get_fee_text(pos, dyn, mempool, fee_rate)
 
     def on_ok(self):
         value = int(self.ids.slider.value)
