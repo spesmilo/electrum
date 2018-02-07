@@ -284,7 +284,7 @@ class SimpleConfig(PrintError):
         depth = 0
         for fee, s in self.mempool_fees:
             depth += s
-            if fee < target_fee:
+            if fee <= target_fee:
                 break
         else:
             return 0
