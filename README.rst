@@ -47,7 +47,7 @@ Using Homebrew::
     protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto
 
     # Run
-    ./electrum-zcl
+    ./electrum
 
 
 For Linux:
@@ -87,7 +87,7 @@ Create translations (optional)::
 
 Run::
 
-    ./electrum-zcl
+    ./electrum
 
 
 For Linux with docker:
