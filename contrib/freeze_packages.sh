@@ -31,7 +31,7 @@ source $venv_dir/bin/activate
 
 echo "Installing hw wallet dependencies"
 
-python -m pip install -r ../requirements-hw.txt --upgrade
+python -m pip install -r $contrib/../requirements-hw.txt --upgrade
 
 pip freeze | sed '/^Electrum/ d' > $contrib/deterministic-build/requirements-hw.txt
 
