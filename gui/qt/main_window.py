@@ -1136,7 +1136,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def feerounding_onclick():
             text = (self.feerounding_text + '\n\n' +
                     _('To somewhat protect your privacy, Electrum tries to create change with similar precision to other outputs.') + ' ' +
-                    _('At most 100 satoshis might be lost due to this rounding.') + '\n' +
+                    _('At most 100 satoshis might be lost due to this rounding.') + ' ' +
+                    _("You can disable this setting in '{}'.").format(_('Preferences')) + '\n' +
                     _('Also, dust is not kept as change, but added to the fee.'))
             QMessageBox.information(self, 'Fee rounding', text)
 
@@ -2892,6 +2893,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         unconf_cb.setChecked(conf_only)
         unconf_cb.stateChanged.connect(on_unconf)
         tx_widgets.append((unconf_cb, None))
+
+        def on_outrounding(x):
+            self.config.set_key('coin_chooser_output_rounding', bool(x))
+        enable_outrounding = self.config.get('coin_chooser_output_rounding', False)
+        outrounding_cb = QCheckBox(_('Enable output value rounding'))
+        outrounding_cb.setToolTip(
+            _('Set the value of the change output so that it has similar precision to the other outputs.') + '\n' +
+            _('This might improve your privacy somewhat.') + '\n' +
+            _('If enabled, at most 100 satoshis might be lost due to this, per transaction.'))
+        outrounding_cb.setChecked(enable_outrounding)
+        outrounding_cb.stateChanged.connect(on_outrounding)
+        tx_widgets.append((outrounding_cb, None))
 
         # Fiat Currency
         hist_checkbox = QCheckBox()

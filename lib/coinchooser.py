@@ -87,6 +87,8 @@ def strip_unneeded(bkts, sufficient_funds):
 
 class CoinChooserBase(PrintError):
 
+    enable_output_value_rounding = False
+
     def keys(self, coins):
         raise NotImplementedError
 
@@ -135,7 +137,13 @@ class CoinChooserBase(PrintError):
         zeroes = [trailing_zeroes(i) for i in output_amounts]
         min_zeroes = min(zeroes)
         max_zeroes = max(zeroes)
-        zeroes = range(max(0, min_zeroes - 1), (max_zeroes + 1) + 1)
+
+        if n > 1:
+            zeroes = range(max(0, min_zeroes - 1), (max_zeroes + 1) + 1)
+        else:
+            # if there is only one change output, this will ensure that we aim
+            # to have one that is exactly as precise as the most precise output
+            zeroes = [min_zeroes]
 
         # Calculate change; randomize it a bit if using more than 1 output
         remaining = change_amount
@@ -150,8 +158,10 @@ class CoinChooserBase(PrintError):
             n -= 1
 
         # Last change output.  Round down to maximum precision but lose
-        # no more than 100 satoshis to fees (2dp)
-        N = pow(10, min(2, zeroes[0]))
+        # no more than 10**max_dp_to_round_for_privacy
+        # e.g. a max of 2 decimal places means losing 100 satoshis to fees
+        max_dp_to_round_for_privacy = 2 if self.enable_output_value_rounding else 0
+        N = pow(10, min(max_dp_to_round_for_privacy, zeroes[0]))
         amount = (remaining // N) * N
         amounts.append(amount)
 
@@ -370,4 +380,6 @@ def get_name(config):
 
 def get_coin_chooser(config):
     klass = COIN_CHOOSERS[get_name(config)]
-    return klass()
+    coinchooser = klass()
+    coinchooser.enable_output_value_rounding = config.get('coin_chooser_output_rounding', False)
+    return coinchooser
