@@ -428,7 +428,12 @@ class SimpleConfig(PrintError):
 
     @classmethod
     def estimate_fee_for_feerate(cls, fee_per_kb, size):
-        return int(fee_per_kb * size / 1000.)
+        # note: We only allow integer sat/byte values atm.
+        # The GUI for simplicity reasons only displays integer sat/byte,
+        # and for the sake of consistency, we thus only use integer sat/byte in
+        # the backend too.
+        fee_per_byte = int(fee_per_kb / 1000)
+        return int(fee_per_byte * size)
 
     def update_fee_estimates(self, key, value):
         self.fee_estimates[key] = value
