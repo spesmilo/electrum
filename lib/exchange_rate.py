@@ -33,7 +33,7 @@ class ExchangeBase(PrintError):
     def get_json(self, site, get_string):
         # APIs must have https
         url = ''.join(['https://', site, get_string])
-        response = requests.request('GET', url, headers={'User-Agent' : 'Electrum'})
+        response = requests.request('GET', url, headers={'User-Agent' : 'Electrum'}, timeout=10)
         return response.json()
 
     def get_csv(self, site, get_string):
@@ -264,7 +264,9 @@ def get_exchanges_and_currencies():
         exchange = klass(None, None)
         try:
             d[name] = exchange.get_currencies()
+            print(name, "ok")
         except:
+            print(name, "error")
             continue
     with open(path, 'w') as f:
         f.write(json.dumps(d, indent=4, sort_keys=True))
