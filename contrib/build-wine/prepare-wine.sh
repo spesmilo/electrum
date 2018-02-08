@@ -3,6 +3,8 @@
 # Please update these carefully, some versions won't work under Wine
 NSIS_URL=https://prdownloads.sourceforge.net/nsis/nsis-3.02.1-setup.exe?download
 NSIS_SHA256=736c9062a02e297e335f82252e648a883171c98e0d5120439f538c81d429552e
+ZBAR_URL=https://sourceforge.net/projects/zbarw/files/zbarw-20121031-setup.exe/download
+ZBAR_SHA256=177e32b272fa76528a3af486b74e9cb356707be1c5ace4ed3fcee9723e2c2c02
 PYTHON_VERSION=3.5.4
 
 ## These settings probably don't need change
@@ -83,8 +85,10 @@ $PYTHON -m pip install PyQt5
 
 
 # Install ZBar
-#wget -q -O zbar.exe "https://sourceforge.net/projects/zbar/files/zbar/0.10/zbar-0.10-setup.exe/download"
-#wine zbar.exe
+wget -q -O zbar.exe "$ZBAR_URL"
+verify_hash zbar.exe $ZBAR_SHA256
+echo "Install zbar. Next-next-next; and skip the readme."
+wine zbar.exe
 
 # install Cryptodome
 $PYTHON -m pip install pycryptodomex
