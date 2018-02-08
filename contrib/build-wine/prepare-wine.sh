@@ -87,8 +87,7 @@ $PYTHON -m pip install PyQt5
 # Install ZBar
 wget -q -O zbar.exe "$ZBAR_URL"
 verify_hash zbar.exe $ZBAR_SHA256
-echo "Install zbar. Next-next-next; and skip the readme."
-wine zbar.exe
+wine zbar.exe /S
 
 # install Cryptodome
 $PYTHON -m pip install pycryptodomex
