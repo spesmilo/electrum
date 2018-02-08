@@ -33,7 +33,7 @@ class ExchangeBase(PrintError):
     def get_json(self, site, get_string):
         # APIs must have https
         url = ''.join(['https://', site, get_string])
-        response = requests.request('GET', url, headers={'User-Agent' : 'Electrum'})
+        response = requests.request('GET', url, headers={'User-Agent' : 'Electrum'}, timeout=10)
         return response.json()
 
     def get_csv(self, site, get_string):
@@ -199,18 +199,19 @@ class Coinbase(ExchangeBase):
 
 class CoinDesk(ExchangeBase):
 
-    def get_rates(self, ccy):
+    def get_currencies(self):
         dicts = self.get_json('api.coindesk.com',
                               '/v1/bpi/supported-currencies.json')
+        return [d['currency'] for d in dicts]
+
+    def get_rates(self, ccy):
         json = self.get_json('api.coindesk.com',
                              '/v1/bpi/currentprice/%s.json' % ccy)
-        ccys = [d['currency'] for d in dicts]
-        result = dict.fromkeys(ccys)
-        result[ccy] = Decimal(json['bpi'][ccy]['rate_float'])
+        result = {ccy: Decimal(json['bpi'][ccy]['rate_float'])}
         return result
 
     def history_starts(self):
-        return { 'USD': '2012-11-30' }
+        return { 'USD': '2012-11-30', 'EUR': '2013-09-01' }
 
     def history_ccys(self):
         return self.history_starts().keys()
@@ -346,7 +347,9 @@ def get_exchanges_and_currencies():
         exchange = klass(None, None)
         try:
             d[name] = exchange.get_currencies()
+            print(name, "ok")
         except:
+            print(name, "error")
             continue
     with open(path, 'w') as f:
         f.write(json.dumps(d, indent=4, sort_keys=True))
