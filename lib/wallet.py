@@ -361,7 +361,8 @@ class Abstract_Wallet(PrintError):
     def add_unverified_tx(self, tx_hash, tx_height):
         if tx_height == 0 and tx_hash in self.verified_tx:
             self.verified_tx.pop(tx_hash)
-            self.verifier.merkle_roots.pop(tx_hash, None)
+            if self.verifier:
+                self.verifier.merkle_roots.pop(tx_hash, None)
 
         # tx will be verified only if height > 0
         if tx_hash not in self.verified_tx:

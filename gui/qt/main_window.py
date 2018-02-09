@@ -2164,6 +2164,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message(_("This is a watching-only wallet"))
             return
 
+        if isinstance(self.wallet, Multisig_Wallet):
+            self.show_message(_('WARNING: This is a multi-signature wallet.') + '\n' +
+                              _('It can not be "backed up" by simply exporting these private keys.'))
+
         d = WindowModalDialog(self, _('Private keys'))
         d.setMinimumSize(850, 300)
         vbox = QVBoxLayout(d)
@@ -2189,25 +2193,38 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         private_keys = {}
         addresses = self.wallet.get_addresses()
         done = False
+        cancelled = False
         def privkeys_thread():
             for addr in addresses:
                 time.sleep(0.1)
-                if done:
+                if done or cancelled:
                     break
                 privkey = self.wallet.export_private_key(addr, password)[0]
                 private_keys[addr] = privkey
                 self.computing_privkeys_signal.emit()
-            self.computing_privkeys_signal.disconnect()
-            self.show_privkeys_signal.emit()
+            if not cancelled:
+                self.computing_privkeys_signal.disconnect()
+                self.show_privkeys_signal.emit()
 
         def show_privkeys():
             s = "\n".join( map( lambda x: x[0] + "\t"+ x[1], private_keys.items()))
             e.setText(s)
             b.setEnabled(True)
             self.show_privkeys_signal.disconnect()
+            nonlocal done
+            done = True
+
+        def on_dialog_closed(*args):
+            nonlocal done
+            nonlocal cancelled
+            if not done:
+                cancelled = True
+                self.computing_privkeys_signal.disconnect()
+                self.show_privkeys_signal.disconnect()
 
         self.computing_privkeys_signal.connect(lambda: e.setText("Please wait... %d/%d"%(len(private_keys),len(addresses))))
         self.show_privkeys_signal.connect(show_privkeys)
+        d.finished.connect(on_dialog_closed)
         threading.Thread(target=privkeys_thread).start()
 
         if not d.exec_():
@@ -2590,7 +2607,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         unit_combo = QComboBox()
         unit_combo.addItems(units)
         unit_combo.setCurrentIndex(units.index(self.base_unit()))
-        def on_unit(x):
+        def on_unit(x, nz):
             unit_result = units[unit_combo.currentIndex()]
             if self.base_unit() == unit_result:
                 return
@@ -2605,13 +2622,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             else:
                 raise Exception('Unknown base unit')
             self.config.set_key('decimal_point', self.decimal_point, True)
+            nz.setMaximum(self.decimal_point)
             self.history_list.update()
             self.request_list.update()
             self.address_list.update()
             for edit, amount in zip(edits, amounts):
                 edit.setAmount(amount)
             self.update_status()
-        unit_combo.currentIndexChanged.connect(on_unit)
+        unit_combo.currentIndexChanged.connect(lambda x: on_unit(x, nz))
         gui_widgets.append((unit_label, unit_combo))
 
         block_explorers = sorted(util.block_explorer_info().keys())
