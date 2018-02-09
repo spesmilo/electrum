@@ -2,7 +2,7 @@ import threading
 
 from binascii import hexlify, unhexlify
 
-from electrum.util import bfh, bh2u
+from electrum.util import bfh, bh2u, versiontuple
 from electrum.bitcoin import (b58_address_to_hash160, xpub_from_pubkey,
                               TYPE_ADDRESS, TYPE_SCRIPT, NetworkConstants)
 from electrum.i18n import _
@@ -86,6 +86,7 @@ class TrezorPlugin(HW_PluginBase):
     libraries_URL = 'https://github.com/trezor/python-trezor'
     minimum_firmware = (1, 5, 2)
     keystore_class = TrezorKeyStore
+    minimum_library = (0, 9, 0)
 
     MAX_LABEL_LEN = 32
 
@@ -96,6 +97,19 @@ class TrezorPlugin(HW_PluginBase):
         try:
             # Minimal test if python-trezor is installed
             import trezorlib
+            try:
+                library_version = trezorlib.__version__
+            except AttributeError:
+                # python-trezor only introduced __version__ in 0.9.0
+                library_version = 'unknown'
+            if library_version == 'unknown' or \
+                    versiontuple(library_version) < self.minimum_library:
+                self.libraries_available_message = (
+                        _("Library version for '{}' is too old.").format(name)
+                        + '\nInstalled: {}, Needed: {}'
+                        .format(library_version, self.minimum_library))
+                self.print_stderr(self.libraries_available_message)
+                raise ImportError()
             self.libraries_available = True
         except ImportError:
             self.libraries_available = False

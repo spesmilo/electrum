@@ -10,7 +10,7 @@ from electrum.plugins import BasePlugin
 from electrum.keystore import Hardware_KeyStore
 from electrum.transaction import Transaction
 from ..hw_wallet import HW_PluginBase
-from electrum.util import print_error, is_verbose, bfh, bh2u
+from electrum.util import print_error, is_verbose, bfh, bh2u, versiontuple
 
 try:
     import hid
@@ -56,9 +56,6 @@ class Ledger_Client():
 
     def i4b(self, x):
         return pack('>I', x)
-
-    def versiontuple(self, v):
-        return tuple(map(int, (v.split("."))))
 
     def test_pin_unlocked(func):
         """Function decorator to test the Ledger for being unlocked, and if not,
@@ -140,9 +137,9 @@ class Ledger_Client():
         try:
             firmwareInfo = self.dongleObject.getFirmwareVersion()
             firmware = firmwareInfo['version']
-            self.multiOutputSupported = self.versiontuple(firmware) >= self.versiontuple(MULTI_OUTPUT_SUPPORT)
-            self.nativeSegwitSupported = self.versiontuple(firmware) >= self.versiontuple(SEGWIT_SUPPORT)
-            self.segwitSupported = self.nativeSegwitSupported or (firmwareInfo['specialVersion'] == 0x20 and self.versiontuple(firmware) >= self.versiontuple(SEGWIT_SUPPORT_SPECIAL))
+            self.multiOutputSupported = versiontuple(firmware) >= versiontuple(MULTI_OUTPUT_SUPPORT)
+            self.nativeSegwitSupported = versiontuple(firmware) >= versiontuple(SEGWIT_SUPPORT)
+            self.segwitSupported = self.nativeSegwitSupported or (firmwareInfo['specialVersion'] == 0x20 and versiontuple(firmware) >= versiontuple(SEGWIT_SUPPORT_SPECIAL))
 
             if not checkFirmware(firmwareInfo):
                 self.dongleObject.dongle.close()
