@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- mode: python -*-
 #
 # Electrum - lightweight Bitcoin client
@@ -184,10 +184,12 @@ class QtPluginBase(object):
             if not isinstance(keystore, self.keystore_class):
                 continue
             if not self.libraries_available:
-                window.show_error(
-                    _("Cannot find python library for") + " '%s'.\n" % self.name \
-                    + _("Make sure you install it with python3")
-                )
+                if hasattr(self, 'libraries_available_message'):
+                    message = self.libraries_available_message + '\n'
+                else:
+                    message = _("Cannot find python library for") + " '%s'.\n" % self.name
+                message += _("Make sure you install it with python3")
+                window.show_error(message)
                 return
             tooltip = self.device + '\n' + (keystore.label or 'unnamed')
             cb = partial(self.show_settings_dialog, window, keystore)

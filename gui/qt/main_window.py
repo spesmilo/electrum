@@ -1136,7 +1136,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def feerounding_onclick():
             text = (self.feerounding_text + '\n\n' +
                     _('To somewhat protect your privacy, Electrum tries to create change with similar precision to other outputs.') + ' ' +
-                    _('At most 100 satoshis might be lost due to this rounding.') + '\n' +
+                    _('At most 100 satoshis might be lost due to this rounding.') + ' ' +
+                    _("You can disable this setting in '{}'.").format(_('Preferences')) + '\n' +
                     _('Also, dust is not kept as change, but added to the fee.'))
             QMessageBox.information(self, 'Fee rounding', text)
 
@@ -2493,32 +2494,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             plt.show()
 
     def do_export_history(self, wallet, fileName, is_csv):
-        history = wallet.get_history()
+        history = wallet.export_history(fx=self.fx)
         lines = []
         for item in history:
-            tx_hash, height, confirmations, timestamp, value, balance = item
-            if height>0:
-                if timestamp is not None:
-                    time_string = format_time(timestamp)
-                else:
-                    time_string = _("unverified")
-            else:
-                time_string = _("unconfirmed")
-
-            if value is not None:
-                value_string = format_satoshis(value, True)
-            else:
-                value_string = '--'
-
-            if tx_hash:
-                label = wallet.get_label(tx_hash)
-            else:
-                label = ""
-
             if is_csv:
-                lines.append([tx_hash, label, confirmations, value_string, time_string])
+                lines.append([item['txid'], item.get('label', ''), item['confirmations'], item['value'], item['date']])
             else:
-                lines.append({'txid':tx_hash, 'date':"%16s"%time_string, 'label':label, 'value':value_string})
+                lines.append(item)
 
         with open(fileName, "w+") as f:
             if is_csv:
@@ -2528,7 +2510,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     transaction.writerow(line)
             else:
                 import json
-                f.write(json.dumps(lines, indent = 4))
+                f.write(json.dumps(lines, indent=4))
 
     def sweep_key_dialog(self):
         d = WindowModalDialog(self, title=_('Sweep private keys'))
@@ -2892,6 +2874,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         unconf_cb.setChecked(conf_only)
         unconf_cb.stateChanged.connect(on_unconf)
         tx_widgets.append((unconf_cb, None))
+
+        def on_outrounding(x):
+            self.config.set_key('coin_chooser_output_rounding', bool(x))
+        enable_outrounding = self.config.get('coin_chooser_output_rounding', False)
+        outrounding_cb = QCheckBox(_('Enable output value rounding'))
+        outrounding_cb.setToolTip(
+            _('Set the value of the change output so that it has similar precision to the other outputs.') + '\n' +
+            _('This might improve your privacy somewhat.') + '\n' +
+            _('If enabled, at most 100 satoshis might be lost due to this, per transaction.'))
+        outrounding_cb.setChecked(enable_outrounding)
+        outrounding_cb.stateChanged.connect(on_outrounding)
+        tx_widgets.append((outrounding_cb, None))
 
         # Fiat Currency
         hist_checkbox = QCheckBox()

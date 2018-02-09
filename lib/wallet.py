@@ -914,6 +914,57 @@ class Abstract_Wallet(PrintError):
 
         return h2
 
+    def export_history(self, domain=None, from_timestamp=None, to_timestamp=None, fx=None, show_addresses=False):
+        from decimal import Decimal
+        from .util import format_time, format_satoshis, timestamp_to_datetime
+        h = self.get_history(domain)
+        out = []
+        for tx_hash, height, conf, timestamp, value, balance in h:
+            if from_timestamp and timestamp < from_timestamp:
+                continue
+            if to_timestamp and timestamp >= to_timestamp:
+                continue
+            item = {
+                'txid':tx_hash,
+                'height':height,
+                'confirmations':conf,
+                'timestamp':timestamp,
+                'value': format_satoshis(value, True) if value is not None else '--',
+                'balance': format_satoshis(balance)
+            }
+            if item['height']>0:
+                date_str = format_time(timestamp) if timestamp is not None else _("unverified")
+            else:
+                date_str = _("unconfirmed")
+            item['date'] = date_str
+            item['label'] = self.get_label(tx_hash)
+            if show_addresses:
+                tx = self.transactions.get(tx_hash)
+                tx.deserialize()
+                input_addresses = []
+                output_addresses = []
+                for x in tx.inputs():
+                    if x['type'] == 'coinbase': continue
+                    addr = x.get('address')
+                    if addr == None: continue
+                    if addr == "(pubkey)":
+                        prevout_hash = x.get('prevout_hash')
+                        prevout_n = x.get('prevout_n')
+                        _addr = self.wallet.find_pay_to_pubkey_address(prevout_hash, prevout_n)
+                        if _addr:
+                            addr = _addr
+                    input_addresses.append(addr)
+                for addr, v in tx.get_outputs():
+                    output_addresses.append(addr)
+                item['input_addresses'] = input_addresses
+                item['output_addresses'] = output_addresses
+            if fx is not None:
+                date = timestamp_to_datetime(time.time() if conf <= 0 else timestamp)
+                item['fiat_value'] = fx.historical_value_str(value, date)
+                item['fiat_balance'] = fx.historical_value_str(balance, date)
+            out.append(item)
+        return out
+
     def get_label(self, tx_hash):
         label = self.labels.get(tx_hash, '')
         if label is '':
@@ -989,8 +1040,9 @@ class Abstract_Wallet(PrintError):
         if fixed_fee is None and config.fee_per_kb() is None:
             raise NoDynamicFeeEstimates()
 
-        for item in inputs:
-            self.add_input_info(item)
+        if not is_sweep:
+            for item in inputs:
+                self.add_input_info(item)
 
         # change address
         if change_addr:
