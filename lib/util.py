@@ -436,11 +436,23 @@ mainnet_block_explorers = {
                         {'tx': 'tx', 'addr': 'address'}),
     'zclzclzcl.com': ('http://zclzclzcl.com',
                         {'tx': 'tx', 'addr': 'address'}),
-    'Zcl-explorer.com - Alternate': ('http://as1.zcl-explorer.com/',
+    'Zcl-explorer.com - Alternate 1': ('http://as1.zcl-explorer.com/',
                         {'tx': 'tx', 'addr': 'address'}),
-    'system default': ('blockchain:',
+    'Zcl-explorer.com - Alternate 2': ('http://eu1.zcl-explorer.com/',
+                        {'tx': 'tx', 'addr': 'address'}),
+    'explorer.zclassic.org': ('http://explorer.zclassic.org/insight/',
+                        {'tx': 'tx', 'addr': 'address'}),
+    'explorer1.zclassic.org': ('http://explorer1.zclassic.org/insight/',
                         {'tx': 'tx', 'addr': 'address'})
+
 }
+
+#http://zcl-explorer.com/insight/
+#http://zclzclzcl.com
+#http://eu1.zcl-explorer.com
+#http://as1.zcl-explorer.com
+#http://explorer.zclassic.org/insight/
+#http://explorer1.zclassic.org/insight/
 
 # TODO zcl testnet block explorer
 testnet_block_explorers = {
