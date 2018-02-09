@@ -434,7 +434,7 @@ def time_difference(distance_in_time, include_seconds):
 mainnet_block_explorers = {
     'Zcl-explorer.com': ('http://zcl-explorer.com/insight/',
                         {'tx': 'tx', 'addr': 'address'}),
-    'ZclassicExplorer.com': ('http://ZclassicExplorer.com',
+    'zclzclzcl.com': ('http://zclzclzcl.com',
                         {'tx': 'tx', 'addr': 'address'}),
     'Zcl-explorer.com': ('http://as1.zcl-explorer.com/insight/',
                         {'tx': 'tx', 'addr': 'address'}),
