@@ -436,7 +436,7 @@ mainnet_block_explorers = {
                         {'tx': 'tx', 'addr': 'address'}),
     'ZclassicExplorer.com': ('http://ZclassicExplorer.com',
                         {'tx': 'tx', 'addr': 'address'}),
-    'EU Zcl-explorer.com': ('http://eu1.zcl-explorer.com/insight/',
+    'Zcl-explorer.com': ('http://as1.zcl-explorer.com/insight/',
                         {'tx': 'tx', 'addr': 'address'}),
     'system default': ('blockchain:',
                         {'tx': 'tx', 'addr': 'address'})
