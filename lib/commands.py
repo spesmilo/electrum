@@ -25,7 +25,6 @@
 
 import sys
 import datetime
-import copy
 import argparse
 import json
 import ast
@@ -184,10 +183,11 @@ class Commands:
     def listunspent(self):
         """List unspent outputs. Returns the list of unspent transaction
         outputs in your wallet."""
-        l = copy.deepcopy(self.wallet.get_utxos(exclude_frozen=False))
+        l = self.wallet.get_utxos(exclude_frozen=False)
         for i in l:
             v = i["value"]
             i["value"] = str(Decimal(v)/COIN) if v is not None else None
+            i["address"] = i["address"].to_ui_string()
         return l
 
     @command('n')
@@ -264,19 +264,21 @@ class Commands:
     @command('w')
     def freeze(self, address):
         """Freeze address. Freeze the funds at one of your wallet\'s addresses"""
+        address = Address.from_string(address)
         return self.wallet.set_frozen_state([address], True)
 
     @command('w')
     def unfreeze(self, address):
         """Unfreeze address. Unfreeze the funds at one of your wallet\'s address"""
+        address = Address.from_string(address)
         return self.wallet.set_frozen_state([address], False)
 
     @command('wp')
     def getprivatekeys(self, address, password=None):
         """Get private keys of addresses. You may pass a single wallet address, or a list of wallet addresses."""
         def get_pk(address):
-            addr = Address.from_string(address.strip())
-            return self.wallet.export_private_key(addr, password)
+            address = Address.from_string(address)
+            return self.wallet.export_private_key(address, password)
 
         if isinstance(address, str):
             return get_pk(address)
@@ -286,6 +288,7 @@ class Commands:
     @command('w')
     def ismine(self, address):
         """Check if address is in wallet. Return true if and only address is in wallet"""
+        address = Address.from_string(address)
         return self.wallet.is_mine(address)
 
     @command('')
@@ -301,6 +304,7 @@ class Commands:
     @command('w')
     def getpubkeys(self, address):
         """Return the public keys for a wallet address. """
+        address = Address.from_string(address)
         return self.wallet.get_public_keys(address)
 
     @command('w')
@@ -322,15 +326,6 @@ class Commands:
         out = self.network.synchronous_get(('blockchain.address.get_balance', [address]))
         out["confirmed"] =  str(Decimal(out["confirmed"])/COIN)
         out["unconfirmed"] =  str(Decimal(out["unconfirmed"])/COIN)
-        return out
-
-    @command('n')
-    def getproof(self, address):
-        """Get Merkle branch of an address in the UTXO set"""
-        p = self.network.synchronous_get(('blockchain.address.get_proof', [address]))
-        out = []
-        for i,s in p:
-            out.append(i)
         return out
 
     @command('n')
@@ -403,12 +398,14 @@ class Commands:
     def signmessage(self, address, message, password=None):
         """Sign a message with a key. Use quotes if your message contains
         whitespaces"""
+        address = Address.from_string(address)
         sig = self.wallet.sign_message(address, message, password)
         return base64.b64encode(sig).decode('ascii')
 
     @command('')
     def verifymessage(self, address, signature, message):
         """Verify a signature."""
+        address = Address.from_string(address)
         sig = base64.b64decode(signature)
         message = util.to_bytes(message)
         return bitcoin.verify_message(address, sig, message)
@@ -468,9 +465,9 @@ class Commands:
                 if x['type'] == 'coinbase': continue
                 addr = x.get('address')
                 if addr == None: continue
-                input_addresses.append(addr)
+                input_addresses.append(addr.to_ui_string())
             for addr, v in tx.get_outputs():
-                output_addresses.append(addr)
+                output_addresses.append(addr.to_ui_string())
             out.append({
                 'txid': tx_hash,
                 'timestamp': timestamp,
@@ -524,13 +521,13 @@ class Commands:
                 continue
             if funded and self.wallet.is_empty(addr):
                 continue
-            item = addr
+            item = addr.to_ui_string()
             if labels or balance:
                 item = (item,)
             if balance:
                 item += (format_satoshis(sum(self.wallet.get_addr_balance(addr))),)
             if labels:
-                item += (repr(self.wallet.labels.get(addr, '')),)
+                item += (repr(self.wallet.labels.get(addr.to_storage_string(), '')),)
             out.append(item)
         return out
 
@@ -607,7 +604,7 @@ class Commands:
     def getunusedaddress(self):
         """Returns the first unused address of the wallet, or None if all addresses are used.
         An address is considered as used if it has received a transaction, or if it is used in a payment request."""
-        return self.wallet.get_unused_address()
+        return self.wallet.get_unused_address().to_ui_string()
 
     @command('w')
     def addrequest(self, amount, memo='', expiration=None, force=False):
