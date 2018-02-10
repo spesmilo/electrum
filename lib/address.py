@@ -265,8 +265,8 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
     FMT_LEGACY = 1
     FMT_BITPAY = 2   # Supported temporarily only for compatibility
 
-    # At some stage switch to FMT_CASHADDR
-    FMT_UI = FMT_LEGACY
+    # Default to CashAddr
+    FMT_UI = FMT_CASHADDR
 
     def __new__(cls, hash160, kind):
         assert kind in (cls.ADDR_P2PKH, cls.ADDR_P2SH)
