@@ -35,8 +35,9 @@ import time
 import json
 import copy
 import errno
-from functools import partial
 from collections import defaultdict
+from decimal import Decimal
+from functools import partial
 
 from .i18n import _
 from .util import NotEnoughFunds, ExcessiveFee, PrintError, UserCancelled, profiler, format_satoshis
@@ -835,7 +836,6 @@ class Abstract_Wallet(PrintError):
         return h2
 
     def export_history(self, domain=None, from_timestamp=None, to_timestamp=None, fx=None, show_addresses=False):
-        from decimal import Decimal
         from .util import format_time, format_satoshis, timestamp_to_datetime
         h = self.get_history(domain)
         out = []
