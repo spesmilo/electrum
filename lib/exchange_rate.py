@@ -2,6 +2,8 @@ from datetime import datetime
 import inspect
 import requests
 import sys
+import os
+import json
 from threading import Thread
 import time
 import csv
@@ -59,19 +61,34 @@ class ExchangeBase(PrintError):
         t.setDaemon(True)
         t.start()
 
-    def get_historical_rates_safe(self, ccy):
-        try:
-            self.print_error("requesting fx history for", ccy)
-            self.history[ccy] = self.historical_rates(ccy)
-            self.print_error("received fx history for", ccy)
-            self.on_history()
-        except BaseException as e:
-            self.print_error("failed fx history:", e)
+    def get_historical_rates_safe(self, ccy, cache_dir):
+        filename = os.path.join(cache_dir, self.name() + '_'+ ccy)
+        if os.path.exists(filename) and (time.time() - os.stat(filename).st_mtime) < 24*3600:
+            try:
+                with open(filename, 'r') as f:
+                    h = json.loads(f.read())
+            except:
+                h = None
+        else:
+            h = None
+        if h is None:
+            try:
+                self.print_error("requesting fx history for", ccy)
+                h = self.request_history(ccy)
+                self.print_error("received fx history for", ccy)
+                self.on_history()
+            except BaseException as e:
+                self.print_error("failed fx history:", e)
+                return
+            with open(filename, 'w') as f:
+                f.write(json.dumps(h))
+        self.history[ccy] = h
+        self.on_history()
 
-    def get_historical_rates(self, ccy):
+    def get_historical_rates(self, ccy, cache_dir):
         result = self.history.get(ccy)
         if not result and ccy in self.history_ccys():
-            t = Thread(target=self.get_historical_rates_safe, args=(ccy,))
+            t = Thread(target=self.get_historical_rates_safe, args=(ccy, cache_dir))
             t.setDaemon(True)
             t.start()
         return result
@@ -106,7 +123,7 @@ class BitcoinAverage(ExchangeBase):
                 'MXN', 'NOK', 'NZD', 'PLN', 'RON', 'RUB', 'SEK', 'SGD', 'USD',
                 'ZAR']
 
-    def historical_rates(self, ccy):
+    def request_history(self, ccy):
         history = self.get_csv('apiv2.bitcoinaverage.com',
                                "/indices/global/history/LTC%s?period=alltime&format=csv" % ccy)
         return dict([(h['DateTime'][:10], h['Average'])
@@ -124,7 +141,7 @@ class BitcoinVenezuela(ExchangeBase):
     def history_ccys(self):
         return ['ARS', 'EUR', 'USD', 'VEF']
 
-    def historical_rates(self, ccy):
+    def request_history(self, ccy):
         return self.get_json('api.bitcoinvenezuela.com',
                              "/historical/index.php?coin=LTC")[ccy +'_LTC']
 
@@ -199,7 +216,7 @@ class Kraken(ExchangeBase):
     def history_ccys(self):
         return ['EUR', 'USD']
 
-    def historical_rates(self, ccy):
+    def request_history(self, ccy):
         query = '/0/public/OHLC?pair=LTC%s&interval=1440' % ccy
         json = self.get_json('api.kraken.com', query)
         history = json['result']['XLTCZ'+ccy]
@@ -298,6 +315,9 @@ class FxThread(ThreadJob):
         self.ccy_combo = None
         self.hist_checkbox = None
         self.set_exchange(self.config_exchange())
+        self.cache_dir = os.path.join(config.path, 'cache')
+        if not os.path.exists(self.cache_dir):
+            os.mkdir(self.cache_dir)
 
     def get_currencies(self, h):
         d = get_exchanges_by_ccy(h)
@@ -320,7 +340,7 @@ class FxThread(ThreadJob):
         # This runs from the plugins thread which catches exceptions
         if self.is_enabled():
             if self.timeout ==0 and self.show_history():
-                self.exchange.get_historical_rates(self.ccy)
+                self.exchange.get_historical_rates(self.ccy, self.cache_dir)
             if self.timeout <= time.time():
                 self.timeout = time.time() + 150
                 self.exchange.update(self.ccy)
@@ -405,7 +425,7 @@ class FxThread(ThreadJob):
         if rate is None and (datetime.today().date() - d_t.date()).days <= 2:
             rate = self.exchange.quotes.get(self.ccy)
             self.history_used_spot = True
-        return rate
+        return Decimal(rate) if rate is not None else None
 
     def historical_value_str(self, satoshis, d_t):
         rate = self.history_rate(d_t)
