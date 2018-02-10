@@ -488,7 +488,7 @@ class FxThread(ThreadJob):
         if rate is None and (datetime.today().date() - d_t.date()).days <= 2:
             rate = self.exchange.quotes.get(self.ccy)
             self.history_used_spot = True
-        return rate
+        return Decimal(rate) if rate is not None else None
 
     def historical_value_str(self, satoshis, d_t):
         rate = self.history_rate(d_t)

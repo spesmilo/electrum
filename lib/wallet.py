@@ -38,6 +38,7 @@ import traceback
 from functools import partial
 from collections import defaultdict
 from numbers import Number
+from decimal import Decimal
 
 import sys
 
@@ -915,7 +916,6 @@ class Abstract_Wallet(PrintError):
         return h2
 
     def export_history(self, domain=None, from_timestamp=None, to_timestamp=None, fx=None, show_addresses=False):
-        from decimal import Decimal
         from .util import format_time, format_satoshis, timestamp_to_datetime
         h = self.get_history(domain)
         out = []
@@ -1607,7 +1607,7 @@ class Abstract_Wallet(PrintError):
         tx = self.transactions[txid]
         out_value = sum([ (value if not self.is_mine(address) else 0) for otype, address, value in tx.outputs() ])
         try:
-            return out_value/1e8 * (price_func(timestamp) - self.average_price(tx, price_func))
+            return out_value/Decimal(COIN) * (price_func(timestamp) - self.average_price(tx, price_func))
         except:
             return None
 
