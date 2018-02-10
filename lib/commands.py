@@ -138,6 +138,8 @@ class Commands:
     @command('wp')
     def password(self, password=None, new_password=None):
         """Change wallet password. """
+        if self.wallet.storage.is_encrypted_with_hw_device() and new_password:
+            raise Exception("Can't change the password of a wallet encrypted with a hw device.")
         b = self.wallet.storage.is_encrypted()
         self.wallet.update_password(password, new_password, b)
         self.wallet.storage.write()

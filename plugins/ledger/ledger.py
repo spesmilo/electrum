@@ -516,7 +516,8 @@ class LedgerPlugin(HW_PluginBase):
         return HIDDongleHIDAPI(dev, ledger, BTCHIP_DEBUG)
 
     def create_client(self, device, handler):
-        self.handler = handler
+        if handler:
+            self.handler = handler
 
         client = self.get_btchip_device(device)
         if client is not None:
