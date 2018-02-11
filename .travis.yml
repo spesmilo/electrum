@@ -4,7 +4,7 @@ python:
     - 3.5
     - 3.6
 install:
-  - pip install -r requirements_travis.txt
+  - pip install -r contrib/requirements/requirements-travis.txt
 cache:
   - pip
 script:
