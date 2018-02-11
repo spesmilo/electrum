@@ -29,6 +29,17 @@
  * Watching-only wallets and hardware wallets can be encrypted.
  * Semi-automated crash reporting
  * The SSL checkbox option was removed from the GUI.
+ * Capital gains: For each outgoing transaction, the difference
+   between the acquisition and liquidation prices of outgoing coins is
+   displayed in the wallet history. By default, historical exchange
+   rates are used to compute acquisition and liquidation prices. These
+   value can also be entered manually, in order to match the actual
+   price realized by the user. The order of liquidation of coins is
+   the natural order defined by the blockchain; this results in
+   capital gain values that are invariant to changes in the set of
+   addresses that are in the wallet. Any other ordering strategy (such
+   as FIFO, LIFO) would result in capital gain values that depend on
+   the set of addresses in the wallet.
 
 
 # Release 3.0.6 :
