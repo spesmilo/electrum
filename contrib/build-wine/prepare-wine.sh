@@ -71,27 +71,17 @@ done
 $PYTHON -m pip install pip --upgrade
 
 # Install pywin32-ctypes (needed by pyinstaller)
-$PYTHON -m pip install pywin32-ctypes
+$PYTHON -m pip install pywin32-ctypes==0.1.2
 
-# Install PyQt
-$PYTHON -m pip install PyQt5
+# install PySocks
+$PYTHON -m pip install win_inet_pton==1.0.1
 
-## Install pyinstaller
-#$PYTHON -m pip install pyinstaller==3.3
-
+$PYTHON -m pip install -r ../../deterministic-build/requirements-binaries.txt
 
 # Install ZBar
 #wget -q -O zbar.exe "https://sourceforge.net/projects/zbar/files/zbar/0.10/zbar-0.10-setup.exe/download"
 #wine zbar.exe
 
-# install Cryptodome
-$PYTHON -m pip install pycryptodomex
-
-# install PySocks
-$PYTHON -m pip install win_inet_pton
-
-# install websocket (python2)
-$PYTHON -m pip install websocket-client
 
 # Upgrade setuptools (so Electrum can be installed later)
 $PYTHON -m pip install setuptools --upgrade
@@ -108,6 +98,5 @@ wine nsis.exe /S
 
 # add dlls needed for pyinstaller:
 cp $WINEPREFIX/drive_c/python$PYTHON_VERSION/Lib/site-packages/PyQt5/Qt/bin/* $WINEPREFIX/drive_c/python$PYTHON_VERSION/
-
 
 echo "Wine is configured. Please run prepare-pyinstaller.sh"
