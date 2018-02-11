@@ -185,6 +185,7 @@ class Abstract_Wallet(PrintError):
         self.labels                = storage.get('labels', {})
         self.frozen_addresses      = set(storage.get('frozen_addresses',[]))
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
+        self.fiat_value            = storage.get('fiat_value', {})
 
         self.load_keystore()
         self.load_addresses()
@@ -342,12 +343,36 @@ class Abstract_Wallet(PrintError):
             if old_text:
                 self.labels.pop(name)
                 changed = True
-
         if changed:
             run_hook('set_label', self, name, text)
             self.storage.put('labels', self.labels)
-
         return changed
+
+    def set_fiat_value(self, txid, ccy, text):
+        if txid not in self.transactions:
+            return
+        if not text:
+            d = self.fiat_value.get(ccy, {})
+            if d and txid in d:
+                d.pop(txid)
+            else:
+                return
+        else:
+            try:
+                Decimal(text)
+            except:
+                return
+        if ccy not in self.fiat_value:
+            self.fiat_value[ccy] = {}
+        self.fiat_value[ccy][txid] = text
+        self.storage.put('fiat_value', self.fiat_value)
+
+    def get_fiat_value(self, txid, ccy):
+        fiat_value = self.fiat_value.get(ccy, {}).get(txid)
+        try:
+            return Decimal(fiat_value)
+        except:
+            return
 
     def is_mine(self, address):
         return address in self.get_addresses()
@@ -1597,33 +1622,49 @@ class Abstract_Wallet(PrintError):
                     return v
         raise BaseException('unknown txin value')
 
-    def capital_gain(self, txid, price_func):
+    def price_at_timestamp(self, txid, price_func):
+        height, conf, timestamp = self.get_tx_height(txid)
+        return price_func(timestamp)
+
+    def capital_gain(self, txid, price_func, ccy):
         """
         Difference between the fiat price of coins leaving the wallet because of transaction txid,
         and the price of these coins when they entered the wallet.
         price_func: function that returns the fiat price given a timestamp
         """
-        height, conf, timestamp = self.get_tx_height(txid)
         tx = self.transactions[txid]
-        out_value = sum([ (value if not self.is_mine(address) else 0) for otype, address, value in tx.outputs() ])
+        ir, im, v, fee = self.get_wallet_delta(tx)
+        out_value = -v
+        fiat_value = self.get_fiat_value(txid, ccy)
+        if fiat_value is None:
+            p = self.price_at_timestamp(txid, price_func)
+            liquidation_price = None if p is None else out_value/Decimal(COIN) * p
+        else:
+            liquidation_price = - fiat_value
+
         try:
-            return out_value/Decimal(COIN) * (price_func(timestamp) - self.average_price(tx, price_func))
+            return liquidation_price - out_value/Decimal(COIN) * self.average_price(tx, price_func, ccy)
         except:
             return None
 
-    def average_price(self, tx, price_func):
+    def average_price(self, tx, price_func, ccy):
         """ average price of the inputs of a transaction """
-        return sum(self.coin_price(txin, price_func) * self.txin_value(txin) for txin in tx.inputs()) / sum(self.txin_value(txin) for txin in tx.inputs())
+        input_value = sum(self.txin_value(txin) for txin in tx.inputs()) / Decimal(COIN)
+        total_price = sum(self.coin_price(txin, price_func, ccy, self.txin_value(txin)) for txin in tx.inputs())
+        return total_price / input_value
 
-    def coin_price(self, coin, price_func):
+    def coin_price(self, coin, price_func, ccy, txin_value):
         """ fiat price of acquisition of coin """
         txid = coin['prevout_hash']
         tx = self.transactions[txid]
         if all([self.is_mine(txin['address']) for txin in tx.inputs()]):
-            return self.average_price(tx, price_func)
+            return self.average_price(tx, price_func, ccy) * txin_value/Decimal(COIN)
         elif all([ not self.is_mine(txin['address']) for txin in tx.inputs()]):
-            height, conf, timestamp = self.get_tx_height(txid)
-            return price_func(timestamp)
+            fiat_value = self.get_fiat_value(txid, ccy)
+            if fiat_value is not None:
+                return fiat_value
+            else:
+                return self.price_at_timestamp(txid, price_func) * txin_value/Decimal(COIN)
         else:
             # could be some coinjoin transaction..
             return None

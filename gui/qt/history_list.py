@@ -63,6 +63,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         if fx and fx.show_history():
             headers.extend(['%s '%fx.ccy + _('Amount'), '%s '%fx.ccy + _('Balance')])
             headers.extend(['%s '%fx.ccy + _('Capital Gains')])
+            self.editable_columns.extend([6])
         self.update_headers(headers)
 
     def get_domain(self):
@@ -87,14 +88,20 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             label = self.wallet.get_label(tx_hash)
             entry = ['', tx_hash, status_str, label, v_str, balance_str]
+            fiat_value = None
             if fx and fx.show_history():
                 date = timestamp_to_datetime(time.time() if conf <= 0 else timestamp)
-                for amount in [value, balance]:
-                    text = fx.historical_value_str(amount, date)
-                    entry.append(text)
+                fiat_value = self.wallet.get_fiat_value(tx_hash, fx.ccy)
+                if not fiat_value:
+                    value_str = fx.historical_value_str(value, date)
+                else:
+                    value_str = str(fiat_value)
+                entry.append(value_str)
+                balance_str = fx.historical_value_str(balance, date)
+                entry.append(balance_str)
                 # fixme: should use is_mine
                 if value < 0:
-                    cg = self.wallet.capital_gain(tx_hash, self.parent.fx.timestamp_rate)
+                    cg = self.wallet.capital_gain(tx_hash, fx.timestamp_rate, fx.ccy)
                     entry.append("%.2f"%cg if cg is not None else _('No data'))
             item = QTreeWidgetItem(entry)
             item.setIcon(0, icon)
@@ -109,11 +116,26 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             if value and value < 0:
                 item.setForeground(3, QBrush(QColor("#BC1E1E")))
                 item.setForeground(4, QBrush(QColor("#BC1E1E")))
+            if fiat_value:
+                item.setForeground(6, QBrush(QColor("#1E1EFF")))
             if tx_hash:
                 item.setData(0, Qt.UserRole, tx_hash)
             self.insertTopLevelItem(0, item)
             if current_tx == tx_hash:
                 self.setCurrentItem(item)
+
+    def on_edited(self, item, column, prior):
+        '''Called only when the text actually changes'''
+        key = item.data(0, Qt.UserRole)
+        text = item.text(column)
+        # fixme
+        if column == 3:
+            self.parent.wallet.set_label(key, text)
+            self.update_labels()
+            self.parent.update_completions()
+        elif column == 6:
+            self.parent.wallet.set_fiat_value(key, self.parent.fx.ccy, text)
+            self.on_update()
 
     def on_doubleclick(self, item, column):
         if self.permit_edit(item, column):
@@ -170,8 +192,8 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
 
         menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
-        if column in self.editable_columns:
-            menu.addAction(_("Edit {}").format(column_title), lambda: self.editItem(item, column))
+        for c in self.editable_columns:
+            menu.addAction(_("Edit {}").format(self.headerItem().text(c)), lambda: self.editItem(item, c))
 
         menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx))
 
