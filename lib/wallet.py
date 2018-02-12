@@ -296,10 +296,12 @@ class Abstract_Wallet(PrintError):
     @profiler
     def check_history(self):
         save = False
-        my_addrs = [addr for addr in self._history.keys()
-                    if self.is_mine(addr)]
-        if len(my_addrs) != len(self._history):
+        my_addrs = [addr for addr in self._history if self.is_mine(addr)]
+
+        for addr in set(self._history) - set(my_addrs):
+            self._history.pop(addr)
             save = True
+
         for addr in my_addrs:
             hist = self._history[addr]
 
