@@ -17,6 +17,11 @@
         "t":"52001",
         "s":"52002"
     },
+    "electroncash.checksum0.com": {
+        "pruning": "-",
+        "version": "1.1",
+        "t": "50001"
+    },        
     "35.157.238.5": {
         "pruning": "-",
         "version": "1.1",
