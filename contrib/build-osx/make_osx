@@ -36,7 +36,7 @@ if ! which pyinstaller > /dev/null; then
   python3 -m pip install pyinstaller -I --user || fail "Could not install pyinstaller"
 fi
 
-info "Using these versions for building Electrum:"
+info "Using these versions for building Electron Cash:"
 sw_vers
 python3 --version
 echo -n "Pyinstaller "
@@ -45,16 +45,17 @@ pyinstaller --version
 rm -rf ./dist
 
 
-rm  -rf /tmp/electrum-build > /dev/null 2>&1
-mkdir /tmp/electrum-build
+BUILDDIR=/tmp/electron-cash-build
+rm  -rf $BUILDDIR > /dev/null 2>&1
+mkdir $BUILDDIR
 
 info "Downloading icons and locale..."
 for repo in icons locale; do
-  git clone https://github.com/spesmilo/electrum-$repo /tmp/electrum-build/electrum-$repo
+  git clone https://github.com/fyookball/electrum-$repo $BUILDDIR/electrum-$repo
 done
 
-cp -R /tmp/electrum-build/electrum-locale/locale/ ./lib/locale/
-cp    /tmp/electrum-build/electrum-icons/icons_rc.py ./gui/qt/
+cp -R $BUILDDIR/electrum-locale/locale/ ./lib/locale/
+cp    $BUILDDIR/electrum-icons/icons_rc.py ./gui/qt/
 
 info "Installing requirements..."
 python3 -m pip install -Ir ./contrib/deterministic-build/requirements.txt --user && \
@@ -66,10 +67,10 @@ python3 -m pip install -Ir ./contrib/deterministic-build/requirements-hw.txt --u
 fail "Could not install hardware wallet requirements"
 
 info "Building Electrum..."
-python3 setup.py install --user > /dev/null || fail "Could not build Electrum"
+python3 setup.py install --user > /dev/null || fail "Could not build Electron Cash"
 
 info "Building binary"
 pyinstaller --noconfirm --ascii --name $VERSION contrib/build-osx/osx.spec || fail "Could not build binary"
 
 info "Creating .DMG"
-hdiutil create -fs HFS+ -volname "Electrum" -srcfolder dist/Electrum.app dist/electrum-$VERSION.dmg || fail "Could not create .DMG"
+hdiutil create -fs HFS+ -volname "Electron Cash" -srcfolder dist/ElectronCash.app dist/ElectronCash-$VERSION.dmg || fail "Could not create .DMG"
