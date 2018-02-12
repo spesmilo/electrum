@@ -337,6 +337,9 @@ class Abstract_Wallet(PrintError):
     def synchronize(self):
         pass
 
+    def is_deterministic(self):
+        return self.keystore.is_deterministic()
+
     def set_up_to_date(self, up_to_date):
         with self.lock:
             self.up_to_date = up_to_date
@@ -1703,9 +1706,6 @@ class Deterministic_Wallet(Abstract_Wallet):
     def has_seed(self):
         return self.keystore.has_seed()
 
-    def is_deterministic(self):
-        return self.keystore.is_deterministic()
-
     def get_receiving_addresses(self):
         return self.receiving_addresses
 
@@ -1783,16 +1783,8 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def synchronize(self):
         with self.lock:
-            if self.is_deterministic():
-                self.synchronize_sequence(False)
-                self.synchronize_sequence(True)
-            else:
-                if len(self.receiving_addresses) != len(self.keystore.keypairs):
-                    pubkeys = self.keystore.keypairs.keys()
-                    self.receiving_addresses = [self.pubkeys_to_address(i) for i in pubkeys]
-                    self.save_addresses()
-                    for addr in self.receiving_addresses:
-                        self.add_address(addr)
+            self.synchronize_sequence(False)
+            self.synchronize_sequence(True)
 
     def is_beyond_limit(self, address, is_change):
         if is_change:
