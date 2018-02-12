@@ -31,10 +31,8 @@ pyenv global $PYTHON_VERSION || \
 fail "Unable to use Python $PYTHON_VERSION"
 
 
-if ! which pyinstaller > /dev/null; then
-  info "Installing pyinstaller"
-  python3 -m pip install pyinstaller -I --user || fail "Could not install pyinstaller"
-fi
+info "Installing pyinstaller"
+python3 -m pip install pyinstaller -I --user || fail "Could not install pyinstaller"
 
 info "Using these versions for building Electron Cash:"
 sw_vers
