@@ -83,44 +83,12 @@ This directory contains the python dependencies used by Electron Cash.
 Mac OS X / macOS
 --------
 
-Requires python3.5+, pyqt5, protoc, gettext, pycurl, pyqt5-devtools, and possibly other packages. These instructions and support scripts presume you are using MacPorts. Brew-based building is left as an exercise for the reader. ;)
-
-Compile the icons file for Qt (make sure pyrcc5 is installed)::
-
-    pyrcc5-3.6 icons.qrc -o gui/qt/icons_rc.py
-
-Compile the protobuf description file (make sure protoc is installed)::
-
-    protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto
-
-Create translations (optional)::
-
-    ./contrib/make_locale
-
-Create the 'packages' directory::
-
-    ./contrib/make_packages
-
-    ln -s contrib/packages packages
-
-Now, you run can py2app (if it complains about missing python packages, use pip to install packages listed in contrib/requirements_osx.txt)::
-
-    python setup-release.py py2app
-
-Now, you'll have a dist/Electron-Cash.app, but it won't quite work.  You need to do some crazy magic to get python to see the files properly. Fortunately for you, I already went to the trouble to figure out this magic, and it's embodied in the fix_libs_osx.sh script. Run this script::
-
-    contrib/fix_libs_osx.sh
-
-Now, try to run it.  If it doesn't run, create an issue in github.  If it does, great! 
-
-And finally, optionally create a .dmg...
-
-    hdiutil create -fs HFS+ -volname "Electron-Cash" -srcfolder dist/Electron-Cash.app dist/electron-cash-VERSION-macosx.dmg
+See `contrib/build-osx/`.
 
 Windows
 -------
 
-See `contrib/build-wine/README` file.
+See `contrib/build-wine/`.
 
 
 Android

@@ -1,0 +1,34 @@
+#!/bin/bash
+build_dir=$(dirname "$0")
+test -n "$build_dir" -a -d "$build_dir" || exit
+cd $build_dir/../..
+
+export PYTHONHASHSEED=22
+VERSION=`git describe --tags`
+
+sw_vers
+python3 --version
+echo -n "Pyinstaller version "
+pyinstaller --version
+
+rm -rf ./dist
+
+
+rm  -rf /tmp/electrum-build > /dev/null 2>&1
+mkdir /tmp/electrum-build
+
+
+echo "Downloading icons and locale..."
+for repo in icons locale; do
+  git clone https://github.com/spesmilo/electrum-$repo /tmp/electrum-build/electrum-$repo
+done
+
+cp -R /tmp/electrum-build/electrum-locale/locale/ ./lib/locale/
+cp    /tmp/electrum-build/electrum-icons/icons_rc.py ./gui/qt/
+
+echo "Building Electrum..."
+python3 setup.py install --user > /dev/null
+python3 -m pip install pyqt5 --user
+
+pyinstaller --noconfirm --ascii --name $VERSION contrib/build-osx/osx.spec
+hdiutil create -fs HFS+ -volname "Electrum" -srcfolder dist/Electrum.app dist/electrum-$VERSION.dmg

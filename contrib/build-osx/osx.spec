@@ -10,8 +10,8 @@ for i, x in enumerate(sys.argv):
 else:
     raise BaseException('no version')
 
-home = '/Users/voegtlin/electrum/'
-block_cipher=None
+electrum = os.path.abspath("../../")
+block_cipher = None
 
 # see https://github.com/pyinstaller/pyinstaller/issues/2005
 hiddenimports = []
@@ -53,7 +53,7 @@ a = Analysis([home+'electrum',
 
 # http://stackoverflow.com/questions/19055089/pyinstaller-onefile-warning-pyconfig-h-when-importing-scipy-or-scipy-signal
 for d in a.datas:
-    if 'pyconfig' in d[0]: 
+    if 'pyconfig' in d[0]:
         a.datas.remove(d)
         break
 
@@ -79,4 +79,3 @@ app = BUNDLE(exe,
                  'NSHighResolutionCapable':'True'
              }
 )
-
