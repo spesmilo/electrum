@@ -436,13 +436,13 @@ mainnet_block_explorers = {
                         {'tx': 'tx', 'addr': 'address'}),
     'zclzclzcl.com': ('http://zclzclzcl.com',
                         {'tx': 'tx', 'addr': 'address'}),
-    'Zcl-explorer.com - Alternate 1': ('http://as1.zcl-explorer.com/',
+    'Zcl-explorer.com - Alternate 1': ('http://as1.zcl-explorer.com',
                         {'tx': 'tx', 'addr': 'address'}),
-    'Zcl-explorer.com - Alternate 2': ('http://eu1.zcl-explorer.com/',
+    'Zcl-explorer.com - Alternate 2': ('http://eu1.zcl-explorer.com',
                         {'tx': 'tx', 'addr': 'address'}),
-    'explorer.zclassic.org': ('http://explorer.zclassic.org/insight/',
+    'explorer.zclassic.org': ('http://explorer.zclassic.org',
                         {'tx': 'tx', 'addr': 'address'}),
-    'explorer1.zclassic.org': ('http://explorer1.zclassic.org/insight/',
+    'explorer1.zclassic.org': ('http://explorer1.zclassic.org',
                         {'tx': 'tx', 'addr': 'address'})
 
 }
@@ -451,8 +451,8 @@ mainnet_block_explorers = {
 #http://zclzclzcl.com
 #http://eu1.zcl-explorer.com
 #http://as1.zcl-explorer.com
-#http://explorer.zclassic.org/insight/
-#http://explorer1.zclassic.org/insight/
+#http://explorer.zclassic.org
+#http://explorer1.zclassic.org
 
 # TODO zcl testnet block explorer
 testnet_block_explorers = {
