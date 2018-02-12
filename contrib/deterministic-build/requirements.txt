@@ -10,6 +10,5 @@ pyaes==1.6.1
 PySocks==1.6.8
 qrcode==5.3
 requests==2.18.4
-scrypt==0.8.0
 six==1.11.0
 urllib3==1.22

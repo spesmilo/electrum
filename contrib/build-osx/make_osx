@@ -58,7 +58,7 @@ cp    /tmp/electrum-ltc-build/electrum-ltc-icons/icons_rc.py ./gui/qt/
 
 info "Installing requirements..."
 python3 -m pip install -Ir ./contrib/deterministic-build/requirements.txt --user && \
-python3 -m pip install pyqt5 --user || \
+python3 -m pip install -Ir ./contrib/deterministic-build/requirements-binaries.txt --user || \
 fail "Could not install requirements"
 
 info "Installing hardware wallet requirements..."
