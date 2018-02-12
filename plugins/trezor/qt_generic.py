@@ -375,25 +375,31 @@ class SettingsDialog(WindowModalDialog):
             invoke_client('toggle_passphrase', unpair_after=currently_enabled)
 
         def change_homescreen():
-            from PIL import Image  # FIXME
             dialog = QFileDialog(self, _("Choose Homescreen"))
             filename, __ = dialog.getOpenFileName()
-            if filename:
-                im = Image.open(str(filename))
-                if im.size != (hs_cols, hs_rows):
-                    raise Exception('Image must be 64 x 128 pixels')
+
+            if filename.endswith('.toif'):
+                img = open(filename, 'rb').read()
+                if img[:8] != b'TOIf\x90\x00\x90\x00':
+                    raise Exception('File is not a TOIF file with size of 144x144')
+            else:
+                from PIL import Image # FIXME
+                im = Image.open(filename)
+                if im.size != (128, 64):
+                    raise Exception('Image must be 128 x 64 pixels')
                 im = im.convert('1')
                 pix = im.load()
-                img = ''
-                for j in range(hs_rows):
-                    for i in range(hs_cols):
-                        img += '1' if pix[i, j] else '0'
-                img = ''.join(chr(int(img[i:i + 8], 2))
-                              for i in range(0, len(img), 8))
+                img = bytearray(1024)
+                for j in range(64):
+                    for i in range(128):
+                        if pix[i, j]:
+                            o = (i + j * 128)
+                            img[o // 8] |= (1 << (7 - o % 8))
+                img = bytes(img)
                 invoke_client('change_homescreen', img)
 
         def clear_homescreen():
-            invoke_client('change_homescreen', '\x00')
+            invoke_client('change_homescreen', b'\x00')
 
         def set_pin():
             invoke_client('set_pin', remove=False)

@@ -28,9 +28,9 @@ class GuiMixin(object):
         # However, making the user acknowledge they cancelled
         # gets old very quickly, so we suppress those.  The NotInitialized
         # one is misnamed and indicates a passphrase request was cancelled.
-        if msg.code in (self.types.Failure_PinCancelled,
-                        self.types.Failure_ActionCancelled,
-                        self.types.Failure_NotInitialized):
+        if msg.code in (self.types.FailureType.PinCancelled,
+                        self.types.FailureType.ActionCancelled,
+                        self.types.FailureType.NotInitialized):
             raise UserCancelled()
         raise RuntimeError(msg.message)
 
