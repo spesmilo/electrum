@@ -5,7 +5,7 @@ contrib=$(dirname "$0")
 whereis pip3
 if [ $? -ne 0 ] ; then echo "Install pip3" ; exit ; fi
 
-rm -fr $contrib/packages/ 
+rm -r $contrib/../packages/ 
 
 #Install pure python modules in electron directory
 
@@ -17,8 +17,8 @@ if [ `uname` == "Darwin" ]; then
 		# nope, maybe MacPorts instead.. hopefully it's pip3
 		PIP=pip
 	fi
-	$PIP install -r $contrib/requirements_osx.txt -t $contrib/packages 
+	$PIP install -r $contrib/requirements_osx.txt -t $contrib/../packages 
 else
-	pip3 install -r $contrib/requirements.txt -t $contrib/packages 
+	pip3 install -r $contrib/requirements.txt -t $contrib/../packages 
 fi
 
