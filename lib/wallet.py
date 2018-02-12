@@ -372,17 +372,20 @@ class Abstract_Wallet(PrintError):
         return address in self.get_addresses()
 
     def is_change(self, address):
-        if not self.is_mine(address):
-            return False
+        assert not isinstance(address, str)
         return address in self.change_addresses
 
     def get_address_index(self, address):
-        assert isinstance(address, Address)
-        if address in self.receiving_addresses:
+        try:
             return False, self.receiving_addresses.index(address)
-        if address in self.change_addresses:
+        except ValueError:
+            pass
+        try:
             return True, self.change_addresses.index(address)
-        raise Exception("Address not found", address)
+        except ValueError:
+            pass
+        assert not isinstance(address, str)
+        raise Exception("Address {} not found".format(address))
 
     def export_private_key(self, address, password):
         """ extended WIF format """
