@@ -20,7 +20,7 @@ PYTHON_VERSION=3.6.4
 
 
 info "Installing Python $PYTHON_VERSION"
-export PATH="~/.pyenv/bin:~/.pyenv/shims:$PATH:~/Library/Python/3.6/bin"
+export PATH="~/.pyenv/bin:~/.pyenv/shims:~/Library/Python/3.6/bin:$PATH"
 if [ -d "~/.pyenv" ]; then
   pyenv update
 else
