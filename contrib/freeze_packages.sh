@@ -8,7 +8,7 @@ which virtualenv > /dev/null 2>&1 || { echo "Please install virtualenv" && exit 
 
 # standard Electrum dependencies
 
-rm "$venv_dir" -rf
+rm -rf "$venv_dir"
 virtualenv -p $(which python3) $venv_dir
 
 source $venv_dir/bin/activate
@@ -23,7 +23,7 @@ pip freeze | sed '/^Electron-Cash/ d' > $contrib/deterministic-build/requirement
 
 # hw wallet library dependencies
 
-rm "$venv_dir" -rf
+rm -rf "$venv_dir"
 virtualenv -p $(which python3) $venv_dir
 
 source $venv_dir/bin/activate
