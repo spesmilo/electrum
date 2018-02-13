@@ -988,7 +988,7 @@ class Abstract_Wallet(PrintError):
                 item['fiat_value'] = fx.historical_value_str(value, date)
                 item['fiat_balance'] = fx.historical_value_str(balance, date)
                 if value < 0:
-                    item['capital_gain'] = self.capital_gain(tx_hash, fx.timestamp_rate)
+                    item['capital_gain'] = self.capital_gain(tx_hash, fx.timestamp_rate, fx.ccy)
             out.append(item)
         return out
 
