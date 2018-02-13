@@ -1091,7 +1091,7 @@ class Abstract_Wallet(PrintError):
         return not self.is_watching_only() and hasattr(self.keystore, 'get_private_key')
 
     def is_used(self, address):
-        return self.get_address_history(address) or not self.is_empty(address)
+        return self.get_address_history(address) and not self.is_empty(address)
 
     def is_empty(self, address):
         assert isinstance(address, Address)
