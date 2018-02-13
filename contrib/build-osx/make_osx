@@ -16,7 +16,12 @@ cd $build_dir/../..
 
 export PYTHONHASHSEED=22
 VERSION=`git describe --tags`
+
+# Paramterize
 PYTHON_VERSION=3.6.4
+BUILDDIR=/tmp/electrum-ltc-build
+PACKAGE=Electrum-LTC
+GIT_REPO=https://github.com/pooler/electrum-ltc
 
 
 info "Installing Python $PYTHON_VERSION"
@@ -34,7 +39,7 @@ fail "Unable to use Python $PYTHON_VERSION"
 info "Installing pyinstaller"
 python3 -m pip install pyinstaller -I --user || fail "Could not install pyinstaller"
 
-info "Using these versions for building Electrum:"
+info "Using these versions for building $PACKAGE:"
 sw_vers
 python3 --version
 echo -n "Pyinstaller "
@@ -43,16 +48,16 @@ pyinstaller --version
 rm -rf ./dist
 
 
-rm  -rf /tmp/electrum-ltc-build > /dev/null 2>&1
-mkdir /tmp/electrum-ltc-build
+rm  -rf $BUILDDIR > /dev/null 2>&1
+mkdir $BUILDDIR
 
 info "Downloading icons and locale..."
 for repo in icons locale; do
-  git clone https://github.com/pooler/electrum-ltc-$repo /tmp/electrum-ltc-build/electrum-ltc-$repo
+  git clone $GIT_REPO-$repo $BUILDDIR/electrum-ltc-$repo
 done
 
-cp -R /tmp/electrum-ltc-build/electrum-ltc-locale/locale/ ./lib/locale/
-cp    /tmp/electrum-ltc-build/electrum-ltc-icons/icons_rc.py ./gui/qt/
+cp -R $BUILDDIR/electrum-ltc-locale/locale/ ./lib/locale/
+cp    $BUILDDIR/electrum-ltc-icons/icons_rc.py ./gui/qt/
 
 info "Installing requirements..."
 python3 -m pip install -Ir ./contrib/deterministic-build/requirements.txt --user && \
@@ -63,11 +68,11 @@ info "Installing hardware wallet requirements..."
 python3 -m pip install -Ir ./contrib/deterministic-build/requirements-hw.txt --user || \
 fail "Could not install hardware wallet requirements"
 
-info "Building Electrum..."
-python3 setup.py install --user > /dev/null || fail "Could not build Electrum"
+info "Building $PACKAGE..."
+python3 setup.py install --user > /dev/null || fail "Could not build $PACKAGE"
 
 info "Building binary"
 pyinstaller --noconfirm --ascii --name $VERSION contrib/build-osx/osx.spec || fail "Could not build binary"
 
 info "Creating .DMG"
-hdiutil create -fs HFS+ -volname "Electrum-LTC" -srcfolder dist/Electrum-LTC.app dist/electrum-ltc-$VERSION.dmg || fail "Could not create .DMG"
+hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-ltc-$VERSION.dmg || fail "Could not create .DMG"

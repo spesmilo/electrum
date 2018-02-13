@@ -100,7 +100,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
                 balance_str = fx.historical_value_str(balance, date)
                 entry.append(balance_str)
                 # fixme: should use is_mine
-                if value < 0:
+                if value is not None and value < 0:
                     cg = self.wallet.capital_gain(tx_hash, fx.timestamp_rate, fx.ccy)
                     entry.append("%.2f"%cg if cg is not None else _('No data'))
             item = QTreeWidgetItem(entry)
