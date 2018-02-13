@@ -78,8 +78,8 @@ class FeeDialog(Factory.Popup):
         self.config = config
         self.fee_rate = self.config.fee_per_kb()
         self.callback = callback
-        self.mempool = self.config.get('mempool_fees', False)
-        self.dynfees = self.config.get('dynamic_fees', True)
+        self.mempool = self.config.use_mempool_fees()
+        self.dynfees = self.config.is_dynfee()
         self.ids.mempool.active = self.mempool
         self.ids.dynfees.active = self.dynfees
         self.update_slider()

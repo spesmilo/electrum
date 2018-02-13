@@ -50,7 +50,7 @@ AddressScreen:
     name: 'address'
     message: ''
     pr_status: 'Pending'
-    show_change: False
+    show_change: 0
     show_used: 0
     on_message:
         self.parent.update()
@@ -70,9 +70,9 @@ AddressScreen:
                 spacing: '5dp'
                 AddressButton:
                     id: search
-                    text: _('Change') if root.show_change else _('Receiving')
+                    text: {0:_('Receiving'), 1:_('Change'), 2:_('All')}[root.show_change]
                     on_release:
-                        root.show_change = not root.show_change
+                        root.show_change = (root.show_change + 1) % 3
                         Clock.schedule_once(lambda dt: app.address_screen.update())
             AddressFilter:
                 opacity: 1
