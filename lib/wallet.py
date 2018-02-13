@@ -208,7 +208,7 @@ class Abstract_Wallet(PrintError):
         self.up_to_date = False
 
         # locks: if you need to take multiple ones, acquire them in the order they are defined here!
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.transaction_lock = threading.RLock()
 
         self.check_history()
@@ -1947,15 +1947,16 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def create_new_address(self, for_change=False):
         assert type(for_change) is bool
-        addr_list = self.change_addresses if for_change else self.receiving_addresses
-        n = len(addr_list)
-        x = self.derive_pubkeys(for_change, n)
-        address = self.pubkeys_to_address(x)
-        addr_list.append(address)
-        self._addr_to_addr_index[address] = (for_change, n)
-        self.save_addresses()
-        self.add_address(address)
-        return address
+        with self.lock:
+            addr_list = self.change_addresses if for_change else self.receiving_addresses
+            n = len(addr_list)
+            x = self.derive_pubkeys(for_change, n)
+            address = self.pubkeys_to_address(x)
+            addr_list.append(address)
+            self._addr_to_addr_index[address] = (for_change, n)
+            self.save_addresses()
+            self.add_address(address)
+            return address
 
     def synchronize_sequence(self, for_change):
         limit = self.gap_limit_for_change if for_change else self.gap_limit
