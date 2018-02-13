@@ -41,16 +41,16 @@ class AddressList(MyTreeWidget):
     filter_columns = [0, 1, 2]  # Address, Label, Balance
 
     def __init__(self, parent=None):
-        super().__init__(parent, self.create_menu, [], 1)
+        super().__init__(parent, self.create_menu, [], 2)
         self.refresh_headers()
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
 
     def refresh_headers(self):
-        headers = [ _('Address'), _('Label'), _('Balance'), _('Tx')]
+        headers = [ ('Address'), _('Index'),_('Label'), _('Balance'), _('Tx')]
         fx = self.parent.fx
         if fx and fx.get_fiat_address_config():
-            headers.insert(3, '{} {}'.format(fx.get_currency(), _(' Balance')))
+            headers.insert(4, '{} {}'.format(fx.get_currency(), _(' Balance')))
         self.update_headers(headers)
 
     def on_update(self):
@@ -70,33 +70,33 @@ class AddressList(MyTreeWidget):
         for is_change in sequences:
             if len(sequences) > 1:
                 name = _("Receiving") if not is_change else _("Change")
-                seq_item = SortableTreeWidgetItem( [ name, '', '', '', ''] )
+                seq_item = QTreeWidgetItem( [ name, '', '', '', '', ''] )
                 account_item.addChild(seq_item)
                 if not is_change:
                     seq_item.setExpanded(True)
             else:
                 seq_item = account_item
-            used_item = SortableTreeWidgetItem( [ _("Used"), '', '', '', ''] )
+            used_item = QTreeWidgetItem( [ _("Used"), '', '', '', '', ''] )
             used_flag = False
             addr_list = change_addresses if is_change else receiving_addresses
-            for address in addr_list:
+            for n, address in enumerate(addr_list):
                 num = len(self.wallet.get_address_history(address))
                 is_used = self.wallet.is_used(address)
                 balance = sum(self.wallet.get_addr_balance(address))
                 address_text = address.to_ui_string()
                 label = self.wallet.labels.get(address.to_storage_string(), '')
                 balance_text = self.parent.format_amount(balance, whitespaces=True)
-                columns = [address_text, label, balance_text, str(num)]
+                columns = [address_text, str(n), label, balance_text, str(num)]
                 if fx:
                     rate = fx.exchange_rate()
                     fiat_balance = fx.value_str(balance, rate)
-                    columns.insert(3, fiat_balance)
+                    columns.insert(4, fiat_balance)
                 address_item = SortableTreeWidgetItem(columns)
-                address_item.setTextAlignment(2, Qt.AlignRight)
-                address_item.setFont(2, QFont(MONOSPACE_FONT))
+                address_item.setTextAlignment(3, Qt.AlignRight)
+                address_item.setFont(3, QFont(MONOSPACE_FONT))
                 if fx:
-                    address_item.setTextAlignment(3, Qt.AlignRight)
-                    address_item.setFont(3, QFont(MONOSPACE_FONT))
+                    address_item.setTextAlignment(4, Qt.AlignRight)
+                    address_item.setFont(4, QFont(MONOSPACE_FONT))
 
                 address_item.setFont(0, QFont(MONOSPACE_FONT))
                 address_item.setData(0, Qt.UserRole, address)
@@ -175,7 +175,7 @@ class AddressList(MyTreeWidget):
 
     def keyPressEvent(self, event):
         if event.matches(QKeySequence.Copy) and self.currentColumn() == 0:
-            addrs = [i.data(0, Qt.UserRole) for i in self.selectedItems()]
+            addrs = [i.data(1, Qt.UserRole) for i in self.selectedItems()]
             if addrs and isinstance(addrs[0], Address):
                 text = addrs[0].to_full_ui_string()
                 self.parent.app.clipboard().setText(text)
