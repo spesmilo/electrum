@@ -622,23 +622,27 @@ class ColorScheme:
     def update_from_widget(widget):
         if ColorScheme.has_dark_background(widget):
             ColorScheme.dark_scheme = True
-            
-            
+
+
 class SortableTreeWidgetItem(QTreeWidgetItem):
     DataRole = Qt.UserRole + 1
 
     def __lt__(self, other):
         column = self.treeWidget().sortColumn()
-        if None not in [x.data(column, self.DataRole) for x in [self, other]]:
+        self_data = self.data(column, self.DataRole)
+        other_data = other.data(column, self.DataRole)
+        if None not in (self_data, other_data):
             # We have set custom data to sort by
-            return self.data(column, self.DataRole) < other.data(column, self.DataRole)
+            return self_data < other_data
         try:
             # Is the value something numeric?
-            return float(self.text(column)) < float(other.text(column))
+            self_text = self.text(column).replace(',', '')
+            other_text = other.text(column).replace(',', '')
+            return float(self_text) < float(other_text)
         except ValueError:
             # If not, we will just do string comparison
             return self.text(column) < other.text(column)
-        
+
 
 if __name__ == "__main__":
     app = QApplication([])
