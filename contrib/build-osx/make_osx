@@ -20,7 +20,7 @@ PYTHON_VERSION=3.6.4
 
 
 info "Installing Python $PYTHON_VERSION"
-export PATH="~/.pyenv/bin:~/.pyenv/shims:$PATH:~/Library/Python/3.6/bin"
+export PATH="~/.pyenv/bin:~/.pyenv/shims:~/Library/Python/3.6/bin:$PATH"
 if [ -d "~/.pyenv" ]; then
   pyenv update
 else
@@ -31,10 +31,8 @@ pyenv global $PYTHON_VERSION || \
 fail "Unable to use Python $PYTHON_VERSION"
 
 
-if ! which pyinstaller > /dev/null; then
-  info "Installing pyinstaller"
-  python3 -m pip install pyinstaller -I --user || fail "Could not install pyinstaller"
-fi
+info "Installing pyinstaller"
+python3 -m pip install pyinstaller -I --user || fail "Could not install pyinstaller"
 
 info "Using these versions for building Electrum:"
 sw_vers

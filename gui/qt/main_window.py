@@ -1081,7 +1081,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         def fee_cb(dyn, pos, fee_rate):
             if dyn:
-                if self.config.get('mempool_fees'):
+                if self.config.use_mempool_fees():
                     self.config.set_key('depth_level', pos, False)
                 else:
                     self.config.set_key('fee_level', pos, False)
@@ -2669,7 +2669,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fee_type_label = HelpLabel(_('Fee estimation') + ':', msg)
         fee_type_combo = QComboBox()
         fee_type_combo.addItems([_('Time based'), _('Mempool based')])
-        fee_type_combo.setCurrentIndex(1 if self.config.get('mempool_fees') else 0)
+        fee_type_combo.setCurrentIndex(1 if self.config.use_mempool_fees() else 0)
         def on_fee_type(x):
             self.config.set_key('mempool_fees', x==1)
             self.fee_slider.update()

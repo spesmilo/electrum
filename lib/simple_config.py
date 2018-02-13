@@ -327,7 +327,7 @@ class SimpleConfig(PrintError):
 
     def get_fee_status(self):
         dyn = self.is_dynfee()
-        mempool = self.get('mempool_fees')
+        mempool = self.use_mempool_fees()
         pos = self.get_depth_level() if mempool else self.get_fee_level()
         fee_rate = self.fee_per_kb()
         target, tooltip = self.get_fee_text(pos, dyn, mempool, fee_rate)
@@ -398,10 +398,10 @@ class SimpleConfig(PrintError):
         return bool(self.mempool_fees)
 
     def is_dynfee(self):
-        return self.get('dynamic_fees', False)
+        return bool(self.get('dynamic_fees', False))
 
     def use_mempool_fees(self):
-        return self.get('mempool_fees', False)
+        return bool(self.get('mempool_fees', False))
 
     def fee_per_kb(self):
         """Returns sat/kvB fee to pay for a txn.
