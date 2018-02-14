@@ -1022,16 +1022,16 @@ class Abstract_Wallet(PrintError):
             summary = {
                 'start_date': format_time(from_timestamp),
                 'end_date': format_time(to_timestamp),
-                'initial_balance': format_satoshis(init_balance),
-                'final_balance': format_satoshis(end_balance),
+                'start_balance': format_satoshis(init_balance),
+                'end_balance': format_satoshis(end_balance),
                 'capital_gains': fx.format_fiat(capital_gains),
                 'fiat_income': fx.format_fiat(fiat_income)
             }
             if fx:
                 start_date = timestamp_to_datetime(from_timestamp)
                 end_date = timestamp_to_datetime(to_timestamp)
-                summary['initial_fiat_value'] = fx.format_fiat(fx.historical_value(init_balance, start_date))
-                summary['final_fiat_value'] = fx.format_fiat(fx.historical_value(end_balance, end_date))
+                summary['start_fiat_balance'] = fx.format_fiat(fx.historical_value(init_balance, start_date))
+                summary['end_fiat_balance'] = fx.format_fiat(fx.historical_value(end_balance, end_date))
             out.append(summary)
 
         return out
