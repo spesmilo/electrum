@@ -119,7 +119,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             if value and value < 0:
                 item.setForeground(3, QBrush(QColor("#BC1E1E")))
                 item.setForeground(4, QBrush(QColor("#BC1E1E")))
-            if not fiat_default:
+            if fiat_value and not fiat_default:
                 item.setForeground(6, QBrush(QColor("#1E1EFF")))
             if tx_hash:
                 item.setData(0, Qt.UserRole, tx_hash)
