@@ -506,10 +506,14 @@ class FxThread(ThreadJob):
             self.value_str(COIN / (10**(8 - decimal_point)), rate), self.ccy)
 
     def value_str(self, satoshis, rate):
-        if satoshis is None:  # Can happen with incomplete history
-            return _("Unknown")
-        if rate:
+        if satoshis is not None and rate is not None:
             value = Decimal(satoshis) / COIN * Decimal(rate)
+        else:
+            value = None
+        return self.format_fiat(value)
+
+    def format_fiat(self, value):
+        if value is not None:
             return "%s" % (self.ccy_amount_str(value, True))
         return _("No data")
 

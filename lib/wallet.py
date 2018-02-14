@@ -943,10 +943,21 @@ class Abstract_Wallet(PrintError):
 
         return h2
 
+    def balance_at_timestamp(self, domain, target_timestamp):
+        h = self.get_history(domain)
+        for tx_hash, height, conf, timestamp, value, balance in h:
+            if timestamp > target_timestamp:
+                return balance - value
+        # return last balance
+        return balance
+
     def export_history(self, domain=None, from_timestamp=None, to_timestamp=None, fx=None, show_addresses=False):
         from .util import format_time, format_satoshis, timestamp_to_datetime
         h = self.get_history(domain)
         out = []
+        init_balance = None
+        capital_gains = 0
+        fiat_income = 0
         for tx_hash, height, conf, timestamp, value, balance in h:
             if from_timestamp and timestamp < from_timestamp:
                 continue
@@ -960,6 +971,9 @@ class Abstract_Wallet(PrintError):
                 'value': format_satoshis(value, True) if value is not None else '--',
                 'balance': format_satoshis(balance)
             }
+            if init_balance is None:
+                init_balance = balance - value
+            end_balance = balance
             if item['height']>0:
                 date_str = format_time(timestamp) if timestamp is not None else _("unverified")
             else:
@@ -988,11 +1002,36 @@ class Abstract_Wallet(PrintError):
                 item['output_addresses'] = output_addresses
             if fx is not None:
                 date = timestamp_to_datetime(time.time() if conf <= 0 else timestamp)
-                item['fiat_value'] = fx.historical_value_str(value, date)
-                item['fiat_balance'] = fx.historical_value_str(balance, date)
+                fiat_value = self.get_fiat_value(tx_hash, fx.ccy)
+                if fiat_value is None:
+                    fiat_value = fx.historical_value(value, date)
+                item['fiat_value'] = fx.format_fiat(fiat_value)
                 if value < 0:
-                    item['capital_gain'] = self.capital_gain(tx_hash, fx.timestamp_rate, fx.ccy)
+                    ap, lp = self.capital_gain(tx_hash, fx.timestamp_rate, fx.ccy)
+                    cg = None if lp is None or ap is None else lp - ap
+                    item['acquisition_price'] = fx.format_fiat(ap)
+                    item['capital_gain'] = fx.format_fiat(cg)
+                    capital_gains += cg
+                else:
+                    fiat_income += fiat_value
             out.append(item)
+
+        if from_timestamp and to_timestamp:
+            summary = {
+                'start_date': format_time(from_timestamp),
+                'end_date': format_time(to_timestamp),
+                'initial_balance': format_satoshis(init_balance),
+                'final_balance': format_satoshis(end_balance),
+                'capital_gains': fx.format_fiat(capital_gains),
+                'fiat_income': fx.format_fiat(fiat_income)
+            }
+            if fx:
+                start_date = timestamp_to_datetime(from_timestamp)
+                end_date = timestamp_to_datetime(to_timestamp)
+                summary['initial_fiat_value'] = fx.format_fiat(fx.historical_value(init_balance, start_date))
+                summary['final_fiat_value'] = fx.format_fiat(fx.historical_value(end_balance, end_date))
+            out.append(summary)
+
         return out
 
     def get_label(self, tx_hash):
@@ -1644,11 +1683,12 @@ class Abstract_Wallet(PrintError):
             liquidation_price = None if p is None else out_value/Decimal(COIN) * p
         else:
             liquidation_price = - fiat_value
-
         try:
-            return liquidation_price - out_value/Decimal(COIN) * self.average_price(tx, price_func, ccy)
+            acquisition_price = out_value/Decimal(COIN) * self.average_price(tx, price_func, ccy)
         except:
-            return None
+            acquisition_price = None
+        return acquisition_price, liquidation_price
+
 
     def average_price(self, tx, price_func, ccy):
         """ average price of the inputs of a transaction """
