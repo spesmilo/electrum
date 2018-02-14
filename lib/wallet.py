@@ -1011,9 +1011,11 @@ class Abstract_Wallet(PrintError):
                     cg = None if lp is None or ap is None else lp - ap
                     item['acquisition_price'] = fx.format_fiat(ap)
                     item['capital_gain'] = fx.format_fiat(cg)
-                    capital_gains += cg
+                    if cg is not None:
+                        capital_gains += cg
                 else:
-                    fiat_income += fiat_value
+                    if fiat_value is not None:
+                        fiat_income += fiat_value
             out.append(item)
 
         if from_timestamp and to_timestamp:
