@@ -34,7 +34,7 @@ from PyQt5.QtWidgets import *
 
 from electrum.i18n import _
 import sys
-from electrum import ELECTRUM_VERSION
+from electrum import ELECTRUM_VERSION, bitcoin
 
 issue_template = """<h2>Traceback</h2>
 <pre>
@@ -105,6 +105,10 @@ class Exception_Window(QWidget):
         self.show()
 
     def send_report(self):
+        if bitcoin.NetworkConstants.GENESIS[-4:] not in ["4943", "e26f"] and ".electrum.org" in report_server:
+            # Gah! Some kind of altcoin wants to send us crash reports.
+            self.main_window.show_critical("Please report this issue manually.")
+            return
         report = self.get_traceback_info()
         report.update(self.get_additional_info())
         report = json.dumps(report)
