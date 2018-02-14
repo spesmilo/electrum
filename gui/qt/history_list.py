@@ -61,7 +61,8 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         headers = ['', '', _('Date'), _('Description') , _('Amount'), _('Balance')]
         fx = self.parent.fx
         if fx and fx.show_history():
-            headers.extend(['%s '%fx.ccy + _('Amount'), '%s '%fx.ccy + _('Balance')])
+            headers.extend(['%s '%fx.ccy + _('Value')])
+            headers.extend(['%s '%fx.ccy + _('Acquisition price')])
             headers.extend(['%s '%fx.ccy + _('Capital Gains')])
             self.editable_columns.extend([6])
         self.update_headers(headers)
@@ -89,20 +90,22 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             label = self.wallet.get_label(tx_hash)
             entry = ['', tx_hash, status_str, label, v_str, balance_str]
             fiat_value = None
-            if fx and fx.show_history():
+            if value is not None and fx and fx.show_history():
                 date = timestamp_to_datetime(time.time() if conf <= 0 else timestamp)
                 fiat_value = self.wallet.get_fiat_value(tx_hash, fx.ccy)
                 if not fiat_value:
-                    value_str = fx.historical_value_str(value, date)
+                    fiat_value = fx.historical_value(value, date)
+                    fiat_default = True
                 else:
-                    value_str = str(fiat_value)
+                    fiat_default = False
+                value_str = fx.format_fiat(fiat_value)
                 entry.append(value_str)
-                balance_str = fx.historical_value_str(balance, date)
-                entry.append(balance_str)
                 # fixme: should use is_mine
-                if value is not None and value < 0:
-                    cg = self.wallet.capital_gain(tx_hash, fx.timestamp_rate, fx.ccy)
-                    entry.append("%.2f"%cg if cg is not None else _('No data'))
+                if value < 0:
+                    ap, lp = self.wallet.capital_gain(tx_hash, fx.timestamp_rate, fx.ccy)
+                    cg = None if lp is None or ap is None else lp - ap
+                    entry.append(fx.format_fiat(ap))
+                    entry.append(fx.format_fiat(cg))
             item = QTreeWidgetItem(entry)
             item.setIcon(0, icon)
             item.setToolTip(0, str(conf) + " confirmation" + ("s" if conf != 1 else ""))
@@ -116,7 +119,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             if value and value < 0:
                 item.setForeground(3, QBrush(QColor("#BC1E1E")))
                 item.setForeground(4, QBrush(QColor("#BC1E1E")))
-            if fiat_value:
+            if not fiat_default:
                 item.setForeground(6, QBrush(QColor("#1E1EFF")))
             if tx_hash:
                 item.setData(0, Qt.UserRole, tx_hash)

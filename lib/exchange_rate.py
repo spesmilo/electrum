@@ -61,9 +61,10 @@ class ExchangeBase(PrintError):
         t.setDaemon(True)
         t.start()
 
-    def get_historical_rates_safe(self, ccy, cache_dir):
+    def read_historical_rates(self, ccy, cache_dir):
         filename = os.path.join(cache_dir, self.name() + '_'+ ccy)
-        if os.path.exists(filename) and (time.time() - os.stat(filename).st_mtime) < 24*3600:
+        if os.path.exists(filename):
+            timestamp = os.stat(filename).st_mtime
             try:
                 with open(filename, 'r') as f:
                     h = json.loads(f.read())
@@ -71,7 +72,15 @@ class ExchangeBase(PrintError):
                 h = None
         else:
             h = None
-        if h is None:
+            timestamp = False
+        if h:
+            self.history[ccy] = h
+            self.on_history()
+        return h, timestamp
+
+    def get_historical_rates_safe(self, ccy, cache_dir):
+        h, timestamp = self.read_historical_rates()
+        if h is None or time.time() - timestamp < 24*3600:
             try:
                 self.print_error("requesting fx history for", ccy)
                 h = self.request_history(ccy)
@@ -314,8 +323,8 @@ class FxThread(ThreadJob):
         self.history_used_spot = False
         self.ccy_combo = None
         self.hist_checkbox = None
-        self.set_exchange(self.config_exchange())
         self.cache_dir = os.path.join(config.path, 'cache')
+        self.set_exchange(self.config_exchange())
         if not os.path.exists(self.cache_dir):
             os.mkdir(self.cache_dir)
 
@@ -388,12 +397,15 @@ class FxThread(ThreadJob):
         # A new exchange means new fx quotes, initially empty.  Force
         # a quote refresh
         self.timeout = 0
+        self.exchange.read_historical_rates(self.ccy, self.cache_dir)
 
     def on_quotes(self):
-        self.network.trigger_callback('on_quotes')
+        if self.network:
+            self.network.trigger_callback('on_quotes')
 
     def on_history(self):
-        self.network.trigger_callback('on_history')
+        if self.network:
+            self.network.trigger_callback('on_history')
 
     def exchange_rate(self):
         '''Returns None, or the exchange rate as a Decimal'''
@@ -411,10 +423,14 @@ class FxThread(ThreadJob):
             self.value_str(COIN / (10**(8 - decimal_point)), rate), self.ccy)
 
     def value_str(self, satoshis, rate):
-        if satoshis is None:  # Can happen with incomplete history
-            return _("Unknown")
-        if rate:
+        if satoshis is not None and rate is not None:
             value = Decimal(satoshis) / COIN * Decimal(rate)
+        else:
+            value = None
+        return self.format_fiat(value)
+
+    def format_fiat(self, value):
+        if value is not None:
             return "%s" % (self.ccy_amount_str(value, True))
         return _("No data")
 
@@ -430,6 +446,11 @@ class FxThread(ThreadJob):
     def historical_value_str(self, satoshis, d_t):
         rate = self.history_rate(d_t)
         return self.value_str(satoshis, rate)
+
+    def historical_value(self, satoshis, d_t):
+        rate = self.history_rate(d_t)
+        if rate:
+            return Decimal(satoshis) / COIN * Decimal(rate)
 
     def timestamp_rate(self, timestamp):
         from electrum_ltc.util import timestamp_to_datetime
