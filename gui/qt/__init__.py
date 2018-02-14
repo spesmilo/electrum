@@ -25,6 +25,7 @@
 
 import signal
 import sys
+import traceback
 
 
 try:
@@ -192,7 +193,8 @@ class ElectrumGui:
         else:
             try:
                 wallet = self.daemon.load_wallet(path, None)
-            except  BaseException as e:
+            except BaseException as e:
+                traceback.print_exc(file=sys.stdout)
                 d = QMessageBox(QMessageBox.Warning, _('Error'), 'Cannot load wallet:\n' + str(e))
                 d.exec_()
                 return
@@ -243,8 +245,7 @@ class ElectrumGui:
             return
         except GoBack:
             return
-        except:
-            import traceback
+        except BaseException as e:
             traceback.print_exc(file=sys.stdout)
             return
         self.timer.start()
