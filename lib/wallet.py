@@ -1011,25 +1011,27 @@ class Abstract_Wallet(PrintError):
                     cg = None if lp is None or ap is None else lp - ap
                     item['acquisition_price'] = fx.format_fiat(ap)
                     item['capital_gain'] = fx.format_fiat(cg)
-                    capital_gains += cg
+                    if cg is not None:
+                        capital_gains += cg
                 else:
-                    fiat_income += fiat_value
+                    if fiat_value is not None:
+                        fiat_income += fiat_value
             out.append(item)
 
         if from_timestamp and to_timestamp:
             summary = {
                 'start_date': format_time(from_timestamp),
                 'end_date': format_time(to_timestamp),
-                'initial_balance': format_satoshis(init_balance),
-                'final_balance': format_satoshis(end_balance),
+                'start_balance': format_satoshis(init_balance),
+                'end_balance': format_satoshis(end_balance),
                 'capital_gains': fx.format_fiat(capital_gains),
                 'fiat_income': fx.format_fiat(fiat_income)
             }
             if fx:
                 start_date = timestamp_to_datetime(from_timestamp)
                 end_date = timestamp_to_datetime(to_timestamp)
-                summary['initial_fiat_value'] = fx.format_fiat(fx.historical_value(init_balance, start_date))
-                summary['final_fiat_value'] = fx.format_fiat(fx.historical_value(end_balance, end_date))
+                summary['start_fiat_balance'] = fx.format_fiat(fx.historical_value(init_balance, start_date))
+                summary['end_fiat_balance'] = fx.format_fiat(fx.historical_value(end_balance, end_date))
             out.append(summary)
 
         return out
