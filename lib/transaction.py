@@ -366,6 +366,8 @@ def parse_scriptSig(d, _bytes):
         try:
             m, n, x_pubkeys, pubkeys, redeemScript = parse_redeemScript(decoded[-1][1])
         except NotRecognizedRedeemScript:
+            print_error("parse_scriptSig: cannot find address in input script (p2sh?)",
+                        bh2u(_bytes))
             # we could still guess:
             # d['address'] = hash160_to_p2sh(hash_160(decoded[-1][1]))
             return
@@ -385,13 +387,15 @@ def parse_scriptSig(d, _bytes):
 
 def parse_redeemScript(s):
     dec2 = [ x for x in script_GetOp(s) ]
-    m = dec2[0][0] - opcodes.OP_1 + 1
-    n = dec2[-2][0] - opcodes.OP_1 + 1
+    try:
+        m = dec2[0][0] - opcodes.OP_1 + 1
+        n = dec2[-2][0] - opcodes.OP_1 + 1
+    except IndexError:
+        raise NotRecognizedRedeemScript()
     op_m = opcodes.OP_1 + m - 1
     op_n = opcodes.OP_1 + n - 1
     match_multisig = [ op_m ] + [opcodes.OP_PUSHDATA4]*n + [ op_n, opcodes.OP_CHECKMULTISIG ]
     if not match_decoded(dec2, match_multisig):
-        print_error("parse_redeemScript: not multisig", bh2u(s))
         raise NotRecognizedRedeemScript()
     x_pubkeys = [bh2u(x[1]) for x in dec2[1:-2]]
     pubkeys = [safe_parse_pubkey(x) for x in x_pubkeys]
