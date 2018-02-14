@@ -449,6 +449,10 @@ class Commands:
             end_date = datetime.datetime(year+1, 1, 1)
             kwargs['from_timestamp'] = time.mktime(start_date.timetuple())
             kwargs['to_timestamp'] = time.mktime(end_date.timetuple())
+        if show_fiat:
+            from .exchange_rate import FxThread
+            fx = FxThread(self.config, None)
+            kwargs['fx'] = fx
         return self.wallet.export_history(**kwargs)
 
     @command('w')
