@@ -55,7 +55,7 @@ try:
 except Exception as e:
     print(e)
     print("Error: Could not find icons file.")
-    print("Please run 'pyrcc5 icons.qrc -o gui/qt/icons_rc.py', and reinstall Electrum")
+    print("Run 'pyrcc5 icons.qrc -o gui/qt/icons_rc.py', and re-run Electron Cash")
     sys.exit(1)
 
 from .util import *   # * needed for plugins
