@@ -25,7 +25,7 @@
 
 from .util import *
 from electrum.i18n import _
-from electrum.util import format_time
+from electrum.util import format_time, FileImportFailed
 
 
 class InvoiceList(MyTreeWidget):
@@ -61,7 +61,10 @@ class InvoiceList(MyTreeWidget):
         filename, __ = QFileDialog.getOpenFileName(self.parent, "Select your wallet file", wallet_folder)
         if not filename:
             return
-        self.parent.invoices.import_file(filename)
+        try:
+            self.parent.invoices.import_file(filename)
+        except FileImportFailed as e:
+            self.parent.show_message(str(e))
         self.on_update()
 
     def create_menu(self, position):
