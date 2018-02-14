@@ -40,6 +40,7 @@ except ImportError:
 from . import bitcoin
 from . import util
 from .util import print_error, bh2u, bfh
+from .util import FileImportFailed, FileImportFailedEncrypted
 from . import transaction
 from . import x509
 from . import rsakey
@@ -471,9 +472,12 @@ class InvoiceStore(object):
             with open(path, 'r') as f:
                 d = json.loads(f.read())
                 self.load(d)
-        except:
+        except json.decoder.JSONDecodeError:
             traceback.print_exc(file=sys.stderr)
-            return
+            raise FileImportFailedEncrypted()
+        except BaseException:
+            traceback.print_exc(file=sys.stdout)
+            raise FileImportFailed()
         self.save()
 
     def save(self):

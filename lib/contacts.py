@@ -23,9 +23,12 @@
 import re
 import dns
 import json
+import traceback
+import sys
 
 from . import bitcoin
 from . import dnssec
+from .util import FileImportFailed, FileImportFailedEncrypted
 
 
 class Contacts(dict):
@@ -51,8 +54,12 @@ class Contacts(dict):
         try:
             with open(path, 'r') as f:
                 d = self._validate(json.loads(f.read()))
-        except:
-            return
+        except json.decoder.JSONDecodeError:
+            traceback.print_exc(file=sys.stderr)
+            raise FileImportFailedEncrypted()
+        except BaseException:
+            traceback.print_exc(file=sys.stdout)
+            raise FileImportFailed()
         self.update(d)
         self.save()
 

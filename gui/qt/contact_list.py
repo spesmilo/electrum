@@ -26,7 +26,7 @@ import webbrowser
 
 from electrum_ltc.i18n import _
 from electrum_ltc.bitcoin import is_address
-from electrum_ltc.util import block_explorer_URL
+from electrum_ltc.util import block_explorer_URL, FileImportFailed
 from electrum_ltc.plugins import run_hook
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -57,7 +57,10 @@ class ContactList(MyTreeWidget):
         filename, __ = QFileDialog.getOpenFileName(self.parent, "Select your wallet file", wallet_folder)
         if not filename:
             return
-        self.parent.contacts.import_file(filename)
+        try:
+            self.parent.contacts.import_file(filename)
+        except FileImportFailed as e:
+            self.parent.show_message(str(e))
         self.on_update()
 
     def create_menu(self, position):

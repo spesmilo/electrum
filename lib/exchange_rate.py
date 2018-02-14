@@ -79,7 +79,7 @@ class ExchangeBase(PrintError):
         return h, timestamp
 
     def get_historical_rates_safe(self, ccy, cache_dir):
-        h, timestamp = self.read_historical_rates()
+        h, timestamp = self.read_historical_rates(ccy, cache_dir)
         if h is None or time.time() - timestamp < 24*3600:
             try:
                 self.print_error("requesting fx history for", ccy)
@@ -89,6 +89,7 @@ class ExchangeBase(PrintError):
             except BaseException as e:
                 self.print_error("failed fx history:", e)
                 return
+            filename = os.path.join(cache_dir, self.name() + '_' + ccy)
             with open(filename, 'w') as f:
                 f.write(json.dumps(h))
         self.history[ccy] = h
