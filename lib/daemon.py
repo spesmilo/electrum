@@ -121,13 +121,12 @@ class Daemon(DaemonThread):
         self.config = config
         if config.get('offline'):
             self.network = None
-            self.fx = None
         else:
             self.network = Network(config)
             self.network.start()
-            self.fx = FxThread(config, self.network)
+        self.fx = FxThread(config, self.network)
+        if self.network:
             self.network.add_jobs([self.fx])
-
         self.gui = None
         self.wallets = {}
         # Setup JSONRPC server
