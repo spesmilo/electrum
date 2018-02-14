@@ -28,6 +28,7 @@ from electroncash.i18n import _
 import electroncash.web as web
 from electroncash.address import Address
 from electroncash.plugins import run_hook
+from electroncash.util import FileImportFailed
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import (
@@ -57,7 +58,10 @@ class ContactList(MyTreeWidget):
         filename, __ = QFileDialog.getOpenFileName(self.parent, "Select your wallet file", wallet_folder)
         if not filename:
             return
-        self.parent.contacts.import_file(filename)
+        try:
+            self.parent.contacts.import_file(filename)
+        except FileImportFailed as e:
+            self.parent.show_message(str(e))
         self.on_update()
 
     def create_menu(self, position):
