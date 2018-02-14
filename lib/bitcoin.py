@@ -208,6 +208,7 @@ def rev_hex(s):
 def int_to_hex(i, length=1):
     assert isinstance(i, int)
     s = hex(i)[2:].rstrip('L')
+    s = s.lstrip('0x')
     s = "0"*(2*length - len(s)) + s
     return rev_hex(s)
 
