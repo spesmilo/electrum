@@ -175,7 +175,7 @@ class AddressList(MyTreeWidget):
 
     def keyPressEvent(self, event):
         if event.matches(QKeySequence.Copy) and self.currentColumn() == 0:
-            addrs = [i.data(1, Qt.UserRole) for i in self.selectedItems()]
+            addrs = [i.data(0, Qt.UserRole) for i in self.selectedItems()]
             if addrs and isinstance(addrs[0], Address):
                 text = addrs[0].to_full_ui_string()
                 self.parent.app.clipboard().setText(text)
