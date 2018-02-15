@@ -27,7 +27,7 @@ import os
 
 from electrum.i18n import _
 from electrum.bitcoin import is_address
-from electrum.util import block_explorer_URL, FileImportFailed
+from electrum.util import block_explorer_URL, FileImportFailed, FileExportFailed
 from electrum.plugins import run_hook
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -60,8 +60,10 @@ class ContactList(MyTreeWidget):
         try:
             self.parent.contacts.import_file(filename)
         except FileImportFailed as e:
-            self.parent.show_message(str(e))
-        self.on_update()
+            self.parent.show_critical(str(e))
+        else:
+            self.parent.show_message(_("Your contacts were successfully imported"))
+            self.on_update()
 
     def export_contacts(self):
         filename = self.parent.getSaveFileName(_("Select file to save your contacts"), 'electrum_contacts.json', "*.json")
@@ -69,8 +71,10 @@ class ContactList(MyTreeWidget):
             return
         try:
             self.parent.contacts.export_file(filename)
-        except (IOError, os.error) as reason:
-            self.parent.show_critical(_("Electrum was unable to export your contacts.") + "\n" + str(reason))
+        except FileExportFailed as e:
+            self.parent.show_critical(str(e))
+        else:
+            self.parent.show_message(_("Your contacts were exported to") + " '%s'" % str(filename))
 
     def create_menu(self, position):
         menu = QMenu()

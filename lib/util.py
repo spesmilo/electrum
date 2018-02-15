@@ -70,6 +70,16 @@ class FileImportFailedEncrypted(FileImportFailed):
                 _('Perhaps it is encrypted...') + '\n' +
                 _('Importing encrypted files is not supported.'))
 
+class FileImportFailedInvalidJSON(FileImportFailed):
+    def __str__(self):
+        return(_('Failed to import file. JSON decoding failed.'))
+
+class FileExportFailed(Exception):
+    def __init__(self, reason):
+        self.message = reason
+
+    def __str__(self):
+        return( _("Electrum was unable to export your contacts.") + "\n" + self.message )
 
 # Throw this exception to unwind the stack like when an error occurs.
 # However unlike other exceptions the user won't be informed.

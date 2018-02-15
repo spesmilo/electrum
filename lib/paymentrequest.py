@@ -472,7 +472,7 @@ class InvoiceStore(object):
             with open(path, 'r') as f:
                 d = json.loads(f.read())
                 self.load(d)
-        except json.decoder.JSONDecodeError:
+        except ValueError:
             traceback.print_exc(file=sys.stderr)
             raise FileImportFailedEncrypted()
         except BaseException:
