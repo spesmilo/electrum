@@ -731,10 +731,7 @@ class Abstract_Wallet(PrintError):
                 if spending_tx_hash is None:
                     continue
                 # this outpoint (ser) has already been spent, by spending_tx
-                if spending_tx_hash not in self.transactions:
-                    # can't find this txn: delete and ignore it
-                    self.spent_outpoints.pop(ser)
-                    continue
+                assert spending_tx_hash in self.transactions
                 conflicting_txns |= {spending_tx_hash}
             txid = tx.txid()
             if txid in conflicting_txns:
