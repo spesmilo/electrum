@@ -52,10 +52,6 @@ from electrum import Transaction
 from electrum import util, bitcoin, commands, coinchooser
 from electrum import paymentrequest
 from electrum.wallet import Multisig_Wallet
-try:
-    from electrum.plot import plot_history
-except:
-    plot_history = None
 
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
@@ -490,9 +486,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         contacts_menu.addAction(_("Import"), lambda: self.contact_list.import_contacts())
         invoices_menu = wallet_menu.addMenu(_("Invoices"))
         invoices_menu.addAction(_("Import"), lambda: self.invoice_list.import_invoices())
-        hist_menu = wallet_menu.addMenu(_("&History"))
-        hist_menu.addAction("Plot", self.plot_history_dialog).setEnabled(plot_history is not None)
-        hist_menu.addAction("Export", self.export_history_dialog)
 
         wallet_menu.addSeparator()
         wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
@@ -755,7 +748,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         from .history_list import HistoryList
         self.history_list = l = HistoryList(self)
         l.searchable_list = l
-        return l
+        return self.create_list_tab(l, l.get_list_header())
 
     def show_address(self, addr):
         from . import address_dialog
@@ -2457,60 +2450,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.show_message(_("Your labels were exported to") + " '%s'" % str(fileName))
         except (IOError, os.error) as reason:
             self.show_critical(_("Electrum was unable to export your labels.") + "\n" + str(reason))
-
-    def export_history_dialog(self):
-        d = WindowModalDialog(self, _('Export History'))
-        d.setMinimumSize(400, 200)
-        vbox = QVBoxLayout(d)
-        defaultname = os.path.expanduser('~/electrum-history.csv')
-        select_msg = _('Select file to export your wallet transactions to')
-        hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
-        vbox.addLayout(hbox)
-        vbox.addStretch(1)
-        hbox = Buttons(CancelButton(d), OkButton(d, _('Export')))
-        vbox.addLayout(hbox)
-        run_hook('export_history_dialog', self, hbox)
-        self.update()
-        if not d.exec_():
-            return
-        filename = filename_e.text()
-        if not filename:
-            return
-        try:
-            self.do_export_history(self.wallet, filename, csv_button.isChecked())
-        except (IOError, os.error) as reason:
-            export_error_label = _("Electrum was unable to produce a transaction export.")
-            self.show_critical(export_error_label + "\n" + str(reason), title=_("Unable to export history"))
-            return
-        self.show_message(_("Your wallet history has been successfully exported."))
-
-    def plot_history_dialog(self):
-        if plot_history is None:
-            return
-        wallet = self.wallet
-        history = wallet.get_history()
-        if len(history) > 0:
-            plt = plot_history(self.wallet, history)
-            plt.show()
-
-    def do_export_history(self, wallet, fileName, is_csv):
-        history = wallet.export_history(fx=self.fx)
-        lines = []
-        for item in history:
-            if is_csv:
-                lines.append([item['txid'], item.get('label', ''), item['confirmations'], item['value'], item['date']])
-            else:
-                lines.append(item)
-
-        with open(fileName, "w+") as f:
-            if is_csv:
-                transaction = csv.writer(f, lineterminator='\n')
-                transaction.writerow(["transaction_hash","label", "confirmations", "value", "timestamp"])
-                for line in lines:
-                    transaction.writerow(line)
-            else:
-                import json
-                f.write(json.dumps(lines, indent=4))
 
     def sweep_key_dialog(self):
         d = WindowModalDialog(self, title=_('Sweep private keys'))

@@ -948,13 +948,14 @@ class Abstract_Wallet(PrintError):
         # return last balance
         return balance
 
-    def export_history(self, domain=None, from_timestamp=None, to_timestamp=None, fx=None, show_addresses=False):
-        from .util import format_time, format_satoshis, timestamp_to_datetime
-        h = self.get_history(domain)
+    def get_full_history(self, domain=None, from_timestamp=None, to_timestamp=None, fx=None, show_addresses=False):
+        from .util import timestamp_to_datetime, Satoshis, Fiat
         out = []
         init_balance = None
+        end_balance = 0
         capital_gains = 0
         fiat_income = 0
+        h = self.get_history(domain)
         for tx_hash, height, conf, timestamp, value, balance in h:
             if from_timestamp and timestamp < from_timestamp:
                 continue
@@ -965,17 +966,15 @@ class Abstract_Wallet(PrintError):
                 'height':height,
                 'confirmations':conf,
                 'timestamp':timestamp,
-                'value': format_satoshis(value, True) if value is not None else '--',
-                'balance': format_satoshis(balance)
+                'value': Satoshis(value),
+                'balance': Satoshis(balance)
             }
             if init_balance is None:
                 init_balance = balance - value
+                init_timestamp = timestamp
             end_balance = balance
-            if item['height']>0:
-                date_str = format_time(timestamp) if timestamp is not None else _("unverified")
-            else:
-                date_str = _("unconfirmed")
-            item['date'] = date_str
+            end_timestamp = timestamp
+            item['date'] = timestamp_to_datetime(timestamp) if timestamp is not None else None
             item['label'] = self.get_label(tx_hash)
             if show_addresses:
                 tx = self.transactions.get(tx_hash)
@@ -997,36 +996,44 @@ class Abstract_Wallet(PrintError):
                 fiat_value = self.get_fiat_value(tx_hash, fx.ccy)
                 if fiat_value is None:
                     fiat_value = fx.historical_value(value, date)
-                item['fiat_value'] = fx.format_fiat(fiat_value)
+                    fiat_default = True
+                else:
+                    fiat_default = False
+                item['fiat_value'] = Fiat(fiat_value, fx.ccy)
+                item['fiat_default'] = fiat_default
                 if value < 0:
                     ap, lp = self.capital_gain(tx_hash, fx.timestamp_rate, fx.ccy)
                     cg = None if lp is None or ap is None else lp - ap
-                    item['acquisition_price'] = fx.format_fiat(ap)
-                    item['capital_gain'] = fx.format_fiat(cg)
+                    item['acquisition_price'] = Fiat(ap, fx.ccy)
+                    item['capital_gain'] = Fiat(cg, fx.ccy)
                     if cg is not None:
                         capital_gains += cg
                 else:
                     if fiat_value is not None:
                         fiat_income += fiat_value
             out.append(item)
-
-        if from_timestamp and to_timestamp:
-            summary = {
-                'start_date': format_time(from_timestamp),
-                'end_date': format_time(to_timestamp),
-                'start_balance': format_satoshis(init_balance),
-                'end_balance': format_satoshis(end_balance),
-                'capital_gains': fx.format_fiat(capital_gains),
-                'fiat_income': fx.format_fiat(fiat_income)
-            }
-            if fx:
-                start_date = timestamp_to_datetime(from_timestamp)
-                end_date = timestamp_to_datetime(to_timestamp)
-                summary['start_fiat_balance'] = fx.format_fiat(fx.historical_value(init_balance, start_date))
-                summary['end_fiat_balance'] = fx.format_fiat(fx.historical_value(end_balance, end_date))
-            out.append(summary)
-
-        return out
+        result = {'transactions': out}
+        if from_timestamp is not None and to_timestamp is not None:
+            start_date = timestamp_to_datetime(from_timestamp)
+            end_date = timestamp_to_datetime(to_timestamp)
+        else:
+            start_date = timestamp_to_datetime(init_timestamp)
+            end_date = timestamp_to_datetime(end_timestamp)
+        summary = {
+            'start_date': start_date,
+            'end_date': end_date,
+            'start_balance': Satoshis(init_balance),
+            'end_balance': Satoshis(end_balance)
+        }
+        result['summary'] = summary
+        if fx:
+            unrealized = self.unrealized_gains(domain, fx.timestamp_rate, fx.ccy)
+            summary['start_fiat_balance'] = Fiat(fx.historical_value(init_balance, start_date), fx.ccy)
+            summary['end_fiat_balance'] = Fiat(fx.historical_value(end_balance, end_date), fx.ccy)
+            summary['capital_gains'] = Fiat(capital_gains, fx.ccy)
+            summary['fiat_income'] = Fiat(fiat_income, fx.ccy)
+            summary['unrealized_gains'] = Fiat(unrealized, fx.ccy)
+        return result
 
     def get_label(self, tx_hash):
         label = self.labels.get(tx_hash, '')
@@ -1662,6 +1669,16 @@ class Abstract_Wallet(PrintError):
         height, conf, timestamp = self.get_tx_height(txid)
         return price_func(timestamp)
 
+    def unrealized_gains(self, domain, price_func, ccy):
+        coins = self.get_utxos(domain)
+        now = time.time()
+        p = price_func(now)
+        if p is None:
+            return
+        ap = sum(self.coin_price(coin, price_func, ccy, self.txin_value(coin)) for coin in coins)
+        lp = sum([coin['value'] for coin in coins]) * p / Decimal(COIN)
+        return None if ap is None or lp is None else lp - ap
+
     def capital_gain(self, txid, price_func, ccy):
         """
         Difference between the fiat price of coins leaving the wallet because of transaction txid,
@@ -1682,7 +1699,6 @@ class Abstract_Wallet(PrintError):
         except:
             acquisition_price = None
         return acquisition_price, liquidation_price
-
 
     def average_price(self, tx, price_func, ccy):
         """ average price of the inputs of a transaction """

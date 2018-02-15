@@ -453,7 +453,7 @@ class Commands:
             from .exchange_rate import FxThread
             fx = FxThread(self.config, None)
             kwargs['fx'] = fx
-        return self.wallet.export_history(**kwargs)
+        return self.wallet.get_full_history(**kwargs)
 
     @command('w')
     def setlabel(self, key, label):
