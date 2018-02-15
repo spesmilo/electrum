@@ -24,7 +24,6 @@
 # SOFTWARE.
 import webbrowser
 import os
-import json
 
 from electrum.i18n import _
 from electrum.bitcoin import is_address
