@@ -68,12 +68,9 @@ class Contacts(dict):
         try:
             with open(fileName, 'w+') as f:
                 json.dump(self, f, indent=4, sort_keys=True)
-        except IOError as reason:
+        except (IOError, os.error) as reason:
             traceback.print_exc(file=sys.stderr)
-            raise IOError(reason)
-        except os.error as reason:
-            traceback.print_exc(file=sys.stderr)
-            raise os.error(reason)
+            raise reason
 
     def __setitem__(self, key, value):
         dict.__setitem__(self, key, value)
