@@ -25,6 +25,7 @@ import dns
 import json
 import traceback
 import sys
+import os
 
 from . import bitcoin
 from . import dnssec
@@ -62,6 +63,17 @@ class Contacts(dict):
             raise FileImportFailed()
         self.update(d)
         self.save()
+
+    def export_file(self, fileName):
+        try:
+            with open(fileName, 'w+') as f:
+                json.dump(self, f, indent=4, sort_keys=True)
+        except IOError as reason:
+            traceback.print_exc(file=sys.stderr)
+            raise IOError(reason)
+        except os.error as reason:
+            traceback.print_exc(file=sys.stderr)
+            raise os.error(reason)
 
     def __setitem__(self, key, value):
         dict.__setitem__(self, key, value)

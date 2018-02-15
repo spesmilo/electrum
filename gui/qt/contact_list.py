@@ -23,6 +23,8 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import webbrowser
+import os
+import json
 
 from electrum.i18n import _
 from electrum.bitcoin import is_address
@@ -33,7 +35,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import (
     QAbstractItemView, QFileDialog, QMenu, QTreeWidgetItem)
 from .util import MyTreeWidget
-import os, json
+
 
 class ContactList(MyTreeWidget):
     filter_columns = [0, 1]  # Key, Value
@@ -51,7 +53,7 @@ class ContactList(MyTreeWidget):
         if column == 0:  # Remove old contact if renamed
             self.parent.contacts.pop(prior)
         self.parent.set_contact(item.text(0), item.text(1))
-       
+
     def import_contacts(self):
         filename = self.parent.getOpenFileName(_("Open contacts file"), "*.json")
         if not filename:
@@ -63,13 +65,11 @@ class ContactList(MyTreeWidget):
         self.on_update()
 
     def export_contacts(self):
-        contacts = self.parent.contacts
+        filename = self.parent.getSaveFileName(_("Select file to save your contacts"), 'electrum_contacts.json', "*.json")
+        if  not filename:
+            return
         try:
-            fileName = self.parent.getSaveFileName(_("Select file to save your contacts"), 'electrum_contacts.json', "*.json")
-            if fileName:
-                with open(fileName, 'w+') as f:
-                    json.dump(contacts, f, indent=4, sort_keys=True)
-                self.parent.show_message(_("Your contacts were exported to") + " '%s'" % str(fileName))
+            self.parent.contacts.export_file(filename)
         except (IOError, os.error) as reason:
             self.parent.show_critical(_("Electrum was unable to export your contacts.") + "\n" + str(reason))
 
