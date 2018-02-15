@@ -25,6 +25,8 @@
 import ast
 import os
 import time
+import traceback
+import sys
 
 # from jsonrpc import JSONRPCResponseManager
 import jsonrpclib
@@ -300,4 +302,8 @@ class Daemon(DaemonThread):
             gui_name = 'qt'
         gui = __import__('electrum_gui.' + gui_name, fromlist=['electrum_gui'])
         self.gui = gui.ElectrumGui(config, self, plugins)
-        self.gui.main()
+        try:
+            self.gui.main()
+        except BaseException as e:
+            traceback.print_exc(file=sys.stdout)
+            # app will exit now

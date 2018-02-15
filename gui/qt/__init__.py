@@ -195,7 +195,8 @@ class ElectrumGui:
                 wallet = self.daemon.load_wallet(path, None)
             except BaseException as e:
                 traceback.print_exc(file=sys.stdout)
-                d = QMessageBox(QMessageBox.Warning, _('Error'), 'Cannot load wallet:\n' + str(e))
+                d = QMessageBox(QMessageBox.Warning, _('Error'),
+                                _('Cannot load wallet:') + '\n' + str(e))
                 d.exec_()
                 return
             if not wallet:
@@ -212,7 +213,14 @@ class ElectrumGui:
                     return
                 wallet.start_threads(self.daemon.network)
                 self.daemon.add_wallet(wallet)
-            w = self.create_window_for_wallet(wallet)
+            try:
+                w = self.create_window_for_wallet(wallet)
+            except BaseException as e:
+                traceback.print_exc(file=sys.stdout)
+                d = QMessageBox(QMessageBox.Warning, _('Error'),
+                                _('Cannot create window for wallet:') + '\n' + str(e))
+                d.exec_()
+                return
         if uri:
             w.pay_to_URI(uri)
         w.bring_to_top()
