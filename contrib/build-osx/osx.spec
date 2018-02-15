@@ -1,6 +1,6 @@
 # -*- mode: python -*-
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_dynamic_libs
 
 import sys
 import os
@@ -40,6 +40,20 @@ datas += collect_data_files('trezorlib')
 datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 
+# We had an issue with PyQt 5.10 not picking up the libqmacstyles.dylib properly,
+# and thus Electrum looking terrible on Mac.
+# The below 3 statements are a workaround for that issue.
+# This should 'do nothing bad' in any case should a future version of PyQt5 not even
+# need this.
+binaries = []
+dylibs_in_pyqt5 = collect_dynamic_libs('PyQt5', 'DUMMY_NOT_USED')
+for tuple in dylibs_in_pyqt5:
+    # find libqmacstyle.dylib ...
+    if "libqmacstyle.dylib" in tuple[0]:
+        # .. and include all the .dylibs in that dir in our 'binaries' PyInstaller spec
+        binaries += [( os.path.dirname(tuple[0]) + '/*.dylib', 'PyQt5/Qt/plugins/styles' )]
+        break
+ 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([electrum+MAIN_SCRIPT,
               electrum+'gui/qt/main_window.py',
@@ -57,6 +71,7 @@ a = Analysis([electrum+MAIN_SCRIPT,
               electrum+'plugins/keepkey/qt.py',
               electrum+'plugins/ledger/qt.py',
               ],
+             binaries=binaries,
              datas=datas,
              hiddenimports=hiddenimports,
              hookspath=[])
