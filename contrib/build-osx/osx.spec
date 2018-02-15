@@ -42,7 +42,7 @@ datas += collect_data_files('keepkeylib')
 # This fixes that; credit to cculianu
 binaries = []
 dylibs_in_pyqt5 = collect_dynamic_libs('PyQt5', 'DUMMY_NOT_USED')
-for filename, _ in dylibs_in_pyqt5:
+for filename, *_ in dylibs_in_pyqt5:
     if filename.endswith("libqmacstyle.dylib"):
         # The wildcard requirement appears to be a pyinstaller bug
         binaries += [(os.path.dirname(filename) + '/*.dylib',
