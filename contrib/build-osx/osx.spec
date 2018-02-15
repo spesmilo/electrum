@@ -37,18 +37,16 @@ datas += collect_data_files('trezorlib')
 datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 
-# We had an issue with PyQt 5.10 not picking up the libqmacstyles.dylib properly,
-# and thus Electron Cash looking terrible on Mac.
-# The below 3 statements are a workaround for that issue.
-# This should 'do nothing bad' in any case should a future version of PyQt5 not even
-# need this.
+# PyQt 5.10 does not pick up the libqmacstyles.dylib properly, and
+# thus Electron Cash looks terrible on Mac.
+# This fixes that; credit to cculianu
 binaries = []
 dylibs_in_pyqt5 = collect_dynamic_libs('PyQt5', 'DUMMY_NOT_USED')
-for tuple in dylibs_in_pyqt5:
-    # find libqmacstyle.dylib ...
-    if "libqmacstyle.dylib" in tuple[0]:
-        # .. and include all the .dylibs in that dir in our 'binaries' PyInstaller spec
-        binaries += [( os.path.dirname(tuple[0]) + '/*.dylib', 'PyQt5/Qt/plugins/styles' )]
+for filename, _ in dylibs_in_pyqt5:
+    if filename.endswith("libqmacstyle.dylib"):
+        # The wildcard requirement appears to be a pyinstaller bug
+        binaries += [(os.path.dirname(filename) + '/*.dylib',
+                      'PyQt5/Qt/plugins/styles')]
         break
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
