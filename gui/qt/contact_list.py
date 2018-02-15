@@ -33,7 +33,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import (
     QAbstractItemView, QFileDialog, QMenu, QTreeWidgetItem)
 from .util import MyTreeWidget
-
+import os, json
 
 class ContactList(MyTreeWidget):
     filter_columns = [0, 1]  # Key, Value
@@ -51,10 +51,9 @@ class ContactList(MyTreeWidget):
         if column == 0:  # Remove old contact if renamed
             self.parent.contacts.pop(prior)
         self.parent.set_contact(item.text(0), item.text(1))
-
+       
     def import_contacts(self):
-        wallet_folder = self.parent.get_wallet_folder()
-        filename, __ = QFileDialog.getOpenFileName(self.parent, "Select your wallet file", wallet_folder)
+        filename = self.parent.getOpenFileName(_("Open contacts file"), "*.json")
         if not filename:
             return
         try:
@@ -63,12 +62,24 @@ class ContactList(MyTreeWidget):
             self.parent.show_message(str(e))
         self.on_update()
 
+    def export_contacts(self):
+        contacts = self.parent.contacts
+        try:
+            fileName = self.parent.getSaveFileName(_("Select file to save your contacts"), 'electrum_contacts.json', "*.json")
+            if fileName:
+                with open(fileName, 'w+') as f:
+                    json.dump(contacts, f, indent=4, sort_keys=True)
+                self.parent.show_message(_("Your contacts were exported to") + " '%s'" % str(fileName))
+        except (IOError, os.error) as reason:
+            self.parent.show_critical(_("Electrum was unable to export your contacts.") + "\n" + str(reason))
+
     def create_menu(self, position):
         menu = QMenu()
         selected = self.selectedItems()
         if not selected:
             menu.addAction(_("New contact"), lambda: self.parent.new_contact_dialog())
             menu.addAction(_("Import file"), lambda: self.import_contacts())
+            menu.addAction(_("Export file"), lambda: self.export_contacts())
         else:
             names = [item.text(0) for item in selected]
             keys = [item.text(1) for item in selected]
