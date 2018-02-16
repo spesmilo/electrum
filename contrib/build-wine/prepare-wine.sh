@@ -80,6 +80,10 @@ $PYTHON -m pip install win_inet_pton==1.0.1
 
 $PYTHON -m pip install -r ../../deterministic-build/requirements-binaries.txt
 
+# Install PyInstaller
+
+$PYTHON -m pip install git+https://github.com/ecdsa/pyinstaller@fix_2952
+
 # Install ZBar
 #wget -q -O zbar.exe "https://sourceforge.net/projects/zbar/files/zbar/0.10/zbar-0.10-setup.exe/download"
 #wine zbar.exe
