@@ -271,6 +271,8 @@ class Abstract_Wallet(PrintError):
                 self.pruned_txo = {}
                 self.spent_outpoints = {}
                 self.history = {}
+                self.verified_tx = {}
+                self.transactions = {}
                 self.save_transactions()
 
     @profiler
