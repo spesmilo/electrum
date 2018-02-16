@@ -58,15 +58,15 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         self.setColumnHidden(1, True)
 
     def refresh_headers(self):
-        headers = ['', '', _('Date'), _('Description') , _('Amount'), _('Balance')]
+        headers = ['', '', _('Date'), _('Description'), _('Amount'), _('Balance')]
         fx = self.parent.fx
         if fx and fx.show_history():
             headers.extend(['%s '%fx.ccy + _('Value')])
             headers.extend(['%s '%fx.ccy + _('Acquisition price')])
             headers.extend(['%s '%fx.ccy + _('Capital Gains')])
-            fiat_value_column = 6
-            if fiat_value_column not in self.editable_columns:
-                self.editable_columns.extend([fiat_value_column])
+            self.editable_columns |= {6}
+        else:
+            self.editable_columns -= {6}
         self.update_headers(headers)
 
     def get_domain(self):
