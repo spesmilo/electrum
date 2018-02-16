@@ -29,7 +29,7 @@ import os
 
 from . import bitcoin
 from . import dnssec
-from .util import FileImportFailed, FileImportFailedInvalidJSON, FileExportFailed
+from .util import export_meta, import_meta
 
 
 class Contacts(dict):
@@ -52,25 +52,14 @@ class Contacts(dict):
         self.storage.put('contacts', dict(self))
 
     def import_file(self, path):
-        try:
-            with open(path, 'r') as f:
-                d = self._validate(json.loads(f.read()))
-        except ValueError:
-            traceback.print_exc(file=sys.stderr)
-            raise FileImportFailedInvalidJSON()
-        except BaseException:
-            traceback.print_exc(file=sys.stdout)
-            raise FileImportFailed()
-        self.update(d)
+        import_meta(path, self.validate, self.on_import_success)
+
+    def on_import_success(self, data):
+        self.update(data)
         self.save()
 
     def export_file(self, fileName):
-        try:
-            with open(fileName, 'w+') as f:
-                json.dump(self, f, indent=4, sort_keys=True)
-        except (IOError, os.error) as reason:
-            traceback.print_exc(file=sys.stderr)
-            raise FileExportFailed(str(reason))
+        export_meta(self, fileName)
 
     def __setitem__(self, key, value):
         dict.__setitem__(self, key, value)
@@ -128,7 +117,7 @@ class Contacts(dict):
         except AttributeError:
             return None
             
-    def _validate(self, data):
+    def validate(self, data):
         for k,v in list(data.items()):
             if k == 'contacts':
                 return self._validate(v)

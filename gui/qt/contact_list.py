@@ -27,13 +27,13 @@ import os
 
 from electrum.i18n import _
 from electrum.bitcoin import is_address
-from electrum.util import block_explorer_URL, FileImportFailed, FileExportFailed
+from electrum.util import block_explorer_URL
 from electrum.plugins import run_hook
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import (
     QAbstractItemView, QFileDialog, QMenu, QTreeWidgetItem)
-from .util import MyTreeWidget
+from .util import MyTreeWidget, import_meta_gui, export_meta_gui
 
 
 class ContactList(MyTreeWidget):
@@ -54,27 +54,10 @@ class ContactList(MyTreeWidget):
         self.parent.set_contact(item.text(0), item.text(1))
 
     def import_contacts(self):
-        filename = self.parent.getOpenFileName(_("Open contacts file"), "*.json")
-        if not filename:
-            return
-        try:
-            self.parent.contacts.import_file(filename)
-        except FileImportFailed as e:
-            self.parent.show_critical(str(e))
-        else:
-            self.parent.show_message(_("Your contacts were successfully imported"))
-            self.on_update()
+        import_meta_gui(self.parent, 'contacts', self.parent.contacts.import_file, self.on_update)
 
     def export_contacts(self):
-        filename = self.parent.getSaveFileName(_("Select file to save your contacts"), 'electrum_contacts.json', "*.json")
-        if  not filename:
-            return
-        try:
-            self.parent.contacts.export_file(filename)
-        except FileExportFailed as e:
-            self.parent.show_critical(str(e))
-        else:
-            self.parent.show_message(_("Your contacts were exported to") + " '%s'" % str(filename))
+        export_meta_gui(self.parent, 'contacts', self.parent.contacts.export_file)
 
     def create_menu(self, position):
         menu = QMenu()

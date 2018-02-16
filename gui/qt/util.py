@@ -11,6 +11,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
+from electrum.util import FileImportFailed, FileExportFailed
 if platform.system() == 'Windows':
     MONOSPACE_FONT = 'Lucida Console'
 elif platform.system() == 'Darwin':
@@ -672,6 +673,28 @@ class AcceptFileDragDrop:
     def onFileAdded(self, fn):
         raise NotImplementedError()
 
+def import_meta_gui(ElectrumWindow, title, importer, on_success):
+    filename = ElectrumWindow.getOpenFileName(_("Open {} file").format(title)  , "*.json")
+    if not filename:
+       return
+    try:
+       importer(filename)
+    except FileImportFailed as e:
+       ElectrumWindow.show_critical(str(e))
+    else:
+       ElectrumWindow.show_message(_("Your {} were successfully imported" ).format(title))
+       on_success()
+
+def export_meta_gui(ElectrumWindow, title, exporter):
+    filename = ElectrumWindow.getSaveFileName(_("Select file to save your {}").format(title), 'electrum_{}.json'.format(title), "*.json")
+    if  not filename:
+        return
+    try:
+        exporter(filename)
+    except FileExportFailed as e:
+        ElectrumWindow.show_critical(str(e))
+    else:
+        ElectrumWindow.show_message(_("Your {0} were exported to '{1}'").format(title,str(filename)))
 
 if __name__ == "__main__":
     app = QApplication([])
