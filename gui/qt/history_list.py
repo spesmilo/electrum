@@ -64,7 +64,9 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             headers.extend(['%s '%fx.ccy + _('Value')])
             headers.extend(['%s '%fx.ccy + _('Acquisition price')])
             headers.extend(['%s '%fx.ccy + _('Capital Gains')])
-            self.editable_columns.extend([6])
+            fiat_value_column = 6
+            if fiat_value_column not in self.editable_columns:
+                self.editable_columns.extend([fiat_value_column])
         self.update_headers(headers)
 
     def get_domain(self):
