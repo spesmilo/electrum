@@ -755,19 +755,18 @@ def setup_thread_excepthook():
 def versiontuple(v):
     return tuple(map(int, (v.split("."))))
 
-def import_meta(path, validater, on_success):
+def import_meta(path, validater, load_meta):
     try:
         with open(path, 'r') as f:
             d = validater(json.loads(f.read()))
-       #backwards compatibility for JSONDecodeError
+        load_meta(d)
+    #backwards compatibility for JSONDecodeError
     except ValueError:
         traceback.print_exc(file=sys.stderr)
         raise FileImportFailed(_("Invalid JSON code."))
     except BaseException as e:
          traceback.print_exc(file=sys.stdout)
          raise FileImportFailed(e)
-    else:
-         on_success(d)
 
 def export_meta(meta, fileName):
      try:

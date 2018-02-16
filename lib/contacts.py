@@ -52,9 +52,9 @@ class Contacts(dict):
         self.storage.put('contacts', dict(self))
 
     def import_file(self, path):
-        import_meta(path, self.validate, self.on_import_success)
+        import_meta(path, self.validate, self.load_meta)
 
-    def on_import_success(self, data):
+    def load_meta(self, data):
         self.update(data)
         self.save()
 
