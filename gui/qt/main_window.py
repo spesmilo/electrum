@@ -2436,28 +2436,23 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 f.write(json.dumps(pklist, indent = 4))
 
     def do_import_labels(self):
-        import_meta_gui(self, 'labels', self.import_labels, self.on_import)
-
-    def import_labels(self,path):
-        import_meta(path, self.import_labels_validate, self.import_labels_assign)
-
-    #TODO: Import labels validation
-    def import_labels_validate(self,data):
-        return data
-
-    def import_labels_assign(self,data):
-        for key, value in data.items():
-            self.wallet.set_label(key, value)
-
-    def on_import(self):
-        self.address_list.update()
-        self.history_list.update()
+        def import_labels(path):
+            #TODO: Import labels validation
+            def import_labels_validate(data):
+                return data
+            def import_labels_assign(data):
+                for key, value in data.items():
+                    self.wallet.set_label(key, value)
+            import_meta(path, import_labels_validate, import_labels_assign)
+        def on_import():
+            self.address_list.update()
+            self.history_list.update()
+        import_meta_gui(self, _('labels'), import_labels, on_import)
 
     def do_export_labels(self):
-        export_meta_gui(self, 'labels', self.export_labels)
-
-    def export_labels(self,filename):
-        export_meta(self.wallet.labels, filename)
+        def export_labels(filename):
+            export_meta(self.wallet.labels, filename)
+        export_meta_gui(self, _('labels'), export_labels)
 
     def export_history_dialog(self):
         d = WindowModalDialog(self, _('Export History'))

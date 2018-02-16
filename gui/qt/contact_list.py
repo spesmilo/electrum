@@ -54,10 +54,10 @@ class ContactList(MyTreeWidget):
         self.parent.set_contact(item.text(0), item.text(1))
 
     def import_contacts(self):
-        import_meta_gui(self.parent, 'contacts', self.parent.contacts.import_file, self.on_update)
+        import_meta_gui(self.parent, _('contacts'), self.parent.contacts.import_file, self.on_update)
 
     def export_contacts(self):
-        export_meta_gui(self.parent, 'contacts', self.parent.contacts.export_file)
+        export_meta_gui(self.parent, _('contacts'), self.parent.contacts.export_file)
 
     def create_menu(self, position):
         menu = QMenu()

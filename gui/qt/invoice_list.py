@@ -57,10 +57,10 @@ class InvoiceList(MyTreeWidget):
         self.parent.invoices_label.setVisible(len(inv_list))
 
     def import_invoices(self):
-        import_meta_gui(self.parent, 'invoices', self.parent.invoices.import_file, self.on_update)
+        import_meta_gui(self.parent, _('invoices'), self.parent.invoices.import_file, self.on_update)
 
     def export_invoices(self):
-        export_meta_gui(self.parent, 'invoices', self.parent.invoices.export_file)
+        export_meta_gui(self.parent, _('invoices'), self.parent.invoices.export_file)
 
     def create_menu(self, position):
         menu = QMenu()
