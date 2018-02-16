@@ -720,8 +720,7 @@ class Abstract_Wallet(PrintError):
     def get_conflicting_transactions(self, tx):
         """Returns a set of transaction hashes from the wallet history that are
         directly conflicting with tx, i.e. they have common outpoints being
-        spent with tx. If the tx is already in wallet history, that will not be
-        reported as a conflict.
+        spent with tx.
         """
         conflicting_txns = set()
         with self.transaction_lock:

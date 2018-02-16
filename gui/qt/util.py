@@ -389,7 +389,9 @@ class MyTreeWidget(QTreeWidget):
         self.editor = None
         self.pending_update = False
         if editable_columns is None:
-            editable_columns = [stretch_column]
+            editable_columns = {stretch_column}
+        else:
+            editable_columns = set(editable_columns)
         self.editable_columns = editable_columns
         self.setItemDelegate(ElectrumItemDelegate(self))
         self.itemDoubleClicked.connect(self.on_doubleclick)
