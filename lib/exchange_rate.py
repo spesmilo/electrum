@@ -107,6 +107,8 @@ class ExchangeBase(PrintError):
         return []
 
     def historical_rate(self, ccy, d_t):
+        if d_t is None:
+            return None
         return self.history.get(ccy, {}).get(d_t.strftime('%Y-%m-%d'))
 
     def get_currencies(self):
@@ -519,6 +521,8 @@ class FxThread(ThreadJob):
         return _("No data")
 
     def history_rate(self, d_t):
+        if d_t is None:
+            return None
         rate = self.exchange.historical_rate(self.ccy, d_t)
         # Frequently there is no rate for today, until tomorrow :)
         # Use spot quotes in that case
