@@ -735,15 +735,11 @@ class Abstract_Wallet(PrintError):
                 # this outpoint (ser) has already been spent, by spending_tx
                 assert spending_tx_hash in self.transactions
                 conflicting_txns |= {spending_tx_hash}
-            txid = tx.txid()
-            if txid in conflicting_txns:
-                # this tx is already in history, so it conflicts with itself
-                if len(conflicting_txns) > 1:
-                    raise Exception('Found conflicting transactions already in wallet history.')
-                conflicting_txns -= {txid}
             return conflicting_txns
 
     def add_transaction(self, tx_hash, tx):
+        if tx in self.transactions:
+            return True
         is_coinbase = tx.inputs()[0]['type'] == 'coinbase'
         related = False
         with self.transaction_lock:
