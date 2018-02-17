@@ -278,8 +278,8 @@ class Abstract_Wallet(PrintError):
     @profiler
     def build_spent_outpoints(self):
         self.spent_outpoints = {}
-        for txid in self.txi:
-            for addr, l in self.txi[txid].items():
+        for txid, items in self.txi.items():
+            for addr, l in items.items():
                 for ser, v in l:
                     self.spent_outpoints[ser] = txid
 
@@ -711,8 +711,8 @@ class Abstract_Wallet(PrintError):
         addr = txi.get('address')
         if addr != "(pubkey)":
             return addr
-        prevout_hash = x.get('prevout_hash')
-        prevout_n = x.get('prevout_n')
+        prevout_hash = txi.get('prevout_hash')
+        prevout_n = txi.get('prevout_n')
         dd = self.txo.get(prevout_hash, {})
         for addr, l in dd.items():
             for n, v, is_cb in l:
@@ -837,12 +837,11 @@ class Abstract_Wallet(PrintError):
         def undo_spend(outpoint_to_txid_map):
             for addr, l in self.txi[tx_hash].items():
                 for ser, v in l:
-                    if ser in outpoint_to_txid:
-                        outpoint_to_txid_map.pop(ser)
+                    outpoint_to_txid_map.pop(ser, None)
 
         with self.transaction_lock:
             self.print_error("removing tx from history", tx_hash)
-            self.transactions.pop(tx_hash)
+            self.transactions.pop(tx_hash, None)
             undo_spend(self.pruned_txo)
             undo_spend(self.spent_outpoints)
 
