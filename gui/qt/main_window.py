@@ -65,7 +65,8 @@ from .fee_slider import FeeSlider
 
 from .util import *
 
-from electrum.util import profiler
+from electrum.util import profiler, get_new_wallet_name
+
 
 class StatusBarButton(QPushButton):
     def __init__(self, icon, tooltip, func):
@@ -448,13 +449,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def new_wallet(self):
         wallet_folder = self.get_wallet_folder()
-        i = 1
-        while True:
-            filename = "wallet_%d" % i
-            if filename in os.listdir(wallet_folder):
-                i += 1
-            else:
-                break
+        filename = get_new_wallet_name(wallet_folder)
         full_path = os.path.join(wallet_folder, filename)
         self.gui_object.start_new_window(full_path, None)
 
