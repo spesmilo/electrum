@@ -28,7 +28,6 @@ import os
 #Should have 3D acceleration turn on, on VM.  Also guest additions CD image.
 #os.environ['KIVY_GL_BACKEND']='sdl2'
 
-
 import sys
 
 if sys.version_info < (3, 5):
@@ -328,11 +327,17 @@ if __name__ == '__main__':
 
     # config is an object passed to the various constructors (wallet, interface, gui)
     if is_android:
-        config_options = {
-            'verbose': True,
-            'cmd': 'gui',
-            'gui': 'kivy',
-        }
+        if 'ANDROID_NATIVE_UI' in os.environ:
+            config_options = {
+                'verbose': True,
+                'cmd': 'daemon',
+            }
+        else:
+            config_options = {
+                'verbose': True,
+                'cmd': 'gui',
+                'gui': 'kivy',
+            }
     else:
         config_options = args.__dict__
         f = lambda key: config_options[key] is not None and key not in config_variables.get(args.cmd, {}).keys()

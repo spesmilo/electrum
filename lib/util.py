@@ -172,7 +172,7 @@ class DaemonThread(threading.Thread, PrintError):
             self.running = False
 
     def on_stop(self):
-        if 'ANDROID_DATA' in os.environ:
+        if 'ANDROID_DATA' in os.environ and 'ANDROID_NATIVE_UI' not in os.environ:
             import jnius
             jnius.detach()
             self.print_error("jnius detach")
@@ -247,17 +247,26 @@ def profiler(func):
 
 
 def android_ext_dir():
-    import jnius
-    env = jnius.autoclass('android.os.Environment')
-    return env.getExternalStorageDirectory().getPath()
+    if 'ANDROID_EXT_DIR' in os.environ:
+        return os.environ['ANDROID_EXT_DIR']
+    else:
+        import jnius
+        env = jnius.autoclass('android.os.Environment')
+        return env.getExternalStorageDirectory().getPath()
 
 def android_data_dir():
-    import jnius
-    PythonActivity = jnius.autoclass('org.kivy.android.PythonActivity')
-    return PythonActivity.mActivity.getFilesDir().getPath() + '/data'
+    if 'ANDROID_DATA_DIR' in os.environ:
+        return os.environ['ANDROID_DATA_DIR']
+    else:
+        import jnius
+        PythonActivity = jnius.autoclass('org.kivy.android.PythonActivity')
+        return PythonActivity.mActivity.getFilesDir().getPath() + '/data'
 
 def android_headers_dir():
-    d = android_ext_dir() + '/org.electron.electron'
+    if 'ANDROID_EXT_DIR' in os.environ:
+        d = android_ext_dir()
+    else:
+        d = android_ext_dir() + '/org.electron.electron'
     if not os.path.exists(d):
         os.mkdir(d)
     return d
