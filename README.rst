@@ -32,7 +32,7 @@ For Mac:
 Using Homebrew::
 
     # Setup Homebrew
-    sh ./setup-mac.sh
+    ./setup-mac
 
     # Install Homebrew dependencies
     brew bundle
@@ -46,8 +46,10 @@ Using Homebrew::
     # Compile the protobuf description file
     protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto
 
+    # Build .app, .dmg
+    ./create-dmg
+
     # Run
-    ./electrum
 
 
 For Linux:
