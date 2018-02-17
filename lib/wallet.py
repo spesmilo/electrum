@@ -758,6 +758,7 @@ class Abstract_Wallet(PrintError):
             is_mine = any([self.is_mine(txin['address']) for txin in tx.inputs()])
             # do not save if tx is local and not mine
             if tx_height == TX_HEIGHT_LOCAL and not is_mine:
+                # FIXME the test here should be for "not all is_mine"; cannot detect conflict in some cases
                 return False
             # raise exception if unrelated to wallet
             is_for_me = any([self.is_mine(self.get_txout_address(txo)) for txo in tx.outputs()])
@@ -874,12 +875,13 @@ class Abstract_Wallet(PrintError):
             old_hist = self.get_address_history(addr)
             for tx_hash, height in old_hist:
                 if (tx_hash, height) not in hist:
-                    # make tx local if is_mine, else remove it
-                    if self.txi[tx_hash] != {}:
-                        self.unverified_tx.pop(tx_hash, None)
-                        self.verified_tx.pop(tx_hash, None)
-                        self.verifier.merkle_roots.pop(tx_hash, None)
-                    else:
+                    # make tx local
+                    self.unverified_tx.pop(tx_hash, None)
+                    self.verified_tx.pop(tx_hash, None)
+                    self.verifier.merkle_roots.pop(tx_hash, None)
+                    # but remove completely if not is_mine
+                    if self.txi[tx_hash] == {}:
+                        # FIXME the test here should be for "not all is_mine"; cannot detect conflict in some cases
                         self.remove_transaction(tx_hash)
             self.history[addr] = hist
 
