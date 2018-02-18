@@ -25,10 +25,11 @@ import dns
 import json
 import traceback
 import sys
+import os
 
 from . import bitcoin
 from . import dnssec
-from .util import FileImportFailed, FileImportFailedEncrypted
+from .util import export_meta, import_meta
 
 
 class Contacts(dict):
@@ -51,17 +52,14 @@ class Contacts(dict):
         self.storage.put('contacts', dict(self))
 
     def import_file(self, path):
-        try:
-            with open(path, 'r') as f:
-                d = self._validate(json.loads(f.read()))
-        except json.decoder.JSONDecodeError:
-            traceback.print_exc(file=sys.stderr)
-            raise FileImportFailedEncrypted()
-        except BaseException:
-            traceback.print_exc(file=sys.stdout)
-            raise FileImportFailed()
-        self.update(d)
+        import_meta(path, self.validate, self.load_meta)
+
+    def load_meta(self, data):
+        self.update(data)
         self.save()
+
+    def export_file(self, fileName):
+        export_meta(self, fileName)
 
     def __setitem__(self, key, value):
         dict.__setitem__(self, key, value)
@@ -119,7 +117,7 @@ class Contacts(dict):
         except AttributeError:
             return None
             
-    def _validate(self, data):
+    def validate(self, data):
         for k,v in list(data.items()):
             if k == 'contacts':
                 return self._validate(v)
