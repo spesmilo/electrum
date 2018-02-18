@@ -1123,7 +1123,8 @@ class Abstract_Wallet(PrintError):
                 if not change_addrs:
                     change_addrs = [random.choice(addrs)]
             else:
-                change_addrs = [inputs[0]['address']]
+                # coin_chooser will set change address
+                change_addrs = []
 
         # Fee estimator
         if fixed_fee is None:
