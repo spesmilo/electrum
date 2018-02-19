@@ -24,6 +24,7 @@
 # SOFTWARE.
 
 import webbrowser
+import datetime
 
 from electrum_ltc.wallet import UnrelatedTransactionException, TX_HEIGHT_LOCAL
 from .util import *
@@ -31,6 +32,10 @@ from electrum_ltc.i18n import _
 from electrum_ltc.util import block_explorer_URL
 from electrum_ltc.util import timestamp_to_datetime, profiler
 
+try:
+    from electrum_ltc.plot import plot_history
+except:
+    plot_history = None
 
 # note: this list needs to be kept in sync with another in kivy
 TX_ICONS = [
@@ -56,6 +61,9 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         AcceptFileDragDrop.__init__(self, ".txn")
         self.refresh_headers()
         self.setColumnHidden(1, True)
+        self.start_timestamp = None
+        self.end_timestamp = None
+        self.years = []
 
     def refresh_headers(self):
         headers = ['', '', _('Date'), _('Description'), _('Amount'), _('Balance')]
@@ -73,41 +81,161 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         '''Replaced in address_dialog.py'''
         return self.wallet.get_addresses()
 
+    def on_combo(self, x):
+        s = self.period_combo.itemText(x)
+        if s == _('All'):
+            self.start_timestamp = None
+            self.end_timestamp = None
+        elif s == _('Custom'):
+            start_date = self.select_date()
+        else:
+            try:
+                year = int(s)
+            except:
+                return
+            start_date = datetime.datetime(year, 1, 1)
+            end_date = datetime.datetime(year+1, 1, 1)
+            self.start_timestamp = time.mktime(start_date.timetuple())
+            self.end_timestamp = time.mktime(end_date.timetuple())
+        self.update()
+
+    def get_list_header(self):
+        self.period_combo = QComboBox()
+        self.period_combo.addItems([_('All'), _('Custom')])
+        self.period_combo.activated.connect(self.on_combo)
+        self.summary_button = QPushButton(_('Summary'))
+        self.summary_button.pressed.connect(self.show_summary)
+        self.export_button = QPushButton(_('Export'))
+        self.export_button.pressed.connect(self.export_history_dialog)
+        self.plot_button = QPushButton(_('Plot'))
+        self.plot_button.pressed.connect(self.plot_history_dialog)
+        return self.period_combo, self.summary_button, self.export_button, self.plot_button
+
+    def select_date(self):
+        h = self.summary
+        d = WindowModalDialog(self, _("Custom dates"))
+        d.setMinimumSize(600, 150)
+        d.b = True
+        d.start_date = None
+        d.end_date = None
+        vbox = QVBoxLayout()
+        grid = QGridLayout()
+        start_edit = QPushButton()
+        def on_start():
+            start_edit.setText('')
+            d.b = True
+            d.start_date = None
+        start_edit.pressed.connect(on_start)
+        def on_end():
+            end_edit.setText('')
+            d.b = False
+            d.end_date = None
+        end_edit = QPushButton()
+        end_edit.pressed.connect(on_end)
+        grid.addWidget(QLabel(_("Start date")), 0, 0)
+        grid.addWidget(start_edit, 0, 1)
+        grid.addWidget(QLabel(_("End date")), 1, 0)
+        grid.addWidget(end_edit, 1, 1)
+        def on_date(date):
+            ts = time.mktime(date.toPyDate().timetuple())
+            if d.b:
+                d.start_date = ts
+                start_edit.setText(date.toString())
+            else:
+                d.end_date = ts
+                end_edit.setText(date.toString())
+        cal = QCalendarWidget()
+        cal.setGridVisible(True)
+        cal.clicked[QDate].connect(on_date)
+        vbox.addLayout(grid)
+        vbox.addWidget(cal)
+        vbox.addLayout(Buttons(OkButton(d), CancelButton(d)))
+        d.setLayout(vbox)
+        if d.exec_():
+            self.start_timestamp = d.start_date
+            self.end_timestamp = d.end_date
+            self.update()
+
+    def show_summary(self):
+        h = self.summary
+        format_amount = lambda x: self.parent.format_amount(x) + ' '+ self.parent.base_unit()
+        d = WindowModalDialog(self, _("Summary"))
+        d.setMinimumSize(600, 150)
+        vbox = QVBoxLayout()
+        grid = QGridLayout()
+        start_date = h.get('start_date')
+        end_date = h.get('end_date')
+        if start_date is None and end_date is None:
+            return
+        grid.addWidget(QLabel(_("Start")), 0, 0)
+        grid.addWidget(QLabel(start_date.isoformat(' ')), 0, 1)
+        grid.addWidget(QLabel(_("End")), 1, 0)
+        grid.addWidget(QLabel(end_date.isoformat(' ')), 1, 1)
+        grid.addWidget(QLabel(_("Initial balance")), 2, 0)
+        grid.addWidget(QLabel(format_amount(h['start_balance'].value)), 2, 1)
+        grid.addWidget(QLabel(str(h.get('start_fiat_balance'))), 2, 2)
+        grid.addWidget(QLabel(_("Final balance")), 4, 0)
+        grid.addWidget(QLabel(format_amount(h['end_balance'].value)), 4, 1)
+        grid.addWidget(QLabel(str(h.get('end_fiat_balance'))), 4, 2)
+        grid.addWidget(QLabel(_("Income")), 6, 0)
+        grid.addWidget(QLabel(str(h.get('fiat_income'))), 6, 2)
+        grid.addWidget(QLabel(_("Capital gains")), 7, 0)
+        grid.addWidget(QLabel(str(h.get('capital_gains'))), 7, 2)
+        grid.addWidget(QLabel(_("Unrealized gains")), 8, 0)
+        grid.addWidget(QLabel(str(h.get('unrealized_gains', ''))), 8, 2)
+        vbox.addLayout(grid)
+        vbox.addLayout(Buttons(CloseButton(d)))
+        d.setLayout(vbox)
+        d.exec_()
+
+    def plot_history_dialog(self):
+        if plot_history is None:
+            return
+        if len(self.transactions) > 0:
+            plt = plot_history(self.transactions)
+            plt.show()
+
     @profiler
     def on_update(self):
         self.wallet = self.parent.wallet
-        h = self.wallet.get_history(self.get_domain())
+        fx = self.parent.fx
+        r = self.wallet.get_full_history(domain=self.get_domain(), from_timestamp=self.start_timestamp, to_timestamp=self.end_timestamp, fx=fx)
+        self.transactions = r['transactions']
+        self.summary = r['summary']
+        if not self.years and self.start_timestamp is None and self.end_timestamp is None:
+            start_date = self.summary['start_date']
+            end_date = self.summary['end_date']
+            if start_date and end_date:
+                self.years = [str(i) for i in range(start_date.year, end_date.year + 1)]
+                self.period_combo.insertItems(1, self.years)
         item = self.currentItem()
         current_tx = item.data(0, Qt.UserRole) if item else None
         self.clear()
-        fx = self.parent.fx
         if fx: fx.history_used_spot = False
-        for h_item in h:
-            tx_hash, height, conf, timestamp, value, balance = h_item
+        for tx_item in self.transactions:
+            tx_hash = tx_item['txid']
+            height = tx_item['height']
+            conf = tx_item['confirmations']
+            timestamp = tx_item['timestamp']
+            value = tx_item['value'].value
+            balance = tx_item['balance'].value
+            label = tx_item['label']
             status, status_str = self.wallet.get_tx_status(tx_hash, height, conf, timestamp)
             has_invoice = self.wallet.invoices.paid.get(tx_hash)
             icon = QIcon(":icons/" + TX_ICONS[status])
             v_str = self.parent.format_amount(value, True, whitespaces=True)
             balance_str = self.parent.format_amount(balance, whitespaces=True)
-            label = self.wallet.get_label(tx_hash)
             entry = ['', tx_hash, status_str, label, v_str, balance_str]
             fiat_value = None
             if value is not None and fx and fx.show_history():
                 date = timestamp_to_datetime(time.time() if conf <= 0 else timestamp)
-                fiat_value = self.wallet.get_fiat_value(tx_hash, fx.ccy)
-                if not fiat_value:
-                    fiat_value = fx.historical_value(value, date)
-                    fiat_default = True
-                else:
-                    fiat_default = False
+                fiat_value = tx_item['fiat_value'].value
                 value_str = fx.format_fiat(fiat_value)
                 entry.append(value_str)
                 # fixme: should use is_mine
                 if value < 0:
-                    ap, lp = self.wallet.capital_gain(tx_hash, fx.timestamp_rate, fx.ccy)
-                    cg = None if lp is None or ap is None else lp - ap
-                    entry.append(fx.format_fiat(ap))
-                    entry.append(fx.format_fiat(cg))
+                    entry.append(fx.format_fiat(tx_item['acquisition_price'].value))
+                    entry.append(fx.format_fiat(tx_item['capital_gain'].value))
             item = QTreeWidgetItem(entry)
             item.setIcon(0, icon)
             item.setToolTip(0, str(conf) + " confirmation" + ("s" if conf != 1 else ""))
@@ -121,7 +249,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             if value and value < 0:
                 item.setForeground(3, QBrush(QColor("#BC1E1E")))
                 item.setForeground(4, QBrush(QColor("#BC1E1E")))
-            if fiat_value and not fiat_default:
+            if fiat_value and not tx_item['fiat_default']:
                 item.setForeground(6, QBrush(QColor("#1E1EFF")))
             if tx_hash:
                 item.setData(0, Qt.UserRole, tx_hash)
@@ -183,25 +311,19 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         else:
             column_title = self.headerItem().text(column)
             column_data = item.text(column)
-
         tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
         height, conf, timestamp = self.wallet.get_tx_height(tx_hash)
         tx = self.wallet.transactions.get(tx_hash)
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
         is_unconfirmed = height <= 0
         pr_key = self.wallet.invoices.paid.get(tx_hash)
-
         menu = QMenu()
-
         if height == TX_HEIGHT_LOCAL:
             menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
-
         menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
         for c in self.editable_columns:
             menu.addAction(_("Edit {}").format(self.headerItem().text(c)), lambda: self.editItem(item, c))
-
         menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx))
-
         if is_unconfirmed and tx:
             rbf = is_mine and not tx.is_final()
             if rbf:
@@ -219,13 +341,11 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
     def remove_local_tx(self, delete_tx):
         to_delete = {delete_tx}
         to_delete |= self.wallet.get_depending_transactions(delete_tx)
-
         question = _("Are you sure you want to remove this transaction?")
         if len(to_delete) > 1:
             question = _(
                 "Are you sure you want to remove this transaction and {} child transactions?".format(len(to_delete) - 1)
             )
-
         answer = QMessageBox.question(self.parent, _("Please confirm"), question, QMessageBox.Yes, QMessageBox.No)
         if answer == QMessageBox.No:
             return
@@ -246,3 +366,48 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
                 self.wallet.save_transactions(write=True)
                 # need to update at least: history_list, utxo_list, address_list
                 self.parent.need_update.set()
+
+    def export_history_dialog(self):
+        d = WindowModalDialog(self, _('Export History'))
+        d.setMinimumSize(400, 200)
+        vbox = QVBoxLayout(d)
+        defaultname = os.path.expanduser('~/electrum-ltc-history.csv')
+        select_msg = _('Select file to export your wallet transactions to')
+        hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
+        vbox.addLayout(hbox)
+        vbox.addStretch(1)
+        hbox = Buttons(CancelButton(d), OkButton(d, _('Export')))
+        vbox.addLayout(hbox)
+        #run_hook('export_history_dialog', self, hbox)
+        self.update()
+        if not d.exec_():
+            return
+        filename = filename_e.text()
+        if not filename:
+            return
+        try:
+            self.do_export_history(self.wallet, filename, csv_button.isChecked())
+        except (IOError, os.error) as reason:
+            export_error_label = _("Electrum was unable to produce a transaction export.")
+            self.parent.show_critical(export_error_label + "\n" + str(reason), title=_("Unable to export history"))
+            return
+        self.parent.show_message(_("Your wallet history has been successfully exported."))
+
+    def do_export_history(self, wallet, fileName, is_csv):
+        history = self.transactions
+        lines = []
+        for item in history:
+            if is_csv:
+                lines.append([item['txid'], item.get('label', ''), item['confirmations'], item['value'], item['date']])
+            else:
+                lines.append(item)
+        with open(fileName, "w+") as f:
+            if is_csv:
+                import csv
+                transaction = csv.writer(f, lineterminator='\n')
+                transaction.writerow(["transaction_hash","label", "confirmations", "value", "timestamp"])
+                for line in lines:
+                    transaction.writerow(line)
+            else:
+                from electrum_ltc.util import json_encode
+                f.write(json_encode(history))

@@ -77,11 +77,47 @@ class UserCancelled(Exception):
     '''An exception that is suppressed from the user'''
     pass
 
+class Satoshis(object):
+    def __new__(cls, value):
+        self = super(Satoshis, cls).__new__(cls)
+        self.value = value
+        return self
+
+    def __repr__(self):
+        return 'Satoshis(%d)'%self.value
+
+    def __str__(self):
+        return format_satoshis(self.value) + " LTC"
+
+class Fiat(object):
+    def __new__(cls, value, ccy):
+        self = super(Fiat, cls).__new__(cls)
+        self.ccy = ccy
+        self.value = value
+        return self
+
+    def __repr__(self):
+        return 'Fiat(%s)'% self.__str__()
+
+    def __str__(self):
+        if self.value is None:
+            return _('No Data')
+        else:
+            return "{:.2f}".format(self.value) + ' ' + self.ccy
+
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
         from .transaction import Transaction
         if isinstance(obj, Transaction):
             return obj.as_dict()
+        if isinstance(obj, Satoshis):
+            return str(obj)
+        if isinstance(obj, Fiat):
+            return str(obj)
+        if isinstance(obj, Decimal):
+            return str(obj)
+        if isinstance(obj, datetime):
+            return obj.isoformat(' ')[:-3]
         return super(MyEncoder, self).default(obj)
 
 class PrintError(object):
