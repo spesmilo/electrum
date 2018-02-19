@@ -163,10 +163,14 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         d.setMinimumSize(600, 150)
         vbox = QVBoxLayout()
         grid = QGridLayout()
+        start_date = h.get('start_date')
+        end_date = h.get('end_date')
+        if start_date is None and end_date is None:
+            return
         grid.addWidget(QLabel(_("Start")), 0, 0)
-        grid.addWidget(QLabel(h.get('start_date').isoformat(' ')), 0, 1)
+        grid.addWidget(QLabel(start_date.isoformat(' ')), 0, 1)
         grid.addWidget(QLabel(_("End")), 1, 0)
-        grid.addWidget(QLabel(h.get('end_date').isoformat(' ')), 1, 1)
+        grid.addWidget(QLabel(end_date.isoformat(' ')), 1, 1)
         grid.addWidget(QLabel(_("Initial balance")), 2, 0)
         grid.addWidget(QLabel(format_amount(h['start_balance'].value)), 2, 1)
         grid.addWidget(QLabel(str(h.get('start_fiat_balance'))), 2, 2)
@@ -199,8 +203,11 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         self.transactions = r['transactions']
         self.summary = r['summary']
         if not self.years and self.start_timestamp is None and self.end_timestamp is None:
-            self.years = [str(i) for i in range(self.summary['start_date'].year, self.summary['end_date'].year + 1)]
-            self.period_combo.insertItems(1, self.years)
+            start_date = self.summary['start_date']
+            end_date = self.summary['end_date']
+            if start_date and end_date:
+                self.years = [str(i) for i in range(start_date.year, end_date.year + 1)]
+                self.period_combo.insertItems(1, self.years)
         item = self.currentItem()
         current_tx = item.data(0, Qt.UserRole) if item else None
         self.clear()

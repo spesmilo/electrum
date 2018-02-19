@@ -952,6 +952,9 @@ class Abstract_Wallet(PrintError):
         from .util import timestamp_to_datetime, Satoshis, Fiat
         out = []
         init_balance = None
+        init_timestamp = None
+        end_balance = None
+        end_timestamp = None
         end_balance = 0
         capital_gains = 0
         fiat_income = 0
