@@ -958,6 +958,7 @@ class Abstract_Wallet(PrintError):
         # return last balance
         return balance
 
+    @profiler
     def get_full_history(self, domain=None, from_timestamp=None, to_timestamp=None, fx=None, show_addresses=False):
         from .util import timestamp_to_datetime, Satoshis, Fiat
         out = []
@@ -1016,11 +1017,10 @@ class Abstract_Wallet(PrintError):
                 item['fiat_default'] = fiat_default
                 if value < 0:
                     ap, lp = self.capital_gain(tx_hash, fx.timestamp_rate, fx.ccy)
-                    cg = None if lp is None or ap is None else lp - ap
+                    cg = lp - ap
                     item['acquisition_price'] = Fiat(ap, fx.ccy)
                     item['capital_gain'] = Fiat(cg, fx.ccy)
-                    if cg is not None:
-                        capital_gains += cg
+                    capital_gains += cg
                 else:
                     if fiat_value is not None:
                         fiat_income += fiat_value
@@ -1686,11 +1686,9 @@ class Abstract_Wallet(PrintError):
         coins = self.get_utxos(domain)
         now = time.time()
         p = price_func(now)
-        if p is None:
-            return
         ap = sum(self.coin_price(coin, price_func, ccy, self.txin_value(coin)) for coin in coins)
         lp = sum([coin['value'] for coin in coins]) * p / Decimal(COIN)
-        return None if ap is None or lp is None else lp - ap
+        return lp - ap
 
     def capital_gain(self, txid, price_func, ccy):
         """
@@ -1704,13 +1702,11 @@ class Abstract_Wallet(PrintError):
         fiat_value = self.get_fiat_value(txid, ccy)
         if fiat_value is None:
             p = self.price_at_timestamp(txid, price_func)
-            liquidation_price = None if p is None else out_value/Decimal(COIN) * p
+            liquidation_price = out_value/Decimal(COIN) * p
         else:
             liquidation_price = - fiat_value
-        try:
-            acquisition_price = out_value/Decimal(COIN) * self.average_price(tx, price_func, ccy)
-        except:
-            acquisition_price = None
+
+        acquisition_price = out_value/Decimal(COIN) * self.average_price(tx, price_func, ccy)
         return acquisition_price, liquidation_price
 
     def average_price(self, tx, price_func, ccy):
@@ -1731,10 +1727,10 @@ class Abstract_Wallet(PrintError):
                 return fiat_value
             else:
                 p = self.price_at_timestamp(txid, price_func)
-                return None if p is None else p * txin_value/Decimal(COIN)
+                return p * txin_value/Decimal(COIN)
         else:
             # could be some coinjoin transaction..
-            return None
+            return Decimal('NaN')
 
 
 class Simple_Wallet(Abstract_Wallet):
