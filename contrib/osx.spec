@@ -10,7 +10,7 @@ for i, x in enumerate(sys.argv):
 else:
     raise BaseException('no version')
 
-home = '/Users/voegtlin/electrum/'
+home = '/Users/Jackie/electrum-grs/'
 block_cipher=None
 
 # see https://github.com/pyinstaller/pyinstaller/issues/2005
@@ -20,18 +20,18 @@ hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
 
 datas = [
-    (home+'lib/currencies.json', 'electrum'),
-    (home+'lib/servers.json', 'electrum'),
-    (home+'lib/wordlist/english.txt', 'electrum/wordlist'),
-    (home+'lib/locale', 'electrum/locale'),
-    (home+'plugins', 'electrum_plugins'),
+    (home+'lib/currencies.json', 'electrum-grs'),
+    (home+'lib/servers.json', 'electrum-grs'),
+    (home+'lib/wordlist/english.txt', 'electrum-grs/wordlist'),
+    (home+'lib/locale', 'electrum-grs/locale'),
+    (home+'plugins', 'electrum_grs_plugins'),
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
-a = Analysis([home+'electrum',
+a = Analysis([home+'electrum-grs',
               home+'gui/qt/main_window.py',
               home+'gui/text.py',
               home+'lib/util.py',
@@ -63,17 +63,17 @@ exe = EXE(pyz,
           a.scripts,
           a.binaries,
           a.datas,
-          name='Electrum',
+          name='Electrum-grs',
           debug=False,
           strip=False,
           upx=True,
-          icon=home+'electrum.icns',
+          icon=home+'electrum-grs.icns',
           console=False)
 
 app = BUNDLE(exe,
              version = VERSION,
-             name='Electrum.app',
-             icon=home+'electrum.icns',
+             name='Electrum-grs.app',
+             icon=home+'electrum-grs.icns',
              bundle_identifier=None,
              info_plist = {
                  'NSHighResolutionCapable':'True'
