@@ -733,7 +733,8 @@ class Abstract_Wallet(PrintError):
     def get_conflicting_transactions(self, tx):
         """Returns a set of transaction hashes from the wallet history that are
         directly conflicting with tx, i.e. they have common outpoints being
-        spent with tx.
+        spent with tx. If the tx is already in wallet history, that will not be
+        reported as a conflict.
         """
         conflicting_txns = set()
         with self.transaction_lock:
@@ -747,12 +748,20 @@ class Abstract_Wallet(PrintError):
                 # this outpoint (ser) has already been spent, by spending_tx
                 assert spending_tx_hash in self.transactions
                 conflicting_txns |= {spending_tx_hash}
+            txid = tx.txid()
+            if txid in conflicting_txns:
+                # this tx is already in history, so it conflicts with itself
+                if len(conflicting_txns) > 1:
+                    raise Exception('Found conflicting transactions already in wallet history.')
+                conflicting_txns -= {txid}
             return conflicting_txns
 
     def add_transaction(self, tx_hash, tx):
         with self.transaction_lock:
-            if tx in self.transactions:
-                return True
+            # NOTE: returning if tx in self.transactions might seem like a good idea
+            # BUT we track is_mine inputs in a txn, and during subsequent calls
+            # of add_transaction tx, we might learn of more-and-more inputs of
+            # being is_mine, as we roll the gap_limit forward
             is_coinbase = tx.inputs()[0]['type'] == 'coinbase'
             tx_height = self.get_tx_height(tx_hash)[0]
             is_mine = any([self.is_mine(txin['address']) for txin in tx.inputs()])
@@ -800,7 +809,6 @@ class Abstract_Wallet(PrintError):
                     prevout_hash = txi['prevout_hash']
                     prevout_n = txi['prevout_n']
                     ser = prevout_hash + ':%d'%prevout_n
-                    self.spent_outpoints[ser] = tx_hash
                 # find value from prev output
                 if addr and self.is_mine(addr):
                     dd = self.txo.get(prevout_hash, {})
@@ -809,6 +817,8 @@ class Abstract_Wallet(PrintError):
                             if d.get(addr) is None:
                                 d[addr] = []
                             d[addr].append((ser, v))
+                            # we only track is_mine spends
+                            self.spent_outpoints[ser] = tx_hash
                             break
                     else:
                         self.pruned_txo[ser] = tx_hash
