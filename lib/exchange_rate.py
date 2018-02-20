@@ -68,40 +68,41 @@ class ExchangeBase(PrintError):
             try:
                 with open(filename, 'r') as f:
                     h = json.loads(f.read())
+                h['timestamp'] = timestamp
             except:
                 h = None
         else:
             h = None
-            timestamp = False
         if h:
             self.history[ccy] = h
             self.on_history()
-        return h, timestamp
+        return h
 
     def get_historical_rates_safe(self, ccy, cache_dir):
-        h, timestamp = self.read_historical_rates(ccy, cache_dir)
-        if h is None or time.time() - timestamp < 24*3600:
-            try:
-                self.print_error("requesting fx history for", ccy)
-                h = self.request_history(ccy)
-                self.print_error("received fx history for", ccy)
-                self.on_history()
-            except BaseException as e:
-                self.print_error("failed fx history:", e)
-                return
-            filename = os.path.join(cache_dir, self.name() + '_' + ccy)
-            with open(filename, 'w') as f:
-                f.write(json.dumps(h))
+        try:
+            self.print_error("requesting fx history for", ccy)
+            h = self.request_history(ccy)
+            self.print_error("received fx history for", ccy)
+        except BaseException as e:
+            self.print_error("failed fx history:", e)
+            return
+        filename = os.path.join(cache_dir, self.name() + '_' + ccy)
+        with open(filename, 'w') as f:
+            f.write(json.dumps(h))
+        h['timestamp'] = time.time()
         self.history[ccy] = h
         self.on_history()
 
     def get_historical_rates(self, ccy, cache_dir):
-        result = self.history.get(ccy)
-        if not result and ccy in self.history_ccys():
+        if ccy not in self.history_ccys():
+            return
+        h = self.history.get(ccy)
+        if h is None:
+            h = self.read_historical_rates(ccy, cache_dir)
+        if h is None or h['timestamp'] < time.time() - 24*3600:
             t = Thread(target=self.get_historical_rates_safe, args=(ccy, cache_dir))
             t.setDaemon(True)
             t.start()
-        return result
 
     def history_ccys(self):
         return []
