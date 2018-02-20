@@ -1,31 +1,41 @@
+
 # Release 3.1 - (to be released)
 
- * Mempory pool based fee estimates. If this option is activated,
-   users can set transaction fees that target a desired depth in the
-   memory pool. This feature might be controversial, because miners
-   could conspire and fill the memory pool with expensive transactions
-   that never get mined. However, our current time-based fee estimates
-   results in sticky fees, which cause inexperienced users to overpay,
-   while more advanced users visit (and trust) websites that display
-   memorypool data, and set their fee accordingly.
- * Local transactions: Transactions that have not been broadcasted can
-   be saved in the wallet file, and their outputs can be used in
-   subsequent transactions. Transactions that disapear from the memory
-   pool stay in the wallet, and can be rebroadcasted. This feature can
-   be combined with cold storage, to create several transactions
-   before broadcasting.
- * The initial headers download was replaced with hardcoded
-   checkpoints, one per retargeting period. Past headers are
-   downloaded when needed.
- * The two coin selection policies have been merged, and the policy
-   choice was removed from preferences. Previously, the 'privacy'
-   policy has been unusable because it was was not prioritizing
-   confirmed coins.
+ * Memory-pool based transaction fees. Users can set dynamic fees that
+   target a desired depth in the memory pool. This feature is
+   optional, and ETA-based estimates (from Bitcoin Core) remain the
+   default. Note that miners could exploit this feature, if they
+   conspired and filled the memory pool with expensive transactions
+   that never get mined. However, since the Electrum client already
+   trusts an Electrum server with fee estimates, activating this
+   feature does not introduce any new vulnerability; the client uses a
+   hard threshold to detect unusually high fees. In practice,
+   ETA-based estimates have resulted in sticky fees, and caused many
+   users to overpay for transactions. Advanced users tend to visit
+   (and trust) websites that display memory-pool data in order to set
+   their fees.
+ * Local transactions: Transactions can be saved in the wallet without
+   being broadcast. The inputs of local transactions are considered as
+   spent, and their change outputs can be re-used in subsequent
+   transactions. This can be combined with cold storage, in order to
+   create several transactions before broadcasting them. Outgoing
+   transactions that have been removed from the memory pool are also
+   saved in the wallet, and can be broadcast again.
+ * Checkpoints: The initial download of a headers file was replaced
+   with hardcoded checkpoints. The wallet uses one checkpoint per
+   retargetting period. The headers for a retargetting period are
+   downloaded only if transactions need to be verified in this period.
+ * The 'privacy' and 'priority' coin selection policies have been
+   merged into one. Previously, the 'privacy' policy has been unusable
+   because it was was not prioritizing confirmed coins. The new policy
+   is similar to 'privacy', except that it de-prioritizes addresses
+   that have unconfirmed coins.
  * The 'Send' tab of the Qt GUI displays how transaction fees are
    computed from transaction size.
- * RBF is enabled by default. This might cause some issues with
-   merchants that use wallets that do not display RBF transactions
-   until they are confirmed.
+ * The wallet history can be filtered by time interval.
+ * Replace-by-fee is enabled by default. Note that this might cause
+   some issues with wallets that do not display RBF transactions until
+   they are confirmed.
  * Watching-only wallets and hardware wallets can be encrypted.
  * Semi-automated crash reporting
  * The SSL checkbox option was removed from the GUI.
