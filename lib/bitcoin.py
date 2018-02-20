@@ -47,28 +47,6 @@ def read_json(filename, default):
     return r
 
 
-
-
-# Version numbers for BIP32 extended keys
-# standard: xprv, xpub
-# segwit in p2sh: yprv, ypub
-# native segwit: zprv, zpub
-XPRV_HEADERS = {
-    'standard': 0x0488ade4,
-    'p2wpkh-p2sh': 0x049d7878,
-    'p2wsh-p2sh': 0x295b005,
-    'p2wpkh': 0x4b2430c,
-    'p2wsh': 0x2aa7a99
-}
-XPUB_HEADERS = {
-    'standard': 0x0488b21e,
-    'p2wpkh-p2sh': 0x049d7cb2,
-    'p2wsh-p2sh': 0x295b43f,
-    'p2wpkh': 0x4b24746,
-    'p2wsh': 0x2aa7ed3
-}
-
-
 class NetworkConstants:
 
     @classmethod
@@ -83,6 +61,21 @@ class NetworkConstants:
         cls.DEFAULT_SERVERS = read_json('servers.json', {})
         cls.CHECKPOINTS = read_json('checkpoints.json', [])
 
+        cls.XPRV_HEADERS = {
+            'standard':    0x0488ade4,  # xprv
+            'p2wpkh-p2sh': 0x049d7878,  # yprv
+            'p2wsh-p2sh':  0x0295b005,  # Yprv
+            'p2wpkh':      0x04b2430c,  # zprv
+            'p2wsh':       0x02aa7a99,  # Zprv
+        }
+        cls.XPUB_HEADERS = {
+            'standard':    0x0488b21e,  # xpub
+            'p2wpkh-p2sh': 0x049d7cb2,  # ypub
+            'p2wsh-p2sh':  0x0295b43f,  # Ypub
+            'p2wpkh':      0x04b24746,  # zpub
+            'p2wsh':       0x02aa7ed3,  # Zpub
+        }
+
     @classmethod
     def set_testnet(cls):
         cls.TESTNET = True
@@ -94,6 +87,21 @@ class NetworkConstants:
         cls.DEFAULT_PORTS = {'t':'51001', 's':'51002'}
         cls.DEFAULT_SERVERS = read_json('servers_testnet.json', {})
         cls.CHECKPOINTS = read_json('checkpoints_testnet.json', [])
+
+        cls.XPRV_HEADERS = {
+            'standard':    0x04358394,  # tprv
+            'p2wpkh-p2sh': 0x044a4e28,  # uprv
+            'p2wsh-p2sh':  0x024285b5,  # Uprv
+            'p2wpkh':      0x045f18bc,  # vprv
+            'p2wsh':       0x02575048,  # Vprv
+        }
+        cls.XPUB_HEADERS = {
+            'standard':    0x043587cf,  # tpub
+            'p2wpkh-p2sh': 0x044a5262,  # upub
+            'p2wsh-p2sh':  0x024285ef,  # Upub
+            'p2wpkh':      0x045f1cf6,  # vpub
+            'p2wsh':       0x02575483,  # Vpub
+        }
 
 
 NetworkConstants.set_mainnet()
@@ -893,11 +901,11 @@ def _CKD_pub(cK, c, s):
 
 
 def xprv_header(xtype):
-    return bfh("%08x" % XPRV_HEADERS[xtype])
+    return bfh("%08x" % NetworkConstants.XPRV_HEADERS[xtype])
 
 
 def xpub_header(xtype):
-    return bfh("%08x" % XPUB_HEADERS[xtype])
+    return bfh("%08x" % NetworkConstants.XPUB_HEADERS[xtype])
 
 
 def serialize_xprv(xtype, c, k, depth=0, fingerprint=b'\x00'*4, child_number=b'\x00'*4):
@@ -919,7 +927,7 @@ def deserialize_xkey(xkey, prv):
     child_number = xkey[9:13]
     c = xkey[13:13+32]
     header = int('0x' + bh2u(xkey[0:4]), 16)
-    headers = XPRV_HEADERS if prv else XPUB_HEADERS
+    headers = NetworkConstants.XPRV_HEADERS if prv else NetworkConstants.XPUB_HEADERS
     if header not in headers.values():
         raise BaseException('Invalid xpub format', hex(header))
     xtype = list(headers.keys())[list(headers.values()).index(header)]
