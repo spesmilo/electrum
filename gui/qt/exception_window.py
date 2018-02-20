@@ -107,14 +107,22 @@ class Exception_Window(QWidget):
     def send_report(self):
         if bitcoin.NetworkConstants.GENESIS[-4:] not in ["4943", "e26f"] and ".electrum.org" in report_server:
             # Gah! Some kind of altcoin wants to send us crash reports.
-            self.main_window.show_critical("Please report this issue manually.")
+            self.main_window.show_critical(_("Please report this issue manually."))
             return
         report = self.get_traceback_info()
         report.update(self.get_additional_info())
         report = json.dumps(report)
-        response = requests.post(report_server, data=report)
-        QMessageBox.about(self, "Crash report", response.text)
-        self.close()
+        try:
+            response = requests.post(report_server, data=report, timeout=20)
+        except BaseException as e:
+            traceback.print_exc(file=sys.stderr)
+            self.main_window.show_critical(_('There was a problem with the automatic reporting:') + '\n' +
+                                           str(e) + '\n' +
+                                           _("Please report this issue manually."))
+            return
+        else:
+            QMessageBox.about(self, "Crash report", response.text)
+            self.close()
 
     def on_close(self):
         Exception_Window._active_window = None
