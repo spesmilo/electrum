@@ -1720,7 +1720,8 @@ class Abstract_Wallet(PrintError):
             if fiat_value is not None:
                 return fiat_value
             else:
-                return self.price_at_timestamp(txid, price_func) * txin_value/Decimal(COIN)
+                p = self.price_at_timestamp(txid, price_func)
+                return None if p is None else p * txin_value/Decimal(COIN)
         else:
             # could be some coinjoin transaction..
             return None
