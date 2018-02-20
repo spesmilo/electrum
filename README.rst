@@ -1,5 +1,5 @@
-ZCL Electrum - Lightweight Zclassic Client
-==========================================
+ZCL Electrum - Zclassic Electrum (Lite) Client
+==============================================
 
 Latest Release: https://github.com/BTCP-community/electrum-zcl/releases/
 
@@ -12,16 +12,16 @@ Know about your data directory::
     Linux + Mac: ~/.electrum-zcl/
     Windows: C:\Users\YourUserName\AppData\Roaming\Electrum-zcl\
 
-    ~/.electrum-zcl/wallets/ has your wallet files - BACK UP THIS FOLDER 
+    ~/.electrum-zcl/wallets/ has your wallet files - BACK UP THIS FOLDER
 
 You can also use 'Export Private Keys' and 'Show Seed' from inside the application to write down and store your funds.
 
-Please use the issue tracker for bug reports, feature requests, and other mission-critical information. It is actively monitored by the Zclassic development team. For general support, please visit our Discord: https://discord.gg/2PRZ5q 
+Please use the issue tracker for bug reports, feature requests, and other mission-critical information. It is actively monitored by the Zclassic development team. For general support, please visit our Discord: https://discord.gg/2PRZ5q
 
 Development Version
 ===================
 
-Check out the code from Github::
+First, clone from Github::
 
     git clone https://github.com/BTCP-community/electrum-zcl
     cd electrum-zcl
@@ -32,7 +32,7 @@ For Mac:
 Using Homebrew::
 
     # Setup Homebrew
-    sh ./setup-mac.sh
+    ./setup-mac
 
     # Install Homebrew dependencies
     brew bundle
@@ -46,8 +46,10 @@ Using Homebrew::
     # Compile the protobuf description file
     protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto
 
+    # Build .app, .dmg
+    ./create-dmg
+
     # Run
-    ./electrum
 
 
 For Linux:
@@ -58,14 +60,14 @@ Install Dependencies::
   sudo apt-get install $(grep -vE "^\s*#" packages.txt  | tr "\n" " ")
 
   pip install -r requirements.txt
-  
-  // pip3 for newer version
-  
+
+  // ^ pip3 for newer version
+
   (Ubuntu with ledger wallet)
   ln -s /lib/x86_64-linux-gnu/libudev.so.1 /lib/x86_64-linux-gnu/libudev.so
 
   # For yum installations (no apt-get), or for a clean python env, use Anaconda with Python 3:
-  
+
   #https://poweruphosting.com/blog/install-anaconda-python-ubuntu-16-04/
 
 
@@ -87,7 +89,7 @@ Create translations (optional)::
 
 Run::
 
-    ./electrum
+    ./electrum-zcl
 
 
 For Linux with docker:
@@ -111,9 +113,9 @@ MacOS
 
 Simply - ::
 
-    sh ./setup-mac.sh
+    ./setup-mac.sh
 
-    sudo sh ./create-dmg.sh
+    sudo ./create-dmg.sh
 
 Windows
 -------
@@ -152,11 +154,11 @@ Here is a good initial check to determine whether things are working (should suc
 
 The Zclassic Wiki is located at: https://github.com/z-classic/zclassic/wiki. Please use this as a reference and feel free to contribute.
 
-There is also an Electrum ZCL wiki at: https://github.com/BTCP-community/electrum-zcl/wiki. It cointains information about setting up the ElectrumX Server (https://github.com/BTCP-community/electrumx), which is the provider for block and peer data. 
+There is also an Electrum ZCL wiki at: https://github.com/BTCP-community/electrum-zcl/wiki. It contains information about setting up the ElectrumX Server (https://github.com/BTCP-community/electrumx), which is the provider for block and peer data.
 
 --
 
-Here is our current progress on zk-SNARK integration: https://github.com/BTCP-community/electrum-zcl/wiki/Shielded-Transactions 
+Here is our current progress on zk-SNARK integration: https://github.com/BTCP-community/electrum-zcl/wiki/Shielded-Transactions
 
 
 Original Project Info
@@ -183,3 +185,5 @@ Original Project Info
 ---
 
 The Zclassic Team
+
+ZCL: t1gsePJZ6ojJYygj3PWMGJfojPUoMd5AVfU
