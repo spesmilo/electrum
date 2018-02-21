@@ -785,3 +785,14 @@ def setup_thread_excepthook():
 
 def versiontuple(v):
     return tuple(map(int, (v.split("."))))
+
+
+def get_new_wallet_name(wallet_folder):
+    i = 1
+    while True:
+        filename = "wallet_%d" % i
+        if filename in os.listdir(wallet_folder):
+            i += 1
+        else:
+            break
+    return filename
