@@ -50,7 +50,7 @@ find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
 rm -rf $WINEPREFIX/drive_c/electrum-grs
-cp -r electrum $WINEPREFIX/drive_c/electrum-grs
+cp -r electrum-grs $WINEPREFIX/drive_c/electrum-grs
 cp electrum-grs/LICENCE .
 cp -r electrum-grs-locale/locale $WINEPREFIX/drive_c/electrum-grs/lib/
 cp electrum-grs-icons/icons_rc.py $WINEPREFIX/drive_c/electrum-grs/gui/qt/
