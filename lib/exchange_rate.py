@@ -508,9 +508,11 @@ class FxThread(ThreadJob):
         return _("  (No FX rate available)") if rate.is_nan() else " 1 %s~%s %s" % (base_unit,
             self.value_str(COIN / (10**(8 - decimal_point)), rate), self.ccy)
 
+    def fiat_value(self, satoshis, rate):
+        return Decimal('NaN') if satoshis is None else Decimal(satoshis) / COIN * Decimal(rate)
+
     def value_str(self, satoshis, rate):
-        value = Decimal('NaN') if satoshis is None else Decimal(satoshis) / COIN * Decimal(rate)
-        return self.format_fiat(value)
+        return self.format_fiat(self.fiat_value(satoshis, rate))
 
     def format_fiat(self, value):
         if value.is_nan():
@@ -527,12 +529,10 @@ class FxThread(ThreadJob):
         return Decimal(rate)
 
     def historical_value_str(self, satoshis, d_t):
-        rate = self.history_rate(d_t)
-        return self.value_str(satoshis, rate)
+        return self.format_fiat(self.historical_value(satoshis, d_t))
 
     def historical_value(self, satoshis, d_t):
-        rate = self.history_rate(d_t)
-        return Decimal(satoshis) / COIN * Decimal(rate)
+        return self.fiat_value(satoshis, self.history_rate(d_t))
 
     def timestamp_rate(self, timestamp):
         from electrum.util import timestamp_to_datetime
