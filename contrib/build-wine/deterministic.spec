@@ -51,6 +51,7 @@ a = Analysis([home+'electrum',
               home+'plugins/ledger/qt.py',
               #home+'packages/requests/utils.py'
               ],
+             binaries=[("c:/python3.5.4/libusb-1.0.dll", ".")],
              datas=datas,
              #pathex=[home+'lib', home+'gui', home+'plugins'],
              hiddenimports=hiddenimports,
