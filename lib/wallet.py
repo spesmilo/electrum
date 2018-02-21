@@ -157,9 +157,18 @@ def sweep(privkeys, network, config, recipient, fee=None, imax=100):
     return tx
 
 
-class UnrelatedTransactionException(Exception):
-    def __init__(self):
-        self.args = ("Transaction is unrelated to this wallet ", )
+class AddTransactionException(Exception):
+    pass
+
+
+class UnrelatedTransactionException(AddTransactionException):
+    def __str__(self):
+        return _("Transaction is unrelated to this wallet.")
+
+
+class NotIsMineTransactionException(AddTransactionException):
+    def __str__(self):
+        return _("Only transactions with inputs owned by the wallet can be added.")
 
 
 class Abstract_Wallet(PrintError):
@@ -768,7 +777,7 @@ class Abstract_Wallet(PrintError):
             # do not save if tx is local and not mine
             if tx_height == TX_HEIGHT_LOCAL and not is_mine:
                 # FIXME the test here should be for "not all is_mine"; cannot detect conflict in some cases
-                return False
+                raise NotIsMineTransactionException()
             # raise exception if unrelated to wallet
             is_for_me = any([self.is_mine(self.get_txout_address(txo)) for txo in tx.outputs()])
             if not is_mine and not is_for_me:

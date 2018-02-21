@@ -51,7 +51,7 @@ from electrum.util import (format_time, format_satoshis, PrintError,
 from electrum import Transaction
 from electrum import util, bitcoin, commands, coinchooser
 from electrum import paymentrequest
-from electrum.wallet import Multisig_Wallet
+from electrum.wallet import Multisig_Wallet, AddTransactionException
 
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
@@ -3125,3 +3125,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if is_final:
             new_tx.set_rbf(False)
         self.show_transaction(new_tx, tx_label)
+
+    def save_transaction_into_wallet(self, tx):
+        try:
+            if not self.wallet.add_transaction(tx.txid(), tx):
+                self.show_error(_("Transaction could not be saved.") + "\n" +
+                                       _("It conflicts with current history."))
+                return False
+        except AddTransactionException as e:
+            self.show_error(e)
+            return False
+        else:
+            self.wallet.save_transactions(write=True)
+            # need to update at least: history_list, utxo_list, address_list
+            self.need_update.set()
+            self.show_message(_("Transaction saved successfully"))
+            return True
+
+

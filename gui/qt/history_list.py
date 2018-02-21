@@ -26,7 +26,7 @@
 import webbrowser
 import datetime
 
-from electrum.wallet import UnrelatedTransactionException, TX_HEIGHT_LOCAL
+from electrum.wallet import AddTransactionException, TX_HEIGHT_LOCAL
 from .util import *
 from electrum.i18n import _
 from electrum.util import block_explorer_URL
@@ -356,16 +356,12 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         self.parent.need_update.set()
 
     def onFileAdded(self, fn):
-        with open(fn) as f:
-            tx = self.parent.tx_from_text(f.read())
-            try:
-                self.wallet.add_transaction(tx.txid(), tx)
-            except UnrelatedTransactionException as e:
-                self.parent.show_error(e)
-            else:
-                self.wallet.save_transactions(write=True)
-                # need to update at least: history_list, utxo_list, address_list
-                self.parent.need_update.set()
+        try:
+            with open(fn) as f:
+                tx = self.parent.tx_from_text(f.read())
+                self.parent.save_transaction_into_wallet(tx)
+        except IOError as e:
+            self.parent.show_error(e)
 
     def export_history_dialog(self):
         d = WindowModalDialog(self, _('Export History'))
