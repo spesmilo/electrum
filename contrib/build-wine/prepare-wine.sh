@@ -3,6 +3,10 @@
 # Please update these carefully, some versions won't work under Wine
 NSIS_URL=https://prdownloads.sourceforge.net/nsis/nsis-3.02.1-setup.exe?download
 NSIS_SHA256=736c9062a02e297e335f82252e648a883171c98e0d5120439f538c81d429552e
+
+LIBUSB_URL=https://prdownloads.sourceforge.net/project/libusb/libusb-1.0/libusb-1.0.21/libusb-1.0.21.7z?download
+LIBUSB_SHA256=acdde63a40b1477898aee6153f9d91d1a2e8a5d93f832ca8ab876498f3a6d2b8
+
 PYTHON_VERSION=3.5.4
 
 ## These settings probably don't need change
@@ -100,6 +104,11 @@ $PYTHON -m pip install setuptools --upgrade
 wget -q -O nsis.exe "$NSIS_URL"
 verify_hash nsis.exe $NSIS_SHA256
 wine nsis.exe /S
+
+wget -q -O libusb.7z "$LIBUSB_URL"
+verify_hash libusb.7z "$LIBUSB_SHA256"
+(mkdir libusb && cd libusb && p7zip -d ../libusb.7z)
+cp libusb/MS32/dll/libusb-1.0.dll $WINEPREFIX/drive_c/python$PYTHON_VERSION/
 
 (cd $WINEPREFIX/drive_c && p7zip -d /tmp/mingw32.7z)
 # add .bat file that exposes host's git describe in wine

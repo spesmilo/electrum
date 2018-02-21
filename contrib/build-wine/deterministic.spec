@@ -37,6 +37,9 @@ datas += collect_data_files('keepkeylib')
 # Workaround for "Retro Look":
 binaries = [b for b in collect_dynamic_libs('PyQt5') if 'qwindowsvista' in b[0]]
 
+# Add libusb binary
+binaries += [("c:/python3.5.4/libusb-1.0.dll", ".")]
+
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([home+'electrum-ftc',
               home+'gui/qt/main_window.py',
