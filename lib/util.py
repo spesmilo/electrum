@@ -480,11 +480,13 @@ def time_difference(distance_in_time, include_seconds):
         return "over %d years" % (round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
+    'Bchain.info': ('https://bchain.info/',
+                        {'tx': 'LTC/tx/', 'addr': 'LTC/addr/'}),
+    'BlockCypher.com': ('https://live.blockcypher.com/ltc/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
     'explorer.litecoin.net': ('http://explorer.litecoin.net/',
                         {'tx': 'tx/', 'addr': 'address/'}),
-    'Blockr.io': ('https://ltc.blockr.io/',
-                        {'tx': 'tx/info/', 'addr': 'address/info/'}),
-    'BlockCypher.com': ('https://live.blockcypher.com/ltc/',
+    'LiteCore': ('https://insight.litecore.io/',
                         {'tx': 'tx/', 'addr': 'address/'}),
     'SoChain': ('https://chain.so/',
                         {'tx': 'tx/LTC/', 'addr': 'address/LTC/'}),
@@ -493,10 +495,10 @@ mainnet_block_explorers = {
 }
 
 testnet_block_explorers = {
-    'SoChain': ('https://chain.so/',
-                        {'tx': 'tx/LTCTEST/', 'addr': 'address/LTCTEST/'}),
     'LiteCore': ('https://testnet.litecore.io/',
                         {'tx': 'tx/', 'addr': 'address/'}),
+    'SoChain': ('https://chain.so/',
+                        {'tx': 'tx/LTCTEST/', 'addr': 'address/LTCTEST/'}),
     'system default': ('blockchain://4966625a4b2851d9fdee139e56211a0d88575f59ed816ff5e6a63deb4e3e29a0/',
                        {'tx': 'tx/', 'addr': 'address/'}),
 }
@@ -506,7 +508,7 @@ def block_explorer_info():
     return testnet_block_explorers if bitcoin.NetworkConstants.TESTNET else mainnet_block_explorers
 
 def block_explorer(config):
-    return config.get('block_explorer', 'SoChain')
+    return config.get('block_explorer', 'LiteCore')
 
 def block_explorer_tuple(config):
     return block_explorer_info().get(block_explorer(config))
