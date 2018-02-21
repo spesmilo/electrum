@@ -25,6 +25,7 @@
 import copy
 import datetime
 import json
+import traceback
 
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -36,15 +37,23 @@ from electrum.plugins import run_hook
 
 from electrum.util import bfh
 from electrum.wallet import AddTransactionException
+from electrum.transaction import SerializationError
 
 from .util import *
 
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
 
+
 def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
-    d = TxDialog(tx, parent, desc, prompt_if_unsaved)
-    dialogs.append(d)
-    d.show()
+    try:
+        d = TxDialog(tx, parent, desc, prompt_if_unsaved)
+    except SerializationError as e:
+        traceback.print_exc(file=sys.stderr)
+        parent.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
+    else:
+        dialogs.append(d)
+        d.show()
+
 
 class TxDialog(QDialog, MessageBoxMixin):
 
@@ -58,7 +67,10 @@ class TxDialog(QDialog, MessageBoxMixin):
         # e.g. the FX plugin.  If this happens during or after a long
         # sign operation the signatures are lost.
         self.tx = copy.deepcopy(tx)
-        self.tx.deserialize()
+        try:
+            self.tx.deserialize()
+        except BaseException as e:
+            raise SerializationError(e)
         self.main_window = parent
         self.wallet = parent.wallet
         self.prompt_if_unsaved = prompt_if_unsaved
