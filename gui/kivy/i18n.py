@@ -15,7 +15,7 @@ class _(str):
 
     @staticmethod
     def translate(s, *args, **kwargs):
-        return _.lang(s).format(args, kwargs)
+        return _.lang(s).format(*args, **kwargs)
 
     @staticmethod
     def bind(label):
