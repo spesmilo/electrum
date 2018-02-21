@@ -57,18 +57,15 @@ For Linux:
 
 Install Dependencies::
 
-  sudo apt-get install $(grep -vE "^\s*#" packages.txt  | tr "\n" " ")
+  sudo apt-get install $(grep -vE "^\s*#" packages.txt  | tr "\n" " ") python-pip
 
-  pip install -r requirements.txt
+  pip3 install -r requirements.txt
 
-  // ^ pip3 for newer version
-
-  (Ubuntu with ledger wallet)
-  ln -s /lib/x86_64-linux-gnu/libudev.so.1 /lib/x86_64-linux-gnu/libudev.so
+  #(Ubuntu with ledger wallet)
+  #ln -s /lib/x86_64-linux-gnu/libudev.so.1 /lib/x86_64-linux-gnu/libudev.so
 
   # For yum installations (no apt-get), or for a clean python env, use Anaconda with Python 3:
-
-  #https://poweruphosting.com/blog/install-anaconda-python-ubuntu-16-04/
+  # https://poweruphosting.com/blog/install-anaconda-python-ubuntu-16-04/
 
 
 Compile the icons file for Qt::
@@ -135,7 +132,7 @@ To just create binaries, create the 'packages/' directory::
 
     ./contrib/make_packages
 
-(This directory contains the Python dependencies used by Electrum.)
+(This directory contains the Python dependencies used by Electrum-ZCL.)
 
 
 ZCL Hints and Debug
@@ -154,11 +151,11 @@ Here is a good initial check to determine whether things are working (should suc
 
 The Zclassic Wiki is located at: https://github.com/z-classic/zclassic/wiki. Please use this as a reference and feel free to contribute.
 
-There is also an Electrum ZCL wiki at: https://github.com/BTCP-community/electrum-zcl/wiki. It contains information about setting up the ElectrumX Server (https://github.com/BTCP-community/electrumx), which is the provider for block and peer data.
+There is also an Electrum-ZCL wiki at: https://github.com/BTCP-community/electrum-zcl/wiki. It contains information about setting up the ElectrumX Server (https://github.com/BTCP-community/electrumx), which is the provider for block and peer data.
 
 --
 
-Here is our current progress on zk-SNARK integration: https://github.com/BTCP-community/electrum-zcl/wiki/Shielded-Transactions
+Here is our roadmap for zk-SNARKs integration: https://github.com/BTCP-community/electrum-zcl/wiki/Shielded-Transactions
 
 
 Original Project Info
