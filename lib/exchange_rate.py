@@ -109,8 +109,8 @@ class ExchangeBase(PrintError):
 
     def historical_rate(self, ccy, d_t):
         if d_t is None:
-            return None
-        return self.history.get(ccy, {}).get(d_t.strftime('%Y-%m-%d'))
+            return 'NaN'
+        return self.history.get(ccy, {}).get(d_t.strftime('%Y-%m-%d'), 'NaN')
 
     def get_currencies(self):
         rates = self.get_rates('')
@@ -414,40 +414,38 @@ class FxThread(ThreadJob):
     def exchange_rate(self):
         '''Returns None, or the exchange rate as a Decimal'''
         rate = self.exchange.quotes.get(self.ccy)
-        if rate:
-            return Decimal(rate)
+        if rate is None:
+            return Decimal('NaN')
+        return Decimal(rate)
 
     def format_amount_and_units(self, btc_balance):
         rate = self.exchange_rate()
-        return '' if rate is None else "%s %s" % (self.value_str(btc_balance, rate), self.ccy)
+        return '' if rate.is_nan() else "%s %s" % (self.value_str(btc_balance, rate), self.ccy)
 
     def get_fiat_status_text(self, btc_balance, base_unit, decimal_point):
         rate = self.exchange_rate()
-        return _("  (No FX rate available)") if rate is None else " 1 %s~%s %s" % (base_unit,
+        return _("  (No FX rate available)") if rate.is_nan() else " 1 %s~%s %s" % (base_unit,
             self.value_str(COIN / (10**(8 - decimal_point)), rate), self.ccy)
 
     def value_str(self, satoshis, rate):
-        if satoshis is not None and rate is not None:
-            value = Decimal(satoshis) / COIN * Decimal(rate)
-        else:
-            value = None
+        value = Decimal('NaN') if satoshis is None else Decimal(satoshis) / COIN * Decimal(rate)
         return self.format_fiat(value)
 
     def format_fiat(self, value):
-        if value is not None:
-            return "%s" % (self.ccy_amount_str(value, True))
-        return _("No data")
+        if value.is_nan():
+            return _("No data")
+        return "%s" % (self.ccy_amount_str(value, True))
 
     def history_rate(self, d_t):
         if d_t is None:
-            return None
+            return Decimal('NaN')
         rate = self.exchange.historical_rate(self.ccy, d_t)
         # Frequently there is no rate for today, until tomorrow :)
         # Use spot quotes in that case
-        if rate is None and (datetime.today().date() - d_t.date()).days <= 2:
-            rate = self.exchange.quotes.get(self.ccy)
+        if rate == 'NaN' and (datetime.today().date() - d_t.date()).days <= 2:
+            rate = self.exchange.quotes.get(self.ccy, 'NaN')
             self.history_used_spot = True
-        return Decimal(rate) if rate is not None else None
+        return Decimal(rate)
 
     def historical_value_str(self, satoshis, d_t):
         rate = self.history_rate(d_t)
@@ -455,8 +453,7 @@ class FxThread(ThreadJob):
 
     def historical_value(self, satoshis, d_t):
         rate = self.history_rate(d_t)
-        if rate:
-            return Decimal(satoshis) / COIN * Decimal(rate)
+        return Decimal(satoshis) / COIN * Decimal(rate)
 
     def timestamp_rate(self, timestamp):
         from electrum_ltc.util import timestamp_to_datetime

@@ -1,6 +1,6 @@
 # -*- mode: python -*-
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_dynamic_libs
 
 import sys
 for i, x in enumerate(sys.argv):
@@ -19,6 +19,12 @@ hiddenimports += collect_submodules('trezorlib')
 hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += ['_scrypt']
+
+# Add libusb binary
+binaries = [("c:/python3.5.4/libusb-1.0.dll", ".")]
+
+# Workaround for "Retro Look":
+binaries += [b for b in collect_dynamic_libs('PyQt5') if 'qwindowsvista' in b[0]]
 
 datas = [
     (home+'lib/currencies.json', 'electrum_ltc'),
@@ -53,6 +59,7 @@ a = Analysis([home+'electrum-ltc',
               home+'plugins/ledger/qt.py',
               #home+'packages/requests/utils.py'
               ],
+             binaries=binaries,
              datas=datas,
              #pathex=[home+'lib', home+'gui', home+'plugins'],
              hiddenimports=hiddenimports,

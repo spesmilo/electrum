@@ -56,6 +56,12 @@ cp electrum-ltc-icons/icons_rc.py $WINEPREFIX/drive_c/electrum-ltc/gui/qt/
 
 # Install frozen dependencies
 $PYTHON -m pip install -r ../../deterministic-build/requirements.txt
+
+# Workaround until they upload binary wheels themselves:
+wget 'https://ci.appveyor.com/api/buildjobs/bwr3yfghdemoryy8/artifacts/dist%2Fpyblake2-1.1.0-cp35-cp35m-win32.whl' -O pyblake2-1.1.0-cp35-cp35m-win32.whl
+$PYTHON -m pip install ./pyblake2-1.1.0-cp35-cp35m-win32.whl
+ 
+
 $PYTHON -m pip install -r ../../deterministic-build/requirements-hw.txt
 
 pushd $WINEPREFIX/drive_c/electrum-ltc
