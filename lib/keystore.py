@@ -139,7 +139,10 @@ class Imported_KeyStore(Software_KeyStore):
     def import_privkey(self, sec, password):
         txin_type, privkey, compressed = deserialize_privkey(sec)
         pubkey = public_key_from_private_key(privkey, compressed)
-        self.keypairs[pubkey] = pw_encode(sec, password)
+        # re-serialize the key so the internal storage format is consistent
+        serialized_privkey = serialize_privkey(
+            privkey, compressed, txin_type, internal_use=True)
+        self.keypairs[pubkey] = pw_encode(serialized_privkey, password)
         return txin_type, pubkey
 
     def delete_imported_key(self, key):

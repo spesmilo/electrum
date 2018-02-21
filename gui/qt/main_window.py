@@ -51,7 +51,7 @@ from electrum_ltc.util import (format_time, format_satoshis, PrintError,
 from electrum_ltc import Transaction
 from electrum_ltc import util, bitcoin, commands, coinchooser
 from electrum_ltc import paymentrequest
-from electrum_ltc.wallet import Multisig_Wallet
+from electrum_ltc.wallet import Multisig_Wallet, AddTransactionException
 
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
@@ -2094,8 +2094,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             rds_e = ShowQRTextEdit(text=redeem_script)
             rds_e.addCopyButton(self.app)
             vbox.addWidget(rds_e)
-        if xtype in ['p2wpkh', 'p2wsh', 'p2wpkh-p2sh', 'p2wsh-p2sh']:
-            vbox.addWidget(WWLabel(_("Warning: the format of private keys associated to segwit addresses may not be compatible with other wallets")))
         vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
         d.exec_()
@@ -2290,25 +2288,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return self.tx_from_text(file_content)
 
     def do_process_from_text(self):
-        from electrum_ltc.transaction import SerializationError
         text = text_dialog(self, _('Input raw transaction'), _("Transaction:"), _("Load transaction"))
         if not text:
             return
-        try:
-            tx = self.tx_from_text(text)
-            if tx:
-                self.show_transaction(tx)
-        except SerializationError as e:
-            self.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
+        tx = self.tx_from_text(text)
+        if tx:
+            self.show_transaction(tx)
 
     def do_process_from_file(self):
-        from electrum_ltc.transaction import SerializationError
-        try:
-            tx = self.read_tx_from_file()
-            if tx:
-                self.show_transaction(tx)
-        except SerializationError as e:
-            self.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
+        tx = self.read_tx_from_file()
+        if tx:
+            self.show_transaction(tx)
 
     def do_process_from_txid(self):
         from electrum_ltc import transaction
@@ -2334,7 +2324,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                               _('It can not be "backed up" by simply exporting these private keys.'))
 
         d = WindowModalDialog(self, _('Private keys'))
-        d.setMinimumSize(850, 300)
+        d.setMinimumSize(980, 300)
         vbox = QVBoxLayout(d)
 
         msg = "%s\n%s\n%s" % (_("WARNING: ALL your private keys are secret."),
@@ -3125,3 +3115,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if is_final:
             new_tx.set_rbf(False)
         self.show_transaction(new_tx, tx_label)
+
+    def save_transaction_into_wallet(self, tx):
+        try:
+            if not self.wallet.add_transaction(tx.txid(), tx):
+                self.show_error(_("Transaction could not be saved.") + "\n" +
+                                       _("It conflicts with current history."))
+                return False
+        except AddTransactionException as e:
+            self.show_error(e)
+            return False
+        else:
+            self.wallet.save_transactions(write=True)
+            # need to update at least: history_list, utxo_list, address_list
+            self.need_update.set()
+            self.show_message(_("Transaction saved successfully"))
+            return True
+
+

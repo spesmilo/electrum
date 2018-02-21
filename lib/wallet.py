@@ -157,9 +157,18 @@ def sweep(privkeys, network, config, recipient, fee=None, imax=100):
     return tx
 
 
-class UnrelatedTransactionException(Exception):
-    def __init__(self):
-        self.args = ("Transaction is unrelated to this wallet ", )
+class AddTransactionException(Exception):
+    pass
+
+
+class UnrelatedTransactionException(AddTransactionException):
+    def __str__(self):
+        return _("Transaction is unrelated to this wallet.")
+
+
+class NotIsMineTransactionException(AddTransactionException):
+    def __str__(self):
+        return _("Only transactions with inputs owned by the wallet can be added.")
 
 
 class Abstract_Wallet(PrintError):
@@ -388,23 +397,21 @@ class Abstract_Wallet(PrintError):
     def get_address_index(self, address):
         raise NotImplementedError()
 
+    def get_redeem_script(self, address):
+        return None
+
     def export_private_key(self, address, password):
-        """ extended WIF format """
         if self.is_watching_only():
             return []
         index = self.get_address_index(address)
         pk, compressed = self.keystore.get_private_key(index, password)
-        if self.txin_type in ['p2sh', 'p2wsh', 'p2wsh-p2sh']:
-            pubkeys = self.get_public_keys(address)
-            redeem_script = self.pubkeys_to_redeem_script(pubkeys)
-        else:
-            redeem_script = None
-        return bitcoin.serialize_privkey(pk, compressed, self.txin_type), redeem_script
-
+        txin_type = self.get_txin_type(address)
+        redeem_script = self.get_redeem_script(address)
+        serialized_privkey = bitcoin.serialize_privkey(pk, compressed, txin_type)
+        return serialized_privkey, redeem_script
 
     def get_public_keys(self, address):
-        sequence = self.get_address_index(address)
-        return self.get_pubkeys(*sequence)
+        return [self.get_public_key(address)]
 
     def add_unverified_tx(self, tx_hash, tx_height):
         if tx_height in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT) \
@@ -494,6 +501,17 @@ class Abstract_Wallet(PrintError):
         d = self.txo.get(tx_hash, {}).get(address, [])
         for n, v, cb in d:
             delta += v
+        return delta
+
+    def get_tx_value(self, txid):
+        " effect of tx on the entire domain"
+        delta = 0
+        for addr, d in self.txi.get(txid, {}).items():
+            for n, v in d:
+                delta -= v
+        for addr, d in self.txo.get(txid, {}).items():
+            for n, v, cb in d:
+                delta += v
         return delta
 
     def get_wallet_delta(self, tx):
@@ -768,7 +786,7 @@ class Abstract_Wallet(PrintError):
             # do not save if tx is local and not mine
             if tx_height == TX_HEIGHT_LOCAL and not is_mine:
                 # FIXME the test here should be for "not all is_mine"; cannot detect conflict in some cases
-                return False
+                raise NotIsMineTransactionException()
             # raise exception if unrelated to wallet
             is_for_me = any([self.is_mine(self.get_txout_address(txo)) for txo in tx.outputs()])
             if not is_mine and not is_for_me:
@@ -962,11 +980,6 @@ class Abstract_Wallet(PrintError):
     def get_full_history(self, domain=None, from_timestamp=None, to_timestamp=None, fx=None, show_addresses=False):
         from .util import timestamp_to_datetime, Satoshis, Fiat
         out = []
-        init_balance = None
-        init_timestamp = None
-        end_balance = None
-        end_timestamp = None
-        end_balance = 0
         capital_gains = 0
         fiat_income = 0
         h = self.get_history(domain)
@@ -983,11 +996,6 @@ class Abstract_Wallet(PrintError):
                 'value': Satoshis(value),
                 'balance': Satoshis(balance)
             }
-            if init_balance is None:
-                init_balance = balance - value
-                init_timestamp = timestamp
-            end_balance = balance
-            end_timestamp = timestamp
             item['date'] = timestamp_to_datetime(timestamp) if timestamp is not None else None
             item['label'] = self.get_label(tx_hash)
             if show_addresses:
@@ -1025,28 +1033,38 @@ class Abstract_Wallet(PrintError):
                     if fiat_value is not None:
                         fiat_income += fiat_value
             out.append(item)
-        result = {'transactions': out}
-        if from_timestamp is not None and to_timestamp is not None:
-            start_date = timestamp_to_datetime(from_timestamp)
-            end_date = timestamp_to_datetime(to_timestamp)
+        # add summary
+        if out:
+            start_balance = out[0]['balance'].value - out[0]['value'].value
+            end_balance = out[-1]['balance'].value
+            if from_timestamp is not None and to_timestamp is not None:
+                start_date = timestamp_to_datetime(from_timestamp)
+                end_date = timestamp_to_datetime(to_timestamp)
+            else:
+                start_date = out[0]['date']
+                end_date = out[-1]['date']
+
+            summary = {
+                'start_date': start_date,
+                'end_date': end_date,
+                'start_balance': Satoshis(start_balance),
+                'end_balance': Satoshis(end_balance)
+            }
+            if fx:
+                unrealized = self.unrealized_gains(domain, fx.timestamp_rate, fx.ccy)
+                summary['capital_gains'] = Fiat(capital_gains, fx.ccy)
+                summary['fiat_income'] = Fiat(fiat_income, fx.ccy)
+                summary['unrealized_gains'] = Fiat(unrealized, fx.ccy)
+                if start_date:
+                    summary['start_fiat_balance'] = Fiat(fx.historical_value(start_balance, start_date), fx.ccy)
+                if end_date:
+                    summary['end_fiat_balance'] = Fiat(fx.historical_value(end_balance, end_date), fx.ccy)
         else:
-            start_date = timestamp_to_datetime(init_timestamp)
-            end_date = timestamp_to_datetime(end_timestamp)
-        summary = {
-            'start_date': start_date,
-            'end_date': end_date,
-            'start_balance': Satoshis(init_balance),
-            'end_balance': Satoshis(end_balance)
+            summary = {}
+        return {
+            'transactions': out,
+            'summary': summary
         }
-        result['summary'] = summary
-        if fx:
-            unrealized = self.unrealized_gains(domain, fx.timestamp_rate, fx.ccy)
-            summary['start_fiat_balance'] = Fiat(fx.historical_value(init_balance, start_date), fx.ccy)
-            summary['end_fiat_balance'] = Fiat(fx.historical_value(end_balance, end_date), fx.ccy)
-            summary['capital_gains'] = Fiat(capital_gains, fx.ccy)
-            summary['fiat_income'] = Fiat(fiat_income, fx.ccy)
-            summary['unrealized_gains'] = Fiat(unrealized, fx.ccy)
-        return result
 
     def get_label(self, tx_hash):
         label = self.labels.get(tx_hash, '')
@@ -1141,7 +1159,8 @@ class Abstract_Wallet(PrintError):
                 if not change_addrs:
                     change_addrs = [random.choice(addrs)]
             else:
-                change_addrs = [inputs[0]['address']]
+                # coin_chooser will set change address
+                change_addrs = []
 
         # Fee estimator
         if fixed_fee is None:
@@ -1686,7 +1705,7 @@ class Abstract_Wallet(PrintError):
         coins = self.get_utxos(domain)
         now = time.time()
         p = price_func(now)
-        ap = sum(self.coin_price(coin, price_func, ccy, self.txin_value(coin)) for coin in coins)
+        ap = sum(self.coin_price(coin['prevout_hash'], price_func, ccy, self.txin_value(coin)) for coin in coins)
         lp = sum([coin['value'] for coin in coins]) * p / Decimal(COIN)
         return lp - ap
 
@@ -1696,42 +1715,36 @@ class Abstract_Wallet(PrintError):
         and the price of these coins when they entered the wallet.
         price_func: function that returns the fiat price given a timestamp
         """
-        tx = self.transactions[txid]
-        ir, im, v, fee = self.get_wallet_delta(tx)
-        out_value = -v
+        out_value = - self.get_tx_value(txid)/Decimal(COIN)
         fiat_value = self.get_fiat_value(txid, ccy)
-        if fiat_value is None:
-            p = self.price_at_timestamp(txid, price_func)
-            liquidation_price = out_value/Decimal(COIN) * p
-        else:
-            liquidation_price = - fiat_value
-
-        acquisition_price = out_value/Decimal(COIN) * self.average_price(tx, price_func, ccy)
+        liquidation_price = - fiat_value if fiat_value else out_value * self.price_at_timestamp(txid, price_func)
+        acquisition_price = out_value * self.average_price(txid, price_func, ccy)
         return acquisition_price, liquidation_price
 
-    def average_price(self, tx, price_func, ccy):
-        """ average price of the inputs of a transaction """
-        input_value = sum(self.txin_value(txin) for txin in tx.inputs()) / Decimal(COIN)
-        total_price = sum(self.coin_price(txin, price_func, ccy, self.txin_value(txin)) for txin in tx.inputs())
-        return total_price / input_value
+    def average_price(self, txid, price_func, ccy):
+        """ Average acquisition price of the inputs of a transaction """
+        input_value = 0
+        total_price = 0
+        for addr, d in self.txi.get(txid, {}).items():
+            for ser, v in d:
+                input_value += v
+                total_price += self.coin_price(ser.split(':')[0], price_func, ccy, v)
+        return total_price / (input_value/Decimal(COIN))
 
-    def coin_price(self, coin, price_func, ccy, txin_value):
-        """ fiat price of acquisition of coin """
-        txid = coin['prevout_hash']
-        tx = self.transactions[txid]
-        if all([self.is_mine(txin['address']) for txin in tx.inputs()]):
-            return self.average_price(tx, price_func, ccy) * txin_value/Decimal(COIN)
-        elif all([ not self.is_mine(txin['address']) for txin in tx.inputs()]):
+    def coin_price(self, txid, price_func, ccy, txin_value):
+        """
+        Acquisition price of a coin.
+        This assumes that either all inputs are mine, or no input is mine.
+        """
+        if self.txi.get(txid, {}) != {}:
+            return self.average_price(txid, price_func, ccy) * txin_value/Decimal(COIN)
+        else:
             fiat_value = self.get_fiat_value(txid, ccy)
             if fiat_value is not None:
                 return fiat_value
             else:
                 p = self.price_at_timestamp(txid, price_func)
                 return p * txin_value/Decimal(COIN)
-        else:
-            # could be some coinjoin transaction..
-            return Decimal('NaN')
-
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore
@@ -1903,12 +1916,10 @@ class Imported_Wallet(Simple_Wallet):
         self.add_address(addr)
         return addr
 
-    def export_private_key(self, address, password):
+    def get_redeem_script(self, address):
         d = self.addresses[address]
-        pubkey = d['pubkey']
         redeem_script = d['redeem_script']
-        sec = pw_decode(self.keystore.keypairs[pubkey], password)
-        return sec, redeem_script
+        return redeem_script
 
     def get_txin_type(self, address):
         return self.addresses[address].get('type', 'address')
@@ -2086,9 +2097,6 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
     def get_pubkey(self, c, i):
         return self.derive_pubkeys(c, i)
 
-    def get_public_keys(self, address):
-        return [self.get_public_key(address)]
-
     def add_input_sig_info(self, txin, address):
         derivation = self.get_address_index(address)
         x_pubkey = self.keystore.get_xpubkey(*derivation)
@@ -2126,12 +2134,21 @@ class Multisig_Wallet(Deterministic_Wallet):
     def get_pubkeys(self, c, i):
         return self.derive_pubkeys(c, i)
 
+    def get_public_keys(self, address):
+        sequence = self.get_address_index(address)
+        return self.get_pubkeys(*sequence)
+
     def pubkeys_to_address(self, pubkeys):
         redeem_script = self.pubkeys_to_redeem_script(pubkeys)
         return bitcoin.redeem_script_to_address(self.txin_type, redeem_script)
 
     def pubkeys_to_redeem_script(self, pubkeys):
         return transaction.multisig_script(sorted(pubkeys), self.m)
+
+    def get_redeem_script(self, address):
+        pubkeys = self.get_public_keys(address)
+        redeem_script = self.pubkeys_to_redeem_script(pubkeys)
+        return redeem_script
 
     def derive_pubkeys(self, c, i):
         return [k.derive_pubkey(c, i) for k in self.get_keystores()]

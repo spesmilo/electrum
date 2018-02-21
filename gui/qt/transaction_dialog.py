@@ -25,6 +25,7 @@
 import copy
 import datetime
 import json
+import traceback
 
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -35,16 +36,24 @@ from electrum_ltc.i18n import _
 from electrum_ltc.plugins import run_hook
 
 from electrum_ltc.util import bfh
-from electrum_ltc.wallet import UnrelatedTransactionException
+from electrum_ltc.wallet import AddTransactionException
+from electrum_ltc.transaction import SerializationError
 
 from .util import *
 
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
 
+
 def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
-    d = TxDialog(tx, parent, desc, prompt_if_unsaved)
-    dialogs.append(d)
-    d.show()
+    try:
+        d = TxDialog(tx, parent, desc, prompt_if_unsaved)
+    except SerializationError as e:
+        traceback.print_exc(file=sys.stderr)
+        parent.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
+    else:
+        dialogs.append(d)
+        d.show()
+
 
 class TxDialog(QDialog, MessageBoxMixin):
 
@@ -58,7 +67,10 @@ class TxDialog(QDialog, MessageBoxMixin):
         # e.g. the FX plugin.  If this happens during or after a long
         # sign operation the signatures are lost.
         self.tx = copy.deepcopy(tx)
-        self.tx.deserialize()
+        try:
+            self.tx.deserialize()
+        except BaseException as e:
+            raise SerializationError(e)
         self.main_window = parent
         self.wallet = parent.wallet
         self.prompt_if_unsaved = prompt_if_unsaved
@@ -179,17 +191,9 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.main_window.sign_tx(self.tx, sign_done)
 
     def save(self):
-        if not self.wallet.add_transaction(self.tx.txid(), self.tx):
-            self.show_error(_("Transaction could not be saved. It conflicts with current history."))
-            return
-        self.wallet.save_transactions(write=True)
-
-        # need to update at least: history_list, utxo_list, address_list
-        self.main_window.need_update.set()
-
-        self.save_button.setDisabled(True)
-        self.show_message(_("Transaction saved successfully"))
-        self.saved = True
+        if self.main_window.save_transaction_into_wallet(self.tx):
+            self.save_button.setDisabled(True)
+            self.saved = True
 
 
     def export(self):

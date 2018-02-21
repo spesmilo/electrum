@@ -26,7 +26,7 @@
 import webbrowser
 import datetime
 
-from electrum_ltc.wallet import UnrelatedTransactionException, TX_HEIGHT_LOCAL
+from electrum_ltc.wallet import AddTransactionException, TX_HEIGHT_LOCAL
 from .util import *
 from electrum_ltc.i18n import _
 from electrum_ltc.util import block_explorer_URL
@@ -203,8 +203,8 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         self.transactions = r['transactions']
         self.summary = r['summary']
         if not self.years and self.start_timestamp is None and self.end_timestamp is None:
-            start_date = self.summary['start_date']
-            end_date = self.summary['end_date']
+            start_date = self.summary.get('start_date')
+            end_date = self.summary.get('end_date')
             if start_date and end_date:
                 self.years = [str(i) for i in range(start_date.year, end_date.year + 1)]
                 self.period_combo.insertItems(1, self.years)
@@ -356,16 +356,12 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         self.parent.need_update.set()
 
     def onFileAdded(self, fn):
-        with open(fn) as f:
-            tx = self.parent.tx_from_text(f.read())
-            try:
-                self.wallet.add_transaction(tx.txid(), tx)
-            except UnrelatedTransactionException as e:
-                self.parent.show_error(e)
-            else:
-                self.wallet.save_transactions(write=True)
-                # need to update at least: history_list, utxo_list, address_list
-                self.parent.need_update.set()
+        try:
+            with open(fn) as f:
+                tx = self.parent.tx_from_text(f.read())
+                self.parent.save_transaction_into_wallet(tx)
+        except IOError as e:
+            self.parent.show_error(e)
 
     def export_history_dialog(self):
         d = WindowModalDialog(self, _('Export History'))
