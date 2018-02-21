@@ -1039,7 +1039,8 @@ class Abstract_Wallet(PrintError):
             out.append(item)
         # add summary
         if out:
-            start_balance = out[0]['balance'].value - out[0]['value'].value
+            b, v = out[0]['balance'].value, out[0]['value'].value
+            start_balance = None if b is None or v is None else b - v
             end_balance = out[-1]['balance'].value
             if from_timestamp is not None and to_timestamp is not None:
                 start_date = timestamp_to_datetime(from_timestamp)
