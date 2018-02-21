@@ -503,6 +503,17 @@ class Abstract_Wallet(PrintError):
             delta += v
         return delta
 
+    def get_tx_value(self, txid):
+        " effect of tx on the entire domain"
+        delta = 0
+        for addr, d in self.txi.get(txid, {}).items():
+            for n, v in d:
+                delta -= v
+        for addr, d in self.txo.get(txid, {}).items():
+            for n, v, cb in d:
+                delta += v
+        return delta
+
     def get_wallet_delta(self, tx):
         """ effect of tx on wallet """
         addresses = self.get_addresses()
@@ -1694,7 +1705,7 @@ class Abstract_Wallet(PrintError):
         coins = self.get_utxos(domain)
         now = time.time()
         p = price_func(now)
-        ap = sum(self.coin_price(coin, price_func, ccy, self.txin_value(coin)) for coin in coins)
+        ap = sum(self.coin_price(coin['prevout_hash'], price_func, ccy, self.txin_value(coin)) for coin in coins)
         lp = sum([coin['value'] for coin in coins]) * p / Decimal(COIN)
         return lp - ap
 
@@ -1704,42 +1715,36 @@ class Abstract_Wallet(PrintError):
         and the price of these coins when they entered the wallet.
         price_func: function that returns the fiat price given a timestamp
         """
-        tx = self.transactions[txid]
-        ir, im, v, fee = self.get_wallet_delta(tx)
-        out_value = -v
+        out_value = - self.get_tx_value(txid)/Decimal(COIN)
         fiat_value = self.get_fiat_value(txid, ccy)
-        if fiat_value is None:
-            p = self.price_at_timestamp(txid, price_func)
-            liquidation_price = out_value/Decimal(COIN) * p
-        else:
-            liquidation_price = - fiat_value
-
-        acquisition_price = out_value/Decimal(COIN) * self.average_price(tx, price_func, ccy)
+        liquidation_price = - fiat_value if fiat_value else out_value * self.price_at_timestamp(txid, price_func)
+        acquisition_price = out_value * self.average_price(txid, price_func, ccy)
         return acquisition_price, liquidation_price
 
-    def average_price(self, tx, price_func, ccy):
-        """ average price of the inputs of a transaction """
-        input_value = sum(self.txin_value(txin) for txin in tx.inputs()) / Decimal(COIN)
-        total_price = sum(self.coin_price(txin, price_func, ccy, self.txin_value(txin)) for txin in tx.inputs())
-        return total_price / input_value
+    def average_price(self, txid, price_func, ccy):
+        """ Average acquisition price of the inputs of a transaction """
+        input_value = 0
+        total_price = 0
+        for addr, d in self.txi.get(txid, {}).items():
+            for ser, v in d:
+                input_value += v
+                total_price += self.coin_price(ser.split(':')[0], price_func, ccy, v)
+        return total_price / (input_value/Decimal(COIN))
 
-    def coin_price(self, coin, price_func, ccy, txin_value):
-        """ fiat price of acquisition of coin """
-        txid = coin['prevout_hash']
-        tx = self.transactions[txid]
-        if all([self.is_mine(txin['address']) for txin in tx.inputs()]):
-            return self.average_price(tx, price_func, ccy) * txin_value/Decimal(COIN)
-        elif all([ not self.is_mine(txin['address']) for txin in tx.inputs()]):
+    def coin_price(self, txid, price_func, ccy, txin_value):
+        """
+        Acquisition price of a coin.
+        This assumes that either all inputs are mine, or no input is mine.
+        """
+        if self.txi.get(txid, {}) != {}:
+            return self.average_price(txid, price_func, ccy) * txin_value/Decimal(COIN)
+        else:
             fiat_value = self.get_fiat_value(txid, ccy)
             if fiat_value is not None:
                 return fiat_value
             else:
                 p = self.price_at_timestamp(txid, price_func)
                 return p * txin_value/Decimal(COIN)
-        else:
-            # could be some coinjoin transaction..
-            return Decimal('NaN')
-
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore
