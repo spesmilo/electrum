@@ -718,7 +718,9 @@ class Abstract_Wallet(PrintError):
 
     def get_address_history(self, addr):
         h = []
-        with self.transaction_lock:
+        # we need self.transaction_lock but get_tx_height will take self.lock
+        # so we need to take that too here, to enforce order of locks
+        with self.lock, self.transaction_lock:
             for tx_hash in self.transactions:
                 if addr in self.txi.get(tx_hash, []) or addr in self.txo.get(tx_hash, []):
                     tx_height = self.get_tx_height(tx_hash)[0]
@@ -775,7 +777,9 @@ class Abstract_Wallet(PrintError):
             return conflicting_txns
 
     def add_transaction(self, tx_hash, tx):
-        with self.transaction_lock:
+        # we need self.transaction_lock but get_tx_height will take self.lock
+        # so we need to take that too here, to enforce order of locks
+        with self.lock, self.transaction_lock:
             # NOTE: returning if tx in self.transactions might seem like a good idea
             # BUT we track is_mine inputs in a txn, and during subsequent calls
             # of add_transaction tx, we might learn of more-and-more inputs of
@@ -1023,7 +1027,7 @@ class Abstract_Wallet(PrintError):
                     fiat_default = False
                 item['fiat_value'] = Fiat(fiat_value, fx.ccy)
                 item['fiat_default'] = fiat_default
-                if value < 0:
+                if value is not None and value < 0:
                     ap, lp = self.capital_gain(tx_hash, fx.timestamp_rate, fx.ccy)
                     cg = lp - ap
                     item['acquisition_price'] = Fiat(ap, fx.ccy)
@@ -1035,7 +1039,8 @@ class Abstract_Wallet(PrintError):
             out.append(item)
         # add summary
         if out:
-            start_balance = out[0]['balance'].value - out[0]['value'].value
+            b, v = out[0]['balance'].value, out[0]['value'].value
+            start_balance = None if b is None or v is None else b - v
             end_balance = out[-1]['balance'].value
             if from_timestamp is not None and to_timestamp is not None:
                 start_date = timestamp_to_datetime(from_timestamp)
