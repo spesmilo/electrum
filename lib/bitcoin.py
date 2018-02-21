@@ -516,9 +516,8 @@ def DecodeBase58Check(psz):
         return key
 
 
-
-# extended key export format for segwit
-
+# backwards compat
+# extended WIF for segwit (used in 3.0.x; but still used internally)
 SCRIPT_TYPES = {
     'p2pkh':0,
     'p2wpkh':1,
@@ -529,25 +528,42 @@ SCRIPT_TYPES = {
 }
 
 
-def serialize_privkey(secret, compressed, txin_type):
-    prefix = bytes([(SCRIPT_TYPES[txin_type]+NetworkConstants.WIF_PREFIX)&255])
+def serialize_privkey(secret, compressed, txin_type, internal_use=False):
+    if internal_use:
+        prefix = bytes([(SCRIPT_TYPES[txin_type] + NetworkConstants.WIF_PREFIX) & 255])
+    else:
+        prefix = bytes([NetworkConstants.WIF_PREFIX])
     suffix = b'\01' if compressed else b''
     vchIn = prefix + secret + suffix
-    return EncodeBase58Check(vchIn)
+    base58_wif = EncodeBase58Check(vchIn)
+    if internal_use:
+        return base58_wif
+    else:
+        return '{}:{}'.format(txin_type, base58_wif)
 
 
 def deserialize_privkey(key):
-    # whether the pubkey is compressed should be visible from the keystore
-    vch = DecodeBase58Check(key)
     if is_minikey(key):
         return 'p2pkh', minikey_to_private_key(key), True
-    elif vch:
-        txin_type = inv_dict(SCRIPT_TYPES)[vch[0] - NetworkConstants.WIF_PREFIX]
-        assert len(vch) in [33, 34]
-        compressed = len(vch) == 34
-        return txin_type, vch[1:33], compressed
-    else:
+
+    txin_type = None
+    if ':' in key:
+        txin_type, key = key.split(sep=':', maxsplit=1)
+        assert txin_type in SCRIPT_TYPES
+    vch = DecodeBase58Check(key)
+    if not vch:
         raise BaseException("cannot deserialize", key)
+
+    if txin_type is None:
+        # keys exported in version 3.0.x encoded script type in first byte
+        txin_type = inv_dict(SCRIPT_TYPES)[vch[0] - NetworkConstants.WIF_PREFIX]
+    else:
+        assert vch[0] == NetworkConstants.WIF_PREFIX
+
+    assert len(vch) in [33, 34]
+    compressed = len(vch) == 34
+    return txin_type, vch[1:33], compressed
+
 
 def regenerate_key(pk):
     assert len(pk) == 32
