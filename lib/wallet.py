@@ -1027,7 +1027,7 @@ class Abstract_Wallet(PrintError):
                     fiat_default = False
                 item['fiat_value'] = Fiat(fiat_value, fx.ccy)
                 item['fiat_default'] = fiat_default
-                if value < 0:
+                if value is not None and value < 0:
                     ap, lp = self.capital_gain(tx_hash, fx.timestamp_rate, fx.ccy)
                     cg = lp - ap
                     item['acquisition_price'] = Fiat(ap, fx.ccy)
