@@ -23,7 +23,6 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import webbrowser
-import os
 
 from electrum.i18n import _
 from electrum.bitcoin import is_address

@@ -468,31 +468,29 @@ class InvoiceStore(object):
                 continue
 
     def import_file(self, path):
-        import_meta(path, self.validate, self.on_import)
-
-    #TODO: Invoice import validation
-    def validate(self, data):
-        return data
+        def validate(data):
+            return data  # TODO
+        import_meta(path, validate, self.on_import)
 
     def on_import(self, data):
         self.load(data)
         self.save()
 
-    def export_file(self, fileName):
-        export_meta(self.before_save(), fileName)
+    def export_file(self, filename):
+        export_meta(self.dump(), filename)
 
-    def before_save(self):
-        l= {}
+    def dump(self):
+        d = {}
         for k, pr in self.invoices.items():
-            l[k] = {
+            d[k] = {
                 'hex': bh2u(pr.raw),
                 'requestor': pr.requestor,
                 'txid': pr.tx
             }
-        return l
+        return d
 
     def save(self):
-        self.storage.put('invoices', self.before_save())
+        self.storage.put('invoices', self.dump())
 
     def get_status(self, key):
         pr = self.get(key)

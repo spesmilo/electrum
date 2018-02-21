@@ -39,15 +39,14 @@ import PyQt5.QtCore as QtCore
 from .exception_window import Exception_Hook
 from PyQt5.QtWidgets import *
 
-from electrum.util import bh2u, bfh
-
 from electrum import keystore, simple_config
 from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS, NetworkConstants
 from electrum.plugins import run_hook
 from electrum.i18n import _
 from electrum.util import (format_time, format_satoshis, PrintError,
                            format_satoshis_plain, NotEnoughFunds,
-                           UserCancelled, NoDynamicFeeEstimates)
+                           UserCancelled, NoDynamicFeeEstimates, profiler,
+                           export_meta, import_meta, bh2u, bfh)
 from electrum import Transaction
 from electrum import util, bitcoin, commands, coinchooser
 from electrum import paymentrequest
@@ -58,10 +57,8 @@ from .qrcodewidget import QRCodeWidget, QRDialog
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider
-
 from .util import *
 
-from electrum.util import profiler, export_meta, import_meta
 
 class StatusBarButton(QPushButton):
     def __init__(self, icon, tooltip, func):
@@ -2420,16 +2417,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def do_import_labels(self):
         def import_labels(path):
-            #TODO: Import labels validation
-            def import_labels_validate(data):
-                return data
+            def _validate(data):
+                return data  # TODO
+
             def import_labels_assign(data):
                 for key, value in data.items():
                     self.wallet.set_label(key, value)
-            import_meta(path, import_labels_validate, import_labels_assign)
+            import_meta(path, _validate, import_labels_assign)
+
         def on_import():
-            self.address_list.update()
-            self.history_list.update()
+            self.need_update.set()
         import_meta_gui(self, _('labels'), import_labels, on_import)
 
     def do_export_labels(self):

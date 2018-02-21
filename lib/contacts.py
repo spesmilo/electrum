@@ -25,7 +25,6 @@ import dns
 import json
 import traceback
 import sys
-import os
 
 from . import bitcoin
 from . import dnssec
@@ -52,14 +51,14 @@ class Contacts(dict):
         self.storage.put('contacts', dict(self))
 
     def import_file(self, path):
-        import_meta(path, self.validate, self.load_meta)
+        import_meta(path, self._validate, self.load_meta)
 
     def load_meta(self, data):
         self.update(data)
         self.save()
 
-    def export_file(self, fileName):
-        export_meta(self, fileName)
+    def export_file(self, filename):
+        export_meta(self, filename)
 
     def __setitem__(self, key, value):
         dict.__setitem__(self, key, value)
@@ -117,14 +116,14 @@ class Contacts(dict):
         except AttributeError:
             return None
             
-    def validate(self, data):
-        for k,v in list(data.items()):
+    def _validate(self, data):
+        for k, v in list(data.items()):
             if k == 'contacts':
                 return self._validate(v)
             if not bitcoin.is_address(k):
                 data.pop(k)
             else:
-                _type,_ = v
+                _type, _ = v
                 if _type != 'address':
                     data.pop(k)
         return data
