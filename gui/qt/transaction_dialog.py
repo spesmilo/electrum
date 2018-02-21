@@ -35,7 +35,7 @@ from electrum.i18n import _
 from electrum.plugins import run_hook
 
 from electrum.util import bfh
-from electrum.wallet import UnrelatedTransactionException
+from electrum.wallet import AddTransactionException
 
 from .util import *
 
@@ -179,17 +179,9 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.main_window.sign_tx(self.tx, sign_done)
 
     def save(self):
-        if not self.wallet.add_transaction(self.tx.txid(), self.tx):
-            self.show_error(_("Transaction could not be saved. It conflicts with current history."))
-            return
-        self.wallet.save_transactions(write=True)
-
-        # need to update at least: history_list, utxo_list, address_list
-        self.main_window.need_update.set()
-
-        self.save_button.setDisabled(True)
-        self.show_message(_("Transaction saved successfully"))
-        self.saved = True
+        if self.main_window.save_transaction_into_wallet(self.tx):
+            self.save_button.setDisabled(True)
+            self.saved = True
 
 
     def export(self):
