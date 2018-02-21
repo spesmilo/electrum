@@ -5,13 +5,21 @@ import os
 import stat
 
 from copy import deepcopy
+
 from .util import (user_dir, print_error, PrintError,
                    NoDynamicFeeEstimates, format_satoshis)
-
-from .bitcoin import MAX_FEE_RATE
+from .i18n import _
 
 FEE_ETA_TARGETS = [25, 10, 5, 2]
 FEE_DEPTH_TARGETS = [10000000, 5000000, 2000000, 1000000, 500000, 200000, 100000]
+
+# satoshi per kbyte
+FEERATE_MAX_DYNAMIC = 1500000
+FEERATE_WARNING_HIGH_FEE = 600000
+FEERATE_FALLBACK_STATIC_FEE = 150000
+FEERATE_DEFAULT_RELAY = 1000
+FEERATE_STATIC_VALUES = [5000, 10000, 20000, 30000, 50000, 70000, 100000, 150000, 200000, 300000]
+
 
 config = None
 
@@ -39,7 +47,6 @@ class SimpleConfig(PrintError):
         2. User configuration (in the user's config directory)
     They are taken in order (1. overrides config options set in 2.)
     """
-    fee_rates = [5000, 10000, 20000, 30000, 50000, 70000, 100000, 150000, 200000, 300000]
 
     def __init__(self, options=None, read_user_config_function=None,
                  read_user_dir_function=None):
@@ -261,13 +268,19 @@ class SimpleConfig(PrintError):
             path = wallet.storage.path
             self.set_key('gui_last_wallet', path)
 
-    def max_fee_rate(self):
-        f = self.get('max_fee_rate', MAX_FEE_RATE)
-        if f==0:
-            f = MAX_FEE_RATE
-        return f
+    def impose_hard_limits_on_fee(func):
+        def get_fee_within_limits(self, *args, **kwargs):
+            fee = func(self, *args, **kwargs)
+            if fee is None:
+                return fee
+            fee = min(FEERATE_MAX_DYNAMIC, fee)
+            fee = max(FEERATE_DEFAULT_RELAY, fee)
+            return fee
+        return get_fee_within_limits
 
+    @impose_hard_limits_on_fee
     def eta_to_fee(self, i):
+        """Returns fee in sat/kbyte."""
         if i < 4:
             j = FEE_ETA_TARGETS[i]
             fee = self.fee_estimates.get(j)
@@ -276,8 +289,6 @@ class SimpleConfig(PrintError):
             fee = self.fee_estimates.get(2)
             if fee is not None:
                 fee += fee/2
-        if fee is not None:
-            fee = min(5*MAX_FEE_RATE, fee)
         return fee
 
     def fee_to_depth(self, target_fee):
@@ -290,7 +301,9 @@ class SimpleConfig(PrintError):
             return 0
         return depth
 
+    @impose_hard_limits_on_fee
     def depth_to_fee(self, i):
+        """Returns fee in sat/kbyte."""
         target = self.depth_target(i)
         depth = 0
         for fee, s in self.mempool_fees:
@@ -305,6 +318,8 @@ class SimpleConfig(PrintError):
         return FEE_DEPTH_TARGETS[i]
 
     def eta_target(self, i):
+        if i == len(FEE_ETA_TARGETS):
+            return 1
         return FEE_ETA_TARGETS[i]
 
     def fee_to_eta(self, fee_per_kb):
@@ -320,7 +335,12 @@ class SimpleConfig(PrintError):
         return "%.1f MB from tip"%(depth/1000000)
 
     def eta_tooltip(self, x):
-        return 'Low fee' if x < 0 else 'Within %d blocks'%x
+        if x < 0:
+            return _('Low fee')
+        elif x == 1:
+            return _('In the next block')
+        else:
+            return _('Within {} blocks').format(x)
 
     def get_fee_status(self):
         dyn = self.is_dynfee()
@@ -331,6 +351,10 @@ class SimpleConfig(PrintError):
         return target
 
     def get_fee_text(self, pos, dyn, mempool, fee_rate):
+        """Returns (text, tooltip) where
+        text is what we target: static fee / num blocks to confirm in / mempool depth
+        tooltip is the corresponding estimate (e.g. num blocks for a static fee)
+        """
         rate_str = (format_satoshis(fee_rate/1000, False, 0, 0, False)  + ' sat/byte') if fee_rate is not None else 'unknown'
         if dyn:
             if mempool:
@@ -342,18 +366,14 @@ class SimpleConfig(PrintError):
             tooltip = rate_str
         else:
             text = rate_str
-            if mempool:
-                if self.has_fee_mempool():
-                    depth = self.fee_to_depth(fee_rate)
-                    tooltip = self.depth_tooltip(depth)
-                else:
-                    tooltip = ''
+            if mempool and self.has_fee_mempool():
+                depth = self.fee_to_depth(fee_rate)
+                tooltip = self.depth_tooltip(depth)
+            elif not mempool and self.has_fee_etas():
+                eta = self.fee_to_eta(fee_rate)
+                tooltip = self.eta_tooltip(eta)
             else:
-                if self.has_fee_etas():
-                    eta = self.fee_to_eta(fee_rate)
-                    tooltip = self.eta_tooltip(eta)
-                else:
-                    tooltip = ''
+                tooltip = ''
         return text, tooltip
 
     def get_depth_level(self):
@@ -361,7 +381,7 @@ class SimpleConfig(PrintError):
         return min(maxp, self.get('depth_level', 2))
 
     def get_fee_level(self):
-        maxp = len(FEE_ETA_TARGETS) - 1
+        maxp = len(FEE_ETA_TARGETS)  # not (-1) to have "next block"
         return min(maxp, self.get('fee_level', 2))
 
     def get_fee_slider(self, dyn, mempool):
@@ -372,7 +392,7 @@ class SimpleConfig(PrintError):
                 fee_rate = self.depth_to_fee(pos)
             else:
                 pos = self.get_fee_level()
-                maxp = len(FEE_ETA_TARGETS) - 1
+                maxp = len(FEE_ETA_TARGETS)  # not (-1) to have "next block"
                 fee_rate = self.eta_to_fee(pos)
         else:
             fee_rate = self.fee_per_kb()
@@ -380,12 +400,11 @@ class SimpleConfig(PrintError):
             maxp = 9
         return maxp, pos, fee_rate
 
-
     def static_fee(self, i):
-        return self.fee_rates[i]
+        return FEERATE_STATIC_VALUES[i]
 
     def static_fee_index(self, value):
-        dist = list(map(lambda x: abs(x - value), self.fee_rates))
+        dist = list(map(lambda x: abs(x - value), FEERATE_STATIC_VALUES))
         return min(range(len(dist)), key=dist.__getitem__)
 
     def has_fee_etas(self):
@@ -393,6 +412,12 @@ class SimpleConfig(PrintError):
 
     def has_fee_mempool(self):
         return bool(self.mempool_fees)
+
+    def has_dynamic_fees_ready(self):
+        if self.use_mempool_fees():
+            return self.has_fee_mempool()
+        else:
+            return self.has_fee_etas()
 
     def is_dynfee(self):
         return bool(self.get('dynamic_fees', True))
@@ -410,7 +435,7 @@ class SimpleConfig(PrintError):
             else:
                 fee_rate = self.eta_to_fee(self.get_fee_level())
         else:
-            fee_rate = self.get('fee_per_kb', self.max_fee_rate()/2)
+            fee_rate = self.get('fee_per_kb', FEERATE_FALLBACK_STATIC_FEE)
         return fee_rate
 
     def fee_per_byte(self):

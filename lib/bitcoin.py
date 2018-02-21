@@ -108,10 +108,6 @@ NetworkConstants.set_mainnet()
 
 ################################## transactions
 
-FEE_STEP = 10000
-MAX_FEE_RATE = 300000
-
-
 COINBASE_MATURITY = 100
 COIN = 100000000
 
