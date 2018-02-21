@@ -969,11 +969,6 @@ class Abstract_Wallet(PrintError):
     def get_full_history(self, domain=None, from_timestamp=None, to_timestamp=None, fx=None, show_addresses=False):
         from .util import timestamp_to_datetime, Satoshis, Fiat
         out = []
-        init_balance = None
-        init_timestamp = None
-        end_balance = None
-        end_timestamp = None
-        end_balance = 0
         capital_gains = 0
         fiat_income = 0
         h = self.get_history(domain)
@@ -990,11 +985,6 @@ class Abstract_Wallet(PrintError):
                 'value': Satoshis(value),
                 'balance': Satoshis(balance)
             }
-            if init_balance is None:
-                init_balance = balance - value
-                init_timestamp = timestamp
-            end_balance = balance
-            end_timestamp = timestamp
             item['date'] = timestamp_to_datetime(timestamp) if timestamp is not None else None
             item['label'] = self.get_label(tx_hash)
             if show_addresses:
@@ -1032,28 +1022,38 @@ class Abstract_Wallet(PrintError):
                     if fiat_value is not None:
                         fiat_income += fiat_value
             out.append(item)
-        result = {'transactions': out}
-        if from_timestamp is not None and to_timestamp is not None:
-            start_date = timestamp_to_datetime(from_timestamp)
-            end_date = timestamp_to_datetime(to_timestamp)
+        # add summary
+        if out:
+            start_balance = out[0]['balance'].value - out[0]['value'].value
+            end_balance = out[-1]['balance'].value
+            if from_timestamp is not None and to_timestamp is not None:
+                start_date = timestamp_to_datetime(from_timestamp)
+                end_date = timestamp_to_datetime(to_timestamp)
+            else:
+                start_date = out[0]['date']
+                end_date = out[-1]['date']
+
+            summary = {
+                'start_date': start_date,
+                'end_date': end_date,
+                'start_balance': Satoshis(start_balance),
+                'end_balance': Satoshis(end_balance)
+            }
+            if fx:
+                unrealized = self.unrealized_gains(domain, fx.timestamp_rate, fx.ccy)
+                summary['capital_gains'] = Fiat(capital_gains, fx.ccy)
+                summary['fiat_income'] = Fiat(fiat_income, fx.ccy)
+                summary['unrealized_gains'] = Fiat(unrealized, fx.ccy)
+                if start_date:
+                    summary['start_fiat_balance'] = Fiat(fx.historical_value(start_balance, start_date), fx.ccy)
+                if end_date:
+                    summary['end_fiat_balance'] = Fiat(fx.historical_value(end_balance, end_date), fx.ccy)
         else:
-            start_date = timestamp_to_datetime(init_timestamp)
-            end_date = timestamp_to_datetime(end_timestamp)
-        summary = {
-            'start_date': start_date,
-            'end_date': end_date,
-            'start_balance': Satoshis(init_balance),
-            'end_balance': Satoshis(end_balance)
+            summary = {}
+        return {
+            'transactions': out,
+            'summary': summary
         }
-        result['summary'] = summary
-        if fx:
-            unrealized = self.unrealized_gains(domain, fx.timestamp_rate, fx.ccy)
-            summary['start_fiat_balance'] = Fiat(fx.historical_value(init_balance, start_date), fx.ccy)
-            summary['end_fiat_balance'] = Fiat(fx.historical_value(end_balance, end_date), fx.ccy)
-            summary['capital_gains'] = Fiat(capital_gains, fx.ccy)
-            summary['fiat_income'] = Fiat(fiat_income, fx.ccy)
-            summary['unrealized_gains'] = Fiat(unrealized, fx.ccy)
-        return result
 
     def get_label(self, tx_hash):
         label = self.labels.get(tx_hash, '')

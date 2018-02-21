@@ -203,8 +203,8 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         self.transactions = r['transactions']
         self.summary = r['summary']
         if not self.years and self.start_timestamp is None and self.end_timestamp is None:
-            start_date = self.summary['start_date']
-            end_date = self.summary['end_date']
+            start_date = self.summary.get('start_date')
+            end_date = self.summary.get('end_date')
             if start_date and end_date:
                 self.years = [str(i) for i in range(start_date.year, end_date.year + 1)]
                 self.period_combo.insertItems(1, self.years)
