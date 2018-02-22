@@ -30,7 +30,7 @@ import os
 import json
 
 import ecdsa
-import groestlcoin_hash
+import coinhash
 import pyaes
 
 from .util import bfh, bh2u, to_string
@@ -249,8 +249,8 @@ def Hash(x):
     return out
 
 def groestlHash(x):
-    x = to_bytes(x, 'utf8')
-    return groestlcoin_hash.getHash(x, len(x))
+    if type(x) is unicode: x=x.encode('utf-8') 
+    return coinhash.GroestlHash(x) 
 
 
 hash_encode = lambda x: bh2u(x[::-1])
