@@ -532,7 +532,7 @@ def serialize_privkey(secret, compressed, txin_type, internal_use=False):
     if internal_use:
         prefix = bytes([(SCRIPT_TYPES[txin_type] + NetworkConstants.WIF_PREFIX) & 255])
     else:
-        prefix = bytes([SCRIPT_TYPES['p2pkh'] + NetworkConstants.WIF_PREFIX])
+        prefix = bytes([(SCRIPT_TYPES['p2pkh'] + NetworkConstants.WIF_PREFIX) & 255])
     suffix = b'\01' if compressed else b''
     vchIn = prefix + secret + suffix
     base58_wif = EncodeBase58Check(vchIn)
@@ -558,7 +558,7 @@ def deserialize_privkey(key):
         # keys exported in version 3.0.x encoded script type in first byte
         txin_type = inv_dict(SCRIPT_TYPES)[vch[0] - NetworkConstants.WIF_PREFIX]
     else:
-        assert vch[0] == SCRIPT_TYPES['p2pkh'] + NetworkConstants.WIF_PREFIX
+        assert vch[0] == (SCRIPT_TYPES['p2pkh'] + NetworkConstants.WIF_PREFIX) & 255
 
     assert len(vch) in [33, 34]
     compressed = len(vch) == 34
