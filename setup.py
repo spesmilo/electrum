@@ -45,11 +45,10 @@ setup(
         'dnspython',
         'jsonrpclib-pelix',
         'PySocks>=1.6.6',
-        'groestlcoin_hash',
+        'coinhash>=1.1.5',
     ],
     dependency_links=[
         "git+https://github.com/mazaclub/python-trezor#egg=trezor",
-        "git+https://github.com/groestlcoin/groestlcoin-hash-python#egg=groestlcoin_hash",
     ],
     packages=[
         'electrum_grs',
