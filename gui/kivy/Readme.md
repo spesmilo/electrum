@@ -22,7 +22,7 @@ git merge agilewalker/master
 ```
 
 ## 2. Install buildozer
-Buildozer is a frontend to p4a. Luckily we don't need to patch it:
+2.1 Buildozer is a frontend to p4a. Luckily we don't need to patch it:
 
 ```sh
 cd /opt
@@ -30,6 +30,9 @@ git clone https://github.com/kivy/buildozer
 cd buildozer
 sudo python3 setup.py install
 ```
+
+2.2 Download the [Crystax NDK](https://www.crystax.net/en/download) manually.
+Extract into `/opt/crystax-ndk-10.3.2`
 
 ## 3. Update the Android SDK build tools
 3.1 Start the Android SDK manager:
@@ -40,7 +43,7 @@ sudo python3 setup.py install
 
 3.3 Close the SDK manager.
 
-3.3 Reopen the SDK manager, scroll to the bottom and install the latest build tools (probably v27)
+3.4 Reopen the SDK manager, scroll to the bottom and install the latest build tools (probably v27)
 
 ## 4. Install the Support Library Repository
 Install "Android Support Library Repository" from the SDK manager.
