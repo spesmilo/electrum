@@ -1,10 +1,10 @@
 [app]
 
 # (str) Title of your application
-title = Electrum-GRS
+title = ElectrumGRS
 
 # (str) Package name
-package.name = Electrum-GRS
+package.name = ElectrumGRS
 
 # (str) Package domain (needed for android/ios packaging)
 package.domain = org.groestlcoin
@@ -24,11 +24,11 @@ source.exclude_dirs = bin, build, dist, contrib, gui/qt, gui/kivy/tools, gui/kiv
 source.exclude_patterns = Makefile,setup*
 
 # (str) Application versioning (method 1)
-version.regex = version_apk = '(.*)'
-version.filename = %(source.dir)s/contrib/versions.py
+#version.regex = version_apk = '(.*)'
+#version.filename = %(source.dir)s/contrib/versions.py
 
 # (str) Application versioning (method 2)
-#version = 1.9.8
+version = 3.0.6
 
 # (list) Application requirements
 requirements = python3crystax, android, openssl, plyer, kivy==master
