@@ -549,7 +549,7 @@ class Network(util.DaemonThread):
                 self.donation_address = result
         elif method == 'mempool.get_fee_histogram':
             if error is None:
-                self.print_error(result)
+                self.print_error('fee_histogram', result)
                 self.config.mempool_fees = result
                 self.notify('fee_histogram')
         elif method == 'blockchain.estimatefee':
@@ -784,7 +784,10 @@ class Network(util.DaemonThread):
         index = params[0]
         # Ignore unsolicited chunks
         if index not in self.requested_chunks:
+            interface.print_error("received chunk %d (unsolicited)" % index)
             return
+        else:
+            interface.print_error("received chunk %d" % index)
         self.requested_chunks.remove(index)
         connect = blockchain.connect_chunk(index, result)
         if not connect:

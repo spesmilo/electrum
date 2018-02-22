@@ -74,10 +74,18 @@ class SPV(ThreadJob):
         pos = merkle.get('pos')
         merkle_root = self.hash_merkle_root(merkle['merkle'], tx_hash, pos)
         header = self.network.blockchain().read_header(tx_height)
-        if not header or header.get('merkle_root') != merkle_root:
-            # FIXME: we should make a fresh connection to a server to
-            # recover from this, as this TX will now never verify
-            self.print_error("merkle verification failed for", tx_hash)
+        # FIXME: if verification fails below,
+        # we should make a fresh connection to a server to
+        # recover from this, as this TX will now never verify
+        if not header:
+            self.print_error(
+                "merkle verification failed for {} (missing header {})"
+                .format(tx_hash, tx_height))
+            return
+        if header.get('merkle_root') != merkle_root:
+            self.print_error(
+                "merkle verification failed for {} (merkle root mismatch {} != {})"
+                .format(tx_hash, header.get('merkle_root'), merkle_root))
             return
         # we passed all the tests
         self.merkle_roots[tx_hash] = merkle_root

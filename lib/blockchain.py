@@ -226,6 +226,9 @@ class Blockchain(util.PrintError):
                 if truncate and offset != self._size*80:
                     f.seek(offset)
                     f.truncate()
+                    self.print_error(
+                        'write. truncating to offset {}, which is around chunk {}'
+                        .format(offset, offset//80//2016))
                 f.seek(offset)
                 f.write(data)
                 f.flush()
