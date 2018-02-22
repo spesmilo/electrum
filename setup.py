@@ -49,6 +49,7 @@ setup(
     ],
     dependency_links=[
         "git+https://github.com/mazaclub/python-trezor#egg=trezor",
+        "git+https://github.com/groestlcoin/groestlcoin-hash-python#egg=groestlcoin_hash",
     ],
     packages=[
         'electrum_grs',
