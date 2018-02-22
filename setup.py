@@ -45,7 +45,6 @@ setup(
         'dnspython',
         'jsonrpclib-pelix',
         'PySocks>=1.6.6',
-        'coinhash>=1.1.5',
     ],
     dependency_links=[
         "git+https://github.com/mazaclub/python-trezor#egg=trezor",
