@@ -991,7 +991,7 @@ class Network(util.DaemonThread):
         if not height:
             return
         if height < self.max_checkpoint():
-            self.connection_down(interface)
+            self.connection_down(interface.server)
             return
         interface.tip_header = header
         interface.tip = height
