@@ -1,9 +1,10 @@
-from distutils.core import setup, Extension
+from setuptools import setup
+from distutils.core import Extension
 
 neoscrypt_module = Extension('neoscrypt',
-                               sources = ['neoscryptmodule.c',
-                                          'neoscrypt.c'],
-                               include_dirs=['.'])
+                             sources=['neoscrypt_module/neoscryptmodule.c',
+                                      'neoscrypt_module/neoscrypt.c'],
+                             )
 
 setup (name = 'neoscrypt',
        version = '1.0',

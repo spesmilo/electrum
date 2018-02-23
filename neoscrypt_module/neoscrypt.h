@@ -1,3 +1,5 @@
+#include<stdint.h>
+
 void neoscrypt(const unsigned char *input, unsigned char *output);
 
 #define SCRYPT_BLOCK_SIZE 64
