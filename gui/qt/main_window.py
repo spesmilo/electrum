@@ -1213,20 +1213,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
             if fee is None:
                 return
-            rbf_policy = self.config.get('rbf_policy', 1)
-            if rbf_policy == 0:
-                b = True
-            elif rbf_policy == 1:
-                fee_rate = fee * 1000 / tx.estimated_size()
-                try:
-                    c = self.config.reverse_dynfee(fee_rate)
-                    b = c in [-1, 25]
-                except:
-                    b = False
-            elif rbf_policy == 2:
-                b = False
-            self.rbf_checkbox.setVisible(b)
-            self.rbf_checkbox.setChecked(b)
 
 
     def from_list_delete(self, item):
@@ -1356,9 +1342,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         amount = tx.output_value() if self.is_max else sum(map(lambda x:x[2], outputs))
         fee = tx.get_fee()
 
-        use_rbf = self.rbf_checkbox.isChecked()
-        if use_rbf:
-            tx.set_rbf(True)
+        tx.set_rbf(True)
 
         if fee < self.wallet.relayfee() * tx.estimated_size() / 1000:
             self.show_error(_("This transaction requires a higher fee, or it will not be propagated by the network"))
@@ -2524,16 +2508,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.fee_e.setVisible(bool(x))
         feebox_cb.stateChanged.connect(on_feebox)
         fee_widgets.append((feebox_cb, None))
-
-        rbf_policy = self.config.get('rbf_policy', 1)
-        rbf_label = HelpLabel(_('Propose Replace-By-Fee') + ':', '')
-        rbf_combo = QComboBox()
-        rbf_combo.addItems([_('Always'), _('If the fee is low'), _('Never')])
-        rbf_combo.setCurrentIndex(rbf_policy)
-        def on_rbf(x):
-            self.config.set_key('rbf_policy', x)
-        rbf_combo.currentIndexChanged.connect(on_rbf)
-        fee_widgets.append((rbf_label, rbf_combo))
 
         self.fee_unit = self.config.get('fee_unit', 0)
         fee_unit_label = HelpLabel(_('Fee Unit') + ':', '')
