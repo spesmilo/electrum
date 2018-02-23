@@ -4,6 +4,9 @@
 NSIS_URL=https://prdownloads.sourceforge.net/nsis/nsis-3.02.1-setup.exe?download
 NSIS_SHA256=736c9062a02e297e335f82252e648a883171c98e0d5120439f538c81d429552e
 
+ZBAR_URL=https://sourceforge.net/projects/zbarw/files/zbarw-20121031-setup.exe/download
+ZBAR_SHA256=177e32b272fa76528a3af486b74e9cb356707be1c5ace4ed3fcee9723e2c2c02
+
 LIBUSB_URL=https://prdownloads.sourceforge.net/project/libusb/libusb-1.0/libusb-1.0.21/libusb-1.0.21.7z?download
 LIBUSB_SHA256=acdde63a40b1477898aee6153f9d91d1a2e8a5d93f832ca8ab876498f3a6d2b8
 
@@ -88,8 +91,9 @@ $PYTHON -m pip install -r ../../deterministic-build/requirements-binaries.txt
 $PYTHON -m pip install https://github.com/ecdsa/pyinstaller/archive/fix_2952.zip
 
 # Install ZBar
-#wget -q -O zbar.exe "https://sourceforge.net/projects/zbar/files/zbar/0.10/zbar-0.10-setup.exe/download"
-#wine zbar.exe
+wget -q -O zbar.exe "$ZBAR_URL"
+verify_hash zbar.exe $ZBAR_SHA256
+wine zbar.exe /S
 
 
 # Upgrade setuptools (so Electrum can be installed later)

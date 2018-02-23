@@ -35,6 +35,7 @@ datas = [
     (home+'lib/wordlist/english.txt', 'electrum_ltc/wordlist'),
     (home+'lib/locale', 'electrum_ltc/locale'),
     (home+'plugins', 'electrum_ltc_plugins'),
+    ('C:\\Program Files (x86)\\ZBar\\bin\\', '.')
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('btchip')
