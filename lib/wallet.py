@@ -1704,7 +1704,7 @@ class Abstract_Wallet(PrintError):
 
     def price_at_timestamp(self, txid, price_func):
         height, conf, timestamp = self.get_tx_height(txid)
-        return price_func(timestamp)
+        return price_func(timestamp if timestamp else time.time())
 
     def unrealized_gains(self, domain, price_func, ccy):
         coins = self.get_utxos(domain)
