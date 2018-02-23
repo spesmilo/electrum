@@ -14,8 +14,6 @@ from electrum.util import bfh, bh2u
 from electrum.transaction import TxOutput
 from electrum.mnemonic import seed_type
 
-from electrum.plugins.trustedcoin import trustedcoin
-
 from . import TestCaseForTestnet
 from . import SequentialTestCase
 from .test_bitcoin import needs_test_with_all_ecc_implementations
@@ -156,76 +154,6 @@ class TestWalletKeystoreAddressIntegrityForMainnet(SequentialTestCase):
 
         self.assertEqual(w.get_receiving_addresses()[0], '1FJEEB8ihPMbzs2SkLmr37dHyRFzakqUmo')
         self.assertEqual(w.get_change_addresses()[0], '1KRW8pH6HFHZh889VDq6fEKvmrsmApwNfe')
-
-    @needs_test_with_all_ecc_implementations
-    @mock.patch.object(storage.WalletStorage, '_write')
-    def test_electrum_seed_2fa_legacy(self, mock_write):
-        seed_words = 'kiss live scene rude gate step hip quarter bunker oxygen motor glove'
-        self.assertEqual(seed_type(seed_words), '2fa')
-
-        xprv1, xpub1, xprv2, xpub2 = trustedcoin.TrustedCoinPlugin.xkeys_from_seed(seed_words, '')
-
-        ks1 = keystore.from_xprv(xprv1)
-        self.assertTrue(isinstance(ks1, keystore.BIP32_KeyStore))
-        self.assertEqual(ks1.xprv, 'xprv9uraXy9F3HP7i8QDqwNTBiD8Jf4bPD4Epif8cS8qbUbgeidUesyZpKmzfcSeHutsGfFnjgih7kzwTB5UQVRNB5LoXaNc8pFusKYx3KVVvYR')
-        self.assertEqual(ks1.xpub, 'xpub68qvwUg8sewQvcUgwxuTYr9rrgu5nfn6BwajQpYT9p8fXWxdCRHpN86UWruWJAD1ede8Sv8ERrTa22Gyc4SBfm7zFpcyoVWVBKCVwnw6s1J')
-        self.assertEqual(ks1.xpub, xpub1)
-
-        ks2 = keystore.from_xprv(xprv2)
-        self.assertTrue(isinstance(ks2, keystore.BIP32_KeyStore))
-        self.assertEqual(ks2.xprv, 'xprv9uraXy9F3HP7kKSiRAvLV7Nrjj7YzspDys7dvGLLu4tLZT49CEBxPWp88dHhVxvZ69SHrPQMUCWjj4Ka2z9kNvs1HAeEf3extGGeSWqEVqf')
-        self.assertEqual(ks2.xpub, 'xpub68qvwUg8sewQxoXBXCTLrFKbHkx3QLY5M63EiejxTQRKSFPHjmWCwK8byvZMM2wZNYA3SmxXoma3M1zxhGESHZwtB7SwrxRgKXAG8dCD2eS')
-        self.assertEqual(ks2.xpub, xpub2)
-
-        long_user_id, short_id = trustedcoin.get_user_id(
-            {'x1/': {'xpub': xpub1},
-             'x2/': {'xpub': xpub2}})
-        xtype = bip32.xpub_type(xpub1)
-        xpub3 = trustedcoin.make_xpub(trustedcoin.get_signing_xpub(xtype), long_user_id)
-        ks3 = keystore.from_xpub(xpub3)
-        WalletIntegrityHelper.check_xpub_keystore_sanity(self, ks3)
-        self.assertTrue(isinstance(ks3, keystore.BIP32_KeyStore))
-
-        w = WalletIntegrityHelper.create_multisig_wallet([ks1, ks2, ks3], '2of3')
-        self.assertEqual(w.txin_type, 'p2sh')
-
-        self.assertEqual(w.get_receiving_addresses()[0], '35L8XmCDoEBKeaWRjvmZvoZvhp8BXMMMPV')
-        self.assertEqual(w.get_change_addresses()[0], '3PeZEcumRqHSPNN43hd4yskGEBdzXgY8Cy')
-
-    @needs_test_with_all_ecc_implementations
-    @mock.patch.object(storage.WalletStorage, '_write')
-    def test_electrum_seed_2fa_segwit(self, mock_write):
-        seed_words = 'universe topic remind silver february ranch shine worth innocent cattle enhance wise'
-        self.assertEqual(seed_type(seed_words), '2fa_segwit')
-
-        xprv1, xpub1, xprv2, xpub2 = trustedcoin.TrustedCoinPlugin.xkeys_from_seed(seed_words, '')
-
-        ks1 = keystore.from_xprv(xprv1)
-        self.assertTrue(isinstance(ks1, keystore.BIP32_KeyStore))
-        self.assertEqual(ks1.xprv, 'ZprvAm1R3RZMrkSLYKZer8QECGoc8oA1RQuKfsztHkBTmi2yF8RhmN1JRb7Ag69mMrL88sP67WiaegaSSDnKndorWEpFr7a5B2QgrD7TkERSYX6')
-        self.assertEqual(ks1.xpub, 'Zpub6yzmSw6Fh7zdkoe7x9wEZQkLgpzVpsdB36vV68b5L3Zx7vkrJuKYyPReXMSjBegmtUjFBxP2uZEdL87cYvtTtGaVuwtRRCTSFUsoAdKZMge')
-        self.assertEqual(ks1.xpub, xpub1)
-
-        ks2 = keystore.from_xprv(xprv2)
-        self.assertTrue(isinstance(ks2, keystore.BIP32_KeyStore))
-        self.assertEqual(ks2.xprv, 'ZprvAm1R3RZMrkSLab4jVKTwuroBgKEfnsmK9CQa1ErkuRzpsPauYuv9z2UzhDNn9YgbLHcmXpmxbNq4MdDRAUM5B2N9Wr3Uq9yp2c4AtTJDFdi')
-        self.assertEqual(ks2.xpub, 'Zpub6yzmSw6Fh7zdo59CbLzxGzjvEM5ACLVAWRLAodGNTmXokBv46TEQXpoUYUaoxPCeynysxg7APfScikCQ2jhCfM3NcNEk46BCVfSSrdrSkbR')
-        self.assertEqual(ks2.xpub, xpub2)
-
-        long_user_id, short_id = trustedcoin.get_user_id(
-            {'x1/': {'xpub': xpub1},
-             'x2/': {'xpub': xpub2}})
-        xtype = bip32.xpub_type(xpub1)
-        xpub3 = trustedcoin.make_xpub(trustedcoin.get_signing_xpub(xtype), long_user_id)
-        ks3 = keystore.from_xpub(xpub3)
-        WalletIntegrityHelper.check_xpub_keystore_sanity(self, ks3)
-        self.assertTrue(isinstance(ks3, keystore.BIP32_KeyStore))
-
-        w = WalletIntegrityHelper.create_multisig_wallet([ks1, ks2, ks3], '2of3')
-        self.assertEqual(w.txin_type, 'p2wsh')
-
-        self.assertEqual(w.get_receiving_addresses()[0], 'bc1qpmufh0zjp5prfsrk2yskcy82sa26srqkd97j0457andc6m0gh5asw7kqd2')
-        self.assertEqual(w.get_change_addresses()[0], 'bc1qd4q50nft7kxm9yglfnpup9ed2ukj3tkxp793y0zya8dc9m39jcwq308dxz')
 
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
