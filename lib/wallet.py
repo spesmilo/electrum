@@ -78,9 +78,9 @@ TX_HEIGHT_UNCONFIRMED = 0
 
 
 def relayfee(network):
-    RELAY_FEE = 1000
+    from .simple_config import FEERATE_DEFAULT_RELAY
     MAX_RELAY_FEE = 50000
-    f = network.relay_fee if network and network.relay_fee else RELAY_FEE
+    f = network.relay_fee if network and network.relay_fee else FEERATE_DEFAULT_RELAY
     return min(f, MAX_RELAY_FEE)
 
 def dust_threshold(network):

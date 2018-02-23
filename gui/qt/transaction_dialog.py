@@ -34,6 +34,7 @@ from PyQt5.QtWidgets import *
 from electrum.bitcoin import base_encode
 from electrum.i18n import _
 from electrum.plugins import run_hook
+from electrum import simple_config
 
 from electrum.util import bfh
 from electrum.wallet import AddTransactionException
@@ -240,9 +241,13 @@ class TxDialog(QDialog, MessageBoxMixin):
         else:
             amount_str = _("Amount sent:") + ' %s'% format_amount(-amount) + ' ' + base_unit
         size_str = _("Size:") + ' %d bytes'% size
-        fee_str = _("Fee") + ': %s'% (format_amount(fee) + ' ' + base_unit if fee is not None else _('unknown'))
+        fee_str = _("Fee") + ': %s' % (format_amount(fee) + ' ' + base_unit if fee is not None else _('unknown'))
         if fee is not None:
-            fee_str += '  ( %s ) '%  self.main_window.format_fee_rate(fee/size*1000)
+            fee_rate = fee/size*1000
+            fee_str += '  ( %s ) ' % self.main_window.format_fee_rate(fee_rate)
+            confirm_rate = simple_config.FEERATE_WARNING_HIGH_FEE
+            if fee_rate > confirm_rate:
+                fee_str += ' - ' + _('Warning') + ': ' + _("high fee") + '!'
         self.amount_label.setText(amount_str)
         self.fee_label.setText(fee_str)
         self.size_label.setText(size_str)
