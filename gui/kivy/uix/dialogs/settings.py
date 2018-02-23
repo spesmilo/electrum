@@ -8,7 +8,6 @@ from electrum_ltc.i18n import languages
 from electrum_ltc_gui.kivy.i18n import _
 from electrum_ltc.plugins import run_hook
 from electrum_ltc import coinchooser
-from electrum_ltc.util import fee_levels
 
 from .choice_dialog import ChoiceDialog
 

@@ -36,11 +36,14 @@ class SPV(ThreadJob):
         self.merkle_roots = {}
 
     def run(self):
-        if not self.network.interface:
+        interface = self.network.interface
+        if not interface:
+            return
+        blockchain = interface.blockchain
+        if not blockchain:
             return
         lh = self.network.get_local_height()
         unverified = self.wallet.get_unverified_txs()
-        blockchain = self.network.blockchain()
         for tx_hash, tx_height in unverified.items():
             # do not request merkle branch before headers are available
             if (tx_height > 0) and (tx_height <= lh):
@@ -48,7 +51,7 @@ class SPV(ThreadJob):
                 if header is None:
                     index = tx_height // 2016
                     if index < len(blockchain.checkpoints):
-                        self.network.request_chunk(self.network.interface, index)
+                        self.network.request_chunk(interface, index)
                 else:
                     if tx_hash not in self.merkle_roots:
                         request = ('blockchain.transaction.get_merkle',

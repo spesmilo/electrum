@@ -28,7 +28,7 @@ import sys
 
 from . import bitcoin
 from . import dnssec
-from .util import FileImportFailed, FileImportFailedEncrypted
+from .util import export_meta, import_meta
 
 
 class Contacts(dict):
@@ -51,17 +51,14 @@ class Contacts(dict):
         self.storage.put('contacts', dict(self))
 
     def import_file(self, path):
-        try:
-            with open(path, 'r') as f:
-                d = self._validate(json.loads(f.read()))
-        except json.decoder.JSONDecodeError:
-            traceback.print_exc(file=sys.stderr)
-            raise FileImportFailedEncrypted()
-        except BaseException:
-            traceback.print_exc(file=sys.stdout)
-            raise FileImportFailed()
-        self.update(d)
+        import_meta(path, self._validate, self.load_meta)
+
+    def load_meta(self, data):
+        self.update(data)
         self.save()
+
+    def export_file(self, filename):
+        export_meta(self, filename)
 
     def __setitem__(self, key, value):
         dict.__setitem__(self, key, value)
@@ -120,13 +117,13 @@ class Contacts(dict):
             return None
             
     def _validate(self, data):
-        for k,v in list(data.items()):
+        for k, v in list(data.items()):
             if k == 'contacts':
                 return self._validate(v)
             if not bitcoin.is_address(k):
                 data.pop(k)
             else:
-                _type,_ = v
+                _type, _ = v
                 if _type != 'address':
                     data.pop(k)
         return data

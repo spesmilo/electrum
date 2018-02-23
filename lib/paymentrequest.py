@@ -40,7 +40,7 @@ except ImportError:
 from . import bitcoin
 from . import util
 from .util import print_error, bh2u, bfh
-from .util import FileImportFailed, FileImportFailedEncrypted
+from .util import export_meta, import_meta
 from . import transaction
 from . import x509
 from . import rsakey
@@ -468,27 +468,29 @@ class InvoiceStore(object):
                 continue
 
     def import_file(self, path):
-        try:
-            with open(path, 'r') as f:
-                d = json.loads(f.read())
-                self.load(d)
-        except json.decoder.JSONDecodeError:
-            traceback.print_exc(file=sys.stderr)
-            raise FileImportFailedEncrypted()
-        except BaseException:
-            traceback.print_exc(file=sys.stdout)
-            raise FileImportFailed()
+        def validate(data):
+            return data  # TODO
+        import_meta(path, validate, self.on_import)
+
+    def on_import(self, data):
+        self.load(data)
         self.save()
 
-    def save(self):
-        l = {}
+    def export_file(self, filename):
+        export_meta(self.dump(), filename)
+
+    def dump(self):
+        d = {}
         for k, pr in self.invoices.items():
-            l[k] = {
+            d[k] = {
                 'hex': bh2u(pr.raw),
                 'requestor': pr.requestor,
                 'txid': pr.tx
             }
-        self.storage.put('invoices', l)
+        return d
+
+    def save(self):
+        self.storage.put('invoices', self.dump())
 
     def get_status(self, key):
         pr = self.get(key)
