@@ -47,28 +47,6 @@ def read_json(filename, default):
     return r
 
 
-
-
-# Version numbers for BIP32 extended keys
-# standard: xprv, xpub
-# segwit in p2sh: yprv, ypub
-# native segwit: zprv, zpub
-XPRV_HEADERS = {
-    'standard': 0x0488ade4,
-    'p2wpkh-p2sh': 0x049d7878,
-    'p2wsh-p2sh': 0x295b005,
-    'p2wpkh': 0x4b2430c,
-    'p2wsh': 0x2aa7a99
-}
-XPUB_HEADERS = {
-    'standard': 0x0488b21e,
-    'p2wpkh-p2sh': 0x049d7cb2,
-    'p2wsh-p2sh': 0x295b43f,
-    'p2wpkh': 0x4b24746,
-    'p2wsh': 0x2aa7ed3
-}
-
-
 class NetworkConstants:
 
     @classmethod
@@ -83,6 +61,21 @@ class NetworkConstants:
         cls.DEFAULT_SERVERS = read_json('servers.json', {})
         cls.CHECKPOINTS = read_json('checkpoints.json', [])
 
+        cls.XPRV_HEADERS = {
+            'standard':    0x0488ade4,  # xprv
+            'p2wpkh-p2sh': 0x049d7878,  # yprv
+            'p2wsh-p2sh':  0x0295b005,  # Yprv
+            'p2wpkh':      0x04b2430c,  # zprv
+            'p2wsh':       0x02aa7a99,  # Zprv
+        }
+        cls.XPUB_HEADERS = {
+            'standard':    0x0488b21e,  # xpub
+            'p2wpkh-p2sh': 0x049d7cb2,  # ypub
+            'p2wsh-p2sh':  0x0295b43f,  # Ypub
+            'p2wpkh':      0x04b24746,  # zpub
+            'p2wsh':       0x02aa7ed3,  # Zpub
+        }
+
     @classmethod
     def set_testnet(cls):
         cls.TESTNET = True
@@ -95,14 +88,25 @@ class NetworkConstants:
         cls.DEFAULT_SERVERS = read_json('servers_testnet.json', {})
         cls.CHECKPOINTS = read_json('checkpoints_testnet.json', [])
 
+        cls.XPRV_HEADERS = {
+            'standard':    0x04358394,  # tprv
+            'p2wpkh-p2sh': 0x044a4e28,  # uprv
+            'p2wsh-p2sh':  0x024285b5,  # Uprv
+            'p2wpkh':      0x045f18bc,  # vprv
+            'p2wsh':       0x02575048,  # Vprv
+        }
+        cls.XPUB_HEADERS = {
+            'standard':    0x043587cf,  # tpub
+            'p2wpkh-p2sh': 0x044a5262,  # upub
+            'p2wsh-p2sh':  0x024285ef,  # Upub
+            'p2wpkh':      0x045f1cf6,  # vpub
+            'p2wsh':       0x02575483,  # Vpub
+        }
+
 
 NetworkConstants.set_mainnet()
 
 ################################## transactions
-
-FEE_STEP = 10000
-MAX_FEE_RATE = 300000
-
 
 COINBASE_MATURITY = 100
 COIN = 100000000
@@ -508,9 +512,8 @@ def DecodeBase58Check(psz):
         return key
 
 
-
-# extended key export format for segwit
-
+# backwards compat
+# extended WIF for segwit (used in 3.0.x; but still used internally)
 SCRIPT_TYPES = {
     'p2pkh':0,
     'p2wpkh':1,
@@ -521,25 +524,42 @@ SCRIPT_TYPES = {
 }
 
 
-def serialize_privkey(secret, compressed, txin_type):
-    prefix = bytes([(SCRIPT_TYPES[txin_type]+NetworkConstants.WIF_PREFIX)&255])
+def serialize_privkey(secret, compressed, txin_type, internal_use=False):
+    if internal_use:
+        prefix = bytes([(SCRIPT_TYPES[txin_type] + NetworkConstants.WIF_PREFIX) & 255])
+    else:
+        prefix = bytes([NetworkConstants.WIF_PREFIX])
     suffix = b'\01' if compressed else b''
     vchIn = prefix + secret + suffix
-    return EncodeBase58Check(vchIn)
+    base58_wif = EncodeBase58Check(vchIn)
+    if internal_use:
+        return base58_wif
+    else:
+        return '{}:{}'.format(txin_type, base58_wif)
 
 
 def deserialize_privkey(key):
-    # whether the pubkey is compressed should be visible from the keystore
-    vch = DecodeBase58Check(key)
     if is_minikey(key):
         return 'p2pkh', minikey_to_private_key(key), True
-    elif vch:
-        txin_type = inv_dict(SCRIPT_TYPES)[vch[0] - NetworkConstants.WIF_PREFIX]
-        assert len(vch) in [33, 34]
-        compressed = len(vch) == 34
-        return txin_type, vch[1:33], compressed
-    else:
+
+    txin_type = None
+    if ':' in key:
+        txin_type, key = key.split(sep=':', maxsplit=1)
+        assert txin_type in SCRIPT_TYPES
+    vch = DecodeBase58Check(key)
+    if not vch:
         raise BaseException("cannot deserialize", key)
+
+    if txin_type is None:
+        # keys exported in version 3.0.x encoded script type in first byte
+        txin_type = inv_dict(SCRIPT_TYPES)[vch[0] - NetworkConstants.WIF_PREFIX]
+    else:
+        assert vch[0] == NetworkConstants.WIF_PREFIX
+
+    assert len(vch) in [33, 34]
+    compressed = len(vch) == 34
+    return txin_type, vch[1:33], compressed
+
 
 def regenerate_key(pk):
     assert len(pk) == 32
@@ -893,11 +913,11 @@ def _CKD_pub(cK, c, s):
 
 
 def xprv_header(xtype):
-    return bfh("%08x" % XPRV_HEADERS[xtype])
+    return bfh("%08x" % NetworkConstants.XPRV_HEADERS[xtype])
 
 
 def xpub_header(xtype):
-    return bfh("%08x" % XPUB_HEADERS[xtype])
+    return bfh("%08x" % NetworkConstants.XPUB_HEADERS[xtype])
 
 
 def serialize_xprv(xtype, c, k, depth=0, fingerprint=b'\x00'*4, child_number=b'\x00'*4):
@@ -919,7 +939,7 @@ def deserialize_xkey(xkey, prv):
     child_number = xkey[9:13]
     c = xkey[13:13+32]
     header = int('0x' + bh2u(xkey[0:4]), 16)
-    headers = XPRV_HEADERS if prv else XPUB_HEADERS
+    headers = NetworkConstants.XPRV_HEADERS if prv else NetworkConstants.XPUB_HEADERS
     if header not in headers.values():
         raise BaseException('Invalid xpub format', hex(header))
     xtype = list(headers.keys())[list(headers.values()).index(header)]

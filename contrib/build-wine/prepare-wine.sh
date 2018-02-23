@@ -3,8 +3,13 @@
 # Please update these carefully, some versions won't work under Wine
 NSIS_URL=https://prdownloads.sourceforge.net/nsis/nsis-3.02.1-setup.exe?download
 NSIS_SHA256=736c9062a02e297e335f82252e648a883171c98e0d5120439f538c81d429552e
+
 ZBAR_URL=https://sourceforge.net/projects/zbarw/files/zbarw-20121031-setup.exe/download
 ZBAR_SHA256=177e32b272fa76528a3af486b74e9cb356707be1c5ace4ed3fcee9723e2c2c02
+
+LIBUSB_URL=https://prdownloads.sourceforge.net/project/libusb/libusb-1.0/libusb-1.0.21/libusb-1.0.21.7z?download
+LIBUSB_SHA256=acdde63a40b1477898aee6153f9d91d1a2e8a5d93f832ca8ab876498f3a6d2b8
+
 PYTHON_VERSION=3.5.4
 
 ## These settings probably don't need change
@@ -75,28 +80,21 @@ done
 $PYTHON -m pip install pip --upgrade
 
 # Install pywin32-ctypes (needed by pyinstaller)
-$PYTHON -m pip install pywin32-ctypes
+$PYTHON -m pip install pywin32-ctypes==0.1.2
 
-# Install PyQt
-$PYTHON -m pip install PyQt5
+# install PySocks
+$PYTHON -m pip install win_inet_pton==1.0.1
 
-## Install pyinstaller
-#$PYTHON -m pip install pyinstaller==3.3
+$PYTHON -m pip install -r ../../deterministic-build/requirements-binaries.txt
 
+# Install PyInstaller
+$PYTHON -m pip install https://github.com/ecdsa/pyinstaller/archive/fix_2952.zip
 
 # Install ZBar
 wget -q -O zbar.exe "$ZBAR_URL"
 verify_hash zbar.exe $ZBAR_SHA256
 wine zbar.exe /S
 
-# install Cryptodome
-$PYTHON -m pip install pycryptodomex
-
-# install PySocks
-$PYTHON -m pip install win_inet_pton
-
-# install websocket (python2)
-$PYTHON -m pip install websocket-client
 
 # Upgrade setuptools (so Electrum can be installed later)
 $PYTHON -m pip install setuptools --upgrade
@@ -106,6 +104,11 @@ wget -q -O nsis.exe "$NSIS_URL"
 verify_hash nsis.exe $NSIS_SHA256
 wine nsis.exe /S
 
+wget -q -O libusb.7z "$LIBUSB_URL"
+verify_hash libusb.7z "$LIBUSB_SHA256"
+7z x -olibusb libusb.7z
+cp libusb/MS32/dll/libusb-1.0.dll $WINEPREFIX/drive_c/python$PYTHON_VERSION/
+
 # Install UPX
 #wget -O upx.zip "https://downloads.sourceforge.net/project/upx/upx/3.08/upx308w.zip"
 #unzip -o upx.zip
@@ -113,6 +116,5 @@ wine nsis.exe /S
 
 # add dlls needed for pyinstaller:
 cp $WINEPREFIX/drive_c/python$PYTHON_VERSION/Lib/site-packages/PyQt5/Qt/bin/* $WINEPREFIX/drive_c/python$PYTHON_VERSION/
-
 
 echo "Wine is configured. Please run prepare-pyinstaller.sh"

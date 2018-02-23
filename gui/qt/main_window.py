@@ -39,33 +39,26 @@ import PyQt5.QtCore as QtCore
 from .exception_window import Exception_Hook
 from PyQt5.QtWidgets import *
 
-from electrum.util import bh2u, bfh
-
 from electrum import keystore, simple_config
 from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS, NetworkConstants
 from electrum.plugins import run_hook
 from electrum.i18n import _
 from electrum.util import (format_time, format_satoshis, PrintError,
                            format_satoshis_plain, NotEnoughFunds,
-                           UserCancelled, NoDynamicFeeEstimates)
+                           UserCancelled, NoDynamicFeeEstimates, profiler,
+                           export_meta, import_meta, bh2u, bfh)
 from electrum import Transaction
 from electrum import util, bitcoin, commands, coinchooser
 from electrum import paymentrequest
-from electrum.wallet import Multisig_Wallet
-try:
-    from electrum.plot import plot_history
-except:
-    plot_history = None
+from electrum.wallet import Multisig_Wallet, AddTransactionException
 
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider
-
 from .util import *
 
-from electrum.util import profiler
 
 class StatusBarButton(QPushButton):
     def __init__(self, icon, tooltip, func):
@@ -488,11 +481,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         contacts_menu = wallet_menu.addMenu(_("Contacts"))
         contacts_menu.addAction(_("&New"), self.new_contact_dialog)
         contacts_menu.addAction(_("Import"), lambda: self.contact_list.import_contacts())
+        contacts_menu.addAction(_("Export"), lambda: self.contact_list.export_contacts())
         invoices_menu = wallet_menu.addMenu(_("Invoices"))
         invoices_menu.addAction(_("Import"), lambda: self.invoice_list.import_invoices())
-        hist_menu = wallet_menu.addMenu(_("&History"))
-        hist_menu.addAction("Plot", self.plot_history_dialog).setEnabled(plot_history is not None)
-        hist_menu.addAction("Export", self.export_history_dialog)
+        invoices_menu.addAction(_("Export"), lambda: self.invoice_list.export_invoices())
 
         wallet_menu.addSeparator()
         wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
@@ -755,7 +747,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         from .history_list import HistoryList
         self.history_list = l = HistoryList(self)
         l.searchable_list = l
-        return l
+        return self.create_list_tab(l, l.get_list_header())
 
     def show_address(self, addr):
         from . import address_dialog
@@ -1081,7 +1073,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         def fee_cb(dyn, pos, fee_rate):
             if dyn:
-                if self.config.get('mempool_fees'):
+                if self.config.use_mempool_fees():
                     self.config.set_key('depth_level', pos, False)
                 else:
                     self.config.set_key('fee_level', pos, False)
@@ -1136,7 +1128,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def feerounding_onclick():
             text = (self.feerounding_text + '\n\n' +
                     _('To somewhat protect your privacy, Electrum tries to create change with similar precision to other outputs.') + ' ' +
-                    _('At most 100 satoshis might be lost due to this rounding.') + '\n' +
+                    _('At most 100 satoshis might be lost due to this rounding.') + ' ' +
+                    _("You can disable this setting in '{}'.").format(_('Preferences')) + '\n' +
                     _('Also, dust is not kept as change, but added to the fee.'))
             QMessageBox.information(self, 'Fee rounding', text)
 
@@ -1518,7 +1511,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             x_fee_address, x_fee_amount = x_fee
             msg.append( _("Additional fees") + ": " + self.format_amount_and_units(x_fee_amount) )
 
-        confirm_rate = 2 * self.config.max_fee_rate()
+        confirm_rate = simple_config.FEERATE_WARNING_HIGH_FEE
         if fee > confirm_rate * tx.estimated_size() / 1000:
             msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
 
@@ -2100,8 +2093,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             rds_e = ShowQRTextEdit(text=redeem_script)
             rds_e.addCopyButton(self.app)
             vbox.addWidget(rds_e)
-        if xtype in ['p2wpkh', 'p2wsh', 'p2wpkh-p2sh', 'p2wsh-p2sh']:
-            vbox.addWidget(WWLabel(_("Warning: the format of private keys associated to segwit addresses may not be compatible with other wallets")))
         vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
         d.exec_()
@@ -2133,7 +2124,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         task = partial(self.wallet.sign_message, address, message, password)
 
         def show_signed_message(sig):
-            signature.setText(base64.b64encode(sig).decode('ascii'))
+            try:
+                signature.setText(base64.b64encode(sig).decode('ascii'))
+            except RuntimeError:
+                # (signature) wrapped C/C++ object has been deleted
+                pass
+
         self.wallet.thread.add(task, on_success=show_signed_message)
 
     def do_verify(self, address, message, signature):
@@ -2197,7 +2193,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         cyphertext = encrypted_e.toPlainText()
         task = partial(self.wallet.decrypt_message, pubkey_e.text(), cyphertext, password)
-        self.wallet.thread.add(task, on_success=lambda text: message_e.setText(text.decode('utf-8')))
+
+        def setText(text):
+            try:
+                message_e.setText(text.decode('utf-8'))
+            except RuntimeError:
+                # (message_e) wrapped C/C++ object has been deleted
+                pass
+
+        self.wallet.thread.add(task, on_success=setText)
 
     def do_encrypt(self, message_e, pubkey_e, encrypted_e):
         message = message_e.toPlainText()
@@ -2296,25 +2300,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return self.tx_from_text(file_content)
 
     def do_process_from_text(self):
-        from electrum.transaction import SerializationError
         text = text_dialog(self, _('Input raw transaction'), _("Transaction:"), _("Load transaction"))
         if not text:
             return
-        try:
-            tx = self.tx_from_text(text)
-            if tx:
-                self.show_transaction(tx)
-        except SerializationError as e:
-            self.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
+        tx = self.tx_from_text(text)
+        if tx:
+            self.show_transaction(tx)
 
     def do_process_from_file(self):
-        from electrum.transaction import SerializationError
-        try:
-            tx = self.read_tx_from_file()
-            if tx:
-                self.show_transaction(tx)
-        except SerializationError as e:
-            self.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
+        tx = self.read_tx_from_file()
+        if tx:
+            self.show_transaction(tx)
 
     def do_process_from_txid(self):
         from electrum import transaction
@@ -2340,7 +2336,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                               _('It can not be "backed up" by simply exporting these private keys.'))
 
         d = WindowModalDialog(self, _('Private keys'))
-        d.setMinimumSize(850, 300)
+        d.setMinimumSize(980, 300)
         vbox = QVBoxLayout(d)
 
         msg = "%s\n%s\n%s" % (_("WARNING: ALL your private keys are secret."),
@@ -2433,102 +2429,23 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 f.write(json.dumps(pklist, indent = 4))
 
     def do_import_labels(self):
-        labelsFile = self.getOpenFileName(_("Open labels file"), "*.json")
-        if not labelsFile: return
-        try:
-            with open(labelsFile, 'r') as f:
-                data = f.read()
-            for key, value in json.loads(data).items():
-                self.wallet.set_label(key, value)
-            self.show_message(_("Your labels were imported from") + " '%s'" % str(labelsFile))
-        except (IOError, os.error) as reason:
-            self.show_critical(_("Electrum was unable to import your labels.") + "\n" + str(reason))
-        self.address_list.update()
-        self.history_list.update()
+        def import_labels(path):
+            def _validate(data):
+                return data  # TODO
+
+            def import_labels_assign(data):
+                for key, value in data.items():
+                    self.wallet.set_label(key, value)
+            import_meta(path, _validate, import_labels_assign)
+
+        def on_import():
+            self.need_update.set()
+        import_meta_gui(self, _('labels'), import_labels, on_import)
 
     def do_export_labels(self):
-        labels = self.wallet.labels
-        try:
-            fileName = self.getSaveFileName(_("Select file to save your labels"), 'electrum_labels.json', "*.json")
-            if fileName:
-                with open(fileName, 'w+') as f:
-                    json.dump(labels, f, indent=4, sort_keys=True)
-                self.show_message(_("Your labels were exported to") + " '%s'" % str(fileName))
-        except (IOError, os.error) as reason:
-            self.show_critical(_("Electrum was unable to export your labels.") + "\n" + str(reason))
-
-    def export_history_dialog(self):
-        d = WindowModalDialog(self, _('Export History'))
-        d.setMinimumSize(400, 200)
-        vbox = QVBoxLayout(d)
-        defaultname = os.path.expanduser('~/electrum-history.csv')
-        select_msg = _('Select file to export your wallet transactions to')
-        hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
-        vbox.addLayout(hbox)
-        vbox.addStretch(1)
-        hbox = Buttons(CancelButton(d), OkButton(d, _('Export')))
-        vbox.addLayout(hbox)
-        run_hook('export_history_dialog', self, hbox)
-        self.update()
-        if not d.exec_():
-            return
-        filename = filename_e.text()
-        if not filename:
-            return
-        try:
-            self.do_export_history(self.wallet, filename, csv_button.isChecked())
-        except (IOError, os.error) as reason:
-            export_error_label = _("Electrum was unable to produce a transaction export.")
-            self.show_critical(export_error_label + "\n" + str(reason), title=_("Unable to export history"))
-            return
-        self.show_message(_("Your wallet history has been successfully exported."))
-
-    def plot_history_dialog(self):
-        if plot_history is None:
-            return
-        wallet = self.wallet
-        history = wallet.get_history()
-        if len(history) > 0:
-            plt = plot_history(self.wallet, history)
-            plt.show()
-
-    def do_export_history(self, wallet, fileName, is_csv):
-        history = wallet.get_history()
-        lines = []
-        for item in history:
-            tx_hash, height, confirmations, timestamp, value, balance = item
-            if height>0:
-                if timestamp is not None:
-                    time_string = format_time(timestamp)
-                else:
-                    time_string = _("unverified")
-            else:
-                time_string = _("unconfirmed")
-
-            if value is not None:
-                value_string = format_satoshis(value, True)
-            else:
-                value_string = '--'
-
-            if tx_hash:
-                label = wallet.get_label(tx_hash)
-            else:
-                label = ""
-
-            if is_csv:
-                lines.append([tx_hash, label, confirmations, value_string, time_string])
-            else:
-                lines.append({'txid':tx_hash, 'date':"%16s"%time_string, 'label':label, 'value':value_string})
-
-        with open(fileName, "w+") as f:
-            if is_csv:
-                transaction = csv.writer(f, lineterminator='\n')
-                transaction.writerow(["transaction_hash","label", "confirmations", "value", "timestamp"])
-                for line in lines:
-                    transaction.writerow(line)
-            else:
-                import json
-                f.write(json.dumps(lines, indent = 4))
+        def export_labels(filename):
+            export_meta(self.wallet.labels, filename)
+        export_meta_gui(self, _('labels'), export_labels)
 
     def sweep_key_dialog(self):
         d = WindowModalDialog(self, title=_('Sweep private keys'))
@@ -2687,7 +2604,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fee_type_label = HelpLabel(_('Fee estimation') + ':', msg)
         fee_type_combo = QComboBox()
         fee_type_combo.addItems([_('Time based'), _('Mempool based')])
-        fee_type_combo.setCurrentIndex(1 if self.config.get('mempool_fees') else 0)
+        fee_type_combo.setCurrentIndex(1 if self.config.use_mempool_fees() else 0)
         def on_fee_type(x):
             self.config.set_key('mempool_fees', x==1)
             self.fee_slider.update()
@@ -2892,6 +2809,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         unconf_cb.setChecked(conf_only)
         unconf_cb.stateChanged.connect(on_unconf)
         tx_widgets.append((unconf_cb, None))
+
+        def on_outrounding(x):
+            self.config.set_key('coin_chooser_output_rounding', bool(x))
+        enable_outrounding = self.config.get('coin_chooser_output_rounding', False)
+        outrounding_cb = QCheckBox(_('Enable output value rounding'))
+        outrounding_cb.setToolTip(
+            _('Set the value of the change output so that it has similar precision to the other outputs.') + '\n' +
+            _('This might improve your privacy somewhat.') + '\n' +
+            _('If enabled, at most 100 satoshis might be lost due to this, per transaction.'))
+        outrounding_cb.setChecked(enable_outrounding)
+        outrounding_cb.stateChanged.connect(on_outrounding)
+        tx_widgets.append((outrounding_cb, None))
 
         # Fiat Currency
         hist_checkbox = QCheckBox()
@@ -3192,3 +3121,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if is_final:
             new_tx.set_rbf(False)
         self.show_transaction(new_tx, tx_label)
+
+    def save_transaction_into_wallet(self, tx):
+        try:
+            if not self.wallet.add_transaction(tx.txid(), tx):
+                self.show_error(_("Transaction could not be saved.") + "\n" +
+                                       _("It conflicts with current history."))
+                return False
+        except AddTransactionException as e:
+            self.show_error(e)
+            return False
+        else:
+            self.wallet.save_transactions(write=True)
+            # need to update at least: history_list, utxo_list, address_list
+            self.need_update.set()
+            self.show_message(_("Transaction saved successfully"))
+            return True
+
+

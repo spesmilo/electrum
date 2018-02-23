@@ -91,7 +91,7 @@ if is_local or is_android:
 from electrum import bitcoin, util
 from electrum import SimpleConfig, Network
 from electrum.wallet import Wallet, Imported_Wallet
-from electrum.storage import WalletStorage
+from electrum.storage import WalletStorage, get_derivation_used_for_hw_device_encryption
 from electrum.util import print_msg, print_stderr, json_encode, json_decode
 from electrum.util import set_verbosity, InvalidPassword
 from electrum.commands import get_parser, known_commands, Commands, config_variables
@@ -194,8 +194,9 @@ def init_daemon(config_options):
         sys.exit(0)
     if storage.is_encrypted():
         if storage.is_encrypted_with_hw_device():
-            raise NotImplementedError("CLI functionality of encrypted hw wallets")
-        if config.get('password'):
+            plugins = init_plugins(config, 'cmdline')
+            password = get_password_for_hw_device_encrypted_storage(plugins)
+        elif config.get('password'):
             password = config.get('password')
         else:
             password = prompt_password('Password:', False)
@@ -222,7 +223,7 @@ def init_cmdline(config_options, server):
     if cmdname in ['payto', 'paytomany'] and config.get('broadcast'):
         cmd.requires_network = True
 
-    # instanciate wallet for command-line
+    # instantiate wallet for command-line
     storage = WalletStorage(config.get_wallet_path())
 
     if cmd.requires_wallet and not storage.file_exists():
@@ -240,8 +241,9 @@ def init_cmdline(config_options, server):
     if (cmd.requires_wallet and storage.is_encrypted() and server is None)\
        or (cmd.requires_password and (storage.get('use_encryption') or storage.is_encrypted())):
         if storage.is_encrypted_with_hw_device():
-            raise NotImplementedError("CLI functionality of encrypted hw wallets")
-        if config.get('password'):
+            # this case is handled later in the control flow
+            password = None
+        elif config.get('password'):
             password = config.get('password')
         else:
             password = prompt_password('Password:', False)
@@ -260,7 +262,42 @@ def init_cmdline(config_options, server):
     return cmd, password
 
 
-def run_offline_command(config, config_options):
+def get_connected_hw_devices(plugins):
+    support = plugins.get_hardware_support()
+    if not support:
+        print_msg('No hardware wallet support found on your system.')
+        sys.exit(1)
+    # scan devices
+    devices = []
+    devmgr = plugins.device_manager
+    for name, description, plugin in support:
+        try:
+            u = devmgr.unpaired_device_infos(None, plugin)
+        except:
+            devmgr.print_error("error", name)
+            continue
+        devices += list(map(lambda x: (name, x), u))
+    return devices
+
+
+def get_password_for_hw_device_encrypted_storage(plugins):
+    devices = get_connected_hw_devices(plugins)
+    if len(devices) == 0:
+        print_msg("Error: No connected hw device found. Can not decrypt this wallet.")
+        sys.exit(1)
+    elif len(devices) > 1:
+        print_msg("Warning: multiple hardware devices detected. "
+                  "The first one will be used to decrypt the wallet.")
+    # FIXME we use the "first" device, in case of multiple ones
+    name, device_info = devices[0]
+    plugin = plugins.get_plugin(name)
+    derivation = get_derivation_used_for_hw_device_encryption()
+    xpub = plugin.get_xpub(device_info.device.id_, derivation, 'standard', plugin.handler)
+    password = keystore.Xpub.get_pubkey_from_xpub(xpub, ())
+    return password
+
+
+def run_offline_command(config, config_options, plugins):
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
     password = config_options.get('password')
@@ -268,7 +305,8 @@ def run_offline_command(config, config_options):
         storage = WalletStorage(config.get_wallet_path())
         if storage.is_encrypted():
             if storage.is_encrypted_with_hw_device():
-                raise NotImplementedError("CLI functionality of encrypted hw wallets")
+                password = get_password_for_hw_device_encrypted_storage(plugins)
+                config_options['password'] = password
             storage.decrypt(password)
         wallet = Wallet(storage)
     else:
@@ -437,8 +475,8 @@ if __name__ == '__main__':
                 print_msg("Daemon not running; try 'electrum daemon start'")
                 sys.exit(1)
             else:
-                init_plugins(config, 'cmdline')
-                result = run_offline_command(config, config_options)
+                plugins = init_plugins(config, 'cmdline')
+                result = run_offline_command(config, config_options, plugins)
                 # print result
     if isinstance(result, str):
         print_msg(result)

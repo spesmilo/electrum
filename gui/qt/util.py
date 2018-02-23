@@ -6,10 +6,14 @@ import queue
 from collections import namedtuple
 from functools import partial
 
-from electrum.i18n import _
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
+
+from electrum.i18n import _
+from electrum.util import FileImportFailed, FileExportFailed
+from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_EXPIRED
+
 
 if platform.system() == 'Windows':
     MONOSPACE_FONT = 'Lucida Console'
@@ -20,8 +24,6 @@ else:
 
 
 dialogs = []
-
-from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_EXPIRED
 
 pr_icons = {
     PR_UNPAID:":icons/unpaid.png",
@@ -254,7 +256,7 @@ def line_dialog(parent, title, label, ok_label, default=None):
 def text_dialog(parent, title, label, ok_label, default=None, allow_multi=False):
     from .qrtextedit import ScanQRTextEdit
     dialog = WindowModalDialog(parent, title)
-    dialog.setMinimumWidth(500)
+    dialog.setMinimumWidth(600)
     l = QVBoxLayout()
     dialog.setLayout(l)
     l.addWidget(QLabel(label))
@@ -389,7 +391,9 @@ class MyTreeWidget(QTreeWidget):
         self.editor = None
         self.pending_update = False
         if editable_columns is None:
-            editable_columns = [stretch_column]
+            editable_columns = {stretch_column}
+        else:
+            editable_columns = set(editable_columns)
         self.editable_columns = editable_columns
         self.setItemDelegate(ElectrumItemDelegate(self))
         self.itemDoubleClicked.connect(self.on_doubleclick)
@@ -406,11 +410,15 @@ class MyTreeWidget(QTreeWidget):
 
     def editItem(self, item, column):
         if column in self.editable_columns:
-            self.editing_itemcol = (item, column, item.text(column))
-            # Calling setFlags causes on_changed events for some reason
-            item.setFlags(item.flags() | Qt.ItemIsEditable)
-            QTreeWidget.editItem(self, item, column)
-            item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+            try:
+                self.editing_itemcol = (item, column, item.text(column))
+                # Calling setFlags causes on_changed events for some reason
+                item.setFlags(item.flags() | Qt.ItemIsEditable)
+                QTreeWidget.editItem(self, item, column)
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+            except RuntimeError:
+                # (item) wrapped C/C++ object has been deleted
+                pass
 
     def keyPressEvent(self, event):
         if event.key() in [ Qt.Key_F2, Qt.Key_Return ] and self.editor is None:
@@ -671,6 +679,35 @@ class AcceptFileDragDrop:
 
     def onFileAdded(self, fn):
         raise NotImplementedError()
+
+
+def import_meta_gui(electrum_window, title, importer, on_success):
+    filter_ = "JSON (*.json);;All files (*)"
+    filename = electrum_window.getOpenFileName(_("Open {} file").format(title), filter_)
+    if not filename:
+        return
+    try:
+        importer(filename)
+    except FileImportFailed as e:
+        electrum_window.show_critical(str(e))
+    else:
+        electrum_window.show_message(_("Your {} were successfully imported").format(title))
+        on_success()
+
+
+def export_meta_gui(electrum_window, title, exporter):
+    filter_ = "JSON (*.json);;All files (*)"
+    filename = electrum_window.getSaveFileName(_("Select file to save your {}").format(title),
+                                               'electrum_{}.json'.format(title), filter_)
+    if not filename:
+        return
+    try:
+        exporter(filename)
+    except FileExportFailed as e:
+        electrum_window.show_critical(str(e))
+    else:
+        electrum_window.show_message(_("Your {0} were exported to '{1}'")
+                                     .format(title, str(filename)))
 
 
 if __name__ == "__main__":
