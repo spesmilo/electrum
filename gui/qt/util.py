@@ -410,11 +410,15 @@ class MyTreeWidget(QTreeWidget):
 
     def editItem(self, item, column):
         if column in self.editable_columns:
-            self.editing_itemcol = (item, column, item.text(column))
-            # Calling setFlags causes on_changed events for some reason
-            item.setFlags(item.flags() | Qt.ItemIsEditable)
-            QTreeWidget.editItem(self, item, column)
-            item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+            try:
+                self.editing_itemcol = (item, column, item.text(column))
+                # Calling setFlags causes on_changed events for some reason
+                item.setFlags(item.flags() | Qt.ItemIsEditable)
+                QTreeWidget.editItem(self, item, column)
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+            except RuntimeError:
+                # (item) wrapped C/C++ object has been deleted
+                pass
 
     def keyPressEvent(self, event):
         if event.key() in [ Qt.Key_F2, Qt.Key_Return ] and self.editor is None:
