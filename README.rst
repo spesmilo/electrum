@@ -107,9 +107,3 @@ Windows
 -------
 
 See `contrib/build-wine/README` file.
-
-
-Android
--------
-
-See `gui/kivy/Readme.txt` file.
