@@ -607,7 +607,7 @@ class Commands:
             PR_PAID: 'Paid',
             PR_EXPIRED: 'Expired',
         }
-        out['amount (BTC)'] = format_satoshis(out.get('amount'))
+        out['amount (FTC)'] = format_satoshis(out.get('amount'))
         out['status'] = pr_str[out.get('status', PR_UNKNOWN)]
         return out
 
@@ -788,8 +788,8 @@ param_descriptions = {
     'pubkey': 'Public key',
     'message': 'Clear text message. Use quotes if it contains spaces.',
     'encrypted': 'Encrypted message',
-    'amount': 'Amount to be sent (in BTC). Type \'!\' to send the maximum available.',
-    'requested_amount': 'Requested amount (in BTC).',
+    'amount': 'Amount to be sent (in FTC). Type \'!\' to send the maximum available.',
+    'requested_amount': 'Requested amount (in FTC).',
     'outputs': 'list of ["address", amount]',
     'redeem_script': 'redeem script (hexadecimal)',
 }
@@ -807,7 +807,7 @@ command_options = {
     'labels':      ("-l", "Show the labels of listed addresses"),
     'nocheck':     (None, "Do not verify aliases"),
     'imax':        (None, "Maximum number of inputs"),
-    'fee':         ("-f", "Transaction fee (in BTC)"),
+    'fee':         ("-f", "Transaction fee (in FTC)"),
     'from_addr':   ("-F", "Source address (must be a wallet address; use sweep to spend from non-wallet address)."),
     'change_addr': ("-c", "Change address. Default is a spare address, or the source address if it's not in the wallet"),
     'nbits':       (None, "Number of bits of entropy"),
