@@ -714,6 +714,8 @@ class Network(util.DaemonThread):
         interface.mode = 'default'
         interface.request = None
         self.interfaces[server] = interface
+        # ask for genesis hash first and disconnect if unexpected
+        self.request_header(interface, 0)
         self.queue_request('blockchain.headers.subscribe', [], interface)
         if server == self.default_server:
             self.switch_to_interface(server)
@@ -819,6 +821,15 @@ class Network(util.DaemonThread):
         if interface.request != height:
             interface.print_error("unsolicited header",interface.request, height)
             self.connection_down(interface.server)
+            return
+        if interface.mode == 'default' and height == 0:
+            # test genesis hash to reduce the chance of connecting to altcoin server
+            genesis_hash = blockchain.hash_header(header)
+            if genesis_hash != bitcoin.NetworkConstants.GENESIS:
+                interface.print_error("incorrect genesis hash", interface.server, genesis_hash)
+                self.connection_down(interface.server)
+            else:
+                interface.request = None
             return
         chain = blockchain.check_header(header)
         if interface.mode == 'backward':
