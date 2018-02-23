@@ -59,15 +59,19 @@ class InvalidPassword(Exception):
 
 
 class FileImportFailed(Exception):
+    def __init__(self, message=''):
+        self.message = str(message)
+
     def __str__(self):
-        return _("Failed to import file.")
+        return _("Failed to import from file.") + "\n" + self.message
 
 
-class FileImportFailedEncrypted(FileImportFailed):
+class FileExportFailed(Exception):
+    def __init__(self, message=''):
+        self.message = str(message)
+
     def __str__(self):
-        return (_('Failed to import file.') + ' ' +
-                _('Perhaps it is encrypted...') + '\n' +
-                _('Importing encrypted files is not supported.'))
+        return _("Failed to export to file.") + "\n" + self.message
 
 
 # Throw this exception to unwind the stack like when an error occurs.
@@ -784,3 +788,26 @@ def setup_thread_excepthook():
 
 def versiontuple(v):
     return tuple(map(int, (v.split("."))))
+
+
+def import_meta(path, validater, load_meta):
+    try:
+        with open(path, 'r') as f:
+            d = validater(json.loads(f.read()))
+        load_meta(d)
+    #backwards compatibility for JSONDecodeError
+    except ValueError:
+        traceback.print_exc(file=sys.stderr)
+        raise FileImportFailed(_("Invalid JSON code."))
+    except BaseException as e:
+        traceback.print_exc(file=sys.stdout)
+        raise FileImportFailed(e)
+
+
+def export_meta(meta, fileName):
+    try:
+        with open(fileName, 'w+') as f:
+            json.dump(meta, f, indent=4, sort_keys=True)
+    except (IOError, os.error) as e:
+        traceback.print_exc(file=sys.stderr)
+        raise FileExportFailed(e)

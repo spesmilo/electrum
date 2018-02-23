@@ -6,10 +6,14 @@ import queue
 from collections import namedtuple
 from functools import partial
 
-from electrum.i18n import _
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
+
+from electrum.i18n import _
+from electrum.util import FileImportFailed, FileExportFailed
+from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_EXPIRED
+
 
 if platform.system() == 'Windows':
     MONOSPACE_FONT = 'Lucida Console'
@@ -20,8 +24,6 @@ else:
 
 
 dialogs = []
-
-from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_EXPIRED
 
 pr_icons = {
     PR_UNPAID:":icons/unpaid.png",
@@ -673,6 +675,35 @@ class AcceptFileDragDrop:
 
     def onFileAdded(self, fn):
         raise NotImplementedError()
+
+
+def import_meta_gui(electrum_window, title, importer, on_success):
+    filter_ = "JSON (*.json);;All files (*)"
+    filename = electrum_window.getOpenFileName(_("Open {} file").format(title), filter_)
+    if not filename:
+        return
+    try:
+        importer(filename)
+    except FileImportFailed as e:
+        electrum_window.show_critical(str(e))
+    else:
+        electrum_window.show_message(_("Your {} were successfully imported").format(title))
+        on_success()
+
+
+def export_meta_gui(electrum_window, title, exporter):
+    filter_ = "JSON (*.json);;All files (*)"
+    filename = electrum_window.getSaveFileName(_("Select file to save your {}").format(title),
+                                               'electrum_{}.json'.format(title), filter_)
+    if not filename:
+        return
+    try:
+        exporter(filename)
+    except FileExportFailed as e:
+        electrum_window.show_critical(str(e))
+    else:
+        electrum_window.show_message(_("Your {0} were exported to '{1}'")
+                                     .format(title, str(filename)))
 
 
 if __name__ == "__main__":

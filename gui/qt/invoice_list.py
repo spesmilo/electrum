@@ -23,9 +23,10 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from .util import *
 from electrum.i18n import _
-from electrum.util import format_time, FileImportFailed
+from electrum.util import format_time
+
+from .util import *
 
 
 class InvoiceList(MyTreeWidget):
@@ -57,15 +58,10 @@ class InvoiceList(MyTreeWidget):
         self.parent.invoices_label.setVisible(len(inv_list))
 
     def import_invoices(self):
-        wallet_folder = self.parent.get_wallet_folder()
-        filename, __ = QFileDialog.getOpenFileName(self.parent, "Select your wallet file", wallet_folder)
-        if not filename:
-            return
-        try:
-            self.parent.invoices.import_file(filename)
-        except FileImportFailed as e:
-            self.parent.show_message(str(e))
-        self.on_update()
+        import_meta_gui(self.parent, _('invoices'), self.parent.invoices.import_file, self.on_update)
+
+    def export_invoices(self):
+        export_meta_gui(self.parent, _('invoices'), self.parent.invoices.export_file)
 
     def create_menu(self, position):
         menu = QMenu()
