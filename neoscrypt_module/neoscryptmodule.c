@@ -4,18 +4,15 @@
 
 static PyObject *neoscrypt_getpowhash(PyObject *self, PyObject *args)
 {
-    unsigned char *output;
-    PyObject *value;
-    PyStringObject *input;
-    if (!PyArg_ParseTuple(args, "S", &input))
+    const char *input;
+    int len;
+    if (!PyArg_ParseTuple(args, "y#", &input, &len))
         return NULL;
-    Py_INCREF(input);
-    output = PyMem_Malloc(32);
 
-    neoscrypt((unsigned char *)PyString_AsString((PyObject*) input), output);
+    unsigned char *output = PyMem_Malloc(32);
+    neoscrypt((const unsigned char *)input, output);
 
-    Py_DECREF(input);
-    value = Py_BuildValue("s#", output, 32);
+    PyObject *value = Py_BuildValue("y#", output, 32);
     PyMem_Free(output);
     return value;
 }
@@ -25,6 +22,15 @@ static PyMethodDef NeoScryptMethods[] = {
     { NULL, NULL, 0, NULL }
 };
 
-PyMODINIT_FUNC initneoscrypt(void) {
-    (void) Py_InitModule("neoscrypt", NeoScryptMethods);
+static struct PyModuleDef modDef =
+{
+    PyModuleDef_HEAD_INIT,
+    "neoscrypt",
+    "",
+    -1,
+    NeoScryptMethods
+};
+
+PyMODINIT_FUNC PyInit_neoscrypt(void) {
+    return PyModule_Create(&modDef);
 }
