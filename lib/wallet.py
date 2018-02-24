@@ -1000,7 +1000,7 @@ class Abstract_Wallet(PrintError):
                 'value': Satoshis(value),
                 'balance': Satoshis(balance)
             }
-            item['date'] = timestamp_to_datetime(timestamp) if timestamp is not None else None
+            item['date'] = timestamp_to_datetime(timestamp)
             item['label'] = self.get_label(tx_hash)
             if show_addresses:
                 tx = self.transactions.get(tx_hash)
