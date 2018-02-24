@@ -33,7 +33,7 @@ from electrum_ltc.util import block_explorer_URL
 from electrum_ltc.util import timestamp_to_datetime, profiler
 
 try:
-    from electrum_ltc.plot import plot_history
+    from electrum_ltc.plot import plot_history, NothingToPlotException
 except:
     plot_history = None
 
@@ -195,11 +195,11 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
                 _("Can't plot history.") + '\n' +
                 _("Perhaps some dependencies are missing...") + " (matplotlib?)")
             return
-        if len(self.transactions) > 0:
+        try:
             plt = plot_history(self.transactions)
             plt.show()
-        else:
-            self.parent.show_message(_("Nothing to plot."))
+        except NothingToPlotException as e:
+            self.parent.show_message(str(e))
 
     @profiler
     def on_update(self):

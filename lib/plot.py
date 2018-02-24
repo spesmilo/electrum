@@ -14,7 +14,14 @@ from matplotlib.patches import Ellipse
 from matplotlib.offsetbox import AnchoredOffsetbox, TextArea, DrawingArea, HPacker
 
 
+class NothingToPlotException(Exception):
+    def __str__(self):
+        return _("Nothing to plot.")
+
+
 def plot_history(history):
+    if len(history) == 0:
+        raise NothingToPlotException()
     hist_in = defaultdict(int)
     hist_out = defaultdict(int)
     for item in history:
@@ -42,12 +49,19 @@ def plot_history(history):
     xfmt = md.DateFormatter('%Y-%m')
     ax.xaxis.set_major_formatter(xfmt)
     width = 20
-    dates, values = zip(*sorted(hist_in.items()))
-    r1 = axarr[0].bar(dates, values, width, label='incoming')
-    axarr[0].legend(loc='upper left')
+
+    r1 = None
+    r2 = None
+    dates_values = list(zip(*sorted(hist_in.items())))
+    if dates_values and len(dates_values) == 2:
+        dates, values = dates_values
+        r1 = axarr[0].bar(dates, values, width, label='incoming')
+        axarr[0].legend(loc='upper left')
     dates_values = list(zip(*sorted(hist_out.items())))
     if dates_values and len(dates_values) == 2:
         dates, values = dates_values
         r2 = axarr[1].bar(dates, values, width, color='r', label='outgoing')
         axarr[1].legend(loc='upper left')
+    if r1 is None and r2 is None:
+        raise NothingToPlotException()
     return plt
