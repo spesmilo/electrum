@@ -1,7 +1,7 @@
 [app]
 
 # (str) Title of your application
-title = ElectrumGRS
+title = Electrum-GRS
 
 # (str) Package name
 package.name = ElectrumGRS
@@ -31,7 +31,7 @@ source.exclude_patterns = Makefile,setup*
 version = 3.0.6
 
 # (list) Application requirements
-requirements = python3crystax, android, openssl, plyer, kivy==master
+requirements = python3crystax, android, openssl, plyer, ecdsa, kivy==master
 
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
