@@ -419,6 +419,8 @@ def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespa
     return result
 
 def timestamp_to_datetime(timestamp):
+    if timestamp is None:
+        return None
     return datetime.fromtimestamp(timestamp)
 
 def format_time(timestamp):

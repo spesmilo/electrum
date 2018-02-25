@@ -29,8 +29,7 @@ import datetime
 from electrum_ltc.wallet import AddTransactionException, TX_HEIGHT_LOCAL
 from .util import *
 from electrum_ltc.i18n import _
-from electrum_ltc.util import block_explorer_URL
-from electrum_ltc.util import timestamp_to_datetime, profiler
+from electrum_ltc.util import block_explorer_URL, profiler
 
 try:
     from electrum_ltc.plot import plot_history, NothingToPlotException
@@ -234,7 +233,6 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             entry = ['', tx_hash, status_str, label, v_str, balance_str]
             fiat_value = None
             if value is not None and fx and fx.show_history():
-                date = timestamp_to_datetime(time.time() if conf <= 0 else timestamp)
                 fiat_value = tx_item['fiat_value'].value
                 value_str = fx.format_fiat(fiat_value)
                 entry.append(value_str)
