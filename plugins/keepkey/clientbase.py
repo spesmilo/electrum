@@ -188,7 +188,6 @@ class KeepKeyClientBase(GuiMixin, PrintError):
         except BaseException as e:
             # If the device was removed it has the same effect...
             self.print_error("clear_session: ignoring error", str(e))
-            pass
 
     def get_public_node(self, address_n, creating):
         self.creating_wallet = creating
