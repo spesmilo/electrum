@@ -904,11 +904,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         i = self.expires_combo.currentIndex()
         expiration = list(map(lambda x: x[1], expiration_values))[i]
         req = self.wallet.make_payment_request(addr, amount, message, expiration)
-        self.wallet.add_payment_request(req, self.config)
-        self.sign_payment_request(addr)
-        self.request_list.update()
-        self.address_list.update()
-        self.save_request_button.setEnabled(False)
+        try:
+            self.wallet.add_payment_request(req, self.config)
+        except Exception as e:
+            traceback.print_exc(file=sys.stderr)
+            self.show_error(_('Error adding payment request') + ':\n' + str(e))
+        else:
+            self.sign_payment_request(addr)
+            self.save_request_button.setEnabled(False)
+        finally:
+            self.request_list.update()
+            self.address_list.update()
 
     def view_and_paste(self, title, msg, data):
         dialog = WindowModalDialog(self, title)
