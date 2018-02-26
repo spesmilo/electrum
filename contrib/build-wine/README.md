@@ -2,7 +2,7 @@ Windows Binary Builds
 =====================
 
 These scripts can be used for cross-compilation of Windows Electrum executables from Linux/Wine.
-Produced binaries are deterministic so you should be able to generate binaries that match the official releases.
+Produced binaries are deterministic, so you should be able to generate binaries that match the official releases. 
 
 
 Usage:
@@ -12,6 +12,7 @@ Usage:
 
  - dirmngr
  - gpg
+ - 7Zip
  - Wine (>= v2)
 
 
@@ -19,8 +20,7 @@ For example:
 
 
 ```
-$ sudo apt-get install wine-development dirmngr gnupg2
-$ sudo ln -sf /usr/bin/wine-development /usr/local/bin/wine
+$ sudo apt-get install wine-development dirmngr gnupg2 p7zip-full
 $ wine --version
  wine-2.0 (Debian 2.0-3+b2)
 ```
