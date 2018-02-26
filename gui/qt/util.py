@@ -218,13 +218,14 @@ class WindowModalDialog(QDialog, MessageBoxMixin):
 
 
 class WaitingDialog(WindowModalDialog):
-    '''Shows a please wait dialog whilst runnning a task.  It is not
+    '''Shows a please wait dialog whilst running a task.  It is not
     necessary to maintain a reference to this dialog.'''
     def __init__(self, parent, message, task, on_success=None, on_error=None):
         assert parent
         if isinstance(parent, MessageBoxMixin):
             parent = parent.top_level_window()
         WindowModalDialog.__init__(self, parent, _("Please wait"))
+        self.setAttribute(Qt.WA_DeleteOnClose)  # see #3956
         vbox = QVBoxLayout(self)
         vbox.addWidget(QLabel(message))
         self.accepted.connect(self.on_accepted)
