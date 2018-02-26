@@ -161,6 +161,8 @@ def run_non_RPC(config):
             print_msg("Recovering wallet...")
             wallet.synchronize()
             wallet.wait_until_synchronized()
+            wallet.stop_threads()
+            # note: we don't wait for SPV
             msg = "Recovery successful" if wallet.is_found() else "Found no history for this wallet"
         else:
             msg = "This wallet was restored offline. It may contain more addresses than displayed."
