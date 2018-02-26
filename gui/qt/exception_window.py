@@ -43,7 +43,7 @@ issue_template = """<h2>Traceback</h2>
 
 <h2>Additional information</h2>
 <ul>
-  <li>Electrum version: {electrum_version}</li>
+  <li>Electrum version: {app_version}</li>
   <li>Operating system: {os}</li>
   <li>Wallet type: {wallet_type}</li>
   <li>Locale: {locale}</li>
@@ -154,7 +154,7 @@ class Exception_Window(QWidget):
 
     def get_additional_info(self):
         args = {
-            "electrum_version": ELECTRUM_VERSION,
+            "app_version": ELECTRUM_VERSION,
             "os": platform.platform(),
             "wallet_type": "unknown",
             "locale": locale.getdefaultlocale()[0],
