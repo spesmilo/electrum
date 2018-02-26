@@ -1039,8 +1039,8 @@ class Abstract_Wallet(PrintError):
                 if value < 0:
                     acquisition_price = - value / Decimal(COIN) * self.average_price(tx_hash, fx.timestamp_rate, fx.ccy)
                     liquidation_price = - fiat_value
-                    item['acquisition_price'] = Fiat(aquisition_price, fx.ccy)
-                    cg = liquidation_price - aquisition_price
+                    item['acquisition_price'] = Fiat(acquisition_price, fx.ccy)
+                    cg = liquidation_price - acquisition_price
                     item['capital_gain'] = Fiat(cg, fx.ccy)
                     capital_gains += cg
                     fiat_expenditures += fiat_value
