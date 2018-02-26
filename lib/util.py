@@ -103,7 +103,7 @@ class Fiat(object):
         return 'Fiat(%s)'% self.__str__()
 
     def __str__(self):
-        if self.value is None:
+        if self.value.is_nan():
             return _('No Data')
         else:
             return "{:.2f}".format(self.value) + ' ' + self.ccy
