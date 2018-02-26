@@ -985,7 +985,10 @@ class Abstract_Wallet(PrintError):
         from .util import timestamp_to_datetime, Satoshis, Fiat
         out = []
         capital_gains = 0
+        income = 0
+        expenditures = 0
         fiat_income = 0
+        fiat_expenditures = 0
         h = self.get_history(domain)
         for tx_hash, height, conf, timestamp, value, balance in h:
             if from_timestamp and timestamp < from_timestamp:
@@ -1017,25 +1020,32 @@ class Abstract_Wallet(PrintError):
                     output_addresses.append(addr)
                 item['input_addresses'] = input_addresses
                 item['output_addresses'] = output_addresses
+            # value may be None if wallet is not fully synchronized
+            if value is None:
+                continue
+            # fixme: use in and out values
+            if value < 0:
+                expenditures += -value
+            else:
+                income += value
+            # fiat computations
             if fx is not None:
                 date = timestamp_to_datetime(time.time() if conf <= 0 else timestamp)
                 fiat_value = self.get_fiat_value(tx_hash, fx.ccy)
-                if fiat_value is None:
-                    fiat_value = fx.historical_value(value, date)
-                    fiat_default = True
-                else:
-                    fiat_default = False
+                fiat_default = fiat_value is None
+                fiat_value = - fiat_value if fiat_value is not None else value / Decimal(COIN) * self.price_at_timestamp(tx_hash, fx.timestamp_rate)
                 item['fiat_value'] = Fiat(fiat_value, fx.ccy)
                 item['fiat_default'] = fiat_default
-                if value is not None and value < 0:
-                    ap, lp = self.capital_gain(tx_hash, fx.timestamp_rate, fx.ccy)
-                    cg = lp - ap
-                    item['acquisition_price'] = Fiat(ap, fx.ccy)
+                if value < 0:
+                    acquisition_price = - value / Decimal(COIN) * self.average_price(tx_hash, fx.timestamp_rate, fx.ccy)
+                    liquidation_price = - fiat_value
+                    item['acquisition_price'] = Fiat(acquisition_price, fx.ccy)
+                    cg = liquidation_price - acquisition_price
                     item['capital_gain'] = Fiat(cg, fx.ccy)
                     capital_gains += cg
+                    fiat_expenditures += fiat_value
                 else:
-                    if fiat_value is not None:
-                        fiat_income += fiat_value
+                    fiat_income += fiat_value
             out.append(item)
         # add summary
         if out:
@@ -1048,17 +1058,19 @@ class Abstract_Wallet(PrintError):
             else:
                 start_date = out[0]['date']
                 end_date = out[-1]['date']
-
             summary = {
                 'start_date': start_date,
                 'end_date': end_date,
                 'start_balance': Satoshis(start_balance),
-                'end_balance': Satoshis(end_balance)
+                'end_balance': Satoshis(end_balance),
+                'income': Satoshis(income),
+                'expenditures': Satoshis(expenditures)
             }
             if fx:
                 unrealized = self.unrealized_gains(domain, fx.timestamp_rate, fx.ccy)
                 summary['capital_gains'] = Fiat(capital_gains, fx.ccy)
                 summary['fiat_income'] = Fiat(fiat_income, fx.ccy)
+                summary['fiat_expenditures'] = Fiat(fiat_expenditures, fx.ccy)
                 summary['unrealized_gains'] = Fiat(unrealized, fx.ccy)
                 if start_date:
                     summary['start_fiat_balance'] = Fiat(fx.historical_value(start_balance, start_date), fx.ccy)
@@ -1713,18 +1725,6 @@ class Abstract_Wallet(PrintError):
         ap = sum(self.coin_price(coin['prevout_hash'], price_func, ccy, self.txin_value(coin)) for coin in coins)
         lp = sum([coin['value'] for coin in coins]) * p / Decimal(COIN)
         return lp - ap
-
-    def capital_gain(self, txid, price_func, ccy):
-        """
-        Difference between the fiat price of coins leaving the wallet because of transaction txid,
-        and the price of these coins when they entered the wallet.
-        price_func: function that returns the fiat price given a timestamp
-        """
-        out_value = - self.get_tx_value(txid)/Decimal(COIN)
-        fiat_value = self.get_fiat_value(txid, ccy)
-        liquidation_price = - fiat_value if fiat_value else out_value * self.price_at_timestamp(txid, price_func)
-        acquisition_price = out_value * self.average_price(txid, price_func, ccy)
-        return acquisition_price, liquidation_price
 
     def average_price(self, txid, price_func, ccy):
         """ Average acquisition price of the inputs of a transaction """
