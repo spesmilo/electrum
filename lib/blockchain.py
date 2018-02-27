@@ -29,6 +29,7 @@ from .bitcoin import *
 
 MAX_TARGET = 0x00000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 SEVEN_DAYS = 7 * 24 * 60 * 60
+HEIGHT_FORK_ONE = 33000
 
 
 def serialize_header(res):
@@ -275,8 +276,22 @@ class Blockchain(util.PrintError):
             return 0, 0
         if height == 0:
             return 0x1e0ffff0, MAX_TARGET
+        elif height >= HEIGHT_FORK_ONE:
+            return self.__fork_one_target(height, headers)
         else:
             return self.__vanilla_target(height, headers)
+
+    def __fork_one_target(self, height, headers):
+        interval = 504
+        last_height = height - 1
+        last = self.get_header(last_height, height, headers)
+        bits = last.get('bits')
+        target = Blockchain.bits2target(bits)
+        if height % interval != 0 and height != HEIGHT_FORK_ONE:
+            return bits, target
+        first = self.get_header(last_height - interval, height, headers)
+        nActualTimespan = last.get('timestamp') - first.get('timestamp')
+        return Blockchain.__get_target(target, nActualTimespan, SEVEN_DAYS // 8, 70, 99)
 
     def __vanilla_target(self, height, headers):
         interval = 2016
@@ -287,11 +302,13 @@ class Blockchain(util.PrintError):
         if height % interval != 0:
             return bits, target
         first = self.get_header(max(0, last_height - interval), height, headers)
-        # new target
         nActualTimespan = last.get('timestamp') - first.get('timestamp')
-        nTargetTimespan = SEVEN_DAYS // 2
-        nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
-        nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
+        return Blockchain.__get_target(target, nActualTimespan, SEVEN_DAYS // 2, 1, 4)
+
+    @staticmethod
+    def __get_target(target, nActualTimespan, nTargetTimespan, numerator, denominator):
+        nActualTimespan = max(nActualTimespan, nTargetTimespan * numerator // denominator)
+        nActualTimespan = min(nActualTimespan, nTargetTimespan * denominator // numerator)
         new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
         return Blockchain.target2bits(new_target)
 
