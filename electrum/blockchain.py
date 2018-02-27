@@ -37,6 +37,7 @@ _logger = get_logger(__name__)
 HEADER_SIZE = 80  # bytes
 MAX_TARGET = 0x00000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 SEVEN_DAYS = 7 * 24 * 60 * 60
+HEIGHT_FORK_ONE = 33000
 
 
 class MissingHeader(Exception):
@@ -506,8 +507,25 @@ class Blockchain(Logger):
             # this value needs to be updated every time
             # `checkpoints.json` is updated
             return 143256919707644724074290378570122304852251874692742198474282369024
+        elif height >= HEIGHT_FORK_ONE:
+            return self.__fork_one_target(height, headers)
         else:
             return self.__vanilla_target(height, headers)
+
+    def __fork_one_target(self, height, headers):
+        interval = 504
+        last_height = height - 1
+        last = self.get_header(last_height, height, headers)
+        if not last:
+            raise MissingHeader()
+        target = self.bits_to_target(last.get('bits'))
+        if height % interval != 0 and height != HEIGHT_FORK_ONE:
+            return target
+        first = self.get_header(last_height - interval, height, headers)
+        if not first:
+            raise MissingHeader()
+        nActualTimespan = last.get('timestamp') - first.get('timestamp')
+        return Blockchain.__get_target(target, nActualTimespan, SEVEN_DAYS // 8, 70, 99)
 
     def __vanilla_target(self, height, headers):
         interval = 2016
@@ -522,14 +540,14 @@ class Blockchain(Logger):
         first = self.get_header(max(0, last_height - interval), height, headers)
         if not first:
             raise MissingHeader()
-        # new target
         nActualTimespan = last.get('timestamp') - first.get('timestamp')
-        nTargetTimespan = SEVEN_DAYS // 2
-        nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
-        nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
-        new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
-        # not any target can be represented in 32 bits:
-        new_target = self.bits_to_target(self.target_to_bits(new_target))
+        return Blockchain.__get_target(target, nActualTimespan, SEVEN_DAYS // 2, 1, 4)
+
+    @staticmethod
+    def __get_target(target, nActualTimespan, nTargetTimespan, numerator, denominator):
+        nActualTimespan = max(nActualTimespan, int(nTargetTimespan * numerator / denominator))
+        nActualTimespan = min(nActualTimespan, int(nTargetTimespan * denominator / numerator))
+        new_target = min(MAX_TARGET, int(target * nActualTimespan / nTargetTimespan))
         return new_target
 
     def get_header(self, height, ref_height, headers):
