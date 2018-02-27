@@ -301,16 +301,13 @@ class Blockchain(Logger):
         num = len(data) // HEADER_SIZE
         start_height = index * 2016
         prev_hash = self.get_hash(start_height - 1)
-        target = self.get_target(index-1)
+        headers = []
         for i in range(num):
-            height = start_height + i
-            try:
-                expected_header_hash = self.get_hash(height)
-            except MissingHeader:
-                expected_header_hash = None
-            raw_header = data[i*HEADER_SIZE : (i+1)*HEADER_SIZE]
-            header = deserialize_header(raw_header, index*2016 + i)
-            self.verify_header(header, prev_hash, target, expected_header_hash)
+            raw_header = data[i*80:(i+1) * 80]
+            headers.append(deserialize_header(raw_header, index*2016 + i))
+        for i, header in enumerate(headers):
+            target = self.get_target(index*2016 + i, headers)
+            self.verify_header(header, prev_hash, target)
             prev_hash = hash_header(header)
 
     @with_lock
@@ -489,26 +486,32 @@ class Blockchain(Logger):
                 raise MissingHeader(height)
             return hash_header(header)
 
-    def get_target(self, index: int) -> int:
+    def get_target(self, height: int, headers) -> int:
         # compute target from chunk x, used in chunk x+1
         if constants.net.TESTNET:
             return 0
-        if index == -1:
+        if height == 0:
             return MAX_TARGET
-        if index < len(self.checkpoints) - 1:
+        if height < len(self.checkpoints) * 2016:
             # return pessimistic value to detect if check is unintentionally performed
             return 0
-        if index == len(self.checkpoints) - 1:
+        if height == len(self.checkpoints) * 2016:
             # this value needs to be updated every time
             # `checkpoints.json` is updated
             return 16946223147907286639275870228581142863500004051737247938
-        # new target
-        first = self.read_header(index * 2016)
-        last = self.read_header(index * 2016 + 2015)
-        if not first or not last:
+
+        interval = 2016
+        last = self.get_header(height - 1, height, headers)
+        if not last:
             raise MissingHeader()
         bits = last.get('bits')
         target = self.bits_to_target(bits)
+        if height % interval != 0:
+            return target
+        first = self.get_header(height - interval, height, headers)
+        if not first:
+            raise MissingHeader()
+        # new target
         nActualTimespan = last.get('timestamp') - first.get('timestamp')
         nTargetTimespan = 14 * 24 * 60 * 60
         nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
@@ -517,6 +520,12 @@ class Blockchain(Logger):
         # not any target can be represented in 32 bits:
         new_target = self.bits_to_target(self.target_to_bits(new_target))
         return new_target
+
+    def get_header(self, height, ref_height, headers):
+        delta = ref_height % 2016
+        if height < ref_height - delta or headers is None:
+            return self.read_header(height)
+        return headers[delta - (ref_height - height)]
 
     @classmethod
     def bits_to_target(cls, bits: int) -> int:
@@ -588,7 +597,7 @@ class Blockchain(Logger):
         if prev_hash != header.get('prev_block_hash'):
             return False
         try:
-            target = self.get_target(height // 2016 - 1)
+            target = self.get_target(height, None)
         except MissingHeader:
             return False
         try:
