@@ -31,6 +31,7 @@ MAX_TARGET = 0x00000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 SEVEN_DAYS = 7 * 24 * 60 * 60
 HEIGHT_FORK_ONE = 33000
 HEIGHT_FORK_TWO = 87948
+HEIGHT_FORK_THREE = 204639
 
 
 def serialize_header(res):
@@ -277,6 +278,8 @@ class Blockchain(util.PrintError):
             return 0, 0
         if height == 0:
             return 0x1e0ffff0, MAX_TARGET
+        elif height >= HEIGHT_FORK_THREE:
+            return self.__fork_three_target(height, headers)
         elif height >= HEIGHT_FORK_TWO:
             return self.__fork_two_target(height, headers)
         elif height >= HEIGHT_FORK_ONE:
@@ -287,6 +290,22 @@ class Blockchain(util.PrintError):
     @staticmethod
     def __damp(nActualTimespan, nTargetTimespan):
         return (nActualTimespan + 3 * nTargetTimespan) // 4
+
+    def __fork_three_target(self, height, headers):
+        last_height = height - 1
+        last = self.get_header(last_height, height, headers)
+        bits = last.get('bits')
+        target = Blockchain.bits2target(bits)
+        first = self.get_header(last_height - 15, height, headers)
+        nActualTimespanShort = (last.get('timestamp') - first.get('timestamp')) // 15
+        first = self.get_header(last_height - 120, height, headers)
+        nActualTimespanMedium = (last.get('timestamp') - first.get('timestamp')) // 120
+        first = self.get_header(last_height - 480, height, headers)
+        nActualTimespanLong = (last.get('timestamp') - first.get('timestamp')) // 480
+        nActualTimespan = (nActualTimespanShort + nActualTimespanMedium + nActualTimespanLong) // 3
+        nTargetTimespan = 60
+        nActualTimespan = Blockchain.__damp(nActualTimespan, nTargetTimespan)
+        return Blockchain.__get_target(target, nActualTimespan, nTargetTimespan, 453, 494)
 
     def __fork_two_target(self, height, headers):
         interval = 126
