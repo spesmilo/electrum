@@ -1042,7 +1042,7 @@ class Abstract_Wallet(PrintError):
                     cg = liquidation_price - acquisition_price
                     item['capital_gain'] = Fiat(cg, fx.ccy)
                     capital_gains += cg
-                    fiat_expenditures += fiat_value
+                    fiat_expenditures += -fiat_value
                 else:
                     fiat_income += fiat_value
             out.append(item)
