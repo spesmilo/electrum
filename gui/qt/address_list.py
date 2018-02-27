@@ -24,18 +24,19 @@
 # SOFTWARE.
 import webbrowser
 
-from .util import *
 from electrum.i18n import _
 from electrum.util import block_explorer_URL
 from electrum.plugins import run_hook
 from electrum.bitcoin import is_address
 
+from .util import *
+
 
 class AddressList(MyTreeWidget):
-    filter_columns = [0, 1, 2]  # Address, Label, Balance
+    filter_columns = [0, 1, 2, 3]  # Type, Address, Label, Balance
 
     def __init__(self, parent=None):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [], 1)
+        MyTreeWidget.__init__(self, parent, self.create_menu, [], 2)
         self.refresh_headers()
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.show_change = 0
@@ -53,7 +54,7 @@ class AddressList(MyTreeWidget):
         return QLabel(_("Filter:")), self.change_button, self.used_button
 
     def refresh_headers(self):
-        headers = [ _('Address'), _('Label'), _('Balance')]
+        headers = [_('Type'), _('Address'), _('Label'), _('Balance')]
         fx = self.parent.fx
         if fx and fx.get_fiat_address_config():
             headers.extend([_(fx.get_currency()+' Balance')])
@@ -95,23 +96,30 @@ class AddressList(MyTreeWidget):
                 continue
             if self.show_used == 3 and not is_used:
                 continue
-            balance_text = self.parent.format_amount(balance)
+            balance_text = self.parent.format_amount(balance, whitespaces=True)
             fx = self.parent.fx
             if fx and fx.get_fiat_address_config():
                 rate = fx.exchange_rate()
                 fiat_balance = fx.value_str(balance, rate)
-                address_item = QTreeWidgetItem([address, label, balance_text, fiat_balance, "%d"%num])
-                address_item.setTextAlignment(3, Qt.AlignRight)
+                address_item = QTreeWidgetItem(['', address, label, balance_text, fiat_balance, "%d"%num])
+                address_item.setTextAlignment(4, Qt.AlignRight)
+                address_item.setFont(4, QFont(MONOSPACE_FONT))
             else:
-                address_item = QTreeWidgetItem([address, label, balance_text, "%d"%num])
-                address_item.setTextAlignment(2, Qt.AlignRight)
-            address_item.setFont(0, QFont(MONOSPACE_FONT))
-            address_item.setData(0, Qt.UserRole, address)
-            address_item.setData(0, Qt.UserRole+1, True) # label can be edited
+                address_item = QTreeWidgetItem(['', address, label, balance_text, "%d"%num])
+            address_item.setFont(3, QFont(MONOSPACE_FONT))
+            if self.wallet.is_change(address):
+                address_item.setText(0, _('change'))
+                address_item.setBackground(0, ColorScheme.YELLOW.as_color(True))
+            else:
+                address_item.setText(0, _('receiving'))
+                address_item.setBackground(0, ColorScheme.GREEN.as_color(True))
+            address_item.setFont(1, QFont(MONOSPACE_FONT))
+            address_item.setData(1, Qt.UserRole, address)
+            address_item.setData(1, Qt.UserRole+1, True)  # label can be edited
             if self.wallet.is_frozen(address):
-                address_item.setBackground(0, ColorScheme.BLUE.as_color(True))
+                address_item.setBackground(1, ColorScheme.BLUE.as_color(True))
             if self.wallet.is_beyond_limit(address):
-                address_item.setBackground(0, ColorScheme.RED.as_color(True))
+                address_item.setBackground(1, ColorScheme.RED.as_color(True))
             self.addChild(address_item)
             if address == current_address:
                 self.setCurrentItem(address_item)
@@ -122,7 +130,7 @@ class AddressList(MyTreeWidget):
         can_delete = self.wallet.can_delete_address()
         selected = self.selectedItems()
         multi_select = len(selected) > 1
-        addrs = [item.text(0) for item in selected]
+        addrs = [item.text(1) for item in selected]
         if not addrs:
             return
         if not multi_select:

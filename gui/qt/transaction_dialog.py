@@ -263,7 +263,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         rec.setBackground(QBrush(ColorScheme.GREEN.as_color(background=True)))
         rec.setToolTip(_("Wallet receive address"))
         chg = QTextCharFormat()
-        chg.setBackground(QBrush(QColor("yellow")))
+        chg.setBackground(QBrush(ColorScheme.YELLOW.as_color(background=True)))
         chg.setToolTip(_("Wallet change address"))
 
         def text_format(addr):

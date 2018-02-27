@@ -46,9 +46,10 @@ class UTXOList(MyTreeWidget):
             height = x.get('height')
             name = self.get_name(x)
             label = self.wallet.get_label(x.get('prevout_hash'))
-            amount = self.parent.format_amount(x['value'])
+            amount = self.parent.format_amount(x['value'], whitespaces=True)
             utxo_item = QTreeWidgetItem([address, label, amount, '%d'%height, name[0:10] + '...' + name[-2:]])
             utxo_item.setFont(0, QFont(MONOSPACE_FONT))
+            utxo_item.setFont(2, QFont(MONOSPACE_FONT))
             utxo_item.setFont(4, QFont(MONOSPACE_FONT))
             utxo_item.setData(0, Qt.UserRole, name)
             if self.wallet.is_frozen(address):
