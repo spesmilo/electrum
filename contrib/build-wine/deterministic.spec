@@ -18,6 +18,7 @@ hiddenimports = []
 hiddenimports += collect_submodules('trezorlib')
 hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
+hiddenimports += ['_scrypt']
 
 datas = [
     (home+'lib/currencies.json', 'electrum'),

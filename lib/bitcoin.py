@@ -31,6 +31,7 @@ import json
 
 import ecdsa
 import pyaes
+import scrypt
 
 from .util import bfh, bh2u, to_string
 from . import version
@@ -241,6 +242,10 @@ def sha256(x):
     x = to_bytes(x, 'utf8')
     return bytes(hashlib.sha256(x).digest())
 
+
+def PoWHash(x):
+    x = to_bytes(x, 'utf8')
+    return scrypt.hash(x, x, N=1 << 10, r=1, p=1, buflen=32)
 
 def Hash(x):
     x = to_bytes(x, 'utf8')

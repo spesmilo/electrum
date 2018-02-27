@@ -27,7 +27,9 @@ from . import util
 from . import bitcoin
 from .bitcoin import *
 
-MAX_TARGET = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
+MAX_TARGET = 0x00000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+SEVEN_DAYS = 7 * 24 * 60 * 60
+
 
 def serialize_header(res):
     s = int_to_hex(res.get('version'), 4) \
@@ -49,6 +51,13 @@ def deserialize_header(s, height):
     h['nonce'] = hex_to_int(s[76:80])
     h['block_height'] = height
     return h
+
+def pow_hash_header(header):
+    if header is None:
+        return '0' * 64
+    if header.get('prev_block_hash') is None:
+        header['prev_block_hash'] = '00'*32
+    return hash_encode(PoWHash(bfh(serialize_header(header))))
 
 def hash_header(header):
     if header is None:
@@ -145,7 +154,7 @@ class Blockchain(util.PrintError):
 
     def verify_header(self, header, prev_header, bits, target):
         prev_hash = hash_header(prev_header)
-        _hash = hash_header(header)
+        _hash = pow_hash_header(header)
         if prev_hash != header.get('prev_block_hash'):
             raise BaseException("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
         if bitcoin.NetworkConstants.TESTNET:
@@ -265,18 +274,22 @@ class Blockchain(util.PrintError):
         if bitcoin.NetworkConstants.TESTNET:
             return 0, 0
         if height == 0:
-            return 0x1d00ffff, MAX_TARGET
+            return 0x1e0ffff0, MAX_TARGET
+        else:
+            return self.__vanilla_target(height, headers)
 
+    def __vanilla_target(self, height, headers):
         interval = 2016
-        last = self.get_header(height - 1, height, headers)
+        last_height = height - 1
+        last = self.get_header(last_height, height, headers)
         bits = last.get('bits')
         target = Blockchain.bits2target(bits)
         if height % interval != 0:
             return bits, target
-        first = self.get_header(height - interval, height, headers)
+        first = self.get_header(max(0, last_height - interval), height, headers)
         # new target
         nActualTimespan = last.get('timestamp') - first.get('timestamp')
-        nTargetTimespan = 14 * 24 * 60 * 60
+        nTargetTimespan = SEVEN_DAYS // 2
         nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
         nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
         new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
@@ -303,8 +316,8 @@ class Blockchain(util.PrintError):
     @staticmethod
     def bits2target(bits):
         bitsN = (bits >> 24) & 0xff
-        if not (bitsN >= 0x03 and bitsN <= 0x1d):
-            raise BaseException("First part of bits should be in [0x03, 0x1d]")
+        if not (bitsN >= 0x03 and bitsN <= 0x1e):
+            raise BaseException("First part of bits should be in [0x03, 0x1e]")
         bitsBase = bits & 0xffffff
         if not (bitsBase >= 0x8000 and bitsBase <= 0x7fffff):
             raise BaseException("Second part of bits should be in [0x8000, 0x7fffff]")
