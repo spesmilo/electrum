@@ -26,7 +26,7 @@ from typing import Optional, Dict, Mapping, Sequence
 
 from . import util
 from .bitcoin import hash_encode, int_to_hex, rev_hex
-from .crypto import sha256d, PoWHash
+from .crypto import sha256d, PoWHash, PoWNeoScryptHash
 from . import constants
 from .util import bfh, bh2u
 from .simple_config import SimpleConfig
@@ -36,10 +36,12 @@ _logger = get_logger(__name__)
 
 HEADER_SIZE = 80  # bytes
 MAX_TARGET = 0x00000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+MAX_TARGET_NEOSCRYPT = 0x0000003FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 SEVEN_DAYS = 7 * 24 * 60 * 60
 HEIGHT_FORK_ONE = 33000
 HEIGHT_FORK_TWO = 87948
 HEIGHT_FORK_THREE = 204639
+HEIGHT_FORK_FOUR = 432000
 
 
 class MissingHeader(Exception):
@@ -78,7 +80,10 @@ def pow_hash_header(header):
         return '0' * 64
     if header.get('prev_block_hash') is None:
         header['prev_block_hash'] = '00'*32
-    return hash_encode(PoWHash(bfh(serialize_header(header))))
+    hashAlg = PoWNeoScryptHash
+    if header.get('timestamp') < 1414346265:
+        hashAlg = PoWHash
+    return hash_encode(hashAlg(bfh(serialize_header(header))))
 
 def hash_header(header: dict) -> str:
     if header is None:
@@ -509,6 +514,8 @@ class Blockchain(Logger):
             # this value needs to be updated every time
             # `checkpoints.json` is updated
             return 143256919707644724074290378570122304852251874692742198474282369024
+        elif height == HEIGHT_FORK_FOUR:
+            return MAX_TARGET_NEOSCRYPT
         elif height >= HEIGHT_FORK_THREE:
             return self.__fork_three_target(height, headers)
         elif height >= HEIGHT_FORK_TWO:

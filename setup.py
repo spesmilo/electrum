@@ -9,8 +9,10 @@ import importlib.util
 import argparse
 import subprocess
 
+from distutils import core
 from setuptools import setup, find_packages
 from setuptools.command.build_py import build_py
+from setuptools.command.install import install
 
 MIN_PYTHON_VERSION = "3.6.1"
 _min_python_version_tuple = tuple(map(int, (MIN_PYTHON_VERSION.split("."))))
@@ -58,6 +60,12 @@ extras_require = {
 extras_require['full'] = [pkg for sublist in list(extras_require.values()) for pkg in sublist]
 
 
+class CustomInstallCommand(install):
+    def run(self):
+        setup = core.run_setup('neoscrypt_module/setup.py', stop_after='commandline')
+        setup.run_command('install')
+        install.run(self)
+
 class BuildPyCommand(build_py):
     def run(self):
         build_py.run(self)
@@ -104,5 +112,6 @@ setup(
     long_description="""Lightweight Bitcoin Wallet""",
     cmdclass={
         'build_py': BuildPyCommand,
+        'install': CustomInstallCommand,
     },
 )
