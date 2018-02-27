@@ -13,4 +13,4 @@ include app.fil
 include icons.qrc
 recursive-include icons *
 recursive-include scripts *
-
+graft neoscrypt_module

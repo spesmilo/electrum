@@ -3,6 +3,8 @@
 # python setup.py sdist --format=zip,gztar
 
 from setuptools import setup
+from setuptools.command.install import install
+from distutils import core
 import os
 import sys
 import platform
@@ -32,9 +34,16 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
         (os.path.join(usr_share, 'pixmaps/'), ['icons/electrum.png'])
     ]
 
+
+class InstallCommand(install):
+    def run(self):
+        core.run_setup('neoscrypt_module/setup.py', ['install'])
+        install.run(self)
+
 setup(
     name="Electrum",
     version=version.ELECTRUM_VERSION,
+    cmdclass={'install': InstallCommand},
     install_requires=[
         'pyaes>=0.1a1',
         'ecdsa>=0.9',
