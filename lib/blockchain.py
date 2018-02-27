@@ -157,15 +157,13 @@ class Blockchain(util.PrintError):
 
     def verify_chunk(self, index, data):
         num = len(data) // 80
-        prev_header = None
-        if index != 0:
-            prev_header = self.read_header(index * 2016 - 1)
-        bits, target = self.get_target(index)
+        headers = [self.read_header(index * 2016 - 1)] if index != 0 else [None]
         for i in range(num):
             raw_header = data[i*80:(i+1) * 80]
-            header = deserialize_header(raw_header, index*2016 + i)
-            self.verify_header(header, prev_header, bits, target)
-            prev_header = header
+            headers.append(deserialize_header(raw_header, index*2016 + i))
+        for i in range(num):
+            bits, target = self.get_target(index*2016 + i, headers)
+            self.verify_header(headers[i+1], headers[i], bits, target)
 
     def path(self):
         d = util.get_headers_dir(self.config)
@@ -263,15 +261,19 @@ class Blockchain(util.PrintError):
         h = self.local_height
         return sum([self.BIP9(h-i, 2) for i in range(N)])*10000/N/100.
 
-    def get_target(self, index):
+    def get_target(self, height, headers):
         if bitcoin.NetworkConstants.TESTNET:
             return 0, 0
-        if index == 0:
+        if height == 0:
             return 0x1d00ffff, MAX_TARGET
 
-        first = self.read_header((index-1) * 2016)
-        last = self.read_header(index*2016 - 1)
-        target = Blockchain.bits2target(last.get('bits'))
+        interval = 2016
+        last = self.get_header(height - 1, height, headers)
+        bits = last.get('bits')
+        target = Blockchain.bits2target(bits)
+        if height % interval != 0:
+            return bits, target
+        first = self.get_header(height - interval, height, headers)
         # new target
         nActualTimespan = last.get('timestamp') - first.get('timestamp')
         nTargetTimespan = 14 * 24 * 60 * 60
@@ -279,6 +281,12 @@ class Blockchain(util.PrintError):
         nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
         new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
         return Blockchain.target2bits(new_target)
+
+    def get_header(self, height, ref_height, headers):
+        delta = ref_height % 2016
+        if height < ref_height - delta or headers is None:
+            return self.read_header(height)
+        return headers[delta - (ref_height - height) + 1]
 
     @staticmethod
     def target2bits(target):
@@ -314,7 +322,7 @@ class Blockchain(util.PrintError):
         prev_hash = hash_header(previous_header)
         if prev_hash != header.get('prev_block_hash'):
             return False
-        bits, target = self.get_target(height // 2016)
+        bits, target = self.get_target(height, None)
         try:
             self.verify_header(header, previous_header, bits, target)
         except:
