@@ -65,9 +65,8 @@ from .paymentrequest import InvoiceStore
 from .contacts import Contacts
 
 TX_STATUS = [
-    _('Replaceable'),
-    _('Unconfirmed parent'),
     _('Unconfirmed'),
+    _('Unconfirmed parent'),
     _('Not Verified'),
     _('Local'),
 ]
@@ -588,10 +587,10 @@ class Abstract_Wallet(PrintError):
                     status = _('Unconfirmed')
                     if fee is None:
                         fee = self.tx_fees.get(tx_hash)
-                    if fee and self.network.config.has_fee_etas():
+                    if fee and self.network.config.has_fee_mempool():
                         size = tx.estimated_size()
-                        fee_per_kb = fee * 1000 / size
-                        exp_n = self.network.config.fee_to_eta(fee_per_kb)
+                        fee_per_byte = fee / size
+                        exp_n = self.network.config.fee_to_depth(fee_per_byte)
                     can_bump = is_mine and not tx.is_final()
                 else:
                     status = _('Local')
@@ -1102,33 +1101,40 @@ class Abstract_Wallet(PrintError):
 
     def get_tx_status(self, tx_hash, height, conf, timestamp):
         from .util import format_time
-        exp_n = False
+        extra = []
         if conf == 0:
             tx = self.transactions.get(tx_hash)
             if not tx:
                 return 2, 'unknown'
             is_final = tx and tx.is_final()
-            fee = self.tx_fees.get(tx_hash)
-            if fee and self.network and self.network.config.has_fee_mempool():
+            if not is_final:
+                extra.append('rbf')
+            fee = self.get_wallet_delta(tx)[3]
+            if fee is None:
+                fee = self.tx_fees.get(tx_hash)
+            if fee is not None:
                 size = tx.estimated_size()
-                fee_per_kb = fee * 1000 / size
-                exp_n = self.network.config.fee_to_depth(fee_per_kb//1000)
+                fee_per_byte = fee / size
+                extra.append('%.1f sat/b'%(fee_per_byte))
+            if fee is not None and height in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED) \
+               and self.network and self.network.config.has_fee_mempool():
+                exp_n = self.network.config.fee_to_depth(fee_per_byte)
+                if exp_n:
+                    extra.append('%.2f MB'%(exp_n/1000000))
             if height == TX_HEIGHT_LOCAL:
-                status = 4
+                status = 3
             elif height == TX_HEIGHT_UNCONF_PARENT:
                 status = 1
-            elif height == TX_HEIGHT_UNCONFIRMED and not is_final:
-                status = 0
             elif height == TX_HEIGHT_UNCONFIRMED:
-                status = 2
+                status = 0
             else:
-                status = 3
+                status = 2
         else:
-            status = 4 + min(conf, 6)
+            status = 3 + min(conf, 6)
         time_str = format_time(timestamp) if timestamp else _("unknown")
-        status_str = TX_STATUS[status] if status < 5 else time_str
-        if exp_n:
-            status_str += ' [%d sat/b, %.2f MB]'%(fee_per_kb//1000, exp_n/1000000)
+        status_str = TX_STATUS[status] if status < 4 else time_str
+        if extra:
+            status_str += ' [%s]'%(', '.join(extra))
         return status, status_str
 
     def relayfee(self):

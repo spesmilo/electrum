@@ -89,10 +89,9 @@ class CScreen(Factory.Screen):
 
 # note: this list needs to be kept in sync with another in qt
 TX_ICONS = [
-    "close",
-    "close",
     "unconfirmed",
     "close",
+    "unconfirmed",
     "close",
     "clock1",
     "clock2",
