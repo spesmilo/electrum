@@ -38,9 +38,8 @@ except:
 
 # note: this list needs to be kept in sync with another in kivy
 TX_ICONS = [
-    "warning.png",
-    "warning.png",
     "unconfirmed.png",
+    "warning.png",
     "unconfirmed.png",
     "offline_tx.png",
     "clock1.png",
@@ -137,6 +136,8 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         vbox.addLayout(Buttons(OkButton(d), CancelButton(d)))
         d.setLayout(vbox)
         if d.exec_():
+            if d.date is None:
+                return None
             button.setText(d.date.toString())
             return time.mktime(d.date.toPyDate().timetuple())
 
@@ -144,18 +145,16 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         h = self.summary
         start_date = h.get('start_date')
         end_date = h.get('end_date')
-        if start_date is None or end_date is None:
-            self.parent.show_message(_("Nothing to summarize."))
-            return
         format_amount = lambda x: self.parent.format_amount(x.value) + ' ' + self.parent.base_unit()
+        format_date = lambda x: x.isoformat(' ')[:-3] if x else _("None")
         d = WindowModalDialog(self, _("Summary"))
         d.setMinimumSize(600, 150)
         vbox = QVBoxLayout()
         grid = QGridLayout()
         grid.addWidget(QLabel(_("Start")), 0, 0)
-        grid.addWidget(QLabel(start_date.isoformat(' ')), 0, 1)
+        grid.addWidget(QLabel(format_date(start_date)), 0, 1)
         grid.addWidget(QLabel(_("End")), 1, 0)
-        grid.addWidget(QLabel(end_date.isoformat(' ')), 1, 1)
+        grid.addWidget(QLabel(format_date(end_date)), 1, 1)
         grid.addWidget(QLabel(_("Initial balance")), 2, 0)
         grid.addWidget(QLabel(format_amount(h['start_balance'])), 2, 1)
         grid.addWidget(QLabel(str(h.get('start_fiat_balance'))), 2, 2)

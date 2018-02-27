@@ -42,7 +42,7 @@ class AddressList(MyTreeWidget):
         self.show_used = 0
         self.change_button = QComboBox(self)
         self.change_button.currentIndexChanged.connect(self.toggle_change)
-        for t in [_('Receiving'), _('Change'), _('All')]:
+        for t in [_('All'), _('Receiving'), _('Change')]:
             self.change_button.addItem(t)
         self.used_button = QComboBox(self)
         self.used_button.currentIndexChanged.connect(self.toggle_used)
@@ -76,9 +76,9 @@ class AddressList(MyTreeWidget):
         self.wallet = self.parent.wallet
         item = self.currentItem()
         current_address = item.data(0, Qt.UserRole) if item else None
-        if self.show_change == 0:
+        if self.show_change == 1:
             addr_list = self.wallet.get_receiving_addresses()
-        elif self.show_change == 1:
+        elif self.show_change == 2:
             addr_list = self.wallet.get_change_addresses()
         else:
             addr_list = self.wallet.get_addresses()
