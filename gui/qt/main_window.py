@@ -3151,7 +3151,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.wallet.save_transactions(write=True)
             # need to update at least: history_list, utxo_list, address_list
             self.need_update.set()
-            self.show_message(_("Transaction saved successfully"))
+            self.msg_box(QPixmap(":icons/offline_tx.png"), None, _('Success'), _("Transaction saved successfully"))
             return True
 
 
