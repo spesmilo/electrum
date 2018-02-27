@@ -266,6 +266,7 @@ class ElectrumWindow(App):
 
         self.use_change = config.get('use_change', True)
         self.use_cashaddr = config.get('use_cashaddr', True)
+        Address.show_cashaddr(self.use_cashaddr)
         self.use_unconfirmed = not config.get('confirmed_only', False)
 
         # create triggers so as to minimize updation a max of 2 times a sec
