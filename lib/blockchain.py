@@ -268,25 +268,21 @@ class Blockchain(util.PrintError):
             return 0, 0
         if index == 0:
             return 0x1d00ffff, MAX_TARGET
+
         first = self.read_header((index-1) * 2016)
         last = self.read_header(index*2016 - 1)
-        # bits to target
-        bits = last.get('bits')
-        bitsN = (bits >> 24) & 0xff
-        if not (bitsN >= 0x03 and bitsN <= 0x1d):
-            raise BaseException("First part of bits should be in [0x03, 0x1d]")
-        bitsBase = bits & 0xffffff
-        if not (bitsBase >= 0x8000 and bitsBase <= 0x7fffff):
-            raise BaseException("Second part of bits should be in [0x8000, 0x7fffff]")
-        target = bitsBase << (8 * (bitsN-3))
+        target = Blockchain.bits2target(last.get('bits'))
         # new target
         nActualTimespan = last.get('timestamp') - first.get('timestamp')
         nTargetTimespan = 14 * 24 * 60 * 60
         nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
         nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
         new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
-        # convert new target to bits
-        c = ("%064x" % new_target)[2:]
+        return Blockchain.target2bits(new_target)
+
+    @staticmethod
+    def target2bits(target):
+        c = ("%064x" % target)[2:]
         while c[:2] == '00' and len(c) > 6:
             c = c[2:]
         bitsN, bitsBase = len(c) // 2, int('0x' + c[:6], 16)
@@ -295,6 +291,16 @@ class Blockchain(util.PrintError):
             bitsBase >>= 8
         new_bits = bitsN << 24 | bitsBase
         return new_bits, bitsBase << (8 * (bitsN - 3))
+
+    @staticmethod
+    def bits2target(bits):
+        bitsN = (bits >> 24) & 0xff
+        if not (bitsN >= 0x03 and bitsN <= 0x1d):
+            raise BaseException("First part of bits should be in [0x03, 0x1d]")
+        bitsBase = bits & 0xffffff
+        if not (bitsBase >= 0x8000 and bitsBase <= 0x7fffff):
+            raise BaseException("Second part of bits should be in [0x8000, 0x7fffff]")
+        return bitsBase << (8 * (bitsN-3))
 
     def can_connect(self, header, check_height=True):
         height = header['block_height']
