@@ -136,6 +136,8 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         vbox.addLayout(Buttons(OkButton(d), CancelButton(d)))
         d.setLayout(vbox)
         if d.exec_():
+            if d.date is None:
+                return None
             button.setText(d.date.toString())
             return time.mktime(d.date.toPyDate().timetuple())
 
