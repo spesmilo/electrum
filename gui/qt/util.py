@@ -516,6 +516,24 @@ class MyTreeWidget(QTreeWidget):
             item.setHidden(all([item.text(column).lower().find(p) == -1
                                 for column in columns]))
 
+    def create_toolbar(self):
+        hbox = QHBoxLayout()
+        buttons = self.create_toolbar_buttons()
+        for b in buttons:
+            b.setVisible(False)
+            hbox.addWidget(b)
+        hide_button = QPushButton('x')
+        hide_button.setVisible(False)
+        hide_button.pressed.connect(lambda: self.show_toolbar(False))
+        self.toolbar_buttons = buttons + (hide_button,)
+        hbox.addStretch()
+        hbox.addWidget(hide_button)
+        return hbox
+
+    def show_toolbar(self, x):
+        for b in self.toolbar_buttons:
+            b.setVisible(x)
+
 
 class ButtonsWidget(QWidget):
 

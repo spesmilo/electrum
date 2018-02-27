@@ -49,7 +49,7 @@ class AddressList(MyTreeWidget):
         for t in [_('All'), _('Unused'), _('Funded'), _('Used')]:
             self.used_button.addItem(t)
 
-    def get_list_header(self):
+    def create_toolbar_buttons(self):
         return QLabel(_("Filter:")), self.change_button, self.used_button
 
     def refresh_headers(self):

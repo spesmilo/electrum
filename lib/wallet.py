@@ -69,7 +69,7 @@ TX_STATUS = [
     _('Unconfirmed parent'),
     _('Unconfirmed'),
     _('Not Verified'),
-    _('Local only'),
+    _('Local'),
 ]
 
 TX_HEIGHT_LOCAL = -2
