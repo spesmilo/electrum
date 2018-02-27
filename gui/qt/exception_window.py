@@ -182,7 +182,8 @@ class Exception_Window(QWidget):
     @staticmethod
     def get_git_version():
         dir = os.path.dirname(os.path.realpath(sys.argv[0]))
-        return subprocess.check_output(['git', 'describe', '--always'], cwd=dir)
+        version = subprocess.check_output(['git', 'describe', '--always'], cwd=dir)
+        return str(version, "utf8").strip()
 
 
 def _show_window(*args):
