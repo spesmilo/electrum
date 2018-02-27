@@ -174,7 +174,7 @@ class Daemon(DaemonThread):
             path = config.get_wallet_path()
             wallet = self.load_wallet(path, config.get('password'))
             self.cmd_runner.wallet = wallet
-            response = True
+            response = wallet is not None
         elif sub == 'close_wallet':
             path = config.get_wallet_path()
             if path in self.wallets:
