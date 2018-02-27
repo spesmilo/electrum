@@ -1055,8 +1055,8 @@ class Abstract_Wallet(PrintError):
                 start_date = timestamp_to_datetime(from_timestamp)
                 end_date = timestamp_to_datetime(to_timestamp)
             else:
-                start_date = out[0]['date']
-                end_date = out[-1]['date']
+                start_date = None
+                end_date = None
             summary = {
                 'start_date': start_date,
                 'end_date': end_date,
@@ -1071,10 +1071,8 @@ class Abstract_Wallet(PrintError):
                 summary['fiat_income'] = Fiat(fiat_income, fx.ccy)
                 summary['fiat_expenditures'] = Fiat(fiat_expenditures, fx.ccy)
                 summary['unrealized_gains'] = Fiat(unrealized, fx.ccy)
-                if start_date:
-                    summary['start_fiat_balance'] = Fiat(fx.historical_value(start_balance, start_date), fx.ccy)
-                if end_date:
-                    summary['end_fiat_balance'] = Fiat(fx.historical_value(end_balance, end_date), fx.ccy)
+                summary['start_fiat_balance'] = Fiat(fx.historical_value(start_balance, start_date), fx.ccy)
+                summary['end_fiat_balance'] = Fiat(fx.historical_value(end_balance, end_date), fx.ccy)
         else:
             summary = {}
         return {

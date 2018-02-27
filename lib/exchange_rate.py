@@ -520,6 +520,8 @@ class FxThread(ThreadJob):
         return "%s" % (self.ccy_amount_str(value, True))
 
     def history_rate(self, d_t):
+        if d_t is None:
+            return Decimal('NaN')
         rate = self.exchange.historical_rate(self.ccy, d_t)
         # Frequently there is no rate for today, until tomorrow :)
         # Use spot quotes in that case
