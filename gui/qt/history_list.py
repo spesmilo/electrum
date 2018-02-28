@@ -63,6 +63,9 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         self.end_timestamp = None
         self.years = []
 
+    def format_date(self, d):
+        return str(datetime.date(d.year, d.month, d.day)) if d else _('None')
+
     def refresh_headers(self):
         headers = ['', '', _('Date'), _('Description'), _('Amount'), _('Balance')]
         fx = self.parent.fx
@@ -98,8 +101,8 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             end_date = datetime.datetime(year+1, 1, 1)
             self.start_timestamp = time.mktime(start_date.timetuple())
             self.end_timestamp = time.mktime(end_date.timetuple())
-            self.start_button.setText(_('From') + ' ' + str(start_date))
-            self.end_button.setText(_('To') + ' ' + str(end_date))
+            self.start_button.setText(_('From') + ' ' + self.format_date(start_date))
+            self.end_button.setText(_('To') + ' ' + self.format_date(end_date))
         self.update()
 
     def create_toolbar_buttons(self):
@@ -113,6 +116,11 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         self.period_combo.addItems([_('All'), _('Custom')])
         self.period_combo.activated.connect(self.on_combo)
         return self.period_combo, self.start_button, self.end_button
+
+    def on_hide_toolbar(self):
+        self.start_timestamp = None
+        self.end_timestamp = None
+        self.update()
 
     def select_start_date(self):
         self.start_timestamp = self.select_date(self.start_button)
@@ -138,23 +146,23 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         if d.exec_():
             if d.date is None:
                 return None
-            button.setText(d.date.toString())
-            return time.mktime(d.date.toPyDate().timetuple())
+            date = d.date.toPyDate()
+            button.setText(self.format_date(date))
+            return time.mktime(date.timetuple())
 
     def show_summary(self):
         h = self.summary
         start_date = h.get('start_date')
         end_date = h.get('end_date')
         format_amount = lambda x: self.parent.format_amount(x.value) + ' ' + self.parent.base_unit()
-        format_date = lambda x: x.isoformat(' ')[:-3] if x else _("None")
         d = WindowModalDialog(self, _("Summary"))
         d.setMinimumSize(600, 150)
         vbox = QVBoxLayout()
         grid = QGridLayout()
         grid.addWidget(QLabel(_("Start")), 0, 0)
-        grid.addWidget(QLabel(format_date(start_date)), 0, 1)
+        grid.addWidget(QLabel(self.format_date(start_date)), 0, 1)
         grid.addWidget(QLabel(_("End")), 1, 0)
-        grid.addWidget(QLabel(format_date(end_date)), 1, 1)
+        grid.addWidget(QLabel(self.format_date(end_date)), 1, 1)
         grid.addWidget(QLabel(_("Initial balance")), 2, 0)
         grid.addWidget(QLabel(format_amount(h['start_balance'])), 2, 1)
         grid.addWidget(QLabel(str(h.get('start_fiat_balance'))), 2, 2)
@@ -195,12 +203,12 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         r = self.wallet.get_full_history(domain=self.get_domain(), from_timestamp=self.start_timestamp, to_timestamp=self.end_timestamp, fx=fx)
         self.transactions = r['transactions']
         self.summary = r['summary']
-        if not self.years and self.start_timestamp is None and self.end_timestamp is None:
-            start_date = self.summary.get('start_date')
-            end_date = self.summary.get('end_date')
-            if start_date and end_date:
-                self.years = [str(i) for i in range(start_date.year, end_date.year + 1)]
-                self.period_combo.insertItems(1, self.years)
+        if not self.years and self.transactions:
+            from datetime import date
+            start_date = self.transactions[0].get('date') or date.today()
+            end_date = self.transactions[-1].get('date') or date.today()
+            self.years = [str(i) for i in range(start_date.year, end_date.year + 1)]
+            self.period_combo.insertItems(1, self.years)
         item = self.currentItem()
         current_tx = item.data(0, Qt.UserRole) if item else None
         self.clear()

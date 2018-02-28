@@ -229,12 +229,12 @@ class WaitingDialog(WindowModalDialog):
         if isinstance(parent, MessageBoxMixin):
             parent = parent.top_level_window()
         WindowModalDialog.__init__(self, parent, _("Please wait"))
-        self.setAttribute(Qt.WA_DeleteOnClose)  # see #3956
         vbox = QVBoxLayout(self)
         vbox.addWidget(QLabel(message))
         self.accepted.connect(self.on_accepted)
         self.show()
         self.thread = TaskThread(self)
+        self.thread.finished.connect(self.deleteLater)  # see #3956
         self.thread.add(task, on_success, self.accept, on_error)
 
     def wait(self):
@@ -405,6 +405,8 @@ class MyTreeWidget(QTreeWidget):
         self.update_headers(headers)
         self.current_filter = ""
 
+        self.setRootIsDecorated(False)  # remove left margin
+
     def update_headers(self, headers):
         self.setColumnCount(len(headers))
         self.setHeaderLabels(headers)
@@ -537,6 +539,8 @@ class MyTreeWidget(QTreeWidget):
     def show_toolbar(self, x):
         for b in self.toolbar_buttons:
             b.setVisible(x)
+        if not x:
+            self.on_hide_toolbar()
 
 
 class ButtonsWidget(QWidget):
@@ -624,12 +628,12 @@ class TaskThread(QThread):
             except BaseException:
                 self.doneSig.emit(sys.exc_info(), task.cb_done, task.cb_error)
 
-    def on_done(self, result, cb_done, cb):
+    def on_done(self, result, cb_done, cb_result):
         # This runs in the parent's thread.
         if cb_done:
             cb_done()
-        if cb:
-            cb(result)
+        if cb_result:
+            cb_result(result)
 
     def stop(self):
         self.tasks.put(None)
@@ -656,6 +660,7 @@ class ColorScheme:
     dark_scheme = False
 
     GREEN = ColorSchemeItem("#117c11", "#8af296")
+    YELLOW = ColorSchemeItem("#ffff00", "#ffff00")
     RED = ColorSchemeItem("#7c1111", "#f18c8c")
     BLUE = ColorSchemeItem("#123b7c", "#8cb3f2")
     DEFAULT = ColorSchemeItem("black", "white")
