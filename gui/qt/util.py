@@ -539,6 +539,8 @@ class MyTreeWidget(QTreeWidget):
     def show_toolbar(self, x):
         for b in self.toolbar_buttons:
             b.setVisible(x)
+        if not x:
+            self.on_hide_toolbar()
 
 
 class ButtonsWidget(QWidget):

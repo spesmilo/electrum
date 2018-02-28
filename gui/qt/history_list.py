@@ -114,6 +114,11 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         self.period_combo.activated.connect(self.on_combo)
         return self.period_combo, self.start_button, self.end_button
 
+    def on_hide_toolbar(self):
+        self.start_timestamp = None
+        self.end_timestamp = None
+        self.update()
+
     def select_start_date(self):
         self.start_timestamp = self.select_date(self.start_button)
         self.update()
