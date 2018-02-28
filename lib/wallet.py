@@ -990,9 +990,9 @@ class Abstract_Wallet(PrintError):
         fiat_expenditures = 0
         h = self.get_history(domain)
         for tx_hash, height, conf, timestamp, value, balance in h:
-            if from_timestamp and timestamp < from_timestamp:
+            if from_timestamp and (timestamp or time.time()) < from_timestamp:
                 continue
-            if to_timestamp and timestamp >= to_timestamp:
+            if to_timestamp and (timestamp or time.time()) >= to_timestamp:
                 continue
             item = {
                 'txid':tx_hash,
@@ -1029,7 +1029,7 @@ class Abstract_Wallet(PrintError):
                 income += value
             # fiat computations
             if fx is not None:
-                date = timestamp_to_datetime(time.time() if conf <= 0 else timestamp)
+                date = timestamp_to_datetime(timestamp)
                 fiat_value = self.get_fiat_value(tx_hash, fx.ccy)
                 fiat_default = fiat_value is None
                 fiat_value = - fiat_value if fiat_value is not None else value / Decimal(COIN) * self.price_at_timestamp(tx_hash, fx.timestamp_rate)

@@ -195,12 +195,12 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         r = self.wallet.get_full_history(domain=self.get_domain(), from_timestamp=self.start_timestamp, to_timestamp=self.end_timestamp, fx=fx)
         self.transactions = r['transactions']
         self.summary = r['summary']
-        if not self.years and self.start_timestamp is None and self.end_timestamp is None:
-            start_date = self.summary.get('start_date')
-            end_date = self.summary.get('end_date')
-            if start_date and end_date:
-                self.years = [str(i) for i in range(start_date.year, end_date.year + 1)]
-                self.period_combo.insertItems(1, self.years)
+        if not self.years and self.transactions:
+            from datetime import date
+            start_date = self.transactions[0].get('date') or date.today()
+            end_date = self.transactions[-1].get('date') or date.today()
+            self.years = [str(i) for i in range(start_date.year, end_date.year + 1)]
+            self.period_combo.insertItems(1, self.years)
         item = self.currentItem()
         current_tx = item.data(0, Qt.UserRole) if item else None
         self.clear()
