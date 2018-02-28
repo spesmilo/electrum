@@ -85,7 +85,7 @@ class AddressList(MyTreeWidget):
             addr_list = self.wallet.get_addresses()
         self.clear()
         for address in addr_list:
-            num = len(self.wallet.history.get(address,[]))
+            num = len(self.wallet.get_address_history(address))
             is_used = self.wallet.is_used(address)
             label = self.wallet.labels.get(address, '')
             c, u, x = self.wallet.get_addr_balance(address)
