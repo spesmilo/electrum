@@ -469,7 +469,7 @@ class SimpleConfig(PrintError):
         Returns True if an update should be requested.
         """
         now = time.time()
-        return = now - self.last_time_fee_estimates_requested > 60
+        return now - self.last_time_fee_estimates_requested > 60
 
     def requested_fee_estimates(self):
         self.last_time_fee_estimates_requested = time.time()
