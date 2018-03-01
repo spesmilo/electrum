@@ -49,12 +49,6 @@ Builder.load_string('''
                     action: partial(root.unit_dialog, self)
                 CardSeparator
                 SettingsItem:
-                    status: root.fee_status()
-                    title: _('Fees') + ': ' + self.status
-                    description: _("Fees paid to the Bitcoin miners.")
-                    action: partial(root.fee_dialog, self)
-                CardSeparator
-                SettingsItem:
                     status: root.fx_status()
                     title: _('Fiat Currency') + ': ' + self.status
                     description: _("Display amounts in fiat currency.")
@@ -112,7 +106,6 @@ class SettingsDialog(Factory.Popup):
         layout.bind(minimum_height=layout.setter('height'))
         # cached dialogs
         self._fx_dialog = None
-        self._fee_dialog = None
         self._proxy_dialog = None
         self._language_dialog = None
         self._unit_dialog = None
@@ -204,14 +197,6 @@ class SettingsDialog(Factory.Popup):
 
     def fee_status(self):
         return self.config.get_fee_status()
-
-    def fee_dialog(self, label, dt):
-        if self._fee_dialog is None:
-            from .fee_dialog import FeeDialog
-            def cb():
-                label.status = self.fee_status()
-            self._fee_dialog = FeeDialog(self.app, self.config, cb)
-        self._fee_dialog.open()
 
     def boolean_dialog(self, name, title, message, dt):
         from .checkbox_dialog import CheckBoxDialog

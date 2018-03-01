@@ -82,7 +82,9 @@ class ElectrumWindow(App):
     server_port = StringProperty('')
     num_chains = NumericProperty(0)
     blockchain_name = StringProperty('')
+    fee_status = StringProperty('Fee')
     blockchain_checkpoint = NumericProperty(0)
+    _fee_dialog = None
 
     auto_connect = BooleanProperty(False)
     def on_auto_connect(self, instance, x):
@@ -271,6 +273,7 @@ class ElectrumWindow(App):
         # cached dialogs
         self._settings_dialog = None
         self._password_dialog = None
+        self.fee_status = self.electrum_config.get_fee_status()
 
     def wallet_name(self):
         return os.path.basename(self.wallet.storage.path) if self.wallet else ' '
@@ -457,6 +460,7 @@ class ElectrumWindow(App):
         if self.network:
             interests = ['updated', 'status', 'new_transaction', 'verified', 'interfaces']
             self.network.register_callback(self.on_network_event, interests)
+            self.network.register_callback(self.on_fee, ['fee'])
             self.network.register_callback(self.on_quotes, ['on_quotes'])
             self.network.register_callback(self.on_history, ['on_history'])
         # URI passed in config
@@ -827,6 +831,18 @@ class ElectrumWindow(App):
             screen.amount = amount
         popup = AmountDialog(show_max, amount, cb)
         popup.open()
+
+    def fee_dialog(self, label, dt):
+        if self._fee_dialog is None:
+            from .uix.dialogs.fee_dialog import FeeDialog
+            def cb():
+                c = self.electrum_config
+                self.fee_status = c.get_fee_status()
+            self._fee_dialog = FeeDialog(self, self.electrum_config, cb)
+        self._fee_dialog.open()
+
+    def on_fee(self, event, *arg):
+        self.fee_status = self.electrum_config.get_fee_status()
 
     def protected(self, msg, f, args):
         if self.wallet.has_password():
