@@ -406,6 +406,7 @@ class MyTreeWidget(QTreeWidget):
         self.current_filter = ""
 
         self.setRootIsDecorated(False)  # remove left margin
+        self.toolbar_shown = False
 
     def update_headers(self, headers):
         self.setColumnCount(len(headers))
@@ -522,7 +523,7 @@ class MyTreeWidget(QTreeWidget):
             item.setHidden(all([item.text(column).lower().find(p) == -1
                                 for column in columns]))
 
-    def create_toolbar(self):
+    def create_toolbar(self, config=None):
         hbox = QHBoxLayout()
         buttons = self.get_toolbar_buttons()
         for b in buttons:
@@ -530,17 +531,28 @@ class MyTreeWidget(QTreeWidget):
             hbox.addWidget(b)
         hide_button = QPushButton('x')
         hide_button.setVisible(False)
-        hide_button.pressed.connect(lambda: self.show_toolbar(False))
+        hide_button.pressed.connect(lambda: self.show_toolbar(False, config))
         self.toolbar_buttons = buttons + (hide_button,)
         hbox.addStretch()
         hbox.addWidget(hide_button)
         return hbox
 
-    def show_toolbar(self, x):
+    def save_toolbar_state(self, state, config):
+        pass  # implemented in subclasses
+
+    def show_toolbar(self, state, config=None):
+        if state == self.toolbar_shown:
+            return
+        self.toolbar_shown = state
+        if config:
+            self.save_toolbar_state(state, config)
         for b in self.toolbar_buttons:
-            b.setVisible(x)
-        if not x:
+            b.setVisible(state)
+        if not state:
             self.on_hide_toolbar()
+
+    def toggle_toolbar(self, config=None):
+        self.show_toolbar(not self.toolbar_shown, config)
 
 
 class ButtonsWidget(QWidget):

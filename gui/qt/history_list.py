@@ -125,6 +125,9 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         self.end_timestamp = None
         self.update()
 
+    def save_toolbar_state(self, state, config):
+        config.set_key('show_toolbar_history', state)
+
     def select_start_date(self):
         self.start_timestamp = self.select_date(self.start_button)
         self.update()
