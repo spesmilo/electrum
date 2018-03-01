@@ -406,6 +406,7 @@ class MyTreeWidget(QTreeWidget):
         self.current_filter = ""
 
         self.setRootIsDecorated(False)  # remove left margin
+        self.toolbar_shown = False
 
     def update_headers(self, headers):
         self.setColumnCount(len(headers))
@@ -522,25 +523,36 @@ class MyTreeWidget(QTreeWidget):
             item.setHidden(all([item.text(column).lower().find(p) == -1
                                 for column in columns]))
 
-    def create_toolbar(self):
+    def create_toolbar(self, config=None):
         hbox = QHBoxLayout()
-        buttons = self.create_toolbar_buttons()
+        buttons = self.get_toolbar_buttons()
         for b in buttons:
             b.setVisible(False)
             hbox.addWidget(b)
         hide_button = QPushButton('x')
         hide_button.setVisible(False)
-        hide_button.pressed.connect(lambda: self.show_toolbar(False))
+        hide_button.pressed.connect(lambda: self.show_toolbar(False, config))
         self.toolbar_buttons = buttons + (hide_button,)
         hbox.addStretch()
         hbox.addWidget(hide_button)
         return hbox
 
-    def show_toolbar(self, x):
+    def save_toolbar_state(self, state, config):
+        pass  # implemented in subclasses
+
+    def show_toolbar(self, state, config=None):
+        if state == self.toolbar_shown:
+            return
+        self.toolbar_shown = state
+        if config:
+            self.save_toolbar_state(state, config)
         for b in self.toolbar_buttons:
-            b.setVisible(x)
-        if not x:
+            b.setVisible(state)
+        if not state:
             self.on_hide_toolbar()
+
+    def toggle_toolbar(self, config=None):
+        self.show_toolbar(not self.toolbar_shown, config)
 
 
 class ButtonsWidget(QWidget):
@@ -736,6 +748,19 @@ def export_meta_gui(electrum_window, title, exporter):
     else:
         electrum_window.show_message(_("Your {0} were exported to '{1}'")
                                      .format(title, str(filename)))
+
+
+def get_parent_main_window(widget):
+    """Returns a reference to the ElectrumWindow this widget belongs to."""
+    from .main_window import ElectrumWindow
+    for _ in range(100):
+        if widget is None:
+            return None
+        if not isinstance(widget, ElectrumWindow):
+            widget = widget.parentWidget()
+        else:
+            return widget
+    return None
 
 
 if __name__ == "__main__":

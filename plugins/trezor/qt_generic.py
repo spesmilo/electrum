@@ -321,8 +321,11 @@ class SettingsDialog(WindowModalDialog):
         def update(features):
             self.features = features
             set_label_enabled()
-            bl_hash = bh2u(features.bootloader_hash)
-            bl_hash = "\n".join([bl_hash[:32], bl_hash[32:]])
+            if features.bootloader_hash:
+                bl_hash = bh2u(features.bootloader_hash)
+                bl_hash = "\n".join([bl_hash[:32], bl_hash[32:]])
+            else:
+                bl_hash = "N/A"
             noyes = [_("No"), _("Yes")]
             endis = [_("Enable Passphrases"), _("Disable Passphrases")]
             disen = [_("Disabled"), _("Enabled")]

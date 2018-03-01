@@ -62,6 +62,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         self.start_timestamp = None
         self.end_timestamp = None
         self.years = []
+        self.create_toolbar_buttons()
 
     def format_date(self, d):
         return str(datetime.date(d.year, d.month, d.day)) if d else _('None')
@@ -115,12 +116,17 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         self.end_button.setEnabled(False)
         self.period_combo.addItems([_('All'), _('Custom')])
         self.period_combo.activated.connect(self.on_combo)
+
+    def get_toolbar_buttons(self):
         return self.period_combo, self.start_button, self.end_button
 
     def on_hide_toolbar(self):
         self.start_timestamp = None
         self.end_timestamp = None
         self.update()
+
+    def save_toolbar_state(self, state, config):
+        config.set_key('show_toolbar_history', state)
 
     def select_start_date(self):
         self.start_timestamp = self.select_date(self.start_button)

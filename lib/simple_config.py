@@ -351,7 +351,7 @@ class SimpleConfig(PrintError):
         pos = self.get_depth_level() if mempool else self.get_fee_level()
         fee_rate = self.fee_per_kb()
         target, tooltip = self.get_fee_text(pos, dyn, mempool, fee_rate)
-        return target
+        return target + '  [%s]'%tooltip
 
     def get_fee_text(self, pos, dyn, mempool, fee_rate):
         """Returns (text, tooltip) where
@@ -472,11 +472,7 @@ class SimpleConfig(PrintError):
         Returns True if an update should be requested.
         """
         now = time.time()
-        prev_updates = self.fee_estimates_last_updated.values()
-        oldest_fee_time = min(prev_updates) if prev_updates else 0
-        stale_fees = now - oldest_fee_time > 7200
-        old_request = now - self.last_time_fee_estimates_requested > 60
-        return stale_fees and old_request
+        return now - self.last_time_fee_estimates_requested > 60
 
     def requested_fee_estimates(self):
         self.last_time_fee_estimates_requested = time.time()
