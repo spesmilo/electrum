@@ -58,6 +58,9 @@ class AddressList(MyTreeWidget):
         self.show_used = 0
         self.update()
 
+    def save_toolbar_state(self, state, config):
+        config.set_key('show_toolbar_addresses', state)
+
     def refresh_headers(self):
         headers = [_('Type'), _('Address'), _('Label'), _('Balance')]
         fx = self.parent.fx
