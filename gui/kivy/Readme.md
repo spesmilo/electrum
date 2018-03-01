@@ -35,18 +35,29 @@ sudo python3 setup.py install
 Extract into `/opt/crystax-ndk-10.3.2`
 
 ## 3. Update the Android SDK build tools
-3.1 Start the Android SDK manager:
+
+### Method 1: Using the GUI
+
+  Start the Android SDK manager in GUI mode:
 
       ~/.buildozer/android/platform/android-sdk-20/tools/android
-      
-3.2 Check the latest SDK available and install it.
 
-3.3 Close the SDK manager.
+  Check the latest SDK available and install it.
+  Close the SDK manager.
+  Reopen the SDK manager, scroll to the bottom and install the latest build tools (probably v27)
+  Install "Android Support Library Repository" from the SDK manager.
 
-3.4 Reopen the SDK manager, scroll to the bottom and install the latest build tools (probably v27)
+### Method 2: Using the command line:
 
-## 4. Install the Support Library Repository
-Install "Android Support Library Repository" from the SDK manager.
+  Repeat the following command until there is nothing to install:
+
+      ~/.buildozer/android/platform/android-sdk-20/tools/android update sdk -u -t tools,platform-tools
+
+  Install Build Tools, android API 19 and Android Support Library:
+
+      ~/.buildozer/android/platform/android-sdk-20/tools/android update sdk -u -t build-tools-27.0.3,android-19,extra-android-m2repository
+
+
 
 ## 5. Create the UI Atlas
 In the `gui/kivy` directory of Electrum, run `make theming`.

@@ -613,7 +613,7 @@ class RestoreSeedDialog(WizardDialog):
             for c in line.children:
                 if isinstance(c, Button):
                     if c.text in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
-                        c.disabled = (c.text.lower() not in p) and last_word
+                        c.disabled = (c.text.lower() not in p) and bool(last_word)
                     elif c.text == ' ':
                         c.disabled = not enable_space
 
