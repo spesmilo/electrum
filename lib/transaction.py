@@ -467,7 +467,7 @@ def deserialize(raw):
     is_segwit = (n_vin == 0)
     if is_segwit:
         marker = vds.read_bytes(1)
-        assert marker == b'\x01'
+        assert marker == b'\x09'
         n_vin = vds.read_compact_size()
     d['inputs'] = [parse_input(vds) for i in range(n_vin)]
     n_vout = vds.read_compact_size()
