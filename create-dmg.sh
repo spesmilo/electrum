@@ -1,5 +1,7 @@
 #!/bin/sh
+
 sudo sh ./clean.sh
+
 VERSION=$(python3 -c "from lib import version; print(version.ELECTRUM_VERSION)")
 VERSION=${VERSION//ELECTRUM_VERSION=/}
 echo "Creating package $VERSION"

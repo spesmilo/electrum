@@ -49,15 +49,15 @@ Using Homebrew::
     # Build .app, .dmg
     ./create-dmg
 
-    # Run
-
+    # Run the .app in dist/, or
+    ./electrum-zcl
 
 For Linux:
 ----------
 
 Install Dependencies::
 
-  sudo apt-get install $(grep -vE "^\s*#" packages.txt  | tr "\n" " ") python-pip
+  sudo apt-get install python-pip pyqt5-dev-tools $(grep -vE "^\s*#" packages.txt  | tr "\n" " ")
 
   pip3 install -r requirements.txt
 

@@ -432,19 +432,16 @@ def time_difference(distance_in_time, include_seconds):
 
 # For raw json, append /insight-api-zcash
 mainnet_block_explorers = {
-    'Zcl-explorer.com': ('http://zcl-explorer.com/insight/',
+    'zcl-explorer.com': ('https://zcl-explorer.com',
                         {'tx': 'tx', 'addr': 'address'}),
-    'zclzclzcl.com': ('http://zclzclzcl.com',
+    'eu1.zcl-explorer.com': ('https://eu1.zcl-explorer.com',
                         {'tx': 'tx', 'addr': 'address'}),
-    'Zcl-explorer.com - Alternate 1': ('http://as1.zcl-explorer.com',
+    'as1.zcl-explorer.com': ('https://as1.zcl-explorer.com',
                         {'tx': 'tx', 'addr': 'address'}),
-    'Zcl-explorer.com - Alternate 2': ('http://eu1.zcl-explorer.com',
+    'explorer.zclassic.org': ('https://explorer.zclassic.org',
                         {'tx': 'tx', 'addr': 'address'}),
-    'explorer.zclassic.org': ('http://explorer.zclassic.org',
+    'zclzclzcl.com': ('https://zclzclzcl.com',
                         {'tx': 'tx', 'addr': 'address'}),
-    'explorer1.zclassic.org': ('http://explorer1.zclassic.org',
-                        {'tx': 'tx', 'addr': 'address'})
-
 }
 
 #http://zcl-explorer.com/insight/
@@ -454,9 +451,8 @@ mainnet_block_explorers = {
 #http://explorer.zclassic.org
 #http://explorer1.zclassic.org
 
-# TODO zcl testnet block explorer
 testnet_block_explorers = {
-    #'Blocktrail.com': ('https://www.blocktrail.com/tBTC',
+    #'testnet.zclassic.org': ('https://testnet.zclassic.org',
                        #{'tx': 'tx', 'addr': 'address'}),
     'system default': ('blockchain:',
                        {'tx': 'tx', 'addr': 'address'})
@@ -467,7 +463,7 @@ def block_explorer_info():
     return testnet_block_explorers if bitcoin.NetworkConstants.TESTNET else mainnet_block_explorers
 
 def block_explorer(config):
-    return config.get('block_explorer', 'Zcl-explorer.com')
+    return config.get('block_explorer', 'zcl-explorer.com')
 
 def block_explorer_tuple(config):
     return block_explorer_info().get(block_explorer(config))
