@@ -38,7 +38,7 @@ verify_signature() {
 verify_hash() {
     local file=$1 expected_hash=$2
     actual_hash=$(sha256sum $file | awk '{print $1}')
-    if [ "$actual_hash" = "$expected_hash" ]; then
+    if [ "$actual_hash" == "$expected_hash" ]; then
         return 0
     else
         echo "$file $actual_hash (unexpected hash)" >&2
