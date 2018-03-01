@@ -524,7 +524,7 @@ class MyTreeWidget(QTreeWidget):
 
     def create_toolbar(self):
         hbox = QHBoxLayout()
-        buttons = self.create_toolbar_buttons()
+        buttons = self.get_toolbar_buttons()
         for b in buttons:
             b.setVisible(False)
             hbox.addWidget(b)
