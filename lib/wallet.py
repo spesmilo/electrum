@@ -830,16 +830,16 @@ class Abstract_Wallet(PrintError):
                     prevout_hash = txi['prevout_hash']
                     prevout_n = txi['prevout_n']
                     ser = prevout_hash + ':%d'%prevout_n
-                # find value from prev output
                 if addr and self.is_mine(addr):
+                    # we only track is_mine spends
+                    self.spent_outpoints[ser] = tx_hash
+                    # find value from prev output
                     dd = self.txo.get(prevout_hash, {})
                     for n, v, is_cb in dd.get(addr, []):
                         if n == prevout_n:
                             if d.get(addr) is None:
                                 d[addr] = []
                             d[addr].append((ser, v))
-                            # we only track is_mine spends
-                            self.spent_outpoints[ser] = tx_hash
                             break
                     else:
                         self.pruned_txo[ser] = tx_hash
