@@ -6,7 +6,9 @@ python:
 install:
   - pip install -r contrib/requirements/requirements-travis.txt
 cache:
-  - pip
+  - pip: true
+  - directories:
+    - /tmp/electrum-build
 script:
     - tox
 after_success:
@@ -24,5 +26,6 @@ jobs:
         - sudo apt-add-repository https://dl.winehq.org/wine-builds/ubuntu/
         - sudo apt-get update -qq
         - sudo apt-get install -qq winehq-stable dirmngr gnupg2 p7zip-full
+      before_script: ls -lah /tmp/electrum-build
       script: ./contrib/build-wine/build.sh
       after_success: true
