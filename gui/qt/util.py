@@ -763,6 +763,21 @@ def get_parent_main_window(widget):
             return widget
     return None
 
+class SortableTreeWidgetItem(QTreeWidgetItem):
+    DataRole = Qt.UserRole + 1
+
+    def __lt__(self, other):
+        column = self.treeWidget().sortColumn()
+        if None not in [x.data(column, self.DataRole) for x in [self, other]]:
+            # We have set custom data to sort by
+            return self.data(column, self.DataRole) < other.data(column, self.DataRole)
+        try:
+            # Is the value something numeric?
+            return float(self.text(column)) < float(other.text(column))
+        except ValueError:
+            # If not, we will just do string comparison
+            return self.text(column) < other.text(column)
+
 
 if __name__ == "__main__":
     app = QApplication([])
