@@ -74,6 +74,7 @@ Update your Android build tools to version 27 like described above.
 
 ## Why do I get errors like  `(use -source 7 or higher to enable multi-catch statement)` while compiling?
 Make sure that your p4a installation includes commit a3cc78a6d1a107cd3b6bd28db8b80f89e3ecddd2.
+Also make sure you have recent SDK tools and platform-tools
 
 ## I changed something but I don't see any differences on the phone. What did I do wrong?
 You probably need to clear the cache: `rm -rf .buildozer/android/platform/build/{build,dists}`

@@ -162,12 +162,7 @@ class HistoryScreen(CScreen):
         count = 0
         for item in history:
             ri = self.get_card(*item)
-            count += 1
             history_card.add_widget(ri)
-
-        if count == 0:
-            msg = _('This screen shows your list of transactions. It is currently empty.')
-            history_card.add_widget(EmptyLabel(text=msg))
 
 
 class SendScreen(CScreen):

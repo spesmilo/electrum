@@ -83,6 +83,7 @@ class ElectrumWindow(App):
     num_chains = NumericProperty(0)
     blockchain_name = StringProperty('')
     fee_status = StringProperty('Fee')
+    balance = StringProperty('')
     blockchain_checkpoint = NumericProperty(0)
 
     auto_connect = BooleanProperty(False)
@@ -634,16 +635,16 @@ class ElectrumWindow(App):
             if not self.wallet.up_to_date or server_height == 0:
                 status = _("Synchronizing...")
             elif server_lag > 1:
-                status = _("Server lagging ({} blocks)").format(server_lag)
+                status = _("Server lagging")
             else:
-                c, u, x = self.wallet.get_balance()
-                text = self.format_amount(c+x+u)
-                status = str(text.strip() + ' ' + self.base_unit)
+                status = ''
         else:
             status = _("Disconnected")
-
-        n = self.wallet.basename()
-        self.status = '[size=15dp]%s[/size]\n%s' %(n, status)
+        self.status = self.wallet.basename() + (' [size=15dp](%s)[/size]'%status if status else '')
+        # balance
+        c, u, x = self.wallet.get_balance()
+        text = self.format_amount(c+x+u)
+        self.balance = str(text.strip() + ' ' + self.base_unit)
         #fiat_balance = self.fx.format_amount_and_units(c+u+x) or ''
 
     def get_max_amount(self):

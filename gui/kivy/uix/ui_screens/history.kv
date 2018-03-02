@@ -62,13 +62,23 @@
 HistoryScreen:
     name: 'history'
     content: content
-    ScrollView:
-        id: content
-        do_scroll_x: False
-        GridLayout
-            id: history_container
-            cols: 1
-            size_hint: 1, None
-            height: self.minimum_height
-            padding: '12dp'
-            spacing: '2dp'
+    BoxLayout:
+        orientation: 'vertical'
+        Label:
+            text: app.balance
+            color: .699, .699, .699, 1
+            font_size: '22dp'
+            bold: True
+            size_hint: 1, 0.25
+        ScrollView:
+            id: content
+            do_scroll_x: False
+            size_hint: 1, 0.75
+            #height: self.minimum_height
+            GridLayout
+                id: history_container
+                cols: 1
+                size_hint: 1, None
+                height: self.minimum_height
+                padding: '12dp'
+                spacing: '2dp'
