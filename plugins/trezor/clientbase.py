@@ -55,6 +55,9 @@ class GuiMixin(object):
         return self.proto.PinMatrixAck(pin=pin)
 
     def callback_PassphraseRequest(self, req):
+        if req and hasattr(req, 'on_device') and req.on_device is True:
+            return self.proto.PassphraseAck()
+
         if self.creating_wallet:
             msg = _("Enter a passphrase to generate this wallet.  Each time "
                     "you use this wallet your {} will prompt you for the "
@@ -67,6 +70,9 @@ class GuiMixin(object):
             return self.proto.Cancel()
         passphrase = bip39_normalize_passphrase(passphrase)
         return self.proto.PassphraseAck(passphrase=passphrase)
+
+    def callback_PassphraseStateRequest(self, msg):
+        return self.proto.PassphraseStateAck()
 
     def callback_WordRequest(self, msg):
         self.step += 1
