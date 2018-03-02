@@ -129,7 +129,6 @@ Section
   CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\Uninstall.exe" 0
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME}.lnk" "$INSTDIR\electrum-ftc-${PRODUCT_VERSION}.exe" "" "$INSTDIR\electrum-ftc-${PRODUCT_VERSION}.exe" 0
-  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME} Testnet.lnk" "$INSTDIR\electrum-ftc-${PRODUCT_VERSION}.exe" "--testnet" "$INSTDIR\electrum-ftc-${PRODUCT_VERSION}.exe" 0
 
 
   ;Links feathercoin: URI's to Electrum

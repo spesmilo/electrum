@@ -15,8 +15,3 @@ StartupWMClass=electrum
 Terminal=false
 Type=Application
 MimeType=x-scheme-handler/feathercoin;
-Actions=Testnet;
-
-[Desktop Action Testnet]
-Exec=sh -c "PATH=\"\\$HOME/.local/bin:\\$PATH\" electrum-ftc --testnet %u"
-Name=Testnet mode
