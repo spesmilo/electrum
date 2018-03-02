@@ -2,19 +2,19 @@
 # sudo desktop-file-install electrum.desktop
 
 [Desktop Entry]
-Comment=Lightweight Bitcoin Client
-Exec=sh -c "PATH=\"\\$HOME/.local/bin:\\$PATH\"; electrum %u"
-GenericName[en_US]=Bitcoin Wallet
-GenericName=Bitcoin Wallet
+Comment=Lightweight Feathercoin Client
+Exec=sh -c "PATH=\"\\$HOME/.local/bin:\\$PATH\" electrum %u"
+GenericName[en_US]=Feathercoin Wallet
+GenericName=Feathercoin Wallet
 Icon=electrum
-Name[en_US]=Electrum Bitcoin Wallet
-Name=Electrum Bitcoin Wallet
+Name[en_US]=Electrum Feathercoin Wallet
+Name=Electrum Feathercoin Wallet
 Categories=Finance;Network;
 StartupNotify=true
 StartupWMClass=electrum
 Terminal=false
 Type=Application
-MimeType=x-scheme-handler/bitcoin;
+MimeType=x-scheme-handler/feathercoin;
 Actions=Testnet;
 
 [Desktop Action Testnet]

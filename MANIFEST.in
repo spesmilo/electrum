@@ -1,6 +1,6 @@
 include LICENCE RELEASE-NOTES AUTHORS
 include README.rst
-include electrum.desktop
+include electrum-ftc.desktop
 include *.py
 include run_electrum
 include contrib/requirements/requirements.txt
