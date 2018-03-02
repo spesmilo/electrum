@@ -1,10 +1,10 @@
 # Configuration file for the electrum client
 # Settings defined here are shared across wallets
 #
-# copy this file to /etc/electrum.conf if you want read-only settings
+# copy this file to /etc/electrum-ftc.conf if you want read-only settings
 
 [client]
-server = electrum.novit.ro:50001:t
+server = electrumx-ch-1.feathercoin.ch:50001:t
 proxy = None
 gap_limit = 5
 # booleans use python syntax

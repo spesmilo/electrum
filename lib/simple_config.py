@@ -9,7 +9,7 @@ from .util import user_dir, print_error, print_stderr, PrintError
 
 from .bitcoin import MAX_FEE_RATE, FEE_TARGETS
 
-SYSTEM_CONFIG_PATH = "/etc/electrum.conf"
+SYSTEM_CONFIG_PATH = "/etc/electrum-ftc.conf"
 
 config = None
 
@@ -278,7 +278,7 @@ class SimpleConfig(PrintError):
 
 
 def read_system_config(path=SYSTEM_CONFIG_PATH):
-    """Parse and return the system config settings in /etc/electrum.conf."""
+    """Parse and return the system config settings in /etc/electrum-ftc.conf."""
     result = {}
     if os.path.exists(path):
         import configparser

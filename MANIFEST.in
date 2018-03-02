@@ -1,7 +1,7 @@
 include LICENCE RELEASE-NOTES AUTHORS
 include README.rst
 include electrum.conf.sample
-include electrum.desktop
+include electrum-ftc.desktop
 include *.py
 include electrum
 recursive-include lib *.py

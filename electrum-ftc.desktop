@@ -1,0 +1,16 @@
+# If you want electrum to appear in a linux app launcher ("start menu"), install this by doing:
+# sudo desktop-file-install electrum-ftc.desktop
+
+[Desktop Entry]
+Comment=Lightweight Feathercoin Client
+Exec=electrum %u
+GenericName[en_US]=Feathercoin Wallet
+GenericName=Feathercoin Wallet
+Icon=electrum-ftc
+Name[en_US]=Electrum Feathercoin Wallet
+Name=Electrum Feathercoin Wallet
+Categories=Finance;Network;
+StartupNotify=false
+Terminal=false
+Type=Application
+MimeType=x-scheme-handler/feathercoin;
