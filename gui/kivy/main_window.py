@@ -843,6 +843,8 @@ class ElectrumWindow(App):
 
     def on_fee(self, event, *arg):
         self.fee_status = self.electrum_config.get_fee_status()
+        if self._fee_dialog:
+            self._fee_dialog.update_text()
 
     def protected(self, msg, f, args):
         if self.wallet.has_password():
