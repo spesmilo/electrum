@@ -451,6 +451,12 @@ class FxThread(ThreadJob):
     def set_history_config(self, b):
         self.config.set_key('history_rates', bool(b))
 
+    def get_history_capital_gains_config(self):
+        return bool(self.config.get('history_rates_capital_gains', False))
+
+    def set_history_capital_gains_config(self, b):
+        self.config.set_key('history_rates_capital_gains', bool(b))
+
     def get_fiat_address_config(self):
         return bool(self.config.get('fiat_address'))
 
