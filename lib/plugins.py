@@ -502,7 +502,8 @@ class DeviceMgr(ThreadJob, PrintError):
         info = infos[c]
         # save new label
         keystore.set_label(info.label)
-        handler.win.wallet.save_keystore()
+        if handler.win.wallet is not None:
+            handler.win.wallet.save_keystore()
         return info
 
     def scan_devices(self):
