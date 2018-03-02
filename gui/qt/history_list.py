@@ -72,9 +72,10 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         fx = self.parent.fx
         if fx and fx.show_history():
             headers.extend(['%s '%fx.ccy + _('Value')])
-            headers.extend(['%s '%fx.ccy + _('Acquisition price')])
-            headers.extend(['%s '%fx.ccy + _('Capital Gains')])
             self.editable_columns |= {6}
+            if fx.get_history_capital_gains_config():
+                headers.extend(['%s '%fx.ccy + _('Acquisition price')])
+                headers.extend(['%s '%fx.ccy + _('Capital Gains')])
         else:
             self.editable_columns -= {6}
         self.update_headers(headers)

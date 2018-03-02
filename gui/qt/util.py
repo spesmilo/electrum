@@ -209,6 +209,7 @@ class MessageBoxMixin(object):
             d = QMessageBox(icon, title, str(text), buttons, parent)
         d.setWindowModality(Qt.WindowModal)
         d.setDefaultButton(defaultButton)
+        d.setTextInteractionFlags(Qt.TextSelectableByMouse)
         return d.exec_()
 
 class WindowModalDialog(QDialog, MessageBoxMixin):
