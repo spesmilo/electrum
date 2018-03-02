@@ -866,16 +866,19 @@ class Abstract_Wallet(PrintError):
             return True
 
     def remove_transaction(self, tx_hash):
-        def undo_spend(outpoint_to_txid_map):
-            for addr, l in self.txi[tx_hash].items():
-                for ser, v in l:
-                    outpoint_to_txid_map.pop(ser, None)
 
         with self.transaction_lock:
             self.print_error("removing tx from history", tx_hash)
             self.transactions.pop(tx_hash, None)
-            undo_spend(self.pruned_txo)
-            undo_spend(self.spent_outpoints)
+            # undo spent_outpoints that are in txi
+            for addr, l in self.txi[tx_hash].items():
+                for ser, v in l:
+                    self.spent_outpoints.pop(ser, None)
+            # undo spent_outpoints that are in pruned_txo
+            for ser, hh in list(self.pruned_txo.items()):
+                if hh == tx_hash:
+                    self.spent_outpoints.pop(ser)
+                    self.pruned_txo.pop(ser)
 
             # add tx to pruned_txo, and undo the txi addition
             for next_tx, dd in self.txi.items():
