@@ -40,6 +40,7 @@ from .bitcoin import *
 from .interface import Connection, Interface
 from . import blockchain
 from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
+from .i18n import _
 
 
 NODES_RETRY_INTERVAL = 60
@@ -1069,7 +1070,7 @@ class Network(util.DaemonThread):
         try:
             r = q.get(True, timeout)
         except queue.Empty:
-            raise BaseException('Server did not answer')
+            raise util.TimeoutException(_('Server did not answer'))
         if r.get('error'):
             raise BaseException(r.get('error'))
         return r.get('result')
