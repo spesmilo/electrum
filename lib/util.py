@@ -74,6 +74,16 @@ class FileExportFailed(Exception):
         return _("Failed to export to file.") + "\n" + self.message
 
 
+class TimeoutException(Exception):
+    def __init__(self, message=''):
+        self.message = str(message)
+
+    def __str__(self):
+        if not self.message:
+            return _("Operation timed out.")
+        return self.message
+
+
 # Throw this exception to unwind the stack like when an error occurs.
 # However unlike other exceptions the user won't be informed.
 class UserCancelled(Exception):
