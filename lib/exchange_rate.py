@@ -505,6 +505,10 @@ class FxThread(ThreadJob):
             return Decimal('NaN')
         return Decimal(rate)
 
+    def format_amount(self, btc_balance):
+        rate = self.exchange_rate()
+        return '' if rate.is_nan() else "%s" % self.value_str(btc_balance, rate)
+
     def format_amount_and_units(self, btc_balance):
         rate = self.exchange_rate()
         return '' if rate.is_nan() else "%s %s" % (self.value_str(btc_balance, rate), self.ccy)

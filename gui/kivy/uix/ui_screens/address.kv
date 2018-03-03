@@ -24,26 +24,11 @@
             shorten: True
         Widget
         AddressLabel:
-            text: root.memo
+            text: (root.amount if root.status == 'Funded' else root.status) + '     ' + root.memo
             color: .699, .699, .699, 1
             font_size: '13sp'
             shorten: True
         Widget
-    BoxLayout:
-        spacing: '8dp'
-        height: '32dp'
-        orientation: 'vertical'
-        Widget
-        AddressLabel:
-            text: root.amount
-            halign: 'right'
-            font_size: '15sp'
-        Widget
-        AddressLabel:
-            text: root.status
-            halign: 'right'
-            font_size: '13sp'
-            color: .699, .699, .699, 1 
 
 AddressScreen:
     id: addr_screen
@@ -103,4 +88,3 @@ AddressScreen:
                 id: search_container
                 size_hint_y: None
                 height: self.minimum_height
-                spacing: '2dp'

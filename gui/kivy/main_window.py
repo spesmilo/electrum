@@ -84,6 +84,8 @@ class ElectrumWindow(App):
     blockchain_name = StringProperty('')
     fee_status = StringProperty('Fee')
     balance = StringProperty('')
+    fiat_balance = StringProperty('')
+    is_fiat = BooleanProperty(False)
     blockchain_checkpoint = NumericProperty(0)
 
     auto_connect = BooleanProperty(False)
@@ -644,8 +646,8 @@ class ElectrumWindow(App):
         # balance
         c, u, x = self.wallet.get_balance()
         text = self.format_amount(c+x+u)
-        self.balance = str(text.strip() + ' ' + self.base_unit)
-        #fiat_balance = self.fx.format_amount_and_units(c+u+x) or ''
+        self.balance = str(text.strip()) + ' [size=22dp]%s[/size]'% self.base_unit
+        self.fiat_balance = self.fx.format_amount(c+u+x) + ' [size=22dp]%s[/size]'% self.fx.ccy
 
     def get_max_amount(self):
         inputs = self.wallet.get_spendable_coins(None, self.electrum_config)
