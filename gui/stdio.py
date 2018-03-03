@@ -85,12 +85,11 @@ class ElectrumGui:
         delta = (80 - sum(width) - 4)/3
         format_str = "%"+"%d"%width[0]+"s"+"%"+"%d"%(width[1]+delta)+"s"+"%" \
         + "%d"%(width[2]+delta)+"s"+"%"+"%d"%(width[3]+delta)+"s"
-        b = 0
         messages = []
 
         for item in self.wallet.get_history():
-            tx_hash, confirmations, value, timestamp, balance = item
-            if confirmations:
+            tx_hash, height, conf, timestamp, delta, balance = item
+            if conf:
                 try:
                     time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
                 except Exception:
@@ -99,7 +98,7 @@ class ElectrumGui:
                 time_str = 'unconfirmed'
 
             label = self.wallet.get_label(tx_hash)
-            messages.append( format_str%( time_str, label, format_satoshis(value, whitespaces=True), format_satoshis(balance, whitespaces=True) ) )
+            messages.append( format_str%( time_str, label, format_satoshis(delta, whitespaces=True), format_satoshis(balance, whitespaces=True) ) )
 
         self.print_list(messages[::-1], format_str%( _("Date"), _("Description"), _("Amount"), _("Balance")))
 
@@ -149,12 +148,13 @@ class ElectrumGui:
         for i, x in enumerate( self.wallet.network.banner.split('\n') ):
             print( x )
 
-    def print_list(self, list, firstline):
-        self.maxpos = len(list)
+    def print_list(self, lst, firstline):
+        lst = list(lst)
+        self.maxpos = len(lst)
         if not self.maxpos: return
         print(firstline)
         for i in range(self.maxpos):
-            msg = list[i] if i < len(list) else ""
+            msg = lst[i] if i < len(lst) else ""
             print(msg)
 
 
@@ -176,7 +176,7 @@ class ElectrumGui:
             print(_('Invalid Fee'))
             return
 
-        if self.wallet.use_encryption:
+        if self.wallet.has_password():
             password = self.password_dialog()
             if not password:
                 return
