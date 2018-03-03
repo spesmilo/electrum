@@ -36,7 +36,7 @@ from electroncash.networks import NetworkConstants
 
 from . import util
 
-RE_ALIAS = '^(.*?)\s*\<([1-9A-Za-z]{26,})\>$'
+RE_ALIAS = '^(.*?)\s*\<([0-9A-Za-z:]{26,})\>$'
 
 frozen_style = "QWidget { background-color:none; border:none;}"
 normal_style = "QPlainTextEdit { }"
