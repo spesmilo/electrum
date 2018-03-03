@@ -212,9 +212,9 @@ class Daemon(DaemonThread):
             #    response = "ok"
             #else:
             #    response = "error: current GUI does not support multiple windows"
-            response = "error: Electrum GUI already running"
+            response = "error: Electron Cash GUI already running"
         else:
-            response = "Error: Electrum is running in daemon mode. Please stop the daemon first."
+            response = "Error: Electron Cash is running in daemon mode. Please stop the daemon first."
         return response
 
     def load_wallet(self, path, password):
