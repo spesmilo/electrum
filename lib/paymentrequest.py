@@ -72,6 +72,7 @@ PR_PAID    = 3     # send and propagated
 def get_payment_request(url):
     u = urllib.parse.urlparse(url)
     error = None
+    response = None
     if u.scheme in ['http', 'https']:
         try:
             response = requests.request('GET', url, headers=REQUEST_HEADERS)
@@ -86,7 +87,10 @@ def get_payment_request(url):
             print_error('fetched payment request', url, len(response.content))
         except requests.exceptions.RequestException:
             data = None
-            error = "payment URL not pointing to a valid server"
+            if response is not None:
+                error = response.content.decode()
+            else:
+                error = "payment URL not pointing to a valid server"
     elif u.scheme == 'file':
         try:
             with open(u.path, 'r') as f:
