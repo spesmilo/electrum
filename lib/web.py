@@ -25,6 +25,7 @@ from decimal import Decimal
 import os
 import re
 import shutil
+import threading
 import urllib
 
 from .address import Address
