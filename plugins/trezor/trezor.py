@@ -434,6 +434,9 @@ class TrezorPlugin(HW_PluginBase):
 
     def electrum_tx_to_txtype(self, tx):
         t = self.types.TransactionType()
+        if tx is None:
+            # probably for segwit input and we don't need this prev txn
+            return t
         d = deserialize(tx.raw)
         t.version = d['version']
         t.lock_time = d['lockTime']
