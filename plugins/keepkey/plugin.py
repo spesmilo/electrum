@@ -4,8 +4,9 @@ from binascii import hexlify, unhexlify
 
 from electrum.util import bfh, bh2u
 from electrum.bitcoin import (b58_address_to_hash160, xpub_from_pubkey,
-                              TYPE_ADDRESS, TYPE_SCRIPT, NetworkConstants,
+                              TYPE_ADDRESS, TYPE_SCRIPT,
                               is_segwit_address)
+from electrum import constants
 from electrum.i18n import _
 from electrum.plugins import BasePlugin
 from electrum.transaction import deserialize
@@ -139,7 +140,7 @@ class KeepKeyCompatiblePlugin(HW_PluginBase):
         return client
 
     def get_coin_name(self):
-        return "Testnet" if NetworkConstants.TESTNET else "Bitcoin"
+        return "Testnet" if constants.net.TESTNET else "Bitcoin"
 
     def initialize_device(self, device_id, wizard, handler):
         # Initialization method
@@ -344,9 +345,9 @@ class KeepKeyCompatiblePlugin(HW_PluginBase):
                         txoutputtype.script_type = self.types.PAYTOWITNESS
                     else:
                         addrtype, hash_160 = b58_address_to_hash160(address)
-                        if addrtype == NetworkConstants.ADDRTYPE_P2PKH:
+                        if addrtype == constants.net.ADDRTYPE_P2PKH:
                             txoutputtype.script_type = self.types.PAYTOADDRESS
-                        elif addrtype == NetworkConstants.ADDRTYPE_P2SH:
+                        elif addrtype == constants.net.ADDRTYPE_P2SH:
                             txoutputtype.script_type = self.types.PAYTOSCRIPTHASH
                         else:
                             raise BaseException('addrtype: ' + str(addrtype))
