@@ -39,6 +39,7 @@ Builder.load_string('''
                     size_hint: 1, None
                     font_size: '20dp'
                     height: '48dp'
+                    disabled: not app.fx.is_enabled()
                     on_release:
                         kb.is_fiat = True
             Widget:

@@ -179,8 +179,10 @@ class ElectrumWindow(App):
     def btc_to_fiat(self, amount_str):
         if not amount_str:
             return ''
+        if not self.fx.is_enabled():
+            return ''
         rate = self.fx.exchange_rate()
-        if not rate:
+        if rate.is_nan():
             return ''
         fiat_amount = self.get_amount(amount_str + ' ' + self.base_unit) * rate / pow(10, 8)
         return "{:.2f}".format(fiat_amount).rstrip('0').rstrip('.')
@@ -189,7 +191,7 @@ class ElectrumWindow(App):
         if not fiat_amount:
             return ''
         rate = self.fx.exchange_rate()
-        if not rate:
+        if rate.is_nan():
             return ''
         satoshis = int(pow(10,8) * Decimal(fiat_amount) / Decimal(rate))
         return format_satoshis_plain(satoshis, self.decimal_point())
