@@ -798,5 +798,14 @@
         "RUB",
         "USD"
     ],
-    "itBit": []
-}
+     "itBit": [],
+     "Bitbank": [
+         "JPY"
+     ],
+     "BitFlyer": [
+         "JPY"
+     ],
+     "Zaif": [
+         "JPY"
+     ]
+ }
