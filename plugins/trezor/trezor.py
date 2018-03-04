@@ -4,7 +4,8 @@ from binascii import hexlify, unhexlify
 
 from electrum.util import bfh, bh2u, versiontuple
 from electrum.bitcoin import (b58_address_to_hash160, xpub_from_pubkey,
-                              TYPE_ADDRESS, TYPE_SCRIPT, NetworkConstants)
+                              TYPE_ADDRESS, TYPE_SCRIPT)
+from electrum import constants
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, Device
 from electrum.transaction import deserialize
@@ -173,7 +174,7 @@ class TrezorPlugin(HW_PluginBase):
         return client
 
     def get_coin_name(self):
-        return "Testnet" if NetworkConstants.TESTNET else "Bitcoin"
+        return "Testnet" if constants.net.TESTNET else "Bitcoin"
 
     def initialize_device(self, device_id, wizard, handler):
         # Initialization method

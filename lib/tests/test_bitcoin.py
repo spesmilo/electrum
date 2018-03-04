@@ -11,8 +11,9 @@ from lib.bitcoin import (
     var_int, op_push, address_to_script, regenerate_key,
     verify_message, deserialize_privkey, serialize_privkey, is_segwit_address,
     is_b58_address, address_to_scripthash, is_minikey, is_compressed, is_xpub,
-    xpub_type, is_xprv, is_bip32_derivation, seed_type, NetworkConstants)
+    xpub_type, is_xprv, is_bip32_derivation, seed_type)
 from lib.util import bfh
+from lib import constants
 
 try:
     import ecdsa
@@ -168,12 +169,12 @@ class Test_bitcoin_testnet(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        NetworkConstants.set_testnet()
+        constants.set_testnet()
 
     @classmethod
     def tearDownClass(cls):
         super().tearDownClass()
-        NetworkConstants.set_mainnet()
+        constants.set_mainnet()
 
     def test_address_to_script(self):
         # bech32 native segwit

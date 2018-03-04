@@ -7,6 +7,7 @@ try:
     import electrum
     from electrum.bitcoin import TYPE_ADDRESS, push_script, var_int, msg_magic, Hash, verify_message, pubkey_from_signature, point_to_ser, public_key_to_p2pkh, EncodeAES, DecodeAES, MyVerifyingKey
     from electrum.bitcoin import serialize_xpub, deserialize_xpub
+    from electrum import constants
     from electrum.transaction import Transaction
     from electrum.i18n import _
     from electrum.keystore import Hardware_KeyStore
@@ -92,10 +93,10 @@ class DigitalBitbox_Client():
         if reply:
             xpub = reply['xpub']
             # Change type of xpub to the requested type. The firmware
-            # only ever returns the standard type, but it is agnostic
+            # only ever returns the mainnet standard type, but it is agnostic
             # to the type when signing.
-            if xtype != 'standard':
-                _, depth, fingerprint, child_number, c, cK = deserialize_xpub(xpub)
+            if xtype != 'standard' or constants.net.TESTNET:
+                _, depth, fingerprint, child_number, c, cK = deserialize_xpub(xpub, net=constants.BitcoinMainnet)
                 xpub = serialize_xpub(xtype, c, cK, depth, fingerprint, child_number)
             return xpub
         else:

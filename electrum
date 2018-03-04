@@ -89,6 +89,7 @@ if is_local or is_android:
 
 
 from electrum import bitcoin, util
+from electrum import constants
 from electrum import SimpleConfig, Network
 from electrum.wallet import Wallet, Imported_Wallet
 from electrum.storage import WalletStorage, get_derivation_used_for_hw_device_encryption
@@ -411,7 +412,7 @@ if __name__ == '__main__':
     cmdname = config.get('cmd')
 
     if config.get('testnet'):
-        bitcoin.NetworkConstants.set_testnet()
+        constants.set_testnet()
 
     # run non-RPC commands separately
     if cmdname in ['create', 'restore']:
