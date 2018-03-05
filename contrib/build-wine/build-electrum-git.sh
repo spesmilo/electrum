@@ -16,6 +16,7 @@ PYTHON="wine $PYHOME/python.exe -OO -B"
 cd `dirname $0`
 set -e
 
+mkdir -p tmp
 cd tmp
 
 for repo in electrum-ltc electrum-ltc-locale electrum-ltc-icons; do
