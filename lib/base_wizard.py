@@ -131,7 +131,7 @@ class BaseWizard(object):
             choices = [
                 ('choose_seed_type', _('Create a new seed')),
                 ('restore_from_seed', _('I already have a seed')),
-                ('restore_from_key', _('Use public or private keys')),
+                ('restore_from_key', _('Use a master key')),
             ]
             if not self.is_kivy:
                 choices.append(('choose_hw_device',  _('Use a hardware device')))
