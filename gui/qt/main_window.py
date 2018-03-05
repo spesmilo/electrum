@@ -1043,7 +1043,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         completer = QCompleter()
         completer.setCaseSensitivity(False)
-        self.payto_e.setCompleter(completer)
+        self.payto_e.set_completer(completer)
         completer.setModel(self.completions)
 
         msg = _('Description of the transaction (not mandatory).') + '\n\n'\
