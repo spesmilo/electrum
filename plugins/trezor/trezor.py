@@ -4,7 +4,8 @@ from binascii import hexlify, unhexlify
 
 from electrum_ltc.util import bfh, bh2u, versiontuple
 from electrum_ltc.bitcoin import (b58_address_to_hash160, xpub_from_pubkey,
-                                  TYPE_ADDRESS, TYPE_SCRIPT, NetworkConstants)
+                                  TYPE_ADDRESS, TYPE_SCRIPT)
+from electrum_ltc import constants
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin, Device
 from electrum_ltc.transaction import deserialize
@@ -173,7 +174,7 @@ class TrezorPlugin(HW_PluginBase):
         return client
 
     def get_coin_name(self):
-        return "Testnet" if NetworkConstants.TESTNET else "Litecoin"
+        return "Testnet" if constants.net.TESTNET else "Litecoin"
 
     def initialize_device(self, device_id, wizard, handler):
         # Initialization method

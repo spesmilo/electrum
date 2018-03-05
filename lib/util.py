@@ -516,8 +516,8 @@ testnet_block_explorers = {
 }
 
 def block_explorer_info():
-    from . import bitcoin
-    return testnet_block_explorers if bitcoin.NetworkConstants.TESTNET else mainnet_block_explorers
+    from . import constants
+    return testnet_block_explorers if constants.net.TESTNET else mainnet_block_explorers
 
 def block_explorer(config):
     return config.get('block_explorer', 'LiteCore')

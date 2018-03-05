@@ -36,7 +36,7 @@ from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import *
 
 from electrum_ltc.i18n import _
-from electrum_ltc import ELECTRUM_VERSION, bitcoin
+from electrum_ltc import ELECTRUM_VERSION, bitcoin, constants
 
 issue_template = """<h2>Traceback</h2>
 <pre>
@@ -107,7 +107,7 @@ class Exception_Window(QWidget):
         self.show()
 
     def send_report(self):
-        if bitcoin.NetworkConstants.GENESIS[-4:] not in ["29a0", "bfe2"] and ".electrum-ltc.org" in report_server:
+        if constants.net.GENESIS[-4:] not in ["29a0", "bfe2"] and ".electrum-ltc.org" in report_server:
             # Gah! Some kind of altcoin wants to send us crash reports.
             self.main_window.show_critical(_("Please report this issue manually."))
             return
